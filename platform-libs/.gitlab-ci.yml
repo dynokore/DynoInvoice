@@ -59,13 +59,25 @@ variables:
       }
     - |
       # Every module directory that is its own Gradle project (STK-60, one per
-      # Wave 1 module) plus `platform-libs-bom`, and, for each, the changed +
-      # downstream computation done-when asks for. A downstream module is one
-      # whose build.gradle.kts contains `project(":<changed module>")` — read
-      # from the real dependency declarations, not a hand-kept list, so this
-      # keeps working as real module dependencies are added.
+      # Wave 1 module), for the changed + downstream computation done-when
+      # asks for. A downstream module is one whose build.gradle.kts contains
+      # `project(":<changed module>")` — read from the real dependency
+      # declarations, not a hand-kept list, so this keeps working as real
+      # module dependencies are added.
+      #
+      # `platform-libs-bom` is excluded here: it is a `java-platform` module
+      # (no Kotlin plugin, review finding on !1) and so never has a
+      # compileKotlin/compileTestKotlin/test task to run — permanently, not
+      # just today, since a BOM publishes only dependency-management metadata.
+      # It still gets its own `check`/`publish` from the generic templates
+      # (ci/build.gitlab-ci.yml, ci/publish.gitlab-ci.yml), unaffected by this
+      # job's module-scoped compile/test tasks.
       gst_all_modules() {
-        for f in */build.gradle.kts; do dirname "$f"; done
+        for f in */build.gradle.kts; do
+          m=$(dirname "$f")
+          [ "$m" = "platform-libs-bom" ] && continue
+          echo "$m"
+        done
       }
       gst_changed_downstream_modules() {
         base="${CI_MERGE_REQUEST_DIFF_BASE_SHA:-}"

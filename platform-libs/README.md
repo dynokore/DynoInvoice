@@ -30,3 +30,19 @@ The shared modules of the INV platform: the L1 modules, the L2 modules and the L
 - **A bill of materials** names a set of module versions tested together; a service bumps that one line.
 - **Ownership** is per directory (CODEOWNERS, once teams are named).
 - A module moves to its own repository when it gains consumers outside INV, its release cadence stays different from the rest, or a separate team owns it.
+
+## Building locally
+
+`platform-build`'s `gst.*` convention plugins and its shared Konsist rule set
+are not published to a registry yet, so `settings.gradle.kts` consumes them
+from a **sibling checkout**: it expects `platform-build` checked out next to
+this repository, at `../platform-build` (the same layout `~/projects/invoice/`
+already uses). Clone it there before running `./gradlew` locally:
+
+```sh
+git clone http://registry.example.internal/invoice/platform-build.git ../platform-build
+```
+
+CI does the equivalent clone itself (`.gitlab-ci.yml`), so this is only needed
+for a local build. Once `platform-build`'s registry publishing lands, this
+requirement goes away.
