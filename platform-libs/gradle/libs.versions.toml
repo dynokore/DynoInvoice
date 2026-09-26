@@ -1,0 +1,22 @@
+# gradle/libs.versions.toml — platform-libs' own version catalogue (STK-01 §1).
+#
+# platform-build's own gradle/libs.versions.toml is internal to its build (its
+# `build-logic`, STK-59); it is not a shared catalogue other repositories import.
+# Every consuming repository keeps its own, the way TPL-01 assumes
+# (`libs.versions.platformBuild`, `libs.platform.*`) — gst.kotlin-base's
+# `checkDependencyCatalogUsage` (STK §1b(a)) enforces that every dependency here
+# goes through an alias, never a literal coordinate.
+
+[versions]
+# The gst.* convention plugins and platform-build's shared Konsist rule set ship
+# together as one train (konsist-rules/build.gradle.kts); pinned to match the
+# sibling checkout's current version until STK-71's registry takes cross-project
+# publish/consume (settings.gradle.kts, ci/README.md's "package registry" note).
+platformBuild = "0.2.0"
+junit = "6.1.3"
+
+[libraries]
+platform-konsistRules = { module = "com.dynokore.gst.build:konsist-rules", version.ref = "platformBuild" }
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
+junit-platformLauncher = { module = "org.junit.platform:junit-platform-launcher" }

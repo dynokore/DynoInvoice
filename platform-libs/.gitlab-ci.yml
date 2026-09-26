@@ -1,0 +1,162 @@
+# .gitlab-ci.yml — platform-libs (INV-T-2860 / T16).
+#
+# Uses platform-build's shared CI templates (ci/README.md). Two additions on top
+# of the plain include:
+#
+# 1. `platform-build`'s convention plugins and shared Konsist rule set are not
+#    published to a registry yet (ci/README.md's "package registry" note), so
+#    every Gradle-backed job needs a sibling checkout of `platform-build` at
+#    `../platform-build` — what `settings.gradle.kts`'s `pluginManagement.includeBuild`
+#    and `includeBuild` expect (named in the MR as the chosen consumption
+#    method). `.gst-sibling-checkout` clones it once per job, replacing
+#    `.gradle-job`'s own `before_script` (ci/stages.gitlab-ci.yml) with one that
+#    clones first and then defines the same `gst_run_if_task_exists` helper.
+#    This clone needs invoice/platform-build's CI/CD "Token Access" allowlist to
+#    include invoice/platform-libs — the same Maintainer action ci/README.md
+#    already names as a follow-up for cross-project Maven publish; until it is
+#    granted, these jobs fail at the clone step with a clear message (AGT-24),
+#    not silently.
+#
+# 2. A `build-changed-modules` job (done-when, INV-T-2860): computes the modules
+#    this change touches plus every module downstream of them (a module whose
+#    build.gradle.kts has `project(":<changed module>")`), from the diff against
+#    the merge-request base (or the previous commit on a `main` pipeline), and
+#    compiles + tests only that set — the generic `compile`/`unit-test` jobs
+#    below are overridden the same way, to actually save the CI time this is
+#    for, rather than running twice.
+
+include:
+  - project: 'invoice/platform-build'
+    ref: main
+    file:
+      - 'ci/stages.gitlab-ci.yml'   # always first: stages, workflow rules, shared variables
+      - 'ci/build.gitlab-ci.yml'    # compile, unit tests, lint, Semgrep, Trivy
+      - 'ci/image.gitlab-ci.yml'    # unused here (no IMAGE_NAME) but harmless to include (ci/README.md)
+      - 'ci/publish.gitlab-ci.yml'  # Maven publish
+
+variables:
+  MAVEN_PUBLISH: "true"
+  # IMAGE_NAME, HELM_CHART_NAME stay unset: platform-libs ships jars, not a
+  # bootable service or a Helm chart.
+
+.gst-sibling-checkout:
+  before_script:
+    - |
+      if [ ! -d "../platform-build/.git" ]; then
+        echo "gst-ci: cloning invoice/platform-build (sibling checkout for pluginManagement.includeBuild, settings.gradle.kts)"
+        git clone --depth 1 --branch main \
+          "${CI_SERVER_PROTOCOL}://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}:${CI_SERVER_PORT}/invoice/platform-build.git" \
+          ../platform-build
+      fi
+    - |
+      gst_run_if_task_exists() {
+        task_name="$1"; shift
+        if ./gradlew -p "$GRADLE_PROJECT_DIR" help --task "$task_name" >/tmp/gst-task-probe.log 2>&1; then
+          ./gradlew -p "$GRADLE_PROJECT_DIR" "$task_name" "$@"
+        else
+          echo "gst-ci: '$task_name' is not a Gradle task in '$GRADLE_PROJECT_DIR' yet — skipping this step for this repository."
+        fi
+      }
+    - |
+      # Every module directory that is its own Gradle project (STK-60, one per
+      # Wave 1 module) plus `platform-libs-bom`, and, for each, the changed +
+      # downstream computation done-when asks for. A downstream module is one
+      # whose build.gradle.kts contains `project(":<changed module>")` — read
+      # from the real dependency declarations, not a hand-kept list, so this
+      # keeps working as real module dependencies are added.
+      gst_all_modules() {
+        for f in */build.gradle.kts; do dirname "$f"; done
+      }
+      gst_changed_downstream_modules() {
+        base="${CI_MERGE_REQUEST_DIFF_BASE_SHA:-}"
+        if [ -z "$base" ]; then
+          base=$(git merge-base origin/main HEAD 2>/dev/null || git rev-parse HEAD~1 2>/dev/null || echo "HEAD")
+        fi
+        changed_files=$(git diff --name-only "${base}" HEAD 2>/dev/null || true)
+        all_modules=$(gst_all_modules)
+        if echo "$changed_files" | grep -qE '^(settings\.gradle\.kts|build\.gradle\.kts|gradle/libs\.versions\.toml)$'; then
+          echo "$all_modules" | tr '\n' ' '
+          return
+        fi
+        changed=""
+        for m in $all_modules; do
+          if echo "$changed_files" | grep -q "^$m/"; then
+            changed="$changed $m"
+          fi
+        done
+        if [ -z "$(echo "$changed" | tr -d '[:space:]')" ]; then
+          return
+        fi
+        result="$changed"
+        frontier="$changed"
+        while [ -n "$(echo "$frontier" | tr -d '[:space:]')" ]; do
+          next=""
+          for x in $frontier; do
+            for m in $all_modules; do
+              case " $result " in *" $m "*) continue ;; esac
+              # Strips full-line `//` comments first: a worked example in a
+              # comment (e.g. platform-libs-bom/build.gradle.kts's constraint
+              # template) must never be read as a real project dependency.
+              if grep -v '^[[:space:]]*//' "$m/build.gradle.kts" 2>/dev/null | grep -q "project(\":$x\")"; then
+                result="$result $m"
+                next="$next $m"
+              fi
+            done
+          done
+          frontier="$next"
+        done
+        echo "$result" | tr ' ' '\n' | sed '/^$/d' | sort -u | tr '\n' ' '
+      }
+
+compile:
+  extends: [.gradle-job, .gst-sibling-checkout]
+  stage: build
+  script:
+    - MODULES="$(gst_changed_downstream_modules)"
+    - |
+      if [ -z "$(echo "$MODULES" | tr -d '[:space:]')" ]; then
+        echo "gst-ci: no module changed against the base — nothing to build."
+      else
+        echo "gst-ci: compiling changed + downstream modules: $MODULES"
+        TASKS=""
+        for m in $MODULES; do TASKS="$TASKS :$m:compileKotlin :$m:compileTestKotlin"; done
+        ./gradlew -p "$GRADLE_PROJECT_DIR" $TASKS --stacktrace
+      fi
+
+unit-test:
+  extends: [.gradle-job, .gst-sibling-checkout]
+  stage: test
+  script:
+    - MODULES="$(gst_changed_downstream_modules)"
+    - |
+      if [ -z "$(echo "$MODULES" | tr -d '[:space:]')" ]; then
+        echo "gst-ci: no module changed against the base — nothing to test."
+      else
+        echo "gst-ci: testing changed + downstream modules: $MODULES"
+        TASKS=""
+        for m in $MODULES; do TASKS="$TASKS :$m:test"; done
+        ./gradlew -p "$GRADLE_PROJECT_DIR" $TASKS --stacktrace
+      fi
+    - gst_run_if_task_exists checkDependencyCatalogUsage --stacktrace
+    - gst_run_if_task_exists verifyBannedDependencies --stacktrace
+  artifacts:
+    when: always
+    reports:
+      junit:
+        - "**/build/test-results/test/TEST-*.xml"
+    expire_in: 1 week
+
+lint:
+  extends: [.gradle-job, .gst-sibling-checkout]
+  stage: verify
+  script:
+    - gst_run_if_task_exists spotlessCheck --stacktrace
+    - gst_run_if_task_exists detekt --stacktrace
+  artifacts:
+    when: on_failure
+    paths:
+      - "**/build/reports/detekt/"
+    expire_in: 1 week
+
+maven-publish:
+  extends: [.gradle-job, .gst-sibling-checkout]
