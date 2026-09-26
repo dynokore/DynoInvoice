@@ -20,8 +20,10 @@
       "description": "The reconciliation run identifier (services.yaml 'reconciliation run')."
     },
     "unexplainedResidual": {
-      "type": "number",
-      "description": "The unexplained residual amount left after the run."
+      "type": "string",
+      "format": "decimal",
+      "pattern": "^-?\\d{1,17}(\\.\\d{1,2})?$",
+      "description": "The unexplained residual amount left after the run. Money as a decimal string (API-12)."
     }
   },
   "required": [

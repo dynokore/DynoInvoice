@@ -158,16 +158,25 @@
                     "type": "number"
                   },
                   "unitPrice": {
-                    "type": "number"
+                    "type": "string",
+                    "format": "decimal",
+                    "pattern": "^-?\\d{1,17}(\\.\\d{1,6})?$",
+                    "description": "Unit price. Money as a decimal string (API-12)."
                   },
                   "lineAmount": {
-                    "type": "number"
+                    "type": "string",
+                    "format": "decimal",
+                    "pattern": "^-?\\d{1,17}(\\.\\d{1,2})?$",
+                    "description": "Line amount. Money as a decimal string (API-12)."
                   },
                   "taxCode": {
                     "type": "string"
                   },
                   "taxAmount": {
-                    "type": "number"
+                    "type": "string",
+                    "format": "decimal",
+                    "pattern": "^-?\\d{1,17}(\\.\\d{1,2})?$",
+                    "description": "Line tax amount. Money as a decimal string (API-12)."
                   }
                 },
                 "required": [
@@ -206,10 +215,16 @@
                     "type": "string"
                   },
                   "taxableAmount": {
-                    "type": "number"
+                    "type": "string",
+                    "format": "decimal",
+                    "pattern": "^-?\\d{1,17}(\\.\\d{1,2})?$",
+                    "description": "Taxable amount for this tax code. Money as a decimal string (API-12)."
                   },
                   "taxAmount": {
-                    "type": "number"
+                    "type": "string",
+                    "format": "decimal",
+                    "pattern": "^-?\\d{1,17}(\\.\\d{1,2})?$",
+                    "description": "Tax amount for this tax code. Money as a decimal string (API-12)."
                   }
                 },
                 "required": [
@@ -239,13 +254,22 @@
               "type": "object",
               "properties": {
                 "totalExcludingTax": {
-                  "type": "number"
+                  "type": "string",
+                  "format": "decimal",
+                  "pattern": "^-?\\d{1,17}(\\.\\d{1,2})?$",
+                  "description": "Total excluding tax. Money as a decimal string (API-12)."
                 },
                 "totalTax": {
-                  "type": "number"
+                  "type": "string",
+                  "format": "decimal",
+                  "pattern": "^-?\\d{1,17}(\\.\\d{1,2})?$",
+                  "description": "Total tax. Money as a decimal string (API-12)."
                 },
                 "totalIncludingTax": {
-                  "type": "number"
+                  "type": "string",
+                  "format": "decimal",
+                  "pattern": "^-?\\d{1,17}(\\.\\d{1,2})?$",
+                  "description": "Total including tax. Money as a decimal string (API-12)."
                 }
               },
               "required": [
