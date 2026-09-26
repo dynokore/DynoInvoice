@@ -15,18 +15,38 @@ class ResiliencePolicyTest {
 
     @Test
     fun `RetryPolicy enforces its invariants`() {
-        val ok = RetryPolicy(maxAttempts = 3, initialBackoff = Duration.ofMillis(100), maxBackoff = Duration.ofSeconds(1), jitter = 0.5)
+        val ok = RetryPolicy(
+            maxAttempts = 3,
+            initialBackoff = Duration.ofMillis(100),
+            maxBackoff = Duration.ofSeconds(1),
+            jitter = 0.5,
+        )
         ok.maxAttempts shouldBe 3
 
         shouldThrow<IllegalArgumentException> {
-            RetryPolicy(maxAttempts = 0, initialBackoff = Duration.ofMillis(100), maxBackoff = Duration.ofSeconds(1), jitter = 0.5)
+            RetryPolicy(
+                maxAttempts = 0,
+                initialBackoff = Duration.ofMillis(100),
+                maxBackoff = Duration.ofSeconds(1),
+                jitter = 0.5,
+            )
         }
         shouldThrow<IllegalArgumentException> {
             // maxBackoff below initialBackoff
-            RetryPolicy(maxAttempts = 3, initialBackoff = Duration.ofSeconds(2), maxBackoff = Duration.ofSeconds(1), jitter = 0.5)
+            RetryPolicy(
+                maxAttempts = 3,
+                initialBackoff = Duration.ofSeconds(2),
+                maxBackoff = Duration.ofSeconds(1),
+                jitter = 0.5,
+            )
         }
         shouldThrow<IllegalArgumentException> {
-            RetryPolicy(maxAttempts = 3, initialBackoff = Duration.ofMillis(100), maxBackoff = Duration.ofSeconds(1), jitter = 1.5)
+            RetryPolicy(
+                maxAttempts = 3,
+                initialBackoff = Duration.ofMillis(100),
+                maxBackoff = Duration.ofSeconds(1),
+                jitter = 1.5,
+            )
         }
     }
 
@@ -52,8 +72,12 @@ class ResiliencePolicyTest {
 
     @Test
     fun `BulkheadPolicy enforces its invariants`() {
-        shouldThrow<IllegalArgumentException> { BulkheadPolicy(maxConcurrentCalls = 0, maxWaitDuration = Duration.ZERO) }
-        shouldThrow<IllegalArgumentException> { BulkheadPolicy(maxConcurrentCalls = 5, maxWaitDuration = Duration.ofMillis(-1)) }
+        shouldThrow<IllegalArgumentException> {
+            BulkheadPolicy(maxConcurrentCalls = 0, maxWaitDuration = Duration.ZERO)
+        }
+        shouldThrow<IllegalArgumentException> {
+            BulkheadPolicy(maxConcurrentCalls = 5, maxWaitDuration = Duration.ofMillis(-1))
+        }
         BulkheadPolicy(maxConcurrentCalls = 5, maxWaitDuration = Duration.ZERO).maxConcurrentCalls shouldBe 5
     }
 }

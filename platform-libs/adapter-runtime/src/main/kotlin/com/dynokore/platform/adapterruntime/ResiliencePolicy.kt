@@ -44,7 +44,7 @@ data class CircuitBreakerPolicy(
     val permittedCallsInHalfOpenState: Int,
 ) {
     init {
-        require(failureRateThreshold in 1.0F..100.0F) {
+        require(failureRateThreshold in FAILURE_RATE_THRESHOLD_MIN..FAILURE_RATE_THRESHOLD_MAX) {
             "failureRateThreshold must be a percentage within 1..100, was $failureRateThreshold"
         }
         require(slidingWindowSize >= 1) { "slidingWindowSize must be at least 1, was $slidingWindowSize" }
@@ -54,6 +54,11 @@ data class CircuitBreakerPolicy(
         require(permittedCallsInHalfOpenState >= 1) {
             "permittedCallsInHalfOpenState must be at least 1, was $permittedCallsInHalfOpenState"
         }
+    }
+
+    companion object {
+        private const val FAILURE_RATE_THRESHOLD_MIN = 1.0F
+        private const val FAILURE_RATE_THRESHOLD_MAX = 100.0F
     }
 }
 
