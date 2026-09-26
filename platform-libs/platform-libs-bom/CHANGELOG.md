@@ -5,11 +5,13 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-## [0.2.0] - 2026-09-26
+## [0.2.0] - 2026-09-27
 ### Added
 - `tenancy-kernel-api`/`tenancy-kernel` constraint pair, pinned to
   `tenancy-kernel`'s own `1.0.0` (INV-T-2861 / T17: the module's first real
   interface). The first non-empty entry in this BOM.
+- `adapter-runtime-api` / `adapter-runtime` 1.0.0 constraint pair (INV-T-2862 / T18),
+  the first real entries beyond the empty scaffold.
 
 ## [0.1.0] - 2026-09-26
 ### Added
