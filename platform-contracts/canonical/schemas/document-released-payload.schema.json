@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/canonical/schemas/document-released-payload.schema.json",
+  "title": "DocumentReleasedPayload",
+  "description": "Payload of the DocumentReleased event (catalogued in model/architecture/events.yaml, INV-NOTE-3 \u00a719.8; class: domain). Authored by INV-T-2854 (T10). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "docUuid": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The document's Doc UUID."
+    },
+    "docsequence": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The per-document monotonic sequence (INV-REQ-1221), duplicated in the payload alongside the envelope's own docsequence extension attribute."
+    },
+    "releasedHoldReasons": {
+      "type": "array",
+      "description": "The hold reasons released (error-catalogue codes, model/architecture/error-codes.yaml).",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Z]{2,10}-[0-9]{3}$"
+      },
+      "minItems": 1
+    }
+  },
+  "required": [
+    "docUuid",
+    "docsequence",
+    "releasedHoldReasons"
+  ],
+  "additionalProperties": true
+}

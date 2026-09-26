@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/payload/schemas/payload-ready-payload.schema.json",
+  "title": "PayloadReadyPayload",
+  "description": "Payload of the PayloadReady event (catalogued in model/architecture/events.yaml, INV-NOTE-3 \u00a719.8; class: domain). Authored by INV-T-2854 (T10). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required. Dedupe key: docUuid+version (FR-M.12) \u2014 submission-svc's idempotent consumption of this at-least-once, idempotent-consumption-mandatory event keys on this pair, not on the envelope id alone. Bytes added 25 Sep 2026 (AD-30): submission-svc holds them with the queue item (FR-J.4); evidence-svc seals them as transmitted on SubmissionDespatched.",
+  "type": "object",
+  "properties": {
+    "docUuid": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The document's Doc UUID."
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The canonical/payload/submission version number."
+    },
+    "docsequence": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The per-document monotonic sequence (INV-REQ-1221), duplicated in the payload alongside the envelope's own docsequence extension attribute."
+    },
+    "submissionType": {
+      "type": "string",
+      "enum": [
+        "1A",
+        "1B",
+        "2",
+        "3"
+      ],
+      "description": "The submission type (model/architecture/submission-types.yaml)."
+    },
+    "specificationVersion": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The payload specification version."
+    },
+    "payloadBytes": {
+      "type": "string",
+      "contentEncoding": "base64",
+      "description": "The built payload bytes, base64-encoded (opaque to this schema). A payload over 10 MB raises PAY-010 and yields PayloadRejected instead of PayloadReady (FR-4.13); inbound documents are at most 1 MB (VP-78), so payloads are normally far smaller."
+    },
+    "payloadSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 of payloadBytes."
+    },
+    "amendmentClass": {
+      "type": "string",
+      "enum": [
+        "NON_MONETARY",
+        "IDENTITY",
+        "PERIOD_SHIFTING",
+        "MONETARY",
+        "STRUCTURAL"
+      ],
+      "description": "The amendment class this version represents relative to its predecessor (model/architecture/amendment-taxonomy.yaml); present when this version amends a prior one, absent on a document's first version."
+    }
+  },
+  "required": [
+    "docUuid",
+    "version",
+    "docsequence",
+    "submissionType",
+    "specificationVersion",
+    "payloadBytes",
+    "payloadSha256"
+  ],
+  "additionalProperties": true
+}

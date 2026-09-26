@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/submission/schemas/submission-despatched-payload.schema.json",
+  "title": "SubmissionDespatchedPayload",
+  "description": "Payload of the SubmissionDespatched event (catalogued in model/architecture/events.yaml, INV-NOTE-3 \u00a719.8; class: domain). Authored by INV-T-2854 (T10). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "docUuid": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The document's Doc UUID."
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The canonical/payload/submission version number."
+    },
+    "attemptNumber": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The despatch attempt number."
+    },
+    "payloadSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 of the despatched payload bytes (payload-svc's PayloadReady)."
+    }
+  },
+  "required": [
+    "docUuid",
+    "version",
+    "attemptNumber",
+    "payloadSha256"
+  ],
+  "additionalProperties": true
+}

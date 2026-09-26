@@ -7,8 +7,16 @@ info:
     publish time in the CloudEvents 1.0.2 envelope every service shares
     (API-40, ../service-runtime/schemas/cloud-event-envelope.schema.json) —
     each message below declares only its own `data` payload schema. This is an
-    INV-T-2849 scaffold; ingestion's own team (CODEOWNERS) replaces the
-    placeholder event below as each real one lands.
+    INV-T-2849 scaffold. INV-T-2854 (T10) added ingestion's real §19.8 domain
+    event below, from model/architecture/events.yaml's checklist; the
+    ExampleHappened placeholder stays only because removing it is a
+    breaking structural change under this repository's additive-only
+    asyncapi-breaking-gate — its removal is a follow-up outside T10's
+    declared scope (spectral/ is not in it), named in the INV-T-2854 MR.
+    ingestion-svc also produces the platform event ConnectionStatusChanged
+    (model/architecture/events.yaml); that is authored once under
+    service-runtime/ by T11 (STK-61), not here (T9's review, !3, rejected
+    copying platform events into a producer directory).
   contact:
     name: ingestion (see CODEOWNERS)
   license:
@@ -20,12 +28,24 @@ servers:
     protocol: kafka
     description: Placeholder — the platform component event-log (SDS §18.14).
 channels:
+  ingestionFeedHealthChanged:
+    address: 'gst.ingestion.feed-health-changed.v1'
+    messages:
+      FeedHealthChanged:
+        $ref: '#/components/messages/FeedHealthChanged'
   ingestionExampleHappened:
     address: 'gst.ingestion.example-happened.v1'
     messages:
       ExampleHappened:
         $ref: '#/components/messages/ExampleHappened'
 operations:
+  publishFeedHealthChanged:
+    action: send
+    description: FeedHealthChanged — catalogued in model/architecture/events.yaml (§19.8).
+    channel:
+      $ref: '#/channels/ingestionFeedHealthChanged'
+    messages:
+      - $ref: '#/channels/ingestionFeedHealthChanged/messages/FeedHealthChanged'
   publishExampleHappened:
     action: send
     description: Placeholder operation (INV-T-2849 scaffold) — replace with a real one.
@@ -35,6 +55,19 @@ operations:
       - $ref: '#/channels/ingestionExampleHappened/messages/ExampleHappened'
 components:
   messages:
+    FeedHealthChanged:
+      name: com.dynokore.gst.ingestion.FeedHealthChanged.v1
+      title: FeedHealthChanged
+      summary: FeedHealthChanged — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event FeedHealthChanged (model/architecture/events.yaml, INV-NOTE-3 §19.8, INV-REQ-815;
+        class: domain). Emitted by: ingestion-svc. Consumed by: console-bff, notification-svc,
+        submission-svc. Delivery: At-least-once. Payload (catalogue text): feed, entityRef, period, control
+        (sequence, count, value, watermark or manifest), state (failed or cleared), error code (ING-008,
+        PER-002), gap details. Authored by INV-T-2854 (T10).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/feed-health-changed-payload.schema.json'
     ExampleHappened:
       name: com.dynokore.gst.ingestion.ExampleHappened.v1
       title: ExampleHappened

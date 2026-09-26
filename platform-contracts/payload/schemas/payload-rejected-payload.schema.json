@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/payload/schemas/payload-rejected-payload.schema.json",
+  "title": "PayloadRejectedPayload",
+  "description": "Payload of the PayloadRejected event (catalogued in model/architecture/events.yaml, INV-NOTE-3 \u00a719.8; class: domain). Authored by INV-T-2854 (T10). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "docUuid": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The document's Doc UUID."
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The canonical/payload/submission version number."
+    },
+    "docsequence": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The per-document monotonic sequence (INV-REQ-1221), duplicated in the payload alongside the envelope's own docsequence extension attribute."
+    },
+    "validationTrace": {
+      "type": "object",
+      "description": "The payload-build validation trace (opaque to this envelope; interpreted by console-bff and notification-svc).",
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "docUuid",
+    "version",
+    "docsequence",
+    "validationTrace"
+  ],
+  "additionalProperties": true
+}

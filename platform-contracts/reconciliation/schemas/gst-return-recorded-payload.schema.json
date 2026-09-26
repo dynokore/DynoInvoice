@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/reconciliation/schemas/gst-return-recorded-payload.schema.json",
+  "title": "GstReturnRecordedPayload",
+  "description": "Payload of the GstReturnRecorded event (catalogued in model/architecture/events.yaml, INV-NOTE-3 \u00a719.8; class: domain). Authored by INV-T-2854 (T10). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "entityRef": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The registered entity."
+    },
+    "period": {
+      "type": "string",
+      "description": "The prescribed period reference, e.g. 2026Q1."
+    },
+    "form": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The GST return form, e.g. F5, F7, F8 (services.yaml, versioned per form)."
+    },
+    "returnVersion": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The filed return's version."
+    },
+    "filedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the return was filed."
+    },
+    "irasFilingReference": {
+      "type": "string",
+      "minLength": 1,
+      "description": "IRAS filing reference. Added 26 Sep 2026 (standards review): submission-svc's filing fact needs the same evidence on every path (FR-AF.36)."
+    }
+  },
+  "required": [
+    "entityRef",
+    "period",
+    "form",
+    "returnVersion",
+    "filedAt",
+    "irasFilingReference"
+  ],
+  "additionalProperties": true
+}

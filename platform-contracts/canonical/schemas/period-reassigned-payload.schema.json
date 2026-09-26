@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/canonical/schemas/period-reassigned-payload.schema.json",
+  "title": "PeriodReassignedPayload",
+  "description": "Payload of the PeriodReassigned event (catalogued in model/architecture/events.yaml, INV-NOTE-3 \u00a719.8; class: domain). Authored by INV-T-2854 (T10). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "docUuid": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The document's Doc UUID."
+    },
+    "docsequence": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The per-document monotonic sequence (INV-REQ-1221), duplicated in the payload alongside the envelope's own docsequence extension attribute."
+    },
+    "oldPrescribedPeriodRef": {
+      "type": "string",
+      "description": "The prescribed period reference, e.g. 2026Q1."
+    },
+    "newPrescribedPeriodRef": {
+      "type": "string",
+      "description": "The prescribed period reference, e.g. 2026Q1."
+    },
+    "cause": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Why the period was reassigned."
+    }
+  },
+  "required": [
+    "docUuid",
+    "docsequence",
+    "oldPrescribedPeriodRef",
+    "newPrescribedPeriodRef",
+    "cause"
+  ],
+  "additionalProperties": true
+}

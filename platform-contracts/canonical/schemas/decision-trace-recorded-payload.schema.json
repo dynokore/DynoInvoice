@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/canonical/schemas/decision-trace-recorded-payload.schema.json",
+  "title": "DecisionTraceRecordedPayload",
+  "description": "Payload of the DecisionTraceRecorded event (catalogued in model/architecture/events.yaml, INV-NOTE-3 \u00a719.8; class: domain). Authored by INV-T-2854 (T10). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "docUuid": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The document's Doc UUID."
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The canonical/payload/submission version number."
+    },
+    "traceReference": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Opaque reference to the underlying decision/evidence trace, resolvable by evidence-svc."
+    },
+    "decisionTrace": {
+      "type": "object",
+      "description": "The decision trace itself (opaque to this envelope; interpreted by evidence-svc and console-bff, FR-B.6).",
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "docUuid",
+    "version",
+    "traceReference",
+    "decisionTrace"
+  ],
+  "additionalProperties": true
+}

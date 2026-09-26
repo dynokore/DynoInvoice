@@ -3,12 +3,20 @@ info:
   title: reconciliation events
   version: 1.0.0
   description: >-
-    Every event reconciliation produces or consumes (API-43, STK-45), wrapped at
-    publish time in the CloudEvents 1.0.2 envelope every service shares
+    Every event reconciliation produces or consumes (API-43, STK-45), wrapped
+    at publish time in the CloudEvents 1.0.2 envelope every service shares
     (API-40, ../service-runtime/schemas/cloud-event-envelope.schema.json) —
     each message below declares only its own `data` payload schema. This is an
-    INV-T-2849 scaffold; reconciliation's own team (CODEOWNERS) replaces the
-    placeholder event below as each real one lands.
+    INV-T-2849 scaffold. INV-T-2854 (T10) added reconciliation's real §19.8
+    domain events below, from model/architecture/events.yaml's checklist;
+    the ExampleHappened placeholder stays only because removing it is a
+    breaking structural change under this repository's additive-only
+    asyncapi-breaking-gate — its removal is a follow-up outside T10's
+    declared scope (spectral/ is not in it), named in the INV-T-2854 MR.
+    reconciliation-svc also produces the platform event
+    PackReadinessAcknowledged (model/architecture/events.yaml); that is
+    authored once under service-runtime/ by T11 (STK-61), not here (T9's
+    review, !3, rejected copying platform events into a producer directory).
   contact:
     name: reconciliation (see CODEOWNERS)
   license:
@@ -20,12 +28,38 @@ servers:
     protocol: kafka
     description: Placeholder — the platform component event-log (SDS §18.14).
 channels:
+  reconciliationGstReturnRecorded:
+    address: 'gst.reconciliation.gst-return-recorded.v1'
+    messages:
+      GstReturnRecorded:
+        $ref: '#/components/messages/GstReturnRecorded'
+
+  reconciliationReconciliationCompleted:
+    address: 'gst.reconciliation.reconciliation-completed.v1'
+    messages:
+      ReconciliationCompleted:
+        $ref: '#/components/messages/ReconciliationCompleted'
   reconciliationExampleHappened:
     address: 'gst.reconciliation.example-happened.v1'
     messages:
       ExampleHappened:
         $ref: '#/components/messages/ExampleHappened'
 operations:
+  publishGstReturnRecorded:
+    action: send
+    description: GstReturnRecorded — catalogued in model/architecture/events.yaml (§19.8).
+    channel:
+      $ref: '#/channels/reconciliationGstReturnRecorded'
+    messages:
+      - $ref: '#/channels/reconciliationGstReturnRecorded/messages/GstReturnRecorded'
+
+  publishReconciliationCompleted:
+    action: send
+    description: ReconciliationCompleted — catalogued in model/architecture/events.yaml (§19.8).
+    channel:
+      $ref: '#/channels/reconciliationReconciliationCompleted'
+    messages:
+      - $ref: '#/channels/reconciliationReconciliationCompleted/messages/ReconciliationCompleted'
   publishExampleHappened:
     action: send
     description: Placeholder operation (INV-T-2849 scaffold) — replace with a real one.
@@ -35,6 +69,32 @@ operations:
       - $ref: '#/channels/reconciliationExampleHappened/messages/ExampleHappened'
 components:
   messages:
+    GstReturnRecorded:
+      name: com.dynokore.gst.reconciliation.GstReturnRecorded.v1
+      title: GstReturnRecorded
+      summary: GstReturnRecorded — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event GstReturnRecorded (model/architecture/events.yaml, INV-NOTE-3 §19.8, INV-REQ-815;
+        class: domain). Emitted by: reconciliation-svc. Consumed by: submission-svc. Delivery: At-least-once.
+        Payload (catalogue text): entityRef, period, form, return version, filedAt, IRAS filing reference
+        (FR-AF.36). Filing reference added 26 Sep 2026 (standards review): submission-svc's filing fact
+        needs the same evidence on every path (FR-AF.36). Authored by INV-T-2854 (T10).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/gst-return-recorded-payload.schema.json'
+
+    ReconciliationCompleted:
+      name: com.dynokore.gst.reconciliation.ReconciliationCompleted.v1
+      title: ReconciliationCompleted
+      summary: ReconciliationCompleted — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event ReconciliationCompleted (model/architecture/events.yaml, INV-NOTE-3 §19.8,
+        INV-REQ-815; class: domain). Emitted by: reconciliation-svc. Consumed by: console-bff,
+        notification-svc. Delivery: At-least-once. Payload (catalogue text): entityRef, period, run,
+        unexplained residual. Authored by INV-T-2854 (T10).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/reconciliation-completed-payload.schema.json'
     ExampleHappened:
       name: com.dynokore.gst.reconciliation.ExampleHappened.v1
       title: ExampleHappened

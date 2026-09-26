@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/canonical/schemas/document-held-payload.schema.json",
+  "title": "DocumentHeldPayload",
+  "description": "Payload of the DocumentHeld event (catalogued in model/architecture/events.yaml, INV-NOTE-3 \u00a719.8; class: domain). Authored by INV-T-2854 (T10). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "docUuid": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The document's Doc UUID."
+    },
+    "docsequence": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The per-document monotonic sequence (INV-REQ-1221), duplicated in the payload alongside the envelope's own docsequence extension attribute."
+    },
+    "holdReasons": {
+      "type": "array",
+      "description": "The hold reasons (error-catalogue codes, model/architecture/error-codes.yaml).",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Z]{2,10}-[0-9]{3}$"
+      },
+      "minItems": 1
+    },
+    "entityRef": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The registered entity."
+    },
+    "direction": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The document's direction."
+    },
+    "documentDate": {
+      "type": "string",
+      "format": "date",
+      "description": "The document date."
+    },
+    "prescribedPeriodRef": {
+      "type": "string",
+      "description": "A provisional prescribed period reference: the period of the provisional transaction date built from what is known at ingestion, or the earliest candidate period where that date cannot yet be determined (FR-AE.9; added 25 Sep 2026, Keel INV-Q-1679)."
+    }
+  },
+  "required": [
+    "docUuid",
+    "docsequence",
+    "holdReasons",
+    "entityRef",
+    "direction",
+    "documentDate",
+    "prescribedPeriodRef"
+  ],
+  "additionalProperties": true
+}

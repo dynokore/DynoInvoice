@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/submission/schemas/submission-acknowledged-payload.schema.json",
+  "title": "SubmissionAcknowledgedPayload",
+  "description": "Payload of the SubmissionAcknowledged event (catalogued in model/architecture/events.yaml, INV-NOTE-3 \u00a719.8; class: domain). Authored by INV-T-2854 (T10). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "docUuid": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The document's Doc UUID."
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The canonical/payload/submission version number."
+    },
+    "acknowledgementId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The Access Point's acknowledgement identifier."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the acknowledgement was received."
+    }
+  },
+  "required": [
+    "docUuid",
+    "version",
+    "acknowledgementId",
+    "timestamp"
+  ],
+  "additionalProperties": true
+}

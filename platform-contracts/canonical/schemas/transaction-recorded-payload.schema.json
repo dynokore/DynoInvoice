@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/canonical/schemas/transaction-recorded-payload.schema.json",
+  "title": "TransactionRecordedPayload",
+  "description": "Payload of the TransactionRecorded event (catalogued in model/architecture/events.yaml, INV-NOTE-3 \u00a719.8; class: domain). Authored by INV-T-2854 (T10). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "sourceKey": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The source system's key for the raw transaction (API-32's sourceKey)."
+    },
+    "sourceRevision": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The source system's revision marker for the raw transaction (API-32's sourceRevision)."
+    },
+    "entityRef": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The registered entity."
+    },
+    "docUuid": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The document's Doc UUID."
+    },
+    "rawTransactionReference": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Opaque reference to the raw transaction record canonical-svc recorded this from."
+    }
+  },
+  "required": [
+    "sourceKey",
+    "sourceRevision",
+    "entityRef",
+    "docUuid",
+    "rawTransactionReference"
+  ],
+  "additionalProperties": true
+}

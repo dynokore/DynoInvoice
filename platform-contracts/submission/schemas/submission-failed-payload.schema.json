@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/submission/schemas/submission-failed-payload.schema.json",
+  "title": "SubmissionFailedPayload",
+  "description": "Payload of the SubmissionFailed event (catalogued in model/architecture/events.yaml, INV-NOTE-3 \u00a719.8; class: domain). Authored by INV-T-2854 (T10). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "docUuid": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The document's Doc UUID."
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The canonical/payload/submission version number."
+    },
+    "failureClass": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The failure class."
+    },
+    "retryDisposition": {
+      "type": "string",
+      "minLength": 1,
+      "description": "How the failure is worked off, e.g. AUTO_RETRY, MANUAL, TERMINAL (model/architecture/error-codes.yaml 'disposition')."
+    }
+  },
+  "required": [
+    "docUuid",
+    "version",
+    "failureClass",
+    "retryDisposition"
+  ],
+  "additionalProperties": true
+}

@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/submission/schemas/readiness-changed-payload.schema.json",
+  "title": "ReadinessChangedPayload",
+  "description": "Payload of the ReadinessChanged event (catalogued in model/architecture/events.yaml, INV-NOTE-3 \u00a719.8; class: domain). Authored by INV-T-2854 (T10). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "entityRef": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The registered entity."
+    },
+    "period": {
+      "type": "string",
+      "description": "The prescribed period reference, e.g. 2026Q1."
+    },
+    "verdict": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The period readiness verdict."
+    },
+    "countsByState": {
+      "type": "object",
+      "description": "Document/version counts keyed by lifecycle state (model/architecture/lifecycle-states.yaml 'state').",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "filingFact": {
+      "type": "object",
+      "description": "The filing fact, where filed (FR-AF.36).",
+      "properties": {
+        "filedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "filingReference": {
+          "type": "string",
+          "minLength": 1
+        },
+        "recorder": {
+          "type": "string",
+          "minLength": 1
+        },
+        "conflictFlag": {
+          "type": "boolean",
+          "description": "Set when two filing facts for the same period disagree."
+        }
+      },
+      "required": [
+        "filedAt",
+        "filingReference",
+        "recorder",
+        "conflictFlag"
+      ],
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "entityRef",
+    "period",
+    "verdict",
+    "countsByState",
+    "filingFact"
+  ],
+  "additionalProperties": true
+}

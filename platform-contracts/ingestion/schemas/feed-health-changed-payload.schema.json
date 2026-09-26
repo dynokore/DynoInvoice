@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/ingestion/schemas/feed-health-changed-payload.schema.json",
+  "title": "FeedHealthChangedPayload",
+  "description": "Payload of the FeedHealthChanged event (catalogued in model/architecture/events.yaml, INV-NOTE-3 \u00a719.8; class: domain). Authored by INV-T-2854 (T10). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "feed": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The feed identifier."
+    },
+    "entityRef": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The registered entity."
+    },
+    "period": {
+      "type": "string",
+      "description": "The prescribed period reference, e.g. 2026Q1."
+    },
+    "control": {
+      "type": "string",
+      "enum": [
+        "SEQUENCE",
+        "COUNT",
+        "VALUE",
+        "WATERMARK",
+        "MANIFEST"
+      ],
+      "description": "Which completeness control changed."
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "FAILED",
+        "CLEARED"
+      ],
+      "description": "Whether the control failed or cleared."
+    },
+    "errorCode": {
+      "type": "string",
+      "pattern": "^[A-Z]{2,10}-[0-9]{3}$",
+      "description": "The error-catalogue code, e.g. ING-008, PER-002 (model/architecture/error-codes.yaml). Present when state is FAILED."
+    },
+    "gapDetails": {
+      "type": "object",
+      "description": "Detail of the gap the control detected. Present when state is FAILED.",
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "feed",
+    "entityRef",
+    "period",
+    "control",
+    "state"
+  ],
+  "additionalProperties": true
+}

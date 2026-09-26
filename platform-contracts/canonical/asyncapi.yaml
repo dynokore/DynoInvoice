@@ -7,8 +7,12 @@ info:
     publish time in the CloudEvents 1.0.2 envelope every service shares
     (API-40, ../service-runtime/schemas/cloud-event-envelope.schema.json) —
     each message below declares only its own `data` payload schema. This is an
-    INV-T-2849 scaffold; canonical's own team (CODEOWNERS) replaces the
-    placeholder event below as each real one lands.
+    INV-T-2849 scaffold. INV-T-2854 (T10) added canonical's real §19.8 events
+    below, from model/architecture/events.yaml's checklist; the
+    ExampleHappened placeholder stays only because removing it is a
+    breaking structural change under this repository's additive-only
+    asyncapi-breaking-gate — its removal is a follow-up outside T10's
+    declared scope (spectral/ is not in it), named in the INV-T-2854 MR.
   contact:
     name: canonical (see CODEOWNERS)
   license:
@@ -20,12 +24,94 @@ servers:
     protocol: kafka
     description: Placeholder — the platform component event-log (SDS §18.14).
 channels:
+  canonicalTransactionRecorded:
+    address: 'gst.canonical.transaction-recorded.v1'
+    messages:
+      TransactionRecorded:
+        $ref: '#/components/messages/TransactionRecorded'
+
+  canonicalCanonicalVersionCreated:
+    address: 'gst.canonical.canonical-version-created.v1'
+    messages:
+      CanonicalVersionCreated:
+        $ref: '#/components/messages/CanonicalVersionCreated'
+
+  canonicalDecisionTraceRecorded:
+    address: 'gst.canonical.decision-trace-recorded.v1'
+    messages:
+      DecisionTraceRecorded:
+        $ref: '#/components/messages/DecisionTraceRecorded'
+
+  canonicalDocumentHeld:
+    address: 'gst.canonical.document-held.v1'
+    messages:
+      DocumentHeld:
+        $ref: '#/components/messages/DocumentHeld'
+
+  canonicalDocumentReleased:
+    address: 'gst.canonical.document-released.v1'
+    messages:
+      DocumentReleased:
+        $ref: '#/components/messages/DocumentReleased'
+
+  canonicalPeriodReassigned:
+    address: 'gst.canonical.period-reassigned.v1'
+    messages:
+      PeriodReassigned:
+        $ref: '#/components/messages/PeriodReassigned'
   canonicalExampleHappened:
     address: 'gst.canonical.example-happened.v1'
     messages:
       ExampleHappened:
         $ref: '#/components/messages/ExampleHappened'
 operations:
+  publishTransactionRecorded:
+    action: send
+    description: TransactionRecorded — catalogued in model/architecture/events.yaml (§19.8).
+    channel:
+      $ref: '#/channels/canonicalTransactionRecorded'
+    messages:
+      - $ref: '#/channels/canonicalTransactionRecorded/messages/TransactionRecorded'
+
+  publishCanonicalVersionCreated:
+    action: send
+    description: CanonicalVersionCreated — catalogued in model/architecture/events.yaml (§19.8).
+    channel:
+      $ref: '#/channels/canonicalCanonicalVersionCreated'
+    messages:
+      - $ref: '#/channels/canonicalCanonicalVersionCreated/messages/CanonicalVersionCreated'
+
+  publishDecisionTraceRecorded:
+    action: send
+    description: DecisionTraceRecorded — catalogued in model/architecture/events.yaml (§19.8).
+    channel:
+      $ref: '#/channels/canonicalDecisionTraceRecorded'
+    messages:
+      - $ref: '#/channels/canonicalDecisionTraceRecorded/messages/DecisionTraceRecorded'
+
+  publishDocumentHeld:
+    action: send
+    description: DocumentHeld — catalogued in model/architecture/events.yaml (§19.8).
+    channel:
+      $ref: '#/channels/canonicalDocumentHeld'
+    messages:
+      - $ref: '#/channels/canonicalDocumentHeld/messages/DocumentHeld'
+
+  publishDocumentReleased:
+    action: send
+    description: DocumentReleased — catalogued in model/architecture/events.yaml (§19.8).
+    channel:
+      $ref: '#/channels/canonicalDocumentReleased'
+    messages:
+      - $ref: '#/channels/canonicalDocumentReleased/messages/DocumentReleased'
+
+  publishPeriodReassigned:
+    action: send
+    description: PeriodReassigned — catalogued in model/architecture/events.yaml (§19.8).
+    channel:
+      $ref: '#/channels/canonicalPeriodReassigned'
+    messages:
+      - $ref: '#/channels/canonicalPeriodReassigned/messages/PeriodReassigned'
   publishExampleHappened:
     action: send
     description: Placeholder operation (INV-T-2849 scaffold) — replace with a real one.
@@ -35,6 +121,92 @@ operations:
       - $ref: '#/channels/canonicalExampleHappened/messages/ExampleHappened'
 components:
   messages:
+    TransactionRecorded:
+      name: com.dynokore.gst.canonical.TransactionRecorded.v1
+      title: TransactionRecorded
+      summary: TransactionRecorded — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event TransactionRecorded (model/architecture/events.yaml, INV-NOTE-3 §19.8, INV-REQ-815;
+        class: domain). Emitted by: canonical-svc. Consumed by: ingestion-svc. Delivery: At-least-once.
+        Payload (catalogue text): sourceKey, sourceRevision, entityRef, docUuid, raw transaction reference.
+        Authored by INV-T-2854 (T10).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/transaction-recorded-payload.schema.json'
+
+    CanonicalVersionCreated:
+      name: com.dynokore.gst.canonical.CanonicalVersionCreated.v1
+      title: CanonicalVersionCreated
+      summary: CanonicalVersionCreated — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event CanonicalVersionCreated (model/architecture/events.yaml, INV-NOTE-3 §19.8,
+        INV-REQ-815; class: domain). Emitted by: canonical-svc. Consumed by: console-bff, evidence-svc,
+        payload-svc, reconciliation-svc, submission-svc. Delivery: At-least-once. Payload (catalogue text):
+        docUuid, version, docsequence, transactionDate, prescribedPeriodRef, scopeVerdict, applied pack
+        versions, trace reference, and the canonical version itself — the CanonicalDocument with its lines,
+        tax subtotals and parties (INV-NOTE-3 §20.2 to §20.5). Content added 25 Sep 2026 (AD-30): payload-svc
+        builds the projection from it, reconciliation-svc its Box read model (FR-Z.16), evidence-svc its
+        retained copy (FR-AA.15) and console-bff its search index (SCR-03.1); submission-svc reads the
+        identifiers only. Every content field carries its FR-AE.72 classification. Kept for the content
+        window only (FR-AH.9). Authored by INV-T-2854 (T10).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/canonical-version-created-payload.schema.json'
+
+    DecisionTraceRecorded:
+      name: com.dynokore.gst.canonical.DecisionTraceRecorded.v1
+      title: DecisionTraceRecorded
+      summary: DecisionTraceRecorded — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event DecisionTraceRecorded (model/architecture/events.yaml, INV-NOTE-3 §19.8,
+        INV-REQ-815; class: domain). Emitted by: canonical-svc. Consumed by: console-bff, evidence-svc.
+        Delivery: At-least-once. Payload (catalogue text): docUuid, version, trace reference, the decision
+        trace. Authored by INV-T-2854 (T10).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/decision-trace-recorded-payload.schema.json'
+
+    DocumentHeld:
+      name: com.dynokore.gst.canonical.DocumentHeld.v1
+      title: DocumentHeld
+      summary: DocumentHeld — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event DocumentHeld (model/architecture/events.yaml, INV-NOTE-3 §19.8, INV-REQ-815;
+        class: domain). Emitted by: canonical-svc. Consumed by: console-bff, notification-svc,
+        submission-svc. Delivery: At-least-once. Payload (catalogue text): docUuid, docsequence, hold
+        reasons, entityRef, direction, documentDate, and a provisional prescribedPeriodRef — the period of
+        the provisional transaction date built from what is known at ingestion, or the earliest candidate
+        period where that date cannot yet be determined (FR-AE.9; added 25 Sep 2026, Keel INV-Q-1679).
+        Authored by INV-T-2854 (T10).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/document-held-payload.schema.json'
+
+    DocumentReleased:
+      name: com.dynokore.gst.canonical.DocumentReleased.v1
+      title: DocumentReleased
+      summary: DocumentReleased — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event DocumentReleased (model/architecture/events.yaml, INV-NOTE-3 §19.8, INV-REQ-815;
+        class: domain). Emitted by: canonical-svc. Consumed by: console-bff, submission-svc. Delivery:
+        At-least-once. Payload (catalogue text): docUuid, docsequence, released hold reasons. Authored by
+        INV-T-2854 (T10).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/document-released-payload.schema.json'
+
+    PeriodReassigned:
+      name: com.dynokore.gst.canonical.PeriodReassigned.v1
+      title: PeriodReassigned
+      summary: PeriodReassigned — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event PeriodReassigned (model/architecture/events.yaml, INV-NOTE-3 §19.8, INV-REQ-815;
+        class: domain). Emitted by: canonical-svc. Consumed by: console-bff, reconciliation-svc,
+        submission-svc. Delivery: At-least-once. Payload (catalogue text): docUuid, docsequence, old and new
+        prescribedPeriodRef, cause. Authored by INV-T-2854 (T10).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/period-reassigned-payload.schema.json'
     ExampleHappened:
       name: com.dynokore.gst.canonical.ExampleHappened.v1
       title: ExampleHappened

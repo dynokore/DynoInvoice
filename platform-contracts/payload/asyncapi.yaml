@@ -7,8 +7,16 @@ info:
     publish time in the CloudEvents 1.0.2 envelope every service shares
     (API-40, ../service-runtime/schemas/cloud-event-envelope.schema.json) —
     each message below declares only its own `data` payload schema. This is an
-    INV-T-2849 scaffold; payload's own team (CODEOWNERS) replaces the
-    placeholder event below as each real one lands.
+    INV-T-2849 scaffold. INV-T-2854 (T10) added payload's real §19.8 domain
+    events below, from model/architecture/events.yaml's checklist; the
+    ExampleHappened placeholder stays only because removing it is a
+    breaking structural change under this repository's additive-only
+    asyncapi-breaking-gate — its removal is a follow-up outside T10's
+    declared scope (spectral/ is not in it), named in the INV-T-2854 MR.
+    payload-svc also produces the platform events EvidenceArtefactRecorded
+    and PackReadinessAcknowledged (model/architecture/events.yaml); those are
+    authored once under service-runtime/ by T11 (STK-61), not here (T9's
+    review, !3, rejected copying platform events into a producer directory).
   contact:
     name: payload (see CODEOWNERS)
   license:
@@ -20,12 +28,38 @@ servers:
     protocol: kafka
     description: Placeholder — the platform component event-log (SDS §18.14).
 channels:
+  payloadPayloadReady:
+    address: 'gst.payload.payload-ready.v1'
+    messages:
+      PayloadReady:
+        $ref: '#/components/messages/PayloadReady'
+
+  payloadPayloadRejected:
+    address: 'gst.payload.payload-rejected.v1'
+    messages:
+      PayloadRejected:
+        $ref: '#/components/messages/PayloadRejected'
   payloadExampleHappened:
     address: 'gst.payload.example-happened.v1'
     messages:
       ExampleHappened:
         $ref: '#/components/messages/ExampleHappened'
 operations:
+  publishPayloadReady:
+    action: send
+    description: PayloadReady — catalogued in model/architecture/events.yaml (§19.8).
+    channel:
+      $ref: '#/channels/payloadPayloadReady'
+    messages:
+      - $ref: '#/channels/payloadPayloadReady/messages/PayloadReady'
+
+  publishPayloadRejected:
+    action: send
+    description: PayloadRejected — catalogued in model/architecture/events.yaml (§19.8).
+    channel:
+      $ref: '#/channels/payloadPayloadRejected'
+    messages:
+      - $ref: '#/channels/payloadPayloadRejected/messages/PayloadRejected'
   publishExampleHappened:
     action: send
     description: Placeholder operation (INV-T-2849 scaffold) — replace with a real one.
@@ -35,6 +69,36 @@ operations:
       - $ref: '#/channels/payloadExampleHappened/messages/ExampleHappened'
 components:
   messages:
+    PayloadReady:
+      name: com.dynokore.gst.payload.PayloadReady.v1
+      title: PayloadReady
+      summary: PayloadReady — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event PayloadReady (model/architecture/events.yaml, INV-NOTE-3 §19.8, INV-REQ-815;
+        class: domain). Emitted by: payload-svc. Consumed by: evidence-svc, submission-svc. Delivery:
+        At-least-once, idempotent consumption mandatory — the dedupe key is docUuid+version (FR-M.12), not
+        the envelope id alone. Payload (catalogue text): docUuid, version, docsequence, submissionType,
+        specificationVersion, the payload bytes and their SHA-256, amendment class. A payload over 10 MB
+        raises PAY-010 and yields PayloadRejected, never PayloadReady (FR-4.13); inbound documents are at
+        most 1 MB (VP-78), so payloads are normally far smaller. Bytes added 25 Sep 2026 (AD-30): submission-svc
+        holds them with the queue item (FR-J.4); evidence-svc seals them as transmitted on
+        SubmissionDespatched. Authored by INV-T-2854 (T10).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/payload-ready-payload.schema.json'
+
+    PayloadRejected:
+      name: com.dynokore.gst.payload.PayloadRejected.v1
+      title: PayloadRejected
+      summary: PayloadRejected — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event PayloadRejected (model/architecture/events.yaml, INV-NOTE-3 §19.8, INV-REQ-815;
+        class: domain). Emitted by: payload-svc. Consumed by: console-bff, notification-svc, submission-svc.
+        Delivery: At-least-once. Payload (catalogue text): docUuid, version, docsequence, validation trace.
+        Authored by INV-T-2854 (T10).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/payload-rejected-payload.schema.json'
     ExampleHappened:
       name: com.dynokore.gst.payload.ExampleHappened.v1
       title: ExampleHappened

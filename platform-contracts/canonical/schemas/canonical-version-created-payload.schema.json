@@ -1,0 +1,293 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/canonical/schemas/canonical-version-created-payload.schema.json",
+  "title": "CanonicalVersionCreatedPayload",
+  "description": "Payload of the CanonicalVersionCreated event (catalogued in model/architecture/events.yaml, INV-NOTE-3 \u00a719.8; class: domain). Authored by INV-T-2854 (T10). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "docUuid": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The document's Doc UUID."
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The canonical/payload/submission version number."
+    },
+    "docsequence": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The per-document monotonic sequence (INV-REQ-1221), duplicated in the payload alongside the envelope's own docsequence extension attribute."
+    },
+    "transactionDate": {
+      "type": "string",
+      "format": "date",
+      "description": "The document's transaction date."
+    },
+    "prescribedPeriodRef": {
+      "type": "string",
+      "description": "The prescribed period reference, e.g. 2026Q1."
+    },
+    "scopeVerdict": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The document/line scope verdict this version carries (services.yaml 'document scope verdict')."
+    },
+    "appliedPackVersions": {
+      "type": "array",
+      "description": "The rule pack versions applied to derive this canonical version.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "packIdentifier": {
+            "type": "string",
+            "description": "The rule pack identifier (rules-svc's RulePackStaged/RulePackActivated)."
+          },
+          "version": {
+            "type": "string",
+            "description": "The rule pack version applied."
+          }
+        },
+        "required": [
+          "packIdentifier",
+          "version"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "traceReference": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Opaque reference to the underlying decision/evidence trace, resolvable by evidence-svc."
+    },
+    "canonicalDocument": {
+      "type": "object",
+      "description": "The canonical version itself (INV-NOTE-3 \u00a720.2 to \u00a720.5; content added 25 Sep 2026, AD-30). payload-svc builds its projection from this, reconciliation-svc its Box read model (FR-Z.16), evidence-svc its retained copy (FR-AA.15) and console-bff its search index (SCR-03.1); submission-svc reads docUuid/version/docsequence only, not this object. Kept for the content window only (FR-AH.9). Every content field below carries its FR-AE.72 classification, as a {value, classification} pair.",
+      "properties": {
+        "documentTypeCode": {
+          "type": "object",
+          "description": "The document type code. Wrapped with its FR-AE.72 classification (INV-NOTE-3 \u00a720; content added 25 Sep 2026, AD-30).",
+          "properties": {
+            "value": {
+              "type": "string",
+              "description": "The document type code."
+            },
+            "classification": {
+              "type": "string",
+              "description": "The FR-AE.72 data classification tag for this content field."
+            }
+          },
+          "required": [
+            "value",
+            "classification"
+          ],
+          "additionalProperties": true
+        },
+        "currency": {
+          "type": "object",
+          "description": "The document currency. Wrapped with its FR-AE.72 classification (INV-NOTE-3 \u00a720; content added 25 Sep 2026, AD-30).",
+          "properties": {
+            "value": {
+              "type": "string",
+              "description": "ISO 4217 currency code."
+            },
+            "classification": {
+              "type": "string",
+              "description": "The FR-AE.72 data classification tag for this content field."
+            }
+          },
+          "required": [
+            "value",
+            "classification"
+          ],
+          "additionalProperties": true
+        },
+        "parties": {
+          "type": "object",
+          "description": "The document's parties. Wrapped with its FR-AE.72 classification (INV-NOTE-3 \u00a720; content added 25 Sep 2026, AD-30).",
+          "properties": {
+            "value": {
+              "type": "object",
+              "properties": {
+                "supplier": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "description": "The supplier party."
+                },
+                "buyer": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "description": "The buyer party."
+                }
+              },
+              "required": [
+                "supplier",
+                "buyer"
+              ],
+              "additionalProperties": true
+            },
+            "classification": {
+              "type": "string",
+              "description": "The FR-AE.72 data classification tag for this content field."
+            }
+          },
+          "required": [
+            "value",
+            "classification"
+          ],
+          "additionalProperties": true
+        },
+        "lines": {
+          "type": "object",
+          "description": "The document's lines. Wrapped with its FR-AE.72 classification (INV-NOTE-3 \u00a720; content added 25 Sep 2026, AD-30).",
+          "properties": {
+            "value": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "lineNumber": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "quantity": {
+                    "type": "number"
+                  },
+                  "unitPrice": {
+                    "type": "number"
+                  },
+                  "lineAmount": {
+                    "type": "number"
+                  },
+                  "taxCode": {
+                    "type": "string"
+                  },
+                  "taxAmount": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "lineNumber",
+                  "description",
+                  "quantity",
+                  "unitPrice",
+                  "lineAmount",
+                  "taxCode",
+                  "taxAmount"
+                ],
+                "additionalProperties": true
+              }
+            },
+            "classification": {
+              "type": "string",
+              "description": "The FR-AE.72 data classification tag for this content field."
+            }
+          },
+          "required": [
+            "value",
+            "classification"
+          ],
+          "additionalProperties": true
+        },
+        "taxSubtotals": {
+          "type": "object",
+          "description": "The document's tax subtotals. Wrapped with its FR-AE.72 classification (INV-NOTE-3 \u00a720; content added 25 Sep 2026, AD-30).",
+          "properties": {
+            "value": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "taxCode": {
+                    "type": "string"
+                  },
+                  "taxableAmount": {
+                    "type": "number"
+                  },
+                  "taxAmount": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "taxCode",
+                  "taxableAmount",
+                  "taxAmount"
+                ],
+                "additionalProperties": true
+              }
+            },
+            "classification": {
+              "type": "string",
+              "description": "The FR-AE.72 data classification tag for this content field."
+            }
+          },
+          "required": [
+            "value",
+            "classification"
+          ],
+          "additionalProperties": true
+        },
+        "totals": {
+          "type": "object",
+          "description": "The document's totals. Wrapped with its FR-AE.72 classification (INV-NOTE-3 \u00a720; content added 25 Sep 2026, AD-30).",
+          "properties": {
+            "value": {
+              "type": "object",
+              "properties": {
+                "totalExcludingTax": {
+                  "type": "number"
+                },
+                "totalTax": {
+                  "type": "number"
+                },
+                "totalIncludingTax": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "totalExcludingTax",
+                "totalTax",
+                "totalIncludingTax"
+              ],
+              "additionalProperties": true
+            },
+            "classification": {
+              "type": "string",
+              "description": "The FR-AE.72 data classification tag for this content field."
+            }
+          },
+          "required": [
+            "value",
+            "classification"
+          ],
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "documentTypeCode",
+        "currency",
+        "parties",
+        "lines",
+        "taxSubtotals",
+        "totals"
+      ],
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "docUuid",
+    "version",
+    "docsequence",
+    "transactionDate",
+    "prescribedPeriodRef",
+    "scopeVerdict",
+    "appliedPackVersions",
+    "traceReference",
+    "canonicalDocument"
+  ],
+  "additionalProperties": true
+}

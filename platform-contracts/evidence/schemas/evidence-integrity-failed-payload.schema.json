@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/evidence/schemas/evidence-integrity-failed-payload.schema.json",
+  "title": "EvidenceIntegrityFailedPayload",
+  "description": "Payload of the EvidenceIntegrityFailed event (catalogued in model/architecture/events.yaml, INV-NOTE-3 \u00a719.8; class: domain). Authored by INV-T-2854 (T10). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "range": {
+      "type": "object",
+      "description": "The range checked.",
+      "properties": {
+        "from": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "to": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "from",
+        "to"
+      ],
+      "additionalProperties": true
+    },
+    "failingRecord": {
+      "type": "object",
+      "description": "The record that failed the integrity check.",
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "range",
+    "failingRecord"
+  ],
+  "additionalProperties": true
+}
