@@ -3,12 +3,12 @@
   "id": "b8c6d6c4-5e7e-4f1a-9f73-0c0f8a5c2d10",
   "source": "/gst/submission",
   "type": "com.dynokore.gst.submission.SubmissionAcknowledged.v1",
-  "time": "2026-04-20T03:15:22Z",
   "datacontenttype": "application/json",
   "tenantid": "5e0b8a0e-2c4d-4b8f-9a61-0d3c7f1e2b44",
   "entityref": "E-001",
   "transactiondate": "2026-03-20",
   "instanceid": "submission-7c9f4d-2xk8q",
+  "correlationid": "7f0c2a2e-4b9e-4d0e-9d7c-2f9a1a5b6c11",
   "causationid": "5d2b0e8f-0a3c-4c1e-8f6a-2b9d7e4c3a90",
   "data": {}
 }

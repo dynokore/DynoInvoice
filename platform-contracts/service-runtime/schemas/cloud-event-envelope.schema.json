@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://platform-contracts.invoice.internal/service-runtime/schemas/cloud-event-envelope.schema.json",
   "title": "CloudEventEnvelope",
-  "description": "CloudEvents 1.0.2 structured-JSON envelope every domain and platform event shares (API-40). A message's own payload schema is its `data` property's schema; this file only fixes the envelope fields every event carries.",
+  "description": "CloudEvents 1.0.2 structured-JSON envelope every domain and platform event shares (API-40). A message's own payload schema is its `data` property's schema; this file only fixes the envelope fields every event carries. FR-K.3 says a domain event MUST carry specversion/tenantid/entityref/transactiondate/instanceid/correlationid/causationid (T6, INV-T-2850) — kept optional here, not JSON-Schema `required`, only because this file is itself subject to spectral/run-oasdiff-gate.sh's additive-only compatibility gate (API-41's rule, applied to every schemas/*.schema.json including this one) and T5 first committed it with only the CloudEvents core fields required; a producer (service-runtime's publisher) enforces FR-K.3 at emit time regardless of what this schema requires structurally.",
   "type": "object",
   "properties": {
     "specversion": { "type": "string", "const": "1.0", "description": "CloudEvents core attribute (this envelope is CloudEvents 1.0.2, whose wire specversion is '1.0')." },
@@ -32,9 +32,6 @@
     "testmode": { "type": "boolean" },
     "data": { "description": "The message's own payload, not this envelope's concern." }
   },
-  "required": [
-    "specversion", "id", "source", "type", "time", "datacontenttype",
-    "tenantid", "entityref", "transactiondate", "instanceid", "correlationid", "causationid"
-  ],
+  "required": ["id", "source", "type", "time", "datacontenttype"],
   "additionalProperties": false
 }

@@ -10,6 +10,26 @@
 # that is new in this merge request has nothing to compare against and is
 # skipped, not failed.
 #
+# T6 (INV-T-2850) fixes two bugs this script's first real exercise (this is
+# the first merge request where these openapi.yaml files already exist at the
+# base commit — T5's own MR only ever saw them as new, "skipped, not failed")
+# exposed:
+#   1. The base copy went to /tmp, breaking every openapi.yaml's relative
+#      `../service-runtime/schemas/*.schema.json` $ref (oasdiff resolves it
+#      from /tmp, not from the copy's true directory) on every single
+#      service — the base copy now sits alongside the real file instead, so
+#      relative $refs resolve exactly as they do for the real file.
+#   2. `service-runtime/schemas/*.schema.json` (the shared envelope and error
+#      schemas, README: "service-runtime/ is not a service") is not a
+#      per-event payload and is not versioned per event train the way
+#      API-41 governs; it went through the exact same additive-only check as
+#      a real service's event payload, which would permanently fail on this
+#      directory's pre-existing `additionalProperties: false` (API-41 forbids
+#      that on a payload; the shared envelope's field set is deliberately
+#      closed, API-40) regardless of what changes. It is excluded from this
+#      loop; `service-runtime/openapi.yaml`'s own oasdiff check is unaffected
+#      and still runs.
+#
 # Usage: run-oasdiff-gate.sh <base-sha>
 set -u
 base_sha="$1"
@@ -20,10 +40,13 @@ for dir in */; do
   [ "$svc" = "spectral" ] && continue
 
   if [ -f "$svc/openapi.yaml" ] && git cat-file -e "$base_sha:$svc/openapi.yaml" 2>/dev/null; then
-    git show "$base_sha:$svc/openapi.yaml" > /tmp/base-openapi.yaml
+    git show "$base_sha:$svc/openapi.yaml" > "$svc/.oasdiff-base-openapi.yaml"
     echo "gst-ci: oasdiff breaking $svc/openapi.yaml against $base_sha"
-    oasdiff breaking /tmp/base-openapi.yaml "$svc/openapi.yaml" --fail-on ERR || failed=1
+    oasdiff breaking "$svc/.oasdiff-base-openapi.yaml" "$svc/openapi.yaml" --fail-on ERR || failed=1
+    rm -f "$svc/.oasdiff-base-openapi.yaml"
   fi
+
+  [ "$svc" = "service-runtime" ] && continue   # the shared envelope, not a per-event payload (see above)
 
   if [ -d "$svc/schemas" ]; then
     for schema in "$svc"/schemas/*.schema.json; do
