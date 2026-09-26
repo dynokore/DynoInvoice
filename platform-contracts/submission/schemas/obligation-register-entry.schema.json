@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/submission/schemas/obligation-register-entry.schema.json",
+  "title": "ObligationRegisterEntry",
+  "description": "One entry of submission-svc's obligation register (INV-REQ-570 / INV-NOTE-3#def:FR-AE.9): submission-svc MUST maintain a register entry, created from `CanonicalVersionCreated`, for every in-scope document, and period readiness is computed over the register. Behavior (Keel, live text): (1) a register entry is created from `CanonicalVersionCreated` (carrying `scopeVerdict`, `prescribedPeriodRef` and `transactionDate`, model/architecture/events.yaml) for every in-scope document. (2) A document held in `INGESTED` before any scope verdict (ING-016) gets a provisional entry instead, counted as unsubmitted, keyed to the period of its provisional transaction date; that provisional entry and its provisional `prescribedPeriodRef` come from `DocumentHeld` (model/architecture/events.yaml). `state` is this entry's current lifecycle state (SDS §33.2), document-level before a version exists or version-level once one does (lifecycle-states.schema.json). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "docUuid": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The document this register entry is for (one entry per in-scope document, FR-AE.9)."
+    },
+    "docSequence": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The per-document monotonic sequence carried by the source event (`docsequence`, FR-K.3, model/architecture/events.yaml)."
+    },
+    "entityRef": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The registered entity the document belongs to (`DocumentHeld`'s `entityRef`, model/architecture/events.yaml)."
+    },
+    "sourceEvent": {
+      "type": "string",
+      "enum": ["CanonicalVersionCreated", "DocumentHeld"],
+      "description": "Which event created this entry (FR-AE.9 behavior 1 and 2): `CanonicalVersionCreated` once the scope verdict is known, `DocumentHeld` for a provisional entry created before it."
+    },
+    "provisional": {
+      "type": "boolean",
+      "description": "True for an entry created from `DocumentHeld` before any scope verdict is known (FR-AE.9 behavior 2); false once superseded by a `CanonicalVersionCreated` entry."
+    },
+    "state": {
+      "$ref": "./lifecycle-states.schema.json#/$defs/lifecycleState",
+      "description": "This entry's current lifecycle state (SDS §33.2)."
+    },
+    "scopeVerdict": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The in-scope/out-of-scope verdict `CanonicalVersionCreated` carries (model/architecture/events.yaml). Not yet a closed catalogue in the live design record, so kept an open string rather than an invented enum (API-09's extensible-enum rule applies once one is defined)."
+    },
+    "prescribedPeriodRef": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The filing period this entry counts against. Carried by `CanonicalVersionCreated` once the scope verdict is known; before that, the provisional period from `DocumentHeld`'s provisional `prescribedPeriodRef` (the case table of INV-NOTE-2 §10.1, keyed on the document's provisional transaction date)."
+    },
+    "transactionDate": {
+      "type": "string",
+      "format": "date",
+      "description": "The transaction date the period above is computed from (`CanonicalVersionCreated`'s `transactionDate`, or the document's provisional transaction date while held, FR-AE.9)."
+    },
+    "countedAsUnsubmitted": {
+      "type": "boolean",
+      "description": "Whether this entry currently counts as unsubmitted for period-readiness computation (FR-AE.9). Derived from `state` per the source design record's per-state `countsAsUnsubmitted` note (lifecycle-states.schema.json's `x-lifecycle-states` catalogue), not independently settable."
+    }
+  },
+  "required": [
+    "docUuid",
+    "sourceEvent",
+    "provisional",
+    "state",
+    "prescribedPeriodRef",
+    "transactionDate",
+    "countedAsUnsubmitted"
+  ],
+  "additionalProperties": true
+}

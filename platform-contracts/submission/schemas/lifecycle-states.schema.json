@@ -1,0 +1,246 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/submission/schemas/lifecycle-states.schema.json",
+  "title": "LifecycleStates",
+  "description": "GENERATED — do not hand-edit. Source: invoice-docs model/architecture/lifecycle-states.yaml (SDS §33.2; live requirement INV-REQ-570 / INV-NOTE-3#def:FR-AE.9). Regenerate with generate-lifecycle-states.py --write; the lifecycle-states-drift-check CI job fails if this file differs from what regeneration produces (INV-T-2859, T15). The `x-lifecycle-states` catalogue carries each state's full design metadata (meaning, whether it counts as unsubmitted for period readiness, whether it is in flight, and its terminality) verbatim from the source YAML, for a future Kotlin generator (gst.event-types, T3) the way error-codes.yaml already feeds the ErrorCode enum (CS-13); `documentLevelState` / `versionLevelState` / `lifecycleState` are the plain enums a wire schema (e.g. the obligation register entry, obligation-register-entry.schema.json) references by $ref.",
+  "$defs": {
+    "documentLevelState": {
+      "type": "string",
+      "enum": [
+        "INGESTED",
+        "HELD",
+        "BLOCKED",
+        "NOT_SUBMITTABLE"
+      ],
+      "description": "A document-level lifecycle state (SDS §33.2), before a submittable version exists."
+    },
+    "versionLevelState": {
+      "type": "string",
+      "enum": [
+        "READY",
+        "AWAITING_PRECEDING",
+        "QUEUED",
+        "SENT",
+        "SENT_UNCONFIRMED",
+        "RETRY",
+        "DEAD_LETTERED",
+        "REJECTED",
+        "CANCELLED",
+        "ACKNOWLEDGED",
+        "SUPERSEDED",
+        "NETWORK_ISSUED",
+        "EXTERNALLY_SUBMITTED",
+        "WITHDRAWN"
+      ],
+      "description": "A version-level lifecycle state (SDS §33.2), once a payload version exists."
+    },
+    "lifecycleState": {
+      "description": "Either level's lifecycle state (SDS §33.2) — document-level or version-level.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/documentLevelState"
+        },
+        {
+          "$ref": "#/$defs/versionLevelState"
+        }
+      ]
+    },
+    "stateCatalogueEntry": {
+      "type": "object",
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": [
+            "document",
+            "version"
+          ]
+        },
+        "state": {
+          "$ref": "#/$defs/lifecycleState"
+        },
+        "meaning": {
+          "type": "string"
+        },
+        "countsAsUnsubmitted": {
+          "type": "string",
+          "description": "Free text (not a plain boolean in the source design record): whether and under what condition this state counts as unsubmitted for period-readiness computation (FR-AE.9)."
+        },
+        "inFlight": {
+          "type": "boolean"
+        },
+        "terminal": {
+          "type": "string",
+          "description": "Free text: 'No', 'Yes', or a condition under which the state stops being terminal (e.g. 'Until amended', 'Until superseded')."
+        }
+      },
+      "required": [
+        "level",
+        "state",
+        "meaning",
+        "countsAsUnsubmitted",
+        "inFlight",
+        "terminal"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "type": "object",
+  "properties": {
+    "x-lifecycle-states": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/stateCatalogueEntry"
+      }
+    }
+  },
+  "required": [
+    "x-lifecycle-states"
+  ],
+  "additionalProperties": true,
+  "x-lifecycle-states": [
+    {
+      "level": "document",
+      "state": "INGESTED",
+      "meaning": "Recorded, derivation incomplete",
+      "countsAsUnsubmitted": "Yes, if in scope; while the scope verdict is unknown, counted provisionally from DocumentHeld (FR-AE.9)",
+      "inFlight": false,
+      "terminal": "No"
+    },
+    {
+      "level": "document",
+      "state": "HELD",
+      "meaning": "Awaiting data (MDM-001, rules unavailable)",
+      "countsAsUnsubmitted": "Yes",
+      "inFlight": false,
+      "terminal": "No"
+    },
+    {
+      "level": "document",
+      "state": "BLOCKED",
+      "meaning": "Validation failed at payload build",
+      "countsAsUnsubmitted": "Yes",
+      "inFlight": false,
+      "terminal": "No"
+    },
+    {
+      "level": "document",
+      "state": "NOT_SUBMITTABLE",
+      "meaning": "Out of scope, Excluded Transaction, suppressed code (DS, OS, SRRC), before the obligation start (§33.7), rejected by the buyer (BUYER_REJECTED, FR-AE.27), or refused at Relay issuance and not yet corrected (ISSUANCE_REFUSED, FR-AE.2), or a credit note whose original was superseded before transmission by a revised invoice that nets it (NETTED_INTO_REVISION, FR-AE.19; added 25 Sep 2026)",
+      "countsAsUnsubmitted": "No",
+      "inFlight": false,
+      "terminal": "Until amended"
+    },
+    {
+      "level": "version",
+      "state": "READY",
+      "meaning": "Payload built and valid",
+      "countsAsUnsubmitted": "Yes",
+      "inFlight": false,
+      "terminal": "No"
+    },
+    {
+      "level": "version",
+      "state": "AWAITING_PRECEDING",
+      "meaning": "Existing (§29.10)",
+      "countsAsUnsubmitted": "Yes",
+      "inFlight": false,
+      "terminal": "No"
+    },
+    {
+      "level": "version",
+      "state": "QUEUED",
+      "meaning": "Claimable",
+      "countsAsUnsubmitted": "Yes",
+      "inFlight": true,
+      "terminal": "No"
+    },
+    {
+      "level": "version",
+      "state": "SENT",
+      "meaning": "With the AP",
+      "countsAsUnsubmitted": "Yes",
+      "inFlight": true,
+      "terminal": "No"
+    },
+    {
+      "level": "version",
+      "state": "SENT_UNCONFIRMED",
+      "meaning": "No acknowledgement by threshold T1",
+      "countsAsUnsubmitted": "Yes",
+      "inFlight": true,
+      "terminal": "No"
+    },
+    {
+      "level": "version",
+      "state": "RETRY",
+      "meaning": "Transient failure, backing off",
+      "countsAsUnsubmitted": "Yes",
+      "inFlight": true,
+      "terminal": "No"
+    },
+    {
+      "level": "version",
+      "state": "DEAD_LETTERED",
+      "meaning": "Retries exhausted",
+      "countsAsUnsubmitted": "Yes",
+      "inFlight": false,
+      "terminal": "No — replayable"
+    },
+    {
+      "level": "version",
+      "state": "REJECTED",
+      "meaning": "AP or IRAS rejected; IRAS holds nothing for this version",
+      "countsAsUnsubmitted": "Yes, unless an earlier version is ACKNOWLEDGED",
+      "inFlight": false,
+      "terminal": "Yes, for this version"
+    },
+    {
+      "level": "version",
+      "state": "CANCELLED",
+      "meaning": "Superseded by a newer version before being sent",
+      "countsAsUnsubmitted": "No",
+      "inFlight": false,
+      "terminal": "Yes"
+    },
+    {
+      "level": "version",
+      "state": "ACKNOWLEDGED",
+      "meaning": "IRAS holds this version",
+      "countsAsUnsubmitted": "No",
+      "inFlight": false,
+      "terminal": "Until superseded"
+    },
+    {
+      "level": "version",
+      "state": "SUPERSEDED",
+      "meaning": "A later version of the same UUID was acknowledged",
+      "countsAsUnsubmitted": "No",
+      "inFlight": false,
+      "terminal": "Yes"
+    },
+    {
+      "level": "version",
+      "state": "NETWORK_ISSUED",
+      "meaning": "Type 1A in Observe mode, awaiting acknowledgement (§33.1)",
+      "countsAsUnsubmitted": "Yes",
+      "inFlight": false,
+      "terminal": "No"
+    },
+    {
+      "level": "version",
+      "state": "EXTERNALLY_SUBMITTED",
+      "meaning": "Submitted by a prior solution (FR-R.10)",
+      "countsAsUnsubmitted": "No",
+      "inFlight": false,
+      "terminal": "Yes"
+    },
+    {
+      "level": "version",
+      "state": "WITHDRAWN",
+      "meaning": "Withdrawn before any transmission, with approval (§33.3)",
+      "countsAsUnsubmitted": "No",
+      "inFlight": false,
+      "terminal": "Yes"
+    }
+  ]
+}

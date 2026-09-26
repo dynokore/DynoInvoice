@@ -76,6 +76,41 @@ schema-sample-validation:
       service-runtime/schemas/cloud-event-envelope.schema.json spectral/fixtures/schema-samples/cloud-event-envelope
       service-runtime/schemas/error-envelope.schema.json spectral/fixtures/schema-samples/error-envelope
 
+lifecycle-states-drift-check:
+  # INV-T-2859 (T15) — "generated from model/architecture/lifecycle-states.yaml;
+  # drift check passes": submission/schemas/lifecycle-states.schema.json is
+  # generated from that invoice-docs design record (SDS §33.2, FR-AE.9), the
+  # same shape CS-13 already uses for error-codes.yaml -> ErrorCode; this
+  # repository has no Kotlin generator to run instead, so the check
+  # regenerates the schema from a fresh clone of invoice-docs and fails if it
+  # differs from the committed file. Reuses the already-pinned OASDIFF_IMAGE +
+  # python3 (dependency-free script, mirrors schema-sample-validation).
+  #
+  # invoice-docs is not anonymously readable (confirmed while authoring this
+  # job — a plain `git clone http://.../invoice-docs.git` asks for a
+  # username), so this clones with `gitlab-ci-token:$CI_JOB_TOKEN`, the same
+  # mechanism platform-libs's sibling-checkout jobs use for platform-build
+  # (INV-T-2860). That needs invoice/invoice-docs's CI/CD "Token Access"
+  # allowlist to include invoice/platform-contracts — a Maintainer action,
+  # named here as a follow-up (AGT-24) rather than assumed; until it is
+  # granted this job fails at the clone step with a clear message, not
+  # silently.
+  stage: verify
+  image:
+    name: "$OASDIFF_IMAGE"
+    entrypoint: [""]
+  before_script:
+    - apk add --no-cache python3 git
+  script:
+    - >
+      git clone --depth 1
+      "${CI_SERVER_PROTOCOL}://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}:${CI_SERVER_PORT}/invoice/invoice-docs.git"
+      /tmp/invoice-docs
+    - >
+      python3 submission/schemas/generate-lifecycle-states.py
+      /tmp/invoice-docs/model/architecture/lifecycle-states.yaml
+      --check submission/schemas/lifecycle-states.schema.json
+
 envelope-rule-self-test:
   # INV-T-2850 (T6) — proves inv-api-40-message-references-envelope itself
   # works, against isolated fixtures, the same way breaking-change-self-test
