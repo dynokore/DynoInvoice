@@ -5,6 +5,12 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-26
+### Added
+- `tenancy-kernel-api`/`tenancy-kernel` constraint pair, pinned to
+  `tenancy-kernel`'s own `1.0.0` (INV-T-2861 / T17: the module's first real
+  interface). The first non-empty entry in this BOM.
+
 ## [0.1.0] - 2026-09-26
 ### Added
 - BOM scaffold: `java-platform`, Maven publish, no constraints yet (INV-T-2860).

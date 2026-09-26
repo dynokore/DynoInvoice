@@ -27,12 +27,13 @@ version = file("version.txt").readText().trim()
 
 dependencies {
     constraints {
-        // One pair per Wave 1 module, added by that module's own task, e.g.:
-        //   api("com.dynokore.platform:service-runtime-api:${project(":service-runtime").version}")
-        //   api("com.dynokore.platform:service-runtime:${project(":service-runtime").version}")
-        // in STK-60's L1 order (service-runtime, outbox-and-queue, rulepack-kernel,
-        // tenancy-kernel, evidence-store, adapter-runtime, config-resolver,
-        // audit-log), then product-runtime.
+        // tenancy-kernel's own pair (INV-T-2861 / T17: the module gained a real
+        // interface). Still one pair per Wave 1 module, added by that module's
+        // own task, in STK-60's L1 order (service-runtime, outbox-and-queue,
+        // rulepack-kernel, tenancy-kernel, evidence-store, adapter-runtime,
+        // config-resolver, audit-log), then product-runtime.
+        api("com.dynokore.platform:tenancy-kernel-api:${project(":tenancy-kernel").version}")
+        api("com.dynokore.platform:tenancy-kernel:${project(":tenancy-kernel").version}")
     }
 }
 
