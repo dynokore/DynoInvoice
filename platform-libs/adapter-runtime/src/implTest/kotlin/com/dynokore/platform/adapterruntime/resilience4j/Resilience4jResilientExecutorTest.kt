@@ -6,8 +6,8 @@ import com.dynokore.platform.adapterruntime.ResiliencePolicy
 import com.dynokore.platform.adapterruntime.RetryPolicy
 import com.dynokore.platform.adapterruntime.TimeoutPolicy
 import com.dynokore.platform.adapterruntime.deadletter.InMemoryDeadLetterSink
-import io.github.resilience4j.circuitbreaker.CallNotPermittedException
 import io.github.resilience4j.bulkhead.BulkheadFullException
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -106,7 +106,10 @@ class Resilience4jResilientExecutorTest {
         val deadLetters = InMemoryDeadLetterSink()
         val executor = Resilience4jResilientExecutor(policy(maxAttempts = 1, slidingWindowSize = 2), "edge-e", deadLetters, clock)
         val invocations = AtomicInteger(0)
-        val failingBlock: () -> String = { invocations.incrementAndGet(); throw IllegalStateException("boom") }
+        val failingBlock: () -> String = {
+            invocations.incrementAndGet()
+            throw IllegalStateException("boom")
+        }
 
         repeat(2) { shouldThrow<IllegalStateException> { executor.execute(failingBlock) } } // fills the 2-call sliding window, all failing
         invocations.get() shouldBe 2

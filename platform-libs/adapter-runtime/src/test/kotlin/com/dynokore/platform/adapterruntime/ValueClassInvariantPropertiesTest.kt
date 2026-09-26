@@ -19,26 +19,23 @@ class ValueClassInvariantPropertiesTest {
     private val token = Arb.string(1..12, Codepoint.alphanumeric())
 
     @Test
-    fun `any non-blank token with no whitespace is a valid AdapterVersion`() =
-        runTest {
-            checkAll(token) { value ->
-                AdapterVersion(value).value shouldBe value
-            }
+    fun `any non-blank token with no whitespace is a valid AdapterVersion`() = runTest {
+        checkAll(token) { value ->
+            AdapterVersion(value).value shouldBe value
         }
+    }
 
     @Test
-    fun `any two tokens joined by a space are rejected as an AdapterVersion`() =
-        runTest {
-            checkAll(Arb.zip(token, token) { a, b -> "$a $b" }) { value ->
-                shouldThrow<IllegalArgumentException> { AdapterVersion(value) }
-            }
+    fun `any two tokens joined by a space are rejected as an AdapterVersion`() = runTest {
+        checkAll(Arb.zip(token, token) { a, b -> "$a $b" }) { value ->
+            shouldThrow<IllegalArgumentException> { AdapterVersion(value) }
         }
+    }
 
     @Test
-    fun `any non-blank token with no whitespace is a valid SecretRef`() =
-        runTest {
-            checkAll(token) { value ->
-                SecretRef(value).value shouldBe value
-            }
+    fun `any non-blank token with no whitespace is a valid SecretRef`() = runTest {
+        checkAll(token) { value ->
+            SecretRef(value).value shouldBe value
         }
+    }
 }

@@ -29,16 +29,14 @@ class FakeManagedAdapter(override val version: AdapterVersion) : ManagedAdapter 
     }
 
     /** Marks one unit of work as accepted; call [finishWork] when it completes. */
-    fun beginWork() =
-        lock.withLock {
-            activeCalls += 1
-        }
+    fun beginWork() = lock.withLock {
+        activeCalls += 1
+    }
 
-    fun finishWork() =
-        lock.withLock {
-            activeCalls -= 1
-            noActiveCalls.signalAll()
-        }
+    fun finishWork() = lock.withLock {
+        activeCalls -= 1
+        noActiveCalls.signalAll()
+    }
 
     override fun drainAndStop(deadline: Instant) {
         if (state != AdapterState.STOPPED) state = AdapterState.DRAINING
