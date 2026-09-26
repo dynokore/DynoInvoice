@@ -72,6 +72,13 @@ dependencies {
     testImplementation(libs.kotest.property)
     testImplementation(libs.kotlinx.coroutinesTest)
     testRuntimeOnly(libs.junit.platformLauncher)
+
+    // Real PostgreSQL only, in every environment including tests (STK-14, STK-15;
+    // H2 is banned outright, banned-dependencies.yaml) — proves PackRegistryMigration's
+    // RLS policy against the actual database CS-19 targets, not string matching.
+    testImplementation(libs.postgresql)
+    testImplementation(libs.testcontainers.postgresql)
+    testRuntimeOnly(libs.slf4j.simple) // Testcontainers' own container/strategy logs are otherwise silently dropped (NOP logger)
 }
 
 tasks.test {

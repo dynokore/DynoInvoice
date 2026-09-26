@@ -28,15 +28,27 @@ package com.dynokore.platform.rulepackkernel
  * Row-level security is still mandatory here (CS-19), just not CS-19's usual
  * single-tenant predicate: that predicate (`tenant_id =
  * current_setting(...)`) is never true against a NULL `tenant_id`, so it
- * would hide every platform-wide pack from every tenant. Instead the policy
- * predicate also admits a NULL `tenant_id` — platform-wide rows stay visible
- * to every tenant, while a tenant-scoped row (`tenant_id` set) is still
- * fail-closed exactly as CS-19 requires: invisible whenever the session has
- * no tenant bound (an unset or blank `app.tenant_id`, e.g. a leaked or
+ * would hide every platform-wide pack from every tenant. Instead the read-side
+ * (`USING`) predicate also admits a NULL `tenant_id` — platform-wide rows stay
+ * visible to every tenant, while a tenant-scoped row (`tenant_id` set) is
+ * still fail-closed exactly as CS-19 requires: invisible whenever the session
+ * has no tenant bound (an unset or blank `app.tenant_id`, e.g. a leaked or
  * missing [TransactionRunner] context). [TenantRlsMigration] is not reused
  * here because it hard-codes both the strict single-tenant predicate and a
  * `tenant_id NOT NULL` table shape, neither of which fits a table that must
  * also carry platform-wide rows.
+ *
+ * The write-side (`WITH CHECK`) predicate is deliberately *not* the same text
+ * as `USING`: a bare `tenant_id IS NULL OR tenant_id = current tenant` would
+ * let any tenant-bound session insert a `tenant_id IS NULL` row too (that
+ * first disjunct does not look at which tenant, if any, is bound) — a bug in
+ * a tenant-bound write path could fabricate a "platform-wide" row visible to
+ * every tenant, with RLS as the sole enforcement (the embedding role is
+ * INSERT/SELECT-only, no `BYPASSRLS`, CS-19) unable to stop it. `WITH CHECK`
+ * instead only admits a NULL `tenant_id` when *no* tenant is bound either (the
+ * platform/maintenance identity that loads platform-wide packs, never inside
+ * a tenant's own transaction) — CS-19's fail-closed guarantee extended to the
+ * write side, not just reads.
  *
  * Rows are immutable (INV-ADR-263, INV-REQ-1089): a service embedding this
  * table grants its runtime role `INSERT`, `SELECT` only, never `UPDATE` or
@@ -67,12 +79,18 @@ object PackRegistryMigration {
         val index = "${table}_resolution_idx"
         val uniqueConstraint = "${table}_lineage_key"
         val policyName = "${table}_tenant_isolation"
-        // CS-19's predicate, but also admitting a NULL tenant_id (platform-wide
-        // rows): unlike TenantRlsMigration's single-tenant predicate, this table's
-        // rows are not all tenant-scoped (see class doc). A tenant-scoped row
-        // still fails closed: `nullif(current_setting(...), '')` is NULL when the
-        // setting is absent or blank, and `tenant_id = NULL` is never true.
-        val predicate = "tenant_id IS NULL OR tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid"
+        val boundTenant = "nullif(current_setting('app.tenant_id', true), '')"
+        // Read side (CS-19's predicate, but also admitting a NULL tenant_id for
+        // platform-wide rows): unlike TenantRlsMigration's single-tenant predicate,
+        // this table's rows are not all tenant-scoped (see class doc). A
+        // tenant-scoped row still fails closed on read: $boundTenant is NULL when
+        // the setting is absent or blank, and `tenant_id = NULL` is never true.
+        val readPredicate = "tenant_id IS NULL OR tenant_id = $boundTenant::uuid"
+        // Write side: a NULL tenant_id is only ever insertable when no tenant is
+        // bound either (the platform/maintenance identity), never from inside a
+        // tenant-bound session — see the class doc for why this must not be the
+        // same text as the read predicate.
+        val writePredicate = "(tenant_id IS NULL AND $boundTenant IS NULL) OR tenant_id = $boundTenant::uuid"
         return """
             |CREATE TABLE $qualified (
             |    id                 uuid PRIMARY KEY,
@@ -95,8 +113,8 @@ object PackRegistryMigration {
             |ALTER TABLE $qualified ENABLE ROW LEVEL SECURITY;
             |ALTER TABLE $qualified FORCE ROW LEVEL SECURITY;
             |CREATE POLICY $policyName ON $qualified
-            |    USING      ($predicate)
-            |    WITH CHECK ($predicate);
+            |    USING      ($readPredicate)
+            |    WITH CHECK ($writePredicate);
         """.trimMargin()
     }
 }
