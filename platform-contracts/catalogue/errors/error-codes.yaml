@@ -1,0 +1,511 @@
+# Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
+# pinned at commit dcd475a1d6ceb2b19bf53afcdd563da589bb9faf (2026-09-26), the last
+# commit that touched that file as of this task (INV-T-2851 / T7).
+#
+# This copy is the generator's (catalogue/generator/) sole input for the
+# gst-catalogue ErrorCode catalogue (STK-61, CS-13). It is never hand-edited:
+# invoice-docs is the design source of truth (project-source-of-truth); to
+# pick up a design change, re-vendor this file from the new invoice-docs
+# commit in its own merge request that names the new pinned SHA (AGT-11).
+#
+# Original header, preserved from invoice-docs:
+# Hand-maintained since 26 Sep 2026 (see model/README.md): edit here in a merge request,
+# citing the Keel ADR behind any design change. Generated from the archived SDS until then.
+error_codes:
+- code: ING-001
+  condition: Unknown sourceSystem
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Integration
+- code: ING-002
+  condition: sourceRevision lower than recorded
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Integration
+- code: ING-003
+  condition: Batch manifest count or total mismatch
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Integration
+- code: ING-004
+  condition: entityRef unknown or inactive
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Onboarding
+- code: ING-005
+  condition: documentDate — or the posting date where no invoice is issued — outside the GST registration period; the document
+    is NOT_SUBMITTABLE, out of scope, and shown in onboarding (C-2). Not raised for a document before the obligation start,
+    which is PRE_OBLIGATION (FR-AE.40). Amended 25 Sep 2026; previously BLOCK, OVERRIDABLE
+  severity: INFO
+  disposition: None — no queue item
+  owner: Onboarding
+- code: ING-006
+  condition: aggregateType not POS, STI or PCP, or contradicting direction (C-3; extended 25 Sep 2026)
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Integration
+- code: ING-007
+  condition: Purchase line missing inputTaxClaimed
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Integration
+- code: ING-008
+  condition: Watermark gap detected in a pull feed
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Integration
+- code: ING-009
+  condition: Document number absent on a bill for payment
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Integration
+- code: ING-010
+  condition: Duplicate documentNumber within entity, direction, type, issuing party and year (§10.3)
+  severity: WARN
+  disposition: MANUAL
+  owner: Finance
+- code: ING-011
+  condition: Issued Doc UUID already bound to a different commercial document
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Integration
+- code: ING-012
+  condition: Amendment changes direction, document type or entity
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Integration
+- code: ING-013
+  condition: Inbound network document awaiting buyer acceptance (FR-AE.27)
+  severity: HOLD
+  disposition: AUTO_RELEASE on acceptance
+  owner: Finance
+- code: ING-014
+  condition: Simplified tax invoice replaced by a full tax invoice after its aggregate was transmitted (§33.9)
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Finance
+- code: ING-015
+  condition: Adjustment document with mixed-sign lines (§33.11)
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Finance
+- code: ING-016
+  condition: Derivation incomplete because rules-svc or masterdata-svc is unavailable; the document waits in INGESTED and
+    counts as unsubmitted in period readiness (FR-K.12). Added 25 Sep 2026
+  severity: HOLD
+  disposition: AUTO_RELEASE on recovery
+  owner: Platform
+- code: ING-017
+  condition: Network receipt matches more than one document on the fallback correlation key (FR-AE.24). Added 25 Sep 2026
+  severity: HOLD
+  disposition: MANUAL
+  owner: Finance
+- code: ING-018
+  condition: Pre-aggregated call whose period crosses a prescribed-period boundary (FR-AE.49). Added 25 Sep 2026
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Integration
+- code: MDM-001
+  condition: Counterparty unresolved from partyRef
+  severity: HOLD
+  disposition: AUTO_RELEASE
+  owner: Finance
+- code: MDM-002
+  condition: Counterparty UEN absent and scheme not NONE
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Finance
+- code: MDM-003
+  condition: UEN fails format validation
+  severity: BLOCK
+  disposition: OVERRIDABLE
+  owner: Finance
+- code: MDM-004
+  condition: Partial NA population (C-7 breach)
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Finance
+- code: MDM-005
+  condition: Entity identity triple not configured for the constitution
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Onboarding
+- code: MDM-006
+  condition: Address line 1 or postal code absent
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Finance
+- code: MDM-007
+  condition: Counterparty GSTN conflicts with the IRAS register
+  severity: WARN
+  disposition: MANUAL
+  owner: Finance
+- code: MDM-008
+  condition: Directory lookup failed; routed as off-network
+  severity: INFO
+  disposition: AUTO_RETRY
+  owner: Platform
+- code: RUL-001
+  condition: Internal tax code has no mapping in the active pack
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Tax operations
+- code: RUL-002
+  condition: No pack effective for the transaction date
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Tax operations
+- code: RUL-003
+  condition: Scope verdict indeterminate — conflicting rules matched
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Tax operations
+- code: RUL-004
+  condition: 'Scenario handler required but not configured for the entity: the line''s scheme is not elected (VP-53), or its
+    flow is blocked in the scenario pack pending an open question (SRS FR-10.18, FR-AE.89). Amended 25 Sep 2026'
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Tax operations
+- code: RUL-005
+  condition: Pack activation fence failed; partial load detected. The fence aborts (FR-K.7), the activation is abandoned and
+    reported (§5.5), and a person re-arms it; near the effective date DEP-001 escalates. Amended 25 Sep 2026 (Keel INV-Q-2132);
+    previously AUTO_RETRY, a combination FR-O.9 does not allow
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Platform
+- code: RUL-006
+  condition: Mapped code not present in the IRAS catalogue version
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Tax operations
+- code: RUL-007
+  condition: Mapping pack sign-off attempted while a dependent entry is SECONDARY or INFERRED (FR-AA.17)
+  severity: BLOCK
+  disposition: OVERRIDABLE by tax.approver, with scoped and expiring acceptance
+  owner: Tax operations
+- code: RUL-008
+  condition: 'Rate resolution for a credit note requires the preceding document''s date, but the preceding document is unknown:
+    precedingDocumentNumber populated, precedingDocumentDate blank, and no document of that number found for the entity (FR-AA.1;
+    condition stated 25 Sep 2026, Keel INV-Q-1804)'
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Tax operations
+- code: RUL-009
+  condition: 'Mapping pack sign-off attempted with an entry naming an IRAS code that is not in the R1 Annex E code catalogue
+    resolved for the pack''s effective date (SRS FR-T.5, FR-2.13). Not overridable. Added 25 Sep 2026. Amended 25 Sep 2026
+    (IRAS Annex E): previously raised on every sign-off while the catalogue was provisional, before Annex E was read (Keel
+    INV-Q-1564)'
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Tax operations
+- code: RUL-010
+  condition: Mapping or code catalogue entry carries a namespaced category code; codes are stored bare (SRS FR-W.7). Added
+    25 Sep 2026
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Tax operations
+- code: RUL-011
+  condition: 'Scheme handler needs counterparty scheme data that is missing or contradicted: the counterparty''s approved
+    scheme status is not recorded for the transaction date, or the ARCS written-agreement flag contradicts the line''s category
+    code (SRS FR-1.14, FR-1.15, FR-10.18). Added 25 Sep 2026'
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Tax operations
+- code: PAY-001
+  condition: Mandatory Data Element absent
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Finance
+- code: PAY-002
+  condition: Schematron assertion failed
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Platform
+- code: PAY-003
+  condition: Subtotal coverage breach (C-6)
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: PAY-004
+  condition: Line sum to total variance beyond tolerance
+  severity: WARN
+  disposition: MANUAL
+  owner: Finance
+- code: PAY-005
+  condition: SGD tax-currency fields absent on a foreign currency document
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Finance
+- code: PAY-006
+  condition: Exchange rate not from an approved source
+  severity: BLOCK
+  disposition: OVERRIDABLE
+  owner: Tax operations
+- code: PAY-007
+  condition: Profile ID inconsistent with direction
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: PAY-008
+  condition: Aggregate placeholder applied to a field outside the permitted set (C-8)
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: PAY-009
+  condition: Credit note amounts or codes do not tally with the original on a cancellation
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Finance
+- code: PAY-010
+  condition: Document exceeds 10 MB
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Finance
+- code: PAY-011
+  condition: Wrongful GST charge detected against the Check GST Register
+  severity: BLOCK on the Relay path; WARN elsewhere
+  disposition: OVERRIDABLE
+  owner: Tax operations
+- code: PAY-012
+  condition: Specification version selected for submission cannot represent content required by the transaction-date packs
+    (§33.8)
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Tax operations
+- code: PAY-013
+  condition: No approved exchange rate on file for the document date (§35.2)
+  severity: HOLD
+  disposition: AUTO_RELEASE on ReferenceRateLoaded
+  owner: Finance
+- code: PAY-014
+  condition: Rendition sample check found required wording missing — raised against the entity, not documents (§35.4)
+  severity: WARN
+  disposition: MANUAL
+  owner: Tax operations
+- code: PAY-015
+  condition: Document carries more than 999 lines, above IRAS's recommendation (SRS FR-4.12)
+  severity: WARN
+  disposition: MANUAL
+  owner: Finance
+- code: PAY-016
+  condition: Foreign-currency document of an entity that has not elected its exchange rate source (VP-24, FR-AG.11). Added
+    25 Sep 2026
+  severity: HOLD
+  disposition: AUTO_RELEASE when the election is recorded
+  owner: Onboarding
+- code: SUB-001
+  condition: Transport timeout or connection failure
+  severity: WARN
+  disposition: AUTO_RETRY
+  owner: Platform
+- code: SUB-002
+  condition: AP authentication failure
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Platform
+- code: SUB-003
+  condition: AP rejected the package structurally
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Platform
+- code: SUB-004
+  condition: IRAS rejected the submission
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Tax operations
+- code: SUB-005
+  condition: Acknowledgement not received within threshold
+  severity: WARN
+  disposition: MANUAL
+  owner: Platform
+- code: SUB-006
+  condition: Duplicate Doc UUID across distinct commercial documents
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: SUB-007
+  condition: Same commercial document under two Doc UUIDs
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: SUB-008
+  condition: Two in-flight versions of one Doc UUID (FR-C.2 breach)
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: SUB-009
+  condition: Batch contains mixed document types
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: SUB-010
+  condition: Past due date without acknowledgement
+  severity: WARN, escalating — never holds the document
+  disposition: MANUAL
+  owner: Tax operations
+- code: SUB-011
+  condition: Credit note held awaiting submission of its preceding document (FR-AA.9)
+  severity: HOLD
+  disposition: AUTO_RELEASE on the preceding document reaching ACKNOWLEDGED
+  owner: Platform
+- code: SUB-012
+  condition: Credit note's preceding document cannot be submitted before the credit note's own due date minus the safety margin;
+    the credit note is released alone (FR-AA.10, VP-59)
+  severity: WARN, escalating
+  disposition: MANUAL
+  owner: Tax operations
+- code: SUB-013
+  condition: Scope verdicts of a credit note and its preceding document disagree (FR-AA.11)
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Tax operations
+- code: SUB-014
+  condition: Type 1A document issued but no acknowledgement within the threshold of VP-48
+  severity: WARN, escalating
+  disposition: MANUAL
+  owner: Platform
+- code: SUB-015
+  condition: Monetary amendment to a transmitted document; a credit note is required
+  severity: BLOCK
+  disposition: OVERRIDABLE only as a recorded keying-error correction (FR-AE.18)
+  owner: Tax operations
+- code: SUB-016
+  condition: Counterparty identity changed on a transmitted document
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Finance
+- code: SUB-017
+  condition: Correction to a document submitted by the prior solution before cutover; surfaced for manual handling (FR-R.11).
+    Added 25 Sep 2026 (Keel INV-Q-2378)
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Tax operations
+- code: PER-001
+  condition: Period contains unsubmitted in-scope documents at readiness check
+  severity: BLOCK
+  disposition: OVERRIDABLE
+  owner: Tax operations
+- code: PER-002
+  condition: Completeness control failed for the period
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Integration
+- code: PER-003
+  condition: Reconciliation variance unexplained by the taxonomy
+  severity: WARN
+  disposition: MANUAL
+  owner: Tax operations
+- code: PER-004
+  condition: Filing frequency changed mid-period
+  severity: WARN
+  disposition: MANUAL
+  owner: Onboarding
+- code: PER-005
+  condition: Filing frequency change produces a transitional period requiring confirmation (FR-AA.8)
+  severity: WARN
+  disposition: MANUAL
+  owner: Onboarding
+- code: PER-006
+  condition: Transmitted document moved to another prescribed period
+  severity: WARN
+  disposition: MANUAL
+  owner: Tax operations
+- code: PER-007
+  condition: Credit note submitted without its pre-obligation original (§33.7)
+  severity: WARN
+  disposition: MANUAL
+  owner: Tax operations
+- code: PER-008
+  condition: Reconciliation requested with no GST return uploaded for the period (§33.10)
+  severity: WARN
+  disposition: MANUAL
+  owner: Tax operations
+- code: PER-009
+  condition: No period record covers the transaction date
+  severity: HOLD
+  disposition: AUTO_RELEASE when the period is generated
+  owner: Onboarding
+- code: PER-010
+  condition: Two filing facts with different dates for the original return of one period (FR-AF.39)
+  severity: WARN
+  disposition: MANUAL
+  owner: Tax operations
+- code: PER-011
+  condition: Purchase recorded before the entity has elected its purchase transaction date basis (VP-22, SRS FR-6.1). Added
+    24 Sep 2026
+  severity: HOLD
+  disposition: AUTO_RELEASE when the election is recorded
+  owner: Onboarding
+- code: PER-012
+  condition: Purchase recorded before the entity has elected its apportionment submission mode (VP-23, SRS FR-2.9, FR-T.8).
+    Added 25 Sep 2026
+  severity: HOLD
+  disposition: AUTO_RELEASE when the election is recorded
+  owner: Onboarding
+- code: PER-013
+  condition: Purchase whose mixed-use indicator contradicts the entity's elected apportionment mode (VP-23, SRS FR-2.9). Added
+    25 Sep 2026
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Finance
+- code: DEP-001
+  condition: Newer regulatory pack published but not activated; or the control-plane feed unreachable, or no bundle imported,
+    for longer than the installation's silence limit (VP-72; extended 25 Sep 2026, Keel INV-Q-2343). Tiers count days to the
+    unactivated pack's effective date (FR-AE.67)
+  severity: WARN, escalating
+  disposition: MANUAL
+  owner: Customer (private) or operator
+- code: DEP-002
+  condition: Pack signature verification failed
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Customer
+- code: DEP-003
+  condition: Pack requires a newer engine version
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Customer
+- code: DEP-004
+  condition: Engine outside the supported version window
+  severity: WARN
+  disposition: MANUAL
+  owner: Customer
+- code: DEP-005
+  condition: Licence expired
+  severity: WARN only — never blocks submission (FR-H.4)
+  disposition: MANUAL
+  owner: Commercial
+- code: DEP-006
+  condition: Certification stale after a new release train, pack or certification-relevant configuration change (§35.8)
+  severity: WARN
+  disposition: MANUAL
+  owner: Customer
+- code: DEP-007
+  condition: Evidence chain verification failed; retention deletion and the offboarding export — including an exportAuditPack
+    call made as part of offboarding — are blocked for the range. Ordinary audit-pack exports and enquiry lookups stay available
+    and carry the integrity status (§35.11, FR-AG.59; scope stated 25 Sep 2026, Keel INV-Q-1705)
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Platform and security.officer
+- code: ACC-001
+  condition: 'Entity has no active tax.approver; approval and arming impossible (FR-AF.17). A security-class alert: every
+    recipient is alerted at once, with no escalation tiers (FR-AE.67; amended 25 Sep 2026, Keel INV-Q-2345; previously "WARN,
+    escalating")'
+  severity: WARN
+  disposition: MANUAL
+  owner: tenant.admin
+- code: ACC-002
+  condition: Break-glass access unlocked or used (FR-AF.19)
+  severity: WARN
+  disposition: MANUAL
+  owner: security.officer
+- code: ACC-003
+  condition: External grant expired (FR-AF.15)
+  severity: INFO
+  disposition: MANUAL
+  owner: tenant.admin
+- code: ACC-004
+  condition: Signed link invalidated after the passcode attempt limit (FR-AG.70, VP-75); the sender may re-issue it
+  severity: INFO
+  disposition: MANUAL
+  owner: The link's sender

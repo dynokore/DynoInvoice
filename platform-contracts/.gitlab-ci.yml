@@ -1,10 +1,19 @@
-# .gitlab-ci.yml — INV-T-2849 (T5)
+# .gitlab-ci.yml — INV-T-2849 (T5); catalogue-* jobs added by INV-T-2851 (T7)
 #
-# platform-contracts has no Kotlin source (settings.gradle.kts, build.gradle.kts):
-# only the stage list, shared variables and pinned tool-image digests come
-# from platform-build's templates (STK-30's "every CI tool image is pinned by
-# digest"); every job below is this repository's own, since none of them is a
-# Gradle/Kotlin build (ci/build.gitlab-ci.yml's jobs do not apply here).
+# platform-contracts' repository root has no Kotlin source of its own (settings.gradle.kts,
+# build.gradle.kts there are packaging-only): only the stage list, shared variables and
+# pinned tool-image digests come from platform-build's templates (STK-30's "every CI tool
+# image is pinned by digest"); the non-catalogue jobs below are this repository's own,
+# since none of them is a Gradle/Kotlin build (ci/build.gitlab-ci.yml's jobs do not apply
+# to them). catalogue/ (T7) is different: a real Gradle/Kotlin build, but its own separate
+# one (catalogue/settings.gradle.kts) — this repository still commits no wrapper (T5's
+# choice stands), so the catalogue-* jobs below call the pinned `gradle` binary directly
+# (`gradle -p catalogue …`, the same pattern bundle-publish already uses in this file)
+# rather than including ci/build.gitlab-ci.yml + ci/publish.gitlab-ci.yml, which invoke
+# `./gradlew` and assume a committed wrapper. They reuse those templates' *conventions*
+# instead (task names, the gstMavenUrl/User/Password property names, "main/tag only"
+# publish rule) — named here as a deliberate choice, not an oversight, and a candidate
+# follow-up if this repository ever adopts the shared templates wholesale.
 include:
   - project: 'invoice/platform-build'
     ref: main
@@ -15,6 +24,72 @@ variables:
   SPECTRAL_IMAGE: "stoplight/spectral@sha256:a07aa4455367b9501b574423b684ab0ef3ee42556089013583318ec015249050"
   OASDIFF_IMAGE: "tufin/oasdiff@sha256:0286f138545a39010525df6c1bea67ffafacb384ef800effffa63bbd04718ce5"
   ASYNCAPI_CLI_IMAGE: "asyncapi/cli@sha256:2240534054590b3d41d691fdf88e1f7a1e581b9cc4fb1d4af65ca93434aa681b"
+
+catalogue-compile:
+  stage: build
+  image: "$GRADLE_IMAGE"
+  cache:
+    key: "gradle-catalogue-$CI_PROJECT_ID"
+    paths:
+      - .gradle-cache/caches
+  script:
+    - gradle -p catalogue compileKotlin compileTestKotlin --stacktrace
+
+catalogue-verify:
+  # STK-67 (detekt/ktlint through Spotless) and the two INV-T-2851 acceptance checks
+  # (INV-AC-2170 stability, INV-AC-2173 BLOCK disposition) all run through `check`:
+  # the `dev.detekt` and Spotless plugins wire `detekt`/`spotlessCheck` into `check`
+  # by default, and gst.catalogue-generator wires checkCatalogueStability and
+  # checkBlockDispositionCauses into it too (catalogue/generator's own
+  # gst.catalogue-generator.gradle.kts).
+  stage: verify
+  image: "$GRADLE_IMAGE"
+  cache:
+    key: "gradle-catalogue-$CI_PROJECT_ID"
+    paths:
+      - .gradle-cache/caches
+  script:
+    - gradle -p catalogue check --stacktrace
+  artifacts:
+    when: always
+    reports:
+      junit:
+        - "catalogue/**/build/test-results/test/TEST-*.xml"
+    paths:
+      - "catalogue/**/build/reports/"
+    expire_in: 1 week
+
+catalogue-publish:
+  # Publishes to *this* project's own Maven package registry (project $CI_PROJECT_ID) —
+  # not platform-build's shared registry ($MAVEN_REGISTRY_PROJECT_ID convention that
+  # platform-build's own modules use): a cross-project publish would need platform-build's
+  # Token Access allowlist to include platform-contracts first, which ci/README.md already
+  # names as a not-yet-done Maintainer action. Publishing to this repository's own registry
+  # needs no such allowlisting — the same reason bundle-publish, just below, already
+  # publishes its generic package here rather than anywhere else.
+  stage: publish
+  image: "$GRADLE_IMAGE"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_COMMIT_TAG'
+  script:
+    - >
+      gradle -p catalogue publish
+      -PgstMavenUrl="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/maven"
+      -PgstMavenUser=gitlab-ci-token
+      -PgstMavenPassword="${CI_JOB_TOKEN}"
+      --stacktrace
+    # The catalogue artefact (STK-61's other output, alongside the jar `publish` above
+    # just pushed): the same generic-package mechanism bundle-publish already uses.
+    - VERSION=$(grep '^gstCatalogueVersion=' catalogue/gradle.properties | cut -d= -f2)
+    - >
+      curl --fail --request PUT
+      --header "JOB-TOKEN: ${CI_JOB_TOKEN}"
+      --upload-file "catalogue/gst-catalogue/build/generated/gst-catalogue/gst-catalogue-error-codes-${VERSION}.json"
+      "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/gst-catalogue-error-codes/${VERSION}/gst-catalogue-error-codes-${VERSION}.json"
+  artifacts:
+    paths:
+      - "catalogue/gst-catalogue/build/generated/gst-catalogue/"
+    expire_in: 1 month
 
 spectral-lint:
   stage: verify
