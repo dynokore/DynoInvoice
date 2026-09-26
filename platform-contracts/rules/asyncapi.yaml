@@ -7,8 +7,12 @@ info:
     publish time in the CloudEvents 1.0.2 envelope every service shares
     (API-40, ../service-runtime/schemas/cloud-event-envelope.schema.json) —
     each message below declares only its own `data` payload schema. This is an
-    INV-T-2849 scaffold; rules's own team (CODEOWNERS) replaces the
-    placeholder event below as each real one lands.
+    INV-T-2849 scaffold. INV-T-2853 (T9) added rules's real §19.8 events
+    below, from model/architecture/events.yaml's checklist; the
+    ExampleHappened placeholder stays only because removing it is a
+    breaking structural change under this repository's additive-only
+    asyncapi-breaking-gate — its removal is a follow-up outside T9's
+    declared scope (spectral/ is not in it), named in the INV-T-2853 MR.
   contact:
     name: rules (see CODEOWNERS)
   license:
@@ -20,12 +24,80 @@ servers:
     protocol: kafka
     description: Placeholder — the platform component event-log (SDS §18.14).
 channels:
+  rulesRulePackStaged:
+    address: 'gst.rules.rule-pack-staged.v1'
+    messages:
+      RulePackStaged:
+        $ref: '#/components/messages/RulePackStaged'
+
+  rulesRulePackActivated:
+    address: 'gst.rules.rule-pack-activated.v1'
+    messages:
+      RulePackActivated:
+        $ref: '#/components/messages/RulePackActivated'
+
+  rulesPackCurrencyChanged:
+    address: 'gst.rules.pack-currency-changed.v1'
+    messages:
+      PackCurrencyChanged:
+        $ref: '#/components/messages/PackCurrencyChanged'
+
+  rulesEvidenceArtefactRecorded:
+    address: 'gst.rules.evidence-artefact-recorded.v1'
+    messages:
+      EvidenceArtefactRecorded:
+        $ref: '#/components/messages/EvidenceArtefactRecorded'
+
+  rulesConnectionStatusChanged:
+    address: 'gst.rules.connection-status-changed.v1'
+    messages:
+      ConnectionStatusChanged:
+        $ref: '#/components/messages/ConnectionStatusChanged'
   rulesExampleHappened:
     address: 'gst.rules.example-happened.v1'
     messages:
       ExampleHappened:
         $ref: '#/components/messages/ExampleHappened'
 operations:
+  publishRulePackStaged:
+    action: send
+    description: RulePackStaged — catalogued in model/architecture/events.yaml (§19.8).
+    channel:
+      $ref: '#/channels/rulesRulePackStaged'
+    messages:
+      - $ref: '#/channels/rulesRulePackStaged/messages/RulePackStaged'
+
+  publishRulePackActivated:
+    action: send
+    description: RulePackActivated — catalogued in model/architecture/events.yaml (§19.8).
+    channel:
+      $ref: '#/channels/rulesRulePackActivated'
+    messages:
+      - $ref: '#/channels/rulesRulePackActivated/messages/RulePackActivated'
+
+  publishPackCurrencyChanged:
+    action: send
+    description: PackCurrencyChanged — catalogued in model/architecture/events.yaml (§19.8).
+    channel:
+      $ref: '#/channels/rulesPackCurrencyChanged'
+    messages:
+      - $ref: '#/channels/rulesPackCurrencyChanged/messages/PackCurrencyChanged'
+
+  publishEvidenceArtefactRecorded:
+    action: send
+    description: EvidenceArtefactRecorded — catalogued in model/architecture/events.yaml (§19.8).
+    channel:
+      $ref: '#/channels/rulesEvidenceArtefactRecorded'
+    messages:
+      - $ref: '#/channels/rulesEvidenceArtefactRecorded/messages/EvidenceArtefactRecorded'
+
+  publishConnectionStatusChanged:
+    action: send
+    description: ConnectionStatusChanged — catalogued in model/architecture/events.yaml (§19.8).
+    channel:
+      $ref: '#/channels/rulesConnectionStatusChanged'
+    messages:
+      - $ref: '#/channels/rulesConnectionStatusChanged/messages/ConnectionStatusChanged'
   publishExampleHappened:
     action: send
     description: Placeholder operation (INV-T-2849 scaffold) — replace with a real one.
@@ -35,6 +107,88 @@ operations:
       - $ref: '#/channels/rulesExampleHappened/messages/ExampleHappened'
 components:
   messages:
+    RulePackStaged:
+      name: com.dynokore.gst.rules.RulePackStaged.v1
+      title: RulePackStaged
+      summary: RulePackStaged — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event RulePackStaged (model/architecture/events.yaml, INV-NOTE-3 §19.8, INV-REQ-815;
+        class: domain). Emitted by: rules-svc. Consumed by: notification-svc, payload-svc,
+        reconciliation-svc, tenancy-svc. Delivery: At-least-once; retained while any pack version it carries
+        can still be resolved (FR-Z.10). Payload (catalogue text): pack identifier, pack type, version,
+        effective_from, min_engine_version, and the signed artefact — manifest, checksums, signature and
+        contents. Added 25 Sep 2026 (AD-31). Authored by INV-T-2853 (T9).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/rule-pack-staged-payload.schema.json'
+
+    RulePackActivated:
+      name: com.dynokore.gst.rules.RulePackActivated.v1
+      title: RulePackActivated
+      summary: RulePackActivated — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event RulePackActivated (model/architecture/events.yaml, INV-NOTE-3 §19.8, INV-REQ-815;
+        class: domain). Emitted by: rules-svc. Consumed by: notification-svc, payload-svc,
+        reconciliation-svc, tenancy-svc. Delivery: Fenced, §5.5. Payload (catalogue text): pack identifier,
+        version, effective-from. Authored by INV-T-2853 (T9).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/rule-pack-activated-payload.schema.json'
+
+    PackCurrencyChanged:
+      name: com.dynokore.gst.rules.PackCurrencyChanged.v1
+      title: PackCurrencyChanged
+      summary: PackCurrencyChanged — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event PackCurrencyChanged (model/architecture/events.yaml, INV-NOTE-3 §19.8, INV-REQ-815;
+        class: domain). Emitted by: rules-svc. Consumed by: console-bff, notification-svc. Delivery:
+        At-least-once. Payload (catalogue text): DEP code (DEP-001 to DEP-003), raised or cleared, pack and
+        version where known, days to the unactivated pack's effective date, days since the feed was last
+        reached or a bundle last imported (VP-72). Authored by INV-T-2853 (T9).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/pack-currency-changed-payload.schema.json'
+
+    EvidenceArtefactRecorded:
+      name: com.dynokore.gst.platform.EvidenceArtefactRecorded.v1
+      title: EvidenceArtefactRecorded
+      summary: EvidenceArtefactRecorded — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event EvidenceArtefactRecorded (model/architecture/events.yaml, INV-NOTE-3 §19.8,
+        INV-REQ-815; class: platform). Emitted by: access-svc, masterdata-svc, payload-svc, rules-svc.
+        Consumed by: evidence-svc. Delivery: At-least-once — platform event (AD-27). Payload (catalogue
+        text): artefact type, reference, hash. This is a platform event (class: platform, AD-27/AD-24
+        convention: type uses the shared `com.dynokore.gst.platform.<EventName>.v1` name so every producer's
+        instances are one consumer subscription). Per invoice-docs standards/02-layered-architecture.md's
+        table ("A new platform event ... service-runtime owns the schema"), this payload schema's canonical
+        home is `service-runtime/schemas/`; service-runtime/ is outside INV-T-2853's declared scope (only
+        the producer's own asyncapi.yaml/schemas/ directories), so this producer carries its own copy for
+        now, byte-identical to every other producer's copy of the same event — named as a follow-up in the
+        merge request, not silently left unaddressed (AGT-24). Authored by INV-T-2853 (T9).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/evidence-artefact-recorded-payload.schema.json'
+
+    ConnectionStatusChanged:
+      name: com.dynokore.gst.platform.ConnectionStatusChanged.v1
+      title: ConnectionStatusChanged
+      summary: ConnectionStatusChanged — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event ConnectionStatusChanged (model/architecture/events.yaml, INV-NOTE-3 §19.8,
+        INV-REQ-815; class: platform). Emitted by: access-svc, evidence-svc, ingestion-svc, masterdata-svc,
+        notification-svc, rules-svc, tenancy-svc, transport-svc. Consumed by: console-bff, notification-svc.
+        Delivery: At-least-once — platform event (AD-27). Payload (catalogue text): connection, state, last
+        failure. This is a platform event (class: platform, AD-27/AD-24 convention: type uses the shared
+        `com.dynokore.gst.platform.<EventName>.v1` name so every producer's instances are one consumer
+        subscription). Per invoice-docs standards/02-layered-architecture.md's table ("A new platform event
+        ... service-runtime owns the schema"), this payload schema's canonical home is
+        `service-runtime/schemas/`; service-runtime/ is outside INV-T-2853's declared scope (only the
+        producer's own asyncapi.yaml/schemas/ directories), so this producer carries its own copy for now,
+        byte-identical to every other producer's copy of the same event — named as a follow-up in the merge
+        request, not silently left unaddressed (AGT-24). Authored by INV-T-2853 (T9).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/connection-status-changed-payload.schema.json'
     ExampleHappened:
       name: com.dynokore.gst.rules.ExampleHappened.v1
       title: ExampleHappened

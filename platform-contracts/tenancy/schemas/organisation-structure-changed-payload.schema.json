@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/tenancy/schemas/organisation-structure-changed-payload.schema.json",
+  "title": "OrganisationStructureChangedPayload",
+  "description": "Payload of the OrganisationStructureChanged event (catalogued in model/architecture/events.yaml, INV-NOTE-3 §19.8; class: domain). Authored by INV-T-2853 (T9). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "nodeType": {
+      "type": "string",
+      "description": "Which level of the org tree changed.",
+      "enum": [
+        "TENANT",
+        "GROUP",
+        "ENTITY",
+        "BUSINESS_UNIT"
+      ]
+    },
+    "nodeRef": {
+      "type": "string",
+      "description": "Identifier of the tenant, group, entity or business unit that changed."
+    },
+    "changeType": {
+      "type": "string",
+      "description": "What happened to it.",
+      "enum": [
+        "CREATED",
+        "MOVED",
+        "RETIRED"
+      ]
+    },
+    "parentRef": {
+      "type": "string",
+      "description": "New parent node reference, present on CREATED and MOVED."
+    },
+    "previousParentRef": {
+      "type": "string",
+      "description": "Prior parent node reference, present on MOVED."
+    }
+  },
+  "required": [
+    "nodeType",
+    "nodeRef",
+    "changeType"
+  ],
+  "additionalProperties": true
+}

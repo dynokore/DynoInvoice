@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/transport/schemas/acknowledgement-received-payload.schema.json",
+  "title": "AcknowledgementReceivedPayload",
+  "description": "Payload of the AcknowledgementReceived event (catalogued in model/architecture/events.yaml, INV-NOTE-3 §19.8; class: domain). Authored by INV-T-2853 (T9). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "adapter": {
+      "type": "string",
+      "description": "The Access Point adapter that received the acknowledgement."
+    },
+    "apNotificationId": {
+      "type": "string",
+      "description": "The Access Point's own notification identifier."
+    },
+    "docUuid": {
+      "type": "string",
+      "description": "The document the acknowledgement concerns.",
+      "format": "uuid"
+    },
+    "version": {
+      "type": "integer",
+      "description": "The canonical version acknowledged.",
+      "minimum": 1
+    },
+    "acknowledgementId": {
+      "type": "string",
+      "description": "Identifier of the acknowledgement itself."
+    }
+  },
+  "required": [
+    "adapter",
+    "apNotificationId",
+    "docUuid",
+    "version",
+    "acknowledgementId"
+  ],
+  "additionalProperties": true
+}

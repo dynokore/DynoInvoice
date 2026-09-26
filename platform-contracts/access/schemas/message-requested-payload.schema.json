@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/access/schemas/message-requested-payload.schema.json",
+  "title": "MessageRequestedPayload",
+  "description": "Payload of the MessageRequested event (catalogued in model/architecture/events.yaml, INV-NOTE-3 §19.8; class: domain). Authored by INV-T-2853 (T9). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "template": {
+      "type": "string",
+      "description": "The message template identifier."
+    },
+    "recipients": {
+      "type": "array",
+      "description": "Recipient addresses (e-mail addresses or mobile numbers, per channel).",
+      "items": {
+        "type": "string",
+        "description": "One recipient address."
+      }
+    },
+    "channel": {
+      "type": "string",
+      "description": "Delivery channel.",
+      "enum": [
+        "EMAIL",
+        "SMS"
+      ]
+    },
+    "linkReference": {
+      "type": "string",
+      "description": "A link reference to include, absent when this message carries a sealed passcode instead."
+    },
+    "sealedPasscode": {
+      "type": "string",
+      "description": "A sealed passcode to include (FR-AG.70), absent when this message carries a link reference instead."
+    }
+  },
+  "required": [
+    "template",
+    "recipients",
+    "channel"
+  ],
+  "additionalProperties": true
+}

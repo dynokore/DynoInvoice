@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/rules/schemas/rule-pack-staged-payload.schema.json",
+  "title": "RulePackStagedPayload",
+  "description": "Payload of the RulePackStaged event (catalogued in model/architecture/events.yaml, INV-NOTE-3 §19.8; class: domain). Authored by INV-T-2853 (T9). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "packIdentifier": {
+      "type": "string",
+      "description": "The rule pack identifier."
+    },
+    "packType": {
+      "type": "string",
+      "description": "The rule pack type."
+    },
+    "version": {
+      "type": "string",
+      "description": "The rule pack version."
+    },
+    "effectiveFrom": {
+      "type": "string",
+      "description": "Date this version becomes effective once activated.",
+      "format": "date"
+    },
+    "minEngineVersion": {
+      "type": "string",
+      "description": "Minimum rule engine version required to run this pack."
+    },
+    "artefact": {
+      "type": "object",
+      "description": "The signed pack artefact.",
+      "properties": {
+        "manifest": {
+          "type": "object",
+          "description": "The pack manifest.",
+          "additionalProperties": true
+        },
+        "checksums": {
+          "type": "object",
+          "description": "Checksums by file name.",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "signature": {
+          "type": "string",
+          "description": "Signature over the manifest and contents."
+        },
+        "contents": {
+          "description": "The pack contents (opaque to the envelope; interpreted only by the rule engine)."
+        }
+      },
+      "required": [
+        "manifest",
+        "checksums",
+        "signature"
+      ],
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "packIdentifier",
+    "packType",
+    "version",
+    "effectiveFrom",
+    "minEngineVersion",
+    "artefact"
+  ],
+  "additionalProperties": true
+}

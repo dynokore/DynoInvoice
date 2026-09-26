@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/tenancy/schemas/filing-frequency-changed-payload.schema.json",
+  "title": "FilingFrequencyChangedPayload",
+  "description": "Payload of the FilingFrequencyChanged event (catalogued in model/architecture/events.yaml, INV-NOTE-3 §19.8; class: domain). Authored by INV-T-2853 (T9). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "entityRef": {
+      "type": "string",
+      "description": "The registered entity whose filing frequency changed."
+    },
+    "oldFrequency": {
+      "type": "string",
+      "description": "Filing frequency before the change, e.g. MONTHLY, QUARTERLY."
+    },
+    "newFrequency": {
+      "type": "string",
+      "description": "Filing frequency after the change."
+    },
+    "affectedSpan": {
+      "type": "object",
+      "description": "The span of prescribed periods the new frequency applies from.",
+      "properties": {
+        "fromPeriod": {
+          "type": "string",
+          "description": "First prescribed period the new frequency governs."
+        },
+        "toPeriod": {
+          "type": "string",
+          "description": "Last prescribed period the new frequency governs, absent when open-ended."
+        }
+      },
+      "required": [
+        "fromPeriod"
+      ],
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "entityRef",
+    "oldFrequency",
+    "newFrequency",
+    "affectedSpan"
+  ],
+  "additionalProperties": true
+}

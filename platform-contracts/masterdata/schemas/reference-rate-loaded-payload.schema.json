@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/masterdata/schemas/reference-rate-loaded-payload.schema.json",
+  "title": "ReferenceRateLoadedPayload",
+  "description": "Payload of the ReferenceRateLoaded event (catalogued in model/architecture/events.yaml, INV-NOTE-3 §19.8; class: domain). Authored by INV-T-2853 (T9). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "source": {
+      "type": "string",
+      "description": "The rate feed source."
+    },
+    "currencyPairs": {
+      "type": "array",
+      "description": "Currency pairs covered, e.g. USD/SGD.",
+      "items": {
+        "type": "string",
+        "description": "One currency pair."
+      }
+    },
+    "dateRange": {
+      "type": "object",
+      "description": "The date range the loaded rates cover.",
+      "properties": {
+        "from": {
+          "type": "string",
+          "description": "Range start.",
+          "format": "date"
+        },
+        "to": {
+          "type": "string",
+          "description": "Range end.",
+          "format": "date"
+        }
+      },
+      "required": [
+        "from",
+        "to"
+      ],
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "source",
+    "currencyPairs",
+    "dateRange"
+  ],
+  "additionalProperties": true
+}

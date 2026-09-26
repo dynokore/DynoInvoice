@@ -7,8 +7,12 @@ info:
     publish time in the CloudEvents 1.0.2 envelope every service shares
     (API-40, ../service-runtime/schemas/cloud-event-envelope.schema.json) —
     each message below declares only its own `data` payload schema. This is an
-    INV-T-2849 scaffold; tenancy's own team (CODEOWNERS) replaces the
-    placeholder event below as each real one lands.
+    INV-T-2849 scaffold. INV-T-2853 (T9) added tenancy's real §19.8 events
+    below, from model/architecture/events.yaml's checklist; the
+    ExampleHappened placeholder stays only because removing it is a
+    breaking structural change under this repository's additive-only
+    asyncapi-breaking-gate — its removal is a follow-up outside T9's
+    declared scope (spectral/ is not in it), named in the INV-T-2853 MR.
   contact:
     name: tenancy (see CODEOWNERS)
   license:
@@ -20,12 +24,122 @@ servers:
     protocol: kafka
     description: Placeholder — the platform component event-log (SDS §18.14).
 channels:
+  tenancyOrganisationStructureChanged:
+    address: 'gst.tenancy.organisation-structure-changed.v1'
+    messages:
+      OrganisationStructureChanged:
+        $ref: '#/components/messages/OrganisationStructureChanged'
+
+  tenancyEntityProfileChanged:
+    address: 'gst.tenancy.entity-profile-changed.v1'
+    messages:
+      EntityProfileChanged:
+        $ref: '#/components/messages/EntityProfileChanged'
+
+  tenancyFilingFrequencyChanged:
+    address: 'gst.tenancy.filing-frequency-changed.v1'
+    messages:
+      FilingFrequencyChanged:
+        $ref: '#/components/messages/FilingFrequencyChanged'
+
+  tenancyPeriodExtended:
+    address: 'gst.tenancy.period-extended.v1'
+    messages:
+      PeriodExtended:
+        $ref: '#/components/messages/PeriodExtended'
+
+  tenancyPeriodDueDateChanged:
+    address: 'gst.tenancy.period-due-date-changed.v1'
+    messages:
+      PeriodDueDateChanged:
+        $ref: '#/components/messages/PeriodDueDateChanged'
+
+  tenancyInstallationStatusChanged:
+    address: 'gst.tenancy.installation-status-changed.v1'
+    messages:
+      InstallationStatusChanged:
+        $ref: '#/components/messages/InstallationStatusChanged'
+
+  tenancyPackReadinessAcknowledged:
+    address: 'gst.tenancy.pack-readiness-acknowledged.v1'
+    messages:
+      PackReadinessAcknowledged:
+        $ref: '#/components/messages/PackReadinessAcknowledged'
+
+  tenancyConnectionStatusChanged:
+    address: 'gst.tenancy.connection-status-changed.v1'
+    messages:
+      ConnectionStatusChanged:
+        $ref: '#/components/messages/ConnectionStatusChanged'
   tenancyExampleHappened:
     address: 'gst.tenancy.example-happened.v1'
     messages:
       ExampleHappened:
         $ref: '#/components/messages/ExampleHappened'
 operations:
+  publishOrganisationStructureChanged:
+    action: send
+    description: OrganisationStructureChanged — catalogued in model/architecture/events.yaml (§19.8).
+    channel:
+      $ref: '#/channels/tenancyOrganisationStructureChanged'
+    messages:
+      - $ref: '#/channels/tenancyOrganisationStructureChanged/messages/OrganisationStructureChanged'
+
+  publishEntityProfileChanged:
+    action: send
+    description: EntityProfileChanged — catalogued in model/architecture/events.yaml (§19.8).
+    channel:
+      $ref: '#/channels/tenancyEntityProfileChanged'
+    messages:
+      - $ref: '#/channels/tenancyEntityProfileChanged/messages/EntityProfileChanged'
+
+  publishFilingFrequencyChanged:
+    action: send
+    description: FilingFrequencyChanged — catalogued in model/architecture/events.yaml (§19.8).
+    channel:
+      $ref: '#/channels/tenancyFilingFrequencyChanged'
+    messages:
+      - $ref: '#/channels/tenancyFilingFrequencyChanged/messages/FilingFrequencyChanged'
+
+  publishPeriodExtended:
+    action: send
+    description: PeriodExtended — catalogued in model/architecture/events.yaml (§19.8).
+    channel:
+      $ref: '#/channels/tenancyPeriodExtended'
+    messages:
+      - $ref: '#/channels/tenancyPeriodExtended/messages/PeriodExtended'
+
+  publishPeriodDueDateChanged:
+    action: send
+    description: PeriodDueDateChanged — catalogued in model/architecture/events.yaml (§19.8).
+    channel:
+      $ref: '#/channels/tenancyPeriodDueDateChanged'
+    messages:
+      - $ref: '#/channels/tenancyPeriodDueDateChanged/messages/PeriodDueDateChanged'
+
+  publishInstallationStatusChanged:
+    action: send
+    description: InstallationStatusChanged — catalogued in model/architecture/events.yaml (§19.8).
+    channel:
+      $ref: '#/channels/tenancyInstallationStatusChanged'
+    messages:
+      - $ref: '#/channels/tenancyInstallationStatusChanged/messages/InstallationStatusChanged'
+
+  publishPackReadinessAcknowledged:
+    action: send
+    description: PackReadinessAcknowledged — catalogued in model/architecture/events.yaml (§19.8).
+    channel:
+      $ref: '#/channels/tenancyPackReadinessAcknowledged'
+    messages:
+      - $ref: '#/channels/tenancyPackReadinessAcknowledged/messages/PackReadinessAcknowledged'
+
+  publishConnectionStatusChanged:
+    action: send
+    description: ConnectionStatusChanged — catalogued in model/architecture/events.yaml (§19.8).
+    channel:
+      $ref: '#/channels/tenancyConnectionStatusChanged'
+    messages:
+      - $ref: '#/channels/tenancyConnectionStatusChanged/messages/ConnectionStatusChanged'
   publishExampleHappened:
     action: send
     description: Placeholder operation (INV-T-2849 scaffold) — replace with a real one.
@@ -35,6 +149,126 @@ operations:
       - $ref: '#/channels/tenancyExampleHappened/messages/ExampleHappened'
 components:
   messages:
+    OrganisationStructureChanged:
+      name: com.dynokore.gst.tenancy.OrganisationStructureChanged.v1
+      title: OrganisationStructureChanged
+      summary: OrganisationStructureChanged — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event OrganisationStructureChanged (model/architecture/events.yaml, INV-NOTE-3 §19.8,
+        INV-REQ-815; class: domain). Emitted by: tenancy-svc. Consumed by: access-svc, console-bff,
+        notification-svc. Delivery: At-least-once. Payload (catalogue text): tenant, group, entity or
+        business unit created, moved or retired. Authored by INV-T-2853 (T9).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/organisation-structure-changed-payload.schema.json'
+
+    EntityProfileChanged:
+      name: com.dynokore.gst.tenancy.EntityProfileChanged.v1
+      title: EntityProfileChanged
+      summary: EntityProfileChanged — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event EntityProfileChanged (model/architecture/events.yaml, INV-NOTE-3 §19.8,
+        INV-REQ-815; class: domain). Emitted by: tenancy-svc. Consumed by: access-svc, canonical-svc,
+        console-bff, masterdata-svc. Delivery: At-least-once. Payload (catalogue text): entityRef, changed
+        attributes, effective date. Authored by INV-T-2853 (T9).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/entity-profile-changed-payload.schema.json'
+
+    FilingFrequencyChanged:
+      name: com.dynokore.gst.tenancy.FilingFrequencyChanged.v1
+      title: FilingFrequencyChanged
+      summary: FilingFrequencyChanged — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event FilingFrequencyChanged (model/architecture/events.yaml, INV-NOTE-3 §19.8,
+        INV-REQ-815; class: domain). Emitted by: tenancy-svc. Consumed by: canonical-svc. Delivery:
+        At-least-once. Payload (catalogue text): entityRef, old and new frequency, affected span. Authored
+        by INV-T-2853 (T9).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/filing-frequency-changed-payload.schema.json'
+
+    PeriodExtended:
+      name: com.dynokore.gst.tenancy.PeriodExtended.v1
+      title: PeriodExtended
+      summary: PeriodExtended — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event PeriodExtended (model/architecture/events.yaml, INV-NOTE-3 §19.8, INV-REQ-815;
+        class: domain). Emitted by: tenancy-svc. Consumed by: console-bff, submission-svc. Delivery:
+        At-least-once. Payload (catalogue text): entityRef, period, target (filing due date, submission due
+        date or both), new absolute dates, scope (period, or a document set or date range), IRAS reference.
+        Authored by INV-T-2853 (T9).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/period-extended-payload.schema.json'
+
+    PeriodDueDateChanged:
+      name: com.dynokore.gst.tenancy.PeriodDueDateChanged.v1
+      title: PeriodDueDateChanged
+      summary: PeriodDueDateChanged — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event PeriodDueDateChanged (model/architecture/events.yaml, INV-NOTE-3 §19.8,
+        INV-REQ-815; class: domain). Emitted by: tenancy-svc. Consumed by: console-bff, submission-svc.
+        Delivery: At-least-once. Payload (catalogue text): entityRef, period, old and new filing due date,
+        cause (calendar pack and version, or VP-62 change and effective date). Authored by INV-T-2853 (T9).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/period-due-date-changed-payload.schema.json'
+
+    InstallationStatusChanged:
+      name: com.dynokore.gst.tenancy.InstallationStatusChanged.v1
+      title: InstallationStatusChanged
+      summary: InstallationStatusChanged — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event InstallationStatusChanged (model/architecture/events.yaml, INV-NOTE-3 §19.8,
+        INV-REQ-815; class: domain). Emitted by: tenancy-svc. Consumed by: console-bff, notification-svc,
+        submission-svc. Delivery: At-least-once. Payload (catalogue text): entityRef or the installation,
+        DEP code (DEP-004 to DEP-006), raised or cleared, cause. Authored by INV-T-2853 (T9).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/installation-status-changed-payload.schema.json'
+
+    PackReadinessAcknowledged:
+      name: com.dynokore.gst.platform.PackReadinessAcknowledged.v1
+      title: PackReadinessAcknowledged
+      summary: PackReadinessAcknowledged — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event PackReadinessAcknowledged (model/architecture/events.yaml, INV-NOTE-3 §19.8,
+        INV-REQ-815; class: platform). Emitted by: notification-svc, payload-svc, reconciliation-svc,
+        tenancy-svc. Consumed by: rules-svc. Delivery: At-least-once — platform event (AD-27, §5.5). Payload
+        (catalogue text): pack identifier, version, instance, outcome — loaded, or failed with the reason.
+        This is a platform event (class: platform, AD-27/AD-24 convention: type uses the shared
+        `com.dynokore.gst.platform.<EventName>.v1` name so every producer's instances are one consumer
+        subscription). Per invoice-docs standards/02-layered-architecture.md's table ("A new platform event
+        ... service-runtime owns the schema"), this payload schema's canonical home is
+        `service-runtime/schemas/`; service-runtime/ is outside INV-T-2853's declared scope (only the
+        producer's own asyncapi.yaml/schemas/ directories), so this producer carries its own copy for now,
+        byte-identical to every other producer's copy of the same event — named as a follow-up in the merge
+        request, not silently left unaddressed (AGT-24). Authored by INV-T-2853 (T9).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/pack-readiness-acknowledged-payload.schema.json'
+
+    ConnectionStatusChanged:
+      name: com.dynokore.gst.platform.ConnectionStatusChanged.v1
+      title: ConnectionStatusChanged
+      summary: ConnectionStatusChanged — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event ConnectionStatusChanged (model/architecture/events.yaml, INV-NOTE-3 §19.8,
+        INV-REQ-815; class: platform). Emitted by: access-svc, evidence-svc, ingestion-svc, masterdata-svc,
+        notification-svc, rules-svc, tenancy-svc, transport-svc. Consumed by: console-bff, notification-svc.
+        Delivery: At-least-once — platform event (AD-27). Payload (catalogue text): connection, state, last
+        failure. This is a platform event (class: platform, AD-27/AD-24 convention: type uses the shared
+        `com.dynokore.gst.platform.<EventName>.v1` name so every producer's instances are one consumer
+        subscription). Per invoice-docs standards/02-layered-architecture.md's table ("A new platform event
+        ... service-runtime owns the schema"), this payload schema's canonical home is
+        `service-runtime/schemas/`; service-runtime/ is outside INV-T-2853's declared scope (only the
+        producer's own asyncapi.yaml/schemas/ directories), so this producer carries its own copy for now,
+        byte-identical to every other producer's copy of the same event — named as a follow-up in the merge
+        request, not silently left unaddressed (AGT-24). Authored by INV-T-2853 (T9).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/connection-status-changed-payload.schema.json'
     ExampleHappened:
       name: com.dynokore.gst.tenancy.ExampleHappened.v1
       title: ExampleHappened

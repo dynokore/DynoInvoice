@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/tenancy/schemas/period-extended-payload.schema.json",
+  "title": "PeriodExtendedPayload",
+  "description": "Payload of the PeriodExtended event (catalogued in model/architecture/events.yaml, INV-NOTE-3 §19.8; class: domain). Authored by INV-T-2853 (T9). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "entityRef": {
+      "type": "string",
+      "description": "The registered entity the extension applies to."
+    },
+    "period": {
+      "type": "string",
+      "description": "The prescribed period reference, e.g. 2026Q1."
+    },
+    "target": {
+      "type": "string",
+      "description": "Which due date the extension moves.",
+      "enum": [
+        "FILING_DUE_DATE",
+        "SUBMISSION_DUE_DATE",
+        "BOTH"
+      ]
+    },
+    "newFilingDueDate": {
+      "type": "string",
+      "description": "New absolute filing due date, present when target includes FILING_DUE_DATE.",
+      "format": "date"
+    },
+    "newSubmissionDueDate": {
+      "type": "string",
+      "description": "New absolute submission due date, present when target includes SUBMISSION_DUE_DATE.",
+      "format": "date"
+    },
+    "scope": {
+      "type": "object",
+      "description": "What the extension covers.",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "description": "Extension scope kind.",
+          "enum": [
+            "PERIOD",
+            "DOCUMENT_SET",
+            "DATE_RANGE"
+          ]
+        },
+        "documentRefs": {
+          "type": "array",
+          "description": "Doc UUIDs in scope, present when kind is DOCUMENT_SET.",
+          "items": {
+            "type": "string",
+            "description": "A Doc UUID.",
+            "format": "uuid"
+          }
+        },
+        "dateFrom": {
+          "type": "string",
+          "description": "Range start, present when kind is DATE_RANGE.",
+          "format": "date"
+        },
+        "dateTo": {
+          "type": "string",
+          "description": "Range end, present when kind is DATE_RANGE.",
+          "format": "date"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": true
+    },
+    "irasReference": {
+      "type": "string",
+      "description": "IRAS reference for the extension."
+    }
+  },
+  "required": [
+    "entityRef",
+    "period",
+    "target",
+    "scope",
+    "irasReference"
+  ],
+  "additionalProperties": true
+}

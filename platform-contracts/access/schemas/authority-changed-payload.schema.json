@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/access/schemas/authority-changed-payload.schema.json",
+  "title": "AuthorityChangedPayload",
+  "description": "Payload of the AuthorityChanged event (catalogued in model/architecture/events.yaml, INV-NOTE-3 §19.8; class: domain). Authored by INV-T-2853 (T9). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "changeKind": {
+      "type": "string",
+      "description": "What kind of authority change this is.",
+      "enum": [
+        "GRANT",
+        "CONSENT",
+        "PRINCIPAL",
+        "REVOCATION"
+      ]
+    },
+    "principalRef": {
+      "type": "string",
+      "description": "The principal the change concerns."
+    },
+    "validity": {
+      "type": "object",
+      "description": "The validity window of the change.",
+      "properties": {
+        "from": {
+          "type": "string",
+          "description": "Start of validity.",
+          "format": "date-time"
+        },
+        "to": {
+          "type": "string",
+          "description": "End of validity, absent when open-ended.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "from"
+      ],
+      "additionalProperties": true
+    },
+    "authorityVersion": {
+      "type": "integer",
+      "description": "Monotonic authority version this change advances to.",
+      "minimum": 1
+    }
+  },
+  "required": [
+    "changeKind",
+    "principalRef",
+    "authorityVersion"
+  ],
+  "additionalProperties": true
+}

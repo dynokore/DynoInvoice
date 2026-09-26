@@ -7,8 +7,12 @@ info:
     publish time in the CloudEvents 1.0.2 envelope every service shares
     (API-40, ../service-runtime/schemas/cloud-event-envelope.schema.json) —
     each message below declares only its own `data` payload schema. This is an
-    INV-T-2849 scaffold; access's own team (CODEOWNERS) replaces the
-    placeholder event below as each real one lands.
+    INV-T-2849 scaffold. INV-T-2853 (T9) added access's real §19.8 events
+    below, from model/architecture/events.yaml's checklist; the
+    ExampleHappened placeholder stays only because removing it is a
+    breaking structural change under this repository's additive-only
+    asyncapi-breaking-gate — its removal is a follow-up outside T9's
+    declared scope (spectral/ is not in it), named in the INV-T-2853 MR.
   contact:
     name: access (see CODEOWNERS)
   license:
@@ -20,12 +24,80 @@ servers:
     protocol: kafka
     description: Placeholder — the platform component event-log (SDS §18.14).
 channels:
+  accessAuthorityChanged:
+    address: 'gst.access.authority-changed.v1'
+    messages:
+      AuthorityChanged:
+        $ref: '#/components/messages/AuthorityChanged'
+
+  accessAccessAlertRaised:
+    address: 'gst.access.access-alert-raised.v1'
+    messages:
+      AccessAlertRaised:
+        $ref: '#/components/messages/AccessAlertRaised'
+
+  accessMessageRequested:
+    address: 'gst.access.message-requested.v1'
+    messages:
+      MessageRequested:
+        $ref: '#/components/messages/MessageRequested'
+
+  accessEvidenceArtefactRecorded:
+    address: 'gst.access.evidence-artefact-recorded.v1'
+    messages:
+      EvidenceArtefactRecorded:
+        $ref: '#/components/messages/EvidenceArtefactRecorded'
+
+  accessConnectionStatusChanged:
+    address: 'gst.access.connection-status-changed.v1'
+    messages:
+      ConnectionStatusChanged:
+        $ref: '#/components/messages/ConnectionStatusChanged'
   accessExampleHappened:
     address: 'gst.access.example-happened.v1'
     messages:
       ExampleHappened:
         $ref: '#/components/messages/ExampleHappened'
 operations:
+  publishAuthorityChanged:
+    action: send
+    description: AuthorityChanged — catalogued in model/architecture/events.yaml (§19.8).
+    channel:
+      $ref: '#/channels/accessAuthorityChanged'
+    messages:
+      - $ref: '#/channels/accessAuthorityChanged/messages/AuthorityChanged'
+
+  publishAccessAlertRaised:
+    action: send
+    description: AccessAlertRaised — catalogued in model/architecture/events.yaml (§19.8).
+    channel:
+      $ref: '#/channels/accessAccessAlertRaised'
+    messages:
+      - $ref: '#/channels/accessAccessAlertRaised/messages/AccessAlertRaised'
+
+  publishMessageRequested:
+    action: send
+    description: MessageRequested — catalogued in model/architecture/events.yaml (§19.8).
+    channel:
+      $ref: '#/channels/accessMessageRequested'
+    messages:
+      - $ref: '#/channels/accessMessageRequested/messages/MessageRequested'
+
+  publishEvidenceArtefactRecorded:
+    action: send
+    description: EvidenceArtefactRecorded — catalogued in model/architecture/events.yaml (§19.8).
+    channel:
+      $ref: '#/channels/accessEvidenceArtefactRecorded'
+    messages:
+      - $ref: '#/channels/accessEvidenceArtefactRecorded/messages/EvidenceArtefactRecorded'
+
+  publishConnectionStatusChanged:
+    action: send
+    description: ConnectionStatusChanged — catalogued in model/architecture/events.yaml (§19.8).
+    channel:
+      $ref: '#/channels/accessConnectionStatusChanged'
+    messages:
+      - $ref: '#/channels/accessConnectionStatusChanged/messages/ConnectionStatusChanged'
   publishExampleHappened:
     action: send
     description: Placeholder operation (INV-T-2849 scaffold) — replace with a real one.
@@ -35,6 +107,84 @@ operations:
       - $ref: '#/channels/accessExampleHappened/messages/ExampleHappened'
 components:
   messages:
+    AuthorityChanged:
+      name: com.dynokore.gst.access.AuthorityChanged.v1
+      title: AuthorityChanged
+      summary: AuthorityChanged — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event AuthorityChanged (model/architecture/events.yaml, INV-NOTE-3 §19.8, INV-REQ-815;
+        class: domain). Emitted by: access-svc. Consumed by: console-bff, notification-svc. Delivery:
+        At-least-once. Payload (catalogue text): grant, consent, principal or revocation change, with
+        validity and a monotonic authority version. Authored by INV-T-2853 (T9).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/authority-changed-payload.schema.json'
+
+    AccessAlertRaised:
+      name: com.dynokore.gst.access.AccessAlertRaised.v1
+      title: AccessAlertRaised
+      summary: AccessAlertRaised — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event AccessAlertRaised (model/architecture/events.yaml, INV-NOTE-3 §19.8, INV-REQ-815;
+        class: domain). Emitted by: access-svc. Consumed by: notification-svc. Delivery: At-least-once.
+        Payload (catalogue text): ACC code, scope. Authored by INV-T-2853 (T9).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/access-alert-raised-payload.schema.json'
+
+    MessageRequested:
+      name: com.dynokore.gst.access.MessageRequested.v1
+      title: MessageRequested
+      summary: MessageRequested — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event MessageRequested (model/architecture/events.yaml, INV-NOTE-3 §19.8, INV-REQ-815;
+        class: domain). Emitted by: access-svc. Consumed by: notification-svc. Delivery: At-least-once.
+        Payload (catalogue text): template, recipients, channel (e-mail or SMS), link reference or sealed
+        passcode (FR-AG.70) — never invoice content. Authored by INV-T-2853 (T9).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/message-requested-payload.schema.json'
+
+    EvidenceArtefactRecorded:
+      name: com.dynokore.gst.platform.EvidenceArtefactRecorded.v1
+      title: EvidenceArtefactRecorded
+      summary: EvidenceArtefactRecorded — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event EvidenceArtefactRecorded (model/architecture/events.yaml, INV-NOTE-3 §19.8,
+        INV-REQ-815; class: platform). Emitted by: access-svc, masterdata-svc, payload-svc, rules-svc.
+        Consumed by: evidence-svc. Delivery: At-least-once — platform event (AD-27). Payload (catalogue
+        text): artefact type, reference, hash. This is a platform event (class: platform, AD-27/AD-24
+        convention: type uses the shared `com.dynokore.gst.platform.<EventName>.v1` name so every producer's
+        instances are one consumer subscription). Per invoice-docs standards/02-layered-architecture.md's
+        table ("A new platform event ... service-runtime owns the schema"), this payload schema's canonical
+        home is `service-runtime/schemas/`; service-runtime/ is outside INV-T-2853's declared scope (only
+        the producer's own asyncapi.yaml/schemas/ directories), so this producer carries its own copy for
+        now, byte-identical to every other producer's copy of the same event — named as a follow-up in the
+        merge request, not silently left unaddressed (AGT-24). Authored by INV-T-2853 (T9).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/evidence-artefact-recorded-payload.schema.json'
+
+    ConnectionStatusChanged:
+      name: com.dynokore.gst.platform.ConnectionStatusChanged.v1
+      title: ConnectionStatusChanged
+      summary: ConnectionStatusChanged — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event ConnectionStatusChanged (model/architecture/events.yaml, INV-NOTE-3 §19.8,
+        INV-REQ-815; class: platform). Emitted by: access-svc, evidence-svc, ingestion-svc, masterdata-svc,
+        notification-svc, rules-svc, tenancy-svc, transport-svc. Consumed by: console-bff, notification-svc.
+        Delivery: At-least-once — platform event (AD-27). Payload (catalogue text): connection, state, last
+        failure. This is a platform event (class: platform, AD-27/AD-24 convention: type uses the shared
+        `com.dynokore.gst.platform.<EventName>.v1` name so every producer's instances are one consumer
+        subscription). Per invoice-docs standards/02-layered-architecture.md's table ("A new platform event
+        ... service-runtime owns the schema"), this payload schema's canonical home is
+        `service-runtime/schemas/`; service-runtime/ is outside INV-T-2853's declared scope (only the
+        producer's own asyncapi.yaml/schemas/ directories), so this producer carries its own copy for now,
+        byte-identical to every other producer's copy of the same event — named as a follow-up in the merge
+        request, not silently left unaddressed (AGT-24). Authored by INV-T-2853 (T9).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/connection-status-changed-payload.schema.json'
     ExampleHappened:
       name: com.dynokore.gst.access.ExampleHappened.v1
       title: ExampleHappened

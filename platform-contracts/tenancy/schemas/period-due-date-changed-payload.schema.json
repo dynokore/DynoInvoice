@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/tenancy/schemas/period-due-date-changed-payload.schema.json",
+  "title": "PeriodDueDateChangedPayload",
+  "description": "Payload of the PeriodDueDateChanged event (catalogued in model/architecture/events.yaml, INV-NOTE-3 §19.8; class: domain). Authored by INV-T-2853 (T9). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "entityRef": {
+      "type": "string",
+      "description": "The registered entity the due date applies to."
+    },
+    "period": {
+      "type": "string",
+      "description": "The prescribed period reference."
+    },
+    "oldFilingDueDate": {
+      "type": "string",
+      "description": "Filing due date before the change.",
+      "format": "date"
+    },
+    "newFilingDueDate": {
+      "type": "string",
+      "description": "Filing due date after the change.",
+      "format": "date"
+    },
+    "cause": {
+      "type": "object",
+      "description": "Why the due date changed.",
+      "properties": {
+        "packIdentifier": {
+          "type": "string",
+          "description": "Calendar pack identifier, present when the cause is a pack change."
+        },
+        "packVersion": {
+          "type": "string",
+          "description": "Calendar pack version, present when the cause is a pack change."
+        },
+        "variationPoint": {
+          "type": "string",
+          "description": "Variation point code, present when the cause is VP-62."
+        },
+        "effectiveDate": {
+          "type": "string",
+          "description": "Date the cause takes effect.",
+          "format": "date"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "entityRef",
+    "period",
+    "oldFilingDueDate",
+    "newFilingDueDate",
+    "cause"
+  ],
+  "additionalProperties": true
+}

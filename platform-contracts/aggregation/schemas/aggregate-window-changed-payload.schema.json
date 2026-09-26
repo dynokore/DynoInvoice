@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/aggregation/schemas/aggregate-window-changed-payload.schema.json",
+  "title": "AggregateWindowChangedPayload",
+  "description": "Payload of the AggregateWindowChanged event (catalogued in model/architecture/events.yaml, INV-NOTE-3 §19.8; class: domain). Authored by INV-T-2853 (T9). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "entityRef": {
+      "type": "string",
+      "description": "The registered entity the window belongs to."
+    },
+    "prescribedPeriod": {
+      "type": "string",
+      "description": "The prescribed period reference."
+    },
+    "window": {
+      "type": "object",
+      "description": "The aggregation window.",
+      "properties": {
+        "periodRef": {
+          "type": "string",
+          "description": "Prescribed period reference, when the window is period-aligned."
+        },
+        "from": {
+          "type": "string",
+          "description": "Window start.",
+          "format": "date"
+        },
+        "to": {
+          "type": "string",
+          "description": "Window end.",
+          "format": "date"
+        }
+      },
+      "additionalProperties": true
+    },
+    "state": {
+      "type": "string",
+      "description": "Window state.",
+      "enum": [
+        "OPEN",
+        "CLOSED",
+        "LATE"
+      ]
+    },
+    "aggregateId": {
+      "type": "string",
+      "description": "The aggregate identifier, present when state is CLOSED."
+    }
+  },
+  "required": [
+    "entityRef",
+    "prescribedPeriod",
+    "window",
+    "state"
+  ],
+  "additionalProperties": true
+}

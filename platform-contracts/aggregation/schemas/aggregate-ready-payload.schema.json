@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/aggregation/schemas/aggregate-ready-payload.schema.json",
+  "title": "AggregateReadyPayload",
+  "description": "Payload of the AggregateReady event (catalogued in model/architecture/events.yaml, INV-NOTE-3 §19.8; class: domain). Authored by INV-T-2853 (T9). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "aggregateId": {
+      "type": "string",
+      "description": "Identifier of the aggregate produced."
+    },
+    "entityRef": {
+      "type": "string",
+      "description": "The registered entity the aggregate belongs to."
+    },
+    "aggregateType": {
+      "type": "string",
+      "description": "The kind of aggregate produced."
+    },
+    "window": {
+      "type": "object",
+      "description": "The window the aggregate covers.",
+      "properties": {
+        "periodRef": {
+          "type": "string",
+          "description": "Prescribed period reference, when the window is period-aligned."
+        },
+        "from": {
+          "type": "string",
+          "description": "Window start.",
+          "format": "date"
+        },
+        "to": {
+          "type": "string",
+          "description": "Window end.",
+          "format": "date"
+        }
+      },
+      "additionalProperties": true
+    },
+    "linesByInternalTaxCode": {
+      "type": "array",
+      "description": "Aggregated lines, one per internal tax code.",
+      "items": {
+        "type": "object",
+        "description": "One aggregated line.",
+        "properties": {
+          "internalTaxCode": {
+            "type": "string",
+            "description": "The internal tax code this line aggregates."
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+            "description": "Aggregated amount for this tax code. Decimal string (API-12 convention)."
+          }
+        },
+        "required": [
+          "internalTaxCode",
+          "amount"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "underlyingRef": {
+      "type": "array",
+      "description": "References to the underlying records this aggregate was built from.",
+      "items": {
+        "type": "string",
+        "description": "One underlying reference."
+      }
+    }
+  },
+  "required": [
+    "aggregateId",
+    "entityRef",
+    "aggregateType",
+    "window",
+    "linesByInternalTaxCode"
+  ],
+  "additionalProperties": true
+}

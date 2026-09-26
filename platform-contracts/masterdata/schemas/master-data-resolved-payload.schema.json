@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/masterdata/schemas/master-data-resolved-payload.schema.json",
+  "title": "MasterDataResolvedPayload",
+  "description": "Payload of the MasterDataResolved event (catalogued in model/architecture/events.yaml, INV-NOTE-3 §19.8; class: domain). Authored by INV-T-2853 (T9). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "partyRef": {
+      "type": "string",
+      "description": "The party reference resolved."
+    },
+    "resolvedIdentifiers": {
+      "type": "array",
+      "description": "Identifiers resolved for the party.",
+      "items": {
+        "type": "object",
+        "description": "One resolved identifier.",
+        "properties": {
+          "scheme": {
+            "type": "string",
+            "description": "Identifier scheme, e.g. UEN, GST registration number."
+          },
+          "value": {
+            "type": "string",
+            "description": "Identifier value."
+          }
+        },
+        "required": [
+          "scheme",
+          "value"
+        ],
+        "additionalProperties": true
+      }
+    }
+  },
+  "required": [
+    "partyRef",
+    "resolvedIdentifiers"
+  ],
+  "additionalProperties": true
+}

@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/tenancy/schemas/entity-profile-changed-payload.schema.json",
+  "title": "EntityProfileChangedPayload",
+  "description": "Payload of the EntityProfileChanged event (catalogued in model/architecture/events.yaml, INV-NOTE-3 §19.8; class: domain). Authored by INV-T-2853 (T9). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "entityRef": {
+      "type": "string",
+      "description": "The registered entity whose profile changed."
+    },
+    "changedAttributes": {
+      "type": "array",
+      "description": "Each attribute that changed, old and new value as sent (opaque strings; consumers compare, not interpret).",
+      "items": {
+        "type": "object",
+        "description": "One changed attribute.",
+        "properties": {
+          "attribute": {
+            "type": "string",
+            "description": "Attribute name, e.g. legalName, gstRegistrationNumber."
+          },
+          "oldValue": {
+            "type": "string",
+            "description": "Value before the change, absent when the attribute was previously unset."
+          },
+          "newValue": {
+            "type": "string",
+            "description": "Value after the change."
+          }
+        },
+        "required": [
+          "attribute",
+          "newValue"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "effectiveDate": {
+      "type": "string",
+      "description": "Date the changed profile takes effect.",
+      "format": "date"
+    }
+  },
+  "required": [
+    "entityRef",
+    "changedAttributes",
+    "effectiveDate"
+  ],
+  "additionalProperties": true
+}

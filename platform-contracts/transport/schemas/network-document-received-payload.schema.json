@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/transport/schemas/network-document-received-payload.schema.json",
+  "title": "NetworkDocumentReceivedPayload",
+  "description": "Payload of the NetworkDocumentReceived event (catalogued in model/architecture/events.yaml, INV-NOTE-3 §19.8; class: domain). Authored by INV-T-2853 (T9). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "adapter": {
+      "type": "string",
+      "description": "The Access Point adapter that received the document."
+    },
+    "peppolMessageId": {
+      "type": "string",
+      "description": "The Peppol message identifier."
+    },
+    "supplierDocUuid": {
+      "type": "string",
+      "description": "The supplier's Doc UUID, where the supplier is on this platform.",
+      "format": "uuid"
+    },
+    "documentReference": {
+      "type": "string",
+      "description": "Reference to the received document's stored bytes."
+    }
+  },
+  "required": [
+    "adapter",
+    "peppolMessageId",
+    "documentReference"
+  ],
+  "additionalProperties": true
+}

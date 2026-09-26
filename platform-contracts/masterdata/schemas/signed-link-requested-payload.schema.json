@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/masterdata/schemas/signed-link-requested-payload.schema.json",
+  "title": "SignedLinkRequestedPayload",
+  "description": "Payload of the SignedLinkRequested event (catalogued in model/architecture/events.yaml, INV-NOTE-3 §19.8; class: domain). Authored by INV-T-2853 (T9). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "purpose": {
+      "type": "string",
+      "description": "Why the signed link is requested."
+    },
+    "subjectReference": {
+      "type": "string",
+      "description": "The subject the link concerns."
+    },
+    "recipient": {
+      "type": "object",
+      "description": "Who the link is for.",
+      "properties": {
+        "email": {
+          "type": "string",
+          "description": "Recipient e-mail address.",
+          "format": "email"
+        },
+        "mobileNumber": {
+          "type": "string",
+          "description": "Recipient mobile number, optional."
+        }
+      },
+      "required": [
+        "email"
+      ],
+      "additionalProperties": true
+    },
+    "expiry": {
+      "type": "string",
+      "description": "When the requested link must expire.",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "purpose",
+    "subjectReference",
+    "recipient",
+    "expiry"
+  ],
+  "additionalProperties": true
+}
