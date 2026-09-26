@@ -1,6 +1,6 @@
 # spectral/fixtures/asyncapi-message-with-envelope.yaml — INV-T-2850 (T6)
 # Self-test fixture: a message that correctly references the shared
-# CloudEvents envelope (contentType, TPL-14's convention). The
+# CloudEvents envelope (contentType, TPL-13's convention). The
 # inv-api-40-message-references-envelope rule must PASS this file.
 asyncapi: 3.0.0
 info:

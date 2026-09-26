@@ -267,7 +267,7 @@ rules:
       function: falsy
 
   # --- T6 (INV-T-2850): every message references the shared envelope ----------
-  # TPL-14's own convention (invoice-docs standards/05-code-templates.md): a
+  # TPL-13's own convention (invoice-docs standards/05-code-templates.md): a
   # message wrapped in the CloudEvents envelope of API-40 declares
   # `contentType: application/cloudevents+json` at message level (its
   # `payload` stays the inner `data` schema only — API-40's envelope wraps it
