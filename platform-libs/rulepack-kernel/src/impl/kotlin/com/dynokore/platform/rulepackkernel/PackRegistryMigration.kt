@@ -16,17 +16,27 @@ package com.dynokore.platform.rulepackkernel
  * [PackManifest]).
  *
  * `tenant_id` is nullable, not `NOT NULL` (CS-19's mandatory-`tenant_id` rule
- * is for tenant-scoped data): every pack type this module resolves today is
- * platform-wide (packs.yaml `pack_types[*].tenant_overridable: 'No'`), so a
- * row's `tenant_id` is null in current use. It stays in the shape because
- * [PackRegistry.resolve] is generic over an optional tenant (INV-REQ-770), so
- * a future tenant-scoped pack type needs no migration change — only rows with
- * a `tenant_id` set. No row-level security is enabled: a NULL `tenant_id`
- * would otherwise be invisible under CS-19's usual RLS predicate (`tenant_id
- * = current_setting(...)`, never true against NULL), which would hide every
- * platform-wide pack from every tenant — table-level access control belongs
- * to the embedding service's own role grants, not RLS, for this fully
- * immutable, insert-only table.
+ * is for a table whose rows are *always* tenant-scoped): this table holds
+ * both — most pack types are platform-wide (packs.yaml
+ * `pack_types[*].tenant_overridable: 'No'`, e.g. Scope, Code catalogue, MDE),
+ * but the `Mapping` pack type is `tenant_overridable: Yes` ("this is the
+ * tenant's own pack"), so a real deployment holds a mix of `tenant_id IS NULL`
+ * rows (platform-wide) and `tenant_id = <tenant>` rows (a tenant's own
+ * Mapping pack) side by side. [PackRegistry.resolve] is generic over an
+ * optional tenant (INV-REQ-770) for exactly this mix.
+ *
+ * Row-level security is still mandatory here (CS-19), just not CS-19's usual
+ * single-tenant predicate: that predicate (`tenant_id =
+ * current_setting(...)`) is never true against a NULL `tenant_id`, so it
+ * would hide every platform-wide pack from every tenant. Instead the policy
+ * predicate also admits a NULL `tenant_id` — platform-wide rows stay visible
+ * to every tenant, while a tenant-scoped row (`tenant_id` set) is still
+ * fail-closed exactly as CS-19 requires: invisible whenever the session has
+ * no tenant bound (an unset or blank `app.tenant_id`, e.g. a leaked or
+ * missing [TransactionRunner] context). [TenantRlsMigration] is not reused
+ * here because it hard-codes both the strict single-tenant predicate and a
+ * `tenant_id NOT NULL` table shape, neither of which fits a table that must
+ * also carry platform-wide rows.
  *
  * Rows are immutable (INV-ADR-263, INV-REQ-1089): a service embedding this
  * table grants its runtime role `INSERT`, `SELECT` only, never `UPDATE` or
@@ -38,9 +48,11 @@ object PackRegistryMigration {
     private val IDENTIFIER = Regex("^[a-z_][a-z0-9_]*$")
 
     /**
-     * `CREATE TABLE "schema"."table"` plus its uniqueness constraint and
-     * resolution index (STK-13, INV-REQ-770). Appended into a service's own
-     * Flyway migration (CS-19 naming, forward-only).
+     * `CREATE TABLE "schema"."table"` plus its uniqueness constraint,
+     * resolution index, and the row-level-security trailer that admits both
+     * platform-wide (`tenant_id IS NULL`) and tenant-scoped rows (STK-13,
+     * INV-REQ-770, CS-19). Appended into a service's own Flyway migration
+     * (CS-19 naming, forward-only).
      *
      * @throws IllegalArgumentException if [schema] or [table] is not a plain
      *   lower-case SQL identifier — spliced directly into DDL text.
@@ -54,6 +66,13 @@ object PackRegistryMigration {
         val qualified = "$schema.$table"
         val index = "${table}_resolution_idx"
         val uniqueConstraint = "${table}_lineage_key"
+        val policyName = "${table}_tenant_isolation"
+        // CS-19's predicate, but also admitting a NULL tenant_id (platform-wide
+        // rows): unlike TenantRlsMigration's single-tenant predicate, this table's
+        // rows are not all tenant-scoped (see class doc). A tenant-scoped row
+        // still fails closed: `nullif(current_setting(...), '')` is NULL when the
+        // setting is absent or blank, and `tenant_id = NULL` is never true.
+        val predicate = "tenant_id IS NULL OR tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid"
         return """
             |CREATE TABLE $qualified (
             |    id                 uuid PRIMARY KEY,
@@ -73,6 +92,11 @@ object PackRegistryMigration {
             |    CONSTRAINT $uniqueConstraint UNIQUE (pack_type, tenant_id, version)
             |);
             |CREATE INDEX $index ON $qualified (pack_type, tenant_id, effective_from);
+            |ALTER TABLE $qualified ENABLE ROW LEVEL SECURITY;
+            |ALTER TABLE $qualified FORCE ROW LEVEL SECURITY;
+            |CREATE POLICY $policyName ON $qualified
+            |    USING      ($predicate)
+            |    WITH CHECK ($predicate);
         """.trimMargin()
     }
 }
