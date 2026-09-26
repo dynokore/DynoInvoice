@@ -80,6 +80,20 @@ tasks.test {
 val implJar =
     tasks.register<Jar>("implJar") {
         archiveBaseName.set(project.name)
+        // A separate local output directory — not a `archiveClassifier`, which would
+        // also rename the published Maven artifact this jar's `artifactId` is set for
+        // (`create<MavenPublication>("impl")` below publishes it unclassified, as
+        // `tenancy-kernel-<version>.jar`, and that should not change) — because the
+        // default `jar` task (published as `-api`) already writes exactly that same
+        // file name under `build/libs/`; without this, this task's own output
+        // silently overwrites that file on disk (same base name, same version, same
+        // directory), and `project(":tenancy-kernel")` — a plain project dependency,
+        // resolved locally, never through either Maven publication — then resolves to
+        // whichever of the two ran last, regardless of which variant it should be.
+        // Discovered wiring evidence-store's cross-module dependency on this module's
+        // impl half (CODER-BRIEF, INV-T-2863 / T19: the first such dependency in this
+        // repository); the fix belongs here, not there.
+        destinationDirectory.set(layout.buildDirectory.dir("libs-impl"))
         from(sourceSets["impl"].output)
     }
 

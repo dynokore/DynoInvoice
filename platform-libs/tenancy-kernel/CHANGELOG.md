@@ -5,6 +5,15 @@ All notable changes to `tenancy-kernel` are recorded here (FR-L.6). Format follo
 train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
+### Fixed
+- `implJar`'s local output no longer collides on disk with the default `jar`
+  task's (`tenancy-kernel-<version>.jar`, `build/libs/`): moved to its own
+  `build/libs-impl/` directory. No change to what either publishes — the
+  Maven `impl` publication's artifact name is unaffected. Found wiring
+  evidence-store's cross-module dependency on this module's impl half
+  (INV-T-2863 / T19), the first such dependency in this repository; nothing
+  had built `:tenancy-kernel:implJar` in the same invocation as a consumer of
+  `project(":tenancy-kernel")`'s default output before.
 
 ## [1.0.0] - 2026-09-26
 ### Added

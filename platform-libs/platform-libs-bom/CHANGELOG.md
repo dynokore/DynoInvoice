@@ -10,6 +10,9 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `rulepack-kernel-api`/`rulepack-kernel` constraint pair, pinned to
   `rulepack-kernel`'s own `1.0.0` (INV-T-2866 / T22: the module's first real
   interface).
+- `evidence-store-api`/`evidence-store` constraint pair, pinned to
+  `evidence-store`'s own `1.0.0` (INV-T-2863 / T19: the module's first real
+  interface).
 
 ## [0.2.0] - 2026-09-26
 ### Added

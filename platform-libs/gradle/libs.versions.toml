@@ -34,6 +34,14 @@ kotlinxCoroutinesTest = "1.11.0"
 bouncycastle = "1.86"
 # STK-08: Jackson 3 (`tools.jackson`), one JSON library platform-wide.
 jackson = "3.2.3"
+# evidence-store (INV-T-2863 / T19): kotest-property for the chain-integrity
+# property tests (STK-38), the AWS SDK v2 S3 client for the ObjectStore port
+# (STK-20 — never io.minio, banned-dependencies.yaml), and MinIO in
+# Testcontainers as the object-lock simulator stand-in (done-when: "the
+# object-lock simulator image once available, else MinIO in Testcontainers").
+kotestProperty = "6.2.5"
+kotlinxCoroutines = "1.11.0"
+awssdk = "2.55.6"
 
 [libraries]
 platform-konsistRules = { module = "com.dynokore.gst.build:konsist-rules", version.ref = "platformBuild" }
@@ -43,6 +51,7 @@ junit-platformLauncher = { module = "org.junit.platform:junit-platform-launcher"
 junit-params = { module = "org.junit.jupiter:junit-jupiter-params" }
 postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
 testcontainers-postgresql = { module = "org.testcontainers:postgresql", version.ref = "testcontainers" }
+testcontainers-minio = { module = "org.testcontainers:minio", version.ref = "testcontainers" }
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4jSimple" }
 resilience4j-bom = { module = "io.github.resilience4j:resilience4j-bom", version.ref = "resilience4j" }
 resilience4j-circuitbreaker = { module = "io.github.resilience4j:resilience4j-circuitbreaker" }
@@ -52,8 +61,11 @@ resilience4j-timelimiter = { module = "io.github.resilience4j:resilience4j-timel
 kotest-runnerJunit5 = { module = "io.kotest:kotest-runner-junit5", version.ref = "kotest" }
 kotest-assertionsCore = { module = "io.kotest:kotest-assertions-core", version.ref = "kotest" }
 kotest-property = { module = "io.kotest:kotest-property", version.ref = "kotest" }
+kotest-propertyEvidence = { module = "io.kotest:kotest-property", version.ref = "kotestProperty" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 kotlinx-coroutinesTest = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutinesTest" }
+kotlinx-coroutinesCore = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
 bouncycastle-bcprov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
 bouncycastle-bcpkix = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "bouncycastle" }
 jackson-databind = { module = "tools.jackson.core:jackson-databind", version.ref = "jackson" }
+awssdk-s3 = { module = "software.amazon.awssdk:s3", version.ref = "awssdk" }

@@ -35,6 +35,8 @@ dependencies {
         api("com.dynokore.platform:rulepack-kernel:${project(":rulepack-kernel").version}") // INV-T-2866 / T22
         api("com.dynokore.platform:tenancy-kernel-api:${project(":tenancy-kernel").version}") // INV-T-2861 / T17
         api("com.dynokore.platform:tenancy-kernel:${project(":tenancy-kernel").version}") // INV-T-2861 / T17
+        api("com.dynokore.platform:evidence-store-api:${project(":evidence-store").version}") // INV-T-2863 / T19
+        api("com.dynokore.platform:evidence-store:${project(":evidence-store").version}") // INV-T-2863 / T19
         api("com.dynokore.platform:adapter-runtime-api:${project(":adapter-runtime").version}") // INV-T-2862 / T18
         api("com.dynokore.platform:adapter-runtime:${project(":adapter-runtime").version}") // INV-T-2862 / T18
     }
