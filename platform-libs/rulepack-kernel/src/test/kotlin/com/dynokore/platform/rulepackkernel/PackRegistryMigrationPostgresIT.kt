@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test
 import org.postgresql.ds.PGSimpleDataSource
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.utility.DockerImageName
+import java.sql.Connection
 import java.sql.SQLException
 import java.sql.Types
 import java.time.LocalDate
@@ -19,16 +20,18 @@ private class Postgres(image: DockerImageName) : PostgreSQLContainer<Postgres>(i
 
 /**
  * Proves [PackRegistryMigration]'s row-level-security policy against a real
- * PostgreSQL (review should-fix on this MR, CS-19): a text assertion on the
- * generated SQL cannot catch a policy that is well-formed but wrong, as the
- * original symmetric `WITH CHECK` was. Connects as the same kind of
- * INSERT/SELECT-only, `NOSUPERUSER`/`NOBYPASSRLS` role a real pack holder's
- * runtime uses (CS-19), so every assertion below is a real RLS decision.
+ * PostgreSQL (review should-fix, then escalated must-fix, on this MR, CS-19):
+ * a text assertion on the generated SQL cannot catch a policy that is
+ * well-formed but wrong, as both the original symmetric `WITH CHECK` and the
+ * later "no tenant bound treated as the platform identity" version were.
+ * Connects as the same kind of INSERT/SELECT-only, `NOSUPERUSER`/`NOBYPASSRLS`
+ * role a real pack holder's runtime uses, so every assertion below is a real
+ * RLS decision, never an app-level check.
  */
 @Tag("integration")
 class PackRegistryMigrationPostgresIT {
     @Test
-    fun `RLS isolates tenants on read and refuses a smuggled platform-wide row on write`() {
+    fun `RLS isolates tenants, admits the platform operator, and fails closed with no identity bound`() {
         val container = Postgres(DockerImageName.parse("postgres:17"))
         container.start()
         try {
@@ -50,23 +53,76 @@ class PackRegistryMigrationPostgresIT {
             val tenantA = UUID.randomUUID()
             val tenantB = UUID.randomUUID()
 
-            // Tenant can insert its own row.
-            insertAsTenant(app, boundTenant = tenantA, rowTenant = tenantA, packId = "a-own-pack")
-            insertAsTenant(app, boundTenant = tenantB, rowTenant = tenantB, packId = "b-own-pack")
-
-            // Tenant A cannot read tenant B's row.
-            val visibleToA = selectPackIdsAsTenant(app, tenantA)
-            assertTrue(visibleToA.contains("a-own-pack"), "tenant A must see its own row, saw $visibleToA")
-            assertFalse(visibleToA.contains("b-own-pack"), "tenant A must never see tenant B's row, saw $visibleToA")
-
-            // Tenant A cannot insert a NULL-tenant (platform-wide) row: WITH CHECK
-            // must refuse it as a database error, not an app-level check — only
-            // the platform/maintenance identity (no tenant bound at all) may.
-            assertThrows(SQLException::class.java) {
-                insertAsTenant(app, boundTenant = tenantA, rowTenant = null, packId = "smuggled-platform-wide")
-            }
+            assertTenantSeesOwnRowNeverAnothers(app, tenantA, tenantB)
+            assertTenantCannotSmuggleAPlatformWideRow(app, tenantA)
+            assertPlatformOperatorCanInsertAndReadAPlatformWideRow(app)
+            assertNoIdentityBoundFailsClosedOnReadAndWrite(app, tenantA)
         } finally {
             container.stop()
+        }
+    }
+
+    /** A tenant can insert its own row; tenant A cannot read tenant B's row. */
+    private fun assertTenantSeesOwnRowNeverAnothers(
+        app: DataSource,
+        tenantA: UUID,
+        tenantB: UUID,
+    ) {
+        insert(app, tenant = tenantA, rowTenant = tenantA, packId = "a-own-pack")
+        insert(app, tenant = tenantB, rowTenant = tenantB, packId = "b-own-pack")
+
+        val visibleToA = selectPackIds(app, tenant = tenantA)
+        assertTrue(visibleToA.contains("a-own-pack"), "tenant A must see its own row, saw $visibleToA")
+        assertFalse(visibleToA.contains("b-own-pack"), "tenant A must never see tenant B's row, saw $visibleToA")
+    }
+
+    /**
+     * `WITH CHECK` must refuse a tenant-bound session inserting a NULL-tenant
+     * row as a database error, not an app-level check — "no tenant bound" is
+     * not by itself the platform operator (the must-fix this test guards):
+     * only an explicit `app.platform_operator = 'true'` identity may.
+     */
+    private fun assertTenantCannotSmuggleAPlatformWideRow(
+        app: DataSource,
+        tenantA: UUID,
+    ) {
+        assertThrows(SQLException::class.java) {
+            insert(app, tenant = tenantA, rowTenant = null, packId = "smuggled-platform-wide")
+        }
+    }
+
+    /**
+     * The platform operator's own identity (INV-REQ-1343) can insert and read
+     * a platform-wide row — the fix must not merely refuse everyone.
+     */
+    private fun assertPlatformOperatorCanInsertAndReadAPlatformWideRow(app: DataSource) {
+        insert(app, platformOperator = true, rowTenant = null, packId = "operator-platform-wide")
+        val visibleToOperator = selectPackIds(app, platformOperator = true)
+        assertTrue(
+            visibleToOperator.contains("operator-platform-wide"),
+            "the platform operator must see the platform-wide row it inserted, saw $visibleToOperator",
+        )
+    }
+
+    /**
+     * A session with no identity bound at all — no `set_config` call, ever —
+     * must see nothing (fail-closed on read, CS-19, the same guarantee
+     * `TenancyKernelPostgresIT.assertFailsClosedWithNoTenantBound` proves for
+     * tenancy-kernel's own tables) and must not be able to insert anything,
+     * including a NULL-tenant row (fail-closed on write too — the must-fix
+     * this test guards: absence must never be read as the platform identity).
+     */
+    private fun assertNoIdentityBoundFailsClosedOnReadAndWrite(
+        app: DataSource,
+        tenantA: UUID,
+    ) {
+        val visible = selectPackIds(app)
+        assertTrue(visible.isEmpty(), "expected no rows visible with no identity bound, got $visible")
+        assertThrows(SQLException::class.java) {
+            insert(app, rowTenant = null, packId = "unbound-platform-wide")
+        }
+        assertThrows(SQLException::class.java) {
+            insert(app, rowTenant = tenantA, packId = "unbound-claiming-tenant-a")
         }
     }
 
@@ -79,18 +135,20 @@ class PackRegistryMigrationPostgresIT {
         """.trimIndent()
 
     /**
-     * Inserts one row through a session with [boundTenant] set as `app.tenant_id`,
-     * the row itself carrying [rowTenant].
+     * Inserts one row through a session with [tenant] bound as `app.tenant_id`
+     * and/or [platformOperator] bound as `app.platform_operator` (neither, by
+     * default — no identity at all), the row itself carrying [rowTenant].
      */
-    private fun insertAsTenant(
+    private fun insert(
         dataSource: DataSource,
-        boundTenant: UUID,
+        tenant: UUID? = null,
+        platformOperator: Boolean = false,
         rowTenant: UUID?,
         packId: String,
     ) {
         dataSource.connection.use { connection ->
             connection.autoCommit = false
-            connection.createStatement().use { it.execute("select set_config('app.tenant_id', '$boundTenant', true)") }
+            bindIdentity(connection, tenant, platformOperator)
             connection.prepareStatement(insertSql).use { ps ->
                 ps.setObject(1, UUID.randomUUID())
                 ps.setString(2, packId)
@@ -106,14 +164,18 @@ class PackRegistryMigrationPostgresIT {
         }
     }
 
-    /** Reads every visible `pack_id` through a session with [tenant] bound as `app.tenant_id`. */
-    private fun selectPackIdsAsTenant(
+    /**
+     * Reads every visible `pack_id` through a session with [tenant] and/or
+     * [platformOperator] bound (neither, by default — no identity at all).
+     */
+    private fun selectPackIds(
         dataSource: DataSource,
-        tenant: UUID,
+        tenant: UUID? = null,
+        platformOperator: Boolean = false,
     ): List<String> {
         dataSource.connection.use { connection ->
             connection.autoCommit = false
-            connection.createStatement().use { it.execute("select set_config('app.tenant_id', '$tenant', true)") }
+            bindIdentity(connection, tenant, platformOperator)
             val values =
                 connection.createStatement().use { statement ->
                     statement.executeQuery("select pack_id from rulepack_test.rule_pack_version").use { rs ->
@@ -122,6 +184,18 @@ class PackRegistryMigrationPostgresIT {
                 }
             connection.commit()
             return values
+        }
+    }
+
+    /** Binds exactly [tenant] and/or [platformOperator] on [connection] — no call at all for either that is absent. */
+    private fun bindIdentity(
+        connection: Connection,
+        tenant: UUID?,
+        platformOperator: Boolean,
+    ) {
+        connection.createStatement().use { statement ->
+            if (tenant != null) statement.execute("select set_config('app.tenant_id', '$tenant', true)")
+            if (platformOperator) statement.execute("select set_config('app.platform_operator', 'true', true)")
         }
     }
 

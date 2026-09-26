@@ -23,32 +23,56 @@ package com.dynokore.platform.rulepackkernel
  * tenant's own pack"), so a real deployment holds a mix of `tenant_id IS NULL`
  * rows (platform-wide) and `tenant_id = <tenant>` rows (a tenant's own
  * Mapping pack) side by side. [PackRegistry.resolve] is generic over an
- * optional tenant (INV-REQ-770) for exactly this mix.
+ * optional tenant (INV-REQ-770) for exactly this mix. Keel INV-REQ-1343
+ * names who owns the platform-wide half: "the platform operator maintains
+ * the regulatory rule pack layer" (pack authoring, signing and release
+ * management "sit in the control plane, which is always the operator") — the
+ * identity below, `app.platform_operator`, is that operator's own write path
+ * (`control-plane-svc`/`rules-svc` staging a regulatory pack), distinct from
+ * any tenant's own session.
  *
  * Row-level security is still mandatory here (CS-19), just not CS-19's usual
- * single-tenant predicate: that predicate (`tenant_id =
- * current_setting(...)`) is never true against a NULL `tenant_id`, so it
- * would hide every platform-wide pack from every tenant. Instead the read-side
- * (`USING`) predicate also admits a NULL `tenant_id` — platform-wide rows stay
- * visible to every tenant, while a tenant-scoped row (`tenant_id` set) is
- * still fail-closed exactly as CS-19 requires: invisible whenever the session
- * has no tenant bound (an unset or blank `app.tenant_id`, e.g. a leaked or
- * missing [TransactionRunner] context). [TenantRlsMigration] is not reused
- * here because it hard-codes both the strict single-tenant predicate and a
- * `tenant_id NOT NULL` table shape, neither of which fits a table that must
- * also carry platform-wide rows.
+ * single-tenant predicate, and — after a review escalation — not a predicate
+ * that treats an absent tenant as an implicit identity either. Two session
+ * GUCs decide visibility and writes:
+ * - `app.tenant_id`: unset, blank, or a tenant's own UUID (exactly as
+ *   `TenantRlsMigration` and [TransactionRunner] already use it elsewhere —
+ *   never overloaded with a non-UUID sentinel here, see below).
+ * - `app.platform_operator`: `'true'` only on the platform operator's own
+ *   write/read path (INV-REQ-1343); unset everywhere else, including every
+ *   tenant's own session.
  *
- * The write-side (`WITH CHECK`) predicate is deliberately *not* the same text
- * as `USING`: a bare `tenant_id IS NULL OR tenant_id = current tenant` would
- * let any tenant-bound session insert a `tenant_id IS NULL` row too (that
- * first disjunct does not look at which tenant, if any, is bound) — a bug in
- * a tenant-bound write path could fabricate a "platform-wide" row visible to
- * every tenant, with RLS as the sole enforcement (the embedding role is
- * INSERT/SELECT-only, no `BYPASSRLS`, CS-19) unable to stop it. `WITH CHECK`
- * instead only admits a NULL `tenant_id` when *no* tenant is bound either (the
- * platform/maintenance identity that loads platform-wide packs, never inside
- * a tenant's own transaction) — CS-19's fail-closed guarantee extended to the
- * write side, not just reads.
+ * `USING` (read): a `tenant_id IS NULL` (platform-wide) row is visible to a
+ * session that has *some* identity bound — a real tenant, or the operator —
+ * never to a session with neither (CS-19's fail-closed guarantee, applied to
+ * platform-wide rows too, not only tenant-scoped ones: a leaked or missing
+ * [TransactionRunner] context must see nothing, exactly as
+ * `TenancyKernelPostgresIT.assertFailsClosedWithNoTenantBound` already proves
+ * for tenancy-kernel's own tables). A tenant-scoped row is visible only to
+ * its own tenant, as CS-19's usual predicate already guarantees.
+ *
+ * `WITH CHECK` (write) is deliberately not the same text as `USING`: a bare
+ * "visible to anyone with an identity" would let a tenant-bound session
+ * insert a `tenant_id IS NULL` row too (a bug in a tenant-bound write path
+ * could fabricate a "platform-wide" row visible to every tenant, with RLS as
+ * the sole enforcement — the embedding role is INSERT/SELECT-only, no
+ * `BYPASSRLS`). A `tenant_id IS NULL` row is insertable only when
+ * `app.platform_operator = 'true'`, never merely because no tenant happens
+ * to be bound.
+ *
+ * `app.platform_operator` is a *second*, separate GUC rather than a
+ * non-UUID sentinel value written into `app.tenant_id` (e.g. `'operator'`):
+ * `USING` must scan arbitrarily many rows with a fixed session state, and a
+ * sentinel sharing `app.tenant_id`'s column would reach
+ * `tenant_id = <sentinel>::uuid` while scanning some *other*, tenant-owned
+ * row under the operator's session — an invalid-UUID cast error aborting the
+ * whole query, not merely a non-match. Keeping `app.tenant_id` always either
+ * absent, blank, or a real tenant UUID avoids that failure mode entirely;
+ * `WITH CHECK` only ever evaluates the one row being inserted, so this
+ * hazard is specific to the read side. [TenantRlsMigration] is not reused
+ * for either predicate: it hard-codes the strict single-tenant predicate and
+ * a `tenant_id NOT NULL` table shape, neither of which fits a table that
+ * must also carry platform-wide rows and a distinct operator identity.
  *
  * Rows are immutable (INV-ADR-263, INV-REQ-1089): a service embedding this
  * table grants its runtime role `INSERT`, `SELECT` only, never `UPDATE` or
@@ -62,9 +86,10 @@ object PackRegistryMigration {
     /**
      * `CREATE TABLE "schema"."table"` plus its uniqueness constraint,
      * resolution index, and the row-level-security trailer that admits both
-     * platform-wide (`tenant_id IS NULL`) and tenant-scoped rows (STK-13,
-     * INV-REQ-770, CS-19). Appended into a service's own Flyway migration
-     * (CS-19 naming, forward-only).
+     * platform-wide (`tenant_id IS NULL`) and tenant-scoped rows, fail-closed
+     * on both read and write for a session with no identity bound at all
+     * (STK-13, INV-REQ-770, INV-REQ-1343, CS-19). Appended into a service's
+     * own Flyway migration (CS-19 naming, forward-only).
      *
      * @throws IllegalArgumentException if [schema] or [table] is not a plain
      *   lower-case SQL identifier — spliced directly into DDL text.
@@ -79,18 +104,18 @@ object PackRegistryMigration {
         val index = "${table}_resolution_idx"
         val uniqueConstraint = "${table}_lineage_key"
         val policyName = "${table}_tenant_isolation"
+        // Always absent, blank, or a real tenant UUID — never a sentinel (see class doc).
         val boundTenant = "nullif(current_setting('app.tenant_id', true), '')"
-        // Read side (CS-19's predicate, but also admitting a NULL tenant_id for
-        // platform-wide rows): unlike TenantRlsMigration's single-tenant predicate,
-        // this table's rows are not all tenant-scoped (see class doc). A
-        // tenant-scoped row still fails closed on read: $boundTenant is NULL when
-        // the setting is absent or blank, and `tenant_id = NULL` is never true.
-        val readPredicate = "tenant_id IS NULL OR tenant_id = $boundTenant::uuid"
-        // Write side: a NULL tenant_id is only ever insertable when no tenant is
-        // bound either (the platform/maintenance identity), never from inside a
-        // tenant-bound session — see the class doc for why this must not be the
-        // same text as the read predicate.
-        val writePredicate = "(tenant_id IS NULL AND $boundTenant IS NULL) OR tenant_id = $boundTenant::uuid"
+        // The platform operator's own identity (INV-REQ-1343): a second GUC, not a
+        // value squeezed into app.tenant_id, so it can never reach a ::uuid cast.
+        val isPlatformOperator = "current_setting('app.platform_operator', true) = 'true'"
+        val hasSomeIdentity = "($boundTenant IS NOT NULL OR $isPlatformOperator)"
+        // Read: a platform-wide row needs *some* identity bound, tenant or operator
+        // (fail-closed otherwise, CS-19); a tenant-scoped row still needs its own.
+        val readPredicate = "(tenant_id IS NULL AND $hasSomeIdentity) OR tenant_id = $boundTenant::uuid"
+        // Write: a platform-wide row needs the operator identity specifically, never
+        // merely "no tenant bound" (the review escalation this fixes) — see class doc.
+        val writePredicate = "(tenant_id IS NULL AND $isPlatformOperator) OR tenant_id = $boundTenant::uuid"
         return """
             |CREATE TABLE $qualified (
             |    id                 uuid PRIMARY KEY,

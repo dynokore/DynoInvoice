@@ -26,7 +26,7 @@ class PackRegistryMigrationTest {
     }
 
     @Test
-    fun `enables and forces row-level security with asymmetric read and write predicates`() {
+    fun `enables and forces row-level security with an explicit platform-operator identity`() {
         val ddl = PackRegistryMigration.ddl(schema = "rules", table = "rule_pack_version")
 
         assertTrue(ddl.contains("ALTER TABLE rules.rule_pack_version ENABLE ROW LEVEL SECURITY;"))
@@ -34,18 +34,27 @@ class PackRegistryMigrationTest {
         assertTrue(ddl.contains("CREATE POLICY rule_pack_version_tenant_isolation ON rules.rule_pack_version"))
         // Read side: both platform-wide (tenant_id IS NULL, e.g. Scope, MDE) and
         // tenant-scoped (e.g. a tenant's own Mapping pack, packs.yaml
-        // tenant_overridable: Yes) rows must be visible, and a tenant-scoped row
-        // must still fail closed on read (no row matches when app.tenant_id is
-        // unset or blank) — CS-19. Real behaviour against a live database is
+        // tenant_overridable: Yes) rows must be visible to a session with *some*
+        // identity bound (a tenant, or the platform operator, INV-REQ-1343) —
+        // fail-closed for a session with neither (no row matches at all), not just
+        // for a tenant-scoped row. Real behaviour against a live database is
         // proved by PackRegistryMigrationPostgresIT, not string matching here.
         val boundTenant = "nullif(current_setting('app.tenant_id', true), '')"
-        assertTrue(ddl.contains("USING      (tenant_id IS NULL OR tenant_id = $boundTenant::uuid)"))
-        // Write side must NOT be the same text as the read side: a tenant-bound
-        // session must never be able to insert a tenant_id IS NULL row (only the
-        // platform/maintenance identity, i.e. no tenant bound at all, may).
+        val isPlatformOperator = "current_setting('app.platform_operator', true) = 'true'"
+        val hasSomeIdentity = "($boundTenant IS NOT NULL OR $isPlatformOperator)"
         assertTrue(
             ddl.contains(
-                "WITH CHECK ((tenant_id IS NULL AND $boundTenant IS NULL) OR tenant_id = $boundTenant::uuid)",
+                "USING      ((tenant_id IS NULL AND $hasSomeIdentity) OR tenant_id = $boundTenant::uuid)",
+            ),
+        )
+        // Write side must NOT be the same text as the read side: a tenant-bound
+        // session must never be able to insert a tenant_id IS NULL row, and "no
+        // tenant bound" is not by itself the platform operator (the review
+        // escalation this fixes) — only an explicit app.platform_operator = 'true'
+        // may insert one.
+        assertTrue(
+            ddl.contains(
+                "WITH CHECK ((tenant_id IS NULL AND $isPlatformOperator) OR tenant_id = $boundTenant::uuid)",
             ),
         )
     }
