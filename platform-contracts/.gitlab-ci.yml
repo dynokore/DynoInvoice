@@ -59,6 +59,34 @@ breaking-change-self-test:
   script:
     - sh spectral/self-test-fixtures.sh
 
+schema-sample-validation:
+  # INV-T-2850 (T6) — "schema validation tests with valid and invalid
+  # samples pass". Dependency-free (spectral/validate-schema-samples.py is
+  # stdlib-only), so it reuses the already-pinned OASDIFF_IMAGE + python3
+  # rather than pinning a new image.
+  stage: verify
+  image:
+    name: "$OASDIFF_IMAGE"
+    entrypoint: [""]
+  before_script:
+    - apk add --no-cache python3
+  script:
+    - >
+      python3 spectral/validate-schema-samples.py
+      service-runtime/schemas/cloud-event-envelope.schema.json spectral/fixtures/schema-samples/cloud-event-envelope
+      service-runtime/schemas/error-envelope.schema.json spectral/fixtures/schema-samples/error-envelope
+
+envelope-rule-self-test:
+  # INV-T-2850 (T6) — proves inv-api-40-message-references-envelope itself
+  # works, against isolated fixtures, the same way breaking-change-self-test
+  # proves the breaking-change gate works.
+  stage: verify
+  image:
+    name: "$SPECTRAL_IMAGE"
+    entrypoint: [""]
+  script:
+    - sh spectral/self-test-message-envelope-rule.sh
+
 oasdiff-breaking-gate:
   stage: verify
   image:

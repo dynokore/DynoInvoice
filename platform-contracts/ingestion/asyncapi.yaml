@@ -39,6 +39,6 @@ components:
       name: com.dynokore.gst.ingestion.ExampleHappened.v1
       title: ExampleHappened
       summary: Placeholder event (INV-T-2849 scaffold) — replace with a real one.
-      contentType: application/json
+      contentType: application/cloudevents+json
       payload:
         $ref: './schemas/example-happened-payload.schema.json'
