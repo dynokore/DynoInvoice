@@ -1,0 +1,29 @@
+# spectral/fixtures/asyncapi-message-without-envelope.yaml — INV-T-2850 (T6)
+# Self-test fixture: a message that omits the envelope reference (no
+# contentType). The inv-api-40-message-references-envelope rule must FAIL
+# this file — this is deliberately the same shape as INV-T-2849's
+# per-service placeholder messages, which fail this rule until replaced.
+asyncapi: 3.0.0
+info:
+  title: fixture events
+  version: 1.0.0
+channels:
+  fixtureHappened:
+    address: 'gst.fixture.happened.v1'
+    messages:
+      FixtureHappened:
+        $ref: '#/components/messages/FixtureHappened'
+operations:
+  publishFixtureHappened:
+    action: send
+    channel:
+      $ref: '#/channels/fixtureHappened'
+    messages:
+      - $ref: '#/channels/fixtureHappened/messages/FixtureHappened'
+components:
+  messages:
+    FixtureHappened:
+      name: com.dynokore.gst.fixture.FixtureHappened.v1
+      title: FixtureHappened
+      payload:
+        $ref: './payload-before.schema.json'

@@ -1,0 +1,12 @@
+{
+  "type": "https://errors.invoice.internal/ING-004",
+  "title": "entityRef unknown or inactive",
+  "status": 422,
+  "code": "ING-004",
+  "severity": "BLOCK",
+  "disposition": "MANUAL",
+  "remediationOwner": "Onboarding",
+  "traceRef": "00-1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d-1a2b3c4d5e6f7a8b-01",
+  "correlationId": "1a2b3c4d-5e6f-4a5b-8c9d-0e1f2a3b4c5d",
+  "docUuid": "3b1f5c1e-8a8e-4a55-9a0c-4a6f0d9d2e71"
+}

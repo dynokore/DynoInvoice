@@ -1,0 +1,15 @@
+{
+  "specversion": "1.0",
+  "id": "f1a2b3c4-5d6e-4f70-8a9b-0c1d2e3f4a5b",
+  "source": "/gst/service-runtime",
+  "type": "com.dynokore.gst.platform.AuditEntryRecorded.v1",
+  "time": "2026-04-20T03:16:00Z",
+  "datacontenttype": "application/json",
+  "tenantid": "5e0b8a0e-2c4d-4b8f-9a61-0d3c7f1e2b44",
+  "entityref": "E-001",
+  "transactiondate": "2026-03-20",
+  "instanceid": "service-runtime-9a1f2c-7pl3z",
+  "correlationid": "1a2b3c4d-5e6f-4a5b-8c9d-0e1f2a3b4c5d",
+  "causationid": "2b3c4d5e-6f7a-4b5c-9d0e-1f2a3b4c5d6e",
+  "data": { "action": "goLive", "actor": "console-bff" }
+}

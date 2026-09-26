@@ -265,3 +265,27 @@ rules:
     then:
       field: additionalProperties
       function: falsy
+
+  # --- T6 (INV-T-2850): every message references the shared envelope ----------
+  # TPL-14's own convention (invoice-docs standards/05-code-templates.md): a
+  # message wrapped in the CloudEvents envelope of API-40 declares
+  # `contentType: application/cloudevents+json` at message level (its
+  # `payload` stays the inner `data` schema only — API-40's envelope wraps it
+  # at publish time, service-runtime's publisher, not this document). A
+  # placeholder message scaffolded by INV-T-2849 predates this rule and does
+  # not yet comply; replacing the placeholder with a real event is exactly
+  # where a service sets this (named as a fast-follow, CS-50's spirit — not
+  # silently loosened here).
+  inv-api-40-message-references-envelope:
+    description: API-40 — every message is wrapped in the shared CloudEvents envelope, declared as its contentType.
+    message: "message must declare contentType: application/cloudevents+json to reference the shared envelope (API-40, service-runtime/schemas/cloud-event-envelope.schema.json)"
+    given: "$.components.messages[*]"
+    severity: error
+    formats: ["aas3"]
+    then:
+      - field: contentType
+        function: defined
+      - field: contentType
+        function: pattern
+        functionOptions:
+          match: "^application/cloudevents\\+json$"

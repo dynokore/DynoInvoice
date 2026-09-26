@@ -1,0 +1,29 @@
+# spectral/fixtures/asyncapi-message-with-envelope.yaml — INV-T-2850 (T6)
+# Self-test fixture: a message that correctly references the shared
+# CloudEvents envelope (contentType, TPL-14's convention). The
+# inv-api-40-message-references-envelope rule must PASS this file.
+asyncapi: 3.0.0
+info:
+  title: fixture events
+  version: 1.0.0
+channels:
+  fixtureHappened:
+    address: 'gst.fixture.happened.v1'
+    messages:
+      FixtureHappened:
+        $ref: '#/components/messages/FixtureHappened'
+operations:
+  publishFixtureHappened:
+    action: send
+    channel:
+      $ref: '#/channels/fixtureHappened'
+    messages:
+      - $ref: '#/channels/fixtureHappened/messages/FixtureHappened'
+components:
+  messages:
+    FixtureHappened:
+      name: com.dynokore.gst.fixture.FixtureHappened.v1
+      title: FixtureHappened
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './payload-before.schema.json'

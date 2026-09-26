@@ -5,24 +5,36 @@
   "description": "CloudEvents 1.0.2 structured-JSON envelope every domain and platform event shares (API-40). A message's own payload schema is its `data` property's schema; this file only fixes the envelope fields every event carries.",
   "type": "object",
   "properties": {
-    "id": { "type": "string", "description": "The idempotency key (FR-AC.19)." },
+    "specversion": { "type": "string", "const": "1.0", "description": "CloudEvents core attribute (this envelope is CloudEvents 1.0.2, whose wire specversion is '1.0')." },
+    "id": { "type": "string", "minLength": 1, "description": "The idempotency key (FR-AC.19, FR-K.3)." },
     "source": { "type": "string", "pattern": "^/gst/[a-z-]+$" },
-    "type": { "type": "string", "pattern": "^com\\.dynokore\\.gst\\.[a-z-]+\\.[A-Za-z]+\\.v[0-9]+$" },
-    "subject": { "type": "string" },
+    "type": {
+      "type": "string",
+      "pattern": "^com\\.dynokore\\.gst\\.[a-z-]+\\.[A-Za-z]+\\.v[0-9]+$",
+      "description": "Event type and major version together (FR-K.3's 'event type and version'), e.g. com.dynokore.gst.submission.SubmissionAcknowledged.v1."
+    },
+    "subject": { "type": "string", "description": "The aggregate key, usually the Doc UUID where the event concerns a document (FR-K.3's 'Doc UUID where applicable')." },
     "time": { "type": "string", "format": "date-time" },
     "dataschema": { "type": "string", "format": "uri" },
     "datacontenttype": { "type": "string", "const": "application/json" },
-    "tenantid": { "type": "string" },
-    "entityref": { "type": "string" },
+    "tenantid": { "type": "string", "minLength": 1, "description": "Tenant (FR-K.3's 'tenant and registered entity')." },
+    "entityref": { "type": "string", "minLength": 1, "description": "Registered entity (FR-K.3's 'tenant and registered entity')." },
     "transactiondate": { "type": "string", "format": "date" },
-    "docsequence": { "type": "integer" },
-    "instanceid": { "type": "string" },
-    "correlationid": { "type": "string" },
-    "causationid": { "type": "string" },
-    "traceparent": { "type": "string" },
+    "docsequence": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Per-document, monotonic sequence on document-scoped events only (INV-REQ-1221; renamed from 'sequence' 26 Sep 2026, standards review). Absent on an event that is not document-scoped."
+    },
+    "instanceid": { "type": "string", "minLength": 1, "description": "The emitting service instance (FR-K.3's 'emitting service and instance'; 'source' names the service)." },
+    "correlationid": { "type": "string", "minLength": 1 },
+    "causationid": { "type": "string", "minLength": 1 },
+    "traceparent": { "type": "string", "description": "W3C Trace Context." },
     "testmode": { "type": "boolean" },
     "data": { "description": "The message's own payload, not this envelope's concern." }
   },
-  "required": ["id", "source", "type", "time", "datacontenttype"],
+  "required": [
+    "specversion", "id", "source", "type", "time", "datacontenttype",
+    "tenantid", "entityref", "transactiondate", "instanceid", "correlationid", "causationid"
+  ],
   "additionalProperties": false
 }

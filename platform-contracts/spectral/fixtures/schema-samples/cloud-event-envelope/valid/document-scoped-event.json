@@ -1,0 +1,19 @@
+{
+  "specversion": "1.0",
+  "id": "b8c6d6c4-5e7e-4f1a-9f73-0c0f8a5c2d10",
+  "source": "/gst/submission",
+  "type": "com.dynokore.gst.submission.SubmissionAcknowledged.v1",
+  "subject": "3b1f5c1e-8a8e-4a55-9a0c-4a6f0d9d2e71",
+  "time": "2026-04-20T03:15:22Z",
+  "datacontenttype": "application/json",
+  "dataschema": "https://schemas.invoice.internal/submission/SubmissionAcknowledged/1.2.json",
+  "tenantid": "5e0b8a0e-2c4d-4b8f-9a61-0d3c7f1e2b44",
+  "entityref": "E-001",
+  "transactiondate": "2026-03-20",
+  "docsequence": 7,
+  "instanceid": "submission-7c9f4d-2xk8q",
+  "correlationid": "7f0c2a2e-4b9e-4d0e-9d7c-2f9a1a5b6c11",
+  "causationid": "5d2b0e8f-0a3c-4c1e-8f6a-2b9d7e4c3a90",
+  "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+  "data": { "docUuid": "3b1f5c1e-8a8e-4a55-9a0c-4a6f0d9d2e71", "version": 2 }
+}

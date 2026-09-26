@@ -1,0 +1,11 @@
+{
+  "type": "https://errors.invoice.internal/ing-9",
+  "title": "Malformed catalogue code",
+  "status": 422,
+  "code": "ing-9",
+  "severity": "CRITICAL",
+  "disposition": "TERMINAL",
+  "remediationOwner": "Integration",
+  "traceRef": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+  "correlationId": "7f0c2a2e-4b9e-4d0e-9d7c-2f9a1a5b6c11"
+}

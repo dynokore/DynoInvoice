@@ -1,0 +1,11 @@
+{
+  "type": "https://errors.invoice.internal/ING-009",
+  "title": "Document number absent on a bill for payment",
+  "status": 422,
+  "code": "ING-009",
+  "severity": 1,
+  "disposition": "",
+  "remediationOwner": "Integration",
+  "traceRef": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+  "correlationId": "7f0c2a2e-4b9e-4d0e-9d7c-2f9a1a5b6c11"
+}
