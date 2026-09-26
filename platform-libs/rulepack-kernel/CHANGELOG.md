@@ -6,6 +6,38 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-09-27
+### Added
+- `PackArtefact`: the signed pack artefact's four named byte members —
+  manifest, checksums, detached CMS signature, contents (STK-13).
+- `PackVerifier`/`BouncyCastlePackVerifier`: verifies a pack artefact's
+  checksums and detached CMS (`SignedData`) signature against `TrustAnchors`
+  with Bouncy Castle (ECDSA P-256, SHA-256), pinning the signer to an exact
+  trust anchor rather than an open PKIX chain — the current key or a
+  pre-published successor key alike (STK-13 rotation), never a certificate the
+  artefact merely carries about itself.
+- `PackContentValidator`/`JacksonPackContentValidator`: refuses a pack whose
+  content carries executable material — a forbidden field name (`script`,
+  `handlerClass`, `eval`, …), a recognisable script fragment or shebang, or a
+  compiled-code magic number (JVM `.class`, ELF, PE) even base64-encoded
+  (INV-AC-2394, INV-REQ-2393, INV-BR-214). A fixture carrying a `script` or
+  `handlerClass` field is refused; the product's own `code`/`handlers`
+  vocabulary (packs.yaml) is not mistaken for it.
+- `PackRegistry`/`InMemoryPackRegistry`: resolves the pack version in force
+  for a business/transaction date over immutable versions (INV-REQ-770,
+  INV-ADR-263, INV-BR-215), tenant pack over platform pack when both apply
+  (the one point this module depends on `tenancy-kernel`, INV-ADR-2774); a
+  conflicting re-registration of an already-registered version is refused
+  (INV-REQ-1089: a pack version never changes once registered). Proved by a
+  Kotest property test (STK-38) against an independent reference
+  implementation.
+- `PackRegistryMigration`: the DDL (`new_table`) a pack holder includes in its
+  own migration for its persisted registry (INV-REQ-1195: "in its own schema
+  or memory"), the same shape for every holder.
+- Consumer-driven contract test of the module API (verify → validate → stage
+  → resolve), written the way a `rules-svc` use case is.
+- `platform-libs-bom` gains this module's `api`/`impl` constraint pair.
+
 ## [0.1.0] - 2026-09-26
 ### Added
 - Module scaffold: Gradle project, api/impl split, `platform-libs-bom` entry

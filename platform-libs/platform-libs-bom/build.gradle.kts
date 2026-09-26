@@ -31,6 +31,8 @@ dependencies {
         // canonical L1 order (service-runtime, outbox-and-queue, rulepack-kernel,
         // tenancy-kernel, evidence-store, adapter-runtime, config-resolver,
         // audit-log), then product-runtime.
+        api("com.dynokore.platform:rulepack-kernel-api:${project(":rulepack-kernel").version}") // INV-T-2866 / T22
+        api("com.dynokore.platform:rulepack-kernel:${project(":rulepack-kernel").version}") // INV-T-2866 / T22
         api("com.dynokore.platform:tenancy-kernel-api:${project(":tenancy-kernel").version}") // INV-T-2861 / T17
         api("com.dynokore.platform:tenancy-kernel:${project(":tenancy-kernel").version}") // INV-T-2861 / T17
         api("com.dynokore.platform:adapter-runtime-api:${project(":adapter-runtime").version}") // INV-T-2862 / T18

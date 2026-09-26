@@ -5,7 +5,13 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-## [0.2.0] - 2026-09-27
+## [0.3.0] - 2026-09-27
+### Added
+- `rulepack-kernel-api`/`rulepack-kernel` constraint pair, pinned to
+  `rulepack-kernel`'s own `1.0.0` (INV-T-2866 / T22: the module's first real
+  interface).
+
+## [0.2.0] - 2026-09-26
 ### Added
 - `tenancy-kernel-api`/`tenancy-kernel` constraint pair, pinned to
   `tenancy-kernel`'s own `1.0.0` (INV-T-2861 / T17: the module's first real

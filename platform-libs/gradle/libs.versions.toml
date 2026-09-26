@@ -21,13 +21,19 @@ testcontainers = "1.21.4"
 slf4jSimple = "2.0.16"
 # STK-24 (adapter-runtime, INV-T-2862 / T18): Resilience4j core, 2.4.x
 resilience4j = "2.4.0"
-# STK-37 / STK-38 (adapter-runtime, INV-T-2862 / T18): Kotest assertions and property testing, MockK for ports
+# STK-37 / STK-38 (adapter-runtime T18, rulepack-kernel T22): Kotest assertions
+# and property testing, MockK for ports.
 kotest = "6.2.5"
 mockk = "1.14.11"
 # TPL-14's own property-test idiom (`runTest { checkAll(...) }`) needs a coroutine
 # builder for kotest-property's suspend `checkAll`; test scope only (CS-32 is a
 # production-code rule).
 kotlinxCoroutinesTest = "1.11.0"
+# rulepack-kernel (INV-T-2866 / T22): detached CMS signature verification (STK-13);
+# BC 1.8x latest patch (catalogue) at the time of writing.
+bouncycastle = "1.86"
+# STK-08: Jackson 3 (`tools.jackson`), one JSON library platform-wide.
+jackson = "3.2.3"
 
 [libraries]
 platform-konsistRules = { module = "com.dynokore.gst.build:konsist-rules", version.ref = "platformBuild" }
@@ -48,3 +54,6 @@ kotest-assertionsCore = { module = "io.kotest:kotest-assertions-core", version.r
 kotest-property = { module = "io.kotest:kotest-property", version.ref = "kotest" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 kotlinx-coroutinesTest = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutinesTest" }
+bouncycastle-bcprov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
+bouncycastle-bcpkix = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "bouncycastle" }
+jackson-databind = { module = "tools.jackson.core:jackson-databind", version.ref = "jackson" }
