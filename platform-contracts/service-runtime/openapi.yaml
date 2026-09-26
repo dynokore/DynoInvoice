@@ -1,0 +1,19 @@
+openapi: 3.1.0
+info:
+  title: service-runtime shared contract components
+  version: 1.0.0
+  description: >-
+    Not a service: the shared OpenAPI components every other directory's
+    openapi.yaml references by relative $ref (error envelope, API-20) rather
+    than redeclaring its own copy. Owned by whoever owns the `service-runtime`
+    L1 module (STK-60), since these mirror what it implements at runtime.
+paths: {}
+components:
+  schemas: {}
+  responses:
+    Error:
+      description: Error (API-20 envelope)
+      content:
+        application/problem+json:
+          schema:
+            $ref: './schemas/error-envelope.schema.json'

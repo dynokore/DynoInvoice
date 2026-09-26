@@ -1,0 +1,43 @@
+# CODEOWNERS — INV-T-2849 (T5), API-01 / FR-AH.13, the OW1 ownership decision
+#
+# "Only the owning service's team may change its directory" (API-01). No
+# per-service GitLab group exists yet — every repository in `invoice/` is
+# still built by the coding agents under one identity (AGT-20), not a
+# differentiated human team per service (design-only phase). Until the owner
+# creates one group per service, every directory defaults to the same
+# reviewing identity that already gates every other merge in this project
+# (AGT-20, CS-47) — a uniform rule first, tightened per directory once real
+# teams exist (AGT-50), never the reverse.
+#
+# When a service gets its own ownership group, change only that line, here —
+# CODEOWNERS itself is this task's declared scope; the groups it will
+# eventually name are not.
+
+/access/           @inv-reviewer
+/aggregation/      @inv-reviewer
+/canonical/        @inv-reviewer
+/console-bff/      @inv-reviewer
+/control-plane/    @inv-reviewer
+/evidence/         @inv-reviewer
+/ingestion/        @inv-reviewer
+/masterdata/       @inv-reviewer
+/notification/     @inv-reviewer
+/payload/          @inv-reviewer
+/reconciliation/   @inv-reviewer
+/rules/            @inv-reviewer
+/submission/       @inv-reviewer
+/tenancy/          @inv-reviewer
+/transport/        @inv-reviewer
+
+# Shared components every directory above references by $ref (API-40, API-20) —
+# owned by whoever owns the `service-runtime` L1 module (STK-60).
+/service-runtime/  @inv-reviewer
+
+# CI, lint and packaging plumbing for this repository (declared scope of
+# INV-T-2849 itself) — reviewed the same way as any other platform-build-style
+# change (CS-50's "own merge request" spirit: a build-configuration change here
+# is visible, not silently bundled into a schema change).
+/spectral/         @inv-reviewer
+/.gitlab-ci.yml    @inv-reviewer
+/build.gradle.kts  @inv-reviewer
+/CODEOWNERS        @inv-reviewer

@@ -1,0 +1,44 @@
+asyncapi: 3.1.0
+info:
+  title: notification events
+  version: 1.0.0
+  description: >-
+    Every event notification produces or consumes (API-43, STK-45), wrapped at
+    publish time in the CloudEvents 1.0.2 envelope every service shares
+    (API-40, ../service-runtime/schemas/cloud-event-envelope.schema.json) —
+    each message below declares only its own `data` payload schema. This is an
+    INV-T-2849 scaffold; notification's own team (CODEOWNERS) replaces the
+    placeholder event below as each real one lands.
+  contact:
+    name: notification (see CODEOWNERS)
+  license:
+    name: Proprietary
+defaultContentType: application/json
+servers:
+  production:
+    host: 'event-log.invoice.internal'
+    protocol: kafka
+    description: Placeholder — the platform component event-log (SDS §18.14).
+channels:
+  notificationExampleHappened:
+    address: 'gst.notification.example-happened.v1'
+    messages:
+      ExampleHappened:
+        $ref: '#/components/messages/ExampleHappened'
+operations:
+  publishExampleHappened:
+    action: send
+    description: Placeholder operation (INV-T-2849 scaffold) — replace with a real one.
+    channel:
+      $ref: '#/channels/notificationExampleHappened'
+    messages:
+      - $ref: '#/channels/notificationExampleHappened/messages/ExampleHappened'
+components:
+  messages:
+    ExampleHappened:
+      name: com.dynokore.gst.notification.ExampleHappened.v1
+      title: ExampleHappened
+      summary: Placeholder event (INV-T-2849 scaffold) — replace with a real one.
+      contentType: application/json
+      payload:
+        $ref: './schemas/example-happened-payload.schema.json'

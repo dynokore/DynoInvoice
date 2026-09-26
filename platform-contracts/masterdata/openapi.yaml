@@ -1,0 +1,100 @@
+openapi: 3.1.0
+info:
+  title: masterdata API
+  version: 1.0.0
+  description: >-
+    Contract-first source of truth for masterdata (API-01, STK-44). The
+    `masterdata-contract` module generates its server interfaces and DTOs
+    from this file (STK-46); a consumer generates its own client types from
+    the same file (FR-AH.13, ARC-07). This is an INV-T-2849 scaffold —
+    masterdata's own team (CODEOWNERS) replaces the placeholder operation
+    below with its real ones as each lands.
+  contact:
+    name: masterdata (see CODEOWNERS)
+servers:
+  - url: 'https://api.invoice.internal'
+    description: Placeholder — the gateway routes only the operations of a published train (API-26).
+tags:
+  - name: masterdata
+    description: Placeholder resource (INV-T-2849 scaffold).
+paths:
+  /v1/masterdata/examples:
+    post:
+      operationId: createExample
+      summary: Placeholder operation (INV-T-2849 scaffold) — replace with a real one
+      description: >-
+        Placeholder only, so this directory lints clean from its first commit.
+        masterdata's own team replaces it with a real operation (CODEOWNERS, API-01).
+      tags: [masterdata]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-error-codes: []
+      x-requirements: []
+      x-operation:
+        role: filing-workflow
+        scope: filing-workflow
+        precondition: "None — placeholder. A real operation states what it checks against record state (FR-AC.1.3)."
+        reversibility: COMPENSABLE
+        repeatKey: "(tenantId, sourceKey, sourceRevision) — placeholder shape, FR-AC.19"
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExampleRequest'
+            examples:
+              default:
+                value: { name: "example" }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExampleResponse'
+              examples:
+                default:
+                  value: { id: "3fa85f64-5717-4562-b3fc-2c963f66afa6", name: "example" }
+        default:
+          $ref: '#/components/responses/Error'
+components:
+  schemas:
+    ExampleRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 200
+      required: [name]
+    ExampleResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 200
+      required: [id, name]
+  responses:
+    Error:
+      description: Error (API-20 envelope)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '../service-runtime/schemas/error-envelope.schema.json'
+          examples:
+            default:
+              value:
+                type: "about:blank"
+                title: "Example error"
+                status: 400
+                code: "EXAMPLE-000"
+                correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"

@@ -1,0 +1,100 @@
+# .gitlab-ci.yml — INV-T-2849 (T5)
+#
+# platform-contracts has no Kotlin source (settings.gradle.kts, build.gradle.kts):
+# only the stage list, shared variables and pinned tool-image digests come
+# from platform-build's templates (STK-30's "every CI tool image is pinned by
+# digest"); every job below is this repository's own, since none of them is a
+# Gradle/Kotlin build (ci/build.gitlab-ci.yml's jobs do not apply here).
+include:
+  - project: 'invoice/platform-build'
+    ref: main
+    file:
+      - 'ci/stages.gitlab-ci.yml'
+
+variables:
+  SPECTRAL_IMAGE: "stoplight/spectral@sha256:a07aa4455367b9501b574423b684ab0ef3ee42556089013583318ec015249050"
+  OASDIFF_IMAGE: "tufin/oasdiff@sha256:0286f138545a39010525df6c1bea67ffafacb384ef800effffa63bbd04718ce5"
+  ASYNCAPI_CLI_IMAGE: "asyncapi/cli@sha256:2240534054590b3d41d691fdf88e1f7a1e581b9cc4fb1d4af65ca93434aa681b"
+
+spectral-lint:
+  stage: verify
+  image:
+    name: "$SPECTRAL_IMAGE"
+    entrypoint: [""]
+  script:
+    - |
+      failed=0
+      for dir in */; do
+        svc="${dir%/}"
+        [ "$svc" = "spectral" ] && continue
+        for file in "$svc/openapi.yaml" "$svc/asyncapi.yaml"; do
+          [ -f "$file" ] || continue
+          echo "gst-ci: spectral lint $file"
+          spectral lint --ruleset spectral/ruleset.yaml --fail-severity error "$file" || failed=1
+        done
+      done
+      exit $failed
+
+asyncapi-validate:
+  stage: verify
+  image:
+    name: "$ASYNCAPI_CLI_IMAGE"
+    entrypoint: [""]
+  script:
+    - |
+      failed=0
+      for f in */asyncapi.yaml; do
+        echo "gst-ci: asyncapi validate $f"
+        asyncapi validate "$f" || failed=1
+      done
+      exit $failed
+
+breaking-change-self-test:
+  stage: verify
+  image:
+    name: "$OASDIFF_IMAGE"
+    entrypoint: [""]
+  before_script:
+    - apk add --no-cache python3
+  script:
+    - sh spectral/self-test-fixtures.sh
+
+oasdiff-breaking-gate:
+  stage: verify
+  image:
+    name: "$OASDIFF_IMAGE"
+    entrypoint: [""]
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'   # API-03: CI compares the contract with the previous train's
+  before_script:
+    - apk add --no-cache python3
+  script:
+    - sh spectral/run-oasdiff-gate.sh "$CI_MERGE_REQUEST_DIFF_BASE_SHA"
+
+asyncapi-breaking-gate:
+  stage: verify
+  image:
+    name: "$ASYNCAPI_CLI_IMAGE"
+    entrypoint: [""]
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  script:
+    - sh spectral/run-asyncapi-gate.sh "$CI_MERGE_REQUEST_DIFF_BASE_SHA"
+
+bundle-publish:
+  stage: publish
+  image: "$GRADLE_IMAGE"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_COMMIT_TAG'   # a train bundle publishes from the merged result, never an MR (CS-47)
+  script:
+    - VERSION=$(gradle -q printTrainVersion)
+    - gradle bundleContracts
+    - >
+      curl --fail --request PUT
+      --header "JOB-TOKEN: ${CI_JOB_TOKEN}"
+      --upload-file "build/distributions/platform-contracts-${VERSION}.zip"
+      "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/platform-contracts/${VERSION}/platform-contracts-${VERSION}.zip"
+  artifacts:
+    paths:
+      - build/distributions/
+    expire_in: 1 month

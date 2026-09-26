@@ -1,0 +1,267 @@
+# spectral/ruleset.yaml — INV-T-2849 (T5)
+#
+# Encodes invoice-docs/standards/04-api-standards.md (API) as machine-checked
+# rules. Each rule that implements a specific API-nn row is named `inv-api-nn`
+# per API-02's own instruction ("A rule of this standard enforced by Spectral
+# names its ruleset rule inv-api-nn"). `formats:` scopes a rule to OpenAPI
+# (oas3_1) or AsyncAPI (aas3) documents, since one ruleset lints both
+# (ci/`spectral-lint` in .gitlab-ci.yml runs it against every directory's
+# openapi.yaml and asyncapi.yaml).
+#
+# Not exhaustive: this is the scaffold (INV-T-2849) that gives every service
+# directory a starting ruleset. A service adds a rule here in its own change
+# when a real operation needs a check this file doesn't yet have.
+extends:
+  - spectral:oas
+  - spectral:asyncapi
+rules:
+  # --- API-01: contract-first, one directory per service ----------------------
+  # Enforced by repository layout and CODEOWNERS, not lintable per-document.
+
+  # --- API-02: operationId, one tag, x-principal, x-error-codes, x-timeout,
+  # x-requirements --------------------------------------------------------------
+  inv-api-02-operation-id:
+    description: API-02 — every operation has an operationId in lowerCamelCase.
+    message: "{{property}} operationId must be lowerCamelCase (API-02)"
+    given: "$.paths[*][get,post,put,delete,patch]"
+    severity: error
+    formats: ["oas3_1"]
+    then:
+      field: operationId
+      function: pattern
+      functionOptions:
+        match: "^[a-z][a-zA-Z0-9]*$"
+
+  inv-api-02-one-tag:
+    description: API-02 — every operation has at least one tag (one per resource).
+    message: "operation must have at least one tag (API-02)"
+    given: "$.paths[*][get,post,put,delete,patch]"
+    severity: error
+    formats: ["oas3_1"]
+    then:
+      field: tags
+      function: length
+      functionOptions:
+        min: 1
+
+  inv-api-02-x-principal:
+    description: API-02, API-23 — every operation declares exactly one principal scope.
+    message: "x-principal must be one of the API-23 scopes (API-02, API-23)"
+    given: "$.paths[*][get,post,put,delete,patch]"
+    severity: error
+    formats: ["oas3_1"]
+    then:
+      field: x-principal
+      function: enumeration
+      functionOptions:
+        values: ["ingest", "filing-workflow", "ap-callback", "reporting", "monitoring", "certification"]
+
+  inv-api-02-x-error-codes:
+    description: API-02 — every operation declares x-error-codes (every catalogue code it can return).
+    message: "x-error-codes must be present (API-02)"
+    given: "$.paths[*][get,post,put,delete,patch]"
+    severity: error
+    formats: ["oas3_1"]
+    then:
+      field: x-error-codes
+      function: defined
+
+  inv-api-02-x-timeout:
+    description: API-02 — every operation declares x-timeout, from SDS §36.6.
+    message: "x-timeout must be a number of milliseconds (API-02)"
+    given: "$.paths[*][get,post,put,delete,patch]"
+    severity: error
+    formats: ["oas3_1"]
+    then:
+      field: x-timeout
+      function: schema
+      functionOptions:
+        schema:
+          type: number
+          exclusiveMinimum: 0
+
+  inv-api-02-x-requirements:
+    description: API-02 — every operation declares the requirement keys it implements.
+    message: "x-requirements must be present, even if empty (API-02)"
+    given: "$.paths[*][get,post,put,delete,patch]"
+    severity: error
+    formats: ["oas3_1"]
+    then:
+      field: x-requirements
+      function: defined
+
+  inv-api-08-x-sync-edge:
+    description: API-08 — an internal operation's x-sync-edge names the caller and callee.
+    message: "x-sync-edge must be '<caller>-><callee>' (API-08)"
+    given: "$.paths[*][get,post,put,delete,patch][?(@['x-sync-edge'])]"
+    severity: error
+    formats: ["oas3_1"]
+    then:
+      field: x-sync-edge
+      function: pattern
+      functionOptions:
+        match: "^[a-z][a-z-]*svc->[a-z][a-z-]*svc$"
+
+  # --- FR-AC.1 / FR-AC.19: the per-operation extension -------------------------
+  # A state-changing or third-party-transmitting operation (FR-AC.1's own
+  # definition — never a GET) declares its role/scope, precondition,
+  # reversibility and repeat key together, as one object.
+  inv-fr-ac1-x-operation-required:
+    description: FR-AC.1, FR-AC.19 — a state-changing operation declares x-operation.
+    message: "x-operation must be present on a state-changing operation (FR-AC.1)"
+    given: "$.paths[*][post,put,delete]"
+    severity: error
+    formats: ["oas3_1"]
+    then:
+      field: x-operation
+      function: defined
+
+  inv-fr-ac1-x-operation-shape:
+    description: FR-AC.1, FR-AC.19 — x-operation carries all four declared properties.
+    message: "x-operation is incomplete: {{error}} (FR-AC.1, FR-AC.19)"
+    given: "$.paths[*][post,put,delete].x-operation"
+    severity: error
+    formats: ["oas3_1"]
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          properties:
+            role: { type: string, minLength: 1 }
+            scope: { type: string, minLength: 1 }
+            precondition: { type: string, minLength: 1 }
+            repeatKey: { type: string, minLength: 1 }
+            reversibility: { enum: ["UNDOABLE", "COMPENSABLE", "IRREVERSIBLE"] }
+          required: ["role", "scope", "precondition", "repeatKey", "reversibility"]
+
+  # --- API-05, API-06, API-07: paths and methods -------------------------------
+  inv-api-05-path-kebab-case:
+    description: API-05 — path segments are kebab-case (a path parameter is exempt).
+    message: "path segment '{{value}}' must be kebab-case (API-05)"
+    given: "$.paths[*]~"
+    severity: error
+    formats: ["oas3_1"]
+    then:
+      function: pattern
+      functionOptions:
+        match: "^(/[a-z][a-z0-9-]*|/\\{[a-zA-Z][a-zA-Z0-9]*\\})*$"
+
+  inv-api-07-no-patch:
+    description: API-07 — PATCH is not used.
+    message: "PATCH is not used (API-07); PUT replaces, POST commands"
+    given: "$.paths[*]"
+    severity: error
+    formats: ["oas3_1"]
+    then:
+      field: patch
+      function: undefined
+
+  # --- API-09: casing, extensible enums -----------------------------------------
+  inv-api-09-enum-casing:
+    description: API-09 — enum values are UPPER_SNAKE_CASE.
+    message: "enum value '{{value}}' must be UPPER_SNAKE_CASE (API-09)"
+    given: "$..[?(@.enum)].enum[*]"
+    severity: error
+    formats: ["oas3_1"]
+    then:
+      function: pattern
+      functionOptions:
+        match: "^[A-Z][A-Z0-9_]*$"
+
+  inv-api-09-field-casing:
+    description: API-09 — field names are camelCase.
+    message: "field name '{{property}}' must be camelCase (API-09)"
+    given: "$..properties"
+    severity: error
+    formats: ["oas3_1"]
+    then:
+      function: casing
+      functionOptions:
+        type: camel
+
+  # --- API-12: money fields ------------------------------------------------------
+  inv-api-12-money-format:
+    description: API-12 — a money field (name ends Amount/Price/Total) is a decimal-pattern string.
+    message: "money field '{{property}}' must be a string with format decimal and a scale pattern (API-12)"
+    given: "$..properties[?(@property.match(/(Amount|Price|Total)$/))]"
+    severity: error
+    formats: ["oas3_1"]
+    then:
+      - field: type
+        function: enumeration
+        functionOptions:
+          values: ["string"]
+      - field: pattern
+        function: truthy
+
+  # --- API-13: identifiers ---------------------------------------------------
+  inv-api-13-id-max-length:
+    description: API-13 — a caller-supplied key (sourceKey) is at most 128 characters.
+    message: "sourceKey must declare maxLength (API-13)"
+    given: "$..properties.sourceKey"
+    severity: error
+    formats: ["oas3_1"]
+    then:
+      field: maxLength
+      function: truthy
+
+  # --- API-14: absent optional fields, not null --------------------------------
+  inv-api-14-no-nullable:
+    description: API-14 — a field's absence means "not sent"; the legacy nullable keyword is not used.
+    message: "nullable is not used — omit the field instead (API-14)"
+    given: "$..[?(@.nullable)]"
+    severity: error
+    formats: ["oas3_1"]
+    then:
+      field: nullable
+      function: falsy
+
+  # --- API-31: deprecation headers -----------------------------------------------
+  inv-api-31-deprecation-sunset:
+    description: API-31 — a deprecated operation declares x-sunset.
+    message: "a deprecated operation must declare x-sunset (API-31)"
+    given: "$.paths[*][get,post,put,delete][?(@.deprecated)]"
+    severity: error
+    formats: ["oas3_1"]
+    then:
+      field: x-sunset
+      function: truthy
+
+  # --- API-04: examples --------------------------------------------------------
+  inv-api-04-examples:
+    description: API-04 — every response media type declares an example.
+    message: "response content must declare examples or an example (API-04)"
+    given: "$.paths[*][get,post,put,delete].responses[*].content[*]"
+    severity: warn
+    formats: ["oas3_1"]
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          anyOf:
+            - required: ["example"]
+            - required: ["examples"]
+
+  # --- API-40, API-41: events (AsyncAPI) ----------------------------------------
+  inv-api-40-event-type-pattern:
+    description: API-40 — an event's name matches com.dynokore.gst.<service>.<EventName>.v<major>.
+    message: "message name '{{value}}' must match com.dynokore.gst.<service>.<EventName>.v<n> (API-40)"
+    given: "$.components.messages[*].name"
+    severity: error
+    formats: ["aas3"]
+    then:
+      function: pattern
+      functionOptions:
+        match: "^com\\.dynokore\\.gst\\.[a-z-]+\\.[A-Za-z]+\\.v[0-9]+$"
+
+  inv-api-41-additional-properties:
+    description: API-41 — a payload schema never closes additionalProperties (so a consumer tolerates unknown fields).
+    message: "additionalProperties must not be false (API-41, FR-K.4)"
+    given: "$..[?(@.additionalProperties == false)]"
+    severity: error
+    formats: ["aas3"]
+    then:
+      field: additionalProperties
+      function: falsy

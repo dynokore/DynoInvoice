@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FixturePayload",
+  "type": "object",
+  "properties": {
+    "entityRef": { "type": "string" }
+  },
+  "required": ["entityRef"],
+  "additionalProperties": true
+}

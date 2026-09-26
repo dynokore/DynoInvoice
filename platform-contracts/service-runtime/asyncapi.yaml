@@ -1,0 +1,11 @@
+asyncapi: 3.0.0
+info:
+  title: service-runtime shared event components
+  version: 1.0.0
+  description: >-
+    Not a service: holds the CloudEvents envelope every other directory's
+    asyncapi.yaml references (API-40, ./schemas/cloud-event-envelope.schema.json)
+    rather than redeclaring its own copy. Owned by whoever owns the
+    `service-runtime` L1 module (STK-60).
+channels: {}
+operations: {}

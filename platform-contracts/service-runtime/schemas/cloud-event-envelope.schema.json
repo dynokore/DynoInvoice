@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/service-runtime/schemas/cloud-event-envelope.schema.json",
+  "title": "CloudEventEnvelope",
+  "description": "CloudEvents 1.0.2 structured-JSON envelope every domain and platform event shares (API-40). A message's own payload schema is its `data` property's schema; this file only fixes the envelope fields every event carries.",
+  "type": "object",
+  "properties": {
+    "id": { "type": "string", "description": "The idempotency key (FR-AC.19)." },
+    "source": { "type": "string", "pattern": "^/gst/[a-z-]+$" },
+    "type": { "type": "string", "pattern": "^com\\.dynokore\\.gst\\.[a-z-]+\\.[A-Za-z]+\\.v[0-9]+$" },
+    "subject": { "type": "string" },
+    "time": { "type": "string", "format": "date-time" },
+    "dataschema": { "type": "string", "format": "uri" },
+    "datacontenttype": { "type": "string", "const": "application/json" },
+    "tenantid": { "type": "string" },
+    "entityref": { "type": "string" },
+    "transactiondate": { "type": "string", "format": "date" },
+    "docsequence": { "type": "integer" },
+    "instanceid": { "type": "string" },
+    "correlationid": { "type": "string" },
+    "causationid": { "type": "string" },
+    "traceparent": { "type": "string" },
+    "testmode": { "type": "boolean" },
+    "data": { "description": "The message's own payload, not this envelope's concern." }
+  },
+  "required": ["id", "source", "type", "time", "datacontenttype"],
+  "additionalProperties": false
+}
