@@ -48,7 +48,7 @@ paths:
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-547, INV-REQ-806]
       x-operation:
         role: ingest
-        scope: ingest
+        scope: entity
         precondition: >-
           sourceRevision for this (tenantId, sourceSystem, sourceKey) is not
           lower than any already recorded (FR-C.1, ING-002); an amendment does

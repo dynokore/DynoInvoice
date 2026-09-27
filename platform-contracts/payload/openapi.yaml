@@ -48,7 +48,7 @@ paths:
       x-requirements: [INV-REQ-957, INV-REQ-325]
       x-operation:
         role: ingest
-        scope: ingest
+        scope: entity
         precondition: >-
           None — a stateless, side-effect-free check (INV-REQ-325); the draft
           document need not yet be recorded and nothing is persisted either way.
@@ -102,7 +102,7 @@ paths:
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-324]
       x-operation:
         role: ingest
-        scope: ingest
+        scope: entity
         precondition: >-
           The canonical version (docUuid, version) is recorded
           (CanonicalVersionCreated) and not superseded by a later version.
