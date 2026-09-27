@@ -137,8 +137,8 @@ paths:
       operationId: grantRole
       summary: Grant a role x scope x validity, inviting the identity if it does not yet exist (SDS §7,
         SCR-24.1/24.2/24.4, §31.2)
-      description: Covers grantRole, inviteUser, inviteExternalIdentity (cross-tenant, FR-AF.20) and inviteDiagnostics
-        (private form, deployment.operator) — one shape, discriminated by granteeKind. Emits AuthorityChanged.
+      description: Covers grantRole, inviteUser and inviteExternalIdentity (cross-tenant, FR-AF.20) —
+        one shape, discriminated by granteeKind. Emits AuthorityChanged.
       tags:
       - grants
       x-principal: filing-workflow
@@ -679,12 +679,13 @@ paths:
         scope: tenant
         precondition: Request is pending
         reversibility: COMPENSABLE
-        repeatKey: requestRef — revoke the grant early to compensate
+        repeatKey: requestRef (ELV-* or DIAG-*) — revoke the grant early to compensate
       parameters:
       - name: requestRef
         in: path
         required: true
-        description: The elevation or diagnostic-invitation request's opaque reference.
+        description: The elevation request's or diagnostic invitation's opaque reference
+          (ELV-* or DIAG-*).
         schema:
           type: string
           maxLength: 64
@@ -707,12 +708,21 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ElevationResponse'
+                oneOf:
+                - $ref: '#/components/schemas/ElevationResponse'
+                - $ref: '#/components/schemas/DiagnosticInvitationResponse'
               examples:
-                default:
+                elevation:
+                  summary: An elevation request decided
                   value:
                     requestRef: ELV-0031
                     caseId: CASE-5521
+                    status: GRANTED
+                diagnosticInvitation:
+                  summary: A diagnostic invitation decided
+                  value:
+                    invitationRef: DIAG-0007
+                    installationRef: INST-0091
                     status: GRANTED
         "400":
           $ref: '#/components/responses/Error'
@@ -1477,7 +1487,6 @@ components:
           - STAFF
           - EXTERNAL
           - CROSS_TENANT
-          - DIAGNOSTIC
         identityRef:
           type: string
           maxLength: 64
@@ -1714,7 +1723,11 @@ components:
           type: string
           enum:
           - PENDING
+          - GRANTED
+          - ACTIVE
+          - REFUSED
           - WITHDRAWN
+          - EXPIRED
           x-extensible-enum: true
     SignatoryLinkRequest:
       type: object
