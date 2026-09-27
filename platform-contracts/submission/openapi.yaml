@@ -9,13 +9,14 @@ info:
     the same file (FR-AH.13, ARC-07).
 
 
-    Public API (API standard §1 and §15): submission-svc has no synchronous
-    callee edge in model/architecture/sync-edges.yaml (it is only a caller,
-    to transport-svc), so every operation below is `/v1/…`, routed by the
-    gateway to the `filing-workflow` and `reporting` principals, and reached
-    the same way internally by console-bff on a person's behalf (API-25 —
-    the callee re-checks writes) rather than through a separate
-    `/internal/v1/…` surface (INV-T-2858, T14).
+    Public and internal APIs (API standard §1 and §15): submission-svc has
+    no synchronous callee edge in model/architecture/sync-edges.yaml (it is
+    only a caller, to transport-svc). The five public operations below are
+    `/v1/…`, routed by the gateway to the `filing-workflow` and `reporting`
+    principals. Two additional operations (withdrawSubmission, replaySubmissions)
+    are `/internal/v1/…`, reachable only by console-bff on a person's behalf
+    (API-25 — the callee re-checks writes), rather than through the public
+    `/v1/…` surface (INV-REQ-568, INV-REQ-575, INV-REQ-581, INV-T-2858, T14).
   contact:
     name: submission (see CODEOWNERS)
 servers:
@@ -173,100 +174,6 @@ paths:
                     confirmedAt: "2026-04-28T09:01:00Z"
         default:
           $ref: '#/components/responses/Error'
-  /v1/transactions/{docUuid}/withdraw:
-    post:
-      operationId: withdrawSubmission
-      summary: Withdraw a document with no version yet transmitted
-      description: >-
-        A document with no version yet transmitted MAY be withdrawn by
-        tax.approver with a reason, where the upstream system reversed it
-        before issue (INV-REQ-568, INV-REQ-581, FR-8.22, FR-AE.20). A Type
-        1A document can never be withdrawn once issued, because IRAS already
-        holds it.
-      tags: [transactions]
-      x-principal: filing-workflow
-      x-timeout: 5000
-      x-error-codes: []
-      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-568, INV-REQ-581]
-      x-operation:
-        role: filing-workflow
-        scope: filing-workflow
-        precondition: >-
-          No version of this Doc UUID has ever been transmitted; a Type 1A
-          document once issued can never be withdrawn (FR-8.22, FR-AE.20).
-        reversibility: COMPENSABLE
-        repeatKey: "docUuid — no-op; the document is already withdrawn."
-      parameters:
-        - $ref: '#/components/parameters/DocUuid'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/WithdrawRequest'
-            examples:
-              default:
-                value: { reason: "Upstream ERP reversed the document before issue" }
-      responses:
-        '200':
-          description: The document's withdrawal.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WithdrawResult'
-              examples:
-                default:
-                  value:
-                    docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
-                    state: "WITHDRAWN"
-                    reason: "Upstream ERP reversed the document before issue"
-                    withdrawnAt: "2026-03-20T03:20:00Z"
-        default:
-          $ref: '#/components/responses/Error'
-  /v1/transactions/{docUuid}/versions/{version}/replay:
-    post:
-      operationId: replaySubmissions
-      summary: Replay a dead-lettered version on its own priority lane
-      description: >-
-        A DEAD_LETTERED version is replayable; replay returns the version to
-        QUEUED (INV-REQ-575, FR-AE.14). Runs on its own priority lane, never
-        mixed with ordinary queue processing (services.yaml submission-svc
-        capabilities, FR-C.8). Never allows two in-flight versions of one
-        Doc UUID (submission-svc `must_not`, FR-C.2).
-      tags: [transactions]
-      x-principal: filing-workflow
-      x-timeout: 5000
-      x-error-codes: [SUB-008]
-      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-575]
-      x-operation:
-        role: filing-workflow
-        scope: filing-workflow
-        precondition: >-
-          The version is DEAD_LETTERED (INV-REQ-575); no other version of the
-          same Doc UUID is currently in flight (FR-C.2, SUB-008).
-        reversibility: COMPENSABLE
-        repeatKey: >-
-          (docUuid, version) — the repeat overwrites itself at IRAS
-          (INV-REQ-1010 behaviour #3).
-      parameters:
-        - $ref: '#/components/parameters/DocUuid'
-        - $ref: '#/components/parameters/Version'
-      responses:
-        '200':
-          description: The version was returned to QUEUED on the replay lane.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ReplayResult'
-              examples:
-                default:
-                  value:
-                    docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
-                    version: 2
-                    state: "QUEUED"
-                    replayedAt: "2026-03-20T03:21:00Z"
-        default:
-          $ref: '#/components/responses/Error'
   /v1/entities/{entityRef}/periods/{periodRef}/submissions:
     get:
       operationId: listSubmissions
@@ -370,6 +277,103 @@ paths:
                     state: "ACKNOWLEDGED"
                     dueDate: "2026-04-30"
                     acknowledgedAt: "2026-04-20T03:15:21Z"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/transactions/{docUuid}/withdraw:
+    post:
+      operationId: withdrawSubmission
+      summary: Withdraw a document with no version yet transmitted
+      description: >-
+        A document with no version yet transmitted MAY be withdrawn by
+        tax.approver with a reason, where the upstream system reversed it
+        before issue (INV-REQ-568, INV-REQ-581, FR-8.22, FR-AE.20). A Type
+        1A document can never be withdrawn once issued, because IRAS already
+        holds it. Called by console-bff on behalf of an operator (INV-T-2858,
+        T14).
+      tags: [transactions]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-568, INV-REQ-581]
+      x-operation:
+        role: tax.approver
+        scope: entity
+        precondition: >-
+          No version of this Doc UUID has ever been transmitted; a Type 1A
+          document once issued can never be withdrawn (FR-8.22, FR-AE.20).
+        reversibility: COMPENSABLE
+        repeatKey: "docUuid — no-op; the document is already withdrawn."
+      parameters:
+        - $ref: '#/components/parameters/DocUuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WithdrawRequest'
+            examples:
+              default:
+                value: { reason: "Upstream ERP reversed the document before issue" }
+      responses:
+        '200':
+          description: The document's withdrawal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WithdrawResult'
+              examples:
+                default:
+                  value:
+                    docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    state: "WITHDRAWN"
+                    reason: "Upstream ERP reversed the document before issue"
+                    withdrawnAt: "2026-03-20T03:20:00Z"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/transactions/{docUuid}/versions/{version}/replay:
+    post:
+      operationId: replaySubmissions
+      summary: Replay a dead-lettered version on its own priority lane
+      description: >-
+        A DEAD_LETTERED version is replayable; replay returns the version to
+        QUEUED (INV-REQ-575, FR-AE.14). Runs on its own priority lane, never
+        mixed with ordinary queue processing (services.yaml submission-svc
+        capabilities, FR-C.8). Never allows two in-flight versions of one
+        Doc UUID (submission-svc `must_not`, FR-C.2). Called by console-bff
+        on behalf of an operator holding the "Replay a failed submission"
+        grant (INV-T-2858, T14).
+      tags: [transactions]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-error-codes: [SUB-008]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-575]
+      x-operation:
+        role: operator
+        scope: entity
+        precondition: >-
+          The version is DEAD_LETTERED (INV-REQ-575); no other version of the
+          same Doc UUID is currently in flight (FR-C.2, SUB-008).
+        reversibility: COMPENSABLE
+        repeatKey: >-
+          (docUuid, version) — the repeat overwrites itself at IRAS
+          (INV-REQ-1010 behaviour #3).
+      parameters:
+        - $ref: '#/components/parameters/DocUuid'
+        - $ref: '#/components/parameters/Version'
+      responses:
+        '200':
+          description: The version was returned to QUEUED on the replay lane.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplayResult'
+              examples:
+                default:
+                  value:
+                    docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    version: 2
+                    state: "QUEUED"
+                    replayedAt: "2026-03-20T03:21:00Z"
         default:
           $ref: '#/components/responses/Error'
 components:
