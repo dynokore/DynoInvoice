@@ -339,10 +339,16 @@ contracts-codegen-compile:
   # already uses for invoice-docs, just above (the job-token allowlist covers group
   # invoice, so this needs no extra Maintainer action). Bump PLATFORM_BUILD_REF in its
   # own merge request when build-logic changes.
+  #
+  # PLATFORM_BUILD_REF is a hand-bumped pin with no staleness signal of its own
+  # (review) — same shape as catalogue-drift-check's vendored error-codes.yaml pin, so
+  # this reports drift the same way: after fetching the pin, also fetch
+  # platform-build's main tip and echo (without failing the job) how far the pin has
+  # fallen behind, so a stale pin is a visible follow-up, not silent.
   stage: verify
   image: "$GRADLE_IMAGE"
   variables:
-    PLATFORM_BUILD_REF: "3dde4ae8ce1cbb905413124de2ba84e5d59dce42" # main: adds gst.contract-server/-client/-event-types (INV-T-2847) + its CVE/signature-verification follow-ups
+    PLATFORM_BUILD_REF: "218934eae564ed643a48209d6b40f644402ac7ba" # main: adds gst.contract-server/-client/-event-types (INV-T-2847) + its CVE/signature-verification follow-ups; MR !6 & !7 fix failing modules
   cache:
     key: "gradle-codegen-self-test-$CI_PROJECT_ID"
     paths:
@@ -355,6 +361,14 @@ contracts-codegen-compile:
       "${CI_SERVER_PROTOCOL}://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}:${CI_SERVER_PORT}/invoice/platform-build.git"
     - git -C /tmp/platform-build-pinned fetch --depth 1 origin "${PLATFORM_BUILD_REF}"
     - git -C /tmp/platform-build-pinned checkout -q FETCH_HEAD
+    - git -C /tmp/platform-build-pinned fetch --depth 1 origin main
+    - >
+      MAIN_HEAD=$(git -C /tmp/platform-build-pinned rev-parse FETCH_HEAD);
+      if [ "$MAIN_HEAD" != "$PLATFORM_BUILD_REF" ]; then
+        echo "gst-ci: NOTICE platform-build main (${MAIN_HEAD}) has moved past PLATFORM_BUILD_REF (${PLATFORM_BUILD_REF}) — this does not fail the job; bump PLATFORM_BUILD_REF in its own merge request to pick up the build-logic change.";
+      else
+        echo "gst-ci: platform-build main is still at the pinned commit.";
+      fi
     - PLATFORM_BUILD_DIR=/tmp/platform-build-pinned gradle -p codegen-self-test compileAllContracts --stacktrace
   artifacts:
     when: on_failure

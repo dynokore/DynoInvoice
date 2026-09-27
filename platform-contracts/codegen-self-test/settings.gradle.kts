@@ -35,6 +35,41 @@
 // inline that $ref's target to make resolution "work": if a future contract's
 // cross-file $ref does not resolve this way, that is a platform-build plugin defect
 // to report by exact coordinate and file, not something to route around here.
+//
+// `gst.event-types` (unlike `gst.contract-server`/`-client`, which feed the resolved
+// file straight to the generator) never opens the resolved schema file where it
+// lands: `wrapEventSchemaAsOpenApi` (build-logic) reads it and re-embeds its raw
+// content — `$id` and all — into a NEW wrapped document under that Gradle module's
+// OWN `build/generated/event-types-openapi/`, which starts out with none of the
+// schema's real siblings. A relative $ref to a same-directory sibling
+// (`obligation-register-entry.schema.json`'s `./lifecycle-states.schema.json`), and
+// even a schema's own `$id`-qualified internal `#/$defs/...` refs once wrapped
+// (`lifecycle-states.schema.json` referencing its own `$defs`), are then resolved by
+// the parser against THAT directory, one file at a time on a failed absolute-URL
+// fetch of the embedded `$id` — never against wherever Maven staged the original.
+// Confirmed by re-running the generator: it fails naming that exact path. So each
+// event module's own generated build.gradle.kts (below) stages its WHOLE service's
+// `schemas/` directory there too — as a whole, preserving members' relative (sibling)
+// layout — never inlining one $ref's target in its place.
+//
+// That fixes the sibling-file gap (review, MR !13): `obligation-register-entry`'s
+// `./lifecycle-states.schema.json` $ref now finds a real file, same as
+// `../service-runtime/...` already did. It does NOT fully green two of the ~240
+// generated modules (`submission-event-lifecycle-states`,
+// `submission-event-obligation-register-entry`): once the sibling file is found and
+// loaded, resolving `lifecycle-states.schema.json`'s OWN `$id`-qualified internal
+// `#/$defs/...` refs (it defines and cross-references `documentLevelState` /
+// `versionLevelState` / `lifecycleState` / `stateCatalogueEntry` on itself) throws
+// `NullPointerException: root is null` in swagger-parser's `ReferenceVisitor.findAnchor`
+// — reproduced with the file well-formed and the ref present (confirmed: `$defs`
+// contains exactly those four keys). This is a SEPARATE platform-build defect from
+// the sibling-staging gap above: embedding a schema that carries its own top-level
+// `$id` into `components.schemas` (`wrapEventSchemaAsOpenApi`) changes how OpenAPI
+// 3.1 scopes `$ref` resolution for that embedded subtree, and nothing in
+// platform-contracts can supply the "already-resolved document" the parser then
+// expects — stripping or rewriting the committed schema's `$id` to dodge this would
+// mask the defect for THIS harness while leaving it for every real consumer (the
+// same principle as the hyphen defect above): reported instead, not routed around.
 
 pluginManagement {
     val platformBuildDir =
@@ -173,8 +208,14 @@ val dependenciesBlock =
 // self-test's module names do, by construction (they are not real TPL-01 modules).
 // That makes `project.name` itself the package segment, so it must be a valid Kotlin
 // identifier: no hyphens, including any already in a service's own directory name
-// (e.g. `console-bff`). This is cosmetic to this self-test only, not a rename of
-// anything real.
+// (e.g. `console-bff`). Sanitizing it here (self-test module names only) works around
+// the symptom for this harness, but `serviceNameOf` matches a REAL TPL-01 module
+// (`console-bff-contract`, etc.) by suffix and returns the hyphenated remainder
+// unchanged, so the real `console-bff` service will hit this same invalid-package-
+// segment defect the first time any of these three plugins runs against it — this is
+// a platform-build defect (review, INV-T-2850 MR !13), tracked as an INV-T-2847
+// follow-up (T3 owns `serviceNameOf` and its three callers), not something this
+// self-test's sanitization settles.
 fun projectSafe(s: String) = s.replace('-', '_').replace('.', '_')
 
 fun declareModule(
@@ -220,6 +261,10 @@ for ((svc, rel) in eventModules) {
             .removeSuffix(".schema.json")
             .removeSuffix(".json")
             .replace('/', '-')
+    // Absolute path to this service's real schemas/ directory (not the staged Maven
+    // repo): see the file header. Interpolated as a literal string into the generated
+    // module's own build.gradle.kts below.
+    val svcSchemasDir = File(contractsRoot, "$svc/schemas").absolutePath
     declareModule(
         "$svc-event-$baseName",
         """
@@ -227,6 +272,20 @@ for ((svc, rel) in eventModules) {
         $repositoriesBlock
         $dependenciesBlock
         eventTypes { generatorSource("platform-contracts:$svc:$rel") }
+
+        // Stage this service's whole schemas/ directory into gst.event-types' own
+        // wrapped-document directory too (see settings.gradle.kts file header): a
+        // relative or ${'$'}id-qualified ${'$'}ref in the wrapped schema is resolved
+        // against THAT directory, not wherever Maven staged the original file. Must
+        // run after wrapEventSchema writes its own openapi.yaml there first (explicit
+        // dependsOn: two tasks writing into the same directory need a declared
+        // order, not an accidental one).
+        val stageSiblingSchemas by tasks.registering(Copy::class) {
+            dependsOn("wrapEventSchema")
+            from("$svcSchemasDir")
+            into(layout.buildDirectory.dir("generated/event-types-openapi"))
+        }
+        tasks.named("generateEventTypes") { dependsOn(stageSiblingSchemas) }
         """.trimIndent() + "\n",
     )
 }
