@@ -6,6 +6,20 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-09-27
+### Changed
+- **BREAKING:** `MountedFileSecretStore` implementation removed from adapter-runtime.
+  The `SecretStore` port and types (`Secret`, `SecretRef`, `SecretNotFound`) remain in
+  `adapter-runtime-api` (STK-60 L1 module policy: each L1 declares its ports, but
+  binding implementations live only in `service-runtime`). Services bind
+  adapter-runtime's `SecretStore` port by delegating to `service-runtime`'s
+  `SecretStore` binding (INV-T-2862 follow-up, no L1→L1 import).
+
+### Removed
+- Implementation class `MountedFileSecretStore` and its tests
+  (`MountedFileSecretStoreTest`, `MountedFileSecretStoreContractTest`; the port
+  contract test `SecretStoreContractTest` and test fixture `FakeSecretStore` remain).
+
 ## [1.0.0] - 2026-09-27
 ### Added
 - Adapter lifecycle (`ManagedAdapter`, `AdapterState`) and version cutover routing
