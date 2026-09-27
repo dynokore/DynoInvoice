@@ -8,8 +8,11 @@ package com.dynokore.platform.adapterruntime
  * STK-29: the binding reads mounted files only, populated by External Secrets
  * Operator or a Kubernetes Secret depending on deployment form; rotation happens by
  * file watch, without restart. A conforming implementation never caches a value
- * across calls for exactly this reason — see
- * [MountedFileSecretStore][com.dynokore.platform.adapterruntime.secretstore.MountedFileSecretStore].
+ * across calls for exactly this reason.
+ *
+ * Services bind this port by delegating to `service-runtime`'s `SecretStore`
+ * binding (STK-60 L1 module policy: each L1 declares its ports, binding
+ * implementations live only in service-runtime).
  */
 interface SecretStore {
     /** @throws SecretNotFound when no credential is bound at [ref]. */

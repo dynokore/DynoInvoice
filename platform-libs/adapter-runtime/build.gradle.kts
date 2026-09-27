@@ -80,7 +80,7 @@ tasks.named<Test>("test") {
 val implTestTask =
     tasks.register<Test>("implTest") {
         group = "verification"
-        description = "Runs the impl half's tests: the Resilience4j executor, the cutover router, the mounted-file secret store."
+        description = "Runs the impl half's tests: the Resilience4j executor, the cutover router, the SecretStore port contract."
         testClassesDirs = sourceSets["implTest"].output.classesDirs
         classpath = sourceSets["implTest"].runtimeClasspath
         useJUnitPlatform()
