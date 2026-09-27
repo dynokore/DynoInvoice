@@ -1,0 +1,12 @@
+openapi: 3.1.0
+info:
+  title: widget API
+  version: 1.0.0
+paths:
+  /v1/widget/status:
+    get:
+      operationId: getWidgetStatus
+      summary: Real, stable operation — untouched by either self-test in this fixture pair
+      responses:
+        '200':
+          description: OK

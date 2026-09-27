@@ -30,6 +30,19 @@
 #      loop; `service-runtime/openapi.yaml`'s own oasdiff check is unaffected
 #      and still runs.
 #
+# INV-T-2850 follow-up (T6 owns this gate): the first real contract merge
+# request for a directory deletes T5's placeholder operation
+# (`/v1/<svc>/examples`, operationId `createExample`) rather than
+# deprecating it — deprecation is not viable, since generated clients treat
+# any deprecation warning as an error (`allWarningsAsErrors`), and it is not
+# a real operation any of them actually calls. Before the diff,
+# strip-scaffold-placeholder.py deletes that one exact operation from the
+# BASE copy IF AND ONLY IF the base copy still carries it byte-for-byte
+# (path, sole method, operationId and T5's own "INV-T-2849 scaffold" marker
+# all match) — see that script for the full rule. So its removal is never
+# seen as a removal at all, while removing anything else, in any directory,
+# still fails (CS-50).
+#
 # Usage: run-oasdiff-gate.sh <base-sha>
 set -u
 base_sha="$1"
@@ -41,6 +54,7 @@ for dir in */; do
 
   if [ -f "$svc/openapi.yaml" ] && git cat-file -e "$base_sha:$svc/openapi.yaml" 2>/dev/null; then
     git show "$base_sha:$svc/openapi.yaml" > "$svc/.oasdiff-base-openapi.yaml"
+    python3 spectral/strip-scaffold-placeholder.py "$svc" "$svc/.oasdiff-base-openapi.yaml"
     echo "gst-ci: oasdiff breaking $svc/openapi.yaml against $base_sha"
     oasdiff breaking "$svc/.oasdiff-base-openapi.yaml" "$svc/openapi.yaml" --fail-on ERR || failed=1
     rm -f "$svc/.oasdiff-base-openapi.yaml"
