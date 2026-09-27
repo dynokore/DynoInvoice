@@ -1,5 +1,7 @@
 package com.dynokore.platform.serviceruntime.diagnostics
 
+import com.dynokore.platform.serviceruntime.health.DomainDependencyHealthIndicator
+import com.dynokore.platform.serviceruntime.health.DomainDependencyProbe
 import com.dynokore.platform.serviceruntime.health.OutboxDepthSource
 import com.dynokore.platform.serviceruntime.health.QueueDepthSource
 import com.dynokore.platform.serviceruntime.health.VaultHealthIndicator
@@ -31,6 +33,7 @@ class DiagnosticsEndpointTest {
             DiagnosticsEndpoint(
                 buildProperties = providerOf(buildProperties),
                 vaultHealthIndicator = VaultHealthIndicator(mountRoot),
+                domainDependencyHealthIndicators = emptyList(),
                 recorder = recorder,
                 queueDepthSource = providerOf(QueueDepthSource { 7L }),
                 outboxDepthSource = providerOf(OutboxDepthSource { 3L }),
@@ -52,6 +55,7 @@ class DiagnosticsEndpointTest {
             DiagnosticsEndpoint(
                 buildProperties = providerOf(null),
                 vaultHealthIndicator = VaultHealthIndicator(mountRoot),
+                domainDependencyHealthIndicators = emptyList(),
                 recorder = RecentErrorCodesRecorder(Clock.systemUTC()),
                 queueDepthSource = providerOf(null),
                 outboxDepthSource = providerOf(null),
@@ -61,5 +65,45 @@ class DiagnosticsEndpointTest {
         report.version shouldBe "unknown"
         report.queueDepth.shouldBeNull()
         report.outboxDepth.shouldBeNull()
+    }
+
+    @Test
+    fun `reports DEGRADED when a domain dependency is unreachable, even though the vault is UP`(
+        @TempDir mountRoot: Path,
+    ) {
+        val endpoint =
+            DiagnosticsEndpoint(
+                buildProperties = providerOf(null),
+                vaultHealthIndicator = VaultHealthIndicator(mountRoot),
+                domainDependencyHealthIndicators = listOf(
+                    DomainDependencyHealthIndicator("canonicalSvc", DomainDependencyProbe { false }),
+                ),
+                recorder = RecentErrorCodesRecorder(Clock.systemUTC()),
+                queueDepthSource = providerOf(null),
+                outboxDepthSource = providerOf(null),
+            )
+
+        // FR-AH.17 behaviour #2: ingestion-svc reports 503 (degraded) while canonical-svc is down —
+        // the uniform diagnostic endpoint must surface exactly that, not a bare "UP" from the vault alone.
+        endpoint.diagnostics().health shouldBe "DEGRADED"
+    }
+
+    @Test
+    fun `reports DOWN, not DEGRADED, when the vault itself is unavailable alongside a degraded dependency`() {
+        val endpoint =
+            DiagnosticsEndpoint(
+                buildProperties = providerOf(null),
+                vaultHealthIndicator = VaultHealthIndicator(Path.of("/does/not/exist")),
+                domainDependencyHealthIndicators = listOf(
+                    DomainDependencyHealthIndicator("canonicalSvc", DomainDependencyProbe { false }),
+                ),
+                recorder = RecentErrorCodesRecorder(Clock.systemUTC()),
+                queueDepthSource = providerOf(null),
+                outboxDepthSource = providerOf(null),
+            )
+
+        // §36.7: the vault is one of the three things every service needs unconditionally; its
+        // absence must outrank a merely-degraded domain dependency, never be masked by it.
+        endpoint.diagnostics().health shouldBe "DOWN"
     }
 }

@@ -41,6 +41,19 @@ dependencies {
         api("com.dynokore.platform:evidence-store:${project(":evidence-store").version}") // INV-T-2863 / T19
         api("com.dynokore.platform:adapter-runtime-api:${project(":adapter-runtime").version}") // INV-T-2862 / T18
         api("com.dynokore.platform:adapter-runtime:${project(":adapter-runtime").version}") // INV-T-2862 / T18
+
+        // CVE-2026-65182, CVE-2026-65905, CVE-2026-68525: service-runtime (INV-T-2871 /
+        // T27) is this repository's first module on Spring Boot 4.1.1, whose managed
+        // Tomcat (tomcat-embed-core/-el/-websocket 11.0.24) carries all three CRITICAL
+        // CVEs — the same version certification-kit already had to patch directly in
+        // its own build.gradle.kts (MR !1, commit 0ae3d40). Every consumer of this BOM
+        // is a consumer of Spring Boot 4.1.1 through service-runtime, so the constraint
+        // belongs here rather than in each consumer: it reaches the first module, or
+        // first service `bootstrap`, that adds spring-boot-starter-web, instead of that
+        // consumer rediscovering the CVE independently.
+        api(libs.tomcatEmbed.core)
+        api(libs.tomcatEmbed.el)
+        api(libs.tomcatEmbed.websocket)
     }
 }
 

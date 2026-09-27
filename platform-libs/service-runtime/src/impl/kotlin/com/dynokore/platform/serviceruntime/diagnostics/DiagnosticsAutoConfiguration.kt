@@ -1,5 +1,6 @@
 package com.dynokore.platform.serviceruntime.diagnostics
 
+import com.dynokore.platform.serviceruntime.health.DomainDependencyHealthIndicator
 import com.dynokore.platform.serviceruntime.health.OutboxDepthSource
 import com.dynokore.platform.serviceruntime.health.QueueDepthSource
 import com.dynokore.platform.serviceruntime.health.VaultHealthIndicator
@@ -38,8 +39,16 @@ class DiagnosticsAutoConfiguration {
     fun diagnosticsEndpoint(
         buildProperties: ObjectProvider<BuildProperties>,
         vaultHealthIndicator: VaultHealthIndicator,
+        domainDependencyHealthIndicators: List<DomainDependencyHealthIndicator>,
         recorder: RecentErrorCodesRecorder,
         queueDepthSource: ObjectProvider<QueueDepthSource>,
         outboxDepthSource: ObjectProvider<OutboxDepthSource>,
-    ): DiagnosticsEndpoint = DiagnosticsEndpoint(buildProperties, vaultHealthIndicator, recorder, queueDepthSource, outboxDepthSource)
+    ): DiagnosticsEndpoint = DiagnosticsEndpoint(
+        buildProperties,
+        vaultHealthIndicator,
+        domainDependencyHealthIndicators,
+        recorder,
+        queueDepthSource,
+        outboxDepthSource,
+    )
 }

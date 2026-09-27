@@ -146,7 +146,17 @@ unit-test:
       else
         echo "gst-ci: testing changed + downstream modules: $MODULES"
         TASKS=""
-        for m in $MODULES; do TASKS="$TASKS :$m:test"; done
+        for m in $MODULES; do
+          TASKS="$TASKS :$m:test"
+          # implTest (STK-37/STK-38/STK-41, TPL-14) is a second, hand-registered Test
+          # task (service-runtime, adapter-runtime) that plain `test` never runs and
+          # `check` is never invoked here to run for us (review finding on !7): probed
+          # per module, the same guarded pattern as `gst_run_if_task_exists`, since not
+          # every module has it yet.
+          if ./gradlew -p "$GRADLE_PROJECT_DIR" help --task ":$m:implTest" >/tmp/gst-impltest-probe.log 2>&1; then
+            TASKS="$TASKS :$m:implTest"
+          fi
+        done
         ./gradlew -p "$GRADLE_PROJECT_DIR" $TASKS --stacktrace
       fi
     - gst_run_if_task_exists checkDependencyCatalogUsage --stacktrace
@@ -155,7 +165,9 @@ unit-test:
     when: always
     reports:
       junit:
-        - "**/build/test-results/test/TEST-*.xml"
+        # Widened from `test-results/test/` (review finding on !7): implTest's own
+        # results land in `test-results/implTest/`, one directory per Test task.
+        - "**/build/test-results/*/TEST-*.xml"
     expire_in: 1 week
 
 lint:

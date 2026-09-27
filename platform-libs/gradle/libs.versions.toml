@@ -48,6 +48,15 @@ awssdk = "2.55.6"
 # `implImplementation` dependency version below it comes from this one BOM
 # (`platform(libs.springBoot.dependencies)`), never pinned separately.
 springBoot = "4.1.1"
+# CVE-2026-65182, CVE-2026-65905, CVE-2026-68525: Spring Boot 4.1.1's managed
+# Tomcat is tomcat-embed-core/-el/-websocket 11.0.24, which carries all three
+# CRITICAL CVEs; certification-kit already had to patch this exact version
+# (MR !1, commit 0ae3d40). service-runtime itself only adds
+# spring-boot-starter-actuator, not a web starter, so this version alone never
+# resolves here — the alias exists so `platform-libs-bom`'s constraint (below)
+# reaches the first module, or first consuming service's `bootstrap`, that adds
+# spring-boot-starter-web through this same BOM.
+tomcatEmbed = "11.0.25"
 
 [libraries]
 springBoot-dependencies = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "springBoot" }
@@ -83,3 +92,6 @@ bouncycastle-bcprov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref 
 bouncycastle-bcpkix = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "bouncycastle" }
 jackson-databind = { module = "tools.jackson.core:jackson-databind", version.ref = "jackson" }
 awssdk-s3 = { module = "software.amazon.awssdk:s3", version.ref = "awssdk" }
+tomcatEmbed-core = { module = "org.apache.tomcat.embed:tomcat-embed-core", version.ref = "tomcatEmbed" }
+tomcatEmbed-el = { module = "org.apache.tomcat.embed:tomcat-embed-el", version.ref = "tomcatEmbed" }
+tomcatEmbed-websocket = { module = "org.apache.tomcat.embed:tomcat-embed-websocket", version.ref = "tomcatEmbed" }
