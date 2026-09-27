@@ -559,7 +559,7 @@ paths:
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-791]
       x-operation:
         role: ingest
-        scope: entity
+        scope: entity+period
         precondition: >-
           The entity and period exist (tenancy-svc replica); entityRef is
           active and within the caller's token scope (ING-004).
@@ -874,13 +874,16 @@ paths:
       operationId: sendTestEvent
       summary: Send a test event and see its classification, without it counting (SCR-17.5, F-3.3, UC-16)
       description: >-
-        Console command to console-bff (INV-NOTE-7 §7 SCR-17.5). Distinct
-        from — and in addition to — the public surface's own test mode
-        (`X-Test-Mode` header or a sandbox workspace, API-32): this
-        operation lets an operator preview an adapter's classification
-        interactively, from the console, before any real feed runs.
-        Recorded in the test namespace exactly as API-32 describes; never
-        becomes a production record and is never counted.
+        Console command to console-bff (INV-NOTE-7 §7 SCR-17.5). INV-NOTE-7
+        names two authorised actors, `integration.engineer` and
+        `implementation.consultant`; `role` below is the first Keel lists (a
+        single Keel-catalogue role per the Spectral `x-operation` schema),
+        the other is authorised the same way. Distinct from — and in addition
+        to — the public surface's own test mode (`X-Test-Mode` header or a
+        sandbox workspace, API-32): this operation lets an operator preview
+        an adapter's classification interactively, from the console, before
+        any real feed runs. Recorded in the test namespace exactly as API-32
+        describes; never becomes a production record and is never counted.
       tags: [administration]
       x-principal: filing-workflow
       x-timeout: 5000

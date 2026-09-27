@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/ingestion/schemas/transaction-request.schema.json",
+  "title": "TransactionRequest",
+  "description": "Request body of the public POST /v1/transactions resource (INV-NOTE-3 §19.2, FR-M.2, INV-REQ-805; INV-T-2856, T12). Also reused, transaction-by-transaction, inside a POST /v1/batches manifest (FR-M.8, INV-REQ-811) and as the base of POST /v1/issuances (FR-AE.2, INV-REQ-324). ingestion-svc forwards this body to canonical-svc's internal recordDocument (sync-edges.yaml ingestion-svc -> canonical-svc), which assigns or binds the Doc UUID; entityRef is checked against the caller's token scope (API-24) rather than carried as a separate tenantId, since tenant and entity scope come from the OAuth token on the public surface. Field names and shapes mirror canonical/openapi.yaml's RecordDocumentRequest/Party/Line/Totals one-for-one so the two sides of the sync edge never drift.",
+  "type": "object",
+  "properties": {
+    "entityRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "description": "The registered entity submitting the transaction; checked against the caller's token scope (API-24)."
+    },
+    "sourceSystem": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 60,
+      "description": "The upstream ERP, POS or expense system this transaction came from."
+    },
+    "sourceKey": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "The source system's own key for this transaction (API-13); part of the idempotency pair (API-15, FR-M.3)."
+    },
+    "sourceRevision": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The source system's revision marker; part of the idempotency pair (API-15, FR-M.3). A repeat with a lower value than already recorded is ING-002."
+    },
+    "documentFunction": {
+      "type": "string",
+      "enum": ["INVOICE", "CREDIT_NOTE", "DEBIT_NOTE", "BILL_FOR_PAYMENT"],
+      "description": "Closed request enumeration (API-09); a bill for payment also requires documentNumber (ING-009)."
+    },
+    "documentNumber": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "description": "Required when documentFunction is BILL_FOR_PAYMENT (ING-009); otherwise omitted, never sent null (API-14)."
+    },
+    "transactionDate": {
+      "type": "string",
+      "format": "date",
+      "description": "Business date, YYYY-MM-DD (API-11)."
+    },
+    "currency": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 3,
+      "description": "The document's currency; money fields below carry this currency unless the data dictionary gives them their own (API-12)."
+    },
+    "counterparty": {
+      "type": "object",
+      "description": "The transaction's two parties (SDS §19.2 'counterparty'; canonical/openapi.yaml calls the same object 'parties').",
+      "properties": {
+        "supplier": { "$ref": "#/$defs/party" },
+        "buyer": { "$ref": "#/$defs/party" }
+      },
+      "required": ["supplier", "buyer"],
+      "additionalProperties": false
+    },
+    "lines": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": { "$ref": "#/$defs/line" },
+      "description": "At most 10,000 lines per document (API-49)."
+    },
+    "declaredTotals": {
+      "$ref": "#/$defs/totals"
+    }
+  },
+  "required": [
+    "entityRef", "sourceSystem", "sourceKey", "sourceRevision", "documentFunction", "transactionDate", "currency", "lines"
+  ],
+  "additionalProperties": true,
+  "$defs": {
+    "party": {
+      "type": "object",
+      "properties": {
+        "identifierScheme": { "type": "string", "minLength": 1, "maxLength": 20 },
+        "identifierValue": { "type": "string", "minLength": 1, "maxLength": 60 }
+      },
+      "required": ["identifierScheme", "identifierValue"],
+      "additionalProperties": false
+    },
+    "line": {
+      "type": "object",
+      "properties": {
+        "lineNumber": { "type": "integer", "minimum": 1 },
+        "description": { "type": "string", "maxLength": 500 },
+        "quantity": { "type": "number" },
+        "unitPrice": {
+          "type": "string",
+          "format": "decimal",
+          "pattern": "^-?\\d{1,17}(\\.\\d{1,6})?$",
+          "description": "Money as a decimal string, up to 6 places (API-12)."
+        },
+        "lineAmount": {
+          "type": "string",
+          "format": "decimal",
+          "pattern": "^-?\\d{1,17}(\\.\\d{1,2})?$",
+          "description": "Money as a decimal string, decimal(19,2) (API-12)."
+        },
+        "taxCode": { "type": "string", "maxLength": 10 },
+        "taxAmount": {
+          "type": "string",
+          "format": "decimal",
+          "pattern": "^-?\\d{1,17}(\\.\\d{1,2})?$",
+          "description": "Money as a decimal string, decimal(19,2) (API-12)."
+        }
+      },
+      "required": ["lineNumber", "lineAmount"],
+      "additionalProperties": false
+    },
+    "totals": {
+      "type": "object",
+      "properties": {
+        "totalExcludingTax": { "type": "string", "pattern": "^-?\\d{1,17}(\\.\\d{1,2})?$" },
+        "totalTax": { "type": "string", "pattern": "^-?\\d{1,17}(\\.\\d{1,2})?$" },
+        "totalIncludingTax": { "type": "string", "pattern": "^-?\\d{1,17}(\\.\\d{1,2})?$" }
+      },
+      "required": ["totalExcludingTax", "totalTax", "totalIncludingTax"],
+      "additionalProperties": false
+    }
+  }
+}
