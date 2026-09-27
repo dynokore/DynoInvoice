@@ -6,40 +6,191 @@ info:
     Contract-first source of truth for notification (API-01, STK-44). The
     `notification-contract` module generates its server interfaces and DTOs
     from this file (STK-46); a consumer generates its own client types from
-    the same file (FR-AH.13, ARC-07). This is an INV-T-2849 scaffold —
-    notification's own team (CODEOWNERS) replaces the placeholder operation
-    below with its real ones as each lands.
+    the same file (FR-AH.13, ARC-07).
+
+
+    Internal API only (API standard §1): notification-svc has no public,
+    gateway-routed surface — it is absent from 04-api-standards.md §15's
+    resource catalogue entirely. Every operation below is `/internal/v1/…`,
+    reached only by console-bff (services.yaml notification-svc
+    `provides`), covered by sync-edges.yaml's generic `console-bff -> any`
+    policy edge ("console reads", INV-T-2902, T14b). Alert instances and
+    passcode messages are never created through this API: they arrive by
+    event consumption (`AccessAlertRaised`, `MessageRequested` and the rest
+    of services.yaml notification-svc `consumes`), which this file's scope
+    does not cover (asyncapi.yaml does).
+
+
+    Scope note for the reviewer: services.yaml's notification-svc
+    `provides` text — "Policy, subscription and webhook commands, and
+    delivery-status queries, to console-bff" — maps to this file's
+    operations as follows: "Policy … commands" is `setAlertPolicy` /
+    `listAlertPolicies`; "subscription … commands" is
+    `createWebhookSubscription`, `rotateWebhookSecret` and
+    `deleteWebhookSubscription`; "webhook commands" is `replayWebhookDelivery`;
+    "delivery-status queries" is `listWebhookDeliveries` and
+    `listMessageDeliveries`. Alert-instance acknowledgement and snooze
+    (capabilities "Acknowledgement and bounded snooze") are NOT included:
+    `provides` names only "Policy … commands" for alerts, not instance
+    acknowledgement, so that capability is left as an architecture gap for
+    the coordinator rather than added here (T13b review correction). No
+    catalogue error code exists yet under a NOT- prefix
+    (model/architecture/error-codes.yaml has no such prefix) — every
+    operation below declares `x-error-codes: []`; also flagged as an
+    architecture gap.
   contact:
     name: notification (see CODEOWNERS)
 servers:
   - url: 'https://api.invoice.internal'
-    description: Placeholder — the gateway routes only the operations of a published train (API-26).
+    description: Placeholder — the gateway never routes /internal/v1/… (API-01 scope table); resolved service-to-service.
 tags:
-  - name: notification
-    description: Placeholder resource (INV-T-2849 scaffold).
+  - name: policies
+    description: Alert policies per entity and class, with escalation tiers (§33.13, FR-AE.67).
+  - name: webhooks
+    description: Customer webhook subscriptions, signing, retries, dead-letter and replay (§35.6).
+  - name: deliveries
+    description: Message and webhook delivery-status queries (§35.6).
 paths:
-  /v1/notification/examples:
-    post:
-      operationId: createExample
-      summary: Placeholder operation (INV-T-2849 scaffold) — replace with a real one
+  /internal/v1/notification/entities/{entityRef}/alert-policies/{alertClass}:
+    put:
+      operationId: setAlertPolicy
+      summary: Set an entity's alert policy for one alert class
       description: >-
-        Placeholder only, so this directory lints clean from its first commit.
-        notification's own team replaces it with a real operation (CODEOWNERS, API-01).
-      tags: [notification]
+        Policy commands (services.yaml notification-svc `provides`).
+        Each entity has an alert policy per alert class — coverage,
+        deadline, backlog, missing acknowledgement, pack staleness,
+        security — naming recipients, channels and escalation tiers
+        (FR-AE.67, INV-REQ-1113). Deadline and coverage alerts can be
+        rerouted but never disabled (FR-AE.68, INV-REQ-1114); default
+        thresholds may be tightened but never loosened (FR-AE.71,
+        INV-REQ-1117). Every policy needs at least two recipients, or a
+        recorded sole-operator acknowledgement (FR-AE.69, INV-REQ-1115).
+        Also permitted for `security.officer` (INV-NOTE-7 §7 SCR-20.1);
+        `x-operation.role` is a single string today, so only the primary
+        actor is declared here — the multi-role format is tracked
+        separately by the coordinator.
+      tags: [policies]
       x-principal: filing-workflow
       x-timeout: 5000
       x-error-codes: []
-      x-requirements: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-1113, INV-REQ-1114, INV-REQ-1115, INV-REQ-1117]
       x-operation:
-        role: filing-workflow
-        scope: filing-workflow
-        precondition: "None — placeholder. A real operation states what it checks against record state (FR-AC.1.3)."
+        role: tenant.admin
+        scope: entity
+        precondition: >-
+          For the DEADLINE and COVERAGE classes, the policy is not disabled
+          (FR-AE.68); recipients number at least two, or a sole-operator
+          acknowledgement is recorded (FR-AE.69); a threshold is not looser
+          than the calendar-pack default (FR-AE.71).
         reversibility: COMPENSABLE
-        repeatKey: "(tenantId, sourceKey, sourceRevision) — placeholder shape, FR-AC.19"
+        repeatKey: "(entityRef, alertClass) — a repeat with the same body reports the existing policy, unchanged."
+      parameters:
+        - $ref: '#/components/parameters/EntityRef'
+        - name: alertClass
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [COVERAGE, DEADLINE, BACKLOG, MISSING_ACKNOWLEDGEMENT, PACK_STALENESS, SECURITY]
+            x-extensible-enum: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlertPolicyRequest'
+            examples:
+              default:
+                value:
+                  recipients: ["tax.approver:jane.tan", "operator:desk-1"]
+                  channels: ["EMAIL"]
+                  escalationTiers:
+                    - tier: 1
+                      afterMinutes: 0
+                    - tier: 2
+                      afterMinutes: 1440
+      responses:
+        '200':
+          description: The alert policy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertPolicy'
+              examples:
+                default:
+                  value:
+                    entityRef: "E-001"
+                    alertClass: "DEADLINE"
+                    recipients: ["tax.approver:jane.tan", "operator:desk-1"]
+                    channels: ["EMAIL"]
+                    escalationTiers:
+                      - tier: 1
+                        afterMinutes: 0
+                      - tier: 2
+                        afterMinutes: 1440
+                    updatedAt: "2026-04-01T02:00:00Z"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/notification/entities/{entityRef}/alert-policies:
+    get:
+      operationId: listAlertPolicies
+      summary: List an entity's alert policies, one per class
+      description: Policy commands' read side (services.yaml notification-svc `provides`, "Policy … commands"); FR-AE.67.
+      tags: [policies]
+      x-principal: reporting
+      x-timeout: 3000
+      x-error-codes: []
+      x-requirements: [INV-REQ-1113]
+      parameters:
+        - $ref: '#/components/parameters/EntityRef'
+      responses:
+        '200':
+          description: The entity's alert policies.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AlertPolicy'
+              examples:
+                default:
+                  value:
+                    - entityRef: "E-001"
+                      alertClass: "DEADLINE"
+                      recipients: ["tax.approver:jane.tan", "operator:desk-1"]
+                      channels: ["EMAIL"]
+                      escalationTiers:
+                        - tier: 1
+                          afterMinutes: 0
+                      updatedAt: "2026-04-01T02:00:00Z"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/notification/webhook-subscriptions:
+    post:
+      operationId: createWebhookSubscription
+      summary: Create a customer webhook subscription
+      description: >-
+        Subscription commands (services.yaml notification-svc `provides`).
+        Customer webhooks: subscription, signing, retries, dead-letter,
+        replay, secret rotation (§35.6). The signing secret is generated by
+        notification-svc and returned once; it is never echoed by any later
+        read.
+      tags: [webhooks]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010]
+      x-operation:
+        role: integration.engineer
+        scope: entity
+        precondition: "The target URL is not already subscribed for the same entity and event set."
+        reversibility: COMPENSABLE
+        repeatKey: "(entityRef, url, events) — a repeat returns the existing subscription, unchanged."
       parameters:
         - name: Idempotency-Key
           in: header
           required: true
+          description: 'API-15: a UUID, deduplicating an exact request replay for at least 24h.'
           schema:
             type: string
             format: uuid
@@ -48,41 +199,497 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ExampleRequest'
+              $ref: '#/components/schemas/CreateWebhookSubscriptionRequest'
             examples:
               default:
-                value: { name: "example" }
+                value:
+                  entityRef: "E-001"
+                  url: "https://erp.acme.example/hooks/invoice"
+                  events: ["SubmissionAcknowledged", "ReconciliationCompleted"]
       responses:
         '201':
-          description: Created
+          description: The subscription was created; the signing secret is returned once.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ExampleResponse'
+                $ref: '#/components/schemas/WebhookSubscriptionCreated'
               examples:
                 default:
-                  value: { id: "3fa85f64-5717-4562-b3fc-2c963f66afa6", name: "example" }
+                  value:
+                    subscriptionId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    entityRef: "E-001"
+                    url: "https://erp.acme.example/hooks/invoice"
+                    events: ["SubmissionAcknowledged", "ReconciliationCompleted"]
+                    status: "ACTIVE"
+                    secret: "whsec_5f8e...redacted-in-real-response"
+                    createdAt: "2026-04-01T02:00:00Z"
+        '200':
+          description: Idempotent replay — the existing subscription, unchanged (no secret is re-issued).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookSubscription'
+              examples:
+                default:
+                  value:
+                    subscriptionId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    entityRef: "E-001"
+                    url: "https://erp.acme.example/hooks/invoice"
+                    events: ["SubmissionAcknowledged", "ReconciliationCompleted"]
+                    status: "ACTIVE"
+                    createdAt: "2026-04-01T02:00:00Z"
+        default:
+          $ref: '#/components/responses/Error'
+    get:
+      operationId: listWebhookSubscriptions
+      summary: List webhook subscriptions for an entity
+      description: Subscription commands' read side (services.yaml notification-svc `provides`, "subscription … commands").
+      tags: [webhooks]
+      x-principal: reporting
+      x-timeout: 3000
+      x-error-codes: []
+      x-requirements: []
+      parameters:
+        - name: entityRef
+          in: query
+          required: true
+          schema:
+            type: string
+            maxLength: 40
+      responses:
+        '200':
+          description: The entity's webhook subscriptions.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WebhookSubscription'
+              examples:
+                default:
+                  value:
+                    - subscriptionId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                      entityRef: "E-001"
+                      url: "https://erp.acme.example/hooks/invoice"
+                      events: ["SubmissionAcknowledged"]
+                      status: "ACTIVE"
+                      createdAt: "2026-04-01T02:00:00Z"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/notification/webhook-subscriptions/{subscriptionId}:
+    delete:
+      operationId: deleteWebhookSubscription
+      summary: Delete a webhook subscription
+      description: Subscription commands (services.yaml notification-svc `provides`).
+      tags: [webhooks]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010]
+      x-operation:
+        role: integration.engineer
+        scope: entity
+        precondition: "The subscription exists."
+        reversibility: IRREVERSIBLE
+        repeatKey: "subscriptionId — no-op; the subscription is already deleted."
+      parameters:
+        - $ref: '#/components/parameters/SubscriptionId'
+      responses:
+        '204':
+          description: The subscription was deleted.
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/notification/webhook-subscriptions/{subscriptionId}/secret-rotations:
+    post:
+      operationId: rotateWebhookSecret
+      summary: Rotate a webhook subscription's signing secret
+      description: Subscription commands (services.yaml notification-svc `provides`, "secret rotation", §35.6).
+      tags: [webhooks]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010]
+      x-operation:
+        role: integration.engineer
+        scope: entity
+        precondition: "The subscription exists and is ACTIVE."
+        reversibility: IRREVERSIBLE
+        repeatKey: "subscriptionId — each call issues a new secret; not a no-op (rotation is inherently non-idempotent, tracked by the returned rotatedAt)."
+      parameters:
+        - $ref: '#/components/parameters/SubscriptionId'
+      responses:
+        '201':
+          description: A new signing secret was issued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecretRotation'
+              examples:
+                default:
+                  value:
+                    subscriptionId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    secret: "whsec_9a21...redacted-in-real-response"
+                    rotatedAt: "2026-04-01T02:10:00Z"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/notification/webhook-deliveries:
+    get:
+      operationId: listWebhookDeliveries
+      summary: List webhook deliveries, with delivery status
+      description: Delivery-status queries (services.yaml notification-svc `provides`).
+      tags: [deliveries]
+      x-principal: reporting
+      x-timeout: 3000
+      x-error-codes: []
+      x-requirements: []
+      parameters:
+        - name: subscriptionId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [PENDING, DELIVERED, RETRYING, DEAD_LETTERED]
+            x-extensible-enum: true
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            maximum: 500
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: One page of webhook deliveries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookDeliveryPage'
+              examples:
+                default:
+                  value:
+                    items:
+                      - deliveryId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                        subscriptionId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                        event: "SubmissionAcknowledged"
+                        state: "DEAD_LETTERED"
+                        attempts: 5
+                        lastAttemptAt: "2026-04-01T01:00:00Z"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/notification/webhook-deliveries/{deliveryId}/replays:
+    post:
+      operationId: replayWebhookDelivery
+      summary: Replay a dead-lettered webhook delivery
+      description: >-
+        Webhook commands (services.yaml notification-svc `provides`,
+        "webhook commands"; capabilities "retries, dead-letter, replay",
+        §35.6).
+      tags: [webhooks]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010]
+      x-operation:
+        role: integration.engineer
+        scope: entity
+        precondition: "The delivery is DEAD_LETTERED."
+        reversibility: COMPENSABLE
+        repeatKey: "deliveryId — the repeat re-attempts delivery again; each attempt is recorded, none is lost or duplicated at the destination beyond normal webhook retry semantics."
+      parameters:
+        - $ref: '#/components/parameters/DeliveryId'
+      responses:
+        '200':
+          description: The delivery was re-queued for another attempt.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookDelivery'
+              examples:
+                default:
+                  value:
+                    deliveryId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    subscriptionId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    event: "SubmissionAcknowledged"
+                    state: "RETRYING"
+                    attempts: 6
+                    lastAttemptAt: "2026-04-01T02:15:00Z"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/notification/messages:
+    get:
+      operationId: listMessageDeliveries
+      summary: List e-mail and SMS message deliveries, with delivery status
+      description: >-
+        Delivery-status queries (services.yaml notification-svc
+        `provides`); message delivery through the MessageDelivery binding,
+        with templates, delivery tracking and bounce escalation (§35.6).
+        Never carries invoice content (notification-svc `must_not`).
+      tags: [deliveries]
+      x-principal: reporting
+      x-timeout: 3000
+      x-error-codes: []
+      x-requirements: []
+      parameters:
+        - name: entityRef
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 40
+        - name: channel
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [EMAIL, SMS]
+            x-extensible-enum: true
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            maximum: 500
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: One page of message deliveries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageDeliveryPage'
+              examples:
+                default:
+                  value:
+                    items:
+                      - messageId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                        entityRef: "E-001"
+                        channel: "EMAIL"
+                        template: "DEADLINE_ALERT"
+                        state: "DELIVERED"
+                        sentAt: "2026-04-01T02:00:00Z"
         default:
           $ref: '#/components/responses/Error'
 components:
+  parameters:
+    EntityRef:
+      name: entityRef
+      in: path
+      required: true
+      schema:
+        type: string
+        maxLength: 40
+    SubscriptionId:
+      name: subscriptionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    DeliveryId:
+      name: deliveryId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
   schemas:
-    ExampleRequest:
+    EscalationTier:
       type: object
       properties:
-        name:
+        tier:
+          type: integer
+          minimum: 1
+        afterMinutes:
+          type: integer
+          minimum: 0
+      required: [tier, afterMinutes]
+    AlertPolicyRequest:
+      type: object
+      properties:
+        recipients:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            maxLength: 100
+        channels:
+          type: array
+          items:
+            type: string
+            enum: [EMAIL, SMS]
+            x-extensible-enum: true
+        escalationTiers:
+          type: array
+          items:
+            $ref: '#/components/schemas/EscalationTier'
+        soleOperatorAcknowledgement:
+          type: boolean
+          description: Recorded when fewer than two recipients are named (FR-AE.69).
+      required: [recipients, channels]
+    AlertPolicy:
+      type: object
+      properties:
+        entityRef:
           type: string
-          maxLength: 200
-      required: [name]
-    ExampleResponse:
+        alertClass:
+          type: string
+          enum: [COVERAGE, DEADLINE, BACKLOG, MISSING_ACKNOWLEDGEMENT, PACK_STALENESS, SECURITY]
+          x-extensible-enum: true
+        recipients:
+          type: array
+          items:
+            type: string
+        channels:
+          type: array
+          items:
+            type: string
+        escalationTiers:
+          type: array
+          items:
+            $ref: '#/components/schemas/EscalationTier'
+        updatedAt:
+          type: string
+          format: date-time
+      required: [entityRef, alertClass, recipients, channels, updatedAt]
+    CreateWebhookSubscriptionRequest:
       type: object
       properties:
-        id:
+        entityRef:
+          type: string
+          maxLength: 40
+        url:
+          type: string
+          format: uri
+        events:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            maxLength: 60
+      required: [entityRef, url, events]
+    WebhookSubscription:
+      type: object
+      properties:
+        subscriptionId:
           type: string
           format: uuid
-        name:
+        entityRef:
           type: string
-          maxLength: 200
-      required: [id, name]
+        url:
+          type: string
+          format: uri
+        events:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+          enum: [ACTIVE, DISABLED]
+          x-extensible-enum: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [subscriptionId, entityRef, url, events, status, createdAt]
+    WebhookSubscriptionCreated:
+      allOf:
+        - $ref: '#/components/schemas/WebhookSubscription'
+        - type: object
+          properties:
+            secret:
+              type: string
+              description: The signing secret, returned once on creation only.
+          required: [secret]
+    SecretRotation:
+      type: object
+      properties:
+        subscriptionId:
+          type: string
+          format: uuid
+        secret:
+          type: string
+        rotatedAt:
+          type: string
+          format: date-time
+      required: [subscriptionId, secret, rotatedAt]
+    WebhookDelivery:
+      type: object
+      properties:
+        deliveryId:
+          type: string
+          format: uuid
+        subscriptionId:
+          type: string
+          format: uuid
+        event:
+          type: string
+        state:
+          type: string
+          enum: [PENDING, DELIVERED, RETRYING, DEAD_LETTERED]
+          x-extensible-enum: true
+        attempts:
+          type: integer
+        lastAttemptAt:
+          type: string
+          format: date-time
+      required: [deliveryId, subscriptionId, event, state, attempts]
+    WebhookDeliveryPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/WebhookDelivery'
+        nextCursor:
+          type: string
+      required: [items]
+    MessageDelivery:
+      type: object
+      properties:
+        messageId:
+          type: string
+          format: uuid
+        entityRef:
+          type: string
+        channel:
+          type: string
+          enum: [EMAIL, SMS]
+          x-extensible-enum: true
+        template:
+          type: string
+        state:
+          type: string
+          enum: [QUEUED, SENT, DELIVERED, BOUNCED]
+          x-extensible-enum: true
+        sentAt:
+          type: string
+          format: date-time
+      required: [messageId, entityRef, channel, template, state]
+    MessageDeliveryPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MessageDelivery'
+        nextCursor:
+          type: string
+      required: [items]
   responses:
     Error:
       description: Error (API-20 envelope)

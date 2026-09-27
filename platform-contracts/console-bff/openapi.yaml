@@ -6,39 +6,159 @@ info:
     Contract-first source of truth for console-bff (API-01, STK-44). The
     `console-bff-contract` module generates its server interfaces and DTOs
     from this file (STK-46); a consumer generates its own client types from
-    the same file (FR-AH.13, ARC-07). This is an INV-T-2849 scaffold —
-    console-bff's own team (CODEOWNERS) replaces the placeholder operation
-    below with its real ones as each lands.
+    the same file (FR-AH.13, ARC-07).
+
+
+    Public API only, browser-facing (API standard §1, §15, §26):
+    console-web is console-bff's only caller, through the gateway
+    (sync-edges.yaml `console-web -> console-bff`), and console-bff itself
+    sits outside the pipeline — it may call services, and no pipeline
+    service calls it (FR-AF.3, `must_not` "be called by a pipeline
+    service"). Every operation below is public: `/v1/exceptions` (an
+    external-API-shaped read, also used by people through the console) and
+    the two `/bff/…` operations (browser-session only, CSRF-checked,
+    API-26), matching 04-api-standards.md §15's resource-catalogue rows
+    exactly — no operation here is invented beyond what that catalogue
+    lists (INV-T-2902, T14b scope decision below).
+
+
+    Scope note for the reviewer: services.yaml's console-bff `provides`
+    text — "The console API to console-web; the signed-link pages" — is
+    far broader than what this file implements. T14b's declared scope is
+    four files (evidence, reconciliation, notification, console-bff);
+    within that, this file implements only the console-bff operations that
+    route to those three sibling services and that 04-api-standards.md §15
+    already catalogues: `getExceptions` (console-bff's own read model),
+    `overrideException` (routes to the exception's owning service),
+    `createAuditPackExport` (routes to evidence-svc's
+    `createAuditPackExport`, evidence/openapi.yaml) and `correctPersonalData`
+    (INV-NOTE-7 §7 SCR-32.3: a master-data change plus evidence annotation
+    — it writes to evidence-svc's privacy case, one of this task's three
+    sibling services, so it belongs in scope by the same test). console-bff's
+    other capabilities — the portfolio read model, the document search
+    index, job/connection status views, the signed-link pages, and the
+    orchestrated multi-service flows (configuration export/promotion,
+    support bundle assembly, backfill) — are NOT implemented here: none of
+    them is catalogued in §15 today, none routes to
+    evidence/reconciliation/notification, and services.yaml's generic
+    "console API" phrase does not by itself license inventing their
+    concrete shapes (T13b review correction: list as an architecture gap,
+    do not add unlisted operations). Flagged here as an architecture gap
+    for the coordinator to schedule as its own task(s) and to add to
+    services.yaml/04-api-standards.md §15 explicitly. No catalogue error
+    code exists yet for console-bff (model/architecture/error-codes.yaml
+    has no such prefix) — every operation below declares
+    `x-error-codes: []`; also flagged as an architecture gap.
   contact:
     name: console-bff (see CODEOWNERS)
 servers:
   - url: 'https://api.invoice.internal'
     description: Placeholder — the gateway routes only the operations of a published train (API-26).
 tags:
-  - name: console-bff
-    description: Placeholder resource (INV-T-2849 scaffold).
+  - name: exceptions
+    description: The exception read model and its override route (FR-AF.2, FR-7.10, §19.7).
+  - name: evidence
+    description: Operations console-bff routes to evidence-svc (§19.7, NFR-A.3).
+  - name: privacy
+    description: Privacy-request operations console-bff orchestrates against evidence-svc and masterdata-svc (§33.14, NFR-S.6).
 paths:
-  /v1/console-bff/examples:
-    post:
-      operationId: createExample
-      summary: Placeholder operation (INV-T-2849 scaffold) — replace with a real one
+  /v1/exceptions:
+    get:
+      operationId: getExceptions
+      summary: List exceptions from console-bff's read model
       description: >-
-        Placeholder only, so this directory lints clean from its first commit.
-        console-bff's own team replaces it with a real operation (CODEOWNERS, API-01).
-      tags: [console-bff]
+        The exception queue (04-api-standards.md §15; services.yaml
+        console-bff capabilities "Exception read model"). Built from events,
+        never queried live from an owning service (FR-AF.2). Offers a
+        cross-entity mode over every entity or client in the caller's scope,
+        with the entity as a column (FR-AF.27); authorisation is enforced by
+        console-bff on this read (FR-AF.4). Served from at most one
+        console-bff read model plus at most two synchronous calls
+        (FR-AH.21) — this operation makes none.
+      tags: [exceptions]
+      x-principal: reporting
+      x-timeout: 3000
+      x-error-codes: []
+      x-requirements: [INV-REQ-869, INV-REQ-871, INV-REQ-905, INV-REQ-1232]
+      parameters:
+        - name: entityRef
+          in: query
+          required: false
+          description: Omitted for the cross-entity mode, over every entity in the caller's scope (FR-AF.27).
+          schema:
+            type: string
+            maxLength: 40
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [OPEN, RESOLVED, OVERRIDDEN]
+            x-extensible-enum: true
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            maximum: 500
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: One page of exceptions.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExceptionPage'
+              examples:
+                default:
+                  value:
+                    items:
+                      - exceptionId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                        entityRef: "E-001"
+                        code: "ING-016"
+                        docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                        state: "OPEN"
+                        raisedAt: "2026-04-01T01:00:00Z"
+        default:
+          $ref: '#/components/responses/Error'
+  /bff/exceptions/{id}/override:
+    post:
+      operationId: overrideException
+      summary: Override an OVERRIDABLE blocking check on an exception, with a reason
+      description: >-
+        People, through console-bff only — not callable by a machine
+        principal (04-api-standards.md §15, FR-7.10). console-bff routes
+        the override to the exception's owning service (services.yaml
+        console-bff `provides`, "Routing every command to the owning
+        service"; FR-AF.4's write is re-checked by that owning service).
+        Only an OVERRIDABLE block may be released this way; MANUAL and
+        TERMINAL blocks are refused (INV-REQ-500). Operators cannot
+        override; approvers can, only for OVERRIDABLE codes (INV-NOTE-7
+        §7). Also permitted for `agent.operator` (INV-NOTE-7 §7 SCR-02.4);
+        `x-operation.role` is a single string today, so only the primary
+        actor is declared here — the multi-role format is tracked
+        separately by the coordinator.
+      tags: [exceptions]
       x-principal: filing-workflow
       x-timeout: 5000
       x-error-codes: []
-      x-requirements: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-500]
       x-operation:
-        role: filing-workflow
-        scope: filing-workflow
-        precondition: "None — placeholder. A real operation states what it checks against record state (FR-AC.1.3)."
+        role: tax.approver
+        scope: entity
+        precondition: >-
+          The exception is OPEN and its block's disposition is OVERRIDABLE
+          (INV-REQ-500); a reason is supplied.
         reversibility: COMPENSABLE
-        repeatKey: "(tenantId, sourceKey, sourceRevision) — placeholder shape, FR-AC.19"
+        repeatKey: "(exceptionId, reason) — a repeat reports the existing override, unchanged."
       parameters:
-        - name: Idempotency-Key
-          in: header
+        - name: id
+          in: path
           required: true
           schema:
             type: string
@@ -48,41 +168,253 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ExampleRequest'
+              $ref: '#/components/schemas/OverrideRequest'
             examples:
               default:
-                value: { name: "example" }
+                value:
+                  reason: "Confirmed with customer: register lookup unavailable, manually verified"
       responses:
-        '201':
-          description: Created
+        '200':
+          description: The exception was overridden.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ExampleResponse'
+                $ref: '#/components/schemas/OverrideResult'
               examples:
                 default:
-                  value: { id: "3fa85f64-5717-4562-b3fc-2c963f66afa6", name: "example" }
+                  value:
+                    exceptionId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    state: "OVERRIDDEN"
+                    reason: "Confirmed with customer: register lookup unavailable, manually verified"
+                    overriddenAt: "2026-04-01T02:00:00Z"
+        default:
+          $ref: '#/components/responses/Error'
+  /bff/entities/{entityRef}/audit-pack-exports:
+    post:
+      operationId: createAuditPackExport
+      summary: Start an audit-pack export for an entity's period
+      description: >-
+        People, through console-bff only — not callable by a machine
+        principal (04-api-standards.md §15, NFR-A.3, API-17). console-bff
+        routes this to evidence-svc's own `createAuditPackExport`
+        (evidence/openapi.yaml `POST
+        /internal/v1/evidence/entities/{entityRef}/periods/{periodRef}/audit-packs`),
+        through which the auditor role uses the audit-pack resource
+        (services.yaml evidence-svc `provides`). Returns immediately with
+        the job accepted, within console-bff's 2s-per-call budget
+        (sync-edges.yaml resilience_policy `console-bff -> any`); the
+        caller polls the evidence-svc job for readiness.
+      tags: [evidence]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-988, INV-REQ-989]
+      x-operation:
+        role: auditor
+        scope: entity+period
+        precondition: "The entity and period exist; no unresolved legal hold blocks reading the period's evidence."
+        reversibility: COMPENSABLE
+        repeatKey: "(entityRef, periodRef) — a repeat returns the existing pack job, unchanged (evidence-svc's own idempotency, relayed unchanged)."
+      parameters:
+        - name: entityRef
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 40
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAuditPackExportRequest'
+            examples:
+              default:
+                value:
+                  periodRef: "2026-Q1"
+      responses:
+        '202':
+          description: The audit-pack export job was accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditPackExportJob'
+              examples:
+                default:
+                  value:
+                    packId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    entityRef: "E-001"
+                    periodRef: "2026-Q1"
+                    status: "PENDING"
+                    requestedAt: "2026-04-01T02:00:00Z"
+        default:
+          $ref: '#/components/responses/Error'
+  /bff/privacy-cases/{caseId}/corrections:
+    post:
+      operationId: correctPersonalData
+      summary: Correct personal data for an open privacy case
+      description: >-
+        People, through console-bff only — not callable by a machine
+        principal (04-api-standards.md §15, NFR-S.6, §33.14). console-bff
+        orchestrates a master-data change plus an evidence annotation
+        (INV-NOTE-7 §7 SCR-32.3): it writes to masterdata-svc and appends
+        the annotation on evidence-svc's privacy case; evidence itself is
+        never modified (evidence-svc `must_not` "call a pipeline service —
+        privacy corrections are orchestrated by console-bff").
+      tags: [privacy]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-1379]
+      x-operation:
+        role: security.officer
+        scope: entity
+        precondition: "The privacy case is OPEN."
+        reversibility: COMPENSABLE
+        repeatKey: "caseId — a further correction is a new call; a repeat with the same body returns the existing correction, unchanged."
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CorrectPersonalDataRequest'
+            examples:
+              default:
+                value:
+                  field: "counterpartyName"
+                  correctedValue: "Acme Pte Ltd"
+                  reason: "Subject-access request: name misspelled at onboarding"
+      responses:
+        '200':
+          description: The correction was applied and annotated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CorrectPersonalDataResult'
+              examples:
+                default:
+                  value:
+                    caseId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    field: "counterpartyName"
+                    correctedValue: "Acme Pte Ltd"
+                    correctedAt: "2026-04-01T02:00:00Z"
         default:
           $ref: '#/components/responses/Error'
 components:
   schemas:
-    ExampleRequest:
+    Exception:
       type: object
       properties:
-        name:
-          type: string
-          maxLength: 200
-      required: [name]
-    ExampleResponse:
-      type: object
-      properties:
-        id:
+        exceptionId:
           type: string
           format: uuid
-        name:
+        entityRef:
           type: string
-          maxLength: 200
-      required: [id, name]
+        code:
+          type: string
+        docUuid:
+          type: string
+          format: uuid
+        state:
+          type: string
+          enum: [OPEN, RESOLVED, OVERRIDDEN]
+          x-extensible-enum: true
+        raisedAt:
+          type: string
+          format: date-time
+      required: [exceptionId, entityRef, code, state, raisedAt]
+    ExceptionPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Exception'
+        nextCursor:
+          type: string
+      required: [items]
+    OverrideRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 500
+      required: [reason]
+    OverrideResult:
+      type: object
+      properties:
+        exceptionId:
+          type: string
+          format: uuid
+        state:
+          type: string
+          enum: [OVERRIDDEN]
+          x-extensible-enum: true
+        reason:
+          type: string
+        overriddenAt:
+          type: string
+          format: date-time
+      required: [exceptionId, state, reason, overriddenAt]
+    CreateAuditPackExportRequest:
+      type: object
+      properties:
+        periodRef:
+          type: string
+          maxLength: 20
+      required: [periodRef]
+    AuditPackExportJob:
+      type: object
+      properties:
+        packId:
+          type: string
+          format: uuid
+        entityRef:
+          type: string
+        periodRef:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, READY, FAILED]
+          x-extensible-enum: true
+        requestedAt:
+          type: string
+          format: date-time
+      required: [packId, entityRef, periodRef, status, requestedAt]
+    CorrectPersonalDataRequest:
+      type: object
+      properties:
+        field:
+          type: string
+          maxLength: 100
+        correctedValue:
+          type: string
+          maxLength: 500
+        reason:
+          type: string
+          maxLength: 500
+      required: [field, correctedValue, reason]
+    CorrectPersonalDataResult:
+      type: object
+      properties:
+        caseId:
+          type: string
+          format: uuid
+        field:
+          type: string
+        correctedValue:
+          type: string
+        correctedAt:
+          type: string
+          format: date-time
+      required: [caseId, field, correctedValue, correctedAt]
   responses:
     Error:
       description: Error (API-20 envelope)

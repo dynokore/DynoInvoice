@@ -6,39 +6,713 @@ info:
     Contract-first source of truth for evidence (API-01, STK-44). The
     `evidence-contract` module generates its server interfaces and DTOs
     from this file (STK-46); a consumer generates its own client types from
-    the same file (FR-AH.13, ARC-07). This is an INV-T-2849 scaffold —
-    evidence's own team (CODEOWNERS) replaces the placeholder operation
-    below with its real ones as each lands.
+    the same file (FR-AH.13, ARC-07).
+
+
+    Public and internal APIs (API standard §1 and §15): evidence-svc has no
+    synchronous callee edge in model/architecture/sync-edges.yaml — every
+    caller reaches it either through the public gateway or as console-bff's
+    read/command surface, covered by sync-edges.yaml's generic
+    `console-bff -> any` policy edge ("console reads", INV-T-2902, T14b).
+    `POST /v1/certification-reports` is public (04-api-standards.md §15,
+    `certification` principal). Every other operation is `/internal/v1/…`,
+    reached only by console-bff, through which the auditor role and other
+    permitted roles use it (services.yaml evidence-svc `provides`). Most
+    writes (acknowledgements, decision traces, the audit log) arrive by
+    event consumption, not this API (services.yaml evidence-svc `consumes`)
+    — evidence-svc never calls a pipeline service to fetch them (`must_not`).
+
+
+    Scope note for the reviewer: services.yaml's evidence-svc `provides`
+    text maps to this file's operations as follows — "Lookup … queries" is
+    `getAcknowledgementChain` and `reverseLookup`; "export … queries" is
+    `getEvidenceExport` (offboarding); "verification … queries" is
+    `getIntegrityReport`; "privacy … queries" is `getCase`; "retention …
+    commands" is `deleteAtRetentionEnd` (the INV-REQ-1010 named operation)
+    and `setRetentionJustification` (INV-NOTE-7 §7 SCR-30.4); "legal-hold
+    commands" is `placeLegalHold` / `releaseLegalHold`; "the audit-pack
+    resource of §19.7" is `createAuditPackExport` / `getAuditPackExport`,
+    the internal half of the public
+    `POST /bff/entities/{entityRef}/audit-pack-exports` that console-bff/openapi.yaml
+    exposes; "certification-report intake" is `intakeCertificationReport`.
+    `recordSecurityCase` (INV-REQ-880, INV-AC-1410, SCR-31.2) is a real
+    write operation, not an architecture gap: it records the conclusion of
+    a credential-compromise review as a security case, on the same case
+    mechanism as the privacy cases `getCase` reads (services.yaml
+    evidence-svc capabilities, "Security case records concluding a
+    credential-compromise review"). No catalogue error code exists yet
+    under an EVI- prefix
+    (model/architecture/error-codes.yaml has no such prefix) — every
+    operation below declares `x-error-codes: []`; also flagged as an
+    architecture gap.
   contact:
     name: evidence (see CODEOWNERS)
 servers:
   - url: 'https://api.invoice.internal'
     description: Placeholder — the gateway routes only the operations of a published train (API-26).
 tags:
-  - name: evidence
-    description: Placeholder resource (INV-T-2849 scaffold).
+  - name: certification
+    description: Certification-report intake from the certification runner (§28.9, §35.8).
+  - name: lookup
+    description: Acknowledgement-ID and reverse lookup (FR-AA.12–AA.15, FR-X.9–X.11).
+  - name: exports
+    description: Offboarding export and the audit-pack resource (§19.7, NFR-A.3, FR-Q.17).
+  - name: verification
+    description: Hash-chain verification and the integrity report (§35.11).
+  - name: privacy
+    description: Privacy case records and subject-access exports (§33.14, NFR-S.6).
+  - name: retention
+    description: Legal hold and controlled deletion at retention end (FR-D.1–D.4, INV-REQ-1010, INV-REQ-1011).
 paths:
-  /v1/evidence/examples:
+  /v1/certification-reports:
     post:
-      operationId: createExample
-      summary: Placeholder operation (INV-T-2849 scaffold) — replace with a real one
+      operationId: intakeCertificationReport
+      summary: Record a certification report from the certification runner
       description: >-
-        Placeholder only, so this directory lints clean from its first commit.
-        evidence's own team replaces it with a real operation (CODEOWNERS, API-01).
-      tags: [evidence]
-      x-principal: filing-workflow
+        Certification-report intake as the `certification` principal
+        (services.yaml evidence-svc `provides`; §28.9, §35.8, §22.5). Public,
+        non-production workspace only (NFR-S.4, same principal restriction
+        as the ingestion-svc catalogue rows of 04-api-standards.md §15).
+      tags: [certification]
+      x-principal: certification
       x-timeout: 5000
       x-error-codes: []
-      x-requirements: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010]
       x-operation:
-        role: filing-workflow
-        scope: filing-workflow
-        precondition: "None — placeholder. A real operation states what it checks against record state (FR-AC.1.3)."
-        reversibility: COMPENSABLE
-        repeatKey: "(tenantId, sourceKey, sourceRevision) — placeholder shape, FR-AC.19"
+        role: certification
+        scope: entity
+        precondition: >-
+          The calling workspace is a non-production certification workspace
+          (NFR-S.4); no report already recorded for the same (entityRef,
+          reportType, runReference).
+        reversibility: IRREVERSIBLE
+        repeatKey: "(entityRef, reportType, runReference) — a repeat returns the original result unchanged."
       parameters:
         - name: Idempotency-Key
           in: header
+          required: true
+          description: 'API-15: a UUID, deduplicating an exact request replay for at least 24h.'
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CertificationReportRequest'
+            examples:
+              default:
+                value:
+                  entityRef: "E-001"
+                  reportType: "SCHEMATRON_CONFORMANCE"
+                  runReference: "CERT-RUN-2026-04-01"
+                  summary: "All sample documents passed Schematron validation"
+      responses:
+        '201':
+          description: The certification report was recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CertificationReportResponse'
+              examples:
+                default:
+                  value:
+                    reportId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    entityRef: "E-001"
+                    reportType: "SCHEMATRON_CONFORMANCE"
+                    receivedAt: "2026-04-01T02:00:00Z"
+        '200':
+          description: Idempotent replay — the original result, unchanged.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CertificationReportResponse'
+              examples:
+                default:
+                  value:
+                    reportId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    entityRef: "E-001"
+                    reportType: "SCHEMATRON_CONFORMANCE"
+                    receivedAt: "2026-04-01T02:00:00Z"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/evidence/acknowledgements/{ackId}:
+    get:
+      operationId: getAcknowledgementChain
+      summary: Look up the complete evidence chain of a submission by Acknowledgement ID
+      description: >-
+        Lookup by Acknowledgement ID, the auditor role's own resource
+        (services.yaml evidence-svc `provides`, capabilities "Enquiry
+        lookups"; FR-AA.12, FR-X.9). Returns the complete chain — payload,
+        acknowledgement, decision trace and audit entries — for that
+        submission. Usable by the auditor role alone; every lookup is
+        audit-logged and changes no state (FR-X.11, FR-AA.14, INV-REQ-958).
+        Queries only the evidence store's own indexes, never another
+        service (FR-AA.15).
+      tags: [lookup]
+      x-principal: reporting
+      x-timeout: 3000
+      x-error-codes: []
+      x-requirements: [INV-REQ-691, INV-REQ-723, INV-REQ-711, INV-REQ-725, INV-REQ-726]
+      parameters:
+        - name: ackId
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 100
+      responses:
+        '200':
+          description: The submission's complete evidence chain.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvidenceChain'
+              examples:
+                default:
+                  value:
+                    ackId: "IRAS-ACK-2026Q1-E001"
+                    docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    version: 2
+                    imported: false
+                    items:
+                      - kind: PAYLOAD
+                        recordedAt: "2026-03-20T03:10:00Z"
+                        reference: "payload/3fa85f64.../v2.xml"
+                      - kind: ACKNOWLEDGEMENT
+                        recordedAt: "2026-03-20T03:15:21Z"
+                        reference: "IRAS-ACK-2026Q1-E001"
+                      - kind: DECISION_TRACE
+                        recordedAt: "2026-03-20T03:14:50Z"
+                        reference: "trace/3fa85f64.../v2"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/evidence/lookup:
+    get:
+      operationId: reverseLookup
+      summary: Reverse-lookup submissions by counterparty, date range or document number
+      description: >-
+        Reverse lookup (services.yaml evidence-svc `provides`, capabilities
+        "Enquiry lookups"; FR-AA.13, FR-X.10). Returns every related
+        submission with its acknowledgement state. Auditor role only,
+        audit-logged, changes no state (FR-X.11, INV-REQ-958).
+      tags: [lookup]
+      x-principal: reporting
+      x-timeout: 3000
+      x-error-codes: []
+      x-requirements: [INV-REQ-710, INV-REQ-724, INV-REQ-711]
+      parameters:
+        - name: counterparty
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 60
+        - name: dateFrom
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: dateTo
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: documentNumber
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 60
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            maximum: 500
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: One page of matching submissions.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReverseLookupPage'
+              examples:
+                default:
+                  value:
+                    items:
+                      - docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                        version: 2
+                        ackId: "IRAS-ACK-2026Q1-E001"
+                        acknowledgedAt: "2026-03-20T03:15:21Z"
+                        state: "ACKNOWLEDGED"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/evidence/exports:
+    get:
+      operationId: getEvidenceExport
+      summary: Read the tenant's offboarding export manifest
+      description: >-
+        Offboarding export (services.yaml evidence-svc `provides`, "export …
+        queries"; capabilities "Audit pack and offboarding export"). A
+        self-describing, bulk-exportable manifest scoped to the tenant
+        (FR-9.15, FR-D.7). Changes no state (INV-REQ-958). Blocked with
+        DEP-007 when evidence chain verification has failed for the range
+        (INV-NOTE-3 §21.2 raising points; INV-REQ-662) — this is the
+        offboarding export the condition names, including an
+        `exportAuditPack` call made as part of offboarding.
+      tags: [exports]
+      x-principal: reporting
+      x-timeout: 5000
+      x-error-codes: [DEP-007]
+      x-requirements: [INV-REQ-650, INV-REQ-642, INV-REQ-662]
+      parameters:
+        - name: tenantId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The offboarding export manifest.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportManifest'
+              examples:
+                default:
+                  value:
+                    tenantId: "5e0b8a0e-2c4d-4b8f-9a61-0d3c7f1e2b44"
+                    kind: "OFFBOARDING"
+                    generatedAt: "2026-04-01T02:00:00Z"
+                    manifestUri: "s3://evidence-exports/offboarding/5e0b8a0e.../manifest.json"
+                    itemCount: 18422
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/evidence/integrity-report:
+    get:
+      operationId: getIntegrityReport
+      summary: Read the hash-chain integrity report
+      description: >-
+        Verification queries (services.yaml evidence-svc `provides`;
+        capabilities "routine verification and the integrity report",
+        §35.11). Changes no state (INV-REQ-958).
+      tags: [verification]
+      x-principal: reporting
+      x-timeout: 3000
+      x-error-codes: []
+      x-requirements: []
+      parameters:
+        - name: tenantId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The most recent integrity report.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntegrityReport'
+              examples:
+                default:
+                  value:
+                    tenantId: "5e0b8a0e-2c4d-4b8f-9a61-0d3c7f1e2b44"
+                    generatedAt: "2026-04-01T01:00:00Z"
+                    chainValid: true
+                    brokenLinks: []
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/evidence/cases/{caseId}:
+    get:
+      operationId: getCase
+      summary: Read a privacy case record and its subject-access export, if any
+      description: >-
+        Privacy queries (services.yaml evidence-svc `provides`; capabilities
+        "Privacy case records and subject-access exports", §33.14). Served
+        without modifying submitted evidence: a scoped export only
+        (NFR-S.6). The correction itself — a master-data change with an
+        appended annotation — is orchestrated by console-bff and lands on
+        masterdata-svc and the evidence annotation, neither of which this
+        operation performs (FR-AE.75; evidence-svc `must_not` call a
+        pipeline service).
+      tags: [privacy]
+      x-principal: reporting
+      x-timeout: 3000
+      x-error-codes: []
+      x-requirements: [INV-REQ-1379]
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The case record.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrivacyCase'
+              examples:
+                default:
+                  value:
+                    caseId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    subjectRef: "SUBJ-88213"
+                    status: "EXPORT_READY"
+                    openedAt: "2026-03-15T09:00:00Z"
+                    subjectAccessExport:
+                      generatedAt: "2026-03-16T09:00:00Z"
+                      manifestUri: "s3://evidence-exports/privacy/3fa85f64.../manifest.json"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/evidence/legal-holds:
+    post:
+      operationId: placeLegalHold
+      summary: Place a legal hold over an entity's period, blocking retention deletion
+      description: >-
+        Legal-hold commands (services.yaml evidence-svc `provides`). A
+        legal hold stops the controlled deletion operation at retention end
+        (FR-D.4). Keel's operation catalogue (INV-NOTE-7 §7 SCR-30.3)
+        assigns `placeLegalHold` to `tax.approver`.
+      tags: [retention]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-639]
+      x-operation:
+        role: tax.approver
+        scope: entity+period
+        precondition: "No active legal hold already covers the same (entityRef, periodRef)."
+        reversibility: COMPENSABLE
+        repeatKey: "(entityRef, periodRef, reason) — a repeat returns the existing active hold, unchanged."
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: 'API-15: a UUID, deduplicating an exact request replay for at least 24h.'
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlaceLegalHoldRequest'
+            examples:
+              default:
+                value:
+                  entityRef: "E-001"
+                  periodRef: "2026-Q1"
+                  reason: "Regulator inquiry INV-2026-0113"
+      responses:
+        '201':
+          description: The legal hold was placed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegalHold'
+              examples:
+                default:
+                  value:
+                    holdId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    entityRef: "E-001"
+                    periodRef: "2026-Q1"
+                    reason: "Regulator inquiry INV-2026-0113"
+                    status: "ACTIVE"
+                    placedAt: "2026-04-01T02:00:00Z"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/evidence/legal-holds/{holdId}/release:
+    post:
+      operationId: releaseLegalHold
+      summary: Release a legal hold
+      description: >-
+        Legal-hold commands (services.yaml evidence-svc `provides`; FR-D.4).
+        Once released, a due retention deletion for the covered partitions
+        may proceed on its own schedule. The same role reverses its own
+        placement (INV-NOTE-7 §7 SCR-30.3): `tax.approver`.
+      tags: [retention]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-639]
+      x-operation:
+        role: tax.approver
+        scope: entity+period
+        precondition: "The hold is ACTIVE."
+        reversibility: COMPENSABLE
+        repeatKey: "holdId — no-op; the hold is already released."
+      parameters:
+        - name: holdId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The hold's release.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegalHold'
+              examples:
+                default:
+                  value:
+                    holdId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    entityRef: "E-001"
+                    periodRef: "2026-Q1"
+                    reason: "Regulator inquiry INV-2026-0113"
+                    status: "RELEASED"
+                    placedAt: "2026-04-01T02:00:00Z"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/evidence/entities/{entityRef}/periods/{periodRef}/audit-packs:
+    post:
+      operationId: createAuditPackExport
+      summary: Start an audit-pack export for an entity's period
+      description: >-
+        The internal half of the audit-pack resource of §19.7 (services.yaml
+        evidence-svc `provides`; NFR-A.3), called by console-bff after
+        routing the public `POST /bff/entities/{entityRef}/audit-pack-exports`
+        (console-bff/openapi.yaml). A complete audit pack for the prescribed
+        accounting period: submitted XML, acknowledgements, reconciliation
+        work-paper and source references (NFR-A.3). Returns immediately with
+        the job accepted (console-bff's 2s-per-call budget,
+        sync-edges.yaml resilience_policy `console-bff -> any`); the caller
+        polls `getAuditPackExport` for readiness.
+      tags: [exports]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-988, INV-REQ-989]
+      x-operation:
+        role: auditor
+        scope: entity+period
+        precondition: "The entity and period exist; no unresolved legal hold blocks reading the period's evidence."
+        reversibility: COMPENSABLE
+        repeatKey: "(entityRef, periodRef) — a repeat returns the existing pack job, unchanged."
+      parameters:
+        - $ref: '#/components/parameters/EntityRef'
+        - $ref: '#/components/parameters/PeriodRef'
+      responses:
+        '202':
+          description: The audit-pack export job was accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditPackExport'
+              examples:
+                default:
+                  value:
+                    packId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    entityRef: "E-001"
+                    periodRef: "2026-Q1"
+                    status: "PENDING"
+                    requestedAt: "2026-04-01T02:00:00Z"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/evidence/entities/{entityRef}/periods/{periodRef}/audit-packs/{packId}:
+    get:
+      operationId: getAuditPackExport
+      summary: Read an audit-pack export's status, and its download reference once ready
+      description: >-
+        The audit-pack resource of §19.7 (services.yaml evidence-svc
+        `provides`). Usable by the auditor role alone and itself
+        audit-logged (FR-Q.18).
+      tags: [exports]
+      x-principal: reporting
+      x-timeout: 3000
+      x-error-codes: []
+      x-requirements: [INV-REQ-988, INV-REQ-989]
+      parameters:
+        - $ref: '#/components/parameters/EntityRef'
+        - $ref: '#/components/parameters/PeriodRef'
+        - name: packId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The audit-pack export's current status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditPackExport'
+              examples:
+                default:
+                  value:
+                    packId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    entityRef: "E-001"
+                    periodRef: "2026-Q1"
+                    status: "READY"
+                    requestedAt: "2026-04-01T02:00:00Z"
+                    readyAt: "2026-04-01T02:03:11Z"
+                    downloadUri: "s3://evidence-exports/audit-packs/3fa85f64.../pack.zip"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/evidence/partitions/{partitionId}/deletions:
+    post:
+      operationId: deleteAtRetentionEnd
+      summary: Delete a retention partition at the end of its retention period
+      description: >-
+        Retention commands (services.yaml evidence-svc `provides`). The
+        named `deleteAtRetentionEnd` operation of INV-REQ-1010 behaviour #7:
+        deliberate, co-approved and audited, stopped by a legal hold
+        (FR-D.4). A repeat on the same partition fails loudly rather than
+        silently no-op'ing, since a second deletion attempt after the first
+        succeeded indicates a defect worth surfacing (INV-REQ-1011). Blocked
+        with DEP-007 when evidence chain verification has failed for the
+        range (INV-NOTE-3 §21.2 raising points; INV-REQ-662).
+      tags: [retention]
+      x-principal: filing-workflow
+      x-timeout: 10000
+      x-error-codes: [DEP-007]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-1011, INV-REQ-639, INV-REQ-662]
+      x-operation:
+        role: security.officer, tax.approver
+        scope: entity+period
+        precondition: >-
+          The partition's retention period has elapsed; no active legal
+          hold covers it; both required approvals are recorded — security.officer
+          in SaaS (FR-D.4), tax.approver in a private installation
+          (evidence-svc `forms_text`).
+        reversibility: IRREVERSIBLE
+        repeatKey: "partitionId — a repeat FAILS LOUDLY (INV-REQ-1011), unlike every other operation's safe repeat."
+      parameters:
+        - name: partitionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The partition was deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletionResult'
+              examples:
+                default:
+                  value:
+                    partitionId: "PART-2019-Q1"
+                    status: "DELETED"
+                    deletedAt: "2026-04-01T02:00:00Z"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/evidence/security-cases:
+    post:
+      operationId: recordSecurityCase
+      summary: Record a security case concluding a credential-compromise review
+      description: >-
+        Security case records (services.yaml evidence-svc capabilities;
+        INV-REQ-880, INV-AC-1410, INV-NOTE-7 §7 SCR-31.2). Links the
+        reviewed audit-log entries and the outcome; opens the breach
+        assessment where personal data was exposed (NFR-S.12), on the same
+        case mechanism as the privacy cases `getCase` reads.
+      tags: [privacy]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-880]
+      x-operation:
+        role: security.officer
+        scope: entity
+        precondition: "The credential-compromise review is complete."
+        reversibility: COMPENSABLE
+        repeatKey: "caseId — a repeat returns the original result, unchanged; reopen to correct."
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: 'API-15: a UUID, deduplicating an exact request replay for at least 24h.'
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordSecurityCaseRequest'
+            examples:
+              default:
+                value:
+                  reviewReference: "REVIEW-2026-0142"
+                  auditLogEntryIds: ["3fa85f64-5717-4562-b3fc-2c963f66afa6"]
+                  outcome: "CREDENTIALS_ROTATED"
+                  personalDataExposed: false
+      responses:
+        '201':
+          description: The security case was recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecurityCase'
+              examples:
+                default:
+                  value:
+                    caseId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    reviewReference: "REVIEW-2026-0142"
+                    auditLogEntryIds: ["3fa85f64-5717-4562-b3fc-2c963f66afa6"]
+                    outcome: "CREDENTIALS_ROTATED"
+                    breachAssessmentOpened: false
+                    recordedAt: "2026-04-01T02:00:00Z"
+        '200':
+          description: Idempotent replay — the original result, unchanged.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecurityCase'
+              examples:
+                default:
+                  value:
+                    caseId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    reviewReference: "REVIEW-2026-0142"
+                    auditLogEntryIds: ["3fa85f64-5717-4562-b3fc-2c963f66afa6"]
+                    outcome: "CREDENTIALS_ROTATED"
+                    breachAssessmentOpened: false
+                    recordedAt: "2026-04-01T02:00:00Z"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/evidence/tenants/{tenantId}/retention-justification:
+    put:
+      operationId: setRetentionJustification
+      summary: Set the retention period and justification beyond five years
+      description: >-
+        Retention commands (services.yaml evidence-svc `provides`,
+        "retention … commands"; INV-NOTE-7 §7 SCR-30.4, NFR-S.5, VP-43).
+      tags: [retention]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010]
+      x-operation:
+        role: tenant.admin
+        scope: tenant
+        precondition: "The requested retention period exceeds five years."
+        reversibility: UNDOABLE
+        repeatKey: "(tenantId, tier) — a repeat returns the existing retention period and justification, unchanged."
+      parameters:
+        - name: tenantId
+          in: path
           required: true
           schema:
             type: string
@@ -48,41 +722,330 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ExampleRequest'
+              $ref: '#/components/schemas/RetentionJustificationRequest'
             examples:
               default:
-                value: { name: "example" }
+                value:
+                  tier: "SEVEN_YEARS"
+                  justification: "Sector regulator requires seven-year retention (MAS Notice 626)."
       responses:
-        '201':
-          description: Created
+        '200':
+          description: The retention period with its justification.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ExampleResponse'
+                $ref: '#/components/schemas/RetentionJustification'
               examples:
                 default:
-                  value: { id: "3fa85f64-5717-4562-b3fc-2c963f66afa6", name: "example" }
+                  value:
+                    tenantId: "5e0b8a0e-2c4d-4b8f-9a61-0d3c7f1e2b44"
+                    tier: "SEVEN_YEARS"
+                    justification: "Sector regulator requires seven-year retention (MAS Notice 626)."
+                    setAt: "2026-04-01T02:00:00Z"
         default:
           $ref: '#/components/responses/Error'
 components:
+  parameters:
+    EntityRef:
+      name: entityRef
+      in: path
+      required: true
+      schema:
+        type: string
+        maxLength: 40
+    PeriodRef:
+      name: periodRef
+      in: path
+      required: true
+      schema:
+        type: string
+        maxLength: 20
+        description: Opaque, calendar-issued (API-11); clients never construct it.
   schemas:
-    ExampleRequest:
+    CertificationReportRequest:
       type: object
       properties:
-        name:
+        entityRef:
           type: string
-          maxLength: 200
-      required: [name]
-    ExampleResponse:
+          maxLength: 40
+        reportType:
+          type: string
+          maxLength: 60
+        runReference:
+          type: string
+          maxLength: 100
+        summary:
+          type: string
+          maxLength: 2000
+      required: [entityRef, reportType, runReference]
+    CertificationReportResponse:
       type: object
       properties:
-        id:
+        reportId:
           type: string
           format: uuid
-        name:
+        entityRef:
+          type: string
+        reportType:
+          type: string
+        receivedAt:
+          type: string
+          format: date-time
+      required: [reportId, entityRef, reportType, receivedAt]
+    EvidenceChainItem:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum: [PAYLOAD, ACKNOWLEDGEMENT, DECISION_TRACE, AUDIT_ENTRY]
+          x-extensible-enum: true
+        recordedAt:
+          type: string
+          format: date-time
+        reference:
           type: string
           maxLength: 200
-      required: [id, name]
+      required: [kind, recordedAt, reference]
+    EvidenceChain:
+      type: object
+      properties:
+        ackId:
+          type: string
+        docUuid:
+          type: string
+          format: uuid
+        version:
+          type: integer
+        imported:
+          type: boolean
+          description: Evidence imported from a prior solution, marked as such in every enquiry response (FR-AB.7).
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvidenceChainItem'
+      required: [ackId, docUuid, version, imported, items]
+    ReverseLookupItem:
+      type: object
+      properties:
+        docUuid:
+          type: string
+          format: uuid
+        version:
+          type: integer
+        ackId:
+          type: string
+        acknowledgedAt:
+          type: string
+          format: date-time
+        state:
+          type: string
+          maxLength: 40
+      required: [docUuid, version, state]
+    ReverseLookupPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReverseLookupItem'
+        nextCursor:
+          type: string
+      required: [items]
+    ExportManifest:
+      type: object
+      properties:
+        tenantId:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum: [OFFBOARDING]
+          x-extensible-enum: true
+        generatedAt:
+          type: string
+          format: date-time
+        manifestUri:
+          type: string
+        itemCount:
+          type: integer
+      required: [tenantId, kind, generatedAt, manifestUri, itemCount]
+    IntegrityReport:
+      type: object
+      properties:
+        tenantId:
+          type: string
+          format: uuid
+        generatedAt:
+          type: string
+          format: date-time
+        chainValid:
+          type: boolean
+        brokenLinks:
+          type: array
+          items:
+            type: string
+      required: [tenantId, generatedAt, chainValid, brokenLinks]
+    SubjectAccessExport:
+      type: object
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+        manifestUri:
+          type: string
+      required: [generatedAt, manifestUri]
+    PrivacyCase:
+      type: object
+      properties:
+        caseId:
+          type: string
+          format: uuid
+        subjectRef:
+          type: string
+          maxLength: 60
+        status:
+          type: string
+          enum: [OPEN, EXPORT_READY, CLOSED]
+          x-extensible-enum: true
+        openedAt:
+          type: string
+          format: date-time
+        subjectAccessExport:
+          $ref: '#/components/schemas/SubjectAccessExport'
+      required: [caseId, subjectRef, status, openedAt]
+    PlaceLegalHoldRequest:
+      type: object
+      properties:
+        entityRef:
+          type: string
+          maxLength: 40
+        periodRef:
+          type: string
+          maxLength: 20
+        reason:
+          type: string
+          maxLength: 500
+      required: [entityRef, periodRef, reason]
+    LegalHold:
+      type: object
+      properties:
+        holdId:
+          type: string
+          format: uuid
+        entityRef:
+          type: string
+        periodRef:
+          type: string
+        reason:
+          type: string
+        status:
+          type: string
+          enum: [ACTIVE, RELEASED]
+          x-extensible-enum: true
+        placedAt:
+          type: string
+          format: date-time
+      required: [holdId, entityRef, periodRef, reason, status, placedAt]
+    AuditPackExport:
+      type: object
+      properties:
+        packId:
+          type: string
+          format: uuid
+        entityRef:
+          type: string
+        periodRef:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, READY, FAILED]
+          x-extensible-enum: true
+        requestedAt:
+          type: string
+          format: date-time
+        readyAt:
+          type: string
+          format: date-time
+        downloadUri:
+          type: string
+      required: [packId, entityRef, periodRef, status, requestedAt]
+    DeletionResult:
+      type: object
+      properties:
+        partitionId:
+          type: string
+        status:
+          type: string
+          enum: [DELETED]
+          x-extensible-enum: true
+        deletedAt:
+          type: string
+          format: date-time
+      required: [partitionId, status, deletedAt]
+    RecordSecurityCaseRequest:
+      type: object
+      properties:
+        reviewReference:
+          type: string
+          maxLength: 100
+        auditLogEntryIds:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            format: uuid
+        outcome:
+          type: string
+          maxLength: 200
+        personalDataExposed:
+          type: boolean
+          description: Opens the breach assessment when true (NFR-S.12).
+      required: [reviewReference, auditLogEntryIds, outcome, personalDataExposed]
+    SecurityCase:
+      type: object
+      properties:
+        caseId:
+          type: string
+          format: uuid
+        reviewReference:
+          type: string
+        auditLogEntryIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        outcome:
+          type: string
+        breachAssessmentOpened:
+          type: boolean
+        recordedAt:
+          type: string
+          format: date-time
+      required: [caseId, reviewReference, auditLogEntryIds, outcome, breachAssessmentOpened, recordedAt]
+    RetentionJustificationRequest:
+      type: object
+      properties:
+        tier:
+          type: string
+          maxLength: 40
+        justification:
+          type: string
+          maxLength: 2000
+      required: [tier, justification]
+    RetentionJustification:
+      type: object
+      properties:
+        tenantId:
+          type: string
+          format: uuid
+        tier:
+          type: string
+        justification:
+          type: string
+        setAt:
+          type: string
+          format: date-time
+      required: [tenantId, tier, justification, setAt]
   responses:
     Error:
       description: Error (API-20 envelope)
