@@ -29,15 +29,18 @@ info:
     within that, this file implements only the console-bff operations that
     route to those three sibling services and that 04-api-standards.md §15
     already catalogues: `getExceptions` (console-bff's own read model),
-    `overrideException` (routes to the exception's owning service) and
+    `overrideException` (routes to the exception's owning service),
     `createAuditPackExport` (routes to evidence-svc's
-    `createAuditPackExport`, evidence/openapi.yaml). console-bff's other
-    capabilities — the portfolio read model, the document search index,
-    job/connection status views, the signed-link pages, and the
+    `createAuditPackExport`, evidence/openapi.yaml) and `correctPersonalData`
+    (INV-NOTE-7 §7 SCR-32.3: a master-data change plus evidence annotation
+    — it writes to evidence-svc's privacy case, one of this task's three
+    sibling services, so it belongs in scope by the same test). console-bff's
+    other capabilities — the portfolio read model, the document search
+    index, job/connection status views, the signed-link pages, and the
     orchestrated multi-service flows (configuration export/promotion,
-    privacy correction, support bundle assembly, backfill) — are NOT
-    implemented here: none of them is catalogued in §15 today, none routes
-    to evidence/reconciliation/notification, and services.yaml's generic
+    support bundle assembly, backfill) — are NOT implemented here: none of
+    them is catalogued in §15 today, none routes to
+    evidence/reconciliation/notification, and services.yaml's generic
     "console API" phrase does not by itself license inventing their
     concrete shapes (T13b review correction: list as an architecture gap,
     do not add unlisted operations). Flagged here as an architecture gap
@@ -56,6 +59,8 @@ tags:
     description: The exception read model and its override route (FR-AF.2, FR-7.10, §19.7).
   - name: evidence
     description: Operations console-bff routes to evidence-svc (§19.7, NFR-A.3).
+  - name: privacy
+    description: Privacy-request operations console-bff orchestrates against evidence-svc and masterdata-svc (§33.14, NFR-S.6).
 paths:
   /v1/exceptions:
     get:
@@ -132,14 +137,19 @@ paths:
         console-bff `provides`, "Routing every command to the owning
         service"; FR-AF.4's write is re-checked by that owning service).
         Only an OVERRIDABLE block may be released this way; MANUAL and
-        TERMINAL blocks are refused (INV-REQ-500).
+        TERMINAL blocks are refused (INV-REQ-500). Operators cannot
+        override; approvers can, only for OVERRIDABLE codes (INV-NOTE-7
+        §7). Also permitted for `agent.operator` (INV-NOTE-7 §7 SCR-02.4);
+        `x-operation.role` is a single string today, so only the primary
+        actor is declared here — the multi-role format is tracked
+        separately by the coordinator.
       tags: [exceptions]
       x-principal: filing-workflow
       x-timeout: 5000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-500]
       x-operation:
-        role: operator
+        role: tax.approver
         scope: entity
         precondition: >-
           The exception is OPEN and its block's disposition is OVERRIDABLE
@@ -239,6 +249,64 @@ paths:
                     requestedAt: "2026-04-01T02:00:00Z"
         default:
           $ref: '#/components/responses/Error'
+  /bff/privacy-cases/{caseId}/corrections:
+    post:
+      operationId: correctPersonalData
+      summary: Correct personal data for an open privacy case
+      description: >-
+        People, through console-bff only — not callable by a machine
+        principal (04-api-standards.md §15, NFR-S.6, §33.14). console-bff
+        orchestrates a master-data change plus an evidence annotation
+        (INV-NOTE-7 §7 SCR-32.3): it writes to masterdata-svc and appends
+        the annotation on evidence-svc's privacy case; evidence itself is
+        never modified (evidence-svc `must_not` "call a pipeline service —
+        privacy corrections are orchestrated by console-bff").
+      tags: [privacy]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-1379]
+      x-operation:
+        role: security.officer
+        scope: entity
+        precondition: "The privacy case is OPEN."
+        reversibility: COMPENSABLE
+        repeatKey: "caseId — a further correction is a new call; a repeat with the same body returns the existing correction, unchanged."
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CorrectPersonalDataRequest'
+            examples:
+              default:
+                value:
+                  field: "counterpartyName"
+                  correctedValue: "Acme Pte Ltd"
+                  reason: "Subject-access request: name misspelled at onboarding"
+      responses:
+        '200':
+          description: The correction was applied and annotated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CorrectPersonalDataResult'
+              examples:
+                default:
+                  value:
+                    caseId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    field: "counterpartyName"
+                    correctedValue: "Acme Pte Ltd"
+                    correctedAt: "2026-04-01T02:00:00Z"
+        default:
+          $ref: '#/components/responses/Error'
 components:
   schemas:
     Exception:
@@ -320,6 +388,33 @@ components:
           type: string
           format: date-time
       required: [packId, entityRef, periodRef, status, requestedAt]
+    CorrectPersonalDataRequest:
+      type: object
+      properties:
+        field:
+          type: string
+          maxLength: 100
+        correctedValue:
+          type: string
+          maxLength: 500
+        reason:
+          type: string
+          maxLength: 500
+      required: [field, correctedValue, reason]
+    CorrectPersonalDataResult:
+      type: object
+      properties:
+        caseId:
+          type: string
+          format: uuid
+        field:
+          type: string
+        correctedValue:
+          type: string
+        correctedAt:
+          type: string
+          format: date-time
+      required: [caseId, field, correctedValue, correctedAt]
   responses:
     Error:
       description: Error (API-20 envelope)

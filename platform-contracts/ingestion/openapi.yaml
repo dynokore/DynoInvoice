@@ -6,83 +6,1360 @@ info:
     Contract-first source of truth for ingestion (API-01, STK-44). The
     `ingestion-contract` module generates its server interfaces and DTOs
     from this file (STK-46); a consumer generates its own client types from
-    the same file (FR-AH.13, ARC-07). This is an INV-T-2849 scaffold —
-    ingestion's own team (CODEOWNERS) replaces the placeholder operation
-    below with its real ones as each lands.
+    the same file (FR-AH.13, ARC-07, INV-REQ-1224). Replaces the INV-T-2849
+    scaffold (INV-T-2856, T12). Versioned by URI major (`/v1`), additive
+    within it, with a new major running alongside the old one for at least
+    the supported-version window (API-03, FR-AG.37, INV-REQ-823).
+
+
+    Public and internal APIs (API standard §1 and §15). The seven resources
+    the §15 catalogue lists for `ingestion-svc` are all here: `POST
+    /v1/transactions` (FR-M.2), `POST /v1/batches` and its status resource
+    `GET /v1/batches/{batchId}` (FR-M.8, §19.6), `POST /v1/aggregates`
+    (FR-M.9), `POST /v1/issuances` (FR-AE.2), `POST /v1/pre-issuance-checks`
+    (FR-AE.3), and `PUT
+    /v1/entities/{entityRef}/periods/{periodRef}/control-totals` (§19.7,
+    FR-A.4) — matching services.yaml ingestion-svc `capabilities` ("Public
+    ingestion API: transactions, batches, aggregates, issuances,
+    pre-issuance checks") and `provides` ("including the control-totals
+    resource"). `ingest` is the primary principal on every one; `certification`
+    may also call each in a non-production workspace only (NFR-S.4,
+    INV-REQ-1377) — named here, not as a second `x-principal` value, since
+    Spectral requires exactly one (API-02, API-23). Recording forwards to
+    `canonical-svc` (sync-edges.yaml `ingestion-svc -> canonical-svc`);
+    aggregate intake to `aggregation-svc`; issuance validation and the
+    pre-issuance check to `payload-svc` (`ingestion-svc -> payload-svc`) —
+    ingestion-svc itself never sends an outbound message or webhook
+    (services.yaml `must_not`).
+
+
+    Six further operations are `/internal/v1/…`, reached only by
+    console-bff on a person's behalf (API-25 — the callee re-checks writes),
+    for the feed-administration commands services.yaml's ingestion-svc
+    `provides` text names ("Feed administration commands to console-bff"):
+    `configureAdapter` (SCR-17.1), `mapTriggerClass`/`waiveTriggerClass`
+    (SCR-17.2), `getFeedHealth` (SCR-17.3), `replayFeed` (SCR-17.4) and
+    `sendTestEvent` (SCR-17.5, also F-3.3/UC-16, alongside the public
+    surface's own `X-Test-Mode` header, API-32). **Architecture gap, named
+    rather than guessed at:** model/architecture/sync-edges.yaml has no
+    `console-bff -> ingestion-svc` edge yet (only `console-bff -> access-svc`
+    and `console-bff -> transport-svc`, both kind `console`, exist today).
+    `x-sync-edge: console-bff->ingestion-svc` below anticipates the same
+    fix INV-NOTE-3-linked commit 15e0e94 (2026-09-27) already made for
+    transport-svc's own console surface; adding the matching edge to
+    invoice-docs is a follow-up outside this repository's declared scope,
+    named here for the coordinator rather than silently assumed.
+
+
+    INV-NOTE-6's F-3.2 row ("Ingestion API — transactions, batches,
+    aggregates") cites archived gaps GAP-04 and GAP-09. Neither corresponds
+    to any live Keel entity or architecture-model item found by full-text
+    search; model/architecture/services.yaml and API standard §15 already
+    give `ingestion-svc` a complete public surface for transactions,
+    batches and aggregates (built below), so nothing is missing here —
+    GAP-04/GAP-09 are not carried forward as an architecture gap.
   contact:
     name: ingestion (see CODEOWNERS)
 servers:
   - url: 'https://api.invoice.internal'
-    description: Placeholder — the gateway routes only the operations of a published train (API-26).
+    description: >-
+      The gateway routes only the seven `/v1/…` operations of a published
+      train (API-26) to `ingest`/`certification` principals; the six
+      `/internal/v1/…` operations are never routed by the gateway and are
+      reached only by console-bff, resolved service-to-service (API-01
+      scope table).
 tags:
-  - name: ingestion
-    description: Placeholder resource (INV-T-2849 scaffold).
+  - name: transactions
+    description: Transaction submission — counterparty, line and totals fields (§19.2, FR-M.2).
+  - name: batches
+    description: Batch submission and its status resource (§19.6, FR-M.8).
+  - name: aggregates
+    description: POS, STI and PCP aggregate intake (FR-M.9).
+  - name: issuances
+    description: Relay-mode issuance and the Observe-mode pre-issuance check (§33.1, FR-AE.2, FR-AE.3).
+  - name: control-totals
+    description: Upstream control totals per period, feeding the completeness controls (§19.7, FR-A.4).
+  - name: administration
+    description: >-
+      Feed administration commands to console-bff — adapters, trigger
+      coverage, feed health and replay, test events (INV-NOTE-7 §7, SCR-17.1
+      to SCR-17.5).
 paths:
-  /v1/ingestion/examples:
+  /v1/transactions:
     post:
-      operationId: createExample
-      summary: Placeholder operation (INV-T-2849 scaffold) — replace with a real one
+      operationId: submitTransaction
+      summary: Submit a transaction — counterparty, line and totals fields (SDS §19.2)
       description: >-
-        Placeholder only, so this directory lints clean from its first commit.
-        ingestion's own team replaces it with a real operation (CODEOWNERS, API-01).
-      tags: [ingestion]
-      x-principal: filing-workflow
-      x-timeout: 5000
-      x-error-codes: []
-      x-requirements: []
+        The `1 | ERP | API | Send the transaction` and `5 | ERP | API |
+        Deliver transactions` rows of INV-NOTE-7: ingestion-svc checks
+        identity and revision, then forwards to canonical-svc's internal
+        `recordDocument` (sync-edges.yaml `ingestion-svc -> canonical-svc`),
+        which assigns or binds the Doc UUID and emits `TransactionRecorded`.
+        Idempotent on `sourceSystem` + `sourceKey` + `sourceRevision`
+        (API-15, FR-M.3): no `Idempotency-Key` header is required or
+        accepted for this resource. `certification` may also call this in a
+        non-production workspace only (NFR-S.4, INV-REQ-1377).
+      tags: [transactions]
+      x-principal: ingest
+      x-timeout: 3000
+      x-error-codes: [ING-001, ING-002, ING-004, ING-005, ING-009, ING-011, ING-012, ING-016]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-805, INV-REQ-806]
       x-operation:
-        role: filing-workflow
-        scope: filing-workflow
-        precondition: "None — placeholder. A real operation states what it checks against record state (FR-AC.1.3)."
-        reversibility: COMPENSABLE
-        repeatKey: "(tenantId, sourceKey, sourceRevision) — placeholder shape, FR-AC.19"
-      parameters:
-        - name: Idempotency-Key
-          in: header
-          required: true
-          schema:
-            type: string
-            format: uuid
+        role: ingest
+        scope: entity
+        precondition: >-
+          sourceRevision for this (entityRef, sourceSystem, sourceKey) is
+          not lower than any already recorded (ING-002); entityRef is
+          active and within the caller's token scope (API-24, ING-004).
+          Checked against recorded state, never against screen context.
+        reversibility: IRREVERSIBLE
+        repeatKey: >-
+          (sourceSystem, sourceKey, sourceRevision), within the entity from
+          the token — a repeat returns the original result unchanged
+          (FR-M.3, INV-REQ-1010 behaviour #1).
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ExampleRequest'
+              $ref: '#/components/schemas/TransactionRequest'
             examples:
               default:
-                value: { name: "example" }
+                value:
+                  entityRef: "E-001"
+                  sourceSystem: "erp-acme"
+                  sourceKey: "INV-2026-000123"
+                  sourceRevision: 1
+                  documentFunction: "INVOICE"
+                  transactionDate: "2026-03-20"
+                  currency: "SGD"
+                  counterparty:
+                    supplier: { identifierScheme: "UEN", identifierValue: "201912345A" }
+                    buyer: { identifierScheme: "UEN", identifierValue: "201954321B" }
+                  lines:
+                    - lineNumber: 1
+                      description: "Consulting services"
+                      quantity: 1
+                      unitPrice: "1000.00"
+                      lineAmount: "1000.00"
+                      taxCode: "SR"
+                      taxAmount: "90.00"
+                  declaredTotals:
+                    totalExcludingTax: "1000.00"
+                    totalTax: "90.00"
+                    totalIncludingTax: "1090.00"
       responses:
         '201':
-          description: Created
+          description: Recorded as a new document or a new version (API-21 §10).
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ExampleResponse'
+                $ref: '#/components/schemas/TransactionResult'
               examples:
                 default:
-                  value: { id: "3fa85f64-5717-4562-b3fc-2c963f66afa6", name: "example" }
+                  value:
+                    docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    version: 1
+                    scopeVerdict: "SUBMITTABLE"
+                    transactionDate: "2026-03-20"
+                    prescribedPeriodRef: "2026-Q1"
+        '200':
+          description: Idempotent replay — the original result, unchanged (FR-M.3, API-15).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionResult'
+              examples:
+                default:
+                  value:
+                    docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    version: 1
+                    scopeVerdict: "SUBMITTABLE"
+                    transactionDate: "2026-03-20"
+                    prescribedPeriodRef: "2026-Q1"
+        '202':
+          description: Recorded but held or blocked (FR-M.4, API-21) — not an error; the caller does not retry it.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionResult'
+              examples:
+                default:
+                  value:
+                    docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    version: 1
+                    scopeVerdict: "SUBMITTABLE"
+                    transactionDate: "2026-03-20"
+                    prescribedPeriodRef: "2026-Q1"
+                    reasons: [{ code: "ING-016", field: "/", message: "Derivation incomplete; masterdata-svc unavailable" }]
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/batches:
+    post:
+      operationId: submitBatch
+      summary: Submit a manifested batch of transactions (SDS §19.6)
+      description: >-
+        FR-M.8: the batch manifest (declared count and total) is checked
+        against actual contents before anything is accepted; a mismatch
+        returns `422` (ING-003) synchronously and nothing is recorded
+        (API-17, standards review V-09). Otherwise always asynchronous —
+        `202` with `Location: /v1/batches/{batchId}` and `Retry-After`
+        (API-17) — since a manifest whose contents pass takes its own
+        pipeline lane. Each transaction inside is separately idempotent on
+        `sourceSystem` + `sourceKey` + `sourceRevision` (API-15); the batch
+        itself is also idempotent on `batchId`. No `Idempotency-Key` header
+        for this resource (API-15). At most 10,000 transactions and 50 MB
+        (API-49).
+      tags: [batches]
+      x-principal: ingest
+      x-timeout: 10000
+      x-error-codes: [ING-003, ING-001, ING-002, ING-004, ING-005, ING-009, ING-011, ING-012, ING-016]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-811]
+      x-operation:
+        role: ingest
+        scope: entity
+        precondition: >-
+          The manifest's declared count and total agree with the batch's
+          actual contents (ING-003); each transaction's own precondition as
+          for `submitTransaction`.
+        reversibility: IRREVERSIBLE
+        repeatKey: >-
+          batchId — a repeat returns the original accepted result unchanged
+          (API-15); each transaction within is separately idempotent on
+          (sourceSystem, sourceKey, sourceRevision).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchRequest'
+            examples:
+              default:
+                value:
+                  batchId: "BATCH-2026-03-20-001"
+                  manifest: { count: 1, totalAmount: "1090.00" }
+                  transactions:
+                    - entityRef: "E-001"
+                      sourceSystem: "erp-acme"
+                      sourceKey: "INV-2026-000123"
+                      sourceRevision: 1
+                      documentFunction: "INVOICE"
+                      transactionDate: "2026-03-20"
+                      currency: "SGD"
+                      lines: [{ lineNumber: 1, lineAmount: "1090.00" }]
+      responses:
+        '202':
+          description: Manifest agrees with contents; processing on its own asynchronous lane (API-17).
+          headers:
+            Location:
+              schema: { type: string }
+              description: '`/v1/batches/{batchId}` (API-17).'
+            Retry-After:
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchAccepted'
+              examples:
+                default:
+                  value: { batchId: "BATCH-2026-03-20-001", state: "RUNNING", submittedCount: 1, acceptedAt: "2026-03-20T03:15:00Z" }
+        '422':
+          description: Manifest disagrees with actual contents (ING-003); nothing is recorded (API-17, standards review V-09).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '../service-runtime/schemas/error-envelope.schema.json'
+              examples:
+                default:
+                  value:
+                    type: "about:blank"
+                    title: "Batch manifest count or total mismatch"
+                    status: 422
+                    code: "ING-003"
+                    correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/batches/{batchId}:
+    get:
+      operationId: getBatchStatus
+      summary: Read a batch's own status resource (SDS §19.6)
+      description: >-
+        `POST /v1/batches` is always asynchronous and uses its own status
+        resource here rather than the generic `/v1/operations/{operationId}`
+        resource, since the batch itself is already addressable (API-17).
+        Reports the counts processed, held and rejected, and the completion
+        state. Only the principal that submitted the batch may read it
+        (API-24), kept for at least 7 days (API-17).
+      tags: [batches]
+      x-principal: ingest
+      x-timeout: 3000
+      x-error-codes: []
+      x-requirements: [INV-REQ-1168]
+      parameters:
+        - $ref: '#/components/parameters/BatchId'
+      responses:
+        '200':
+          description: The batch's current status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchStatus'
+              examples:
+                default:
+                  value:
+                    batchId: "BATCH-2026-03-20-001"
+                    state: "SUCCEEDED"
+                    submittedCount: 1
+                    processedCount: 1
+                    heldCount: 0
+                    rejectedCount: 0
+                    completedAt: "2026-03-20T03:15:05Z"
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/aggregates:
+    post:
+      operationId: submitAggregate
+      summary: Submit a POS, STI or PCP aggregate (SDS §19.6, FR-M.9)
+      description: >-
+        High-volume transaction classes collapsed into one aggregate
+        document per category-code group, closed on a configured cadence
+        and split at period boundaries (services.yaml aggregation-svc
+        `domain`, `capabilities`). Forwards to aggregation-svc's intake API
+        (sync-edges.yaml `ingestion-svc -> aggregation-svc`), which records
+        the aggregate to canonical-svc (AD-22). `aggregateType` other than
+        `POS`, `STI` or `PCP`, or a contradicting `direction`, is ING-006.
+        No `Idempotency-Key` header for this resource (API-15).
+      tags: [aggregates]
+      x-principal: ingest
+      x-timeout: 3000
+      x-error-codes: [ING-006, ING-004, ING-014, ING-018]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-812]
+      x-operation:
+        role: ingest
+        scope: entity
+        precondition: >-
+          aggregateType is POS, STI or PCP and does not contradict
+          direction (ING-006); the period does not cross a prescribed-period
+          boundary (ING-018); entityRef is active and within the caller's
+          token scope (ING-004).
+        reversibility: IRREVERSIBLE
+        repeatKey: >-
+          (entityRef, businessUnitRef, aggregateType, periodStart,
+          periodEnd) — a repeat returns the original result unchanged
+          (API-15, an SDS §19.6 amendment).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AggregateRequest'
+            examples:
+              default:
+                value:
+                  entityRef: "E-001"
+                  businessUnitRef: "BU-01"
+                  aggregateType: "POS"
+                  direction: "SALE"
+                  periodStart: "2026-03-01"
+                  periodEnd: "2026-03-31"
+                  lines:
+                    - categoryCode: "SR"
+                      taxCode: "SR"
+                      count: 4200
+                      amountExcludingTax: "84000.00"
+                      taxAmount: "7560.00"
+      responses:
+        '201':
+          description: Recorded as a new aggregate (API-21 §10).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AggregateResult'
+              examples:
+                default:
+                  value:
+                    aggregateId: "AGG-2026-Q1-E001-POS"
+                    entityRef: "E-001"
+                    aggregateType: "POS"
+                    periodStart: "2026-03-01"
+                    periodEnd: "2026-03-31"
+                    recordedAt: "2026-03-31T20:00:00Z"
+        '200':
+          description: Idempotent replay — the original result, unchanged (API-15).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AggregateResult'
+              examples:
+                default:
+                  value:
+                    aggregateId: "AGG-2026-Q1-E001-POS"
+                    entityRef: "E-001"
+                    aggregateType: "POS"
+                    periodStart: "2026-03-01"
+                    periodEnd: "2026-03-31"
+                    recordedAt: "2026-03-31T20:00:00Z"
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/issuances:
+    post:
+      operationId: requestIssuance
+      summary: Request Relay-mode network issuance (SDS §33.1, FR-AE.2)
+      description: >-
+        Records the document (as `submitTransaction` does, forwarding to
+        canonical-svc), then calls payload-svc's internal `validateIssuance`
+        (sync-edges.yaml `ingestion-svc -> payload-svc`) for full validation
+        and the Relay-mode payload build. On a failure nothing is sent to
+        the AP, and this is API-21's own stated exception: `422` even
+        though the document **is** recorded, as `NOT_SUBMITTABLE`
+        (`ISSUANCE_REFUSED`), with `docUuid` in the body. Not in API-15's
+        named exemption list, so (unlike transactions/batches/aggregates)
+        this resource requires the `Idempotency-Key` header.
+      tags: [issuances]
+      x-principal: ingest
+      x-timeout: 5000
+      x-error-codes:
+        [ING-001, ING-002, ING-004, ING-005, ING-009, ING-011, ING-012, PAY-001, PAY-002, PAY-003, PAY-004, PAY-005,
+          PAY-006, PAY-009, PAY-011, PAY-013]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-324]
+      x-operation:
+        role: ingest
+        scope: entity
+        precondition: >-
+          As `submitTransaction`'s recording precondition, then full
+          validation against payload-svc's Schematron, business-rule and
+          wrongful-GST checks (INV-REQ-324).
+        reversibility: IRREVERSIBLE
+        repeatKey: >-
+          (sourceSystem, sourceKey, sourceRevision) — a repeat returns the
+          original issuance outcome unchanged (FR-M.3 pattern, INV-REQ-324).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IssuanceRequest'
+            examples:
+              default:
+                value:
+                  entityRef: "E-001"
+                  sourceSystem: "erp-acme"
+                  sourceKey: "INV-2026-000200"
+                  sourceRevision: 1
+                  documentFunction: "INVOICE"
+                  transactionDate: "2026-03-20"
+                  currency: "SGD"
+                  submissionType: "TYPE_1A"
+                  lines: [{ lineNumber: 1, lineAmount: "1090.00" }]
+      responses:
+        '200':
+          description: Validation passed; the payload is built and handed to the AP.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IssuanceResult'
+              examples:
+                default:
+                  value:
+                    docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    version: 1
+                    verdict: "PASS"
+                    specVersion: "PINT-SG-1.2"
+                    customizationId: "SG:PINT:1.2"
+                    reasons: []
+        '422':
+          description: Validation failed; nothing is sent to the AP (FR-AE.2, API-21's stated exception) — the document is still recorded, as NOT_SUBMITTABLE / ISSUANCE_REFUSED.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '../service-runtime/schemas/error-envelope.schema.json'
+              examples:
+                default:
+                  value:
+                    type: "about:blank"
+                    title: "Wrongful GST charge detected against the Check GST Register"
+                    status: 422
+                    code: "PAY-011"
+                    correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/pre-issuance-checks:
+    post:
+      operationId: checkPreIssuance
+      summary: Observe-mode pre-issuance check — stateless, side-effect-free, PASS/WARN/BLOCK with reasons (FR-AE.3)
+      description: >-
+        Calls payload-svc's internal `checkPreIssuance` within a 300 ms P95
+        budget (resilience_policy.yaml "Gateway → ingestion-svc"; sync-edges.yaml
+        `ingestion-svc -> payload-svc`). Stateless and side-effect free
+        (INV-REQ-325): the draft document need not yet be recorded and
+        nothing is persisted either way. A safe query — no `Idempotency-Key`
+        (API-15 "takes no key").
+      tags: [issuances]
+      x-principal: ingest
+      x-timeout: 300
+      x-error-codes: [PAY-001, PAY-005, PAY-011, PAY-013]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-325]
+      x-operation:
+        role: ingest
+        scope: entity
+        precondition: >-
+          None — a stateless, side-effect-free check (INV-REQ-325); the
+          draft document need not yet be recorded and nothing is persisted
+          either way.
+        reversibility: UNDOABLE
+        repeatKey: >-
+          None — a safe query with no persistent state change; a repeat has
+          nothing to make safe (INV-REQ-325, API-15 "takes no key").
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DraftDocument'
+            examples:
+              default:
+                value:
+                  entityRef: "E-001"
+                  currency: "SGD"
+                  totalIncludingTax: "1090.00"
+      responses:
+        '200':
+          description: The verdict, with reasons where not a clean PASS.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreIssuanceVerdict'
+              examples:
+                default:
+                  value: { verdict: "PASS", reasons: [] }
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/entities/{entityRef}/periods/{periodRef}/control-totals:
+    put:
+      operationId: recordControlTotals
+      summary: Record the upstream control totals for a period (SDS §19.7, FR-A.4)
+      description: >-
+        Feeds two of the four completeness controls (model/architecture/triggers.yaml
+        "Count agreement", "Value agreement"): the ingested count and
+        per-tax-code totals are compared against these upstream figures,
+        raising PER-002 on a mismatch. A versioned intake resource (API-16):
+        returns a strong `ETag`; `If-Match` is optional here (unlike a
+        configuration resource), and a `PUT` whose body equals the current
+        version creates no new version and returns `200` with the unchanged
+        `ETag`. `tax.operator` may upload the same totals through the
+        console where the upstream system cannot call this API (§15
+        footnote) — a separate console-bff path, not this resource.
+      tags: [control-totals]
+      x-principal: ingest
+      x-timeout: 5000
+      x-error-codes: [ING-004]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-791]
+      x-operation:
+        role: ingest
+        scope: entity
+        precondition: >-
+          The entity and period exist (tenancy-svc replica); entityRef is
+          active and within the caller's token scope (ING-004).
+        reversibility: COMPENSABLE
+        repeatKey: >-
+          (entityRef, periodRef) — a PUT whose body equals the current
+          version creates no new version, returning 200 with the unchanged
+          ETag (API-16).
+      parameters:
+        - $ref: '#/components/parameters/EntityRef'
+        - $ref: '#/components/parameters/PeriodRef'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ControlTotalsRequest'
+            examples:
+              default:
+                value:
+                  count: 4200
+                  totalsByTaxCode: [{ taxCode: "SR", amount: "91560.00" }]
+      responses:
+        '200':
+          description: Recorded (or unchanged from the current version, API-16).
+          headers:
+            ETag:
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControlTotalsResult'
+              examples:
+                default:
+                  value:
+                    entityRef: "E-001"
+                    periodRef: "2026-Q1"
+                    count: 4200
+                    totalsByTaxCode: [{ taxCode: "SR", amount: "91560.00" }]
+                    recordedAt: "2026-03-31T20:00:00Z"
+        '412':
+          description: If-Match provided and mismatched (API-16).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '../service-runtime/schemas/error-envelope.schema.json'
+              examples:
+                default:
+                  value: { type: "about:blank", title: "If-Match mismatch", status: 412, code: "ING-004", correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/ingestion/entities/{entityRef}/adapters:
+    post:
+      operationId: configureAdapter
+      summary: Configure an adapter and its feed for an entity (SCR-17.1)
+      description: >-
+        Console command to console-bff (services.yaml ingestion-svc
+        `provides` "Feed administration commands to console-bff";
+        INV-NOTE-7 §7 SCR-17.1). INV-NOTE-7 names three authorised actors,
+        `tenant.admin`, `integration.engineer` and `implementation.consultant`;
+        `role` below is the first Keel lists in SCR-17.1's Roles column (a
+        single Keel-catalogue role per the Spectral `x-operation` schema),
+        the other two are authorised the same way. Every adapter supplies
+        the seven elements of the adapter contract (FR-E.5, INV-REQ-799).
+      tags: [administration]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-sync-edge: console-bff->ingestion-svc
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-799]
+      x-operation:
+        role: tenant.admin
+        scope: entity
+        precondition: >-
+          The entity is registered (tenancy-svc replica); the request
+          supplies all seven elements of the adapter contract (FR-E.5).
+        reversibility: UNDOABLE
+        repeatKey: >-
+          (entityRef, adapterRef) — a repeat with the same configuration
+          reports the existing adapter unchanged.
+      parameters:
+        - $ref: '#/components/parameters/EntityRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdapterConfigRequest'
+            examples:
+              default:
+                value: { adapterRef: "ERP-ACME-PULL", sourceSystem: "erp-acme", feedType: "PULL", lookbackMinutes: 30 }
+      responses:
+        '200':
+          description: The adapter's configuration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdapterConfigResult'
+              examples:
+                default:
+                  value: { entityRef: "E-001", adapterRef: "ERP-ACME-PULL", sourceSystem: "erp-acme", feedType: "PULL", configuredAt: "2026-03-20T03:15:00Z" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/ingestion/entities/{entityRef}/trigger-classes/{triggerClass}/mapping:
+    post:
+      operationId: mapTriggerClass
+      summary: Map a trigger class to an adapter (SCR-17.2)
+      description: >-
+        Console command to console-bff (INV-NOTE-7 §7 SCR-17.2). Every
+        in-scope entity has a trigger registry mapping each of the five
+        trigger classes (model/architecture/triggers.yaml) to an adapter, a
+        waiver or another solution, or onboarding fails (FR-A.1,
+        INV-REQ-788). INV-NOTE-7 names `entity.admin` and
+        `integration.engineer`; `role` below is the first Keel lists (a
+        single Keel-catalogue role), `integration.engineer` is authorised
+        the same way.
+      tags: [administration]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-sync-edge: console-bff->ingestion-svc
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-788]
+      x-operation:
+        role: entity.admin
+        scope: entity
+        precondition: >-
+          The trigger class is not yet mapped, waived or recorded as
+          covered for this entity (FR-A.1).
+        reversibility: UNDOABLE
+        repeatKey: >-
+          (entityRef, triggerClass) — a repeat with the same adapterRef
+          reports the existing mapping unchanged.
+      parameters:
+        - $ref: '#/components/parameters/EntityRef'
+        - $ref: '#/components/parameters/TriggerClass'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TriggerMappingRequest'
+            examples:
+              default:
+                value: { adapterRef: "ERP-ACME-PULL" }
+      responses:
+        '200':
+          description: The trigger class's mapping.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TriggerMappingResult'
+              examples:
+                default:
+                  value: { entityRef: "E-001", triggerClass: "OUTBOUND_DOCUMENT_ISSUED", adapterRef: "ERP-ACME-PULL", mappedAt: "2026-03-20T03:15:00Z" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/ingestion/entities/{entityRef}/trigger-classes/{triggerClass}/waivers:
+    post:
+      operationId: waiveTriggerClass
+      summary: Waive a trigger class with a review date, or record it as covered by another solution with evidence (SCR-17.2)
+      description: >-
+        Console command to console-bff (INV-NOTE-7 §7 SCR-17.2, F-2.7). A
+        waived trigger class carries a review date and is re-presented for
+        confirmation at each readiness check in the first four periods
+        after go-live (FR-AB.6, INV-REQ-953). Covering a named class by
+        another solution instead is looser and needs `entity.admin`
+        acknowledgement and evidence (VP-61, INV-REQ-1322). INV-NOTE-7 names
+        `entity.admin` and `integration.engineer`; `role` below is the
+        first Keel lists (a single Keel-catalogue role), `integration.engineer`
+        is authorised the same way.
+      tags: [administration]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-sync-edge: console-bff->ingestion-svc
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-788, INV-REQ-953, INV-REQ-1322]
+      x-operation:
+        role: entity.admin
+        scope: entity
+        precondition: >-
+          The trigger class is not yet mapped to an adapter for this entity
+          (FR-A.1); a REVIEW_WAIVER carries a review date (FR-AB.6); a
+          COVERED_BY_OTHER_SOLUTION carries entity.admin's evidence
+          (VP-61, INV-REQ-1322).
+        reversibility: UNDOABLE
+        repeatKey: >-
+          (entityRef, triggerClass) — a repeat with the same waiver mode and
+          review date, or the same covering-solution evidence, reports the
+          existing waiver unchanged.
+      parameters:
+        - $ref: '#/components/parameters/EntityRef'
+        - $ref: '#/components/parameters/TriggerClass'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TriggerWaiverRequest'
+            examples:
+              default:
+                value: { mode: "REVIEW_WAIVER", reviewDate: "2026-07-01" }
+      responses:
+        '200':
+          description: The trigger class's waiver.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TriggerWaiverResult'
+              examples:
+                default:
+                  value: { entityRef: "E-001", triggerClass: "THIRD_PARTY_ISSUANCE", mode: "REVIEW_WAIVER", reviewDate: "2026-07-01", waivedAt: "2026-03-20T03:15:00Z" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/ingestion/feeds/{feedId}/health:
+    get:
+      operationId: getFeedHealth
+      summary: Read a feed's health — watermark lag, gaps, manifest failures (SCR-17.3, F-3.4)
+      description: >-
+        Console query to console-bff (INV-NOTE-7 §7 SCR-17.3). One of the
+        four completeness controls, watermark and look-back (FR-A.3,
+        INV-REQ-790; FR-A.4, INV-REQ-791). A silent feed stall is the most
+        dangerous failure in the system (services.yaml ingestion-svc
+        `degradation`, FR-F.6).
+      tags: [administration]
+      x-principal: filing-workflow
+      x-timeout: 3000
+      x-sync-edge: console-bff->ingestion-svc
+      x-error-codes: [ING-008]
+      x-requirements: [INV-REQ-790, INV-REQ-791]
+      parameters:
+        - $ref: '#/components/parameters/FeedId'
+      responses:
+        '200':
+          description: The feed's health.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedHealth'
+              examples:
+                default:
+                  value:
+                    feedId: "FEED-ERP-ACME-PULL"
+                    entityRef: "E-001"
+                    watermark: "2026-03-20T02:00:00Z"
+                    lagSeconds: 300
+                    gapsDetected: false
+                    manifestFailures: 0
+                    state: "HEALTHY"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/ingestion/feeds/{feedId}/replays:
+    post:
+      operationId: replayFeed
+      summary: Replay a feed window with a gap (SCR-17.4, F-3.5)
+      description: >-
+        Console command to console-bff (INV-NOTE-7 §7 SCR-17.4). Pulls the
+        feed again for the given window; duplicates are removed by source
+        key and revision, and new revisions supersede what was already
+        recorded (compensable, not undoable). Distinct from submission
+        replay (submission-svc's own `replaySubmissions`, a different
+        resource in `submission/openapi.yaml`).
+      tags: [administration]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-sync-edge: console-bff->ingestion-svc
+      x-error-codes: [ING-008]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-790]
+      x-operation:
+        role: integration.engineer
+        scope: entity
+        precondition: A watermark gap is detected in the feed's pull window (ING-008).
+        reversibility: COMPENSABLE
+        repeatKey: >-
+          (feedId, windowStart, windowEnd) — the window is re-read;
+          duplicates are removed by source key and revision, and new
+          revisions supersede (SCR-17.4).
+      parameters:
+        - $ref: '#/components/parameters/FeedId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReplayFeedRequest'
+            examples:
+              default:
+                value: { windowStart: "2026-03-19T00:00:00Z", windowEnd: "2026-03-20T00:00:00Z" }
+      responses:
+        '200':
+          description: The window was re-read.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplayFeedResult'
+              examples:
+                default:
+                  value:
+                    feedId: "FEED-ERP-ACME-PULL"
+                    windowStart: "2026-03-19T00:00:00Z"
+                    windowEnd: "2026-03-20T00:00:00Z"
+                    duplicatesRemoved: 3
+                    replayedAt: "2026-03-20T03:15:00Z"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/ingestion/test-events:
+    post:
+      operationId: sendTestEvent
+      summary: Send a test event and see its classification, without it counting (SCR-17.5, F-3.3, UC-16)
+      description: >-
+        Console command to console-bff (INV-NOTE-7 §7 SCR-17.5). Distinct
+        from — and in addition to — the public surface's own test mode
+        (`X-Test-Mode` header or a sandbox workspace, API-32): this
+        operation lets an operator preview an adapter's classification
+        interactively, from the console, before any real feed runs.
+        Recorded in the test namespace exactly as API-32 describes; never
+        becomes a production record and is never counted.
+      tags: [administration]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-sync-edge: console-bff->ingestion-svc
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-799]
+      x-operation:
+        role: integration.engineer
+        scope: entity
+        precondition: The adapter is configured for this entity (SCR-17.5).
+        reversibility: UNDOABLE
+        repeatKey: >-
+          None — nothing persists; a repeat produces the same classification,
+          never counted (SCR-17.5).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TestEventRequest'
+            examples:
+              default:
+                value:
+                  entityRef: "E-001"
+                  adapterRef: "ERP-ACME-PULL"
+                  rawPayload: { sourceKey: "TEST-0001", documentFunction: "INVOICE" }
+      responses:
+        '200':
+          description: The classification, marked as test and never counted (API-32).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TestEventResult'
+              examples:
+                default:
+                  value: { classification: "INVOICE", testMode: true, evaluatedAt: "2026-03-20T03:15:00Z" }
         default:
           $ref: '#/components/responses/Error'
 components:
+  parameters:
+    EntityRef:
+      name: entityRef
+      in: path
+      required: true
+      schema: { type: string, maxLength: 40 }
+    PeriodRef:
+      name: periodRef
+      in: path
+      required: true
+      schema:
+        type: string
+        maxLength: 20
+        description: Opaque, calendar-issued (API-11); clients never construct it.
+    BatchId:
+      name: batchId
+      in: path
+      required: true
+      schema: { type: string, maxLength: 64 }
+    FeedId:
+      name: feedId
+      in: path
+      required: true
+      schema: { type: string, maxLength: 64 }
+    TriggerClass:
+      name: triggerClass
+      in: path
+      required: true
+      schema:
+        type: string
+        enum:
+          [OUTBOUND_DOCUMENT_ISSUED, INBOUND_DOCUMENT_RECORDED, AGGREGABLE_BATCH_CLOSED, JOURNAL_ONLY_SUPPLY,
+            THIRD_PARTY_ISSUANCE]
+        description: model/architecture/triggers.yaml's five trigger classes (API-09 UPPER_SNAKE_CASE).
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: 'API-15: a UUID, deduplicating an exact request replay for at least 24h.'
+      schema: { type: string, format: uuid }
+    IfMatch:
+      name: If-Match
+      in: header
+      required: false
+      description: 'API-16: optional on this versioned intake resource (control-totals); a mismatch returns 412.'
+      schema: { type: string }
   schemas:
-    ExampleRequest:
+    Party:
       type: object
       properties:
-        name:
-          type: string
-          maxLength: 200
-      required: [name]
-    ExampleResponse:
+        identifierScheme: { type: string, maxLength: 20 }
+        identifierValue: { type: string, maxLength: 60 }
+      required: [identifierScheme, identifierValue]
+    Line:
       type: object
       properties:
-        id:
+        lineNumber: { type: integer, minimum: 1 }
+        description: { type: string, maxLength: 500 }
+        quantity: { type: number }
+        unitPrice:
           type: string
-          format: uuid
-        name:
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,6})?$'
+          description: Money as a decimal string, up to 6 places (API-12).
+        lineAmount:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+          description: Money as a decimal string, decimal(19,2) (API-12).
+        taxCode: { type: string, maxLength: 10 }
+        taxAmount:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+          description: Money as a decimal string, decimal(19,2) (API-12).
+      required: [lineNumber, lineAmount]
+    Totals:
+      type: object
+      properties:
+        totalExcludingTax: { type: string, format: decimal, pattern: '^-?\d{1,17}(\.\d{1,2})?$' }
+        totalTax: { type: string, format: decimal, pattern: '^-?\d{1,17}(\.\d{1,2})?$' }
+        totalIncludingTax: { type: string, format: decimal, pattern: '^-?\d{1,17}(\.\d{1,2})?$' }
+      required: [totalExcludingTax, totalTax, totalIncludingTax]
+    TransactionRequest:
+      type: object
+      description: >-
+        Request body of POST /v1/transactions (SDS §19.2, FR-M.2), reused
+        transaction-by-transaction inside POST /v1/batches (FR-M.8) and as
+        the base of POST /v1/issuances (FR-AE.2). Field names mirror
+        canonical/openapi.yaml's RecordDocumentRequest/Party/Line/Totals
+        one-for-one (canonical calls the parties object "parties"; this
+        public resource calls it "counterparty", SDS §19.2's own term) so
+        the two sides of the ingestion-svc -> canonical-svc sync edge never
+        drift. entityRef is checked against the caller's token scope
+        (API-24) rather than carried as a separate tenantId, since tenant
+        and entity scope come from the token on the public surface.
+      properties:
+        entityRef: { type: string, maxLength: 40 }
+        sourceSystem: { type: string, maxLength: 60 }
+        sourceKey:
+          type: string
+          maxLength: 128
+          description: Part of the idempotency pair (API-13, API-15, FR-M.3).
+        sourceRevision:
+          type: integer
+          minimum: 1
+          description: Part of the idempotency pair (API-15, FR-M.3). Lower than already recorded is ING-002.
+        documentFunction:
+          type: string
+          enum: [INVOICE, CREDIT_NOTE, DEBIT_NOTE, BILL_FOR_PAYMENT]
+        documentNumber:
+          type: string
+          maxLength: 100
+          description: Required when documentFunction is BILL_FOR_PAYMENT (ING-009); otherwise omitted (API-14).
+        transactionDate: { type: string, format: date }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        counterparty:
+          type: object
+          properties:
+            supplier: { $ref: '#/components/schemas/Party' }
+            buyer: { $ref: '#/components/schemas/Party' }
+          required: [supplier, buyer]
+        lines:
+          type: array
+          maxItems: 10000
+          items: { $ref: '#/components/schemas/Line' }
+        declaredTotals: { $ref: '#/components/schemas/Totals' }
+      required: [entityRef, sourceSystem, sourceKey, sourceRevision, documentFunction, transactionDate, currency, lines]
+    ReasonItem:
+      type: object
+      properties:
+        code: { type: string }
+        field: { type: string }
+        message: { type: string }
+      required: [code, message]
+    TransactionResult:
+      type: object
+      properties:
+        docUuid: { type: string, format: uuid }
+        version: { type: integer }
+        scopeVerdict:
+          type: string
+          enum: [SUBMITTABLE, NOT_SUBMITTABLE, PRE_OBLIGATION]
+          x-extensible-enum: true
+        transactionDate: { type: string, format: date }
+        prescribedPeriodRef: { type: string }
+        testMode: { type: boolean }
+        warnings:
+          type: array
+          items: { $ref: '#/components/schemas/ReasonItem' }
+        reasons:
+          type: array
+          items: { $ref: '#/components/schemas/ReasonItem' }
+      required: [docUuid, version, scopeVerdict, transactionDate, prescribedPeriodRef]
+    BatchManifest:
+      type: object
+      properties:
+        count: { type: integer, minimum: 0 }
+        totalAmount:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+          description: Money as a decimal string (API-12).
+      required: [count, totalAmount]
+    BatchRequest:
+      type: object
+      properties:
+        batchId: { type: string, maxLength: 64 }
+        manifest: { $ref: '#/components/schemas/BatchManifest' }
+        transactions:
+          type: array
+          maxItems: 10000
+          items: { $ref: '#/components/schemas/TransactionRequest' }
+      required: [batchId, manifest, transactions]
+    BatchAccepted:
+      type: object
+      properties:
+        batchId: { type: string }
+        state:
+          type: string
+          enum: [RUNNING]
+          x-extensible-enum: true
+        submittedCount: { type: integer }
+        acceptedAt: { type: string, format: date-time }
+      required: [batchId, state, submittedCount, acceptedAt]
+    BatchStatus:
+      type: object
+      properties:
+        batchId: { type: string }
+        state:
+          type: string
+          enum: [RUNNING, SUCCEEDED, FAILED]
+          x-extensible-enum: true
+          description: API-17's generic operation-resource state vocabulary, reused for this resource's own status.
+        submittedCount: { type: integer }
+        processedCount: { type: integer }
+        heldCount: { type: integer }
+        rejectedCount: { type: integer }
+        completedAt: { type: string, format: date-time }
+      required: [batchId, state, submittedCount, processedCount, heldCount, rejectedCount]
+    AggregateLine:
+      type: object
+      properties:
+        categoryCode: { type: string, maxLength: 20 }
+        taxCode: { type: string, maxLength: 10 }
+        count: { type: integer, minimum: 0 }
+        amountExcludingTax:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+        taxAmount:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+      required: [categoryCode, count, amountExcludingTax]
+    AggregateRequest:
+      type: object
+      properties:
+        entityRef: { type: string, maxLength: 40 }
+        businessUnitRef: { type: string, maxLength: 40 }
+        aggregateType:
+          type: string
+          enum: [POS, STI, PCP]
+          description: model/architecture aggregation-svc's own three classes; anything else is ING-006.
+        aggregateKind:
+          type: string
+          enum: [ORDINARY, REFUND, SUPPLEMENTARY]
+          description: Absent means ORDINARY (API-14); refund and supplementary aggregates (services.yaml aggregation-svc `capabilities`).
+        direction:
+          type: string
+          enum: [SALE, PURCHASE]
+        periodStart: { type: string, format: date }
+        periodEnd: { type: string, format: date }
+        lines:
+          type: array
+          maxItems: 10000
+          items: { $ref: '#/components/schemas/AggregateLine' }
+      required: [entityRef, aggregateType, direction, periodStart, periodEnd, lines]
+    AggregateResult:
+      type: object
+      properties:
+        aggregateId: { type: string }
+        entityRef: { type: string }
+        aggregateType: { type: string, enum: [POS, STI, PCP], x-extensible-enum: true }
+        periodStart: { type: string, format: date }
+        periodEnd: { type: string, format: date }
+        recordedAt: { type: string, format: date-time }
+      required: [aggregateId, entityRef, aggregateType, periodStart, periodEnd, recordedAt]
+    DraftDocument:
+      type: object
+      properties:
+        entityRef: { type: string, maxLength: 40 }
+        documentFunction:
+          type: string
+          enum: [INVOICE, CREDIT_NOTE, DEBIT_NOTE, BILL_FOR_PAYMENT]
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        totalIncludingTax:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+      required: [entityRef, currency, totalIncludingTax]
+    PreIssuanceVerdict:
+      type: object
+      properties:
+        verdict:
+          type: string
+          enum: [PASS, WARN, BLOCK]
+          x-extensible-enum: true
+        reasons:
+          type: array
+          items: { $ref: '#/components/schemas/ReasonItem' }
+      required: [verdict, reasons]
+    IssuanceRequest:
+      allOf:
+        - $ref: '#/components/schemas/TransactionRequest'
+        - type: object
+          properties:
+            submissionType:
+              type: string
+              enum: [TYPE_1A, TYPE_1B, TYPE_2, TYPE_3]
+              description: model/architecture/submission-types.yaml's 1A/1B/2/3 (API-09 UPPER_SNAKE_CASE).
+          required: [submissionType]
+    IssuanceResult:
+      type: object
+      properties:
+        docUuid: { type: string, format: uuid }
+        version: { type: integer }
+        verdict:
+          type: string
+          enum: [PASS, NOT_SUBMITTABLE]
+          x-extensible-enum: true
+        specVersion: { type: string }
+        customizationId: { type: string }
+        reasons:
+          type: array
+          items: { $ref: '#/components/schemas/ReasonItem' }
+      required: [docUuid, version, verdict]
+    ControlTotalsTaxLine:
+      type: object
+      properties:
+        taxCode: { type: string, maxLength: 10 }
+        amount:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+          description: Money as a decimal string (API-12).
+      required: [taxCode, amount]
+    ControlTotalsRequest:
+      type: object
+      properties:
+        count: { type: integer, minimum: 0 }
+        totalsByTaxCode:
+          type: array
+          items: { $ref: '#/components/schemas/ControlTotalsTaxLine' }
+      required: [count, totalsByTaxCode]
+    ControlTotalsResult:
+      type: object
+      properties:
+        entityRef: { type: string }
+        periodRef: { type: string }
+        count: { type: integer }
+        totalsByTaxCode:
+          type: array
+          items: { $ref: '#/components/schemas/ControlTotalsTaxLine' }
+        recordedAt: { type: string, format: date-time }
+      required: [entityRef, periodRef, count, totalsByTaxCode, recordedAt]
+    AdapterConfigRequest:
+      type: object
+      properties:
+        adapterRef: { type: string, maxLength: 40 }
+        sourceSystem: { type: string, maxLength: 60 }
+        feedType:
+          type: string
+          enum: [PULL, PUSH, FILE_DROP]
+        lookbackMinutes: { type: integer, minimum: 0 }
+      required: [adapterRef, sourceSystem, feedType]
+    AdapterConfigResult:
+      type: object
+      properties:
+        entityRef: { type: string }
+        adapterRef: { type: string }
+        sourceSystem: { type: string }
+        feedType: { type: string, enum: [PULL, PUSH, FILE_DROP], x-extensible-enum: true }
+        configuredAt: { type: string, format: date-time }
+      required: [entityRef, adapterRef, sourceSystem, feedType, configuredAt]
+    TriggerMappingRequest:
+      type: object
+      properties:
+        adapterRef: { type: string, maxLength: 40 }
+      required: [adapterRef]
+    TriggerMappingResult:
+      type: object
+      properties:
+        entityRef: { type: string }
+        triggerClass: { type: string }
+        adapterRef: { type: string }
+        mappedAt: { type: string, format: date-time }
+      required: [entityRef, triggerClass, adapterRef, mappedAt]
+    TriggerWaiverRequest:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [REVIEW_WAIVER, COVERED_BY_OTHER_SOLUTION]
+        reviewDate:
+          type: string
+          format: date
+          description: Required when mode is REVIEW_WAIVER (FR-AB.6).
+        coveringSolution:
           type: string
           maxLength: 200
-      required: [id, name]
+          description: Required when mode is COVERED_BY_OTHER_SOLUTION (VP-61).
+        evidenceReference:
+          type: string
+          maxLength: 200
+          description: Required when mode is COVERED_BY_OTHER_SOLUTION (VP-61, INV-REQ-1322).
+      required: [mode]
+    TriggerWaiverResult:
+      type: object
+      properties:
+        entityRef: { type: string }
+        triggerClass: { type: string }
+        mode: { type: string, enum: [REVIEW_WAIVER, COVERED_BY_OTHER_SOLUTION], x-extensible-enum: true }
+        reviewDate: { type: string, format: date }
+        coveringSolution: { type: string }
+        evidenceReference: { type: string }
+        waivedAt: { type: string, format: date-time }
+      required: [entityRef, triggerClass, mode, waivedAt]
+    FeedHealth:
+      type: object
+      properties:
+        feedId: { type: string }
+        entityRef: { type: string }
+        watermark: { type: string, format: date-time }
+        lagSeconds: { type: integer }
+        gapsDetected: { type: boolean }
+        manifestFailures: { type: integer }
+        state:
+          type: string
+          enum: [HEALTHY, DEGRADED, FAILED]
+          x-extensible-enum: true
+      required: [feedId, entityRef, watermark, lagSeconds, gapsDetected, manifestFailures, state]
+    ReplayFeedRequest:
+      type: object
+      properties:
+        windowStart: { type: string, format: date-time }
+        windowEnd: { type: string, format: date-time }
+      required: [windowStart, windowEnd]
+    ReplayFeedResult:
+      type: object
+      properties:
+        feedId: { type: string }
+        windowStart: { type: string, format: date-time }
+        windowEnd: { type: string, format: date-time }
+        duplicatesRemoved: { type: integer }
+        replayedAt: { type: string, format: date-time }
+      required: [feedId, windowStart, windowEnd, duplicatesRemoved, replayedAt]
+    TestEventRequest:
+      type: object
+      properties:
+        entityRef: { type: string, maxLength: 40 }
+        adapterRef: { type: string, maxLength: 40 }
+        rawPayload:
+          type: object
+          description: An opaque sample of the adapter's own raw event shape, evaluated but never persisted (SCR-17.5).
+      required: [entityRef, adapterRef, rawPayload]
+    TestEventResult:
+      type: object
+      properties:
+        classification:
+          type: string
+          enum: [INVOICE, CREDIT_NOTE, DEBIT_NOTE, BILL_FOR_PAYMENT, UNCLASSIFIED]
+          x-extensible-enum: true
+        testMode:
+          type: boolean
+          const: true
+        evaluatedAt: { type: string, format: date-time }
+      required: [classification, testMode, evaluatedAt]
   responses:
     Error:
       description: Error (API-20 envelope)
@@ -96,5 +1373,5 @@ components:
                 type: "about:blank"
                 title: "Example error"
                 status: 400
-                code: "EXAMPLE-000"
+                code: "ING-002"
                 correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"

@@ -1,0 +1,13 @@
+{
+  "entityRef": "E-002",
+  "sourceSystem": "erp-globex",
+  "sourceKey": "BFP-2026-000456",
+  "sourceRevision": 2,
+  "documentFunction": "BILL_FOR_PAYMENT",
+  "documentNumber": "BFP-000456",
+  "transactionDate": "2026-03-21",
+  "currency": "SGD",
+  "lines": [
+    { "lineNumber": 1, "lineAmount": "250.00" }
+  ]
+}

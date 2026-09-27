@@ -30,14 +30,16 @@ info:
     (`GET /v1/entities/{entityRef}/periods/{periodRef}/reconciliation`) is
     `getReconciliation`, the capabilities-list item "Reconciliation data for
     the reporting principal", distinct from the internal run/work-paper
-    queries. Work-paper attestation (INV-REQ-947's "attestation" field) and
-    PDF/spreadsheet export (FR-Q.11) are read as fields of `getWorkPaper`'s
-    response, not separate write/export operations: `provides` names only
-    "queries" for the work-paper, no command, so an attest command is left
-    as an architecture gap for the coordinator rather than added here
-    (T13b review correction). No catalogue error code exists yet under a
-    REC- prefix (model/architecture/error-codes.yaml has no such prefix) —
-    every operation below declares `x-error-codes: []`; also flagged as an
+    queries. Variance annotation (FR-9.8) and work-paper attestation
+    (INV-REQ-947, "reconciliation-svc builds, attests and owns the
+    work-paper") are real write operations, not read-only fields of
+    `getWorkPaper`'s response: `annotateVariance` (INV-NOTE-7 §7 SCR-10.3)
+    and `attestWorkPaper` (SCR-10.4), reconciliation-svc's own `provides`
+    capability. PDF/spreadsheet export (FR-Q.11) is left as a read field of
+    `getWorkPaper`; no separate export operation is catalogued for it. No
+    catalogue error code exists yet under a REC- prefix
+    (model/architecture/error-codes.yaml has no such prefix) — every
+    operation below declares `x-error-codes: []`; also flagged as an
     architecture gap.
   contact:
     name: reconciliation (see CODEOWNERS)
@@ -289,6 +291,108 @@ paths:
                       attestedAt: "2026-04-28T09:30:00Z"
         default:
           $ref: '#/components/responses/Error'
+  /internal/v1/reconciliation/runs/{runId}/boxes/{box}/annotation:
+    put:
+      operationId: annotateVariance
+      summary: Annotate a Box variance with supporting references
+      description: >-
+        Variance annotation (services.yaml reconciliation-svc `provides`,
+        "work-paper queries" capability; INV-NOTE-7 §7 SCR-10.3, FR-9.8).
+        Undoable until the run is attested, after which the work-paper is
+        immutable and a further correction requires a new run.
+      tags: [reconciliation]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010]
+      x-operation:
+        role: tax.approver
+        scope: entity+period
+        precondition: "The reconciliation run exists and is not yet attested."
+        reversibility: UNDOABLE
+        repeatKey: "(runId, box) — a repeat with the same body returns the existing annotation, unchanged."
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+        - name: box
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 10
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnnotateVarianceRequest'
+            examples:
+              default:
+                value:
+                  varianceClass: "TIMING_DIFFERENCE"
+                  references: ["s3://reconciliation/E-001/2026-Q1/schedule.pdf"]
+      responses:
+        '200':
+          description: The variance annotation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VarianceAnnotation'
+              examples:
+                default:
+                  value:
+                    runId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    box: "6"
+                    varianceClass: "TIMING_DIFFERENCE"
+                    references: ["s3://reconciliation/E-001/2026-Q1/schedule.pdf"]
+                    annotatedAt: "2026-04-28T09:20:00Z"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/reconciliation/runs/{runId}/attestation:
+    post:
+      operationId: attestWorkPaper
+      summary: Attest a reconciliation run's work-paper as preparer and approver
+      description: >-
+        Work-paper attestation (services.yaml reconciliation-svc `provides`,
+        "work-paper queries" capability; INV-REQ-947, INV-NOTE-7 §7
+        SCR-10.4). Preparer and approver attestation, or one person with
+        acknowledgement where VP-40 allows.
+      tags: [runs]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-error-codes: []
+      x-requirements: [INV-REQ-947, INV-REQ-957, INV-REQ-1010]
+      x-operation:
+        role: tax.approver
+        scope: entity+period
+        precondition: "Every variance in the run is classified or annotated."
+        reversibility: COMPENSABLE
+        repeatKey: "runId — a new run and attestation supersede a repeat; the same run's attestation is returned unchanged."
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttestWorkPaperRequest'
+            examples:
+              default:
+                value:
+                  soleAttesterAcknowledgement: false
+      responses:
+        '200':
+          description: The run's attestation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Attestation'
+              examples:
+                default:
+                  value:
+                    attestedBy: "tax.approver:jane.tan"
+                    attestedAt: "2026-04-28T09:30:00Z"
+        default:
+          $ref: '#/components/responses/Error'
 components:
   parameters:
     EntityRef:
@@ -472,6 +576,45 @@ components:
         attestation:
           $ref: '#/components/schemas/Attestation'
       required: [runId, header, boxes, unexplainedResidual, supportingDocuments]
+    AnnotateVarianceRequest:
+      type: object
+      properties:
+        varianceClass:
+          type: string
+          maxLength: 60
+          description: A first-class category of amendment-taxonomy.yaml's variance classification, or UNEXPLAINED.
+        references:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            maxLength: 200
+      required: [references]
+    VarianceAnnotation:
+      type: object
+      properties:
+        runId:
+          type: string
+          format: uuid
+        box:
+          type: string
+        varianceClass:
+          type: string
+        references:
+          type: array
+          items:
+            type: string
+        annotatedAt:
+          type: string
+          format: date-time
+      required: [runId, box, references, annotatedAt]
+    AttestWorkPaperRequest:
+      type: object
+      properties:
+        soleAttesterAcknowledgement:
+          type: boolean
+          description: Recorded when one person attests as both preparer and approver (VP-40).
+      required: [soleAttesterAcknowledgement]
   responses:
     Error:
       description: Error (API-20 envelope)

@@ -1,0 +1,12 @@
+{
+  "entityRef": "E-001",
+  "sourceSystem": "erp-acme",
+  "sourceKey": "INV-2026-000124",
+  "sourceRevision": 1,
+  "documentFunction": "INVOICE",
+  "transactionDate": "2026-03-20",
+  "currency": "SGD",
+  "lines": [
+    { "lineNumber": 1, "lineAmount": 1000.00 }
+  ]
+}
