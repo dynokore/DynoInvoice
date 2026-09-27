@@ -37,6 +37,9 @@ class ServiceRuntimeConfigurationTest {
         ApplicationContextRunner()
             .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
             .withConfiguration(AutoConfigurations.of(ServiceRuntimeConfiguration::class.java))
+            // INV-AC-2200: every service names its own workload-token audience;
+            // this fixture stands in for that service's own configuration.
+            .withPropertyValues("service-runtime.workload-identity.audience=canonical-svc")
 
     @Test
     fun `activates on the classpath alone and wires every bean this task ships`() {

@@ -36,7 +36,7 @@ class IdentityAutoConfiguration {
     @ConditionalOnMissingBean(WorkloadTokenVerifier::class)
     fun workloadTokenVerifier(properties: WorkloadIdentityProperties): WorkloadTokenVerifier {
         val decoder = NimbusJwtDecoder.withJwkSetUri(properties.jwkSetUri).build()
-        decoder.setJwtValidator(DelegatingOAuth2TokenValidator(buildValidators(properties)))
+        decoder.setJwtValidator(DelegatingOAuth2TokenValidator(workloadTokenValidators(properties)))
         return JwtWorkloadTokenVerifier(decoder)
     }
 
@@ -50,24 +50,41 @@ class IdentityAutoConfiguration {
         urlPatterns = listOf("/*")
     }
 
-    private fun buildValidators(properties: WorkloadIdentityProperties): List<OAuth2TokenValidator<Jwt>> = buildList {
-        add(properties.issuer?.let(JwtValidators::createDefaultWithIssuer) ?: JwtValidators.createDefault())
-        properties.audience?.let { audience ->
-            add(
-                JwtClaimValidator<Any>("aud") { claim ->
-                    when (claim) {
-                        is Collection<*> -> claim.contains(audience)
-                        else -> claim == audience
-                    }
-                },
-            )
-        }
-    }
-
     companion object {
         // Runs first (Spring's own FilterRegistrationBean ordering, lower first):
         // an unauthenticated caller is refused before the deadline or end-user
         // token filters do any work (`ResilienceAutoConfiguration`).
         private const val ORDER_WORKLOAD_AUTHENTICATION = -90
+    }
+}
+
+/**
+ * INV-AC-2200: issuer/signature/expiry are always checked, and so — unconditionally
+ * — is `aud`, against [WorkloadIdentityProperties.audience]. That property is
+ * mandatory ([WorkloadIdentityProperties.afterPropertiesSet] refuses to let a
+ * service start without it), so a wrong- or missing-audience token is refused
+ * rather than accepted by default; [checkNotNull] here is a second line of
+ * defence, never the primary one.
+ *
+ * A top-level function, not a private method of [IdentityAutoConfiguration], so
+ * it is directly testable against a hand-built [org.springframework.security.oauth2.jwt.JwtDecoder]
+ * without a live JWK-set endpoint (`IdentityAutoConfiguration`'s own bean wiring
+ * needs one; a unit test does not).
+ */
+fun workloadTokenValidators(properties: WorkloadIdentityProperties): List<OAuth2TokenValidator<Jwt>> {
+    val audience =
+        checkNotNull(properties.audience?.takeIf { it.isNotBlank() }) {
+            "service-runtime.workload-identity.audience must be configured (INV-AC-2200)"
+        }
+    return buildList {
+        add(properties.issuer?.let(JwtValidators::createDefaultWithIssuer) ?: JwtValidators.createDefault())
+        add(
+            JwtClaimValidator<Any>("aud") { claim ->
+                when (claim) {
+                    is Collection<*> -> claim.contains(audience)
+                    else -> claim == audience
+                }
+            },
+        )
     }
 }
