@@ -59,6 +59,67 @@ catalogue-verify:
       - "catalogue/**/build/reports/"
     expire_in: 1 week
 
+catalogue-drift-check:
+  # INV-T-2851 (T7) reviewer should-fix (MR !6 discussion) — the vendored
+  # catalogue/errors/error-codes.yaml is pinned to an invoice-docs commit (its own
+  # header comment names the SHA) but nothing verified this copy still matches
+  # invoice-docs at that commit. Both INV-AC-2170 and INV-AC-2173 operate purely on
+  # the vendored copy, so a silent hand-edit or a bad re-vendor would never be
+  # caught otherwise.
+  #
+  # Same pattern as lifecycle-states-drift-check just below (error-codes.yaml ->
+  # ErrorCode is CS-13's own "same shape" example): clones invoice-docs with
+  # gitlab-ci-token:$CI_JOB_TOKEN, same URL/protocol/token variables. It differs
+  # from that job in one necessary way: the vendored copy is pinned to one specific
+  # commit, not the branch tip (AGT-11 re-vendors it deliberately, in its own merge
+  # request), so this fetches that one commit directly
+  # (`git fetch --depth 1 origin <sha>`) instead of `git clone --depth 1` (`clone
+  # --branch` does not accept an arbitrary commit SHA). Fails if the committed
+  # vendored copy's data (everything from `error_codes:` on — both copies carry
+  # their own, differently worded header comment above that line, which is not
+  # part of the contract) differs from invoice-docs' model/architecture/error-codes.yaml
+  # at the pinned commit. Also fetches invoice-docs main and reports — without
+  # failing the job — when it has moved past the pin, so a stale vendor is a visible
+  # follow-up, not silent drift.
+  stage: verify
+  image:
+    name: "$OASDIFF_IMAGE"
+    entrypoint: [""]
+  before_script:
+    - apk add --no-cache git
+  script:
+    - >
+      PIN=$(grep -oE 'pinned at commit [0-9a-f]{7,40}' catalogue/errors/error-codes.yaml | awk '{print $NF}')
+    - >
+      test -n "$PIN" ||
+      (echo "gst-ci: could not read the pinned commit SHA from catalogue/errors/error-codes.yaml's header" && exit 1)
+    - >
+      echo "gst-ci: vendored error-codes.yaml pinned at invoice-docs commit ${PIN}"
+    - mkdir /tmp/invoice-docs-pinned
+    - git -C /tmp/invoice-docs-pinned init -q
+    - >
+      git -C /tmp/invoice-docs-pinned remote add origin
+      "${CI_SERVER_PROTOCOL}://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}:${CI_SERVER_PORT}/invoice/invoice-docs.git"
+    - git -C /tmp/invoice-docs-pinned fetch --depth 1 origin "${PIN}"
+    - >
+      git -C /tmp/invoice-docs-pinned show FETCH_HEAD:model/architecture/error-codes.yaml
+      > /tmp/pinned-error-codes.yaml
+    - git -C /tmp/invoice-docs-pinned fetch --depth 1 origin main
+    - >
+      MAIN_HEAD=$(git -C /tmp/invoice-docs-pinned rev-parse FETCH_HEAD);
+      if [ "$MAIN_HEAD" != "$PIN" ]; then
+        echo "gst-ci: NOTICE invoice-docs main (${MAIN_HEAD}) has moved past the pin (${PIN}) for model/architecture/error-codes.yaml — this does not fail the job; re-vendor catalogue/errors/error-codes.yaml in its own merge request (AGT-11) to pick up the design change.";
+      else
+        echo "gst-ci: invoice-docs main is still at the pinned commit.";
+      fi
+    - sed -n '/^error_codes:/,$p' catalogue/errors/error-codes.yaml > /tmp/vendored-body.yaml
+    - sed -n '/^error_codes:/,$p' /tmp/pinned-error-codes.yaml > /tmp/pinned-body.yaml
+    - >
+      diff -u /tmp/pinned-body.yaml /tmp/vendored-body.yaml
+      || (echo "gst-ci: catalogue/errors/error-codes.yaml has drifted from invoice-docs' model/architecture/error-codes.yaml at the pinned commit ${PIN} — see the diff above." && exit 1)
+    - >
+      echo "gst-ci: catalogue/errors/error-codes.yaml matches invoice-docs at the pinned commit."
+
 catalogue-publish:
   # Publishes to *this* project's own Maven package registry (project $CI_PROJECT_ID) —
   # not platform-build's shared registry ($MAVEN_REGISTRY_PROJECT_ID convention that
