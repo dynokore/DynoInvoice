@@ -348,7 +348,7 @@ contracts-codegen-compile:
   stage: verify
   image: "$GRADLE_IMAGE"
   variables:
-    PLATFORM_BUILD_REF: "218934eae564ed643a48209d6b40f644402ac7ba" # main: adds gst.contract-server/-client/-event-types (INV-T-2847) + its CVE/signature-verification follow-ups; MR !6 & !7 fix failing modules
+    PLATFORM_BUILD_REF: "3dde4ae8ce1cbb905413124de2ba84e5d59dce42" # main: adds gst.contract-server/-client/-event-types (INV-T-2847) + its CVE/signature-verification follow-ups
   cache:
     key: "gradle-codegen-self-test-$CI_PROJECT_ID"
     paths:
