@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/service-runtime/schemas/job-run-recorded-payload.schema.json",
+  "title": "JobRunRecordedPayload",
+  "description": "Payload of the JobRunRecorded platform event (catalogued in model/architecture/events.yaml, INV-NOTE-3 §19.8, §28.18; class: platform; FR-AH.15). Emitted by a scheduled job's JobRunRecorder (TPL-09). Authored by INV-T-2855 (T11). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "job": {
+      "type": "string",
+      "description": "The scheduled job's own name, e.g. 'scheduled-despatch' (TPL-09)."
+    },
+    "ownerService": {
+      "type": "string",
+      "description": "The service the job runs in."
+    },
+    "entityScope": {
+      "type": "string",
+      "description": "The entity or business unit the run covers, absent when the job is not entity-scoped."
+    },
+    "outcome": {
+      "type": "object",
+      "description": "The run's outcome.",
+      "properties": {
+        "status": {
+          "type": "string",
+          "description": "Whether the run succeeded.",
+          "enum": [
+            "SUCCEEDED",
+            "FAILED"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "description": "Why the run failed, present when status is FAILED."
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "additionalProperties": true
+    },
+    "durationMillis": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Duration of the job run, in milliseconds."
+    }
+  },
+  "required": [
+    "job",
+    "ownerService",
+    "outcome",
+    "durationMillis"
+  ],
+  "additionalProperties": true
+}

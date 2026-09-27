@@ -181,12 +181,24 @@ rules:
         type: camel
 
   # --- API-12: money fields ------------------------------------------------------
+  # Checks OpenAPI (oas3_1), AsyncAPI (aas3) and a standalone event JSON Schema
+  # document alike (json-schema-2020-12, STK-74's own draft) — not OpenAPI only.
+  # An AsyncAPI message's payload is usually an external $ref
+  # (schemas/*.schema.json); `aas3` alone already reaches a money field inside
+  # it once spectral resolves the ref while linting the asyncapi.yaml that
+  # holds it (verified: a fixture money field typed `number` there is
+  # rejected). `json-schema-2020-12` is kept too so the same field is also
+  # caught if a schema file is ever linted on its own (INV-T-2855, T11,
+  # coordinator-authorised scope extension — T10 slipped a `number`-typed
+  # money field past CI this way; see
+  # spectral/self-test-money-rule.sh and money-rule-self-test in
+  # .gitlab-ci.yml for the regression proof).
   inv-api-12-money-format:
     description: API-12 — a money field (name ends Amount/Price/Total) is a decimal-pattern string.
     message: "money field '{{property}}' must be a string with format decimal and a scale pattern (API-12)"
     given: "$..properties[?(@property.match(/(Amount|Price|Total)$/))]"
     severity: error
-    formats: ["oas3_1"]
+    formats: ["oas3_1", "aas3", "json-schema-2020-12"]
     then:
       - field: type
         function: enumeration

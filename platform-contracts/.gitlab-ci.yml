@@ -269,6 +269,37 @@ envelope-rule-self-test:
   script:
     - sh spectral/self-test-message-envelope-rule.sh
 
+money-rule-self-test:
+  # INV-T-2855 (T11), coordinator-authorised scope extension — proves
+  # inv-api-12-money-format itself works against an AsyncAPI document and a
+  # standalone event JSON Schema document, not only an OpenAPI one (the gap
+  # that let T10 slip a JSON-`number`-typed money field past CI, fixed by
+  # hand in 60d98fe), the same way envelope-rule-self-test proves T6's rule
+  # works.
+  stage: verify
+  image:
+    name: "$SPECTRAL_IMAGE"
+    entrypoint: [""]
+  script:
+    - sh spectral/self-test-money-rule.sh
+
+event-log-topics-drift-check:
+  # INV-T-2855 (T11) — "event-log/topics.yaml derived from every
+  # asyncapi.yaml ...; generator check shows no drift": regenerates
+  # topics.yaml in memory from every committed */asyncapi.yaml and fails if
+  # it differs from the committed file (same shape as
+  # lifecycle-states-drift-check, but entirely within this repository — no
+  # sibling checkout needed). Dependency-free (event-log/generate-topics.py
+  # is stdlib-only), so it reuses the already-pinned OASDIFF_IMAGE + python3.
+  stage: verify
+  image:
+    name: "$OASDIFF_IMAGE"
+    entrypoint: [""]
+  before_script:
+    - apk add --no-cache python3
+  script:
+    - python3 event-log/generate-topics.py . --check event-log/topics.yaml
+
 oasdiff-breaking-gate:
   stage: verify
   image:

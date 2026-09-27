@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FixtureMoneyPayload",
+  "description": "Self-test fixture (INV-T-2855, T11) — the same money field, correctly typed per API-12 (decimal string, scale pattern). inv-api-12-money-format must PASS this file.",
+  "type": "object",
+  "properties": {
+    "totalAmount": {
+      "type": "string",
+      "format": "decimal",
+      "pattern": "^-?\\d{1,17}(\\.\\d{1,2})?$"
+    }
+  },
+  "additionalProperties": true
+}

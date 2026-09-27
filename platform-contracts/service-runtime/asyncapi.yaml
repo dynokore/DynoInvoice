@@ -5,7 +5,168 @@ info:
   description: >-
     Not a service: holds the CloudEvents envelope every other directory's
     asyncapi.yaml references (API-40, ./schemas/cloud-event-envelope.schema.json)
-    rather than redeclaring its own copy. Owned by whoever owns the
+    rather than redeclaring its own copy, and the platform event class
+    (FR-AH.15, AD-27, AD-31) — AuditEntryRecorded, JobRunRecorded,
+    PolicyChanged, PackReadinessAcknowledged, ConnectionStatusChanged —
+    whose schema is owned by `service-runtime` alone rather than by any one
+    producer (STK-61, INV-T-2853/T9's "T11 authors the three platform
+    events once under service-runtime/" follow-up, extended here to all
+    five owed by this task; EvidenceArtefactRecorded is evidence-svc's own
+    system of record, INV-ADR-282, and stays out of this task's declared
+    scope). Every platform event's `type` uses the shared
+    `com.dynokore.gst.platform.<EventName>.v1` name (AD-24 convention) so
+    every producer's instances are one consumer subscription; a producer
+    references the message defined here rather than redeclaring its own
+    copy (INV-T-2853's dedup follow-up, !3). Owned by whoever owns the
     `service-runtime` L1 module (STK-60).
-channels: {}
-operations: {}
+  contact:
+    name: service-runtime (see CODEOWNERS)
+  license:
+    name: Proprietary
+servers:
+  production:
+    host: 'event-log.invoice.internal'
+    protocol: kafka
+    description: Placeholder — the platform component event-log (SDS §18.14).
+channels:
+  platformAuditEntryRecorded:
+    address: 'gst.platform.audit-entry-recorded.v1'
+    messages:
+      AuditEntryRecorded:
+        $ref: '#/components/messages/AuditEntryRecorded'
+
+  platformJobRunRecorded:
+    address: 'gst.platform.job-run-recorded.v1'
+    messages:
+      JobRunRecorded:
+        $ref: '#/components/messages/JobRunRecorded'
+
+  platformPolicyChanged:
+    address: 'gst.platform.policy-changed.v1'
+    messages:
+      PolicyChanged:
+        $ref: '#/components/messages/PolicyChanged'
+
+  platformPackReadinessAcknowledged:
+    address: 'gst.platform.pack-readiness-acknowledged.v1'
+    messages:
+      PackReadinessAcknowledged:
+        $ref: '#/components/messages/PackReadinessAcknowledged'
+
+  platformConnectionStatusChanged:
+    address: 'gst.platform.connection-status-changed.v1'
+    messages:
+      ConnectionStatusChanged:
+        $ref: '#/components/messages/ConnectionStatusChanged'
+operations:
+  publishAuditEntryRecorded:
+    action: send
+    description: AuditEntryRecorded — catalogued in model/architecture/events.yaml (§19.8, FR-AH.15).
+    channel:
+      $ref: '#/channels/platformAuditEntryRecorded'
+    messages:
+      - $ref: '#/channels/platformAuditEntryRecorded/messages/AuditEntryRecorded'
+
+  publishJobRunRecorded:
+    action: send
+    description: JobRunRecorded — catalogued in model/architecture/events.yaml (§19.8, FR-AH.15).
+    channel:
+      $ref: '#/channels/platformJobRunRecorded'
+    messages:
+      - $ref: '#/channels/platformJobRunRecorded/messages/JobRunRecorded'
+
+  publishPolicyChanged:
+    action: send
+    description: PolicyChanged — catalogued in model/architecture/events.yaml (§19.8, FR-AH.15).
+    channel:
+      $ref: '#/channels/platformPolicyChanged'
+    messages:
+      - $ref: '#/channels/platformPolicyChanged/messages/PolicyChanged'
+
+  publishPackReadinessAcknowledged:
+    action: send
+    description: PackReadinessAcknowledged — catalogued in model/architecture/events.yaml (§19.8, FR-AH.15).
+    channel:
+      $ref: '#/channels/platformPackReadinessAcknowledged'
+    messages:
+      - $ref: '#/channels/platformPackReadinessAcknowledged/messages/PackReadinessAcknowledged'
+
+  publishConnectionStatusChanged:
+    action: send
+    description: ConnectionStatusChanged — catalogued in model/architecture/events.yaml (§19.8, FR-AH.15).
+    channel:
+      $ref: '#/channels/platformConnectionStatusChanged'
+    messages:
+      - $ref: '#/channels/platformConnectionStatusChanged/messages/ConnectionStatusChanged'
+components:
+  messages:
+    AuditEntryRecorded:
+      name: com.dynokore.gst.platform.AuditEntryRecorded.v1
+      title: AuditEntryRecorded
+      summary: AuditEntryRecorded — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event AuditEntryRecorded (model/architecture/events.yaml, INV-NOTE-3 §19.8, §28.18,
+        INV-REQ-1226; class: platform). Emitted by: every service. Consumed by: evidence-svc. Delivery:
+        At-least-once — platform event (AD-27). Payload (catalogue text): actor, action, scope, reason,
+        prior state. Written through the producing service's own outbox in the same transaction as the
+        change it records (ARC-05, INV-NOTE-3#row:SB-05); evidence-svc is its system of record (INV-ADR-282).
+        Authored by INV-T-2855 (T11).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/audit-entry-recorded-payload.schema.json'
+
+    JobRunRecorded:
+      name: com.dynokore.gst.platform.JobRunRecorded.v1
+      title: JobRunRecorded
+      summary: JobRunRecorded — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event JobRunRecorded (model/architecture/events.yaml, INV-NOTE-3 §19.8, §28.18,
+        INV-REQ-1226; class: platform). Emitted by: every service with scheduled jobs. Consumed by:
+        console-bff, notification-svc. Delivery: At-least-once — platform event (AD-27). Payload (catalogue
+        text): job, owner service, entity scope, outcome, duration. Authored by INV-T-2855 (T11).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/job-run-recorded-payload.schema.json'
+
+    PolicyChanged:
+      name: com.dynokore.gst.platform.PolicyChanged.v1
+      title: PolicyChanged
+      summary: PolicyChanged — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event PolicyChanged (model/architecture/events.yaml, INV-NOTE-3 §19.8, §28.18, §37,
+        INV-REQ-1226; class: platform). Emitted by: every service owning a variation point. Consumed by:
+        none. Delivery: At-least-once — platform event (AD-27, §37); feeds runtime replicas directly
+        rather than through a consumer inbox (feeds_runtime_replicas, INV-NOTE-3 §37). Payload (catalogue
+        text): scope, VP id, value, effective date, source (default, profile or override), relaxation
+        acknowledgement reference. Authored by INV-T-2855 (T11).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/policy-changed-payload.schema.json'
+
+    PackReadinessAcknowledged:
+      name: com.dynokore.gst.platform.PackReadinessAcknowledged.v1
+      title: PackReadinessAcknowledged
+      summary: PackReadinessAcknowledged — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event PackReadinessAcknowledged (model/architecture/events.yaml, INV-NOTE-3 §19.8, §5.5,
+        §28.18, INV-REQ-1226; class: platform). Emitted by: notification-svc, payload-svc,
+        reconciliation-svc, tenancy-svc. Consumed by: rules-svc. Delivery: At-least-once — platform event
+        (AD-27, §5.5). Payload (catalogue text): pack identifier, version, instance, outcome — loaded, or
+        failed with the reason. Authored by INV-T-2855 (T11).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/pack-readiness-acknowledged-payload.schema.json'
+
+    ConnectionStatusChanged:
+      name: com.dynokore.gst.platform.ConnectionStatusChanged.v1
+      title: ConnectionStatusChanged
+      summary: ConnectionStatusChanged — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event ConnectionStatusChanged (model/architecture/events.yaml, INV-NOTE-3 §19.8, §28.18,
+        INV-REQ-1226; class: platform). Emitted by: access-svc, evidence-svc, ingestion-svc, masterdata-svc,
+        notification-svc, rules-svc, tenancy-svc, transport-svc. Consumed by: console-bff, notification-svc.
+        Delivery: At-least-once — platform event (AD-27). Payload (catalogue text): connection, state, last
+        failure. Authored by INV-T-2855 (T11).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/connection-status-changed-payload.schema.json'

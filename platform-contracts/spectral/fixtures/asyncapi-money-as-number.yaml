@@ -1,0 +1,31 @@
+# spectral/fixtures/asyncapi-money-as-number.yaml — INV-T-2855 (T11)
+# Self-test fixture: an AsyncAPI message whose payload (an external $ref,
+# same shape as every real service's asyncapi.yaml) types a money field as a
+# JSON number — exactly the gap T10 slipped past CI through (formats:
+# ["oas3_1"] never checked an AsyncAPI document). inv-api-12-money-format
+# must FAIL this file once it also checks `aas3`.
+asyncapi: 3.1.0
+info:
+  title: fixture events
+  version: 1.0.0
+channels:
+  fixtureMoneyHappened:
+    address: 'gst.fixture.money-happened.v1'
+    messages:
+      MoneyHappened:
+        $ref: '#/components/messages/MoneyHappened'
+operations:
+  publishMoneyHappened:
+    action: send
+    channel:
+      $ref: '#/channels/fixtureMoneyHappened'
+    messages:
+      - $ref: '#/channels/fixtureMoneyHappened/messages/MoneyHappened'
+components:
+  messages:
+    MoneyHappened:
+      name: com.dynokore.gst.fixture.MoneyHappened.v1
+      title: MoneyHappened
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './money-payload-as-number.schema.json'

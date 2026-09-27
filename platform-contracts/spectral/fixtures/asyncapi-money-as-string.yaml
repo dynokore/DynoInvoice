@@ -1,0 +1,27 @@
+# spectral/fixtures/asyncapi-money-as-string.yaml — INV-T-2855 (T11)
+# Self-test fixture: the same message, correctly typed per API-12. Must PASS.
+asyncapi: 3.1.0
+info:
+  title: fixture events
+  version: 1.0.0
+channels:
+  fixtureMoneyHappened:
+    address: 'gst.fixture.money-happened.v1'
+    messages:
+      MoneyHappened:
+        $ref: '#/components/messages/MoneyHappened'
+operations:
+  publishMoneyHappened:
+    action: send
+    channel:
+      $ref: '#/channels/fixtureMoneyHappened'
+    messages:
+      - $ref: '#/channels/fixtureMoneyHappened/messages/MoneyHappened'
+components:
+  messages:
+    MoneyHappened:
+      name: com.dynokore.gst.fixture.MoneyHappened.v1
+      title: MoneyHappened
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './money-payload-as-string.schema.json'

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FixtureMoneyPayload",
+  "description": "Self-test fixture (INV-T-2855, T11) — a money field typed as a JSON number, the exact shape T10 slipped past CI (fixed in 60d98fe) because inv-api-12-money-format only checked oas3_1 documents. inv-api-12-money-format must FAIL this file.",
+  "type": "object",
+  "properties": {
+    "totalAmount": {
+      "type": "number"
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/service-runtime/schemas/pack-readiness-acknowledged-payload.schema.json",
+  "title": "PackReadinessAcknowledgedPayload",
+  "description": "Payload of the PackReadinessAcknowledged platform event (catalogued in model/architecture/events.yaml, INV-NOTE-3 §19.8, §5.5, §28.18; class: platform; FR-AH.15). Authored by INV-T-2855 (T11), moved here from the per-producer copy INV-T-2853 (T9) first added (STK-61: a platform event's schema is owned by service-runtime alone). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "packIdentifier": {
+      "type": "string",
+      "description": "The rule pack identifier being acknowledged."
+    },
+    "version": {
+      "type": "string",
+      "description": "The rule pack version being acknowledged."
+    },
+    "instance": {
+      "type": "string",
+      "description": "The acknowledging service instance (this producer's own instanceid)."
+    },
+    "outcome": {
+      "type": "string",
+      "description": "Whether the pack loaded.",
+      "enum": [
+        "LOADED",
+        "FAILED"
+      ]
+    },
+    "failureReason": {
+      "type": "string",
+      "description": "Why the load failed, present when outcome is FAILED."
+    }
+  },
+  "required": [
+    "packIdentifier",
+    "version",
+    "instance",
+    "outcome"
+  ],
+  "additionalProperties": true
+}

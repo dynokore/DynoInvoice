@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/service-runtime/schemas/audit-entry-recorded-payload.schema.json",
+  "title": "AuditEntryRecordedPayload",
+  "description": "Payload of the AuditEntryRecorded platform event (catalogued in model/architecture/events.yaml, INV-NOTE-3 §19.8, §28.18; class: platform; FR-AH.15). Written in the same transaction as the change it records (ARC-05). Authored by INV-T-2855 (T11). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "actor": {
+      "type": "string",
+      "description": "Who or what made the change — a principal identifier, or a system actor for an automated change."
+    },
+    "action": {
+      "type": "string",
+      "description": "The action recorded, e.g. the use case name (TPL-04's AuditEntry.of call site)."
+    },
+    "scope": {
+      "type": "string",
+      "description": "The entity or resource the action concerns."
+    },
+    "reason": {
+      "type": "string",
+      "description": "Why the action was taken, absent when none was given."
+    },
+    "priorState": {
+      "description": "The state before the change, absent when there is none to record (opaque; interpreted by evidence-svc).",
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "actor",
+    "action",
+    "scope"
+  ],
+  "additionalProperties": true
+}
