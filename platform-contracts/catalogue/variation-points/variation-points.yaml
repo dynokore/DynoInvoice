@@ -1,0 +1,1852 @@
+# Vendored, read-only snapshot of the Keel INV variation-point requirements (STK-61,
+# CS-28), never hand-edited.
+#
+# Unlike catalogue/errors/error-codes.yaml (T7), there is no invoice-docs git file to
+# vendor from here: model/generated/policies.yaml (the design-phase VP register) was
+# archived, not migrated, when invoice-docs' architecture moved to
+# model/architecture/ (invoice-docs commit dcd475a1d6ceb2b19bf53afcdd563da589bb9faf,
+# 2026-09-26) — the owner's own commit message gives the reason: "The generated YAML
+# that duplicated Keel-mastered data is archived too." invoice-docs' model/README.md
+# now says so directly ("Not here: requirements, waves, module ownership, variation
+# points and questions. Keel project INV masters them. Read them from Keel, not from
+# any file"), and STK-61 reads "VariationPoint from the Keel INV variation-point
+# requirements" (not from a YAML path). catalogue/README.md named this exact gap as a
+# follow-up before this task (INV-T-2852 / T8) closed it: "VariationPoint, generated
+# from the Keel INV variation-point requirements, is not built yet."
+#
+# This copy is the generator's (catalogue/generator/) sole input for the gst-catalogue
+# VariationPoint catalogue. To pick up a Keel change, re-run the extraction query
+# below (read-only; the same kdb mechanism CODER-BRIEF documents) and re-vendor this
+# file in its own merge request, naming what changed (AGT-11's pattern, mirrored from
+# error-codes.yaml) — see catalogue/variation-points/README.md for the full procedure
+# and the drift-check tool (not CI-wired yet; named there as a follow-up: unlike
+# invoice-docs, which platform-contracts' CI can already clone with
+# gitlab-ci-token:$CI_JOB_TOKEN, there is no established mechanism yet for a CI job to
+# reach Keel's read-only database).
+#
+# Extracted: 2026-09-27, Keel project INV, 78 rows (VP-01..VP-78), by:
+#   select json_agg(json_build_object(
+#     'k', e.key, 'src', e.source_ids, 'rev', r.id,
+#     'io', r.attrs->'io_contract', 't', r.title, 'beh', r.attrs->>'behavior'))
+#   from entity e join entity_revision r on r.entity_id = e.id
+#     and r.published_in is not null and r.superseded_in is null
+#   where e.project_id = (select id from project where code = 'INV')
+#     and e.type = 'requirement' and e.source_ids::text like '%VP-%'
+#
+# Keel has no single repository-wide commit the way invoice-docs does, so each row
+# below pins to its own published entity_revision id (`revision`), not a shared SHA.
+# `title`/`bounds`/`options`/etc. are each requirement's own `io_contract` attribute
+# (INV-REQ-1239 behaviour #1's class/options/default/bounds/setting-role/scope/owner);
+# `status`/`status_note` split a trailing parenthetical off `io_contract.status` (e.g.
+# VP-01, VP-39: "available (ruling INV-Q-2219; the register row still says planned)");
+# `must_be_elected` is derived from a `default` of "none: must be elected"; two rows
+# (VP-30, VP-45) carry `form_dependence`, the only two INV-REQ-1248 behaviour #2 itself
+# names as its own examples of an option that depends on a form.
+variation_points:
+- id: VP-01
+  requirement: INV-REQ-1262
+  revision: 75a5b5c6-2dad-47c5-af77-6d56885d2252
+  title: "Identities come from the platform or bundled provider by default, or from the customer's OIDC directory, or both, and the break-glass account always remains"
+  class: POLICY
+  class_modifiers: []
+  scope:
+    - "tenant"
+  owner: access-svc
+  set_by:
+    - "tenant.admin"
+  must_be_elected: false
+  default: "Platform identity with MFA (SaaS) or the bundled provider (private)"
+  options:
+    - "Platform identity with MFA (SaaS) or the bundled provider (private)"
+    - "customer OIDC directory"
+    - "both"
+  bounds: "The break-glass account always exists (INV-REQ-896)"
+  status: available
+  status_note: "ruling INV-Q-2219; the register row still says planned"
+  governs:
+    - "INV-REQ-882"
+  form_dependence: null
+- id: VP-02
+  requirement: INV-REQ-1263
+  revision: b2ba8e38-7b1b-4a3c-97b8-3732cfb34c6f
+  title: "Grants are provisioned by hand by default, or from directory groups mapped to grants, or by SCIM, always as role, scope and validity"
+  class: POLICY
+  class_modifiers: []
+  scope:
+    - "tenant"
+  owner: access-svc
+  set_by:
+    - "tenant.admin"
+  must_be_elected: false
+  default: "Granted by hand"
+  options:
+    - "Granted by hand"
+    - "directory groups mapped to grants"
+    - "SCIM"
+  bounds: "Grants remain role × scope × validity (INV-REQ-864)"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-892"
+  form_dependence: null
+- id: VP-03
+  requirement: INV-REQ-1264
+  revision: 3c569d5b-0542-43ce-b7b9-75ec61ae750a
+  title: "A tenant's mapping packs are approved by a distinct tax.approver on staff by default; an external advisor, a non-finance officer or a recorded sole-operator acknowledgement are the alternatives"
+  class: CONTROL
+  class_modifiers: []
+  scope:
+    - "entity"
+  owner: access-svc
+  set_by:
+    - "tenant.admin"
+  must_be_elected: false
+  default: "A distinct tax.approver on staff"
+  options:
+    - "A distinct tax.approver on staff"
+    - "an external advisor granted tax.approver"
+    - "an authorised non-finance officer"
+    - "sole-operator acknowledgement"
+  bounds: "The author never approves silently (INV-REQ-995). The last option is the looser one and needs the INV-REQ-994 acknowledgement"
+  status: available
+  status_note: null
+  governs:
+    - "INV-REQ-860"
+    - "INV-REQ-993"
+    - "INV-REQ-994"
+  form_dependence: null
+- id: VP-04
+  requirement: INV-REQ-1265
+  revision: 49e580e8-9bbd-4f06-95c6-75d22e11f91c
+  title: "Mapping packs for an agent-managed client are approved by a second person at the agent plus client acknowledgement by default, and always by at least two people"
+  class: CONTROL
+  class_modifiers: []
+  scope:
+    - "client entity under an agent consent"
+  owner: access-svc
+  set_by:
+    - "client.signatory"
+  must_be_elected: false
+  default: "A second person at the agent, plus client acknowledgement"
+  options:
+    - "A second person at the agent, plus client acknowledgement"
+    - "a second person at the agent, plus approval by the client's own tax.approver"
+    - "the client's own tax.approver alone"
+  bounds: "At least two people; the client always sees the outcome summary (INV-REQ-997)"
+  status: available
+  status_note: null
+  governs:
+    - "INV-REQ-996"
+  form_dependence: null
+- id: VP-05
+  requirement: INV-REQ-1266
+  revision: 1fa20444-2bd3-43d0-8f7d-ba5359e083c4
+  title: "Grants are reviewed quarterly by default, or monthly, and never less often than quarterly"
+  class: PARAMETER
+  class_modifiers: []
+  scope:
+    - "tenant"
+  owner: access-svc
+  set_by:
+    - "security.officer"
+  must_be_elected: false
+  default: "Quarterly"
+  options:
+    - "Quarterly"
+    - "monthly"
+  bounds: "Never less often than quarterly (INV-REQ-894)"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-894"
+  form_dependence: null
+- id: VP-06
+  requirement: INV-REQ-1267
+  revision: c33ce4e9-9fcd-4c47-9a03-af0b81290db4
+  title: "Grant expiry notices go 14 and 3 days ahead by default, and at least one notice is always 3 or more days ahead"
+  class: PARAMETER
+  class_modifiers: []
+  scope:
+    - "tenant"
+  owner: access-svc
+  set_by:
+    - "tenant.admin"
+  must_be_elected: false
+  default: "14 and 3 days"
+  options:
+    - "14 and 3 days"
+    - "other days chosen by the tenant"
+  bounds: "At least one notice 3 or more days ahead (INV-REQ-893)"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-893"
+  form_dependence: null
+- id: VP-07
+  requirement: INV-REQ-1268
+  revision: a1dc8191-39f7-4f33-a298-d2400cd4b380
+  title: "Operator diagnostic access is approved by security.officer by default, or by tenant.admin with a sole-operator acknowledgement where no security officer exists"
+  class: CONTROL
+  class_modifiers: []
+  scope:
+    - "tenant"
+  owner: access-svc
+  set_by:
+    - "tenant.admin"
+  must_be_elected: false
+  default: "security.officer"
+  options:
+    - "security.officer"
+    - "tenant.admin, with sole-operator acknowledgement where no security officer exists"
+  bounds: "Always time-boxed and audit-logged; content masked unless approved (INV-REQ-862)"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-862"
+    - "INV-REQ-890"
+  form_dependence: null
+- id: VP-08
+  requirement: INV-REQ-1269
+  revision: 5138d464-ea36-42b2-b025-debf27b9192c
+  title: "Break-glass pairs deployment.operator or tenant.admin with tax.approver for 4 hours by default; other named pairs and 1 to 8 hours are possible, and it is always two people"
+  class: CONTROL
+  class_modifiers:
+    - "non_waivable_in_part"
+  scope:
+    - "installation"
+    - "tenant"
+  owner: access-svc
+  set_by:
+    - "security.officer"
+  must_be_elected: false
+  default: "deployment.operator or tenant.admin, plus tax.approver; 4 hours"
+  options:
+    - "deployment.operator or tenant.admin, plus tax.approver; 4 hours"
+    - "other named pairs; 1 to 8 hours"
+  bounds: "Always two people, a restricted action set and ACC-002 (INV-REQ-896, INV-REQ-897)"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-896"
+  form_dependence: null
+- id: VP-09
+  requirement: INV-REQ-1270
+  revision: e8078983-5e33-4d1b-875d-17a54196cfac
+  title: "The second confirmation of an identity triple change is given by another entity.admin or tenant.admin by default, or by a tax.approver, and always by a different person"
+  class: CONTROL
+  class_modifiers:
+    - "non_waivable"
+  scope:
+    - "tenant"
+  owner: masterdata-svc
+  set_by:
+    - "tenant.admin"
+  must_be_elected: false
+  default: "Another entity.admin or tenant.admin"
+  options:
+    - "Another entity.admin or tenant.admin"
+    - "a tax.approver"
+  bounds: "Always two different people (INV-REQ-1007)"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-1007"
+  form_dependence: null
+- id: VP-10
+  requirement: INV-REQ-1271
+  revision: 8272a091-5c6f-4f88-9c68-4d0598f75f69
+  title: "An agent may do nothing for the client by default, or any combination of submitting invoice data, filing the GST return and approving mappings, as the client grants"
+  class: POLICY
+  class_modifiers: []
+  scope:
+    - "client entity under an agent consent"
+  owner: access-svc
+  set_by:
+    - "client.signatory"
+  must_be_elected: false
+  default: "None"
+  options:
+    - "None"
+    - "SUBMIT_INVOICE_DATA"
+    - "FILE_GST_RETURN"
+    - "MAPPING_APPROVAL"
+  bounds: "Checked in the owning service, live (INV-REQ-913)"
+  status: available
+  status_note: null
+  governs:
+    - "INV-REQ-912"
+  form_dependence: null
+- id: VP-11
+  requirement: INV-REQ-1272
+  revision: 9d9f13a1-ded2-4c5d-86d7-c1f3952512f3
+  title: "The filer of record is derived by default — the agent where it files the return, otherwise the client — or is always the client, or either party may record"
+  class: POLICY
+  class_modifiers: []
+  scope:
+    - "client entity under an agent consent"
+  owner: submission-svc
+  set_by:
+    - "client.signatory"
+  must_be_elected: false
+  default: "Derived: the agent where FILE_GST_RETURN is granted, otherwise the client"
+  options:
+    - "Derived: the agent where FILE_GST_RETURN is granted, otherwise the client"
+    - "always the client"
+    - "either party may record"
+  bounds: "Someone is always named; every filing fact carries the IRAS reference (INV-REQ-914)"
+  status: available
+  status_note: null
+  governs:
+    - "INV-REQ-915"
+  form_dependence: null
+- id: VP-12
+  requirement: INV-REQ-1273
+  revision: 9e357e81-bd7a-4da1-937d-c93b7a440bdb
+  title: "The client hears of a filing fact recorded by the agent by immediate notice by default, or by a notice it must acknowledge, or by daily digest, and the notice never delays the effect"
+  class: POLICY
+  class_modifiers: []
+  scope:
+    - "client entity under an agent consent"
+  owner: notification-svc
+  set_by:
+    - "client.signatory"
+  must_be_elected: false
+  default: "Immediate notice"
+  options:
+    - "Immediate notice"
+    - "notice the client must acknowledge (the effect is not delayed)"
+    - "daily digest"
+  bounds: "The client is always informed; the notice never delays the effect (INV-REQ-998)"
+  status: available
+  status_note: null
+  governs:
+    - "INV-REQ-916"
+  form_dependence: null
+- id: VP-13
+  requirement: INV-REQ-1274
+  revision: 31deeaa2-1930-4f2e-baf7-8889face1248
+  title: "When two filing facts disagree, the earlier date governs until corrected by default; using the filer of record's date is looser and needs the client signatory's acknowledgement"
+  class: CONTROL
+  class_modifiers: []
+  scope:
+    - "client entity under an agent consent"
+  owner: submission-svc
+  set_by:
+    - "client.signatory"
+  must_be_elected: false
+  default: "The earlier date, until corrected"
+  options:
+    - "The earlier date, until corrected"
+    - "the filer of record's date"
+  bounds: "PER-010 is always raised. The second option is the looser one and needs acknowledgement by the client's client.signatory"
+  status: available
+  status_note: null
+  governs:
+    - "INV-REQ-917"
+  form_dependence: null
+- id: VP-14
+  requirement: INV-REQ-1275
+  revision: cc4b2351-61e0-4d73-bd86-c28bca58453d
+  title: "The readiness verdict is advisory by default; the blocking option makes the filing workflow refuse to proceed without ready or a recorded override"
+  class: POLICY
+  class_modifiers: []
+  scope:
+    - "entity"
+  owner: submission-svc
+  set_by:
+    - "tax.approver"
+  must_be_elected: false
+  default: "Advisory: the verdict is shown, filing is not stopped"
+  options:
+    - "Advisory: the verdict is shown, filing is not stopped"
+    - "blocking: the filing workflow refuses to proceed without ready or a recorded override"
+  bounds: "The readiness check always drains (INV-REQ-554). Blocking needs the filing-workflow principal"
+  status: available
+  status_note: null
+  governs:
+    - "INV-REQ-72"
+  form_dependence: null
+- id: VP-15
+  requirement: INV-REQ-1276
+  revision: 71ab31bb-01bf-4417-938b-4dc2b8be4f24
+  title: "A period is not ready on BLOCK-severity items by default, and a tax.approver may add named WARN codes but never make a BLOCK item non-blocking"
+  class: CONTROL
+  class_modifiers:
+    - "tighten_only"
+  scope:
+    - "entity"
+  owner: submission-svc
+  set_by:
+    - "tax.approver"
+  must_be_elected: false
+  default: "BLOCK-severity items only"
+  options:
+    - "BLOCK-severity items only"
+    - "also named WARN codes, for example SUB-005 or PER-003"
+  bounds: "No BLOCK item can be made non-blocking except by a per-document override (INV-REQ-1180)"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-944"
+  form_dependence: null
+- id: VP-16
+  requirement: INV-REQ-1277
+  revision: fb80329d-9e53-48f0-92d7-d211e5d7e9a2
+  title: "The filer of record is prompted to record the filing fact when the verdict first becomes ready and 3 days before the due date by default; prompts cannot be disabled and the last is at least 1 day before"
+  class: PARAMETER
+  class_modifiers: []
+  scope:
+    - "entity"
+  owner: notification-svc
+  set_by:
+    - "tax.approver"
+  must_be_elected: false
+  default: "When the verdict first becomes ready, and 3 days before the statutory due date"
+  options:
+    - "When the verdict first becomes ready, and 3 days before the statutory due date"
+    - "other days chosen by the tenant"
+  bounds: "Cannot be disabled; the last prompt is at least 1 day before the due date (INV-REQ-918)"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-918"
+  form_dependence: null
+- id: VP-17
+  requirement: INV-REQ-1278
+  revision: 4546b82b-5beb-4146-a5bf-7c14d1cfb9a1
+  title: "Deadline alert thresholds default to the calendar pack per filing frequency and can only be made earlier, per entity"
+  class: PARAMETER
+  class_modifiers:
+    - "tighten_only"
+  scope:
+    - "entity"
+  owner: notification-svc
+  set_by:
+    - "tenant.admin"
+  must_be_elected: false
+  default: "Calendar-pack defaults per filing frequency"
+  options:
+    - "Calendar-pack defaults per filing frequency"
+    - "earlier thresholds"
+  bounds: "Cannot be disabled or loosened beyond the floor (INV-REQ-1114, INV-REQ-1117). Ships in Wave 2 with the deadline class (INV-NOTE-3 §25.1)"
+  status: available
+  status_note: null
+  governs:
+    - "INV-REQ-1117"
+  form_dependence: null
+- id: VP-18
+  requirement: INV-REQ-1279
+  revision: 441c1073-cd06-47de-88ba-86114d0e0182
+  title: "The safety margin before a due date is the calendar-pack default, or larger, and the latest despatch never falls after the due date minus the margin"
+  class: PARAMETER
+  class_modifiers:
+    - "tighten_only"
+  scope:
+    - "entity"
+  owner: submission-svc
+  set_by:
+    - "tax.approver"
+  must_be_elected: false
+  default: "Calendar-pack default"
+  options:
+    - "Calendar-pack default"
+    - "a larger margin"
+  bounds: "T2 never falls later than due date minus the margin (INV-NOTE-3 §33.2)"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-572"
+  form_dependence: null
+- id: VP-19
+  requirement: INV-REQ-1280
+  revision: e627375a-ab6b-46e4-b899-49e925c923e6
+  title: "The exception queue enters deadline mode 3 days before the due date by default, or 1 to 10 days before"
+  class: PARAMETER
+  class_modifiers: []
+  scope:
+    - "entity"
+  owner: console-bff
+  set_by:
+    - "tax.approver"
+  must_be_elected: false
+  default: "3 days before the due date"
+  options:
+    - "3 days before the due date"
+    - "1 to 10 days"
+  bounds: "—"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-1019"
+  form_dependence: null
+- id: VP-20
+  requirement: INV-REQ-1281
+  revision: e1e96441-c36b-4b8a-a526-596068b945a5
+  title: "Type 2 and 3 documents are despatched continuously by default, or in a daily or weekly window, always before the due date minus the safety margin"
+  class: POLICY
+  class_modifiers: []
+  scope:
+    - "entity"
+  owner: submission-svc
+  set_by:
+    - "tax.approver"
+  must_be_elected: false
+  default: "Continuously, as each becomes ready"
+  options:
+    - "Continuously, as each becomes ready"
+    - "a daily batch window"
+    - "a weekly batch window"
+  bounds: "Every document goes before due date minus the safety margin. A weekly window is refused where the extraction interval plus despatch interval exceeds the shortest gap between period end and filing due date for the entity's filing frequency, minus the safety margin (INV-REQ-1279) (INV-REQ-73, INV-REQ-1296)"
+  status: available
+  status_note: null
+  governs:
+    - "INV-REQ-73"
+  form_dependence: null
+- id: VP-21
+  requirement: INV-REQ-1282
+  revision: 81b8b6f8-51b6-4607-a3db-c557fc636dfd
+  title: "Voluntary over-submission is off by default; when on, OS lines transmit and DS lines never do"
+  class: POLICY
+  class_modifiers: []
+  scope:
+    - "entity"
+  owner: tenancy-svc
+  set_by:
+    - "entity.admin"
+  must_be_elected: false
+  default: "Off"
+  options:
+    - "Off"
+    - "on"
+  bounds: "When on, OS lines transmit and DS lines never do (SRS INV-REQ-494, INV-AC-523, INV-AC-396); SRRC stays suppressed until INV-NOTE-4#row:Q-13 is answered (INV-NOTE-3#row:DD-4). Corrected 25 Sep 2026"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-375"
+  form_dependence: null
+- id: VP-22
+  requirement: INV-REQ-1283
+  revision: ca01a0d6-8a34-44b8-91eb-3c614de25f89
+  title: "Every entity elects its purchase transaction date basis — invoice date or posting date — before go-live, and applies it consistently"
+  class: POLICY
+  class_modifiers: []
+  scope:
+    - "entity"
+  owner: tenancy-svc
+  set_by:
+    - "entity.admin"
+  must_be_elected: true
+  default: null
+  options:
+    - "Invoice date"
+    - "posting date"
+  bounds: "Posting date only where input tax is claimed on that basis; applied consistently (INV-REQ-67, INV-REQ-422)"
+  status: available
+  status_note: null
+  governs:
+    - "INV-REQ-67"
+    - "INV-REQ-422"
+  form_dependence: null
+- id: VP-23
+  requirement: INV-REQ-1284
+  revision: 88418f8b-1ab2-47ea-8421-3518e04bcae0
+  title: "Every entity that records purchases elects its apportionment submission mode — claimable portion or entire invoice — before go-live"
+  class: POLICY
+  class_modifiers: []
+  scope:
+    - "entity"
+  owner: tenancy-svc
+  set_by:
+    - "entity.admin"
+  must_be_elected: true
+  default: null
+  options:
+    - "Claimable portion only"
+    - "entire invoice"
+  bounds: "A go-live gate item; a purchase recorded before the election holds with PER-012 (INV-REQ-987). A change needs approval and an audit record (INV-REQ-370, INV-REQ-422). Corrected 25 Sep 2026: previously \"where partially exempt\", narrower than INV-NOTE-2 §6.5"
+  status: available
+  status_note: null
+  governs:
+    - "INV-REQ-370"
+    - "INV-REQ-422"
+  form_dependence: null
+- id: VP-24
+  requirement: INV-REQ-1285
+  revision: 780273cb-80bc-4358-8180-0ff8eff780e2
+  title: "An entity with foreign-currency documents elects an exchange rate source and basis from the scope pack's approved list before go-live"
+  class: POLICY
+  class_modifiers: []
+  scope:
+    - "entity"
+  owner: tenancy-svc
+  set_by:
+    - "entity.admin"
+  must_be_elected: true
+  default: null
+  options:
+    - "Any source and basis on the scope pack's approved list"
+  bounds: "Only approved sources; a change needs tax.approver (INV-REQ-469). A go-live gate item for an entity with foreign-currency documents; such a document recorded before the election holds with PAY-016 (INV-REQ-987; decided 25 Sep 2026)"
+  status: available
+  status_note: null
+  governs:
+    - "INV-REQ-469"
+  form_dependence: null
+- id: VP-25
+  requirement: INV-REQ-1286
+  revision: 08debed7-f541-42c3-bacc-0dc1dd634119
+  title: "Every entity elects its Type 1A issuance mode — Relay, Observe or None — with a second confirmation, before go-live"
+  class: POLICY
+  class_modifiers: []
+  scope:
+    - "entity"
+  owner: tenancy-svc
+  set_by:
+    - "entity.admin"
+  must_be_elected: true
+  default: null
+  options:
+    - "Relay"
+    - "Observe"
+    - "None"
+  bounds: "Second confirmation (INV-REQ-323). A go-live gate item (INV-REQ-987; decided 25 Sep 2026)"
+  status: available
+  status_note: null
+  governs:
+    - "INV-REQ-323"
+  form_dependence: null
+- id: VP-26
+  requirement: INV-REQ-1287
+  revision: 8c3aba81-0a26-4caa-9760-34b9a9cdd67b
+  title: "The pre-issuance check is advisory by default, or blocking inside the ERP, or off; validation on ingestion always applies"
+  class: POLICY
+  class_modifiers: []
+  scope:
+    - "entity"
+  owner: ingestion-svc
+  set_by:
+    - "integration.engineer"
+  must_be_elected: false
+  default: "Advisory"
+  options:
+    - "Advisory"
+    - "blocking inside the ERP"
+    - "off"
+  bounds: "Validation on ingestion always applies"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-NOTE-3 §33.1"
+  form_dependence: null
+- id: VP-27
+  requirement: INV-REQ-1288
+  revision: e20f8819-2e3f-4b52-afc1-034a6ba86514
+  title: "Retired: who renders the customer's invoice document is no longer a variation point; the System keeps no rendition templates"
+  class: POLICY
+  class_modifiers: []
+  scope:
+    - "entity"
+  owner: tenancy-svc
+  set_by:
+    - "entity.admin"
+  must_be_elected: false
+  default: "The invoicing system, under contract"
+  options:
+    - "The invoicing system, under contract"
+    - "templates owned in the System"
+  bounds: "Required wording is always checked (INV-REQ-813)"
+  status: retired
+  status_note: null
+  governs:
+    - "INV-REQ-813"
+  form_dependence: null
+- id: VP-28
+  requirement: INV-REQ-1289
+  revision: 67f79921-1db4-4d3c-b145-253cc1b3bc06
+  title: "A GST group transmits per member entity by default, or consolidated under the group, a change taking effect from the next prescribed period"
+  class: POLICY
+  class_modifiers: []
+  scope:
+    - "group"
+  owner: tenancy-svc
+  set_by:
+    - "tenant.admin"
+  must_be_elected: false
+  default: "Per member entity"
+  options:
+    - "Per member entity"
+    - "consolidated under the group"
+  bounds: "The group is modelled at both levels (INV-REQ-652). A change of mode takes effect from the next prescribed period. The Sender ID is the representative member's Peppol ID when consolidated, and each member's own otherwise (SRS INV-REQ-312; decided 25 Sep 2026); a document takes the mode of its prescribed period."
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-652"
+    - "INV-REQ-312"
+  form_dependence: null
+- id: VP-29
+  requirement: INV-REQ-1290
+  revision: 4bf68150-8af0-4e23-8613-39a062cd43e1
+  title: "The GST register lookup for counterparties suggests and the operator confirms by default, or applies with provenance, or is off; the lookup is always evidence"
+  class: POLICY
+  class_modifiers: []
+  scope:
+    - "entity"
+  owner: masterdata-svc
+  set_by:
+    - "tax.approver"
+  must_be_elected: false
+  default: "Suggest, then the operator confirms"
+  options:
+    - "Suggest, then the operator confirms"
+    - "apply automatically, with provenance"
+    - "off, manual only"
+  bounds: "The lookup is always recorded as evidence (INV-REQ-802); an MDM-007 conflict is never overwritten automatically"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-802"
+  form_dependence: null
+- id: VP-30
+  requirement: INV-REQ-1291
+  revision: a842fe23-0f5c-4315-9dfc-251774d74854
+  title: "Counterparties are asked for their details by signed request link by default, by CSV exchange only, by both, or not at all"
+  class: POLICY
+  class_modifiers: []
+  scope:
+    - "tenant"
+  owner: masterdata-svc
+  set_by:
+    - "tax.operator"
+  must_be_elected: false
+  default: "Signed request link"
+  options:
+    - "Signed request link"
+    - "CSV exchange only"
+    - "both"
+    - "off"
+  bounds: "Link pages need a public endpoint in private form (INV-REQ-903)"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-901"
+  form_dependence: "The \"signed request link\" and \"both\" options need a public endpoint that a private installation may not expose (bounds: \"Link pages need a public endpoint in private form (INV-REQ-903)\"); a private installation without that endpoint exposed is limited to \"CSV exchange only\" or \"off\" (INV-REQ-1291, cited by INV-REQ-1248 behaviour #2 as its own example)."
+- id: VP-31
+  requirement: INV-REQ-1292
+  revision: c64e3fa1-31a4-477f-ab77-3873732351de
+  title: "A monetary change to a transmitted document asks the approver each time by default; while INV-NOTE-4#row:Q-15 is open only the credit note route is available"
+  class: POLICY
+  class_modifiers: []
+  scope:
+    - "entity"
+  owner: submission-svc
+  set_by:
+    - "tax.approver"
+  must_be_elected: false
+  default: "Ask the approver each time"
+  options:
+    - "Ask the approver each time"
+    - "always a credit note"
+    - "keying-error correction allowed within a stated number of days, with approver"
+  bounds: "Outcomes the taxonomy forbids cannot be chosen (INV-NOTE-3 §33.3); the third option is provisional pending INV-NOTE-4#row:Q-15"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-567"
+  form_dependence: null
+- id: VP-32
+  requirement: INV-REQ-1293
+  revision: eb5344ec-45ef-4229-bb98-b6c79bebe4b4
+  title: "An override is approved by one tax.approver by default, or also by a second approver above an amount or always; overridable codes only"
+  class: CONTROL
+  class_modifiers:
+    - "tighten_only"
+  scope:
+    - "entity"
+  owner: access-svc
+  set_by:
+    - "tenant.admin"
+  must_be_elected: false
+  default: "One tax.approver"
+  options:
+    - "One tax.approver"
+    - "a second approver above a stated amount"
+    - "a second approver always"
+  bounds: "OVERRIDABLE codes only, per document and version (INV-REQ-1180)"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-500"
+    - "INV-REQ-1180"
+  form_dependence: null
+- id: VP-33
+  requirement: INV-REQ-1294
+  revision: 93888a6c-944a-45a8-9472-1889a815f146
+  title: "Each exception group is owned by the default owner of its code by default, or routed to named teams by entity, code or counterparty"
+  class: POLICY
+  class_modifiers: []
+  scope:
+    - "entity"
+  owner: notification-svc
+  set_by:
+    - "tenant.admin"
+  must_be_elected: false
+  default: "The default owner of the code in INV-NOTE-3 §21.2"
+  options:
+    - "The default owner of the code in INV-NOTE-3 §21.2"
+    - "routing rules by entity, code or counterparty to named teams"
+  bounds: "Every group has an owner (INV-REQ-1184)"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-1184"
+  form_dependence: null
+- id: VP-34
+  requirement: INV-REQ-1295
+  revision: 9a6c85e0-2cd3-4332-b36b-4f4f7155e16e
+  title: "Ingestion looks back 7 days by default, or 1 to 60 days, per feed"
+  class: PARAMETER
+  class_modifiers: []
+  scope:
+    - "feed"
+  owner: ingestion-svc
+  set_by:
+    - "integration.engineer"
+  must_be_elected: false
+  default: "7 days"
+  options:
+    - "7 days"
+    - "1 to 60 days"
+  bounds: "—"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-790"
+  form_dependence: null
+- id: VP-35
+  requirement: INV-REQ-1296
+  revision: d6e40236-206b-4230-8769-5e8305363828
+  title: "Scheduled extraction runs daily by default, or several times a day, or weekly where the deadline gap can absorb it"
+  class: PARAMETER
+  class_modifiers: []
+  scope:
+    - "feed"
+  owner: ingestion-svc
+  set_by:
+    - "integration.engineer"
+  must_be_elected: false
+  default: "Daily"
+  options:
+    - "Daily"
+    - "several times a day"
+    - "weekly"
+  bounds: "Weekly is refused where the extraction interval plus despatch interval exceeds the shortest gap between period end and filing due date for the entity's filing frequency, minus the safety margin (INV-REQ-1279). The margin is the only buffer; the two latencies add (INV-REQ-73, INV-REQ-1281)"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-73"
+  form_dependence: null
+- id: VP-36
+  requirement: INV-REQ-1297
+  revision: b404c7e0-73a3-4466-99c5-9e6ff7ac1c18
+  title: "The line-to-total tolerance is a per-currency default, or a tenant value within the ceiling, and a difference only warns"
+  class: PARAMETER
+  class_modifiers: []
+  scope:
+    - "entity"
+  owner: payload-svc
+  set_by:
+    - "tax.approver"
+  must_be_elected: false
+  default: "Per-currency default"
+  options:
+    - "Per-currency default"
+    - "a tenant value within the ceiling"
+  bounds: "Warning only (PAY-004)"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-810"
+  form_dependence: null
+- id: VP-37
+  requirement: INV-REQ-1298
+  revision: 8bc5c764-c56a-45d5-ab20-808d401ec632
+  title: "The exchange rate tolerance is the scope-pack default, or tighter, with PAY-006 outside it"
+  class: PARAMETER
+  class_modifiers:
+    - "tighten_only"
+  scope:
+    - "entity"
+  owner: payload-svc
+  set_by:
+    - "tax.approver"
+  must_be_elected: false
+  default: "Scope-pack default"
+  options:
+    - "Scope-pack default"
+    - "a tighter value"
+  bounds: "PAY-006 outside it (INV-REQ-510)"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-510"
+  form_dependence: null
+- id: VP-38
+  requirement: INV-REQ-1299
+  revision: be885d37-4e9f-4e9b-a2b9-4212d41e3a1c
+  title: "Peppol directory lookups are cached 24 hours positive and 1 hour negative by default, or shorter"
+  class: PARAMETER
+  class_modifiers:
+    - "tighten_only"
+  scope:
+    - "tenant"
+  owner: masterdata-svc
+  set_by:
+    - "integration.engineer"
+  must_be_elected: false
+  default: "24 hours positive, 1 hour negative, for the Peppol directory"
+  options:
+    - "24 hours positive, 1 hour negative, for the Peppol directory"
+    - "shorter"
+  bounds: "Directory outage degrades to off-network (INV-REQ-801); narrowed to the Peppol directory by ruling INV-Q-2347 (the register row still covers both caches)"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-319"
+  form_dependence: null
+- id: VP-39
+  requirement: INV-REQ-1300
+  revision: 5e04b55a-44ff-49bc-94d2-43eccc87b011
+  title: "A regulatory pack is reviewed in the grace window and then activated by default, or activated at its effective date with notice only"
+  class: POLICY
+  class_modifiers: []
+  scope:
+    - "tenant"
+  owner: rules-svc
+  set_by:
+    - "tax.approver"
+  must_be_elected: false
+  default: "Review in the grace window, then activate"
+  options:
+    - "Review in the grace window, then activate"
+    - "activate at the effective date with notice only"
+  bounds: "Never later than the platform maximum (INV-REQ-858); an unreviewed activation is recorded (INV-REQ-952). Private form: arming by tax.approver is fixed (INV-REQ-990)"
+  status: available
+  status_note: "ruling INV-Q-2219; the register row still says planned"
+  governs:
+    - "INV-REQ-858"
+  form_dependence: null
+- id: VP-40
+  requirement: INV-REQ-1301
+  revision: 8274abe6-bc2d-4950-bdcb-8917a98d64f6
+  title: "The reconciliation work-paper is attested by a preparer and a separate approver by default; one attestation with a sole-operator acknowledgement is the looser option"
+  class: CONTROL
+  class_modifiers: []
+  scope:
+    - "entity"
+  owner: reconciliation-svc
+  set_by:
+    - "tax.approver"
+  must_be_elected: false
+  default: "Preparer and a separate approver"
+  options:
+    - "Preparer and a separate approver"
+    - "one attestation, with sole-operator acknowledgement"
+  bounds: "The acknowledgement is printed on the work-paper (INV-REQ-994)"
+  status: available
+  status_note: null
+  governs:
+    - "INV-REQ-947"
+  form_dependence: null
+- id: VP-41
+  requirement: INV-REQ-1302
+  revision: 5e86d40e-ed51-4a06-bf3b-f91e383a7e7b
+  title: "The reconciliation variance tolerance is a default per Box, or tenant values within the ceiling; a variance outside the taxonomy is always unexplained"
+  class: PARAMETER
+  class_modifiers: []
+  scope:
+    - "entity"
+  owner: reconciliation-svc
+  set_by:
+    - "tax.approver"
+  must_be_elected: false
+  default: "Default per Box"
+  options:
+    - "Default per Box"
+    - "tenant values within the ceiling"
+  bounds: "A variance outside the taxonomy is always unexplained (INV-REQ-633)"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-633"
+  form_dependence: null
+- id: VP-42
+  requirement: INV-REQ-1303
+  revision: 1a26fa06-fe2b-40ea-8101-d9465f8babbe
+  title: "A mapping dry run samples the last complete period by default, or the last 2 to 4 periods, never less than one complete period"
+  class: PARAMETER
+  class_modifiers: []
+  scope:
+    - "entity"
+  owner: rules-svc
+  set_by:
+    - "tax.approver"
+  must_be_elected: false
+  default: "The last complete period"
+  options:
+    - "The last complete period"
+    - "the last 2 to 4 periods"
+  bounds: "At least one complete period (INV-REQ-772)"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-772"
+  form_dependence: null
+- id: VP-43
+  requirement: INV-REQ-1304
+  revision: f9a03830-07f5-465a-8e07-a4de52301334
+  title: "Evidence is retained 5 years by default, or longer with a recorded justification, and never shorter"
+  class: PARAMETER
+  class_modifiers: []
+  scope:
+    - "tenant"
+    - "entity"
+  owner: evidence-svc
+  set_by:
+    - "tenant.admin"
+  must_be_elected: false
+  default: "5 years"
+  options:
+    - "5 years"
+    - "longer, with a recorded justification"
+  bounds: "Never shorter than 5 years (INV-REQ-1378, INV-REQ-887)"
+  status: available
+  status_note: null
+  governs:
+    - "INV-REQ-638"
+  form_dependence: null
+- id: VP-44
+  requirement: INV-REQ-1305
+  revision: 574f5fe8-0487-4c31-9363-7aabb388f23d
+  title: "Anonymised production samples in workspaces are off by default; turning them on is looser and every copy then needs security.officer approval"
+  class: CONTROL
+  class_modifiers: []
+  scope:
+    - "tenant"
+  owner: tenancy-svc
+  set_by:
+    - "security.officer"
+  must_be_elected: false
+  default: "Off"
+  options:
+    - "Off"
+    - "on, each copy approved by security.officer"
+  bounds: "Anonymisation always applies (INV-REQ-1130)"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-1130"
+  form_dependence: null
+- id: VP-45
+  requirement: INV-REQ-1306
+  revision: 063ab7b6-cebc-4820-84f2-05ccddc17b53
+  title: "Every SaaS tenant elects its data region at provisioning, fixed afterwards except through migration"
+  class: POLICY
+  class_modifiers: []
+  scope:
+    - "tenant"
+  owner: control-plane-svc
+  set_by:
+    - "commercial.admin"
+  must_be_elected: true
+  default: null
+  options:
+    - "Any region on the platform's list"
+  bounds: "Fixed after provisioning, except through migration (INV-NOTE-6#row:UC-35)"
+  status: available
+  status_note: null
+  governs:
+    - "INV-NOTE-3 §18.7"
+  form_dependence: "SaaS only: the VP's own title and behaviour frame this as \"every SaaS tenant elects its data region\" (io_contract.owner control-plane-svc, scope tenant) — a private installation's data region is fixed by where the customer deploys it, not elected through this variation point (INV-REQ-1306, cited by INV-REQ-1248 behaviour #2 as its own example)."
+- id: VP-46
+  requirement: INV-REQ-1307
+  revision: 6afb20e8-7807-4490-afa4-c75b4c613193
+  title: "Alerts go by email to the default roles by default, and may add webhook or chat channels or named people, always to at least two recipients or with a sole-operator acknowledgement"
+  class: POLICY
+  class_modifiers: []
+  scope:
+    - "entity"
+  owner: notification-svc
+  set_by:
+    - "tenant.admin"
+  must_be_elected: false
+  default: "Email to default roles (INV-NOTE-3 §34.14)"
+  options:
+    - "Email to default roles (INV-NOTE-3 §34.14)"
+    - "adds webhook or chat"
+    - "named people"
+  bounds: "At least two recipients, or a sole-operator acknowledgement (INV-REQ-1115)"
+  status: available
+  status_note: null
+  governs:
+    - "INV-REQ-1113"
+  form_dependence: null
+- id: VP-47
+  requirement: INV-REQ-1308
+  revision: e938cf88-c4ab-4b51-8c94-76f5673a6cf8
+  title: "Customer webhooks are off by default, or subscriptions by event type, with no invoice content in a body"
+  class: POLICY
+  class_modifiers: []
+  scope:
+    - "tenant"
+  owner: notification-svc
+  set_by:
+    - "integration.engineer"
+  must_be_elected: false
+  default: "None"
+  options:
+    - "None"
+    - "subscriptions by event type"
+  bounds: "No invoice content in a body (INV-NOTE-3 §35.6)"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-NOTE-3 §35.6"
+  form_dependence: null
+- id: VP-48
+  requirement: INV-REQ-1309
+  revision: 320b1dcf-4f67-410b-8e38-d9598f4c8e5e
+  title: "Acknowledgement thresholds and the retry boundary of an AP connection come from the AP's documented service level by default, or tenant values within bounds"
+  class: PARAMETER
+  class_modifiers: []
+  scope:
+    - "Access Point connection"
+  owner: submission-svc
+  set_by:
+    - "integration.engineer"
+  must_be_elected: false
+  default: "Values from the AP's documented service level, captured at connection set-up"
+  options:
+    - "Values from the AP's documented service level, captured at connection set-up"
+    - "tenant values within bounds"
+  bounds: "T2 never later than due date minus the safety margin (INV-REQ-572). Retries stop where the AP's own failure handling takes over (INV-REQ-565)"
+  status: available
+  status_note: null
+  governs:
+    - "INV-REQ-798"
+    - "INV-REQ-565"
+    - "INV-REQ-329"
+  form_dependence: null
+- id: VP-49
+  requirement: INV-REQ-1310
+  revision: bad744e5-2876-4ab3-9753-f497f0a51c9d
+  title: "An AP connection used in Observe mode must elect how acknowledgements arrive: AP callback, polling, or import of the AP's or IRSP's report"
+  class: POLICY
+  class_modifiers: []
+  scope:
+    - "Access Point connection"
+  owner: transport-svc
+  set_by:
+    - "integration.engineer"
+  must_be_elected: true
+  default: null
+  options:
+    - "AP callback"
+    - "polling"
+    - "import of the AP's or IRSP's report"
+  bounds: "Where the AP offers none of these, INV-REQ-1286 cannot be set to Observe for entities on that connection. SUB-014 applies whichever is chosen (INV-REQ-329)"
+  status: available
+  status_note: null
+  governs:
+    - "INV-REQ-503"
+    - "INV-REQ-329"
+  form_dependence: null
+- id: VP-50
+  requirement: INV-REQ-1311
+  revision: 2d274841-c2d8-4ea2-89fb-426e77e033a8
+  title: "The System performs the wrongful GST charge check on every path by default; relying on the AP's documented check is looser and needs its record and tax.approver acknowledgement"
+  class: CONTROL
+  class_modifiers: []
+  scope:
+    - "Access Point connection"
+    - "entity"
+  owner: payload-svc
+  set_by:
+    - "tax.approver"
+  must_be_elected: false
+  default: "The System, on every path"
+  options:
+    - "The System, on every path"
+    - "the AP's documented check, with the System's check reduced to a warning"
+  bounds: "The looser option needs the AP's check recorded at connection set-up and a tax.approver acknowledgement. Relay-mode issuance always keeps the System's check (INV-REQ-476)"
+  status: available
+  status_note: null
+  governs:
+    - "INV-REQ-475"
+    - "INV-REQ-476"
+  form_dependence: null
+- id: VP-51
+  requirement: INV-REQ-1312
+  revision: cff2fb91-1832-44c2-94f1-7231e0fd83d5
+  title: "The implementation date is the mandatory date by default, or an earlier voluntary date, or the date IRAS communicates for a GST group, never later than mandatory"
+  class: POLICY
+  class_modifiers: []
+  scope:
+    - "entity"
+    - "group"
+  owner: tenancy-svc
+  set_by:
+    - "entity.admin"
+  must_be_elected: false
+  default: "The mandatory date from the phase assessment"
+  options:
+    - "The mandatory date from the phase assessment"
+    - "an earlier voluntary activation date"
+    - "the date IRAS communicates for a GST group or division, with its reference"
+  bounds: "Never later than the mandatory date. A GST group with no communicated date stays pre-obligation, and onboarding shows the date as outstanding. The obligation start is the later of registration and implementation (INV-REQ-335)"
+  status: available
+  status_note: null
+  governs:
+    - "INV-REQ-378"
+    - "INV-REQ-717"
+    - "INV-REQ-335"
+  form_dependence: null
+- id: VP-52
+  requirement: INV-REQ-1313
+  revision: 6af80d6c-321d-4c5d-9c23-bae24ffea7cc
+  title: "A private installation elects its platform at qualification: customer Kubernetes, the only option while the supplied appliance is deferred until demand is shown"
+  class: POLICY
+  class_modifiers: []
+  scope:
+    - "installation"
+  owner: tenancy-svc
+  set_by:
+    - "deployment.operator"
+  must_be_elected: true
+  default: null
+  options:
+    - "Customer Kubernetes platform"
+  bounds: "Private form only, and it is one of the two prerequisites of INV-REQ-1118. A customer meeting neither is directed to SaaS. Deferred candidate, not an option: supplied appliance with a named operations owner, until demand is shown (INV-NOTE-3 §25.1); inferred with FR-AI.13."
+  status: available
+  status_note: null
+  governs:
+    - "INV-REQ-1118"
+  form_dependence: null
+- id: VP-53
+  requirement: INV-REQ-1314
+  revision: a0cdd8fa-c3a9-4cea-b89d-4e2d8c834ea9
+  title: "An entity records every GST scheme it applies; pending the scheme question only four flows block with RUL-004 — ACMT recipient accounting, ACMT overseas-client purchases, AMCS self-accounting and Cash Accounting purchases — and missing or contradicted counterparty scheme data blocks with RUL-011"
+  class: POLICY
+  class_modifiers: []
+  scope:
+    - "entity"
+  owner: tenancy-svc
+  set_by:
+    - "entity.admin"
+  must_be_elected: false
+  default: "None"
+  options:
+    - "None"
+    - "Self-billing"
+    - "Customer accounting"
+    - "Gross Margin Scheme"
+    - "Discounted Sale Price"
+    - "Approved Marine Fuel Trader"
+    - "ACMT"
+    - "A3PL"
+    - "AISS"
+    - "AMCS"
+    - "ARCS"
+    - "SWS"
+    - "MES"
+    - "IGDS"
+    - "Cash Accounting"
+  bounds: "Every scheme has a scenario handler (INV-NOTE-3 §6.6). Amended 25 Sep 2026 (GST scheme rules, INV-NOTE-2 §14.15 to §14.22): MES, IGDS, AISS, SWS, A3PL, AMCS and ARCS no longer block with RUL-004. Blocked with RUL-004 (BLOCK, MANUAL, INV-NOTE-3 §21.2) pending INV-NOTE-4#row:Q-4 are only ACMT recipient accounting (`ACMT_RECIPIENT_ACCOUNTING`), ACMT purchases on supplier invoices naming the overseas client (`ACMT_OVERSEAS_CLIENT_PURCHASE`, added 25 Sep 2026, INV-Q-2501), AMCS customer self-accounting (`AMCS_SELF_ACCOUNTING`) and Cash Accounting purchases. A handler that needs counterparty scheme data that is not recorded blocks with RUL-011. Scheme approvals of counterparties are master data (INV-REQ-2433), not part of this election. The recipient side of A3PL needs no election. Rebuilt 24 Sep 2026 (audit AUD-08 (INV-NOTE-5))"
+  status: available
+  status_note: null
+  governs:
+    - "INV-NOTE-3 §6.6"
+  form_dependence: null
+- id: VP-54
+  requirement: INV-REQ-1315
+  revision: 37012d2e-b6ce-4d1d-acb6-33ae09d16bf6
+  title: "Debit notes are mapped by the scope pack's classification rule by default, or each is held for review before submission"
+  class: CONTROL
+  class_modifiers:
+    - "tighten_only"
+  scope:
+    - "entity"
+  owner: canonical-svc
+  set_by:
+    - "tax.approver"
+  must_be_elected: false
+  default: "Map by the scope pack's classification rule"
+  options:
+    - "Map by the scope pack's classification rule"
+    - "hold each debit note for review before submission"
+  bounds: "The mapping rule itself stays provisional pending INV-NOTE-4#row:Q-10 (INV-REQ-659)"
+  status: available
+  status_note: null
+  governs:
+    - "INV-REQ-379"
+    - "INV-REQ-659"
+  form_dependence: null
+- id: VP-55
+  requirement: INV-REQ-1316
+  revision: 3be0b901-ae30-48ae-bf93-0ab79b22ce11
+  title: "Aggregation windows are POS and STI daily and PCP monthly by default, or weekly, never spanning a prescribed period"
+  class: PARAMETER
+  class_modifiers: []
+  scope:
+    - "entity"
+  owner: aggregation-svc
+  set_by:
+    - "integration.engineer"
+  must_be_elected: false
+  default: "POS and STI daily; PCP monthly"
+  options:
+    - "POS and STI daily; PCP monthly"
+    - "POS and STI weekly"
+    - "PCP weekly"
+  bounds: "Never spans a prescribed period (INV-REQ-427); closes in time for the due date minus the safety margin (INV-REQ-413). Until available, the default cadence applies (INV-REQ-1251)"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-413"
+    - "INV-REQ-1350"
+  form_dependence: null
+- id: VP-56
+  requirement: INV-REQ-1317
+  revision: 83f2a930-91c0-4a43-a407-dc28c94d59a7
+  title: "The throughput ceiling of an AP connection is the rate agreed with the AP by default, or a lower tenant value"
+  class: PARAMETER
+  class_modifiers:
+    - "tighten_only"
+  scope:
+    - "Access Point connection"
+  owner: transport-svc
+  set_by:
+    - "integration.engineer"
+  must_be_elected: false
+  default: "The rate agreed with the AP, captured at connection set-up"
+  options:
+    - "The rate agreed with the AP, captured at connection set-up"
+    - "a lower tenant value"
+  bounds: "Readiness warns when the ceiling would push the backlog past the safety margin"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-565"
+  form_dependence: null
+- id: VP-57
+  requirement: INV-REQ-1318
+  revision: 547a3e32-3db9-4c07-920c-64f8574d5d0f
+  title: "The grace window for reviewing a regulatory pack delta is the platform maximum by default, or shorter"
+  class: PARAMETER
+  class_modifiers:
+    - "tighten_only"
+  scope:
+    - "tenant"
+  owner: rules-svc
+  set_by:
+    - "tax.approver"
+  must_be_elected: false
+  default: "The platform maximum"
+  options:
+    - "The platform maximum"
+    - "a shorter window"
+  bounds: "Never longer than the platform maximum (INV-REQ-858)"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-858"
+  form_dependence: null
+- id: VP-58
+  requirement: INV-REQ-1319
+  revision: ae722fe3-06fc-475b-b4f9-e0fae37284d9
+  title: "Source documents for Types 2 and 3 are kept in the tenant's document store with a reference by default, or copied into the evidence store"
+  class: POLICY
+  class_modifiers: []
+  scope:
+    - "tenant"
+  owner: evidence-svc
+  set_by:
+    - "tenant.admin"
+  must_be_elected: false
+  default: "Kept in the tenant's document store; the System holds sourceDocumentRef"
+  options:
+    - "Kept in the tenant's document store; the System holds sourceDocumentRef"
+    - "a copy stored in the evidence store"
+  bounds: "Producible for the retention period either way (SRS INV-REQ-646); references are sampled for retrievability (INV-NOTE-3 §8.3)"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-646"
+  form_dependence: null
+- id: VP-59
+  requirement: INV-REQ-1320
+  revision: cb07a962-486e-458e-a981-4f3f52b142de
+  title: "A credit note whose preceding document cannot go first is released alone at the due date minus the safety margin with SUB-012 by default; holding it is looser and needs acknowledgement"
+  class: CONTROL
+  class_modifiers: []
+  scope:
+    - "entity"
+  owner: submission-svc
+  set_by:
+    - "tax.approver"
+  must_be_elected: false
+  default: "Release it alone at due date minus the safety margin, with SUB-012"
+  options:
+    - "Release it alone at due date minus the safety margin, with SUB-012"
+    - "hold it for a tax.approver decision"
+  bounds: "SUB-012 is always raised and both documents stay in readiness (INV-REQ-721). Holding is the looser option — it risks lateness — and needs acknowledgement"
+  status: available
+  status_note: null
+  governs:
+    - "INV-REQ-721"
+    - "INV-REQ-689"
+  form_dependence: null
+- id: VP-60
+  requirement: INV-REQ-1321
+  revision: 49370268-ddef-447e-89df-b4bb61b98f7b
+  title: "Under Relay mode the ERP may issue through its own AP when the issuance API is unavailable, and the System binds afterwards, by default; or issuance waits"
+  class: POLICY
+  class_modifiers: []
+  scope:
+    - "entity"
+  owner: ingestion-svc
+  set_by:
+    - "entity.admin"
+  must_be_elected: false
+  default: "The ERP may issue through its own AP; the System binds afterwards (INV-REQ-340)"
+  options:
+    - "The ERP may issue through its own AP; the System binds afterwards (INV-REQ-340)"
+    - "no fallback: issuance waits for the System"
+  bounds: "Checks that could not run beforehand run afterwards; nothing is submitted twice"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-340"
+    - "INV-REQ-1368"
+  form_dependence: null
+- id: VP-61
+  requirement: INV-REQ-1322
+  revision: d28c68da-d937-4226-834b-a0313f90ebf4
+  title: "Every trigger class is covered by this System by default; covering named classes by another solution is looser and needs entity.admin acknowledgement and evidence"
+  class: CONTROL
+  class_modifiers: []
+  scope:
+    - "entity"
+  owner: ingestion-svc
+  set_by:
+    - "entity.admin"
+  must_be_elected: false
+  default: "Every trigger class covered by this System"
+  options:
+    - "Every trigger class covered by this System"
+    - "named classes covered by another solution, with evidence"
+  bounds: "The looser option needs entity.admin acknowledgement and evidence of the other solution's submission; readiness counts only the System's classes"
+  status: available
+  status_note: null
+  governs:
+    - "INV-REQ-788"
+    - "INV-REQ-987"
+  form_dependence: null
+- id: VP-62
+  requirement: INV-REQ-1323
+  revision: 63efdac6-b60f-4e3e-b397-8958b5e0f949
+  title: "A due date on a weekend or public holiday does not move by default; moving it to the next working day is looser and needs tax.approver acknowledgement, and the client signatory's under an agent"
+  class: CONTROL
+  class_modifiers: []
+  scope:
+    - "entity"
+    - "client entity under an agent consent"
+  owner: tenancy-svc
+  set_by:
+    - "tax.approver"
+  must_be_elected: false
+  default: "The due date does not move"
+  options:
+    - "The due date does not move"
+    - "it moves to the next working day"
+  bounds: "The second option is the looser one. It needs acknowledgement by the entity's tax.approver, and also by the client's client.signatory where an agent operates for the client (INV-NOTE-3 §34.8, as INV-REQ-1265, INV-REQ-1274, INV-REQ-1320), and is shown in readiness output and on the work-paper (INV-REQ-1244). A change is effective-dated: it recomputes only periods not yet filed whose filing due date falls on or after the effective date, publishing PeriodDueDateChanged; it recomputes the period's filing due date and the submission due date of every document whose obligation is still open — not yet transmitted, transmitted but unacknowledged, or rejected; acknowledged documents keep their due dates, and nothing transmitted is re-sent or rewritten (INV-REQ-1243). A rule pinned by the calendar pack once INV-NOTE-4#row:Q-25 is answered overrides the setting. The public holiday list is pack data"
+  status: available
+  status_note: null
+  governs:
+    - "INV-REQ-82"
+    - "INV-REQ-87"
+  form_dependence: null
+- id: VP-63
+  requirement: INV-REQ-1401
+  revision: cb8e3fbf-c2ae-4b34-a522-86d1c1105873
+  title: "An individual's access or correction request is answered within the pack default of 30 days from receipt, or a shorter tenant period"
+  class: PARAMETER
+  class_modifiers:
+    - "tighten_only"
+  scope:
+    - "tenant"
+  owner: evidence-svc
+  set_by:
+    - "security.officer"
+  must_be_elected: false
+  default: "Pack default: 30 days from receipt"
+  options:
+    - "Pack default: 30 days from receipt"
+    - "a shorter period"
+  bounds: "Never longer than the pack default; where it cannot be met, the individual is told when (INV-REQ-1403). Provisional pending INV-NOTE-4#row:Q-30"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-1403"
+  form_dependence: null
+- id: VP-64
+  requirement: INV-REQ-1547
+  revision: 5f74f46b-abe5-4774-abef-061d3657660d
+  title: "A GST group omits an excluded member's data by default, or transmits it, in which case the member goes live"
+  class: POLICY
+  class_modifiers: []
+  scope:
+    - "group"
+  owner: tenancy-svc
+  set_by:
+    - "tenant.admin"
+  must_be_elected: false
+  default: "Omit the excluded member's data"
+  options:
+    - "Omit the excluded member's data"
+    - "the group transmits it, and the member goes live"
+  bounds: "Only an Excluded Business member's data may be omitted (INV-NOTE-2 §2.3); every other member follows its own go-live gate. The excluded member may go live only under the second option (INV-REQ-333)"
+  status: available
+  status_note: null
+  governs:
+    - "INV-REQ-716"
+    - "INV-REQ-333"
+  form_dependence: null
+- id: VP-65
+  requirement: INV-REQ-1548
+  revision: 730ab575-4252-4b1a-a3f8-269913a8042c
+  title: "A Check GST Register result is cached 24 hours if found (provisional) and 1 hour if not found by default, or shorter"
+  class: PARAMETER
+  class_modifiers:
+    - "tighten_only"
+  scope:
+    - "tenant"
+  owner: masterdata-svc
+  set_by:
+    - "tax.approver"
+  must_be_elected: false
+  default: "24 hours positive (provisional), 1 hour negative"
+  options:
+    - "24 hours positive (provisional), 1 hour negative"
+    - "a shorter period"
+  bounds: "Never longer than the default. The default is provisional until the IRAS API terms of use are known. The lookup is always recorded as evidence, and an outage never blocks (SRS INV-REQ-477, INV-REQ-802). Added 25 Sep 2026 on the owner's delegated authority, pending review"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-477"
+    - "INV-REQ-802"
+  form_dependence: null
+- id: VP-66
+  requirement: INV-REQ-2462
+  revision: eaa77f70-d7c4-42c5-955e-d29af948dd10
+  title: "The notice window for a custody holder's legal-hold request before retention deletion is 90 days by default at installation level; lengthening is free, shortening needs a recorded acknowledgement"
+  class: CONTROL
+  class_modifiers: []
+  scope:
+    - "installation"
+  owner: evidence-svc
+  set_by:
+    - "platform.engineer"
+    - "deployment.operator"
+  must_be_elected: false
+  default: "90 days"
+  options:
+    - "90 days"
+    - "a longer window"
+    - "a shorter window, with a recorded acknowledgement"
+  bounds: "Lengthening is free, including a longer value recorded for one closed tenant in its offboarding record at `offboardTenant` (INV-REQ-956), a separate per-tenant override rather than a scope level; shortening is the looser option and needs a recorded acknowledgement. The custody holder requests a hold by signed link (access-svc); the operator's security.officer places it (INV-REQ-639; INV-Q-1707). A shorter window is acknowledged by a different person: the operator's security.officer in SaaS, a tax.approver of the customer in private; one person holding both roles uses the recorded sole-operator acknowledgement (INV-Q-2480)"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-639"
+  form_dependence: null
+- id: VP-67
+  requirement: INV-REQ-2463
+  revision: ef6701c5-62cc-403a-bb7d-d01cbf5dadf4
+  title: "A webhook delivery is retried for 72 hours by default before dead-letter, set per subscription and never beyond the operator's maximum"
+  class: PARAMETER
+  class_modifiers: []
+  scope:
+    - "tenant, set per webhook subscription"
+  owner: notification-svc
+  set_by:
+    - "integration.engineer"
+  must_be_elected: false
+  default: "72 hours"
+  options:
+    - "72 hours"
+    - "a shorter or longer window, up to the operator's maximum"
+  bounds: "Set per subscription, beside INV-REQ-1308; never beyond the maximum the operator sets (deployment.operator in private, INV-REQ-1248). Dead-letter alert and replay remain (INV-REQ-821; INV-Q-1837)"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-821"
+  form_dependence: null
+- id: VP-68
+  requirement: INV-REQ-2464
+  revision: ac0c5296-b048-45f7-8c22-ec06d309cc39
+  title: "Credential-expiry reminders go 14 and 3 days ahead by default, and at least one reminder is always 3 or more days ahead"
+  class: PARAMETER
+  class_modifiers: []
+  scope:
+    - "tenant"
+  owner: notification-svc
+  set_by:
+    - "tenant.admin"
+  must_be_elected: false
+  default: "14 and 3 days before expiry"
+  options:
+    - "14 and 3 days before expiry"
+    - "other days chosen by the tenant"
+  bounds: "At least one notice 3 or more days ahead, as INV-REQ-1267. Sent to integration.engineer and the operations role of the form (INV-REQ-837; INV-Q-1839)"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-837"
+  form_dependence: null
+- id: VP-69
+  requirement: INV-REQ-2465
+  revision: 3b3af005-2b1d-49d5-becf-e6583fd75b2b
+  title: "An implementation.consultant grant lasts 30 days after go-live by default, set per grant, never beyond the 120-day platform maximum"
+  class: PARAMETER
+  class_modifiers: []
+  scope:
+    - "tenant, set per grant"
+  owner: access-svc
+  set_by:
+    - "tenant.admin"
+  must_be_elected: false
+  default: "30 days"
+  options:
+    - "30 days"
+    - "a period up to the platform maximum of 120 days"
+  bounds: "Set per grant when tenant.admin approves it; never beyond the platform maximum. Invoice content only through elevation (INV-REQ-908; INV-Q-1891)"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-908"
+  form_dependence: null
+- id: VP-70
+  requirement: INV-REQ-2466
+  revision: bbdb62a3-d573-466c-8d25-6afe51fecb65
+  title: "Evidence retrieval time per storage tier is the storage class's documented time by default, or a stated time per tier, set at installation level"
+  class: PARAMETER
+  class_modifiers: []
+  scope:
+    - "installation, per storage tier"
+  owner: evidence-svc
+  set_by:
+    - "platform.engineer"
+    - "deployment.operator"
+  must_be_elected: false
+  default: "The storage class's documented retrieval time, captured at installation"
+  options:
+    - "The storage class's documented retrieval time, captured at installation"
+    - "a stated time per tier"
+  bounds: "The interactive limit is a platform value; lookups and the audit pack show the expected time when it is exceeded. Set by `platform.engineer` in SaaS and `deployment.operator` in private, on SCR-41 Installation settings (INV-REQ-888, INV-REQ-889, INV-REQ-1248; owner decision 25 Sep 2026) (INV-REQ-664; INV-Q-1802)"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-664"
+  form_dependence: null
+- id: VP-71
+  requirement: INV-REQ-2467
+  revision: 40066c69-2101-4c6b-ac6c-4ee519a489d9
+  title: "Each Access Point connection elects the specification family, PINT_SG by default or SG_PEPPOL_BIS for a connection certified only for it; the release within it follows the submission date"
+  class: POLICY
+  class_modifiers: []
+  scope:
+    - "Access Point connection"
+  owner: payload-svc
+  set_by:
+    - "integration.engineer"
+  must_be_elected: false
+  default: "PINT_SG"
+  options:
+    - "PINT_SG"
+    - "SG_PEPPOL_BIS"
+  bounds: "A connection-level binding, as INV-REQ-1309 and INV-REQ-1317. The release within the family is selected by submission date (INV-NOTE-3 §33.8, INV-REQ-590) and recorded on the submission version (INV-REQ-771) (INV-Q-1570)"
+  status: available
+  status_note: null
+  governs:
+    - "INV-REQ-590"
+    - "INV-NOTE-3 §33.8"
+  form_dependence: null
+- id: VP-72
+  requirement: INV-REQ-2468
+  revision: b04dbad6-39f7-4c6c-a6e9-20da7e7939c1
+  title: "DEP-001 is raised when the control-plane feed has been unreachable, or no bundle imported, for 7 days by default, up to 30 days for an air-gapped installation"
+  class: PARAMETER
+  class_modifiers: []
+  scope:
+    - "installation"
+  owner: rules-svc
+  set_by:
+    - "platform.engineer"
+    - "deployment.operator"
+  must_be_elected: false
+  default: "7 days"
+  options:
+    - "7 days"
+    - "a longer limit up to 30 days, for an air-gapped installation, set at install time"
+  bounds: "Never beyond 30 days. The operator sets it in SaaS (INV-REQ-1248). Tiers count days to the unactivated pack's effective date where one is known (INV-REQ-1080, INV-REQ-1113; INV-Q-2343). Set on SCR-41 Installation settings by `platform.engineer` in SaaS and `deployment.operator` in private (owner decision 25 Sep 2026)"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-1080"
+  form_dependence: null
+- id: VP-73
+  requirement: INV-REQ-2756
+  revision: 9f310e04-8ebf-4540-ab43-884b795b4e1b
+  title: "Landing screen for a person holding several roles defaults to the role order of UI inventory §4.1, until the person chooses"
+  class: POLICY
+  class_modifiers: []
+  scope:
+    - "tenant"
+  owner: access-svc
+  set_by:
+    - "tenant.admin"
+  must_be_elected: false
+  default: "Role precedence preset to the role order of UI inventory §4.1"
+  options:
+    - "Role precedence preset to the role order of UI inventory §4.1"
+    - "a precedence set by the tenant"
+  bounds: "Only the landing screens of the roles the person holds are candidates. A person's own choice overrides the precedence and applies until the person changes it. Changes nothing a role may do."
+  status: available
+  status_note: null
+  governs:
+    - "§32.3.1"
+  form_dependence: null
+- id: VP-74
+  requirement: INV-REQ-2757
+  revision: 2ca7da3b-8005-4d69-b1eb-214051e82644
+  title: "Agent tenancy is available on in SaaS and off in a private installation by default, switchable per installation subject to live consents and the signed-link endpoint"
+  class: POLICY
+  class_modifiers: []
+  scope:
+    - "installation"
+  owner: access-svc
+  set_by:
+    - "platform.engineer"
+    - "deployment.operator"
+  must_be_elected: false
+  default: "On in SaaS, off in a private installation"
+  options:
+    - "On in SaaS, off in a private installation"
+    - "the other value"
+  bounds: "Client isolation and the consent rules of §9.4 are the same in both forms. Switching off is refused while any agent consent is live; clients are notified through the consent-withdrawal path (INV-REQ-955). Switching on in a private installation is refused unless the signed-link endpoint of INV-REQ-903 is exposed."
+  status: available
+  status_note: null
+  governs:
+    - "INV-REQ-853"
+    - "INV-REQ-903"
+  form_dependence: null
+- id: VP-75
+  requirement: INV-REQ-2758
+  revision: c8fac649-c525-48e8-a1c3-463eb760a60d
+  title: "A signed-link passcode reaches its recipient in a separate message — SMS if on file, else a second e-mail — by default, and up to five wrong entries invalidate the link, tighten-only"
+  class: CONTROL
+  class_modifiers:
+    - "tighten_only"
+  scope:
+    - "installation"
+  owner: access-svc
+  set_by:
+    - "platform.engineer"
+    - "deployment.operator"
+  must_be_elected: false
+  default: "A separate message to the link's contact: SMS where a mobile number is on file, otherwise a second e-mail; five wrong entries invalidate the link"
+  options:
+    - "A separate message to the link's contact: SMS where a mobile number is on file, otherwise a second e-mail; five wrong entries invalidate the link"
+    - "SMS only"
+    - "fewer wrong entries"
+  bounds: "No looser option: the passcode always travels apart from the link, and the limit never exceeds five. SMS only can be set only where an SMS gateway is bound to `MessageDelivery` (INV-REQ-817); under it a link is not issued to a contact without a mobile number, and an undeliverable SMS is not replaced by an e-mail. The sender may re-issue an invalidated link (INV-REQ-2762)."
+  status: available
+  status_note: null
+  governs:
+    - "INV-REQ-2762"
+    - "INV-REQ-899"
+    - "INV-REQ-901"
+  form_dependence: null
+- id: VP-76
+  requirement: INV-REQ-2759
+  revision: 0547070b-4944-439f-8ee1-d39d770ba3bd
+  title: "Rounding basis for a System-computed SGD-equivalent amount defaults to two decimal places, HALF_UP, per invoice"
+  class: PARAMETER
+  class_modifiers: []
+  scope:
+    - "entity"
+  owner: tenancy-svc
+  set_by:
+    - "tax.approver"
+  must_be_elected: false
+  default: "Two decimal places, HALF_UP, computed per invoice"
+  options:
+    - "Two decimal places, HALF_UP, computed per invoice"
+    - "per line, summed after rounding"
+    - "a different scale, mode or level recorded for the entity"
+  bounds: "Governs only an amount the System computes itself; a caller-stated SGD total is validated, never recomputed (INV-REQ-810). The scale, mode and level are read together from this variation point, never a literal in code."
+  status: available
+  status_note: null
+  governs:
+    - "INV-REQ-466"
+    - "INV-REQ-467"
+  form_dependence: null
+- id: VP-77
+  requirement: INV-REQ-2760
+  revision: c397dd11-2daf-47ef-8971-d9283649016b
+  title: "Machine-client authentication defaults to a SaaS-standard preset allowing client_secret_basic, tighten-only to a regulated-private preset that switches it off"
+  class: CONTROL
+  class_modifiers:
+    - "tighten_only"
+  scope:
+    - "installation"
+  owner: access-svc
+  set_by:
+    - "platform.engineer"
+    - "deployment.operator"
+  must_be_elected: false
+  default: "Preset \"SaaS standard\": `private_key_jwt` or mutual TLS by default, `client_secret_basic` available"
+  options:
+    - "Preset \"SaaS standard\": private_key_jwt or mutual TLS by default, client_secret_basic available"
+    - "preset \"regulated private\": client_secret_basic switched off"
+  bounds: "`client_secret_basic` may only be switched off, never switched back on once an installation has switched it off (INV-REQ-867, INV-REQ-880). The `ap-callback` principal keeps its own authentication (INV-REQ-817)."
+  status: available
+  status_note: null
+  governs:
+    - "INV-REQ-867"
+    - "INV-REQ-880"
+  form_dependence: null
+- id: VP-78
+  requirement: INV-REQ-2761
+  revision: 405b4b6f-ec3a-496e-a15b-8330aef1371b
+  title: "Inbound request size and count limits default to 1 MB per document and 50 MB / 10,000 transactions per batch, tighten-only"
+  class: CONTROL
+  class_modifiers:
+    - "tighten_only"
+  scope:
+    - "installation"
+  owner: ingestion-svc
+  set_by:
+    - "platform.engineer"
+    - "deployment.operator"
+  must_be_elected: false
+  default: "1 MB per document; 50 MB and 10,000 transactions per batch"
+  options:
+    - "1 MB per document; 50 MB and 10,000 transactions per batch"
+    - "a smaller limit set at installation"
+  bounds: "Never looser than the defaults. Distinct from the outbound 10 MB IRAS payload limit (INV-REQ-424), which is fixed."
+  status: available
+  status_note: null
+  governs:
+    - "INV-REQ-805"
+    - "INV-REQ-811"
+  form_dependence: null

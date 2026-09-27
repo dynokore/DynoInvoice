@@ -41,7 +41,7 @@ scope. Migrating their content into the relevant service directories (and
 rather than done silently. `catalogue/` is no longer one of these
 unchanged directories: INV-T-2851 (T7) built it (see below).
 
-## `gst-catalogue` (INV-T-2851)
+## `gst-catalogue` (INV-T-2851, INV-T-2852)
 
 `catalogue/` is its own, separate Gradle build (`catalogue/settings.gradle.kts`),
 distinct from this repository's root build above — it is the one directory here
@@ -50,25 +50,38 @@ the root build does not.
 
 ```
 catalogue/
-├── errors/error-codes.yaml   vendored, pinned-commit copy of invoice-docs'
-│                             model/architecture/error-codes.yaml (STK-61) — the
-│                             generator's sole input, never hand-edited; re-vendor
-│                             it (with the new commit SHA in its header) to pick
-│                             up a design change
-├── generator/                an included build (pluginManagement, like
-│                             platform-build's build-logic/ one level down):
-│                             provides the gst.catalogue-generator plugin —
-│                             parses error-codes.yaml, emits ErrorCode.kt and the
-│                             catalogue artefact JSON, and the two acceptance
-│                             checks below. Not published: single in-repo consumer.
-└── gst-catalogue/             the published module: `ErrorCode` (code, condition,
-                              severity, disposition, owner — CS-13), generated,
-                              never hand-edited
+├── errors/error-codes.yaml    vendored, pinned-commit copy of invoice-docs'
+│                              model/architecture/error-codes.yaml (STK-61) — the
+│                              ErrorCode generator's sole input, never hand-edited;
+│                              re-vendor it (with the new commit SHA in its header)
+│                              to pick up a design change
+├── variation-points/
+│   ├── variation-points.yaml  vendored snapshot of the Keel INV variation-point
+│   │                          requirements (STK-61, CS-28) — the VariationPoint
+│   │                          generator's sole input, never hand-edited. No
+│   │                          invoice-docs file to pin to here (unlike
+│   │                          error-codes.yaml): see its own header for why
+│   ├── check-drift.py         re-vendor procedure's drift check against live Keel
+│   │                          (not CI-wired — see README.md there)
+│   └── README.md
+├── generator/                 an included build (pluginManagement, like
+│                              platform-build's build-logic/ one level down):
+│                              provides the gst.catalogue-generator plugin — parses
+│                              both vendored files, emits ErrorCode.kt/
+│                              VariationPoint.kt and their catalogue artefact JSON,
+│                              and the four acceptance checks below. Not published:
+│                              single in-repo consumer.
+└── gst-catalogue/              the published module: `ErrorCode` (code, condition,
+                               severity, disposition, owner — CS-13) and
+                               `VariationPoint` (class, options, default, bounds,
+                               setting role, scope, owner, status,
+                               form-dependence — CS-28), both generated, never
+                               hand-edited
 ```
 
-Two Gradle tasks, wired into `check`:
+Four Gradle tasks, wired into `check`:
 
-- `checkCatalogueStability` (INV-AC-2170) — no code changes its number or
+- `checkCatalogueStability` (INV-AC-2170) — no error code changes its number or
   condition since the previous published train. Skips (does not fail) when no
   previous train artefact exists yet — `catalogue/errors/previous-train-catalogue.json`,
   absent for this first train (1.0.0), the same "nothing to compare against yet"
@@ -81,6 +94,16 @@ Two Gradle tasks, wired into `check`:
   (`build/reports/catalogue/block-disposition.txt`) rather than guessed at —
   INV-NOTE-3 §21.2, which classifies the rest, is an archived document this
   repository's coding agents do not read.
+- `checkMustBeElectedAvailability` (INV-AC-2236) — every must-be-elected variation
+  point, and every one INV-AC-2236 itself names as closing a source open question
+  (INV-REQ-1309 to INV-REQ-1315, INV-REQ-1323), is `available`.
+- `checkNonWaivableFloor` (INV-AC-1786, checkable half only) — a `CONTROL` marked
+  non-waivable has no looser option; a looser option of any other `CONTROL` needs a
+  recorded acknowledgement, both read from the vendored catalogue's own text
+  (INV-REQ-780 behaviour #1). The other half needs the force-of-law table of
+  INV-NOTE-2 §26.3, an archived document this repository's coding agents do not
+  read — not checked, named as a follow-up rather than guessed at (see
+  `catalogue/variation-points/README.md`).
 
 Built and published via `gradle -p catalogue <task>` (`catalogue-compile`,
 `catalogue-verify`, `catalogue-publish` in `.gitlab-ci.yml`) rather than through

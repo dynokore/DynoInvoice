@@ -1,4 +1,6 @@
-# .gitlab-ci.yml — INV-T-2849 (T5); catalogue-* jobs added by INV-T-2851 (T7)
+# .gitlab-ci.yml — INV-T-2849 (T5); catalogue-* jobs added by INV-T-2851 (T7),
+# extended for VariationPoint by INV-T-2852 (T8) (catalogue-publish's second curl only
+# — T8's own drift check is not CI-wired, see catalogue/variation-points/README.md)
 #
 # platform-contracts' repository root has no Kotlin source of its own (settings.gradle.kts,
 # build.gradle.kts there are packaging-only): only the stage list, shared variables and
@@ -139,14 +141,23 @@ catalogue-publish:
       -PgstMavenUser=gitlab-ci-token
       -PgstMavenPassword="${CI_JOB_TOKEN}"
       --stacktrace
-    # The catalogue artefact (STK-61's other output, alongside the jar `publish` above
+    # The catalogue artefacts (STK-61's other output, alongside the jar `publish` above
     # just pushed): the same generic-package mechanism bundle-publish already uses.
+    # Both ErrorCode (T7) and VariationPoint (INV-T-2852 / T8) artefacts land in the
+    # same generated/gst-catalogue/ directory (gst.catalogue-generator.gradle.kts's own
+    # choice, so this one `artifacts.paths` entry below already covers both without a
+    # second entry) — only the second `curl` is new.
     - VERSION=$(grep '^gstCatalogueVersion=' catalogue/gradle.properties | cut -d= -f2)
     - >
       curl --fail --request PUT
       --header "JOB-TOKEN: ${CI_JOB_TOKEN}"
       --upload-file "catalogue/gst-catalogue/build/generated/gst-catalogue/gst-catalogue-error-codes-${VERSION}.json"
       "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/gst-catalogue-error-codes/${VERSION}/gst-catalogue-error-codes-${VERSION}.json"
+    - >
+      curl --fail --request PUT
+      --header "JOB-TOKEN: ${CI_JOB_TOKEN}"
+      --upload-file "catalogue/gst-catalogue/build/generated/gst-catalogue/gst-catalogue-variation-points-${VERSION}.json"
+      "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/gst-catalogue-variation-points/${VERSION}/gst-catalogue-variation-points-${VERSION}.json"
   artifacts:
     paths:
       - "catalogue/gst-catalogue/build/generated/gst-catalogue/"
