@@ -52,7 +52,13 @@ class Resilience4jResilientExecutorTest {
     @Test
     fun `a call that fails and then succeeds is retried, not dead-lettered`() {
         val deadLetters = InMemoryDeadLetterSink()
-        val executor = Resilience4jResilientExecutor(policy(maxAttempts = 3), "edge-b", deadLetters, clock)
+        // slidingWindowSize is raised well past maxAttempts: retry wraps the circuit
+        // breaker (each retry attempt is itself one recorded call, matching
+        // Resilience4j's own documented Retry+CircuitBreaker composition), so the
+        // breaker's *own* minimumNumberOfCalls must not be reachable from a single
+        // execute() call's retries — otherwise this test would be exercising the
+        // breaker tripping mid-retry, not the retry-then-succeed behavior it names.
+        val executor = Resilience4jResilientExecutor(policy(maxAttempts = 3, slidingWindowSize = 10), "edge-b", deadLetters, clock)
         var calls = 0
 
         val result =
@@ -69,7 +75,12 @@ class Resilience4jResilientExecutorTest {
     @Test
     fun `bounded retry ending in dead-letter (INV-REQ-1353) - every attempt fails, the last failure is rethrown`() {
         val deadLetters = InMemoryDeadLetterSink()
-        val executor = Resilience4jResilientExecutor(policy(maxAttempts = 3), "edge-c", deadLetters, clock)
+        // See the sibling retry test above for why slidingWindowSize must clear
+        // maxAttempts here too: otherwise the breaker opens on this call's own second
+        // attempt and the third attempt is refused by CallNotPermittedException
+        // instead of retried, so the "every attempt fails" case never runs to its
+        // bound and the wrong exception type is what actually gets rethrown.
+        val executor = Resilience4jResilientExecutor(policy(maxAttempts = 3, slidingWindowSize = 10), "edge-c", deadLetters, clock)
         var calls = 0
 
         shouldThrow<IllegalStateException> {

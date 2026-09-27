@@ -25,7 +25,12 @@ class ResiliencePolicyMappingPropertiesTest {
             Arb.long(1L..500L),
             Arb.long(0L..5_000L),
             Arb.int(1..10),
-            Arb.double(0.0..1.0),
+            // includeNaNs = false: kotest's own edge cases for a double range include
+            // NaN regardless of the range given, but NaN is never a valid jitter
+            // fraction (RetryPolicy's own init correctly rejects it) — this generator
+            // must only produce policies RetryPolicy accepts, since this test's SUT is
+            // the mapping function, not RetryPolicy's own validation.
+            Arb.double(0.0..1.0, includeNaNs = false),
         ) { initialMs, extraMs, maxAttempts, jitter ->
             RetryPolicy(
                 maxAttempts = maxAttempts,
