@@ -6,83 +6,955 @@ info:
     Contract-first source of truth for rules (API-01, STK-44). The
     `rules-contract` module generates its server interfaces and DTOs
     from this file (STK-46); a consumer generates its own client types from
-    the same file (FR-AH.13, ARC-07). This is an INV-T-2849 scaffold —
-    rules's own team (CODEOWNERS) replaces the placeholder operation
-    below with its real ones as each lands.
+    the same file (FR-AH.13, ARC-07). Replaces the INV-T-2849 scaffold
+    (INV-T-2901, T13b).
+
+
+    Internal API only (API standard §1 and §15): rules-svc owns no resource
+    in the §15 public catalogue, so every operation below is `/internal/v1/…`,
+    never routed by the gateway. Two operations serve the synchronous edges
+    of model/architecture/sync-edges.yaml (`canonical-svc -> rules-svc`,
+    `payload-svc -> rules-svc`); the rest are the authoring, approval and
+    activation commands services.yaml's rules-svc entry lists under
+    `provides`, reached only through console-bff on a person's behalf
+    (API-25 — the callee re-checks writes). Pack registry and dry-run-result
+    reads are not named in that `provides` line, so they stay out of this
+    file's declared scope.
   contact:
     name: rules (see CODEOWNERS)
 servers:
   - url: 'https://api.invoice.internal'
-    description: Placeholder — the gateway routes only the operations of a published train (API-26).
+    description: Placeholder — the gateway never routes /internal/v1/… (API-01 scope table); resolved service-to-service.
 tags:
-  - name: rules
-    description: Placeholder resource (INV-T-2849 scaffold).
+  - name: evaluation
+    description: Pure, side-effect-free rule evaluation (FR-B.6, FR-B.8).
+  - name: mapping-packs
+    description: The tenant's own tax-code mapping pack — draft, approval and activation (§31.2.3, §35.10).
+  - name: regulatory-packs
+    description: The regulatory pack fed or imported from control-plane-svc — import, arming, rollback and reprocessing (§31.2.3, §31.2.6, §31.4.1).
 paths:
-  /v1/rules/examples:
+  /internal/v1/rules/documents/evaluations:
     post:
-      operationId: createExample
-      summary: Placeholder operation (INV-T-2849 scaffold) — replace with a real one
+      operationId: evaluateDocument
+      summary: Evaluate a recorded document's line — scope verdict, category code and scenario handler decision
       description: >-
-        Placeholder only, so this directory lints clean from its first commit.
-        rules's own team replaces it with a real operation (CODEOWNERS, API-01).
-      tags: [rules]
-      x-principal: filing-workflow
-      x-timeout: 5000
-      x-error-codes: []
-      x-requirements: []
+        The evaluation API to canonical-svc (services.yaml rules-svc
+        `provides`; sync-edges.yaml `canonical-svc -> rules-svc`, "scope and
+        code verdicts are an atomic pair; pure function, cacheable by pack
+        version"). canonical-svc passes the line's internal code, the
+        counterparty's scheme data from the masterdata-svc resolution and the
+        entity's VP-53 election (FR-AE.89). Pure and side-effect free: same
+        inputs and pack version always yield the same verdict (FR-B.6), with
+        a decision trace naming the rule, pack version and inputs (FR-B.8).
+        The scenario pack's handler returns the category code, the rate and
+        the IBT-022 statement, or a RUL-004/RUL-011 verdict (FR-AE.89); for
+        self-billing the party-to-type assignment is also a scenario-pack
+        decision here (FR-T.2). rules-svc persists no decision trace itself
+        (must_not) — the caller carries it to evidence-svc (AD-24).
+      tags: [evaluation]
+      x-principal: ingest
+      x-timeout: 300
+      x-sync-edge: canonical-svc->rules-svc
+      x-error-codes: [RUL-002, RUL-003, RUL-004, RUL-006, RUL-008, RUL-011]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, FR-B.1, FR-B.6, FR-B.8, FR-AE.89, FR-T.2]
       x-operation:
-        role: filing-workflow
-        scope: filing-workflow
-        precondition: "None — placeholder. A real operation states what it checks against record state (FR-AC.1.3)."
-        reversibility: COMPENSABLE
-        repeatKey: "(tenantId, sourceKey, sourceRevision) — placeholder shape, FR-AC.19"
-      parameters:
-        - name: Idempotency-Key
-          in: header
-          required: true
-          schema:
-            type: string
-            format: uuid
+        role: ingest
+        scope: entity
+        precondition: >-
+          None — a pure function; the same inputs and pack version always
+          yield the same verdict (FR-B.6). Resolved by the line's transaction
+          date, never by clock date (FR-B.1).
+        reversibility: UNDOABLE
+        repeatKey: >-
+          None — pure and side-effect free, so a repeat yields the identical
+          verdict and trace (FR-B.6, INV-REQ-1010).
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ExampleRequest'
+              $ref: '#/components/schemas/EvaluateDocumentRequest'
             examples:
               default:
-                value: { name: "example" }
+                value:
+                  entityRef: "E-001"
+                  transactionDate: "2026-03-20"
+                  internalTaxCode: "SR-STD"
+                  election: "VP-53-STANDARD"
+                  counterpartySchemeData:
+                    approvedSchemes: ["ARCS"]
       responses:
-        '201':
-          description: Created
+        '200':
+          description: The scope verdict, category code and decision trace.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ExampleResponse'
+                $ref: '#/components/schemas/EvaluationResult'
               examples:
                 default:
-                  value: { id: "3fa85f64-5717-4562-b3fc-2c963f66afa6", name: "example" }
+                  value:
+                    scopeVerdict: "SUBMITTABLE"
+                    categoryCode: "SR"
+                    rate: "9.00"
+                    decisionTrace: { ruleId: "R-114", packVersion: "2026.3", inputs: { internalTaxCode: "SR-STD" } }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/rules/pre-issuance-drafts/evaluations:
+    post:
+      operationId: evaluatePreIssuanceDraft
+      summary: Evaluate a pre-issuance draft that has no canonical record yet
+      description: >-
+        The evaluation API to payload-svc for pre-issuance drafts
+        (services.yaml rules-svc `provides`; sync-edges.yaml `payload-svc ->
+        rules-svc`, "evaluation of a pre-issuance draft that has no
+        canonical record yet", §33.1). Stateless and side-effect free, like
+        `evaluateDocument`, but callable before the document is recorded.
+      tags: [evaluation]
+      x-principal: ingest
+      x-timeout: 60
+      x-sync-edge: payload-svc->rules-svc
+      x-error-codes: [RUL-002, RUL-003, RUL-004, RUL-011]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, FR-B.6, FR-AE.89]
+      x-operation:
+        role: ingest
+        scope: entity
+        precondition: >-
+          None — the draft has no canonical record yet and nothing is
+          persisted either way (§33.1); a register or evaluation failure
+          within budget is a WARN, never a block (rules-svc `must_not`).
+        reversibility: UNDOABLE
+        repeatKey: >-
+          None — a safe query with no persistent state change; a repeat has
+          nothing to make safe (FR-B.6).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EvaluateDocumentRequest'
+            examples:
+              default:
+                value:
+                  entityRef: "E-001"
+                  transactionDate: "2026-03-20"
+                  internalTaxCode: "SR-STD"
+      responses:
+        '200':
+          description: The scope verdict, category code and decision trace, or a WARN reason.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvaluationResult'
+              examples:
+                default:
+                  value: { scopeVerdict: "SUBMITTABLE", categoryCode: "SR", rate: "9.00" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/rules/mapping-packs:
+    post:
+      operationId: draftMappingPack
+      summary: Create a draft of the tenant's own tax-code mapping pack
+      description: >-
+        Authoring command to console-bff (services.yaml rules-svc
+        `provides`, SCR-12.1, FR-2.1). Packs are versioned data, never
+        editable in place once activated (FR-B.4).
+      tags: [mapping-packs]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010, FR-2.1, FR-B.4]
+      x-operation:
+        role: tax.operator
+        scope: tenant
+        precondition: "None — starts a new draft (SCR-12.1)."
+        reversibility: UNDOABLE
+        repeatKey: >-
+          Idempotency-Key only — each call creates a new draft; the client
+          discards a duplicate response (FR-2.1).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DraftMappingPackRequest'
+            examples:
+              default:
+                value: { label: "2026 mapping refresh" }
+      responses:
+        '201':
+          description: The new draft.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MappingPack'
+              examples:
+                default:
+                  value: { packId: "MAP-0042", status: "DRAFT" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/rules/mapping-packs/{packId}/entries:
+    post:
+      operationId: mapTaxCode
+      summary: Map an unmapped internal tax code into a draft entry
+      description: >-
+        Authoring command to console-bff (services.yaml rules-svc
+        `provides`, SCR-02.3, §31.2.1). Takes an internal tax code from an
+        RUL-001 group and adds a mapping-pack entry in draft; does not
+        activate (FR-2.3).
+      tags: [mapping-packs]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-error-codes: [RUL-001]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, FR-2.3, C-4]
+      x-operation:
+        role: tax.operator
+        scope: tenant
+        precondition: "RUL-001 raised for this internal tax code (§31.2.1)."
+        reversibility: UNDOABLE
+        repeatKey: "(packId, internalTaxCode) — a repeat replaces the same draft entry."
+      parameters:
+        - name: packId
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+          example: "MAP-0042"
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MapTaxCodeRequest'
+            examples:
+              default:
+                value: { internalTaxCode: "SR-STD", irasCode: "SR", sourceClass: "PRIMARY" }
+      responses:
+        '201':
+          description: The draft entry.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MappingEntry'
+              examples:
+                default:
+                  value: { entryId: "ENT-9", internalTaxCode: "SR-STD", irasCode: "SR", sourceClass: "PRIMARY" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/rules/mapping-packs/import:
+    post:
+      operationId: importMappingSpreadsheet
+      summary: Import a mapping spreadsheet as a new draft
+      description: >-
+        Authoring command to console-bff (services.yaml rules-svc
+        `provides`, SCR-12.2, §35.10). Rows that fail are reported; the
+        draft is created regardless so the tenant can fix and resubmit.
+      tags: [mapping-packs]
+      x-principal: filing-workflow
+      x-timeout: 10000
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010, "§35.10"]
+      x-operation:
+        role: tax.operator
+        scope: tenant
+        precondition: "None."
+        reversibility: UNDOABLE
+        repeatKey: "fileHash — a repeat returns the same draft, not a second one."
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportMappingSpreadsheetRequest'
+            examples:
+              default:
+                value: { fileHash: "sha256:9c1185a5c5e9fc54612808977ee8f548b2258d31", fileName: "mapping-2026.xlsx" }
+      responses:
+        '201':
+          description: The draft, with any rows that failed reported.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MappingPack'
+              examples:
+                default:
+                  value: { packId: "MAP-0043", status: "DRAFT", failedRows: [] }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/rules/mapping-packs/{packId}/entries/{entryId}/source-class-acceptance:
+    post:
+      operationId: acceptSourceClassEntry
+      summary: Accept a non-PRIMARY mapping entry with rationale and expiry
+      description: >-
+        Approval command to console-bff (services.yaml rules-svc
+        `provides`, SCR-12.6, FR-AA.17, FR-AA.18). Clears RUL-007 for this
+        entry alone.
+      tags: [mapping-packs]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-error-codes: [RUL-007]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, FR-AA.17, FR-AA.18, RUL-007]
+      x-operation:
+        role: tax.approver
+        scope: tenant
+        precondition: "The entry is SECONDARY or INFERRED in a draft (RUL-007)."
+        reversibility: UNDOABLE
+        repeatKey: "(packId, entryId) — no-op if already accepted."
+      parameters:
+        - name: packId
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+        - name: entryId
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcceptSourceClassEntryRequest'
+            examples:
+              default:
+                value: { rationale: "Confirmed against the customer's own ledger", expiresOn: "2027-03-20" }
+      responses:
+        '200':
+          description: The entry's acceptance.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MappingEntry'
+              examples:
+                default:
+                  value: { entryId: "ENT-9", internalTaxCode: "SR-STD", irasCode: "SR", sourceClass: "SECONDARY", accepted: true }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/rules/mapping-packs/{packId}/submissions:
+    post:
+      operationId: submitForApproval
+      summary: Submit a mapping pack draft for approval
+      description: >-
+        Approval command to console-bff (services.yaml rules-svc
+        `provides`, SCR-12.4). Locks the draft; the dry run behind it must
+        already be complete (FR-B.3).
+      tags: [mapping-packs]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010, FR-B.3]
+      x-operation:
+        role: tax.operator
+        scope: tenant
+        precondition: "Dry run complete (FR-B.3)."
+        reversibility: UNDOABLE
+        repeatKey: "packId — no-op if already submitted."
+      parameters:
+        - name: packId
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: The pack, now locked and awaiting approval.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MappingPack'
+              examples:
+                default:
+                  value: { packId: "MAP-0042", status: "SUBMITTED" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/rules/mapping-packs/{packId}/approval:
+    post:
+      operationId: approvePack
+      summary: Approve a mapping pack's dry-run delta — never the author
+      description: >-
+        Approval command to console-bff (services.yaml rules-svc
+        `provides`, SCR-12.5, FR-P.2). Refused if the caller authored the
+        draft (no self-approval, FR-P.2) or if an unaccepted non-PRIMARY
+        entry remains (RUL-007), or a mapped IRAS code is missing from the
+        code catalogue (RUL-006, RUL-009, RUL-010).
+      tags: [mapping-packs]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-error-codes: [RUL-006, RUL-007, RUL-009, RUL-010]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, FR-P.2, RUL-007, RUL-009, RUL-010]
+      x-operation:
+        role: tax.approver
+        scope: tenant
+        precondition: >-
+          Dry-run delta reviewed; no unaccepted non-PRIMARY entry (RUL-007);
+          approver is not the author (FR-P.2); every mapped code is in the
+          R1 Annex E code catalogue (RUL-009).
+        reversibility: UNDOABLE
+        repeatKey: "packId — no-op if already approved."
+      parameters:
+        - name: packId
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: The pack's signed approval.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MappingPack'
+              examples:
+                default:
+                  value: { packId: "MAP-0042", status: "APPROVED" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/rules/mapping-packs/{packId}/activation:
+    post:
+      operationId: activateMappingPack
+      summary: Activate an approved mapping pack from an effective date
+      description: >-
+        Activation command to console-bff (services.yaml rules-svc
+        `provides`, SCR-12.7, FR-B.1, FR-B.4). Evaluation begins selecting
+        this pack by transaction date from `effectiveFrom` (FR-B.1).
+        Compensated, never undone, by `rollbackPack` (FR-AC.6).
+      tags: [mapping-packs]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010, FR-B.1, FR-B.4]
+      x-operation:
+        role: tax.approver
+        scope: tenant
+        precondition: "Mapping pack approved; client acknowledged where required (FR-G.9)."
+        reversibility: COMPENSABLE
+        repeatKey: "packId — no-op if already active (INV-REQ-1010 armPack pattern)."
+      parameters:
+        - name: packId
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActivatePackRequest'
+            examples:
+              default:
+                value: { effectiveFrom: "2026-04-01" }
+      responses:
+        '200':
+          description: The pack, now active from its effective date.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MappingPack'
+              examples:
+                default:
+                  value: { packId: "MAP-0042", status: "ACTIVE", effectiveFrom: "2026-04-01" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/rules/regulatory-packs/import:
+    post:
+      operationId: importRegulatoryPack
+      summary: Verify and import a signed regulatory-pack bundle (private form)
+      description: >-
+        Authoring command to console-bff (services.yaml rules-svc
+        `provides`, SCR-11.5, FR-H.6, FR-H.9). Verifies the signature and
+        engine-compatibility range and produces a dry-run delta against
+        local data, with no data leaving the customer's network (FR-H.9);
+        does not use the pack — that is `armRegulatoryPack`.
+      tags: [regulatory-packs]
+      x-principal: filing-workflow
+      x-timeout: 10000
+      x-error-codes: [DEP-002, DEP-003]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, FR-H.6, FR-H.9]
+      x-operation:
+        role: deployment.operator
+        scope: tenant
+        precondition: "Signed bundle; engine compatible (FR-H.6)."
+        reversibility: UNDOABLE
+        repeatKey: "(packType, version) — a repeat verifies and re-acknowledges idempotently."
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportRegulatoryPackRequest'
+            examples:
+              default:
+                value: { packType: "SCOPE", version: "2026.4", bundleHash: "sha256:3b2c1e9a4f5d6c7b8a9e0f1d2c3b4a5e" }
+      responses:
+        '201':
+          description: The imported pack, staged.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegulatoryPack'
+              examples:
+                default:
+                  value: { packType: "SCOPE", version: "2026.4", status: "STAGED" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/rules/regulatory-packs/{packType}/{version}/acknowledgement:
+    post:
+      operationId: acknowledgePackDelta
+      summary: Acknowledge a published regulatory pack's dry-run delta within the grace window
+      description: >-
+        Approval command to console-bff (services.yaml rules-svc
+        `provides`, SCR-11.4, FR-G.9). The platform's principal recurring
+        obligation: a tenant sees the delta against its own data before
+        activation (FR-G.8).
+      tags: [regulatory-packs]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010, FR-G.8, FR-G.9]
+      x-operation:
+        role: tax.approver
+        scope: tenant
+        precondition: "Regulatory pack published; grace window open (FR-G.9)."
+        reversibility: UNDOABLE
+        repeatKey: "(packType, version, tenant) — no-op if already acknowledged."
+      parameters:
+        - name: packType
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+        - name: version
+          in: path
+          required: true
+          schema: { type: string, maxLength: 16 }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: The acknowledgement, recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegulatoryPack'
+              examples:
+                default:
+                  value: { packType: "SCOPE", version: "2026.4", status: "ACKNOWLEDGED" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/rules/regulatory-packs/{packType}/{version}/arming:
+    post:
+      operationId: armRegulatoryPack
+      summary: Arm a regulatory pack, setting its effective date
+      description: >-
+        Activation command to console-bff (services.yaml rules-svc
+        `provides`, SCR-11.6, FR-AB.10). Private form: `tax.approver` only.
+        SaaS form: the operator, after the tenant's grace window. Uses the
+        two-phase activation fence — distribute and acknowledge, then arm
+        (FR-K.7); a partial load aborts the activation entirely, never
+        partially. There is no un-arm (FR-AC.6) — the remedy is
+        `rollbackPack` plus `reprocessPopulation`.
+      tags: [regulatory-packs]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-error-codes: [RUL-005]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, FR-AB.10, FR-K.7, RUL-005]
+      x-operation:
+        role: tax.approver
+        scope: tenant
+        precondition: "All instances acknowledged (FR-K.7); private form only (FR-AB.10)."
+        reversibility: COMPENSABLE
+        repeatKey: "(packType, version) — no-op if already armed (INV-REQ-1010 armPack example)."
+      parameters:
+        - name: packType
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+        - name: version
+          in: path
+          required: true
+          schema: { type: string, maxLength: 16 }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActivatePackRequest'
+            examples:
+              default:
+                value: { effectiveFrom: "2026-04-01" }
+      responses:
+        '200':
+          description: The pack, armed from its effective date.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegulatoryPack'
+              examples:
+                default:
+                  value: { packType: "SCOPE", version: "2026.4", status: "ARMED", effectiveFrom: "2026-04-01" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/rules/regulatory-packs/{packType}/rollback:
+    post:
+      operationId: rollbackPack
+      summary: Roll back an armed regulatory pack with an effective-dated reversal
+      description: >-
+        Activation command to console-bff (services.yaml rules-svc
+        `provides`, SCR-11.7, FR-AC.6). Supersedes the armed pack; the
+        remedy for an armed pack is compensation, never an undo (FR-AC.6).
+      tags: [regulatory-packs]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010, FR-AC.6]
+      x-operation:
+        role: tax.approver
+        scope: tenant
+        precondition: "A pack of this type is armed (FR-AC.6)."
+        reversibility: COMPENSABLE
+        repeatKey: "(packType, effectiveFrom) — a repeat supersedes idempotently at the same effective date."
+      parameters:
+        - name: packType
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActivatePackRequest'
+            examples:
+              default:
+                value: { effectiveFrom: "2026-03-20" }
+      responses:
+        '200':
+          description: The superseding reversal, armed from the original date.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegulatoryPack'
+              examples:
+                default:
+                  value: { packType: "SCOPE", version: "2026.3-rollback", status: "ARMED", effectiveFrom: "2026-03-20" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/rules/regulatory-packs/{packType}/reprocessing:
+    post:
+      operationId: reprocessPopulation
+      summary: Re-evaluate the affected population under a superseding pack
+      description: >-
+        Activation command to console-bff (services.yaml rules-svc
+        `provides`, §31.2.6, §31.4.1). Produces resubmissions, safe by
+        supersession, for every document the superseding pack reclassifies.
+      tags: [regulatory-packs]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010, "§31.4.1"]
+      x-operation:
+        role: tax.approver
+        scope: tenant
+        precondition: "A superseding pack of this type is armed."
+        reversibility: COMPENSABLE
+        repeatKey: "(packType, version) — a repeat resumes the same reprocessing run."
+      parameters:
+        - name: packType
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '202':
+          description: Reprocessing accepted; runs asynchronously.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReprocessingRun'
+              examples:
+                default:
+                  value: { packType: "SCOPE", version: "2026.4", status: "RUNNING" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/rules/packs/{packRef}/dry-runs:
+    post:
+      operationId: dryRun
+      summary: Produce a classification delta against the tenant's own historical data
+      description: >-
+        Approval command to console-bff (services.yaml rules-svc
+        `provides`, SCR-11.2, SCR-12.3, FR-B.3). Read-only by construction:
+        writes nothing to canonical or submission state, and produces, per
+        changed document, the old and new verdict or code, the taxable
+        value and the GST value (FR-B.3).
+      tags: [mapping-packs, regulatory-packs]
+      x-principal: filing-workflow
+      x-timeout: 30000
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010, FR-B.3, FR-G.8]
+      x-operation:
+        role: tax.approver
+        scope: tenant
+        precondition: "The pack has a draft or published delta; a historical sample is available (FR-B.3)."
+        reversibility: UNDOABLE
+        repeatKey: "None — read-only, writes nothing to canonical or submission state (FR-B.3)."
+      parameters:
+        - name: packRef
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: The classification delta.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DryRunResult'
+              examples:
+                default:
+                  value:
+                    packRef: "MAP-0042"
+                    changedCount: 3
+                    sample:
+                      - docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                        oldCategoryCode: "ZR"
+                        newCategoryCode: "SR"
+                        taxableValue: "1000.00"
+                        gstValue: "90.00"
         default:
           $ref: '#/components/responses/Error'
 components:
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: 'API-15: a UUID, deduplicating an exact request replay for at least 24h.'
+      schema:
+        type: string
+        format: uuid
   schemas:
-    ExampleRequest:
+    EvaluateDocumentRequest:
       type: object
       properties:
-        name:
+        entityRef:
           type: string
-          maxLength: 200
-      required: [name]
-    ExampleResponse:
+          maxLength: 40
+        transactionDate:
+          type: string
+          format: date
+        internalTaxCode:
+          type: string
+          maxLength: 40
+        election:
+          type: string
+          maxLength: 40
+          description: The entity's VP-53 scheme election.
+        counterpartySchemeData:
+          type: object
+          description: The masterdata-svc resolution's approved-scheme facts (FR-1.14, FR-1.15).
+          properties:
+            approvedSchemes:
+              type: array
+              items:
+                type: string
+                maxLength: 20
+          additionalProperties: true
+      required: [entityRef, transactionDate, internalTaxCode]
+    EvaluationResult:
       type: object
       properties:
-        id:
+        scopeVerdict:
           type: string
-          format: uuid
-        name:
+          enum: [SUBMITTABLE, NOT_SUBMITTABLE, PRE_OBLIGATION]
+          x-extensible-enum: true
+        categoryCode:
+          type: string
+          maxLength: 10
+        rate:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,6})?$'
+          description: Money as a decimal string (API-12).
+        ibt022Statement:
+          type: string
+          maxLength: 500
+        decisionTrace:
+          type: object
+          additionalProperties: true
+      required: [scopeVerdict]
+    DraftMappingPackRequest:
+      type: object
+      properties:
+        label:
           type: string
           maxLength: 200
-      required: [id, name]
+      required: [label]
+    MappingPack:
+      type: object
+      properties:
+        packId:
+          type: string
+          maxLength: 40
+        status:
+          type: string
+          enum: [DRAFT, SUBMITTED, APPROVED, ACTIVE]
+          x-extensible-enum: true
+        effectiveFrom:
+          type: string
+          format: date
+        failedRows:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+      required: [packId, status]
+    MapTaxCodeRequest:
+      type: object
+      properties:
+        internalTaxCode:
+          type: string
+          maxLength: 40
+        irasCode:
+          type: string
+          maxLength: 10
+        sourceClass:
+          type: string
+          enum: [PRIMARY, SECONDARY, INFERRED]
+          x-extensible-enum: true
+      required: [internalTaxCode, irasCode, sourceClass]
+    MappingEntry:
+      type: object
+      properties:
+        entryId:
+          type: string
+          maxLength: 40
+        internalTaxCode:
+          type: string
+          maxLength: 40
+        irasCode:
+          type: string
+          maxLength: 10
+        sourceClass:
+          type: string
+          enum: [PRIMARY, SECONDARY, INFERRED]
+          x-extensible-enum: true
+        accepted:
+          type: boolean
+      required: [entryId, internalTaxCode, irasCode, sourceClass]
+    ImportMappingSpreadsheetRequest:
+      type: object
+      properties:
+        fileHash:
+          type: string
+          maxLength: 128
+        fileName:
+          type: string
+          maxLength: 200
+      required: [fileHash, fileName]
+    AcceptSourceClassEntryRequest:
+      type: object
+      properties:
+        rationale:
+          type: string
+          maxLength: 500
+        expiresOn:
+          type: string
+          format: date
+      required: [rationale, expiresOn]
+    ActivatePackRequest:
+      type: object
+      properties:
+        effectiveFrom:
+          type: string
+          format: date
+      required: [effectiveFrom]
+    ImportRegulatoryPackRequest:
+      type: object
+      properties:
+        packType:
+          type: string
+          maxLength: 40
+        version:
+          type: string
+          maxLength: 16
+        bundleHash:
+          type: string
+          maxLength: 128
+      required: [packType, version, bundleHash]
+    RegulatoryPack:
+      type: object
+      properties:
+        packType:
+          type: string
+          maxLength: 40
+        version:
+          type: string
+          maxLength: 16
+        status:
+          type: string
+          enum: [STAGED, ACKNOWLEDGED, ARMED]
+          x-extensible-enum: true
+        effectiveFrom:
+          type: string
+          format: date
+      required: [packType, version, status]
+    ReprocessingRun:
+      type: object
+      properties:
+        packType:
+          type: string
+          maxLength: 40
+        version:
+          type: string
+          maxLength: 16
+        status:
+          type: string
+          enum: [RUNNING, COMPLETE]
+          x-extensible-enum: true
+      required: [packType, version, status]
+    DryRunResult:
+      type: object
+      properties:
+        packRef:
+          type: string
+          maxLength: 40
+        changedCount:
+          type: integer
+          minimum: 0
+        sample:
+          type: array
+          items:
+            type: object
+            properties:
+              docUuid:
+                type: string
+                format: uuid
+              oldCategoryCode:
+                type: string
+                maxLength: 10
+              newCategoryCode:
+                type: string
+                maxLength: 10
+              taxableValue:
+                type: string
+                format: decimal
+                pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+                description: Money as a decimal string (API-12).
+              gstValue:
+                type: string
+                format: decimal
+                pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+                description: Money as a decimal string (API-12).
+            required: [docUuid, oldCategoryCode, newCategoryCode, taxableValue, gstValue]
+      required: [packRef, changedCount]
   responses:
     Error:
       description: Error (API-20 envelope)

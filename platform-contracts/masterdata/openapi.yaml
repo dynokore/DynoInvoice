@@ -6,83 +6,706 @@ info:
     Contract-first source of truth for masterdata (API-01, STK-44). The
     `masterdata-contract` module generates its server interfaces and DTOs
     from this file (STK-46); a consumer generates its own client types from
-    the same file (FR-AH.13, ARC-07). This is an INV-T-2849 scaffold —
-    masterdata's own team (CODEOWNERS) replaces the placeholder operation
-    below with its real ones as each lands.
+    the same file (FR-AH.13, ARC-07). Replaces the INV-T-2849 scaffold
+    (INV-T-2901, T13b).
+
+
+    Internal API only (API standard §1 and §15): masterdata-svc owns no
+    resource in the §15 public catalogue, so every operation below is
+    `/internal/v1/…`, never routed by the gateway. Two read operations serve
+    the synchronous edges of model/architecture/sync-edges.yaml
+    (`canonical-svc -> masterdata-svc`, `payload-svc -> masterdata-svc`); the
+    rest are the remediation, import and request commands services.yaml's
+    masterdata-svc entry lists under `provides`, reached only through
+    console-bff on a person's behalf (API-25 — the callee re-checks writes),
+    except `submitCounterpartyDetails`, reached by the `counterparty` actor
+    through a signed link (§34.9). Counterparty-list, gap-report, connection
+    and directory-lookup reads are not named in that `provides` line, so
+    they stay out of this file's declared scope.
   contact:
     name: masterdata (see CODEOWNERS)
 servers:
   - url: 'https://api.invoice.internal'
-    description: Placeholder — the gateway routes only the operations of a published train (API-26).
+    description: Placeholder — the gateway never routes /internal/v1/… (API-01 scope table); resolved service-to-service.
 tags:
-  - name: masterdata
-    description: Placeholder resource (INV-T-2849 scaffold).
+  - name: resolution
+    description: Identity-triple and counterparty resolution for canonical-svc (FR-1.1–1.3, §4.3.2).
+  - name: register-and-rates
+    description: Register facts and exchange rates for payload-svc validation (AD-23).
+  - name: identity-triples
+    description: The entity's own Sender ID, Supplier ID and Supplier GSTN (§5.1).
+  - name: remediation
+    description: Resolving a held or gap-flagged counterparty (§31.2.1, MDM-001).
+  - name: counterparty-requests
+    description: Self-service requests to a counterparty for its own details (§34.9).
+  - name: import
+    description: Bulk counterparty and exchange-rate import (§35.10, §35.2).
 paths:
-  /v1/masterdata/examples:
-    post:
-      operationId: createExample
-      summary: Placeholder operation (INV-T-2849 scaffold) — replace with a real one
+  /internal/v1/masterdata/counterparties/resolution:
+    get:
+      operationId: resolveCounterparty
+      summary: Resolve an entity's identity triple and a counterparty's identifiers, by constitution
       description: >-
-        Placeholder only, so this directory lints clean from its first commit.
-        masterdata's own team replaces it with a real operation (CODEOWNERS, API-01).
-      tags: [masterdata]
+        The resolution API to canonical-svc (services.yaml masterdata-svc
+        `provides`; sync-edges.yaml `canonical-svc -> masterdata-svc`,
+        "needed to complete the record; cached, fast"). Resolves the
+        entity's identity triple by constitution (FR-1.1–1.3) and the
+        counterparty's identifiers and approved-scheme status with
+        provenance (FR-1.5, FR-1.14, FR-1.15). A resolution gap follows the
+        hold pattern (§4.3.2, MDM-001) rather than blocking the caller.
+        Never validates counterparty-supplied data as a precondition
+        (masterdata-svc `must_not`).
+      tags: [resolution]
+      x-principal: ingest
+      x-timeout: 300
+      x-sync-edge: canonical-svc->masterdata-svc
+      x-error-codes: [MDM-001, MDM-002, MDM-005, MDM-007]
+      x-requirements: [FR-1.1, FR-1.2, FR-1.3, FR-1.5, FR-1.14, FR-1.15]
+      parameters:
+        - name: entityRef
+          in: query
+          required: true
+          schema: { type: string, maxLength: 40 }
+        - name: constitution
+          in: query
+          required: true
+          schema: { type: string, maxLength: 40 }
+        - name: partyScheme
+          in: query
+          required: false
+          schema: { type: string, maxLength: 20 }
+        - name: partyValue
+          in: query
+          required: false
+          schema: { type: string, maxLength: 64 }
+        - name: transactionDate
+          in: query
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: The identity triple and, where a party was given, the counterparty's resolved facts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResolutionResult'
+              examples:
+                default:
+                  value:
+                    identityTriple: { senderId: "0195:201912345A", supplierId: "0195:201912345A", supplierGstn: "201912345A" }
+                    counterparty: { partyRef: "CTP-118", resolvedIdentifiers: [{ scheme: "UEN", value: "201954321B" }], providedBy: "INTERNAL" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/masterdata/register-and-rates:
+    get:
+      operationId: getRegisterAndRates
+      summary: Look up register facts and the exchange rate for a transaction
+      description: >-
+        The register-fact and rate lookup API to payload-svc
+        (services.yaml masterdata-svc `provides`; sync-edges.yaml
+        `payload-svc -> masterdata-svc`, "register facts and approved rates
+        for validation", AD-23). masterdata-svc is the sole client of the IRAS
+        Check GST Register and of the exchange-rate sources (AD-23); it
+        returns facts, and never decides whether a GST charge is wrongful —
+        that rule belongs to payload-svc (masterdata-svc `must_not`). A
+        register outage returns REGISTER_UNAVAILABLE rather than blocking
+        issuance (FR-E.7); a missing rate is reported and left for
+        payload-svc to hold (PAY-013).
+      tags: [register-and-rates]
+      x-principal: ingest
+      x-timeout: 80
+      x-sync-edge: payload-svc->masterdata-svc
+      x-error-codes: [MDM-007]
+      x-requirements: [FR-E.7, FR-E.8, FR-E.9, "AD-23"]
+      parameters:
+        - name: counterpartyUen
+          in: query
+          required: true
+          schema: { type: string, maxLength: 20 }
+        - name: currency
+          in: query
+          required: true
+          schema: { type: string, maxLength: 3 }
+        - name: transactionDate
+          in: query
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: The register facts and, where the currency is not SGD, the elected-source exchange rate.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterAndRateResult'
+              examples:
+                default:
+                  value:
+                    register: { status: "REGISTERED", asOf: "2026-03-19" }
+                    rate: { currency: "USD", date: "2026-03-20", source: "MAS", rate: "1.35800000" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/masterdata/entities/{entityRef}/identity-triple:
+    post:
+      operationId: configureIdentityTriple
+      summary: Set an entity's Sender ID, Supplier ID and Supplier GSTN
+      description: >-
+        Remediation command to console-bff (services.yaml masterdata-svc
+        `provides`; identity triples belong to masterdata-svc, SDS §5.1;
+        VP-09). Effective-dated; a wrong identity triple is not correctable
+        by resubmission alone (FR-AC.15) — the remedy is a correction
+        effective from the original date plus reprocessing and resubmission
+        under the same Doc UUIDs. Always needs a second confirmation from
+        another `entity.admin` or `tenant.admin`, or a `tax.approver`; never
+        a sole-operator path (FR-AC.16, VP-09, FR-AB.13).
+      tags: [identity-triples]
       x-principal: filing-workflow
       x-timeout: 5000
-      x-error-codes: []
-      x-requirements: []
+      x-error-codes: [MDM-005]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, FR-1.1, FR-1.2, FR-AC.15, FR-AC.16, "VP-09"]
       x-operation:
-        role: filing-workflow
-        scope: filing-workflow
-        precondition: "None — placeholder. A real operation states what it checks against record state (FR-AC.1.3)."
-        reversibility: COMPENSABLE
-        repeatKey: "(tenantId, sourceKey, sourceRevision) — placeholder shape, FR-AC.19"
+        role: entity.admin
+        scope: entity
+        precondition: "Constitution known; a second confirmation from another entity.admin/tenant.admin or a tax.approver (FR-AC.16, VP-09)."
+        reversibility: UNDOABLE
+        repeatKey: "(entityRef, effectiveFrom) — a repeat replaces the same effective-dated change."
       parameters:
-        - name: Idempotency-Key
-          in: header
+        - name: entityRef
+          in: path
           required: true
-          schema:
-            type: string
-            format: uuid
+          schema: { type: string, maxLength: 40 }
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ExampleRequest'
+              $ref: '#/components/schemas/ConfigureIdentityTripleRequest'
             examples:
               default:
-                value: { name: "example" }
+                value:
+                  senderId: "0195:201912345A"
+                  supplierId: "0195:201912345A"
+                  supplierGstn: "201912345A"
+                  effectiveFrom: "2026-04-01"
+                  secondConfirmation: { identityRef: "IDN-0044", role: "tax.approver" }
       responses:
-        '201':
-          description: Created
+        '200':
+          description: The identity triple, effective from the given date.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ExampleResponse'
+                $ref: '#/components/schemas/IdentityTriple'
               examples:
                 default:
-                  value: { id: "3fa85f64-5717-4562-b3fc-2c963f66afa6", name: "example" }
+                  value: { entityRef: "E-001", senderId: "0195:201912345A", supplierId: "0195:201912345A", supplierGstn: "201912345A", effectiveFrom: "2026-04-01" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/masterdata/counterparties/{counterpartyRef}/resolution:
+    post:
+      operationId: resolveMasterDataGap
+      summary: Resolve one counterparty's held master-data gap
+      description: >-
+        Remediation command to console-bff (services.yaml masterdata-svc
+        `provides`; §31.2.1, MDM-001). Writes the counterparty identifier
+        with provenance, emits `MasterDataResolved`, and releases every
+        document held on it (§31.2.1). Also covers editing an approved
+        scheme status or an ARCS written-agreement flag, each with evidence
+        (FR-1.14, FR-1.15).
+      tags: [remediation]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-error-codes: [MDM-001, MDM-002, MDM-003, MDM-004, MDM-006]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, FR-1.5, FR-1.14, FR-1.15, "MDM-001"]
+      x-operation:
+        role: tax.operator
+        scope: entity
+        precondition: "Document HELD with MDM-001, or a gap-report entry for this counterparty (§31.2.1)."
+        reversibility: UNDOABLE
+        repeatKey: "counterpartyRef — a repeat replaces the same resolution before submission."
+      parameters:
+        - name: counterpartyRef
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResolveCounterpartyRequest'
+            examples:
+              default:
+                value:
+                  resolvedIdentifiers: [{ scheme: "UEN", value: "201954321B" }]
+                  evidenceRef: "EVD-2201"
+      responses:
+        '200':
+          description: The counterparty, resolved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Counterparty'
+              examples:
+                default:
+                  value: { partyRef: "CTP-118", resolvedIdentifiers: [{ scheme: "UEN", value: "201954321B" }], providedBy: "INTERNAL" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/masterdata/counterparties/bulk-resolution:
+    post:
+      operationId: bulkResolveCounterparty
+      summary: Resolve one master-data gap across every document in a group sharing it
+      description: >-
+        Remediation command to console-bff (services.yaml masterdata-svc
+        `provides`; SCR-02.2, FR-AC.3). Applies the same resolution across
+        the group. console-bff's own call to submission-svc's boundary
+        query (FR-AC.3) — not this operation — refuses the bulk action, or
+        narrows it to unsubmitted members, if any member has reached SENT or
+        beyond.
+      tags: [remediation]
+      x-principal: filing-workflow
+      x-timeout: 10000
+      x-error-codes: [MDM-001, MDM-002, MDM-003, MDM-004, MDM-006]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, FR-AC.3, FR-AC.14]
+      x-operation:
+        role: tax.operator
+        scope: entity
+        precondition: "A group of documents sharing one error code; none SENT or beyond (FR-AC.3, checked by submission-svc's boundary query)."
+        reversibility: UNDOABLE
+        repeatKey: "operation id — the second call reports no change (INV-REQ-1010 behaviour #4)."
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkResolveRequest'
+            examples:
+              default:
+                value:
+                  errorCode: "MDM-001"
+                  docUuids: ["3fa85f64-5717-4562-b3fc-2c963f66afa6"]
+                  resolvedIdentifiers: [{ scheme: "UEN", value: "201954321B" }]
+                  evidenceRef: "EVD-2201"
+      responses:
+        '200':
+          description: The group's resolution outcome.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkResolveResult'
+              examples:
+                default:
+                  value: { resolvedCount: 4, unchangedCount: 0 }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/masterdata/counterparties/{counterpartyRef}/requests:
+    post:
+      operationId: sendCounterpartyRequest
+      summary: Send a counterparty a signed request link for its own details
+      description: >-
+        Request command to console-bff (services.yaml masterdata-svc
+        `provides`; SCR-02.5, §34.9, FR-AF.23). From a gap-report group, asks
+        the counterparty to confirm its UEN, legal name and address, and to
+        attach a supporting document (FR-AF.23). Emits `SignedLinkRequested`;
+        the link itself is issued by access-svc on that event, never by a
+        direct call (DR-11).
+      tags: [counterparty-requests]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010, FR-AF.23]
+      x-operation:
+        role: tax.operator
+        scope: entity
+        precondition: "The counterparty has a master-data gap (FR-AF.23)."
+        reversibility: UNDOABLE
+        repeatKey: "(counterpartyRef, openRequest) — a repeat returns the existing open request."
+      parameters:
+        - name: counterpartyRef
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: The pending counterparty request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CounterpartyRequest'
+              examples:
+                default:
+                  value: { requestId: "REQ-77", counterpartyRef: "CTP-118", status: "SENT" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/masterdata/counterparty-requests/{requestId}/submission:
+    post:
+      operationId: submitCounterpartyDetails
+      summary: A counterparty submits its own details through a valid signed link
+      description: >-
+        Request command, reached by the `counterparty` actor through its
+        signed link, not through console-bff (services.yaml masterdata-svc
+        `provides`; SCR-35.2, FR-AF.24). Values are stored with
+        `providedBy = COUNTERPARTY` and the evidence reference (FR-1.5,
+        FR-AF.24) and flow through `MasterDataResolved`, which auto-releases
+        held documents.
+      tags: [counterparty-requests]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-error-codes: [MDM-002, MDM-003, MDM-006]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, FR-AF.24, FR-1.5]
+      x-operation:
+        role: "The counterparty holding the signed link"
+        scope: entity
+        precondition: "A valid, unexpired signed link (FR-AF.24)."
+        reversibility: COMPENSABLE
+        repeatKey: "requestId — the operator corrects a later submission with provenance."
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitCounterpartyDetailsRequest'
+            examples:
+              default:
+                value: { uen: "201954321B", legalName: "Acme Trading Pte Ltd", address: "1 Raffles Place, Singapore" }
+      responses:
+        '200':
+          description: The counterparty's details, stored with provenance.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Counterparty'
+              examples:
+                default:
+                  value: { partyRef: "CTP-118", resolvedIdentifiers: [{ scheme: "UEN", value: "201954321B" }], providedBy: "COUNTERPARTY" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/masterdata/counterparties/import:
+    post:
+      operationId: importCounterparties
+      summary: Import counterparties from a dry-run-reviewed file
+      description: >-
+        Import command to console-bff (services.yaml masterdata-svc
+        `provides`; SCR-19.3, §35.10, FR-R.12). Values are applied with
+        provenance and emit `MasterDataResolved`; migrated data is marked
+        `MIGRATED`, never `COUNTERPARTY`-provided, because its evidentiary
+        standing differs (FR-R.12, FR-1.5).
+      tags: [import]
+      x-principal: filing-workflow
+      x-timeout: 30000
+      x-error-codes: [MDM-002, MDM-003, MDM-006]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, "§35.10", FR-R.12]
+      x-operation:
+        role: tax.operator
+        scope: tenant
+        precondition: "The import's dry run has been reviewed."
+        reversibility: UNDOABLE
+        repeatKey: "fileHash — undoable before any affected document submits."
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportCounterpartiesRequest'
+            examples:
+              default:
+                value: { fileHash: "sha256:1a2b3c4d5e6f708192a3b4c5d6e7f809", rowCount: 240 }
+      responses:
+        '201':
+          description: The import's outcome.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportResult'
+              examples:
+                default:
+                  value: { importId: "IMP-30", appliedCount: 238, failedCount: 2 }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/masterdata/exchange-rates/import:
+    post:
+      operationId: importRates
+      summary: Import exchange rates from the entity's elected source
+      description: >-
+        Import command to console-bff (services.yaml masterdata-svc
+        `provides`; SCR-13.4, §35.2). The source must be the one the entity
+        elected in tenancy-svc (`electRateSource`); rates are stored and
+        `ReferenceRateLoaded` is emitted.
+      tags: [import]
+      x-principal: filing-workflow
+      x-timeout: 10000
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010, "§35.2"]
+      x-operation:
+        role: deployment.operator
+        scope: tenant
+        precondition: "The source is the entity's elected source."
+        reversibility: COMPENSABLE
+        repeatKey: "(source, dateRange) — a repeat supersedes with a new rate."
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportRatesRequest'
+            examples:
+              default:
+                value: { source: "MAS", dateRange: { from: "2026-03-01", to: "2026-03-31" }, currencyPairs: ["USD/SGD"] }
+      responses:
+        '201':
+          description: The rates, stored.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportResult'
+              examples:
+                default:
+                  value: { importId: "IMP-31", appliedCount: 31, failedCount: 0 }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/masterdata/exchange-rates:
+    post:
+      operationId: enterRate
+      summary: Enter one missing exchange rate manually, with evidence
+      description: >-
+        Import command to console-bff (services.yaml masterdata-svc
+        `provides`; SCR-13.5, §35.2). Fills a gap raised as PAY-013,
+        evidenced, for one currency, date and source.
+      tags: [import]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-error-codes: [PAY-013]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, "§35.2"]
+      x-operation:
+        role: tax.operator
+        scope: entity
+        precondition: "Gap raised as PAY-013; evidence attached."
+        reversibility: COMPENSABLE
+        repeatKey: "(currency, date, source) — a repeat supersedes with a new rate."
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnterRateRequest'
+            examples:
+              default:
+                value: { currency: "USD", date: "2026-03-20", source: "MAS", rate: "1.35800000", evidenceRef: "EVD-3010" }
+      responses:
+        '201':
+          description: The rate, stored with evidence.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExchangeRate'
+              examples:
+                default:
+                  value: { currency: "USD", date: "2026-03-20", source: "MAS", rate: "1.35800000" }
         default:
           $ref: '#/components/responses/Error'
 components:
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: 'API-15: a UUID, deduplicating an exact request replay for at least 24h.'
+      schema:
+        type: string
+        format: uuid
   schemas:
-    ExampleRequest:
+    ResolutionResult:
       type: object
       properties:
-        name:
-          type: string
-          maxLength: 200
-      required: [name]
-    ExampleResponse:
+        identityTriple:
+          $ref: '#/components/schemas/IdentityTripleFacts'
+        counterparty:
+          $ref: '#/components/schemas/Counterparty'
+      required: [identityTriple]
+    IdentityTripleFacts:
       type: object
       properties:
-        id:
+        senderId: { type: string, maxLength: 64 }
+        supplierId: { type: string, maxLength: 64 }
+        supplierGstn: { type: string, maxLength: 20 }
+      required: [senderId, supplierId, supplierGstn]
+    IdentityTriple:
+      allOf:
+        - $ref: '#/components/schemas/IdentityTripleFacts'
+        - type: object
+          properties:
+            entityRef: { type: string, maxLength: 40 }
+            effectiveFrom: { type: string, format: date }
+          required: [entityRef, effectiveFrom]
+    ConfigureIdentityTripleRequest:
+      type: object
+      properties:
+        senderId: { type: string, maxLength: 64 }
+        supplierId: { type: string, maxLength: 64 }
+        supplierGstn: { type: string, maxLength: 20 }
+        effectiveFrom: { type: string, format: date }
+        secondConfirmation:
+          type: object
+          properties:
+            identityRef: { type: string, maxLength: 64 }
+            role:
+              type: string
+              maxLength: 64
+              description: 'One of entity.admin, tenant.admin or tax.approver (VP-09) — never the same person as the requester.'
+          required: [identityRef, role]
+      required: [senderId, supplierId, supplierGstn, effectiveFrom, secondConfirmation]
+    Counterparty:
+      type: object
+      properties:
+        partyRef: { type: string, maxLength: 40 }
+        resolvedIdentifiers:
+          type: array
+          items:
+            type: object
+            properties:
+              scheme: { type: string, maxLength: 20 }
+              value: { type: string, maxLength: 64 }
+            required: [scheme, value]
+        providedBy:
           type: string
-          format: uuid
-        name:
+          enum: [COUNTERPARTY, INTERNAL, MIGRATED]
+          x-extensible-enum: true
+      required: [partyRef, resolvedIdentifiers, providedBy]
+    ResolveCounterpartyRequest:
+      type: object
+      properties:
+        resolvedIdentifiers:
+          type: array
+          items:
+            type: object
+            properties:
+              scheme: { type: string, maxLength: 20 }
+              value: { type: string, maxLength: 64 }
+            required: [scheme, value]
+        evidenceRef: { type: string, maxLength: 64 }
+      required: [resolvedIdentifiers, evidenceRef]
+    BulkResolveRequest:
+      type: object
+      properties:
+        errorCode: { type: string, pattern: '^[A-Z]{2,10}-[0-9]{3}$' }
+        docUuids:
+          type: array
+          items: { type: string, format: uuid }
+        resolvedIdentifiers:
+          type: array
+          items:
+            type: object
+            properties:
+              scheme: { type: string, maxLength: 20 }
+              value: { type: string, maxLength: 64 }
+            required: [scheme, value]
+        evidenceRef: { type: string, maxLength: 64 }
+      required: [errorCode, docUuids, resolvedIdentifiers, evidenceRef]
+    BulkResolveResult:
+      type: object
+      properties:
+        resolvedCount: { type: integer, minimum: 0 }
+        unchangedCount: { type: integer, minimum: 0 }
+      required: [resolvedCount, unchangedCount]
+    CounterpartyRequest:
+      type: object
+      properties:
+        requestId: { type: string, maxLength: 40 }
+        counterpartyRef: { type: string, maxLength: 40 }
+        status:
           type: string
-          maxLength: 200
-      required: [id, name]
+          enum: [SENT, ANSWERED, EXPIRED]
+          x-extensible-enum: true
+      required: [requestId, counterpartyRef, status]
+    SubmitCounterpartyDetailsRequest:
+      type: object
+      properties:
+        uen: { type: string, maxLength: 20 }
+        legalName: { type: string, maxLength: 200 }
+        address: { type: string, maxLength: 500 }
+      required: [uen, legalName, address]
+    ImportCounterpartiesRequest:
+      type: object
+      properties:
+        fileHash: { type: string, maxLength: 128 }
+        rowCount: { type: integer, minimum: 0 }
+      required: [fileHash, rowCount]
+    ImportResult:
+      type: object
+      properties:
+        importId: { type: string, maxLength: 40 }
+        appliedCount: { type: integer, minimum: 0 }
+        failedCount: { type: integer, minimum: 0 }
+      required: [importId, appliedCount, failedCount]
+    ImportRatesRequest:
+      type: object
+      properties:
+        source: { type: string, maxLength: 40 }
+        dateRange:
+          type: object
+          properties:
+            from: { type: string, format: date }
+            to: { type: string, format: date }
+          required: [from, to]
+        currencyPairs:
+          type: array
+          items: { type: string, maxLength: 10 }
+      required: [source, dateRange, currencyPairs]
+    EnterRateRequest:
+      type: object
+      properties:
+        currency: { type: string, maxLength: 3 }
+        date: { type: string, format: date }
+        source: { type: string, maxLength: 40 }
+        rate:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,8})?$'
+          description: Exchange rate as a decimal string, up to 8 places (API-12).
+        evidenceRef: { type: string, maxLength: 64 }
+      required: [currency, date, source, rate, evidenceRef]
+    ExchangeRate:
+      type: object
+      properties:
+        currency: { type: string, maxLength: 3 }
+        date: { type: string, format: date }
+        source: { type: string, maxLength: 40 }
+        rate:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,8})?$'
+          description: Exchange rate as a decimal string, up to 8 places (API-12).
+      required: [currency, date, source, rate]
+    RegisterAndRateResult:
+      type: object
+      properties:
+        register:
+          type: object
+          properties:
+            status:
+              type: string
+              enum: [REGISTERED, NOT_REGISTERED, REGISTER_UNAVAILABLE]
+              x-extensible-enum: true
+            asOf: { type: string, format: date }
+          required: [status]
+        rate:
+          $ref: '#/components/schemas/ExchangeRate'
+      required: [register]
   responses:
     Error:
       description: Error (API-20 envelope)

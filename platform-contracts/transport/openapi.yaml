@@ -6,83 +6,255 @@ info:
     Contract-first source of truth for transport (API-01, STK-44). The
     `transport-contract` module generates its server interfaces and DTOs
     from this file (STK-46); a consumer generates its own client types from
-    the same file (FR-AH.13, ARC-07). This is an INV-T-2849 scaffold —
-    transport's own team (CODEOWNERS) replaces the placeholder operation
-    below with its real ones as each lands.
+    the same file (FR-AH.13, ARC-07). Replaces the INV-T-2849 scaffold
+    (INV-T-2901, T13b).
+
+
+    Public and internal APIs (API standard §1 and §15). `receiveApNotification`
+    is the one resource the §15 catalogue lists for transport-svc
+    (`POST /v1/ap/{adapterId}/notifications`, principal `ap-callback`,
+    §33.6). `submitPayload` and `sendNetworkDocument` are `/internal/v1/…`,
+    serving the synchronous edge of model/architecture/sync-edges.yaml
+    (`submission-svc -> transport-svc`, "needs the outcome to advance
+    state"). services.yaml's transport-svc entry names no console-bff
+    surface under `provides`, so the console commands of Keel INV-NOTE-7 §7
+    tagged `transport-svc` (`failoverAdapter`, `rotateCredential`,
+    `testConnection`) are out of this file's declared scope; flagged for the
+    coordinator in this MR rather than assumed.
   contact:
     name: transport (see CODEOWNERS)
 servers:
   - url: 'https://api.invoice.internal'
-    description: Placeholder — the gateway routes only the operations of a published train (API-26).
+    description: Placeholder — the gateway routes only the operations of a published train (API-26) for receiveApNotification; the other two are never routed (API-01 scope table).
 tags:
-  - name: transport
-    description: Placeholder resource (INV-T-2849 scaffold).
+  - name: despatch
+    description: Submission to IRAS through the AP, and Relay-mode network issuance (§33.1).
+  - name: notifications
+    description: Inbound AP acknowledgements, delivery status and network documents (§33.6).
 paths:
-  /v1/transport/examples:
+  /internal/v1/transport/payloads:
     post:
-      operationId: createExample
-      summary: Placeholder operation (INV-T-2849 scaffold) — replace with a real one
+      operationId: submitPayload
+      summary: Submit a payload for a Doc UUID and version to IRAS through the AP
       description: >-
-        Placeholder only, so this directory lints clean from its first commit.
-        transport's own team replaces it with a real operation (CODEOWNERS, API-01).
-      tags: [transport]
+        The submit API to submission-svc (services.yaml transport-svc
+        `provides`; sync-edges.yaml `submission-svc -> transport-svc`).
+        The internal transport interface expresses only: submit a payload
+        for a Doc UUID and version, and return accepted with acknowledgement,
+        rejected with reasons, or transient failure (FR-E.1); everything
+        AP-specific sits behind it, including which of the (at most two
+        concurrent, FR-E.2) adapters is used. transport-svc never decides
+        which document to send, when, or under which Doc UUID
+        (transport-svc `must_not`) — that is submission-svc's. Every
+        transmission to a third party is irreversible (§31.3, FR-AC.9).
+      tags: [despatch]
       x-principal: filing-workflow
-      x-timeout: 5000
-      x-error-codes: []
-      x-requirements: []
+      x-timeout: 30000
+      x-sync-edge: submission-svc->transport-svc
+      x-error-codes: [SUB-001, SUB-002, SUB-003]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, FR-E.1, FR-E.2, FR-E.4]
       x-operation:
         role: filing-workflow
-        scope: filing-workflow
-        precondition: "None — placeholder. A real operation states what it checks against record state (FR-AC.1.3)."
-        reversibility: COMPENSABLE
-        repeatKey: "(tenantId, sourceKey, sourceRevision) — placeholder shape, FR-AC.19"
+        scope: entity
+        precondition: "The payload is built and validated for this Doc UUID and version (submission-svc's own precondition)."
+        reversibility: IRREVERSIBLE
+        repeatKey: "(docUuid, version) — a repeat returns the original transport outcome."
       parameters:
-        - name: Idempotency-Key
-          in: header
-          required: true
-          schema:
-            type: string
-            format: uuid
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ExampleRequest'
+              $ref: '#/components/schemas/SubmitPayloadRequest'
             examples:
               default:
-                value: { name: "example" }
+                value:
+                  docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                  version: 1
+                  adapterRef: "AP-PRIMARY"
+                  payloadRef: "PAY-9001"
       responses:
-        '201':
-          description: Created
+        '202':
+          description: The transport outcome.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ExampleResponse'
+                $ref: '#/components/schemas/TransportOutcome'
               examples:
                 default:
-                  value: { id: "3fa85f64-5717-4562-b3fc-2c963f66afa6", name: "example" }
+                  value: { docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6", version: 1, outcome: "ACCEPTED" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/transport/network-documents:
+    post:
+      operationId: sendNetworkDocument
+      summary: Send a Relay-mode Type 1A document directly on the Peppol network
+      description: >-
+        The send API to submission-svc (services.yaml transport-svc
+        `provides`; sync-edges.yaml `submission-svc -> transport-svc`,
+        §33.1). Relay-mode Type 1A network issuance, distinct from
+        `submitPayload`'s AP-mediated filing despatch. Irreversible: once
+        sent, the network document is at the counterparty and cannot be
+        recalled (§31.3, FR-AC.9).
+      tags: [despatch]
+      x-principal: filing-workflow
+      x-timeout: 30000
+      x-sync-edge: submission-svc->transport-svc
+      x-error-codes: [SUB-001, SUB-002, SUB-003]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, "§33.1"]
+      x-operation:
+        role: filing-workflow
+        scope: entity
+        precondition: "The document's issuanceMode is RELAY and it is Type 1A."
+        reversibility: IRREVERSIBLE
+        repeatKey: "(docUuid, version) — a repeat returns the original transport outcome."
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendNetworkDocumentRequest'
+            examples:
+              default:
+                value:
+                  docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                  version: 1
+                  adapterRef: "AP-PRIMARY"
+                  peppolRecipientId: "0195:201954321B"
+      responses:
+        '202':
+          description: The transport outcome.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransportOutcome'
+              examples:
+                default:
+                  value: { docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6", version: 1, outcome: "ACCEPTED" }
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/ap/{adapterId}/notifications:
+    post:
+      operationId: receiveApNotification
+      summary: Receive an AP notification — acknowledgement, delivery status or inbound network document
+      description: >-
+        The notification endpoint, through the gateway, to `ap-callback`
+        principals (services.yaml transport-svc `provides`; resource
+        catalogue §15, §33.6). Also polled where the AP offers only
+        polling, using the same shape. Idempotent on the AP's own
+        notification ID (API-15, API-27); recorded in the notification
+        de-duplication ledger before `AcknowledgementReceived` or
+        `NetworkDocumentReceived` is emitted. transport-svc never interprets
+        the content of an inbound document (transport-svc `must_not`).
+      tags: [notifications]
+      x-principal: ap-callback
+      x-timeout: 5000
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010, "§33.6"]
+      x-operation:
+        role: ap-callback
+        scope: entity
+        precondition: "The AP notification ID has not already been recorded (API-15, API-27)."
+        reversibility: IRREVERSIBLE
+        repeatKey: "The AP notification ID — a repeat returns the original recorded outcome (API-15, API-27)."
+      parameters:
+        - name: adapterId
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApNotification'
+            examples:
+              default:
+                value:
+                  apNotificationId: "APN-55210"
+                  kind: "ACKNOWLEDGEMENT"
+                  docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                  version: 1
+      responses:
+        '200':
+          description: Recorded (or already recorded — a no-op).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApNotificationResult'
+              examples:
+                default:
+                  value: { apNotificationId: "APN-55210", recorded: true }
         default:
           $ref: '#/components/responses/Error'
 components:
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: 'API-15: a UUID, deduplicating an exact request replay for at least 24h.'
+      schema:
+        type: string
+        format: uuid
   schemas:
-    ExampleRequest:
+    SubmitPayloadRequest:
       type: object
       properties:
-        name:
-          type: string
-          maxLength: 200
-      required: [name]
-    ExampleResponse:
+        docUuid: { type: string, format: uuid }
+        version: { type: integer, minimum: 1 }
+        adapterRef: { type: string, maxLength: 40 }
+        payloadRef: { type: string, maxLength: 100 }
+      required: [docUuid, version, adapterRef, payloadRef]
+    SendNetworkDocumentRequest:
       type: object
       properties:
-        id:
+        docUuid: { type: string, format: uuid }
+        version: { type: integer, minimum: 1 }
+        adapterRef: { type: string, maxLength: 40 }
+        peppolRecipientId: { type: string, maxLength: 64 }
+      required: [docUuid, version, adapterRef, peppolRecipientId]
+    TransportOutcome:
+      type: object
+      properties:
+        docUuid: { type: string, format: uuid }
+        version: { type: integer, minimum: 1 }
+        outcome:
           type: string
-          format: uuid
-        name:
+          enum: [ACCEPTED, REJECTED, TRANSIENT_FAILURE]
+          x-extensible-enum: true
+        reasons:
+          type: array
+          items:
+            type: object
+            properties:
+              code: { type: string, pattern: '^[A-Z]{2,10}-[0-9]{3}$' }
+              field: { type: string }
+              message: { type: string }
+            required: [code, message]
+      required: [docUuid, version, outcome]
+    ApNotification:
+      type: object
+      properties:
+        apNotificationId: { type: string, maxLength: 100 }
+        kind:
           type: string
-          maxLength: 200
-      required: [id, name]
+          enum: [ACKNOWLEDGEMENT, DELIVERY_STATUS, INBOUND_NETWORK_DOCUMENT]
+          x-extensible-enum: true
+        docUuid: { type: string, format: uuid }
+        version: { type: integer, minimum: 1 }
+        peppolMessageId: { type: string, maxLength: 100 }
+        documentReference: { type: string, maxLength: 256 }
+      required: [apNotificationId, kind]
+    ApNotificationResult:
+      type: object
+      properties:
+        apNotificationId: { type: string, maxLength: 100 }
+        recorded: { type: boolean }
+      required: [apNotificationId, recorded]
   responses:
     Error:
       description: Error (API-20 envelope)
