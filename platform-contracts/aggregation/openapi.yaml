@@ -56,7 +56,7 @@ paths:
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-4.5, FR-4.8, FR-4.9, FR-4.14, FR-10.15, "C-3", "C-8", FR-AE.73]
       x-operation:
         role: ingest
-        scope: entity
+        scope: ingest
         precondition: >-
           aggregateType is POS, STI or PCP and does not contradict direction
           (C-3); the transaction's date falls within the entity's open

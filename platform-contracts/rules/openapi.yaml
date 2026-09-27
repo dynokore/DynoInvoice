@@ -59,7 +59,7 @@ paths:
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-B.1, FR-B.6, FR-B.8, FR-AE.89, FR-T.2]
       x-operation:
         role: ingest
-        scope: entity
+        scope: ingest
         precondition: >-
           None — a pure function; the same inputs and pack version always
           yield the same verdict (FR-B.6). Resolved by the line's transaction
@@ -117,7 +117,7 @@ paths:
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-B.6, FR-AE.89]
       x-operation:
         role: ingest
-        scope: entity
+        scope: ingest
         precondition: >-
           None — the draft has no canonical record yet and nothing is
           persisted either way (§33.1); a register or evaluation failure

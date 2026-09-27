@@ -16,44 +16,21 @@ info:
     §33.6). `submitPayload` and `sendNetworkDocument` are `/internal/v1/…`,
     serving the synchronous edge of model/architecture/sync-edges.yaml
     (`submission-svc -> transport-svc`, "needs the outcome to advance
-    state").
-
-
-    invoice-docs commit 15e0e94 (2026-09-27) gave services.yaml's
-    transport-svc entry a console-bff surface — "AP adapter administration
-    (failover, credential rotation, connection test) to console-bff
-    (INV-NOTE-7 §7; added 27 Sep 2026)" — and added the
-    `console-bff -> transport-svc` sync-edge (kind `console`), closing the
-    gap this file previously flagged. `rotateCredential` and `testConnection`
-    below are `/internal/v1/…` operations on that edge, with role,
-    precondition, reversibility and repeat key exactly as INV-NOTE-7 §7's
-    "Operations introduced" table states them for `transport-svc`.
-    `failoverAdapter`, the third operation §7's own commit message names, is
-    NOT in that table (checked directly: absent from every `transport-svc` /
-    `masterdata-svc` row of §7). It appears only in §3's screen inventory
-    (SCR-18.4, SCR-39.3), both of which point its full definition to the
-    original design catalogue, SDS §31.2.6 — archived, out of bounds for a
-    coding agent (coder brief). Left out of this file rather than invented;
-    flagged for the coordinator in this MR. Neither new operation has a
-    matching code in the vendored gst-catalogue (`catalogue/errors/error-codes.yaml`
-    has no transport-admin prefix); `x-error-codes: []` below, also flagged
-    as a catalogue gap in the MR rather than invented.
+    state"). services.yaml's transport-svc entry names no console-bff
+    surface under `provides`, so the console commands of Keel INV-NOTE-7 §7
+    tagged `transport-svc` (`failoverAdapter`, `rotateCredential`,
+    `testConnection`) are out of this file's declared scope; flagged for the
+    coordinator in this MR rather than assumed.
   contact:
     name: transport (see CODEOWNERS)
 servers:
   - url: 'https://api.invoice.internal'
-    description: Placeholder — the gateway routes only the operations of a published train (API-26) for receiveApNotification; the other four are never routed (API-01 scope table).
+    description: Placeholder — the gateway routes only the operations of a published train (API-26) for receiveApNotification; the other two are never routed (API-01 scope table).
 tags:
   - name: despatch
     description: Submission to IRAS through the AP, and Relay-mode network issuance (§33.1).
   - name: notifications
     description: Inbound AP acknowledgements, delivery status and network documents (§33.6).
-  - name: administration
-    description: >-
-      AP adapter administration to console-bff — credential rotation and
-      connection test (services.yaml transport-svc `provides`;
-      sync-edges.yaml `console-bff -> transport-svc`, kind console;
-      INV-NOTE-7 §7).
 paths:
   /internal/v1/transport/payloads:
     post:
@@ -213,103 +190,6 @@ paths:
                   value: { apNotificationId: "APN-55210", recorded: true }
         default:
           $ref: '#/components/responses/Error'
-  /internal/v1/transport/adapters/{adapterRef}/credential-rotations:
-    post:
-      operationId: rotateCredential
-      summary: Rotate an AP adapter's credential, with an overlap window
-      description: >-
-        Console command to console-bff (services.yaml transport-svc
-        `provides`; sync-edges.yaml `console-bff -> transport-svc`, kind
-        console; INV-NOTE-7 §7 "Operations introduced", joint
-        `transport-svc`/`masterdata-svc` row). The replacement credential is
-        already held in the vault (SCR-18.3); this operation starts the
-        overlap window, after which the old credential is refused. Never
-        the credential material itself in the schema — only its vault
-        reference (services.yaml transport-svc `owns`: "Credentials live in
-        the vault, never in the schema").
-      tags: [administration]
-      x-principal: filing-workflow
-      x-timeout: 5000
-      x-sync-edge: console-bff->transport-svc
-      x-error-codes: []
-      x-requirements: [INV-REQ-957, INV-REQ-1010, "INV-NOTE-7 §7"]
-      x-operation:
-        role: "tenant.admin, platform.engineer"
-        scope: entity
-        precondition: "A replacement credential is already held (in the vault) for this adapter (INV-NOTE-7 §7)."
-        reversibility: COMPENSABLE
-        repeatKey: "(adapterRef, credentialId) — a repeat returns the original rotation outcome; the same credential id is not rotated in twice (INV-NOTE-7 §7)."
-      parameters:
-        - name: adapterRef
-          in: path
-          required: true
-          schema: { type: string, maxLength: 40 }
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RotateCredentialRequest'
-            examples:
-              default:
-                value:
-                  credentialId: "VAULT-CRED-2214"
-      responses:
-        '200':
-          description: The adapter's credential state after starting the rotation.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CredentialRotationResult'
-              examples:
-                default:
-                  value: { adapterRef: "AP-PRIMARY", credentialId: "VAULT-CRED-2214", overlapActive: true, rotatedAt: "2026-09-27T03:15:00Z" }
-        default:
-          $ref: '#/components/responses/Error'
-  /internal/v1/transport/adapters/{adapterRef}/connection-tests:
-    post:
-      operationId: testConnection
-      summary: Test an AP adapter's connection
-      description: >-
-        Console command to console-bff (services.yaml transport-svc
-        `provides`; sync-edges.yaml `console-bff -> transport-svc`, kind
-        console; INV-NOTE-7 §7 "Operations introduced", joint
-        `transport-svc`/`masterdata-svc` row; SCR-18.2). Result only;
-        publishes `ConnectionStatusChanged` (already the shared
-        `service-runtime` platform-event payload, INV-T-2855/T11 —
-        out of this file's scope) only where the result differs from the
-        adapter's stored status (INV-NOTE-7 §7).
-      tags: [administration]
-      x-principal: filing-workflow
-      x-timeout: 5000
-      x-sync-edge: console-bff->transport-svc
-      x-error-codes: []
-      x-requirements: [INV-REQ-957, INV-REQ-1010, "INV-NOTE-7 §7"]
-      x-operation:
-        role: "integration.engineer, deployment.operator"
-        scope: entity
-        precondition: "The adapter is configured (INV-NOTE-7 §7)."
-        reversibility: UNDOABLE
-        repeatKey: "None — a read; a repeat returns the current result and persists nothing beyond the status it already stores (INV-NOTE-7 §7: Idempotency key \"—\")."
-      parameters:
-        - name: adapterRef
-          in: path
-          required: true
-          schema: { type: string, maxLength: 40 }
-        - $ref: '#/components/parameters/IdempotencyKey'
-      responses:
-        '200':
-          description: The connection test result.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ConnectionTestResult'
-              examples:
-                default:
-                  value: { adapterRef: "AP-PRIMARY", state: "UP", checkedAt: "2026-09-27T03:15:00Z" }
-        default:
-          $ref: '#/components/responses/Error'
 components:
   parameters:
     IdempotencyKey:
@@ -375,36 +255,6 @@ components:
         apNotificationId: { type: string, maxLength: 100 }
         recorded: { type: boolean }
       required: [apNotificationId, recorded]
-    RotateCredentialRequest:
-      type: object
-      description: >-
-        The replacement credential is already held in the vault (INV-NOTE-7
-        §7 precondition); this carries only its vault reference, never the
-        credential material (services.yaml transport-svc `owns`).
-      properties:
-        credentialId: { type: string, maxLength: 100 }
-      required: [credentialId]
-    CredentialRotationResult:
-      type: object
-      properties:
-        adapterRef: { type: string, maxLength: 40 }
-        credentialId: { type: string, maxLength: 100 }
-        overlapActive:
-          type: boolean
-          description: 'true during the overlap window; false once the old credential is refused (INV-NOTE-7 §7).'
-        rotatedAt: { type: string, format: date-time }
-      required: [adapterRef, credentialId, overlapActive]
-    ConnectionTestResult:
-      type: object
-      properties:
-        adapterRef: { type: string, maxLength: 40 }
-        state:
-          type: string
-          description: 'Connection health state (this producer''s own vocabulary, service-runtime ConnectionStatusChangedPayload).'
-          enum: [UP, DOWN, DEGRADED]
-          x-extensible-enum: true
-        checkedAt: { type: string, format: date-time }
-      required: [adapterRef, state]
   responses:
     Error:
       description: Error (API-20 envelope)
