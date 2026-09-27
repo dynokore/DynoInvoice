@@ -322,6 +322,46 @@ asyncapi-breaking-gate:
   script:
     - sh spectral/run-asyncapi-gate.sh "$CI_MERGE_REQUEST_DIFF_BASE_SHA"
 
+contracts-codegen-compile:
+  # INV-T-2850 follow-up (coordinator-authorised) — T9-T14b each proved "server and
+  # client generation compiles" / "gst.event-types generates compiling Kotlin types"
+  # only with an ad-hoc local harness, deleted before their own MR. codegen-self-test/
+  # is that harness, kept: for every service directory it applies platform-build's
+  # gst.contract-server + gst.contract-client to that service's openapi.yaml and
+  # gst.event-types to every schemas/*.json, and compiles the result. Fails on any
+  # generation or compile error.
+  #
+  # No published plugin-marker artefact exists for platform-build's build-logic yet
+  # (its own pipeline has never run a `publish` job — still INV-T-2845's bootstrap
+  # pipeline, MAVEN_PUBLISH unset regardless), so this clones platform-build at a
+  # pinned commit and `includeBuild`s build-logic/ (codegen-self-test/settings.gradle.kts).
+  # Same gitlab-ci-token:$CI_JOB_TOKEN cross-project clone lifecycle-states-drift-check
+  # already uses for invoice-docs, just above (the job-token allowlist covers group
+  # invoice, so this needs no extra Maintainer action). Bump PLATFORM_BUILD_REF in its
+  # own merge request when build-logic changes.
+  stage: verify
+  image: "$GRADLE_IMAGE"
+  variables:
+    PLATFORM_BUILD_REF: "3dde4ae8ce1cbb905413124de2ba84e5d59dce42" # main: adds gst.contract-server/-client/-event-types (INV-T-2847) + its CVE/signature-verification follow-ups
+  cache:
+    key: "gradle-codegen-self-test-$CI_PROJECT_ID"
+    paths:
+      - .gradle-cache/caches
+  script:
+    - mkdir -p /tmp/platform-build-pinned
+    - git -C /tmp/platform-build-pinned init -q
+    - >
+      git -C /tmp/platform-build-pinned remote add origin
+      "${CI_SERVER_PROTOCOL}://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}:${CI_SERVER_PORT}/invoice/platform-build.git"
+    - git -C /tmp/platform-build-pinned fetch --depth 1 origin "${PLATFORM_BUILD_REF}"
+    - git -C /tmp/platform-build-pinned checkout -q FETCH_HEAD
+    - PLATFORM_BUILD_DIR=/tmp/platform-build-pinned gradle -p codegen-self-test compileAllContracts --stacktrace
+  artifacts:
+    when: on_failure
+    paths:
+      - codegen-self-test/build/reports/
+    expire_in: 1 week
+
 bundle-publish:
   stage: publish
   image: "$GRADLE_IMAGE"
