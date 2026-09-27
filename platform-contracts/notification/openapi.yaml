@@ -65,17 +65,13 @@ paths:
         thresholds may be tightened but never loosened (FR-AE.71,
         INV-REQ-1117). Every policy needs at least two recipients, or a
         recorded sole-operator acknowledgement (FR-AE.69, INV-REQ-1115).
-        Also permitted for `security.officer` (INV-NOTE-7 §7 SCR-20.1);
-        `x-operation.role` is a single string today, so only the primary
-        actor is declared here — the multi-role format is tracked
-        separately by the coordinator.
       tags: [policies]
       x-principal: filing-workflow
       x-timeout: 5000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-1113, INV-REQ-1114, INV-REQ-1115, INV-REQ-1117]
       x-operation:
-        role: tenant.admin
+        role: entity.admin
         scope: entity
         precondition: >-
           For the DEADLINE and COVERAGE classes, the policy is not disabled
@@ -181,7 +177,7 @@ paths:
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010]
       x-operation:
-        role: integration.engineer
+        role: entity.admin
         scope: entity
         precondition: "The target URL is not already subscribed for the same entity and event set."
         reversibility: COMPENSABLE
@@ -287,7 +283,7 @@ paths:
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010]
       x-operation:
-        role: integration.engineer
+        role: entity.admin
         scope: entity
         precondition: "The subscription exists."
         reversibility: IRREVERSIBLE
@@ -310,7 +306,7 @@ paths:
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010]
       x-operation:
-        role: integration.engineer
+        role: entity.admin
         scope: entity
         precondition: "The subscription exists and is ACTIVE."
         reversibility: IRREVERSIBLE
@@ -401,7 +397,7 @@ paths:
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010]
       x-operation:
-        role: integration.engineer
+        role: entity.admin
         scope: entity
         precondition: "The delivery is DEAD_LETTERED."
         reversibility: COMPENSABLE

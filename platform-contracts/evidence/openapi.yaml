@@ -28,20 +28,17 @@ info:
     `getAcknowledgementChain` and `reverseLookup`; "export … queries" is
     `getEvidenceExport` (offboarding); "verification … queries" is
     `getIntegrityReport`; "privacy … queries" is `getCase`; "retention …
-    commands" is `deleteAtRetentionEnd` (the INV-REQ-1010 named operation)
-    and `setRetentionJustification` (INV-NOTE-7 §7 SCR-30.4); "legal-hold
-    commands" is `placeLegalHold` / `releaseLegalHold`; "the audit-pack
-    resource of §19.7" is `createAuditPackExport` / `getAuditPackExport`,
-    the internal half of the public
+    commands" is `deleteAtRetentionEnd` (the INV-REQ-1010 named operation);
+    "legal-hold commands" is `placeLegalHold` / `releaseLegalHold`; "the
+    audit-pack resource of §19.7" is `createAuditPackExport` /
+    `getAuditPackExport`, the internal half of the public
     `POST /bff/entities/{entityRef}/audit-pack-exports` that console-bff/openapi.yaml
     exposes; "certification-report intake" is `intakeCertificationReport`.
-    `recordSecurityCase` (INV-REQ-880, INV-AC-1410, SCR-31.2) is a real
-    write operation, not an architecture gap: it records the conclusion of
-    a credential-compromise review as a security case, on the same case
-    mechanism as the privacy cases `getCase` reads (services.yaml
-    evidence-svc capabilities, "Security case records concluding a
-    credential-compromise review"). No catalogue error code exists yet
-    under an EVI- prefix
+    Security-case queries (FR-P.10) are NOT included: services.yaml's
+    `provides` line names only "privacy … queries", not security-case
+    queries, so that capability is left as an architecture gap for the
+    coordinator rather than added here (T13b review correction). No
+    catalogue error code exists yet under an EVI- prefix
     (model/architecture/error-codes.yaml has no such prefix) — every
     operation below declares `x-error-codes: []`; also flagged as an
     architecture gap.
@@ -265,16 +262,12 @@ paths:
         Offboarding export (services.yaml evidence-svc `provides`, "export …
         queries"; capabilities "Audit pack and offboarding export"). A
         self-describing, bulk-exportable manifest scoped to the tenant
-        (FR-9.15, FR-D.7). Changes no state (INV-REQ-958). Blocked with
-        DEP-007 when evidence chain verification has failed for the range
-        (INV-NOTE-3 §21.2 raising points; INV-REQ-662) — this is the
-        offboarding export the condition names, including an
-        `exportAuditPack` call made as part of offboarding.
+        (FR-9.15, FR-D.7). Changes no state (INV-REQ-958).
       tags: [exports]
       x-principal: reporting
       x-timeout: 5000
-      x-error-codes: [DEP-007]
-      x-requirements: [INV-REQ-650, INV-REQ-642, INV-REQ-662]
+      x-error-codes: []
+      x-requirements: [INV-REQ-650, INV-REQ-642]
       parameters:
         - name: tenantId
           in: query
@@ -386,15 +379,16 @@ paths:
       description: >-
         Legal-hold commands (services.yaml evidence-svc `provides`). A
         legal hold stops the controlled deletion operation at retention end
-        (FR-D.4). Keel's operation catalogue (INV-NOTE-7 §7 SCR-30.3)
-        assigns `placeLegalHold` to `tax.approver`.
+        (FR-D.4). Called by console-bff on behalf of security.officer (SaaS)
+        or tax.approver (private installation), per the co-approval split
+        for retention deletion (evidence-svc `forms_text`).
       tags: [retention]
       x-principal: filing-workflow
       x-timeout: 5000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-639]
       x-operation:
-        role: tax.approver
+        role: security.officer
         scope: entity+period
         precondition: "No active legal hold already covers the same (entityRef, periodRef)."
         reversibility: COMPENSABLE
@@ -444,15 +438,14 @@ paths:
       description: >-
         Legal-hold commands (services.yaml evidence-svc `provides`; FR-D.4).
         Once released, a due retention deletion for the covered partitions
-        may proceed on its own schedule. The same role reverses its own
-        placement (INV-NOTE-7 §7 SCR-30.3): `tax.approver`.
+        may proceed on its own schedule.
       tags: [retention]
       x-principal: filing-workflow
       x-timeout: 5000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-639]
       x-operation:
-        role: tax.approver
+        role: security.officer
         scope: entity+period
         precondition: "The hold is ACTIVE."
         reversibility: COMPENSABLE
@@ -578,14 +571,12 @@ paths:
         deliberate, co-approved and audited, stopped by a legal hold
         (FR-D.4). A repeat on the same partition fails loudly rather than
         silently no-op'ing, since a second deletion attempt after the first
-        succeeded indicates a defect worth surfacing (INV-REQ-1011). Blocked
-        with DEP-007 when evidence chain verification has failed for the
-        range (INV-NOTE-3 §21.2 raising points; INV-REQ-662).
+        succeeded indicates a defect worth surfacing (INV-REQ-1011).
       tags: [retention]
       x-principal: filing-workflow
       x-timeout: 10000
-      x-error-codes: [DEP-007]
-      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-1011, INV-REQ-639, INV-REQ-662]
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-1011, INV-REQ-639]
       x-operation:
         role: security.officer, tax.approver
         scope: entity+period
@@ -615,133 +606,6 @@ paths:
                     partitionId: "PART-2019-Q1"
                     status: "DELETED"
                     deletedAt: "2026-04-01T02:00:00Z"
-        default:
-          $ref: '#/components/responses/Error'
-  /internal/v1/evidence/security-cases:
-    post:
-      operationId: recordSecurityCase
-      summary: Record a security case concluding a credential-compromise review
-      description: >-
-        Security case records (services.yaml evidence-svc capabilities;
-        INV-REQ-880, INV-AC-1410, INV-NOTE-7 §7 SCR-31.2). Links the
-        reviewed audit-log entries and the outcome; opens the breach
-        assessment where personal data was exposed (NFR-S.12), on the same
-        case mechanism as the privacy cases `getCase` reads.
-      tags: [privacy]
-      x-principal: filing-workflow
-      x-timeout: 5000
-      x-error-codes: []
-      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-880]
-      x-operation:
-        role: security.officer
-        scope: entity
-        precondition: "The credential-compromise review is complete."
-        reversibility: COMPENSABLE
-        repeatKey: "caseId — a repeat returns the original result, unchanged; reopen to correct."
-      parameters:
-        - name: Idempotency-Key
-          in: header
-          required: true
-          description: 'API-15: a UUID, deduplicating an exact request replay for at least 24h.'
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RecordSecurityCaseRequest'
-            examples:
-              default:
-                value:
-                  reviewReference: "REVIEW-2026-0142"
-                  auditLogEntryIds: ["3fa85f64-5717-4562-b3fc-2c963f66afa6"]
-                  outcome: "CREDENTIALS_ROTATED"
-                  personalDataExposed: false
-      responses:
-        '201':
-          description: The security case was recorded.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SecurityCase'
-              examples:
-                default:
-                  value:
-                    caseId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
-                    reviewReference: "REVIEW-2026-0142"
-                    auditLogEntryIds: ["3fa85f64-5717-4562-b3fc-2c963f66afa6"]
-                    outcome: "CREDENTIALS_ROTATED"
-                    breachAssessmentOpened: false
-                    recordedAt: "2026-04-01T02:00:00Z"
-        '200':
-          description: Idempotent replay — the original result, unchanged.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SecurityCase'
-              examples:
-                default:
-                  value:
-                    caseId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
-                    reviewReference: "REVIEW-2026-0142"
-                    auditLogEntryIds: ["3fa85f64-5717-4562-b3fc-2c963f66afa6"]
-                    outcome: "CREDENTIALS_ROTATED"
-                    breachAssessmentOpened: false
-                    recordedAt: "2026-04-01T02:00:00Z"
-        default:
-          $ref: '#/components/responses/Error'
-  /internal/v1/evidence/tenants/{tenantId}/retention-justification:
-    put:
-      operationId: setRetentionJustification
-      summary: Set the retention period and justification beyond five years
-      description: >-
-        Retention commands (services.yaml evidence-svc `provides`,
-        "retention … commands"; INV-NOTE-7 §7 SCR-30.4, NFR-S.5, VP-43).
-      tags: [retention]
-      x-principal: filing-workflow
-      x-timeout: 5000
-      x-error-codes: []
-      x-requirements: [INV-REQ-957, INV-REQ-1010]
-      x-operation:
-        role: tenant.admin
-        scope: tenant
-        precondition: "The requested retention period exceeds five years."
-        reversibility: UNDOABLE
-        repeatKey: "(tenantId, tier) — a repeat returns the existing retention period and justification, unchanged."
-      parameters:
-        - name: tenantId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RetentionJustificationRequest'
-            examples:
-              default:
-                value:
-                  tier: "SEVEN_YEARS"
-                  justification: "Sector regulator requires seven-year retention (MAS Notice 626)."
-      responses:
-        '200':
-          description: The retention period with its justification.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RetentionJustification'
-              examples:
-                default:
-                  value:
-                    tenantId: "5e0b8a0e-2c4d-4b8f-9a61-0d3c7f1e2b44"
-                    tier: "SEVEN_YEARS"
-                    justification: "Sector regulator requires seven-year retention (MAS Notice 626)."
-                    setAt: "2026-04-01T02:00:00Z"
         default:
           $ref: '#/components/responses/Error'
 components:
@@ -982,70 +846,6 @@ components:
           type: string
           format: date-time
       required: [partitionId, status, deletedAt]
-    RecordSecurityCaseRequest:
-      type: object
-      properties:
-        reviewReference:
-          type: string
-          maxLength: 100
-        auditLogEntryIds:
-          type: array
-          minItems: 1
-          items:
-            type: string
-            format: uuid
-        outcome:
-          type: string
-          maxLength: 200
-        personalDataExposed:
-          type: boolean
-          description: Opens the breach assessment when true (NFR-S.12).
-      required: [reviewReference, auditLogEntryIds, outcome, personalDataExposed]
-    SecurityCase:
-      type: object
-      properties:
-        caseId:
-          type: string
-          format: uuid
-        reviewReference:
-          type: string
-        auditLogEntryIds:
-          type: array
-          items:
-            type: string
-            format: uuid
-        outcome:
-          type: string
-        breachAssessmentOpened:
-          type: boolean
-        recordedAt:
-          type: string
-          format: date-time
-      required: [caseId, reviewReference, auditLogEntryIds, outcome, breachAssessmentOpened, recordedAt]
-    RetentionJustificationRequest:
-      type: object
-      properties:
-        tier:
-          type: string
-          maxLength: 40
-        justification:
-          type: string
-          maxLength: 2000
-      required: [tier, justification]
-    RetentionJustification:
-      type: object
-      properties:
-        tenantId:
-          type: string
-          format: uuid
-        tier:
-          type: string
-        justification:
-          type: string
-        setAt:
-          type: string
-          format: date-time
-      required: [tenantId, tier, justification, setAt]
   responses:
     Error:
       description: Error (API-20 envelope)
