@@ -42,8 +42,22 @@ jackson = "3.2.3"
 kotestProperty = "6.2.5"
 kotlinxCoroutines = "1.11.0"
 awssdk = "2.55.6"
+# STK-05 (service-runtime, INV-T-2871 / T27): Spring Boot 4.1.x application
+# framework — bootstrap auto-configuration, Actuator health/diagnostics,
+# Micrometer. First module in this repository to need it; every other
+# `implImplementation` dependency version below it comes from this one BOM
+# (`platform(libs.springBoot.dependencies)`), never pinned separately.
+springBoot = "4.1.1"
 
 [libraries]
+springBoot-dependencies = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "springBoot" }
+springBoot-starterActuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }
+# `ApplicationContextRunner`, for the auto-configuration wiring test (implTest only).
+springBoot-test = { module = "org.springframework.boot:spring-boot-test" }
+# `ApplicationContextRunner`'s own `AssertableApplicationContext` extends AssertJ's
+# `AssertProvider`; version managed by the Spring Boot BOM (implTest only, STK-37
+# still prefers Kotest for this module's own assertions).
+assertj-core = { module = "org.assertj:assertj-core" }
 platform-konsistRules = { module = "com.dynokore.gst.build:konsist-rules", version.ref = "platformBuild" }
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }

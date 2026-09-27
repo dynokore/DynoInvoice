@@ -5,6 +5,12 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-27
+### Added
+- `service-runtime-api`/`service-runtime` constraint pair, pinned to
+  `service-runtime`'s own `1.0.0` (INV-T-2871 / T27: the module's first real
+  interface) — first in STK-60's canonical L1 order.
+
 ## [0.3.0] - 2026-09-27
 ### Added
 - `rulepack-kernel-api`/`rulepack-kernel` constraint pair, pinned to
