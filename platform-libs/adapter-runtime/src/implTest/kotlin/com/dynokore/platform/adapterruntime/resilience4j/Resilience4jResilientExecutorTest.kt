@@ -133,6 +133,28 @@ class Resilience4jResilientExecutorTest {
     }
 
     @Test
+    fun `a circuit breaker that opens mid-retry ends one call's own bounded retry early (INV-REQ-1353)`() {
+        val deadLetters = InMemoryDeadLetterSink()
+        // The composed scenario the two retry-behavior tests above deliberately avoid:
+        // here slidingWindowSize (2) is smaller than maxAttempts (5) on purpose, so the
+        // breaker's own window IS exhausted by this one call's retries and trips before
+        // the retry budget does.
+        val executor = Resilience4jResilientExecutor(policy(maxAttempts = 5, slidingWindowSize = 2), "edge-g", deadLetters, clock)
+        var calls = 0
+
+        shouldThrow<CallNotPermittedException> {
+            executor.execute {
+                calls += 1
+                throw IllegalStateException("always fails")
+            }
+        }
+
+        calls shouldBe 2 // the block ran for attempts 1 and 2 only; both failures filled the 2-call window and tripped the breaker
+        deadLetters.entries.single().attempts shouldBe 3 // 2 real attempts, then the 3rd was the breaker's own refusal
+        deadLetters.entries.single().failureType shouldContain "CallNotPermittedException"
+    }
+
+    @Test
     fun `a bulkhead at capacity refuses a concurrent call instead of queuing it indefinitely`() {
         val deadLetters = InMemoryDeadLetterSink()
         val executor =
