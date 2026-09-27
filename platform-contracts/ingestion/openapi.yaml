@@ -972,87 +972,8 @@ components:
       description: 'API-16: optional on this versioned intake resource (control-totals); a mismatch returns 412.'
       schema: { type: string }
   schemas:
-    Party:
-      type: object
-      properties:
-        identifierScheme: { type: string, maxLength: 20 }
-        identifierValue: { type: string, maxLength: 60 }
-      required: [identifierScheme, identifierValue]
-    Line:
-      type: object
-      properties:
-        lineNumber: { type: integer, minimum: 1 }
-        description: { type: string, maxLength: 500 }
-        quantity: { type: number }
-        unitPrice:
-          type: string
-          format: decimal
-          pattern: '^-?\d{1,17}(\.\d{1,6})?$'
-          description: Money as a decimal string, up to 6 places (API-12).
-        lineAmount:
-          type: string
-          format: decimal
-          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
-          description: Money as a decimal string, decimal(19,2) (API-12).
-        taxCode: { type: string, maxLength: 10 }
-        taxAmount:
-          type: string
-          format: decimal
-          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
-          description: Money as a decimal string, decimal(19,2) (API-12).
-      required: [lineNumber, lineAmount]
-    Totals:
-      type: object
-      properties:
-        totalExcludingTax: { type: string, format: decimal, pattern: '^-?\d{1,17}(\.\d{1,2})?$' }
-        totalTax: { type: string, format: decimal, pattern: '^-?\d{1,17}(\.\d{1,2})?$' }
-        totalIncludingTax: { type: string, format: decimal, pattern: '^-?\d{1,17}(\.\d{1,2})?$' }
-      required: [totalExcludingTax, totalTax, totalIncludingTax]
     TransactionRequest:
-      type: object
-      description: >-
-        Request body of POST /v1/transactions (SDS §19.2, FR-M.2), reused
-        transaction-by-transaction inside POST /v1/batches (FR-M.8) and as
-        the base of POST /v1/issuances (FR-AE.2). Field names mirror
-        canonical/openapi.yaml's RecordDocumentRequest/Party/Line/Totals
-        one-for-one (canonical calls the parties object "parties"; this
-        public resource calls it "counterparty", SDS §19.2's own term) so
-        the two sides of the ingestion-svc -> canonical-svc sync edge never
-        drift. entityRef is checked against the caller's token scope
-        (API-24) rather than carried as a separate tenantId, since tenant
-        and entity scope come from the token on the public surface.
-      properties:
-        entityRef: { type: string, maxLength: 40 }
-        sourceSystem: { type: string, maxLength: 60 }
-        sourceKey:
-          type: string
-          maxLength: 128
-          description: Part of the idempotency pair (API-13, API-15, FR-M.3).
-        sourceRevision:
-          type: integer
-          minimum: 1
-          description: Part of the idempotency pair (API-15, FR-M.3). Lower than already recorded is ING-002.
-        documentFunction:
-          type: string
-          enum: [INVOICE, CREDIT_NOTE, DEBIT_NOTE, BILL_FOR_PAYMENT]
-        documentNumber:
-          type: string
-          maxLength: 100
-          description: Required when documentFunction is BILL_FOR_PAYMENT (ING-009); otherwise omitted (API-14).
-        transactionDate: { type: string, format: date }
-        currency: { type: string, minLength: 3, maxLength: 3 }
-        counterparty:
-          type: object
-          properties:
-            supplier: { $ref: '#/components/schemas/Party' }
-            buyer: { $ref: '#/components/schemas/Party' }
-          required: [supplier, buyer]
-        lines:
-          type: array
-          maxItems: 10000
-          items: { $ref: '#/components/schemas/Line' }
-        declaredTotals: { $ref: '#/components/schemas/Totals' }
-      required: [entityRef, sourceSystem, sourceKey, sourceRevision, documentFunction, transactionDate, currency, lines]
+      $ref: 'schemas/transaction-request.schema.json'
     ReasonItem:
       type: object
       properties:
