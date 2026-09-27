@@ -2,99 +2,1918 @@ openapi: 3.1.0
 info:
   title: tenancy API
   version: 1.0.0
-  description: >-
-    Contract-first source of truth for tenancy (API-01, STK-44). The
-    `tenancy-contract` module generates its server interfaces and DTOs
-    from this file (STK-46); a consumer generates its own client types from
-    the same file (FR-AH.13, ARC-07). This is an INV-T-2849 scaffold —
-    tenancy's own team (CODEOWNERS) replaces the placeholder operation
-    below with its real ones as each lands.
+  description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
+    scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
+    each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
+    and usage counters, SaaS only) and, as a replica-cache-miss fallback, any other service. The `tenancy-contract`
+    module generates its server interfaces and DTOs from this file (STK-46); a consumer generates its
+    own client types from the same file (FR-AH.13, ARC-07).'
   contact:
     name: tenancy (see CODEOWNERS)
 servers:
-  - url: 'https://api.invoice.internal'
-    description: Placeholder — the gateway routes only the operations of a published train (API-26).
+- url: https://internal.invoice.internal
+  description: Internal API (SDS/04-api-standards §1) — never routed by the gateway.
 tags:
-  - name: tenancy
-    description: Placeholder resource (INV-T-2849 scaffold).
+- name: entities
+  description: Registered entities and their lifecycle, profile and regulatory facts.
+- name: tenants
+  description: 'Tenants: provisioning, questionnaire, usage counters.'
+- name: periods
+  description: Period records and recorded extensions.
+- name: workspaces
+  description: Sandbox workspaces and their pairing (§35.5).
+- name: installation
+  description: Installation-wide facts (licence status).
+- name: tenancy
+  description: Deprecated placeholder tag (INV-T-2849); dropped with the placeholder operation.
 paths:
-  /v1/tenancy/examples:
+  /internal/v1/tenancy/entities:
     post:
-      operationId: createExample
-      summary: Placeholder operation (INV-T-2849 scaffold) — replace with a real one
-      description: >-
-        Placeholder only, so this directory lints clean from its first commit.
-        tenancy's own team replaces it with a real operation (CODEOWNERS, API-01).
-      tags: [tenancy]
+      operationId: createEntity
+      summary: Create a registered entity (SDS §31.2.4)
+      description: Creates a business unit's registered-entity record under a group. Emits OrganisationStructureChanged.
+      tags:
+      - entities
       x-principal: filing-workflow
       x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-G.1
       x-error-codes: []
-      x-requirements: []
       x-operation:
-        role: filing-workflow
-        scope: filing-workflow
-        precondition: "None — placeholder. A real operation states what it checks against record state (FR-AC.1.3)."
-        reversibility: COMPENSABLE
-        repeatKey: "(tenantId, sourceKey, sourceRevision) — placeholder shape, FR-AC.19"
+        role: entity.admin
+        scope: tenant
+        precondition: The containing group exists within the caller's tenant scope
+        reversibility: UNDOABLE
+        repeatKey: (tenantRef, groupRef, legalName) — a repeat while still DRAFT returns the original
+          entity
       parameters:
-        - name: Idempotency-Key
-          in: header
-          required: true
-          schema:
-            type: string
-            format: uuid
+      - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ExampleRequest'
+              $ref: '#/components/schemas/CreateEntityRequest'
             examples:
               default:
-                value: { name: "example" }
+                value:
+                  tenantRef: TEN-7B1004
+                  groupRef: GRP-01
+                  legalName: Acme Trading Pte Ltd
+                  constitution: PRIVATE_LIMITED
       responses:
-        '201':
-          description: Created
+        "201":
+          description: Entity created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ExampleResponse'
+                $ref: '#/components/schemas/EntityResponse'
               examples:
                 default:
-                  value: { id: "3fa85f64-5717-4562-b3fc-2c963f66afa6", name: "example" }
+                  value:
+                    entityRef: ENT-3F2A9C
+                    legalName: Acme Trading Pte Ltd
+                    lifecycleState: DRAFT
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "409":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/entities/{entityRef}/phase-assessments:
+    post:
+      operationId: assessPhase
+      summary: Compute and record the entity's InvoiceNow implementation phase (SDS §31.2.4)
+      description: Computes the implementation date from Box 4 figures and records its basis. Recomputable.
+      tags:
+      - entities
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-AA.5
+      x-error-codes: []
+      x-operation:
+        role: entity.admin
+        scope: entity
+        precondition: Box 4 figures are available for the entity
+        reversibility: UNDOABLE
+        repeatKey: entityRef — a repeat recomputes and overwrites the prior assessment
+      parameters:
+      - name: entityRef
+        in: path
+        required: true
+        description: The registered entity's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: ENT-3F2A9C
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssessPhaseRequest'
+            examples:
+              default:
+                value:
+                  box4Figures: '1250000.00'
+                  asOfDate: "2026-01-01"
+      responses:
+        "200":
+          description: Phase recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhaseAssessmentResponse'
+              examples:
+                default:
+                  value:
+                    entityRef: ENT-3F2A9C
+                    phase: PHASE_2
+                    implementationDate: "2026-11-01"
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/entities/{entityRef}/certifications:
+    post:
+      operationId: certifySandbox
+      summary: Record the certification acceptance-suite result (SDS §31.2.4, FR-AG.47)
+      description: Records the outcome of the certification kit run through the public API (UI-F4).
+      tags:
+      - entities
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-AG.13
+      x-error-codes: []
+      x-operation:
+        role: integration.engineer
+        scope: entity
+        precondition: Configuration is complete
+        reversibility: UNDOABLE
+        repeatKey: (entityRef, suiteVersion) — repeatable, each run is its own record
+      parameters:
+      - name: entityRef
+        in: path
+        required: true
+        description: The registered entity's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: ENT-3F2A9C
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CertifySandboxRequest'
+            examples:
+              default:
+                value:
+                  outcome: PASSED
+                  suiteVersion: '2026.1'
+      responses:
+        "201":
+          description: Certification recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CertificationResponse'
+              examples:
+                default:
+                  value:
+                    entityRef: ENT-3F2A9C
+                    outcome: PASSED
+                    recordedAt: "2026-09-27T02:00:00Z"
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/entities/{entityRef}/go-live:
+    post:
+      operationId: goLive
+      summary: Activate submission for the entity (SDS §31.2.4, FR-Q.16, FR-AC.7)
+      description: 'The last reversible moment in onboarding (FR-AC.7): once documents transmit, IRAS
+        holds them. Requires a second confirmation (FR-AF.8, carried in the request, not modelled here
+        as a separate call).'
+      tags:
+      - entities
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-AC.19
+      - FR-Q.16
+      - FR-AC.7
+      x-error-codes: []
+      x-operation:
+        role: entity.admin
+        scope: entity
+        precondition: Coverage complete and certification passed (FR-Q.16 gate)
+        reversibility: IRREVERSIBLE
+        repeatKey: entity — no-op if already live (INV-REQ-1010)
+      parameters:
+      - name: entityRef
+        in: path
+        required: true
+        description: The registered entity's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: ENT-3F2A9C
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoLiveRequest'
+            examples:
+              default:
+                value:
+                  secondConfirmationBy: identity:USR-004
+      responses:
+        "200":
+          description: 'Live (or already live: a no-op, FR-AC.19)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntityResponse'
+              examples:
+                default:
+                  value:
+                    entityRef: ENT-3F2A9C
+                    legalName: Acme Trading Pte Ltd
+                    lifecycleState: LIVE
+        "422":
+          $ref: '#/components/responses/Error'
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/entities/{entityRef}/suspend:
+    post:
+      operationId: suspendEntity
+      summary: Stop submission for a live entity; ingestion continues (SDS §31.2.4)
+      description: Stop submission for a live entity; ingestion continues (SDS §31.2.4).
+      tags:
+      - entities
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-AC.7
+      x-error-codes: []
+      x-operation:
+        role: entity.admin
+        scope: entity
+        precondition: Entity is LIVE
+        reversibility: UNDOABLE
+        repeatKey: entity — no-op if already suspended
+      parameters:
+      - name: entityRef
+        in: path
+        required: true
+        description: The registered entity's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: ENT-3F2A9C
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SuspendEntityRequest'
+            examples:
+              default:
+                value:
+                  reason: Voluntary deregistration in progress
+      responses:
+        "200":
+          description: Suspended
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntityResponse'
+              examples:
+                default:
+                  value:
+                    entityRef: ENT-3F2A9C
+                    legalName: Acme Trading Pte Ltd
+                    lifecycleState: SUSPENDED
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/entities/{entityRef}/deregister:
+    post:
+      operationId: deregisterEntity
+      summary: Set the entity's registration end (SDS §31.2.4, FR-AB.9)
+      description: Documents after the registration end fall out of scope. The offboarding checks of FR-AB.9
+        are evaluated as this operation's own precondition.
+      tags:
+      - entities
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-X.5
+      - FR-AB.9
+      x-error-codes: []
+      x-operation:
+        role: entity.admin
+        scope: entity
+        precondition: GST registration has ended; the offboarding checks (FR-AB.9) pass
+        reversibility: COMPENSABLE
+        repeatKey: (entityRef, registrationEndDate) — effective-dated, a repeat with the same date is
+          a no-op
+      parameters:
+      - name: entityRef
+        in: path
+        required: true
+        description: The registered entity's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: ENT-3F2A9C
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeregisterEntityRequest'
+            examples:
+              default:
+                value:
+                  registrationEndDate: "2026-12-31"
+      responses:
+        "200":
+          description: Registration end recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntityResponse'
+              examples:
+                default:
+                  value:
+                    entityRef: ENT-3F2A9C
+                    legalName: Acme Trading Pte Ltd
+                    lifecycleState: DEREGISTERED
+        "409":
+          $ref: '#/components/responses/Error'
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/tenants/{tenantRef}/questionnaire-answers:
+    post:
+      operationId: answerQuestionnaire
+      summary: Record onboarding questionnaire answers and the recommended operating profile (SDS §7,
+        SCR-40.1)
+      description: Nothing is applied yet; the recommendation is surfaced with its reasons (PG-7, FR-AI.7,
+        FR-AI.8).
+      tags:
+      - tenants
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-AI.7
+      - FR-AI.8
+      x-error-codes: []
+      x-operation:
+        role: tenant.admin
+        scope: tenant
+        precondition: None
+        reversibility: UNDOABLE
+        repeatKey: (tenantRef, questionnaireVersion) — answer again to replace
+      parameters:
+      - name: tenantRef
+        in: path
+        required: true
+        description: The tenant's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: TEN-7B1004
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuestionnaireAnswersRequest'
+            examples:
+              default:
+                value:
+                  questionnaireVersion: '2026.1'
+                  answers:
+                    OQ-1: 'YES'
+                    OQ-2: 'NO'
+      responses:
+        "201":
+          description: Answers recorded with a recommendation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestionnaireAnswersResponse'
+              examples:
+                default:
+                  value:
+                    tenantRef: TEN-7B1004
+                    recommendedProfile: STANDARD
+                    reasons:
+                    - OQ-1=YES selects STANDARD
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/entities/{entityRef}/filing-frequency:
+    post:
+      operationId: changeFilingFrequency
+      summary: Record an IRAS-approved filing-frequency change (SDS §7, SCR-16.3, FR-AA.6)
+      description: Effective-dated; computes the transitional period. Emits FilingFrequencyChanged.
+      tags:
+      - entities
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-AA.6
+      x-error-codes: []
+      x-operation:
+        role: entity.admin
+        scope: entity
+        precondition: IRAS has approved the new frequency
+        reversibility: COMPENSABLE
+        repeatKey: (entityRef, effectiveFrom) — an effective-dated reversal supersedes
+      parameters:
+      - name: entityRef
+        in: path
+        required: true
+        description: The registered entity's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: ENT-3F2A9C
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FilingFrequencyChangeRequest'
+            examples:
+              default:
+                value:
+                  newFrequency: MONTHLY
+                  effectiveFrom: "2026-10-01"
+                  irasApprovalReference: IRAS-2026-441
+      responses:
+        "201":
+          description: Change recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FilingFrequencyResponse'
+              examples:
+                default:
+                  value:
+                    entityRef: ENT-3F2A9C
+                    frequency: MONTHLY
+                    effectiveFrom: "2026-10-01"
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/entities/{entityRef}/periods:
+    post:
+      operationId: confirmPeriods
+      summary: Confirm an irregular period with explicit dates (SDS §7, SCR-07.2)
+      description: First, final or transitional period, proposed then confirmed with explicit dates.
+      tags:
+      - periods
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-7.12
+      x-error-codes: []
+      x-operation:
+        role: entity.admin
+        scope: entity
+        precondition: An irregular period (first, final or transitional) is proposed
+        reversibility: COMPENSABLE
+        repeatKey: (entityRef, periodRef) — a superseding record replaces it
+      parameters:
+      - name: entityRef
+        in: path
+        required: true
+        description: The registered entity's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: ENT-3F2A9C
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmPeriodRequest'
+            examples:
+              default:
+                value:
+                  periodRef: 2026Q1
+                  periodStart: "2026-01-01"
+                  periodEnd: "2026-03-31"
+                  kind: FIRST
+      responses:
+        "201":
+          description: Period record confirmed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PeriodResponse'
+              examples:
+                default:
+                  value:
+                    entityRef: ENT-3F2A9C
+                    periodRef: 2026Q1
+                    periodStart: "2026-01-01"
+                    periodEnd: "2026-03-31"
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/workspaces:
+    post:
+      operationId: createWorkspace
+      summary: Create a sandbox workspace, paired with its production sibling (SDS §7, SCR-21.1, §35.5)
+      description: A sibling tenant (SaaS) or namespace (private) with environment = SANDBOX.
+      tags:
+      - workspaces
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-D.9
+      x-error-codes: []
+      x-operation:
+        role: tenant.admin
+        scope: tenant
+        precondition: The tenant's plan allows a workspace
+        reversibility: UNDOABLE
+        repeatKey: (tenantRef, name) — a repeat returns the original workspace
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkspaceRequest'
+            examples:
+              default:
+                value:
+                  tenantRef: TEN-7B1004
+                  name: pre-prod
+      responses:
+        "201":
+          description: Workspace created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceResponse'
+              examples:
+                default:
+                  value:
+                    workspaceRef: WS-AA10
+                    tenantRef: TEN-7B1004
+                    name: pre-prod
+                    environment: SANDBOX
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "409":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/workspaces/{workspaceRef}:
+    delete:
+      operationId: archiveWorkspace
+      summary: Archive a workspace (undoes createWorkspace, SDS §7, SCR-21.1)
+      description: Archive a workspace (undoes createWorkspace, SDS §7, SCR-21.1).
+      tags:
+      - workspaces
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-D.10
+      x-error-codes: []
+      x-operation:
+        role: tenant.admin
+        scope: tenant
+        precondition: Workspace exists
+        reversibility: UNDOABLE
+        repeatKey: workspaceRef — no-op if already archived
+      parameters:
+      - name: workspaceRef
+        in: path
+        required: true
+        description: The workspace's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: WS-AA10
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        "204":
+          description: 'Archived (or already archived: a no-op)'
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/entities/{entityRef}/rate-source-elections:
+    post:
+      operationId: electRateSource
+      summary: Elect the exchange-rate source and basis from a date (SDS §7, SCR-13.2)
+      description: Elect the exchange-rate source and basis from a date (SDS §7, SCR-13.2).
+      tags:
+      - entities
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-6.13
+      x-error-codes: []
+      x-operation:
+        role: entity.admin
+        scope: entity
+        precondition: The source is approved in the scope pack (approved by tax.approver)
+        reversibility: COMPENSABLE
+        repeatKey: (entityRef, effectiveFrom) — effective-dated
+      parameters:
+      - name: entityRef
+        in: path
+        required: true
+        description: The registered entity's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: ENT-3F2A9C
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RateSourceElectionRequest'
+            examples:
+              default:
+                value:
+                  source: MAS
+                  basis: DAILY
+                  effectiveFrom: "2026-10-01"
+                  approvedBy: identity:USR-009
+      responses:
+        "201":
+          description: Election recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateSourceElectionResponse'
+              examples:
+                default:
+                  value:
+                    entityRef: ENT-3F2A9C
+                    source: MAS
+                    effectiveFrom: "2026-10-01"
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/licence:
+    post:
+      operationId: installLicence
+      summary: Record the installation's licence status from a signed licence file (SDS §7, SCR-27.2)
+      description: Clears DEP-005. Never blocks submission on its own (FR-G.12, FR-H.4).
+      tags:
+      - installation
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-G.12
+      - FR-H.4
+      x-error-codes: []
+      x-operation:
+        role: deployment.operator
+        scope: installation
+        precondition: A signed licence file is presented
+        reversibility: UNDOABLE
+        repeatKey: licenceId — the previous licence is kept, not replaced
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstallLicenceRequest'
+            examples:
+              default:
+                value:
+                  licenceId: LIC-2026-04
+                  signedFile: U0lHTkVELVBMQUNFSE9MREVSCg==
+      responses:
+        "201":
+          description: Licence status recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LicenceResponse'
+              examples:
+                default:
+                  value:
+                    licenceId: LIC-2026-04
+                    status: ACTIVE
+                    expiresAt: "2027-09-30"
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/entities/{entityRef}/elections:
+    post:
+      operationId: recordElection
+      summary: Record a regulatory election with its effective date (SDS §7, SCR-16.5)
+      description: Record a regulatory election with its effective date (SDS §7, SCR-16.5).
+      tags:
+      - entities
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-6.1
+      x-error-codes: []
+      x-operation:
+        role: entity.admin
+        scope: entity
+        precondition: None
+        reversibility: COMPENSABLE
+        repeatKey: (entityRef, election, effectiveFrom)
+      parameters:
+      - name: entityRef
+        in: path
+        required: true
+        description: The registered entity's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: ENT-3F2A9C
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ElectionRequest'
+            examples:
+              default:
+                value:
+                  election: CASH_ACCOUNTING
+                  effectiveFrom: "2026-10-01"
+                  approvedBy: identity:USR-009
+      responses:
+        "201":
+          description: Election recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ElectionResponse'
+              examples:
+                default:
+                  value:
+                    entityRef: ENT-3F2A9C
+                    election: CASH_ACCOUNTING
+                    effectiveFrom: "2026-10-01"
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/entities/{entityRef}/periods/{periodRef}/extensions:
+    post:
+      operationId: recordExtension
+      summary: Record an IRAS-granted filing extension (SDS §7, SCR-07.3)
+      description: Changes the due date; never silent. Emits PeriodExtended. Tenancy records the extension
+        only — it never computes a due date (submission-svc recomputes).
+      tags:
+      - periods
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-T.8
+      x-error-codes: []
+      x-operation:
+        role: tax.approver
+        scope: entity
+        precondition: IRAS reference and evidence are held
+        reversibility: COMPENSABLE
+        repeatKey: irasReference — a superseding record replaces it, never silently
+      parameters:
+      - name: entityRef
+        in: path
+        required: true
+        description: The registered entity's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: ENT-3F2A9C
+      - name: periodRef
+        in: path
+        required: true
+        description: The period's opaque reference, issued by the calendar (API-11).
+        schema:
+          type: string
+          maxLength: 64
+        example: 2026Q1
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PeriodExtensionRequest'
+            examples:
+              default:
+                value:
+                  newDueDate: "2026-05-15"
+                  irasReference: IRAS-EXT-2026-118
+                  evidenceRef: DOC-9911
+      responses:
+        "201":
+          description: Extension recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PeriodExtensionResponse'
+              examples:
+                default:
+                  value:
+                    entityRef: ENT-3F2A9C
+                    periodRef: 2026Q1
+                    newDueDate: "2026-05-15"
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/entities/{entityRef}/rendition-responsibilities:
+    post:
+      operationId: recordRenditionResponsibility
+      summary: Record who renders each document class, with attestation (SDS §7, SCR-14.1)
+      description: Record who renders each document class, with attestation (SDS §7, SCR-14.1).
+      tags:
+      - entities
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-6.14
+      x-error-codes: []
+      x-operation:
+        role: entity.admin
+        scope: entity
+        precondition: None
+        reversibility: UNDOABLE
+        repeatKey: (entityRef, documentClass)
+      parameters:
+      - name: entityRef
+        in: path
+        required: true
+        description: The registered entity's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: ENT-3F2A9C
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenditionResponsibilityRequest'
+            examples:
+              default:
+                value:
+                  documentClass: TAX_INVOICE
+                  renderer: SELF
+                  attestedBy: identity:USR-009
+      responses:
+        "201":
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RenditionResponsibilityResponse'
+              examples:
+                default:
+                  value:
+                    entityRef: ENT-3F2A9C
+                    documentClass: TAX_INVOICE
+                    renderer: SELF
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/entities/{entityRef}/status:
+    post:
+      operationId: setEntityStatus
+      summary: Record Excluded Business, partial exemption or obligation start (SDS §7, SCR-16.4)
+      description: Emits EntityProfileChanged.
+      tags:
+      - entities
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-10.12
+      x-error-codes: []
+      x-operation:
+        role: entity.admin
+        scope: entity
+        precondition: None
+        reversibility: COMPENSABLE
+        repeatKey: (entityRef, statusKind, effectiveFrom)
+      parameters:
+      - name: entityRef
+        in: path
+        required: true
+        description: The registered entity's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: ENT-3F2A9C
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetEntityStatusRequest'
+            examples:
+              default:
+                value:
+                  statusKind: EXCLUDED_BUSINESS
+                  effectiveFrom: "2026-10-01"
+      responses:
+        "201":
+          description: Status recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntityStatusResponse'
+              examples:
+                default:
+                  value:
+                    entityRef: ENT-3F2A9C
+                    statusKind: EXCLUDED_BUSINESS
+                    effectiveFrom: "2026-10-01"
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/entities/{entityRef}/issuance-mode:
+    post:
+      operationId: setIssuanceMode
+      summary: Set the entity's issuance mode from a date (SDS §7, SCR-16.6)
+      description: Relay, Observe or None. Requires a second confirmation (carried in the request). Marks
+        certification stale (DEP-006).
+      tags:
+      - entities
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-10.13
+      x-error-codes: []
+      x-operation:
+        role: entity.admin
+        scope: entity
+        precondition: None (second confirmation carried in the request)
+        reversibility: COMPENSABLE
+        repeatKey: (entityRef, effectiveFrom)
+      parameters:
+      - name: entityRef
+        in: path
+        required: true
+        description: The registered entity's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: ENT-3F2A9C
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetIssuanceModeRequest'
+            examples:
+              default:
+                value:
+                  mode: RELAY
+                  effectiveFrom: "2026-10-01"
+                  secondConfirmationBy: identity:USR-004
+      responses:
+        "201":
+          description: Issuance mode recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IssuanceModeResponse'
+              examples:
+                default:
+                  value:
+                    entityRef: ENT-3F2A9C
+                    mode: RELAY
+                    effectiveFrom: "2026-10-01"
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/tenants:
+    post:
+      operationId: createTenant
+      summary: Provision a tenant (SaaS only; called by control-plane-svc's provisionTenant, SDS §7 SCR-38.1)
+      description: Tenant created in tenancy-svc; the first administrator is invited by access-svc separately.
+      tags:
+      - tenants
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-G.11
+      x-error-codes: []
+      x-sync-edge: control-plane-svc->tenancy-svc
+      x-operation:
+        role: control-plane-svc
+        scope: platform
+        precondition: A contract is on file
+        reversibility: COMPENSABLE
+        repeatKey: contractReference — a repeat returns the original tenant; offboard to reverse
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTenantRequest'
+            examples:
+              default:
+                value:
+                  contractReference: CTR-2026-0091
+                  legalName: Acme Holdings Pte Ltd
+                  planRef: PLAN-STANDARD
+      responses:
+        "201":
+          description: Tenant created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantResponse'
+              examples:
+                default:
+                  value:
+                    tenantRef: TEN-7B1004
+                    legalName: Acme Holdings Pte Ltd
+                    planRef: PLAN-STANDARD
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "409":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/tenants/{tenantRef}/usage-counters:
+    get:
+      operationId: getUsageCounters
+      summary: Read a tenant's usage counters for billing (SDS §28.11, FR-G.11)
+      description: Read by control-plane-svc (SaaS) for metering; never blocks submission.
+      tags:
+      - tenants
+      x-principal: filing-workflow
+      x-timeout: 2000
+      x-requirements:
+      - FR-AC.1
+      - FR-G.11
+      x-error-codes: []
+      x-sync-edge: control-plane-svc->tenancy-svc
+      parameters:
+      - name: tenantRef
+        in: path
+        required: true
+        description: The tenant's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: TEN-7B1004
+      responses:
+        "200":
+          description: Usage counters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageCountersResponse'
+              examples:
+                default:
+                  value:
+                    tenantRef: TEN-7B1004
+                    documentsThisPeriod: 18422
+                    activeEntities: 6
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/entities/{entityRef}:
+    get:
+      operationId: getEntityStructure
+      summary: Fetch entity structure, to fill a replica cache miss (SDS §28.11, FR-AH.4, AD-26)
+      description: Fallback only, called by any service other than access-svc when its local structure
+        replica misses.
+      tags:
+      - entities
+      x-principal: filing-workflow
+      x-timeout: 2000
+      x-requirements:
+      - FR-AC.1
+      - FR-AH.4
+      x-error-codes: []
+      parameters:
+      - name: entityRef
+        in: path
+        required: true
+        description: The registered entity's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: ENT-3F2A9C
+      responses:
+        "200":
+          description: Entity structure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntityResponse'
+              examples:
+                default:
+                  value:
+                    entityRef: ENT-3F2A9C
+                    legalName: Acme Trading Pte Ltd
+                    lifecycleState: LIVE
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
 components:
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: 'API-15: a UUID, deduplicating an exact request replay for at least 24h.'
+      schema:
+        type: string
+        format: uuid
   schemas:
-    ExampleRequest:
+    CreateEntityRequest:
       type: object
+      required:
+      - tenantRef
+      - groupRef
+      - legalName
+      - constitution
       properties:
-        name:
+        tenantRef:
+          type: string
+          maxLength: 64
+        groupRef:
+          type: string
+          maxLength: 64
+        legalName:
           type: string
           maxLength: 200
-      required: [name]
-    ExampleResponse:
-      type: object
-      properties:
-        id:
+        constitution:
           type: string
-          format: uuid
-        name:
+          enum:
+          - PRIVATE_LIMITED
+          - SOLE_PROPRIETOR
+          - PARTNERSHIP
+          - PUBLIC_LIMITED
+          x-extensible-enum: true
+    EntityResponse:
+      type: object
+      required:
+      - entityRef
+      - legalName
+      - lifecycleState
+      properties:
+        entityRef:
+          type: string
+          maxLength: 64
+        legalName:
           type: string
           maxLength: 200
-      required: [id, name]
+        lifecycleState:
+          type: string
+          enum:
+          - DRAFT
+          - LIVE
+          - SUSPENDED
+          - DEREGISTERED
+          x-extensible-enum: true
+    AssessPhaseRequest:
+      type: object
+      required:
+      - box4Figures
+      - asOfDate
+      properties:
+        box4Figures:
+          type: string
+          format: decimal
+          pattern: ^-?\d{1,17}(\.\d{1,2})?$
+        asOfDate:
+          type: string
+          format: date
+    PhaseAssessmentResponse:
+      type: object
+      required:
+      - entityRef
+      - phase
+      - implementationDate
+      properties:
+        entityRef:
+          type: string
+          maxLength: 64
+        phase:
+          type: string
+          enum:
+          - PHASE_1
+          - PHASE_2
+          - PHASE_3
+          x-extensible-enum: true
+        implementationDate:
+          type: string
+          format: date
+    CertifySandboxRequest:
+      type: object
+      required:
+      - outcome
+      - suiteVersion
+      properties:
+        outcome:
+          type: string
+          enum:
+          - PASSED
+          - FAILED
+        suiteVersion:
+          type: string
+          maxLength: 32
+    CertificationResponse:
+      type: object
+      required:
+      - entityRef
+      - outcome
+      - recordedAt
+      properties:
+        entityRef:
+          type: string
+          maxLength: 64
+        outcome:
+          type: string
+          enum:
+          - PASSED
+          - FAILED
+          x-extensible-enum: true
+        recordedAt:
+          type: string
+          format: date-time
+    GoLiveRequest:
+      type: object
+      required:
+      - secondConfirmationBy
+      properties:
+        secondConfirmationBy:
+          type: string
+          maxLength: 128
+    SuspendEntityRequest:
+      type: object
+      required:
+      - reason
+      properties:
+        reason:
+          type: string
+          maxLength: 500
+    DeregisterEntityRequest:
+      type: object
+      required:
+      - registrationEndDate
+      properties:
+        registrationEndDate:
+          type: string
+          format: date
+    QuestionnaireAnswersRequest:
+      type: object
+      required:
+      - questionnaireVersion
+      - answers
+      properties:
+        questionnaireVersion:
+          type: string
+          maxLength: 16
+        answers:
+          type: object
+          additionalProperties:
+            type: string
+            maxLength: 200
+    QuestionnaireAnswersResponse:
+      type: object
+      required:
+      - tenantRef
+      - recommendedProfile
+      - reasons
+      properties:
+        tenantRef:
+          type: string
+          maxLength: 64
+        recommendedProfile:
+          type: string
+          maxLength: 64
+        reasons:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            maxLength: 200
+    FilingFrequencyChangeRequest:
+      type: object
+      required:
+      - newFrequency
+      - effectiveFrom
+      - irasApprovalReference
+      properties:
+        newFrequency:
+          type: string
+          enum:
+          - MONTHLY
+          - QUARTERLY
+          x-extensible-enum: true
+        effectiveFrom:
+          type: string
+          format: date
+        irasApprovalReference:
+          type: string
+          maxLength: 64
+    FilingFrequencyResponse:
+      type: object
+      required:
+      - entityRef
+      - frequency
+      - effectiveFrom
+      properties:
+        entityRef:
+          type: string
+          maxLength: 64
+        frequency:
+          type: string
+          enum:
+          - MONTHLY
+          - QUARTERLY
+          x-extensible-enum: true
+        effectiveFrom:
+          type: string
+          format: date
+    ConfirmPeriodRequest:
+      type: object
+      required:
+      - periodRef
+      - periodStart
+      - periodEnd
+      - kind
+      properties:
+        periodRef:
+          type: string
+          maxLength: 32
+        periodStart:
+          type: string
+          format: date
+        periodEnd:
+          type: string
+          format: date
+        kind:
+          type: string
+          enum:
+          - FIRST
+          - FINAL
+          - TRANSITIONAL
+    PeriodResponse:
+      type: object
+      required:
+      - entityRef
+      - periodRef
+      - periodStart
+      - periodEnd
+      properties:
+        entityRef:
+          type: string
+          maxLength: 64
+        periodRef:
+          type: string
+          maxLength: 32
+        periodStart:
+          type: string
+          format: date
+        periodEnd:
+          type: string
+          format: date
+    CreateWorkspaceRequest:
+      type: object
+      required:
+      - tenantRef
+      - name
+      properties:
+        tenantRef:
+          type: string
+          maxLength: 64
+        name:
+          type: string
+          maxLength: 64
+    WorkspaceResponse:
+      type: object
+      required:
+      - workspaceRef
+      - tenantRef
+      - name
+      - environment
+      properties:
+        workspaceRef:
+          type: string
+          maxLength: 64
+        tenantRef:
+          type: string
+          maxLength: 64
+        name:
+          type: string
+          maxLength: 64
+        environment:
+          type: string
+          enum:
+          - PRODUCTION
+          - SANDBOX
+          x-extensible-enum: true
+    RateSourceElectionRequest:
+      type: object
+      required:
+      - source
+      - basis
+      - effectiveFrom
+      - approvedBy
+      properties:
+        source:
+          type: string
+          maxLength: 32
+        basis:
+          type: string
+          enum:
+          - DAILY
+          - MONTHLY_AVERAGE
+        effectiveFrom:
+          type: string
+          format: date
+        approvedBy:
+          type: string
+          maxLength: 128
+    RateSourceElectionResponse:
+      type: object
+      required:
+      - entityRef
+      - source
+      - effectiveFrom
+      properties:
+        entityRef:
+          type: string
+          maxLength: 64
+        source:
+          type: string
+          maxLength: 32
+        effectiveFrom:
+          type: string
+          format: date
+    InstallLicenceRequest:
+      type: object
+      required:
+      - licenceId
+      - signedFile
+      properties:
+        licenceId:
+          type: string
+          maxLength: 64
+        signedFile:
+          type: string
+          maxLength: 20000
+          format: byte
+    LicenceResponse:
+      type: object
+      required:
+      - licenceId
+      - status
+      properties:
+        licenceId:
+          type: string
+          maxLength: 64
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - EXPIRED
+          x-extensible-enum: true
+        expiresAt:
+          type: string
+          format: date
+    ElectionRequest:
+      type: object
+      required:
+      - election
+      - effectiveFrom
+      - approvedBy
+      properties:
+        election:
+          type: string
+          maxLength: 64
+        effectiveFrom:
+          type: string
+          format: date
+        approvedBy:
+          type: string
+          maxLength: 128
+    ElectionResponse:
+      type: object
+      required:
+      - entityRef
+      - election
+      - effectiveFrom
+      properties:
+        entityRef:
+          type: string
+          maxLength: 64
+        election:
+          type: string
+          maxLength: 64
+        effectiveFrom:
+          type: string
+          format: date
+    PeriodExtensionRequest:
+      type: object
+      required:
+      - newDueDate
+      - irasReference
+      - evidenceRef
+      properties:
+        newDueDate:
+          type: string
+          format: date
+        irasReference:
+          type: string
+          maxLength: 64
+        evidenceRef:
+          type: string
+          maxLength: 64
+    PeriodExtensionResponse:
+      type: object
+      required:
+      - entityRef
+      - periodRef
+      - newDueDate
+      properties:
+        entityRef:
+          type: string
+          maxLength: 64
+        periodRef:
+          type: string
+          maxLength: 32
+        newDueDate:
+          type: string
+          format: date
+    RenditionResponsibilityRequest:
+      type: object
+      required:
+      - documentClass
+      - renderer
+      - attestedBy
+      properties:
+        documentClass:
+          type: string
+          maxLength: 64
+        renderer:
+          type: string
+          enum:
+          - SELF
+          - AGENT
+          - AGGREGATOR
+          x-extensible-enum: true
+        attestedBy:
+          type: string
+          maxLength: 128
+    RenditionResponsibilityResponse:
+      type: object
+      required:
+      - entityRef
+      - documentClass
+      - renderer
+      properties:
+        entityRef:
+          type: string
+          maxLength: 64
+        documentClass:
+          type: string
+          maxLength: 64
+        renderer:
+          type: string
+          enum:
+          - SELF
+          - AGENT
+          - AGGREGATOR
+          x-extensible-enum: true
+    SetEntityStatusRequest:
+      type: object
+      required:
+      - statusKind
+      - effectiveFrom
+      properties:
+        statusKind:
+          type: string
+          enum:
+          - EXCLUDED_BUSINESS
+          - PARTIAL_EXEMPTION
+          - OBLIGATION_START
+        effectiveFrom:
+          type: string
+          format: date
+    EntityStatusResponse:
+      type: object
+      required:
+      - entityRef
+      - statusKind
+      - effectiveFrom
+      properties:
+        entityRef:
+          type: string
+          maxLength: 64
+        statusKind:
+          type: string
+          enum:
+          - EXCLUDED_BUSINESS
+          - PARTIAL_EXEMPTION
+          - OBLIGATION_START
+          x-extensible-enum: true
+        effectiveFrom:
+          type: string
+          format: date
+    SetIssuanceModeRequest:
+      type: object
+      required:
+      - mode
+      - effectiveFrom
+      - secondConfirmationBy
+      properties:
+        mode:
+          type: string
+          enum:
+          - RELAY
+          - OBSERVE
+          - NONE
+        effectiveFrom:
+          type: string
+          format: date
+        secondConfirmationBy:
+          type: string
+          maxLength: 128
+    IssuanceModeResponse:
+      type: object
+      required:
+      - entityRef
+      - mode
+      - effectiveFrom
+      properties:
+        entityRef:
+          type: string
+          maxLength: 64
+        mode:
+          type: string
+          enum:
+          - RELAY
+          - OBSERVE
+          - NONE
+          x-extensible-enum: true
+        effectiveFrom:
+          type: string
+          format: date
+    CreateTenantRequest:
+      type: object
+      required:
+      - contractReference
+      - legalName
+      - planRef
+      properties:
+        contractReference:
+          type: string
+          maxLength: 64
+        legalName:
+          type: string
+          maxLength: 200
+        planRef:
+          type: string
+          maxLength: 64
+    TenantResponse:
+      type: object
+      required:
+      - tenantRef
+      - legalName
+      - planRef
+      properties:
+        tenantRef:
+          type: string
+          maxLength: 64
+        legalName:
+          type: string
+          maxLength: 200
+        planRef:
+          type: string
+          maxLength: 64
+    UsageCountersResponse:
+      type: object
+      required:
+      - tenantRef
+      - documentsThisPeriod
+      - activeEntities
+      properties:
+        tenantRef:
+          type: string
+          maxLength: 64
+        documentsThisPeriod:
+          type: integer
+          minimum: 0
+        activeEntities:
+          type: integer
+          minimum: 0
   responses:
     Error:
       description: Error (API-20 envelope)
       content:
         application/problem+json:
           schema:
-            $ref: '../service-runtime/schemas/error-envelope.schema.json'
+            $ref: ../service-runtime/schemas/error-envelope.schema.json
           examples:
             default:
               value:
-                type: "about:blank"
-                title: "Example error"
+                type: about:blank
+                title: Example error (illustrates the envelope shape only)
                 status: 400
-                code: "EXAMPLE-000"
-                correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                code: EXAMPLE-000
+                correlationId: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+

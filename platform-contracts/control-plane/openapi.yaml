@@ -2,99 +2,944 @@ openapi: 3.1.0
 info:
   title: control-plane API
   version: 1.0.0
-  description: >-
-    Contract-first source of truth for control-plane (API-01, STK-44). The
-    `control-plane-contract` module generates its server interfaces and DTOs
-    from this file (STK-46); a consumer generates its own client types from
-    the same file (FR-AH.13, ARC-07). This is an INV-T-2849 scaffold —
-    control-plane's own team (CODEOWNERS) replaces the placeholder operation
-    below with its real ones as each lands.
+  description: 'Contract-first source of truth for control-plane (API-01, STK-44), replacing the INV-T-2849
+    scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1), SaaS-operator-only: the operator
+    console for regulatory, release and commercial roles (regulatory pack authoring/signing/publication,
+    release/patch-train publication, plans, licences, tenant provisioning). The signed pack feed control-plane-svc''s
+    own `provides` also names is read by rules-svc through PackSource (AD-31), not a synchronous edge
+    of sync-edges.yaml, so it is not an HTTP operation here. The `control-plane-contract` module generates
+    its server interfaces and DTOs from this file (STK-46); a consumer generates its own client types
+    from the same file (FR-AH.13, ARC-07).'
   contact:
     name: control-plane (see CODEOWNERS)
 servers:
-  - url: 'https://api.invoice.internal'
-    description: Placeholder — the gateway routes only the operations of a published train (API-26).
+- url: https://internal.invoice.internal
+  description: Internal API (SDS/04-api-standards §1) — never routed by the gateway.
 tags:
-  - name: control-plane
-    description: Placeholder resource (INV-T-2849 scaffold).
+- name: packs
+  description: Regulatory pack authoring, signing and publication (FR-H.5).
+- name: releases
+  description: Release-train and patch-train publication, supported windows (§34.13).
+- name: commercial
+  description: Plans, entitlements, licences and tenant provisioning (§34.11).
+- name: control-plane
+  description: Deprecated placeholder tag (INV-T-2849); dropped with the placeholder operation.
 paths:
-  /v1/control-plane/examples:
+  /internal/v1/control-plane/packs:
     post:
-      operationId: createExample
-      summary: Placeholder operation (INV-T-2849 scaffold) — replace with a real one
-      description: >-
-        Placeholder only, so this directory lints clean from its first commit.
-        control-plane's own team replaces it with a real operation (CODEOWNERS, API-01).
-      tags: [control-plane]
+      operationId: authorRegulatoryPack
+      summary: Author a regulatory pack draft (SDS §7, SCR-36.1)
+      description: Creates a draft with citations. Undoable while still a draft.
+      tags:
+      - packs
       x-principal: filing-workflow
       x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-H.5
       x-error-codes: []
-      x-requirements: []
       x-operation:
-        role: filing-workflow
-        scope: filing-workflow
-        precondition: "None — placeholder. A real operation states what it checks against record state (FR-AC.1.3)."
-        reversibility: COMPENSABLE
-        repeatKey: "(tenantId, sourceKey, sourceRevision) — placeholder shape, FR-AC.19"
+        role: regulatory.author
+        scope: platform
+        precondition: Publication identified
+        reversibility: UNDOABLE
+        repeatKey: (packType, version) — a repeat returns the original draft
       parameters:
-        - name: Idempotency-Key
-          in: header
-          required: true
-          schema:
-            type: string
-            format: uuid
+      - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ExampleRequest'
+              $ref: '#/components/schemas/AuthorPackRequest'
             examples:
               default:
-                value: { name: "example" }
+                value:
+                  packType: SCOPE
+                  version: '2026.3'
+                  citations:
+                  - IRAS e-Tax Guide 2026-08
       responses:
-        '201':
-          description: Created
+        "201":
+          description: Draft created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ExampleResponse'
+                $ref: '#/components/schemas/PackResponse'
               examples:
                 default:
-                  value: { id: "3fa85f64-5717-4562-b3fc-2c963f66afa6", name: "example" }
+                  value:
+                    packRef: PACK-SCOPE-2026.3
+                    packType: SCOPE
+                    version: '2026.3'
+                    status: DRAFT
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/control-plane/packs/{packRef}/sign:
+    post:
+      operationId: signPack
+      summary: Sign a pack whose corpus has passed (SDS §7, SCR-36.3)
+      description: Sign a pack whose corpus has passed (SDS §7, SCR-36.3).
+      tags:
+      - packs
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-H.5
+      x-error-codes: []
+      x-operation:
+        role: regulatory.approver
+        scope: platform
+        precondition: Corpus passes; the signer is not the draft's author
+        reversibility: COMPENSABLE
+        repeatKey: (pack_type, version) — no-op if already signed (INV-REQ-1010)
+      parameters:
+      - name: packRef
+        in: path
+        required: true
+        description: The pack's opaque reference (pack type + version).
+        schema:
+          type: string
+          maxLength: 64
+        example: PACK-SCOPE-2026.3
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignPackRequest'
+            examples:
+              default:
+                value:
+                  signingKeyRef: KEY-REG-01
+      responses:
+        "200":
+          description: Signed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackResponse'
+              examples:
+                default:
+                  value:
+                    packRef: PACK-SCOPE-2026.3
+                    packType: SCOPE
+                    version: '2026.3'
+                    status: SIGNED
+        "409":
+          $ref: '#/components/responses/Error'
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/control-plane/packs/{packRef}/publish:
+    post:
+      operationId: publishPack
+      summary: Publish a signed pack to the feed and as a bundle (SDS §7, SCR-36.4)
+      description: Read afterwards by rules-svc through PackSource (AD-31) — not a synchronous edge, so
+        not modelled as its own operation here.
+      tags:
+      - packs
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-H.5
+      - FR-H.7
+      x-error-codes: []
+      x-operation:
+        role: regulatory.approver
+        scope: platform
+        precondition: Pack is signed
+        reversibility: IRREVERSIBLE
+        repeatKey: (pack_type, version) — no-op if already published; supersede, never unpublish
+      parameters:
+      - name: packRef
+        in: path
+        required: true
+        description: The pack's opaque reference (pack type + version).
+        schema:
+          type: string
+          maxLength: 64
+        example: PACK-SCOPE-2026.3
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        "200":
+          description: Published
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackResponse'
+              examples:
+                default:
+                  value:
+                    packRef: PACK-SCOPE-2026.3
+                    packType: SCOPE
+                    version: '2026.3'
+                    status: PUBLISHED
+        "409":
+          $ref: '#/components/responses/Error'
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/control-plane/release-trains:
+    post:
+      operationId: publishTrain
+      summary: Publish a release train, certified in both reference environments (SDS §7, SCR-37.2)
+      description: Available to SaaS and private. A later train, or a patch train, supersedes it (§34.13).
+      tags:
+      - releases
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-H.10
+      x-error-codes: []
+      x-operation:
+        role: release.manager
+        scope: platform
+        precondition: Certified in both reference environments
+        reversibility: IRREVERSIBLE
+        repeatKey: trainVersion — no-op if already published; supersede by a patch train
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublishTrainRequest'
+            examples:
+              default:
+                value:
+                  trainVersion: 2026.10.0
+                  kind: TRAIN
+      responses:
+        "201":
+          description: Published
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReleaseTrainResponse'
+              examples:
+                default:
+                  value:
+                    trainVersion: 2026.10.0
+                    kind: TRAIN
+                    status: AVAILABLE
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/control-plane/support-windows:
+    post:
+      operationId: setSupportWindow
+      summary: Set the supported-version window (SDS §7, SCR-37.3)
+      description: Set the supported-version window (SDS §7, SCR-37.3).
+      tags:
+      - releases
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-H.11
+      x-error-codes: []
+      x-operation:
+        role: release.manager
+        scope: platform
+        precondition: None
+        reversibility: UNDOABLE
+        repeatKey: windowVersion — a repeat returns the original window
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetSupportWindowRequest'
+            examples:
+              default:
+                value:
+                  windowVersion: '2026.2'
+                  trainVersions:
+                  - 2026.9.0
+                  - 2026.10.0
+      responses:
+        "201":
+          description: Window recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportWindowResponse'
+              examples:
+                default:
+                  value:
+                    windowVersion: '2026.2'
+                    trainVersions:
+                    - 2026.9.0
+                    - 2026.10.0
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/control-plane/plans:
+    post:
+      operationId: managePlan
+      summary: Create or update a commercial plan and its entitlement definitions (SDS §7, SCR-38.2)
+      description: 'Advisory only (AD-14): a plan limit never returns 429 at the gateway.'
+      tags:
+      - commercial
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-H.12
+      x-error-codes: []
+      x-operation:
+        role: commercial.admin
+        scope: installation
+        precondition: None
+        reversibility: UNDOABLE
+        repeatKey: (tenantRef, planVersion)
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManagePlanRequest'
+            examples:
+              default:
+                value:
+                  tenantRef: TEN-7B1004
+                  planVersion: '2026.1'
+                  entitlements:
+                    maxEntities: 25
+                    maxDocumentsPerMonth: 100000
+      responses:
+        "201":
+          description: Plan and entitlements recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanResponse'
+              examples:
+                default:
+                  value:
+                    tenantRef: TEN-7B1004
+                    planVersion: '2026.1'
+                    entitlements:
+                      maxEntities: 25
+                      maxDocumentsPerMonth: 100000
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/control-plane/licences:
+    post:
+      operationId: issueLicence
+      summary: Issue a signed licence file for an installation term (SDS §7, SCR-38.3)
+      description: Issue a signed licence file for an installation term (SDS §7, SCR-38.3).
+      tags:
+      - commercial
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-AF.28
+      x-error-codes: []
+      x-operation:
+        role: commercial.admin
+        scope: installation
+        precondition: Qualification recorded
+        reversibility: COMPENSABLE
+        repeatKey: (installationRef, term) — reissue to compensate
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IssueLicenceRequest'
+            examples:
+              default:
+                value:
+                  installationRef: INST-0091
+                  term: "2026-10-01/2027-09-30"
+      responses:
+        "201":
+          description: Signed licence issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LicenceIssueResponse'
+              examples:
+                default:
+                  value:
+                    licenceRef: LIC-2026-04
+                    installationRef: INST-0091
+                    term: "2026-10-01/2027-09-30"
+                    signedFile: U0lHTkVELVBMQUNFSE9MREVSCg==
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/control-plane/licences/qualifications:
+    post:
+      operationId: recordQualification
+      summary: Record a licence qualification outcome (SDS §7, SCR-38.4)
+      description: Record a licence qualification outcome (SDS §7, SCR-38.4).
+      tags:
+      - commercial
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-AF.28
+      x-error-codes: []
+      x-operation:
+        role: commercial.admin
+        scope: installation
+        precondition: Prerequisite report received
+        reversibility: UNDOABLE
+        repeatKey: (customerRef, installationRef)
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordQualificationRequest'
+            examples:
+              default:
+                value:
+                  customerRef: CUST-0091
+                  installationRef: INST-0091
+                  outcome: QUALIFIED
+      responses:
+        "201":
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QualificationResponse'
+              examples:
+                default:
+                  value:
+                    customerRef: CUST-0091
+                    installationRef: INST-0091
+                    outcome: QUALIFIED
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/control-plane/tenant-provisioning-requests:
+    post:
+      operationId: provisionTenant
+      summary: Provision a tenant from a signed contract (SDS §7, SCR-38.1)
+      description: Creates the tenant in tenancy-svc (control-plane-svc->tenancy-svc) and invites the
+        first administrator (access-svc, out of this operation's own response).
+      tags:
+      - commercial
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-AC.19
+      x-error-codes: []
+      x-operation:
+        role: commercial.admin
+        scope: platform
+        precondition: A contract is on file
+        reversibility: COMPENSABLE
+        repeatKey: contractReference — a repeat returns the original request; offboard to reverse
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProvisionTenantRequest'
+            examples:
+              default:
+                value:
+                  contractReference: CTR-2026-0091
+                  legalName: Acme Holdings Pte Ltd
+                  planRef: PLAN-STANDARD
+                  firstAdministratorEmail: admin@acme.example
+      responses:
+        "201":
+          description: Tenant provisioning request recorded; tenant created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantProvisioningResponse'
+              examples:
+                default:
+                  value:
+                    contractReference: CTR-2026-0091
+                    tenantRef: TEN-7B1004
+                    status: PROVISIONED
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "409":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/control-plane/packs/{packRef}:
+    get:
+      operationId: getPack
+      summary: Read a pack draft/signed/published record (operator console read)
+      description: Read a pack draft/signed/published record (operator console read).
+      tags:
+      - packs
+      x-principal: filing-workflow
+      x-timeout: 2000
+      x-requirements:
+      - FR-AC.1
+      x-error-codes: []
+      parameters:
+      - name: packRef
+        in: path
+        required: true
+        description: The pack's opaque reference (pack type + version).
+        schema:
+          type: string
+          maxLength: 64
+        example: PACK-SCOPE-2026.3
+      responses:
+        "200":
+          description: Pack
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackResponse'
+              examples:
+                default:
+                  value:
+                    packRef: PACK-SCOPE-2026.3
+                    packType: SCOPE
+                    version: '2026.3'
+                    status: SIGNED
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/control-plane/licences/{licenceRef}:
+    get:
+      operationId: getLicence
+      summary: Read a licence record (operator console read)
+      description: Read a licence record (operator console read).
+      tags:
+      - commercial
+      x-principal: filing-workflow
+      x-timeout: 2000
+      x-requirements:
+      - FR-AC.1
+      x-error-codes: []
+      parameters:
+      - name: licenceRef
+        in: path
+        required: true
+        description: The licence's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: LIC-2026-04
+      responses:
+        "200":
+          description: Licence
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LicenceIssueResponse'
+              examples:
+                default:
+                  value:
+                    licenceRef: LIC-2026-04
+                    installationRef: INST-0091
+                    term: "2026-10-01/2027-09-30"
+                    signedFile: U0lHTkVELVBMQUNFSE9MREVSCg==
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
 components:
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: 'API-15: a UUID, deduplicating an exact request replay for at least 24h.'
+      schema:
+        type: string
+        format: uuid
   schemas:
-    ExampleRequest:
+    AuthorPackRequest:
       type: object
+      required:
+      - packType
+      - version
+      - citations
       properties:
-        name:
+        packType:
+          type: string
+          maxLength: 32
+        version:
+          type: string
+          maxLength: 16
+        citations:
+          type: array
+          maxItems: 50
+          items:
+            type: string
+            maxLength: 300
+    PackResponse:
+      type: object
+      required:
+      - packRef
+      - packType
+      - version
+      - status
+      properties:
+        packRef:
+          type: string
+          maxLength: 64
+        packType:
+          type: string
+          maxLength: 32
+        version:
+          type: string
+          maxLength: 16
+        status:
+          type: string
+          enum:
+          - DRAFT
+          - SIGNED
+          - PUBLISHED
+          x-extensible-enum: true
+    SignPackRequest:
+      type: object
+      required:
+      - signingKeyRef
+      properties:
+        signingKeyRef:
+          type: string
+          maxLength: 64
+    PublishTrainRequest:
+      type: object
+      required:
+      - trainVersion
+      - kind
+      properties:
+        trainVersion:
+          type: string
+          maxLength: 32
+        kind:
+          type: string
+          enum:
+          - TRAIN
+          - PATCH
+          x-extensible-enum: true
+    ReleaseTrainResponse:
+      type: object
+      required:
+      - trainVersion
+      - kind
+      - status
+      properties:
+        trainVersion:
+          type: string
+          maxLength: 32
+        kind:
+          type: string
+          enum:
+          - TRAIN
+          - PATCH
+          x-extensible-enum: true
+        status:
+          type: string
+          enum:
+          - AVAILABLE
+          x-extensible-enum: true
+    SetSupportWindowRequest:
+      type: object
+      required:
+      - windowVersion
+      - trainVersions
+      properties:
+        windowVersion:
+          type: string
+          maxLength: 16
+        trainVersions:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            maxLength: 32
+    SupportWindowResponse:
+      type: object
+      required:
+      - windowVersion
+      - trainVersions
+      properties:
+        windowVersion:
+          type: string
+          maxLength: 16
+        trainVersions:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            maxLength: 32
+    ManagePlanRequest:
+      type: object
+      required:
+      - tenantRef
+      - planVersion
+      - entitlements
+      properties:
+        tenantRef:
+          type: string
+          maxLength: 64
+        planVersion:
+          type: string
+          maxLength: 16
+        entitlements:
+          type: object
+          required:
+          - maxEntities
+          - maxDocumentsPerMonth
+          properties:
+            maxEntities:
+              type: integer
+              minimum: 0
+            maxDocumentsPerMonth:
+              type: integer
+              minimum: 0
+    PlanResponse:
+      type: object
+      required:
+      - tenantRef
+      - planVersion
+      - entitlements
+      properties:
+        tenantRef:
+          type: string
+          maxLength: 64
+        planVersion:
+          type: string
+          maxLength: 16
+        entitlements:
+          type: object
+          required:
+          - maxEntities
+          - maxDocumentsPerMonth
+          properties:
+            maxEntities:
+              type: integer
+              minimum: 0
+            maxDocumentsPerMonth:
+              type: integer
+              minimum: 0
+    IssueLicenceRequest:
+      type: object
+      required:
+      - installationRef
+      - term
+      properties:
+        installationRef:
+          type: string
+          maxLength: 64
+        term:
+          type: string
+          maxLength: 32
+    LicenceIssueResponse:
+      type: object
+      required:
+      - licenceRef
+      - installationRef
+      - term
+      - signedFile
+      properties:
+        licenceRef:
+          type: string
+          maxLength: 64
+        installationRef:
+          type: string
+          maxLength: 64
+        term:
+          type: string
+          maxLength: 32
+        signedFile:
+          type: string
+          maxLength: 20000
+          format: byte
+    RecordQualificationRequest:
+      type: object
+      required:
+      - customerRef
+      - installationRef
+      - outcome
+      properties:
+        customerRef:
+          type: string
+          maxLength: 64
+        installationRef:
+          type: string
+          maxLength: 64
+        outcome:
+          type: string
+          enum:
+          - QUALIFIED
+          - NOT_QUALIFIED
+    QualificationResponse:
+      type: object
+      required:
+      - customerRef
+      - installationRef
+      - outcome
+      properties:
+        customerRef:
+          type: string
+          maxLength: 64
+        installationRef:
+          type: string
+          maxLength: 64
+        outcome:
+          type: string
+          enum:
+          - QUALIFIED
+          - NOT_QUALIFIED
+          x-extensible-enum: true
+    ProvisionTenantRequest:
+      type: object
+      required:
+      - contractReference
+      - legalName
+      - planRef
+      - firstAdministratorEmail
+      properties:
+        contractReference:
+          type: string
+          maxLength: 64
+        legalName:
           type: string
           maxLength: 200
-      required: [name]
-    ExampleResponse:
+        planRef:
+          type: string
+          maxLength: 64
+        firstAdministratorEmail:
+          type: string
+          format: email
+          maxLength: 254
+    TenantProvisioningResponse:
       type: object
+      required:
+      - contractReference
+      - tenantRef
+      - status
       properties:
-        id:
+        contractReference:
           type: string
-          format: uuid
-        name:
+          maxLength: 64
+        tenantRef:
           type: string
-          maxLength: 200
-      required: [id, name]
+          maxLength: 64
+        status:
+          type: string
+          enum:
+          - PROVISIONED
+          x-extensible-enum: true
   responses:
     Error:
       description: Error (API-20 envelope)
       content:
         application/problem+json:
           schema:
-            $ref: '../service-runtime/schemas/error-envelope.schema.json'
+            $ref: ../service-runtime/schemas/error-envelope.schema.json
           examples:
             default:
               value:
-                type: "about:blank"
-                title: "Example error"
+                type: about:blank
+                title: Example error (illustrates the envelope shape only)
                 status: 400
-                code: "EXAMPLE-000"
-                correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                code: EXAMPLE-000
+                correlationId: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+

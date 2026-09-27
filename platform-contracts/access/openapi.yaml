@@ -2,99 +2,1968 @@ openapi: 3.1.0
 info:
   title: access API
   version: 1.0.0
-  description: >-
-    Contract-first source of truth for access (API-01, STK-44). The
-    `access-contract` module generates its server interfaces and DTOs
-    from this file (STK-46); a consumer generates its own client types from
-    the same file (FR-AH.13, ARC-07). This is an INV-T-2849 scaffold —
-    access's own team (CODEOWNERS) replaces the placeholder operation
-    below with its real ones as each lands.
+  description: 'Contract-first source of truth for access (API-01, STK-44), replacing the INV-T-2849 scaffold
+    (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): who may do what, on whose authority.
+    `authorise` and `getVerificationKeys` are queries, not FR-AC.1 operations (no persistent state change),
+    called by every service and the gateway respectively; every other operation is a console command reached
+    through console-bff. Several SDS §7 catalogue rows sharing one shape are consolidated onto one resource
+    (noted per operation) to keep the surface small. The `access-contract` module generates its server
+    interfaces and DTOs from this file (STK-46); a consumer generates its own client types from the same
+    file (FR-AH.13, ARC-07).'
   contact:
     name: access (see CODEOWNERS)
 servers:
-  - url: 'https://api.invoice.internal'
-    description: Placeholder — the gateway routes only the operations of a published train (API-26).
+- url: https://internal.invoice.internal
+  description: Internal API (SDS/04-api-standards §1) — never routed by the gateway.
 tags:
-  - name: access
-    description: Placeholder resource (INV-T-2849 scaffold).
+- name: authorise
+  description: Live authorisation decisions and gateway key material.
+- name: grants
+  description: Identity, grant and invitation lifecycle (FR-P.2, FR-AF.15, FR-AF.20).
+- name: principals
+  description: Service principal lifecycle (§22.5, FR-P.10).
+- name: identity-provider
+  description: Identity-provider group-to-grant mapping (FR-P.12).
+- name: separation-of-duty
+  description: Sole-operator acknowledgement (FR-P.2).
+- name: elevation
+  description: Elevation requests and diagnostic invitations (FR-AF.12, FR-AF.10).
+- name: signed-links
+  description: Signed links for external actors (§34.8, §34.9).
+- name: break-glass
+  description: Break-glass access (§34.6, ACC-002).
+- name: access-review
+  description: Quarterly access review (FR-AF.16).
+- name: consent
+  description: Agent consent lifecycle and pack acknowledgement (FR-AF.34, FR-AB.8).
+- name: access
+  description: Deprecated placeholder tag (INV-T-2849); dropped with the placeholder operation.
 paths:
-  /v1/access/examples:
+  /internal/v1/access/authorise:
+    get:
+      operationId: authorise
+      summary: Authorisation decision on role x permission x scope, evaluated live (SDS §28.16, FR-P.1,
+        FR-Z.14)
+      description: Called by every service (the fallback edge when a caller's authority replica lags beyond
+        its bound, FR-Z.14). Always 200; the decision, not an HTTP error, carries a DENY.
+      tags:
+      - authorise
+      x-principal: filing-workflow
+      x-timeout: 2000
+      x-requirements:
+      - FR-AC.1
+      - FR-P.1
+      - FR-Z.14
+      x-error-codes: []
+      parameters:
+      - name: principalRef
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 64
+      - name: permission
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 64
+      - name: scope
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 128
+      responses:
+        "200":
+          description: Decision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthoriseResponse'
+              examples:
+                default:
+                  value:
+                    decision: ALLOW
+                    role: tax.approver
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/verification-keys:
+    get:
+      operationId: getVerificationKeys
+      summary: Token verification material for the gateway to verify tokens offline (SDS §28.16, §2.5)
+      description: Token verification material for the gateway to verify tokens offline (SDS §28.16, §2.5).
+      tags:
+      - authorise
+      x-principal: filing-workflow
+      x-timeout: 2000
+      x-requirements:
+      - FR-AC.1
+      x-error-codes: []
+      responses:
+        "200":
+          description: JWKS-style key set
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationKeysResponse'
+              examples:
+                default:
+                  value:
+                    keys:
+                    - kid: 2026-09
+                      alg: RS256
+                      publicKey: U0lHTkVELVBMQUNFSE9MREVSCg==
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/grants:
     post:
-      operationId: createExample
-      summary: Placeholder operation (INV-T-2849 scaffold) — replace with a real one
-      description: >-
-        Placeholder only, so this directory lints clean from its first commit.
-        access's own team replaces it with a real operation (CODEOWNERS, API-01).
-      tags: [access]
+      operationId: grantRole
+      summary: Grant a role x scope x validity, inviting the identity if it does not yet exist (SDS §7,
+        SCR-24.1/24.2/24.4, §31.2)
+      description: Covers grantRole, inviteUser, inviteExternalIdentity (cross-tenant, FR-AF.20) and inviteDiagnostics
+        (private form, deployment.operator) — one shape, discriminated by granteeKind. Emits AuthorityChanged.
+      tags:
+      - grants
       x-principal: filing-workflow
       x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-P.2
+      - FR-AF.20
       x-error-codes: []
-      x-requirements: []
       x-operation:
-        role: filing-workflow
-        scope: filing-workflow
-        precondition: "None — placeholder. A real operation states what it checks against record state (FR-AC.1.3)."
-        reversibility: COMPENSABLE
-        repeatKey: "(tenantId, sourceKey, sourceRevision) — placeholder shape, FR-AC.19"
+        role: tenant.admin
+        scope: tenant
+        precondition: Separation-of-duty rules are satisfied (FR-P.2)
+        reversibility: UNDOABLE
+        repeatKey: (identityRef, role, scope) — a repeat returns the original grant; revoke to undo
       parameters:
-        - name: Idempotency-Key
-          in: header
-          required: true
-          schema:
-            type: string
-            format: uuid
+      - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ExampleRequest'
+              $ref: '#/components/schemas/GrantRequest'
             examples:
               default:
-                value: { name: "example" }
+                value:
+                  granteeKind: STAFF
+                  identityRef: IDN-0091
+                  role: tax.approver
+                  scope: entity:ENT-3F2A9C
+                  validFrom: "2026-09-27"
+                  validTo: "2027-09-27"
       responses:
-        '201':
-          description: Created
+        "201":
+          description: Grant created (or pending invitation)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ExampleResponse'
+                $ref: '#/components/schemas/GrantResponse'
               examples:
                 default:
-                  value: { id: "3fa85f64-5717-4562-b3fc-2c963f66afa6", name: "example" }
+                  value:
+                    grantRef: GRT-00219
+                    identityRef: IDN-0091
+                    role: tax.approver
+                    scope: entity:ENT-3F2A9C
+                    status: ACTIVE
+        "409":
+          $ref: '#/components/responses/Error'
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/grants/{grantRef}:
+    delete:
+      operationId: revokeGrant
+      summary: Revoke a grant or withdraw a pending invitation (undoes grantRole, SDS §7)
+      description: Revoke a grant or withdraw a pending invitation (undoes grantRole, SDS §7).
+      tags:
+      - grants
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-P.2
+      x-error-codes: []
+      x-operation:
+        role: tenant.admin
+        scope: tenant
+        precondition: Grant exists
+        reversibility: COMPENSABLE
+        repeatKey: grantRef — re-grant compensates
+      parameters:
+      - name: grantRef
+        in: path
+        required: true
+        description: The grant's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: GRT-00219
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        "204":
+          description: 'Revoked (or already revoked: a no-op)'
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/principals:
+    post:
+      operationId: createPrincipal
+      summary: Create a service principal of a chosen type (SDS §7, SCR-17.6, §22.5)
+      description: Create a service principal of a chosen type (SDS §7, SCR-17.6, §22.5).
+      tags:
+      - principals
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-P.10
+      x-error-codes: []
+      x-operation:
+        role: tenant.admin
+        scope: tenant
+        precondition: Principal type chosen
+        reversibility: COMPENSABLE
+        repeatKey: (principalType, scope) — revocation is immediate; a new credential is a new principal
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePrincipalRequest'
+            examples:
+              default:
+                value:
+                  principalType: MACHINE_CLIENT
+                  scope: entity:ENT-3F2A9C
+      responses:
+        "201":
+          description: Principal created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrincipalResponse'
+              examples:
+                default:
+                  value:
+                    principalRef: PRN-00088
+                    principalType: MACHINE_CLIENT
+                    status: ACTIVE
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/principals/{principalRef}/rotate:
+    post:
+      operationId: rotatePrincipal
+      summary: Rotate a service principal's credential, with an overlap window (SDS §7, SCR-17.6)
+      description: Rotate a service principal's credential, with an overlap window (SDS §7, SCR-17.6).
+      tags:
+      - principals
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-P.10
+      x-error-codes: []
+      x-operation:
+        role: tenant.admin
+        scope: tenant
+        precondition: Principal exists
+        reversibility: COMPENSABLE
+        repeatKey: principalRef + action=ROTATE
+      parameters:
+      - name: principalRef
+        in: path
+        required: true
+        description: The service principal's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: PRN-00088
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RotatePrincipalRequest'
+            examples:
+              default:
+                value:
+                  overlapMinutes: 60
+      responses:
+        "200":
+          description: Rotated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrincipalResponse'
+              examples:
+                default:
+                  value:
+                    principalRef: PRN-00088
+                    principalType: MACHINE_CLIENT
+                    status: ACTIVE
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/principals/{principalRef}/revoke:
+    post:
+      operationId: revokePrincipal
+      summary: Revoke a service principal immediately (SDS §7, SCR-17.6)
+      description: Revoke a service principal immediately (SDS §7, SCR-17.6).
+      tags:
+      - principals
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-P.10
+      x-error-codes: []
+      x-operation:
+        role: tenant.admin
+        scope: tenant
+        precondition: Principal exists
+        reversibility: COMPENSABLE
+        repeatKey: principalRef + action=REVOKE — no-op if already revoked
+      parameters:
+      - name: principalRef
+        in: path
+        required: true
+        description: The service principal's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: PRN-00088
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        "200":
+          description: Revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrincipalResponse'
+              examples:
+                default:
+                  value:
+                    principalRef: PRN-00088
+                    principalType: MACHINE_CLIENT
+                    status: REVOKED
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/idp-group-mappings:
+    post:
+      operationId: mapIdpGroup
+      summary: Map an identity-provider group to a role x scope grant (SDS §7, SCR-24.3, FR-P.12)
+      description: Map an identity-provider group to a role x scope grant (SDS §7, SCR-24.3, FR-P.12).
+      tags:
+      - identity-provider
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-P.12
+      x-error-codes: []
+      x-operation:
+        role: tenant.admin
+        scope: tenant
+        precondition: Identity provider is connected
+        reversibility: UNDOABLE
+        repeatKey: (idpGroup, role, scope) — a repeat returns the original mapping
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IdpGroupMappingRequest'
+            examples:
+              default:
+                value:
+                  idpGroup: acme-tax-approvers
+                  role: tax.approver
+                  scope: tenant:TEN-7B1004
+      responses:
+        "201":
+          description: Mapping recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IdpGroupMappingResponse'
+              examples:
+                default:
+                  value:
+                    mappingRef: IDPM-0012
+                    idpGroup: acme-tax-approvers
+                    role: tax.approver
+                    scope: tenant:TEN-7B1004
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/idp-group-mappings/{mappingRef}:
+    delete:
+      operationId: unmapIdpGroup
+      summary: Remove an identity-provider group mapping (undoes mapIdpGroup, SDS §7)
+      description: Remove an identity-provider group mapping (undoes mapIdpGroup, SDS §7).
+      tags:
+      - identity-provider
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-P.12
+      x-error-codes: []
+      x-operation:
+        role: tenant.admin
+        scope: tenant
+        precondition: Mapping exists
+        reversibility: UNDOABLE
+        repeatKey: mappingRef — re-map to restore
+      parameters:
+      - name: mappingRef
+        in: path
+        required: true
+        description: The IdP group-to-grant mapping's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: IDPM-0012
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        "204":
+          description: 'Removed (or already removed: a no-op)'
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/sole-operator-acknowledgements:
+    post:
+      operationId: recordSoleOperator
+      summary: Acknowledge a sole-operator conflict with compensating controls (SDS §7, SCR-24.5)
+      description: Acknowledge a sole-operator conflict with compensating controls (SDS §7, SCR-24.5).
+      tags:
+      - separation-of-duty
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-P.2
+      x-error-codes: []
+      x-operation:
+        role: tenant.admin
+        scope: tenant
+        precondition: Only one person can hold the conflicting roles
+        reversibility: COMPENSABLE
+        repeatKey: tenantRef — withdraw when a second person joins
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SoleOperatorAckRequest'
+            examples:
+              default:
+                value:
+                  tenantRef: TEN-7B1004
+                  compensatingControls: Monthly review by an external accountant
+      responses:
+        "201":
+          description: Acknowledged
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoleOperatorAckResponse'
+              examples:
+                default:
+                  value:
+                    ackRef: SOA-0004
+                    tenantRef: TEN-7B1004
+                    status: ACTIVE
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/sole-operator-acknowledgements/{ackRef}:
+    delete:
+      operationId: withdrawSoleOperatorAcknowledgement
+      summary: Withdraw a sole-operator acknowledgement, a second person having joined (SDS §7)
+      description: Withdraw a sole-operator acknowledgement, a second person having joined (SDS §7).
+      tags:
+      - separation-of-duty
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-P.2
+      x-error-codes: []
+      x-operation:
+        role: tenant.admin
+        scope: tenant
+        precondition: A second person now holds one of the conflicting roles
+        reversibility: UNDOABLE
+        repeatKey: ackRef
+      parameters:
+      - name: ackRef
+        in: path
+        required: true
+        description: The sole-operator acknowledgement's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: SOA-0004
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        "204":
+          description: Withdrawn
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/elevation-requests:
+    post:
+      operationId: requestElevation
+      summary: Request time-boxed elevation or a diagnostic invitation to a tenant (SDS §7, SCR-39.2)
+      description: Request time-boxed elevation or a diagnostic invitation to a tenant (SDS §7, SCR-39.2).
+      tags:
+      - elevation
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-AF.12
+      x-error-codes: []
+      x-operation:
+        role: platform.support
+        scope: tenant
+        precondition: A support case is open
+        reversibility: UNDOABLE
+        repeatKey: caseId — withdraw to cancel
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ElevationRequest'
+            examples:
+              default:
+                value:
+                  caseId: CASE-5521
+                  tenantRef: TEN-7B1004
+                  reason: Investigate SUB-014 on behalf of the customer
+      responses:
+        "201":
+          description: Pending request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ElevationResponse'
+              examples:
+                default:
+                  value:
+                    requestRef: ELV-0031
+                    caseId: CASE-5521
+                    status: PENDING
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/elevation-requests/{requestRef}/decide:
+    post:
+      operationId: decideElevation
+      summary: Decide a pending elevation or diagnostic-invitation request (SDS §7, SCR-25.2)
+      description: Decide a pending elevation or diagnostic-invitation request (SDS §7, SCR-25.2).
+      tags:
+      - elevation
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-AF.12
+      x-error-codes: []
+      x-operation:
+        role: security.officer
+        scope: tenant
+        precondition: Request is pending
+        reversibility: COMPENSABLE
+        repeatKey: requestRef — revoke the grant early to compensate
+      parameters:
+      - name: requestRef
+        in: path
+        required: true
+        description: The elevation or diagnostic-invitation request's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: ELV-0031
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DecideElevationRequest'
+            examples:
+              default:
+                value:
+                  decision: GRANT
+                  validForMinutes: 120
+      responses:
+        "200":
+          description: Time-boxed grant, or refusal recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ElevationResponse'
+              examples:
+                default:
+                  value:
+                    requestRef: ELV-0031
+                    caseId: CASE-5521
+                    status: GRANTED
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/elevation-requests/{requestRef}:
+    delete:
+      operationId: withdrawElevationRequest
+      summary: Withdraw a pending elevation request (SDS §7)
+      description: Withdraw a pending elevation request (SDS §7).
+      tags:
+      - elevation
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-AF.12
+      x-error-codes: []
+      x-operation:
+        role: platform.support
+        scope: tenant
+        precondition: Request is still pending
+        reversibility: UNDOABLE
+        repeatKey: requestRef
+      parameters:
+      - name: requestRef
+        in: path
+        required: true
+        description: The elevation or diagnostic-invitation request's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: ELV-0031
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        "204":
+          description: Withdrawn
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/diagnostic-invitations:
+    post:
+      operationId: inviteDiagnostics
+      summary: Invite a deployment operator to diagnostics, private form only (SDS §7, SCR-28.3)
+      description: Invite a deployment operator to diagnostics, private form only (SDS §7, SCR-28.3).
+      tags:
+      - elevation
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-AF.10
+      x-error-codes: []
+      x-operation:
+        role: deployment.operator
+        scope: installation
+        precondition: Private form
+        reversibility: UNDOABLE
+        repeatKey: (installationRef, caseId) — withdraw to cancel
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiagnosticInvitationRequest'
+            examples:
+              default:
+                value:
+                  installationRef: INST-0091
+                  caseId: CASE-5521
+      responses:
+        "201":
+          description: Pending invitation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiagnosticInvitationResponse'
+              examples:
+                default:
+                  value:
+                    invitationRef: DIAG-0007
+                    installationRef: INST-0091
+                    status: PENDING
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/diagnostic-invitations/{invitationRef}:
+    delete:
+      operationId: withdrawDiagnosticInvitation
+      summary: Withdraw a pending diagnostic invitation (SDS §7)
+      description: Withdraw a pending diagnostic invitation (SDS §7).
+      tags:
+      - elevation
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-AF.10
+      x-error-codes: []
+      x-operation:
+        role: deployment.operator
+        scope: installation
+        precondition: Invitation is still pending
+        reversibility: UNDOABLE
+        repeatKey: invitationRef
+      parameters:
+      - name: invitationRef
+        in: path
+        required: true
+        description: The diagnostic invitation's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: DIAG-0007
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        "204":
+          description: Withdrawn
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/signatory-links:
+    post:
+      operationId: issueSignatoryLink
+      summary: Issue a signed, expiring link for a client signatory or counterparty (SDS §7, SCR-26.2,
+        §34.8-34.9)
+      description: Through MessageRequested (notification-svc delivers it). console-bff serves the link
+        page from this record.
+      tags:
+      - signed-links
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-AG.70
+      x-error-codes: []
+      x-operation:
+        role: agent.operator
+        scope: tenant
+        precondition: Client and signatory are recorded
+        reversibility: UNDOABLE
+        repeatKey: (clientRef, purpose) — expire the link to undo
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignatoryLinkRequest'
+            examples:
+              default:
+                value:
+                  clientRef: CLI-2201
+                  purpose: CONFIRM_FILING
+                  recipientEmail: signatory@client.example
+      responses:
+        "201":
+          description: Link issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignatoryLinkResponse'
+              examples:
+                default:
+                  value:
+                    linkRef: LNK-771A
+                    clientRef: CLI-2201
+                    purpose: CONFIRM_FILING
+                    expiresAt: "2026-10-04T00:00:00Z"
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/signatory-links/{linkRef}/verify:
+    post:
+      operationId: verifySignatoryLink
+      summary: Verify a signed link's passcode (SDS §28.16 'link verification', ACC-004)
+      description: Attempt-counted; the link is invalidated (ACC-004) after the attempt limit (VP-75).
+      tags:
+      - signed-links
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-AG.70
+      x-error-codes:
+      - ACC-004
+      x-operation:
+        role: The link's recipient
+        scope: tenant
+        precondition: Link is not invalidated; attempts remain
+        reversibility: UNDOABLE
+        repeatKey: (linkRef, attempt) — retry while attempts remain
+      parameters:
+      - name: linkRef
+        in: path
+        required: true
+        description: The signed link's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: LNK-771A
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifySignatoryLinkRequest'
+            examples:
+              default:
+                value:
+                  passcode: "482913"
+      responses:
+        "200":
+          description: Verified; a session for the link's page starts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignatoryLinkVerifyResponse'
+              examples:
+                default:
+                  value:
+                    linkRef: LNK-771A
+                    verified: true
+        "410":
+          description: Invalidated after the passcode attempt limit (ACC-004)
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../service-runtime/schemas/error-envelope.schema.json
+              examples:
+                default:
+                  value:
+                    type: https://errors.invoice.internal/ACC-004
+                    title: Signed link invalidated
+                    status: 410
+                    code: ACC-004
+                    correlationId: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/break-glass:
+    post:
+      operationId: unlockBreakGlass
+      summary: Unlock break-glass access while the identity provider is unavailable (SDS §7, SCR-33.1,
+        ACC-002, §34.6)
+      description: Restricted session; raises ACC-002 and notifies security.officer.
+      tags:
+      - break-glass
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-AF.19
+      x-error-codes:
+      - ACC-002
+      x-operation:
+        role: deployment.operator, tenant.admin, plus tax.approver
+        scope: installation
+        precondition: Identity provider is unavailable
+        reversibility: IRREVERSIBLE
+        repeatKey: unlockRef — irreversible as an event; reseal ends the session
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UnlockBreakGlassRequest'
+            examples:
+              default:
+                value:
+                  tenantRef: TEN-7B1004
+                  approvedBy:
+                  - identity:USR-004
+                  - identity:USR-009
+      responses:
+        "201":
+          description: Restricted session opened
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BreakGlassResponse'
+              examples:
+                default:
+                  value:
+                    unlockRef: BG-0003
+                    tenantRef: TEN-7B1004
+                    status: UNLOCKED
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/break-glass/{unlockRef}/reseal:
+    post:
+      operationId: resealBreakGlass
+      summary: Close a break-glass session and rotate the sealing credential (SDS §7, SCR-33.3)
+      description: Close a break-glass session and rotate the sealing credential (SDS §7, SCR-33.3).
+      tags:
+      - break-glass
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-AF.19
+      x-error-codes: []
+      x-operation:
+        role: deployment.operator
+        scope: installation
+        precondition: Break-glass session is open
+        reversibility: UNDOABLE
+        repeatKey: unlockRef — reseal again is a no-op
+      parameters:
+      - name: unlockRef
+        in: path
+        required: true
+        description: The break-glass unlock's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: BG-0003
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        "200":
+          description: Sealed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BreakGlassResponse'
+              examples:
+                default:
+                  value:
+                    unlockRef: BG-0003
+                    tenantRef: TEN-7B1004
+                    status: SEALED
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/access-reviews:
+    post:
+      operationId: runAccessReview
+      summary: Open a quarterly access-review campaign (SDS §7, SCR-25.1, FR-AF.16)
+      description: Open a quarterly access-review campaign (SDS §7, SCR-25.1, FR-AF.16).
+      tags:
+      - access-review
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-AF.16
+      x-error-codes: []
+      x-operation:
+        role: security.officer
+        scope: tenant
+        precondition: None
+        reversibility: UNDOABLE
+        repeatKey: (tenantRef, quarter) — undoable until closed
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccessReviewRequest'
+            examples:
+              default:
+                value:
+                  tenantRef: TEN-7B1004
+                  quarter: 2026Q3
+      responses:
+        "201":
+          description: Campaign opened
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessReviewResponse'
+              examples:
+                default:
+                  value:
+                    reviewRef: REV-2026Q3
+                    tenantRef: TEN-7B1004
+                    quarter: 2026Q3
+                    status: OPEN
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/access-reviews/{reviewRef}/close:
+    post:
+      operationId: closeAccessReview
+      summary: Close an access-review campaign with an outcome per grant (SDS §7, SCR-25.1)
+      description: Close an access-review campaign with an outcome per grant (SDS §7, SCR-25.1).
+      tags:
+      - access-review
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-AF.16
+      x-error-codes: []
+      x-operation:
+        role: security.officer
+        scope: tenant
+        precondition: Campaign is open; every grant has an outcome
+        reversibility: IRREVERSIBLE
+        repeatKey: reviewRef — no-op once already closed
+      parameters:
+      - name: reviewRef
+        in: path
+        required: true
+        description: The access-review campaign's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: REV-2026Q3
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CloseAccessReviewRequest'
+            examples:
+              default:
+                value:
+                  outcomes:
+                  - grantRef: GRT-00219
+                    outcome: CONFIRMED
+      responses:
+        "200":
+          description: Closed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessReviewResponse'
+              examples:
+                default:
+                  value:
+                    reviewRef: REV-2026Q3
+                    tenantRef: TEN-7B1004
+                    quarter: 2026Q3
+                    status: CLOSED
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/consents:
+    post:
+      operationId: grantConsent
+      summary: Record an agent's consent, with scope and dates (SDS §31.2.5, FR-AF.34)
+      description: Record an agent's consent, with scope and dates (SDS §31.2.5, FR-AF.34).
+      tags:
+      - consent
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-AF.34
+      x-error-codes: []
+      x-operation:
+        role: Client's authorising person
+        scope: tenant
+        precondition: An agent relationship exists
+        reversibility: UNDOABLE
+        repeatKey: (clientRef, agentRef, scope) — a repeat returns the original consent; withdrawal undoes
+          it
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GrantConsentRequest'
+            examples:
+              default:
+                value:
+                  clientRef: CLI-2201
+                  agentRef: AGT-01
+                  scope:
+                  - FILE_GST_RETURN
+                  validFrom: "2026-09-27"
+                  authorisingPersonEmail: director@client.example
+      responses:
+        "201":
+          description: Consent recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsentResponse'
+              examples:
+                default:
+                  value:
+                    consentRef: CNS-4471
+                    clientRef: CLI-2201
+                    agentRef: AGT-01
+                    status: ACTIVE
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/consents/{consentRef}/withdraw:
+    post:
+      operationId: withdrawConsent
+      summary: Withdraw a live agent consent (SDS §31.2.5, FR-AB.8, INV-REQ-1010)
+      description: Submission stops at the next authorisation check; produces a handover statement. Irreversible
+        as an event — a new consent is a new grant.
+      tags:
+      - consent
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-AC.19
+      - FR-AB.8
+      x-error-codes: []
+      x-operation:
+        role: Client
+        scope: tenant
+        precondition: Consent is live
+        reversibility: IRREVERSIBLE
+        repeatKey: consent id — no-op, the consent is already withdrawn (INV-REQ-1010)
+      parameters:
+      - name: consentRef
+        in: path
+        required: true
+        description: The agent consent's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: CNS-4471
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WithdrawConsentRequest'
+            examples:
+              default:
+                value:
+                  reason: Agent relationship ended
+      responses:
+        "200":
+          description: 'Withdrawn (or already withdrawn: a no-op, INV-REQ-1010)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsentResponse'
+              examples:
+                default:
+                  value:
+                    consentRef: CNS-4471
+                    clientRef: CLI-2201
+                    agentRef: AGT-01
+                    status: WITHDRAWN
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/mapping-acknowledgements:
+    post:
+      operationId: acknowledgeMapping
+      summary: Record a client signatory's acknowledgement of an approved pack (SDS §7, SCR-34.3)
+      description: Record a client signatory's acknowledgement of an approved pack (SDS §7, SCR-34.3).
+      tags:
+      - consent
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      x-error-codes: []
+      x-operation:
+        role: client.signatory
+        scope: tenant
+        precondition: Pack awaiting acknowledgement
+        reversibility: COMPENSABLE
+        repeatKey: (packVersion, clientRef) — a later query supersedes
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcknowledgeMappingRequest'
+            examples:
+              default:
+                value:
+                  packVersion: '2026.3'
+                  clientRef: CLI-2201
+      responses:
+        "201":
+          description: Recorded as evidence
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcknowledgeMappingResponse'
+              examples:
+                default:
+                  value:
+                    packVersion: '2026.3'
+                    clientRef: CLI-2201
+                    acknowledgedAt: "2026-09-27T02:00:00Z"
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
 components:
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: 'API-15: a UUID, deduplicating an exact request replay for at least 24h.'
+      schema:
+        type: string
+        format: uuid
   schemas:
-    ExampleRequest:
+    AuthoriseResponse:
       type: object
+      required:
+      - decision
       properties:
-        name:
+        decision:
           type: string
-          maxLength: 200
-      required: [name]
-    ExampleResponse:
+          enum:
+          - ALLOW
+          - DENY
+        role:
+          type: string
+          maxLength: 64
+        reasonCode:
+          type: string
+          maxLength: 16
+    VerificationKeysResponse:
       type: object
+      required:
+      - keys
       properties:
-        id:
+        keys:
+          type: array
+          maxItems: 10
+          items:
+            type: object
+            required:
+            - kid
+            - alg
+            - publicKey
+            properties:
+              kid:
+                type: string
+                maxLength: 32
+              alg:
+                type: string
+                maxLength: 16
+              publicKey:
+                type: string
+                maxLength: 8192
+                format: byte
+    GrantRequest:
+      type: object
+      required:
+      - granteeKind
+      - identityRef
+      - role
+      - scope
+      - validFrom
+      properties:
+        granteeKind:
           type: string
-          format: uuid
-        name:
+          enum:
+          - STAFF
+          - EXTERNAL
+          - CROSS_TENANT
+          - DIAGNOSTIC
+        identityRef:
           type: string
-          maxLength: 200
-      required: [id, name]
+          maxLength: 64
+        role:
+          type: string
+          maxLength: 64
+        scope:
+          type: string
+          maxLength: 128
+        validFrom:
+          type: string
+          format: date
+        validTo:
+          type: string
+          format: date
+    GrantResponse:
+      type: object
+      required:
+      - grantRef
+      - identityRef
+      - role
+      - scope
+      - status
+      properties:
+        grantRef:
+          type: string
+          maxLength: 64
+        identityRef:
+          type: string
+          maxLength: 64
+        role:
+          type: string
+          maxLength: 64
+        scope:
+          type: string
+          maxLength: 128
+        status:
+          type: string
+          enum:
+          - PENDING
+          - ACTIVE
+          - REVOKED
+          x-extensible-enum: true
+    CreatePrincipalRequest:
+      type: object
+      required:
+      - principalType
+      - scope
+      properties:
+        principalType:
+          type: string
+          enum:
+          - MACHINE_CLIENT
+          - AP_CALLBACK
+          - SCHEDULED_JOB
+          - AGENT
+          - SUPPORT_TOOL
+          - INTEGRATION
+        scope:
+          type: string
+          maxLength: 128
+    PrincipalResponse:
+      type: object
+      required:
+      - principalRef
+      - principalType
+      - status
+      properties:
+        principalRef:
+          type: string
+          maxLength: 64
+        principalType:
+          type: string
+          maxLength: 32
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - REVOKED
+          x-extensible-enum: true
+    RotatePrincipalRequest:
+      type: object
+      required:
+      - overlapMinutes
+      properties:
+        overlapMinutes:
+          type: integer
+          minimum: 0
+          maximum: 1440
+    IdpGroupMappingRequest:
+      type: object
+      required:
+      - idpGroup
+      - role
+      - scope
+      properties:
+        idpGroup:
+          type: string
+          maxLength: 128
+        role:
+          type: string
+          maxLength: 64
+        scope:
+          type: string
+          maxLength: 128
+    IdpGroupMappingResponse:
+      type: object
+      required:
+      - mappingRef
+      - idpGroup
+      - role
+      - scope
+      properties:
+        mappingRef:
+          type: string
+          maxLength: 64
+        idpGroup:
+          type: string
+          maxLength: 128
+        role:
+          type: string
+          maxLength: 64
+        scope:
+          type: string
+          maxLength: 128
+    SoleOperatorAckRequest:
+      type: object
+      required:
+      - tenantRef
+      - compensatingControls
+      properties:
+        tenantRef:
+          type: string
+          maxLength: 64
+        compensatingControls:
+          type: string
+          maxLength: 1000
+    SoleOperatorAckResponse:
+      type: object
+      required:
+      - ackRef
+      - tenantRef
+      - status
+      properties:
+        ackRef:
+          type: string
+          maxLength: 64
+        tenantRef:
+          type: string
+          maxLength: 64
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - WITHDRAWN
+          x-extensible-enum: true
+    ElevationRequest:
+      type: object
+      required:
+      - caseId
+      - tenantRef
+      - reason
+      properties:
+        caseId:
+          type: string
+          maxLength: 64
+        tenantRef:
+          type: string
+          maxLength: 64
+        reason:
+          type: string
+          maxLength: 1000
+    ElevationResponse:
+      type: object
+      required:
+      - requestRef
+      - caseId
+      - status
+      properties:
+        requestRef:
+          type: string
+          maxLength: 64
+        caseId:
+          type: string
+          maxLength: 64
+        status:
+          type: string
+          enum:
+          - PENDING
+          - GRANTED
+          - REFUSED
+          - WITHDRAWN
+          x-extensible-enum: true
+    DecideElevationRequest:
+      type: object
+      required:
+      - decision
+      properties:
+        decision:
+          type: string
+          enum:
+          - GRANT
+          - REFUSE
+        validForMinutes:
+          type: integer
+          minimum: 1
+          maximum: 1440
+    DiagnosticInvitationRequest:
+      type: object
+      required:
+      - installationRef
+      - caseId
+      properties:
+        installationRef:
+          type: string
+          maxLength: 64
+        caseId:
+          type: string
+          maxLength: 64
+    DiagnosticInvitationResponse:
+      type: object
+      required:
+      - invitationRef
+      - installationRef
+      - status
+      properties:
+        invitationRef:
+          type: string
+          maxLength: 64
+        installationRef:
+          type: string
+          maxLength: 64
+        status:
+          type: string
+          enum:
+          - PENDING
+          - WITHDRAWN
+          x-extensible-enum: true
+    SignatoryLinkRequest:
+      type: object
+      required:
+      - clientRef
+      - purpose
+      - recipientEmail
+      properties:
+        clientRef:
+          type: string
+          maxLength: 64
+        purpose:
+          type: string
+          maxLength: 64
+        recipientEmail:
+          type: string
+          format: email
+          maxLength: 254
+    SignatoryLinkResponse:
+      type: object
+      required:
+      - linkRef
+      - clientRef
+      - purpose
+      - expiresAt
+      properties:
+        linkRef:
+          type: string
+          maxLength: 64
+        clientRef:
+          type: string
+          maxLength: 64
+        purpose:
+          type: string
+          maxLength: 64
+        expiresAt:
+          type: string
+          format: date-time
+    VerifySignatoryLinkRequest:
+      type: object
+      required:
+      - passcode
+      properties:
+        passcode:
+          type: string
+          pattern: ^[0-9]{6}$
+    SignatoryLinkVerifyResponse:
+      type: object
+      required:
+      - linkRef
+      - verified
+      properties:
+        linkRef:
+          type: string
+          maxLength: 64
+        verified:
+          type: boolean
+    UnlockBreakGlassRequest:
+      type: object
+      required:
+      - tenantRef
+      - approvedBy
+      properties:
+        tenantRef:
+          type: string
+          maxLength: 64
+        approvedBy:
+          type: array
+          minItems: 2
+          maxItems: 3
+          items:
+            type: string
+            maxLength: 128
+    BreakGlassResponse:
+      type: object
+      required:
+      - unlockRef
+      - tenantRef
+      - status
+      properties:
+        unlockRef:
+          type: string
+          maxLength: 64
+        tenantRef:
+          type: string
+          maxLength: 64
+        status:
+          type: string
+          enum:
+          - UNLOCKED
+          - SEALED
+          x-extensible-enum: true
+    AccessReviewRequest:
+      type: object
+      required:
+      - tenantRef
+      - quarter
+      properties:
+        tenantRef:
+          type: string
+          maxLength: 64
+        quarter:
+          type: string
+          maxLength: 8
+    AccessReviewResponse:
+      type: object
+      required:
+      - reviewRef
+      - tenantRef
+      - quarter
+      - status
+      properties:
+        reviewRef:
+          type: string
+          maxLength: 64
+        tenantRef:
+          type: string
+          maxLength: 64
+        quarter:
+          type: string
+          maxLength: 8
+        status:
+          type: string
+          enum:
+          - OPEN
+          - CLOSED
+          x-extensible-enum: true
+    CloseAccessReviewRequest:
+      type: object
+      required:
+      - outcomes
+      properties:
+        outcomes:
+          type: array
+          maxItems: 5000
+          items:
+            type: object
+            required:
+            - grantRef
+            - outcome
+            properties:
+              grantRef:
+                type: string
+                maxLength: 64
+              outcome:
+                type: string
+                enum:
+                - CONFIRMED
+                - REVOKED
+    GrantConsentRequest:
+      type: object
+      required:
+      - clientRef
+      - agentRef
+      - scope
+      - validFrom
+      - authorisingPersonEmail
+      properties:
+        clientRef:
+          type: string
+          maxLength: 64
+        agentRef:
+          type: string
+          maxLength: 64
+        scope:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            maxLength: 64
+        validFrom:
+          type: string
+          format: date
+        authorisingPersonEmail:
+          type: string
+          format: email
+          maxLength: 254
+    ConsentResponse:
+      type: object
+      required:
+      - consentRef
+      - clientRef
+      - agentRef
+      - status
+      properties:
+        consentRef:
+          type: string
+          maxLength: 64
+        clientRef:
+          type: string
+          maxLength: 64
+        agentRef:
+          type: string
+          maxLength: 64
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - WITHDRAWN
+          x-extensible-enum: true
+    WithdrawConsentRequest:
+      type: object
+      required:
+      - reason
+      properties:
+        reason:
+          type: string
+          maxLength: 500
+    AcknowledgeMappingRequest:
+      type: object
+      required:
+      - packVersion
+      - clientRef
+      properties:
+        packVersion:
+          type: string
+          maxLength: 16
+        clientRef:
+          type: string
+          maxLength: 64
+    AcknowledgeMappingResponse:
+      type: object
+      required:
+      - packVersion
+      - clientRef
+      - acknowledgedAt
+      properties:
+        packVersion:
+          type: string
+          maxLength: 16
+        clientRef:
+          type: string
+          maxLength: 64
+        acknowledgedAt:
+          type: string
+          format: date-time
   responses:
     Error:
       description: Error (API-20 envelope)
       content:
         application/problem+json:
           schema:
-            $ref: '../service-runtime/schemas/error-envelope.schema.json'
+            $ref: ../service-runtime/schemas/error-envelope.schema.json
           examples:
             default:
               value:
-                type: "about:blank"
-                title: "Example error"
+                type: about:blank
+                title: Example error (illustrates the envelope shape only)
                 status: 400
-                code: "EXAMPLE-000"
-                correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                code: EXAMPLE-000
+                correlationId: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+
