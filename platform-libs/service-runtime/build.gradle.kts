@@ -73,9 +73,26 @@ dependencies {
     listOf("implImplementation", "implTestImplementation").forEach { config ->
         add(config, platform(libs.springBoot.dependencies))
         add(config, libs.springBoot.starterActuator)
+        // INV-T-2872 / T28: ARC-08's generated client (`spring-web`'s `RestClient`),
+        // API-29/STK-26's server-side filters (the servlet API only, no
+        // container), and STK-26's workload-token verification.
+        add(config, libs.springWeb)
+        add(config, libs.jakarta.servletApi)
+        add(config, libs.springSecurity.oauth2Jose)
     }
     add("implTestImplementation", libs.springBoot.test)
     add("implTestImplementation", libs.assertj.core)
+
+    // STK-24 (INV-T-2872 / T28): Resilience4j core for the internal-edge
+    // `ResilienceRegistry` — the same modules `adapter-runtime` (T18) already
+    // uses for its own, external-edge executor.
+    listOf("implImplementation", "implTestImplementation").forEach { config ->
+        add(config, platform(libs.resilience4j.bom))
+        add(config, libs.resilience4j.circuitbreaker)
+        add(config, libs.resilience4j.retry)
+        add(config, libs.resilience4j.bulkhead)
+        add(config, libs.resilience4j.timelimiter)
+    }
 
     // service-runtime hosts the repository-wide §18.9 L1-dependency-order Konsist
     // check (done-when, INV-T-2860 / T16): one module needs to, and this is the

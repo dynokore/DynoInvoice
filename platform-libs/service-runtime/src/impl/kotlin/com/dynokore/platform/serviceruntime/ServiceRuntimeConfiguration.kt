@@ -1,9 +1,12 @@
 package com.dynokore.platform.serviceruntime
 
 import com.dynokore.platform.serviceruntime.binding.BindingAutoConfiguration
+import com.dynokore.platform.serviceruntime.client.InternalRestClientAutoConfiguration
 import com.dynokore.platform.serviceruntime.diagnostics.DiagnosticsAutoConfiguration
 import com.dynokore.platform.serviceruntime.health.HealthAutoConfiguration
+import com.dynokore.platform.serviceruntime.identity.IdentityAutoConfiguration
 import com.dynokore.platform.serviceruntime.logging.LoggingAutoConfiguration
+import com.dynokore.platform.serviceruntime.resilience.ResilienceAutoConfiguration
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.context.annotation.Import
 import org.springframework.context.annotation.PropertySource
@@ -33,6 +36,9 @@ import org.springframework.context.annotation.PropertySource
     HealthAutoConfiguration::class,
     DiagnosticsAutoConfiguration::class,
     LoggingAutoConfiguration::class,
+    ResilienceAutoConfiguration::class,
+    IdentityAutoConfiguration::class,
+    InternalRestClientAutoConfiguration::class,
 )
 @PropertySource("classpath:service-runtime-defaults.properties")
 class ServiceRuntimeConfiguration

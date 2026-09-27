@@ -5,7 +5,10 @@ import com.dynokore.platform.serviceruntime.binding.SecretStore
 import com.dynokore.platform.serviceruntime.diagnostics.DiagnosticsEndpoint
 import com.dynokore.platform.serviceruntime.diagnostics.ErrorCodeMetrics
 import com.dynokore.platform.serviceruntime.health.VaultHealthIndicator
+import com.dynokore.platform.serviceruntime.identity.WorkloadTokenSource
+import com.dynokore.platform.serviceruntime.identity.WorkloadTokenVerifier
 import com.dynokore.platform.serviceruntime.logging.MdcAllowListInstaller
+import com.dynokore.platform.serviceruntime.resilience.ResilienceRegistry
 import io.kotest.matchers.shouldBe
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
@@ -13,6 +16,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
+import org.springframework.web.client.RestClient
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -42,6 +46,11 @@ class ServiceRuntimeConfigurationTest {
             context.getBean(ErrorCodeMetrics::class.java)
             context.getBean(DiagnosticsEndpoint::class.java)
             context.getBean(MdcAllowListInstaller::class.java)
+            // INV-T-2872 / T28
+            context.getBean(ResilienceRegistry::class.java)
+            context.getBean(WorkloadTokenSource::class.java)
+            context.getBean(WorkloadTokenVerifier::class.java)
+            context.getBean(RestClient.Builder::class.java)
         }
     }
 

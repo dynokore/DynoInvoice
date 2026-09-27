@@ -61,6 +61,23 @@ tomcatEmbed = "11.0.25"
 [libraries]
 springBoot-dependencies = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "springBoot" }
 springBoot-starterActuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }
+# STK-23 (service-runtime, INV-T-2872 / T28): the generated ARC-08 client's own
+# `RestClient`/`ClientHttpRequestInterceptor` — client-side only, never
+# `spring-webmvc` or a servlet container (this module ships no web starter,
+# tomcatEmbed's own comment below still holds). Version managed by the Spring
+# Boot BOM.
+springWeb = { module = "org.springframework:spring-web" }
+# API-29/STK-26 server-side filters (`DeadlineServerFilter`,
+# `WorkloadTokenAuthenticationFilter`): the servlet API only, not an embedded
+# container — a consuming service's own `bootstrap` module supplies the
+# container via its own `spring-boot-starter-web`. Version managed by the
+# Spring Boot BOM.
+jakarta-servletApi = { module = "jakarta.servlet:jakarta.servlet-api" }
+# STK-26: verifies a workload token the same Nimbus-based way STK-27's future
+# end-user resource-server configuration verifies one, pointed at the cluster's
+# own service-account issuer instead. Version managed by the Spring Boot BOM
+# (Spring Security 7, STK-27).
+springSecurity-oauth2Jose = { module = "org.springframework.security:spring-security-oauth2-jose" }
 # `ApplicationContextRunner`, for the auto-configuration wiring test (implTest only).
 springBoot-test = { module = "org.springframework.boot:spring-boot-test" }
 # `ApplicationContextRunner`'s own `AssertableApplicationContext` extends AssertJ's

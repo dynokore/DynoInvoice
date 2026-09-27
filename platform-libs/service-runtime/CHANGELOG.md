@@ -6,6 +6,39 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-09-27
+### Added
+- ARC-08/STK-24's `ResilienceRegistry` (INV-REQ-1204): one `ResilientEdge` per
+  internal (§2.5) edge, Resilience4j core composed the same way
+  `adapter-runtime`'s own external-edge executor is (INV-T-2862 / T18) — timeout,
+  jittered retry only where an edge is configured idempotent (CS-16), circuit
+  breaker and a semaphore bulkhead on virtual threads (`Resilience4jResilientEdge`,
+  `ResilienceProperties`), every value provisional until its own §13.7
+  performance test confirms it.
+- `Deadline` (INV-REQ-1203, FR-AH.7) and API-29's `X-Deadline-Ms` propagation:
+  `ResilientEdge.execute` binds the caller's remaining budget around the call so
+  a service's own generated `RestClient` client automatically carries it
+  (`DeadlinePropagationInterceptor`); `DeadlineServerFilter` reconstructs it on
+  the callee, with a provisional default budget for a chain's own entry point.
+  The budget already being exhausted before a hop is even attempted returns the
+  same typed timeout fallback as a real timeout, never an exception.
+- Workload identity (INV-REQ-1202, STK-26, INV-AC-2200): `WorkloadTokenSource`/
+  `ProjectedServiceAccountTokenSource` reads this pod's own projected
+  service-account token fresh on every call (STK-29's own no-cache discipline);
+  `WorkloadTokenVerifier`/`JwtWorkloadTokenVerifier` verifies a caller's token
+  (signature, issuer, audience) the same Nimbus-based way STK-27's future
+  end-user resource server will; `WorkloadTokenAuthenticationFilter` refuses a
+  request with no valid token before it reaches any handler.
+  `EndUserTokenCaptureFilter`/`EndUserTokenPropagationInterceptor` forward the
+  inbound request's own token to every internal call it causes, so the owning
+  service can re-check the write (INV-REQ-871).
+- `InternalRestClientAutoConfiguration`'s `RestClient.Builder` bean: the
+  "generated RestClient wrapper" a service builds every ARC-08 client from
+  (TPL-07), pre-wired with deadline, workload-token and end-user-token
+  propagation — a generated client needs no interceptor wiring of its own.
+- `ServiceRuntimeConfiguration` now also imports `ResilienceAutoConfiguration`,
+  `IdentityAutoConfiguration` and `InternalRestClientAutoConfiguration`.
+
 ## [1.0.0] - 2026-09-27
 ### Added
 - Spring Boot 4.1 bootstrap auto-configuration (`ServiceRuntimeConfiguration`,
