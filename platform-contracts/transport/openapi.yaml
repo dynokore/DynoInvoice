@@ -16,21 +16,59 @@ info:
     §33.6). `submitPayload` and `sendNetworkDocument` are `/internal/v1/…`,
     serving the synchronous edge of model/architecture/sync-edges.yaml
     (`submission-svc -> transport-svc`, "needs the outcome to advance
-    state"). services.yaml's transport-svc entry names no console-bff
-    surface under `provides`, so the console commands of Keel INV-NOTE-7 §7
-    tagged `transport-svc` (`failoverAdapter`, `rotateCredential`,
-    `testConnection`) are out of this file's declared scope; flagged for the
-    coordinator in this MR rather than assumed.
+    state").
+
+
+    invoice-docs commit 15e0e94 (2026-09-27) gave services.yaml's
+    transport-svc entry a console-bff surface — "AP adapter administration
+    (failover, credential rotation, connection test) to console-bff
+    (INV-NOTE-7 §7; added 27 Sep 2026)" — and added the
+    `console-bff -> transport-svc` sync-edge (kind `console`), closing the
+    gap this file previously flagged. `rotateCredential` and `testConnection`
+    below are `/internal/v1/…` operations on that edge, with role,
+    precondition, reversibility and repeat key exactly as INV-NOTE-7 §7's
+    "Operations introduced" table states them for `transport-svc`.
+    `failoverAdapter`, the third operation §7's own commit message names,
+    is NOT in that table (checked directly: absent from every
+    `transport-svc` / `masterdata-svc` row of §7) — review found it is,
+    however, live Keel text elsewhere: §3's screen inventory (SCR-18.4)
+    names its role set, class (Undoable) and FR-E.2; INV-FLOW-247 "Outage
+    and backlog recovery" names `integration.engineer` as the actor who
+    performs it (step 3) and its control "Failover is undoable". Added
+    below on that basis; SDS §31.2.6, which SCR-18.4/SCR-39.3 also cite,
+    stays out of bounds (archived).
+
+
+    `x-operation.role` is a single string (Spectral schema: `role: {type:
+    string, minLength: 1}`), so where INV-NOTE-7/§3 name more than one
+    authorised actor, `role` below carries the one Keel names as
+    performing the action in a flow (failoverAdapter: `integration.engineer`,
+    INV-FLOW-247 step 3) or lists first in its screen-table Roles column
+    (rotateCredential: `tenant.admin`; testConnection: `integration.engineer`);
+    every other actor Keel also authorises is named in full in the
+    operation's own description, not silently dropped.
+
+
+    Neither new operation has a matching code in the vendored gst-catalogue
+    (`catalogue/errors/error-codes.yaml` has no transport-admin prefix);
+    `x-error-codes: []` below, flagged as a catalogue gap in the MR rather
+    than invented.
   contact:
     name: transport (see CODEOWNERS)
 servers:
   - url: 'https://api.invoice.internal'
-    description: Placeholder — the gateway routes only the operations of a published train (API-26) for receiveApNotification; the other two are never routed (API-01 scope table).
+    description: Placeholder — the gateway routes only the operations of a published train (API-26) for receiveApNotification; the other five are never routed (API-01 scope table).
 tags:
   - name: despatch
     description: Submission to IRAS through the AP, and Relay-mode network issuance (§33.1).
   - name: notifications
     description: Inbound AP acknowledgements, delivery status and network documents (§33.6).
+  - name: administration
+    description: >-
+      AP adapter administration to console-bff — credential rotation and
+      connection test (services.yaml transport-svc `provides`;
+      sync-edges.yaml `console-bff -> transport-svc`, kind console;
+      INV-NOTE-7 §7).
 paths:
   /internal/v1/transport/payloads:
     post:
@@ -190,6 +228,173 @@ paths:
                   value: { apNotificationId: "APN-55210", recorded: true }
         default:
           $ref: '#/components/responses/Error'
+  /internal/v1/transport/adapters/{adapterRef}/credential-rotations:
+    post:
+      operationId: rotateCredential
+      summary: Rotate an AP adapter's credential, with an overlap window
+      description: >-
+        Console command to console-bff (services.yaml transport-svc
+        `provides`; sync-edges.yaml `console-bff -> transport-svc`, kind
+        console; INV-NOTE-7 §7 "Operations introduced", joint
+        `transport-svc`/`masterdata-svc` row). The replacement credential is
+        already held in the vault (SCR-18.3); this operation starts the
+        overlap window, after which the old credential is refused. Never
+        the credential material itself in the schema — only its vault
+        reference (services.yaml transport-svc `owns`: "Credentials live in
+        the vault, never in the schema"). INV-NOTE-7 §7 names two
+        authorised actors, `tenant.admin` and `platform.engineer`; `role`
+        below is the first Keel lists (a single Keel-catalogue role per
+        the Spectral `x-operation` schema), `platform.engineer` is
+        authorised the same way.
+      tags: [administration]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-sync-edge: console-bff->transport-svc
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010, "INV-NOTE-7 §7"]
+      x-operation:
+        role: tenant.admin
+        scope: entity
+        precondition: "A replacement credential is already held (in the vault) for this adapter (INV-NOTE-7 §7)."
+        reversibility: COMPENSABLE
+        repeatKey: "(adapterRef, credentialId) — a repeat returns the original rotation outcome; the same credential id is not rotated in twice (INV-NOTE-7 §7)."
+      parameters:
+        - name: adapterRef
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RotateCredentialRequest'
+            examples:
+              default:
+                value:
+                  credentialId: "VAULT-CRED-2214"
+      responses:
+        '200':
+          description: The adapter's credential state after starting the rotation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CredentialRotationResult'
+              examples:
+                default:
+                  value: { adapterRef: "AP-PRIMARY", credentialId: "VAULT-CRED-2214", overlapActive: true, rotatedAt: "2026-09-27T03:15:00Z" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/transport/adapters/{adapterRef}/connection-tests:
+    post:
+      operationId: testConnection
+      summary: Test an AP adapter's connection
+      description: >-
+        Console command to console-bff (services.yaml transport-svc
+        `provides`; sync-edges.yaml `console-bff -> transport-svc`, kind
+        console; INV-NOTE-7 §7 "Operations introduced", joint
+        `transport-svc`/`masterdata-svc` row; SCR-18.2). Result only;
+        publishes `ConnectionStatusChanged` (already the shared
+        `service-runtime` platform-event payload, INV-T-2855/T11 —
+        out of this file's scope) only where the result differs from the
+        adapter's stored status (INV-NOTE-7 §7). INV-NOTE-7 §7 names two
+        authorised actors, `integration.engineer` and `deployment.operator`;
+        `role` below is the first Keel lists (a single Keel-catalogue role
+        per the Spectral `x-operation` schema), `deployment.operator` is
+        authorised the same way.
+      tags: [administration]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-sync-edge: console-bff->transport-svc
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010, "INV-NOTE-7 §7"]
+      x-operation:
+        role: integration.engineer
+        scope: entity
+        precondition: "The adapter is configured (INV-NOTE-7 §7)."
+        reversibility: UNDOABLE
+        repeatKey: "None — a read; a repeat returns the current result and persists nothing beyond the status it already stores (INV-NOTE-7 §7: Idempotency key \"—\")."
+      parameters:
+        - name: adapterRef
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: The connection test result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectionTestResult'
+              examples:
+                default:
+                  value: { adapterRef: "AP-PRIMARY", state: "UP", checkedAt: "2026-09-27T03:15:00Z" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/transport/adapters/{adapterRef}/failovers:
+    post:
+      operationId: failoverAdapter
+      summary: Fail over an entity's AP adapter to its secondary
+      description: >-
+        Console command to console-bff (services.yaml transport-svc
+        `provides`; sync-edges.yaml `console-bff -> transport-svc`, kind
+        console; INV-NOTE-7 §3 SCR-18.4 "Second AP adapter per entity;
+        cutover; failover"). Cuts an entity over from `adapterRef` to a
+        second AP adapter already configured for it (FR-E.2: two AP
+        adapters run concurrently during a migration, selectable per
+        entity). Per FR-E.2's own behaviour: new despatches use the new
+        adapter; versions already in flight finish on the old one; no Doc
+        UUID is sent twice; adapter contracts are versioned so two
+        versions can run during cutover. INV-FLOW-247 "Outage and backlog
+        recovery" step 3 names `integration.engineer` as the actor
+        ("Fail over to the secondary Access Point") and its control names
+        the operation "undoable". SCR-18.4 also authorises `tenant.admin`
+        and `deployment.operator` (private-form incident response); `role`
+        below is `integration.engineer`, the one the flow names performing
+        it, per the Spectral `x-operation` schema's single Keel-catalogue
+        role.
+      tags: [administration]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-sync-edge: console-bff->transport-svc
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010, FR-E.2, "INV-NOTE-7 §3 SCR-18.4", "INV-FLOW-247"]
+      x-operation:
+        role: integration.engineer
+        scope: entity
+        precondition: "A second AP adapter is already configured and running concurrently for this entity (FR-E.2; INV-NOTE-7 §3 SCR-18.4 \"Second AP adapter per entity\")."
+        reversibility: UNDOABLE
+        repeatKey: "entity (adapterRef target) — a repeat is a no-op if the entity is already cut over to the target adapter (FR-E.2's own cutover state per entity; the same no-op-when-already-there shape INV-REQ-1010 states for goLive)."
+      parameters:
+        - name: adapterRef
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FailoverAdapterRequest'
+            examples:
+              default:
+                value:
+                  targetAdapterRef: "AP-SECONDARY"
+      responses:
+        '200':
+          description: The entity's adapter cutover state after failover.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FailoverResult'
+              examples:
+                default:
+                  value: { adapterRef: "AP-PRIMARY", targetAdapterRef: "AP-SECONDARY", cutoverAt: "2026-09-27T03:15:00Z" }
+        default:
+          $ref: '#/components/responses/Error'
 components:
   parameters:
     IdempotencyKey:
@@ -255,6 +460,51 @@ components:
         apNotificationId: { type: string, maxLength: 100 }
         recorded: { type: boolean }
       required: [apNotificationId, recorded]
+    RotateCredentialRequest:
+      type: object
+      description: >-
+        The replacement credential is already held in the vault (INV-NOTE-7
+        §7 precondition); this carries only its vault reference, never the
+        credential material (services.yaml transport-svc `owns`).
+      properties:
+        credentialId: { type: string, maxLength: 100 }
+      required: [credentialId]
+    CredentialRotationResult:
+      type: object
+      properties:
+        adapterRef: { type: string, maxLength: 40 }
+        credentialId: { type: string, maxLength: 100 }
+        overlapActive:
+          type: boolean
+          description: 'true during the overlap window; false once the old credential is refused (INV-NOTE-7 §7).'
+        rotatedAt: { type: string, format: date-time }
+      required: [adapterRef, credentialId, overlapActive]
+    ConnectionTestResult:
+      type: object
+      properties:
+        adapterRef: { type: string, maxLength: 40 }
+        state:
+          type: string
+          description: 'Connection health state (this producer''s own vocabulary, service-runtime ConnectionStatusChangedPayload).'
+          enum: [UP, DOWN, DEGRADED]
+          x-extensible-enum: true
+        checkedAt: { type: string, format: date-time }
+      required: [adapterRef, state]
+    FailoverAdapterRequest:
+      type: object
+      description: >-
+        The second AP adapter is already configured for this entity
+        (FR-E.2 precondition); this names it as the cutover target.
+      properties:
+        targetAdapterRef: { type: string, maxLength: 40 }
+      required: [targetAdapterRef]
+    FailoverResult:
+      type: object
+      properties:
+        adapterRef: { type: string, maxLength: 40 }
+        targetAdapterRef: { type: string, maxLength: 40 }
+        cutoverAt: { type: string, format: date-time }
+      required: [adapterRef, targetAdapterRef, cutoverAt]
   responses:
     Error:
       description: Error (API-20 envelope)
