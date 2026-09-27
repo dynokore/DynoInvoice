@@ -60,12 +60,11 @@ for dir in */; do
     rm -f "$svc/.oasdiff-base-openapi.yaml"
   fi
 
+  [ "$svc" = "service-runtime" ] && continue   # the shared envelope, not a per-event payload (see above)
+
   if [ -d "$svc/schemas" ]; then
     for schema in "$svc"/schemas/*.schema.json; do
       [ -f "$schema" ] || continue
-      case "$(basename "$schema")" in
-        cloud-event-envelope.schema.json|error-envelope.schema.json) continue ;;
-      esac
       if git cat-file -e "$base_sha:$schema" 2>/dev/null; then
         git show "$base_sha:$schema" > /tmp/base-payload.schema.json
         echo "gst-ci: payload compatibility $schema against $base_sha"
