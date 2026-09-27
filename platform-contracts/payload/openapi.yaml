@@ -6,83 +6,400 @@ info:
     Contract-first source of truth for payload (API-01, STK-44). The
     `payload-contract` module generates its server interfaces and DTOs
     from this file (STK-46); a consumer generates its own client types from
-    the same file (FR-AH.13, ARC-07). This is an INV-T-2849 scaffold —
-    payload's own team (CODEOWNERS) replaces the placeholder operation
-    below with its real ones as each lands.
+    the same file (FR-AH.13, ARC-07).
+
+
+    Internal API only (API standard §1): payload-svc has no public,
+    gateway-routed surface. Every operation below is `/internal/v1/…`,
+    reached only on the synchronous edge of model/architecture/sync-edges.yaml
+    (`ingestion-svc -> payload-svc`) and by console-bff's read queries
+    (INV-T-2858, T14). payload-svc receives the canonical version it
+    validates through `CanonicalVersionCreated` (canonical/asyncapi.yaml,
+    AD-30) — asynchronous, and therefore out of this file's scope.
   contact:
     name: payload (see CODEOWNERS)
 servers:
   - url: 'https://api.invoice.internal'
-    description: Placeholder — the gateway routes only the operations of a published train (API-26).
+    description: Placeholder — the gateway never routes /internal/v1/… (API-01 scope table); resolved service-to-service.
 tags:
-  - name: payload
-    description: Placeholder resource (INV-T-2849 scaffold).
+  - name: pre-issuance
+    description: The Observe-mode side-effect-free check ahead of network issuance (§33.1).
+  - name: validation
+    description: Full validation and Relay-mode pre-issuance verdict for a recorded canonical version (§33.1, §33.3).
+  - name: queries
+    description: Payload, rendition and regeneration reads for console-bff (INV-REQ-1168).
 paths:
-  /v1/payload/examples:
+  /internal/v1/payload/pre-issuance-checks:
     post:
-      operationId: createExample
-      summary: Placeholder operation (INV-T-2849 scaffold) — replace with a real one
+      operationId: checkPreIssuance
+      summary: Observe-mode pre-issuance check — stateless, side-effect-free, PASS/WARN/BLOCK with reasons
       description: >-
-        Placeholder only, so this directory lints clean from its first commit.
-        payload's own team replaces it with a real operation (CODEOWNERS, API-01).
-      tags: [payload]
-      x-principal: filing-workflow
-      x-timeout: 5000
-      x-error-codes: []
-      x-requirements: []
+        ingestion-svc's public `POST /v1/pre-issuance-checks` calls this
+        internally within its 150 ms budget (sync-edges.yaml
+        `ingestion-svc -> payload-svc`; resilience_policy.yaml). Stateless and
+        side-effect free (INV-REQ-325): it has no canonical record yet and
+        writes nothing. Register unavailability never blocks it (payload-svc
+        `must_not`); it proceeds with a WARN reason instead of BLOCK.
+      tags: [pre-issuance]
+      x-principal: ingest
+      x-timeout: 150
+      x-sync-edge: ingestion-svc->payload-svc
+      x-error-codes: [PAY-001, PAY-005, PAY-011, PAY-013]
+      x-requirements: [INV-REQ-957, INV-REQ-325]
       x-operation:
-        role: filing-workflow
-        scope: filing-workflow
-        precondition: "None — placeholder. A real operation states what it checks against record state (FR-AC.1.3)."
-        reversibility: COMPENSABLE
-        repeatKey: "(tenantId, sourceKey, sourceRevision) — placeholder shape, FR-AC.19"
-      parameters:
-        - name: Idempotency-Key
-          in: header
-          required: true
-          schema:
-            type: string
-            format: uuid
+        role: ingest
+        scope: ingest
+        precondition: >-
+          None — a stateless, side-effect-free check (INV-REQ-325); the draft
+          document need not yet be recorded and nothing is persisted either way.
+        reversibility: UNDOABLE
+        repeatKey: >-
+          None — a safe query with no persistent state change; a repeat has
+          nothing to make safe (INV-REQ-325, API-15 "takes no key").
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ExampleRequest'
+              $ref: '#/components/schemas/DraftDocument'
             examples:
               default:
-                value: { name: "example" }
+                value:
+                  entityRef: "E-001"
+                  currency: "SGD"
+                  totalIncludingTax: "1090.00"
       responses:
-        '201':
-          description: Created
+        '200':
+          description: The verdict, with reasons where not a clean PASS.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ExampleResponse'
+                $ref: '#/components/schemas/PreIssuanceVerdict'
               examples:
                 default:
-                  value: { id: "3fa85f64-5717-4562-b3fc-2c963f66afa6", name: "example" }
+                  value: { verdict: "PASS", reasons: [] }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/payload/documents/{docUuid}/versions/{version}/validate:
+    post:
+      operationId: validateIssuance
+      summary: Full validation of a recorded canonical version for Relay-mode issuance
+      description: >-
+        The Relay-mode leg of ingestion-svc's public `POST /v1/issuances`,
+        within its 2 s budget (sync-edges.yaml `ingestion-svc -> payload-svc`;
+        FR-AE.2). Both validation layers with the severity override map
+        (Schematron and business rules), the wrongful-GST rule against
+        masterdata-svc register facts, and exchange-rate validation. On a
+        failure nothing is sent to the AP (FR-AE.2; API-21's stated
+        exception, `422` even though the document itself is recorded by
+        canonical-svc as `NOT_SUBMITTABLE` with `ISSUANCE_REFUSED`). Byte-identical
+        on repeat (§6.8) — never recomputes totals (payload-svc `must_not`).
+      tags: [validation]
+      x-principal: ingest
+      x-timeout: 2000
+      x-sync-edge: ingestion-svc->payload-svc
+      x-error-codes: [PAY-001, PAY-002, PAY-003, PAY-004, PAY-005, PAY-006, PAY-009, PAY-011, PAY-013]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-324]
+      x-operation:
+        role: ingest
+        scope: ingest
+        precondition: >-
+          The canonical version (docUuid, version) is recorded
+          (CanonicalVersionCreated) and not superseded by a later version.
+        reversibility: COMPENSABLE
+        repeatKey: >-
+          (docUuid, version) — byte-identical regeneration; a repeat returns
+          the same payload and verdict unchanged (§6.8).
+      parameters:
+        - $ref: '#/components/parameters/DocUuid'
+        - $ref: '#/components/parameters/Version'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ValidateIssuanceRequest'
+            examples:
+              default:
+                value: { submissionType: "TYPE_1A" }
+      responses:
+        '200':
+          description: Validation passed; the payload is built.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationResult'
+              examples:
+                default:
+                  value:
+                    verdict: "PASS"
+                    specVersion: "PINT-SG-1.2"
+                    customizationId: "SG:PINT:1.2"
+                    reasons: []
+        '422':
+          description: Validation failed; nothing is sent to the AP (FR-AE.2, API-21's stated exception).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '../service-runtime/schemas/error-envelope.schema.json'
+              examples:
+                default:
+                  value:
+                    type: "about:blank"
+                    title: "Wrongful GST charge detected against the Check GST Register"
+                    status: 422
+                    code: "PAY-011"
+                    correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/payload/documents/{docUuid}/versions/{version}:
+    get:
+      operationId: getPayload
+      summary: Read the built payload's metadata for a canonical version
+      description: Payload query API to console-bff (services.yaml payload-svc `provides`; INV-REQ-1168).
+      tags: [queries]
+      x-principal: reporting
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-1168]
+      parameters:
+        - $ref: '#/components/parameters/DocUuid'
+        - $ref: '#/components/parameters/Version'
+      responses:
+        '200':
+          description: The built payload's metadata.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayloadMetadata'
+              examples:
+                default:
+                  value:
+                    docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    version: 2
+                    specVersion: "PINT-SG-1.2"
+                    customizationId: "SG:PINT:1.2"
+                    verdict: "PASS"
+                    totalAmount: "1090.00"
+                    sizeBytes: 4096
+                    builtAt: "2026-03-20T03:15:22Z"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/payload/documents/{docUuid}/versions/{version}/rendition:
+    get:
+      operationId: getRendition
+      summary: Read the rendition sample-check status for a canonical version
+      description: >-
+        Rendition query API to console-bff (services.yaml payload-svc
+        `provides`; INV-REQ-1168). Rendition sample checks (FR-9.13, PAY-014)
+        — owned-mode rendition itself was withdrawn 24 Sep 2026; this reports
+        the sample-check status against the external renderer's contract
+        (FR-E.10).
+      tags: [queries]
+      x-principal: reporting
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-1168]
+      parameters:
+        - $ref: '#/components/parameters/DocUuid'
+        - $ref: '#/components/parameters/Version'
+      responses:
+        '200':
+          description: The rendition sample-check status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RenditionStatus'
+              examples:
+                default:
+                  value:
+                    docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    version: 2
+                    sampleCheckStatus: "PASS"
+                    lastCheckedAt: "2026-03-20T03:15:22Z"
+                    findings: []
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/payload/documents/{docUuid}/versions/{version}/regenerated:
+    get:
+      operationId: getRegeneratedPayload
+      summary: Read the byte-identical regeneration of a previously built payload
+      description: >-
+        Regeneration query API to console-bff (services.yaml payload-svc
+        `provides`; INV-REQ-1168). Regenerated from the canonical input taken
+        at build time (§6.8) — deterministic and side-effect-free, so it is
+        safe as a `GET`.
+      tags: [queries]
+      x-principal: reporting
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-1168]
+      parameters:
+        - $ref: '#/components/parameters/DocUuid'
+        - $ref: '#/components/parameters/Version'
+      responses:
+        '200':
+          description: The regenerated payload's content reference.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegeneratedPayload'
+              examples:
+                default:
+                  value:
+                    docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    version: 2
+                    contentHash: "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+                    sizeBytes: 4096
+                    generatedAt: "2026-03-20T03:16:00Z"
         default:
           $ref: '#/components/responses/Error'
 components:
+  parameters:
+    DocUuid:
+      name: docUuid
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Version:
+      name: version
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
   schemas:
-    ExampleRequest:
+    DraftDocument:
       type: object
+      description: A pre-issuance draft with no canonical record yet (§33.1).
       properties:
-        name:
+        entityRef:
           type: string
-          maxLength: 200
-      required: [name]
-    ExampleResponse:
+          maxLength: 40
+        currency:
+          type: string
+          maxLength: 3
+        totalIncludingTax:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+          description: Money as a decimal string (API-12).
+      required: [entityRef, currency, totalIncludingTax]
+    PreIssuanceVerdict:
       type: object
       properties:
-        id:
+        verdict:
+          type: string
+          enum: [PASS, WARN, BLOCK]
+          x-extensible-enum: true
+        reasons:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReasonItem'
+      required: [verdict, reasons]
+    ValidateIssuanceRequest:
+      type: object
+      properties:
+        submissionType:
+          type: string
+          enum: [TYPE_1A, TYPE_1B, TYPE_2, TYPE_3]
+          description: >-
+            model/architecture/submission-types.yaml's 1A/1B/2/3, spelled
+            TYPE_1A/TYPE_1B/TYPE_2/TYPE_3 for API-09's UPPER_SNAKE_CASE rule
+            (a bare "1A" is not a legal enum token).
+      required: [submissionType]
+    ValidationResult:
+      type: object
+      properties:
+        verdict:
+          type: string
+          enum: [PASS, WARN, BLOCK]
+          x-extensible-enum: true
+        specVersion:
+          type: string
+        customizationId:
+          type: string
+        reasons:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReasonItem'
+      required: [verdict, reasons]
+    ReasonItem:
+      type: object
+      properties:
+        code:
+          type: string
+        field:
+          type: string
+        message:
+          type: string
+      required: [code, message]
+    PayloadMetadata:
+      type: object
+      properties:
+        docUuid:
           type: string
           format: uuid
-        name:
+        version:
+          type: integer
+        specVersion:
           type: string
-          maxLength: 200
-      required: [id, name]
+        customizationId:
+          type: string
+        verdict:
+          type: string
+          enum: [PASS, WARN, BLOCK]
+          x-extensible-enum: true
+        totalAmount:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+          description: Money as a decimal string (API-12).
+        sizeBytes:
+          type: integer
+        builtAt:
+          type: string
+          format: date-time
+      required: [docUuid, version, specVersion, customizationId, verdict, builtAt]
+    RenditionStatus:
+      type: object
+      properties:
+        docUuid:
+          type: string
+          format: uuid
+        version:
+          type: integer
+        sampleCheckStatus:
+          type: string
+          enum: [PASS, WARN, NOT_CHECKED]
+          x-extensible-enum: true
+        lastCheckedAt:
+          type: string
+          format: date-time
+        findings:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReasonItem'
+      required: [docUuid, version, sampleCheckStatus]
+    RegeneratedPayload:
+      type: object
+      properties:
+        docUuid:
+          type: string
+          format: uuid
+        version:
+          type: integer
+        contentHash:
+          type: string
+        sizeBytes:
+          type: integer
+        generatedAt:
+          type: string
+          format: date-time
+      required: [docUuid, version, contentHash, sizeBytes, generatedAt]
   responses:
     Error:
       description: Error (API-20 envelope)
@@ -96,5 +413,5 @@ components:
                 type: "about:blank"
                 title: "Example error"
                 status: 400
-                code: "EXAMPLE-000"
+                code: "PAY-001"
                 correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"

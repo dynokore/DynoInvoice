@@ -6,83 +6,608 @@ info:
     Contract-first source of truth for submission (API-01, STK-44). The
     `submission-contract` module generates its server interfaces and DTOs
     from this file (STK-46); a consumer generates its own client types from
-    the same file (FR-AH.13, ARC-07). This is an INV-T-2849 scaffold —
-    submission's own team (CODEOWNERS) replaces the placeholder operation
-    below with its real ones as each lands.
+    the same file (FR-AH.13, ARC-07).
+
+
+    Public and internal APIs (API standard §1 and §15): submission-svc has
+    no synchronous callee edge in model/architecture/sync-edges.yaml (it is
+    only a caller, to transport-svc). The five public operations below are
+    `/v1/…`, routed by the gateway to the `filing-workflow` and `reporting`
+    principals. Two additional operations (withdrawSubmission, replaySubmissions)
+    are `/internal/v1/…`, reachable only by console-bff on a person's behalf
+    (API-25 — the callee re-checks writes), rather than through the public
+    `/v1/…` surface (INV-REQ-568, INV-REQ-575, INV-REQ-581, INV-T-2858, T14).
   contact:
     name: submission (see CODEOWNERS)
 servers:
   - url: 'https://api.invoice.internal'
     description: Placeholder — the gateway routes only the operations of a published train (API-26).
 tags:
-  - name: submission
-    description: Placeholder resource (INV-T-2849 scaffold).
+  - name: readiness
+    description: Period readiness, drain and filing confirmation (§33.2, FR-C.8, FR-C.9).
+  - name: transactions
+    description: A submission's transmission state, combined with its canonical facts (§19.7, FR-K.9).
 paths:
-  /v1/submission/examples:
-    post:
-      operationId: createExample
-      summary: Placeholder operation (INV-T-2849 scaffold) — replace with a real one
+  /v1/entities/{entityRef}/periods/{periodRef}/readiness:
+    get:
+      operationId: getReadiness
+      summary: Read a period's readiness verdict
       description: >-
-        Placeholder only, so this directory lints clean from its first commit.
-        submission's own team replaces it with a real operation (CODEOWNERS, API-01).
-      tags: [submission]
+        The readiness gate is callable both interactively and as an API
+        (INV-REQ-555, FR-C.9). Includes the completeness inputs
+        FeedHealthChanged and AggregateWindowChanged and shows DEP-006 from
+        InstallationStatusChanged (services.yaml submission-svc capabilities).
+      tags: [readiness]
+      x-principal: filing-workflow
+      x-timeout: 3000
+      x-error-codes: []
+      x-requirements: [INV-REQ-555, INV-REQ-1168]
+      parameters:
+        - $ref: '#/components/parameters/EntityRef'
+        - $ref: '#/components/parameters/PeriodRef'
+      responses:
+        '200':
+          description: The period's readiness verdict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessStatus'
+              examples:
+                default:
+                  value:
+                    entityRef: "E-001"
+                    periodRef: "2026-Q1"
+                    ready: false
+                    tiers:
+                      - tier: 1
+                        description: "Held documents awaiting masterdata or rules resolution"
+                        blockedCount: 2
+                      - tier: 2
+                        description: "Queued items awaiting transport"
+                        blockedCount: 0
+                      - tier: 3
+                        description: "Dead-lettered versions awaiting replay"
+                        blockedCount: 0
+                    dueDate: "2026-04-30"
+                    computedAt: "2026-03-20T03:15:22Z"
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/entities/{entityRef}/periods/{periodRef}/drain:
+    post:
+      operationId: drainPeriod
+      summary: Drain a period's backlog in priority-tier order, and report what cannot be drained
+      description: >-
+        The period readiness check drains the backlog in three priority
+        tiers, then reports what cannot be drained (INV-REQ-554, FR-C.8).
+        Never reports readiness without draining first (submission-svc
+        `must_not`).
+      tags: [readiness]
       x-principal: filing-workflow
       x-timeout: 5000
       x-error-codes: []
-      x-requirements: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-554]
       x-operation:
         role: filing-workflow
         scope: filing-workflow
-        precondition: "None — placeholder. A real operation states what it checks against record state (FR-AC.1.3)."
+        precondition: The entity and period exist and have queued or held items to attempt (FR-C.8).
         reversibility: COMPENSABLE
-        repeatKey: "(tenantId, sourceKey, sourceRevision) — placeholder shape, FR-AC.19"
+        repeatKey: >-
+          (entityRef, periodRef) — a repeat re-attempts whatever remains
+          queued or held; nothing already drained is repeated (INV-REQ-554).
       parameters:
-        - name: Idempotency-Key
-          in: header
-          required: true
-          schema:
-            type: string
-            format: uuid
+        - $ref: '#/components/parameters/EntityRef'
+        - $ref: '#/components/parameters/PeriodRef'
+      responses:
+        '200':
+          description: The drain outcome, including what could not be drained.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DrainResult'
+              examples:
+                default:
+                  value:
+                    entityRef: "E-001"
+                    periodRef: "2026-Q1"
+                    drainedCount: 5
+                    remaining:
+                      - tier: 1
+                        description: "Held documents awaiting masterdata or rules resolution"
+                        blockedCount: 2
+                    completedAt: "2026-03-20T03:16:00Z"
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/entities/{entityRef}/periods/{periodRef}/filing:
+    post:
+      operationId: confirmFiling
+      summary: Confirm the actual filing date and evidence for a period's GST return
+      description: >-
+        The actual filing date is derivable from an uploaded return's
+        filedAt in one call (INV-REQ-655, FR-AE.58). confirmFiling always
+        carries IRAS filing evidence — the myTax Portal acknowledgement, and
+        its reference where shown — with filedAt (INV-REQ-914, FR-AF.36).
+        Never changes a due date ad hoc; the due-date snapshot recomputes
+        only on its own triggers (submission-svc `must_not`, §7.7).
+      tags: [readiness]
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-655, INV-REQ-914]
+      x-operation:
+        role: filing-workflow
+        scope: filing-workflow
+        precondition: >-
+          Readiness has been checked for the period (INV-REQ-555); no later
+          filedAt is already confirmed for it.
+        reversibility: COMPENSABLE
+        repeatKey: >-
+          (entityRef, periodRef) — a repeat with the same filedAt and
+          evidence reference reports the existing confirmation, unchanged.
+      parameters:
+        - $ref: '#/components/parameters/EntityRef'
+        - $ref: '#/components/parameters/PeriodRef'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ExampleRequest'
+              $ref: '#/components/schemas/ConfirmFilingRequest'
             examples:
               default:
-                value: { name: "example" }
+                value:
+                  filedAt: "2026-04-28T09:00:00Z"
+                  irasAcknowledgementReference: "IRAS-ACK-2026Q1-E001"
       responses:
-        '201':
-          description: Created
+        '200':
+          description: The filing confirmation.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ExampleResponse'
+                $ref: '#/components/schemas/FilingConfirmation'
               examples:
                 default:
-                  value: { id: "3fa85f64-5717-4562-b3fc-2c963f66afa6", name: "example" }
+                  value:
+                    entityRef: "E-001"
+                    periodRef: "2026-Q1"
+                    filedAt: "2026-04-28T09:00:00Z"
+                    irasAcknowledgementReference: "IRAS-ACK-2026Q1-E001"
+                    confirmedAt: "2026-04-28T09:01:00Z"
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/entities/{entityRef}/periods/{periodRef}/submissions:
+    get:
+      operationId: listSubmissions
+      summary: List submissions for a period, with tracking status
+      description: >-
+        Submission list and tracking reports (services.yaml submission-svc
+        capabilities, §35.1). Cursor pagination (API-18); no offset and no
+        total count.
+      tags: [transactions]
+      x-principal: reporting
+      x-timeout: 3000
+      x-error-codes: []
+      x-requirements: [INV-REQ-1168]
+      parameters:
+        - $ref: '#/components/parameters/EntityRef'
+        - $ref: '#/components/parameters/PeriodRef'
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              [READY, AWAITING_PRECEDING, QUEUED, SENT, SENT_UNCONFIRMED, RETRY, DEAD_LETTERED, REJECTED, CANCELLED,
+                ACKNOWLEDGED, SUPERSEDED, NETWORK_ISSUED, EXTERNALLY_SUBMITTED, WITHDRAWN]
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: '^-?(dueDate|transactionDate)$'
+            description: >-
+              field,-field over dueDate or transactionDate (API-19). A
+              regex, not an enum, so the leading "-" for descending order
+              does not trip API-09's UPPER_SNAKE_CASE rule.
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            maximum: 500
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: One page of submissions.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmissionPage'
+              examples:
+                default:
+                  value:
+                    items:
+                      - docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                        version: 2
+                        submissionType: "TYPE_1A"
+                        state: "ACKNOWLEDGED"
+                        dueDate: "2026-04-30"
+                        totalAmount: "1090.00"
+                    nextCursor: "eyJvIjoxMDB9"
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/transactions/{docUuid}:
+    get:
+      operationId: getTransaction
+      summary: Read a transaction's combined canonical and submission status
+      description: >-
+        Combines canonical and submission facts, served from a read model
+        submission-svc maintains from CanonicalVersionCreated, so no call
+        fans out across services at request time (API standard §15
+        footnote, FR-K.9, INV-REQ-1168).
+      tags: [transactions]
+      x-principal: reporting
+      x-timeout: 3000
+      x-error-codes: []
+      x-requirements: [INV-REQ-1168]
+      parameters:
+        - $ref: '#/components/parameters/DocUuid'
+      responses:
+        '200':
+          description: The transaction's combined status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionStatus'
+              examples:
+                default:
+                  value:
+                    docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    version: 2
+                    documentFunction: "INVOICE"
+                    transactionDate: "2026-03-20"
+                    scopeVerdict: "SUBMITTABLE"
+                    totalAmount: "1090.00"
+                    currency: "SGD"
+                    submissionType: "TYPE_1A"
+                    state: "ACKNOWLEDGED"
+                    dueDate: "2026-04-30"
+                    acknowledgedAt: "2026-04-20T03:15:21Z"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/transactions/{docUuid}/withdraw:
+    post:
+      operationId: withdrawSubmission
+      summary: Withdraw a document with no version yet transmitted
+      description: >-
+        A document with no version yet transmitted MAY be withdrawn by
+        tax.approver with a reason, where the upstream system reversed it
+        before issue (INV-REQ-568, INV-REQ-581, FR-8.22, FR-AE.20). A Type
+        1A document can never be withdrawn once issued, because IRAS already
+        holds it. Called by console-bff on behalf of an operator (INV-T-2858,
+        T14).
+      tags: [transactions]
+      x-principal: reporting
+      x-timeout: 5000
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-568, INV-REQ-581]
+      x-operation:
+        role: tax.approver
+        scope: reporting
+        precondition: >-
+          No version of this Doc UUID has ever been transmitted; a Type 1A
+          document once issued can never be withdrawn (FR-8.22, FR-AE.20).
+        reversibility: COMPENSABLE
+        repeatKey: "docUuid — no-op; the document is already withdrawn."
+      parameters:
+        - $ref: '#/components/parameters/DocUuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WithdrawRequest'
+            examples:
+              default:
+                value: { reason: "Upstream ERP reversed the document before issue" }
+      responses:
+        '200':
+          description: The document's withdrawal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WithdrawResult'
+              examples:
+                default:
+                  value:
+                    docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    state: "WITHDRAWN"
+                    reason: "Upstream ERP reversed the document before issue"
+                    withdrawnAt: "2026-03-20T03:20:00Z"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/transactions/{docUuid}/versions/{version}/replay:
+    post:
+      operationId: replaySubmissions
+      summary: Replay a dead-lettered version on its own priority lane
+      description: >-
+        A DEAD_LETTERED version is replayable; replay returns the version to
+        QUEUED (INV-REQ-575, FR-AE.14). Runs on its own priority lane, never
+        mixed with ordinary queue processing (services.yaml submission-svc
+        capabilities, FR-C.8). Never allows two in-flight versions of one
+        Doc UUID (submission-svc `must_not`, FR-C.2). Called by console-bff
+        on behalf of an operator holding the "Replay a failed submission"
+        grant (INV-T-2858, T14).
+      tags: [transactions]
+      x-principal: reporting
+      x-timeout: 5000
+      x-error-codes: [SUB-008]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-575]
+      x-operation:
+        role: operator
+        scope: reporting
+        precondition: >-
+          The version is DEAD_LETTERED (INV-REQ-575); no other version of the
+          same Doc UUID is currently in flight (FR-C.2, SUB-008).
+        reversibility: COMPENSABLE
+        repeatKey: >-
+          (docUuid, version) — the repeat overwrites itself at IRAS
+          (INV-REQ-1010 behaviour #3).
+      parameters:
+        - $ref: '#/components/parameters/DocUuid'
+        - $ref: '#/components/parameters/Version'
+      responses:
+        '200':
+          description: The version was returned to QUEUED on the replay lane.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplayResult'
+              examples:
+                default:
+                  value:
+                    docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    version: 2
+                    state: "QUEUED"
+                    replayedAt: "2026-03-20T03:21:00Z"
         default:
           $ref: '#/components/responses/Error'
 components:
+  parameters:
+    EntityRef:
+      name: entityRef
+      in: path
+      required: true
+      schema:
+        type: string
+        maxLength: 40
+    PeriodRef:
+      name: periodRef
+      in: path
+      required: true
+      schema:
+        type: string
+        maxLength: 20
+        description: Opaque, calendar-issued (API-11); clients never construct it.
+    DocUuid:
+      name: docUuid
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Version:
+      name: version
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
   schemas:
-    ExampleRequest:
+    ReadinessTier:
       type: object
       properties:
-        name:
+        tier:
+          type: integer
+        description:
           type: string
-          maxLength: 200
-      required: [name]
-    ExampleResponse:
+        blockedCount:
+          type: integer
+      required: [tier, blockedCount]
+    ReadinessStatus:
       type: object
       properties:
-        id:
+        entityRef:
+          type: string
+        periodRef:
+          type: string
+        ready:
+          type: boolean
+        tiers:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReadinessTier'
+        dueDate:
+          type: string
+          format: date
+        computedAt:
+          type: string
+          format: date-time
+      required: [entityRef, periodRef, ready, tiers, computedAt]
+    DrainResult:
+      type: object
+      properties:
+        entityRef:
+          type: string
+        periodRef:
+          type: string
+        drainedCount:
+          type: integer
+        remaining:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReadinessTier'
+        completedAt:
+          type: string
+          format: date-time
+      required: [entityRef, periodRef, drainedCount, remaining, completedAt]
+    ConfirmFilingRequest:
+      type: object
+      properties:
+        filedAt:
+          type: string
+          format: date-time
+        irasAcknowledgementReference:
+          type: string
+          maxLength: 100
+        portalReference:
+          type: string
+          maxLength: 100
+      required: [filedAt, irasAcknowledgementReference]
+    FilingConfirmation:
+      type: object
+      properties:
+        entityRef:
+          type: string
+        periodRef:
+          type: string
+        filedAt:
+          type: string
+          format: date-time
+        irasAcknowledgementReference:
+          type: string
+        portalReference:
+          type: string
+        confirmedAt:
+          type: string
+          format: date-time
+      required: [entityRef, periodRef, filedAt, irasAcknowledgementReference, confirmedAt]
+    WithdrawRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 500
+      required: [reason]
+    WithdrawResult:
+      type: object
+      properties:
+        docUuid:
           type: string
           format: uuid
-        name:
+        state:
           type: string
-          maxLength: 200
-      required: [id, name]
+          enum: [WITHDRAWN]
+          x-extensible-enum: true
+        reason:
+          type: string
+        withdrawnAt:
+          type: string
+          format: date-time
+      required: [docUuid, state, reason, withdrawnAt]
+    ReplayResult:
+      type: object
+      properties:
+        docUuid:
+          type: string
+          format: uuid
+        version:
+          type: integer
+        state:
+          type: string
+          enum: [QUEUED]
+          x-extensible-enum: true
+        replayedAt:
+          type: string
+          format: date-time
+      required: [docUuid, version, state, replayedAt]
+    SubmissionSummary:
+      type: object
+      properties:
+        docUuid:
+          type: string
+          format: uuid
+        version:
+          type: integer
+        submissionType:
+          type: string
+          enum: [TYPE_1A, TYPE_1B, TYPE_2, TYPE_3]
+          description: model/architecture/submission-types.yaml's 1A/1B/2/3 (API-09 UPPER_SNAKE_CASE).
+          x-extensible-enum: true
+        state:
+          type: string
+          enum:
+            [READY, AWAITING_PRECEDING, QUEUED, SENT, SENT_UNCONFIRMED, RETRY, DEAD_LETTERED, REJECTED, CANCELLED,
+              ACKNOWLEDGED, SUPERSEDED, NETWORK_ISSUED, EXTERNALLY_SUBMITTED, WITHDRAWN]
+          x-extensible-enum: true
+        dueDate:
+          type: string
+          format: date
+        totalAmount:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+          description: Money as a decimal string (API-12).
+      required: [docUuid, version, submissionType, state, dueDate]
+    SubmissionPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubmissionSummary'
+        nextCursor:
+          type: string
+      required: [items]
+    TransactionStatus:
+      type: object
+      properties:
+        docUuid:
+          type: string
+          format: uuid
+        version:
+          type: integer
+        documentFunction:
+          type: string
+          enum: [INVOICE, CREDIT_NOTE, DEBIT_NOTE, BILL_FOR_PAYMENT]
+          x-extensible-enum: true
+        transactionDate:
+          type: string
+          format: date
+        scopeVerdict:
+          type: string
+          enum: [SUBMITTABLE, NOT_SUBMITTABLE, PRE_OBLIGATION]
+          x-extensible-enum: true
+        totalAmount:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+          description: Money as a decimal string (API-12).
+        currency:
+          type: string
+          maxLength: 3
+        submissionType:
+          type: string
+          enum: [TYPE_1A, TYPE_1B, TYPE_2, TYPE_3]
+          description: model/architecture/submission-types.yaml's 1A/1B/2/3 (API-09 UPPER_SNAKE_CASE).
+          x-extensible-enum: true
+        state:
+          type: string
+          enum:
+            [READY, AWAITING_PRECEDING, QUEUED, SENT, SENT_UNCONFIRMED, RETRY, DEAD_LETTERED, REJECTED, CANCELLED,
+              ACKNOWLEDGED, SUPERSEDED, NETWORK_ISSUED, EXTERNALLY_SUBMITTED, WITHDRAWN]
+          x-extensible-enum: true
+        dueDate:
+          type: string
+          format: date
+        acknowledgedAt:
+          type: string
+          format: date-time
+      required: [docUuid, version, documentFunction, transactionDate, scopeVerdict, currency, state, dueDate]
   responses:
     Error:
       description: Error (API-20 envelope)
@@ -96,5 +621,5 @@ components:
                 type: "about:blank"
                 title: "Example error"
                 status: 400
-                code: "EXAMPLE-000"
+                code: "SUB-008"
                 correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"

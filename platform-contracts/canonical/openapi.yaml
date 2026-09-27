@@ -6,83 +6,404 @@ info:
     Contract-first source of truth for canonical (API-01, STK-44). The
     `canonical-contract` module generates its server interfaces and DTOs
     from this file (STK-46); a consumer generates its own client types from
-    the same file (FR-AH.13, ARC-07). This is an INV-T-2849 scaffold —
-    canonical's own team (CODEOWNERS) replaces the placeholder operation
-    below with its real ones as each lands.
+    the same file (FR-AH.13, ARC-07).
+
+
+    Internal API only (API standard §1): canonical-svc has no public,
+    gateway-routed surface. Every operation below is `/internal/v1/…`,
+    reached only on the synchronous edges of model/architecture/sync-edges.yaml
+    (ingestion-svc, recording) and by console-bff's read queries (INV-T-2858,
+    T14) — `payload-svc` instead receives the canonical version through the
+    `CanonicalVersionCreated` event (canonical/asyncapi.yaml, AD-30), which is
+    asynchronous and therefore out of this file's scope.
   contact:
     name: canonical (see CODEOWNERS)
 servers:
   - url: 'https://api.invoice.internal'
-    description: Placeholder — the gateway routes only the operations of a published train (API-26).
+    description: Placeholder — the gateway never routes /internal/v1/… (API-01 scope table); resolved service-to-service.
 tags:
-  - name: canonical
-    description: Placeholder resource (INV-T-2849 scaffold).
+  - name: documents
+    description: The canonical document and its immutable versions (services.yaml canonical-svc).
 paths:
-  /v1/canonical/examples:
+  /internal/v1/canonical/documents:
     post:
-      operationId: createExample
-      summary: Placeholder operation (INV-T-2849 scaffold) — replace with a real one
+      operationId: recordDocument
+      summary: Record a source event as a canonical document version, assigning or binding the Doc UUID
       description: >-
-        Placeholder only, so this directory lints clean from its first commit.
-        canonical's own team replaces it with a real operation (CODEOWNERS, API-01).
-      tags: [canonical]
-      x-principal: filing-workflow
-      x-timeout: 5000
-      x-error-codes: []
-      x-requirements: []
+        The record API to ingestion-svc (services.yaml canonical-svc
+        `provides`; sync-edges.yaml `ingestion-svc -> canonical-svc`,
+        "Recording and de-duplication are one decision owned by canonical-svc;
+        the caller needs the Doc UUID or the replay outcome", FR-Z.4 to
+        FR-Z.6). Assigns or binds the Doc UUID inside the same transaction
+        (INV-REQ-547) and derives period assignment and the scope verdict
+        (§20.6). A repeat of the same idempotency pair returns the original
+        result unchanged (INV-REQ-806); a higher sourceRevision for the same
+        sourceKey amends the same Doc UUID. Never mutates a version in place
+        and never regenerates a Doc UUID on retry (canonical-svc `must_not`).
+      tags: [documents]
+      x-principal: ingest
+      x-timeout: 2000
+      x-sync-edge: ingestion-svc->canonical-svc
+      x-error-codes: [ING-002, ING-005, ING-011, ING-012, ING-016]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-547, INV-REQ-806]
       x-operation:
-        role: filing-workflow
-        scope: filing-workflow
-        precondition: "None — placeholder. A real operation states what it checks against record state (FR-AC.1.3)."
-        reversibility: COMPENSABLE
-        repeatKey: "(tenantId, sourceKey, sourceRevision) — placeholder shape, FR-AC.19"
-      parameters:
-        - name: Idempotency-Key
-          in: header
-          required: true
-          schema:
-            type: string
-            format: uuid
+        role: ingest
+        scope: ingest
+        precondition: >-
+          sourceRevision for this (tenantId, sourceSystem, sourceKey) is not
+          lower than any already recorded (FR-C.1, ING-002); an amendment does
+          not change direction, document type or entity (ING-012). Checked
+          against recorded state, never against screen context.
+        reversibility: IRREVERSIBLE
+        repeatKey: >-
+          (tenantId, sourceSystem, sourceKey, sourceRevision) — a repeat
+          returns the original result unchanged, with the original Doc UUID
+          (FR-M.3, INV-REQ-806, INV-REQ-1010 behaviour #1)
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ExampleRequest'
+              $ref: '#/components/schemas/RecordDocumentRequest'
             examples:
               default:
-                value: { name: "example" }
+                value:
+                  tenantId: "5e0b8a0e-2c4d-4b8f-9a61-0d3c7f1e2b44"
+                  entityRef: "E-001"
+                  sourceSystem: "erp-acme"
+                  sourceKey: "INV-2026-000123"
+                  sourceRevision: 1
+                  documentFunction: "INVOICE"
+                  transactionDate: "2026-03-20"
+                  currency: "SGD"
+                  parties:
+                    supplier: { identifierScheme: "UEN", identifierValue: "201912345A" }
+                    buyer: { identifierScheme: "UEN", identifierValue: "201954321B" }
+                  lines:
+                    - lineNumber: 1
+                      description: "Consulting services"
+                      quantity: 1
+                      unitPrice: "1000.00"
+                      lineAmount: "1000.00"
+                      taxCode: "SR"
+                      taxAmount: "90.00"
+                  declaredTotals:
+                    totalExcludingTax: "1000.00"
+                    totalTax: "90.00"
+                    totalIncludingTax: "1090.00"
       responses:
         '201':
-          description: Created
+          description: Recorded as a new document or a new version (API-21 §10).
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ExampleResponse'
+                $ref: '#/components/schemas/RecordDocumentResponse'
               examples:
                 default:
-                  value: { id: "3fa85f64-5717-4562-b3fc-2c963f66afa6", name: "example" }
+                  value:
+                    docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    version: 1
+                    scopeVerdict: "SUBMITTABLE"
+                    transactionDate: "2026-03-20"
+                    prescribedPeriodRef: "2026-Q1"
+        '200':
+          description: Idempotent replay — the original result, unchanged (FR-M.3, API-15's pattern).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecordDocumentResponse'
+              examples:
+                default:
+                  value:
+                    docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    version: 1
+                    scopeVerdict: "SUBMITTABLE"
+                    transactionDate: "2026-03-20"
+                    prescribedPeriodRef: "2026-Q1"
+        '202':
+          description: >-
+            Recorded but held (FR-M.4, API-21) — rules-svc or masterdata-svc
+            was unavailable (ING-016) and derivation is incomplete; released
+            automatically on recovery.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecordDocumentResponse'
+              examples:
+                default:
+                  value:
+                    docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    version: 1
+                    scopeVerdict: "SUBMITTABLE"
+                    transactionDate: "2026-03-20"
+                    prescribedPeriodRef: "2026-Q1"
+                    reasons: [{ code: "ING-016", field: "/", message: "Derivation incomplete; masterdata-svc unavailable" }]
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/canonical/documents/{docUuid}:
+    get:
+      operationId: getDocument
+      summary: Read a canonical document's identity and current version summary
+      description: >-
+        Document query API to console-bff (services.yaml canonical-svc
+        `provides`). A bounded synchronous query the consumer needs for its
+        own view (INV-REQ-1168) — never a fan-out at request time.
+      tags: [documents]
+      x-principal: reporting
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-1168]
+      parameters:
+        - $ref: '#/components/parameters/DocUuid'
+      responses:
+        '200':
+          description: The document's identity and current version.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentSummary'
+              examples:
+                default:
+                  value:
+                    docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    currentVersion: 2
+                    documentFunction: "INVOICE"
+                    scopeVerdict: "SUBMITTABLE"
+                    transactionDate: "2026-03-20"
+                    prescribedPeriodRef: "2026-Q1"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/canonical/documents/{docUuid}/versions/{version}:
+    get:
+      operationId: getDocumentVersion
+      summary: Read one immutable version of a canonical document
+      description: >-
+        Version query API to console-bff (services.yaml canonical-svc
+        `provides`; INV-REQ-1168). A version is never mutated in place —
+        each version is its own immutable record (canonical-svc `must_not`).
+      tags: [documents]
+      x-principal: reporting
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-1168]
+      parameters:
+        - $ref: '#/components/parameters/DocUuid'
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: The requested version.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentVersion'
+              examples:
+                default:
+                  value:
+                    docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    version: 2
+                    docsequence: 2
+                    documentFunction: "INVOICE"
+                    scopeVerdict: "SUBMITTABLE"
+                    transactionDate: "2026-03-20"
+                    prescribedPeriodRef: "2026-Q1"
+                    totals: { totalExcludingTax: "1000.00", totalTax: "90.00", totalIncludingTax: "1090.00" }
         default:
           $ref: '#/components/responses/Error'
 components:
+  parameters:
+    DocUuid:
+      name: docUuid
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
   schemas:
-    ExampleRequest:
+    Party:
       type: object
       properties:
-        name:
+        identifierScheme:
           type: string
-          maxLength: 200
-      required: [name]
-    ExampleResponse:
+          maxLength: 20
+        identifierValue:
+          type: string
+          maxLength: 60
+      required: [identifierScheme, identifierValue]
+    Line:
       type: object
       properties:
-        id:
+        lineNumber:
+          type: integer
+          minimum: 1
+        description:
+          type: string
+          maxLength: 500
+        quantity:
+          type: number
+        unitPrice:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,6})?$'
+          description: Money as a decimal string, up to 6 places (API-12).
+        lineAmount:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+          description: Money as a decimal string, decimal(19,2) (API-12).
+        taxCode:
+          type: string
+          maxLength: 10
+        taxAmount:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+          description: Money as a decimal string, decimal(19,2) (API-12).
+      required: [lineNumber, lineAmount]
+    Totals:
+      type: object
+      properties:
+        totalExcludingTax:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+        totalTax:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+        totalIncludingTax:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+      required: [totalExcludingTax, totalTax, totalIncludingTax]
+    RecordDocumentRequest:
+      type: object
+      properties:
+        tenantId:
           type: string
           format: uuid
-        name:
+        entityRef:
           type: string
-          maxLength: 200
-      required: [id, name]
+          maxLength: 40
+        sourceSystem:
+          type: string
+          maxLength: 60
+        sourceKey:
+          type: string
+          maxLength: 128
+        sourceRevision:
+          type: integer
+          minimum: 1
+        documentFunction:
+          type: string
+          enum: [INVOICE, CREDIT_NOTE, DEBIT_NOTE, BILL_FOR_PAYMENT]
+        transactionDate:
+          type: string
+          format: date
+        currency:
+          type: string
+          maxLength: 3
+        parties:
+          type: object
+          properties:
+            supplier:
+              $ref: '#/components/schemas/Party'
+            buyer:
+              $ref: '#/components/schemas/Party'
+          required: [supplier, buyer]
+        lines:
+          type: array
+          maxItems: 10000
+          items:
+            $ref: '#/components/schemas/Line'
+        declaredTotals:
+          $ref: '#/components/schemas/Totals'
+      required:
+        [tenantId, entityRef, sourceSystem, sourceKey, sourceRevision, documentFunction, transactionDate, currency, lines]
+    RecordDocumentResponse:
+      type: object
+      properties:
+        docUuid:
+          type: string
+          format: uuid
+        version:
+          type: integer
+        scopeVerdict:
+          type: string
+          enum: [SUBMITTABLE, NOT_SUBMITTABLE, PRE_OBLIGATION]
+          x-extensible-enum: true
+        transactionDate:
+          type: string
+          format: date
+        prescribedPeriodRef:
+          type: string
+        reasons:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReasonItem'
+      required: [docUuid, version, scopeVerdict, transactionDate, prescribedPeriodRef]
+    ReasonItem:
+      type: object
+      properties:
+        code:
+          type: string
+        field:
+          type: string
+        message:
+          type: string
+      required: [code, message]
+    DocumentSummary:
+      type: object
+      properties:
+        docUuid:
+          type: string
+          format: uuid
+        currentVersion:
+          type: integer
+        documentFunction:
+          type: string
+          enum: [INVOICE, CREDIT_NOTE, DEBIT_NOTE, BILL_FOR_PAYMENT]
+          x-extensible-enum: true
+        scopeVerdict:
+          type: string
+          enum: [SUBMITTABLE, NOT_SUBMITTABLE, PRE_OBLIGATION]
+          x-extensible-enum: true
+        transactionDate:
+          type: string
+          format: date
+        prescribedPeriodRef:
+          type: string
+      required: [docUuid, currentVersion, documentFunction, scopeVerdict, transactionDate, prescribedPeriodRef]
+    DocumentVersion:
+      type: object
+      properties:
+        docUuid:
+          type: string
+          format: uuid
+        version:
+          type: integer
+        docsequence:
+          type: integer
+        documentFunction:
+          type: string
+          enum: [INVOICE, CREDIT_NOTE, DEBIT_NOTE, BILL_FOR_PAYMENT]
+          x-extensible-enum: true
+        scopeVerdict:
+          type: string
+          enum: [SUBMITTABLE, NOT_SUBMITTABLE, PRE_OBLIGATION]
+          x-extensible-enum: true
+        transactionDate:
+          type: string
+          format: date
+        prescribedPeriodRef:
+          type: string
+        totals:
+          $ref: '#/components/schemas/Totals'
+      required: [docUuid, version, docsequence, documentFunction, scopeVerdict, transactionDate, prescribedPeriodRef]
   responses:
     Error:
       description: Error (API-20 envelope)
@@ -96,5 +417,5 @@ components:
                 type: "about:blank"
                 title: "Example error"
                 status: 400
-                code: "EXAMPLE-000"
+                code: "ING-002"
                 correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
