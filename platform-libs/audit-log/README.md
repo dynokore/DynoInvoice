@@ -11,3 +11,9 @@ The audit-entry writer: actor, action, scope, reason and prior state, written in
 | Wave | Wave 1: Contracts, harness and platform (SDS §25.1) |
 
 Released on its own version with its own changelog. Services consume it only as a published artefact (FR-L.6).
+
+## Use
+
+- `audit-log-api`: `AuditEntry`, `AuditWriter`, `AuditedOperations`, `OverrideService`, `OverrideRegister`, `ErrorCatalogue`, `OverridePolicy`.
+- `audit-log` (impl): `OutboxAuditWriter` (over outbox-and-queue's `OutboxWriter`), `TransactionalAuditedOperations`, `JdbcOverrideService`, `AuditSchema.ddl(schema, appRole)` for the service's migration.
+- The owning service supplies the `ErrorCatalogue` (TERMINAL, MANUAL or OVERRIDABLE per code) and the verified roles of the caller. Default authorised role: `tax.approver`.
