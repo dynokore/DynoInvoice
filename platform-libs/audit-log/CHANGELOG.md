@@ -14,7 +14,7 @@ train is its own (README.md: "own version and changelog").
   entry is written; a failed entry commits nothing and returns no result (INV-AC-2593).
 - Override path: `OverrideService`, `OverrideRegister`, `ErrorCatalogue`. TERMINAL (and MANUAL
   or unknown) codes are refused before any write; OVERRIDABLE needs a reason and the
-  `tax.approver` role, is scoped to one document version, and commits with its audit entry
+  `tax.approver` role (a policy may only add requirements, never widen), is scoped to one document version, and commits with its audit entry
   or leaves nothing (INV-REQ-1179, -1180; INV-AC-2166, -2209).
 - `AuditSchema.ddl`: the `override_grant` table with `tenant_id`, forced row-level security,
   select and insert only.

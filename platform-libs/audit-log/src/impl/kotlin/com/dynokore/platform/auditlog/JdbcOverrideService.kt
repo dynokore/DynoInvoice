@@ -90,7 +90,7 @@ class JdbcOverrideService(
             ErrorDisposition.OVERRIDABLE -> Unit
         }
         if (command.reason.isNullOrBlank()) throw OverrideRefused(RefusalReason.REASON_REQUIRED, command.code)
-        if (command.actorRoles.none { it in policy.authorisedRoles }) {
+        if (!policy.permits(command.actorRoles)) {
             throw OverrideRefused(RefusalReason.ROLE_NOT_AUTHORISED, command.code)
         }
     }

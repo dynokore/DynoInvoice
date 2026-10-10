@@ -67,23 +67,24 @@ class OverrideRefusalTest {
     }
 
     @Test
-    fun `the authorised roles are configurable but never empty`() {
-        assertThrows(IllegalArgumentException::class.java) { OverridePolicy(emptySet()) }
-        assertEquals(
-            RefusalReason.ROLE_NOT_AUTHORISED,
-            assertThrows(OverrideRefused::class.java) {
-                service(OverridePolicy(setOf("other.role"))).override(command())
-            }.reason,
-        )
+    fun `a policy can only tighten tax approver and never widen it`() {
+        assertThrows(IllegalArgumentException::class.java) { OverridePolicy(setOf(" ")) }
+        val tighter = OverridePolicy(setOf("second.signoff"))
+        fun reason(roles: Set<String>) = assertThrows(OverrideRefused::class.java) { service(tighter).override(command(roles = roles)) }.reason
+        // tax.approver alone no longer suffices; another role alone never does.
+        assertEquals(RefusalReason.ROLE_NOT_AUTHORISED, reason(setOf("tax.approver")))
+        assertEquals(RefusalReason.ROLE_NOT_AUTHORISED, reason(setOf("second.signoff")))
+        assertEquals(true, tighter.permits(setOf("tax.approver", "second.signoff")))
+        assertEquals(false, OverridePolicy().permits(setOf("tenant.admin", "platform.engineer")))
     }
 
     @Test
-    fun `a TERMINAL code stays refused whatever the policy authorises`() {
-        val policy = OverridePolicy(setOf("tax.approver", "tenant.admin"))
+    fun `a TERMINAL code stays refused whatever the policy and roles`() {
+        val policy = OverridePolicy(setOf("tenant.admin"))
         assertEquals(
             RefusalReason.TERMINAL,
             assertThrows(OverrideRefused::class.java) {
-                service(policy).override(command(code = "SUB-009", roles = setOf("tenant.admin")))
+                service(policy).override(command(code = "SUB-009", roles = setOf("tax.approver", "tenant.admin")))
             }.reason,
         )
     }

@@ -101,13 +101,20 @@ interface OverrideRegister {
     ): Boolean
 }
 
-/** Who may override. The default is the Keel role `tax.approver` (INV-REQ-1293, INV-AC-2279). */
+/**
+ * Who may override: a holder of `tax.approver` (INV-REQ-1293, INV-AC-2279), and of every role in
+ * [additionalRequiredRoles]. Keel controls are tighten-only: the policy can add requirements but never
+ * replace `tax.approver` by, or widen it to, another role, so widening is not expressible.
+ */
 data class OverridePolicy(
-    val authorisedRoles: Set<String> = setOf(TAX_APPROVER),
+    val additionalRequiredRoles: Set<String> = emptySet(),
 ) {
     init {
-        require(authorisedRoles.isNotEmpty()) { "at least one role must be authorised to override" }
+        require(additionalRequiredRoles.none { it.isBlank() }) { "a required role must not be blank" }
     }
+
+    /** Whether [roles] satisfy this policy. */
+    fun permits(roles: Set<String>): Boolean = TAX_APPROVER in roles && roles.containsAll(additionalRequiredRoles)
 
     companion object {
         const val TAX_APPROVER = "tax.approver"
