@@ -82,7 +82,12 @@ publishing {
             // registry on this LAN GitLab — the Maven artefact via this publishing path
             // is what "published" means here).
             name = "gstMaven"
-            url = uri(providers.gradleProperty("gstMavenUrl").getOrElse("https://repo.dynokore.internal/gst-maven"))
+            val gstMavenUri = uri(providers.gradleProperty("gstMavenUrl").getOrElse("https://repo.dynokore.internal/gst-maven"))
+            url = gstMavenUri
+            // The LAN GitLab package registry has no TLS (TLS is a Wave 5 item), so Gradle
+            // needs an explicit opt-in to publish to its http URL. Opted in for that one
+            // host only, never for any other repository.
+            isAllowInsecureProtocol = gstMavenUri.scheme == "http" && gstMavenUri.host == "registry.example.internal"
             credentials {
                 username = providers.gradleProperty("gstMavenUser").orNull
                 password = providers.gradleProperty("gstMavenPassword").orNull
