@@ -42,11 +42,17 @@ variables:
 .gst-sibling-checkout:
   before_script:
     - |
+      PB_URL="${CI_SERVER_PROTOCOL}://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}:${CI_SERVER_PORT}/invoice/platform-build.git"
       if [ ! -d "../platform-build/.git" ]; then
         echo "gst-ci: cloning invoice/platform-build (sibling checkout for pluginManagement.includeBuild, settings.gradle.kts)"
-        git clone --depth 1 --branch main \
-          "${CI_SERVER_PROTOCOL}://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}:${CI_SERVER_PORT}/invoice/platform-build.git" \
-          ../platform-build
+        git clone --depth 1 --branch main "$PB_URL" ../platform-build
+      else
+        # The runner keeps ../platform-build between jobs: a stale checkout silently ran the
+        # pre-0.5.0 L1 rule. Always move it to the current main (explicit URL: the stored
+        # remote holds an expired job token).
+        echo "gst-ci: updating the existing platform-build sibling checkout to main"
+        git -C ../platform-build fetch --depth 1 "$PB_URL" main
+        git -C ../platform-build checkout --force FETCH_HEAD
       fi
     - |
       gst_run_if_task_exists() {
