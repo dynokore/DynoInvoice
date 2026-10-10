@@ -47,7 +47,7 @@ subprojects {
     }
 }
 
-// The expected publish set, written as `<artifactId> <version>` lines to
+// The expected publish set, written as `<project path> <publication> <artifactId> <version>` lines to
 // build/publications.txt for CI's post-publish check (P20/P28: a module with a
 // version that is not published must fail the job, never be skipped). Fails itself
 // if a module has a version.txt but no maven-publish publication.
@@ -63,9 +63,10 @@ tasks.register("listPublications") {
                 if (publications.isEmpty()) {
                     throw GradleException("${sub.path} has a version.txt but no Maven publication (P20/P28)")
                 }
-                publications.forEach { lines += "${it.artifactId} ${sub.version}" }
+                publications.forEach { lines += "${sub.path} ${it.name} ${it.artifactId} ${sub.version}" }
             }
         }
+        if (lines.isEmpty()) throw GradleException("no module has a version.txt: nothing to publish (P20/P28)")
         out.get().asFile.apply {
             parentFile.mkdirs()
             writeText(lines.sorted().joinToString("\n") + "\n")

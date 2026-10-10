@@ -193,17 +193,30 @@ maven-publish:
     MAVEN_REGISTRY_PROJECT_ID: "$CI_PROJECT_ID"
   script:
     - >
-      ./gradlew publish listPublications
-      -PgstMavenUrl="${CI_API_V4_URL}/projects/${MAVEN_REGISTRY_PROJECT_ID}/packages/maven"
-      -PgstMavenUser=gitlab-ci-token
-      -PgstMavenPassword="${CI_JOB_TOKEN}"
-      --stacktrace
+      ./gradlew listPublications --stacktrace
     - |
-      test -s build/publications.txt || { echo "gst-ci: no publications listed (P20/P28)"; exit 1; }
+      # Re-runs on main are safe: a publication whose .pom is already in the registry is
+      # skipped (GitLab may reject a duplicate upload), but it is still verified below.
+      grep -q . build/publications.txt || { echo "gst-ci: no publications listed (P20/P28)"; exit 1; }
+      registry="${CI_API_V4_URL}/projects/${MAVEN_REGISTRY_PROJECT_ID}/packages/maven/com/dynokore/platform"
+      pom_status() { curl -s -o /dev/null -w '%{http_code}' --header "JOB-TOKEN: ${CI_JOB_TOKEN}" "${registry}/$1/$2/$1-$2.pom"; }
+      tasks=""
+      while read -r path pub artifact version; do
+        if [ "$(pom_status "$artifact" "$version")" = "200" ]; then
+          echo "gst-ci: ${artifact}:${version} already in the registry, skipping its upload"
+        else
+          cap="$(printf '%s' "$pub" | cut -c1 | tr '[:lower:]' '[:upper:]')$(printf '%s' "$pub" | cut -c2-)"
+          tasks="$tasks ${path}:publish${cap}PublicationToGstMavenRepository"
+        fi
+      done < build/publications.txt
+      if [ -n "$tasks" ]; then
+        ./gradlew $tasks \
+          -PgstMavenUrl="${CI_API_V4_URL}/projects/${MAVEN_REGISTRY_PROJECT_ID}/packages/maven" \
+          -PgstMavenUser=gitlab-ci-token -PgstMavenPassword="${CI_JOB_TOKEN}" --stacktrace
+      fi
       missing=0
-      while read -r artifact version; do
-        url="${CI_API_V4_URL}/projects/${MAVEN_REGISTRY_PROJECT_ID}/packages/maven/com/dynokore/platform/${artifact}/${version}/${artifact}-${version}.pom"
-        code=$(curl -s -o /dev/null -w '%{http_code}' --header "JOB-TOKEN: ${CI_JOB_TOKEN}" "$url")
+      while read -r path pub artifact version; do
+        code=$(pom_status "$artifact" "$version")
         if [ "$code" = "200" ]; then
           echo "gst-ci: published ${artifact}:${version}"
         else
