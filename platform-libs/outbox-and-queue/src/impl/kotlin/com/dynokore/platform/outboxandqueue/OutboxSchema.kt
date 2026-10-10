@@ -1,0 +1,114 @@
+package com.dynokore.platform.outboxandqueue
+
+import com.dynokore.platform.tenancykernel.TenantRlsMigration
+
+/**
+ * DDL for the tables this module owns in a service's own schema (INV-REQ-1211, INV-REQ-1222):
+ * the outbox and its per-key sequence on the producer side, the inbox, sequence memory, offsets
+ * and dead letters on the consumer side. A service's migration (TPL-12, CS-19) embeds [ddl];
+ * the rows carry identifiers and the producer's payload only (CS-34).
+ *
+ * Tenant tables ([OUTBOX], [OUTBOX_SEQUENCE], [INBOX], [CONSUMER_SEQUENCE]) carry the mandatory
+ * `tenant_id` and tenancy-kernel's row-level security ([TenantRlsMigration.ddl]). The relay and the
+ * consumer poll across tenants, so the outbox also gets the claim path of ARC 4.3 step 1a: a
+ * `SELECT` policy `TO <worker> USING (true)` and a column grant limited to `seq`, `tenant_id` and
+ * `published_at`; never `BYPASSRLS`. The worker finds work there and binds each item's tenant
+ * before touching its row. [CONSUMER_OFFSET] holds no tenant data (a position per consumer and topic)
+ * and has no RLS. [DEAD_LETTER] keeps whole rejected envelopes (content) for triage and replay: it has a
+ * nullable `tenant_id` (filled whenever the envelope's tenant parses), forced RLS with the tenant policy,
+ * and a policy for the worker role only; the app role has no privilege on it, so only the worker reads
+ * it, and a row without a tenant is invisible to every tenant session.
+ */
+object OutboxSchema {
+    const val OUTBOX = "outbox"
+    const val OUTBOX_SEQUENCE = "outbox_sequence"
+    const val INBOX = "inbox"
+    const val CONSUMER_SEQUENCE = "consumer_sequence"
+    const val CONSUMER_OFFSET = "consumer_offset"
+    const val DEAD_LETTER = "event_dead_letter"
+
+    /** `CREATE TABLE` statements for every table, in [schema], with the grants for [appRole]. */
+    fun ddl(
+        schema: String,
+        appRole: String,
+        workerRole: String,
+    ): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        val role = SqlIdentifier.require(appRole, "role")
+        val worker = SqlIdentifier.require(workerRole, "worker role")
+        val rls = listOf(OUTBOX, OUTBOX_SEQUENCE, INBOX, CONSUMER_SEQUENCE, DEAD_LETTER).joinToString("\n") {
+            TenantRlsMigration.ddl(s, it, policyName = "${it}_tenant_isolation")
+        }
+        return """
+            create table $s.$OUTBOX (
+                seq bigint generated always as identity primary key,
+                id text not null unique,
+                topic text not null,
+                type text not null,
+                source text not null,
+                subject text not null,
+                event_time timestamptz not null,
+                tenant_id uuid not null,
+                entity_ref text not null,
+                doc_uuid uuid,
+                transaction_date date,
+                docsequence bigint,
+                instance_id text not null,
+                correlation_id text not null,
+                causation_id text not null,
+                data jsonb not null,
+                published_at timestamptz
+            );
+            create index ${OUTBOX}_unpublished on $s.$OUTBOX (seq) where published_at is null;
+            create table $s.$OUTBOX_SEQUENCE (
+                tenant_id uuid not null,
+                aggregate_key text not null,
+                last_value bigint not null,
+                primary key (tenant_id, aggregate_key)
+            );
+            create table $s.$INBOX (
+                consumer text not null,
+                event_id text not null,
+                tenant_id uuid not null,
+                received_at timestamptz not null default now(),
+                primary key (consumer, event_id)
+            );
+            create table $s.$CONSUMER_SEQUENCE (
+                consumer text not null,
+                source text not null,
+                subject text not null,
+                tenant_id uuid not null,
+                last_value bigint not null,
+                primary key (consumer, source, subject)
+            );
+            create table $s.$CONSUMER_OFFSET (
+                consumer text not null,
+                topic text not null,
+                next_offset bigint not null,
+                primary key (consumer, topic)
+            );
+            create table $s.$DEAD_LETTER (
+                id bigint generated always as identity primary key,
+                consumer text not null,
+                topic text not null,
+                log_offset bigint not null,
+                tenant_id uuid,
+                reason text not null,
+                raw text not null,
+                recorded_at timestamptz not null default now()
+            );
+            comment on column $s.$OUTBOX.data is 'class: content';
+            comment on column $s.$DEAD_LETTER.raw is 'class: content';
+            $rls
+            create policy ${DEAD_LETTER}_worker on $s.$DEAD_LETTER for all to $worker using (true) with check (true);
+            create policy ${OUTBOX}_claim on $s.$OUTBOX for select to $worker using (true);
+            grant usage on schema $s to $worker;
+            grant select (seq, tenant_id, published_at) on $s.$OUTBOX to $worker;
+            grant select, insert, update on $s.$CONSUMER_OFFSET to $worker;
+            grant select, insert on $s.$DEAD_LETTER to $worker;
+            grant select, insert, update on $s.$OUTBOX, $s.$OUTBOX_SEQUENCE, $s.$CONSUMER_SEQUENCE,
+                $s.$CONSUMER_OFFSET to $role;
+            grant select, insert on $s.$INBOX to $role;
+        """.trimIndent()
+    }
+}

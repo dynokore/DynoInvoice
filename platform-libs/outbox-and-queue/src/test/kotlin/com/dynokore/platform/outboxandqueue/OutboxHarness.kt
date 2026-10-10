@@ -1,0 +1,124 @@
+package com.dynokore.platform.outboxandqueue
+
+import tools.jackson.databind.ObjectMapper
+
+/**
+ * One PostgreSQL container (17 or 18) with the three fixture services' schemas, their state
+ * tables, and the event log with one table per catalogued topic. The event log is reached
+ * through [eventLogForRelay], a [FlakyDataSource] the outage test can switch off.
+ */
+class OutboxHarness(image: String) : AutoCloseable {
+    val fixture = OutboxPostgresFixture(image)
+    val catalogue: EventCatalogue = TestCatalogue.load()
+    val eventLogForRelay = FlakyDataSource(fixture.relayDataSource())
+    val reader = PostgresEventLogReader(fixture.readerDataSource())
+    val mapper = ObjectMapper()
+    private val json = EnvelopeJson()
+
+    init {
+        fixture.createService("submission", SUBMISSION_STATE)
+        fixture.createService("reconciliation", RECONCILIATION_STATE)
+        fixture.createService("payload")
+        fixture.createService("canonical")
+        fixture.createTopics(catalogue)
+    }
+
+    val submission = ServiceKit(this, "submission", "submission-svc", catalogue)
+    val payload = ServiceKit(this, "payload", "payload-svc", catalogue)
+    val reconciliation = ServiceKit(this, "reconciliation", "reconciliation-svc", catalogue)
+    val canonical = ServiceKit(this, "canonical", "canonical-svc", catalogue)
+
+    /** Everything on [topic], decoded. */
+    fun logOf(topic: String): List<Envelope> = reader.read(topic, 0, LOG_LIMIT).map { json.read(it.envelopeJson) }
+
+    /** A consumer of [topic] named [name] in [schema], over [tx]. */
+    fun consumer(
+        name: String,
+        topic: String,
+        schema: String,
+        tx: KillableTransactionRunner,
+        handler: EventHandler,
+    ) = JdbcInboxConsumer(
+        ConsumerSubscription(name, topic, schema),
+        reader,
+        fixture.workerDataSource(),
+        TenantScope(tx.tenants, tx, tx),
+        handler,
+    )
+
+    /** `[relrowsecurity, relforcerowsecurity]` of `schema.table`. */
+    fun flags(
+        schema: String,
+        table: String,
+    ): List<Boolean> = fixture.adminDataSource().connection.use { connection ->
+        connection
+            .prepareStatement(
+                "select relrowsecurity, relforcerowsecurity from pg_class " +
+                    "where oid = (?::text)::regclass",
+            ).use { statement ->
+                statement.setString(1, "$schema.$table")
+                statement.executeQuery().use {
+                    it.next()
+                    listOf(it.getBoolean(1), it.getBoolean(2))
+                }
+            }
+    }
+
+    /** Rows of [table] whose [column] equals [value]. */
+    fun rows(
+        table: String,
+        column: String,
+        value: Any,
+    ): Long = count("select count(*) from $table where $column = ?", value)
+
+    /** Runs [relay] until nothing is pending (bounded). */
+    fun drain(relay: OutboxRelay) {
+        repeat(MAX_RUNS) {
+            val outcome = relay.runOnce()
+            if (outcome.pending == 0L || outcome.stalled) return
+        }
+    }
+
+    fun count(
+        sql: String,
+        vararg args: Any,
+    ): Long = fixture.adminDataSource().connection.use { connection ->
+        connection.prepareStatement(sql).use { statement ->
+            args.forEachIndexed { index, value -> statement.setObject(index + 1, value) }
+            statement.executeQuery().use { rows ->
+                rows.next()
+                rows.getLong(1)
+            }
+        }
+    }
+
+    override fun close() {
+        fixture.close()
+    }
+
+    companion object {
+        const val MAX_RUNS = 1000
+        const val LOG_LIMIT = 10_000
+        val IMAGES = listOf("postgres:17", "postgres:18")
+
+        private const val APP = OutboxPostgresFixture.APP
+        private const val SUBMISSION_STATE = """
+            create table submission.submission_state (doc_uuid uuid primary key, status text not null);
+            create table submission.obligation_register (
+                doc_uuid uuid primary key, canonical_seen boolean not null, payload_seen boolean not null,
+                state text generated always as (
+                    case when canonical_seen and payload_seen then 'COMPLETE' else 'PARTIAL' end
+                ) stored);
+            create table submission.queue_item (
+                doc_uuid uuid not null, version int not null, primary key (doc_uuid, version));
+            create table submission.submission_row (
+                doc_uuid uuid not null, version int not null, primary key (doc_uuid, version));
+            grant select, insert, update on submission.submission_state, submission.obligation_register,
+                submission.queue_item, submission.submission_row to $APP;
+        """
+        private const val RECONCILIATION_STATE = """
+            create table reconciliation.ack_read_model (doc_uuid uuid primary key, ack_count int not null);
+            grant select, insert, update on reconciliation.ack_read_model to $APP;
+        """
+    }
+}

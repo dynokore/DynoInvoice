@@ -1,0 +1,51 @@
+# Excerpt of platform-contracts event-log/topics.yaml (efde985): the entries these tests use. Regenerate by copying entries, never hand-edit.
+topics:
+  - topic: gst.canonical.canonical-version-created.v1
+    event_type: com.dynokore.gst.canonical.CanonicalVersionCreated.v1
+    producers:
+      - canonical-svc
+    subscribers:
+      - console-bff
+      - evidence-svc
+      - payload-svc
+      - reconciliation-svc
+      - submission-svc
+  - topic: gst.payload.payload-ready.v1
+    event_type: com.dynokore.gst.payload.PayloadReady.v1
+    producers:
+      - payload-svc
+    subscribers:
+      - evidence-svc
+      - submission-svc
+  - topic: gst.platform.audit-entry-recorded.v1
+    event_type: com.dynokore.gst.platform.AuditEntryRecorded.v1
+    producers:
+      - every service
+    subscribers:
+      - evidence-svc
+  - topic: gst.submission.submission-acknowledged.v1
+    event_type: com.dynokore.gst.submission.SubmissionAcknowledged.v1
+    producers:
+      - submission-svc
+    subscribers:
+      - canonical-svc
+      - console-bff
+      - evidence-svc
+      - notification-svc
+      - reconciliation-svc
+      - tenancy-svc
+  - topic: gst.submission.submission-despatched.v1
+    event_type: com.dynokore.gst.submission.SubmissionDespatched.v1
+    producers:
+      - submission-svc
+    subscribers:
+      - aggregation-svc
+      - console-bff
+      - evidence-svc
+  - topic: gst.submission.submission-failed.v1
+    event_type: com.dynokore.gst.submission.SubmissionFailed.v1
+    producers:
+      - submission-svc
+    subscribers:
+      - console-bff
+      - notification-svc
