@@ -51,11 +51,7 @@ fun interface JobEntitySource {
  * PolicyReader (bound in Wave 3). [FixedDeadlineSource] is the Wave 1 fake.
  */
 interface DeadlineSource {
-    /**
-     * The nearest due date the job serves for [target], or `null` when none is pending. For [JobTarget.Whole]
-     * (a job-wide pause, or a PLATFORM-scoped job) the service answers for the whole job: with [safetyMargin]
-     * it gives the earliest "due date minus margin" over every entity the job serves (INV-Q-3531).
-     */
+    /** The nearest due date the job serves for [target], or `null` when none is pending. */
     fun nearestDueDate(
         job: JobDefinition,
         target: JobTarget,

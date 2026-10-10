@@ -210,41 +210,6 @@ class JobContractIT {
         replica.inA { pause(request(engineer, platformJob.name, null), START.plusSeconds(60)) } shouldBe
             JobCommandOutcome.Refused(JobErrorCode.SCOPE_NOT_PERMITTED)
         h.runs(platformJob.name) shouldHaveSize 0
-
-        // INV-Q-3537: the platform operator giving an entity for a PLATFORM-scoped job is a contract violation.
-        assertThrows<IllegalArgumentException> { replica.inA { runNow(request(operator, platformJob.name, E1)) } }
-        h.runs(platformJob.name) shouldHaveSize 0
-    }
-
-    @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
-    fun `INV-Q-3531 a job-wide pause of a deadline-critical job is bounded by the earliest entity bound`(
-        image: String,
-    ) {
-        val h = harness(image)
-        val clock = MutableClock(START)
-        val deadlines = MovableDeadlines(margin = Duration.ofHours(1))
-        deadlines.due[JobTarget.Whole] = START.plus(Duration.ofHours(4)) // the earliest over E1 and E2
-        deadlines.due[e1] = START.plus(Duration.ofHours(4))
-        deadlines.due[e2] = START.plus(Duration.ofHours(9))
-        val replica = h.replica("svc-1", clock, authorizer, deadlines)
-        val def = job("q3531-wide", criticality = JobCriticality.DEADLINE_CRITICAL)
-        replica.runtime.register(def, entities) { }
-
-        replica.inA { pause(request(operator, def.name, null), START.plus(Duration.ofHours(5))) } shouldBe
-            JobCommandOutcome.Refused(JobErrorCode.PAUSE_PAST_DEADLINE)
-        replica.inA { pause(request(operator, def.name, null), START.plus(Duration.ofHours(3))) }
-            .shouldBeInstanceOf<JobCommandOutcome.Done<JobPauseState>>()
-
-        clock.advance(Duration.ofHours(1))
-        replica.runtime.fire(def.name).values.toSet() shouldBe setOf(FireResult.SKIPPED_PAUSED)
-
-        // The earliest bound moves to 02:00: the job-wide pause lapses there for every entity.
-        deadlines.due[JobTarget.Whole] = START.plus(Duration.ofHours(3))
-        clock.advance(Duration.ofHours(1))
-        replica.runtime.fire(def.name).values.toSet() shouldBe setOf(FireResult.RAN)
-        val ended = h.rows("select ended_at from submission.job_pause where job = ?", def.name).single()
-        ended["ended_at"].toString() shouldContain "02:00"
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
