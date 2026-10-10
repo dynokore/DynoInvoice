@@ -159,7 +159,6 @@ paths:
         a sole-operator path (FR-AC.16, VP-09, FR-AB.13).
       tags: [identity-triples]
       x-principal: filing-workflow
-      x-sync-edge: console-bff->masterdata-svc
       x-timeout: 5000
       x-error-codes: [MDM-005]
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-1.1, FR-1.2, FR-AC.15, FR-AC.16, "VP-09"]
@@ -214,7 +213,6 @@ paths:
         (FR-1.14, FR-1.15).
       tags: [remediation]
       x-principal: filing-workflow
-      x-sync-edge: console-bff->masterdata-svc
       x-timeout: 5000
       x-error-codes: [MDM-001, MDM-002, MDM-003, MDM-004, MDM-006]
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-1.5, FR-1.14, FR-1.15, "MDM-001"]
@@ -266,7 +264,6 @@ paths:
         beyond.
       tags: [remediation]
       x-principal: filing-workflow
-      x-sync-edge: console-bff->masterdata-svc
       x-timeout: 10000
       x-error-codes: [MDM-001, MDM-002, MDM-003, MDM-004, MDM-006]
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-AC.3, FR-AC.14]
@@ -316,7 +313,6 @@ paths:
         direct call (DR-11).
       tags: [counterparty-requests]
       x-principal: filing-workflow
-      x-sync-edge: console-bff->masterdata-svc
       x-timeout: 5000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-AF.23]
@@ -405,7 +401,6 @@ paths:
         standing differs (FR-R.12, FR-1.5).
       tags: [import]
       x-principal: filing-workflow
-      x-sync-edge: console-bff->masterdata-svc
       x-timeout: 30000
       x-error-codes: [MDM-002, MDM-003, MDM-006]
       x-requirements: [INV-REQ-957, INV-REQ-1010, "§35.10", FR-R.12]
@@ -449,7 +444,6 @@ paths:
         `ReferenceRateLoaded` is emitted.
       tags: [import]
       x-principal: filing-workflow
-      x-sync-edge: console-bff->masterdata-svc
       x-timeout: 10000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, "§35.2"]
@@ -492,7 +486,6 @@ paths:
         evidenced, for one currency, date and source.
       tags: [import]
       x-principal: filing-workflow
-      x-sync-edge: console-bff->masterdata-svc
       x-timeout: 5000
       x-error-codes: [PAY-013]
       x-requirements: [INV-REQ-957, INV-REQ-1010, "§35.2"]

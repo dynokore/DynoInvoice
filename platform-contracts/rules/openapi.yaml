@@ -160,7 +160,6 @@ paths:
         editable in place once activated (FR-B.4).
       tags: [mapping-packs]
       x-principal: filing-workflow
-      x-sync-edge: console-bff->rules-svc
       x-timeout: 5000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-2.1, FR-B.4]
@@ -206,7 +205,6 @@ paths:
         activate (FR-2.3).
       tags: [mapping-packs]
       x-principal: filing-workflow
-      x-sync-edge: console-bff->rules-svc
       x-timeout: 5000
       x-error-codes: [RUL-001]
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-2.3, C-4]
@@ -254,7 +252,6 @@ paths:
         draft is created regardless so the tenant can fix and resubmit.
       tags: [mapping-packs]
       x-principal: filing-workflow
-      x-sync-edge: console-bff->rules-svc
       x-timeout: 10000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, "§35.10"]
@@ -297,7 +294,6 @@ paths:
         entry alone.
       tags: [mapping-packs]
       x-principal: filing-workflow
-      x-sync-edge: console-bff->rules-svc
       x-timeout: 5000
       x-error-codes: [RUL-007]
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-AA.17, FR-AA.18, RUL-007]
@@ -348,7 +344,6 @@ paths:
         already be complete (FR-B.3).
       tags: [mapping-packs]
       x-principal: filing-workflow
-      x-sync-edge: console-bff->rules-svc
       x-timeout: 5000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-B.3]
@@ -388,7 +383,6 @@ paths:
         code catalogue (RUL-006, RUL-009, RUL-010).
       tags: [mapping-packs]
       x-principal: filing-workflow
-      x-sync-edge: console-bff->rules-svc
       x-timeout: 5000
       x-error-codes: [RUL-006, RUL-007, RUL-009, RUL-010]
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-P.2, RUL-007, RUL-009, RUL-010]
@@ -430,7 +424,6 @@ paths:
         Compensated, never undone, by `rollbackPack` (FR-AC.6).
       tags: [mapping-packs]
       x-principal: filing-workflow
-      x-sync-edge: console-bff->rules-svc
       x-timeout: 5000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-B.1, FR-B.4]
@@ -479,7 +472,6 @@ paths:
         does not use the pack — that is `armRegulatoryPack`.
       tags: [regulatory-packs]
       x-principal: filing-workflow
-      x-sync-edge: console-bff->rules-svc
       x-timeout: 10000
       x-error-codes: [DEP-002, DEP-003]
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-H.6, FR-H.9]
@@ -523,7 +515,6 @@ paths:
         activation (FR-G.8).
       tags: [regulatory-packs]
       x-principal: filing-workflow
-      x-sync-edge: console-bff->rules-svc
       x-timeout: 5000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-G.8, FR-G.9]
@@ -569,7 +560,6 @@ paths:
         `rollbackPack` plus `reprocessPopulation`.
       tags: [regulatory-packs]
       x-principal: filing-workflow
-      x-sync-edge: console-bff->rules-svc
       x-timeout: 5000
       x-error-codes: [RUL-005]
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-AB.10, FR-K.7, RUL-005]
@@ -620,7 +610,6 @@ paths:
         remedy for an armed pack is compensation, never an undo (FR-AC.6).
       tags: [regulatory-packs]
       x-principal: filing-workflow
-      x-sync-edge: console-bff->rules-svc
       x-timeout: 5000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-AC.6]
@@ -667,7 +656,6 @@ paths:
         supersession, for every document the superseding pack reclassifies.
       tags: [regulatory-packs]
       x-principal: filing-workflow
-      x-sync-edge: console-bff->rules-svc
       x-timeout: 5000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, "§31.4.1"]
@@ -707,7 +695,6 @@ paths:
         value and the GST value (FR-B.3).
       tags: [mapping-packs, regulatory-packs]
       x-principal: filing-workflow
-      x-sync-edge: console-bff->rules-svc
       x-timeout: 30000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-B.3, FR-G.8]

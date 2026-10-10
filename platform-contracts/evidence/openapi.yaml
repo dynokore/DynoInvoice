@@ -152,7 +152,6 @@ paths:
         service (FR-AA.15).
       tags: [lookup]
       x-principal: reporting
-      x-sync-edge: console-bff->evidence-svc
       x-timeout: 3000
       x-error-codes: []
       x-requirements: [INV-REQ-691, INV-REQ-723, INV-REQ-711, INV-REQ-725, INV-REQ-726]
@@ -200,7 +199,6 @@ paths:
         audit-logged, changes no state (FR-X.11, INV-REQ-958).
       tags: [lookup]
       x-principal: reporting
-      x-sync-edge: console-bff->evidence-svc
       x-timeout: 3000
       x-error-codes: []
       x-requirements: [INV-REQ-710, INV-REQ-724, INV-REQ-711]
@@ -274,7 +272,6 @@ paths:
         `exportAuditPack` call made as part of offboarding.
       tags: [exports]
       x-principal: reporting
-      x-sync-edge: console-bff->evidence-svc
       x-timeout: 5000
       x-error-codes: [DEP-007]
       x-requirements: [INV-REQ-650, INV-REQ-642, INV-REQ-662]
@@ -312,7 +309,6 @@ paths:
         §35.11). Changes no state (INV-REQ-958).
       tags: [verification]
       x-principal: reporting
-      x-sync-edge: console-bff->evidence-svc
       x-timeout: 3000
       x-error-codes: []
       x-requirements: []
@@ -354,7 +350,6 @@ paths:
         pipeline service).
       tags: [privacy]
       x-principal: reporting
-      x-sync-edge: console-bff->evidence-svc
       x-timeout: 3000
       x-error-codes: []
       x-requirements: [INV-REQ-1379]
@@ -395,7 +390,6 @@ paths:
         assigns `placeLegalHold` to `tax.approver`.
       tags: [retention]
       x-principal: filing-workflow
-      x-sync-edge: console-bff->evidence-svc
       x-timeout: 5000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-639]
@@ -454,7 +448,6 @@ paths:
         placement (INV-NOTE-7 §7 SCR-30.3): `tax.approver`.
       tags: [retention]
       x-principal: filing-workflow
-      x-sync-edge: console-bff->evidence-svc
       x-timeout: 5000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-639]
@@ -505,7 +498,6 @@ paths:
         polls `getAuditPackExport` for readiness.
       tags: [exports]
       x-principal: filing-workflow
-      x-sync-edge: console-bff->evidence-svc
       x-timeout: 5000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-988, INV-REQ-989]
@@ -545,7 +537,6 @@ paths:
         audit-logged (FR-Q.18).
       tags: [exports]
       x-principal: reporting
-      x-sync-edge: console-bff->evidence-svc
       x-timeout: 3000
       x-error-codes: []
       x-requirements: [INV-REQ-988, INV-REQ-989]
@@ -592,7 +583,6 @@ paths:
         range (INV-NOTE-3 §21.2 raising points; INV-REQ-662).
       tags: [retention]
       x-principal: filing-workflow
-      x-sync-edge: console-bff->evidence-svc
       x-timeout: 10000
       x-error-codes: [DEP-007]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-1011, INV-REQ-639, INV-REQ-662]
@@ -639,7 +629,6 @@ paths:
         case mechanism as the privacy cases `getCase` reads.
       tags: [privacy]
       x-principal: filing-workflow
-      x-sync-edge: console-bff->evidence-svc
       x-timeout: 5000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-880]
@@ -712,7 +701,6 @@ paths:
         "retention … commands"; INV-NOTE-7 §7 SCR-30.4, NFR-S.5, VP-43).
       tags: [retention]
       x-principal: filing-workflow
-      x-sync-edge: console-bff->evidence-svc
       x-timeout: 5000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010]

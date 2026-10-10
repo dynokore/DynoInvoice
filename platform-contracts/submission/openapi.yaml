@@ -292,7 +292,6 @@ paths:
         T14).
       tags: [transactions]
       x-principal: filing-workflow
-      x-sync-edge: console-bff->submission-svc
       x-timeout: 5000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-568, INV-REQ-581]
@@ -345,7 +344,6 @@ paths:
         grant (INV-T-2858, T14).
       tags: [transactions]
       x-principal: filing-workflow
-      x-sync-edge: console-bff->submission-svc
       x-timeout: 5000
       x-error-codes: [SUB-008]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-575]

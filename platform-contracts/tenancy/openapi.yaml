@@ -35,7 +35,6 @@ paths:
       tags:
       - entities
       x-principal: filing-workflow
-      x-sync-edge: console-bff->tenancy-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -96,7 +95,6 @@ paths:
       tags:
       - entities
       x-principal: filing-workflow
-      x-sync-edge: console-bff->tenancy-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -160,7 +158,6 @@ paths:
       tags:
       - entities
       x-principal: filing-workflow
-      x-sync-edge: console-bff->tenancy-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -226,7 +223,6 @@ paths:
       tags:
       - entities
       x-principal: filing-workflow
-      x-sync-edge: console-bff->tenancy-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -293,7 +289,6 @@ paths:
       tags:
       - entities
       x-principal: filing-workflow
-      x-sync-edge: console-bff->tenancy-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -357,7 +352,6 @@ paths:
       tags:
       - entities
       x-principal: filing-workflow
-      x-sync-edge: console-bff->tenancy-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -426,7 +420,6 @@ paths:
       tags:
       - tenants
       x-principal: filing-workflow
-      x-sync-edge: console-bff->tenancy-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -494,7 +487,6 @@ paths:
       tags:
       - entities
       x-principal: filing-workflow
-      x-sync-edge: console-bff->tenancy-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -559,7 +551,6 @@ paths:
       tags:
       - periods
       x-principal: filing-workflow
-      x-sync-edge: console-bff->tenancy-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -626,7 +617,6 @@ paths:
       tags:
       - workspaces
       x-principal: filing-workflow
-      x-sync-edge: console-bff->tenancy-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -685,7 +675,6 @@ paths:
       tags:
       - workspaces
       x-principal: filing-workflow
-      x-sync-edge: console-bff->tenancy-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -728,7 +717,6 @@ paths:
       tags:
       - entities
       x-principal: filing-workflow
-      x-sync-edge: console-bff->tenancy-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -794,7 +782,6 @@ paths:
       tags:
       - installation
       x-principal: filing-workflow
-      x-sync-edge: console-bff->tenancy-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -851,7 +838,6 @@ paths:
       tags:
       - entities
       x-principal: filing-workflow
-      x-sync-edge: console-bff->tenancy-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -917,7 +903,6 @@ paths:
       tags:
       - periods
       x-principal: filing-workflow
-      x-sync-edge: console-bff->tenancy-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -990,7 +975,6 @@ paths:
       tags:
       - entities
       x-principal: filing-workflow
-      x-sync-edge: console-bff->tenancy-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -1055,7 +1039,6 @@ paths:
       tags:
       - entities
       x-principal: filing-workflow
-      x-sync-edge: console-bff->tenancy-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -1120,7 +1103,6 @@ paths:
       tags:
       - entities
       x-principal: filing-workflow
-      x-sync-edge: console-bff->tenancy-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
