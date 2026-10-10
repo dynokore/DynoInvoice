@@ -33,13 +33,13 @@ its first commit. A service's own team replaces the placeholder with its
 real operations and events as each lands — this scaffold does not gate that
 on anything.
 
-**The pre-existing `api/`, `errors/` (the shared error envelope schema),
-`event-log/`, `events/` and `lifecycle/` directories are unchanged** — they
-predate the OW1 decision this task implements and are out of its declared
-scope. Migrating their content into the relevant service directories (and
-`service-runtime/` for what is genuinely shared) is a follow-up, named here
-rather than done silently. `catalogue/` is no longer one of these
-unchanged directories: INV-T-2851 (T7) built it (see below).
+**Pre-OW1 directories.** `api/`, `errors/`, `events/` and `lifecycle/` were
+README-only stubs that predate the OW1 decision; they were removed in the
+INV-T-2850 cleanup (their content already lives per service, in
+`service-runtime/` for the shared error and event envelopes, and in
+`submission/schemas/lifecycle-states.schema.json`). `event-log/` stays: it holds
+the generated topic definitions (INV-T-2855). `catalogue/` is built by
+INV-T-2851 (T7), see below.
 
 ## `gst-catalogue` (INV-T-2851, INV-T-2852)
 

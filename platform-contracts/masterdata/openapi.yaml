@@ -17,9 +17,10 @@ info:
     (`canonical-svc -> masterdata-svc`, `payload-svc -> masterdata-svc`); the
     rest are the remediation, import and request commands services.yaml's
     masterdata-svc entry lists under `provides`, reached only through
-    console-bff on a person's behalf (API-25 — the callee re-checks writes),
-    except `submitCounterpartyDetails`, reached by the `counterparty` actor
-    through a signed link (§34.9). Counterparty-list, gap-report, connection
+    console-bff on a person's behalf (API-25 — the callee re-checks writes);
+    `submitCounterpartyDetails` is also reached through console-bff, which
+    serves the signed-link page (§34.9) the `counterparty` actor opens and
+    calls it. Counterparty-list, gap-report, connection
     and directory-lookup reads are not named in that `provides` line, so
     they stay out of this file's declared scope.
   contact:
@@ -349,9 +350,10 @@ paths:
       operationId: submitCounterpartyDetails
       summary: A counterparty submits its own details through a valid signed link
       description: >-
-        Request command, reached by the `counterparty` actor through its
-        signed link, not through console-bff (services.yaml masterdata-svc
-        `provides`; SCR-35.2, FR-AF.24). Values are stored with
+        Request command. The `counterparty` actor opens its signed link on
+        the page console-bff serves, and console-bff calls this operation
+        (services.yaml masterdata-svc `provides`, console-bff `provides` the
+        signed-link pages; SCR-35.2, FR-AF.24). Values are stored with
         `providedBy = COUNTERPARTY` and the evidence reference (FR-1.5,
         FR-AF.24) and flow through `MasterDataResolved`, which auto-releases
         held documents.
