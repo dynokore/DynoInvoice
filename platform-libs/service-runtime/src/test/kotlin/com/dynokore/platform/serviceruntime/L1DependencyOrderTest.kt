@@ -73,8 +73,7 @@ class L1DependencyOrderTest {
         assertThrows(Throwable::class.java) { assertOrder(dir) }
     }
 
-    private fun assertOrder(dir: File) =
-        ArchitectureRules.assertL1DependencyOrder(scope = Konsist.scopeFromExternalDirectory(dir.absolutePath))
+    private fun assertOrder(dir: File) = ArchitectureRules.assertL1DependencyOrder(scope = Konsist.scopeFromExternalDirectory(dir.absolutePath))
 
     private fun importing(
         from: String,
