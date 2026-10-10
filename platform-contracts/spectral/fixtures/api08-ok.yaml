@@ -1,0 +1,13 @@
+# Fixture for self-test-sync-edge-rule.sh (ok).
+openapi: 3.1.0
+info: {title: fixture, version: 1.0.0}
+paths:
+  /internal/v1/ingestion/feeds:
+    get:
+      operationId: listFeeds
+      x-sync-edge: console-bff->ingestion-svc
+      responses: {"200": {description: ok}}
+  /v1/ingestion/public:
+    get:
+      operationId: publicOp
+      responses: {"200": {description: ok}}

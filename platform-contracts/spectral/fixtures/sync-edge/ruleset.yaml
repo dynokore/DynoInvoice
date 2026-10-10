@@ -1,0 +1,7 @@
+# Fixture ruleset: only the API-08 exemption block matters to check-sync-edges.py.
+overrides:
+  - files:
+      - "pass/access/openapi.yaml#/paths/~1internal~1v1~1access~1authorise/get"
+      - "stale-exemption/access/openapi.yaml#/paths/~1internal~1v1~1access~1authorise/get"
+    rules:
+      inv-api-08-x-sync-edge: "off"

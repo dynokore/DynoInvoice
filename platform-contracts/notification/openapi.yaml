@@ -71,6 +71,7 @@ paths:
         separately by the coordinator.
       tags: [policies]
       x-principal: filing-workflow
+      x-sync-edge: console-bff->notification-svc
       x-timeout: 5000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-1113, INV-REQ-1114, INV-REQ-1115, INV-REQ-1117]
@@ -138,6 +139,7 @@ paths:
       description: Policy commands' read side (services.yaml notification-svc `provides`, "Policy … commands"); FR-AE.67.
       tags: [policies]
       x-principal: reporting
+      x-sync-edge: console-bff->notification-svc
       x-timeout: 3000
       x-error-codes: []
       x-requirements: [INV-REQ-1113]
@@ -177,6 +179,7 @@ paths:
         read.
       tags: [webhooks]
       x-principal: filing-workflow
+      x-sync-edge: console-bff->notification-svc
       x-timeout: 5000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010]
@@ -246,6 +249,7 @@ paths:
       description: Subscription commands' read side (services.yaml notification-svc `provides`, "subscription … commands").
       tags: [webhooks]
       x-principal: reporting
+      x-sync-edge: console-bff->notification-svc
       x-timeout: 3000
       x-error-codes: []
       x-requirements: []
@@ -283,6 +287,7 @@ paths:
       description: Subscription commands (services.yaml notification-svc `provides`).
       tags: [webhooks]
       x-principal: filing-workflow
+      x-sync-edge: console-bff->notification-svc
       x-timeout: 5000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010]
@@ -306,6 +311,7 @@ paths:
       description: Subscription commands (services.yaml notification-svc `provides`, "secret rotation", §35.6).
       tags: [webhooks]
       x-principal: filing-workflow
+      x-sync-edge: console-bff->notification-svc
       x-timeout: 5000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010]
@@ -339,6 +345,7 @@ paths:
       description: Delivery-status queries (services.yaml notification-svc `provides`).
       tags: [deliveries]
       x-principal: reporting
+      x-sync-edge: console-bff->notification-svc
       x-timeout: 3000
       x-error-codes: []
       x-requirements: []
@@ -397,6 +404,7 @@ paths:
         §35.6).
       tags: [webhooks]
       x-principal: filing-workflow
+      x-sync-edge: console-bff->notification-svc
       x-timeout: 5000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010]
@@ -437,6 +445,7 @@ paths:
         Never carries invoice content (notification-svc `must_not`).
       tags: [deliveries]
       x-principal: reporting
+      x-sync-edge: console-bff->notification-svc
       x-timeout: 3000
       x-error-codes: []
       x-requirements: []

@@ -19,6 +19,14 @@ holding:
     invalid/*.json   samples that MUST fail validation
 
 Usage: validate-schema-samples.py <schema.json> <samples-dir> [<schema.json> <samples-dir> ...]
+       validate-schema-samples.py --discover <root>
+
+--discover (INV-T-2850 follow-up, API-04): for every <root>/<service>/examples
+directory holding valid/ or invalid/, read <service>/examples/schema.txt (one
+line: the schema file, relative to <service>/examples) and run that pair. A
+samples directory without schema.txt, or naming a missing schema, fails. This
+covers every service's examples/ without listing each one in CI.
+
 Exits 0 if every valid sample passes and every invalid sample fails; 1 otherwise.
 """
 from __future__ import annotations
@@ -76,6 +84,10 @@ def _check(instance, schema: dict, root: dict, path: str) -> None:
     elif t == "array":
         if not isinstance(instance, list):
             raise Invalid(f"{path}: expected array, got {type(instance).__name__}")
+        if "minItems" in schema and len(instance) < schema["minItems"]:
+            raise Invalid(f"{path}: fewer than minItems {schema['minItems']}")
+        if "maxItems" in schema and len(instance) > schema["maxItems"]:
+            raise Invalid(f"{path}: more than maxItems {schema['maxItems']}")
         items = schema.get("items")
         if items is not None:
             for i, el in enumerate(instance):
@@ -85,6 +97,8 @@ def _check(instance, schema: dict, root: dict, path: str) -> None:
             raise Invalid(f"{path}: expected string, got {type(instance).__name__}")
         if "minLength" in schema and len(instance) < schema["minLength"]:
             raise Invalid(f"{path}: shorter than minLength {schema['minLength']}")
+        if "maxLength" in schema and len(instance) > schema["maxLength"]:
+            raise Invalid(f"{path}: longer than maxLength {schema['maxLength']}")
         if "pattern" in schema and not re.match(schema["pattern"], instance):
             raise Invalid(f"{path}: {instance!r} does not match pattern {schema['pattern']!r}")
         fmt = schema.get("format")
@@ -127,7 +141,32 @@ def run_dir(schema_path: Path, samples_dir: Path) -> list[str]:
     return failures
 
 
+def discover(root: Path) -> list[tuple[Path, Path]] | str:
+    """(schema, examples-dir) for every <root>/*/examples; an error string if one is unusable."""
+    pairs = []
+    for ex in sorted(root.glob("*/examples")):
+        if not ((ex / "valid").is_dir() or (ex / "invalid").is_dir()):
+            continue
+        decl = ex / "schema.txt"
+        if not decl.is_file():
+            return f"{ex} has valid/ or invalid/ samples but no schema.txt naming the schema they test"
+        schema = (ex / decl.read_text().strip()).resolve()
+        if not schema.is_file():
+            return f"{decl} names {schema}, which does not exist"
+        pairs.append((schema, ex))
+    return pairs
+
+
 def main(argv: list[str]) -> int:
+    if len(argv) == 3 and argv[1] == "--discover":
+        found = discover(Path(argv[2]))
+        if isinstance(found, str):
+            print(f"gst-ci: {found}")
+            return 1
+        if not found:
+            print(f"gst-ci: --discover found no <service>/examples directory under {argv[2]}")
+            return 1
+        argv = [argv[0]] + [str(x) for pair in found for x in pair]
     if len(argv) < 3 or len(argv) % 2 != 1:
         print(__doc__)
         return 2

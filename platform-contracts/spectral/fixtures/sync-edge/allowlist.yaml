@@ -1,0 +1,4 @@
+# Fixture allowlist for self-test-sync-edges.sh (same shape as invoice-docs sync-edges.yaml).
+edges:
+- {caller: console-bff, callee: ingestion-svc, kind: console, why: fixture}
+- {caller: canonical-svc, callee: masterdata-svc, kind: domain, why: fixture}

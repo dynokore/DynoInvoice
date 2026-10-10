@@ -150,6 +150,7 @@ paths:
         own view (INV-REQ-1168) — never a fan-out at request time.
       tags: [documents]
       x-principal: reporting
+      x-sync-edge: console-bff->canonical-svc
       x-timeout: 2000
       x-error-codes: []
       x-requirements: [INV-REQ-1168]
@@ -183,6 +184,7 @@ paths:
         each version is its own immutable record (canonical-svc `must_not`).
       tags: [documents]
       x-principal: reporting
+      x-sync-edge: console-bff->canonical-svc
       x-timeout: 2000
       x-error-codes: []
       x-requirements: [INV-REQ-1168]

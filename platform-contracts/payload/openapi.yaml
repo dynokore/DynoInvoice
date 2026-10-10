@@ -160,6 +160,7 @@ paths:
       description: Payload query API to console-bff (services.yaml payload-svc `provides`; INV-REQ-1168).
       tags: [queries]
       x-principal: reporting
+      x-sync-edge: console-bff->payload-svc
       x-timeout: 2000
       x-error-codes: []
       x-requirements: [INV-REQ-1168]
@@ -198,6 +199,7 @@ paths:
         (FR-E.10).
       tags: [queries]
       x-principal: reporting
+      x-sync-edge: console-bff->payload-svc
       x-timeout: 2000
       x-error-codes: []
       x-requirements: [INV-REQ-1168]
@@ -232,6 +234,7 @@ paths:
         safe as a `GET`.
       tags: [queries]
       x-principal: reporting
+      x-sync-edge: console-bff->payload-svc
       x-timeout: 2000
       x-error-codes: []
       x-requirements: [INV-REQ-1168]

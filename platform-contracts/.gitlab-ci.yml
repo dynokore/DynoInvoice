@@ -222,6 +222,55 @@ schema-sample-validation:
       python3 spectral/validate-schema-samples.py
       service-runtime/schemas/cloud-event-envelope.schema.json spectral/fixtures/schema-samples/cloud-event-envelope
       service-runtime/schemas/error-envelope.schema.json spectral/fixtures/schema-samples/error-envelope
+    # INV-T-2850 follow-up (API-04): every service's examples/valid must pass and
+    # examples/invalid must fail the schema named in <service>/examples/schema.txt.
+    - python3 spectral/validate-schema-samples.py --discover .
+
+sync-edge-allowlist-check:
+  # INV-T-2850 follow-up (API-08): every x-sync-edge of every service's openapi.yaml
+  # is an edge of invoice-docs model/architecture/sync-edges.yaml, its callee is the
+  # owning service, and every /internal/v1 operation has one (or is a listed
+  # architecture-gap exemption in spectral/ruleset.yaml). The allowlist is read
+  # from invoice-docs main on every run (never vendored, so it cannot go stale);
+  # a clone with gitlab-ci-token:$CI_JOB_TOKEN, as lifecycle-states-drift-check does.
+  stage: verify
+  image:
+    name: "$OASDIFF_IMAGE"
+    entrypoint: [""]
+  before_script:
+    - apk add --no-cache python3 py3-yaml git
+  script:
+    - >
+      git clone --depth 1
+      "${CI_SERVER_PROTOCOL}://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}:${CI_SERVER_PORT}/invoice/invoice-docs.git"
+      /tmp/invoice-docs
+    - >
+      echo "gst-ci: sync-edges.yaml from invoice-docs $(git -C /tmp/invoice-docs rev-parse --short HEAD)"
+    - >
+      python3 spectral/check-sync-edges.py
+      /tmp/invoice-docs/model/architecture/sync-edges.yaml spectral/ruleset.yaml .
+
+contract-check-self-tests:
+  # INV-T-2850 follow-up (lesson P20): proves the API-08 allowlist check and the
+  # examples check fire (negative fixtures under spectral/fixtures/).
+  stage: verify
+  image:
+    name: "$OASDIFF_IMAGE"
+    entrypoint: [""]
+  before_script:
+    - apk add --no-cache python3 py3-yaml
+  script:
+    - sh spectral/self-test-sync-edges.sh
+    - sh spectral/self-test-schema-samples.sh
+
+sync-edge-rule-self-test:
+  # INV-T-2850 follow-up (lesson P20): proves Spectral rule inv-api-08-x-sync-edge fires.
+  stage: verify
+  image:
+    name: "$SPECTRAL_IMAGE"
+    entrypoint: [""]
+  script:
+    - sh spectral/self-test-sync-edge-rule.sh
 
 lifecycle-states-drift-check:
   # INV-T-2859 (T15) — "generated from model/architecture/lifecycle-states.yaml;
@@ -348,7 +397,7 @@ contracts-codegen-compile:
   stage: verify
   image: "$GRADLE_IMAGE"
   variables:
-    PLATFORM_BUILD_REF: "3dde4ae8ce1cbb905413124de2ba84e5d59dce42" # main: adds gst.contract-server/-client/-event-types (INV-T-2847) + its CVE/signature-verification follow-ups
+    PLATFORM_BUILD_REF: "218934eae564ed643a48209d6b40f644402ac7ba" # main: adds gst.contract-server/-client/-event-types (INV-T-2847) + its CVE/signature-verification follow-ups; MR !6 & !7 fix failing modules
   cache:
     key: "gradle-codegen-self-test-$CI_PROJECT_ID"
     paths:
