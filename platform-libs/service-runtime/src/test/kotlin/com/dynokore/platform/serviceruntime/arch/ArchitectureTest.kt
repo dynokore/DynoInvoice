@@ -9,9 +9,13 @@ import org.junit.jupiter.api.io.TempDir
 import java.io.File
 
 /**
- * STK-41 architecture test: service-runtime uses no other L1 module (§18.9;
- * this module is first in `L1_MODULE_ORDER`, so nothing is "before" it), on this
- * module's own sources.
+ * STK-41 architecture test, on this module's own sources. service-runtime is the
+ * L1 composition root (INV-MOD-2371): it may use the other L1 modules its service
+ * embeds, and none may use it. T29 (INV-T-2873) uses exactly one, tenancy-kernel's
+ * `TenantId` (the replicas are tenant-keyed), so that is the one allowed import
+ * here; any other L1 module still fails until a task needs it and names it.
+ * (This replaces the provisional "uses no other L1 module" reading, which
+ * konsist-rules 0.2.0's inverted order encoded; platform-build 0.5.0 corrects it.)
  *
  * The same `Konsist.scopeFromModule` pattern adapter-runtime's own
  * `ArchitectureTest` fixed to (INV-T-2862 follow-up, review must-fix on
@@ -26,7 +30,6 @@ class ArchitectureTest {
         listOf(
             "outboxandqueue",
             "rulepackkernel",
-            "tenancykernel",
             "evidencestore",
             "adapterruntime",
             "configresolver",
@@ -40,7 +43,7 @@ class ArchitectureTest {
     }
 
     @Test
-    fun `service-runtime imports no other L1 module`() {
+    fun `service-runtime imports no L1 module beyond tenancy-kernel`() {
         assertNoOtherL1Import(
             Konsist.scopeFromModule("service-runtime", "main", "impl", "test", "implTest"),
         )
@@ -53,13 +56,13 @@ class ArchitectureTest {
      * `ArchitectureTest` use for theirs.
      */
     @Test
-    fun `would fail if service-runtime imported another L1 module`(
+    fun `would fail if service-runtime imported an L1 module beyond tenancy-kernel`(
         @TempDir dir: File,
     ) {
         val offender = File(dir, "Offender.kt")
         offender.writeText(
             "package com.dynokore.platform.serviceruntime\n" +
-                "import com.dynokore.platform.tenancykernel.Stub\n" +
+                "import com.dynokore.platform.evidencestore.Stub\n" +
                 "class Offender(val s: Stub)\n",
         )
 

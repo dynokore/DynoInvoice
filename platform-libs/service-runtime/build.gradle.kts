@@ -58,6 +58,12 @@ sourceSets {
 }
 
 dependencies {
+    // INV-T-2873 / T29: the replicas are keyed by tenancy-kernel's `TenantId`. service-runtime
+    // is the L1 composition root (INV-MOD-2371): it may use the other L1 modules, none may use it.
+    api(project(":tenancy-kernel"))
+    add("implImplementation", project(":tenancy-kernel"))
+    add("implTestImplementation", project(":tenancy-kernel"))
+
     // The impl half compiles and runs against the api half's output, in this
     // same project (Gradle's own idiom for a second source set that extends
     // `main`, e.g. `testImplementation(sourceSets.main.get().output)`).

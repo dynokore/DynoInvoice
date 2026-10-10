@@ -6,6 +6,27 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-11
+### Added
+- The replica mechanism (INV-REQ-1199, INV-ADR-284; INV-T-2873 / T29), package `replica`:
+  - `EventFedReplica`: a generic event-fed local replica with lag measured by
+    `ReplicaLagTracker` from the source's monotonic version, an optional lag
+    bound, a fallback call to the owning service, cache-miss fill, and
+    serve-last-known when the fallback is down. Held in memory; a restart refills.
+  - `StructureReplica` (INV-REQ-1200): `OrganisationStructureChanged` and
+    `EntityProfileChanged`; a miss is filled from `tenancy-svc`.
+  - `AuthorityReplica` (INV-REQ-1201): `AuthorityChanged`; a decision is local at
+    lag of at most one second, else one call to `access-svc`; when both fail
+    humans and consent-derived agents are denied and machine flows continue.
+  - `PolicyReplica` (INV-REQ-1241): `PolicyChanged`, effective-dated, read from the
+    most specific scope; event-only, no fallback call.
+  - `ReplicaAutoConfiguration`: wires the three; fallbacks run through the
+    `tenancy-svc` and `access-svc` resilience edges (500 ms, one retry).
+### Changed
+- service-runtime now depends on `tenancy-kernel`'s `TenantId`: it is the L1
+  composition root and may use the other L1 modules (INV-MOD-2371). Its
+  `ArchitectureTest` allows that one import and still refuses the others.
+
 ## [1.1.0] - 2026-09-27
 ### Added
 - ARC-08/STK-24's `ResilienceRegistry` (INV-REQ-1204): one `ResilientEdge` per
