@@ -70,7 +70,11 @@ class OverrideRefusalTest {
     fun `a policy can only tighten tax approver and never widen it`() {
         assertThrows(IllegalArgumentException::class.java) { OverridePolicy(setOf(" ")) }
         val tighter = OverridePolicy(setOf("second.signoff"))
-        fun reason(roles: Set<String>) = assertThrows(OverrideRefused::class.java) { service(tighter).override(command(roles = roles)) }.reason
+        fun reason(roles: Set<String>): RefusalReason {
+            val attempt = command(roles = roles)
+            val refused = assertThrows(OverrideRefused::class.java) { service(tighter).override(attempt) }
+            return refused.reason
+        }
         // tax.approver alone no longer suffices; another role alone never does.
         assertEquals(RefusalReason.ROLE_NOT_AUTHORISED, reason(setOf("tax.approver")))
         assertEquals(RefusalReason.ROLE_NOT_AUTHORISED, reason(setOf("second.signoff")))
