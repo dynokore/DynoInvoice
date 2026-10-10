@@ -33,16 +33,11 @@ The shared modules of the INV platform: the L1 modules, the L2 modules and the L
 
 ## Building locally
 
-`platform-build`'s `gst.*` convention plugins and its shared Konsist rule set
-are not published to a registry yet, so `settings.gradle.kts` consumes them
-from a **sibling checkout**: it expects `platform-build` checked out next to
-this repository, at `../platform-build` (the same layout `~/projects/invoice/`
-already uses). Clone it there before running `./gradlew` locally:
+`platform-build`'s `gst.*` convention plugins and its shared Konsist rule set are
+consumed as published artefacts from its package registry (project 225), at the
+`platformBuild` version in `gradle/libs.versions.toml`. CI authenticates with the job
+token. Locally, export a personal access token with `read_api` before running `./gradlew`:
 
 ```sh
-git clone http://registry.example.internal/invoice/platform-build.git ../platform-build
+export GST_REGISTRY_TOKEN=<your token>
 ```
-
-CI does the equivalent clone itself (`.gitlab-ci.yml`), so this is only needed
-for a local build. Once `platform-build`'s registry publishing lands, this
-requirement goes away.

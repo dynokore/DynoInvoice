@@ -1,25 +1,37 @@
 // settings.gradle.kts — STK-04, STK-60 (INV-T-2860 / T16).
 //
-// The `gst.*` convention plugins (`gst.kotlin-base`, `gst.library`, STK-59) and the
-// shared Konsist rule set (`konsist-rules`, INV-T-2846) are not published to a
-// registry yet — platform-build's own README says "design only" and its own
-// settings.gradle.kts consumes `build-logic` the same way: `pluginManagement {
-// includeBuild(...) }` against a sibling checkout, not a Maven repository entry.
-// This repository does the same against a sibling checkout of `platform-build`
-// itself (named in the MR as the chosen consumption method, per the coordinator's
-// brief). CI clones that sibling first (`.gitlab-ci.yml`); a local build needs
-// `platform-build` checked out next to this repository (`../platform-build`), the
-// same layout `~/projects/invoice/` already uses.
-//
-// Replace this with a `maven { url = ... }` plugin repository and a regular
-// version-catalogue dependency once STK-71's registry accepts cross-project
-// publish/consume (ci/README.md's "package registry" note names the same gap for
-// publishing) — a provisional default, not a fork of the convention (AGT-04).
+// The `gst.*` convention plugins (`gst.library`, STK-59) and platform-build's shared Konsist rule
+// set (`konsist-rules`) are consumed as PUBLISHED artefacts of platform-build, from its package
+// registry (project 225), at the catalogue's `platformBuild` version: a build never floats to an
+// unreleased platform-build (P11). In CI the job token reads the registry (platform-build's
+// inbound token allowlist includes the `invoice` group); locally export GST_REGISTRY_TOKEN, a
+// personal access token with read_api. The LAN registry has no TLS (a Wave 5 item), so http is
+// opted into for that one host only. The two blocks below repeat the repository because
+// `pluginManagement` is evaluated before any script-level declaration.
 pluginManagement {
-    includeBuild("../platform-build/build-logic")
+    val platformBuildVersion =
+        Regex("""(?m)^platformBuild\s*=\s*"([^"]+)"""")
+            .find(settings.settingsDir.resolve("gradle/libs.versions.toml").readText())
+            ?.groupValues
+            ?.get(1)
+            ?: error("gradle/libs.versions.toml has no platformBuild version")
     repositories {
+        maven {
+            name = "platformBuildRegistry"
+            url = uri("http://registry.example.internal/api/v4/projects/225/packages/maven")
+            isAllowInsecureProtocol = url.scheme == "http" && url.host == "registry.example.internal"
+            val jobToken = System.getenv("CI_JOB_TOKEN")
+            credentials(HttpHeaderCredentials::class) {
+                name = if (jobToken != null) "Job-Token" else "Private-Token"
+                value = jobToken ?: System.getenv("GST_REGISTRY_TOKEN") ?: ""
+            }
+            authentication { create<HttpHeaderAuthentication>("header") }
+        }
         gradlePluginPortal()
         mavenCentral()
+    }
+    plugins {
+        id("gst.library") version platformBuildVersion
     }
 }
 
@@ -29,17 +41,21 @@ plugins {
 
 dependencyResolutionManagement {
     repositories {
+        maven {
+            name = "platformBuildRegistry"
+            url = uri("http://registry.example.internal/api/v4/projects/225/packages/maven")
+            isAllowInsecureProtocol = url.scheme == "http" && url.host == "registry.example.internal"
+            val jobToken = System.getenv("CI_JOB_TOKEN")
+            credentials(HttpHeaderCredentials::class) {
+                name = if (jobToken != null) "Job-Token" else "Private-Token"
+                value = jobToken ?: System.getenv("GST_REGISTRY_TOKEN") ?: ""
+            }
+            authentication { create<HttpHeaderAuthentication>("header") }
+            content { includeGroup("com.dynokore.gst.build") } // konsist-rules only
+        }
         mavenCentral()
     }
 }
-
-// The whole `platform-build` repository, included as a composite build (the same
-// technique `build-logic`'s own functional tests use on themselves,
-// `ArchitectureRulesFunctionalTest.kt`), so Gradle substitutes the real
-// `:konsist-rules` project for the `com.dynokore.gst.build:konsist-rules`
-// coordinate that `platform-libs-bom`'s test sources declare (`testImplementation`)
-// — the shared Konsist architecture rule set, not published either.
-includeBuild("../platform-build")
 
 rootProject.name = "platform-libs"
 

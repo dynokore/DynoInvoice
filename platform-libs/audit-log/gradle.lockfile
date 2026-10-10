@@ -2,7 +2,7 @@
 # Manual edits can break the build and are not advised.
 # This file is expected to be part of source control.
 # To regenerate this file, run: ./gradlew :audit-log:dependencies --write-locks
-com.fasterxml.jackson.core:jackson-annotations:2.22=implCompileClasspath,testCompileClasspath,testRuntimeClasspath
+com.fasterxml.jackson.core:jackson-annotations:2.22=implCompileClasspath,implRuntimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.github.ben-manes.caffeine:caffeine:2.9.3=detekt
 com.github.docker-java:docker-java-api:3.4.2=testCompileClasspath,testRuntimeClasspath
 com.github.docker-java:docker-java-transport-zerodep:3.4.2=testCompileClasspath,testRuntimeClasspath
@@ -111,7 +111,7 @@ org.testcontainers:database-commons:1.21.4=testCompileClasspath,testRuntimeClass
 org.testcontainers:jdbc:1.21.4=testCompileClasspath,testRuntimeClasspath
 org.testcontainers:postgresql:1.21.4=testCompileClasspath,testRuntimeClasspath
 org.testcontainers:testcontainers:1.21.4=testCompileClasspath,testRuntimeClasspath
-tools.jackson.core:jackson-core:3.2.3=implCompileClasspath,testCompileClasspath,testRuntimeClasspath
-tools.jackson.core:jackson-databind:3.2.3=implCompileClasspath,testCompileClasspath,testRuntimeClasspath
-tools.jackson:jackson-bom:3.2.3=implCompileClasspath,testCompileClasspath,testRuntimeClasspath
+tools.jackson.core:jackson-core:3.2.3=implCompileClasspath,implRuntimeClasspath,testCompileClasspath,testRuntimeClasspath
+tools.jackson.core:jackson-databind:3.2.3=implCompileClasspath,implRuntimeClasspath,testCompileClasspath,testRuntimeClasspath
+tools.jackson:jackson-bom:3.2.3=implCompileClasspath,implRuntimeClasspath,testCompileClasspath,testRuntimeClasspath
 empty=annotationProcessor,detektPlugins,implAnnotationProcessor,implImplementationDependenciesMetadata,implKotlinScriptDefExtensions,implementationDependenciesMetadata,kotlinCompilerPluginClasspath,kotlinNativeCompilerPluginClasspath,kotlinScriptDefExtensions,testAnnotationProcessor,testImplementationDependenciesMetadata,testKotlinScriptDefExtensions

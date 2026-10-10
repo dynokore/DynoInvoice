@@ -3,19 +3,13 @@
 # Uses platform-build's shared CI templates (ci/README.md). Two additions on top
 # of the plain include:
 #
-# 1. `platform-build`'s convention plugins and shared Konsist rule set are not
-#    published to a registry yet (ci/README.md's "package registry" note), so
-#    every Gradle-backed job needs a sibling checkout of `platform-build` at
-#    `../platform-build` — what `settings.gradle.kts`'s `pluginManagement.includeBuild`
-#    and `includeBuild` expect (named in the MR as the chosen consumption
-#    method). `.gst-sibling-checkout` clones it once per job, replacing
-#    `.gradle-job`'s own `before_script` (ci/stages.gitlab-ci.yml) with one that
-#    clones first and then defines the same `gst_run_if_task_exists` helper.
-#    This clone needs invoice/platform-build's CI/CD "Token Access" allowlist to
-#    include invoice/platform-libs — the same Maintainer action ci/README.md
-#    already names as a follow-up for cross-project Maven publish; until it is
-#    granted, these jobs fail at the clone step with a clear message (AGT-24),
-#    not silently.
+# 1. `platform-build`'s convention plugins and shared Konsist rule set are consumed as
+#    published artefacts from platform-build's package registry (project 225) at the
+#    catalogue's `platformBuild` version, by `settings.gradle.kts` with the job token (no
+#    sibling checkout, so a build cannot float to an unreleased platform-build, P11).
+#    `.gst-changed-modules` replaces `.gradle-job`'s own `before_script`
+#    (ci/stages.gitlab-ci.yml) to define the same `gst_run_if_task_exists` helper, print
+#    the registry read check and compute the changed-module set.
 #
 # 2. A `build-changed-modules` job (done-when, INV-T-2860): computes the modules
 #    this change touches plus every module downstream of them (a module whose
@@ -39,21 +33,16 @@ variables:
   # IMAGE_NAME, HELM_CHART_NAME stay unset: platform-libs ships jars, not a
   # bootable service or a Helm chart.
 
-.gst-sibling-checkout:
+.gst-changed-modules:
   before_script:
     - |
-      PB_URL="${CI_SERVER_PROTOCOL}://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}:${CI_SERVER_PORT}/invoice/platform-build.git"
-      if [ ! -d "../platform-build/.git" ]; then
-        echo "gst-ci: cloning invoice/platform-build (sibling checkout for pluginManagement.includeBuild, settings.gradle.kts)"
-        git clone --depth 1 --branch main "$PB_URL" ../platform-build
-      else
-        # The runner keeps ../platform-build between jobs: a stale checkout silently ran the
-        # pre-0.5.0 L1 rule. Always move it to the current main (explicit URL: the stored
-        # remote holds an expired job token).
-        echo "gst-ci: updating the existing platform-build sibling checkout to main"
-        git -C ../platform-build fetch --depth 1 "$PB_URL" main
-        git -C ../platform-build checkout --force FETCH_HEAD
-      fi
+      # P6 proof that CI reads platform-build's registry with the job token: the platformBuild
+      # version's konsist-rules pom must answer 200 (the Gradle resolution below needs it too).
+      pb_version="$(sed -n 's/^platformBuild *= *"\(.*\)"/\1/p' gradle/libs.versions.toml)"
+      code=$(curl -s -o /dev/null -w '%{http_code}' --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
+        "${CI_API_V4_URL}/projects/225/packages/maven/com/dynokore/gst/build/konsist-rules/${pb_version}/konsist-rules-${pb_version}.pom")
+      echo "gst-ci: platform-build registry read, konsist-rules ${pb_version}: HTTP ${code}"
+      test "$code" = "200"
     - |
       gst_run_if_task_exists() {
         task_name="$1"; shift
@@ -127,7 +116,7 @@ variables:
       }
 
 compile:
-  extends: [.gradle-job, .gst-sibling-checkout]
+  extends: [.gradle-job, .gst-changed-modules]
   stage: build
   script:
     - MODULES="$(gst_changed_downstream_modules)"
@@ -142,7 +131,7 @@ compile:
       fi
 
 unit-test:
-  extends: [.gradle-job, .gst-sibling-checkout]
+  extends: [.gradle-job, .gst-changed-modules]
   stage: test
   script:
     - MODULES="$(gst_changed_downstream_modules)"
@@ -177,7 +166,7 @@ unit-test:
     expire_in: 1 week
 
 lint:
-  extends: [.gradle-job, .gst-sibling-checkout]
+  extends: [.gradle-job, .gst-changed-modules]
   stage: verify
   script:
     - gst_run_if_task_exists spotlessCheck --stacktrace
@@ -194,7 +183,7 @@ lint:
 # shared template's script is replaced on purpose: it uses `gst_run_if_task_exists`,
 # which silently skips when there is nothing to publish (P20/P28).
 maven-publish:
-  extends: [.gradle-job, .gst-sibling-checkout]
+  extends: [.gradle-job, .gst-changed-modules]
   variables:
     MAVEN_REGISTRY_PROJECT_ID: "$CI_PROJECT_ID"
   script:
