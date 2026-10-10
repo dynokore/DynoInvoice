@@ -33,6 +33,7 @@ paths:
       tags:
       - packs
       x-principal: filing-workflow
+      x-sync-edge: console-bff->control-plane-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -91,6 +92,7 @@ paths:
       tags:
       - packs
       x-principal: filing-workflow
+      x-sync-edge: console-bff->control-plane-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -157,6 +159,7 @@ paths:
       tags:
       - packs
       x-principal: filing-workflow
+      x-sync-edge: console-bff->control-plane-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -213,6 +216,7 @@ paths:
       tags:
       - releases
       x-principal: filing-workflow
+      x-sync-edge: console-bff->control-plane-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -268,6 +272,7 @@ paths:
       tags:
       - releases
       x-principal: filing-workflow
+      x-sync-edge: console-bff->control-plane-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -326,6 +331,7 @@ paths:
       tags:
       - commercial
       x-principal: filing-workflow
+      x-sync-edge: console-bff->control-plane-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -386,6 +392,7 @@ paths:
       tags:
       - commercial
       x-principal: filing-workflow
+      x-sync-edge: console-bff->control-plane-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -442,6 +449,7 @@ paths:
       tags:
       - commercial
       x-principal: filing-workflow
+      x-sync-edge: console-bff->control-plane-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -499,6 +507,7 @@ paths:
       tags:
       - commercial
       x-principal: filing-workflow
+      x-sync-edge: console-bff->control-plane-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -558,6 +567,7 @@ paths:
       tags:
       - packs
       x-principal: filing-workflow
+      x-sync-edge: console-bff->control-plane-svc
       x-timeout: 2000
       x-requirements:
       - FR-AC.1
@@ -603,6 +613,7 @@ paths:
       tags:
       - commercial
       x-principal: filing-workflow
+      x-sync-edge: console-bff->control-plane-svc
       x-timeout: 2000
       x-requirements:
       - FR-AC.1

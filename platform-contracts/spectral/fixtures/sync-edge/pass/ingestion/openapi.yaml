@@ -6,6 +6,16 @@ paths:
       operationId: listFeeds
       x-sync-edge: console-bff->ingestion-svc
       responses: {"200": {description: ok}}
+  /internal/v1/ingestion/fallback:
+    get:
+      operationId: fallbackQuery
+      x-sync-edge: any->ingestion-svc
+      responses: {"200": {description: ok}}
+  /internal/v1/ingestion/gateway:
+    get:
+      operationId: gatewayQuery
+      x-sync-edge: api-gateway->ingestion-svc
+      responses: {"200": {description: ok}}
   /v1/ingestion/public:
     get:
       operationId: publicOp

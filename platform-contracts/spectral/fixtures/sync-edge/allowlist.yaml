@@ -2,3 +2,5 @@
 edges:
 - {caller: console-bff, callee: ingestion-svc, kind: console, why: fixture}
 - {caller: canonical-svc, callee: masterdata-svc, kind: domain, why: fixture}
+- {caller: Any except access-svc, callee: ingestion-svc, kind: fallback, why: fixture}
+- {caller: API gateway, callee: ingestion-svc, kind: infrastructure, why: fixture}

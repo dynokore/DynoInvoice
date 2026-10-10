@@ -108,6 +108,7 @@ paths:
         §33.14); claimant references only, never names (FR-AE.73).
       tags: [drill-down]
       x-principal: filing-workflow
+      x-sync-edge: console-bff->aggregation-svc
       x-timeout: 3000
       x-error-codes: []
       x-requirements: [FR-4.9, FR-AE.73, "§33.9", "§33.14"]

@@ -229,8 +229,7 @@ schema-sample-validation:
 sync-edge-allowlist-check:
   # INV-T-2850 follow-up (API-08): every x-sync-edge of every service's openapi.yaml
   # is an edge of invoice-docs model/architecture/sync-edges.yaml, its callee is the
-  # owning service, and every /internal/v1 operation has one (or is a listed
-  # architecture-gap exemption in spectral/ruleset.yaml). The allowlist is read
+  # owning service, and every /internal/v1 operation has one (no exemptions). The allowlist is read
   # from invoice-docs main on every run (never vendored, so it cannot go stale);
   # a clone with gitlab-ci-token:$CI_JOB_TOKEN, as lifecycle-states-drift-check does.
   stage: verify
@@ -248,7 +247,7 @@ sync-edge-allowlist-check:
       echo "gst-ci: sync-edges.yaml from invoice-docs $(git -C /tmp/invoice-docs rev-parse --short HEAD)"
     - >
       python3 spectral/check-sync-edges.py
-      /tmp/invoice-docs/model/architecture/sync-edges.yaml spectral/ruleset.yaml .
+      /tmp/invoice-docs/model/architecture/sync-edges.yaml .
 
 contract-check-self-tests:
   # INV-T-2850 follow-up (lesson P20): proves the API-08 allowlist check and the

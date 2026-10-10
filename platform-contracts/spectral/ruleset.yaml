@@ -95,7 +95,8 @@ rules:
   # carried x-sync-edge (so a missing one never fired) and its pattern required a
   # caller ending in "svc" (so console-bff never matched). It now selects every
   # internal operation and requires the field. That the edge is in the allowlist
-  # (invoice-docs model/architecture/sync-edges.yaml) and that the callee is the
+  # (invoice-docs model/architecture/sync-edges.yaml; callers 'Any except X' and
+  # 'API gateway' are written `any` and `api-gateway`) and that the callee is the
   # owning service is checked by spectral/check-sync-edges.py (CI job
   # sync-edge-allowlist-check); Spectral cannot read that file.
   inv-api-08-x-sync-edge:
@@ -311,29 +312,3 @@ rules:
         function: pattern
         functionOptions:
           match: "^application/cloudevents\\+json$"
-
-# API-08 architecture gaps (INV-T-2850 follow-up A3). Each internal operation below
-# has no matching edge in invoice-docs sync-edges.yaml (the allowlist names no
-# caller that is a service identifier, or no edge at all), and an edge is never
-# invented here. The rule is switched off for exactly these operations until the
-# coordinator adds the edges; spectral/check-sync-edges.py reads this block, fails
-# if an exempted operation gains an edge (stale exemption) and lists every one.
-overrides:
-  - files:
-      - "../access/openapi.yaml#/paths/~1internal~1v1~1access~1authorise/get"
-      - "../access/openapi.yaml#/paths/~1internal~1v1~1access~1verification-keys/get"
-      - "../control-plane/openapi.yaml#/paths/~1internal~1v1~1control-plane~1packs/post"
-      - "../control-plane/openapi.yaml#/paths/~1internal~1v1~1control-plane~1packs~1%7BpackRef%7D~1sign/post"
-      - "../control-plane/openapi.yaml#/paths/~1internal~1v1~1control-plane~1packs~1%7BpackRef%7D~1publish/post"
-      - "../control-plane/openapi.yaml#/paths/~1internal~1v1~1control-plane~1release-trains/post"
-      - "../control-plane/openapi.yaml#/paths/~1internal~1v1~1control-plane~1support-windows/post"
-      - "../control-plane/openapi.yaml#/paths/~1internal~1v1~1control-plane~1plans/post"
-      - "../control-plane/openapi.yaml#/paths/~1internal~1v1~1control-plane~1licences/post"
-      - "../control-plane/openapi.yaml#/paths/~1internal~1v1~1control-plane~1licences~1qualifications/post"
-      - "../control-plane/openapi.yaml#/paths/~1internal~1v1~1control-plane~1tenant-provisioning-requests/post"
-      - "../control-plane/openapi.yaml#/paths/~1internal~1v1~1control-plane~1packs~1%7BpackRef%7D/get"
-      - "../control-plane/openapi.yaml#/paths/~1internal~1v1~1control-plane~1licences~1%7BlicenceRef%7D/get"
-      - "../masterdata/openapi.yaml#/paths/~1internal~1v1~1masterdata~1counterparty-requests~1%7BrequestId%7D~1submission/post"
-      - "../tenancy/openapi.yaml#/paths/~1internal~1v1~1tenancy~1entities~1%7BentityRef%7D/get"
-    rules:
-      inv-api-08-x-sync-edge: "off"

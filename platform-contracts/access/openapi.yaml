@@ -49,6 +49,7 @@ paths:
       tags:
       - authorise
       x-principal: filing-workflow
+      x-sync-edge: any->access-svc
       x-timeout: 2000
       x-requirements:
       - FR-AC.1
@@ -104,6 +105,7 @@ paths:
       tags:
       - authorise
       x-principal: filing-workflow
+      x-sync-edge: api-gateway->access-svc
       x-timeout: 2000
       x-requirements:
       - FR-AC.1
@@ -142,6 +144,7 @@ paths:
       tags:
       - grants
       x-principal: filing-workflow
+      x-sync-edge: console-bff->access-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -206,6 +209,7 @@ paths:
       tags:
       - grants
       x-principal: filing-workflow
+      x-sync-edge: console-bff->access-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -248,6 +252,7 @@ paths:
       tags:
       - principals
       x-principal: filing-workflow
+      x-sync-edge: console-bff->access-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -303,6 +308,7 @@ paths:
       tags:
       - principals
       x-principal: filing-workflow
+      x-sync-edge: console-bff->access-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -365,6 +371,7 @@ paths:
       tags:
       - principals
       x-principal: filing-workflow
+      x-sync-edge: console-bff->access-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -417,6 +424,7 @@ paths:
       tags:
       - identity-provider
       x-principal: filing-workflow
+      x-sync-edge: console-bff->access-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -474,6 +482,7 @@ paths:
       tags:
       - identity-provider
       x-principal: filing-workflow
+      x-sync-edge: console-bff->access-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -516,6 +525,7 @@ paths:
       tags:
       - separation-of-duty
       x-principal: filing-workflow
+      x-sync-edge: console-bff->access-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -571,6 +581,7 @@ paths:
       tags:
       - separation-of-duty
       x-principal: filing-workflow
+      x-sync-edge: console-bff->access-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -613,6 +624,7 @@ paths:
       tags:
       - elevation
       x-principal: filing-workflow
+      x-sync-edge: console-bff->access-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -669,6 +681,7 @@ paths:
       tags:
       - elevation
       x-principal: filing-workflow
+      x-sync-edge: console-bff->access-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -742,6 +755,7 @@ paths:
       tags:
       - elevation
       x-principal: filing-workflow
+      x-sync-edge: console-bff->access-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -784,6 +798,7 @@ paths:
       tags:
       - elevation
       x-principal: filing-workflow
+      x-sync-edge: console-bff->access-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -839,6 +854,7 @@ paths:
       tags:
       - elevation
       x-principal: filing-workflow
+      x-sync-edge: console-bff->access-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -883,6 +899,7 @@ paths:
       tags:
       - signed-links
       x-principal: filing-workflow
+      x-sync-edge: console-bff->access-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -940,6 +957,7 @@ paths:
       tags:
       - signed-links
       x-principal: filing-workflow
+      x-sync-edge: console-bff->access-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -1017,6 +1035,7 @@ paths:
       tags:
       - break-glass
       x-principal: filing-workflow
+      x-sync-edge: console-bff->access-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -1075,6 +1094,7 @@ paths:
       tags:
       - break-glass
       x-principal: filing-workflow
+      x-sync-edge: console-bff->access-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -1127,6 +1147,7 @@ paths:
       tags:
       - access-review
       x-principal: filing-workflow
+      x-sync-edge: console-bff->access-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -1183,6 +1204,7 @@ paths:
       tags:
       - access-review
       x-principal: filing-workflow
+      x-sync-edge: console-bff->access-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -1248,6 +1270,7 @@ paths:
       tags:
       - consent
       x-principal: filing-workflow
+      x-sync-edge: console-bff->access-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -1310,6 +1333,7 @@ paths:
       tags:
       - consent
       x-principal: filing-workflow
+      x-sync-edge: console-bff->access-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1
@@ -1374,6 +1398,7 @@ paths:
       tags:
       - consent
       x-principal: filing-workflow
+      x-sync-edge: console-bff->access-svc
       x-timeout: 5000
       x-requirements:
       - FR-AC.1

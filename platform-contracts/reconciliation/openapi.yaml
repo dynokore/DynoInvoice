@@ -183,6 +183,7 @@ paths:
         queries"). Cursor pagination (API-18); no offset and no total count.
       tags: [runs]
       x-principal: reporting
+      x-sync-edge: console-bff->reconciliation-svc
       x-timeout: 3000
       x-error-codes: []
       x-requirements: []
@@ -225,6 +226,7 @@ paths:
       description: Run queries (services.yaml reconciliation-svc `provides`, "Run … queries").
       tags: [runs]
       x-principal: reporting
+      x-sync-edge: console-bff->reconciliation-svc
       x-timeout: 3000
       x-error-codes: []
       x-requirements: []
@@ -258,6 +260,7 @@ paths:
         (FR-Q.11).
       tags: [runs]
       x-principal: reporting
+      x-sync-edge: console-bff->reconciliation-svc
       x-timeout: 3000
       x-error-codes: []
       x-requirements: [INV-REQ-947, INV-REQ-982, INV-REQ-634]
@@ -302,6 +305,7 @@ paths:
         immutable and a further correction requires a new run.
       tags: [reconciliation]
       x-principal: filing-workflow
+      x-sync-edge: console-bff->reconciliation-svc
       x-timeout: 5000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010]
@@ -358,6 +362,7 @@ paths:
         acknowledgement where VP-40 allows.
       tags: [runs]
       x-principal: filing-workflow
+      x-sync-edge: console-bff->reconciliation-svc
       x-timeout: 5000
       x-error-codes: []
       x-requirements: [INV-REQ-947, INV-REQ-957, INV-REQ-1010]
