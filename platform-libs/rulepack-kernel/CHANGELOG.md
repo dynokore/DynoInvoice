@@ -6,20 +6,6 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
-## [1.1.0] - 2026-10-11
-### Added
-- The fence participant (INV-REQ-1166, INV-REQ-1009; INV-T-2867 / T23): `FenceParticipant` verifies a
-  staged pack again, refuses executable content, compiles it through the holder's `PackCompiler`, holds it
-  unused and acknowledges (`PackReadinessAcknowledgement`, handed to a `ReadinessAcknowledger` port that
-  service-runtime binds, never to outbox-and-queue). `onArmed` makes it usable; `onAborted` discards it.
-- `ActivationFence`, the coordinator side: arms (one `PackArming` write) only when every expected
-  instance acknowledged `Loaded`; any failure, a missing acknowledgement after the window or an
-  interrupted arming aborts with nothing armed and `RUL-005`.
-- `DryRun`: the dry-run delta over a document sample (changed documents with old and new code, taxable
-  and GST value; by period; straddling credit notes apart; evaluation failures listed, never unchanged).
-- `DecisionTrace`, `TraceReference` and `BusinessTermRenderer`: the trace of rule, pack version, inputs
-  and verdict, rendered in business terms from a pack's catalogue (INV-REQ-1182).
-
 ## [1.0.0] - 2026-09-27
 ### Added
 - `PackArtefact`: the signed pack artefact's four named byte members —
