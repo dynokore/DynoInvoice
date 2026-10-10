@@ -73,13 +73,17 @@ class L1DependencyOrderTest {
         assertThrows(Throwable::class.java) { assertOrder(dir) }
     }
 
-    private fun assertOrder(dir: File) = ArchitectureRules.assertL1DependencyOrder(scope = Konsist.scopeFromExternalDirectory(dir.absolutePath))
+    private fun assertOrder(dir: File) {
+        ArchitectureRules.assertL1DependencyOrder(scope = Konsist.scopeFromExternalDirectory(dir.absolutePath))
+    }
 
     private fun importing(
         from: String,
         to: String,
         name: String,
-    ) = "package com.dynokore.platform.$from\nimport com.dynokore.platform.$to.Stub\nclass $name(val s: Stub)\n"
+    ) = "package com.dynokore.platform.$from\n" +
+        "import com.dynokore.platform.$to.Stub\n" +
+        "class $name(val s: Stub)\n"
 
     /** One stub file per STK-60 L1 module: every `Layer` the assertion references needs a file (Konsist). */
     private fun writeL1ModuleStubs(dir: File) {
