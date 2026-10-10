@@ -65,6 +65,20 @@ class AuthorityReplicaTest {
     }
 
     @Test
+    fun `after a restart the feed resuming mid-log does not make an empty replica decide locally`() {
+        val restarted = AuthorityReplica(clock, fallback = access)
+        val resumed = FakeFeed(restarted, synced = false)
+        // p1 was granted earlier in the log; the resumed feed only delivers p2's change.
+        resumed.publish(AuthorityChanged(TENANT_A, "p2", PrincipalAuthority(emptyList()), 900))
+        resumed.heartbeat(900)
+        restarted.lag() shouldBe Lag.Unknown
+        restarted.decide(request(PrincipalKind.HUMAN), deadline(clock)).source shouldBe DecisionSource.FALLBACK
+        access.calls shouldBe 1
+        resumed.snapshotComplete(900)
+        restarted.decide(request(PrincipalKind.HUMAN), deadline(clock)).source shouldBe DecisionSource.LOCAL
+    }
+
+    @Test
     fun `catching up returns to local decisions`() {
         grantTo(1)
         feed.heartbeat(2)

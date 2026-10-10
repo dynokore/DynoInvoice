@@ -13,7 +13,8 @@ class EventFedReplicaTest {
     private fun replica(
         bound: Duration? = null,
         fallback: ReplicaFallback<String, String>? = ok,
-    ) = EventFedReplica("t", clock, bound, fallback)
+        synced: Boolean = true,
+    ) = EventFedReplica("t", clock, bound, fallback).also { if (synced) it.tracker.onSnapshotComplete(0) }
 
     @Test
     fun `serves a held key locally and never calls the owner`() {
@@ -97,7 +98,7 @@ class EventFedReplicaTest {
 
     @Test
     fun `a replica never in contact has unknown lag and is never within a bound`() {
-        val r = replica(bound = Duration.ofDays(1))
+        val r = replica(bound = Duration.ofDays(1), synced = false)
         r.lag() shouldBe Lag.Unknown
         r.get("k", deadline(clock)) shouldBe Lookup.Filled("from-owner-k")
     }
@@ -114,6 +115,8 @@ class EventFedReplicaTest {
         override fun accept(event: ReplicaChange<String, String>) = r.apply(event)
 
         override fun observeHead(version: Long) = r.tracker.observeHead(version)
+
+        override fun onSnapshotComplete(version: Long) = r.tracker.onSnapshotComplete(version)
 
         override fun onDisconnected() = r.tracker.onDisconnected()
     }

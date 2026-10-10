@@ -12,7 +12,9 @@ train is its own (README.md: "own version and changelog").
   - `EventFedReplica`: a generic event-fed local replica with lag measured by
     `ReplicaLagTracker` from the source's monotonic version, an optional lag
     bound, a fallback call to the owning service, cache-miss fill, and
-    serve-last-known when the fallback is down. Held in memory; a restart refills.
+    serve-last-known when the fallback is down. Held in memory; after every restart lag
+    stays unknown (so a bounded replica uses its fallback) until the feed reports a
+    full sync or snapshot marker (`onSnapshotComplete`).
   - `StructureReplica` (INV-REQ-1200): `OrganisationStructureChanged` and
     `EntityProfileChanged`; a miss is filled from `tenancy-svc`.
   - `AuthorityReplica` (INV-REQ-1201): `AuthorityChanged`; a decision is local at

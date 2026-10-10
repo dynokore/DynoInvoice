@@ -7,13 +7,23 @@ import java.time.Duration
 /** INV-REQ-1201 behaviour #1: lag measured from the monotonic version. */
 class ReplicaLagTrackerTest {
     private val clock = MutableClock()
-    private val tracker = ReplicaLagTracker(clock)
+    private val tracker = ReplicaLagTracker(clock).also { it.onSnapshotComplete(0) }
 
     private fun lag(seconds: Long) = Lag.Measured(Duration.ofSeconds(seconds))
 
     @Test
+    fun `events alone never make lag known, only a snapshot marker does`() {
+        val restarted = ReplicaLagTracker(clock)
+        restarted.onApplied(900) // a feed resumed mid-log
+        restarted.observeHead(900)
+        restarted.lag() shouldBe Lag.Unknown
+        restarted.onSnapshotComplete(900)
+        restarted.lag() shouldBe lag(0)
+    }
+
+    @Test
     fun `unknown before any contact`() {
-        tracker.lag() shouldBe Lag.Unknown
+        ReplicaLagTracker(clock).lag() shouldBe Lag.Unknown
         Lag.Unknown.isWithin(Duration.ofDays(999)) shouldBe false
     }
 

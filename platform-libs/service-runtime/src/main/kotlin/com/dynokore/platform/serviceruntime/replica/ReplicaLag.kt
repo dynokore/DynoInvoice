@@ -36,8 +36,12 @@ sealed interface Lag {
  *  - caught up but the feed gone: lag is the time since the last contact, because
  *    anything published since is unseen. The replica falls back rather than
  *    trusting a silence it cannot tell from an outage;
- *  - never in contact: [Lag.Unknown].
+ *  - not yet synced, or never in contact: [Lag.Unknown].
  *
+ * Initial-sync gate: a replica starts empty after every restart, and a feed may resume
+ * mid-log (a persisted consumer offset), so one applied event proves nothing about the
+ * state held. Lag stays [Lag.Unknown], and a bounded replica keeps using its fallback,
+ * until the feed reports a full sync or snapshot marker ([onSnapshotComplete]). *
  * Versions are ordered per feed: a feed that delivers out of order per partition
  * must reorder before it reaches the replica. Time comes from the injected [Clock]
  * (ARC-13).
@@ -49,6 +53,7 @@ class ReplicaLagTracker(private val clock: Clock) {
     private var behindSince: Instant? = null
     private var lastContact: Instant? = null
     private var disconnected = false
+    private var synced = false
 
     fun onApplied(version: Long) = synchronized(lock) {
         applied = maxOf(applied, version)
@@ -67,6 +72,19 @@ class ReplicaLagTracker(private val clock: Clock) {
         disconnected = false
     }
 
+    /**
+     * The feed has delivered everything up to [version] as a full sync or snapshot: the replica now
+     * holds the source's state as of then, so lag can be measured. Called once per start.
+     */
+    fun onSnapshotComplete(version: Long) = synchronized(lock) {
+        applied = maxOf(applied, version)
+        head = maxOf(head, applied)
+        if (applied >= head) behindSince = null
+        synced = true
+        lastContact = clock.instant()
+        disconnected = false
+    }
+
     /** The feed has dropped. The lag of a caught-up replica now grows from the last contact. */
     fun onDisconnected() = synchronized(lock) {
         disconnected = true
@@ -76,7 +94,8 @@ class ReplicaLagTracker(private val clock: Clock) {
     fun appliedVersion(): Long = synchronized(lock) { applied }
 
     fun lag(): Lag = synchronized(lock) {
-        val contact = lastContact ?: return Lag.Unknown
+        val contact = lastContact
+        if (!synced || contact == null) return Lag.Unknown
         val now = clock.instant()
         val sinceBehind = behindSince?.let { Duration.between(it, now) }
         val sinceContact = if (disconnected) Duration.between(contact, now) else Duration.ZERO

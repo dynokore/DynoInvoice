@@ -13,5 +13,11 @@ interface ReplicaFeedSink<E> {
      */
     fun observeHead(version: Long)
 
+    /**
+     * The feed has delivered a full sync or snapshot up to [version]. Until this is called after a
+     * start, the replica's lag is unknown and a bounded replica uses its fallback.
+     */
+    fun onSnapshotComplete(version: Long)
+
     fun onDisconnected()
 }

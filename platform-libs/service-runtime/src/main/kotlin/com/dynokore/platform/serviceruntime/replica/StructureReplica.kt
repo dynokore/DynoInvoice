@@ -99,6 +99,8 @@ class StructureReplica(
 
     override fun observeHead(version: Long) = replica.tracker.observeHead(version)
 
+    override fun onSnapshotComplete(version: Long) = replica.tracker.onSnapshotComplete(version)
+
     override fun onDisconnected() = replica.tracker.onDisconnected()
 
     fun lag(): Lag = replica.lag()

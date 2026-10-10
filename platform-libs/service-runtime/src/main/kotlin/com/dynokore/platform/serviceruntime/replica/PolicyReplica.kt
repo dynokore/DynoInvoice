@@ -94,6 +94,8 @@ class PolicyReplica(clock: Clock) : ReplicaFeedSink<PolicyChanged> {
 
     override fun observeHead(version: Long) = tracker.observeHead(version)
 
+    override fun onSnapshotComplete(version: Long) = tracker.onSnapshotComplete(version)
+
     override fun onDisconnected() = tracker.onDisconnected()
 
     fun lag(): Lag = tracker.lag()

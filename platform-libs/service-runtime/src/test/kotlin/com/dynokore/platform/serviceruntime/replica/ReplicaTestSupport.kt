@@ -45,7 +45,13 @@ class FakeFallback<K, V>(var answer: (K) -> FallbackResult<V>) : ReplicaFallback
  * A fake feed for any replica: publishes events, heartbeats and a drop, the way a
  * service's event consumer would. Versions are the feed's own monotonic sequence.
  */
-class FakeFeed<E>(private val sink: ReplicaFeedSink<E>) {
+class FakeFeed<E>(private val sink: ReplicaFeedSink<E>, synced: Boolean = true) {
+    init {
+        if (synced) sink.onSnapshotComplete(0)
+    }
+
+    fun snapshotComplete(version: Long) = sink.onSnapshotComplete(version)
+
     fun publish(event: E) = sink.accept(event)
 
     fun heartbeat(headVersion: Long) = sink.observeHead(headVersion)
