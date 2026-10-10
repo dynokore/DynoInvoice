@@ -24,40 +24,63 @@ import java.io.File
  */
 class L1DependencyOrderTest {
     @Test
-    fun `passes a fixture with a compliant order`(
+    fun `passes a fixture that uses only what Keel allows`(
         @TempDir dir: File,
     ) {
         writeL1ModuleStubs(dir)
-        write(
-            dir,
-            "auditlog/A.kt",
-            "package com.dynokore.platform.auditlog\n" +
-                "import com.dynokore.platform.serviceruntime.Stub\nclass A(val s: Stub)\n",
-        )
+        // INV-MOD "Order within L1": audit-log uses outbox-and-queue, which uses
+        // tenancy-kernel; the rule enforces the transitive closure, so audit-log may
+        // import tenancy-kernel too. service-runtime is the composition root.
+        write(dir, "auditlog/A.kt", importing("auditlog", "outboxandqueue", "A"))
+        write(dir, "auditlog/B.kt", importing("auditlog", "tenancykernel", "B"))
+        write(dir, "configresolver/C.kt", importing("configresolver", "auditlog", "C"))
+        write(dir, "evidencestore/E.kt", importing("evidencestore", "tenancykernel", "E"))
+        write(dir, "rulepackkernel/R.kt", importing("rulepackkernel", "tenancykernel", "R"))
+        write(dir, "serviceruntime/S.kt", importing("serviceruntime", "adapterruntime", "S"))
+        write(dir, "serviceruntime/T.kt", importing("serviceruntime", "configresolver", "T"))
 
-        assertDoesNotThrow {
-            ArchitectureRules.assertL1DependencyOrder(scope = Konsist.scopeFromExternalDirectory(dir.absolutePath))
-        }
+        assertDoesNotThrow { assertOrder(dir) }
     }
 
     @Test
-    fun `fails a fixture with an upward dependency`(
+    fun `fails when a module that uses nothing imports another`(
         @TempDir dir: File,
     ) {
         writeL1ModuleStubs(dir)
-        // service-runtime is first in L1_MODULE_ORDER; audit-log is last. A module
-        // may depend only on one earlier in the order, never a later one.
-        write(
-            dir,
-            "serviceruntime/S.kt",
-            "package com.dynokore.platform.serviceruntime\n" +
-                "import com.dynokore.platform.auditlog.Stub\nclass S(val a: Stub)\n",
-        )
+        write(dir, "tenancykernel/T.kt", importing("tenancykernel", "auditlog", "T"))
 
-        assertThrows(Throwable::class.java) {
-            ArchitectureRules.assertL1DependencyOrder(scope = Konsist.scopeFromExternalDirectory(dir.absolutePath))
-        }
+        assertThrows(Throwable::class.java) { assertOrder(dir) }
     }
+
+    @Test
+    fun `fails when a module imports a sibling outside its allowed uses`(
+        @TempDir dir: File,
+    ) {
+        writeL1ModuleStubs(dir)
+        // evidence-store uses only tenancy-kernel, even though a linear order would allow this.
+        write(dir, "evidencestore/E.kt", importing("evidencestore", "outboxandqueue", "E"))
+
+        assertThrows(Throwable::class.java) { assertOrder(dir) }
+    }
+
+    @Test
+    fun `fails when another L1 module depends on service-runtime`(
+        @TempDir dir: File,
+    ) {
+        writeL1ModuleStubs(dir)
+        write(dir, "auditlog/A.kt", importing("auditlog", "serviceruntime", "A"))
+
+        assertThrows(Throwable::class.java) { assertOrder(dir) }
+    }
+
+    private fun assertOrder(dir: File) =
+        ArchitectureRules.assertL1DependencyOrder(scope = Konsist.scopeFromExternalDirectory(dir.absolutePath))
+
+    private fun importing(
+        from: String,
+        to: String,
+        name: String,
+    ) = "package com.dynokore.platform.$from\nimport com.dynokore.platform.$to.Stub\nclass $name(val s: Stub)\n"
 
     /** One stub file per STK-60 L1 module: every `Layer` the assertion references needs a file (Konsist). */
     private fun writeL1ModuleStubs(dir: File) {
