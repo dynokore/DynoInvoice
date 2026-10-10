@@ -182,5 +182,33 @@ lint:
       - "**/build/reports/detekt/"
     expire_in: 1 week
 
+# Publishes every module and platform-libs-bom to this project's own package registry
+# (not platform-build's, which the shared template defaults to), then fails the job
+# unless every module's artifact with its version is actually in the registry. The
+# shared template's script is replaced on purpose: it uses `gst_run_if_task_exists`,
+# which silently skips when there is nothing to publish (P20/P28).
 maven-publish:
   extends: [.gradle-job, .gst-sibling-checkout]
+  variables:
+    MAVEN_REGISTRY_PROJECT_ID: "$CI_PROJECT_ID"
+  script:
+    - >
+      ./gradlew publish listPublications
+      -PgstMavenUrl="${CI_API_V4_URL}/projects/${MAVEN_REGISTRY_PROJECT_ID}/packages/maven"
+      -PgstMavenUser=gitlab-ci-token
+      -PgstMavenPassword="${CI_JOB_TOKEN}"
+      --stacktrace
+    - |
+      test -s build/publications.txt || { echo "gst-ci: no publications listed (P20/P28)"; exit 1; }
+      missing=0
+      while read -r artifact version; do
+        url="${CI_API_V4_URL}/projects/${MAVEN_REGISTRY_PROJECT_ID}/packages/maven/com/dynokore/platform/${artifact}/${version}/${artifact}-${version}.pom"
+        code=$(curl -s -o /dev/null -w '%{http_code}' --header "JOB-TOKEN: ${CI_JOB_TOKEN}" "$url")
+        if [ "$code" = "200" ]; then
+          echo "gst-ci: published ${artifact}:${version}"
+        else
+          echo "gst-ci: NOT in the registry: ${artifact}:${version} (HTTP ${code})"
+          missing=1
+        fi
+      done < build/publications.txt
+      exit $missing

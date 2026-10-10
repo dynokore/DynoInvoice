@@ -53,29 +53,37 @@ class FenceParticipant<C : Any>(
         artefact: PackArtefact,
         tenant: TenantId? = null,
     ): PackReadinessAcknowledgement {
-        val outcome = load(artefact, tenant)
-        val manifest = (outcome as? Loading.Held)?.manifest
+        val loading = load(artefact, tenant)
         val ack =
-            PackReadinessAcknowledgement(
-                packId = (outcome as? Loading.Held)?.manifest?.packId ?: PackId(UNKNOWN_PACK),
-                version = manifest?.version ?: PackVersionLabel(UNKNOWN_PACK),
-                instance = instance,
-                outcome = if (outcome is Loading.Held) ReadinessOutcome.Loaded else (outcome as Loading.Refused).failure,
-            )
-        val acknowledged = (outcome as? Loading.Refused)?.let { ack.withIdentity(it.identity) } ?: ack
+            when (loading) {
+                is Loading.Held ->
+                    PackReadinessAcknowledgement(
+                        loading.manifest.packId,
+                        loading.manifest.version,
+                        instance,
+                        ReadinessOutcome.Loaded,
+                    )
+
+                is Loading.Refused ->
+                    PackReadinessAcknowledgement(
+                        loading.identity?.first ?: PackId(UNKNOWN_PACK),
+                        loading.identity?.second ?: PackVersionLabel(UNKNOWN_PACK),
+                        instance,
+                        loading.failure,
+                    )
+            }
         try {
-            acknowledger.acknowledge(acknowledged)
+            acknowledger.acknowledge(ack)
         } catch (
             @Suppress("TooGenericExceptionCaught") e: RuntimeException,
         ) {
-            if (outcome is Loading.Held && outcome.newlyHeld) held.remove(Key(outcome.manifest.packId, outcome.manifest.version))
+            if (loading is Loading.Held && loading.newlyHeld) {
+                held.remove(Key(loading.manifest.packId, loading.manifest.version))
+            }
             throw e
         }
-        return acknowledged
+        return ack
     }
-
-    private fun PackReadinessAcknowledgement.withIdentity(identity: Pair<PackId, PackVersionLabel>?) =
-        if (identity == null) this else copy(packId = identity.first, version = identity.second)
 
     private sealed interface Loading {
         data class Held(val manifest: PackManifest, val newlyHeld: Boolean) : Loading
@@ -89,19 +97,20 @@ class FenceParticipant<C : Any>(
     private fun load(
         artefact: PackArtefact,
         tenant: TenantId?,
-    ): Loading {
-        val verified = verifier.verify(artefact, trustAnchors)
-        if (verified !is PackVerificationOutcome.Verified) {
-            val rejected = verified as PackVerificationOutcome.Rejected
-            return refused(ReadinessFailure.VERIFICATION_FAILED, rejected.reason.name, null)
+    ): Loading = when (val verified = verifier.verify(artefact, trustAnchors)) {
+        is PackVerificationOutcome.Rejected ->
+            refused(ReadinessFailure.VERIFICATION_FAILED, verified.reason.name, null)
+
+        is PackVerificationOutcome.Verified -> {
+            val manifest = verified.manifest
+            val identity = manifest.packId to manifest.version
+            when (val content = contentValidator.validate(artefact.contents)) {
+                is ContentValidationOutcome.Rejected ->
+                    refused(ReadinessFailure.CONTENT_REFUSED, content.reason, identity)
+
+                ContentValidationOutcome.Accepted -> hold(manifest, tenant, artefact, identity)
+            }
         }
-        val manifest = verified.manifest
-        val identity = manifest.packId to manifest.version
-        val content = contentValidator.validate(artefact.contents)
-        if (content is ContentValidationOutcome.Rejected) {
-            return refused(ReadinessFailure.CONTENT_REFUSED, content.reason, identity)
-        }
-        return hold(manifest, tenant, artefact, identity)
     }
 
     private fun hold(
@@ -116,7 +125,8 @@ class FenceParticipant<C : Any>(
             return if (existing.manifest == manifest && existing.tenant == tenant) {
                 Loading.Held(manifest, newlyHeld = false)
             } else {
-                refused(ReadinessFailure.CONFLICTING_PACK, "a different ${key.packId} ${key.version} is already held", identity)
+                val detail = "a different ${key.packId} ${key.version} is already held"
+                refused(ReadinessFailure.CONFLICTING_PACK, detail, identity)
             }
         }
         val compiled =
@@ -129,6 +139,7 @@ class FenceParticipant<C : Any>(
             }
         return when (compiled) {
             is CompileOutcome.Failed -> refused(ReadinessFailure.COMPILE_FAILED, compiled.reason, identity)
+
             is CompileOutcome.Compiled -> {
                 held[key] = Held(manifest, tenant, compiled.compiled)
                 Loading.Held(manifest, newlyHeld = true)
@@ -142,7 +153,10 @@ class FenceParticipant<C : Any>(
         identity: Pair<PackId, PackVersionLabel>?,
     ) = Loading.Refused(ReadinessOutcome.Failed(reason, detail), identity)
 
-    /** Phase two: the coordinator armed the pack. Makes the held pack usable; false if this instance holds nothing for it. */
+    /**
+     * Phase two: the coordinator armed the pack. Makes the held pack usable;
+     * false if this instance holds nothing for it.
+     */
     fun onArmed(
         packId: PackId,
         version: PackVersionLabel,
@@ -160,7 +174,7 @@ class FenceParticipant<C : Any>(
         version: PackVersionLabel,
     ) {
         val key = Key(packId, version)
-        if (key !in armedPacks) held.remove(key)
+        if (!armedPacks.containsKey(key)) held.remove(key)
     }
 
     /** The compiled pack, only once armed; a held but unarmed pack is not available for use. */
@@ -173,7 +187,7 @@ class FenceParticipant<C : Any>(
     fun isHolding(
         packId: PackId,
         version: PackVersionLabel,
-    ): Boolean = Key(packId, version) in held
+    ): Boolean = held.containsKey(Key(packId, version))
 
     private companion object {
         const val UNKNOWN_PACK = "unidentified"

@@ -20,3 +20,55 @@ subprojects {
         }
     }
 }
+
+// INV-T-2860 follow-up: publish every module to the LAN GitLab package registry.
+// (The modules apply `maven-publish` and declare publications, but until now none
+// declared a repository, so `./gradlew publish` had nothing to publish to.)
+subprojects {
+    plugins.withId("maven-publish") {
+        extensions.configure<PublishingExtension> {
+            repositories {
+                maven {
+                    name = "gstMaven"
+                    val gstMavenUri =
+                        uri(providers.gradleProperty("gstMavenUrl").getOrElse("https://repo.dynokore.internal/gst-maven"))
+                    url = gstMavenUri
+                    // The LAN GitLab package registry has no TLS (TLS is a Wave 5 item), so
+                    // Gradle needs an explicit opt-in to publish to its http URL. Opted in for
+                    // that one host only, never for any other repository.
+                    isAllowInsecureProtocol = gstMavenUri.scheme == "http" && gstMavenUri.host == "registry.example.internal"
+                    credentials {
+                        username = providers.gradleProperty("gstMavenUser").orNull
+                        password = providers.gradleProperty("gstMavenPassword").orNull
+                    }
+                }
+            }
+        }
+    }
+}
+
+// The expected publish set, written as `<artifactId> <version>` lines to
+// build/publications.txt for CI's post-publish check (P20/P28: a module with a
+// version that is not published must fail the job, never be skipped). Fails itself
+// if a module has a version.txt but no maven-publish publication.
+tasks.register("listPublications") {
+    val out = layout.buildDirectory.file("publications.txt")
+    outputs.file(out)
+    doLast {
+        val lines = mutableListOf<String>()
+        subprojects.forEach { sub ->
+            if (sub.file("version.txt").isFile) {
+                val publishing = sub.extensions.findByType(PublishingExtension::class.java)
+                val publications = publishing?.publications?.withType(MavenPublication::class.java)?.toList().orEmpty()
+                if (publications.isEmpty()) {
+                    throw GradleException("${sub.path} has a version.txt but no Maven publication (P20/P28)")
+                }
+                publications.forEach { lines += "${it.artifactId} ${sub.version}" }
+            }
+        }
+        out.get().asFile.apply {
+            parentFile.mkdirs()
+            writeText(lines.sorted().joinToString("\n") + "\n")
+        }
+    }
+}
