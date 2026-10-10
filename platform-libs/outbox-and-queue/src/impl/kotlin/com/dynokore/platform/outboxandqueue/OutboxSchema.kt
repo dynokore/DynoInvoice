@@ -95,7 +95,11 @@ object OutboxSchema {
                 tenant_id uuid,
                 reason text not null,
                 raw text not null,
-                recorded_at timestamptz not null default now()
+                recorded_at timestamptz not null default now(),
+                status text not null default 'OPEN' check (status in ('OPEN', 'REPLAYED', 'DISCARDED')),
+                resolved_at timestamptz,
+                note text,
+                replayed_to text
             );
             comment on column $s.$OUTBOX.data is 'class: content';
             comment on column $s.$DEAD_LETTER.raw is 'class: content';
@@ -106,9 +110,31 @@ object OutboxSchema {
             grant select (seq, tenant_id, published_at) on $s.$OUTBOX to $worker;
             grant select, insert, update on $s.$CONSUMER_OFFSET to $worker;
             grant select, insert on $s.$DEAD_LETTER to $worker;
+            grant update (status, resolved_at, note, replayed_to) on $s.$DEAD_LETTER to $worker;
             grant select, insert, update on $s.$OUTBOX, $s.$OUTBOX_SEQUENCE, $s.$CONSUMER_SEQUENCE,
                 $s.$CONSUMER_OFFSET to $role;
             grant select, insert on $s.$INBOX to $role;
+        """.trimIndent()
+    }
+
+    /**
+     * Brings a schema created by 1.0.0 to 1.1.0: the triage columns of [DEAD_LETTER] and the worker's column
+     * `UPDATE` on them. Run once by the service's migration (TPL-12); not needed for a schema created by [ddl].
+     */
+    fun upgradeTo110(
+        schema: String,
+        workerRole: String,
+    ): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        val worker = SqlIdentifier.require(workerRole, "worker role")
+        return """
+            alter table $s.$DEAD_LETTER
+                add column if not exists status text not null default 'OPEN'
+                    check (status in ('OPEN', 'REPLAYED', 'DISCARDED')),
+                add column if not exists resolved_at timestamptz,
+                add column if not exists note text,
+                add column if not exists replayed_to text;
+            grant update (status, resolved_at, note, replayed_to) on $s.$DEAD_LETTER to $worker;
         """.trimIndent()
     }
 }

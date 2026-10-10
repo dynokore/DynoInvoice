@@ -26,5 +26,12 @@ one table per topic), `JdbcInboxConsumer` (inbox, `docsequence` rule, offsets, d
 `EventLogSchema` (DDL for a service's migration), `TopicsYamlCatalogue` (reads platform-contracts
 `event-log/topics.yaml`).
 
-Not in 1.0.0: the partition-ordered queue, priority lanes, delivery retry, dead-letter triage and replay
-(later tasks), inbox retention, and scheduling of the relay and consumer loops (service-runtime).
+## What 1.1.0 adds (INV-T-2865)
+
+`WorkQueue`/`JdbcWorkQueue` (`QueueSchema.ddl`), `Lane`, `LaneLimits`, `LaneRateLimiter`, `DeadLetterTriage`/`JdbcDeadLetterTriage`,
+`ReplayDelivery`/`JdbcReplayDelivery`, `StalenessMonitor`/`JdbcStalenessMonitor`, `EventLogLag`. Existing 1.0.0 schemas:
+run `OutboxSchema.upgradeTo110` and `QueueSchema.ddl` in the service's migration.
+
+Not in 1.1.0: delivery retry with backoff, inbox retention, rate limits shared across worker processes (each worker
+counts its own), exporting the staleness metric and raising the incident (the composition root's sink), and scheduling of the
+loops (service-runtime).

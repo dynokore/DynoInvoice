@@ -16,7 +16,7 @@ class OutboxHarness(image: String) : AutoCloseable {
     private val json = EnvelopeJson()
 
     init {
-        fixture.createService("submission", SUBMISSION_STATE)
+        fixture.createService("submission", SUBMISSION_STATE + QueueSchema.ddl("submission", APP, WORKER))
         fixture.createService("reconciliation", RECONCILIATION_STATE)
         fixture.createService("payload")
         fixture.createService("canonical")
@@ -102,6 +102,7 @@ class OutboxHarness(image: String) : AutoCloseable {
         val IMAGES = listOf("postgres:17", "postgres:18")
 
         private const val APP = OutboxPostgresFixture.APP
+        private const val WORKER = OutboxPostgresFixture.WORKER
         private const val SUBMISSION_STATE = """
             create table submission.submission_state (doc_uuid uuid primary key, status text not null);
             create table submission.obligation_register (

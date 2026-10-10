@@ -1,5 +1,6 @@
 package com.dynokore.platform.outboxandqueue
 
+import com.dynokore.platform.tenancykernel.TenantId
 import java.sql.Connection
 import javax.sql.DataSource
 
@@ -49,6 +50,38 @@ class JdbcInboxConsumer(
             stale = counts[Step.STALE.ordinal],
             deadLettered = counts[Step.DEAD_LETTER.ordinal],
         )
+    }
+
+    /**
+     * Applies a replayed dead letter ([raw] is its stored envelope text) through the same inbox, sequence and
+     * handler rules as a polled record, in the caller's tenant transaction when one is open ([ReplayDelivery]),
+     * without touching the offset. An envelope that is still invalid, or belongs to another tenant than
+     * [expectedTenant], is dead-lettered again.
+     */
+    fun applyReplayed(
+        raw: String,
+        expectedTenant: TenantId,
+    ): ReplayOutcome {
+        val envelope =
+            try {
+                json.read(raw).also {
+                    if (it.tenant != expectedTenant) throw ContractViolation("replayed envelope is for another tenant")
+                }
+            } catch (violation: ContractViolation) {
+                deadLetter(LogRecord(REPLAY_OFFSET, raw), violation)
+                return ReplayOutcome.REJECTED
+            }
+        val step =
+            scope.tenants.bind(envelope.tenant) {
+                scope.transactions.inTransaction { apply(scope.connections.require(), envelope) }
+            }
+        return when (step) {
+            Step.APPLIED -> ReplayOutcome.APPLIED
+            Step.IGNORED -> ReplayOutcome.IGNORED
+            Step.DUPLICATE -> ReplayOutcome.DUPLICATE
+            Step.STALE -> ReplayOutcome.STALE
+            Step.DEAD_LETTER -> ReplayOutcome.REJECTED
+        }
     }
 
     private fun processRecord(record: LogRecord): Step {
@@ -208,5 +241,6 @@ class JdbcInboxConsumer(
     private companion object {
         const val BATCH = 100
         const val FIRST_OFFSET = 1L
+        const val REPLAY_OFFSET = 0L // a replayed record has no position in the topic
     }
 }

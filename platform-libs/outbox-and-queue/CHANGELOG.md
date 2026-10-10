@@ -6,6 +6,21 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-11
+### Added
+- Partition-ordered work queue (`WorkQueue`, `JdbcWorkQueue`, `QueueSchema.ddl`): claim with
+  `FOR UPDATE SKIP LOCKED` across tenants through the worker role (claim columns only, no payload),
+  one item at a time per (tenant, partition, lane), reclaim of abandoned claims (INV-REQ-540).
+- Priority lanes `DEADLINE_NEAR`, `LIVE`, `REPROCESSING`, `BACKFILL`, `REPLAY`, strict priority, with an
+  independent rate limit per lane (`LaneLimits`, `LaneRateLimiter`, injected clock) (INV-REQ-1072;
+  INV-AC-2097, INV-AC-2104).
+- Dead-letter triage (`DeadLetterTriage`: list, get, discard with note) and replay by scope
+  (ids, tenant, consumer, topic, failure class, Doc UUID, entity, time range) to one named consumer
+  (`ReplayDelivery`); `event_dead_letter` gains `status`, `resolved_at`, `note`, `replayed_to`
+  (`OutboxSchema.upgradeTo110` for 1.0.0 schemas); access stays worker-only under forced RLS.
+- Consumer staleness metric and one-per-episode breach (`StalenessMonitor`, `StalenessRule`,
+  `StalenessBreachSink`) (INV-REQ-1165; INV-AC-2150).
+
 ## [1.0.0] - 2026-10-10
 ### Added
 - Per-service outbox written in the command transaction; envelope (UUIDv7 id, per-key
