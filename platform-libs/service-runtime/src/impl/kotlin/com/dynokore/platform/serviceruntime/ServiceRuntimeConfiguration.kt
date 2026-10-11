@@ -2,6 +2,16 @@ package com.dynokore.platform.serviceruntime
 
 import com.dynokore.platform.serviceruntime.binding.BindingAutoConfiguration
 import com.dynokore.platform.serviceruntime.client.InternalRestClientAutoConfiguration
+import com.dynokore.platform.serviceruntime.composition.AdapterRuntimeWiring
+import com.dynokore.platform.serviceruntime.composition.AuditLogWiring
+import com.dynokore.platform.serviceruntime.composition.ConfigResolverWiring
+import com.dynokore.platform.serviceruntime.composition.CryptoWiring
+import com.dynokore.platform.serviceruntime.composition.EvidenceStoreWiring
+import com.dynokore.platform.serviceruntime.composition.ModuleProperties
+import com.dynokore.platform.serviceruntime.composition.OutboxAndQueueWiring
+import com.dynokore.platform.serviceruntime.composition.RulepackKernelWiring
+import com.dynokore.platform.serviceruntime.composition.ServiceRuntimeWiring
+import com.dynokore.platform.serviceruntime.composition.TenancyKernelWiring
 import com.dynokore.platform.serviceruntime.diagnostics.DiagnosticsAutoConfiguration
 import com.dynokore.platform.serviceruntime.health.HealthAutoConfiguration
 import com.dynokore.platform.serviceruntime.http.JobCommandHttpAutoConfiguration
@@ -10,6 +20,7 @@ import com.dynokore.platform.serviceruntime.logging.LoggingAutoConfiguration
 import com.dynokore.platform.serviceruntime.replica.ReplicaAutoConfiguration
 import com.dynokore.platform.serviceruntime.resilience.ResilienceAutoConfiguration
 import org.springframework.boot.autoconfigure.AutoConfiguration
+import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Import
 import org.springframework.context.annotation.PropertySource
 
@@ -30,8 +41,23 @@ import org.springframework.context.annotation.PropertySource
  * ```
  * so a service's own composition stays legible from its `bootstrap` module
  * without needing to know this module registers itself automatically too.
+ *
+ * It is also the L1 composition root (INV-MOD-2371, INV-T-2875, INV-Q-3710): `composition/` wires each L1 module
+ * the service embeds, and only those (@ConditionalOnClass on the module's impl half), every port with a
+ * platform-libs implementation becoming a bean the service can override (@ConditionalOnMissingBean). An
+ * implementation that needs inputs only the service has (its role DataSources, topics catalogue, retention, lane
+ * limits, staleness rules, an S3Client) is created only when the service declares them; the README lists each
+ * port and its inputs. The service declares those beans in its own `bootstrap` configuration, which Spring
+ * registers before this one. The modules are wired in dependency order, so each wiring sees the beans of the
+ * modules below it.
  */
-@AutoConfiguration
+@AutoConfiguration(
+    afterName = [
+        "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration",
+        "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration",
+    ],
+)
+@EnableConfigurationProperties(ModuleProperties::class)
 @Import(
     BindingAutoConfiguration::class,
     HealthAutoConfiguration::class,
@@ -40,6 +66,15 @@ import org.springframework.context.annotation.PropertySource
     ResilienceAutoConfiguration::class,
     IdentityAutoConfiguration::class,
     InternalRestClientAutoConfiguration::class,
+    TenancyKernelWiring::class,
+    OutboxAndQueueWiring::class,
+    AuditLogWiring::class,
+    ConfigResolverWiring::class,
+    EvidenceStoreWiring::class,
+    AdapterRuntimeWiring::class,
+    CryptoWiring::class,
+    RulepackKernelWiring::class,
+    ServiceRuntimeWiring::class,
     ReplicaAutoConfiguration::class,
     JobCommandHttpAutoConfiguration::class,
 )

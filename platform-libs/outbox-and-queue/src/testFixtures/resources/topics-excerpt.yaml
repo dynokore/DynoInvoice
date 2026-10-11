@@ -55,3 +55,15 @@ topics:
     subscribers:
       - console-bff
       - notification-svc
+  # Added verbatim from platform-contracts main 5efeba8 (event-log/topics.yaml last changed at 710bed2) for INV-T-2875; the rest of the excerpt is still 6b17e07.
+  - topic: gst.platform.evidence-artefact-recorded.v1
+    event_type: com.dynokore.gst.platform.EvidenceArtefactRecorded.v1
+    content_topic: false
+    record_topic: false
+    producers:
+      - access-svc
+      - masterdata-svc
+      - payload-svc
+      - rules-svc
+    subscribers:
+      - evidence-svc

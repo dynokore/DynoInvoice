@@ -17,6 +17,9 @@ import java.io.File
  * INV-T-3002 adds config-resolver's `PolicyScope` (the policy replica resolves over its scope chain).
  * INV-T-2874 adds outbox-and-queue (job targets name its `EntityRef`; the platform events go through its
  * `OutboxWriter`) and audit-log (the job commands' audit entries, INV-Q-2950).
+ * INV-T-2875 (INV-Q-3710) makes this module the composition root of every L1 module the service embeds: the
+ * modules it does not otherwise use (rulepack-kernel, evidence-store, adapter-runtime, crypto) are imported only by
+ * the wiring in the `composition` package (and its tests), which @ConditionalOnClass gates; nowhere else.
  * (This replaces the provisional "uses no other L1 module" reading, which
  * konsist-rules 0.2.0's inverted order encoded; platform-build 0.5.0 corrects it.)
  *
@@ -34,16 +37,17 @@ class ArchitectureTest {
             "rulepackkernel",
             "evidencestore",
             "adapterruntime",
+            "crypto",
         ).map { "com.dynokore.platform.$it" }
 
     private fun assertNoOtherL1Import(scope: KoScope) {
-        scope.files.assertTrue { file ->
+        scope.files.filterNot { it.packagee?.name?.startsWith(COMPOSITION) == true }.assertTrue { file ->
             file.imports.none { import -> otherL1PackageRoots.any { root -> import.name.startsWith(root) } }
         }
     }
 
     @Test
-    fun `service-runtime imports no L1 module outside its allowed dependencies`() {
+    fun `outside the composition wiring, service-runtime imports no L1 module beyond its own dependencies`() {
         assertNoOtherL1Import(
             Konsist.scopeFromModule("service-runtime", "main", "impl", "test", "implTest"),
         )
@@ -69,5 +73,9 @@ class ArchitectureTest {
         assertThrows(Throwable::class.java) {
             assertNoOtherL1Import(Konsist.scopeFromExternalDirectory(dir.absolutePath))
         }
+    }
+
+    private companion object {
+        const val COMPOSITION = "com.dynokore.platform.serviceruntime.composition"
     }
 }

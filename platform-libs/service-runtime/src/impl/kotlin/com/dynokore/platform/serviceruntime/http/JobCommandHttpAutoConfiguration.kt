@@ -5,6 +5,7 @@ import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.jobs.JobCommands
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
@@ -33,6 +34,7 @@ data class IdempotencyProperties(
  */
 @AutoConfiguration
 @EnableConfigurationProperties(IdempotencyProperties::class)
+@ConditionalOnClass(name = ["com.dynokore.platform.outboxandqueue.TenantScope"])
 @ConditionalOnBean(JobCommands::class, EndUserPrincipalResolver::class, TenantScope::class, DataSource::class)
 class JobCommandHttpAutoConfiguration {
     @Bean
