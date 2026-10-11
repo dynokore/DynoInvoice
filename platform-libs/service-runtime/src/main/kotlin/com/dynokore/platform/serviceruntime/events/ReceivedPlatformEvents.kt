@@ -13,9 +13,9 @@ import java.time.Instant
  * connection arrives without `tenantid` and reads back as the platform tenant (INV-Q-2927 option D).
  *
  * [stateText] is the payload's `state` as received. [state] is that value when it is one of the connection
- * contract's (INV-REQ-836 b4: up, degraded, down), else `null`: the schema leaves `state` an open string, and
- * how a consumer ranks a state it does not know is not decided (reported on INV-T-2875), so this type does not
- * rank it.
+ * contract's (INV-REQ-836 b4: up, degraded, down), else [ReceivedConnectionState.UNKNOWN]: the schema leaves
+ * `state` an open string a minor version may extend (INV-REQ-1163, API-09), and a consumer shows a value it does
+ * not know as UNKNOWN (owner ruling INV-Q-3718).
  */
 data class ConnectionStatusReport(
     val eventId: EventId,
@@ -28,7 +28,37 @@ data class ConnectionStatusReport(
     val lastFailure: ConnectionFailure?,
     val time: Instant,
 ) {
-    val state: ConnectionState? get() = ConnectionState.entries.firstOrNull { it.wire == stateText }
+    val state: ReceivedConnectionState get() = ReceivedConnectionState.of(stateText)
+}
+
+/**
+ * A connection state as a consumer holds it (INV-API-3308): the contract's up, degraded and down (INV-REQ-836 b4),
+ * plus [UNKNOWN] for a received state outside them. Declared in severity order, so the worst state is the
+ * greatest: [UNKNOWN] ranks between [DEGRADED] and [DOWN] (owner ruling INV-Q-3718), so an unknown instance shows
+ * the connection as UNKNOWN unless another instance is down. UNKNOWN is a consumer's reading only; no producer
+ * publishes it ([ConnectionState] has no such value).
+ */
+enum class ReceivedConnectionState {
+    UP,
+    DEGRADED,
+    UNKNOWN,
+    DOWN,
+    ;
+
+    companion object {
+        /** The contract state [ConnectionState] maps to. */
+        fun of(state: ConnectionState): ReceivedConnectionState = when (state) {
+            ConnectionState.UP -> UP
+            ConnectionState.DEGRADED -> DEGRADED
+            ConnectionState.DOWN -> DOWN
+        }
+
+        /** The received payload `state`: a contract value, else [UNKNOWN]. */
+        fun of(wire: String): ReceivedConnectionState {
+            val known = ConnectionState.entries.firstOrNull { it.wire == wire } ?: return UNKNOWN
+            return of(known)
+        }
+    }
 }
 
 /**
@@ -47,14 +77,15 @@ data class ReceivedEvidenceArtefact(
 /**
  * The connection status a consumer keeps (INV-API-3308, INV-Q-2983): state per (producer service, connection,
  * instance), where within one instance's stream the latest envelope time wins, and per connection the worst
- * state across its instances (down, then degraded, then up). No order is promised across instances.
+ * state across its instances (down, then unknown, then degraded, then up; INV-Q-3718). No order is promised across
+ * instances.
  * Deduplication on the event id is the consumer's inbox; applying the same report twice changes nothing anyway.
  */
 class ConnectionStatusBoard {
     /** A connection as consumers show it: its producer service and name. */
     data class ConnectionKey(val service: String, val connection: String)
 
-    private data class InstanceState(val state: ConnectionState, val time: Instant)
+    private data class InstanceState(val state: ReceivedConnectionState, val time: Instant)
 
     private val states = HashMap<ConnectionKey, HashMap<String, InstanceState>>()
 
@@ -66,7 +97,7 @@ class ConnectionStatusBoard {
     fun apply(
         key: ConnectionKey,
         instance: String,
-        state: ConnectionState,
+        state: ReceivedConnectionState,
         time: Instant,
     ): Boolean {
         val instances = states.getOrPut(key) { HashMap() }
@@ -78,18 +109,12 @@ class ConnectionStatusBoard {
 
     /** The worst state across the connection's instances, or `null` when none has reported. */
     @Synchronized
-    fun worst(key: ConnectionKey): ConnectionState? {
-        val reported = states[key]?.values ?: return null
-        return reported.map { it.state }.maxByOrNull { it.severity() }
-    }
+    fun worst(key: ConnectionKey): ReceivedConnectionState? = states[key]?.values?.maxOfOrNull { it.state }
 
     /** The state each instance last reported for the connection. */
     @Synchronized
-    fun instances(key: ConnectionKey): Map<String, ConnectionState> = states[key].orEmpty().mapValues { it.value.state }
-
-    private fun ConnectionState.severity(): Int = when (this) {
-        ConnectionState.UP -> 0
-        ConnectionState.DEGRADED -> 1
-        ConnectionState.DOWN -> 2
+    fun instances(key: ConnectionKey): Map<String, ReceivedConnectionState> {
+        val held = states[key].orEmpty()
+        return held.mapValues { it.value.state }
     }
 }

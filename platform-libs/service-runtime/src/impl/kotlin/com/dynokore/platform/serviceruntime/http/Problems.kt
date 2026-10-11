@@ -4,17 +4,45 @@ import com.dynokore.platform.serviceruntime.jobs.JobErrorCode
 import tools.jackson.databind.ObjectMapper
 
 /**
+ * The closed service-runtime cases (ARC-19) with their SRT catalogue codes (owner ruling INV-Q-3720, INV-REQ-827
+ * b3; the catalogue rows of INV-T-3742, gst-catalogue 1.12.0): owner Platform, severity BLOCK, disposition
+ * TERMINAL for all ten (SRT-007 and SRT-008 by coordinator ruling INV-Q-3754), each at its single HTTP status
+ * (API-21).
+ */
+enum class ClosedErrorCode(
+    val code: String,
+    val httpStatus: Int,
+    val title: String,
+    val disposition: String,
+) {
+    CONTRACT_VIOLATION("SRT-001", 400, "Request does not match the contract", "TERMINAL"),
+    IDEMPOTENCY_KEY_INVALID("SRT-002", 400, "Idempotency-Key missing or malformed", "TERMINAL"),
+    UNAUTHENTICATED("SRT-003", 401, "Not authenticated", "TERMINAL"),
+    ACCESS_DENIED("SRT-004", 403, "Access denied", "TERMINAL"),
+    NOT_FOUND("SRT-005", 404, "No such resource or operation", "TERMINAL"),
+    METHOD_NOT_ALLOWED("SRT-006", 405, "Method not allowed", "TERMINAL"),
+    IN_FLIGHT("SRT-007", 409, "Request with this Idempotency-Key in flight", "TERMINAL"),
+    STALE_AGGREGATE("SRT-008", 409, "Stale aggregate version", "TERMINAL"),
+    DIFFERENT_REQUEST("SRT-009", 422, "Idempotency-Key reused with a different request", "TERMINAL"),
+    INTERNAL_ERROR("SRT-010", 500, "Internal error", "TERMINAL"),
+    ;
+
+    /** Every SRT code is remediated by the platform (error-codes.yaml `owner`). */
+    val remediationOwner: String get() = "Platform"
+}
+
+/**
  * The API-20 error envelope (RFC 9457 `application/problem+json`, platform-contracts
  * `service-runtime/schemas/error-envelope.schema.json`) of the operations service-runtime serves, mapped in one
- * place (ARC-19, CS-14). A catalogue code carries its code, severity, disposition and remediation owner
- * (catalogue gst-catalogue 1.5.0) at the code's single status (API-21). The closed service-runtime cases
- * (`AccessDenied` 403, `IdempotencyConflict` 409 and 422, `ContractViolation` 400, plus 401, 404 and 405 of the
- * transport) stay code-less with type `about:blank` (ARC-19, INV-API-3023, INV-API-3025). A server error carries
- * no detail (API-22).
+ * place (ARC-19, CS-14). Every response carries its catalogue code, severity, disposition and remediation owner
+ * at the code's single status (API-21, INV-REQ-827): the JOB codes (catalogue gst-catalogue 1.5.0) for a refused
+ * job command, the SRT codes of [ClosedErrorCode] for the closed service-runtime cases (owner ruling
+ * INV-Q-3720), so no response is code-less. A server error carries no detail (API-22).
  */
 object Problems {
     const val CONTENT_TYPE = "application/problem+json"
     private const val ABOUT_BLANK = "about:blank"
+    private const val BLOCK = "BLOCK"
     private val mapper = ObjectMapper()
 
     private class Catalogued(val title: String, val owner: String)
@@ -34,59 +62,72 @@ object Problems {
         correlationId: String,
     ): StoredResponse {
         val entry = jobCodes.getValue(code)
-        val node = base(code.httpStatus, entry.title, null, correlationId)
-        node.put("code", code.code)
-        node.put("severity", "BLOCK")
-        node.put("disposition", "TERMINAL")
-        node.put("remediationOwner", entry.owner)
-        return StoredResponse(code.httpStatus, mapper.writeValueAsString(node))
+        return coded(code.httpStatus, entry.title, null, correlationId, code.code, "TERMINAL", entry.owner)
     }
+
+    /** The closed case [code], with [detail] only for a client error (API-22: a server error carries none). */
+    fun closed(
+        code: ClosedErrorCode,
+        correlationId: String,
+        detail: String? = null,
+    ): StoredResponse = coded(
+        code.httpStatus,
+        code.title,
+        detail.takeIf { code.httpStatus < HTTP_SERVER_ERROR },
+        correlationId,
+        code.code,
+        code.disposition,
+        code.remediationOwner,
+    )
 
     fun contractViolation(
         detail: String,
         correlationId: String,
-    ) = closed(HTTP_BAD_REQUEST, "Request does not match the contract", detail, correlationId)
+    ) = closed(ClosedErrorCode.CONTRACT_VIOLATION, correlationId, detail)
 
-    fun unauthenticated(correlationId: String) = closed(HTTP_UNAUTHORIZED, "Not authenticated", null, correlationId)
+    fun idempotencyKeyInvalid(
+        detail: String,
+        correlationId: String,
+    ) = closed(ClosedErrorCode.IDEMPOTENCY_KEY_INVALID, correlationId, detail)
 
-    fun accessDenied(correlationId: String) = closed(HTTP_FORBIDDEN, "Outside the caller's scope", null, correlationId)
+    fun unauthenticated(correlationId: String) = closed(ClosedErrorCode.UNAUTHENTICATED, correlationId)
 
-    fun notFound(correlationId: String) = closed(HTTP_NOT_FOUND, "No such operation", null, correlationId)
+    fun accessDenied(correlationId: String) = closed(ClosedErrorCode.ACCESS_DENIED, correlationId)
 
-    fun methodNotAllowed(correlationId: String) = closed(HTTP_METHOD_NOT_ALLOWED, "Method not allowed", null, correlationId)
+    fun notFound(correlationId: String) = closed(ClosedErrorCode.NOT_FOUND, correlationId)
 
-    fun inFlight(correlationId: String) = closed(HTTP_CONFLICT, "Request with this key in progress", null, correlationId)
+    fun methodNotAllowed(correlationId: String) = closed(ClosedErrorCode.METHOD_NOT_ALLOWED, correlationId)
 
-    fun differentRequest(correlationId: String) = closed(HTTP_UNPROCESSABLE, "Idempotency-Key reused with a different request", null, correlationId)
+    fun inFlight(correlationId: String) = closed(ClosedErrorCode.IN_FLIGHT, correlationId)
 
-    fun serverError(correlationId: String) = closed(HTTP_SERVER_ERROR, "Internal error", null, correlationId)
+    fun differentRequest(correlationId: String) = closed(ClosedErrorCode.DIFFERENT_REQUEST, correlationId)
 
-    private fun closed(
+    fun serverError(correlationId: String) = closed(ClosedErrorCode.INTERNAL_ERROR, correlationId)
+
+    @Suppress("LongParameterList")
+    private fun coded(
         status: Int,
         title: String,
         detail: String?,
         correlationId: String,
-    ) = StoredResponse(status, mapper.writeValueAsString(base(status, title, detail, correlationId)))
-
-    private fun base(
-        status: Int,
-        title: String,
-        detail: String?,
-        correlationId: String,
-    ) = mapper.createObjectNode().apply {
-        put("type", ABOUT_BLANK)
-        put("title", title)
-        put("status", status)
-        detail?.let { put("detail", it) }
-        put("correlationId", correlationId)
+        code: String,
+        disposition: String,
+        owner: String,
+    ): StoredResponse {
+        val node =
+            mapper.createObjectNode().apply {
+                put("type", ABOUT_BLANK)
+                put("title", title)
+                put("status", status)
+                detail?.let { put("detail", it) }
+                put("correlationId", correlationId)
+                put("code", code)
+                put("severity", BLOCK)
+                put("disposition", disposition)
+                put("remediationOwner", owner)
+            }
+        return StoredResponse(status, mapper.writeValueAsString(node))
     }
 
-    private const val HTTP_BAD_REQUEST = 400
-    private const val HTTP_UNAUTHORIZED = 401
-    private const val HTTP_FORBIDDEN = 403
-    private const val HTTP_NOT_FOUND = 404
-    private const val HTTP_METHOD_NOT_ALLOWED = 405
-    private const val HTTP_CONFLICT = 409
-    private const val HTTP_UNPROCESSABLE = 422
     private const val HTTP_SERVER_ERROR = 500
 }
