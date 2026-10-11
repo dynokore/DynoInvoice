@@ -252,8 +252,13 @@ paths:
       summary: Import a mapping spreadsheet as a new draft
       description: >-
         Authoring command to console-bff (services.yaml rules-svc
-        `provides`, SCR-12.2, §35.10). Rows that fail are reported; the
-        draft is created regardless so the tenant can fix and resubmit.
+        `provides`, SCR-12.2, §35.10). A re-import with any row whose
+        category code is absent from the IRAS catalogue version is rejected
+        whole with `422` RUL-006 (API-21) and no draft is created; the
+        rejected rows are listed in the error envelope's `errors[]` (code
+        RUL-006, `field` naming the row) and in the import record
+        (INV-REQ-831 b4, INV-REQ-833 b1, INV-AC-2039, INV-Q-3586).
+        `failedRows` stays in MappingPack (API-03) and is empty on a `201`.
 
 
         Synchronous, within console-bff's 2 s (INV-Q-3480, INV-REQ-831 b5):
@@ -264,7 +269,7 @@ paths:
       x-principal: filing-workflow
       x-sync-edge: console-bff->rules-svc
       x-timeout: 2000
-      x-error-codes: []
+      x-error-codes: [RUL-006]
       x-requirements: [INV-REQ-957, INV-REQ-1010, "§35.10"]
       x-operation:
         role: tax.operator
@@ -294,6 +299,8 @@ paths:
                 default:
                   value: { packId: "MAP-0043", status: "DRAFT", failedRows: [] }
         '413':
+          $ref: '#/components/responses/Error'
+        '422':
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
@@ -502,11 +509,18 @@ paths:
         reads IMPORTING, then STAGED, or FAILED with the failing catalogue
         code in `failureCode`. A repeat with the same Idempotency-Key
         replays the stored `202` (API-15).
+
+
+        Error codes (INV-REQ-1078 b1-b3, INV-Q-3588): DEP-002 when the
+        signature fails, DEP-003 when the engine is not compatible, and
+        RUL-005 when step 3's load and compile fail. Each is returned as the
+        error of an import finished within x-timeout, and as `failureCode`
+        after a `202`.
       tags: [regulatory-packs]
       x-principal: filing-workflow
       x-sync-edge: console-bff->rules-svc
       x-timeout: 2000
-      x-error-codes: [DEP-002, DEP-003]
+      x-error-codes: [DEP-002, DEP-003, RUL-005]
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-H.6, FR-H.9]
       x-operation:
         role: deployment.operator
