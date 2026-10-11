@@ -1,0 +1,19 @@
+# Pending profile values (INV-T-3277): the explicit marker for a profile value Keel
+# carries as `typed: false` (a value its row text states but no option of the
+# variation point's catalogue fits), naming the open question that holds it.
+#
+# Repository-owned, hand-kept (like catalogue/variation-points/pending-fields.yaml), NOT
+# vendored from Keel: operating-profiles.yaml stays a pure Keel copy, and this file is the
+# only place an untyped value may be excused. The generator fails if:
+#   - an untyped value is not listed here, or
+#   - a value listed here is typed in Keel (a stale marker) or does not exist, or
+#   - a marker names anything other than an INV-Q-nnnn question key.
+# Nothing here supplies a value: the generated OperatingProfile carries the value as
+# unresolved (its text, Keel's reason and this question), never a guessed option.
+#
+# PRF-7 VP-08: "two-hour sessions" fits no option of INV-REQ-1269 (INV-Q-3285 breakdown:
+# DEFAULT_PAIR_4H fixes 4 h; OTHER_NAMED_PAIR needs a pair the text does not name);
+# raised as INV-Q-3320 at INV-REQ-1258. Both PRF-7 and VP-08 are planned.
+pending:
+  PRF-7:
+    VP-08: INV-Q-3320

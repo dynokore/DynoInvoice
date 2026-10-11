@@ -4,6 +4,10 @@ import gst.catalogue.ErrorCodeYamlParser
 import gst.catalogue.KotlinEmitter
 import gst.catalogue.MustBeElectedAvailabilityChecker
 import gst.catalogue.NonWaivableFloorChecker
+import gst.catalogue.OperatingProfileChecker
+import gst.catalogue.OperatingProfileKotlinEmitter
+import gst.catalogue.OperatingProfileYamlParser
+import gst.catalogue.ProfileVersionChecker
 import gst.catalogue.StabilityChecker
 import gst.catalogue.VariationPointCatalogueArtefact
 import gst.catalogue.VariationPointFieldsChecker
@@ -246,15 +250,66 @@ val checkVariationPointFields =
         }
     }
 
+// --- OperatingProfile (INV-T-3277) ------------------------------------------------
+
+val profileSourceYaml = rootProject.layout.projectDirectory.file("operating-profiles/operating-profiles.yaml").asFile
+val profilePendingYaml = rootProject.layout.projectDirectory.file("operating-profiles/pending-values.yaml").asFile
+// The data the last re-vendor replaced (vendor-profiles.py --write); absent before the second snapshot.
+val profilePreviousYaml = rootProject.layout.projectDirectory.file("operating-profiles/previous-snapshot.yaml").asFile
+val profileGeneratedKotlinDir = layout.buildDirectory.dir("generated/gst-catalogue-profiles/kotlin")
+
+val generateOperatingProfileCatalogue =
+    tasks.register("generateOperatingProfileCatalogue") {
+        group = "catalogue"
+        description = "INV-T-3277: checks the vendored PRF rows against the VP and error-code catalogues and the " +
+            "previous snapshot (INV-Q-3233, INV-Q-3283, INV-Q-3285), then generates OperatingProfile.kt."
+        inputs.files(profileSourceYaml, profilePendingYaml, vpSourceYaml, vpPendingYaml, sourceYaml)
+        inputs.files(fileTree(profilePreviousYaml.parentFile) { include(profilePreviousYaml.name) })
+        outputs.dir(profileGeneratedKotlinDir)
+        doLast {
+            val profiles = OperatingProfileYamlParser.parse(profileSourceYaml, profilePendingYaml)
+            val previous = profilePreviousYaml.takeIf { it.exists() }?.let { OperatingProfileYamlParser.parseSnapshot(it) }
+            val violations =
+                OperatingProfileChecker.check(
+                    profiles,
+                    VariationPointYamlParser.parse(vpSourceYaml, vpPendingYaml),
+                    ErrorCodeYamlParser.parse(sourceYaml),
+                ) + ProfileVersionChecker.check(previous.orEmpty(), profiles)
+            if (violations.isNotEmpty()) {
+                throw org.gradle.api.GradleException(
+                    "INV-T-3277: ${violations.size} operating-profile violation(s):\n" + violations.joinToString("\n") { "  - $it" },
+                )
+            }
+            if (previous == null) {
+                logger.lifecycle("INV-T-3277: no previous profile snapshot — version check skipped (first snapshot).")
+            }
+            profiles.forEach { p ->
+                val unresolved = p.values.filter { it.unresolved != null }
+                if (unresolved.isNotEmpty()) {
+                    logger.lifecycle(
+                        "INV-T-3277: ${p.id} carries unresolved value(s) " +
+                            unresolved.joinToString { "${it.vp} (pending ${it.unresolved!!.pendingQuestion})" } + ".",
+                    )
+                }
+            }
+            val outDir = profileGeneratedKotlinDir.get().asFile.resolve("com/dynokore/gst/catalogue")
+            outDir.mkdirs()
+            outDir.resolve("OperatingProfile.kt").writeText(
+                OperatingProfileKotlinEmitter.emit("com.dynokore.gst.catalogue", profiles, previous),
+            )
+        }
+    }
+
 sourceSets {
     main {
         kotlin.srcDir(generateErrorCodeCatalogue.map { generatedKotlinDir.get() })
         kotlin.srcDir(generateVariationPointCatalogue.map { vpGeneratedKotlinDir.get() })
+        kotlin.srcDir(generateOperatingProfileCatalogue.map { profileGeneratedKotlinDir.get() })
     }
 }
 
 tasks.named("compileKotlin") {
-    dependsOn(generateErrorCodeCatalogue, generateVariationPointCatalogue)
+    dependsOn(generateErrorCodeCatalogue, generateVariationPointCatalogue, generateOperatingProfileCatalogue)
 }
 
 tasks.named("check") {

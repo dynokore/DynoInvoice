@@ -1,0 +1,250 @@
+# Vendored, read-only snapshot of the Keel INV operating-profile rows PRF-1..PRF-7
+# (INV-REQ-1252..INV-REQ-1258; STK-61, INV-Q-3233), never hand-edited.
+#
+# Each row's `profile` block is Keel's attrs.io_contract.profile, copied unedited:
+# `version` (a whole number per profile, raised when its values change; INV-Q-3283 A),
+# `status` (available or planned) and `values`, one per variation point the profile
+# sets, keyed by VP id (INV-Q-3285 A): `option` (or `options` on a multi-select row) is
+# an option key of catalogue/variation-points/variation-points.yaml, and `condition`,
+# `otherwise_option`, `alternatives`, `adds`, `at_apply`, `typed_value`,
+# `explicit_default` and `needs_acknowledgement` restate the row's own text. A value
+# with `typed: false` is a marked gap Keel has not typed yet (it names its reason);
+# pending-values.yaml names the open question that holds it, and nothing here supplies
+# a value. `name` is the profile name in Keel's own row text after `#row:PRF-n`.
+#
+# Keel has no repository-wide commit, so each row pins to its own published
+# entity_revision id (`revision`). To pick up a Keel change, run
+# vendor-profiles.py --write (see README.md) in its own merge request (AGT-11): it keeps
+# the replaced data as previous-snapshot.yaml, against which the generator checks the
+# version rule (INV-Q-3283) and emits the per-profile difference (INV-REQ-1245 b4).
+#
+# Extracted: 2026-10-11, Keel project INV, 7 rows (PRF-1..PRF-7), by vendor-profiles.py:
+#   select json_agg(json_build_object(
+#       'k', e.key, 'src', e.source_ids, 'rev', r.id, 't', r.title, 'body', r.body,
+#       'profile', r.attrs->'io_contract'->'profile'))
+#   from entity e join entity_revision r on r.entity_id = e.id
+#     and r.published_in is not null and r.superseded_in is null
+#   where e.project_id = (select id from project where code = 'INV')
+#     and e.type = 'requirement' and e.source_ids::text like '%PRF-%'
+operating_profiles:
+- id: PRF-1
+  requirement: INV-REQ-1252
+  revision: 292d63ca-3d4b-4372-8676-f1ff288a8144
+  name: "Small business, one or two people"
+  title: "The small-business profile fits one finance person with an external accountant and sets an external advisor or sole-operator approver, one attestation, daily despatch and activation at the effective date"
+  profile:
+    version: 1
+    status: "available"
+    basis: "Coordinator ruling (HIGH, owner rule 2026-10-11): INV-Q-3283 option A (version), INV-Q-3285 option A (typed values beside the unchanged behavior text, as io_contract.catalogue, INV-CS-3045); keys from the live VP catalogue; for INV-T-3277"
+    values:
+      VP-03:
+        requirement: "INV-REQ-1264"
+        text: "the external advisor as approver where the questionnaire answer is that an advisor approves mappings (INV-NOTE-3#row:OQ-2), the recommended value, otherwise the sole-operator option"
+        option: "EXTERNAL_ADVISOR"
+        condition: "where the questionnaire answer is that an advisor approves mappings (INV-NOTE-3#row:OQ-2)"
+        recommended: true
+        otherwise_option: "SOLE_OPERATOR_ACK"
+        needs_acknowledgement:
+          - "SOLE_OPERATOR_ACK"
+      VP-20:
+        requirement: "INV-REQ-1281"
+        text: "daily batch"
+        option: "DAILY_WINDOW"
+      VP-39:
+        requirement: "INV-REQ-1300"
+        text: "activate at the effective date with notice"
+        option: "ACTIVATE_WITH_NOTICE"
+      VP-40:
+        requirement: "INV-REQ-1301"
+        text: "one attestation with acknowledgement"
+        option: "SINGLE_ATTESTATION_SOLE_OPERATOR"
+        needs_acknowledgement:
+          - "SINGLE_ATTESTATION_SOLE_OPERATOR"
+- id: PRF-2
+  requirement: INV-REQ-1253
+  revision: d3fce77a-1d76-48a3-8f18-bdc9e616e134
+  name: "In-house finance team"
+  title: "The in-house finance team profile keeps the defaults, with the customer OIDC directory where one exists"
+  profile:
+    version: 1
+    status: "available"
+    note: "'defaults throughout' sets nothing besides VP-01: every other VP keeps its catalogue default"
+    basis: "Coordinator ruling (HIGH, owner rule 2026-10-11): INV-Q-3283 option A (version), INV-Q-3285 option A (typed values beside the unchanged behavior text, as io_contract.catalogue, INV-CS-3045); keys from the live VP catalogue; for INV-T-3277"
+    values:
+      VP-01:
+        requirement: "INV-REQ-1262"
+        text: "customer OIDC where a directory exists"
+        option: "CUSTOMER_OIDC"
+        condition: "where a directory exists"
+        otherwise_option: "PLATFORM_IDENTITY"
+- id: PRF-3
+  requirement: INV-REQ-1254
+  revision: 3156ff0f-566f-4024-a9ad-66d47714a454
+  name: "Group with a shared service centre"
+  title: "The group profile for a shared service centre sets customer OIDC, SCIM, group transmission by election, routing to the centre and SUB-005 as not ready"
+  profile:
+    version: 1
+    status: "planned"
+    basis: "Coordinator ruling (HIGH, owner rule 2026-10-11): INV-Q-3283 option A (version), INV-Q-3285 option A (typed values beside the unchanged behavior text, as io_contract.catalogue, INV-CS-3045); keys from the live VP catalogue; for INV-T-3277"
+    values:
+      VP-01:
+        requirement: "INV-REQ-1262"
+        text: "customer OIDC"
+        option: "CUSTOMER_OIDC"
+      VP-02:
+        requirement: "INV-REQ-1263"
+        text: "SCIM"
+        option: "SCIM"
+      VP-15:
+        requirement: "INV-REQ-1276"
+        text: "adds SUB-005"
+        option: "ADD_WARN_CODES"
+        adds:
+          - "SUB-005"
+      VP-28:
+        requirement: "INV-REQ-1289"
+        text: "per member, or consolidated by election"
+        option: "PER_MEMBER"
+        alternatives:
+          - "CONSOLIDATED"
+        alternative_by: "election"
+        explicit_default: true
+      VP-33:
+        requirement: "INV-REQ-1294"
+        text: "routing rules to the centre"
+        option: "ROUTING_RULES"
+        at_apply: "the routing rules to the centre (service data the owning service stores and validates, INV-REQ-1184)"
+- id: PRF-4
+  requirement: INV-REQ-1255
+  revision: 077f7fea-23bd-48db-85a6-2e98c6c3716e
+  name: "Enterprise with an integrated filing workflow"
+  title: "The enterprise profile for an integrated filing workflow sets a blocking gate, a second override approver above an amount, SUB-005 and PER-003 as not ready, and webhook alerts"
+  profile:
+    version: 1
+    status: "planned"
+    basis: "Coordinator ruling (HIGH, owner rule 2026-10-11): INV-Q-3283 option A (version), INV-Q-3285 option A (typed values beside the unchanged behavior text, as io_contract.catalogue, INV-CS-3045); keys from the live VP catalogue; for INV-T-3277"
+    values:
+      VP-14:
+        requirement: "INV-REQ-1275"
+        text: "blocking"
+        option: "BLOCKING"
+      VP-15:
+        requirement: "INV-REQ-1276"
+        text: "adds SUB-005 and PER-003"
+        option: "ADD_WARN_CODES"
+        adds:
+          - "SUB-005"
+          - "PER-003"
+      VP-32:
+        requirement: "INV-REQ-1293"
+        text: "second approver above a stated amount"
+        option: "SECOND_APPROVER_ABOVE_AMOUNT"
+        at_apply: "the amount (SGD, above 0)"
+      VP-46:
+        requirement: "INV-REQ-1307"
+        text: "adds webhook"
+        options:
+          - "EMAIL_DEFAULT_ROLES"
+          - "ADD_WEBHOOK_OR_CHAT"
+        adds:
+          - "webhook"
+        at_apply: "the webhook endpoint"
+- id: PRF-5
+  requirement: INV-REQ-1256
+  revision: e02a73d4-58b9-4a7e-a3d5-cd64f6e60651
+  name: "Agent files for the client"
+  title: "The agent-files profile grants the agent all three scopes, derives the agent as filer of record, notifies the client immediately and keeps the default mapping approval"
+  profile:
+    version: 1
+    status: "available"
+    basis: "Coordinator ruling (HIGH, owner rule 2026-10-11): INV-Q-3283 option A (version), INV-Q-3285 option A (typed values beside the unchanged behavior text, as io_contract.catalogue, INV-CS-3045); keys from the live VP catalogue; for INV-T-3277"
+    values:
+      VP-04:
+        requirement: "INV-REQ-1265"
+        text: "default"
+        option: "AGENT_SECOND_PERSON_CLIENT_ACK"
+        explicit_default: true
+      VP-10:
+        requirement: "INV-REQ-1271"
+        text: "all three items"
+        options:
+          - "SUBMIT_INVOICE_DATA"
+          - "FILE_GST_RETURN"
+          - "MAPPING_APPROVAL"
+      VP-11:
+        requirement: "INV-REQ-1272"
+        text: "derived (agent)"
+        option: "DERIVED"
+        explicit_default: true
+      VP-12:
+        requirement: "INV-REQ-1273"
+        text: "immediate notice"
+        option: "IMMEDIATE_NOTICE"
+        explicit_default: true
+- id: PRF-6
+  requirement: INV-REQ-1257
+  revision: cb075e07-26f5-48d0-b947-d67181ab82f4
+  name: "Agent submits, client files"
+  title: "The agent-submits profile grants the agent invoice data and mapping approval, derives the client as filer of record, and has the signatory record filing facts on the link page"
+  profile:
+    version: 1
+    status: "available"
+    note: "'the signatory records filing facts on the link page' sets no VP value and stays in the behavior text"
+    basis: "Coordinator ruling (HIGH, owner rule 2026-10-11): INV-Q-3283 option A (version), INV-Q-3285 option A (typed values beside the unchanged behavior text, as io_contract.catalogue, INV-CS-3045); keys from the live VP catalogue; for INV-T-3277"
+    values:
+      VP-10:
+        requirement: "INV-REQ-1271"
+        text: "`SUBMIT_INVOICE_DATA` and `MAPPING_APPROVAL`"
+        options:
+          - "SUBMIT_INVOICE_DATA"
+          - "MAPPING_APPROVAL"
+      VP-11:
+        requirement: "INV-REQ-1272"
+        text: "derived (client)"
+        option: "DERIVED"
+        explicit_default: true
+- id: PRF-7
+  requirement: INV-REQ-1258
+  revision: 56145491-8eee-46d3-bda2-6e3caa4cbc0e
+  name: "Regulated private installation"
+  title: "The regulated private installation profile sets customer OIDC, SCIM, monthly reviews, two-hour break-glass, a second override approver always, 7-year retention with justification and no production samples"
+  profile:
+    version: 1
+    status: "planned"
+    basis: "Coordinator ruling (HIGH, owner rule 2026-10-11): INV-Q-3283 option A (version), INV-Q-3285 option A (typed values beside the unchanged behavior text, as io_contract.catalogue, INV-CS-3045); keys from the live VP catalogue; for INV-T-3277"
+    values:
+      VP-01:
+        requirement: "INV-REQ-1262"
+        text: "customer OIDC"
+        option: "CUSTOMER_OIDC"
+      VP-02:
+        requirement: "INV-REQ-1263"
+        text: "SCIM"
+        option: "SCIM"
+      VP-05:
+        requirement: "INV-REQ-1266"
+        text: "monthly"
+        option: "MONTHLY"
+      VP-08:
+        requirement: "INV-REQ-1269"
+        text: "two-hour sessions"
+        typed: false
+        untyped_reason: "no option of INV-REQ-1269 fits: DEFAULT_PAIR_4H fixes the window at 4 h and only OTHER_NAMED_PAIR allows 1..8 h with a pair the text does not name; left untyped pending its own ruling"
+      VP-32:
+        requirement: "INV-REQ-1293"
+        text: "second approver always"
+        option: "SECOND_APPROVER_ALWAYS"
+      VP-43:
+        requirement: "INV-REQ-1304"
+        text: "7 years with justification"
+        option: "LONGER"
+        typed_value:
+          type: "duration"
+          unit: "years"
+          value: 7
+        at_apply: "the justification text"
+      VP-44:
+        requirement: "INV-REQ-1305"
+        text: "off"
+        option: "OFF"
+        explicit_default: true
