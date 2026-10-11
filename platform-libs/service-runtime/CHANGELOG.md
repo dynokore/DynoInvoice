@@ -22,8 +22,7 @@ train is its own (README.md: "own version and changelog").
 - The operation contract (INV-REQ-957, INV-REQ-1010): `DeclaredOperation` (role and scope check, state
   precondition, repeat key and prior result, effect, audit, reversibility UNDOABLE, COMPENSABLE or
   IRREVERSIBLE), `OperationRegistry` and the impl half's `TransactionalOperationRunner`, which refuses before
-  reading state, serialises same-key commands on a transaction-scoped lock on (operation id, repeat key), checks
-  the precondition and the repeat in one transaction and commits the audit entry with
+  reading state, checks the precondition and the repeat in one transaction and commits the audit entry with
   the change. `JobCommand` now carries its contract reversibility.
 - runJobNow, pauseJob and resumeJob over HTTP (INV-API-3023, INV-API-3025, INV-Q-3535): `JobCommandServlet`
   at `/internal/v1/jobs/{job}/run|pause|resume` onto `JobCommands`, the actor and tenant from the

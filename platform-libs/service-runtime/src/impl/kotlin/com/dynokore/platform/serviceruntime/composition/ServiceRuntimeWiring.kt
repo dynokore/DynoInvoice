@@ -14,7 +14,6 @@ import com.dynokore.platform.serviceruntime.jobs.JobCommands
 import com.dynokore.platform.serviceruntime.jobs.JobRuntime
 import com.dynokore.platform.serviceruntime.operation.OperationRunner
 import com.dynokore.platform.serviceruntime.operation.TransactionalOperationRunner
-import com.dynokore.platform.tenancykernel.CurrentConnection
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Qualifier
@@ -42,13 +41,12 @@ import javax.sql.DataSource
 @ConditionalOnClass(name = ["com.dynokore.platform.outboxandqueue.TenantScope", "com.dynokore.platform.tenancykernel.TransactionRunnerImpl"])
 class ServiceRuntimeWiring {
     @Bean
-    @ConditionalOnBean(TransactionRunner::class, CurrentConnection::class, AuditWriter::class)
+    @ConditionalOnBean(TransactionRunner::class, AuditWriter::class)
     @ConditionalOnMissingBean(OperationRunner::class)
     fun operationRunner(
         transactions: TransactionRunner,
-        connections: CurrentConnection,
         audit: AuditWriter,
-    ): TransactionalOperationRunner = TransactionalOperationRunner(transactions, connections, audit)
+    ): TransactionalOperationRunner = TransactionalOperationRunner(transactions, audit)
 
     @Bean
     @ConditionalOnBean(TenantScope::class, OutboxWriter::class)

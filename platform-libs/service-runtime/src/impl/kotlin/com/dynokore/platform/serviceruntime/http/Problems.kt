@@ -5,15 +5,16 @@ import tools.jackson.databind.ObjectMapper
 
 /**
  * The closed service-runtime cases (ARC-19) with their SRT catalogue codes (owner ruling INV-Q-3720, INV-REQ-827
- * b3; the catalogue rows of INV-T-3742, gst-catalogue 1.12.0): owner Platform, severity BLOCK, disposition
- * TERMINAL for all ten (SRT-007 and SRT-008 by coordinator ruling INV-Q-3754), each at its single HTTP status
- * (API-21).
+ * b3; the catalogue rows of INV-T-3742, invoice-docs !8, platform-contracts !40 at gst-catalogue 1.12.0): owner
+ * Platform, severity BLOCK, each at its single HTTP status (API-21). [disposition] is inlined only where it is
+ * settled: the disposition of SRT-007 and SRT-008 is still being ruled, so those responses leave it to the
+ * catalogue lookup by `code` (the envelope keeps it optional, CS-13).
  */
 enum class ClosedErrorCode(
     val code: String,
     val httpStatus: Int,
     val title: String,
-    val disposition: String,
+    val disposition: String?,
 ) {
     CONTRACT_VIOLATION("SRT-001", 400, "Request does not match the contract", "TERMINAL"),
     IDEMPOTENCY_KEY_INVALID("SRT-002", 400, "Idempotency-Key missing or malformed", "TERMINAL"),
@@ -21,8 +22,8 @@ enum class ClosedErrorCode(
     ACCESS_DENIED("SRT-004", 403, "Access denied", "TERMINAL"),
     NOT_FOUND("SRT-005", 404, "No such resource or operation", "TERMINAL"),
     METHOD_NOT_ALLOWED("SRT-006", 405, "Method not allowed", "TERMINAL"),
-    IN_FLIGHT("SRT-007", 409, "Request with this Idempotency-Key in flight", "TERMINAL"),
-    STALE_AGGREGATE("SRT-008", 409, "Stale aggregate version", "TERMINAL"),
+    IN_FLIGHT("SRT-007", 409, "Request with this Idempotency-Key in flight", null),
+    STALE_AGGREGATE("SRT-008", 409, "Stale aggregate version", null),
     DIFFERENT_REQUEST("SRT-009", 422, "Idempotency-Key reused with a different request", "TERMINAL"),
     INTERNAL_ERROR("SRT-010", 500, "Internal error", "TERMINAL"),
     ;
@@ -111,7 +112,7 @@ object Problems {
         detail: String?,
         correlationId: String,
         code: String,
-        disposition: String,
+        disposition: String?,
         owner: String,
     ): StoredResponse {
         val node =
@@ -123,7 +124,7 @@ object Problems {
                 put("correlationId", correlationId)
                 put("code", code)
                 put("severity", BLOCK)
-                put("disposition", disposition)
+                disposition?.let { put("disposition", it) }
                 put("remediationOwner", owner)
             }
         return StoredResponse(status, mapper.writeValueAsString(node))

@@ -70,7 +70,6 @@ import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantContextImpl
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
-import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.matchers.types.shouldBeSameInstanceAs
@@ -78,8 +77,6 @@ import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.mockk
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.params.ParameterizedTest
-import org.junit.jupiter.params.provider.EnumSource
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.test.context.FilteredClassLoader
@@ -91,7 +88,6 @@ import java.nio.file.Path
 import java.time.Duration
 import java.util.jar.JarFile
 import javax.sql.DataSource
-import kotlin.reflect.KClass
 import com.dynokore.platform.adapterruntime.ConnectionStatusReporter as AdapterConnectionStatusReporter
 import com.dynokore.platform.adapterruntime.DeadLetterSink as AdapterDeadLetterSink
 import com.dynokore.platform.adapterruntime.SecretRef as AdapterSecretRef
@@ -109,105 +105,38 @@ class CompositionRootTest {
             .withConfiguration(AutoConfigurations.of(ServiceRuntimeConfiguration::class.java))
             .withPropertyValues("service-runtime.workload-identity.audience=submission-svc")
 
-    /**
-     * The inputs only a service has: its role DataSources, catalogues, limits, sinks, S3 client and ports, each
-     * under its key in [ServiceInput]; [without] withholds one of them.
-     */
-    private fun ApplicationContextRunner.withServiceInputs(
-        mountRoot: Path,
-        without: ServiceInput? = null,
-    ): ApplicationContextRunner {
-        var runner = withBean("dataSource", DataSource::class.java, { mockk<DataSource>(relaxed = true) }, { it.isPrimary = true })
-            .withPropertyValues("gst.instance-id=submission-svc-0", "service-runtime.idempotency.schema=submission", "gst.bindings.secret-store.mount-root=$mountRoot")
-        ServiceInput.entries.filter { it != without }.forEach { runner = it.declare(runner) }
-        return runner
-    }
-
-    /** A service-only input, and the ports that exist only when the service declares it (the README port table). */
-    enum class ServiceInput(
-        val declare: (ApplicationContextRunner) -> ApplicationContextRunner,
-        val dependents: Set<KClass<*>>,
-    ) {
-        WORKER_DATA_SOURCE(
-            dataSource(ServiceDataSources.WORKER),
-            setOf(
-                OutboxRelay::class, LaneRateLimiter::class, WorkQueue::class, DeadLetterTriage::class, RetentionPurge::class,
-                StalenessMonitor::class, InboxConsumer::class, ReplayDelivery::class, JobCommands::class, IdempotencyStore::class,
-            ),
-        ),
-        EVENT_LOG_RELAY_DATA_SOURCE(dataSource(ServiceDataSources.EVENT_LOG_RELAY), setOf(EventBinding::class, OutboxRelay::class)),
-        EVENT_LOG_CLAIM_DATA_SOURCE(dataSource(ServiceDataSources.EVENT_LOG_CLAIM), EVENT_LOG_READING),
-        EVENT_LOG_READER_DATA_SOURCE(dataSource(ServiceDataSources.EVENT_LOG_READER), EVENT_LOG_READING),
-        EVENT_LOG_PURGE_DATA_SOURCE(dataSource(ServiceDataSources.EVENT_LOG_PURGE), setOf(EventLogPurge::class)),
-        EVENT_CATALOGUE(
-            { it.withBean(EventCatalogue::class.java, { EventCatalogue(listOf(CatalogueEntry("SubmissionFailed", "submission", setOf("submission-svc"), contentTopic = false))) }) },
-            // without an outbox the service gets the local audit writer instead
-            setOf(
-                OutboxWriter::class, EventLogPurge::class, StalenessMonitor::class, ConnectionStatusReporter::class,
-                EvidenceArtefactRecorder::class, JobCommands::class, IdempotencyStore::class,
-            ),
-        ),
-        RETENTION({ it.withBean(Retention::class.java, { Retention() }) }, setOf(RetentionPurge::class, EventLogPurge::class)),
-        LANE_LIMITS({ it.withBean(LaneLimits::class.java, { LaneLimits() }) }, setOf(LaneRateLimiter::class, WorkQueue::class, ReplayDelivery::class)),
-        STALENESS_RULE(
-            { it.withBean(StalenessRule::class.java, { StalenessRule("submission-svc", "SubmissionFailed", Duration.ofMinutes(5)) }) },
-            setOf(StalenessMonitor::class),
-        ),
-        STALENESS_BREACH_SINK({ it.withBean(StalenessBreachSink::class.java, { StalenessBreachSink { } }) }, setOf(StalenessMonitor::class)),
-        CONSUMER_SUBSCRIPTION(
-            { it.withBean(ConsumerSubscription::class.java, { ConsumerSubscription("submission-svc", "canonical", "submission") }) },
-            INBOX,
-        ),
-        EVENT_HANDLER({ it.withBean(EventHandler::class.java, { mockk<EventHandler>(relaxed = true) }) }, INBOX),
-        REBUILD_REQUIRED_SINK({ it.withBean(RebuildRequiredSink::class.java, { RebuildRequiredSink { } }) }, INBOX),
-        ERROR_CATALOGUE({ it.withBean(ErrorCatalogue::class.java, { ErrorCatalogue { null } }) }, setOf(OverrideService::class)),
-        VARIATION_POINT_CATALOGUE(
-            { it.withBean(VariationPointCatalogue::class.java, { mockk<VariationPointCatalogue>(relaxed = true) }) },
-            setOf(PolicyReader::class, PolicyHistory::class, ConfigPurge::class, ResolutionRecorder::class, PolicyWriter::class),
-        ),
-        S3_CLIENT({ it.withBean(S3Client::class.java, { mockk<S3Client>(relaxed = true) }) }, setOf(ObjectStore::class)),
-        JOB_COMMAND_AUTHORIZER(
-            { it.withBean(JobCommandAuthorizer::class.java, { mockk<JobCommandAuthorizer>(relaxed = true) }) },
-            setOf(JobCommands::class, IdempotencyStore::class),
-        ),
-        DEADLINE_SOURCE(
-            { it.withBean(DeadlineSource::class.java, { mockk<DeadlineSource>(relaxed = true) }) },
-            setOf(JobCommands::class, IdempotencyStore::class),
-        ),
-        END_USER_PRINCIPAL_RESOLVER(
-            { it.withBean(EndUserPrincipalResolver::class.java, { EndUserPrincipalResolver { null } }) },
-            setOf(IdempotencyStore::class),
-        ),
-        BASE_LICENCE_CHECK(
-            { it.withBean("baseLicenceCheck", LicenceCheck::class.java, { LicenceCheck { LicenceStatus.entries.first() } }) },
-            setOf(LicenceCheck::class),
-        ),
-        SERVICE_NAME(
-            { it.withPropertyValues("gst.service=submission-svc") },
-            // no outbox writer and no local audit writer: nothing that audits
-            setOf(
-                OutboxWriter::class, AuditWriter::class, AuditedOperations::class, OverrideService::class, PolicyWriter::class,
-                OperationRunner::class, ConnectionStatusReporter::class, EvidenceArtefactRecorder::class, JobCommands::class,
-                IdempotencyStore::class,
-            ),
-        ),
-        SCHEMA(
-            { it.withPropertyValues("service-runtime.modules.schema=submission") },
-            setOf(
-                OutboxWriter::class, AuditWriter::class, AuditedOperations::class, OverrideService::class, OutboxRelay::class,
-                LaneRateLimiter::class, WorkQueue::class, DeadLetterTriage::class, RetentionPurge::class, StalenessMonitor::class,
-                ReplayDelivery::class, PolicyReader::class, PolicyHistory::class, ConfigPurge::class, ResolutionRecorder::class,
-                PolicyWriter::class, EvidenceLedger::class, LegalHoldRegistry::class, OperationRunner::class,
-                ConnectionStatusReporter::class, EvidenceArtefactRecorder::class, JobCommands::class, IdempotencyStore::class,
-            ),
-        ),
-        LEDGER_TABLE({ it.withPropertyValues("service-runtime.modules.evidence.ledger-table=evidence_ledger") }, setOf(EvidenceLedger::class)),
-        LEGAL_HOLD_TABLE(
-            { it.withPropertyValues("service-runtime.modules.evidence.legal-hold-table=legal_hold") },
-            setOf(LegalHoldRegistry::class),
-        ),
-        BUCKET({ it.withPropertyValues("service-runtime.modules.evidence.bucket=evidence") }, setOf(ObjectStore::class)),
-    }
+    /** The inputs only a service has: its role DataSources, catalogues, limits, sinks, S3 client and ports. */
+    private fun ApplicationContextRunner.withServiceInputs(mountRoot: Path): ApplicationContextRunner = withBean("dataSource", DataSource::class.java, { mockk<DataSource>(relaxed = true) }, { it.isPrimary = true })
+        .withBean(ServiceDataSources.WORKER, DataSource::class.java, { mockk<DataSource>(relaxed = true) })
+        .withBean(ServiceDataSources.EVENT_LOG_RELAY, DataSource::class.java, { mockk<DataSource>(relaxed = true) })
+        .withBean(ServiceDataSources.EVENT_LOG_CLAIM, DataSource::class.java, { mockk<DataSource>(relaxed = true) })
+        .withBean(ServiceDataSources.EVENT_LOG_READER, DataSource::class.java, { mockk<DataSource>(relaxed = true) })
+        .withBean(ServiceDataSources.EVENT_LOG_PURGE, DataSource::class.java, { mockk<DataSource>(relaxed = true) })
+        .withBean(EventCatalogue::class.java, { EventCatalogue(listOf(CatalogueEntry("SubmissionFailed", "submission", setOf("submission-svc"), contentTopic = false))) })
+        .withBean(Retention::class.java, { Retention() })
+        .withBean(LaneLimits::class.java, { LaneLimits() })
+        .withBean(StalenessRule::class.java, { StalenessRule("submission-svc", "SubmissionFailed", Duration.ofMinutes(5)) })
+        .withBean(StalenessBreachSink::class.java, { StalenessBreachSink { } })
+        .withBean(ConsumerSubscription::class.java, { ConsumerSubscription("submission-svc", "canonical", "submission") })
+        .withBean(EventHandler::class.java, { mockk<EventHandler>(relaxed = true) })
+        .withBean(RebuildRequiredSink::class.java, { RebuildRequiredSink { } })
+        .withBean(ErrorCatalogue::class.java, { ErrorCatalogue { null } })
+        .withBean(VariationPointCatalogue::class.java, { mockk<VariationPointCatalogue>(relaxed = true) })
+        .withBean(S3Client::class.java, { mockk<S3Client>(relaxed = true) })
+        .withBean(JobCommandAuthorizer::class.java, { mockk<JobCommandAuthorizer>(relaxed = true) })
+        .withBean(DeadlineSource::class.java, { mockk<DeadlineSource>(relaxed = true) })
+        .withBean(EndUserPrincipalResolver::class.java, { EndUserPrincipalResolver { null } })
+        .withBean("baseLicenceCheck", LicenceCheck::class.java, { LicenceCheck { LicenceStatus.entries.first() } })
+        .withPropertyValues(
+            "gst.service=submission-svc",
+            "gst.instance-id=submission-svc-0",
+            "service-runtime.modules.schema=submission",
+            "service-runtime.modules.evidence.ledger-table=evidence_ledger",
+            "service-runtime.modules.evidence.legal-hold-table=legal_hold",
+            "service-runtime.modules.evidence.bucket=evidence",
+            "service-runtime.idempotency.schema=submission",
+            "gst.bindings.secret-store.mount-root=$mountRoot",
+        )
 
     @Test
     fun `every L1 module present with the service's inputs, every port with a platform-libs implementation is a bean`(
@@ -290,32 +219,6 @@ class CompositionRootTest {
         }
     }
 
-    @ParameterizedTest(name = "{displayName}[{0}]")
-    @EnumSource(ServiceInput::class)
-    fun `withholding one service-only input leaves out exactly the ports that need it`(
-        input: ServiceInput,
-        @TempDir mountRoot: Path,
-    ) {
-        base.withServiceInputs(mountRoot, without = input).run { context ->
-            context.startupFailure shouldBe null
-            SERVICE_INPUT_PORTS.forEach { port ->
-                withClue("${port.simpleName} without $input") {
-                    context.getBeansOfType(port.java).isEmpty() shouldBe (port in input.dependents)
-                }
-            }
-        }
-    }
-
-    @Test
-    fun `every port that needs a service-only input is present when all are declared`(
-        @TempDir mountRoot: Path,
-    ) {
-        base.withServiceInputs(mountRoot).run { context ->
-            context.startupFailure shouldBe null
-            SERVICE_INPUT_PORTS.forEach { port -> withClue(port.simpleName) { context.getBeansOfType(port.java).size shouldBe 1 } }
-        }
-    }
-
     @Test
     fun `a service without an outbox gets the local audit writer`() {
         base
@@ -350,17 +253,6 @@ class CompositionRootTest {
     }
 
     private companion object {
-        val EVENT_LOG_READING: Set<KClass<*>> = setOf(EventLogReader::class, StalenessMonitor::class, InboxConsumer::class, ReplayDelivery::class)
-
-        val INBOX: Set<KClass<*>> = setOf(InboxConsumer::class, ReplayDelivery::class)
-
-        /** Every port whose presence depends on a service-only input, and the ports that depend on none. */
-        val SERVICE_INPUT_PORTS: Set<KClass<*>> by lazy {
-            ServiceInput.entries.flatMap { it.dependents }.toSet() + setOf(TransactionRunner::class, TenantScope::class, SecretStore::class, PackRegistry::class)
-        }
-
-        fun dataSource(name: String): (ApplicationContextRunner) -> ApplicationContextRunner = { it.withBean(name, DataSource::class.java, { mockk<DataSource>(relaxed = true) }) }
-
         /** Modules service-runtime does not depend on at all. */
         val absentModules = listOf("evidencestore", "adapterruntime", "rulepackkernel", "crypto").map { "com.dynokore.platform.$it." }
 

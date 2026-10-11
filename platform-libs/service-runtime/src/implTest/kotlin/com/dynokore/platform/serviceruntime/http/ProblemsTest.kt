@@ -45,8 +45,8 @@ class ProblemsTest {
             (row["condition"] as String).replace(Regex("\\s+"), " ").contains("HTTP ${code.httpStatus}") shouldBe true
             row["severity"] shouldBe "BLOCK"
             row["owner"] shouldBe code.remediationOwner
-            row["disposition"] shouldBe code.disposition
-            code.disposition shouldBe "TERMINAL" // INV-Q-3754 for SRT-007 and SRT-008
+            // an inlined disposition agrees with the catalogue; SRT-007 and SRT-008 inline none while it is ruled
+            code.disposition?.let { row["disposition"] shouldBe it }
         }
     }
 
@@ -59,7 +59,7 @@ class ProblemsTest {
             contracts.schemaErrors("service-runtime/schemas/error-envelope.schema.json", body).shouldBeEmpty()
             body.get("code").asString() shouldBe code.code
             body.get("severity").asString() shouldBe "BLOCK"
-            body.get("disposition").asString() shouldBe code.disposition
+            body.get("disposition")?.asString() shouldBe code.disposition
             body.get("remediationOwner").asString() shouldBe "Platform"
             body.has("detail") shouldBe (code != ClosedErrorCode.INTERNAL_ERROR)
         }

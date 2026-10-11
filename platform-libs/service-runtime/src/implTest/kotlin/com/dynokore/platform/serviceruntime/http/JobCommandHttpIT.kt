@@ -136,7 +136,7 @@ class JobCommandHttpIT {
             contentType.substringBefore(';') shouldBe Problems.CONTENT_TYPE
             body.get("code").asString() shouldBe expected.code
             body.get("severity").asString() shouldBe "BLOCK"
-            body.get("disposition").asString() shouldBe expected.disposition
+            body.get("disposition")?.asString() shouldBe expected.disposition
             body.get("remediationOwner").asString() shouldBe "Platform"
             body.get("status").asInt() shouldBe expected.httpStatus
             if (expected == ClosedErrorCode.INTERNAL_ERROR) body.has("detail") shouldBe false

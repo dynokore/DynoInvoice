@@ -59,7 +59,7 @@ Service inputs:
 | crypto | `DetachedSigner`, `DetachedSignatureVerifier` | `BouncyCastleCms` | nothing |
 | rulepack-kernel | `PackVerifier`, `PackContentValidator`, `PackRegistry` | `BouncyCastlePackVerifier`, `JacksonPackContentValidator`, `InMemoryPackRegistry` | nothing |
 | service-runtime | `SecretStore` (§12.1) | `MountedFileSecretStore` | nothing |
-| service-runtime | `OperationRunner` | `TransactionalOperationRunner` | (a `TransactionRunner` with its `CurrentConnection`, an `AuditWriter`) |
+| service-runtime | `OperationRunner` | `TransactionalOperationRunner` | (a `TransactionRunner`, an `AuditWriter`) |
 | service-runtime | `ConnectionStatusReporter`, the only `ConnectionStatusChanged` publisher (INV-REQ-836 b4) | `OutboxConnectionStatusReporter` | (an `OutboxWriter`) |
 | service-runtime | `EvidenceArtefactRecorder` | `OutboxEvidenceArtefactRecorder` | (an `OutboxWriter`) |
 | service-runtime | `JobCommands` | `JobRuntime` | `JobCommandAuthorizer`, `DeadlineSource`, `workerDataSource`, `gst.service`, schema; optional `jobRunNowExecutor` |
