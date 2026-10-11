@@ -64,6 +64,10 @@ dependencies {
     add("implImplementation", project(":tenancy-kernel"))
     add("implTestImplementation", project(":tenancy-kernel"))
 
+    // INV-T-3002: PolicyReplica resolves over config-resolver's scope chain (INV-REQ-1242), api half only.
+    api(project(":config-resolver"))
+    add("implTestImplementation", project(":config-resolver"))
+
     // The impl half compiles and runs against the api half's output, in this
     // same project (Gradle's own idiom for a second source set that extends
     // `main`, e.g. `testImplementation(sourceSets.main.get().output)`).

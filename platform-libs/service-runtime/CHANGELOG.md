@@ -6,6 +6,21 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-11
+### Changed (breaking)
+- `PolicyReplica` resolves over config-resolver's scope chain (INV-REQ-1242 behaviour #1;
+  INV-T-3002, INV-Q-2968 B2): installation, tenant, group, entity, feed, Access Point
+  connection, client entity. `PolicyChanged.scope` and `PolicyReplica.valueAt` take
+  config-resolver's `PolicyScope`, so INV-REQ-1241's per-AP-connection example works. The
+  replica's own `PolicyScope` (entity, tenant, platform) is removed.
+- Ordering and lag use the event-log offset per producer topic, not a payload version:
+  `PolicyChanged.version` is replaced by `topic` and `offset`; the replica implements the new
+  `PolicyFeedSink` (every position given per topic) instead of `ReplicaFeedSink`; `lag()` is the
+  worst over the topics known, `lag(topic)` and `appliedOffset(topic)` are new, and the public
+  `tracker` is gone. Offsets of different topics are not compared.
+- service-runtime-api now depends on `config-resolver-api` (INV-MOD-2371: the composition root may
+  use the other L1 modules).
+
 ## [1.2.0] - 2026-10-11
 ### Added
 - The replica mechanism (INV-REQ-1199, INV-ADR-284; INV-T-2873 / T29), package `replica`:

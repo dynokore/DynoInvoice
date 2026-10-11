@@ -14,6 +14,7 @@ import java.io.File
  * embeds, and none may use it. T29 (INV-T-2873) uses exactly one, tenancy-kernel's
  * `TenantId` (the replicas are tenant-keyed), so that is the one allowed import
  * here; any other L1 module still fails until a task needs it and names it.
+ * INV-T-3002 adds config-resolver's `PolicyScope` (the policy replica resolves over its scope chain).
  * (This replaces the provisional "uses no other L1 module" reading, which
  * konsist-rules 0.2.0's inverted order encoded; platform-build 0.5.0 corrects it.)
  *
@@ -32,7 +33,6 @@ class ArchitectureTest {
             "rulepackkernel",
             "evidencestore",
             "adapterruntime",
-            "configresolver",
             "auditlog",
         ).map { "com.dynokore.platform.$it" }
 
@@ -43,7 +43,7 @@ class ArchitectureTest {
     }
 
     @Test
-    fun `service-runtime imports no L1 module beyond tenancy-kernel`() {
+    fun `service-runtime imports no L1 module beyond tenancy-kernel and config-resolver`() {
         assertNoOtherL1Import(
             Konsist.scopeFromModule("service-runtime", "main", "impl", "test", "implTest"),
         )
@@ -56,7 +56,7 @@ class ArchitectureTest {
      * `ArchitectureTest` use for theirs.
      */
     @Test
-    fun `would fail if service-runtime imported an L1 module beyond tenancy-kernel`(
+    fun `would fail if service-runtime imported an L1 module beyond tenancy-kernel and config-resolver`(
         @TempDir dir: File,
     ) {
         val offender = File(dir, "Offender.kt")
