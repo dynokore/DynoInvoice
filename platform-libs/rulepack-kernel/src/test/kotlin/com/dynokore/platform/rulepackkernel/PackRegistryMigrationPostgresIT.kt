@@ -140,7 +140,7 @@ class PackRegistryMigrationPostgresIT {
         assertThrows(SQLException::class.java) {
             insert(app, platformOperator = true, rowTenant = null, packId = "platform-v3-again", version = "3.0.0")
         }
-        // Same pack_type and version in two different tenants, and as a platform row, stays allowed.
+        // Same pack_type and version in two different tenants stays allowed.
         insert(app, tenant = tenantB, rowTenant = tenantB, packId = "b-v2", version = "2.0.0")
         insert(app, tenant = tenantA, rowTenant = tenantA, packId = "a-v2", version = "2.0.0")
         // The same tenant and version twice stays refused, as before.
@@ -164,12 +164,20 @@ class PackRegistryMigrationPostgresIT {
                         "(gen_random_uuid(), 'p', 'Scope', '1.0.0', NULL, now(), '1', '{}', '{}', '\\x01', '{}', 'a')"
                 statement.execute(row)
                 statement.execute(row) // old constraint admits the duplicate
+                val upgrade = PackRegistryMigration.lineageKeyUpgradeDdl(schema = "rulepack_test", table = "old_pack")
+                // Duplicate still present: the single-statement upgrade fails and keeps the old constraint.
+                assertThrows(SQLException::class.java) { statement.execute(upgrade) }
+                statement.executeQuery(
+                    "SELECT count(*) FROM pg_constraint WHERE conname = 'old_pack_lineage_key' " +
+                        "AND conrelid = 'rulepack_test.old_pack'::regclass",
+                ).use { rs ->
+                    rs.next()
+                    assertTrue(rs.getInt(1) == 1, "the old lineage constraint must survive a failed upgrade")
+                }
                 statement.execute(
                     "DELETE FROM rulepack_test.old_pack WHERE ctid = (SELECT max(ctid) FROM rulepack_test.old_pack)",
                 )
-                statement.execute(
-                    PackRegistryMigration.lineageKeyUpgradeDdl(schema = "rulepack_test", table = "old_pack"),
-                )
+                statement.execute(upgrade)
                 assertThrows(SQLException::class.java) { statement.execute(row) }
             }
         }

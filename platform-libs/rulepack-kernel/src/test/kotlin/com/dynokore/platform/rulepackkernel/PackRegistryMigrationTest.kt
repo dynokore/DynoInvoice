@@ -81,7 +81,7 @@ class PackRegistryMigrationTest {
     fun `upgrade replaces the lineage constraint with NULLS NOT DISTINCT`() {
         val ddl = PackRegistryMigration.lineageKeyUpgradeDdl(schema = "rules", table = "rule_pack_version")
 
-        assertTrue(ddl.contains("DROP CONSTRAINT rule_pack_version_lineage_key;"))
+        assertTrue(ddl.contains("DROP CONSTRAINT rule_pack_version_lineage_key,"))
         assertTrue(ddl.contains("UNIQUE NULLS NOT DISTINCT (pack_type, tenant_id, version)"))
     }
 }

@@ -89,7 +89,8 @@ object PackRegistryMigration {
      * version, `tenant_id IS NULL`, could be stored twice; INV-Q-2964, INV-T-2996):
      * replaces the lineage constraint with `UNIQUE NULLS NOT DISTINCT`. Fails if the
      * table already holds a duplicate platform version, which the holder resolves
-     * first. Requires PostgreSQL 15 or later.
+     * first. One ALTER TABLE statement, so a failure leaves the old constraint in place. The
+     * holder runs it once, inside its own migration tool. Requires PostgreSQL 15 or later.
      */
     fun lineageKeyUpgradeDdl(
         schema: String,
@@ -99,9 +100,8 @@ object PackRegistryMigration {
         require(IDENTIFIER.matches(table)) { "table must be a plain lower-case identifier, was '$table'" }
         val uniqueConstraint = "${table}_lineage_key"
         return """
-            |ALTER TABLE $schema.$table DROP CONSTRAINT $uniqueConstraint;
-            |ALTER TABLE $schema.$table ADD CONSTRAINT $uniqueConstraint
-            |    UNIQUE NULLS NOT DISTINCT (pack_type, tenant_id, version);
+            |ALTER TABLE $schema.$table DROP CONSTRAINT $uniqueConstraint,
+            |    ADD CONSTRAINT $uniqueConstraint UNIQUE NULLS NOT DISTINCT (pack_type, tenant_id, version);
         """.trimMargin()
     }
 
