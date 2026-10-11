@@ -5,6 +5,10 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-11
+### Changed
+- `outbox-and-queue` pair now resolves to its `1.3.0` (INV-T-2998); version bump only.
+
 ## [0.9.0] - 2026-10-11
 ### Added
 - `config-resolver-api` and `config-resolver` 1.0.0 (INV-T-2869 / T25).
