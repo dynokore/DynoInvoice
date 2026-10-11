@@ -502,13 +502,23 @@ paths:
     post:
       operationId: provisionTenant
       summary: Provision a tenant from a signed contract (SDS §7, SCR-38.1)
-      description: Creates the tenant in tenancy-svc (control-plane-svc->tenancy-svc) and invites the
+      description: >-
+        Creates the tenant in tenancy-svc (control-plane-svc->tenancy-svc) and invites the
         first administrator (access-svc, out of this operation's own response).
+
+
+        Within console-bff's 2 s (INV-REQ-1204 b7, INV-Q-3476 (d)): the inline
+        createTenant attempt is bounded by the propagated deadline (INV-REQ-1203).
+        The 201 records the provisioning request and reports its status: CREATED
+        when tenancy-svc created the tenant in time, PENDING when createTenant is
+        still running under background retry, each attempt capped at 5 s, until the
+        request reads CREATED with exactly one tenant (INV-AC-3485). It never reports
+        a created tenant it has not created. PROVISIONED is kept in the enum (API-03).
       tags:
       - commercial
       x-principal: filing-workflow
       x-sync-edge: console-bff->control-plane-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-requirements:
       - FR-AC.1
       - FR-AC.19
@@ -536,7 +546,7 @@ paths:
                   firstAdministratorEmail: admin@acme.example
       responses:
         "201":
-          description: Tenant provisioning request recorded; tenant created
+          description: Tenant provisioning request recorded
           content:
             application/json:
               schema:
@@ -546,7 +556,7 @@ paths:
                   value:
                     contractReference: CTR-2026-0091
                     tenantRef: TEN-7B1004
-                    status: PROVISIONED
+                    status: CREATED
         "400":
           $ref: '#/components/responses/Error'
         "401":
@@ -937,7 +947,12 @@ components:
           type: string
           enum:
           - PROVISIONED
+          - PENDING
+          - CREATED
           x-extensible-enum: true
+          description: PENDING while createTenant runs under background retry; CREATED once the
+            tenant is created (INV-Q-3476 (d), INV-AC-3485). PROVISIONED is kept so no value is
+            removed (API-03).
   responses:
     Error:
       description: Error (API-20 envelope)

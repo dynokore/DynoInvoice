@@ -415,6 +415,15 @@ paths:
         (`ISSUANCE_REFUSED`), with `docUuid` in the body. Not in API-15's
         named exemption list, so (unlike transactions/batches/aggregates)
         this resource requires the `Idempotency-Key` header.
+
+
+        Timeout class (INV-REQ-1204 b7, INV-Q-3476): the issuance class
+        of `API gateway -> ingestion-svc`, 5 s (x-timeout 5000), above
+        the 3 s transaction class because the operation relays the
+        document to canonical-svc (2 s) and then validates it through
+        payload-svc (2 s), in sequence; a timeout would push the ERP to
+        issue through its own Access Point without the checks
+        (FR-AE.84).
       tags: [issuances]
       x-principal: ingest
       x-timeout: 5000

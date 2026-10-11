@@ -1,30 +1,40 @@
 #!/usr/bin/env python3
-"""spectral/check-timeouts.py — INV-T-3431 (INV-Q-3429 A, INV-REQ-1232 b4, INV-REQ-1204).
+"""spectral/check-timeouts.py — INV-T-3431 (INV-Q-3429 A, INV-REQ-1232 b4, INV-REQ-1204);
+public operations added by INV-T-3491 (INV-REQ-1204 b7, INV-Q-3476, INV-Q-3510).
 
 Every operation's x-timeout (API-02) must be one of the figures of its edge's
 row in INV-NOTE-3 §36.6, which invoice-docs model/architecture/sync-edges.yaml
 records as `resilience_policy`. The table is read on every run (never vendored);
 no edge and no value is hard-coded here.
 
-For every <service>/openapi.yaml operation with an x-sync-edge `<caller>-><callee>`
-the edge's row is found as follows:
-  1. the exact `caller → callee` row (the fallback rows `Any → tenancy-svc` and
+For every <service>/openapi.yaml operation the edge `<caller>-><callee>` is its
+x-sync-edge. A public operation carries no x-sync-edge (API-08 applies to
+/internal/v1 only), so its edge is taken from where it is served: the callee is
+the file's service (`<dir>-svc`, console-bff its own name, as check-sync-edges.py
+names it) and the caller is console-web for console-bff/openapi.yaml (its only
+caller, sync-edges.yaml `console-web -> console-bff`) and the API gateway for
+every other file's public /v1 operations. The edge's row is found as follows:
+  1. the operation's own row, `caller → callee <operationId>` (e.g. `API gateway
+     → ingestion-svc requestIssuance`, the issuance class);
+  2. the exact `caller → callee` row (the fallback rows `Any → tenancy-svc` and
      `Any → access-svc` are exact rows for `any->tenancy-svc` / `any->access-svc`);
-  2. otherwise the caller's `caller → any` row (so console-bff->X, and
-     service-runtime's console-bff->*, use `console-bff → any`).
+  3. otherwise the caller's `caller → any` row (so console-bff->X, and
+     service-runtime's console-bff->*, use `console-bff → any`; a gateway public
+     /v1 operation with no row of its own uses `API gateway → any other
+     service's public /v1 operation`).
 Each `N s` / `N ms` figure in the row's timeout_or_budget is parsed to
 milliseconds; a row with several figures (e.g. `150 ms budget (pre-issuance),
 2 s (Relay validation)`) accepts any of them. The check fails when x-timeout is
 not one of the row's figures.
 
-Listed as unchecked, never failed: operations without an x-sync-edge (public
-/v1 and console-bff's own /bff operations), edges with no row, and rows with
-no figure (`Per §13.7`, `Per binding`).
+Listed as unchecked, never failed: edges with no row, and rows with no figure
+(`Per §13.7`, `Per binding`).
 
 Row callers are normalised as check-sync-edges.py normalises allowlist callers:
 `Any …` becomes `any`, a gateway (`API gateway`, `Gateway`) becomes
 `api-gateway`, anything else is lower-cased with spaces as hyphens; a
-`(fallback)` suffix on the callee is dropped.
+`(fallback)` suffix on the callee is dropped, and a trailing operationId
+(a lowerCamelCase word, e.g. `requestIssuance`) makes the row that operation's own.
 
 Usage: check-timeouts.py <sync-edges.yaml> <root>
 <root> holds the service directories (the repository root in CI). Exit 0 if
@@ -39,18 +49,10 @@ import yaml
 METHODS = ("get", "post", "put", "delete", "patch")
 FIGURE = re.compile(r"(\d+(?:\.\d+)?)\s*(ms|s)\b")
 
-# TODO(INV-T-3491): these operations' x-timeout and response shape are reserved
-# for the owner (INV-Q-3438, INV-Q-3476) and move in INV-T-3491. Until then they
-# keep their current x-timeout and are reported as deferred, not failed. Remove
-# each one from this set in INV-T-3491 when its value is set. The other
-# operations INV-T-3491 owns (requestIssuance and the gateway's other public /v1
-# operations, console-web -> console-bff, createTenant) need no entry: they have
-# no x-sync-edge or their row gives no figure, so they are listed as unchecked.
-DEFERRED_TO_INV_T_3491 = {
-    "importMappingSpreadsheet",
-    "importRegulatoryPack",
-    "provisionTenant",
-}
+OPERATION_ID = re.compile(r"^[a-z]+[A-Z][A-Za-z0-9]*$")
+# Where a public operation (no x-sync-edge) is served decides its caller: the
+# serving topology of INV-NOTE-3 §2.5 / §34.1, not an edge or a value.
+BROWSER_FACING = "console-bff"
 
 
 def norm_caller(caller: str) -> str:
@@ -62,9 +64,25 @@ def norm_caller(caller: str) -> str:
     return c.replace(" ", "-")
 
 
-def norm_callee(callee: str) -> str:
-    c = re.sub(r"\(fallback\)", "", callee).strip().lower()
-    return "any" if c.startswith("any") else c.replace(" ", "-")
+def split_callee(callee: str) -> tuple:
+    """(normalised callee, operationId or None) of a row's callee text."""
+    c = re.sub(r"\(fallback\)", "", callee).strip()
+    op = None
+    words = c.split()
+    if len(words) > 1 and OPERATION_ID.match(words[-1]):
+        op = words[-1]
+        c = " ".join(words[:-1])
+    c = c.lower()
+    return ("any" if c.startswith("any") else c.replace(" ", "-")), op
+
+
+def callee_of(service_dir: str) -> str:
+    return service_dir if service_dir == BROWSER_FACING else f"{service_dir}-svc"
+
+
+def public_edge(service_dir: str) -> str:
+    caller = "console-web" if service_dir == BROWSER_FACING else "api-gateway"
+    return f"{caller}->{callee_of(service_dir)}"
 
 
 def figures_ms(text: str) -> list:
@@ -81,7 +99,8 @@ def load_rows(path: Path) -> dict:
         caller, _, callee = r["edge"].partition("→")
         if not callee:
             continue
-        rows[(norm_caller(caller), norm_callee(callee))] = r
+        callee, op = split_callee(callee)
+        rows[(norm_caller(caller), callee, op)] = r
     return rows
 
 
@@ -91,7 +110,7 @@ def main(argv) -> int:
         return 2
     rows = load_rows(Path(argv[1]))
     root = Path(argv[2])
-    errors, unchecked, deferred, n_ok = [], [], [], 0
+    errors, unchecked, n_ok = [], [], 0
     for f in sorted(root.glob("*/openapi.yaml")):
         svc = f.parent.name
         doc = yaml.safe_load(f.read_text())
@@ -103,15 +122,10 @@ def main(argv) -> int:
                 oid = op.get("operationId")
                 timeout = op.get("x-timeout")
                 where = f"{svc}: {m.upper()} {path} ({oid}) x-timeout {timeout}"
-                edge = op.get("x-sync-edge")
-                if oid in DEFERRED_TO_INV_T_3491:
-                    deferred.append(f"{where}: reserved for INV-T-3491")
-                    continue
-                if not edge:
-                    unchecked.append(f"{where}: no x-sync-edge (public or console-bff's own operation)")
-                    continue
+                edge = op.get("x-sync-edge") or public_edge(svc)
                 caller, _, callee = edge.partition("->")
-                row = rows.get((caller, callee)) or rows.get((caller, "any"))
+                row = (rows.get((caller, callee, oid)) or rows.get((caller, callee, None))
+                       or rows.get((caller, "any", None)))
                 if row is None:
                     unchecked.append(f"{where}: edge {edge} has no resilience_policy row")
                     continue
@@ -126,18 +140,17 @@ def main(argv) -> int:
                     )
                 else:
                     n_ok += 1
-    for title, items in (("unchecked", unchecked), ("deferred", deferred)):
-        if items:
-            print(f"gst-ci: x-timeout {title} ({len(items)}):")
-            for i in items:
-                print(f"  - {i}")
+    if unchecked:
+        print(f"gst-ci: x-timeout unchecked ({len(unchecked)}):")
+        for i in unchecked:
+            print(f"  - {i}")
     if errors:
         print(f"gst-ci: x-timeout check FAILED ({len(errors)}):")
         for e in errors:
             print(f"  - {e}")
         return 1
     print(f"gst-ci: x-timeout check passed: {n_ok} operations match their §36.6 row, "
-          f"{len(unchecked)} unchecked, {len(deferred)} deferred to INV-T-3491.")
+          f"{len(unchecked)} unchecked.")
     return 0
 
 

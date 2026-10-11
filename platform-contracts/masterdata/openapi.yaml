@@ -265,6 +265,12 @@ paths:
         query (FR-AC.3) — not this operation — refuses the bulk action, or
         narrows it to unsubmitted members, if any member has reached SENT or
         beyond.
+
+
+        One call carries at most 5,000 documents (`docUuids` maxItems 5000,
+        API-49; INV-REQ-941 b8, INV-Q-3482), which covers a group of 2,000
+        in one operation (INV-AC-1973). A request over the cap is refused
+        with `413` (API-20 envelope) and changes nothing.
       tags: [remediation]
       x-principal: filing-workflow
       x-sync-edge: console-bff->masterdata-svc
@@ -302,6 +308,8 @@ paths:
               examples:
                 default:
                   value: { resolvedCount: 4, unchangedCount: 0 }
+        '413':
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/masterdata/counterparties/{counterpartyRef}/requests:
@@ -863,6 +871,10 @@ components:
         errorCode: { type: string, pattern: '^[A-Z]{2,10}-[0-9]{3}$' }
         docUuids:
           type: array
+          maxItems: 5000
+          description: >-
+            At most 5,000 documents per call (API-49, INV-Q-3482); a larger
+            request is refused with `413`.
           items: { type: string, format: uuid }
         resolvedIdentifiers:
           type: array

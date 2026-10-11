@@ -187,9 +187,19 @@ paths:
         de-duplication ledger before `AcknowledgementReceived` or
         `NetworkDocumentReceived` is emitted. transport-svc never interprets
         the content of an inbound document (transport-svc `must_not`).
+
+
+        Timeout class (INV-REQ-1204 b7, INV-Q-3476): `API gateway -> any
+        other service's public /v1 operation`, 10 s for request bodies
+        above 1 MB (x-timeout 10000); an inbound document carries up to
+        15 MB (API-49). When the gateway's circuit breaker for this
+        service is open, or the call times out, the gateway answers
+        `503` with the API-20 envelope; the `503` is retryable, and the
+        AP re-sends the same notification, de-duplicated by its
+        notification ID (API-27).
       tags: [notifications]
       x-principal: ap-callback
-      x-timeout: 5000
+      x-timeout: 10000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, "§33.6"]
       x-operation:
@@ -226,6 +236,8 @@ paths:
               examples:
                 default:
                   value: { apNotificationId: "APN-55210", recorded: true }
+        '503':
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/transport/adapters/{adapterRef}/credential-rotations:

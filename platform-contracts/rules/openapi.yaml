@@ -19,7 +19,9 @@ info:
     `provides`, reached only through console-bff on a person's behalf
     (API-25 — the callee re-checks writes). Pack registry and dry-run-result
     reads are not named in that `provides` line, so they stay out of this
-    file's declared scope.
+    file's declared scope, except the API-17 status resources of its long
+    commands: `getDryRun` (INV-Q-3438) and the regulatory pack's status,
+    `getRegulatoryPack` (INV-Q-3478).
   contact:
     name: rules (see CODEOWNERS)
 servers:
@@ -252,10 +254,16 @@ paths:
         Authoring command to console-bff (services.yaml rules-svc
         `provides`, SCR-12.2, §35.10). Rows that fail are reported; the
         draft is created regardless so the tenant can fix and resubmit.
+
+
+        Synchronous, within console-bff's 2 s (INV-Q-3480, INV-REQ-831 b5):
+        a spreadsheet holds at most 5,000 rows (API-49). A spreadsheet over
+        the cap is refused whole with `413` (API-20 envelope) before it is
+        parsed, and no draft pack is created (INV-AC-3484).
       tags: [mapping-packs]
       x-principal: filing-workflow
       x-sync-edge: console-bff->rules-svc
-      x-timeout: 10000
+      x-timeout: 2000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, "§35.10"]
       x-operation:
@@ -285,6 +293,8 @@ paths:
               examples:
                 default:
                   value: { packId: "MAP-0043", status: "DRAFT", failedRows: [] }
+        '413':
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/rules/mapping-packs/{packId}/entries/{entryId}/source-class-acceptance:
@@ -473,14 +483,29 @@ paths:
       summary: Verify and import a signed regulatory-pack bundle (private form)
       description: >-
         Authoring command to console-bff (services.yaml rules-svc
-        `provides`, SCR-11.5, FR-H.6, FR-H.9). Verifies the signature and
-        engine-compatibility range and produces a dry-run delta against
-        local data, with no data leaving the customer's network (FR-H.9);
-        does not use the pack — that is `armRegulatoryPack`.
+        `provides`, SCR-11.5, FR-H.6, FR-H.9). Does import steps 1 to 3
+        only (INV-REQ-1078, INV-REQ-1081 b1, INV-Q-3478): verifies the
+        signature, checks the engine-compatibility range and compiles the
+        pack, which is then staged. It produces no dry-run delta: step 4,
+        the delta against local data with no data leaving the customer's
+        network (FR-H.9), is the separate `dryRun` operation, which the
+        console calls once the pack is staged; arming stays refused until
+        that delta exists (INV-AC-2077). Does not use the pack — that is
+        `armRegulatoryPack`.
+
+
+        Long command (INV-Q-3478, API-17): an import finished within
+        x-timeout returns `201` with the staged pack; one that is not
+        returns `202` with `Location` and `Retry-After` pointing at the
+        pack's status resource, `getRegulatoryPack`
+        (`/internal/v1/rules/regulatory-packs/{packType}/{version}`), which
+        reads IMPORTING, then STAGED, or FAILED with the failing catalogue
+        code in `failureCode`. A repeat with the same Idempotency-Key
+        replays the stored `202` (API-15).
       tags: [regulatory-packs]
       x-principal: filing-workflow
       x-sync-edge: console-bff->rules-svc
-      x-timeout: 10000
+      x-timeout: 2000
       x-error-codes: [DEP-002, DEP-003]
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-H.6, FR-H.9]
       x-operation:
@@ -510,6 +535,66 @@ paths:
               examples:
                 default:
                   value: { packType: "SCOPE", version: "2026.4", status: "STAGED" }
+        '202':
+          description: >-
+            The import did not finish within x-timeout and continues
+            asynchronously (API-17, INV-Q-3478); poll the pack's status
+            resource.
+          headers:
+            Location:
+              schema: { type: string }
+              description: '`/internal/v1/rules/regulatory-packs/{packType}/{version}` (API-17).'
+            Retry-After:
+              schema: { type: integer }
+              description: Seconds to wait before polling the status resource (API-17).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegulatoryPack'
+              examples:
+                default:
+                  value: { packType: "SCOPE", version: "2026.4", status: "IMPORTING" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/rules/regulatory-packs/{packType}/{version}:
+    get:
+      operationId: getRegulatoryPack
+      summary: Read a regulatory pack's status, including an import still running or failed
+      description: >-
+        The pack status resource of `importRegulatoryPack` (API-17,
+        INV-Q-3478, INV-Q-3466 A), the pack's own record, as the batch
+        resource is (`getBatchStatus`). `status` reads IMPORTING while the
+        import runs, STAGED once it has succeeded, and FAILED when it has
+        failed, with `failureCode` the catalogue code that failed it
+        (DEP-002, DEP-003 or RUL-005); later states (ACKNOWLEDGED, ARMED)
+        follow as before. Query to console-bff, readable by the role and in
+        the scope of `importRegulatoryPack` (`deployment.operator`,
+        tenant).
+      tags: [regulatory-packs]
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->rules-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-1078, INV-REQ-1081, INV-REQ-1232]
+      parameters:
+        - name: packType
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+        - name: version
+          in: path
+          required: true
+          schema: { type: string, maxLength: 16 }
+      responses:
+        '200':
+          description: The pack's status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegulatoryPack'
+              examples:
+                default:
+                  value: { packType: "SCOPE", version: "2026.4", status: "FAILED", failureCode: "DEP-002" }
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/rules/regulatory-packs/{packType}/{version}/acknowledgement:
@@ -705,6 +790,14 @@ paths:
         writes nothing to canonical or submission state, and produces, per
         changed document, the old and new verdict or code, the taxable
         value and the GST value (FR-B.3).
+
+
+        For a regulatory pack this is import step 4 (UC-8 step 4,
+        INV-REQ-1081 b1, INV-Q-3478): once `importRegulatoryPack` has
+        staged the pack, the console calls this operation to produce the
+        pack's dry-run delta against local data, run locally with no data
+        leaving the customer's network (FR-H.9); arming is refused until
+        that delta exists (INV-AC-2077).
 
 
         Long command (INV-Q-3438 A, INV-Q-3466 A, API-17): a dry run
@@ -996,11 +1089,20 @@ components:
           maxLength: 16
         status:
           type: string
-          enum: [STAGED, ACKNOWLEDGED, ARMED]
+          enum: [STAGED, ACKNOWLEDGED, ARMED, IMPORTING, FAILED]
           x-extensible-enum: true
+          description: >-
+            IMPORTING while an import that answered `202` runs; FAILED when
+            the import failed, with `failureCode` (INV-Q-3478).
         effectiveFrom:
           type: string
           format: date
+        failureCode:
+          type: string
+          pattern: '^[A-Z]{2,10}-[0-9]{3}$'
+          description: >-
+            Present only when status is FAILED: the catalogue code that
+            failed the import, DEP-002, DEP-003 or RUL-005 (INV-Q-3478).
       required: [packType, version, status]
     ReprocessingRun:
       type: object

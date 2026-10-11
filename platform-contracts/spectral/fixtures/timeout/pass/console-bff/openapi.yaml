@@ -1,0 +1,8 @@
+openapi: 3.1.0
+info: {title: fixture, version: 1.0.0}
+paths:
+  /bff/privacy-cases/{caseId}/corrections:
+    post:
+      operationId: correctPersonalData
+      x-timeout: 5000
+      responses: {"200": {description: ok}}

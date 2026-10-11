@@ -1181,7 +1181,13 @@ paths:
     post:
       operationId: createTenant
       summary: Provision a tenant (SaaS only; called by control-plane-svc's provisionTenant, SDS §7 SCR-38.1)
-      description: Tenant created in tenancy-svc; the first administrator is invited by access-svc separately.
+      description: >-
+        Tenant created in tenancy-svc; the first administrator is invited by access-svc separately.
+
+
+        x-timeout 5000 is the per-attempt cap of control-plane-svc's background retries
+        (INV-REQ-1204 b7, INV-Q-3476 (d)); the inline attempt inside provisionTenant is
+        bounded by the propagated deadline (INV-REQ-1203).
       tags:
       - tenants
       x-principal: filing-workflow

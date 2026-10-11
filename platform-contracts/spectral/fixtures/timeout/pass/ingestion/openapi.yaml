@@ -1,0 +1,13 @@
+openapi: 3.1.0
+info: {title: fixture, version: 1.0.0}
+paths:
+  /v1/transactions:
+    post:
+      operationId: submitTransaction
+      x-timeout: 3000
+      responses: {"201": {description: ok}}
+  /v1/issuances:
+    post:
+      operationId: requestIssuance
+      x-timeout: 5000
+      responses: {"200": {description: ok}}

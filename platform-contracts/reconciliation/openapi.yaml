@@ -65,9 +65,16 @@ paths:
         and the actual filing date. A higher version supersedes; the
         version is never updated in place (FR-D.2's same "new version, not
         in place" pattern applied here).
+
+
+        Timeout class (INV-REQ-1204 b7, INV-Q-3476): `API gateway -> any
+        other service's public /v1 operation`, 3 s (x-timeout 3000).
+        When the gateway's circuit breaker for this service is open, or
+        the call times out, the gateway answers `503` with the API-20
+        envelope; the `503` is retryable.
       tags: [returns]
       x-principal: filing-workflow
-      x-timeout: 5000
+      x-timeout: 3000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-651]
       x-operation:
@@ -132,6 +139,8 @@ paths:
                     form: "F5"
                     filedAt: "2026-04-28T09:00:00Z"
                     recordedAt: "2026-04-28T09:05:00Z"
+        '503':
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
   /v1/entities/{entityRef}/periods/{periodRef}/reconciliation:
@@ -145,6 +154,13 @@ paths:
         against the taxonomy, and the unexplained residual (FR-9.5–9.7).
         Classified variances are shown as expected and resolved, never as
         outstanding issues (FR-Q.10).
+
+
+        Timeout class (INV-REQ-1204 b7, INV-Q-3476): `API gateway -> any
+        other service's public /v1 operation`, 3 s (x-timeout 3000).
+        When the gateway's circuit breaker for this service is open, or
+        the call times out, the gateway answers `503` with the API-20
+        envelope; the `503` is retryable.
       tags: [reconciliation]
       x-principal: reporting
       x-timeout: 3000
@@ -172,6 +188,8 @@ paths:
                         variance: "50.00"
                         varianceClass: "TIMING_DIFFERENCE"
                     unexplainedResidual: "0.00"
+        '503':
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/reconciliation/entities/{entityRef}/periods/{periodRef}/runs:

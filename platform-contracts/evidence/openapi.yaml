@@ -73,9 +73,17 @@ paths:
         (services.yaml evidence-svc `provides`; §28.9, §35.8, §22.5). Public,
         non-production workspace only (NFR-S.4, same principal restriction
         as the ingestion-svc catalogue rows of 04-api-standards.md §15).
+
+
+        Timeout class (INV-REQ-1204 b7, INV-Q-3476): `API gateway -> any
+        other service's public /v1 operation`, 3 s (x-timeout 3000).
+        When the gateway's circuit breaker for this service is open, or
+        the call times out, the gateway answers `503` with the API-20
+        envelope; the `503` is retryable, and the client retries with
+        the same Idempotency-Key (API-15).
       tags: [certification]
       x-principal: certification
-      x-timeout: 5000
+      x-timeout: 3000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010]
       x-operation:
@@ -135,6 +143,8 @@ paths:
                     entityRef: "E-001"
                     reportType: "SCHEMATRON_CONFORMANCE"
                     receivedAt: "2026-04-01T02:00:00Z"
+        '503':
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/evidence/acknowledgements/{ackId}:

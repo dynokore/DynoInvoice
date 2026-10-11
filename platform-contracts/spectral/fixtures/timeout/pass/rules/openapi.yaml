@@ -5,5 +5,5 @@ paths:
     post:
       operationId: importMappingSpreadsheet
       x-sync-edge: console-bff->rules-svc
-      x-timeout: 10000
+      x-timeout: 2000
       responses: {"201": {description: ok}}

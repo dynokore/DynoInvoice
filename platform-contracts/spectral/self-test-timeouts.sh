@@ -1,10 +1,13 @@
 #!/usr/bin/env sh
-# spectral/self-test-timeouts.sh — INV-T-3431 (INV-Q-3429 A, lesson P20).
+# spectral/self-test-timeouts.sh — INV-T-3431 (INV-Q-3429 A, lesson P20);
+# public operations INV-T-3491 (INV-REQ-1204 b7, INV-Q-3476, INV-Q-3510).
 # Proves spectral/check-timeouts.py fires: a console-bff operation at 5000 fails;
-# a fallback (any -> tenancy-svc) at 2000 fails; a tree at the §36.6 values passes,
-# with a multi-figure row (payload -> masterdata 80 ms / 1 s), console-bff->*,
-# a figure-less row and a public operation unchecked, and an INV-T-3491 operation
-# deferred. Needs python3 + PyYAML.
+# a fallback (any -> tenancy-svc) at 2000 fails; a gateway public /v1 operation
+# at 5000 fails; requestIssuance at 3000 fails its own issuance row; a tree at
+# the §36.6 values passes, with a multi-figure row (payload -> masterdata 80 ms /
+# 1 s), console-bff->*, public operations checked (gateway -> ingestion-svc,
+# the requestIssuance row, gateway -> any public /v1, console-web -> console-bff)
+# and a figure-less row unchecked. Needs python3 + PyYAML.
 set -u
 cd "$(dirname "$0")"
 F=fixtures/timeout
@@ -13,8 +16,8 @@ run() { python3 check-timeouts.py $F/sync-edges.yaml "$F/$1" 2>&1; }
 
 out=$(run pass); rc=$?
 if [ $rc -ne 0 ]; then echo "gst-ci: FAIL — §36.6-compliant fixture rejected:"; echo "$out"; failed=1; fi
-case "$out" in *"4 operations match their §36.6 row, 2 unchecked, 1 deferred"*) ;;
-  *) echo "gst-ci: FAIL — pass fixture did not check 4, list 2 unchecked and defer 1:"; echo "$out"; failed=1;; esac
+case "$out" in *"9 operations match their §36.6 row, 1 unchecked."*) ;;
+  *) echo "gst-ci: FAIL — pass fixture did not check 9 and list 1 unchecked:"; echo "$out"; failed=1;; esac
 
 expect_fail() { # case, expected message fragment
   out=$(run "$1"); rc=$?
@@ -24,6 +27,8 @@ expect_fail() { # case, expected message fragment
 }
 expect_fail console-bff-5000 "(grantRole) x-timeout 5000: not a figure of row 'console-bff → any'"
 expect_fail fallback-2000 "(getEntityStructure) x-timeout 2000: not a figure of row 'Any → tenancy-svc (fallback)'"
+expect_fail public-5000 "(drainPeriod) x-timeout 5000: not a figure of row 'API gateway → any other service's public /v1 operation'"
+expect_fail issuance-3000 "(requestIssuance) x-timeout 3000: not a figure of row 'API gateway → ingestion-svc requestIssuance'"
 
 [ "$failed" -eq 0 ] && echo "gst-ci: check-timeouts.py self-test passed."
 exit $failed

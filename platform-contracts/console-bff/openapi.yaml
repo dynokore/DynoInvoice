@@ -75,6 +75,11 @@ paths:
         console-bff on this read (FR-AF.4). Served from at most one
         console-bff read model plus at most two synchronous calls
         (FR-AH.21) — this operation makes none.
+
+
+        Timeout class (INV-REQ-1204 b7, INV-Q-3476): `console-web ->
+        console-bff`, 3 s for an operation making at most one downstream
+        call (x-timeout 3000).
       tags: [exceptions]
       x-principal: reporting
       x-timeout: 3000
@@ -143,9 +148,14 @@ paths:
         `x-operation.role` is a single string today, so only the primary
         actor is declared here — the multi-role format is tracked
         separately by the coordinator.
+
+
+        Timeout class (INV-REQ-1204 b7, INV-Q-3476): `console-web ->
+        console-bff`, 3 s for an operation making at most one downstream
+        call (x-timeout 3000): the one routed command.
       tags: [exceptions]
       x-principal: filing-workflow
-      x-timeout: 5000
+      x-timeout: 3000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-500]
       x-operation:
@@ -204,9 +214,14 @@ paths:
         the job accepted, within console-bff's 2s-per-call budget
         (sync-edges.yaml resilience_policy `console-bff -> any`); the
         caller polls the evidence-svc job for readiness.
+
+
+        Timeout class (INV-REQ-1204 b7, INV-Q-3476): `console-web ->
+        console-bff`, 3 s for an operation making at most one downstream
+        call (x-timeout 3000): the one routed command.
       tags: [evidence]
       x-principal: filing-workflow
-      x-timeout: 5000
+      x-timeout: 3000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-988, INV-REQ-989]
       x-operation:
@@ -261,6 +276,11 @@ paths:
         the annotation on evidence-svc's privacy case; evidence itself is
         never modified (evidence-svc `must_not` "call a pipeline service —
         privacy corrections are orchestrated by console-bff").
+
+
+        Timeout class (INV-REQ-1204 b7, INV-Q-3476): `console-web ->
+        console-bff`, 5 s for two sequential downstream calls (x-timeout
+        5000): masterdata-svc, then evidence-svc.
       tags: [privacy]
       x-principal: filing-workflow
       x-timeout: 5000

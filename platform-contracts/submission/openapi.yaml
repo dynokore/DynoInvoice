@@ -37,6 +37,13 @@ paths:
         (INV-REQ-555, FR-C.9). Includes the completeness inputs
         FeedHealthChanged and AggregateWindowChanged and shows DEP-006 from
         InstallationStatusChanged (services.yaml submission-svc capabilities).
+
+
+        Timeout class (INV-REQ-1204 b7, INV-Q-3476): `API gateway -> any
+        other service's public /v1 operation`, 3 s (x-timeout 3000).
+        When the gateway's circuit breaker for this service is open, or
+        the call times out, the gateway answers `503` with the API-20
+        envelope; the `503` is retryable.
       tags: [readiness]
       x-principal: filing-workflow
       x-timeout: 3000
@@ -70,6 +77,8 @@ paths:
                         blockedCount: 0
                     dueDate: "2026-04-30"
                     computedAt: "2026-03-20T03:15:22Z"
+        '503':
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
   /v1/entities/{entityRef}/periods/{periodRef}/drain:
@@ -81,9 +90,16 @@ paths:
         tiers, then reports what cannot be drained (INV-REQ-554, FR-C.8).
         Never reports readiness without draining first (submission-svc
         `must_not`).
+
+
+        Timeout class (INV-REQ-1204 b7, INV-Q-3476): `API gateway -> any
+        other service's public /v1 operation`, 3 s (x-timeout 3000).
+        When the gateway's circuit breaker for this service is open, or
+        the call times out, the gateway answers `503` with the API-20
+        envelope; the `503` is retryable.
       tags: [readiness]
       x-principal: filing-workflow
-      x-timeout: 5000
+      x-timeout: 3000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-554]
       x-operation:
@@ -115,6 +131,8 @@ paths:
                         description: "Held documents awaiting masterdata or rules resolution"
                         blockedCount: 2
                     completedAt: "2026-03-20T03:16:00Z"
+        '503':
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
   /v1/entities/{entityRef}/periods/{periodRef}/filing:
@@ -128,9 +146,16 @@ paths:
         its reference where shown — with filedAt (INV-REQ-914, FR-AF.36).
         Never changes a due date ad hoc; the due-date snapshot recomputes
         only on its own triggers (submission-svc `must_not`, §7.7).
+
+
+        Timeout class (INV-REQ-1204 b7, INV-Q-3476): `API gateway -> any
+        other service's public /v1 operation`, 3 s (x-timeout 3000).
+        When the gateway's circuit breaker for this service is open, or
+        the call times out, the gateway answers `503` with the API-20
+        envelope; the `503` is retryable.
       tags: [readiness]
       x-principal: filing-workflow
-      x-timeout: 5000
+      x-timeout: 3000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-655, INV-REQ-914]
       x-operation:
@@ -172,6 +197,8 @@ paths:
                     filedAt: "2026-04-28T09:00:00Z"
                     irasAcknowledgementReference: "IRAS-ACK-2026Q1-E001"
                     confirmedAt: "2026-04-28T09:01:00Z"
+        '503':
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
   /v1/entities/{entityRef}/periods/{periodRef}/submissions:
@@ -182,6 +209,13 @@ paths:
         Submission list and tracking reports (services.yaml submission-svc
         capabilities, §35.1). Cursor pagination (API-18); no offset and no
         total count.
+
+
+        Timeout class (INV-REQ-1204 b7, INV-Q-3476): `API gateway -> any
+        other service's public /v1 operation`, 3 s (x-timeout 3000).
+        When the gateway's circuit breaker for this service is open, or
+        the call times out, the gateway answers `503` with the API-20
+        envelope; the `503` is retryable.
       tags: [transactions]
       x-principal: reporting
       x-timeout: 3000
@@ -238,6 +272,8 @@ paths:
                         dueDate: "2026-04-30"
                         totalAmount: "1090.00"
                     nextCursor: "eyJvIjoxMDB9"
+        '503':
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
   /v1/transactions/{docUuid}:
@@ -249,6 +285,13 @@ paths:
         submission-svc maintains from CanonicalVersionCreated, so no call
         fans out across services at request time (API standard §15
         footnote, FR-K.9, INV-REQ-1168).
+
+
+        Timeout class (INV-REQ-1204 b7, INV-Q-3476): `API gateway -> any
+        other service's public /v1 operation`, 3 s (x-timeout 3000).
+        When the gateway's circuit breaker for this service is open, or
+        the call times out, the gateway answers `503` with the API-20
+        envelope; the `503` is retryable.
       tags: [transactions]
       x-principal: reporting
       x-timeout: 3000
@@ -277,6 +320,8 @@ paths:
                     state: "ACKNOWLEDGED"
                     dueDate: "2026-04-30"
                     acknowledgedAt: "2026-04-20T03:15:21Z"
+        '503':
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/transactions/{docUuid}/withdraw:

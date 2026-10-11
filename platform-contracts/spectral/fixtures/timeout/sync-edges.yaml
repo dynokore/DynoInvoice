@@ -11,3 +11,11 @@ resilience_policy:
   timeout_or_budget: Per §13.7
 - edge: console-bff → any
   timeout_or_budget: 2 s per call, at most 2 calls per view
+- edge: Gateway → ingestion-svc
+  timeout_or_budget: 10 s (batch), 3 s (transaction), 300 ms P95 (pre-issuance total)
+- edge: API gateway → ingestion-svc requestIssuance
+  timeout_or_budget: 5 s (issuance class)
+- edge: API gateway → any other service's public /v1 operation
+  timeout_or_budget: 3 s; 10 s for request bodies above 1 MB
+- edge: console-web → console-bff
+  timeout_or_budget: 3 s for an operation making at most one downstream call, 5 s for two sequential downstream calls
