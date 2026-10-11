@@ -179,13 +179,17 @@ interface ConfigPurge {
     /** Deletes every resolved-value record of [subject]; returns how many. */
     fun purgeSubject(subject: ResolutionSubject): Int
 
-    /** Deletes every resolved-value record and every stored setting (with its history) of [tenant]. */
+    /**
+     * Deletes every resolved-value record, every stored setting (with its history) and every control
+     * relaxation acknowledgement of [tenant] (INV-Q-2938, INV-Q-3125).
+     */
     fun purgeTenant(tenant: TenantId): PurgedTenant
 }
 
 data class PurgedTenant(
     val resolvedValues: Int,
     val settings: Int,
+    val relaxationAcknowledgements: Int = 0,
 )
 
 /** The variation point is not in the catalogue: refused, never defaulted. */

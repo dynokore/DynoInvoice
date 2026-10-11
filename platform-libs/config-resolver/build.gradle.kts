@@ -1,6 +1,7 @@
 // config-resolver/build.gradle.kts — STK-60 L1 module (ARC-16, FR-L.6; INV-T-2860 / T16).
 //
-// INV-T-2869 / T25: precedence resolution and resolved-value recording. One Gradle
+// INV-T-2869 / T25: precedence resolution and resolved-value recording; INV-T-2870 / T26: every
+// write path (setting, history, control relaxation, audit entry and PolicyChanged). One Gradle
 // project, one version, one changelog for both halves of its api/impl split:
 //   - `src/main` (published as `config-resolver-api`) — ports and value types only,
 //     framework-free (ARC-16); the only half another module or a service may
@@ -14,7 +15,7 @@ import gst.build.Layer
 
 plugins {
     id("gst.library")
-    id("java-library") // `api(...)`: tenancy-kernel's TenantId is in this module's public signatures
+    id("java-library") // `api(...)`: tenancy-kernel, audit-log and outbox-and-queue types are in public signatures
     `maven-publish`
 }
 
@@ -37,7 +38,14 @@ val tenancyKernelImplJar = project(":tenancy-kernel").tasks.named("implJar")
 
 dependencies {
     api(project(":tenancy-kernel"))
+    // INV-T-2870 / T26: the write path writes its audit entry through audit-log's AuditWriter and
+    // PolicyChanged through outbox-and-queue's OutboxWriter, where the service has one (INV-MOD-2402,
+    // INV-Q-3142). Only their `-api` halves: the service binds the implementations.
+    api(project(":audit-log"))
+    api(project(":outbox-and-queue"))
     add("implImplementation", project(":tenancy-kernel"))
+    add("implImplementation", project(":audit-log"))
+    add("implImplementation", project(":outbox-and-queue"))
     add("implImplementation", files(tenancyKernelImplJar))
 
     // STK-08: Jackson 3 (`tools.jackson`) — the typed option values (jsonb).

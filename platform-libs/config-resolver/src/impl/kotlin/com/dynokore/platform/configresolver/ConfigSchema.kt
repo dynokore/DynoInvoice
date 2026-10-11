@@ -18,11 +18,18 @@ import com.dynokore.platform.tenancykernel.TenantRlsMigration
  *  - `config_resolved_value`: the resolved value and its source, recorded on one document version's record
  *    (INV-REQ-1068 behaviour #2). Insert-only, first write wins, one row per (tenant, subject type, subject,
  *    variation point); deleted only with its subject or its tenant, by the purge role (INV-Q-2938).
+ *  - 1.1.0 (INV-T-2870): `config_relaxation_acknowledgement`, one row per acknowledger of a control
+ *    relaxation, grouped by `relaxation_id` and keyed by scope (INV-Q-3125, INV-Q-3138); and
+ *    `config_setting.relaxation_ref`, the relaxation a LOOSER value consumed, unique so a relaxation backs
+ *    exactly one setting. Tenant data as `config_setting`: forced RLS, insert-only, deleted only with its
+ *    tenant by the purge role. A service already on 1.0.0 runs [upgradeTo110]; a new one runs [ddl], which is
+ *    1.0.0's DDL followed by the same upgrade.
  */
 object ConfigSchema {
     const val SETTING = "config_setting"
     const val INSTALLATION_SETTING = "config_installation_setting"
     const val RESOLVED_VALUE = "config_resolved_value"
+    const val RELAXATION_ACKNOWLEDGEMENT = "config_relaxation_acknowledgement"
 
     private const val VP_KEY = "check (vp_key ~ '^VP-[0-9]{2,3}$')"
     private const val OPTION_KEYS =
@@ -30,7 +37,62 @@ object ConfigSchema {
     private const val LEVELS = "'TENANT', 'GROUP', 'ENTITY', 'FEED', 'AP_CONNECTION', 'CLIENT_ENTITY'"
     private const val OPTION_VALUES = "check (option_values is null or jsonb_typeof(option_values) = 'object')"
 
+    /** Every table of the current version, for a service that has none of them yet. */
     fun ddl(
+        schema: String,
+        appRole: String,
+        platformRole: String,
+        purgeRole: String,
+    ): String = ddl100(schema, appRole, platformRole, purgeRole) + "\n" + upgradeTo110(schema, appRole, purgeRole)
+
+    /**
+     * 1.0.0 to 1.1.0, expand-only (CS-19, CS-48): adds the relaxation acknowledgement table and the nullable
+     * `config_setting.relaxation_ref`; nothing existing is narrowed or dropped.
+     */
+    fun upgradeTo110(
+        schema: String,
+        appRole: String,
+        purgeRole: String,
+    ): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        val app = SqlIdentifier.require(appRole, "app role")
+        val purge = SqlIdentifier.require(purgeRole, "purge role")
+        val ack = RELAXATION_ACKNOWLEDGEMENT
+        return """
+            alter table $s.$SETTING add column relaxation_ref uuid;
+            create unique index ${SETTING}_relaxation_ref on $s.$SETTING (tenant_id, relaxation_ref)
+                where relaxation_ref is not null;
+
+            create table $s.$ack (
+                seq bigint generated always as identity primary key,
+                id uuid not null unique,
+                relaxation_id uuid not null,
+                tenant_id uuid not null,
+                entity_id text,
+                vp_key text not null $VP_KEY,
+                scope_level text not null check (scope_level in ($LEVELS)),
+                scope_id text not null check (btrim(scope_id) <> ''),
+                option_keys text[] not null $OPTION_KEYS,
+                option_values jsonb $OPTION_VALUES,
+                role text not null check (btrim(role) <> ''),
+                principal text not null check (btrim(principal) <> ''),
+                effective_from date not null,
+                reason text check (reason is null or btrim(reason) <> ''),
+                acknowledged_at timestamptz not null,
+                unique (tenant_id, relaxation_id, role),
+                unique (tenant_id, relaxation_id, principal),
+                check ((scope_level in ('TENANT', 'GROUP')) = (entity_id is null))
+            );
+            create index ${ack}_scope on $s.$ack (tenant_id, vp_key, scope_level, scope_id);
+            comment on column $s.$ack.principal is 'class: personal';
+            comment on column $s.$ack.reason is 'class: content';
+            ${TenantRlsMigration.ddl(s, ack, policyName = "${ack}_tenant_isolation")}
+            grant select, insert on $s.$ack to $app;
+            grant select, delete on $s.$ack to $purge;
+        """.trimIndent()
+    }
+
+    private fun ddl100(
         schema: String,
         appRole: String,
         platformRole: String,

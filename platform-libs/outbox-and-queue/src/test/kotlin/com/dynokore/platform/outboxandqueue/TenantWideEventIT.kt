@@ -126,7 +126,10 @@ class TenantWideEventIT {
         set("data", MAPPER.readTree("""{"version":1}"""))
     }
 
-    private fun ServiceKit.write(tenant: UUID, event: OutboundEvent, entity: EntityRef) = inTx(tenant) { writer.append(listOf(event), context(tenant, entity)) }
+    private fun ServiceKit.write(tenant: UUID, event: OutboundEvent, entity: EntityRef) {
+        val context = context(tenant, entity)
+        inTx(tenant) { writer.append(listOf(event), context) }
+    }
 
     private fun audit(who: String) = OutboundEvent(TestCatalogue.AUDIT_ENTRY_RECORDED, """{"who":"$who"}""")
 

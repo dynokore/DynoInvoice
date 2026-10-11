@@ -43,14 +43,24 @@ value class VariationPointKey(
  *
  * @property key the owning service's enum constant (TPL-10).
  * @property typed whether the option carries a typed value (a number, duration, list ...; INV-Q-2934).
+ * @property typedValue the value's shape and bounds (INV-Q-3167); a typed option without it cannot be
+ *   validated, so a value for it is refused (fail closed).
+ * @property acknowledgers for a [Strictness.LOOSER] option, the roles that must acknowledge the relaxation
+ *   (ruling INV-Q-3134); an empty list means the option cannot be chosen.
  */
 data class OptionSpec(
     val key: String,
     val strictness: Strictness,
     val typed: Boolean = false,
+    val typedValue: TypedValueSpec? = null,
+    val acknowledgers: List<Acknowledger> = emptyList(),
 ) {
     init {
         require(KEY.matches(key)) { "an option key is an enum constant name, was '$key'" }
+        require(typedValue == null || typed) { "option $key has a typed value spec but is not typed" }
+        require(acknowledgers.isEmpty() || strictness == Strictness.LOOSER) {
+            "only a LOOSER option names acknowledgers ($key)"
+        }
     }
 
     private companion object {
@@ -71,6 +81,12 @@ data class OptionSpec(
  * @property multiSelect a value may hold several option keys.
  * @property exclusiveKeys keys that, when chosen, must be the only key.
  * @property formDependence why an option depends on the deployment form, when it does (INV-REQ-1248 behaviour #2).
+ * @property crossOption a worded rule over the whole selection (e.g. VP-46's "at least two recipients"),
+ *   checked by the owning service through [ValueConstraints] (INV-Q-3167).
+ * @property crossScope a cross-scope rule (VP-08's "a tenant value may not exceed the installation value").
+ *   Not supported in 1.1.0: setting such a row is refused (INV-Q-3173).
+ * @property installationBound the row names an installation parameter bounding narrower values (VP-57,
+ *   VP-67). Not supported in 1.1.0: setting such a row is refused (INV-Q-3173).
  */
 data class VariationPointDefinition(
     val key: VariationPointKey,
@@ -85,6 +101,9 @@ data class VariationPointDefinition(
     val multiSelect: Boolean = false,
     val exclusiveKeys: Set<String> = emptySet(),
     val formDependence: String? = null,
+    val crossOption: String? = null,
+    val crossScope: String? = null,
+    val installationBound: Boolean = false,
 ) {
     private val byKey: Map<String, OptionSpec> = options.associateBy { it.key }
 
@@ -114,6 +133,13 @@ data class VariationPointDefinition(
     fun option(key: String): OptionSpec? = byKey[key]
 
     /**
+     * Whether this row may offer a [Strictness.LOOSER] option at all: only a CONTROL without a tighten-only
+     * or non-waivable modifier (INV-REQ-780 behaviour #1, INV-REQ-1244 behaviour #4, INV-Q-2936). POLICY and
+     * PARAMETER rows have no strictness and no acknowledgement path.
+     */
+    val offersLooser: Boolean get() = vpClass == VpClass.CONTROL && modifiers.isEmpty()
+
+    /**
      * The default value in [form]: the options marked [Strictness.DEFAULT] (never the first listed), or the
      * row's by-form default; `null` when the row must be elected.
      */
@@ -126,10 +152,11 @@ data class VariationPointDefinition(
     /**
      * The options offered (INV-REQ-1251): all when available, only the default when planned, none when
      * retired. Both forms offer the same available options (INV-REQ-1248 behaviour #1); the row's
-     * [formDependence] states why one cannot be used in a form.
+     * [formDependence] states why one cannot be used in a form. A LOOSER option is never offered by a row
+     * that cannot relax ([offersLooser], INV-AC-2230).
      */
     fun offeredOptions(form: DeploymentForm): List<String> = when (status) {
-        VpStatus.AVAILABLE -> options.map { it.key }
+        VpStatus.AVAILABLE -> options.filter { it.strictness != Strictness.LOOSER || offersLooser }.map { it.key }
         VpStatus.PLANNED -> defaultKeys(form).orEmpty()
         VpStatus.RETIRED -> emptyList()
     }
@@ -140,5 +167,16 @@ fun interface VariationPointCatalogue {
     /** `null` when [key] is not registered: such a key is refused, never defaulted. */
     fun find(key: VariationPointKey): VariationPointDefinition?
 
+    /**
+     * The rows the owning service owns (gst-catalogue `owner`), for the as-of view (INV-AC-1146, ruling
+     * INV-Q-3171). An adapter that does not implement it refuses every view that needs the list.
+     *
+     * @throws CatalogueListingUnavailable when the binding cannot list its rows.
+     */
+    fun keys(): Set<VariationPointKey> = throw CatalogueListingUnavailable()
+
     fun require(key: VariationPointKey): VariationPointDefinition = find(key) ?: throw UnknownVariationPoint(key)
 }
+
+/** The catalogue binding cannot list the rows its service owns: a view that needs the list is refused. */
+class CatalogueListingUnavailable : RuntimeException("the variation point catalogue binding cannot list its rows")

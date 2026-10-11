@@ -52,6 +52,27 @@ class PolicyScope private constructor(
 
     override fun toString(): String = chain().joinToString(" > ")
 
+    /**
+     * The one scope a value is set at (INV-REQ-1242 behaviour #1).
+     *
+     * @throws IllegalArgumentException when this scope has no [level], or an entity-scoped level has no entity.
+     */
+    fun target(level: ScopeLevel): SettingTarget {
+        val ref = requireNotNull(refs[level]) { "the scope $this has no $level" }
+        return SettingTarget(
+            if (level == ScopeLevel.INSTALLATION) null else tenant,
+            ref,
+            if (level.entityScoped) entity else null,
+        )
+    }
+
+    /** This scope cut at [level]: the chain that applied at that level, e.g. for a prior value. */
+    fun narrowedTo(level: ScopeLevel): PolicyScope {
+        require(refs.containsKey(level)) { "the scope $this has no $level" }
+        val kept = refs.filterKeys { it <= level }
+        return PolicyScope(tenant, kept, if (level.entityScoped) entity else null)
+    }
+
     companion object {
         val INSTALLATION_REF = ScopeRef(ScopeLevel.INSTALLATION, "installation")
 
@@ -97,4 +118,29 @@ class PolicyScope private constructor(
             )
         }
     }
+}
+
+/**
+ * Where one value is set: a scope level and its identifier, the tenant (none at installation) and, for an
+ * entity-scoped level (entity, feed, AP connection, client entity), the entity it belongs to.
+ */
+data class SettingTarget(
+    val tenant: TenantId?,
+    val ref: ScopeRef,
+    val entity: String?,
+) {
+    init {
+        require((ref.level == ScopeLevel.INSTALLATION) == (tenant == null)) {
+            "an installation target has no tenant, every other target has one"
+        }
+        require(tenant == null || !tenant.isPlatform) { "the platform tenant has no tenant-level settings" }
+        require(ref.level.entityScoped == (entity != null)) {
+            "${ref.level} ${if (ref.level.entityScoped) "needs" else "has no"} entity"
+        }
+    }
+
+    val level: ScopeLevel get() = ref.level
+
+    /** The scope text of the audit entry and of `PolicyChanged.scope`: `INSTALLATION`, or `LEVEL:id`. */
+    val scopeText: String get() = if (ref.level == ScopeLevel.INSTALLATION) "INSTALLATION" else ref.toString()
 }

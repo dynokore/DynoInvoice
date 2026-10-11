@@ -6,6 +6,18 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-11
+### Added
+- `PolicyWriter`: `setPolicy` at every allowed scope including installation, with role, reason, bounds,
+  effective-date and back-dating checks, an audit entry holding the prior value and `PolicyChanged` through
+  the outbox where present; `acknowledgeControlRelaxation`; `validate` (INV-T-2870, INV-AC-2227,
+  INV-AC-2224, INV-AC-2229, INV-AC-205, INV-AC-2230, INV-AC-2234).
+- `PolicyHistory`: versions, as-of view and compare (INV-AC-1146).
+- Ports `DelegationProbe`, `BackdatingFloor`, `ValueConstraints`; `VariationPointCatalogue.keys()`;
+  `OptionSpec.typedValue` and `OptionSpec.acknowledgers` (INV-Q-3134..3142, INV-Q-3165..3173).
+- `ConfigSchema.upgradeTo110`: `config_relaxation_acknowledgement` (RLS forced, insert-only for the app role)
+  and `config_setting.relaxation_ref`; `ConfigPurge.purgeTenant` also removes acknowledgements.
+
 ## [1.0.0] - 2026-10-11
 ### Added
 - `PolicyReader` over seven scope levels, then the operating profile at its version, then the catalogue

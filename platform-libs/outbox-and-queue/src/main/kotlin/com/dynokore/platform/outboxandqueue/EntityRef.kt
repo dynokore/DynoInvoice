@@ -1,5 +1,7 @@
 package com.dynokore.platform.outboxandqueue
 
+import com.dynokore.platform.tenancykernel.TenantId
+
 /** The registered entity an event concerns (FR-K.3, CloudEvents attribute `entityref`). */
 @JvmInline
 value class EntityRef(val value: String) {
@@ -43,4 +45,7 @@ internal const val PLATFORM_PAIR =
         "(INV-Q-2927 option D, INV-Q-3014, INV-Q-3165)"
 
 /** The pairing rule: PLATFORM only with the platform tenant, TENANT_WIDE only with a real tenant. */
-internal fun pairingHolds(tenant: com.dynokore.platform.tenancykernel.TenantId, entity: EntityRef): Boolean = tenant.isPlatform == entity.isPlatform && !(tenant.isPlatform && entity.isTenantWide)
+internal fun pairingHolds(tenant: TenantId, entity: EntityRef): Boolean {
+    if (tenant.isPlatform) return entity.isPlatform
+    return !entity.isPlatform
+}

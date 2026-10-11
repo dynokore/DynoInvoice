@@ -14,6 +14,7 @@ class JdbcConfigPurge(
 ) : ConfigPurge {
     private val resolved = "${SqlIdentifier.require(schema, "schema")}.${ConfigSchema.RESOLVED_VALUE}"
     private val settings = "${SqlIdentifier.require(schema, "schema")}.${ConfigSchema.SETTING}"
+    private val acknowledgements = "${SqlIdentifier.require(schema, "schema")}.${ConfigSchema.RELAXATION_ACKNOWLEDGEMENT}"
 
     override fun purgeSubject(subject: ResolutionSubject): Int = connections.require().prepareStatement(
         "delete from $resolved where tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid " +
@@ -31,6 +32,10 @@ class JdbcConfigPurge(
             it.setObject(1, tenant.value)
             it.executeUpdate()
         }
-        return PurgedTenant(resolvedValues = delete(resolved), settings = delete(settings))
+        return PurgedTenant(
+            resolvedValues = delete(resolved),
+            settings = delete(settings),
+            relaxationAcknowledgements = delete(acknowledgements),
+        )
     }
 }
