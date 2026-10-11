@@ -27,9 +27,18 @@ The shared modules of the INV platform: the L1 modules, the L2 modules and the L
 - **Modules in this repository build against each other at the same commit** and publish exact version constraints on one another. A change that crosses modules is one merge request.
 - **Dependency order is enforced.** L1 modules use one another only downward, in the order of SDS §18.9 ("Order within L1"); an L2 module uses only L1 modules; no module names a service or a product event (product wiring is in `product-runtime`). CI will check this.
 - **CI builds the changed modules and everything downstream of them** in this repository.
-- **A bill of materials** names a set of module versions tested together; a service bumps that one line.
+- **A bill of materials** names a set of module versions tested together; a service bumps that one line. `platform-libs-bom` has no hand-edited version or changelog (see "Releasing").
 - **Ownership** is per directory (CODEOWNERS, once teams are named).
 - A module moves to its own repository when it gains consumers outside INV, its release cadence stays different from the rest, or a separate team owns it.
+
+## Releasing
+
+- **A module** release: bump the module's own `version.txt` and `CHANGELOG.md` in its merge request.
+- **The BOM** is never bumped by hand. A module merge request that adds a new module's constraint pair, or changes the module version a pair resolves to (`project(":x").version`), edits only `platform-libs-bom/build.gradle.kts`, and does not touch a BOM version or changelog. Parallel module merge requests therefore do not conflict on the BOM.
+- **On a `main` pipeline** the `maven-publish` job runs `ci/bom-version.sh`. It reads the latest `platform-libs-bom` version in this project's package registry (job token), and compares the constraint set the build resolves with that published POM. If they differ it publishes minor+1 (for example `0.10.0` to `0.11.0`); if they are the same it publishes nothing. Nothing is committed or pushed from CI.
+- **The BOM changelog entry** (the constraints added, removed or changed, with the pipeline and commit) is in the job log and published with the BOM as `platform-libs-bom-<version>-changelog.txt` in the registry.
+- **On a merge request** the `bom-verify` job checks that the BOM resolves and prints what `main` would do. It never publishes.
+- A local build versions the BOM `0.0.0-local`.
 
 ## Building locally
 

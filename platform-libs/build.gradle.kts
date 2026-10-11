@@ -50,18 +50,18 @@ subprojects {
 // The expected publish set, written as `<project path> <publication> <artifactId> <version>` lines to
 // build/publications.txt for CI's post-publish check (P20/P28: a module with a
 // version that is not published must fail the job, never be skipped). Fails itself
-// if a module has a version.txt but no maven-publish publication.
+// if a module has a version.txt (or is platform-libs-bom, versioned by CI) but no maven-publish publication.
 tasks.register("listPublications") {
     val out = layout.buildDirectory.file("publications.txt")
     outputs.file(out)
     doLast {
         val lines = mutableListOf<String>()
         subprojects.forEach { sub ->
-            if (sub.file("version.txt").isFile) {
+            if (sub.file("version.txt").isFile || sub.name == "platform-libs-bom") {
                 val publishing = sub.extensions.findByType(PublishingExtension::class.java)
                 val publications = publishing?.publications?.withType(MavenPublication::class.java)?.toList().orEmpty()
                 if (publications.isEmpty()) {
-                    throw GradleException("${sub.path} has a version.txt but no Maven publication (P20/P28)")
+                    throw GradleException("${sub.path} has a version but no Maven publication (P20/P28)")
                 }
                 publications.forEach { lines += "${sub.path} ${it.name} ${it.artifactId} ${sub.version}" }
             }

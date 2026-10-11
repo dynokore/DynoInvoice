@@ -186,9 +186,23 @@ maven-publish:
   extends: [.gradle-job, .gst-changed-modules]
   variables:
     MAVEN_REGISTRY_PROJECT_ID: "$CI_PROJECT_ID"
+  # Two main pipelines never decide the BOM version at the same time.
+  resource_group: platform-libs-bom-version
+  # Main only: the shared template also runs on tags, but a tag pipeline must not version the BOM.
+  rules:
+    - if: '$MAVEN_PUBLISH != "true"'
+      when: never
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
   script:
+    - ci/bom-version.sh
+    - |
+      # platform-libs-bom is versioned here, not by a file: BOM_VERSION is the latest published
+      # one (constraint set unchanged: its upload is skipped below) or latest minor + 1.
+      . build/bom.env
+      bom_args="-PbomVersion=${BOM_VERSION}"
+      if [ "$BOM_ACTION" = "publish" ]; then bom_args="$bom_args -PbomChangelog=$PWD/build/bom-changelog.txt"; fi
     - >
-      ./gradlew listPublications --stacktrace
+      ./gradlew listPublications $bom_args --stacktrace
     - |
       # Re-runs on main are safe: a publication whose .pom is already in the registry is
       # skipped (GitLab may reject a duplicate upload), but it is still verified below.
@@ -205,7 +219,7 @@ maven-publish:
         fi
       done < build/publications.txt
       if [ -n "$tasks" ]; then
-        ./gradlew $tasks \
+        ./gradlew $tasks $bom_args \
           -PgstMavenUrl="${CI_API_V4_URL}/projects/${MAVEN_REGISTRY_PROJECT_ID}/packages/maven" \
           -PgstMavenUser=gitlab-ci-token -PgstMavenPassword="${CI_JOB_TOKEN}" --stacktrace
       fi
@@ -220,3 +234,18 @@ maven-publish:
         fi
       done < build/publications.txt
       exit $missing
+
+# Merge requests verify that the BOM resolves and report what the main pipeline would do,
+# but never publish (a merge request never publishes, ci/publish.gitlab-ci.yml). A module
+# merge request does not edit the BOM's version or changelog: the main pipeline's
+# maven-publish job versions the BOM (ci/bom-version.sh).
+bom-verify:
+  extends: [.gradle-job, .gst-changed-modules]
+  stage: verify
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  script:
+    - ci/bom-version.sh
+    - |
+      . build/bom.env
+      echo "gst-ci: on main this change would ${BOM_ACTION} platform-libs-bom ${BOM_VERSION}"

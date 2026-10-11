@@ -5,9 +5,10 @@
 // module publishes no code of its own — only Maven `dependencyManagement`
 // entries — so it cannot also apply `gst.kotlin-base`/`gst.library` (Gradle
 // does not allow `java-platform` alongside `java`/`kotlin-jvm` in one project):
-// its own version and changelog are handled the same way as every other module
-// (a `version.txt` and a `CHANGELOG.md` next to this file) without the
-// convention plugin.
+// it has no hand-edited version or changelog file: CI's `ci/bom-version.sh` derives the
+// version (latest published minor + 1, only when the constraint set differs) and passes
+// it as `-PbomVersion`; the changelog entry is published inside the artefact (README.md,
+// "Releasing"). A local build gets `0.0.0-local`.
 //
 // Done-when "an empty module set releases end to end": no `constraints` are
 // declared yet because no Wave 1 module has a real interface yet (every one is
@@ -23,7 +24,14 @@ plugins {
     `maven-publish`
 }
 
-version = file("version.txt").readText().trim()
+version = providers.gradleProperty("bomVersion").getOrElse("0.0.0-local")
+
+// Every constraint below reads `project(":<module>").version`, which is `unspecified` until that
+// module's own build file has been evaluated. Evaluate each constrained module first.
+listOf(
+    "service-runtime", "outbox-and-queue", "rulepack-kernel", "tenancy-kernel",
+    "evidence-store", "adapter-runtime", "config-resolver", "audit-log",
+).forEach { evaluationDependsOn(":$it") }
 
 dependencies {
     constraints {
@@ -67,6 +75,13 @@ publishing {
     publications {
         create<MavenPublication>("maven") {
             from(components["javaPlatform"])
+            // The changelog entry computed by ci/bom-version.sh, published with the BOM.
+            providers.gradleProperty("bomChangelog").orNull?.let {
+                artifact(file(it)) {
+                    classifier = "changelog"
+                    extension = "txt"
+                }
+            }
         }
     }
 }
