@@ -83,10 +83,15 @@ data class OptionSpec(
  * @property formDependence why an option depends on the deployment form, when it does (INV-REQ-1248 behaviour #2).
  * @property crossOption a worded rule over the whole selection (e.g. VP-46's "at least two recipients"),
  *   checked by the owning service through [ValueConstraints] (INV-Q-3167).
- * @property crossScope a cross-scope rule (VP-08's "a tenant value may not exceed the installation value").
- *   Not supported in 1.1.0: setting such a row is refused (INV-Q-3173).
- * @property installationBound the row names an installation parameter bounding narrower values (VP-57,
- *   VP-67). Not supported in 1.1.0: setting such a row is refused (INV-Q-3173).
+ * @property crossScope a cross-scope rule (VP-08's "a tenant value may not exceed the installation value"):
+ *   a narrower value's directed fields may not be looser than a broader scope's value, compared by field
+ *   name (INV-REQ-780 b1, INV-Q-2936, INV-Q-3204), and resolve capped at it (INV-REQ-1242 b5, INV-Q-3206).
+ *   Every option of such a row carries the same directed numeric fields, else setting it is refused.
+ * @property installationBound the catalogue declares an installation parameter (VP-57, VP-67). Without
+ *   [installationParameter] the bound cannot be evaluated, so setting the row is refused (INV-Q-3173).
+ * @property installationParameter the INSTALLATION-scope row holding the bound (VP-57 → VP-79, VP-67 →
+ *   VP-80; ruling INV-Q-3202), named by a typed value's `min`/`max` [Bound.row]; values beyond it are
+ *   refused and resolve capped at it (INV-REQ-1248, INV-REQ-1242 b5).
  */
 data class VariationPointDefinition(
     val key: VariationPointKey,
@@ -104,6 +109,7 @@ data class VariationPointDefinition(
     val crossOption: String? = null,
     val crossScope: String? = null,
     val installationBound: Boolean = false,
+    val installationParameter: VariationPointKey? = null,
 ) {
     private val byKey: Map<String, OptionSpec> = options.associateBy { it.key }
 
@@ -114,6 +120,11 @@ data class VariationPointDefinition(
         val defaults = options.filter { it.strictness == Strictness.DEFAULT }.map { it.key }
         require(defaultByForm.values.all { it in byKey }) { "$key by-form default is not one of its options" }
         require(exclusiveKeys.all { it in byKey }) { "$key exclusive key is not one of its options" }
+        val boundingRows = options.flatMap { it.typedValue?.boundingRows.orEmpty() }.toSet()
+        require(boundingRows == setOfNotNull(installationParameter)) {
+            "$key: a row bound must name the installation parameter $installationParameter, was $boundingRows"
+        }
+        require(installationParameter != key) { "$key cannot bound itself" }
         if (status != VpStatus.RETIRED) {
             when {
                 mustBeElected ->

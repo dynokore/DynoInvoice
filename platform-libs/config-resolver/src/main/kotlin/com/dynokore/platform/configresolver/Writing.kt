@@ -89,8 +89,21 @@ enum class PolicyRefusal {
     /** A planned row cannot be set (INV-REQ-1251). */
     PLANNED,
 
-    /** A cross-scope rule or installation bound, not supported in 1.1.0 (INV-Q-3173). */
+    /**
+     * A cross-scope rule or installation bound config-resolver cannot evaluate: an installation bound with no
+     * installation parameter row, or a cross-scope row whose options do not carry the same directed fields
+     * (INV-Q-3173, INV-T-3176).
+     */
     NOT_SUPPORTED,
+
+    /** A directed field looser than a broader scope's value of the same row (INV-REQ-780 b1, INV-Q-2936). */
+    LOOSER_THAN_BROADER,
+
+    /** A value beyond the installation parameter row bounding it (INV-REQ-1248, INV-Q-3202, INV-AC-2491). */
+    BEYOND_INSTALLATION_BOUND,
+
+    /** The broader value or installation bound cannot be evaluated ([BoundUnavailable]); fail closed. */
+    BOUND_UNAVAILABLE,
 
     /** An option the row does not have, or does not offer. */
     UNKNOWN_OPTION,

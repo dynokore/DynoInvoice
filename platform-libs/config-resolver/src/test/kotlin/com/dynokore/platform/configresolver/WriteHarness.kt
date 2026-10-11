@@ -123,6 +123,8 @@ class WriteHarness(
         return JdbcPolicyReader(app, catalogue, form, SCHEMA)
     }
 
+    fun recorder() = JdbcResolutionRecorder(app, SCHEMA, CLOCK)
+
     fun history(catalogue: VariationPointCatalogue = WriteCatalogue.catalogue): PolicyHistory {
         val form = DeploymentForm.SAAS
         return JdbcPolicyHistory(app, catalogue, form, SCHEMA)

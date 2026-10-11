@@ -1,6 +1,8 @@
 package com.dynokore.platform.configresolver
 
 import com.dynokore.platform.tenancykernel.CurrentConnection
+import tools.jackson.databind.DeserializationFeature
+import tools.jackson.databind.json.JsonMapper
 import java.sql.ResultSet
 import java.sql.Timestamp
 import java.time.Clock
@@ -20,6 +22,8 @@ class JdbcResolutionRecorder(
 ) : ResolutionRecorder {
     private val table = "${SqlIdentifier.require(schema, "schema")}.${ConfigSchema.RESOLVED_VALUE}"
     private val columns = SelectedOptionsColumns()
+    private val mapper: JsonMapper =
+        JsonMapper.builder().enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS).build()
 
     override fun record(
         subject: ResolutionSubject,
@@ -38,8 +42,8 @@ class JdbcResolutionRecorder(
         connection.prepareStatement(
             "insert into $table (id, tenant_id, entity_id, subject_type, subject_ref, vp_key, transaction_date, " +
                 "option_keys, option_values, source, source_level, source_scope_id, source_setting_id, profile_id, " +
-                "profile_version, resolved_at) " +
-                "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
+                "profile_version, resolved_at, capped_by) " +
+                "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, cast(? as jsonb)) " +
                 "on conflict (tenant_id, subject_type, subject_ref, vp_key) do nothing",
         ).use {
             it.setObject(1, UUID.randomUUID())
@@ -57,6 +61,7 @@ class JdbcResolutionRecorder(
             it.setString(14, (source as? PolicySource.Profile)?.profileId)
             it.setString(15, (source as? PolicySource.Profile)?.profileVersion)
             it.setTimestamp(16, Timestamp.from(clock.instant().truncatedTo(ChronoUnit.MICROS)))
+            it.setString(17, capsJson(resolved.caps))
             it.executeUpdate()
         }
         return select(subject, resolved.key).single()
@@ -70,7 +75,7 @@ class JdbcResolutionRecorder(
     ): List<RecordedResolution> {
         val sql =
             "select vp_key, transaction_date, option_keys, option_values, source, source_level, source_scope_id, " +
-                "source_setting_id, profile_id, profile_version from $table " +
+                "source_setting_id, profile_id, profile_version, capped_by from $table " +
                 "where tenant_id = $BOUND_TENANT and subject_type = ? and subject_ref = ?" +
                 (if (key != null) " and vp_key = ?" else "") + " order by vp_key"
         return connections.require().prepareStatement(sql).use {
@@ -112,7 +117,38 @@ class JdbcResolutionRecorder(
             rows.getObject("transaction_date", LocalDate::class.java),
             columns.read(rows),
             source,
+            caps(rows.getString("capped_by")),
         )
+    }
+
+    /** The caps as a JSON array, `null` when there are none (INV-REQ-1242 behaviour #5). */
+    private fun capsJson(caps: List<PolicyCap>): String? {
+        if (caps.isEmpty()) return null
+        val array = mapper.createArrayNode()
+        caps.forEach { cap ->
+            array.addObject()
+                .put("option", cap.option)
+                .put("field", cap.field)
+                .put("stored", cap.stored)
+                .put("capped", cap.capped)
+                .put("by", cap.by.value)
+                .put("level", cap.level.name)
+        }
+        return mapper.writeValueAsString(array)
+    }
+
+    private fun caps(json: String?): List<PolicyCap> {
+        if (json == null) return emptyList()
+        return mapper.readTree(json).values().map {
+            PolicyCap(
+                it.get("option").stringValue(),
+                it.get("field").stringValue(),
+                it.get("stored").decimalValue(),
+                it.get("capped").decimalValue(),
+                VariationPointKey(it.get("by").stringValue()),
+                ScopeLevel.valueOf(it.get("level").stringValue()),
+            )
+        }
     }
 
     private companion object {

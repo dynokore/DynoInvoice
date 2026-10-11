@@ -3,14 +3,14 @@ package com.dynokore.platform.configresolver
 import com.dynokore.platform.auditlog.AuditEntry
 import com.dynokore.platform.auditlog.AuditWriter
 import com.dynokore.platform.configresolver.WriteCatalogue.BOUNDED
-import com.dynokore.platform.configresolver.WriteCatalogue.CROSS_SCOPE
 import com.dynokore.platform.configresolver.WriteCatalogue.DESPATCH
-import com.dynokore.platform.configresolver.WriteCatalogue.INSTALLATION_BOUND
 import com.dynokore.platform.configresolver.WriteCatalogue.NAMED_BOUND
 import com.dynokore.platform.configresolver.WriteCatalogue.NON_WAIVABLE
 import com.dynokore.platform.configresolver.WriteCatalogue.PLANNED
 import com.dynokore.platform.configresolver.WriteCatalogue.RECORD
 import com.dynokore.platform.configresolver.WriteCatalogue.RETIRED
+import com.dynokore.platform.configresolver.WriteCatalogue.UNDIRECTED_CROSS
+import com.dynokore.platform.configresolver.WriteCatalogue.UNNAMED_BOUND
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.tenancykernel.CurrentConnection
@@ -158,8 +158,9 @@ class WriteValidationTest {
         assertEquals(PolicyRefusal.PLANNED, refused(PLANNED, e1, one("LONGER")))
         assertThrows(VariationPointRetired::class.java) { accept(RETIRED, e1, one("X")) }
         assertThrows(UnknownVariationPoint::class.java) { accept(VariationPointKey("VP-99"), e1, one("X")) }
-        assertEquals(PolicyRefusal.NOT_SUPPORTED, refused(CROSS_SCOPE, tenantScope, one("OTHER")))
-        assertEquals(PolicyRefusal.NOT_SUPPORTED, refused(INSTALLATION_BOUND, tenantScope, one("LONGER")))
+        // Lifted only for what is implemented (INV-T-3176).
+        assertEquals(PolicyRefusal.NOT_SUPPORTED, refused(UNDIRECTED_CROSS, tenantScope, one("OTHER")))
+        assertEquals(PolicyRefusal.NOT_SUPPORTED, refused(UNNAMED_BOUND, tenantScope, one("LONGER")))
     }
 
     @Test
@@ -167,5 +168,29 @@ class WriteValidationTest {
         val privateOnly = Acknowledger(roleByForm = mapOf(DeploymentForm.PRIVATE to "tax.approver"))
         assertNull(privateOnly.roleIn(DeploymentForm.SAAS))
         assertThrows(CatalogueListingUnavailable::class.java) { VariationPointCatalogue { null }.keys() }
+    }
+
+    @Test
+    fun `INV-Q-3202 a row bound names the row's installation parameter, and bounds only a number's min or max`() {
+        val max = VariationPointKey("VP-80")
+        val bounded = TypedValueSpec(ValueType.DURATION, "hours", max = Bound.row(max))
+        fun row(parameter: VariationPointKey?) = VariationPointDefinition(
+            key = VariationPointKey("VP-67"),
+            vpClass = VpClass.PARAMETER,
+            modifiers = emptySet(),
+            status = VpStatus.AVAILABLE,
+            scopeLevels = setOf(ScopeLevel.TENANT),
+            setBy = setOf("integration.engineer"),
+            options =
+            listOf(OptionSpec("H72", Strictness.DEFAULT), OptionSpec("CUSTOM", Strictness.NEUTRAL, true, bounded)),
+            installationParameter = parameter,
+        )
+        assertEquals(max, row(max).installationParameter)
+        assertThrows(IllegalArgumentException::class.java) { row(null) }
+        assertThrows(IllegalArgumentException::class.java) { row(VariationPointKey("VP-79")) }
+        assertThrows(IllegalArgumentException::class.java) { TypedValueSpec(ValueType.TEXT, max = Bound.row(max)) }
+        val exclusive = { TypedValueSpec(ValueType.INT, minExclusive = Bound.row(max)) }
+        assertThrows(IllegalArgumentException::class.java) { exclusive() }
+        assertThrows(IllegalArgumentException::class.java) { Bound(number = java.math.BigDecimal.ONE, row = max) }
     }
 }

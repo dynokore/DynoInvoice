@@ -24,6 +24,9 @@ import com.dynokore.platform.tenancykernel.TenantRlsMigration
  *    exactly one setting. Tenant data as `config_setting`: forced RLS, insert-only, deleted only with its
  *    tenant by the purge role. A service already on 1.0.0 runs [upgradeTo110]; a new one runs [ddl], which is
  *    1.0.0's DDL followed by the same upgrade.
+ *  - 1.2.0 (INV-T-3176): `config_resolved_value.capped_by`, the directed fields a cross-scope rule or an
+ *    installation bound capped at resolution (INV-REQ-1242 behaviour #5, ruling INV-Q-3206). A service on
+ *    1.1.0 runs [upgradeTo120]; [ddl] includes it.
  */
 object ConfigSchema {
     const val SETTING = "config_setting"
@@ -43,7 +46,20 @@ object ConfigSchema {
         appRole: String,
         platformRole: String,
         purgeRole: String,
-    ): String = ddl100(schema, appRole, platformRole, purgeRole) + "\n" + upgradeTo110(schema, appRole, purgeRole)
+    ): String = ddl100(schema, appRole, platformRole, purgeRole) + "\n" + upgradeTo110(schema, appRole, purgeRole) +
+        "\n" + upgradeTo120(schema)
+
+    /**
+     * 1.1.0 to 1.2.0, expand-only (CS-19, CS-48): the nullable `config_resolved_value.capped_by`, a JSON array
+     * of the caps a recorded value carried (`null` when nothing was capped).
+     */
+    fun upgradeTo120(schema: String): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        return """
+            alter table $s.$RESOLVED_VALUE add column capped_by jsonb
+                check (capped_by is null or (jsonb_typeof(capped_by) = 'array' and jsonb_array_length(capped_by) > 0));
+        """.trimIndent()
+    }
 
     /**
      * 1.0.0 to 1.1.0, expand-only (CS-19, CS-48): adds the relaxation acknowledgement table and the nullable

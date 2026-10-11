@@ -49,8 +49,32 @@ object WriteCatalogue {
     /** A POLICY allowed at every level, to set at each (INV-AC-2227's positive half, INV-REQ-1242). */
     val EVERY_LEVEL = VariationPointKey("VP-12")
 
+    /** VP-08-like: installation and tenant; a record whose `window` is directed, `pair` not (INV-Q-3204). */
     val CROSS_SCOPE = VariationPointKey("VP-08")
+
+    /** VP-67-like: a tenant window up to the installation row [RETRY_MAX] (INV-Q-3202), no direction. */
     val INSTALLATION_BOUND = VariationPointKey("VP-67")
+
+    /** VP-80-like installation maximum whose default option has a fixed typed value. */
+    val RETRY_MAX = VariationPointKey("VP-80")
+
+    /** VP-57-like: a tenant window up to [GRACE_MAX], as published (DOWN_STRICTER). */
+    val GRACE = VariationPointKey("VP-57")
+
+    /** VP-79-like installation maximum: its default DAYS_14 is a typed value fixed at 14 days (INV-Q-3223). */
+    val GRACE_MAX = VariationPointKey("VP-79")
+
+    /** A bounded row whose maximum [UNTYPED_MAX] defaults to an option with no number: refused (fail closed). */
+    val UNTYPED_BOUNDED = VariationPointKey("VP-83")
+
+    /** An installation maximum whose default option carries no typed value. */
+    val UNTYPED_MAX = VariationPointKey("VP-84")
+
+    /** An installation bound declared without the row holding it: refused (INV-Q-3173). */
+    val UNNAMED_BOUND = VariationPointKey("VP-31")
+
+    /** A cross-scope rule over options with no directed field: refused. */
+    val UNDIRECTED_CROSS = VariationPointKey("VP-09")
     val PLANNED = VariationPointKey("VP-66")
     val RETIRED = VariationPointKey("VP-27")
 
@@ -65,6 +89,7 @@ object WriteCatalogue {
         crossOption: String? = null,
         crossScope: String? = null,
         installationBound: Boolean = false,
+        installationParameter: VariationPointKey? = null,
     ) = VariationPointDefinition(
         key = key,
         vpClass = vpClass,
@@ -76,7 +101,19 @@ object WriteCatalogue {
         crossOption = crossOption,
         crossScope = crossScope,
         installationBound = installationBound,
+        installationParameter = installationParameter,
     )
+
+    private fun record(vararg fields: Pair<String, TypedValueSpec>): TypedValueSpec {
+        val named = mapOf(*fields)
+        return TypedValueSpec(ValueType.RECORD, fields = named)
+    }
+
+    private fun hours(
+        min: Long,
+        max: Long,
+        direction: Direction = Direction.DOWN_STRICTER,
+    ) = TypedValueSpec(ValueType.DURATION, "hours", min = Bound.of(min), max = Bound.of(max), direction = direction)
 
     private fun looser(
         key: String,
@@ -91,6 +128,9 @@ object WriteCatalogue {
             max = Bound.of(4),
             direction = Direction.UP_STRICTER,
         )
+
+    private val oneDay = Bound.of(1)
+    private val days14 = TypedValueSpec(ValueType.DURATION, "days", Bound.of(14), Bound.of(14))
 
     val rows: Map<VariationPointKey, VariationPointDefinition> =
         listOf(
@@ -238,17 +278,126 @@ object WriteCatalogue {
             def(
                 CROSS_SCOPE,
                 setOf(ScopeLevel.INSTALLATION, ScopeLevel.TENANT),
-                listOf(OptionSpec("PAIR_4H", Strictness.DEFAULT), OptionSpec("OTHER", Strictness.NEUTRAL)),
+                listOf(
+                    OptionSpec("PAIR_4H", Strictness.DEFAULT, true, record("window" to hours(4, 4))),
+                    OptionSpec(
+                        "OTHER",
+                        Strictness.NEUTRAL,
+                        true,
+                        record("pair" to TypedValueSpec(ValueType.LIST_REF, ref = "pairs"), "window" to hours(1, 8)),
+                    ),
+                ),
+                modifiers = setOf(VpModifier.NON_WAIVABLE_IN_PART),
                 setBy = setOf("security.officer"),
                 crossScope = "A tenant value may not exceed the installation value",
             ),
             def(
                 INSTALLATION_BOUND,
                 setOf(ScopeLevel.TENANT),
+                listOf(
+                    OptionSpec("H72", Strictness.DEFAULT),
+                    OptionSpec(
+                        "CUSTOM",
+                        Strictness.NEUTRAL,
+                        true,
+                        TypedValueSpec(ValueType.DURATION, "hours", min = Bound.of(1), max = Bound.row(RETRY_MAX)),
+                    ),
+                ),
+                vpClass = VpClass.PARAMETER,
+                setBy = setOf("integration.engineer"),
+                installationBound = true,
+                installationParameter = RETRY_MAX,
+            ),
+            def(
+                RETRY_MAX,
+                setOf(ScopeLevel.INSTALLATION),
+                listOf(
+                    OptionSpec("HOURS_168", Strictness.DEFAULT, true, hours(168, 168, Direction.NONE)),
+                    OptionSpec("CUSTOM", Strictness.NEUTRAL, true, hours(72, 720, Direction.NONE)),
+                ),
+                vpClass = VpClass.PARAMETER,
+                setBy = setOf("platform.engineer", "deployment.operator"),
+            ),
+            def(
+                GRACE,
+                setOf(ScopeLevel.TENANT),
+                listOf(
+                    OptionSpec("PLATFORM_MAXIMUM", Strictness.DEFAULT),
+                    OptionSpec(
+                        "SHORTER",
+                        Strictness.STRICTER,
+                        true,
+                        TypedValueSpec(
+                            ValueType.DURATION,
+                            "days",
+                            min = Bound.of(1),
+                            max = Bound.row(GRACE_MAX),
+                            direction = Direction.DOWN_STRICTER,
+                        ),
+                    ),
+                ),
+                vpClass = VpClass.PARAMETER,
+                modifiers = setOf(VpModifier.TIGHTEN_ONLY),
+                installationBound = true,
+                installationParameter = GRACE_MAX,
+            ),
+            def(
+                GRACE_MAX,
+                setOf(ScopeLevel.INSTALLATION),
+                listOf(
+                    OptionSpec("DAYS_14", Strictness.DEFAULT, true, days14),
+                    OptionSpec("CUSTOM", Strictness.NEUTRAL, true, TypedValueSpec(ValueType.DURATION, "days", oneDay)),
+                ),
+                vpClass = VpClass.PARAMETER,
+                setBy = setOf("platform.engineer", "deployment.operator"),
+            ),
+            def(
+                UNTYPED_BOUNDED,
+                setOf(ScopeLevel.TENANT),
+                listOf(
+                    OptionSpec("PLATFORM_MAXIMUM", Strictness.DEFAULT),
+                    OptionSpec(
+                        "SHORTER",
+                        Strictness.STRICTER,
+                        true,
+                        TypedValueSpec(
+                            ValueType.DURATION,
+                            "days",
+                            min = Bound.of(1),
+                            max = Bound.row(UNTYPED_MAX),
+                            direction = Direction.DOWN_STRICTER,
+                        ),
+                    ),
+                ),
+                vpClass = VpClass.PARAMETER,
+                modifiers = setOf(VpModifier.TIGHTEN_ONLY),
+                installationBound = true,
+                installationParameter = UNTYPED_MAX,
+            ),
+            def(
+                UNTYPED_MAX,
+                setOf(ScopeLevel.INSTALLATION),
+                listOf(
+                    OptionSpec("DAYS_14", Strictness.DEFAULT),
+                    OptionSpec("CUSTOM", Strictness.NEUTRAL, true, TypedValueSpec(ValueType.DURATION, "days", oneDay)),
+                ),
+                vpClass = VpClass.PARAMETER,
+                setBy = setOf("platform.engineer", "deployment.operator"),
+            ),
+            def(
+                UNNAMED_BOUND,
+                setOf(ScopeLevel.TENANT),
                 listOf(OptionSpec("H72", Strictness.DEFAULT), OptionSpec("LONGER", Strictness.NEUTRAL)),
                 vpClass = VpClass.PARAMETER,
                 setBy = setOf("integration.engineer"),
                 installationBound = true,
+            ),
+            def(
+                UNDIRECTED_CROSS,
+                setOf(ScopeLevel.INSTALLATION, ScopeLevel.TENANT),
+                listOf(OptionSpec("PAIR_4H", Strictness.DEFAULT), OptionSpec("OTHER", Strictness.NEUTRAL)),
+                setBy = setOf("security.officer"),
+                crossScope = "A tenant value may not exceed the installation value",
             ),
             def(
                 PLANNED,

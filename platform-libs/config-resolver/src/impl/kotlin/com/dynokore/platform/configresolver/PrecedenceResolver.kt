@@ -40,13 +40,17 @@ fun interface SettingLookup {
  * replica resolve alike: the most specific override among the levels the row allows (client entity, AP
  * connection, feed, entity, group, tenant, installation), then the operating profile's value, most
  * specific first, at its version (INV-REQ-1242 behaviour #2, INV-Q-2979), then the catalogue default (by
- * form where the row says so). Evaluated at the transaction date (INV-REQ-1351).
+ * form where the row says so). Evaluated at the transaction date (INV-REQ-1351). A stored value of a row
+ * with a cross-scope rule or an installation bound resolves with its directed fields capped at the broader
+ * value or bound in force on the date (INV-REQ-1242 behaviour #5, ruling INV-Q-3206; [ScopeBounds]).
  */
 class PrecedenceResolver(
     private val catalogue: VariationPointCatalogue,
     private val form: DeploymentForm,
     private val lookup: SettingLookup,
 ) : PolicyReader {
+    private val bounds = ScopeBounds(catalogue, ::resolve)
+
     override fun resolve(
         key: VariationPointKey,
         scope: PolicyScope,
@@ -88,10 +92,37 @@ class PrecedenceResolver(
                                 found.id,
                             )
                     }
-                return ResolvedSetting(definition.key, at, found.selected, policySource)
+                val resolved = ResolvedSetting(definition.key, at, found.selected, policySource)
+                return capped(definition, scope, ref.level, resolved)
             }
         }
         return null
+    }
+
+    override fun capToBounds(
+        key: VariationPointKey,
+        scope: PolicyScope,
+        level: ScopeLevel,
+        selected: List<SelectedOption>,
+        at: LocalDate,
+    ): ResolvedSetting {
+        val definition = catalogue.require(key)
+        if (definition.status == VpStatus.RETIRED) throw VariationPointRetired(key)
+        val ref = requireNotNull(scope.ref(level)) { "the scope $scope has no $level" }
+        val source = PolicySource.Override(level, ref.id, PER_OBJECT)
+        return capped(definition, scope, level, ResolvedSetting(key, at, selected, source))
+    }
+
+    /** Caps a stored value (INV-REQ-1242 behaviour #5); a bound that cannot be evaluated throws. */
+    private fun capped(
+        definition: VariationPointDefinition,
+        scope: PolicyScope,
+        level: ScopeLevel,
+        resolved: ResolvedSetting,
+    ): ResolvedSetting {
+        if (!bounds.applies(definition)) return resolved
+        bounds.unsupported(definition)?.let { throw BoundUnavailable(definition.key, it) }
+        return bounds.cap(resolved, bounds.limits(definition, scope, level, resolved.selected, resolved.at))
     }
 
     private fun defaultOf(
@@ -100,5 +131,10 @@ class PrecedenceResolver(
     ): ResolvedSetting {
         val keys = definition.defaultKeys(form) ?: throw ElectionRequired(definition.key)
         return ResolvedSetting(definition.key, at, keys.map { SelectedOption(it) }, PolicySource.CatalogueDefault)
+    }
+
+    private companion object {
+        /** The setting id of a per-object value: the owning service stores it, config-resolver has no row. */
+        val PER_OBJECT: UUID = UUID(0, 0)
     }
 }

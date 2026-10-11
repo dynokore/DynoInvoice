@@ -37,15 +37,18 @@ enum class ValueType {
 enum class Direction { UP_STRICTER, DOWN_STRICTER, NONE }
 
 /**
- * A bound: a number config-resolver checks itself, or a named value resolved elsewhere (e.g. "the mandatory
- * date"), which only the owning service can check (INV-Q-3167).
+ * A bound: a number config-resolver checks itself, a named value resolved elsewhere (e.g. "the mandatory
+ * date"), which only the owning service can check (INV-Q-3167), or the value of another variation point
+ * resolved at installation scope in the same owning service (e.g. VP-57's `max: {row: VP-79}`, ruling
+ * INV-Q-3202), which config-resolver checks itself.
  */
 data class Bound(
     val number: BigDecimal? = null,
     val named: String? = null,
+    val row: VariationPointKey? = null,
 ) {
     init {
-        require((number == null) != (named == null)) { "a bound is either a number or a named value" }
+        require(listOfNotNull(number, named, row).size == 1) { "a bound is a number, a named value or a row" }
         require(named == null || named.isNotBlank()) { "a named bound must not be blank" }
     }
 
@@ -53,6 +56,8 @@ data class Bound(
         fun of(number: Long): Bound = Bound(number = BigDecimal.valueOf(number))
 
         fun named(name: String): Bound = Bound(named = name)
+
+        fun row(key: VariationPointKey): Bound = Bound(row = key)
     }
 }
 
@@ -93,7 +98,22 @@ data class TypedValueSpec(
         require(type != ValueType.MAP || (key != null && value != null)) { "a map names its key and value" }
         require(minItems == null || minItems >= 0) { "minItems must not be negative" }
         require(maxItems == null || minItems == null || maxItems >= minItems) { "maxItems below minItems" }
+        require(type.numeric || listOfNotNull(min, max).none { it.row != null }) { "only a number is bounded by a row" }
+        require(listOfNotNull(minExclusive, length).none { it.row != null }) { "a row bounds only min or max" }
     }
+
+    /** The rows bounding this value or any part of it (INV-Q-3202). */
+    val boundingRows: Set<VariationPointKey>
+        get() = listOfNotNull(min?.row, max?.row).toSet() +
+            listOfNotNull(item, key, value).flatMap { it.boundingRows } +
+            fields.values.flatMap { it.boundingRows }
+
+    /** The number this value is fixed at (`min` = `max`), e.g. VP-08's DEFAULT_PAIR_4H window (INV-Q-3204). */
+    val fixed: BigDecimal?
+        get() {
+            val low = min?.number ?: return null
+            return low.takeIf { max?.number?.compareTo(it) == 0 }
+        }
 
     /** Whether any part of this spec needs the owning service's [ValueConstraints] (INV-Q-3167). */
     val needsOwningService: Boolean

@@ -6,6 +6,25 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-11
+### Added
+- Cross-scope tighten-only (VP-08): a narrower value's directed fields may not be looser than the broader
+  scope's value, compared by field name; undirected fields are never compared (INV-REQ-780 b1, INV-Q-2936,
+  INV-Q-3204). Refusal `LOOSER_THAN_BROADER`.
+- Installation bound (VP-57, VP-67): `Bound.row`, `VariationPointDefinition.installationParameter`; the
+  bounding INSTALLATION row is resolved in the same service (INV-REQ-1248, INV-Q-3202). Refusal
+  `BEYOND_INSTALLATION_BOUND`; an unevaluable bound refuses `BOUND_UNAVAILABLE` (fail closed).
+- Resolution caps a stored value's limited fields at the broader value or bound in force on the date, the
+  stored value unchanged: `ResolvedSetting.caps`, `PolicyCap`, `PolicyReader.capToBounds` for per-object
+  values, `BoundUnavailable` (INV-REQ-1242 b5, INV-Q-3206).
+- `ConfigSchema.upgradeTo120`: `config_resolved_value.capped_by`; `RecordedResolution.caps`.
+- `TypedValueSpec.boundingRows`, `TypedValueSpec.fixed`.
+
+### Changed
+- The 1.1.0 `NOT_SUPPORTED` refusal now applies only to what cannot be evaluated: an installation bound with no
+  installation parameter row, or a cross-scope row whose options do not all carry the same directed fields
+  (INV-Q-3173).
+
 ## [1.1.0] - 2026-10-11
 ### Added
 - `PolicyWriter`: `setPolicy` at every allowed scope including installation, with role, reason, bounds,

@@ -26,4 +26,12 @@ class JdbcPolicyReader(
         scope: PolicyScope,
         at: LocalDate,
     ): ResolvedSetting = resolver.resolve(key, scope, at)
+
+    override fun capToBounds(
+        key: VariationPointKey,
+        scope: PolicyScope,
+        level: ScopeLevel,
+        selected: List<SelectedOption>,
+        at: LocalDate,
+    ): ResolvedSetting = resolver.capToBounds(key, scope, level, selected, at)
 }

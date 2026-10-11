@@ -23,7 +23,8 @@ import java.util.UUID
  *
  * Checks, in order, before anything is written (INV-Q-2930): the key (unknown and retired keys throw,
  * planned is refused), the scope level, the setting role (for every source, INV-Q-3169), the reason, rules
- * not supported in 1.1.0 (INV-Q-3173), the selection and its bounds (INV-Q-3167), the control relaxation
+ * config-resolver cannot evaluate (INV-Q-3173), the selection and its bounds (INV-Q-3167), the cross-scope
+ * rule and installation bound (INV-T-3176, INV-Q-3202/3204/3206), the control relaxation
  * (INV-REQ-1244, INV-Q-3134/3136/3138/3142) and the effective date (INV-REQ-1243, INV-Q-2940/2977/3140).
  * Then it stores the version, writes the audit entry with the prior value and, where the service has an
  * outbox, `PolicyChanged` (INV-Q-3142), all in the caller's transaction (INV-REQ-1226).
@@ -58,6 +59,7 @@ class JdbcPolicyWriter(
         PrecedenceResolver(catalogue, form) { key, ref, tenant, source, at ->
             store.find(connections.require(), key, ref, tenant, source, at)
         }
+    private val bounds = ScopeBounds(catalogue, resolver::resolve)
 
     override fun setPolicy(command: SetPolicyCommand): PolicyChange {
         val definition = settable(command.key)
@@ -76,6 +78,7 @@ class JdbcPolicyWriter(
         }
         unsupported(definition)
         checkSelection(definition, target, command.selected, command.effectiveFrom)
+        checkBounds(definition, command.scope, target, command.selected, command.effectiveFrom)
         val looser = looserOptions(definition, command.selected)
         val connection = connections.require()
         val relaxation =
@@ -131,6 +134,7 @@ class JdbcPolicyWriter(
         val target = targetOf(definition, command.scope, command.level)
         unsupported(definition)
         checkSelection(definition, target, command.selected, command.effectiveFrom)
+        checkBounds(definition, command.scope, target, command.selected, command.effectiveFrom)
         val looser = looserOptions(definition, command.selected)
         if (looser.isEmpty()) refuse(key, PolicyRefusal.NOT_LOOSER, "the value relaxes nothing")
         val required = requiredRoles(definition, looser, target, command.effectiveFrom).map { it.first }
@@ -213,6 +217,7 @@ class JdbcPolicyWriter(
         val target = targetOf(definition, scope, level)
         unsupported(definition)
         checkSelection(definition, target, selected, onDate)
+        checkBounds(definition, scope, target, selected, onDate)
     }
 
     /** Unknown and retired keys throw; a planned key cannot be set (INV-Q-2930, INV-REQ-1251). */
@@ -238,13 +243,47 @@ class JdbcPolicyWriter(
         return scope.target(level)
     }
 
+    /** Lifted only for what is implemented (INV-T-3176): anything [ScopeBounds] cannot evaluate is refused. */
     private fun unsupported(definition: VariationPointDefinition) {
-        if (definition.crossScope != null || definition.installationBound) {
-            refuse(
-                definition.key,
-                PolicyRefusal.NOT_SUPPORTED,
-                "a cross-scope rule or installation bound is not supported in config-resolver 1.1.0",
-            )
+        bounds.unsupported(definition)?.let { refuse(definition.key, PolicyRefusal.NOT_SUPPORTED, it) }
+    }
+
+    /**
+     * A narrower value may not be looser than the broader value, nor pass the installation bound (INV-REQ-780
+     * b1, INV-REQ-1248, INV-Q-3202/3204), on its effective date and on every later date a broader value or
+     * the bounding row already takes effect. A tighter broader write is never refused: narrower values then
+     * resolve capped (INV-Q-3206).
+     */
+    private fun checkBounds(
+        definition: VariationPointDefinition,
+        scope: PolicyScope,
+        target: SettingTarget,
+        selected: List<SelectedOption>,
+        effectiveFrom: LocalDate,
+    ) {
+        if (!bounds.applies(definition)) return
+        val key = definition.key
+        val connection = connections.require()
+        val limiting =
+            bounds.broaderLevels(definition, scope, target.level).map { key to scope.target(it) } +
+                listOfNotNull(definition.installationParameter).map { it to PolicyScope.installation().target(ScopeLevel.INSTALLATION) }
+        val later = limiting.flatMap { (row, at) -> writes.versions(connection, row, at).map { it.effectiveFrom } }.filter { it > effectiveFrom }
+        (listOf(effectiveFrom) + later.distinct().sorted()).forEach { date ->
+            val limits =
+                try {
+                    bounds.limits(definition, scope, target.level, selected, date)
+                } catch (unavailable: BoundUnavailable) {
+                    refuse(key, PolicyRefusal.BOUND_UNAVAILABLE, unavailable.message.orEmpty())
+                }
+            limits.firstOrNull { it.violatedBy(it.field.value) }?.let {
+                val side = if (it.ceiling) "above" else "below"
+                val where = "'${it.field.option}' ${it.field.path.ifEmpty { "value" }} ${it.field.value?.toPlainString()} is $side"
+                if (it.crossScope) {
+                    refuse(key, PolicyRefusal.LOOSER_THAN_BROADER, "$where the ${it.level} value ${it.bound.toPlainString()} on $date")
+                } else {
+                    refuse(key, PolicyRefusal.BEYOND_INSTALLATION_BOUND, "$where ${it.by} ${it.bound.toPlainString()} on $date")
+                }
+            }
         }
     }
 

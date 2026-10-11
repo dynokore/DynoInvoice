@@ -1,6 +1,7 @@
 package com.dynokore.platform.configresolver
 
 import com.dynokore.platform.tenancykernel.TenantId
+import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.UUID
 import kotlin.reflect.KClass
@@ -53,12 +54,36 @@ data class SelectedOption(
     }
 }
 
-/** The resolution before the option keys are turned into the owning service's enum. */
+/**
+ * One directed field of a stored value capped at resolution (INV-REQ-1242 behaviour #5, ruling INV-Q-3206):
+ * the stored value is unchanged, the resolved value carries [capped], and the source shows what capped it.
+ *
+ * @property option the option key whose typed value holds the field.
+ * @property field the field's dotted path inside the option's value; empty for a plain number.
+ * @property by the row whose value capped it: the same row at a broader [level] (a cross-scope rule), or the
+ *   installation parameter row at [ScopeLevel.INSTALLATION] (an installation bound).
+ */
+data class PolicyCap(
+    val option: String,
+    val field: String,
+    val stored: BigDecimal,
+    val capped: BigDecimal,
+    val by: VariationPointKey,
+    val level: ScopeLevel,
+)
+
+/**
+ * The resolution before the option keys are turned into the owning service's enum.
+ *
+ * @property caps the directed fields capped at a broader value or an installation bound (INV-REQ-1242
+ *   behaviour #5); [selected] already holds the capped values. Empty when nothing was capped.
+ */
 data class ResolvedSetting(
     val key: VariationPointKey,
     val at: LocalDate,
     val selected: List<SelectedOption>,
     val source: PolicySource,
+    val caps: List<PolicyCap> = emptyList(),
 ) {
     init {
         require(selected.isNotEmpty()) { "a resolved value selects at least one option" }
@@ -94,6 +119,22 @@ interface PolicyReader {
         scope: PolicyScope,
         at: LocalDate,
     ): ResolvedSetting
+
+    /**
+     * A value a service stores itself (per object, e.g. VP-67 per webhook subscription; INV-Q-2934) as it
+     * resolves at [at]: its directed fields capped at the broader value and the installation bound in force
+     * then (INV-REQ-1242 behaviour #5, ruling INV-Q-3206). The source is an override at [level] of [scope] with
+     * the nil setting id, since config-resolver stores no row for it.
+     *
+     * @throws BoundUnavailable when a bound in force cannot be evaluated (fail closed).
+     */
+    fun capToBounds(
+        key: VariationPointKey,
+        scope: PolicyScope,
+        level: ScopeLevel,
+        selected: List<SelectedOption>,
+        at: LocalDate,
+    ): ResolvedSetting = throw UnsupportedOperationException("this PolicyReader cannot cap per-object values")
 
     /**
      * [resolve] for a single-option variation point, as the owning service's enum (TPL-10).
@@ -141,13 +182,14 @@ data class ResolutionSubject(
     }
 }
 
-/** A resolved value as recorded on its subject (INV-REQ-1068 behaviour #2). */
+/** A resolved value as recorded on its subject (INV-REQ-1068 behaviour #2), with any caps it carried. */
 data class RecordedResolution(
     val subject: ResolutionSubject,
     val key: VariationPointKey,
     val transactionDate: LocalDate,
     val selected: List<SelectedOption>,
     val source: PolicySource,
+    val caps: List<PolicyCap> = emptyList(),
 )
 
 /**
@@ -219,3 +261,13 @@ class StoredValueNotInCatalogue(
     key: VariationPointKey,
     option: String,
 ) : RuntimeException("variation point $key has a stored option '$option' the catalogue does not define")
+
+/**
+ * A cross-scope rule or installation bound in force cannot be evaluated: the bounding row is missing or not
+ * a single number in the same unit, or a value lacks a field to compare (INV-Q-3202, INV-Q-3204). Refused,
+ * never guessed.
+ */
+class BoundUnavailable(
+    key: VariationPointKey,
+    detail: String,
+) : RuntimeException("variation point $key: bound cannot be evaluated: $detail")

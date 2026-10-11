@@ -12,6 +12,27 @@ Precedence-ordered configuration resolution with effective dates and resolved-va
 
 Released on its own version with its own changelog. Services consume it only as a published artefact (FR-L.6).
 
+## What 1.2.0 offers (INV-T-3176)
+
+- **Cross-scope tighten-only** (VP-08; INV-REQ-780 b1, INV-Q-2936, INV-Q-3204): for a row with
+  `crossScope`, a narrower value's directed numeric fields (`UP_STRICTER`/`DOWN_STRICTER`) may not be looser
+  than the same-named fields of the value the nearest broader allowed scope resolves to; fields with no
+  direction (VP-08's pair) are never compared. An option stored without a value counts by its fixed number
+  (`min` = `max`, e.g. DEFAULT_PAIR_4H's 4 h window). Refused as `LOOSER_THAN_BROADER`.
+- **Installation bound** (VP-57, VP-67; INV-REQ-1248, INV-Q-3202): a typed value's `min`/`max` may be
+  `Bound.row(VP-79)`, the row named by `VariationPointDefinition.installationParameter`; config-resolver
+  resolves that row at installation scope in the same service and needs one number in the same unit. Beyond
+  it is refused as `BEYOND_INSTALLATION_BOUND`.
+- Writes are checked on the effective date and on every later date a broader value or the bounding row already
+  takes effect. A broader tightening is never refused: at resolution the narrower stored value's limited
+  fields are capped at the broader value or bound in force on the date, the stored value unchanged, and
+  `ResolvedSetting.caps` says what capped it (INV-REQ-1242 b5, INV-Q-3206). `PolicyReader.capToBounds`
+  does the same for a per-object value a service stores itself (VP-67 per subscription); `validate` checks it.
+- A bound that cannot be evaluated (no installation parameter row, a bounding row that resolves to an option
+  with no number, a cross-scope row whose options do not carry the same directed fields) is refused
+  (`NOT_SUPPORTED`, `BOUND_UNAVAILABLE`) or throws `BoundUnavailable` at resolution: fail closed.
+- `ConfigSchema.upgradeTo120`: `config_resolved_value.capped_by`, so a recorded resolution keeps its caps.
+
 ## What 1.1.0 offers (INV-T-2870)
 
 - `PolicyWriter.setPolicy` at every scope the row allows, installation included (INV-REQ-1242, INV-AC-2227):
@@ -21,7 +42,7 @@ Released on its own version with its own changelog. Services consume it only as 
   fails closed (INV-Q-2940, INV-Q-3140). Shape, numeric and enum bounds and record fields are checked here;
   named bounds, references, `rule` and cross-option constraints go to the `ValueConstraints` port, and an
   unbound port refuses (INV-AC-2224, INV-Q-3167). Rows declaring a cross-scope rule or an installation bound
-  are refused as `NOT_SUPPORTED` (INV-Q-3173). Each change writes an audit entry with the prior value and,
+  were refused as `NOT_SUPPORTED` (INV-Q-3173); 1.2.0 implements them. Each change writes an audit entry with the prior value and,
   where the service has an outbox, `PolicyChanged` in the same transaction; tenant and group changes use
   `EntityRef.TENANT_WIDE` (INV-Q-3165).
 - `acknowledgeControlRelaxation` (INV-AC-205, INV-AC-2230): a looser option of a waivable CONTROL needs every
