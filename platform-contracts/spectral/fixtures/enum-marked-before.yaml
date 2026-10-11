@@ -1,0 +1,28 @@
+openapi: 3.1.0
+info: {title: gate fixture (INV-T-3491), version: 1.0.0}
+paths:
+  /v1/widgets:
+    post:
+      operationId: createWidget
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ids:
+                  type: array
+
+                  items: {type: string}
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [A]
+                    x-extensible-enum: true

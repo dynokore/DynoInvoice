@@ -68,7 +68,32 @@ if oasdiff breaking /tmp/scaffold-base-3.yaml fixtures/scaffold-marker-head-only
 fi
 rm -f /tmp/scaffold-base-1.yaml /tmp/scaffold-base-2.yaml /tmp/scaffold-base-3.yaml
 
+# INV-T-3491 gate fix (INV-Q-3569): normalize-extensible-enum.py and oasdiff-exceptions.txt.
+gate() { # base head [extra oasdiff args]: normalise both as run-oasdiff-gate.sh does, then diff
+  python3 normalize-extensible-enum.py "$1" /tmp/gate-base.yaml
+  python3 normalize-extensible-enum.py "$2" /tmp/gate-head.yaml
+  shift 2
+  oasdiff breaking /tmp/gate-base.yaml /tmp/gate-head.yaml --fail-on ERR "$@"
+}
+echo "gst-ci: self-test — a value added to an API-09 extensible response enum must PASS"
+if ! gate fixtures/enum-marked-before.yaml fixtures/enum-marked-added.yaml; then
+  echo "gst-ci: FAIL — a value added to an x-extensible-enum response enum was flagged as breaking"; failed=1
+fi
+echo "gst-ci: self-test — a value added to an unmarked response enum must still FAIL"
+if gate fixtures/enum-closed-before.yaml fixtures/enum-closed-added.yaml; then
+  echo "gst-ci: FAIL — a value added to an unmarked enum was accepted"; failed=1
+fi
+echo "gst-ci: self-test — a new request maxItems must FAIL without a recorded exception"
+if gate fixtures/enum-marked-before.yaml fixtures/maxitems-set.yaml; then
+  echo "gst-ci: FAIL — a new request bound was accepted with no exception"; failed=1
+fi
+echo "gst-ci: self-test — the same change must PASS with its one recorded exception"
+if ! gate fixtures/enum-marked-before.yaml fixtures/maxitems-set.yaml --err-ignore fixtures/oasdiff-exceptions-fixture.txt; then
+  echo "gst-ci: FAIL — a recorded exception did not admit its change"; failed=1
+fi
+rm -f /tmp/gate-base.yaml /tmp/gate-head.yaml
+
 if [ "$failed" -eq 0 ]; then
-  echo "gst-ci: breaking-change gate self-test passed (fails on breaking, passes on additive, and exempts only the exact BASE-carried T5 scaffold placeholder)."
+  echo "gst-ci: breaking-change gate self-test passed (fails on breaking, passes on additive, exempts only the exact BASE-carried T5 scaffold placeholder, admits only marked extensible-enum values and recorded exceptions)."
 fi
 exit $failed

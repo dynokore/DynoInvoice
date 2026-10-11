@@ -43,6 +43,14 @@
 # seen as a removal at all, while removing anything else, in any directory,
 # still fails (CS-50).
 #
+# INV-T-3491 gate fix (INV-Q-3569, CS-50): the pinned oasdiff reads only its own
+# list form of an extensible enum (`x-extensible-enum: [..]`), so a value added to
+# an API-09 response enum (`enum` + `x-extensible-enum: true`), which API-09 calls
+# additive, was reported as breaking. normalize-extensible-enum.py rewrites BOTH
+# copies to the list form before the diff; unmarked enums are untouched and still
+# fail. Ruled one-off exceptions sit in oasdiff-exceptions.txt (--err-ignore), each
+# matching one operation and one oasdiff message and citing its Keel ruling.
+#
 # Usage: run-oasdiff-gate.sh <base-sha>
 set -u
 base_sha="$1"
@@ -56,8 +64,11 @@ for dir in */; do
     git show "$base_sha:$svc/openapi.yaml" > "$svc/.oasdiff-base-openapi.yaml"
     python3 spectral/strip-scaffold-placeholder.py "$svc" "$svc/.oasdiff-base-openapi.yaml"
     echo "gst-ci: oasdiff breaking $svc/openapi.yaml against $base_sha"
-    oasdiff breaking "$svc/.oasdiff-base-openapi.yaml" "$svc/openapi.yaml" --fail-on ERR || failed=1
-    rm -f "$svc/.oasdiff-base-openapi.yaml"
+    python3 spectral/normalize-extensible-enum.py "$svc/.oasdiff-base-openapi.yaml" "$svc/.oasdiff-base-openapi.yaml"
+    python3 spectral/normalize-extensible-enum.py "$svc/openapi.yaml" "$svc/.oasdiff-head-openapi.yaml"
+    oasdiff breaking "$svc/.oasdiff-base-openapi.yaml" "$svc/.oasdiff-head-openapi.yaml" --fail-on ERR \
+      --err-ignore spectral/oasdiff-exceptions.txt || failed=1
+    rm -f "$svc/.oasdiff-base-openapi.yaml" "$svc/.oasdiff-head-openapi.yaml"
   fi
 
   if [ -d "$svc/schemas" ]; then

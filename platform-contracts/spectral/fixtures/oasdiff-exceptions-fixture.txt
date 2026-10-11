@@ -1,0 +1,2 @@
+# fixture for self-test-fixtures.sh: one ruled exception, as in spectral/oasdiff-exceptions.txt
+POST /v1/widgets the `ids` request property's maxItems was set to `5000`

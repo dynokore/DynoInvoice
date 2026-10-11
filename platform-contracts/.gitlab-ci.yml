@@ -215,7 +215,7 @@ breaking-change-self-test:
     name: "$OASDIFF_IMAGE"
     entrypoint: [""]
   before_script:
-    - apk add --no-cache python3
+    - apk add --no-cache python3 py3-yaml   # INV-T-3491 gate fix: normalize-extensible-enum.py
   script:
     - sh spectral/self-test-fixtures.sh
 
@@ -398,7 +398,7 @@ oasdiff-breaking-gate:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'   # API-03: CI compares the contract with the previous train's
   before_script:
-    - apk add --no-cache python3
+    - apk add --no-cache python3 py3-yaml   # INV-T-3491 gate fix: normalize-extensible-enum.py
   script:
     - sh spectral/run-oasdiff-gate.sh "$CI_MERGE_REQUEST_DIFF_BASE_SHA"
 

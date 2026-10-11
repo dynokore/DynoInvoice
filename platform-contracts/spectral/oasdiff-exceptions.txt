@@ -1,0 +1,9 @@
+# spectral/oasdiff-exceptions.txt — oasdiff --err-ignore file of run-oasdiff-gate.sh.
+# Each line below is ONE recorded, ruled exception to the API-03 breaking-change gate:
+# the operation (METHOD PATH) and oasdiff's own message, so it matches that one error only.
+# Add a line only with the Keel ruling that permits the change, cited in a comment above it.
+#
+# INV-Q-3569 (INV-T-3491): docUuids maxItems 5000 (API-49, owner cap INV-Q-3482) is permitted
+# within v1 because no train is published and no consumer deployed; after the first train, a
+# new or lower request bound is breaking (API-03).
+POST /internal/v1/masterdata/counterparties/bulk-resolution the `docUuids` request property's maxItems was set to `5000`
