@@ -8,8 +8,7 @@ import java.time.Instant
 /**
  * What a job body is told about its run. [target] is the entity whose items the run processes, or
  * [JobTarget.Whole]; an entity run processes only that entity's items (INV-AC-3041). A whole run that
- * processes several entities' items asks [skips] per item: the job skips a paused entity's items
- * (INV-REQ-1138 b2).
+ * processes several entities' items asks [skips] per item (INV-REQ-1138 b1-b2).
  */
 class JobRunContext(
     val job: JobDefinition,
@@ -20,8 +19,9 @@ class JobRunContext(
     private val pausedCheck: (TenantId, EntityRef) -> Boolean,
 ) {
     /**
-     * True when the job is paused for that entity now: its own pause or a job-wide pause, within the deadline
-     * bound.
+     * True when this run skips that entity's items. A scheduled firing skips an entity paused now (its own pause
+     * or a job-wide pause, within the deadline bound); a run-now overrides the pauses its caller can lift and
+     * skips only the entities under pauses it cannot lift (INV-Q-3533, INV-Q-3563).
      */
     fun skips(
         tenant: TenantId,
@@ -51,7 +51,11 @@ fun interface JobEntitySource {
  * PolicyReader (bound in Wave 3). [FixedDeadlineSource] is the Wave 1 fake.
  */
 interface DeadlineSource {
-    /** The nearest due date the job serves for [target], or `null` when none is pending. */
+    /**
+     * The nearest due date the job serves for [target], or `null` when none is pending. For [JobTarget.Whole]
+     * (a job-wide pause, or a PLATFORM-scoped job) the service answers for the whole job: with [safetyMargin]
+     * it gives the earliest "due date minus margin" over every entity the job serves (INV-Q-3531).
+     */
     fun nearestDueDate(
         job: JobDefinition,
         target: JobTarget,

@@ -174,6 +174,7 @@ class JobRuntime(
         val registered = jobs[request.job] ?: return JobCommandOutcome.Refused(JobErrorCode.JOB_UNKNOWN)
         val target = authorise(registered.job, request, JobCommand.RUN_NOW) ?: return REFUSED_SCOPE
         val now = clock.instant()
+        val paused = runNowOnPausedScope(registered, target, request.actor, now) ?: return REFUSED_SCOPE
         val tick = registered.ticks.tickContaining(now)
         val started: Pair<JobRunState, Boolean> =
             inTenant(target) {
@@ -186,7 +187,7 @@ class JobRuntime(
                         val attempt = (latest?.attempt ?: 0) + 1
                         if (state.begin(RunKey(registered.job, target, tick, JobTrigger.MANUAL, attempt), now)) {
                             audit.record(
-                                auditEntry(request, JobCommand.RUN_NOW, registered.job, target, priorState = null),
+                                auditEntry(request, JobCommand.RUN_NOW, registered.job, target, paused.priorState()),
                                 context(target, aggregateKey(registered.job), request.correlation, request.causation),
                             )
                             val started = RunRow(attempt, JobRunStatus.IN_PROGRESS, now)
@@ -198,7 +199,12 @@ class JobRuntime(
             }
         if (started.second) {
             val key = RunKey(registered.job, target, tick, JobTrigger.MANUAL, started.first.attempt)
-            runNowExecutor.execute { execute(registered, key, request.correlation, request.causation) }
+            val skipped = paused.skipped()
+            runNowExecutor.execute {
+                execute(registered, key, request.correlation, request.causation) { tenant, entity ->
+                    (tenant to entity) in skipped
+                }
+            }
         }
         return JobCommandOutcome.Done(started.first, created = started.second)
     }
@@ -264,10 +270,56 @@ class JobRuntime(
 
     // --- internals ---
 
+    /** The pauses in force on a run-now's scope, as the run handles them. */
+    private class PausedScope(val pauses: List<Pair<TenantId, PauseInForce>>) {
+        fun priorState(): String? = if (pauses.isEmpty()) null else JobPayloads.runNowPriorState(pauses.map { it.second })
+
+        fun skipped(): Set<Pair<TenantId, EntityRef>> = pauses.filter { it.second.skipped }.mapNotNull { (tenant, pause) -> pause.entity?.let { tenant to it } }.toSet()
+    }
+
     /**
-     * The command's target, or null when the actor may not command the job at that scope (JOB-002):
-     * an entity's share of an ENTITY-scoped job needs the entity grant; the whole job, and any command on a
-     * PLATFORM-scoped job, the platform operator role (INV-Q-2985, INV-Q-3032).
+     * The one place where a run-now meets a paused scope (owner decision INV-Q-3533, ruling INV-Q-3563). A
+     * run-now processes its own scope's items once despite a pause its caller can lift (the actor may resume
+     * that key, through [JobCommandAuthorizer]) and leaves the pause in force for scheduled firings. A pause the
+     * caller cannot lift stays in force: a whole-job run-now skips the entities under such pauses, and the
+     * audit lists them. A scope wholly covered by such pauses, taken together (the job-wide pause, the requested
+     * entity's own, or per-entity pauses over every entity of a whole-job run; INV-Q-3567), returns `null`:
+     * refused with JOB-002, no run recorded. Every pause in force is audited as prior state.
+     */
+    private fun runNowOnPausedScope(
+        registered: Registered,
+        target: JobTarget,
+        actor: String,
+        now: Instant,
+    ): PausedScope? {
+        val job = registered.job
+        val pauses = mutableListOf<Pair<TenantId, PauseInForce>>()
+        val wide = inTenant(JobTarget.Whole) { peekPause(job, JobTarget.Whole, now, deadlineBound(job, JobTarget.Whole)) }
+        if (wide != null) {
+            if (!authorizer.isPlatformOperator(actor, JobCommand.RESUME)) return null
+            pauses += TenantId.PLATFORM to PauseInForce(null, wide.until, wide.pausedAt, skipped = false)
+        }
+        val shares =
+            when (target) {
+                is JobTarget.Entity -> listOf(target)
+                JobTarget.Whole -> registered.entities?.entities(job).orEmpty()
+            }
+        for (share in shares) {
+            val own = inTenant(share) { peekPause(job, share, now, deadlineBound(job, share)) } ?: continue
+            val liftable = authorizer.mayCommandEntity(actor, share.tenant, share.entity, JobCommand.RESUME)
+            if (!liftable && target is JobTarget.Entity) return null
+            pauses += share.tenant to PauseInForce(share.entity, own.until, own.pausedAt, skipped = !liftable)
+        }
+        // INV-Q-3567: the union of the unliftable pauses covering every item of the scope refuses it.
+        if (shares.isNotEmpty() && pauses.count { it.second.skipped } == shares.size) return null
+        return PausedScope(pauses)
+    }
+
+    /**
+     * The command's target, or null when the actor may not command the job at that scope (JOB-002): an entity's
+     * share of an ENTITY-scoped job needs the entity grant; the whole job, and any command on a PLATFORM-scoped
+     * job with or without an entity, the platform operator role (INV-Q-2985, INV-Q-3032, INV-Q-3537). The
+     * platform operator giving an entity for a PLATFORM-scoped job is a contract violation (400).
      */
     private fun authorise(
         job: JobDefinition,
@@ -314,8 +366,9 @@ class JobRuntime(
     }
 
     /**
-     * Whether a firing for [target] skips: its own pause, or for an entity a job-wide pause, each lapsing at that
-     * entity's deadline bound, re-checked at every firing because due dates move (INV-REQ-1138 b2-b3, INV-Q-2946).
+     * Whether a firing for [target] skips: its own pause, lapsing at its deadline bound, or for an entity the
+     * job-wide pause, lapsing at the whole job's bound (the earliest over every entity, INV-Q-3531); both are
+     * re-checked at every firing because due dates move (INV-REQ-1138 b2-b3, INV-Q-2946).
      */
     private fun isPaused(
         job: JobDefinition,
@@ -330,11 +383,16 @@ class JobRuntime(
             }
         if (own != null) return true
         if (target is JobTarget.Entity) {
-            val wide = inTenant(JobTarget.Whole) { state.openPause(job, JobTarget.Whole) }
-            if (wide != null) {
-                val end = if (bound != null && bound.isBefore(wide.until)) bound else wide.until
-                return at.isBefore(end)
-            }
+            val wideBound = deadlineBound(job, JobTarget.Whole)
+            val wide =
+                inTenant(JobTarget.Whole) {
+                    if (endLapsed) {
+                        livePause(job, JobTarget.Whole, at, wideBound)
+                    } else {
+                        peekPause(job, JobTarget.Whole, at, wideBound)
+                    }
+                }
+            if (wide != null) return true
         }
         return false
     }
@@ -348,17 +406,26 @@ class JobRuntime(
         at.isBefore(if (bound != null && bound.isBefore(it.until)) bound else it.until)
     }
 
+    /**
+     * Runs the body and records the run. A scheduled firing skips paused entities' items; a run-now passes
+     * [skips], the entities under pauses its caller cannot lift (INV-Q-3563).
+     */
     private fun execute(
         registered: Registered,
         key: RunKey,
         correlation: CorrelationId,
         causation: CausationId?,
+        skips: ((TenantId, EntityRef) -> Boolean)? = null,
     ) {
         val started = clock.instant()
         val context =
             JobRunContext(registered.job, key.target, key.trigger, key.tick, key.attempt) { tenant, entity ->
-                val target = if (tenant.isPlatform) JobTarget.Whole else JobTarget.Entity(tenant, entity)
-                isPaused(registered.job, target, clock.instant(), endLapsed = false)
+                if (skips != null) {
+                    skips(tenant, entity)
+                } else {
+                    val target = if (tenant.isPlatform) JobTarget.Whole else JobTarget.Entity(tenant, entity)
+                    isPaused(registered.job, target, clock.instant(), endLapsed = false)
+                }
             }
         val failure =
             try {

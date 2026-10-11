@@ -49,7 +49,7 @@ class JobContractIT {
     private val entities = JobEntitySource { listOf(e1, e2) }
     private val operator = "platform-op"
     private val engineer = "eng-e1"
-    private val authorizer = FakeAuthorizer(mapOf(engineer to setOf(E1)), setOf(operator))
+    private val authorizer = FakeAuthorizer(mapOf(engineer to setOf(E1), "eng-e2" to setOf(E2)), setOf(operator))
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
@@ -210,6 +210,136 @@ class JobContractIT {
         replica.inA { pause(request(engineer, platformJob.name, null), START.plusSeconds(60)) } shouldBe
             JobCommandOutcome.Refused(JobErrorCode.SCOPE_NOT_PERMITTED)
         h.runs(platformJob.name) shouldHaveSize 0
+
+        // INV-Q-3537: the platform operator giving an entity for a PLATFORM-scoped job is a contract violation.
+        assertThrows<IllegalArgumentException> { replica.inA { runNow(request(operator, platformJob.name, E1)) } }
+        h.runs(platformJob.name) shouldHaveSize 0
+    }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `INV-Q-3533 a run-now on a paused entity runs once, keeps the pause and audits it`(image: String) {
+        val h = harness(image)
+        val clock = MutableClock(START)
+        val replica = h.replica("svc-1", clock, authorizer)
+        val processed = CopyOnWriteArrayList<Pair<JobTarget, Boolean>>()
+        val def = job("q3533-entity")
+        replica.runtime.register(def, entities) { processed += it.target to it.skips(TENANT_A, E1) }
+        val until = START.plus(Duration.ofHours(3))
+        replica.inA { pause(request(engineer, def.name, E1), until) }
+
+        val run = replica.inA { runNow(request(engineer, def.name, E1)) }
+
+        run.shouldBeInstanceOf<JobCommandOutcome.Done<JobRunState>>().created shouldBe true
+        processed shouldContainExactly listOf(e1 to false)
+        val prior = h.events(AUDIT, "$SERVICE/${def.name}").map { it["data"].toString() }.last()
+        prior shouldContain "runJobNow"
+        prior shouldContain "pausesInForce"
+        prior shouldContain "E-001"
+        prior shouldContain "OVERRIDDEN"
+        prior shouldContain until.toString()
+
+        // The pause stays in force for scheduled firings.
+        clock.advance(Duration.ofHours(1))
+        replica.runtime.fire(def.name)[e1] shouldBe FireResult.SKIPPED_PAUSED
+        h.rows("select ended_at from submission.job_pause where job = ?", def.name).single()["ended_at"] shouldBe null
+    }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `INV-Q-3533 a tenant run-now under a job-wide pause it cannot lift is refused with JOB-002`(image: String) {
+        val h = harness(image)
+        val replica = h.replica("svc-1", MutableClock(START), authorizer)
+        val processed = CopyOnWriteArrayList<JobTarget>()
+        val def = job("q3533-wide")
+        replica.runtime.register(def, entities) { processed += it.target }
+        replica.inA { pause(request(operator, def.name, null), START.plus(Duration.ofHours(2))) }
+
+        replica.inA { runNow(request(engineer, def.name, E1)) } shouldBe
+            JobCommandOutcome.Refused(JobErrorCode.SCOPE_NOT_PERMITTED)
+
+        processed shouldHaveSize 0
+        h.runs(def.name) shouldHaveSize 0
+    }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `INV-Q-3563 a whole-job run-now skips and lists the entity under a pause it cannot lift`(image: String) {
+        val h = harness(image)
+        val replica = h.replica("svc-1", MutableClock(START), authorizer)
+        val seen = CopyOnWriteArrayList<Pair<EntityRef, Boolean>>()
+        val def = job("q3563-whole")
+        replica.runtime.register(def, entities) { context ->
+            entities.entities(def).forEach { seen += it.entity to context.skips(it.tenant, it.entity) }
+        }
+        val until = START.plus(Duration.ofHours(2))
+        replica.inA { pause(request(engineer, def.name, E1), until) }
+        replica.inA { pause(request(operator, def.name, null), until) }
+
+        val run = replica.inA { runNow(request(operator, def.name, null)) }
+
+        run.shouldBeInstanceOf<JobCommandOutcome.Done<JobRunState>>().state.target shouldBe JobTarget.Whole
+        seen shouldContainExactly listOf(E1 to true, E2 to false)
+        val prior = h.events(AUDIT, "$SERVICE/${def.name}").map { it["data"].toString() }.last()
+        prior shouldContain "runJobNow"
+        prior shouldContain "SKIPPED"
+        prior shouldContain "E-001"
+        prior shouldContain "OVERRIDDEN"
+        (prior.contains("E-002")) shouldBe false
+        h.runs(def.name).single()["status"] shouldBe "SUCCEEDED"
+    }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `INV-Q-3567 a whole-job run-now with every entity under a pause it cannot lift is refused`(image: String) {
+        val h = harness(image)
+        val replica = h.replica("svc-1", MutableClock(START), authorizer)
+        val processed = CopyOnWriteArrayList<JobTarget>()
+        val def = job("q3567-covered")
+        replica.runtime.register(def, entities) { processed += it.target }
+        val until = START.plus(Duration.ofHours(2))
+        replica.inA { pause(request(engineer, def.name, E1), until) }
+        replica.asTenant(TENANT_B) { replica.runtime.pause(request("eng-e2", def.name, E2), until) }
+        val auditsBefore = h.events(AUDIT, "$SERVICE/${def.name}").size
+
+        replica.inA { runNow(request(operator, def.name, null)) } shouldBe
+            JobCommandOutcome.Refused(JobErrorCode.SCOPE_NOT_PERMITTED)
+
+        processed shouldHaveSize 0
+        h.runs(def.name) shouldHaveSize 0
+        h.events(JobPayloads.JOB_RUN_RECORDED, "$SERVICE/${def.name}") shouldHaveSize 0
+        h.events(AUDIT, "$SERVICE/${def.name}") shouldHaveSize auditsBefore
+    }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `INV-Q-3531 a job-wide pause of a deadline-critical job is bounded by the earliest entity bound`(
+        image: String,
+    ) {
+        val h = harness(image)
+        val clock = MutableClock(START)
+        val deadlines = MovableDeadlines(margin = Duration.ofHours(1))
+        deadlines.due[JobTarget.Whole] = START.plus(Duration.ofHours(4)) // the earliest over E1 and E2
+        deadlines.due[e1] = START.plus(Duration.ofHours(4))
+        deadlines.due[e2] = START.plus(Duration.ofHours(9))
+        val replica = h.replica("svc-1", clock, authorizer, deadlines)
+        val def = job("q3531-wide", criticality = JobCriticality.DEADLINE_CRITICAL)
+        replica.runtime.register(def, entities) { }
+
+        replica.inA { pause(request(operator, def.name, null), START.plus(Duration.ofHours(5))) } shouldBe
+            JobCommandOutcome.Refused(JobErrorCode.PAUSE_PAST_DEADLINE)
+        replica.inA { pause(request(operator, def.name, null), START.plus(Duration.ofHours(3))) }
+            .shouldBeInstanceOf<JobCommandOutcome.Done<JobPauseState>>()
+
+        clock.advance(Duration.ofHours(1))
+        replica.runtime.fire(def.name).values.toSet() shouldBe setOf(FireResult.SKIPPED_PAUSED)
+
+        // The earliest bound moves to 02:00: the job-wide pause lapses there for every entity.
+        deadlines.due[JobTarget.Whole] = START.plus(Duration.ofHours(3))
+        clock.advance(Duration.ofHours(1))
+        replica.runtime.fire(def.name).values.toSet() shouldBe setOf(FireResult.RAN)
+        val ended = h.rows("select ended_at from submission.job_pause where job = ?", def.name).single()
+        ended["ended_at"].toString() shouldContain "02:00"
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")

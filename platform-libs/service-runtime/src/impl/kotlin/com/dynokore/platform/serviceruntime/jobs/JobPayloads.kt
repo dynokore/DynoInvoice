@@ -1,5 +1,6 @@
 package com.dynokore.platform.serviceruntime.jobs
 
+import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.serviceruntime.connection.ConnectionFailure
 import com.dynokore.platform.serviceruntime.connection.ConnectionState
 import tools.jackson.databind.ObjectMapper
@@ -16,6 +17,25 @@ object JobPayloads {
     const val CONNECTION_STATUS_CHANGED = "com.dynokore.gst.platform.ConnectionStatusChanged.v1"
 
     private val mapper = ObjectMapper()
+
+    /**
+     * The prior state a run-now audits (INV-Q-3533, INV-Q-3563): every pause in force on its scope, keyed by
+     * entity (absent = job-wide), with its until and pausedAt, and whether the run overrode it or skipped that
+     * entity because its caller cannot lift it.
+     */
+    fun runNowPriorState(pauses: List<PauseInForce>): String {
+        val node = mapper.createObjectNode()
+        node.put("state", "PAUSED")
+        val array = node.putArray("pausesInForce")
+        pauses.forEach { pause ->
+            val item = array.addObject()
+            pause.entity?.let { item.put("entityRef", it.value) }
+            item.put("until", pause.until.toString())
+            item.put("pausedAt", pause.pausedAt.toString())
+            item.put("handling", if (pause.skipped) "SKIPPED" else "OVERRIDDEN")
+        }
+        return mapper.writeValueAsString(node)
+    }
 
     fun jobRegistered(job: JobDefinition): String {
         val node = mapper.createObjectNode()
@@ -68,3 +88,11 @@ object JobPayloads {
         return mapper.writeValueAsString(node)
     }
 }
+
+/** A pause in force when a run-now was accepted: [entity] is null for the job-wide pause. */
+data class PauseInForce(
+    val entity: EntityRef?,
+    val until: Instant,
+    val pausedAt: Instant,
+    val skipped: Boolean,
+)
