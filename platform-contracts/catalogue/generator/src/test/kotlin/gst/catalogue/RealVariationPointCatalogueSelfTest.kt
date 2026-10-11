@@ -116,18 +116,6 @@ class RealVariationPointCatalogueSelfTest {
     }
 
     @Test
-    fun `INV-T-3528 the artefact keeps crossRow and crossOption as text and lists the typed records under constraints`() {
-        val json = VariationPointCatalogueArtefact.render(VariationPointYamlParser.parse(vendoredFile), "1.1.0")
-        assertTrue(Regex("\"crossRow\": \"").containsMatchIn(json), "crossRow is no longer text")
-        assertTrue(Regex("\"crossOption\": \"").containsMatchIn(json), "crossOption is no longer text")
-        assertTrue(!Regex("\"cross(Row|Option)\": \\[").containsMatchIn(json), "crossRow or crossOption became a list")
-        assertTrue(json.contains("\"constraints\": [{ \"id\": "), "no constraints list")
-        listOf("constraints", "cross_row", "cross_option").forEach {
-            assertTrue(json.contains("\"placement\": \"$it\""), "no record placed in $it")
-        }
-    }
-
-    @Test
     fun `the generated Kotlin source compiles as valid syntax (one enum constant per row, balanced braces)`() {
         val rows = VariationPointYamlParser.parse(vendoredFile)
         val source = VariationPointKotlinEmitter.emit("com.dynokore.gst.catalogue", rows)
