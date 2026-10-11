@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/service-runtime/schemas/replay-completed-payload.schema.json",
+  "title": "ReplayCompletedPayload",
+  "description": "Payload of the ReplayCompleted platform event (INV-REQ-1226 b1-b2, coordinator rulings INV-Q-3644 and INV-Q-3674; class: platform), the completion marker a producer writes last on the pair's replay topic (owner ruling INV-Q-3599 A, INV-API-3655). The producing service is the CloudEvents source. Authored by INV-T-3634. Within a major version this schema is additive-only (API-41, FR-K.4).",
+  "type": "object",
+  "properties": {
+    "replayId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The replayId of the ReplayRequested this marker answers."
+    },
+    "eventsReplayed": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "How many events this producer re-emitted for the replay; 0 for an empty scope (INV-Q-3644)."
+    }
+  },
+  "required": [
+    "replayId",
+    "eventsReplayed"
+  ],
+  "additionalProperties": true
+}

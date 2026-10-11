@@ -23,8 +23,9 @@ records the extraction query; each row pins its Keel `entity_revision` id.
   `ProfileValue.conditionFact`.
 - The version rule (INV-Q-3283 A′, `ProfileVersionChecker`): against
   `previous-snapshot.yaml`, a profile's values may change only with a higher version, a
-  version never decreases, and a profile is never dropped. Prose (`text`), `status` and
-  `condition_fact` (it types the `condition` already there) are not values. With no previous snapshot (the first one) the check is skipped.
+  version never decreases, and a profile is never dropped. Prose (`text`) and `status`
+  are not values, nor is a newly added `condition_fact` (it types the `condition` already
+  there); changing or removing one already present is a value change. With no previous snapshot (the first one) the check is skipped.
 
 The generated `OperatingProfile` marks the planned variation points each profile sets
 (`plannedVariationPoints`, INV-REQ-1251), carries `previousVersion`/`previousValues` and

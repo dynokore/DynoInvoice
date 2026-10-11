@@ -43,7 +43,7 @@ data class UnresolvedValue(
  * default; [needsAcknowledgement] the LOOSER options that need acknowledgeControlRelaxation
  * (INV-REQ-1244). [text] is the row's own words and is not part of the value (INV-Q-3283).
  * [conditionFact] types [condition] as the FACT record whose fact decides it (INV-T-3636,
- * INV-Q-3692): it restates the condition, so like [text] it is not judged by the version check.
+ * INV-Q-3692): newly added it restates the condition and is not a change ([sameValueAs]).
  */
 data class ParsedProfileValue(
     val vp: String,
@@ -69,8 +69,15 @@ data class ParsedProfileValue(
         get() = listOfNotNull(option, otherwiseOption) + options + alternatives + needsAcknowledgement
 
     /** The value without its prose: what a version change is judged on (INV-Q-3283 A′). */
-    fun comparable(): ParsedProfileValue =
-        copy(text = "", unresolved = unresolved?.let { UnresolvedValue("", "") }, conditionFact = null)
+    fun comparable(): ParsedProfileValue = copy(text = "", unresolved = unresolved?.let { UnresolvedValue("", "") })
+
+    /**
+     * True when [newer] holds the same value as this (older) one. A condition_fact newly added to a
+     * value that had none only types its existing condition and is not a change (INV-Q-3692); once
+     * a value has one, changing or removing it is a change like any other.
+     */
+    fun sameValueAs(newer: ParsedProfileValue): Boolean =
+        comparable() == newer.comparable().let { if (conditionFact == null) it.copy(conditionFact = null) else it }
 }
 
 /** The FACT record [constraint] of the value's row whose [fact] decides its condition (INV-Q-3612, INV-Q-3692). */

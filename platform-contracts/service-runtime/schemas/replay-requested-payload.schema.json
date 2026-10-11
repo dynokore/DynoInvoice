@@ -1,0 +1,173 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/service-runtime/schemas/replay-requested-payload.schema.json",
+  "title": "ReplayRequestedPayload",
+  "description": "Payload of the ReplayRequested platform event (INV-REQ-1226 b1-b2, coordinator ruling INV-Q-3674; class: platform), the replay request of INV-REQ-1205 b4 (owner ruling INV-Q-3599 A, INV-API-3654). A consumer's rebuildConsumer writes it to the consumer's own outbox in the transaction that moves its positions to the head; its relay publishes it on gst.<consumer>.replay-requested.v1, which every producer the consumer subscribes to reads; only the addressee named in producer acts on it. Stored under the platform TenantId and published without tenantid or entityref (INV-REQ-1226 b7); a scope's tenant travels in the payload. The requesting consumer is the CloudEvents source. Authored by INV-T-3634. Within a major version this schema is additive-only (API-41, FR-K.4).",
+  "type": "object",
+  "properties": {
+    "replayId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "New per request; returned by rebuildConsumer and echoed by the ReplayCompleted that answers it (INV-Q-3644)."
+    },
+    "producer": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The addressee: the pair's catalogue producer value in event-log/topics.yaml, a service name or 'every service' (INV-Q-3625)."
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "SCOPE",
+        "FULL_SYNC"
+      ],
+      "x-extensible-enum": true,
+      "description": "SCOPE for a replay by scope, FULL_SYNC for a full sync (INV-REQ-1205 b4). Extensible (API-09, API-41)."
+    },
+    "scope": {
+      "$ref": "#/$defs/ReplayScope"
+    }
+  },
+  "required": [
+    "replayId",
+    "producer",
+    "mode"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "SCOPE"
+          }
+        },
+        "required": [
+          "mode"
+        ]
+      },
+      "then": {
+        "required": [
+          "scope"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "FULL_SYNC"
+          }
+        },
+        "required": [
+          "mode"
+        ]
+      },
+      "then": {
+        "not": {
+          "required": [
+            "scope"
+          ]
+        }
+      }
+    }
+  ],
+  "additionalProperties": true,
+  "$defs": {
+    "ReplayScope": {
+      "type": "object",
+      "description": "The scope of a replay by scope (INV-REQ-1205 b4), present only when mode is SCOPE; a tagged union on kind (owner ruling INV-Q-3671): TENANT {tenantId}; ENTITY {tenantId, entityRef}; PERIOD {from, to, tenantId?}, a half-open range [from, to) on the time the producer's state was last changed, across all tenants unless narrowed by tenantId.",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "TENANT",
+            "ENTITY",
+            "PERIOD"
+          ],
+          "x-extensible-enum": true,
+          "description": "Which scope shape this is (INV-Q-3671). Extensible (API-09, API-41)."
+        },
+        "tenantId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The tenant; required for TENANT and ENTITY, optional for PERIOD (narrows it to one tenant)."
+        },
+        "entityRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "description": "The registered entity; required for ENTITY."
+        },
+        "from": {
+          "type": "string",
+          "format": "date-time",
+          "description": "PERIOD only: inclusive start of the range on the time the producer's state was last changed."
+        },
+        "to": {
+          "type": "string",
+          "format": "date-time",
+          "description": "PERIOD only: exclusive end of the range; later than from."
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "TENANT"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "tenantId"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "ENTITY"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "tenantId",
+              "entityRef"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "PERIOD"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "from",
+              "to"
+            ]
+          }
+        }
+      ],
+      "additionalProperties": true
+    }
+  }
+}

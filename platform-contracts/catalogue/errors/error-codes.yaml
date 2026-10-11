@@ -1,7 +1,8 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
-# pinned at commit 6c367e5c6f7c05bc9bac7c256b82ddf91450e9f0 (2026-10-11), the
-# merge of invoice-docs!5 adding ING-019 (INV-T-3457; previously pinned at
-# 2dfb6f809a3963ef15ed8426d7bba38ba5376068, INV-T-3007).
+# pinned at commit 90b64d7a1b98565b90806b0d5fd2cc95029114e2 (2026-10-11), the
+# head of invoice-docs branch t/inv-t-3634 adding EVL-001..EVL-004 (INV-T-3634,
+# owner ruling INV-Q-3667; re-pinned to its merge commit once the owner merges
+# it; previously pinned at 6c367e5c6f7c05bc9bac7c256b82ddf91450e9f0, INV-T-3457).
 #
 # This copy is the generator's (catalogue/generator/) sole input for the
 # gst-catalogue ErrorCode catalogue (STK-61, CS-13). It is never hand-edited:
@@ -542,3 +543,28 @@ error_codes:
   severity: BLOCK
   disposition: TERMINAL
   owner: Integration
+- code: EVL-001
+  condition: 'Topic not consumed: the topic named in rebuildConsumer is not one this service consumes (HTTP 404; INV-Q-3667,
+    INV-API-3656)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: EVL-002
+  condition: 'The caller''s role may not rebuild a consumer: only the form''s platform operator role (platform.engineer in
+    SaaS, deployment.operator in private) may call rebuildConsumer, for every mode and scope (HTTP 403; INV-Q-3663, INV-Q-3667,
+    INV-API-3656)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: EVL-003
+  condition: 'Topic not in ''rebuild required'': this service''s consumer does not hold the topic in ''rebuild required''
+    (HTTP 409; INV-REQ-1205 b6, INV-Q-3667, INV-API-3656)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: EVL-004
+  condition: 'A replay for the (consumer, producer) pair is pending with another mode or scope; the same mode and scope returns
+    the pending replay instead (HTTP 409; INV-Q-3665, INV-Q-3667, INV-API-3656)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
