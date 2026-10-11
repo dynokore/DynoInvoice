@@ -19,9 +19,8 @@ train is its own (README.md: "own version and changelog").
   content window (INV-ADR-2772) for a topic whose `content_topic` marker is true and the event-log retention for every
   other topic (`Retention`: default 30 days, below 7 days refused). Each batch is one statement that deletes and raises
   the topic's watermark (never lowers it), so both commit together. It never reads consumer positions or waits for a
-  lagging consumer. Each run logs through SLF4J (STK-35; constant message, per-topic values as key-value pairs) and returns per-topic rows, period, cut-off and watermark. A topic
+  lagging consumer. Each run logs (`System.Logger`) and returns per-topic rows, period, cut-off and watermark. A topic
   without a `content_topic` marker is refused at construction rather than given a guessed period.
-- Build: `slf4j-api` added to the version catalog (same release as `slf4j-simple`) and to this module's impl half.
 - `TopicsYamlCatalogue` reads `content_topic: true|false` (INV-T-3386) into `CatalogueEntry.contentTopic` (`null`
   when absent; any other value is refused).
 - `PostgresEventLogReader.read` reads the topic's watermark in the same statement as the claim; when the caller's next
@@ -32,9 +31,6 @@ train is its own (README.md: "own version and changelog").
   the recovery path (producers' replay by scope or full sync, not in this module) has moved its offset past the
   watermark.
 ### Changed
-- `Retention.inboxRetention` is now `max(contentWindow, eventLogRetention) + 1 day` (was `eventLogRetention + 1 day`):
-  with per-topic periods a content-topic event stays in the log for the content window, so its inbox row must not
-  expire sooner, or a redelivery would be applied twice. Unchanged under the defaults (both 30 days).
 - **API change:** `EventLogSchema.topicDdl(topic, relayRole, consumers, purgeRole)` (new required `purgeRole`; run
   `watermarkDdl` first); `JdbcInboxConsumer(subscription, reader, claimSource, scope, handler, rebuildRequired, …)`
   (new required `RebuildRequiredSink` before `clock`). No topic table exists in any installation yet (INV-T-2890 is

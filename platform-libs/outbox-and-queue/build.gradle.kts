@@ -59,8 +59,6 @@ dependencies {
 
     // STK-08: Jackson 3 (`tools.jackson`) — the CloudEvents structured-JSON envelope.
     add("implImplementation", libs.jackson.databind)
-    // STK-35: SLF4J facade for the event-log purge's run log (INV-T-3384); the service binds Logback.
-    add("implImplementation", libs.slf4j.api)
     testImplementation(libs.jackson.databind)
 
     // Real PostgreSQL only, in every environment including tests (STK-14, STK-15;
