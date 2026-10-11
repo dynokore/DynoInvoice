@@ -37,6 +37,9 @@
 # VP source id in Keel (source_ids is written only at creation, P57), so they are taken by
 # the requirement that VP-57's and VP-67's own installation_parameter names, with that
 # installation_parameter.row as their id (INV-Q-3202); see check-drift.py's docstring.
+# Re-extracted 2026-10-11 (INV-T-3528; Keel INV-CS-3604, INV-CS-3619): typed constraint records
+# in constraints, cross_row and cross_option (INV-Q-3526, INV-Q-3610, INV-Q-3614, INV-Q-3618); VP-64's
+# note (INV-Q-3616); VP-08's cross_scope text (INV-Q-3548).
 #
 # Keel has no single repository-wide commit the way invoice-docs does, so each row
 # below pins to its own published entity_revision id (`revision`), not a shared SHA.
@@ -318,7 +321,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1268: the second option needs the sole-operator acknowledgement; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; acknowledged_by: VP-07 tenant.admin: owner ruling INV-Q-3155; for INV-T-3148"
 - id: VP-08
   requirement: INV-REQ-1269
-  revision: a7358dfb-670b-446b-945a-3b89d1d564b8
+  revision: 1badf0c8-ab58-4d73-badb-c34f95ccde6d
   title: "Break-glass pairs deployment.operator or tenant.admin with tax.approver for 4 hours by default; other named pairs and 1 to 8 hours are possible, and it is always two people"
   class: CONTROL
   class_modifiers:
@@ -372,8 +375,8 @@ variation_points:
               max: 8
               default: 4
               direction: "DOWN_STRICTER"
-    cross_scope: "A tenant value may not exceed the installation value (tighten-only across scopes, INV-Q-2936); the 1 to 8 hour range is the row's bound, so nothing inside it needs an acknowledgement and nothing outside it is offered. Compared on fields with a direction (window); the pair is not compared (INV-Q-3204). At resolution a tenant window above the installation value in force on the date is capped at it, the stored value unchanged (INV-REQ-1242 b5, INV-Q-3206). The default pair's window is configurable from 1 to 8 hours like any pair's; a DEFAULT_PAIR_4H value stored without a window counts as its default, 4 hours (INV-Q-3320)."
-    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1269, INV-REQ-896 b2 (1 to 8 hours set by security.officer), INV-AC-2253 (only above 8 hours refused), INV-Q-2936 (non-waivable rows offer nothing looser; VP-08 tighten-only across scopes): the 1 to 8 h range is the row's bound, the installation value bounds the tenant's; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; DEFAULT_PAIR_4H typed window fixed at 4 h, directed fields only compared across scopes: coordinator ruling INV-Q-3204; resolution cap: INV-Q-3206; for INV-T-3176; owner ruling INV-Q-3320 (A′, 2026-10-11): INV-REQ-1269 allows 1 to 8 hours for any pair, so DEFAULT_PAIR_4H's window is 1 to 8 h, default 4 (supersedes INV-Q-3204's fixed 4 h); the key is kept"
+    cross_scope: "A tenant value may not exceed the installation value (tighten-only across scopes, INV-Q-2936); the 1 to 8 hour range is the row's bound, so nothing inside it needs an acknowledgement and nothing outside it is offered. Compared on fields with a direction (window); the pair is not compared (INV-Q-3204). At resolution a tenant window above the installation value in force on the date is capped at it, the stored value unchanged (INV-REQ-1242 b5, INV-Q-3206). The default pair's window is configurable from 1 to 8 hours like any pair's (INV-Q-3320). A DEFAULT_PAIR_4H value is written with its window: a write with no value or without the window is refused and nothing is stored (INV-Q-3167). Where nothing is set at a scope, the catalogue default DEFAULT_PAIR_4H applies with its default window of 4 hours, in resolution, in the cross-scope comparison and in the cap (INV-Q-3548)."
+    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1269, INV-REQ-896 b2 (1 to 8 hours set by security.officer), INV-AC-2253 (only above 8 hours refused), INV-Q-2936 (non-waivable rows offer nothing looser; VP-08 tighten-only across scopes): the 1 to 8 h range is the row's bound, the installation value bounds the tenant's; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; DEFAULT_PAIR_4H typed window fixed at 4 h, directed fields only compared across scopes: coordinator ruling INV-Q-3204; resolution cap: INV-Q-3206; for INV-T-3176; owner ruling INV-Q-3320 (A′, 2026-10-11): INV-REQ-1269 allows 1 to 8 hours for any pair, so DEFAULT_PAIR_4H's window is 1 to 8 h, default 4 (supersedes INV-Q-3204's fixed 4 h); the key is kept; a write without the window is refused and the default 4 h is the window of the catalogue default only: coordinator ruling INV-Q-3548 (HIGH, reconciling INV-Q-3167 and INV-Q-3320)"
 - id: VP-09
   requirement: INV-REQ-1270
   revision: ef8a531f-ad28-46bc-a663-35f0bf03aca3
@@ -553,7 +556,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1274: \"the second option is the looser one\"; keys as in the TPL-10 example; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; acknowledged_by: VP-13 client.signatory: bounds; INV-Q-3134; for INV-T-3148"
 - id: VP-14
   requirement: INV-REQ-1275
-  revision: af8fd973-702c-4b4a-bbe3-f0621d2f0f80
+  revision: 6b2fa406-5db6-4f2f-9be5-c97c258efb5a
   title: "The readiness verdict is advisory by default; the blocking option makes the filing workflow refuse to proceed without ready or a recorded override"
   class: POLICY
   class_modifiers: []
@@ -581,7 +584,18 @@ variation_points:
         strictness: "DEFAULT"
       - key: "BLOCKING"
         strictness: "NEUTRAL"
-    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1275 (POLICY); conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
+    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1275 (POLICY); conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; constraints (BLOCKING needs the filing-workflow machine principal): coordinator ruling INV-Q-3614 (HIGH); for INV-T-3528"
+    constraints:
+      - id: "VP-14.FILING_WORKFLOW_PRINCIPAL"
+        fact:
+          name: "filing_workflow_principal_named"
+          holder: "ENTITY"
+        kind: "FACT"
+        rule: "Blocking needs the filing-workflow principal: an active credential of the filing-workflow machine principal type (INV-REQ-584 b1, INV-REQ-814 b2) that names the entity; not a role grant"
+        source: "INV-REQ-1275 b2, io_contract.bounds, must_not_happen; INV-REQ-584 b1-b2; INV-REQ-814 b2; INV-AC-2261; INV-Q-3614"
+        options:
+          - "BLOCKING"
+        refused: "electing BLOCKING for an entity that no filing-workflow principal names (submission-svc)"
 - id: VP-15
   requirement: INV-REQ-1276
   revision: 60c9d93b-00ab-40f0-af12-fb3e0b742396
@@ -786,7 +800,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1280 (1 to 10 days), INV-REQ-1019; single-scope PARAMETER with no stated bound, so no tighten direction (G5 option A); conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-20
   requirement: INV-REQ-1281
-  revision: d23fcdaa-7a52-4943-8ba4-9a22e5a5973b
+  revision: 1e533b69-c295-44ec-96c9-ba72596448ca
   title: "Type 2 and 3 documents are despatched continuously by default, or in a daily or weekly window, always before the due date minus the safety margin"
   class: POLICY
   class_modifiers: []
@@ -817,8 +831,26 @@ variation_points:
         strictness: "NEUTRAL"
       - key: "WEEKLY_WINDOW"
         strictness: "NEUTRAL"
-    cross_row: "WEEKLY_WINDOW refusal against VP-35 and VP-18 is a cross-row check, not a bound"
-    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1281 (WEEKLY refusal is a cross-row check, not a bound); conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
+    cross_row:
+      - id: "VP-20.WEEKLY_WINDOW_FITS"
+        kind: "CHECK"
+        rule: "Refused where the extraction interval (VP-35) plus the despatch interval (VP-20) exceeds the shortest gap between period end and filing due date for the entity's filing frequency, minus the safety margin (VP-18); the margin is the only buffer and the two latencies add (INV-Q-135)"
+        check: "weekly_window_fits"
+        inputs:
+          - row: "VP-35"
+          - row: "VP-20"
+          - row: "VP-18"
+          - fact:
+              name: "filing_frequency"
+              holder: "ENTITY"
+          - fact:
+              name: "calendar_pack_period_end_to_due_gap"
+              holder: "INSTALLATION"
+        source: "INV-REQ-1281 b2, io_contract.bounds, must_not_happen; INV-REQ-1296 b2; INV-REQ-1279"
+        options:
+          - "WEEKLY_WINDOW"
+        refused: "setting WEEKLY_WINDOW for an entity whose gap cannot absorb it (submission-svc)"
+    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1281 (WEEKLY refusal is a cross-row check, not a bound); conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; cross_row: typed from the published text cited in each record's source, for INV-T-3528 (coordinator typing of published text, INV-Q-3526 A; tooling/vp-constraints-breakdown.md)"
 - id: VP-21
   requirement: INV-REQ-1282
   revision: 61984b0a-45a7-40ce-9f6f-ea18f676e3a1
@@ -852,7 +884,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1282; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-22
   requirement: INV-REQ-1283
-  revision: b1eb81e3-dc1c-4904-afcd-735d77b3f44a
+  revision: 571aea20-1485-4885-9d9c-d9e448f3bc8b
   title: "Every entity elects its purchase transaction date basis — invoice date or posting date — before go-live, and applies it consistently"
   class: POLICY
   class_modifiers: []
@@ -882,7 +914,18 @@ variation_points:
         strictness: "NEUTRAL"
       - key: "POSTING_DATE"
         strictness: "NEUTRAL"
-    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1283, must elect; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
+    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1283, must elect; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; constraints: typed from the published text cited in each record's source, for INV-T-3528 (coordinator typing of published text, INV-Q-3526 A; tooling/vp-constraints-breakdown.md)"
+    constraints:
+      - id: "VP-22.POSTING_BASIS"
+        fact:
+          name: "input_tax_claimed_on_posting_basis"
+          holder: "ENTITY"
+        kind: "FACT"
+        rule: "Posting date only where input tax is claimed on that basis; applied consistently (INV-REQ-67, INV-REQ-422)"
+        source: "INV-REQ-1283 b2, io_contract.bounds"
+        options:
+          - "POSTING_DATE"
+        refused: "electing POSTING_DATE for an entity that does not claim input tax on the posting basis (tenancy-svc)"
 - id: VP-23
   requirement: INV-REQ-1284
   revision: 2434cb9a-6fee-4095-aea4-24ec51e534d6
@@ -957,7 +1000,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3055, recommended option (A) accepted; INV-REQ-1285; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-25
   requirement: INV-REQ-1286
-  revision: c911d102-419f-4592-b8d6-e8682ff9eaa5
+  revision: 98794c3e-8236-437e-a5dc-3be26c02ccd2
   title: "Every entity elects its Type 1A issuance mode — Relay, Observe or None — with a second confirmation, before go-live"
   class: POLICY
   class_modifiers: []
@@ -989,7 +1032,21 @@ variation_points:
         strictness: "NEUTRAL"
       - key: "NONE"
         strictness: "NEUTRAL"
-    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1286, must elect; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
+    cross_row:
+      - at: "AP_CONNECTION"
+        id: "VP-25.OBSERVE_ROUTE"
+        row: "VP-49"
+        kind: "REQUIRES"
+        rule: "Where the AP offers none of VP-49's routes, Observe cannot be chosen for entities on that connection: OBSERVE needs an acknowledgement route elected on the entity's AP connection"
+        source: "INV-REQ-1310 b2, io_contract.bounds, verification, must_not_happen"
+        options:
+          - "OBSERVE"
+        refused: "electing OBSERVE for an entity whose AP connection has no VP-49 route elected (tenancy-svc, transport-svc)"
+        row_options:
+          - "AP_CALLBACK"
+          - "POLLING"
+          - "REPORT_IMPORT"
+    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1286, must elect; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; cross_row: typed from the published text cited in each record's source, for INV-T-3528 (coordinator typing of published text, INV-Q-3526 A; tooling/vp-constraints-breakdown.md)"
 - id: VP-26
   requirement: INV-REQ-1287
   revision: 75a75a98-b7a1-4aa2-a8c6-b6023ff3a6a6
@@ -1115,7 +1172,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1290; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-30
   requirement: INV-REQ-1291
-  revision: d61823ba-0603-49d8-835c-9f2b0df6658c
+  revision: 6b8e5b8b-7171-45e8-adf2-d23003e11674
   title: "Counterparties are asked for their details by signed request link by default, by CSV exchange only, by both, or not at all"
   class: POLICY
   class_modifiers: []
@@ -1149,7 +1206,21 @@ variation_points:
         strictness: "NEUTRAL"
       - key: "OFF"
         strictness: "NEUTRAL"
-    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1291; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
+    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1291; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; constraints: typed from the published text cited in each record's source, for INV-T-3528 (coordinator typing of published text, INV-Q-3526 A; tooling/vp-constraints-breakdown.md)"
+    constraints:
+      - id: "VP-30.ENDPOINT"
+        fact:
+          name: "signed_link_endpoint_exposed"
+          holder: "INSTALLATION"
+        kind: "FACT"
+        rule: "Link pages need a public endpoint in the private form (INV-REQ-903); where the customer declines public exposure, CSV exchange is used instead (INV-REQ-903 b2)"
+        forms:
+          - "PRIVATE"
+        source: "INV-REQ-1291 b2, io_contract.bounds; INV-REQ-903 b1-b2; INV-REQ-1248 b2"
+        options:
+          - "SIGNED_LINK"
+          - "BOTH"
+        refused: "electing SIGNED_LINK or BOTH in a private installation without the INV-REQ-903 signed-link endpoint exposed (masterdata-svc)"
 - id: VP-31
   requirement: INV-REQ-1292
   revision: 34d07b05-96a4-4f4a-a8d1-c213f9215399
@@ -1307,7 +1378,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1295 (1 to 60 days), INV-REQ-790; single-scope PARAMETER with no stated bound, so no tighten direction (G5 option A); conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-35
   requirement: INV-REQ-1296
-  revision: 37e29b78-a84b-48b6-bf45-d8d5939bd9c7
+  revision: 97910670-9da2-47d5-9c7b-f64f88e49bae
   title: "Scheduled extraction runs daily by default, or several times a day, or weekly where the deadline gap can absorb it"
   class: PARAMETER
   class_modifiers: []
@@ -1344,8 +1415,26 @@ variation_points:
           direction: "NONE"
       - key: "WEEKLY"
         strictness: "NEUTRAL"
-    cross_row: "WEEKLY refusal against VP-18 and the filing frequency is a cross-row check, not a bound"
-    basis: "Owner ruling (2026-10-11) on INV-Q-3059, recommended option (A) accepted; INV-REQ-1296; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
+    cross_row:
+      - id: "VP-35.WEEKLY_FITS"
+        kind: "CHECK"
+        rule: "Refused where the extraction interval (VP-35) plus the despatch interval (VP-20) exceeds the shortest gap between period end and filing due date for the entity's filing frequency, minus the safety margin (VP-18); the margin is the only buffer and the two latencies add (INV-Q-135)"
+        check: "weekly_window_fits"
+        inputs:
+          - row: "VP-35"
+          - row: "VP-20"
+          - row: "VP-18"
+          - fact:
+              name: "filing_frequency"
+              holder: "ENTITY"
+          - fact:
+              name: "calendar_pack_period_end_to_due_gap"
+              holder: "INSTALLATION"
+        source: "INV-REQ-1296 b2, io_contract.bounds, must_not_happen; INV-REQ-1281 b2; INV-REQ-1279"
+        options:
+          - "WEEKLY"
+        refused: "setting WEEKLY for a feed whose entity's gap cannot absorb it (ingestion-svc)"
+    basis: "Owner ruling (2026-10-11) on INV-Q-3059, recommended option (A) accepted; INV-REQ-1296; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; cross_row: typed from the published text cited in each record's source, for INV-T-3528 (coordinator typing of published text, INV-Q-3526 A; tooling/vp-constraints-breakdown.md)"
 - id: VP-36
   requirement: INV-REQ-1297
   revision: 576d6078-0918-48b4-a3c3-bc8e226b4843
@@ -1705,7 +1794,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1305: \"turning them on is looser\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; acknowledged_by: VP-44 tenant.admin (security.officer sets the switch and approves each copy): owner ruling INV-Q-3157; for INV-T-3148"
 - id: VP-45
   requirement: INV-REQ-1306
-  revision: d3447dc7-8ddc-4d9c-8f9d-9e2cac939fa9
+  revision: 810b7ab8-e42f-4f0d-8a8e-19ba97b4a59a
   title: "Every SaaS tenant elects its data region at provisioning, fixed afterwards except through migration"
   class: POLICY
   class_modifiers: []
@@ -1735,10 +1824,20 @@ variation_points:
           type: "list_ref"
           ref: "control-plane region list (SaaS only), seeded with Singapore (INV-Q-2322)"
     note: "validated by the control plane at tenant provisioning"
-    basis: "Owner ruling (2026-10-11) on INV-Q-3055, recommended option (A) accepted; INV-REQ-1306; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
+    basis: "Owner ruling (2026-10-11) on INV-Q-3055, recommended option (A) accepted; INV-REQ-1306; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; constraints: typed from the published text cited in each record's source, for INV-T-3528 (coordinator typing of published text, INV-Q-3526 A; tooling/vp-constraints-breakdown.md)"
+    constraints:
+      - id: "VP-45.FORM"
+        kind: "FORM"
+        rule: "Every SaaS tenant elects its data region at provisioning; the region list is SaaS only"
+        forms:
+          - "SAAS"
+        source: "INV-REQ-1306 title, b1; catalogue typed_value ref (SaaS only); INV-REQ-1248 b2"
+        options:
+          - "REGION"
+        refused: "electing VP-45 in a private installation (control-plane-svc; a private installation does not use provisionTenant, INV-FLOW-228); must_be_elected applies in the SaaS form only"
 - id: VP-46
   requirement: INV-REQ-1307
-  revision: 50f62b8a-5505-4a92-acc0-db402ce7c397
+  revision: 3536309d-bbf7-45bb-ac4f-b1e66d27b861
   title: "Alerts go by email to the default roles by default, and may add webhook or chat channels or named people, always to at least two recipients or with a sole-operator acknowledgement"
   class: POLICY
   class_modifiers: []
@@ -1773,8 +1872,21 @@ variation_points:
         typed_value:
           type: "list_ref"
           ref: "person references"
-    cross_option: "The resulting recipients are at least two, or a sole-operator acknowledgement is recorded (INV-REQ-1115); checked on the whole selection"
-    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1307, INV-REQ-1113 b2 (a policy names recipients and channels together), INV-REQ-1115; 'adds' webhook or chat combines with the base (G3 option A); conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
+    cross_option:
+      - id: "VP-46.RECIPIENTS"
+        kind: "CHECK"
+        rule: "The resulting recipients are at least two, or a sole-operator acknowledgement is recorded (INV-REQ-1115); checked on the whole selection"
+        check: "min_recipients_or_sole_operator_ack"
+        inputs:
+          - min: 2
+            value: "resulting_recipients"
+          - fact:
+              name: "sole_operator_acknowledgement_recorded"
+              holder: "ENTITY"
+        source: "INV-REQ-1307 b2, io_contract.bounds, must_not_happen; INV-REQ-1115 b1"
+        refused: "saving an alert policy with fewer than two recipients and no recorded sole-operator acknowledgement (notification-svc)"
+        selection: "WHOLE"
+    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1307, INV-REQ-1113 b2 (a policy names recipients and channels together), INV-REQ-1115; 'adds' webhook or chat combines with the base (G3 option A); conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; cross_option: typed from the published text cited in each record's source, for INV-T-3528 (coordinator typing of published text, INV-Q-3526 A; tooling/vp-constraints-breakdown.md)"
 - id: VP-47
   requirement: INV-REQ-1308
   revision: f10a3b45-cd66-4662-baf1-e6952adea944
@@ -1902,7 +2014,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1310, must elect; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-50
   requirement: INV-REQ-1311
-  revision: 1d3eff79-bc37-4ce2-a0b6-036d0ed00081
+  revision: 515f77e4-981a-47b6-8893-e450681bffa1
   title: "The System performs the wrongful GST charge check on every path by default; relying on the AP's documented check is looser and needs its record and tax.approver acknowledgement"
   class: CONTROL
   class_modifiers: []
@@ -1939,7 +2051,18 @@ variation_points:
             condition: "ALWAYS"
             roles_by_form: null
             distinct_from_setter: false
-    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1311: \"the looser option\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; acknowledged_by: VP-50 tax.approver (the AP's check must also be recorded, per bounds): INV-Q-3134; for INV-T-3148"
+    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1311: \"the looser option\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; acknowledged_by: VP-50 tax.approver (the AP's check must also be recorded, per bounds): INV-Q-3134; for INV-T-3148; constraints: typed from the published text cited in each record's source, for INV-T-3528 (coordinator typing of published text, INV-Q-3526 A; tooling/vp-constraints-breakdown.md)"
+    constraints:
+      - id: "VP-50.AP_CHECK_RECORDED"
+        fact:
+          name: "ap_check_recorded_at_setup"
+          holder: "AP_CONNECTION"
+        kind: "FACT"
+        rule: "The looser option needs the AP's check recorded at connection set-up and a tax.approver acknowledgement (the acknowledgement is typed in acknowledged_by)"
+        source: "INV-REQ-1311 io_contract.bounds, must_not_happen"
+        options:
+          - "RELY_ON_AP_CHECK"
+        refused: "setting RELY_ON_AP_CHECK where the AP's check is not recorded at connection set-up (payload-svc)"
 - id: VP-51
   requirement: INV-REQ-1312
   revision: 57a4cc33-7ba7-445c-af53-f53aa43c022a
@@ -1991,7 +2114,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1312: \"never later than the mandatory date\" (Keel states no minimum); conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-52
   requirement: INV-REQ-1313
-  revision: c1f0c883-4688-4167-856d-820a143c5cdb
+  revision: 840aa6aa-48f1-492d-9308-bc7136be1ad8
   title: "A private installation elects its platform at qualification: customer Kubernetes, the only option while the supplied appliance is deferred until demand is shown"
   class: POLICY
   class_modifiers: []
@@ -2017,7 +2140,17 @@ variation_points:
     options:
       - key: "CUSTOMER_KUBERNETES"
         strictness: "NEUTRAL"
-    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1313, must elect; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
+    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1313, must elect; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; constraints: typed from the published text cited in each record's source, for INV-T-3528 (coordinator typing of published text, INV-Q-3526 A; tooling/vp-constraints-breakdown.md)"
+    constraints:
+      - id: "VP-52.FORM"
+        kind: "FORM"
+        rule: "Private form only (INV-REQ-1313 b2, bounds); a customer meeting neither private prerequisite is directed to SaaS"
+        forms:
+          - "PRIVATE"
+        source: "INV-REQ-1313 b2, io_contract.bounds"
+        options:
+          - "CUSTOMER_KUBERNETES"
+        refused: "electing VP-52 in a SaaS installation (tenancy-svc); in SaaS the row is not offered, so must_be_elected applies in the private form only"
 - id: VP-53
   requirement: INV-REQ-1314
   revision: 5965c6f7-e35f-41da-8917-0e11d32aac7f
@@ -2485,7 +2618,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3057, recommended option (A) accepted; INV-REQ-1401; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-64
   requirement: INV-REQ-1547
-  revision: ab3437e7-89c4-4317-b285-2a5df05eec4a
+  revision: dd66e16e-2c2a-44c0-a9ce-8c8b938a408e
   title: "A GST group omits an excluded member's data by default, or transmits it, in which case the member goes live"
   class: POLICY
   class_modifiers: []
@@ -2514,7 +2647,8 @@ variation_points:
         strictness: "DEFAULT"
       - key: "TRANSMIT_AND_GO_LIVE"
         strictness: "NEUTRAL"
-    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1547; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
+    note: "no typed constraint: neither election is refused; OMIT_EXCLUDED omits only an Excluded Business member's data (nothing where the group has none) and TRANSMIT_AND_GO_LIVE transmits it; the member rules (bounds, must_not_happen, INV-AC-2313) are checked by tenancy-svc at go-live and transmission, not on the election (INV-Q-3616)"
+    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1547; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; note (no election-time constraint): coordinator ruling INV-Q-3616 (HIGH); for INV-T-3528"
 - id: VP-65
   requirement: INV-REQ-1548
   revision: c85fa176-64c4-43e5-ae63-a186029ccfff
@@ -2794,7 +2928,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3061, recommended option (A) accepted; INV-REQ-2466; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-71
   requirement: INV-REQ-2467
-  revision: 317fce2e-496c-40d2-ad9a-23a3579b37f7
+  revision: be65cf32-ddff-4ad5-a9df-2b766800fdf1
   title: "Each Access Point connection elects the specification family, PINT_SG by default or SG_PEPPOL_BIS for a connection certified only for it; the release within it follows the submission date"
   class: POLICY
   class_modifiers: []
@@ -2823,7 +2957,19 @@ variation_points:
         strictness: "DEFAULT"
       - key: "SG_PEPPOL_BIS"
         strictness: "NEUTRAL"
-    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-2467; keys literal in Keel; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
+    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-2467; keys literal in Keel; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; constraints (connection test refused at activation): coordinator ruling INV-Q-3618 (HIGH); for INV-T-3528"
+    constraints:
+      - id: "VP-71.CONNECTION_TEST"
+        fact:
+          name: "connection_test_passed_in_elected_family"
+          holder: "AP_CONNECTION"
+        kind: "FACT"
+        rule: "A connection whose connection test fails in its family cannot be activated; electing the family is not refused, and b1's 'SG_PEPPOL_BIS for a connection whose AP is certified only for it' is guidance"
+        source: "INV-REQ-2467 b1, b3; INV-AC-2543; INV-Q-3618"
+        options:
+          - "PINT_SG"
+          - "SG_PEPPOL_BIS"
+        refused: "activating the connection (INV-AC-2543), not the election"
 - id: VP-72
   requirement: INV-REQ-2468
   revision: a1399644-f37a-405d-ae13-980811e637a7
@@ -2901,7 +3047,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-2756; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-74
   requirement: INV-REQ-2757
-  revision: ff778067-6753-4664-a3e4-ee9047b8c655
+  revision: 6083cbf2-b4ca-46d0-9bc8-a60642876c3d
   title: "Agent tenancy is available on in SaaS and off in a private installation by default, switchable per installation subject to live consents and the signed-link endpoint"
   class: POLICY
   class_modifiers: []
@@ -2931,14 +3077,53 @@ variation_points:
         strictness: "NEUTRAL"
       - key: "OFF"
         strictness: "NEUTRAL"
+    cross_row:
+      - id: "VP-74.OFF_NO_CLIENT_ENTITY_SCOPE"
+        kind: "EXCLUDES"
+        rows:
+          - "VP-04"
+          - "VP-10"
+          - "VP-11"
+          - "VP-12"
+          - "VP-13"
+          - "VP-62"
+        rule: "The client-entity scope is a client entity under an agent consent (INV-REQ-1242 b1), and OFF cannot hold while any consent is live (b4), so with OFF none of these rows holds a value at CLIENT_ENTITY: VP-04 and VP-10 to VP-13 resolve to their default, VP-62 is held at ENTITY only"
+        source: "INV-REQ-2757 row, b4; INV-REQ-853 b7; INV-REQ-1242 b1; INV-REQ-1265, 1271-1274, 1323 b1; INV-Q-3610"
+        options:
+          - "OFF"
+        refused: "an agent consent, and so any client-entity value it carries, while VP-74 is OFF (access-svc)"
+        scope_level: "CLIENT_ENTITY"
     note: "the default depends on the deployment form, so no single key is DEFAULT; refusals (switching off while an agent consent is live, switching on without the signed-link endpoint) are stated on ON/OFF"
-    basis: "Owner ruling (2026-10-11) on INV-Q-3063, recommended option (A) accepted; INV-REQ-2757; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
+    basis: "Owner ruling (2026-10-11) on INV-Q-3063, recommended option (A) accepted; INV-REQ-2757; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; constraints: typed from the published text cited in each record's source, for INV-T-3528 (coordinator typing of published text, INV-Q-3526 A; tooling/vp-constraints-breakdown.md); cross_row (OFF excludes the CLIENT_ENTITY scope): coordinator ruling INV-Q-3610 (HIGH); for INV-T-3528"
+    constraints:
+      - id: "VP-74.ON_PRIVATE_ENDPOINT"
+        fact:
+          name: "signed_link_endpoint_exposed"
+          holder: "INSTALLATION"
+        kind: "FACT"
+        rule: "Switching on in a private installation is refused unless the signed-link endpoint of INV-REQ-903 is exposed"
+        forms:
+          - "PRIVATE"
+        source: "INV-REQ-2757 b5, io_contract.bounds; INV-REQ-903 b5; INV-REQ-853 b7"
+        options:
+          - "ON"
+        refused: "setting ON in a private installation without the endpoint exposed (access-svc)"
+      - id: "VP-74.OFF_NO_LIVE_CONSENT"
+        fact:
+          name: "no_live_agent_consent"
+          holder: "INSTALLATION"
+        kind: "FACT"
+        rule: "Switching off is refused while any agent consent is live; affected clients are notified through the consent-withdrawal path (INV-REQ-955)"
+        source: "INV-REQ-2757 b4, io_contract.bounds; INV-REQ-853 b7"
+        options:
+          - "OFF"
+        refused: "setting OFF while any agent consent is live (access-svc)"
     default_by_form:
       SAAS: "ON"
       PRIVATE: "OFF"
 - id: VP-75
   requirement: INV-REQ-2758
-  revision: 88bd5a08-8741-4464-bc9d-9e9698ab62fb
+  revision: 571b40dc-6d73-40c1-9ad6-65317a79a287
   title: "A signed-link passcode reaches its recipient in a separate message — SMS if on file, else a second e-mail — by default, and up to five wrong entries invalidate the link, tighten-only"
   class: CONTROL
   class_modifiers:
@@ -2983,7 +3168,18 @@ variation_points:
           max: 4
           direction: "DOWN_STRICTER"
     note: "delivery and the wrong-entry limit are set independently (INV-REQ-2758 b6), so SMS_ONLY and FEWER_WRONG_ENTRIES combine"
-    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-2758 b4/b6 (delivery and the wrong-entry limit set independently; fewer than five, never more), tighten-only; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
+    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-2758 b4/b6 (delivery and the wrong-entry limit set independently; fewer than five, never more), tighten-only; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; constraints: typed from the published text cited in each record's source, for INV-T-3528 (coordinator typing of published text, INV-Q-3526 A; tooling/vp-constraints-breakdown.md)"
+    constraints:
+      - id: "VP-75.SMS_GATEWAY"
+        fact:
+          name: "sms_gateway_bound_to_message_delivery"
+          holder: "INSTALLATION"
+        kind: "FACT"
+        rule: "SMS only may be set only where an SMS gateway is bound to MessageDelivery (INV-REQ-817; in SaaS the operator's gateway, in a private installation the customer's optional gateway, INV-REQ-817 b4)"
+        source: "INV-REQ-2758 b3, io_contract.bounds, must_not_happen; INV-REQ-817 b4"
+        options:
+          - "SMS_ONLY"
+        refused: "setting SMS_ONLY with no SMS gateway bound to MessageDelivery (access-svc)"
 - id: VP-76
   requirement: INV-REQ-2759
   revision: 047bc6ab-b84f-4ad8-9ae3-60a1c0728135
