@@ -195,8 +195,7 @@ components:
         Catalogued event EvidenceArtefactRecorded (model/architecture/events.yaml, INV-NOTE-3 §19.8, §28.18,
         INV-REQ-1226; class: platform). Emitted by: access-svc, masterdata-svc, payload-svc,
         rules-svc. Consumed by: evidence-svc. Delivery: At-least-once — platform event (AD-27). Payload (catalogue
-        text): artefact type, reference, hash — artefactType an extensible UPPER_SNAKE_CASE enumeration,
-        hash the SHA-256 of the artefact bytes as 64 lowercase hex characters (INV-Q-3341). Written through the producing service's own outbox in the
+        text): artefact type, reference, hash. Written through the producing service's own outbox in the
         transaction that records the artefact (INV-ADR-283); evidence-svc deduplicates on the event id
         through its inbox and records each artefact once, unique on (artefactType, reference, hash); no
         ordering is needed across artefacts (INV-API-3310, INV-Q-3257). Authored by INV-T-3313.
