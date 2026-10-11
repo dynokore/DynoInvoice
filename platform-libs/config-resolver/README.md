@@ -19,8 +19,7 @@ Released on its own version with its own changelog. Services consume it only as 
   than the same-named fields of the value the nearest broader allowed scope resolves to; fields with no
   direction (VP-08's pair) are never compared. An option without a value counts by its catalogue default
   (`TypedValueSpec.default`), else its fixed number (`min` = `max`): `TypedValueSpec.absentAs`. VP-08's
-  DEFAULT_PAIR_4H window is configurable from 1 to 8 hours; where nothing is set, the default resolves as
-  `{"window":4}` (1.3.0, INV-Q-3320, INV-Q-3548). A write always carries the window (INV-Q-3167).
+  DEFAULT_PAIR_4H window is configurable from 1 to 8 hours and counts as its default 4 h (1.3.0, INV-Q-3320).
   Refused as `LOOSER_THAN_BROADER`.
 - **Installation bound** (VP-57, VP-67; INV-REQ-1248, INV-Q-3202): a typed value's `min`/`max` may be
   `Bound.row(VP-79)`, the row named by `VariationPointDefinition.installationParameter`; config-resolver
