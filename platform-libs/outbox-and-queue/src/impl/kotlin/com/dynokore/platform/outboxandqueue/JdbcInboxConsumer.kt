@@ -238,8 +238,7 @@ constructor(
     ): Step {
         if (!claimInbox(connection, envelope)) return Step.DUPLICATE
         if (subscription.trackSources && envelope.type != ReplayProtocol.REPLAY_COMPLETED) recordSource(connection, envelope)
-        // A record-topic event is deduped by event id only: no docsequence check, no held row (INV-Q-3809).
-        val sequence = envelope.docSequence?.takeUnless { envelope.type in subscription.recordTypes }
+        val sequence = envelope.docSequence
         if (sequence != null && sequence <= heldSequence(connection, envelope)) return Step.STALE
         val outcome = handler.handle(envelope)
         if (sequence != null) recordSequence(connection, envelope, sequence)

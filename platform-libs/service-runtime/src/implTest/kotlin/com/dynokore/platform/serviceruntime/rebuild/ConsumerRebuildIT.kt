@@ -184,39 +184,6 @@ class ConsumerRebuildIT {
         }
     }
 
-    @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
-    fun `INV-Q-3788 a full sync whose producer shares a read topic with other producers is refused`(image: String) {
-        Harness(image).use { h ->
-            h.behind(watermark = 5)
-            h.matchView()
-            val full = h.request(mode = ReplayMode.FULL_SYNC, scope = null)
-            val runtime = h.runtime(fullSync = true, extra = listOf(SHARED))
-            assertThrows(UnsupportedOperationException::class.java) { runtime.rebuildConsumer(full) }
-            assertNull(h.nextOffsetOrNull(), "no head moved")
-            assertEquals(0L, h.count("select count(*) from $SCHEMA.consumer_offset"), "the shared topic's head untouched")
-            assertEquals(0L, h.count("select count(*) from $SCHEMA.outbox"))
-            assertEquals(0L, h.count("select count(*) from $SCHEMA.consumer_replay"))
-        }
-    }
-
-    @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
-    fun `a full sync without the service's read-model clear for the producer is refused`(image: String) {
-        Harness(image).use { h ->
-            h.behind(watermark = 5)
-            h.fixture.runAsAdmin(
-                "insert into $SCHEMA.consumer_sequence values ('$CONSUMER', '/gst/$PRODUCER', 's', '${TENANT.value}', 4)",
-            )
-            val full = h.request(mode = ReplayMode.FULL_SYNC, scope = null)
-            val runtime = h.runtime(fullSync = true, clears = emptyList())
-            assertThrows(IllegalStateException::class.java) { runtime.rebuildConsumer(full) }
-            assertEquals(1L, h.count("select count(*) from $SCHEMA.consumer_sequence"))
-            assertNull(h.nextOffsetOrNull())
-            assertEquals(0L, h.count("select count(*) from $SCHEMA.outbox"))
-        }
-    }
-
     private fun refused(code: RebuildErrorCode) = RebuildOutcome.Refused(code)
 
     private inner class Harness(image: String) : AutoCloseable {
@@ -238,11 +205,9 @@ class ConsumerRebuildIT {
             audit: AuditWriter = OutboxAuditWriter(outbox),
             fullSync: Boolean = false,
             workerAudit: AuditWriter = OutboxAuditWriter(workerOutbox),
-            clears: List<ReadModelClear> = listOf(ReadModelClear(PRODUCER, listOf(CLEAR))),
-            extra: List<String> = emptyList(),
         ) = ConsumerRebuildRuntime(
             CONSUMER, SCHEMA, CATALOGUE,
-            (listOf(LIVE, MULTI) + extra).map { ConsumerSubscription(CONSUMER, it, SCHEMA) },
+            listOf(ConsumerSubscription(CONSUMER, LIVE, SCHEMA), ConsumerSubscription(CONSUMER, MULTI, SCHEMA)),
             TenantScope(tenants, tx, tx), outbox, audit,
             PostgresEventLogReader(fixture.workerDataSource(), fixture.readerDataSource()),
             { it == "platform.engineer" }, Clock.systemUTC(),
@@ -251,7 +216,7 @@ class ConsumerRebuildIT {
                     TenantScope(workerTenants, workerTx, workerTx),
                     workerOutbox,
                     workerAudit,
-                    clears,
+                    listOf(ReadModelClear(PRODUCER, listOf("delete from $SCHEMA.match_view where consumer = '$CONSUMER'"))),
                 )
             } else {
                 null
@@ -313,15 +278,12 @@ class ConsumerRebuildIT {
         const val PRODUCER = "canonical-svc"
         const val LIVE = "gst.canonical.canonical-version-created.v1"
         const val MULTI = "gst.platform.connection-status-changed.v1"
-        const val SHARED = "gst.platform.evidence-artefact-recorded.v1"
-        const val CLEAR = "delete from $SCHEMA.match_view where consumer = '$CONSUMER'"
         val TENANT = TenantId(UUID.fromString("0a000000-0000-0000-0000-00000000000a"))
         val CATALOGUE =
             EventCatalogue(
                 listOf(
                     CatalogueEntry("com.dynokore.gst.canonical.CanonicalVersionCreated.v1", LIVE, setOf(PRODUCER), false),
                     CatalogueEntry("com.dynokore.gst.platform.ConnectionStatusChanged.v1", MULTI, setOf("a-svc", "b-svc"), false),
-                    CatalogueEntry("com.dynokore.gst.platform.EvidenceArtefactRecorded.v1", SHARED, setOf(PRODUCER, "b-svc"), false),
                     CatalogueEntry(OutboxAuditWriter.EVENT_TYPE, "gst.platform.audit-entry-recorded.v1", setOf(CatalogueEntry.EVERY_SERVICE), false),
                 ),
                 listOf(

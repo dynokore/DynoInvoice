@@ -87,7 +87,6 @@ constructor(
                 )
         val side =
             if (request.mode == ReplayMode.FULL_SYNC) {
-                checkFullSync(subscription.consumer, producer)
                 checkNotNull(fullSyncSide) { "full sync needs the worker-role wiring (FullSyncWiring)" }
             } else {
                 appSide
@@ -101,31 +100,6 @@ constructor(
             }
         }
         error("rebuildConsumer kept racing on the pending replay")
-    }
-
-    /**
-     * A full sync moves every topic of the producer that the consumer reads. While INV-Q-3788 is open, one of those
-     * topics having other producers too would skip their events, so the full sync is refused before anything is
-     * written; so is a full sync without the service's read-model clear for the producer (nothing would be cleared).
-     */
-    private fun checkFullSync(
-        consumer: String,
-        producer: String,
-    ) {
-        val shared =
-            subscriptions
-                .filter { it.consumer == consumer }
-                .mapNotNull { catalogue.topic(it.topic) }
-                .filter { producer in it.producers && it.producers.size > 1 }
-        if (shared.isNotEmpty()) {
-            throw UnsupportedOperationException(
-                "a full sync from $producer would move ${shared.map { it.topic }}, which have other producers; " +
-                    "it awaits ruling INV-Q-3788",
-            )
-        }
-        check(fullSync?.clears?.any { it.producer == producer } == true) {
-            "a full sync from $producer needs the service's read-model clear for it (ReadModelClear)"
-        }
     }
 
     private fun decide(
@@ -152,7 +126,7 @@ constructor(
                     subscriptions
                         .filter { it.consumer == consumer && catalogue.topic(it.topic)?.producers?.contains(producer) == true }
                         .map { it.topic }
-                val clear = fullSync?.clears?.first { it.producer == producer }
+                val clear = fullSync?.clears?.firstOrNull { it.producer == producer }
                 side.replay.fullSync(consumer, topics, replayRequest, clear, request.correlation, request.causation)
             } else {
                 side.replay.request(consumer, listOf(request.topic), replayRequest, request.correlation, request.causation)

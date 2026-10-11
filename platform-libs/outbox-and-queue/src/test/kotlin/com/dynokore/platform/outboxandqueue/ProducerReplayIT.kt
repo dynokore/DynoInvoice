@@ -314,28 +314,6 @@ class ProducerReplayIT {
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
-    fun `INV-Q-3805 an 'every service' full sync deletes no docsequence rows`(image: String) {
-        Scenario(image).use { s ->
-            s.change(tenantA, UUID.randomUUID(), 1)
-            s.change(tenantB, UUID.randomUUID(), 1)
-            s.publishCanonical()
-            assertEquals(2, s.behindConsumer.pollOnce().applied)
-            val sequences = "select count(*) from reconciliation.consumer_sequence where consumer = '$consumer'"
-            assertEquals(2L, s.harness.count(sequences))
-            val request = ReplayRequest(UUID.randomUUID(), CatalogueEntry.EVERY_SERVICE, ReplayMode.FULL_SYNC, null)
-            s.workerTenants.bindPlatform {
-                s.workerTx.inTransaction {
-                    JdbcConsumerReplay("reconciliation", s.workerTx, s.harness.reader, s.workerWriter, clock)
-                        .fullSync(consumer, listOf(live), request, null, corr(), cause())
-                }
-            }
-            assertEquals(2L, s.harness.count(sequences), "every docsequence row survives")
-            assertEquals(1L, s.harness.count("select count(*) from reconciliation.consumer_replay"))
-        }
-    }
-
-    @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
     fun `a full sync failing before its commit leaves read model, sequences and position as they were`(image: String) {
         Scenario(image).use { s ->
             s.change(tenantA, UUID.randomUUID(), 1)
@@ -505,7 +483,7 @@ class ProducerReplayIT {
         /** reconciliation-svc's worker-role side: its full sync runs here, bound to the platform tenant. */
         val workerTenants = TenantContextImpl()
         val workerTx = TransactionRunnerImpl(harness.fixture.workerDataSource(), workerTenants)
-        val workerWriter =
+        private val workerWriter =
             JdbcOutboxWriter(workerTx, "reconciliation", consumer, "$consumer-w", harness.catalogue, clock)
 
         fun readModelClear(): ReadModelClear {

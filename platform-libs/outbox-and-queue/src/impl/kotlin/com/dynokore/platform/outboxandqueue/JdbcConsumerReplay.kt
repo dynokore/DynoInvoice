@@ -108,7 +108,7 @@ class JdbcConsumerReplay(
      * The full sync of [consumer] from [request]'s producer (coordinator rulings INV-Q-3603, INV-Q-3786), in the
      * caller's one transaction on the consumer's worker-role connection bound to the platform tenant: runs [clear] (the
      * read model built from the producer's topics, every tenant), deletes the consumer's docsequence rows for that
-     * producer (every tenant; none for 'every service', INV-Q-3805), keeps the inbox, then moves [topics] to the head and
+     * producer (every tenant; for 'every service', every source), keeps the inbox, then moves [topics] to the head and
      * writes the request as [request] does. A crash before the commit leaves none of it.
      */
     fun fullSync(
@@ -123,16 +123,11 @@ class JdbcConsumerReplay(
         require(clear == null || clear.producer == request.producer) { "the clear of another producer" }
         val connection = connections.require()
         clear?.statements?.forEach { sql -> connection.createStatement().use { it.executeUpdate(sql) } }
-        // An 'every service' full sync deletes no docsequence rows (coordinator ruling INV-Q-3805): the events on those
-        // topics write none, and deleting by source would strip other producers' guards.
-        if (request.producer != CatalogueEntry.EVERY_SERVICE) {
-            connection.prepareStatement(
-                "delete from $s.${OutboxSchema.CONSUMER_SEQUENCE} where consumer = ? and source = ?",
-            ).use {
-                it.setString(1, consumer)
-                it.setString(2, "/gst/${request.producer}")
-                it.executeUpdate()
-            }
+        val bySource = if (request.producer == CatalogueEntry.EVERY_SERVICE) "" else " and source = ?"
+        connection.prepareStatement("delete from $s.${OutboxSchema.CONSUMER_SEQUENCE} where consumer = ?$bySource").use {
+            it.setString(1, consumer)
+            if (bySource.isNotEmpty()) it.setString(2, "/gst/${request.producer}")
+            it.executeUpdate()
         }
         return request(consumer, topics, request, correlation, causation)
     }

@@ -24,15 +24,10 @@ train is its own (README.md: "own version and changelog").
   rebuild-required incident through `RebuildRequiredSink.close`.
 - `EventLogHead` on `PostgresEventLogReader`; the purge covers the replay and request topics.
 - Full sync (rulings INV-Q-3603, INV-Q-3786): `JdbcConsumerReplay.fullSync` runs the service's `ReadModelClear`,
-  deletes the consumer's docsequence rows for the producer across tenants (none for an 'every service' full sync,
-  INV-Q-3805) and keeps the inbox, then moves the head and
+  deletes the consumer's docsequence rows for the producer across tenants and keeps the inbox, then moves the head and
   writes the request, in one transaction on the worker role bound to the platform tenant. The worker gets DELETE and
   column SELECT (consumer, source, tenant_id) on `consumer_sequence`, INSERT on `consumer_replay` and the outbox writes
   under the tenant policy; `OutboxSchema.readModelClearAccess` grants a read-model table's clear. Never BYPASSRLS.
-- Record topics (coordinator ruling INV-Q-3809, INV-REQ-1221 b4): the catalogue reads `record_topic`
-  (`CatalogueEntry.recordTopic`, `EventCatalogue.recordTypes()`); a consumer given those types
-  (`ConsumerSubscription.recordTypes`) applies such an event on inbox dedupe by event id only, with no docsequence
-  check and no held-sequence row, live and on dead-letter replay.
 - Schema: `consumer_replay`, `consumer_replay_marker`, `consumer_source_seen`; `OutboxSchema.upgradeTo1100`.
 
 ## [1.9.0] - 2026-10-11
