@@ -149,6 +149,10 @@ components:
         retained copy (FR-AA.15) and console-bff its search index (SCR-03.1); submission-svc reads the
         identifiers only. Every content field carries its FR-AE.72 classification. Kept for the content
         window only (FR-AH.9). Authored by INV-T-2854 (T10).
+      # INV-T-3386 (owner ruling INV-Q-3249, INV-REQ-1205 b4): this event carries invoice content
+      # (FR-AH.12, INV-REQ-1223), so its topic keeps the content window (INV-ADR-2772), not the
+      # event-log retention. Copied into event-log/topics.yaml as content_topic by generate-topics.py.
+      x-invoice-content: true
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/canonical-version-created-payload.schema.json'

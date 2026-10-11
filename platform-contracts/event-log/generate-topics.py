@@ -18,6 +18,17 @@ or 'none'>." — the small, regular subset of `asyncapi.yaml` this parser
 understands. A placeholder message (the INV-T-2849 scaffold's
 `ExampleHappened`) carries no such description and is skipped.
 
+Content topics (INV-T-3386, owner ruling INV-Q-3249, INV-REQ-1205 b4): a
+message whose events carry invoice content (FR-AH.12) declares
+`x-invoice-content: true` at message level in its asyncapi.yaml; every topic
+in topics.yaml gets `content_topic: true|false` copied from that marker
+(absent = false; any value other than true/false is an error). The generator
+names no topic or event: the eventlog purge picks the content window
+(INV-ADR-2772) or the event-log retention from this attribute alone.
+--check also validates the committed file itself: every topic entry must
+carry `content_topic: true` or `content_topic: false`, or the check fails
+naming the topic (test_generate_topics.py covers this and the copying).
+
 Two modes:
     generate-topics.py <repo-root> --write <out.yaml>
         Regenerates topics.yaml from every */asyncapi.yaml under repo-root.
@@ -52,6 +63,9 @@ _MESSAGE_RE = re.compile(
     re.MULTILINE,
 )
 _NAME_RE = re.compile(r"^      name: (?P<name>\S+)$", re.MULTILINE)
+# Message-level content marker (6-space indent, so text inside a folded
+# `description: >-` block, indented 8, never matches).
+_CONTENT_RE = re.compile(r"^      x-invoice-content:[ \t]*(?P<value>.*?)[ \t]*$", re.MULTILINE)
 _EMITTED_CONSUMED_RE = re.compile(
     r"Emitted by: (?P<producers>.+?)\. Consumed by: (?P<consumers>.+?)\.",
     re.DOTALL,
@@ -94,12 +108,20 @@ def parse_asyncapi_file(path: Path) -> list[dict]:
         address = address_by_msg_key.get(key)
         if address is None:
             continue
+        content_m = _CONTENT_RE.search(body)
+        content_value = content_m.group("value") if content_m else "false"
+        if content_value not in ("true", "false"):
+            raise SystemExit(
+                f"gst-ci: {path}: message '{key}' has x-invoice-content: '{content_value}'"
+                " — must be true or false"
+            )
         topics.append(
             {
                 "topic": address,
                 "event_type": name_m.group("name"),
                 "producers": _split_list(ec_m.group("producers")),
                 "subscribers": _split_list(ec_m.group("consumers")),
+                "content_topic": content_value == "true",
             }
         )
     return topics
@@ -136,16 +158,45 @@ def render_yaml(topics: list[dict]) -> str:
         "# carries, the producer(s) whose relay holds that INSERT grant, and the",
         "# subscriber(s) whose consumer holds the matching SELECT grant — the",
         "# `eventlog` schema's only two grants (INV-REQ-1205's own text).",
+        "#",
+        "# content_topic (INV-T-3386, owner ruling INV-Q-3249): true when the",
+        "# message declares x-invoice-content: true (its events carry invoice",
+        "# content, FR-AH.12) — the purge keeps such a topic for the content",
+        "# window (INV-ADR-2772), every other topic for the event-log retention.",
         "topics:",
     ]
     for t in topics:
         lines.append(f"  - topic: {t['topic']}")
         lines.append(f"    event_type: {t['event_type']}")
+        lines.append(f"    content_topic: {'true' if t['content_topic'] else 'false'}")
         lines.append("    producers:")
         lines.append(_list_block("      ", t["producers"]).rstrip("\n"))
         lines.append("    subscribers:")
         lines.append(_list_block("      ", t["subscribers"]).rstrip("\n"))
     return "\n".join(lines) + "\n"
+
+
+_TOPIC_ENTRY_RE = re.compile(r"^  - topic: (?P<topic>\S+)$", re.MULTILINE)
+_CONTENT_TOPIC_LINE_RE = re.compile(r"^    content_topic: (?P<value>\S+)$", re.MULTILINE)
+
+
+def validate_topics_yaml(text: str) -> list[str]:
+    """Returns one error per topic entry of a topics.yaml text that lacks
+    `content_topic`, carries it more than once, or carries a value other
+    than true/false (INV-T-3386)."""
+    errors = []
+    entries = list(_TOPIC_ENTRY_RE.finditer(text))
+    for i, m in enumerate(entries):
+        end = entries[i + 1].start() if i + 1 < len(entries) else len(text)
+        values = [c.group("value") for c in _CONTENT_TOPIC_LINE_RE.finditer(text, m.end(), end)]
+        topic = m.group("topic")
+        if not values:
+            errors.append(f"topic '{topic}' lacks content_topic")
+        elif len(values) > 1:
+            errors.append(f"topic '{topic}' has content_topic {len(values)} times")
+        elif values[0] not in ("true", "false"):
+            errors.append(f"topic '{topic}' has content_topic: {values[0]} — must be true or false")
+    return errors
 
 
 def main(argv: list[str]) -> int:
@@ -164,6 +215,12 @@ def main(argv: list[str]) -> int:
         return 0
 
     existing = target.read_text() if target.exists() else ""
+    errors = validate_topics_yaml(existing)
+    if errors:
+        print(f"gst-ci: {target} fails the content_topic check (INV-T-3386):")
+        for e in errors:
+            print(f"  {e}")
+        return 1
     if existing != rendered:
         print(f"gst-ci: {target} is out of date with */asyncapi.yaml — regenerate it:")
         print(f"  python3 event-log/generate-topics.py . --write {target}")

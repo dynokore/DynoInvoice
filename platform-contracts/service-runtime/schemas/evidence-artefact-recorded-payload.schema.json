@@ -2,12 +2,21 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://platform-contracts.invoice.internal/service-runtime/schemas/evidence-artefact-recorded-payload.schema.json",
   "title": "EvidenceArtefactRecordedPayload",
-  "description": "Payload of the EvidenceArtefactRecorded platform event (catalogued in model/architecture/events.yaml, INV-NOTE-3 §19.8, §28.18; class: platform; FR-AH.15, INV-REQ-1226 b1-b2, INV-ADR-285). Owned by service-runtime alone (STK-61), as drafted in INV-API-3310 (INV-Q-3257). Authored by INV-T-3313. evidence-svc records each artefact once: unique on (artefactType, reference, hash). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "description": "Payload of the EvidenceArtefactRecorded platform event (catalogued in model/architecture/events.yaml, INV-NOTE-3 §19.8, §28.18; class: platform; FR-AH.15, INV-REQ-1226 b1-b2, INV-ADR-285). Owned by service-runtime alone (STK-61), as drafted in INV-API-3310 (INV-Q-3257). Authored by INV-T-3313; hash and artefactType ruled by INV-Q-3341 (b). evidence-svc records each artefact once: unique on (artefactType, reference, hash). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
   "type": "object",
   "properties": {
     "artefactType": {
       "type": "string",
-      "description": "The kind of evidence artefact recorded, e.g. a rendition, register lookup, rate record, sample check or import (INV-NOTE-3 SB-06)."
+      "description": "The kind of evidence artefact recorded (INV-API-3310, INV-Q-3341): RENDITION, a payload-svc rendition (INV-REQ-1036); SAMPLE_CHECK, a rendition sample check with its samples and result, payload-svc (INV-REQ-1036 b2, INV-AC-2010); REGISTER_LOOKUP, a Peppol directory or Check GST Register lookup, masterdata-svc (INV-REQ-802 b2, INV-REQ-478, INV-REQ-1290); RATE_RECORD, an effective-dated exchange-rate record with its load provenance, masterdata-svc (INV-REQ-506 b3, INV-REQ-512, INV-AC-1512); IMPORT, an import record, masterdata-svc counterparty imports and rules-svc mapping-pack re-imports (INV-REQ-833 b1, b3, INV-REQ-831 b4); SIGNATORY_ACTION, a client signatory's acknowledge, query or withdraw-consent on the mapping outcome summary, access-svc (INV-REQ-900 b3, INV-AC-926, INV-AC-1936, INV-REQ-997 b2). Extensible (API-09, API-41): a new value is added additively within v1; evidence-svc keeps a value it does not know as received, never drops or rewrites it.",
+      "enum": [
+        "RENDITION",
+        "SAMPLE_CHECK",
+        "REGISTER_LOOKUP",
+        "RATE_RECORD",
+        "IMPORT",
+        "SIGNATORY_ACTION"
+      ],
+      "x-extensible-enum": true
     },
     "reference": {
       "type": "string",
@@ -15,7 +24,8 @@
     },
     "hash": {
       "type": "string",
-      "description": "The hash of the recorded artefact's content."
+      "description": "The SHA-256 of the artefact bytes as 64 lowercase hex characters, the platform's one algorithm (INV-REQ-650 b2, INV-AC-2206; INV-Q-3341), so (artefactType, reference, hash) is unique across producers.",
+      "pattern": "^[0-9a-f]{64}$"
     }
   },
   "required": [

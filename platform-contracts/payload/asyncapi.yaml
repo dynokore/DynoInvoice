@@ -85,6 +85,10 @@ components:
         most 1 MB (VP-78), so payloads are normally far smaller. Bytes added 25 Sep 2026 (AD-30): submission-svc
         holds them with the queue item (FR-J.4); evidence-svc seals them as transmitted on
         SubmissionDespatched. Authored by INV-T-2854 (T10).
+      # INV-T-3386 (owner ruling INV-Q-3249, INV-REQ-1205 b4): this event carries invoice content
+      # (FR-AH.12, INV-REQ-1223), so its topic keeps the content window (INV-ADR-2772), not the
+      # event-log retention. Copied into event-log/topics.yaml as content_topic by generate-topics.py.
+      x-invoice-content: true
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/payload-ready-payload.schema.json'

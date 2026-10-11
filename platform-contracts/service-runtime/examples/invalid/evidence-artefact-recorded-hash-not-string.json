@@ -1,5 +1,5 @@
 {
-  "artefactType": "rate-record",
+  "artefactType": "RATE_RECORD",
   "reference": "masterdata/rate/2026-10-11",
   "hash": 12345
 }
