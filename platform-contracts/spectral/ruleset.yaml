@@ -45,8 +45,11 @@ rules:
         min: 1
 
   inv-api-02-x-principal:
-    description: API-02, API-23 — every operation declares exactly one principal scope.
-    message: "x-principal must be one of the API-23 scopes (API-02, API-23)"
+    description: >-
+      API-02, API-23 — every operation declares exactly one principal scope, or
+      `workload` on an installer-only operation (API-23/API-25 note; owner ruling
+      INV-Q-3826 A, INV-T-3836).
+    message: "x-principal must be one of the API-23 scopes, or `workload` on an installer-only operation (API-02, API-23/API-25 workload note)"
     given: "$.paths[*][get,post,put,delete,patch]"
     severity: error
     formats: ["oas3_1"]
@@ -54,7 +57,25 @@ rules:
       field: x-principal
       function: enumeration
       functionOptions:
-        values: ["ingest", "filing-workflow", "ap-callback", "reporting", "monitoring", "certification"]
+        values: ["ingest", "filing-workflow", "ap-callback", "reporting", "monitoring", "certification", "workload"]
+
+  inv-api-02-x-principal-workload-installer-only:
+    description: >-
+      API-23/API-25 workload note — no other operation may use `workload`: an
+      operation declaring x-principal `workload` must be an internal operation
+      served on an installer edge (x-sync-edge 'installer-><callee>'; owner ruling
+      INV-Q-3826 A, INV-T-3836).
+    message: "x-principal `workload` is only for installer-only operations: x-sync-edge must be installer-><callee> (API-23/API-25 workload note)"
+    given: "$.paths[*][?(@property.match(/^(get|post|put|delete|patch)$/) && @['x-principal'] === 'workload')]"
+    severity: error
+    formats: ["oas3_1"]
+    then:
+      - field: x-sync-edge
+        function: defined
+      - field: x-sync-edge
+        function: pattern
+        functionOptions:
+          match: "^installer->[a-z0-9-]+$"
 
   inv-api-02-x-error-codes:
     description: API-02 — every operation declares x-error-codes (every catalogue code it can return).
