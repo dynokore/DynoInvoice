@@ -4,8 +4,8 @@ package gst.catalogue
  * INV-T-3000: every row carries Keel's machine-readable catalogue fields, or says
  * exactly why not, and those fields agree with the row and with the rulings.
  *
- * Completeness: a row has a `catalogue` block, or is RETIRED (VP-27; its Keel entity is
- * deleted), or carries a pending marker in pending-fields.yaml naming the open INV-Q
+ * Completeness: a row has a `catalogue` block, or is RETIRED (VP-27; Keel keeps it as a
+ * published revision with status retired), or carries a pending marker in pending-fields.yaml naming the open INV-Q
  * question. A marker on a row that already has fields is stale and fails too.
  *
  * Consistency, for rows with fields:
@@ -18,7 +18,7 @@ package gst.catalogue
  *   or tighten-only has no LOOSER option (INV-REQ-780 b1, INV-REQ-1244 b4);
  * - exclusive keys exist only on a multi-select row and name its own keys (G3 A);
  * - typed values (INV-Q-2934): an int, decimal, amount, money, rate or duration states its direction
- *   (a list item, map key/value or field of a directed record takes its container's); numeric min <= max (an
+ *   (a list item or map key/value takes its container's direction, so a list or map of numeric items states one); numeric min <= max (an
  *   exclusive min below max), a numeric default lies within them, min_items <= max_items;
  * - a per-form default (VP-74) replaces the single DEFAULT and names option keys.
  */
@@ -124,6 +124,9 @@ object VariationPointFieldsChecker {
 
     private val directed = setOf(ValueType.INT, ValueType.DECIMAL, ValueType.AMOUNT, ValueType.MONEY, ValueType.RATE, ValueType.DURATION)
 
+    private fun carriesDirection(value: TypedValue): Boolean =
+        value.type in directed || listOfNotNull(value.item, value.key, value.value).any { carriesDirection(it) }
+
     /**
      * [needsDirection] holds for an option's own typed value and for a record's fields
      * unless the record states a direction; the item of a LIST and the key/value of a
@@ -145,6 +148,11 @@ object VariationPointFieldsChecker {
         if (value.minItems != null && value.maxItems != null && value.minItems > value.maxItems) {
             v("$where: min_items ${value.minItems} exceeds max_items ${value.maxItems}")
         }
+        if (needsDirection && (value.type == ValueType.LIST || value.type == ValueType.MAP) &&
+            value.direction == null && listOfNotNull(value.item, value.key, value.value).any { carriesDirection(it) }
+        ) {
+            v("$where: a ${value.type} of numeric values states no direction")
+        }
         value.item?.let { checkTyped(it, "$where.item", v, needsDirection = false) }
         value.key?.let { checkTyped(it, "$where.key", v, needsDirection = false) }
         value.value?.let { checkTyped(it, "$where.value", v, needsDirection = false) }
@@ -154,6 +162,10 @@ object VariationPointFieldsChecker {
         if (min != null && max != null && min > max) v("$where: min $min exceeds max $max")
         if (default != null && ((min != null && default < min) || (max != null && default > max))) {
             v("$where: default $default lies outside [${min ?: "-"}, ${max ?: "-"}]")
+        }
+        val exclusive = value.minExclusive?.number
+        if (default != null && exclusive != null && default <= exclusive) {
+            v("$where: default $default is not above exclusive min $exclusive")
         }
         // A record that states its own direction gives it to its fields (VP-76: NONE).
         val fieldsNeedDirection = needsDirection && value.direction == null

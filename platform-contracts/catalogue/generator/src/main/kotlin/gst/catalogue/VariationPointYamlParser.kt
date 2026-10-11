@@ -33,7 +33,7 @@ object VariationPointYamlParser {
     fun parse(file: File): List<ParsedVariationPoint> {
         val yaml = Yaml()
         val root = yaml.load<Map<String, Any?>>(file.readText())
-        @Suppress("UNCHECKED_CAST")
+        @Suppress("UNCHECKED_CAST") // SnakeYAML yields erased List/Map; the elvis below rejects a non-list, parseRow reads each row field by field
         val rows = root["variation_points"] as? List<Map<String, Any?>>
             ?: error("gst-catalogue: '$file' has no top-level 'variation_points' list.")
         return rows.map { parseRow(it, file) }
@@ -61,7 +61,7 @@ object VariationPointYamlParser {
                         "(INV-REQ-1239 behaviour #1).",
                 )
             }
-        @Suppress("UNCHECKED_CAST")
+        @Suppress("UNCHECKED_CAST") // SnakeYAML yields erased generics; element types come from the vendored YAML, whose rows the generator validates field by field
         val classModifiers =
             (row["class_modifiers"] as? List<String> ?: emptyList()).map {
                 runCatching { VpClassModifier.valueOf(it.uppercase()) }.getOrElse { _ ->
@@ -69,17 +69,17 @@ object VariationPointYamlParser {
                 }
             }
 
-        @Suppress("UNCHECKED_CAST")
+        @Suppress("UNCHECKED_CAST") // SnakeYAML yields erased generics; element types come from the vendored YAML, whose rows the generator validates field by field
         val scope = (row["scope"] as? List<String>) ?: emptyList()
         val owner = (row["owner"] as? String)?.trim() ?: error("gst-catalogue: $id has no 'owner' in $file")
-        @Suppress("UNCHECKED_CAST")
+        @Suppress("UNCHECKED_CAST") // SnakeYAML yields erased generics; element types come from the vendored YAML, whose rows the generator validates field by field
         val setBy = (row["set_by"] as? List<String>) ?: emptyList()
         val mustBeElected = row["must_be_elected"] as? Boolean ?: false
         val default = (row["default"] as? String)?.trim()
         if (!mustBeElected && default.isNullOrBlank()) {
             error("gst-catalogue: $id has no 'default' and is not must_be_elected in $file (INV-REQ-1239 behaviour #1).")
         }
-        @Suppress("UNCHECKED_CAST")
+        @Suppress("UNCHECKED_CAST") // SnakeYAML yields erased generics; element types come from the vendored YAML, whose rows the generator validates field by field
         val options = (row["options"] as? List<String>) ?: emptyList()
         if (options.isEmpty()) {
             error("gst-catalogue: $id has no 'options' in $file (INV-REQ-1239 behaviour #1).")
@@ -96,10 +96,10 @@ object VariationPointYamlParser {
             }
         val statusNote = (row["status_note"] as? String)?.trim()
 
-        @Suppress("UNCHECKED_CAST")
+        @Suppress("UNCHECKED_CAST") // SnakeYAML yields erased generics; element types come from the vendored YAML, whose rows the generator validates field by field
         val governs = (row["governs"] as? List<String>) ?: emptyList()
         val formDependence = (row["form_dependence"] as? String)?.trim()
-        @Suppress("UNCHECKED_CAST")
+        @Suppress("UNCHECKED_CAST") // SnakeYAML yields erased Map; VariationPointFieldsParser rejects non-text keys and every wrongly typed value
         val fields = (row["catalogue"] as? Map<String, Any?>)?.let { VariationPointFieldsParser.parse(id, it, file) }
 
         return ParsedVariationPoint(

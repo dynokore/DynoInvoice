@@ -172,4 +172,73 @@ class VariationPointFieldsCheckerTest {
         val bad = cat + ("options" to listOf(mapOf("key" to "A", "strictness" to "DEFAULT", "typed_value" to mapOf("type" to "list"))))
         assertThrows(IllegalStateException::class.java) { VariationPointFieldsParser.parse("VP-99", bad, java.io.File("x")) }
     }
+
+    private fun catWith(
+        optionB: Map<String, Any?> = emptyMap(),
+        extra: Map<String, Any?> = emptyMap(),
+    ): Map<String, Any?> =
+        mapOf(
+            "scope_levels" to listOf("TENANT"),
+            "options" to
+                listOf(
+                    mapOf("key" to "A", "strictness" to "DEFAULT"),
+                    mapOf("key" to "B", "strictness" to "NEUTRAL") + optionB,
+                ),
+        ) + extra
+
+    private fun parseFails(
+        cat: Map<String, Any?>,
+        contains: String,
+    ) {
+        val e = assertThrows(IllegalStateException::class.java) { VariationPointFieldsParser.parse("VP-99", cat, java.io.File("x")) }
+        assertTrue(e.message!!.contains(contains), e.message)
+    }
+
+    @Test
+    fun `an unknown option key fails instead of being dropped`() {
+        parseFails(catWith(optionB = mapOf("strictnes" to "LOOSER")), "unknown field(s) strictnes")
+    }
+
+    @Test
+    fun `wrongly typed values fail instead of becoming null or a default`() {
+        parseFails(catWith(optionB = mapOf("typed_value" to "int")), "is not a map")
+        parseFails(catWith(extra = mapOf("multi_select" to "yes")), "'multi_select' must be true or false")
+        parseFails(catWith(extra = mapOf("must_be_elected" to 1)), "'must_be_elected' must be true or false")
+        parseFails(catWith(extra = mapOf("exclusive_keys" to "A")), "'exclusive_keys' must be a list")
+        parseFails(catWith(extra = mapOf("exclusive_keys" to listOf(mapOf("a" to 1)))), "non-text entry")
+        parseFails(catWith(extra = mapOf("note" to 5)), "'note' must be text")
+        parseFails(catWith(extra = mapOf("default_by_form" to listOf("A"))), "is not a map")
+        parseFails(catWith(extra = mapOf("installation_parameter" to 3)), "is not a map")
+        val list = { extra: Map<String, Any?> -> catWith(optionB = mapOf("typed_value" to mapOf("type" to "list", "item" to mapOf("type" to "int", "direction" to "NONE")) + extra)) }
+        parseFails(list(mapOf("distinct" to "true")), "'distinct' must be true or false")
+        parseFails(list(mapOf("ordered" to 1)), "'ordered' must be true or false")
+        parseFails(list(mapOf("min_items" to "2")), "'min_items' must be a whole number")
+        parseFails(list(mapOf("max_items" to 2.5)), "'max_items' must be a whole number")
+        parseFails(list(mapOf("unit" to listOf("d"))), "'unit' must be text")
+        parseFails(list(mapOf("min" to listOf(1))), "a bound must be a number")
+        parseFails(list(mapOf("item" to "int")), "is not a map")
+        parseFails(list(mapOf("fields" to "x")), "is not a map")
+        parseFails(catWith(optionB = mapOf("typed_value" to mapOf("type" to "enum", "values" to "UP"))), "'values' must be a list")
+    }
+
+    @Test
+    fun `a list or map of numeric items states its direction`() {
+        fun n(v: Int) = BoundValue(number = BigDecimal(v))
+        val item = TypedValue(ValueType.INT, min = n(1), max = n(9))
+        fun check(typed: TypedValue) = VariationPointFieldsChecker.check(row(fields = fields("A" to Strictness.DEFAULT, "B" to Strictness.NEUTRAL, typed = typed)))
+        assertEquals(1, check(TypedValue(ValueType.LIST, item = item)).size)
+        assertEquals(1, check(TypedValue(ValueType.MAP, key = TypedValue(ValueType.LIST_REF, ref = "t"), value = TypedValue(ValueType.LIST, item = item))).size)
+        assertTrue(check(TypedValue(ValueType.LIST, item = item, direction = Direction.UP_STRICTER)).isEmpty())
+        assertTrue(check(TypedValue(ValueType.LIST, item = TypedValue(ValueType.ENUM, values = listOf("X")))).isEmpty())
+    }
+
+    @Test
+    fun `a default must lie above the exclusive minimum`() {
+        fun n(v: Int) = BoundValue(number = BigDecimal(v))
+        fun check(typed: TypedValue) = VariationPointFieldsChecker.check(row(fields = fields("A" to Strictness.DEFAULT, "B" to Strictness.NEUTRAL, typed = typed)))
+        val base = TypedValue(ValueType.INT, min = null, max = n(10), minExclusive = n(0), direction = Direction.NONE)
+        assertEquals(1, check(base.copy(default = n(0))).size)
+        assertEquals(1, check(base.copy(default = n(-1))).size)
+        assertTrue(check(base.copy(default = n(1))).isEmpty())
+    }
 }

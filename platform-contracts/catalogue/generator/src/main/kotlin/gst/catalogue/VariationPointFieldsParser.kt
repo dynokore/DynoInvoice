@@ -12,6 +12,62 @@ import java.math.BigDecimal
  * distinguishable.
  */
 object VariationPointFieldsParser {
+    /** Typed access to one YAML map: a present field of the wrong type fails instead of vanishing. */
+    private class Fields(
+        private val map: Map<String, Any?>,
+        private val where: String,
+        private val fail: (String) -> Nothing,
+    ) {
+        fun string(name: String): String? =
+            when (val v = map[name]) {
+                null -> null
+                is String -> v
+                else -> fail("$where's '$name' must be text, got ${v::class.simpleName}")
+            }
+
+        fun boolean(name: String): Boolean? =
+            when (val v = map[name]) {
+                null -> null
+                is Boolean -> v
+                else -> fail("$where's '$name' must be true or false, got ${v::class.simpleName}")
+            }
+
+        fun int(name: String): Int? =
+            when (val v = map[name]) {
+                null -> null
+                is Int -> v
+                else -> fail("$where's '$name' must be a whole number, got ${v::class.simpleName}")
+            }
+
+        fun list(name: String): List<*>? =
+            when (val v = map[name]) {
+                null -> null
+                is List<*> -> v
+                else -> fail("$where's '$name' must be a list, got ${v::class.simpleName}")
+            }
+
+        fun stringList(name: String): List<String>? =
+            list(name)?.map { it as? String ?: fail("$where's '$name' holds a non-text entry '$it'") }
+
+        fun map(name: String): Map<String, Any?>? = map[name]?.let { asMap(it, "$where's '$name'", fail) }
+
+        fun has(name: String) = name in map
+    }
+
+    /** Narrows a parsed YAML node to a string-keyed map, failing on anything else. */
+    private fun asMap(
+        raw: Any?,
+        what: String,
+        fail: (String) -> Nothing,
+    ): Map<String, Any?> {
+        if (raw !is Map<*, *>) fail("$what is not a map")
+        raw.keys.forEach { if (it !is String) fail("$what has a non-text key '$it'") }
+        @Suppress("UNCHECKED_CAST") // every key was just checked to be a String; values stay Any?
+        return raw as Map<String, Any?>
+    }
+
+    private val optionKeys = setOf("key", "strictness", "typed_value")
+
     fun parse(
         id: String,
         cat: Map<String, Any?>,
@@ -19,24 +75,6 @@ object VariationPointFieldsParser {
     ): VpCatalogueFields {
         fun fail(msg: String): Nothing = error("gst-catalogue: $id's catalogue in $file: $msg")
 
-        val scopeLevels =
-            (cat["scope_levels"] as? List<*> ?: fail("no 'scope_levels' list")).map { level ->
-                runCatching { ScopeLevel.valueOf(level.toString()) }
-                    .getOrElse { fail("scope level '$level' is not one of ${ScopeLevel.entries.joinToString()} (INV-REQ-1242 b1)") }
-            }
-        val options =
-            (cat["options"] as? List<*> ?: fail("no 'options' list")).mapIndexed { index, raw ->
-                @Suppress("UNCHECKED_CAST")
-                val option = raw as? Map<String, Any?> ?: fail("option #${index + 1} is not a map")
-                val key = (option["key"] as? String)?.trim() ?: fail("option #${index + 1} has no 'key'")
-                val strictnessText = option["strictness"] as? String ?: fail("option $key has no 'strictness'")
-                val strictness =
-                    runCatching { Strictness.valueOf(strictnessText) }
-                        .getOrElse { fail("option $key's strictness '$strictnessText' is not one of ${Strictness.entries.joinToString()}") }
-                @Suppress("UNCHECKED_CAST")
-                val typed = (option["typed_value"] as? Map<String, Any?>)?.let { typedValue(it, "option $key", ::fail) }
-                VpOptionSpec(key, strictness, typed)
-            }
         val known =
             setOf(
                 "scope_levels", "options", "must_be_elected", "multi_select", "exclusive_keys",
@@ -45,24 +83,44 @@ object VariationPointFieldsParser {
             )
         val unknownKeys = cat.keys - known
         if (unknownKeys.isNotEmpty()) fail("unknown field(s) ${unknownKeys.sorted().joinToString()}; extend the generator")
+        val top = Fields(cat, "catalogue", ::fail)
+        val scopeLevels =
+            (top.list("scope_levels") ?: fail("no 'scope_levels' list")).map { level ->
+                runCatching { ScopeLevel.valueOf(level.toString()) }
+                    .getOrElse { fail("scope level '$level' is not one of ${ScopeLevel.entries.joinToString()} (INV-REQ-1242 b1)") }
+            }
+        val options =
+            (top.list("options") ?: fail("no 'options' list")).mapIndexed { index, raw ->
+                val option = asMap(raw, "option #${index + 1}", ::fail)
+                val optionUnknown = option.keys - optionKeys
+                if (optionUnknown.isNotEmpty()) {
+                    fail("option #${index + 1} has unknown field(s) ${optionUnknown.sorted().joinToString()}; extend the generator")
+                }
+                val f = Fields(option, "option #${index + 1}", ::fail)
+                val key = f.string("key")?.trim() ?: fail("option #${index + 1} has no 'key'")
+                val strictnessText = f.string("strictness") ?: fail("option $key has no 'strictness'")
+                val strictness =
+                    runCatching { Strictness.valueOf(strictnessText) }
+                        .getOrElse { fail("option $key's strictness '$strictnessText' is not one of ${Strictness.entries.joinToString()}") }
+                VpOptionSpec(key, strictness, f.map("typed_value")?.let { typedValue(it, "option $key", ::fail) })
+            }
         return VpCatalogueFields(
             scopeLevels = scopeLevels,
             options = options,
-            mustBeElected = cat["must_be_elected"] as? Boolean,
-            multiSelect = cat["multi_select"] as? Boolean ?: false,
-            exclusiveKeys = (cat["exclusive_keys"] as? List<*>)?.map { it.toString() } ?: emptyList(),
-            crossScope = cat["cross_scope"] as? String,
-            crossOption = cat["cross_option"] as? String,
-            crossRow = cat["cross_row"] as? String,
-            note = cat["note"] as? String,
-            basis = cat["basis"] as? String,
+            mustBeElected = top.boolean("must_be_elected"),
+            multiSelect = top.boolean("multi_select") ?: false,
+            exclusiveKeys = top.stringList("exclusive_keys") ?: emptyList(),
+            crossScope = top.string("cross_scope"),
+            crossOption = top.string("cross_option"),
+            crossRow = top.string("cross_row"),
+            note = top.string("note"),
+            basis = top.string("basis"),
             defaultByForm =
-                (cat["default_by_form"] as? Map<*, *>)?.entries?.associate { (k, v) -> k.toString() to v.toString() }
-                    ?: emptyMap(),
-            installationParameter =
-                @Suppress("UNCHECKED_CAST")
-                (cat["installation_parameter"] as? Map<String, Any?>)?.let { typedValue(it, "installation_parameter", ::fail) },
-            secondApprover = cat["second_approver"] as? String,
+                top.map("default_by_form")?.mapValues { (form, option) ->
+                    option as? String ?: fail("default_by_form's '$form' must name an option key as text")
+                } ?: emptyMap(),
+            installationParameter = top.map("installation_parameter")?.let { typedValue(it, "installation_parameter", ::fail) },
+            secondApprover = top.string("second_approver"),
         )
     }
 
@@ -78,62 +136,56 @@ object VariationPointFieldsParser {
         where: String,
         fail: (String) -> Nothing,
     ): TypedValue {
-        val typeText = raw["type"] as? String ?: fail("$where's typed_value has no 'type'")
+        val f = Fields(raw, "$where's typed_value", fail)
+        val typeText = f.string("type") ?: fail("$where's typed_value has no 'type'")
         val type =
             ValueType.fromKeel(typeText)
                 ?: fail("$where's typed_value type '$typeText' is not one of ${ValueType.entries.joinToString { it.keelName }}")
         val unknown = raw.keys - typedKeys
         if (unknown.isNotEmpty()) fail("$where's typed_value has unknown field(s) ${unknown.sorted().joinToString()}")
         val direction =
-            (raw["direction"] as? String)?.let { d ->
+            f.string("direction")?.let { d ->
                 runCatching { Direction.valueOf(d) }
                     .getOrElse { fail("$where's direction '$d' is not one of ${Direction.entries.joinToString()}") }
             }
-        @Suppress("UNCHECKED_CAST")
         val fields =
-            (raw["fields"] as? Map<String, Any?>)?.mapValues { (name, value) ->
-                val fieldMap = value as? Map<String, Any?> ?: fail("$where's field '$name' is not a map")
-                typedValue(fieldMap, "$where.$name", fail)
+            f.map("fields")?.mapValues { (name, value) ->
+                typedValue(asMap(value, "$where's field '$name'", fail), "$where.$name", fail)
             } ?: emptyMap()
         if (type == ValueType.RECORD && fields.isEmpty()) fail("$where is a record with no fields")
 
-        @Suppress("UNCHECKED_CAST")
-        fun nested(name: String): TypedValue? =
-            raw[name]?.let { n ->
-                val map = n as? Map<String, Any?> ?: fail("$where's '$name' is not a map")
-                typedValue(map, "$where.$name", fail)
-            }
+        fun nested(name: String): TypedValue? = f.map(name)?.let { typedValue(it, "$where.$name", fail) }
         val item = nested("item")
         val key = nested("key")
         val value = nested("value")
-        val values = (raw["values"] as? List<*>)?.map { it.toString() } ?: emptyList()
+        val values = f.stringList("values") ?: emptyList()
         if (type == ValueType.LIST && item == null) fail("$where is a list with no item type")
         if (type == ValueType.MAP && (key == null || value == null)) fail("$where is a map without key and value types")
         if (type == ValueType.ENUM && values.isEmpty()) fail("$where is an enum with no values")
         return TypedValue(
             type = type,
-            name = raw["name"] as? String,
-            unit = raw["unit"] as? String,
+            name = f.string("name"),
+            unit = f.string("unit"),
             min = bound(raw["min"]),
             max = bound(raw["max"]),
             default = bound(raw["default"]),
             direction = direction,
-            ref = raw["ref"] as? String,
-            filter = raw["filter"] as? String,
-            ordered = raw["ordered"] as? Boolean,
-            requires = raw["requires"] as? String,
+            ref = f.string("ref"),
+            filter = f.string("filter"),
+            ordered = f.boolean("ordered"),
+            requires = f.string("requires"),
             fields = fields,
             minExclusive = bound(raw["min_exclusive"]),
             item = item,
             key = key,
             value = value,
             values = values,
-            distinct = raw["distinct"] as? Boolean,
-            minItems = (raw["min_items"] as? Number)?.toInt(),
-            maxItems = (raw["max_items"] as? Number)?.toInt(),
+            distinct = f.boolean("distinct"),
+            minItems = f.int("min_items"),
+            maxItems = f.int("max_items"),
             length = bound(raw["length"]),
-            rule = raw["rule"] as? String,
-            comparedWith = raw["compared_with"] as? String,
+            rule = f.string("rule"),
+            comparedWith = f.string("compared_with"),
         )
     }
 
@@ -141,7 +193,8 @@ object VariationPointFieldsParser {
         when (value) {
             null -> null
             is Number -> BoundValue(number = BigDecimal(value.toString()))
-            else -> BoundValue(symbolic = value.toString())
+            is String -> BoundValue(symbolic = value)
+            else -> error("gst-catalogue: a bound must be a number or a symbolic name, got ${value::class.simpleName} '$value'")
         }
 }
 
