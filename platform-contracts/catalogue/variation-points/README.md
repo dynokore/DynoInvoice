@@ -18,12 +18,25 @@ such a change:
    CODER-BRIEF's own query mechanism uses).
 2. `python3 catalogue/variation-points/check-drift.py` — reports whether the committed
    file has drifted, with a diff if so.
-3. If it has, re-run the extraction (the query in `variation-points.yaml`'s own
-   header) and regenerate the file, in its own merge request naming what changed
-   (AGT-11's pattern, mirrored from `error-codes.yaml`'s re-vendor procedure).
+3. If it has, run `python3 catalogue/variation-points/check-drift.py --write`, which
+   regenerates the file below its header from the same query, in its own merge
+   request naming what changed (AGT-11's pattern, mirrored from `error-codes.yaml`'s
+   re-vendor procedure). When a row gains its Keel `catalogue` fields, delete its
+   marker from `pending-fields.yaml` in the same merge request.
 4. `gradle -p catalogue check` — `checkMustBeElectedAvailability` (INV-AC-2236) and
    `checkNonWaivableFloor` (INV-AC-1786) run against the re-vendored file, same as any
    other change to it.
+
+## Catalogue fields and pending markers (INV-T-3000)
+
+Each row's `catalogue` block is Keel's `io_contract.catalogue`, copied unedited:
+scope levels (INV-REQ-1242 b1), option keys in catalogue order (TPL-10), strictness
+per option (INV-Q-2936), typed values with bounds (INV-Q-2934), and
+`multi_select`/`exclusive_keys` for set-valued rows. `checkVariationPointFields` (in
+`check`) requires each row to have that block, or to be retired, or to be listed in
+`pending-fields.yaml` with the open INV-Q question that holds it. That file is
+repository-owned, never vendored, and never supplies a value. A marker on a row that
+already has fields fails as stale.
 
 ## Not yet CI-wired
 

@@ -1,0 +1,44 @@
+# Pending catalogue fields (INV-T-3000): the explicit "pending" marker for a
+# variation-point row whose Keel `io_contract.catalogue` (scope levels, option keys,
+# per-option strictness, typed values; INV-Q-2934, INV-Q-2936) is not written yet
+# because an owner question about it is still open.
+#
+# Repository-owned, hand-kept (like check-drift.py's FORM_DEPENDENCE), NOT vendored
+# from Keel. variation-points.yaml stays a pure Keel copy, and this file is the
+# only place a missing field may be excused. checkVariationPointFields fails the
+# build if:
+#   - a non-retired row has `catalogue: null` and is not listed here, or
+#   - a row listed here already has a Keel `catalogue` (a stale marker), or
+#   - a marker names anything other than an INV-Q-nnnn question key.
+# Nothing here supplies a value: a pending row's option keys, strictness, scope levels
+# and typed values are simply absent from the generated library until Keel carries
+# them (re-vendor with check-drift.py --write, then delete the row's marker).
+#
+# Source: the questions' own text in Keel (each names its rows), as of 2026-10-11.
+pending:
+  VP-04: [INV-Q-3049]
+  VP-06: [INV-Q-3051]
+  VP-16: [INV-Q-3051]
+  VP-68: [INV-Q-3051]
+  VP-17: [INV-Q-3053]
+  VP-18: [INV-Q-3053]
+  VP-36: [INV-Q-3053]
+  VP-37: [INV-Q-3053]
+  VP-41: [INV-Q-3053]
+  VP-56: [INV-Q-3053]
+  VP-24: [INV-Q-3055]
+  VP-45: [INV-Q-3055]
+  VP-38: [INV-Q-3057]
+  VP-63: [INV-Q-3057]
+  VP-65: [INV-Q-3057]
+  VP-66: [INV-Q-3057]
+  VP-69: [INV-Q-3057]
+  VP-78: [INV-Q-3057]
+  VP-31: [INV-Q-3059]
+  VP-35: [INV-Q-3059]
+  VP-57: [INV-Q-3059]
+  VP-67: [INV-Q-3059]
+  VP-48: [INV-Q-3061]
+  VP-70: [INV-Q-3061]
+  VP-76: [INV-Q-3061]
+  VP-74: [INV-Q-3063]

@@ -1,5 +1,6 @@
 package gst.catalogue
 
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.io.File
@@ -11,6 +12,27 @@ import java.io.File
  */
 class RealVariationPointCatalogueSelfTest {
     private val vendoredFile = File("../variation-points/variation-points.yaml")
+    private val pendingFile = File("../variation-points/pending-fields.yaml")
+
+    @Test
+    fun `INV-T-3000 every row carries Keel's catalogue fields, is retired, or names its open question`() {
+        val rows = VariationPointYamlParser.parse(vendoredFile, pendingFile)
+        val violations = VariationPointFieldsChecker.check(rows)
+        assertTrue(violations.isEmpty(), "catalogue-field violations:\n" + violations.joinToString("\n"))
+    }
+
+    @Test
+    fun `INV-T-3000 the vendored fields carry Keel's rulings for VP-13 and VP-08`() {
+        val rows = VariationPointYamlParser.parse(vendoredFile, pendingFile).associateBy { it.id }
+        val vp13 = rows.getValue("VP-13").fields!!
+        assertEquals(listOf("EARLIER_DATE", "FILER_OF_RECORD"), vp13.options.map { it.key }) // TPL-10's own example
+        assertEquals(listOf(Strictness.DEFAULT, Strictness.LOOSER), vp13.options.map { it.strictness })
+        val vp08 = rows.getValue("VP-08").fields!!
+        assertEquals(listOf(ScopeLevel.INSTALLATION, ScopeLevel.TENANT), vp08.scopeLevels)
+        val window = vp08.options[1].typedValue!!.fields.getValue("window")
+        assertEquals(Direction.DOWN_STRICTER, window.direction)
+        assertEquals(0, window.max!!.number!!.compareTo(java.math.BigDecimal(8)))
+    }
 
     @Test
     fun `the vendored catalogue parses cleanly and every id is well-formed and unique`() {

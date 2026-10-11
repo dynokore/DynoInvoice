@@ -13,6 +13,23 @@ import java.io.File
 object VariationPointYamlParser {
     private val idPattern = Regex("^VP-\\d+$")
 
+    /**
+     * Parses [file] and attaches each row's pending marker from [pendingFile]
+     * (pending-fields.yaml, INV-T-3000) when given. A marker for an unknown row fails.
+     */
+    fun parse(
+        file: File,
+        pendingFile: File?,
+    ): List<ParsedVariationPoint> {
+        val rows = parse(file)
+        val pending = pendingFile?.let { PendingFieldsParser.parse(it) } ?: return rows
+        val unknown = pending.keys - rows.map { it.id }.toSet()
+        if (unknown.isNotEmpty()) {
+            error("gst-catalogue: $pendingFile names rows that are not in $file: ${unknown.sorted().joinToString()}")
+        }
+        return rows.map { it.copy(pendingQuestions = pending[it.id] ?: emptyList()) }
+    }
+
     fun parse(file: File): List<ParsedVariationPoint> {
         val yaml = Yaml()
         val root = yaml.load<Map<String, Any?>>(file.readText())
@@ -82,6 +99,8 @@ object VariationPointYamlParser {
         @Suppress("UNCHECKED_CAST")
         val governs = (row["governs"] as? List<String>) ?: emptyList()
         val formDependence = (row["form_dependence"] as? String)?.trim()
+        @Suppress("UNCHECKED_CAST")
+        val fields = (row["catalogue"] as? Map<String, Any?>)?.let { VariationPointFieldsParser.parse(id, it, file) }
 
         return ParsedVariationPoint(
             id = id,
@@ -101,6 +120,7 @@ object VariationPointYamlParser {
             statusNote = statusNote,
             governs = governs,
             formDependence = formDependence,
+            fields = fields,
         )
     }
 }

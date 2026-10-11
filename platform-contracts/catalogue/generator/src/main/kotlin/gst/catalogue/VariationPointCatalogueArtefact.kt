@@ -50,8 +50,50 @@ object VariationPointCatalogueArtefact {
             "\"scope\": [$scope], \"owner\": ${row.owner.jsonString()}, \"setBy\": [$setBy], " +
             "\"mustBeElected\": ${row.mustBeElected}, \"default\": $default, \"options\": [$options], " +
             "\"bounds\": $bounds, \"status\": \"${row.status}\", \"statusNote\": $statusNote, " +
-            "\"governs\": [$governs], \"formDependence\": $formDependence }"
+            "\"governs\": [$governs], \"formDependence\": $formDependence, " +
+            "\"catalogueFields\": ${row.fields?.let { fieldsJson(it) } ?: "null"}, " +
+            "\"pendingQuestions\": [${row.pendingQuestions.joinToString(", ") { it.jsonString() }}] }"
     }
+
+    /** Keel's catalogue fields (INV-T-3000), in the same shape the vendored YAML carries them. */
+    private fun fieldsJson(f: VpCatalogueFields): String {
+        val parts =
+            mutableListOf(
+                "\"scopeLevels\": [${f.scopeLevels.joinToString(", ") { "\"$it\"" }}]",
+                "\"options\": [" +
+                    f.options.joinToString(", ") { o ->
+                        "{ \"key\": ${o.key.jsonString()}, \"strictness\": \"${o.strictness}\", " +
+                            "\"typedValue\": ${o.typedValue?.let { typedJson(it) } ?: "null"} }"
+                    } + "]",
+                "\"multiSelect\": ${f.multiSelect}",
+                "\"exclusiveKeys\": [${f.exclusiveKeys.joinToString(", ") { it.jsonString() }}]",
+            )
+        f.crossScope?.let { parts += "\"crossScope\": ${it.jsonString()}" }
+        f.crossOption?.let { parts += "\"crossOption\": ${it.jsonString()}" }
+        f.crossRow?.let { parts += "\"crossRow\": ${it.jsonString()}" }
+        f.note?.let { parts += "\"note\": ${it.jsonString()}" }
+        f.basis?.let { parts += "\"basis\": ${it.jsonString()}" }
+        return "{ " + parts.joinToString(", ") + " }"
+    }
+
+    private fun typedJson(t: TypedValue): String {
+        val parts = mutableListOf("\"type\": \"${t.type.keelName}\"")
+        t.unit?.let { parts += "\"unit\": ${it.jsonString()}" }
+        t.min?.let { parts += "\"min\": ${boundJson(it)}" }
+        t.max?.let { parts += "\"max\": ${boundJson(it)}" }
+        t.default?.let { parts += "\"default\": ${boundJson(it)}" }
+        t.direction?.let { parts += "\"direction\": \"$it\"" }
+        t.ref?.let { parts += "\"ref\": ${it.jsonString()}" }
+        t.filter?.let { parts += "\"filter\": ${it.jsonString()}" }
+        t.ordered?.let { parts += "\"ordered\": $it" }
+        t.requires?.let { parts += "\"requires\": ${it.jsonString()}" }
+        if (t.fields.isNotEmpty()) {
+            parts += "\"fields\": { " + t.fields.entries.joinToString(", ") { (k, v) -> "${k.jsonString()}: ${typedJson(v)}" } + " }"
+        }
+        return "{ " + parts.joinToString(", ") + " }"
+    }
+
+    private fun boundJson(b: BoundValue): String = b.number?.toPlainString() ?: b.symbolic!!.jsonString()
 
     private fun String.jsonString(): String {
         val escaped =

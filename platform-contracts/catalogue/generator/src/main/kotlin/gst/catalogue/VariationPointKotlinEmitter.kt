@@ -45,6 +45,7 @@ object VariationPointKotlinEmitter {
             VpStatus.entries.forEach { appendLine("    $it,") }
             appendLine("}")
             appendLine()
+            emitFieldTypes()
             appendLine("/**")
             appendLine(" * Every GST InvoiceNow variation point (STK-61): its class, options, default (or")
             appendLine(" * must-be-elected), bounds, setting role, scope levels, owning service, status and")
@@ -54,6 +55,10 @@ object VariationPointKotlinEmitter {
             appendLine(" * (behaviour #3). Only [VpStatus.AVAILABLE] offers every option; [VpStatus.PLANNED]")
             appendLine(" * behaves as [default] until scenarios cover the options; [VpStatus.RETIRED] is")
             appendLine(" * never offered (INV-REQ-1251).")
+            appendLine(" *")
+            appendLine(" * [scopeLevels], [optionSpecs], [multiSelect] and [exclusiveKeys] are Keel's")
+            appendLine(" * machine-readable catalogue fields (INV-T-3000; INV-Q-2934, INV-Q-2936): null/empty")
+            appendLine(" * only on a retired row or while [pendingQuestions] names the open question.")
             appendLine(" */")
             appendLine("enum class VariationPoint(")
             appendLine("    val id: String,")
@@ -72,6 +77,14 @@ object VariationPointKotlinEmitter {
             appendLine("    val statusNote: String?,")
             appendLine("    val governs: List<String>,")
             appendLine("    val formDependence: String?,")
+            appendLine("    val scopeLevels: List<ScopeLevel>?,")
+            appendLine("    val optionSpecs: List<VpOption>?,")
+            appendLine("    val multiSelect: Boolean,")
+            appendLine("    val exclusiveKeys: List<String>,")
+            appendLine("    val crossScope: String?,")
+            appendLine("    val crossOption: String?,")
+            appendLine("    val crossRow: String?,")
+            appendLine("    val pendingQuestions: List<String>,")
             appendLine(") {")
             rows.forEach { row -> appendLine("    ${entryLine(row)},") }
             appendLine("    ;")
@@ -80,7 +93,111 @@ object VariationPointKotlinEmitter {
             appendLine("        fun fromId(id: String): VariationPoint? = entries.find { it.id == id }")
             appendLine("    }")
             appendLine("}")
+            appendLine()
+            appendLine("/** Typed access to the catalogue fields (TPL-10, INV-T-3000). */")
+            appendLine("object Catalogue {")
+            appendLine("    /**")
+            appendLine("     * The option keys of [id] in catalogue order: the owning service's enum constants")
+            appendLine("     * (TPL-10). Fails for an unknown id, and for a row whose keys Keel does not carry")
+            appendLine("     * yet (naming the open question) — never a guessed key.")
+            appendLine("     */")
+            appendLine("    fun optionKeys(id: String): List<String> = optionKeys(requireNotNull(VariationPoint.fromId(id)) { \"unknown variation point \$id\" })")
+            appendLine()
+            appendLine("    fun optionKeys(vp: VariationPoint): List<String> {")
+            appendLine("        val specs =")
+            appendLine("            checkNotNull(vp.optionSpecs) {")
+            appendLine("                if (vp.pendingQuestions.isEmpty()) {")
+            appendLine("                    \"\${vp.id} has no option keys (status \${vp.status})\"")
+            appendLine("                } else {")
+            appendLine("                    \"\${vp.id}'s option keys are pending \${vp.pendingQuestions.joinToString()}\"")
+            appendLine("                }")
+            appendLine("            }")
+            appendLine("        return specs.map { it.key }")
+            appendLine("    }")
+            appendLine("}")
         }
+
+    private fun StringBuilder.emitFieldTypes() {
+        fun enumBlock(
+            doc: String,
+            name: String,
+            values: List<String>,
+        ) {
+            appendLine("/** $doc */")
+            appendLine("enum class $name {")
+            values.forEach { appendLine("    $it,") }
+            appendLine("}")
+            appendLine()
+        }
+        enumBlock("INV-REQ-1242 behaviour #1's scope levels.", "ScopeLevel", ScopeLevel.entries.map { it.name })
+        enumBlock(
+            "An option's strictness against the catalogue default (INV-Q-2936); LOOSER needs acknowledgeControlRelaxation (INV-REQ-1244).",
+            "Strictness",
+            Strictness.entries.map { it.name },
+        )
+        enumBlock("Which way a typed value tightens (INV-Q-2934).", "Direction", Direction.entries.map { it.name })
+        enumBlock("The kind of a typed value (INV-Q-2934).", "ValueType", ValueType.entries.map { it.name })
+        appendLine("/** A bound or default: a number, or a named value resolved elsewhere (exactly one is set). */")
+        appendLine("data class BoundValue(")
+        appendLine("    val number: java.math.BigDecimal? = null,")
+        appendLine("    val symbolic: String? = null,")
+        appendLine(")")
+        appendLine()
+        appendLine("/** A typed value with its bounds (INV-Q-2934); what Keel does not state stays null. */")
+        appendLine("data class TypedValue(")
+        appendLine("    val type: ValueType,")
+        appendLine("    val unit: String? = null,")
+        appendLine("    val min: BoundValue? = null,")
+        appendLine("    val max: BoundValue? = null,")
+        appendLine("    val default: BoundValue? = null,")
+        appendLine("    val direction: Direction? = null,")
+        appendLine("    val ref: String? = null,")
+        appendLine("    val filter: String? = null,")
+        appendLine("    val ordered: Boolean? = null,")
+        appendLine("    val requires: String? = null,")
+        appendLine("    val fields: Map<String, TypedValue> = emptyMap(),")
+        appendLine(")")
+        appendLine()
+        appendLine("/** One option at its catalogue position: [key] is the owning enum's constant (TPL-10). */")
+        appendLine("data class VpOption(")
+        appendLine("    val key: String,")
+        appendLine("    val label: String,")
+        appendLine("    val strictness: Strictness,")
+        appendLine("    val typedValue: TypedValue? = null,")
+        appendLine(")")
+        appendLine()
+    }
+
+    private fun optionSpecsLiteral(row: ParsedVariationPoint): String {
+        val specs = row.fields?.options ?: return "null"
+        return "listOf(" +
+            specs.withIndex().joinToString(", ") { (i, o) ->
+                "VpOption(${o.key.kotlinStringLiteralBody()}, ${row.options.getOrElse(i) { o.key }.kotlinStringLiteralBody()}, " +
+                    "Strictness.${o.strictness}, ${o.typedValue?.let { typedLiteral(it) } ?: "null"})"
+            } + ")"
+    }
+
+    private fun typedLiteral(t: TypedValue): String {
+        val args = mutableListOf("ValueType.${t.type}")
+        t.unit?.let { args += "unit = ${it.kotlinStringLiteralBody()}" }
+        t.min?.let { args += "min = ${boundLiteral(it)}" }
+        t.max?.let { args += "max = ${boundLiteral(it)}" }
+        t.default?.let { args += "default = ${boundLiteral(it)}" }
+        t.direction?.let { args += "direction = Direction.$it" }
+        t.ref?.let { args += "ref = ${it.kotlinStringLiteralBody()}" }
+        t.filter?.let { args += "filter = ${it.kotlinStringLiteralBody()}" }
+        t.ordered?.let { args += "ordered = $it" }
+        t.requires?.let { args += "requires = ${it.kotlinStringLiteralBody()}" }
+        if (t.fields.isNotEmpty()) {
+            args += "fields = mapOf(" +
+                t.fields.entries.joinToString(", ") { (k, v) -> "${k.kotlinStringLiteralBody()} to ${typedLiteral(v)}" } + ")"
+        }
+        return "TypedValue(" + args.joinToString(", ") + ")"
+    }
+
+    private fun boundLiteral(b: BoundValue): String =
+        b.number?.let { "BoundValue(number = java.math.BigDecimal(\"${it.toPlainString()}\"))" }
+            ?: "BoundValue(symbolic = ${b.symbolic!!.kotlinStringLiteralBody()})"
 
     private fun entryLine(row: ParsedVariationPoint): String {
         val constantName = row.id.replace("-", "_")
@@ -106,7 +223,15 @@ object VariationPointKotlinEmitter {
             "VpStatus.${row.status}, " +
             "${row.statusNote.kotlinNullableStringLiteral()}, " +
             "${row.governs.kotlinListLiteral()}, " +
-            row.formDependence.kotlinNullableStringLiteral() +
+            "${row.formDependence.kotlinNullableStringLiteral()}, " +
+            "${row.fields?.scopeLevels?.let { l -> "listOf(" + l.joinToString(", ") { "ScopeLevel.$it" } + ")" } ?: "null"}, " +
+            "${optionSpecsLiteral(row)}, " +
+            "${row.fields?.multiSelect ?: false}, " +
+            "${(row.fields?.exclusiveKeys ?: emptyList()).kotlinListLiteral()}, " +
+            "${row.fields?.crossScope.kotlinNullableStringLiteral()}, " +
+            "${row.fields?.crossOption.kotlinNullableStringLiteral()}, " +
+            "${row.fields?.crossRow.kotlinNullableStringLiteral()}, " +
+            row.pendingQuestions.kotlinListLiteral() +
             ")"
     }
 

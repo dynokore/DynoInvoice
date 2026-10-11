@@ -6,6 +6,7 @@ import gst.catalogue.MustBeElectedAvailabilityChecker
 import gst.catalogue.NonWaivableFloorChecker
 import gst.catalogue.StabilityChecker
 import gst.catalogue.VariationPointCatalogueArtefact
+import gst.catalogue.VariationPointFieldsChecker
 import gst.catalogue.VariationPointKotlinEmitter
 import gst.catalogue.VariationPointYamlParser
 
@@ -131,6 +132,10 @@ val checkBlockDispositionCauses =
 // --- VariationPoint (INV-T-2852 / T8) ---------------------------------------------
 
 val vpSourceYaml = rootProject.layout.projectDirectory.file("variation-points/variation-points.yaml").asFile
+
+// INV-T-3000: the only allowed excuse for a row without Keel catalogue fields (see the
+// file's own header). Repository-owned, not vendored.
+val vpPendingYaml = rootProject.layout.projectDirectory.file("variation-points/pending-fields.yaml").asFile
 val vpGeneratedKotlinDir = layout.buildDirectory.dir("generated/gst-catalogue-vp/kotlin")
 // Same "generated/gst-catalogue/" directory the ErrorCode artefact already writes to
 // (not a separate "-vp" one): ci/.gitlab-ci.yml's catalogue-publish job already
@@ -145,10 +150,11 @@ val generateVariationPointCatalogue =
         group = "catalogue"
         description = "STK-61/CS-28: generates VariationPoint.kt and the catalogue artefact JSON from variation-points.yaml."
         inputs.file(vpSourceYaml)
+        inputs.file(vpPendingYaml)
         outputs.dir(vpGeneratedKotlinDir)
         outputs.file(vpArtefactFile)
         doLast {
-            val rows = VariationPointYamlParser.parse(vpSourceYaml)
+            val rows = VariationPointYamlParser.parse(vpSourceYaml, vpPendingYaml)
             val outDir = vpGeneratedKotlinDir.get().asFile.resolve("com/dynokore/gst/catalogue")
             outDir.mkdirs()
             outDir.resolve("VariationPoint.kt").writeText(
@@ -216,6 +222,30 @@ val checkNonWaivableFloor =
         }
     }
 
+val checkVariationPointFields =
+    tasks.register("checkVariationPointFields") {
+        group = "verification"
+        description = "INV-T-3000: every VP row carries Keel's scope levels, option keys, strictness and typed values " +
+            "(INV-Q-2934, INV-Q-2936), or is retired, or names its open question in pending-fields.yaml."
+        inputs.file(vpSourceYaml)
+        inputs.file(vpPendingYaml)
+        doLast {
+            val rows = VariationPointYamlParser.parse(vpSourceYaml, vpPendingYaml)
+            val violations = VariationPointFieldsChecker.check(rows)
+            val pending = rows.filter { it.pendingQuestions.isNotEmpty() }
+            logger.lifecycle(
+                "INV-T-3000: ${rows.count { it.fields != null }} row(s) with catalogue fields, ${pending.size} pending " +
+                    "(${pending.flatMap { it.pendingQuestions }.distinct().sorted().joinToString()}).",
+            )
+            if (violations.isNotEmpty()) {
+                throw org.gradle.api.GradleException(
+                    "INV-T-3000: ${violations.size} catalogue-field violation(s):\n" +
+                        violations.joinToString("\n") { "  - $it" },
+                )
+            }
+        }
+    }
+
 sourceSets {
     main {
         kotlin.srcDir(generateErrorCodeCatalogue.map { generatedKotlinDir.get() })
@@ -228,7 +258,13 @@ tasks.named("compileKotlin") {
 }
 
 tasks.named("check") {
-    dependsOn(checkCatalogueStability, checkBlockDispositionCauses, checkMustBeElectedAvailability, checkNonWaivableFloor)
+    dependsOn(
+        checkCatalogueStability,
+        checkBlockDispositionCauses,
+        checkMustBeElectedAvailability,
+        checkNonWaivableFloor,
+        checkVariationPointFields,
+    )
 }
 
 // Generated code is not hand style-reviewed (same rule as gst.contract-server in
