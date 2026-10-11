@@ -196,6 +196,7 @@ object OutboxSchema {
         schema: String,
         workerRole: String,
     ): String = purgeAccess(SqlIdentifier.require(schema, "schema"), SqlIdentifier.require(workerRole, "worker role"))
+
     /**
      * Brings a 1.3.0 schema (after [upgradeTo130]) to 1.4.0: the delivery-attempt state of the record at each consumer offset
      * (INV-Q-3108, INV-Q-3110): `attempts` (deliveries begun, counted before the handler runs), `infra_failures`,
