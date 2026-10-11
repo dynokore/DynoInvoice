@@ -1,0 +1,1 @@
+../schemas/evidence-artefact-recorded-payload.schema.json

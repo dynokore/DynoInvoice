@@ -15,7 +15,9 @@ info:
     declared scope (spectral/ is not in it), named in the INV-T-2854 MR.
     payload-svc also produces the platform events EvidenceArtefactRecorded
     and PackReadinessAcknowledged (model/architecture/events.yaml); those are
-    authored once under service-runtime/ by T11 (STK-61), not here (T9's
+    authored once under service-runtime/ (STK-61) — PackReadinessAcknowledged
+    by T11 (INV-T-2855), EvidenceArtefactRecorded by INV-T-3313 (INV-Q-3257) —
+    not here (T9's
     review, !3, rejected copying platform events into a producer directory).
   contact:
     name: payload (see CODEOWNERS)

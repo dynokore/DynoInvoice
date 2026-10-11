@@ -156,6 +156,15 @@ topics:
     subscribers:
       - console-bff
       - notification-svc
+  - topic: gst.platform.evidence-artefact-recorded.v1
+    event_type: com.dynokore.gst.platform.EvidenceArtefactRecorded.v1
+    producers:
+      - access-svc
+      - masterdata-svc
+      - payload-svc
+      - rules-svc
+    subscribers:
+      - evidence-svc
   - topic: gst.platform.job-run-recorded.v1
     event_type: com.dynokore.gst.platform.JobRunRecorded.v1
     producers:

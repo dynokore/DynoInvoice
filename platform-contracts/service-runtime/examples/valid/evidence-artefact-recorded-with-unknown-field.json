@@ -1,0 +1,6 @@
+{
+  "artefactType": "REGISTER_LOOKUP",
+  "reference": "masterdata/lookup/42",
+  "hash": "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae",
+  "addedInAMinorVersion": "a consumer built against 1.0 ignores this field (INV-AC-2148)"
+}
