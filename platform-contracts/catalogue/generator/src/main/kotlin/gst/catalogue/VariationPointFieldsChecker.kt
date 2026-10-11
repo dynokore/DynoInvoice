@@ -17,8 +17,10 @@ package gst.catalogue
  *   options are never LOOSER (G5 A); a CONTROL marked non-waivable (in full or in part)
  *   or tighten-only has no LOOSER option (INV-REQ-780 b1, INV-REQ-1244 b4);
  * - exclusive keys exist only on a multi-select row and name its own keys (G3 A);
- * - typed values (INV-Q-2934): an int or duration states its direction; numeric
- *   min <= max, and a numeric default lies within them.
+ * - typed values (INV-Q-2934): an int, decimal, amount, money, rate or duration states its direction
+ *   (a list item, map key/value or field of a directed record takes its container's); numeric min <= max (an
+ *   exclusive min below max), a numeric default lies within them, min_items <= max_items;
+ * - a per-form default (VP-74) replaces the single DEFAULT and names option keys.
  */
 object VariationPointFieldsChecker {
     data class Violation(
@@ -56,6 +58,8 @@ object VariationPointFieldsChecker {
             if (unknown.isNotEmpty()) v("exclusive_keys ${unknown.joinToString()} are not option keys")
         }
         fields.options.forEach { option -> option.typedValue?.let { checkTyped(it, option.key, ::v) } }
+        // Keel states no direction for an installation parameter; only its bounds are checked.
+        fields.installationParameter?.let { checkTyped(it, "installation_parameter", ::v, needsDirection = false) }
         return out
     }
 
@@ -76,7 +80,11 @@ object VariationPointFieldsChecker {
             v("catalogue must_be_elected=${fields.mustBeElected} disagrees with the row's ${row.mustBeElected}")
         }
         val defaults = fields.options.indices.filter { fields.options[it].strictness == Strictness.DEFAULT }
-        if (row.mustBeElected) {
+        if (fields.defaultByForm.isNotEmpty()) {
+            if (defaults.isNotEmpty()) v("a row with a per-form default has a DEFAULT option")
+            val unknown = fields.defaultByForm.values.toSet() - keys.toSet()
+            if (unknown.isNotEmpty()) v("default_by_form names ${unknown.joinToString()}, which are not option keys")
+        } else if (row.mustBeElected) {
             if (defaults.isNotEmpty()) v("a must-be-elected row has a DEFAULT option")
         } else if (defaults.size != 1) {
             v("${defaults.size} DEFAULT options; exactly one expected")
@@ -114,14 +122,32 @@ object VariationPointFieldsChecker {
         }
     }
 
+    private val directed = setOf(ValueType.INT, ValueType.DECIMAL, ValueType.AMOUNT, ValueType.MONEY, ValueType.RATE, ValueType.DURATION)
+
+    /**
+     * [needsDirection] holds for an option's own typed value and for a record's fields
+     * unless the record states a direction; the item of a LIST and the key/value of a
+     * MAP take the container's direction.
+     */
     private fun checkTyped(
         value: TypedValue,
         where: String,
         v: (String) -> Boolean,
+        needsDirection: Boolean = true,
     ) {
-        if ((value.type == ValueType.INT || value.type == ValueType.DURATION) && value.direction == null) {
+        if (needsDirection && value.type in directed && value.direction == null) {
             v("$where: a ${value.type} typed value states no direction")
         }
+        val lower = value.minExclusive?.number
+        if (lower != null && value.max?.number != null && lower >= value.max.number) {
+            v("$where: exclusive min $lower is not below max ${value.max.number}")
+        }
+        if (value.minItems != null && value.maxItems != null && value.minItems > value.maxItems) {
+            v("$where: min_items ${value.minItems} exceeds max_items ${value.maxItems}")
+        }
+        value.item?.let { checkTyped(it, "$where.item", v, needsDirection = false) }
+        value.key?.let { checkTyped(it, "$where.key", v, needsDirection = false) }
+        value.value?.let { checkTyped(it, "$where.value", v, needsDirection = false) }
         val min = value.min?.number
         val max = value.max?.number
         val default = value.default?.number
@@ -129,6 +155,8 @@ object VariationPointFieldsChecker {
         if (default != null && ((min != null && default < min) || (max != null && default > max))) {
             v("$where: default $default lies outside [${min ?: "-"}, ${max ?: "-"}]")
         }
-        value.fields.forEach { (name, field) -> checkTyped(field, "$where.$name", v) }
+        // A record that states its own direction gives it to its fields (VP-76: NONE).
+        val fieldsNeedDirection = needsDirection && value.direction == null
+        value.fields.forEach { (name, field) -> checkTyped(field, "$where.$name", v, fieldsNeedDirection) }
     }
 }

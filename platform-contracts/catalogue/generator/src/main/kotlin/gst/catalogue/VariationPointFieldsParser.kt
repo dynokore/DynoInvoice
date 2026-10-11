@@ -40,7 +40,8 @@ object VariationPointFieldsParser {
         val known =
             setOf(
                 "scope_levels", "options", "must_be_elected", "multi_select", "exclusive_keys",
-                "cross_scope", "cross_option", "cross_row", "note", "basis",
+                "cross_scope", "cross_option", "cross_row", "note", "basis", "default_by_form", "installation_parameter",
+                "second_approver",
             )
         val unknownKeys = cat.keys - known
         if (unknownKeys.isNotEmpty()) fail("unknown field(s) ${unknownKeys.sorted().joinToString()}; extend the generator")
@@ -55,11 +56,22 @@ object VariationPointFieldsParser {
             crossRow = cat["cross_row"] as? String,
             note = cat["note"] as? String,
             basis = cat["basis"] as? String,
+            defaultByForm =
+                (cat["default_by_form"] as? Map<*, *>)?.entries?.associate { (k, v) -> k.toString() to v.toString() }
+                    ?: emptyMap(),
+            installationParameter =
+                @Suppress("UNCHECKED_CAST")
+                (cat["installation_parameter"] as? Map<String, Any?>)?.let { typedValue(it, "installation_parameter", ::fail) },
+            secondApprover = cat["second_approver"] as? String,
         )
     }
 
     private val typedKeys =
-        setOf("type", "unit", "min", "max", "default", "direction", "ref", "filter", "ordered", "requires", "fields")
+        setOf(
+            "type", "name", "unit", "min", "max", "default", "direction", "ref", "filter", "ordered", "requires", "fields",
+            "min_exclusive", "item", "key", "value", "values", "distinct", "min_items", "max_items", "length", "rule",
+            "compared_with",
+        )
 
     private fun typedValue(
         raw: Map<String, Any?>,
@@ -84,8 +96,23 @@ object VariationPointFieldsParser {
                 typedValue(fieldMap, "$where.$name", fail)
             } ?: emptyMap()
         if (type == ValueType.RECORD && fields.isEmpty()) fail("$where is a record with no fields")
+
+        @Suppress("UNCHECKED_CAST")
+        fun nested(name: String): TypedValue? =
+            raw[name]?.let { n ->
+                val map = n as? Map<String, Any?> ?: fail("$where's '$name' is not a map")
+                typedValue(map, "$where.$name", fail)
+            }
+        val item = nested("item")
+        val key = nested("key")
+        val value = nested("value")
+        val values = (raw["values"] as? List<*>)?.map { it.toString() } ?: emptyList()
+        if (type == ValueType.LIST && item == null) fail("$where is a list with no item type")
+        if (type == ValueType.MAP && (key == null || value == null)) fail("$where is a map without key and value types")
+        if (type == ValueType.ENUM && values.isEmpty()) fail("$where is an enum with no values")
         return TypedValue(
             type = type,
+            name = raw["name"] as? String,
             unit = raw["unit"] as? String,
             min = bound(raw["min"]),
             max = bound(raw["max"]),
@@ -96,6 +123,17 @@ object VariationPointFieldsParser {
             ordered = raw["ordered"] as? Boolean,
             requires = raw["requires"] as? String,
             fields = fields,
+            minExclusive = bound(raw["min_exclusive"]),
+            item = item,
+            key = key,
+            value = value,
+            values = values,
+            distinct = raw["distinct"] as? Boolean,
+            minItems = (raw["min_items"] as? Number)?.toInt(),
+            maxItems = (raw["max_items"] as? Number)?.toInt(),
+            length = bound(raw["length"]),
+            rule = raw["rule"] as? String,
+            comparedWith = raw["compared_with"] as? String,
         )
     }
 

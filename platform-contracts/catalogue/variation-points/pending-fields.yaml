@@ -15,30 +15,6 @@
 # them (re-vendor with check-drift.py --write, then delete the row's marker).
 #
 # Source: the questions' own text in Keel (each names its rows), as of 2026-10-11.
-pending:
-  VP-04: [INV-Q-3049]
-  VP-06: [INV-Q-3051]
-  VP-16: [INV-Q-3051]
-  VP-68: [INV-Q-3051]
-  VP-17: [INV-Q-3053]
-  VP-18: [INV-Q-3053]
-  VP-36: [INV-Q-3053]
-  VP-37: [INV-Q-3053]
-  VP-41: [INV-Q-3053]
-  VP-56: [INV-Q-3053]
-  VP-24: [INV-Q-3055]
-  VP-45: [INV-Q-3055]
-  VP-38: [INV-Q-3057]
-  VP-63: [INV-Q-3057]
-  VP-65: [INV-Q-3057]
-  VP-66: [INV-Q-3057]
-  VP-69: [INV-Q-3057]
-  VP-78: [INV-Q-3057]
-  VP-31: [INV-Q-3059]
-  VP-35: [INV-Q-3059]
-  VP-57: [INV-Q-3059]
-  VP-67: [INV-Q-3059]
-  VP-48: [INV-Q-3061]
-  VP-70: [INV-Q-3061]
-  VP-76: [INV-Q-3061]
-  VP-74: [INV-Q-3063]
+# The 26 rows first listed here gained their fields in INV-CS-3064, and VP-32 gained them
+# in INV-CS-3071 (INV-Q-3067); all markers were removed. Keep the file for future gaps.
+pending: {}

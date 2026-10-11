@@ -84,6 +84,9 @@ object VariationPointKotlinEmitter {
             appendLine("    val crossScope: String?,")
             appendLine("    val crossOption: String?,")
             appendLine("    val crossRow: String?,")
+            appendLine("    val defaultByForm: Map<String, String>,")
+            appendLine("    val installationParameter: TypedValue?,")
+            appendLine("    val secondApprover: String?,")
             appendLine("    val pendingQuestions: List<String>,")
             appendLine(") {")
             rows.forEach { row -> appendLine("    ${entryLine(row)},") }
@@ -146,6 +149,7 @@ object VariationPointKotlinEmitter {
         appendLine("/** A typed value with its bounds (INV-Q-2934); what Keel does not state stays null. */")
         appendLine("data class TypedValue(")
         appendLine("    val type: ValueType,")
+        appendLine("    val name: String? = null,")
         appendLine("    val unit: String? = null,")
         appendLine("    val min: BoundValue? = null,")
         appendLine("    val max: BoundValue? = null,")
@@ -156,6 +160,17 @@ object VariationPointKotlinEmitter {
         appendLine("    val ordered: Boolean? = null,")
         appendLine("    val requires: String? = null,")
         appendLine("    val fields: Map<String, TypedValue> = emptyMap(),")
+        appendLine("    val minExclusive: BoundValue? = null,")
+        appendLine("    val item: TypedValue? = null,")
+        appendLine("    val key: TypedValue? = null,")
+        appendLine("    val value: TypedValue? = null,")
+        appendLine("    val values: List<String> = emptyList(),")
+        appendLine("    val distinct: Boolean? = null,")
+        appendLine("    val minItems: Int? = null,")
+        appendLine("    val maxItems: Int? = null,")
+        appendLine("    val length: BoundValue? = null,")
+        appendLine("    val rule: String? = null,")
+        appendLine("    val comparedWith: String? = null,")
         appendLine(")")
         appendLine()
         appendLine("/** One option at its catalogue position: [key] is the owning enum's constant (TPL-10). */")
@@ -179,6 +194,7 @@ object VariationPointKotlinEmitter {
 
     private fun typedLiteral(t: TypedValue): String {
         val args = mutableListOf("ValueType.${t.type}")
+        t.name?.let { args += "name = ${it.kotlinStringLiteralBody()}" }
         t.unit?.let { args += "unit = ${it.kotlinStringLiteralBody()}" }
         t.min?.let { args += "min = ${boundLiteral(it)}" }
         t.max?.let { args += "max = ${boundLiteral(it)}" }
@@ -192,6 +208,17 @@ object VariationPointKotlinEmitter {
             args += "fields = mapOf(" +
                 t.fields.entries.joinToString(", ") { (k, v) -> "${k.kotlinStringLiteralBody()} to ${typedLiteral(v)}" } + ")"
         }
+        t.minExclusive?.let { args += "minExclusive = ${boundLiteral(it)}" }
+        t.item?.let { args += "item = ${typedLiteral(it)}" }
+        t.key?.let { args += "key = ${typedLiteral(it)}" }
+        t.value?.let { args += "value = ${typedLiteral(it)}" }
+        if (t.values.isNotEmpty()) args += "values = ${t.values.kotlinListLiteral()}"
+        t.distinct?.let { args += "distinct = $it" }
+        t.minItems?.let { args += "minItems = $it" }
+        t.maxItems?.let { args += "maxItems = $it" }
+        t.length?.let { args += "length = ${boundLiteral(it)}" }
+        t.rule?.let { args += "rule = ${it.kotlinStringLiteralBody()}" }
+        t.comparedWith?.let { args += "comparedWith = ${it.kotlinStringLiteralBody()}" }
         return "TypedValue(" + args.joinToString(", ") + ")"
     }
 
@@ -231,6 +258,9 @@ object VariationPointKotlinEmitter {
             "${row.fields?.crossScope.kotlinNullableStringLiteral()}, " +
             "${row.fields?.crossOption.kotlinNullableStringLiteral()}, " +
             "${row.fields?.crossRow.kotlinNullableStringLiteral()}, " +
+            "${row.fields?.defaultByForm.orEmpty().let { m -> if (m.isEmpty()) "emptyMap()" else "mapOf(" + m.entries.joinToString(", ") { (k, v) -> "${k.kotlinStringLiteralBody()} to ${v.kotlinStringLiteralBody()}" } + ")" }}, " +
+            "${row.fields?.installationParameter?.let { typedLiteral(it) } ?: "null"}, " +
+            "${row.fields?.secondApprover.kotlinNullableStringLiteral()}, " +
             row.pendingQuestions.kotlinListLiteral() +
             ")"
     }

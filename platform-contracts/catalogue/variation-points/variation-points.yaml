@@ -25,7 +25,7 @@
 # reach Keel's read-only database).
 #
 # Extracted: 2026-09-27, Keel project INV, 78 rows (VP-01..VP-78); re-extracted
-# 2026-10-11 (INV-T-3000, Keel snapshot 287, INV-CS-3045) with check-drift.py --write, by:
+# 2026-10-11 (INV-T-3000, Keel INV-CS-3045, INV-CS-3064, INV-CS-3071; snapshot 302) with check-drift.py --write, by:
 #   select json_agg(json_build_object(
 #     'k', e.key, 'src', e.source_ids, 'rev', r.id,
 #     'io', r.attrs->'io_contract', 't', r.title, 'beh', r.attrs->>'behavior'))
@@ -161,7 +161,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1264: \"the last option is the looser one\"; the middle two depend on G2; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-04
   requirement: INV-REQ-1265
-  revision: 49e580e8-9bbd-4f06-95c6-75d22e11f91c
+  revision: 3a7b4bce-e7be-458e-af31-9b84cc4dd6e3
   title: "Mapping packs for an agent-managed client are approved by a second person at the agent plus client acknowledgement by default, and always by at least two people"
   class: CONTROL
   class_modifiers: []
@@ -182,7 +182,18 @@ variation_points:
   governs:
     - "INV-REQ-996"
   form_dependence: null
-  catalogue: null
+  catalogue:
+    scope_levels:
+      - "CLIENT_ENTITY"
+    options:
+      - key: "AGENT_SECOND_PERSON_CLIENT_ACK"
+        strictness: "DEFAULT"
+      - key: "AGENT_SECOND_PERSON_CLIENT_APPROVAL"
+        strictness: "STRICTER"
+      - key: "CLIENT_APPROVER_ALONE"
+        strictness: "NEUTRAL"
+    note: "CLIENT_APPROVER_ALONE is NEUTRAL: two people are still involved (agent preparer and the client's own tax.approver, who approves) and client.signatory chooses it in the consent, so it needs no acknowledgement"
+    basis: "Owner ruling (2026-10-11) on INV-Q-3049, recommended option (A) accepted; INV-REQ-1265; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-05
   requirement: INV-REQ-1266
   revision: 62a5481d-da5e-404d-bc66-48c4203f01e6
@@ -216,7 +227,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1266: \"never less often than quarterly\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-06
   requirement: INV-REQ-1267
-  revision: c33ce4e9-9fcd-4c47-9a03-af0b81290db4
+  revision: 9dea79e9-724c-4185-ab63-2ddfbbccc896
   title: "Grant expiry notices go 14 and 3 days ahead by default, and at least one notice is always 3 or more days ahead"
   class: PARAMETER
   class_modifiers: []
@@ -236,7 +247,27 @@ variation_points:
   governs:
     - "INV-REQ-893"
   form_dependence: null
-  catalogue: null
+  catalogue:
+    scope_levels:
+      - "TENANT"
+    options:
+      - key: "DAYS_14_3"
+        strictness: "DEFAULT"
+      - key: "CUSTOM_DAYS"
+        strictness: "NEUTRAL"
+        typed_value:
+          type: "list"
+          direction: "NONE"
+          item:
+            type: "int"
+            unit: "days before expiry"
+            min: 1
+            max: 90
+          rule: "at least one day is 3 or more (INV-REQ-893)"
+          distinct: true
+          max_items: 5
+          min_items: 1
+    basis: "Owner ruling (2026-10-11) on INV-Q-3051, recommended option (A) accepted; INV-REQ-1267; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-07
   requirement: INV-REQ-1268
   revision: 3df960fc-1c75-4799-b9b4-eafa853c15fa
@@ -557,7 +588,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1276, tighten_only; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-16
   requirement: INV-REQ-1277
-  revision: fb80329d-9e53-48f0-92d7-d211e5d7e9a2
+  revision: e68ea381-7444-4a34-9b6e-0b278cb1fd9f
   title: "The filer of record is prompted to record the filing fact when the verdict first becomes ready and 3 days before the due date by default; prompts cannot be disabled and the last is at least 1 day before"
   class: PARAMETER
   class_modifiers: []
@@ -577,10 +608,31 @@ variation_points:
   governs:
     - "INV-REQ-918"
   form_dependence: null
-  catalogue: null
+  catalogue:
+    scope_levels:
+      - "ENTITY"
+    options:
+      - key: "READY_AND_3_DAYS"
+        strictness: "DEFAULT"
+      - key: "CUSTOM_DAYS"
+        strictness: "NEUTRAL"
+        typed_value:
+          type: "list"
+          direction: "NONE"
+          item:
+            type: "int"
+            unit: "days before the statutory due date"
+            min: 1
+            max: 90
+          rule: "the 'verdict first becomes ready' prompt is always kept and the custom days add to it; the last prompt is at least 1 day before the due date (INV-REQ-918)"
+          distinct: true
+          max_items: 5
+          min_items: 1
+    note: "cannot be disabled (INV-REQ-918 b3): CUSTOM_DAYS never removes the ready prompt"
+    basis: "Owner ruling (2026-10-11) on INV-Q-3051, recommended option (A) accepted; INV-REQ-1277; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-17
   requirement: INV-REQ-1278
-  revision: 4546b82b-5beb-4146-a5bf-7c14d1cfb9a1
+  revision: 13f36f87-cbb9-4420-af25-e797b24030a9
   title: "Deadline alert thresholds default to the calendar pack per filing frequency and can only be made earlier, per entity"
   class: PARAMETER
   class_modifiers:
@@ -601,10 +653,32 @@ variation_points:
   governs:
     - "INV-REQ-1117"
   form_dependence: null
-  catalogue: null
+  catalogue:
+    scope_levels:
+      - "ENTITY"
+    options:
+      - key: "PACK_DEFAULT"
+        strictness: "DEFAULT"
+      - key: "EARLIER"
+        strictness: "STRICTER"
+        typed_value:
+          type: "map"
+          direction: "UP_STRICTER"
+          key:
+            type: "list_ref"
+            ref: "calendar-pack filing frequencies"
+          value:
+            type: "list"
+            item:
+              type: "int"
+              unit: "calendar days before the due date"
+              min: "the pack's threshold at the same position"
+            length: "the same as the pack's list for that frequency"
+    note: "no catalogue maximum; the thresholds are calendar-pack data, not catalogue numbers"
+    basis: "Owner ruling (2026-10-11) on INV-Q-3053, recommended option (A) accepted; INV-REQ-1278; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-18
   requirement: INV-REQ-1279
-  revision: 441c1073-cd06-47de-88ba-86114d0e0182
+  revision: 0a47cf2c-ccb9-4ec5-b3e7-551084417fe7
   title: "The safety margin before a due date is the calendar-pack default, or larger, and the latest despatch never falls after the due date minus the margin"
   class: PARAMETER
   class_modifiers:
@@ -625,7 +699,21 @@ variation_points:
   governs:
     - "INV-REQ-572"
   form_dependence: null
-  catalogue: null
+  catalogue:
+    scope_levels:
+      - "ENTITY"
+    options:
+      - key: "PACK_DEFAULT"
+        strictness: "DEFAULT"
+      - key: "LARGER"
+        strictness: "STRICTER"
+        typed_value:
+          type: "duration"
+          unit: "as the source datum states it (the datum carries value and unit) in the calendar pack"
+          min: "the calendar pack's margin"
+          direction: "UP_STRICTER"
+    note: "no catalogue maximum"
+    basis: "Owner ruling (2026-10-11) on INV-Q-3053, recommended option (A) accepted; INV-REQ-1279; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-19
   requirement: INV-REQ-1280
   revision: d525469d-718c-4f22-a9f1-8444a41c74f9
@@ -798,7 +886,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1284, must elect; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-24
   requirement: INV-REQ-1285
-  revision: 780273cb-80bc-4358-8180-0ff8eff780e2
+  revision: f5e6b57a-0394-4c4f-966f-2bc6bac2db12
   title: "An entity with foreign-currency documents elects an exchange rate source and basis from the scope pack's approved list before go-live"
   class: POLICY
   class_modifiers: []
@@ -817,7 +905,24 @@ variation_points:
   governs:
     - "INV-REQ-469"
   form_dependence: null
-  catalogue: null
+  catalogue:
+    scope_levels:
+      - "ENTITY"
+    must_be_elected: true
+    options:
+      - key: "APPROVED_SOURCE"
+        strictness: "NEUTRAL"
+        typed_value:
+          type: "record"
+          fields:
+            basis:
+              type: "list_ref"
+              ref: "the bases listed on the chosen source entry"
+            source:
+              type: "list_ref"
+              ref: "scope-pack approved exchange-rate source entries (INV-REQ-504)"
+    note: "scope-pack source entries carry a bases field"
+    basis: "Owner ruling (2026-10-11) on INV-Q-3055, recommended option (A) accepted; INV-REQ-1285; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-25
   requirement: INV-REQ-1286
   revision: c911d102-419f-4592-b8d6-e8682ff9eaa5
@@ -1015,7 +1120,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1291; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-31
   requirement: INV-REQ-1292
-  revision: c64e3fa1-31a4-477f-ab77-3873732351de
+  revision: 34d07b05-96a4-4f4a-a8d1-c213f9215399
   title: "A monetary change to a transmitted document asks the approver each time by default; while INV-NOTE-4#row:Q-15 is open only the credit note route is available"
   class: POLICY
   class_modifiers: []
@@ -1036,10 +1141,27 @@ variation_points:
   governs:
     - "INV-REQ-567"
   form_dependence: null
-  catalogue: null
+  catalogue:
+    scope_levels:
+      - "ENTITY"
+    options:
+      - key: "ASK_APPROVER"
+        strictness: "DEFAULT"
+      - key: "ALWAYS_CREDIT_NOTE"
+        strictness: "NEUTRAL"
+      - key: "KEYING_CORRECTION_WINDOW"
+        strictness: "NEUTRAL"
+        typed_value:
+          type: "int"
+          unit: "days"
+          min: 1
+          max: 30
+          direction: "NONE"
+    note: "KEYING_CORRECTION_WINDOW stays unavailable until INV-NOTE-4#row:Q-15 is settled (INV-Q-1675)"
+    basis: "Owner ruling (2026-10-11) on INV-Q-3059, recommended option (A) accepted; INV-REQ-1292; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-32
   requirement: INV-REQ-1293
-  revision: eb5344ec-45ef-4229-bb98-b6c79bebe4b4
+  revision: 3ffe106b-9b88-4eff-90b1-6c8f9ec701f1
   title: "An override is approved by one tax.approver by default, or also by a second approver above an amount or always; overridable codes only"
   class: CONTROL
   class_modifiers:
@@ -1062,7 +1184,25 @@ variation_points:
     - "INV-REQ-500"
     - "INV-REQ-1180"
   form_dependence: null
-  catalogue: null
+  catalogue:
+    scope_levels:
+      - "ENTITY"
+    options:
+      - key: "ONE_TAX_APPROVER"
+        strictness: "DEFAULT"
+      - key: "SECOND_APPROVER_ABOVE_AMOUNT"
+        strictness: "STRICTER"
+        typed_value:
+          type: "money"
+          unit: "SGD"
+          min: "above 0"
+          max: null
+          direction: "DOWN_STRICTER"
+          compared_with: "document version SGD total including GST"
+      - key: "SECOND_APPROVER_ALWAYS"
+        strictness: "STRICTER"
+    basis: "Owner ruling (2026-10-11) on INV-Q-3067 option A; INV-REQ-1293, INV-REQ-1244, INV-REQ-810; INV-Q-2972; conventions G1-G6 option A; for INV-T-3000"
+    second_approver: "a different person holding tax.approver for the entity"
 - id: VP-33
   requirement: INV-REQ-1294
   revision: e7853cce-bd83-4cd8-89d7-bfd953db980d
@@ -1135,7 +1275,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1295 (1 to 60 days), INV-REQ-790; single-scope PARAMETER with no stated bound, so no tighten direction (G5 option A); conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-35
   requirement: INV-REQ-1296
-  revision: d6e40236-206b-4230-8769-5e8305363828
+  revision: 37e29b78-a84b-48b6-bf45-d8d5939bd9c7
   title: "Scheduled extraction runs daily by default, or several times a day, or weekly where the deadline gap can absorb it"
   class: PARAMETER
   class_modifiers: []
@@ -1156,10 +1296,27 @@ variation_points:
   governs:
     - "INV-REQ-73"
   form_dependence: null
-  catalogue: null
+  catalogue:
+    scope_levels:
+      - "FEED"
+    options:
+      - key: "DAILY"
+        strictness: "DEFAULT"
+      - key: "SEVERAL_DAILY"
+        strictness: "NEUTRAL"
+        typed_value:
+          type: "int"
+          unit: "runs per day"
+          min: 2
+          max: 24
+          direction: "NONE"
+      - key: "WEEKLY"
+        strictness: "NEUTRAL"
+    cross_row: "WEEKLY refusal against VP-18 and the filing frequency is a cross-row check, not a bound"
+    basis: "Owner ruling (2026-10-11) on INV-Q-3059, recommended option (A) accepted; INV-REQ-1296; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-36
   requirement: INV-REQ-1297
-  revision: b404c7e0-73a3-4466-99c5-9e6ff7ac1c18
+  revision: 576d6078-0918-48b4-a3c3-bc8e226b4843
   title: "The line-to-total tolerance is a per-currency default, or a tenant value within the ceiling, and a difference only warns"
   class: PARAMETER
   class_modifiers: []
@@ -1179,10 +1336,30 @@ variation_points:
   governs:
     - "INV-REQ-810"
   form_dependence: null
-  catalogue: null
+  catalogue:
+    scope_levels:
+      - "ENTITY"
+    options:
+      - key: "CURRENCY_DEFAULT"
+        strictness: "DEFAULT"
+      - key: "TENANT_VALUE"
+        strictness: "NEUTRAL"
+        typed_value:
+          type: "map"
+          direction: "DOWN_STRICTER"
+          key:
+            type: "list_ref"
+            ref: "currencies with a scope-pack line-to-total entry"
+          value:
+            type: "amount"
+            unit: "as the source datum states it (the datum carries value and unit) in the scope-pack entry for the currency"
+            min: 0
+            max: "the scope-pack ceiling for the currency"
+    note: "the per-currency defaults and ceilings are scope-pack data"
+    basis: "Owner ruling (2026-10-11) on INV-Q-3053, recommended option (A) accepted; INV-REQ-1297; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-37
   requirement: INV-REQ-1298
-  revision: 8bc5c764-c56a-45d5-ab20-808d401ec632
+  revision: 784de494-f14e-4c00-99ef-82b211f821c8
   title: "The exchange rate tolerance is the scope-pack default, or tighter, with PAY-006 outside it"
   class: PARAMETER
   class_modifiers:
@@ -1203,10 +1380,24 @@ variation_points:
   governs:
     - "INV-REQ-510"
   form_dependence: null
-  catalogue: null
+  catalogue:
+    scope_levels:
+      - "ENTITY"
+    options:
+      - key: "PACK_DEFAULT"
+        strictness: "DEFAULT"
+      - key: "TIGHTER"
+        strictness: "STRICTER"
+        typed_value:
+          type: "decimal"
+          unit: "as the source datum states it (the datum carries value and unit) in the scope pack"
+          min: 0
+          max: "the scope-pack tolerance"
+          direction: "DOWN_STRICTER"
+    basis: "Owner ruling (2026-10-11) on INV-Q-3053, recommended option (A) accepted; INV-REQ-1298; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-38
   requirement: INV-REQ-1299
-  revision: be885d37-4e9f-4e9b-a2b9-4212d41e3a1c
+  revision: ed8128ce-015f-4c7a-82be-8afa92a4f962
   title: "Peppol directory lookups are cached 24 hours positive and 1 hour negative by default, or shorter"
   class: PARAMETER
   class_modifiers:
@@ -1227,7 +1418,33 @@ variation_points:
   governs:
     - "INV-REQ-319"
   form_dependence: null
-  catalogue: null
+  catalogue:
+    scope_levels:
+      - "TENANT"
+    options:
+      - key: "DEFAULT_24H_1H"
+        strictness: "DEFAULT"
+      - key: "SHORTER"
+        strictness: "STRICTER"
+        typed_value:
+          type: "record"
+          fields:
+            negative:
+              type: "duration"
+              unit: "minutes"
+              min: 0
+              max: 60
+              default: 60
+              direction: "DOWN_STRICTER"
+            positive:
+              type: "duration"
+              unit: "minutes"
+              min: 0
+              max: 1440
+              default: 1440
+              direction: "DOWN_STRICTER"
+    note: "0 means no caching"
+    basis: "Owner ruling (2026-10-11) on INV-Q-3057, recommended option (A) accepted; INV-REQ-1299; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-39
   requirement: INV-REQ-1300
   revision: 8677d8eb-6ef7-4ee1-b1a1-8428fff0701c
@@ -1292,7 +1509,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1301: \"the looser option\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-41
   requirement: INV-REQ-1302
-  revision: 5e86d40e-ed51-4a06-bf3b-f91e383a7e7b
+  revision: 720768f8-819b-4c20-aaa6-ad01800dd7f3
   title: "The reconciliation variance tolerance is a default per Box, or tenant values within the ceiling; a variance outside the taxonomy is always unexplained"
   class: PARAMETER
   class_modifiers: []
@@ -1312,7 +1529,27 @@ variation_points:
   governs:
     - "INV-REQ-633"
   form_dependence: null
-  catalogue: null
+  catalogue:
+    scope_levels:
+      - "ENTITY"
+    options:
+      - key: "BOX_DEFAULT"
+        strictness: "DEFAULT"
+      - key: "TENANT_VALUES"
+        strictness: "NEUTRAL"
+        typed_value:
+          type: "map"
+          direction: "DOWN_STRICTER"
+          key:
+            type: "list_ref"
+            ref: "GST return Boxes with a scope-pack variance entry"
+          value:
+            type: "decimal"
+            unit: "as the source datum states it (the datum carries value and unit) in the scope-pack entry for the Box"
+            min: 0
+            max: "the scope-pack ceiling for the Box"
+    note: "the per-Box defaults and ceilings are scope-pack data"
+    basis: "Owner ruling (2026-10-11) on INV-Q-3053, recommended option (A) accepted; INV-REQ-1302; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-42
   requirement: INV-REQ-1303
   revision: e630cbc1-91ef-42fb-8d51-c09b5d2dbb5b
@@ -1424,7 +1661,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1305: \"turning them on is looser\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-45
   requirement: INV-REQ-1306
-  revision: 063ab7b6-cebc-4820-84f2-05ccddc17b53
+  revision: d3447dc7-8ddc-4d9c-8f9d-9e2cac939fa9
   title: "Every SaaS tenant elects its data region at provisioning, fixed afterwards except through migration"
   class: POLICY
   class_modifiers: []
@@ -1443,7 +1680,18 @@ variation_points:
   governs:
     - "INV-NOTE-3 §18.7"
   form_dependence: "SaaS only: the VP's own title and behaviour frame this as \"every SaaS tenant elects its data region\" (io_contract.owner control-plane-svc, scope tenant) — a private installation's data region is fixed by where the customer deploys it, not elected through this variation point (INV-REQ-1306, cited by INV-REQ-1248 behaviour #2 as its own example)."
-  catalogue: null
+  catalogue:
+    scope_levels:
+      - "TENANT"
+    must_be_elected: true
+    options:
+      - key: "REGION"
+        strictness: "NEUTRAL"
+        typed_value:
+          type: "list_ref"
+          ref: "control-plane region list (SaaS only), seeded with Singapore (INV-Q-2322)"
+    note: "validated by the control plane at tenant provisioning"
+    basis: "Owner ruling (2026-10-11) on INV-Q-3055, recommended option (A) accepted; INV-REQ-1306; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-46
   requirement: INV-REQ-1307
   revision: 50f62b8a-5505-4a92-acc0-db402ce7c397
@@ -1517,7 +1765,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1308; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-48
   requirement: INV-REQ-1309
-  revision: 320b1dcf-4f67-410b-8e38-d9598f4c8e5e
+  revision: 40bf3ec8-36d5-400d-b5d4-08ad0b826118
   title: "Acknowledgement thresholds and the retry boundary of an AP connection come from the AP's documented service level by default, or tenant values within bounds"
   class: PARAMETER
   class_modifiers: []
@@ -1539,7 +1787,39 @@ variation_points:
     - "INV-REQ-565"
     - "INV-REQ-329"
   form_dependence: null
-  catalogue: null
+  catalogue:
+    scope_levels:
+      - "AP_CONNECTION"
+    options:
+      - key: "AP_SERVICE_LEVEL"
+        strictness: "DEFAULT"
+      - key: "TENANT_VALUES"
+        strictness: "NEUTRAL"
+        typed_value:
+          type: "record"
+          fields:
+            t1:
+              type: "duration"
+              unit: "minutes"
+              direction: "NONE"
+              min_exclusive: 0
+            t2:
+              type: "duration"
+              unit: "minutes"
+              direction: "NONE"
+              min_exclusive: 0
+            retry_boundary:
+              type: "duration"
+              unit: "minutes"
+              direction: "NONE"
+              min_exclusive: 0
+            network_issued_ack:
+              type: "duration"
+              unit: "minutes"
+              direction: "NONE"
+              min_exclusive: 0
+          rule: "t1 before t2; t2 never later than the due date minus the safety margin (INV-REQ-572), checked at run time"
+    basis: "Owner ruling (2026-10-11) on INV-Q-3061, recommended option (A) accepted; INV-REQ-1309; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-49
   requirement: INV-REQ-1310
   revision: 619abf59-e224-4d57-8f78-b91e8c39dcf5
@@ -1835,7 +2115,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1316, INV-REQ-413 b1 (cadence per category), so the two deviations combine (G3 option A); PARAMETER without tighten-only, so NEUTRAL (G5 option A); conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-56
   requirement: INV-REQ-1317
-  revision: 83f2a930-91c0-4a43-a407-dc28c94d59a7
+  revision: 474ff0cb-fe28-4a1a-8bf7-e5e492452b69
   title: "The throughput ceiling of an AP connection is the rate agreed with the AP by default, or a lower tenant value"
   class: PARAMETER
   class_modifiers:
@@ -1856,10 +2136,24 @@ variation_points:
   governs:
     - "INV-REQ-565"
   form_dependence: null
-  catalogue: null
+  catalogue:
+    scope_levels:
+      - "AP_CONNECTION"
+    options:
+      - key: "AGREED_RATE"
+        strictness: "DEFAULT"
+      - key: "LOWER"
+        strictness: "STRICTER"
+        typed_value:
+          type: "rate"
+          unit: "documents per minute"
+          max: "the rate agreed with the AP, captured with its unit at connection set-up"
+          direction: "DOWN_STRICTER"
+          min_exclusive: 0
+    basis: "Owner ruling (2026-10-11) on INV-Q-3053, recommended option (A) accepted; INV-REQ-1317; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-57
   requirement: INV-REQ-1318
-  revision: 547a3e32-3db9-4c07-920c-64f8574d5d0f
+  revision: 9c32e049-f882-4814-9b9f-f9110bbd5165
   title: "The grace window for reviewing a regulatory pack delta is the platform maximum by default, or shorter"
   class: PARAMETER
   class_modifiers:
@@ -1880,7 +2174,27 @@ variation_points:
   governs:
     - "INV-REQ-858"
   form_dependence: null
-  catalogue: null
+  catalogue:
+    scope_levels:
+      - "TENANT"
+    options:
+      - key: "PLATFORM_MAXIMUM"
+        strictness: "DEFAULT"
+      - key: "SHORTER"
+        strictness: "STRICTER"
+        typed_value:
+          type: "duration"
+          unit: "days"
+          min: 1
+          max: "the platform maximum"
+          direction: "DOWN_STRICTER"
+    basis: "Owner ruling (2026-10-11) on INV-Q-3059, recommended option (A) accepted; INV-REQ-1318; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; minimum 1 day by the smallest-step rule of INV-Q-3057 (A), applied by analogy as on VP-63"
+    installation_parameter:
+      name: "platform maximum grace window"
+      rule: "always ends at the pack's effective date"
+      type: "duration"
+      unit: "days"
+      default: 14
 - id: VP-58
   requirement: INV-REQ-1319
   revision: a7966005-f0dc-40f4-91f9-dc9039dee2b2
@@ -2053,7 +2367,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1323: \"the second option is the looser one\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-63
   requirement: INV-REQ-1401
-  revision: cb8e3fbf-c2ae-4b34-a522-86d1c1105873
+  revision: 3cea210e-095c-460a-b4d5-78084ff274bf
   title: "An individual's access or correction request is answered within the pack default of 30 days from receipt, or a shorter tenant period"
   class: PARAMETER
   class_modifiers:
@@ -2074,7 +2388,21 @@ variation_points:
   governs:
     - "INV-REQ-1403"
   form_dependence: null
-  catalogue: null
+  catalogue:
+    scope_levels:
+      - "TENANT"
+    options:
+      - key: "PACK_DEFAULT_30D"
+        strictness: "DEFAULT"
+      - key: "SHORTER"
+        strictness: "STRICTER"
+        typed_value:
+          type: "duration"
+          unit: "calendar days"
+          min: 1
+          max: "the pack default (30 calendar days in the current pack)"
+          direction: "DOWN_STRICTER"
+    basis: "Owner ruling (2026-10-11) on INV-Q-3057, recommended option (A) accepted; INV-REQ-1401; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-64
   requirement: INV-REQ-1547
   revision: ab3437e7-89c4-4317-b285-2a5df05eec4a
@@ -2109,7 +2437,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1547; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-65
   requirement: INV-REQ-1548
-  revision: 730ab575-4252-4b1a-a3f8-269913a8042c
+  revision: c85fa176-64c4-43e5-ae63-a186029ccfff
   title: "A Check GST Register result is cached 24 hours if found (provisional) and 1 hour if not found by default, or shorter"
   class: PARAMETER
   class_modifiers:
@@ -2131,10 +2459,36 @@ variation_points:
     - "INV-REQ-477"
     - "INV-REQ-802"
   form_dependence: null
-  catalogue: null
+  catalogue:
+    scope_levels:
+      - "TENANT"
+    options:
+      - key: "DEFAULT_24H_1H"
+        strictness: "DEFAULT"
+      - key: "SHORTER"
+        strictness: "STRICTER"
+        typed_value:
+          type: "record"
+          fields:
+            found:
+              type: "duration"
+              unit: "minutes"
+              min: 0
+              max: 1440
+              default: 1440
+              direction: "DOWN_STRICTER"
+            not_found:
+              type: "duration"
+              unit: "minutes"
+              min: 0
+              max: 60
+              default: 60
+              direction: "DOWN_STRICTER"
+    note: "0 means no caching; the 24 h default stays provisional"
+    basis: "Owner ruling (2026-10-11) on INV-Q-3057, recommended option (A) accepted; INV-REQ-1548; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-66
   requirement: INV-REQ-2462
-  revision: eaa77f70-d7c4-42c5-955e-d29af948dd10
+  revision: f06546b8-4883-4580-ba63-135ce9762f63
   title: "The notice window for a custody holder's legal-hold request before retention deletion is 90 days by default at installation level; lengthening is free, shortening needs a recorded acknowledgement"
   class: CONTROL
   class_modifiers: []
@@ -2156,10 +2510,32 @@ variation_points:
   governs:
     - "INV-REQ-639"
   form_dependence: null
-  catalogue: null
+  catalogue:
+    scope_levels:
+      - "INSTALLATION"
+    options:
+      - key: "DAYS_90"
+        strictness: "DEFAULT"
+      - key: "LONGER"
+        strictness: "STRICTER"
+        typed_value:
+          type: "duration"
+          unit: "days"
+          min: 91
+          direction: "UP_STRICTER"
+      - key: "SHORTER_ACKNOWLEDGED"
+        strictness: "LOOSER"
+        typed_value:
+          type: "duration"
+          unit: "days"
+          min: 1
+          max: 89
+          direction: "UP_STRICTER"
+    note: "the shorter window keeps its acknowledgement and deletion-record entry; the per-tenant longer value at offboardTenant is an override, not a scope level"
+    basis: "Owner ruling (2026-10-11) on INV-Q-3057, recommended option (A) accepted; INV-REQ-2462; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-67
   requirement: INV-REQ-2463
-  revision: ef6701c5-62cc-403a-bb7d-d01cbf5dadf4
+  revision: 02b3afd3-d278-427c-8fa3-56147ba6db31
   title: "A webhook delivery is retried for 72 hours by default before dead-letter, set per subscription and never beyond the operator's maximum"
   class: PARAMETER
   class_modifiers: []
@@ -2179,10 +2555,33 @@ variation_points:
   governs:
     - "INV-REQ-821"
   form_dependence: null
-  catalogue: null
+  catalogue:
+    scope_levels:
+      - "TENANT"
+    options:
+      - key: "HOURS_72"
+        strictness: "DEFAULT"
+      - key: "CUSTOM"
+        strictness: "NEUTRAL"
+        typed_value:
+          type: "duration"
+          unit: "hours"
+          min: 1
+          max: "the operator maximum"
+          default: 72
+          direction: "NONE"
+    note: "set per webhook subscription"
+    basis: "Owner ruling (2026-10-11) on INV-Q-3059, recommended option (A) accepted; INV-REQ-2463; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
+    installation_parameter:
+      max: 720
+      min: 72
+      name: "operator maximum retry window"
+      type: "duration"
+      unit: "hours"
+      default: 168
 - id: VP-68
   requirement: INV-REQ-2464
-  revision: ac0c5296-b048-45f7-8c22-ec06d309cc39
+  revision: f7fd3e7b-ef5f-4644-9934-6a825eb73b00
   title: "Credential-expiry reminders go 14 and 3 days ahead by default, and at least one reminder is always 3 or more days ahead"
   class: PARAMETER
   class_modifiers: []
@@ -2202,10 +2601,30 @@ variation_points:
   governs:
     - "INV-REQ-837"
   form_dependence: null
-  catalogue: null
+  catalogue:
+    scope_levels:
+      - "TENANT"
+    options:
+      - key: "DAYS_14_3"
+        strictness: "DEFAULT"
+      - key: "CUSTOM_DAYS"
+        strictness: "NEUTRAL"
+        typed_value:
+          type: "list"
+          direction: "NONE"
+          item:
+            type: "int"
+            unit: "days before expiry"
+            min: 1
+            max: 90
+          rule: "at least one day is 3 or more (as INV-REQ-1267)"
+          distinct: true
+          max_items: 5
+          min_items: 1
+    basis: "Owner ruling (2026-10-11) on INV-Q-3051, recommended option (A) accepted; INV-REQ-2464; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-69
   requirement: INV-REQ-2465
-  revision: 3b3af005-2b1d-49d5-becf-e6583fd75b2b
+  revision: e90e325f-6f7d-4a11-adce-baab7edc9e60
   title: "An implementation.consultant grant lasts 30 days after go-live by default, set per grant, never beyond the 120-day platform maximum"
   class: PARAMETER
   class_modifiers: []
@@ -2225,10 +2644,26 @@ variation_points:
   governs:
     - "INV-REQ-908"
   form_dependence: null
-  catalogue: null
+  catalogue:
+    scope_levels:
+      - "TENANT"
+    options:
+      - key: "DAYS_30"
+        strictness: "DEFAULT"
+      - key: "CUSTOM"
+        strictness: "NEUTRAL"
+        typed_value:
+          type: "duration"
+          unit: "days"
+          min: 1
+          max: 120
+          default: 30
+          direction: "NONE"
+    note: "set per grant"
+    basis: "Owner ruling (2026-10-11) on INV-Q-3057, recommended option (A) accepted; INV-REQ-2465; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-70
   requirement: INV-REQ-2466
-  revision: bbdb62a3-d573-466c-8d25-6afe51fecb65
+  revision: fbdc426b-b7ad-4a78-930d-5d8fab688a58
   title: "Evidence retrieval time per storage tier is the storage class's documented time by default, or a stated time per tier, set at installation level"
   class: PARAMETER
   class_modifiers: []
@@ -2249,7 +2684,26 @@ variation_points:
   governs:
     - "INV-REQ-664"
   form_dependence: null
-  catalogue: null
+  catalogue:
+    scope_levels:
+      - "INSTALLATION"
+    options:
+      - key: "STORAGE_CLASS_TIME"
+        strictness: "DEFAULT"
+      - key: "STATED_PER_TIER"
+        strictness: "NEUTRAL"
+        typed_value:
+          type: "map"
+          direction: "NONE"
+          key:
+            type: "list_ref"
+            ref: "storage classes declared in the installation's evidence-store configuration"
+          value:
+            type: "duration"
+            unit: "hours"
+            min_exclusive: 0
+    note: "set per storage tier"
+    basis: "Owner ruling (2026-10-11) on INV-Q-3061, recommended option (A) accepted; INV-REQ-2466; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-71
   requirement: INV-REQ-2467
   revision: 317fce2e-496c-40d2-ad9a-23a3579b37f7
@@ -2359,7 +2813,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-2756; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-74
   requirement: INV-REQ-2757
-  revision: 2ca7da3b-8005-4d69-b1eb-214051e82644
+  revision: ff778067-6753-4664-a3e4-ee9047b8c655
   title: "Agent tenancy is available on in SaaS and off in a private installation by default, switchable per installation subject to live consents and the signed-link endpoint"
   class: POLICY
   class_modifiers: []
@@ -2381,7 +2835,19 @@ variation_points:
     - "INV-REQ-853"
     - "INV-REQ-903"
   form_dependence: null
-  catalogue: null
+  catalogue:
+    scope_levels:
+      - "INSTALLATION"
+    options:
+      - key: "ON"
+        strictness: "NEUTRAL"
+      - key: "OFF"
+        strictness: "NEUTRAL"
+    note: "the default depends on the deployment form, so no single key is DEFAULT; refusals (switching off while an agent consent is live, switching on without the signed-link endpoint) are stated on ON/OFF"
+    basis: "Owner ruling (2026-10-11) on INV-Q-3063, recommended option (A) accepted; INV-REQ-2757; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
+    default_by_form:
+      SAAS: "ON"
+      PRIVATE: "OFF"
 - id: VP-75
   requirement: INV-REQ-2758
   revision: 88bd5a08-8741-4464-bc9d-9e9698ab62fb
@@ -2432,7 +2898,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-2758 b4/b6 (delivery and the wrong-entry limit set independently; fewer than five, never more), tighten-only; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-76
   requirement: INV-REQ-2759
-  revision: 0547070b-4944-439f-8ee1-d39d770ba3bd
+  revision: 047bc6ab-b84f-4ad8-9ae3-60a1c0728135
   title: "Rounding basis for a System-computed SGD-equivalent amount defaults to two decimal places, HALF_UP, per invoice"
   class: PARAMETER
   class_modifiers: []
@@ -2454,7 +2920,38 @@ variation_points:
     - "INV-REQ-466"
     - "INV-REQ-467"
   form_dependence: null
-  catalogue: null
+  catalogue:
+    scope_levels:
+      - "ENTITY"
+    options:
+      - key: "TWO_DP_HALF_UP_PER_INVOICE"
+        strictness: "DEFAULT"
+      - key: "PER_LINE"
+        strictness: "NEUTRAL"
+      - key: "CUSTOM"
+        strictness: "NEUTRAL"
+        typed_value:
+          type: "record"
+          direction: "NONE"
+          fields:
+            mode:
+              type: "enum"
+              values:
+                - "HALF_UP"
+                - "HALF_EVEN"
+                - "DOWN"
+                - "UP"
+            level:
+              type: "enum"
+              values:
+                - "INVOICE"
+                - "LINE"
+            scale:
+              type: "int"
+              unit: "decimal places"
+              min: 0
+              max: 4
+    basis: "Owner ruling (2026-10-11) on INV-Q-3061, recommended option (A) accepted; INV-REQ-2759; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-77
   requirement: INV-REQ-2760
   revision: 35dc2afb-24aa-41d2-a8d9-59f3ed55b8d7
@@ -2491,7 +2988,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-2760, tighten_only; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-78
   requirement: INV-REQ-2761
-  revision: 405b4b6f-ec3a-496e-a15b-8330aef1371b
+  revision: e1de2eb5-da41-463f-a275-220e5403af0e
   title: "Inbound request size and count limits default to 1 MB per document and 50 MB / 10,000 transactions per batch, tighten-only"
   class: CONTROL
   class_modifiers:
@@ -2514,4 +3011,33 @@ variation_points:
     - "INV-REQ-805"
     - "INV-REQ-811"
   form_dependence: null
-  catalogue: null
+  catalogue:
+    scope_levels:
+      - "INSTALLATION"
+    options:
+      - key: "DEFAULT_LIMITS"
+        strictness: "DEFAULT"
+      - key: "SMALLER"
+        strictness: "STRICTER"
+        typed_value:
+          type: "record"
+          fields:
+            batch_size:
+              type: "int"
+              unit: "bytes"
+              min: 1
+              max: "50 MB (the default)"
+              direction: "DOWN_STRICTER"
+            document_size:
+              type: "int"
+              unit: "bytes"
+              min: 1
+              max: "1 MB (the default)"
+              direction: "DOWN_STRICTER"
+            batch_transactions:
+              type: "int"
+              unit: "transactions"
+              min: 1
+              max: 10000
+              direction: "DOWN_STRICTER"
+    basis: "Owner ruling (2026-10-11) on INV-Q-3057, recommended option (A) accepted; INV-REQ-2761; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"

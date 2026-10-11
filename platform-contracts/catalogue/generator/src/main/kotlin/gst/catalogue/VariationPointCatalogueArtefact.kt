@@ -73,11 +73,18 @@ object VariationPointCatalogueArtefact {
         f.crossRow?.let { parts += "\"crossRow\": ${it.jsonString()}" }
         f.note?.let { parts += "\"note\": ${it.jsonString()}" }
         f.basis?.let { parts += "\"basis\": ${it.jsonString()}" }
+        if (f.defaultByForm.isNotEmpty()) {
+            parts += "\"defaultByForm\": { " +
+                f.defaultByForm.entries.joinToString(", ") { (k, v) -> "${k.jsonString()}: ${v.jsonString()}" } + " }"
+        }
+        f.installationParameter?.let { parts += "\"installationParameter\": ${typedJson(it)}" }
+        f.secondApprover?.let { parts += "\"secondApprover\": ${it.jsonString()}" }
         return "{ " + parts.joinToString(", ") + " }"
     }
 
     private fun typedJson(t: TypedValue): String {
         val parts = mutableListOf("\"type\": \"${t.type.keelName}\"")
+        t.name?.let { parts += "\"name\": ${it.jsonString()}" }
         t.unit?.let { parts += "\"unit\": ${it.jsonString()}" }
         t.min?.let { parts += "\"min\": ${boundJson(it)}" }
         t.max?.let { parts += "\"max\": ${boundJson(it)}" }
@@ -90,6 +97,17 @@ object VariationPointCatalogueArtefact {
         if (t.fields.isNotEmpty()) {
             parts += "\"fields\": { " + t.fields.entries.joinToString(", ") { (k, v) -> "${k.jsonString()}: ${typedJson(v)}" } + " }"
         }
+        t.minExclusive?.let { parts += "\"minExclusive\": ${boundJson(it)}" }
+        t.item?.let { parts += "\"item\": ${typedJson(it)}" }
+        t.key?.let { parts += "\"key\": ${typedJson(it)}" }
+        t.value?.let { parts += "\"value\": ${typedJson(it)}" }
+        if (t.values.isNotEmpty()) parts += "\"values\": [${t.values.joinToString(", ") { it.jsonString() }}]"
+        t.distinct?.let { parts += "\"distinct\": $it" }
+        t.minItems?.let { parts += "\"minItems\": $it" }
+        t.maxItems?.let { parts += "\"maxItems\": $it" }
+        t.length?.let { parts += "\"length\": ${boundJson(it)}" }
+        t.rule?.let { parts += "\"rule\": ${it.jsonString()}" }
+        t.comparedWith?.let { parts += "\"comparedWith\": ${it.jsonString()}" }
         return "{ " + parts.joinToString(", ") + " }"
     }
 

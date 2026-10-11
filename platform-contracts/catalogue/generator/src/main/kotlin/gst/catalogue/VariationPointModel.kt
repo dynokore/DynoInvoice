@@ -112,9 +112,16 @@ enum class ValueType(
     val keelName: String,
 ) {
     INT("int"),
+    DECIMAL("decimal"),
+    AMOUNT("amount"),
+    MONEY("money"),
+    RATE("rate"),
     DURATION("duration"),
     DATE("date"),
     TEXT("text"),
+    ENUM("enum"),
+    LIST("list"),
+    MAP("map"),
     RECORD("record"),
     LIST_REF("list_ref"),
     SET("set"),
@@ -135,9 +142,15 @@ data class BoundValue(
     val symbolic: String? = null,
 )
 
-/** A typed value with its bounds (INV-Q-2934). Fields not stated in Keel stay null. */
+/**
+ * A typed value with its bounds (INV-Q-2934). Fields not stated in Keel stay null.
+ * A LIST has an [item] type, a MAP a [key] and a [value] type, an ENUM its [values], a
+ * RECORD its [fields]; [rule] is a constraint Keel states in words (checked by the
+ * owning service, not here). [name] labels an installation parameter.
+ */
 data class TypedValue(
     val type: ValueType,
+    val name: String? = null,
     val unit: String? = null,
     val min: BoundValue? = null,
     val max: BoundValue? = null,
@@ -148,6 +161,18 @@ data class TypedValue(
     val ordered: Boolean? = null,
     val requires: String? = null,
     val fields: Map<String, TypedValue> = emptyMap(),
+    val minExclusive: BoundValue? = null,
+    val item: TypedValue? = null,
+    val key: TypedValue? = null,
+    val value: TypedValue? = null,
+    val values: List<String> = emptyList(),
+    val distinct: Boolean? = null,
+    val minItems: Int? = null,
+    val maxItems: Int? = null,
+    val length: BoundValue? = null,
+    val rule: String? = null,
+    /** What the value is compared with (e.g. VP-32: the document version's SGD total including GST). */
+    val comparedWith: String? = null,
 )
 
 /** One option of a row, at its catalogue position: [key] is the owning enum's constant (TPL-10). */
@@ -169,4 +194,10 @@ data class VpCatalogueFields(
     val crossRow: String? = null,
     val note: String? = null,
     val basis: String? = null,
+    /** A default that depends on the deployment form (e.g. VP-74: SAAS → ON, PRIVATE → OFF); then no option is DEFAULT. */
+    val defaultByForm: Map<String, String> = emptyMap(),
+    /** An installation-level value that bounds this row (e.g. VP-67's operator maximum). */
+    val installationParameter: TypedValue? = null,
+    /** Who the second approver is, where the row names one (VP-32). */
+    val secondApprover: String? = null,
 )

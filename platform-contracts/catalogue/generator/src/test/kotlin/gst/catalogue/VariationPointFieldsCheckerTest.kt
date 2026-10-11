@@ -110,6 +110,10 @@ class VariationPointFieldsCheckerTest {
         assertEquals(1, VariationPointFieldsChecker.check(row(fields = fields("A" to Strictness.DEFAULT, "B" to Strictness.NEUTRAL, typed = outside))).size)
         val record = TypedValue(ValueType.RECORD, fields = mapOf("w" to TypedValue(ValueType.INT, min = n(5), max = n(2), direction = Direction.NONE)))
         assertEquals(1, VariationPointFieldsChecker.check(row(fields = fields("A" to Strictness.DEFAULT, "B" to Strictness.NEUTRAL, typed = record))).size)
+        val undirected = TypedValue(ValueType.RECORD, fields = mapOf("w" to TypedValue(ValueType.INT, min = n(0), max = n(4))))
+        assertEquals(1, VariationPointFieldsChecker.check(row(fields = fields("A" to Strictness.DEFAULT, "B" to Strictness.NEUTRAL, typed = undirected))).size)
+        val directedRecord = undirected.copy(direction = Direction.NONE)
+        assertTrue(VariationPointFieldsChecker.check(row(fields = fields("A" to Strictness.DEFAULT, "B" to Strictness.NEUTRAL, typed = directedRecord))).isEmpty())
     }
 
     @Test
@@ -124,5 +128,48 @@ class VariationPointFieldsCheckerTest {
         assertThrows(IllegalStateException::class.java) { PendingFieldsParser.parse(file) }
         file.writeText("pending:\n  VP-04: [INV-Q-3049]\n")
         assertEquals(mapOf("VP-04" to listOf("INV-Q-3049")), PendingFieldsParser.parse(file))
+    }
+
+    @Test
+    fun `a per-form default replaces the single DEFAULT and names option keys`() {
+        val f = fields("ON" to Strictness.NEUTRAL, "OFF" to Strictness.NEUTRAL)
+        assertTrue(VariationPointFieldsChecker.check(row(default = "x", fields = f.copy(defaultByForm = mapOf("SAAS" to "ON")))).isEmpty())
+        assertEquals(1, VariationPointFieldsChecker.check(row(default = "x", fields = f.copy(defaultByForm = mapOf("SAAS" to "MAYBE")))).size)
+    }
+
+    @Test
+    fun `list, map and enum typed values parse with their inner types`() {
+        val cat =
+            mapOf(
+                "scope_levels" to listOf("TENANT"),
+                "options" to
+                    listOf(
+                        mapOf("key" to "A", "strictness" to "DEFAULT"),
+                        mapOf(
+                            "key" to "B",
+                            "strictness" to "NEUTRAL",
+                            "typed_value" to
+                                mapOf(
+                                    "type" to "map",
+                                    "direction" to "NONE",
+                                    "key" to mapOf("type" to "list_ref", "ref" to "tiers"),
+                                    "value" to
+                                        mapOf(
+                                            "type" to "list",
+                                            "item" to mapOf("type" to "enum", "values" to listOf("UP", "DOWN")),
+                                            "min_items" to 1,
+                                            "max_items" to 5,
+                                        ),
+                                ),
+                        ),
+                    ),
+            )
+        val f = VariationPointFieldsParser.parse("VP-99", cat, java.io.File("x"))
+        val map = f.options[1].typedValue!!
+        assertEquals(ValueType.MAP, map.type)
+        assertEquals(listOf("UP", "DOWN"), map.value!!.item!!.values)
+        assertEquals(5, map.value.maxItems)
+        val bad = cat + ("options" to listOf(mapOf("key" to "A", "strictness" to "DEFAULT", "typed_value" to mapOf("type" to "list"))))
+        assertThrows(IllegalStateException::class.java) { VariationPointFieldsParser.parse("VP-99", bad, java.io.File("x")) }
     }
 }
