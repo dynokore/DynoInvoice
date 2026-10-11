@@ -102,7 +102,7 @@ paths:
       tags: [transactions]
       x-principal: ingest
       x-timeout: 3000
-      x-error-codes: [ING-001, ING-002, ING-004, ING-005, ING-009, ING-011, ING-012, ING-016, ING-019]
+      x-error-codes: [ING-001, ING-002, ING-004, ING-005, ING-009, ING-011, ING-012, ING-016]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-805, INV-REQ-806]
       x-operation:
         role: ingest
@@ -213,7 +213,7 @@ paths:
       tags: [batches]
       x-principal: ingest
       x-timeout: 10000
-      x-error-codes: [ING-003, ING-001, ING-002, ING-004, ING-005, ING-009, ING-011, ING-012, ING-016, ING-019]
+      x-error-codes: [ING-003, ING-001, ING-002, ING-004, ING-005, ING-009, ING-011, ING-012, ING-016]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-811]
       x-operation:
         role: ingest
@@ -419,7 +419,7 @@ paths:
       x-principal: ingest
       x-timeout: 5000
       x-error-codes:
-        [ING-001, ING-002, ING-004, ING-005, ING-009, ING-011, ING-012, ING-019, PAY-001, PAY-002, PAY-003, PAY-004, PAY-005,
+        [ING-001, ING-002, ING-004, ING-005, ING-009, ING-011, ING-012, PAY-001, PAY-002, PAY-003, PAY-004, PAY-005,
           PAY-006, PAY-009, PAY-011, PAY-013]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-324]
       x-operation:
