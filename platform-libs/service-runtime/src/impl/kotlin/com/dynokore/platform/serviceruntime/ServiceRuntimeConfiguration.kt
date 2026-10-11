@@ -4,6 +4,7 @@ import com.dynokore.platform.serviceruntime.binding.BindingAutoConfiguration
 import com.dynokore.platform.serviceruntime.client.InternalRestClientAutoConfiguration
 import com.dynokore.platform.serviceruntime.diagnostics.DiagnosticsAutoConfiguration
 import com.dynokore.platform.serviceruntime.health.HealthAutoConfiguration
+import com.dynokore.platform.serviceruntime.http.JobCommandHttpAutoConfiguration
 import com.dynokore.platform.serviceruntime.identity.IdentityAutoConfiguration
 import com.dynokore.platform.serviceruntime.logging.LoggingAutoConfiguration
 import com.dynokore.platform.serviceruntime.replica.ReplicaAutoConfiguration
@@ -40,6 +41,7 @@ import org.springframework.context.annotation.PropertySource
     IdentityAutoConfiguration::class,
     InternalRestClientAutoConfiguration::class,
     ReplicaAutoConfiguration::class,
+    JobCommandHttpAutoConfiguration::class,
 )
 @PropertySource("classpath:service-runtime-defaults.properties")
 class ServiceRuntimeConfiguration

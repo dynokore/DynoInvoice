@@ -3,15 +3,20 @@ package com.dynokore.platform.serviceruntime.jobs
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.outboxandqueue.EntityRef
+import com.dynokore.platform.serviceruntime.operation.Reversibility
 import com.dynokore.platform.tenancykernel.TenantId
 import java.time.Instant
 import java.util.UUID
 
-/** The three job commands of the service-runtime operation contract (INV-REQ-1138 b4). */
-enum class JobCommand(val operationId: String) {
-    RUN_NOW("runJobNow"),
-    PAUSE("pauseJob"),
-    RESUME("resumeJob"),
+/**
+ * The three job commands of the service-runtime operation contract (INV-REQ-1138 b4), with the reversibility
+ * the contract's `x-operation` declares (INV-REQ-957 b6): a run-now is irreversible where the job transmits, a
+ * pause is undone by a resume and a resume by a pause.
+ */
+enum class JobCommand(val operationId: String, val reversibility: Reversibility) {
+    RUN_NOW("runJobNow", Reversibility.IRREVERSIBLE),
+    PAUSE("pauseJob", Reversibility.UNDOABLE),
+    RESUME("resumeJob", Reversibility.UNDOABLE),
 }
 
 /**

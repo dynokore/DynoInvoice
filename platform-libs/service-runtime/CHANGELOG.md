@@ -6,6 +6,31 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-10-12
+### Added
+- Platform events (INV-REQ-1226, INV-REQ-1163; INV-T-2875): `PlatformEventTypes` (the seven platform types and
+  the PolicyChanged, ConnectionStatusChanged and EvidenceArtefactRecorded topics), `EvidenceArtefact` and
+  `EvidenceArtefactRecorder` (INV-API-3310: artefact type, reference, SHA-256 hash; the impl half's
+  `OutboxEvidenceArtefactRecorder` writes it in the caller's transaction), and the impl half's tolerant
+  `PlatformEventReader` for PolicyChanged (INV-API-3306: read straight from the event log, ordered by offset,
+  no inbox), ConnectionStatusChanged (INV-API-3308: one report per instance) and EvidenceArtefactRecorded. It
+  ignores unknown envelope attributes and payload fields and accepts any minor version of major 1
+  (INV-AC-2148); another major or a missing field is a `ContractViolation`. `ConnectionStatusBoard` keeps the
+  worst instance state per connection (down > degraded > up), the latest report per instance winning.
+- The operation contract (INV-REQ-957, INV-REQ-1010): `DeclaredOperation` (role and scope check, state
+  precondition, repeat key and prior result, effect, audit, reversibility UNDOABLE, COMPENSABLE or
+  IRREVERSIBLE), `OperationRegistry` and the impl half's `TransactionalOperationRunner`, which refuses before
+  reading state, checks the precondition and the repeat in one transaction and commits the audit entry with
+  the change. `JobCommand` now carries its contract reversibility.
+- runJobNow, pauseJob and resumeJob over HTTP (INV-API-3023, INV-API-3025, INV-Q-3535): `JobCommandServlet`
+  at `/internal/v1/jobs/{job}/run|pause|resume` onto `JobCommands`, the actor and tenant from the
+  `EndUserPrincipalResolver` port (the service's resource-server verification), the entityRef held to the
+  token's entity set, JOB-001..004 as problem responses at their statuses and the closed cases code-less
+  (ARC-19). `IdempotencyStore` and `IdempotencySchema.ddl` keep API-15 keys per (tenant, principal) for at
+  least 24 hours: a replay returns the stored response, a different body 422, a request in flight 409.
+  `JobCommandHttpAutoConfiguration` registers them when the service has `JobCommands`, an
+  `EndUserPrincipalResolver`, a `TenantScope` and a `DataSource` (`service-runtime.idempotency.schema`).
+
 ## [2.1.0] - 2026-10-11
 ### Added
 - The job contract (INV-REQ-1136, INV-REQ-1138, INV-REQ-2405; INV-T-2874). The api half has `JobDefinition`

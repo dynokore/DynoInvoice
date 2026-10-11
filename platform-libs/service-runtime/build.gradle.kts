@@ -74,6 +74,8 @@ dependencies {
 
     // INV-T-3002: PolicyReplica resolves over config-resolver's scope chain (INV-REQ-1242), api half only.
     api(project(":config-resolver"))
+    // INV-T-2875: the tolerant PolicyChanged reader builds the replica's PolicyScope in the impl half.
+    add("implImplementation", project(":config-resolver"))
     add("implTestImplementation", project(":config-resolver"))
 
     // The impl half compiles and runs against the api half's output, in this

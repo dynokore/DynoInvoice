@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/service-runtime/schemas/error-envelope.schema.json",
+  "title": "ErrorEnvelope",
+  "description": "One error envelope for every error (API-20), application/problem+json (RFC 9457) extended with the catalogue code, severity, disposition, remediation owner and trace reference (T6, INV-T-2850, SDS §21 archived; live requirement INV-REQ-815/1162's error path). Every service's openapi.yaml references this file rather than declaring its own copy. severity/disposition/remediationOwner/traceRef are optional at the envelope level — `code` alone is required, since only 'code' identifies a catalogue entry and the other four are looked up from it (CS-13); a producer MAY also inline them so a consumer need not look up the catalogue itself. Kept optional (not required) so the T5 scaffold's per-service Error examples keep validating unchanged.",
+  "type": "object",
+  "properties": {
+    "type": { "type": "string", "format": "uri", "description": "The catalogue code's documentation URI, or about:blank." },
+    "title": { "type": "string" },
+    "status": { "type": "integer" },
+    "detail": { "type": "string" },
+    "code": {
+      "type": "string",
+      "pattern": "^[A-Z]{2,10}-[0-9]{3}$",
+      "description": "The AREA-NNN error-catalogue code (model/architecture/error-codes.yaml 'code'; CS-13 generates the ErrorCode enum from it)."
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["BLOCK", "HOLD", "WARN", "INFO"],
+      "description": "The catalogue's severity for this code (model/architecture/error-codes.yaml 'severity'; CS-12's outcome kinds)."
+    },
+    "disposition": {
+      "type": "string",
+      "minLength": 1,
+      "description": "How the finding is worked off — e.g. TERMINAL, MANUAL, OVERRIDABLE, AUTO_RETRY, AUTO_RELEASE (model/architecture/error-codes.yaml 'disposition')."
+    },
+    "remediationOwner": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Who acts on a MANUAL disposition (model/architecture/error-codes.yaml 'owner'), e.g. Integration, Onboarding, Tax operations."
+    },
+    "traceRef": {
+      "type": "string",
+      "description": "The W3C traceparent of the request or operation that raised this error (§21 archived), letting support correlate the error with its trace."
+    },
+    "errors": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/errorItem" }
+    },
+    "correlationId": { "type": "string" },
+    "docUuid": { "type": "string", "format": "uuid" }
+  },
+  "required": ["type", "title", "status", "code", "correlationId"],
+  "additionalProperties": true,
+  "$defs": {
+    "errorItem": {
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "field": { "type": "string", "description": "A JSON Pointer (FR-AG.41)." },
+        "message": { "type": "string" }
+      },
+      "required": ["code", "message"],
+      "additionalProperties": false
+    }
+  }
+}
