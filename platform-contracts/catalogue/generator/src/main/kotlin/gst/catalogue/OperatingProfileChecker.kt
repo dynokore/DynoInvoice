@@ -15,6 +15,8 @@ package gst.catalogue
  * - a LOOSER option the value can select that is not flagged for acknowledgement, or a
  *   flagged option that is not LOOSER (INV-REQ-1244, INV-Q-2936);
  * - `explicit_default` on an option that is not the row's DEFAULT.
+ * - a `condition_fact` whose constraint is not a FACT record of that row with the same fact
+ *   name and holder, or that is set on a value with no `condition` (INV-T-3636, INV-Q-3692).
  * An unresolved (untyped) value is checked only for its variation point and requirement:
  * it has no option to check. Pure (no I/O).
  */
@@ -65,8 +67,29 @@ object OperatingProfileChecker {
             }
         }
         v.typedValue?.let { out += checkTyped(where, it, v.option?.let { o -> specs.getValue(o).typedValue }) }
+        v.conditionFact?.let { out += checkConditionFact(where, v, it, fields) }
         out += checkAdds(where, v, specs, codes)
         return out
+    }
+
+    private fun checkConditionFact(
+        where: String,
+        v: ParsedProfileValue,
+        cf: ConditionFact,
+        fields: VpCatalogueFields,
+    ): List<String> {
+        val record = (fields.constraints + fields.crossRow + fields.crossOption).find { it.id == cf.constraint }
+        return listOfNotNull(
+            "$where: condition_fact on a value with no condition".takeIf { v.condition == null },
+            when {
+                record == null -> "$where: condition_fact names ${cf.constraint}, which is not a constraint of ${v.vp}"
+                record.kind != ConstraintKind.FACT -> "$where: condition_fact names ${cf.constraint}, which is ${record.kind}, not FACT"
+                record.fact != cf.fact ->
+                    "$where: condition_fact ${cf.fact.holder}.${cf.fact.name} differs from ${cf.constraint}'s fact " +
+                        "${record.fact?.holder}.${record.fact?.name}"
+                else -> null
+            },
+        )
     }
 
     private fun checkTyped(

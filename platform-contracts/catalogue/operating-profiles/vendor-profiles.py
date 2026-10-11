@@ -46,9 +46,10 @@ PROFILE_ORDER = ["version", "status", "note", "basis", "values"]
 VALUE_ORDER = [
     "requirement", "text", "option", "options", "typed", "typed_value", "condition", "recommended",
     "otherwise_option", "alternatives", "alternative_by", "adds", "at_apply", "explicit_default",
-    "needs_acknowledgement", "untyped_reason",
+    "needs_acknowledgement", "untyped_reason", "condition_fact",
 ]
 TYPED_ORDER = ["type", "unit", "value"]
+CONDITION_FACT_ORDER = ["constraint", "holder", "name"]  # INV-T-3636, INV-Q-3692
 
 
 def prf_num(src: list[str]) -> int:
@@ -91,7 +92,7 @@ def node(v, indent: int, order: list[str]) -> list[str]:
     if isinstance(v, dict):
         for k in ordered_keys(v, order):
             val = v[k]
-            sub = TYPED_ORDER if k == "typed_value" else []
+            sub = TYPED_ORDER if k == "typed_value" else CONDITION_FACT_ORDER if k == "condition_fact" else []
             if isinstance(val, (dict, list)) and val:
                 out.append(f"{pad}{k}:")
                 out.extend(node(val, indent + 2, sub))

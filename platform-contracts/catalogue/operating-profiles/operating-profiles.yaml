@@ -62,14 +62,14 @@ operating_profiles:
           - "SINGLE_ATTESTATION_SOLE_OPERATOR"
 - id: PRF-2
   requirement: INV-REQ-1253
-  revision: d3fce77a-1d76-48a3-8f18-bdc9e616e134
+  revision: a5d9df57-2f10-4956-9932-c5cb89893819
   name: "In-house finance team"
   title: "The in-house finance team profile keeps the defaults, with the customer OIDC directory where one exists"
   profile:
     version: 1
     status: "available"
     note: "'defaults throughout' sets nothing besides VP-01: every other VP keeps its catalogue default"
-    basis: "Coordinator ruling (HIGH, owner rule 2026-10-11): INV-Q-3283 option A (version), INV-Q-3285 option A (typed values beside the unchanged behavior text, as io_contract.catalogue, INV-CS-3045); keys from the live VP catalogue; for INV-T-3277"
+    basis: "Coordinator ruling (HIGH, owner rule 2026-10-11): INV-Q-3283 option A (version), INV-Q-3285 option A (typed values beside the unchanged behavior text, as io_contract.catalogue, INV-CS-3045); keys from the live VP catalogue; for INV-T-3277; VP-01 condition_fact: owner ruling INV-Q-3612 (A): 'where a directory exists' means a customer OIDC directory connected and validated"
     values:
       VP-01:
         requirement: "INV-REQ-1262"
@@ -77,6 +77,10 @@ operating_profiles:
         option: "CUSTOMER_OIDC"
         condition: "where a directory exists"
         otherwise_option: "PLATFORM_IDENTITY"
+        condition_fact:
+          constraint: "VP-01.DIRECTORY_CONNECTED"
+          holder: "TENANT"
+          name: "customer_oidc_directory_connected"
 - id: PRF-3
   requirement: INV-REQ-1254
   revision: 3156ff0f-566f-4024-a9ad-66d47714a454

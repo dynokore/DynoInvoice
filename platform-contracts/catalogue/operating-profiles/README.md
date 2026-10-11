@@ -18,10 +18,14 @@ records the extraction query; each row pins its Keel `entity_revision` id.
   with the severity the option's filter names; every LOOSER option a value can select is
   flagged `needs_acknowledgement`, and only LOOSER ones are; `explicit_default` is on the
   DEFAULT option.
+- A `condition_fact` {constraint, holder, name} (PRF-2's VP-01, INV-T-3636, INV-Q-3692) names a
+  FACT record of that row with the same fact, on a value with a `condition`; it is exposed as
+  `ProfileValue.conditionFact`.
 - The version rule (INV-Q-3283 A′, `ProfileVersionChecker`): against
   `previous-snapshot.yaml`, a profile's values may change only with a higher version, a
   version never decreases, and a profile is never dropped. Prose (`text`) and `status`
-  are not values. With no previous snapshot (the first one) the check is skipped.
+  are not values, nor is a newly added `condition_fact` (it types the `condition` already
+  there); changing or removing one already present is a value change. With no previous snapshot (the first one) the check is skipped.
 
 The generated `OperatingProfile` marks the planned variation points each profile sets
 (`plannedVariationPoints`, INV-REQ-1251), carries `previousVersion`/`previousValues` and

@@ -64,4 +64,17 @@ class OperatingProfileTest {
         val others = OperatingProfile.entries.filter { it != prf7 }
         assertTrue(others.all { it.previousVersion == it.version && it.changesFromPrevious.isEmpty() })
     }
+
+    @Test
+    fun `INV-T-3636 PRF-2's VP-01 condition is typed as VP-01's directory fact`() {
+        val vp01 = OperatingProfile.PRF_2.values.single { it.variationPoint == VariationPoint.VP_01 }
+        val record = VariationPoint.VP_01.constraints.single { it.id == "VP-01.DIRECTORY_CONNECTED" }
+        assertEquals(ConditionFact(record.id, record.fact!!), vp01.conditionFact)
+        assertEquals("PLATFORM_IDENTITY", vp01.otherwiseOption)
+        // INV-Q-3692: newly added it is no change; changed once present, it is one
+        assertTrue(vp01.copy(conditionFact = null).sameValueAs(vp01))
+        val other = ConditionFact(record.id, ConstraintFact(ScopeLevel.ENTITY, record.fact.name))
+        assertTrue(!vp01.sameValueAs(vp01.copy(conditionFact = other)))
+        assertTrue(!vp01.sameValueAs(vp01.copy(conditionFact = null)))
+    }
 }

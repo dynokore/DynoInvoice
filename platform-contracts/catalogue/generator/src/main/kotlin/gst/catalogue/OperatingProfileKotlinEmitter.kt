@@ -50,6 +50,12 @@ object OperatingProfileKotlinEmitter {
             appendLine("    val pendingQuestion: String,")
             appendLine(")")
             appendLine()
+            appendLine("/** The FACT record [constraint] whose [fact] decides a profile value's condition (INV-Q-3612, INV-Q-3692). */")
+            appendLine("data class ConditionFact(")
+            appendLine("    val constraint: String,")
+            appendLine("    val fact: ConstraintFact,")
+            appendLine(")")
+            appendLine()
             appendLine("/**")
             appendLine(" * One value of a profile (INV-Q-3285 A): the option key(s) of [variationPoint] it sets —")
             appendLine(" * [option] on a single-select row, [options] on a multi-select one — and what the row's")
@@ -58,6 +64,7 @@ object OperatingProfileKotlinEmitter {
             appendLine(" * applier supplies, [explicitDefault], and [needsAcknowledgement] (LOOSER options that need")
             appendLine(" * acknowledgeControlRelaxation, INV-REQ-1244). [unresolved] is set, and no option is, for a")
             appendLine(" * value Keel has not typed. [text] is the row's own words, not part of the value.")
+            appendLine(" * [conditionFact] types [condition] as the FACT record whose fact decides it (INV-Q-3612).")
             appendLine(" */")
             appendLine("data class ProfileValue(")
             appendLine("    val variationPoint: VariationPoint,")
@@ -76,12 +83,14 @@ object OperatingProfileKotlinEmitter {
             appendLine("    val explicitDefault: Boolean = false,")
             appendLine("    val needsAcknowledgement: List<String> = emptyList(),")
             appendLine("    val unresolved: UnresolvedValue? = null,")
+            appendLine("    val conditionFact: ConditionFact? = null,")
             appendLine(") {")
             appendLine("    /** INV-REQ-1251: a planned variation point behaves as its default and cannot be set yet. */")
             appendLine("    val variationPointPlanned: Boolean get() = variationPoint.status == VpStatus.PLANNED")
             appendLine()
-            appendLine("    /** Same value, ignoring the prose (INV-Q-3283: text-only edits create no version). */")
-            appendLine("    fun sameValueAs(other: ProfileValue): Boolean = comparable() == other.comparable()")
+            appendLine("    /** Same value in [newer], ignoring the prose and a newly added [conditionFact] (INV-Q-3283, INV-Q-3692). */")
+            appendLine("    fun sameValueAs(newer: ProfileValue): Boolean =")
+            appendLine("        comparable() == newer.comparable().let { if (conditionFact == null) it.copy(conditionFact = null) else it }")
             appendLine()
             appendLine("    private fun comparable() = copy(text = \"\", unresolved = unresolved?.let { UnresolvedValue(\"\", \"\") })")
             appendLine("}")
@@ -199,6 +208,10 @@ object OperatingProfileKotlinEmitter {
         if (v.explicitDefault) args += "explicitDefault = true"
         if (v.needsAcknowledgement.isNotEmpty()) args += "needsAcknowledgement = ${v.needsAcknowledgement.lit()}"
         v.unresolved?.let { args += "unresolved = UnresolvedValue(${it.reason.lit()}, ${it.pendingQuestion.lit()})" }
+        v.conditionFact?.let {
+            args += "conditionFact = ConditionFact(${it.constraint.lit()}, " +
+                "ConstraintFact(ScopeLevel.${it.fact.holder}, ${it.fact.name.lit()}))"
+        }
         return "ProfileValue(" + args.joinToString(", ") + ")"
     }
 

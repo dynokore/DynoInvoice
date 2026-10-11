@@ -19,8 +19,9 @@ object OperatingProfileYamlParser {
         setOf(
             "requirement", "text", "option", "options", "typed", "typed_value", "condition", "recommended",
             "otherwise_option", "alternatives", "alternative_by", "adds", "at_apply", "explicit_default",
-            "needs_acknowledgement", "untyped_reason",
+            "needs_acknowledgement", "untyped_reason", "condition_fact",
         )
+    private val conditionFactKeys = setOf("constraint", "holder", "name")
     private val typedKeys = setOf("type", "unit", "value", "fields")
 
     /** Parses [file]; an untyped value takes its question from [pendingFile] (pending-values.yaml). */
@@ -136,6 +137,7 @@ object OperatingProfileYamlParser {
                 explicitDefault = bool(v, "explicit_default", where, file),
                 needsAcknowledgement = list(v, "needs_acknowledgement", where, file),
                 unresolved = unresolved,
+                conditionFact = v["condition_fact"]?.let { conditionFact(map(it, "$where condition_fact", file), where, file) },
             )
         val selections = listOfNotNull(value.option).size + (if (value.options.isEmpty()) 0 else 1)
         if (unresolved == null && selections != 1) {
@@ -145,6 +147,22 @@ object OperatingProfileYamlParser {
             error("gst-catalogue: $where is untyped but carries an option or typed value in $file.")
         }
         return value
+    }
+
+    private fun conditionFact(
+        m: Map<String, Any?>,
+        where: String,
+        file: File,
+    ): ConditionFact {
+        unknownKeys(m, conditionFactKeys, "$where condition_fact", file)
+        val holderName = text(m, "holder", "$where condition_fact", file)
+        val holder =
+            ScopeLevel.entries.find { it.name == holderName }
+                ?: error("gst-catalogue: $where condition_fact holder '$holderName' is not a scope level in $file.")
+        return ConditionFact(
+            text(m, "constraint", "$where condition_fact", file),
+            ConstraintFact(holder, text(m, "name", "$where condition_fact", file)),
+        )
     }
 
     private fun parseTyped(

@@ -42,6 +42,8 @@ data class UnresolvedValue(
  * [atApply] the datum the applier supplies; [explicitDefault] where the text names the
  * default; [needsAcknowledgement] the LOOSER options that need acknowledgeControlRelaxation
  * (INV-REQ-1244). [text] is the row's own words and is not part of the value (INV-Q-3283).
+ * [conditionFact] types [condition] as the FACT record whose fact decides it (INV-T-3636,
+ * INV-Q-3692): newly added it restates the condition and is not a change ([sameValueAs]).
  */
 data class ParsedProfileValue(
     val vp: String,
@@ -60,6 +62,7 @@ data class ParsedProfileValue(
     val explicitDefault: Boolean = false,
     val needsAcknowledgement: List<String> = emptyList(),
     val unresolved: UnresolvedValue? = null,
+    val conditionFact: ConditionFact? = null,
 ) {
     /** Every option key this value references, for the reference check. */
     val referencedKeys: List<String>
@@ -67,7 +70,21 @@ data class ParsedProfileValue(
 
     /** The value without its prose: what a version change is judged on (INV-Q-3283 A′). */
     fun comparable(): ParsedProfileValue = copy(text = "", unresolved = unresolved?.let { UnresolvedValue("", "") })
+
+    /**
+     * True when [newer] holds the same value as this (older) one. A condition_fact newly added to a
+     * value that had none only types its existing condition and is not a change (INV-Q-3692); once
+     * a value has one, changing or removing it is a change like any other.
+     */
+    fun sameValueAs(newer: ParsedProfileValue): Boolean =
+        comparable() == newer.comparable().let { if (conditionFact == null) it.copy(conditionFact = null) else it }
 }
+
+/** The FACT record [constraint] of the value's row whose [fact] decides its condition (INV-Q-3612, INV-Q-3692). */
+data class ConditionFact(
+    val constraint: String,
+    val fact: ConstraintFact,
+)
 
 /** One vendored PRF row (INV-REQ-1252..1258) with its Keel profile block. */
 data class ParsedOperatingProfile(

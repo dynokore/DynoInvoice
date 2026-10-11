@@ -126,4 +126,45 @@ class OperatingProfileCheckerTest {
         )
         assertTrue(check(value("VP-5", "PAIR").copy(typedValue = hours(2))).single().contains("typed value is DURATION, its option takes RECORD"))
     }
+
+    @Test
+    fun `INV-T-3636 a condition_fact must name a FACT record of the row with the same fact`() {
+        val fact = ConstraintFact(ScopeLevel.TENANT, "directory")
+        fun rec(
+            id: String,
+            kind: ConstraintKind,
+            f: ConstraintFact?,
+        ) = VpConstraint(id, kind, ConstraintPlacement.CONSTRAINTS, options = listOf("LOOSE"), fact = f, rule = "r", refused = "x", source = "s")
+        val row = catalogue.first { it.id == "VP-1" }
+        val fields =
+            row.fields!!.copy(
+                constraints =
+                    listOf(
+                        rec("VP-1.DIR", ConstraintKind.FACT, fact),
+                        rec("VP-1.FORM", ConstraintKind.FORM, null).copy(forms = listOf(DeploymentForm.SAAS)),
+                    ),
+            )
+        val withFacts = catalogue.map { if (it.id == "VP-1") it.copy(fields = fields) else it }
+
+        fun check(cf: ConditionFact, condition: String? = "where one exists") =
+            OperatingProfileChecker.check(
+                listOf(
+                    ParsedOperatingProfile(
+                        "PRF-1", "R", "r", "n", "t", 1, ProfileStatus.AVAILABLE, null,
+                        listOf(
+                            value("VP-1", "LOOSE").copy(
+                                otherwiseOption = "A", condition = condition, needsAcknowledgement = listOf("LOOSE"), conditionFact = cf,
+                            ),
+                        ),
+                    ),
+                ),
+                withFacts,
+                codes,
+            )
+        assertEquals(emptyList<String>(), check(ConditionFact("VP-1.DIR", fact)))
+        assertTrue(check(ConditionFact("VP-1.NONE", fact)).single().contains("not a constraint of VP-1"))
+        assertTrue(check(ConditionFact("VP-1.FORM", fact)).single().contains("not FACT"))
+        assertTrue(check(ConditionFact("VP-1.DIR", ConstraintFact(ScopeLevel.ENTITY, "directory"))).single().contains("differs"))
+        assertTrue(check(ConditionFact("VP-1.DIR", fact), condition = null).single().contains("no condition"))
+    }
 }

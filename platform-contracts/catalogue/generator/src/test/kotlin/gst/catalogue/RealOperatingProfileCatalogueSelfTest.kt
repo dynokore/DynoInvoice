@@ -75,6 +75,18 @@ class RealOperatingProfileCatalogueSelfTest {
     }
 
     @Test
+    fun `INV-T-3636 PRF-2 VP-01's condition is typed as VP-01's directory fact, with no version change`() {
+        val vp01 = profiles.getValue("PRF-2").values.single { it.vp == "VP-01" }
+        assertEquals("CUSTOMER_OIDC", vp01.option)
+        assertEquals("PLATFORM_IDENTITY", vp01.otherwiseOption)
+        assertEquals(
+            ConditionFact("VP-01.DIRECTORY_CONNECTED", ConstraintFact(ScopeLevel.TENANT, "customer_oidc_directory_connected")),
+            vp01.conditionFact,
+        )
+        assertEquals(1, profiles.getValue("PRF-2").version)
+    }
+
+    @Test
     fun `INV-AC-2231 PRF-7 changed with a higher version, and its difference shows VP-08 only`() {
         val previous = OperatingProfileYamlParser.parseSnapshot(File("../operating-profiles/previous-snapshot.yaml")).associateBy { it.id }
         assertTrue(ProfileVersionChecker.check(previous.values.toList(), profiles.values.toList()).isEmpty())
