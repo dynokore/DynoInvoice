@@ -1,0 +1,11 @@
+{
+  "changeKind": "CONSENT",
+  "principalRef": "PRN-AG01",
+  "authorityVersion": 90422,
+  "consentRecord": {
+    "clientEntityRef": "ENT-CL0044",
+    "state": "LIVE",
+    "scopeItems": ["NONE"],
+    "validFrom": "2026-11-01T00:00:00Z"
+  }
+}

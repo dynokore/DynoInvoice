@@ -129,7 +129,12 @@ components:
         Catalogued event OrganisationStructureChanged (model/architecture/events.yaml, INV-NOTE-3 §19.8,
         INV-REQ-815; class: domain). Emitted by: tenancy-svc. Consumed by: access-svc, console-bff,
         notification-svc. Delivery: At-least-once. Payload (catalogue text): tenant, group, entity or
-        business unit created, moved or retired. Authored by INV-T-2853 (T9).
+        business unit created, moved or retired. Authored by INV-T-2853 (T9). INV-T-3298
+        (INV-API-3327, INV-Q-3324 (a), INV-Q-3337 (a)) adds, additively, the node's full state
+        after the change with its structureVersion, and changeType UPDATED (a rename, code change
+        or other attribute change of a business unit, group or tenant; INV-AC-2186), changeType now
+        being an extensible enum. Every service's structure replica is fed from this topic
+        (INV-REQ-1200, INV-ADR-284).
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/organisation-structure-changed-payload.schema.json'
@@ -142,7 +147,11 @@ components:
         Catalogued event EntityProfileChanged (model/architecture/events.yaml, INV-NOTE-3 §19.8,
         INV-REQ-815; class: domain). Emitted by: tenancy-svc. Consumed by: access-svc, canonical-svc,
         console-bff, masterdata-svc. Delivery: At-least-once. Payload (catalogue text): entityRef, changed
-        attributes, effective date. Authored by INV-T-2853 (T9).
+        attributes, effective date. Authored by INV-T-2853 (T9). INV-T-3298 (INV-API-3327,
+        INV-Q-3324 (a)) adds, additively, the node's full state after the change, its profile as
+        effective-dated attribute entries, with its structureVersion (one sequence shared with
+        OrganisationStructureChanged). Every service's structure replica is fed from this topic
+        (INV-REQ-1200, INV-ADR-284).
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/entity-profile-changed-payload.schema.json'

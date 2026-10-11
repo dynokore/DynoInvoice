@@ -1,0 +1,6 @@
+{
+  "nodeType": "GROUP",
+  "nodeRef": "GRP-19C2",
+  "changeType": "UPDATED",
+  "node": { "kind": "GROUP", "parentRef": "TEN-7B1004", "retired": false, "name": "Acme Group", "profile": [] }
+}

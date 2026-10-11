@@ -1296,9 +1296,19 @@ paths:
   /internal/v1/tenancy/entities/{entityRef}:
     get:
       operationId: getEntityStructure
-      summary: Fetch entity structure, to fill a replica cache miss (SDS §28.11, FR-AH.4, AD-26)
-      description: Fallback only, called by any service other than access-svc when its local structure
-        replica misses.
+      summary: Fetch a structure node, to fill a replica cache miss (SDS §28.11, FR-AH.4, AD-26)
+      description: >-
+        Fallback only, called by any service other than access-svc when its local structure
+        replica misses (INV-REQ-1200 b2, INV-REQ-1199 b3). Node-generic (INV-T-3298, INV-API-3329,
+        INV-Q-3324 (a)): the path reference may name any structure node, a registered entity, group,
+        business unit or tenant. The response's node is the same full node object
+        OrganisationStructureChanged and EntityProfileChanged carry, with its structureVersion; the
+        caller keeps that version and keeps whichever is newer, the fill or the state it holds. For a
+        group, business unit or tenant the required fields hold the node ref (entityRef), the node's
+        name (legalName) and lifecycleState LIVE, or RETIRED when retired; node.kind and node.retired
+        are authoritative. An unknown node returns 404, which the replica reads as absent. Caller
+        budget: 500 ms (x-timeout) with one retry and a circuit breaker; on failure the replica serves
+        its last state (INV-REQ-1200 b3).
       tags:
       - entities
       x-principal: filing-workflow
@@ -1312,14 +1322,15 @@ paths:
       - name: entityRef
         in: path
         required: true
-        description: The registered entity's opaque reference.
+        description: The structure node's opaque reference (a registered entity, group, business
+          unit or tenant).
         schema:
           type: string
           maxLength: 64
         example: ENT-3F2A9C
       responses:
         "200":
-          description: Entity structure
+          description: Structure node
           content:
             application/json:
               schema:
@@ -1330,6 +1341,33 @@ paths:
                     entityRef: ENT-3F2A9C
                     legalName: Acme Trading Pte Ltd
                     lifecycleState: LIVE
+                    node:
+                      kind: ENTITY
+                      parentRef: GRP-19C2
+                      retired: false
+                      name: Acme Trading Pte Ltd
+                      code: ACME01
+                      profile:
+                      - attribute: filingFrequency
+                        value: QUARTERLY
+                        effectiveDate: '2026-01-01'
+                      - attribute: filingFrequency
+                        value: MONTHLY
+                        effectiveDate: '2027-01-01'
+                      structureVersion: 4127
+                businessUnit:
+                  value:
+                    entityRef: BU-7731
+                    legalName: Orchard Road outlet
+                    lifecycleState: RETIRED
+                    node:
+                      kind: BUSINESS_UNIT
+                      parentRef: ENT-3F2A9C
+                      retired: true
+                      name: Orchard Road outlet
+                      code: ORCH
+                      profile: []
+                      structureVersion: 4130
         "400":
           $ref: '#/components/responses/Error'
         "401":
@@ -1391,12 +1429,83 @@ components:
           maxLength: 200
         lifecycleState:
           type: string
+          description: An entity's own lifecycle state. For a group, business unit or tenant
+            (getEntityStructure only) LIVE, or RETIRED when retired; DEREGISTERED stays a GST
+            registration term for entities only (INV-Q-3324).
           enum:
           - DRAFT
           - LIVE
           - SUSPENDED
           - DEREGISTERED
+          - RETIRED
           x-extensible-enum: true
+        node:
+          $ref: '#/components/schemas/StructureNode'
+    StructureNode:
+      type: object
+      description: A structure node's full state, the same node object OrganisationStructureChanged
+        and EntityProfileChanged carry (INV-T-3298, INV-API-3329, INV-Q-3324 (a)).
+      required:
+      - kind
+      - retired
+      - name
+      - profile
+      - structureVersion
+      properties:
+        kind:
+          type: string
+          description: The node's level (INV-REQ-850). Authoritative.
+          enum:
+          - TENANT
+          - GROUP
+          - ENTITY
+          - BUSINESS_UNIT
+        parentRef:
+          type: string
+          maxLength: 64
+          description: The node's parent; absent for a tenant.
+        retired:
+          type: boolean
+          description: True once the node is retired. Authoritative for every kind.
+        name:
+          type: string
+          maxLength: 200
+          description: The node's name, an entity's or tenant's legal name, a group's or business
+            unit's name.
+        code:
+          type: string
+          maxLength: 10
+          pattern: ^[A-Z0-9]{1,10}$
+          description: Short code of a registered entity or business unit (INV-REQ-850 b7); absent
+            for a tenant or group.
+        profile:
+          type: array
+          description: The node's profile as effective-dated attribute entries (INV-REQ-323,
+            INV-REQ-376, INV-REQ-852), every entry in force or scheduled; an attribute is served for
+            a date by its effective date.
+          items:
+            type: object
+            required:
+            - attribute
+            - value
+            - effectiveDate
+            properties:
+              attribute:
+                type: string
+                maxLength: 100
+              value:
+                type: string
+                maxLength: 1000
+              effectiveDate:
+                type: string
+                format: date
+        structureVersion:
+          type: integer
+          format: int64
+          minimum: 1
+          description: tenancy-svc's monotonic structure version of this node state, one sequence
+            across both structure events and this response (TPL-05). The caller keeps whichever is
+            newer, the fill or the state it holds.
     AssessPhaseRequest:
       type: object
       required:

@@ -87,7 +87,14 @@ components:
         Catalogued event AuthorityChanged (model/architecture/events.yaml, INV-NOTE-3 §19.8, INV-REQ-815;
         class: domain). Emitted by: access-svc. Consumed by: console-bff, notification-svc. Delivery:
         At-least-once. Payload (catalogue text): grant, consent, principal or revocation change, with
-        validity and a monotonic authority version. Authored by INV-T-2853 (T9).
+        validity and a monotonic authority version. Authored by INV-T-2853 (T9). INV-T-3298
+        (INV-API-3325, INV-Q-3322 (b), INV-Q-3339) adds, additively, one record per event: a
+        grantRecord with one entity's full grant state per (principal, entity), a consentRecord per
+        client entity, or a principalRecord for a deletion or revocation, each versioned by the
+        event's authorityVersion. Every service's authority replica is fed from this topic
+        (INV-REQ-1201, INV-ADR-284); an event without any record is denied, never kept. CloudEvents
+        subject is principalRef/entityRef (consent record tenant/clientEntityRef; principal record
+        principalRef).
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/authority-changed-payload.schema.json'

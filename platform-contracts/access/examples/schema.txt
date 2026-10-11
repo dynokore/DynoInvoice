@@ -1,0 +1,1 @@
+../schemas/authority-changed-payload.schema.json

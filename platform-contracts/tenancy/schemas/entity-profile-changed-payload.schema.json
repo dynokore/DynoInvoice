@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://platform-contracts.invoice.internal/tenancy/schemas/entity-profile-changed-payload.schema.json",
   "title": "EntityProfileChangedPayload",
-  "description": "Payload of the EntityProfileChanged event (catalogued in model/architecture/events.yaml, INV-NOTE-3 §19.8; class: domain). Authored by INV-T-2853 (T9). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "description": "Payload of the EntityProfileChanged event (catalogued in model/architecture/events.yaml, INV-NOTE-3 §19.8; class: domain). Authored by INV-T-2853 (T9); node added by INV-T-3298 (INV-API-3327, INV-Q-3324 (a)). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
   "type": "object",
   "properties": {
     "entityRef": {
@@ -40,6 +40,86 @@
       "type": "string",
       "description": "Date the changed profile takes effect.",
       "format": "date"
+    },
+    "node": {
+      "type": "object",
+      "description": "The node's full state after the change, the same node object getEntityStructure returns (INV-Q-3324 (a), INV-API-3327). A consumer replaces the node whole from it; the newest structureVersion holds every earlier change, so the order between the two structure topics does not matter. Absent only on a 1.0-shaped event.",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "description": "The node's level (INV-REQ-850). Authoritative: a consumer reads the node's level from kind.",
+          "enum": [
+            "TENANT",
+            "GROUP",
+            "ENTITY",
+            "BUSINESS_UNIT"
+          ]
+        },
+        "parentRef": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "The node's parent after the change; absent for a tenant."
+        },
+        "retired": {
+          "type": "boolean",
+          "description": "True once the node is retired. Authoritative for every kind."
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "The node's name: an entity's or tenant's legal name, a group's or business unit's name."
+        },
+        "code": {
+          "type": "string",
+          "pattern": "^[A-Z0-9]{1,10}$",
+          "maxLength": 10,
+          "description": "The short code of a registered entity or business unit (A-Z, 0-9, 1 to 10 characters, unique within the tenant; INV-REQ-850 b7); absent for a tenant or group."
+        },
+        "profile": {
+          "type": "array",
+          "description": "The node's profile as effective-dated attribute entries (INV-REQ-323, INV-REQ-376, INV-REQ-852): every entry in force or scheduled, so a consumer serves an attribute for a given date by its effective date and never serves a future-dated entry before its date. Empty when the node has no profile attributes.",
+          "items": {
+            "type": "object",
+            "description": "One attribute value and the date from which it takes effect.",
+            "properties": {
+              "attribute": {
+                "type": "string",
+                "maxLength": 100,
+                "description": "Attribute name, e.g. legalName, gstRegistrationNumber, filingFrequency."
+              },
+              "value": {
+                "type": "string",
+                "maxLength": 1000,
+                "description": "The attribute's value from effectiveDate, as sent (an opaque string; consumers compare, not interpret)."
+              },
+              "effectiveDate": {
+                "type": "string",
+                "format": "date",
+                "description": "Date from which value takes effect."
+              }
+            },
+            "required": [
+              "attribute",
+              "value",
+              "effectiveDate"
+            ],
+            "additionalProperties": true
+          }
+        },
+        "structureVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "tenancy-svc's monotonic structure version of this node state: one sequence across OrganisationStructureChanged, EntityProfileChanged and getEntityStructure, drawn after tenancy-svc locks the node row in the changing transaction, so versions per node follow commit order (TPL-05). A replica replaces the node whole and ignores a state at or below the version it holds (INV-Q-3324)."
+        }
+      },
+      "required": [
+        "kind",
+        "retired",
+        "name",
+        "profile",
+        "structureVersion"
+      ],
+      "additionalProperties": true
     }
   },
   "required": [

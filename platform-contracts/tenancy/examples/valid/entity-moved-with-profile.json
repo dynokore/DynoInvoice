@@ -1,0 +1,19 @@
+{
+  "nodeType": "ENTITY",
+  "nodeRef": "ENT-3F2A9C",
+  "changeType": "MOVED",
+  "parentRef": "GRP-19C2",
+  "previousParentRef": "GRP-0A77",
+  "node": {
+    "kind": "ENTITY",
+    "parentRef": "GRP-19C2",
+    "retired": false,
+    "name": "Acme Trading Pte Ltd",
+    "code": "ACME01",
+    "profile": [
+      { "attribute": "filingFrequency", "value": "QUARTERLY", "effectiveDate": "2026-01-01" },
+      { "attribute": "filingFrequency", "value": "MONTHLY", "effectiveDate": "2027-01-01" }
+    ],
+    "structureVersion": 4127
+  }
+}
