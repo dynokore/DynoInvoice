@@ -111,7 +111,9 @@ rules:
       - field: x-sync-edge
         function: pattern
         functionOptions:
-          match: "^[a-z][a-z0-9-]*->[a-z][a-z0-9-]*-(svc|bff)$"
+          # console-bff->* is the shared runtime contract's edge (INV-T-3007, INV-Q-3425 A);
+          # check-sync-edges.py accepts it only in service-runtime/.
+          match: "^([a-z][a-z0-9-]*->[a-z][a-z0-9-]*-(svc|bff)|console-bff->\\*)$"
 
   # --- FR-AC.1 / FR-AC.19: the per-operation extension -------------------------
   # A state-changing or third-party-transmitting operation (FR-AC.1's own

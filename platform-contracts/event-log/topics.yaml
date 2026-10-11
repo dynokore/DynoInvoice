@@ -193,6 +193,7 @@ topics:
       - evidence-svc
   - topic: gst.platform.job-registered.v1
     event_type: com.dynokore.gst.platform.JobRegistered.v1
+    content_topic: false
     producers:
       - every service with scheduled jobs
     subscribers:

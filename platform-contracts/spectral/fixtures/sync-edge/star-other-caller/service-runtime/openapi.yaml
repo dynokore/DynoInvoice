@@ -1,0 +1,8 @@
+openapi: 3.1.0
+info: {title: fixture, version: 1.0.0}
+paths:
+  /internal/v1/jobs/{job}/run:
+    post:
+      operationId: runJobNow
+      x-sync-edge: canonical-svc->*
+      responses: {"202": {description: ok}}

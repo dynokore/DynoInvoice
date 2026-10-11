@@ -14,7 +14,7 @@ for fx in api08-missing api08-malformed; do
   case "$out" in *inv-api-08-x-sync-edge*) echo "gst-ci: self-test $fx failed on inv-api-08-x-sync-edge as expected";;
     *) echo "gst-ci: FAIL — $fx did not trigger inv-api-08-x-sync-edge:"; echo "$out"; failed=1;; esac
 done
-for fx in api08-ok; do
+for fx in api08-ok api08-shared-star; do
   out=$(lint fixtures/$fx.yaml)
   case "$out" in *inv-api-08-x-sync-edge*) echo "gst-ci: FAIL — $fx wrongly triggered inv-api-08-x-sync-edge:"; echo "$out"; failed=1;;
     *) echo "gst-ci: self-test $fx passes inv-api-08-x-sync-edge as expected";; esac

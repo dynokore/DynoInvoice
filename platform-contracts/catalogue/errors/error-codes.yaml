@@ -1,6 +1,7 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
-# pinned at commit dcd475a1d6ceb2b19bf53afcdd563da589bb9faf (2026-09-26), the last
-# commit that touched that file as of this task (INV-T-2851 / T7).
+# pinned at commit 2dfb6f809a3963ef15ed8426d7bba38ba5376068 (2026-10-11), the
+# merge of invoice-docs!4 adding the JOB prefix (INV-T-3007; previously pinned at
+# dcd475a1d6ceb2b19bf53afcdd563da589bb9faf, INV-T-2851 / T7).
 #
 # This copy is the generator's (catalogue/generator/) sole input for the
 # gst-catalogue ErrorCode catalogue (STK-61, CS-13). It is never hand-edited:
@@ -509,3 +510,28 @@ error_codes:
   severity: INFO
   disposition: MANUAL
   owner: The link's sender
+- code: JOB-001
+  condition: 'Job unknown: no job of that name is registered in the owning service (HTTP 404; INV-API-3023, INV-API-3025)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: JOB-002
+  condition: 'The caller''s role does not permit the job command at the requested scope: a job-wide pause, resume or run, or any
+    run of a PLATFORM-scoped job, by a role other than the form''s platform operator role (platform.engineer in SaaS,
+    deployment.operator in private), or a (job, entity) command without a grant on that entity (HTTP 403; INV-REQ-1138
+    b1-b2, INV-Q-2985, INV-Q-3032; INV-API-3023, INV-API-3025)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: tenant.admin or the form's platform operator role
+- code: JOB-003
+  condition: 'Pause refused: the until of a pause of a deadline-critical job passes the entity''s nearest due date minus its
+    VP-18 safety margin; not overridable (HTTP 422; INV-REQ-1138 b3, INV-AC-1149, INV-Q-3037; INV-API-3023)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Integration
+- code: JOB-004
+  condition: 'Pause end time invalid: an until not later than the request time; every pause carries a future end time (HTTP
+    422; INV-Q-2985; INV-API-3023)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Integration

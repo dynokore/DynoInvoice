@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info: {title: fixture, version: 1.0.0}
 paths:
-  /internal/v1/jobs/{job}/run-now:
+  /internal/v1/jobs/{job}/run:
     post:
       operationId: runJobNow
-      x-sync-edge: console-bff->owning-svc
-      responses: {"200": {description: ok}}
+      x-sync-edge: console-bff->*
+      responses: {"202": {description: ok}}

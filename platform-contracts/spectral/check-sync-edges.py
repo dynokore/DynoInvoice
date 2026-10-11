@@ -12,15 +12,15 @@ allowlist, so this script checks, for every <service>/openapi.yaml:
      its own name);
   3. every operation under /internal/v1 has an x-sync-edge (no exemptions).
 
-One exception, for service-runtime/openapi.yaml only (INV-T-3007, coordinator
-decision on INV-Q-2950): that file is the shared runtime contract every
-service mounts (runJobNow, pauseJob, resumeJob), so it has no single callee.
-Its operations name the placeholder callee `owning-svc`
-(`x-sync-edge: console-bff->owning-svc`) and pass when the caller has an
-allowlist edge to every owning service: every service whose openapi.yaml
-declares a non-empty top-level `x-scheduled-jobs` list (the job names it owns).
-A declaring service without that edge fails. Every other file is checked
-exactly as before.
+One exception, for files in service-runtime/ only (INV-T-3007; INV-Q-2950,
+INV-Q-3425 A): service-runtime/openapi.yaml is the shared runtime contract
+every service that owns scheduled jobs mounts (runJobNow, pauseJob,
+resumeJob), so it has no single callee and no contract lists a service's jobs
+(jobs are known at runtime from JobRegistered, INV-Q-2981). Its operations
+carry `x-sync-edge: console-bff->*`, served over console-bff's existing edge
+to each owning service. The `*` callee is accepted only there and only for the
+caller console-bff; anywhere else it fails as before (not an allowlist edge).
+Every other file is checked exactly as before.
 
 Allowlist callers that are not service identifiers are normalised: "Any except
 <svc>" (the fallback edges) becomes `any`, "API gateway" becomes `api-gateway`
@@ -38,7 +38,7 @@ import yaml
 
 METHODS = ("get", "post", "put", "delete", "patch")
 SHARED_RUNTIME = "service-runtime"
-OWNING = "owning-svc"
+SHARED_EDGE = "console-bff->*"
 
 
 def callee_of(service_dir: str) -> str:
@@ -60,11 +60,9 @@ def main(argv) -> int:
     allowed = {f"{caller_id(e['caller'])}->{e['callee']}" for e in allow_doc["edges"]}
     root = Path(argv[2])
     errors, n_ops, n_edges = [], 0, 0
-    docs = {f.parent.name: yaml.safe_load(f.read_text()) for f in sorted(root.glob("*/openapi.yaml"))}
-    job_owners = sorted(callee_of(s) for s, d in docs.items()
-                        if s != SHARED_RUNTIME and (d or {}).get("x-scheduled-jobs"))
-    for svc, doc in docs.items():
-        doc = doc or {}
+    for f in sorted(root.glob("*/openapi.yaml")):
+        svc = f.parent.name
+        doc = yaml.safe_load(f.read_text())
         for path, item in (doc.get("paths") or {}).items():
             for m in METHODS:
                 op = (item or {}).get(m)
@@ -79,13 +77,7 @@ def main(argv) -> int:
                         errors.append(f"{where}: internal operation has no x-sync-edge (API-08)")
                     continue
                 n_edges += 1
-                if svc == SHARED_RUNTIME:
-                    caller, _, callee = edge.partition("->")
-                    if callee != OWNING:
-                        errors.append(f"{where}: x-sync-edge '{edge}' must name the callee '{OWNING}' in the shared runtime contract (API-08)")
-                    for owner in job_owners:
-                        if f"{caller}->{owner}" not in allowed:
-                            errors.append(f"{where}: {owner} declares x-scheduled-jobs but sync-edges.yaml has no edge {caller}->{owner} (API-08)")
+                if svc == SHARED_RUNTIME and edge == SHARED_EDGE:
                     continue
                 if edge not in allowed:
                     errors.append(f"{where}: x-sync-edge '{edge}' is not an edge of sync-edges.yaml (API-08)")

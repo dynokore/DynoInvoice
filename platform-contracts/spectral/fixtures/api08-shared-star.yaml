@@ -1,0 +1,23 @@
+# Fixture for self-test-sync-edge-rule.sh (ok: the shared runtime contract edge console-bff->*, INV-T-3007).
+openapi: 3.1.0
+info: {title: fixture, version: 1.0.0}
+paths:
+  /internal/v1/ingestion/feeds:
+    get:
+      operationId: listFeeds
+      x-sync-edge: "console-bff->*"
+      responses: {"200": {description: ok}}
+  /internal/v1/ingestion/fallback:
+    get:
+      operationId: fallbackQuery
+      x-sync-edge: "console-bff->*"
+      responses: {"200": {description: ok}}
+  /internal/v1/ingestion/gateway:
+    get:
+      operationId: gatewayQuery
+      x-sync-edge: "console-bff->*"
+      responses: {"200": {description: ok}}
+  /v1/ingestion/public:
+    get:
+      operationId: publicOp
+      responses: {"200": {description: ok}}

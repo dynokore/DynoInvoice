@@ -11,14 +11,17 @@ info:
     mounts: runJobNow, pauseJob and resumeJob are defined once here and
     served by service-runtime in each owning service (INV-Q-2950,
     INV-API-3023, INV-API-3025; INV-T-3007). console-bff calls them over its
-    existing console-bff-><owning service> edges, so their x-sync-edge names
-    the placeholder callee owning-svc, checked by spectral/check-sync-edges.py
-    against every service declaring x-scheduled-jobs (API-08).
+    existing edge to each owning service, so they carry x-sync-edge
+    console-bff->*, which spectral/check-sync-edges.py accepts only in
+    service-runtime/ (API-08, INV-Q-3425 A): no contract lists a service's
+    jobs, they are known at runtime from JobRegistered (INV-Q-2981). Fields
+    as ruled in INV-Q-3425 A. x-timeout 2000 with no client retry: these are
+    commands (INV-NOTE-3 §36.6 console-bff -> any, INV-REQ-1232 b1).
 tags:
 - name: jobs
   description: Scheduled-job controls of the shared runtime contract (INV-REQ-1138).
 paths:
-  /internal/v1/jobs/{job}/run-now:
+  /internal/v1/jobs/{job}/run:
     post:
       operationId: runJobNow
       summary: Run a scheduled job once now, for one entity's share or, for the platform operator role, the whole job
@@ -38,18 +41,14 @@ paths:
       tags:
       - jobs
       x-principal: filing-workflow
-      x-sync-edge: console-bff->owning-svc
-      # TODO(INV-T-3007): x-timeout is not ruled for the job operations; 5000 ms is the
-      # console-command value used across platform-contracts, pending the Keel ruling.
-      x-timeout: 5000
+      x-sync-edge: "console-bff->*"
+      x-timeout: 2000
       x-requirements:
       - INV-REQ-1138
       - INV-REQ-1136
       - INV-REQ-2588
       - INV-AC-3040
       - INV-AC-3041
-      # TODO(INV-T-3007): JOB-001 and JOB-002 enter the vendored catalogue when invoice-docs!4
-      # merges and catalogue/errors/error-codes.yaml is re-vendored.
       x-error-codes:
       - JOB-001
       - JOB-002
@@ -68,9 +67,53 @@ paths:
       parameters:
       - $ref: '#/components/parameters/Job'
       - $ref: '#/components/parameters/IdempotencyKey'
-      # TODO(INV-T-3007): request body (the entity, absent = whole job, and any further field) and
-      # the success response are pending the Keel question on the job operations' fields.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunJobNowRequest'
+            examples:
+              default:
+                value:
+                  entityRef: E-001
       responses:
+        "202":
+          description: Run started; it continues after the response and its outcome reaches the console on
+            JobRunRecorded (INV-REQ-1137 b2)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobRunState'
+              examples:
+                default:
+                  value:
+                    job: scheduled-despatch
+                    entityRef: E-001
+                    trigger: MANUAL
+                    scheduledFor: "2026-10-11T09:00:00Z"
+                    attempt: 1
+                    status: IN_PROGRESS
+                    startedAt: "2026-10-11T09:12:03Z"
+                    repeat: false
+        "200":
+          description: A run-now repeated in the same run window; the first run-now's current state while in
+            progress or succeeded (INV-Q-3034)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobRunState'
+              examples:
+                default:
+                  value:
+                    job: scheduled-despatch
+                    entityRef: E-001
+                    trigger: MANUAL
+                    scheduledFor: "2026-10-11T09:00:00Z"
+                    attempt: 1
+                    status: SUCCEEDED
+                    startedAt: "2026-10-11T09:12:03Z"
+                    repeat: true
         "400":
           $ref: '#/components/responses/Error'
         "401":
@@ -103,14 +146,12 @@ paths:
       tags:
       - jobs
       x-principal: filing-workflow
-      x-sync-edge: console-bff->owning-svc
-      # TODO(INV-T-3007): x-timeout pending the Keel ruling (see runJobNow).
-      x-timeout: 5000
+      x-sync-edge: "console-bff->*"
+      x-timeout: 2000
       x-requirements:
       - INV-REQ-1138
       - INV-REQ-2588
       - INV-AC-1149
-      # TODO(INV-T-3007): JOB-001..JOB-004 enter the vendored catalogue on the re-vendor.
       x-error-codes:
       - JOB-001
       - JOB-002
@@ -131,9 +172,33 @@ paths:
       parameters:
       - $ref: '#/components/parameters/Job'
       - $ref: '#/components/parameters/IdempotencyKey'
-      # TODO(INV-T-3007): request body (the entity, absent = job-wide; the mandatory until; any further
-      # field) and the success response are pending the Keel question on the job operations' fields.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PauseJobRequest'
+            examples:
+              default:
+                value:
+                  entityRef: E-001
+                  until: "2026-10-12T09:00:00Z"
+                  reason: AP outage, holding despatch
       responses:
+        "200":
+          description: The pause state for the key (job, entity or job-wide); previousUntil when this call replaced an active pause's end time (INV-Q-3037)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobPauseState'
+              examples:
+                default:
+                  value:
+                    job: scheduled-despatch
+                    entityRef: E-001
+                    state: PAUSED
+                    until: "2026-10-12T09:00:00Z"
+                    pausedAt: "2026-10-11T09:12:03Z"
         "400":
           $ref: '#/components/responses/Error'
         "401":
@@ -163,13 +228,11 @@ paths:
       tags:
       - jobs
       x-principal: filing-workflow
-      x-sync-edge: console-bff->owning-svc
-      # TODO(INV-T-3007): x-timeout pending the Keel ruling (see runJobNow).
-      x-timeout: 5000
+      x-sync-edge: "console-bff->*"
+      x-timeout: 2000
       x-requirements:
       - INV-REQ-1138
       - INV-REQ-2588
-      # TODO(INV-T-3007): JOB-001 and JOB-002 enter the vendored catalogue on the re-vendor.
       x-error-codes:
       - JOB-001
       - JOB-002
@@ -186,9 +249,29 @@ paths:
       parameters:
       - $ref: '#/components/parameters/Job'
       - $ref: '#/components/parameters/IdempotencyKey'
-      # TODO(INV-T-3007): request body (the entity, absent = job-wide; any further field) and the
-      # success response are pending the Keel question on the job operations' fields.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResumeJobRequest'
+            examples:
+              default:
+                value:
+                  entityRef: E-001
       responses:
+        "200":
+          description: The key's own pause state, ACTIVE; also when the key was not paused, with no effect
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobPauseState'
+              examples:
+                default:
+                  value:
+                    job: scheduled-despatch
+                    entityRef: E-001
+                    state: ACTIVE
         "400":
           $ref: '#/components/responses/Error'
         "401":
@@ -221,7 +304,133 @@ components:
       schema:
         type: string
         format: uuid
-  schemas: {}
+  schemas:
+    RunJobNowRequest:
+      type: object
+      description: runJobNow request (INV-API-3025, INV-Q-3425 A). The actor comes from the propagated token,
+        never a field (CS-23); no confirmation field, the SCR-23.2 confirmation is the console's step.
+      properties:
+        entityRef:
+          $ref: '#/components/schemas/JobEntityRef'
+        reason:
+          $ref: '#/components/schemas/JobCommandReason'
+    PauseJobRequest:
+      type: object
+      description: pauseJob request (INV-API-3023, INV-Q-3425 A).
+      required:
+      - until
+      properties:
+        entityRef:
+          $ref: '#/components/schemas/JobEntityRef'
+        until:
+          type: string
+          format: date-time
+          description: End of the pause; required (missing is 400), later than the request time (JOB-004) and,
+            for a deadline-critical job, not past the entity's nearest due date minus its VP-18 margin (JOB-003;
+            INV-Q-2946, INV-Q-2985). A different until on an active pause replaces its end time (INV-Q-3037).
+        reason:
+          $ref: '#/components/schemas/JobCommandReason'
+    ResumeJobRequest:
+      type: object
+      description: resumeJob request (INV-API-3023, INV-Q-3425 A).
+      properties:
+        entityRef:
+          $ref: '#/components/schemas/JobEntityRef'
+        reason:
+          $ref: '#/components/schemas/JobCommandReason'
+    JobEntityRef:
+      type: string
+      maxLength: 40
+      description: The entity whose share of the job the command applies to; absent = the whole job or
+        job-wide (INV-Q-2985, INV-Q-3032). Outside the token's entity set is 403 (API-24).
+    JobCommandReason:
+      type: string
+      maxLength: 500
+      description: Optional free text added to the audit entry, whose reason records the Idempotency-Key
+        (INV-REQ-2588 b5).
+    JobRunState:
+      type: object
+      description: State of a run-now (INV-API-3025, INV-Q-3425 A).
+      required:
+      - job
+      - trigger
+      - scheduledFor
+      - attempt
+      - status
+      - startedAt
+      - repeat
+      properties:
+        job:
+          type: string
+          description: The registered job name (JobRegistered.job).
+        entityRef:
+          type: string
+          maxLength: 40
+          description: The entity whose share ran; absent for a whole-job run.
+        trigger:
+          type: string
+          enum:
+          - SCHEDULED
+          - MANUAL
+          x-extensible-enum: true
+          description: MANUAL for a run-now; extensible (API-09; INV-Q-3039).
+        scheduledFor:
+          type: string
+          format: date-time
+          description: The tick of the schedule interval containing the request, as
+            JobRunRecorded.scheduledFor (INV-Q-3034).
+        attempt:
+          type: integer
+          minimum: 1
+          description: From 1; a new attempt after a FAILED run in the same window (INV-Q-3034).
+        status:
+          type: string
+          enum:
+          - IN_PROGRESS
+          - SUCCEEDED
+          - FAILED
+          x-extensible-enum: true
+          description: The run's status; extensible (API-09; JobRunRecorded.outcome).
+        startedAt:
+          type: string
+          format: date-time
+        repeat:
+          type: boolean
+          description: True when the window's earlier run-now is returned (INV-Q-3034).
+    JobPauseState:
+      type: object
+      description: Pause state of the key (job, entity or job-wide) (INV-API-3023, INV-Q-3425 A). The state is
+        the key's own, so a (job, entity) resume does not report a job-wide pause (INV-Q-2985).
+      required:
+      - job
+      - state
+      properties:
+        job:
+          type: string
+          description: The registered job name (JobRegistered.job).
+        entityRef:
+          type: string
+          maxLength: 40
+          description: The entity; absent = job-wide.
+        state:
+          type: string
+          enum:
+          - PAUSED
+          - ACTIVE
+          x-extensible-enum: true
+          description: Extensible (API-09).
+        until:
+          type: string
+          format: date-time
+          description: End of the pause, when PAUSED.
+        pausedAt:
+          type: string
+          format: date-time
+          description: When the pause began, when PAUSED; unchanged when the end time is replaced (INV-Q-3037).
+        previousUntil:
+          type: string
+          format: date-time
+          description: Only when this call replaced an active pause's end time (INV-Q-3037).
   responses:
     Error:
       description: Error (API-20 envelope)
