@@ -49,7 +49,7 @@ class JobContractIT {
     private val entities = JobEntitySource { listOf(e1, e2) }
     private val operator = "platform-op"
     private val engineer = "eng-e1"
-    private val authorizer = FakeAuthorizer(mapOf(engineer to setOf(E1), "eng-e2" to setOf(E2)), setOf(operator))
+    private val authorizer = FakeAuthorizer(mapOf(engineer to setOf(E1)), setOf(operator))
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
@@ -287,28 +287,6 @@ class JobContractIT {
         prior shouldContain "OVERRIDDEN"
         (prior.contains("E-002")) shouldBe false
         h.runs(def.name).single()["status"] shouldBe "SUCCEEDED"
-    }
-
-    @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
-    fun `INV-Q-3567 a whole-job run-now with every entity under a pause it cannot lift is refused`(image: String) {
-        val h = harness(image)
-        val replica = h.replica("svc-1", MutableClock(START), authorizer)
-        val processed = CopyOnWriteArrayList<JobTarget>()
-        val def = job("q3567-covered")
-        replica.runtime.register(def, entities) { processed += it.target }
-        val until = START.plus(Duration.ofHours(2))
-        replica.inA { pause(request(engineer, def.name, E1), until) }
-        replica.asTenant(TENANT_B) { replica.runtime.pause(request("eng-e2", def.name, E2), until) }
-        val auditsBefore = h.events(AUDIT, "$SERVICE/${def.name}").size
-
-        replica.inA { runNow(request(operator, def.name, null)) } shouldBe
-            JobCommandOutcome.Refused(JobErrorCode.SCOPE_NOT_PERMITTED)
-
-        processed shouldHaveSize 0
-        h.runs(def.name) shouldHaveSize 0
-        h.events(JobPayloads.JOB_RUN_RECORDED, "$SERVICE/${def.name}") shouldHaveSize 0
-        h.events(AUDIT, "$SERVICE/${def.name}") shouldHaveSize auditsBefore
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")

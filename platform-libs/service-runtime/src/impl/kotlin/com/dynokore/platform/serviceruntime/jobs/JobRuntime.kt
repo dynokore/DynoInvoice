@@ -282,9 +282,8 @@ class JobRuntime(
      * run-now processes its own scope's items once despite a pause its caller can lift (the actor may resume
      * that key, through [JobCommandAuthorizer]) and leaves the pause in force for scheduled firings. A pause the
      * caller cannot lift stays in force: a whole-job run-now skips the entities under such pauses, and the
-     * audit lists them. A scope wholly covered by such pauses, taken together (the job-wide pause, the requested
-     * entity's own, or per-entity pauses over every entity of a whole-job run; INV-Q-3567), returns `null`:
-     * refused with JOB-002, no run recorded. Every pause in force is audited as prior state.
+     * audit lists them; a scope wholly covered by such a pause (the job-wide pause, or the requested entity's
+     * own) returns `null`, refused with JOB-002. Every pause in force is audited as prior state.
      */
     private fun runNowOnPausedScope(
         registered: Registered,
@@ -310,8 +309,6 @@ class JobRuntime(
             if (!liftable && target is JobTarget.Entity) return null
             pauses += share.tenant to PauseInForce(share.entity, own.until, own.pausedAt, skipped = !liftable)
         }
-        // INV-Q-3567: the union of the unliftable pauses covering every item of the scope refuses it.
-        if (shares.isNotEmpty() && pauses.count { it.second.skipped } == shares.size) return null
         return PausedScope(pauses)
     }
 
