@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""event-log/test_generate_topics.py — INV-T-3386
+"""event-log/test_generate_topics.py — INV-T-3386, INV-T-3542
 
 Tests generate-topics.py's content-topic marker (owner ruling INV-Q-3249,
 INV-REQ-1205 b4): x-invoice-content is copied into topics.yaml as
@@ -21,7 +21,7 @@ gen = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(gen)
 
 
-def _asyncapi(messages: dict[str, str | None]) -> str:
+def _asyncapi(messages: dict[str, str | None], producers: str = "a-svc") -> str:
     """A minimal asyncapi.yaml in the generator's subset: one channel per
     message; the value is the x-invoice-content line's value, or None to
     omit the line."""
@@ -39,7 +39,7 @@ def _asyncapi(messages: dict[str, str | None]) -> str:
             f"    {key}:",
             f"      name: com.example.{key}.v1",
             "      description: >-",
-            "        Emitted by: a-svc. Consumed by: b-svc.",
+            f"        Emitted by: {producers}. Consumed by: b-svc.",
             "        x-invoice-content: true",  # folded text, indent 8: never a marker
         ]
         if marker is not None:
@@ -47,6 +47,47 @@ def _asyncapi(messages: dict[str, str | None]) -> str:
         comps.append("      contentType: application/cloudevents+json")
         comps.append("")
     return "asyncapi: 3.0.0\n" + "\n".join(channels) + "\n" + "\n".join(comps) + "\n"
+
+
+class ProducerCheckTest(unittest.TestCase):
+    """INV-T-3542 (INV-Q-3539): a producer is a service name or exactly
+    `every service`; any other wording fails --check (and --write)."""
+
+    def _repo(self, producers: str) -> Path:
+        tmp = Path(tempfile.mkdtemp())
+        (tmp / "svc").mkdir()
+        (tmp / "svc" / "asyncapi.yaml").write_text(_asyncapi({"Ev": None}, producers))
+        return tmp
+
+    def _run(self, *argv: str) -> int:
+        with redirect_stdout(io.StringIO()):
+            return gen.main(["generate-topics.py", *argv])
+
+    def test_service_names_and_every_service_pass(self):
+        for producers in ("a-svc", "a-svc, console-bff", "every service", "tax-code-svc"):
+            repo = self._repo(producers)
+            out = repo / "topics.yaml"
+            self.assertEqual(self._run(str(repo), "--write", str(out)), 0, producers)
+            self.assertEqual(self._run(str(repo), "--check", str(out)), 0, producers)
+
+    def test_other_producer_wording_fails_check(self):
+        good = self._repo("every service")
+        out = good / "topics.yaml"
+        self.assertEqual(self._run(str(good), "--write", str(out)), 0)
+        for producers in (
+            "every service with scheduled jobs",
+            "every service owning a variation point",
+            "Every service",
+            "a-svc, every service with scheduled jobs",
+            "notification",
+        ):
+            bad = self._repo(producers)
+            (bad / "topics.yaml").write_text(out.read_text())
+            self.assertEqual(self._run(str(bad), "--check", str(bad / "topics.yaml")), 1, producers)
+            self.assertEqual(len(gen.validate_producers(gen.collect_topics(bad))), 1, producers)
+
+    def test_committed_catalogue_producers_pass(self):
+        self.assertEqual(gen.validate_producers(gen.collect_topics(_HERE.parent)), [])
 
 
 class ContentTopicTest(unittest.TestCase):

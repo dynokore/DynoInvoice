@@ -153,8 +153,9 @@ components:
       summary: JobRunRecorded — catalogued in model/architecture/events.yaml (§19.8).
       description: >-
         Catalogued event JobRunRecorded (model/architecture/events.yaml, INV-NOTE-3 §19.8, §28.18,
-        INV-REQ-1226; class: platform). Emitted by: every service with scheduled jobs. Consumed by:
-        console-bff, notification-svc. Delivery: At-least-once — platform event (AD-27). Payload (catalogue
+        INV-REQ-1226; class: platform). Emitted by: every service. Consumed by:
+        console-bff, notification-svc. Only a service with scheduled jobs records job runs (INV-Q-3539).
+        Delivery: At-least-once — platform event (AD-27). Payload (catalogue
         text): job, owner service, entity scope, outcome, duration. Authored by INV-T-2855 (T11).
         INV-T-3007 adds the optional fields schedule, criticality, tolerance, scheduledFor and
         nextRunAt (coordinator ruling INV-Q-2942; additive minor, API-41).
@@ -168,8 +169,8 @@ components:
       summary: PolicyChanged — catalogued in model/architecture/events.yaml (§19.8).
       description: >-
         Catalogued event PolicyChanged (model/architecture/events.yaml, INV-NOTE-3 §19.8, §28.18, §37,
-        INV-REQ-1226; class: platform). Emitted by: every service owning a variation point. Consumed by:
-        none. Delivery: At-least-once — platform event (AD-27, §37); feeds runtime replicas directly
+        INV-REQ-1226; class: platform). Emitted by: every service. Consumed by:
+        none. Only a service owning a variation point emits it (INV-Q-3539). Delivery: At-least-once — platform event (AD-27, §37); feeds runtime replicas directly
         rather than through a consumer inbox (feeds_runtime_replicas, INV-NOTE-3 §37). Payload (catalogue
         text): scope, VP id, value, effective date, source (default, profile or override), relaxation
         acknowledgement reference. Authored by INV-T-2855 (T11).
@@ -228,8 +229,9 @@ components:
       summary: JobRegistered — a scheduled job announced at service start (INV-Q-2981).
       description: >-
         Platform event JobRegistered (INV-REQ-1226 b1-b2, INV-ADR-285, owner ruling INV-Q-2981,
-        INV-API-3020; class: platform). Emitted by: every service with scheduled jobs. Consumed by:
-        console-bff, notification-svc. Delivery: At-least-once — platform event (AD-27): at start each
+        INV-API-3020; class: platform). Emitted by: every service. Consumed by:
+        console-bff, notification-svc. Only a service with scheduled jobs registers any (INV-Q-3539).
+        Delivery: At-least-once — platform event (AD-27): at start each
         instance's service-runtime writes one JobRegistered per registered job to the service's
         transactional outbox (INV-ADR-283). A registration belongs to the service, not to a tenant: it is
         stored under the reserved platform TenantId and published without tenantid or entityref

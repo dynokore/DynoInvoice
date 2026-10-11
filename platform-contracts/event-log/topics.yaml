@@ -195,7 +195,7 @@ topics:
     event_type: com.dynokore.gst.platform.JobRegistered.v1
     content_topic: false
     producers:
-      - every service with scheduled jobs
+      - every service
     subscribers:
       - console-bff
       - notification-svc
@@ -203,7 +203,7 @@ topics:
     event_type: com.dynokore.gst.platform.JobRunRecorded.v1
     content_topic: false
     producers:
-      - every service with scheduled jobs
+      - every service
     subscribers:
       - console-bff
       - notification-svc
@@ -221,7 +221,7 @@ topics:
     event_type: com.dynokore.gst.platform.PolicyChanged.v1
     content_topic: false
     producers:
-      - every service owning a variation point
+      - every service
     subscribers:
       []
   - topic: gst.reconciliation.gst-return-recorded.v1

@@ -29,6 +29,11 @@ names no topic or event: the eventlog purge picks the content window
 carry `content_topic: true` or `content_topic: false`, or the check fails
 naming the topic (test_generate_topics.py covers this and the copying).
 
+Producers (INV-T-3542, coordinator ruling INV-Q-3539, INV-REQ-815 b4): every
+producer value must be a service name (`<name>-svc` or `console-bff`) or
+exactly `every service` — the wording for a platform event service-runtime
+emits in any service. Any other phrase fails both modes, naming the topic.
+
 Two modes:
     generate-topics.py <repo-root> --write <out.yaml>
         Regenerates topics.yaml from every */asyncapi.yaml under repo-root.
@@ -176,6 +181,27 @@ def render_yaml(topics: list[dict]) -> str:
     return "\n".join(lines) + "\n"
 
 
+# A producer is a service name or exactly `every service` — the catalogue's
+# wording for a platform event that service-runtime emits in any service
+# (INV-REQ-815 b4, coordinator ruling INV-Q-3539). Any other phrase fails.
+_SERVICE_NAME_RE = re.compile(r"^(?:[a-z][a-z0-9]*(?:-[a-z0-9]+)*-svc|console-bff)$")
+EVERY_SERVICE = "every service"
+
+
+def validate_producers(topics: list[dict]) -> list[str]:
+    """Returns one error per producer value that is neither a service name
+    (`<name>-svc` or `console-bff`) nor exactly `every service` (INV-Q-3539)."""
+    errors = []
+    for t in topics:
+        for producer in t["producers"]:
+            if producer != EVERY_SERVICE and not _SERVICE_NAME_RE.match(producer):
+                errors.append(
+                    f"topic '{t['topic']}' has producer '{producer}' — must be a service name"
+                    f" (<name>-svc or console-bff) or exactly '{EVERY_SERVICE}'"
+                )
+    return errors
+
+
 _TOPIC_ENTRY_RE = re.compile(r"^  - topic: (?P<topic>\S+)$", re.MULTILINE)
 _CONTENT_TOPIC_LINE_RE = re.compile(r"^    content_topic: (?P<value>\S+)$", re.MULTILINE)
 
@@ -207,6 +233,12 @@ def main(argv: list[str]) -> int:
     mode, target = argv[2], Path(argv[3])
 
     topics = collect_topics(repo_root)
+    producer_errors = validate_producers(topics)
+    if producer_errors:
+        print("gst-ci: */asyncapi.yaml fails the producer check (INV-Q-3539):")
+        for e in producer_errors:
+            print(f"  {e}")
+        return 1
     rendered = render_yaml(topics)
 
     if mode == "--write":
