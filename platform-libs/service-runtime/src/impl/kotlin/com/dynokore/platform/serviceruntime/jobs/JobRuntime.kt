@@ -195,9 +195,7 @@ class JobRuntime(
                         }
                     }
                 }
-                val done = checkNotNull(outcome)
-                request.journal?.withinTransaction(JobCommandOutcome.Done(done.first, done.second))
-                done
+                outcome
             }
         if (started.second) {
             val key = RunKey(registered.job, target, tick, JobTrigger.MANUAL, started.first.attempt)
@@ -248,7 +246,7 @@ class JobRuntime(
                         }
                     }
             }
-            journal(request, checkNotNull(outcome))
+            outcome
         }
     }
 
@@ -260,25 +258,14 @@ class JobRuntime(
         val bound = deadlineBound(job, target)
         return inTenant(target) {
             val open = livePause(job, target, now, bound)
-            val outcome =
-                if (open == null) {
-                    JobCommandOutcome.Done(JobPauseState(job.name, target, false), created = false)
-                } else {
-                    state.endPause(job, target, now)
-                    recordAudit(request, JobCommand.RESUME, job, target, pausedJson(open))
-                    JobCommandOutcome.Done(JobPauseState(job.name, target, false), created = true)
-                }
-            journal(request, outcome)
+            if (open == null) {
+                JobCommandOutcome.Done(JobPauseState(job.name, target, false), created = false)
+            } else {
+                state.endPause(job, target, now)
+                recordAudit(request, JobCommand.RESUME, job, target, pausedJson(open))
+                JobCommandOutcome.Done(JobPauseState(job.name, target, false), created = true)
+            }
         }
-    }
-
-    /** Hands a done outcome to the request's journal inside the command transaction (ARC-05, TPL-04). */
-    private fun <T> journal(
-        request: JobCommandRequest,
-        outcome: JobCommandOutcome<T>,
-    ): JobCommandOutcome<T> {
-        if (outcome is JobCommandOutcome.Done) request.journal?.withinTransaction(outcome)
-        return outcome
     }
 
     // --- internals ---

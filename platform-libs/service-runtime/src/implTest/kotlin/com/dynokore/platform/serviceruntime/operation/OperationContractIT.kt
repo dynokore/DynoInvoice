@@ -21,9 +21,6 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.api.assertThrows
 import java.util.UUID
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
 
 /**
  * INV-REQ-957 and INV-REQ-1010 on fixture operations through the [TransactionalOperationRunner] over PostgreSQL:
@@ -36,7 +33,7 @@ import java.util.concurrent.TimeUnit
 class OperationContractIT {
     private val h = JobsHarness("postgres:17")
     private val replica = h.replica("svc-1", MutableClock(START))
-    private val runner = TransactionalOperationRunner(replica.tx, replica.tx, OutboxAuditWriter(replica.outbox))
+    private val runner = TransactionalOperationRunner(replica.tx, OutboxAuditWriter(replica.outbox))
 
     init {
         h.fixture.run(
@@ -58,8 +55,6 @@ class OperationContractIT {
     private inner class ApproveDoc(
         override val audited: Boolean = true,
         private val auditOverride: OperationAudit? = null,
-        private val lockRow: Boolean = true,
-        private val afterLoad: () -> Unit = {},
     ) : DeclaredOperation<Approve, Doc, String> {
         override val operationId = "approveFixtureDoc"
         override val reversibility = Reversibility.UNDOABLE
@@ -76,12 +71,10 @@ class OperationContractIT {
             loads++
             // runs inside the runner's transaction: read through its connection, locking the row
             val rows = mutableListOf<Doc>()
-            val lock = if (lockRow) " for update" else ""
-            replica.tx.require().prepareStatement("select state, approved_by_key from $SCHEMA.fixture_doc where id = ?$lock").use { s ->
+            replica.tx.require().prepareStatement("select state, approved_by_key from $SCHEMA.fixture_doc where id = ? for update").use { s ->
                 s.setString(1, command.doc)
                 s.executeQuery().use { r -> while (r.next()) rows += Doc(r.getString(1), r.getString(2)) }
             }
-            afterLoad()
             return rows.singleOrNull() ?: Doc(null, null)
         }
 
@@ -161,37 +154,6 @@ class OperationContractIT {
     }
 
     @Test
-    fun `two concurrent commands with the same key run one after the other, with one effect and one audit`() {
-        insert("d-race")
-        // the operation takes no row lock; both commands wait here for the other to have loaded too (bounded), so
-        // without the runner's repeat-key lock both would read "not yet approved" and both perform and audit
-        val bothLoaded = CountDownLatch(2)
-        val op =
-            ApproveDoc(lockRow = false, afterLoad = {
-                bothLoaded.countDown()
-                bothLoaded.await(2, TimeUnit.SECONDS)
-            })
-        val key = UUID.randomUUID()
-        val start = CountDownLatch(1)
-        val pool = Executors.newFixedThreadPool(2)
-        try {
-            val runs =
-                (1..2).map {
-                    pool.submit<OperationOutcome<String>> {
-                        start.await()
-                        replica.asTenant(TENANT_A) { runner.run(op, "approver", Approve("d-race", key)) }
-                    }
-                }
-            start.countDown()
-            runs.map { it.get(30, TimeUnit.SECONDS) }.toSet() shouldBe
-                setOf(OperationOutcome.Performed("APPROVED"), OperationOutcome.Repeated("APPROVED"))
-        } finally {
-            pool.shutdownNow()
-        }
-        audits("d-race") shouldHaveSize 1
-    }
-
-    @Test
     fun `an unmet precondition refuses against the stored state, not the caller's view`() {
         insert("d-pre")
         val op = ApproveDoc()
@@ -206,7 +168,6 @@ class OperationContractIT {
         insert("d-audit")
         val failing =
             TransactionalOperationRunner(
-                replica.tx,
                 replica.tx,
                 object : AuditWriter by OutboxAuditWriter(replica.outbox) {
                     override fun record(

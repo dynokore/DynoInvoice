@@ -15,45 +15,21 @@ train is its own (README.md: "own version and changelog").
   `PlatformEventReader` for PolicyChanged (INV-API-3306: read straight from the event log, ordered by offset,
   no inbox), ConnectionStatusChanged (INV-API-3308: one report per instance) and EvidenceArtefactRecorded. It
   ignores unknown envelope attributes and payload fields and accepts any minor version of major 1
-  (INV-AC-2148); another major or a missing field is a `ContractViolation`. A received connection state outside
-  up, degraded and down reads as `ReceivedConnectionState.UNKNOWN` (owner ruling INV-Q-3718), and
-  `ConnectionStatusBoard` keeps the worst instance state per connection (down > unknown > degraded > up), the
-  latest report per instance winning.
+  (INV-AC-2148); another major or a missing field is a `ContractViolation`. `ConnectionStatusBoard` keeps the
+  worst instance state per connection (down > degraded > up), the latest report per instance winning.
 - The operation contract (INV-REQ-957, INV-REQ-1010): `DeclaredOperation` (role and scope check, state
   precondition, repeat key and prior result, effect, audit, reversibility UNDOABLE, COMPENSABLE or
   IRREVERSIBLE), `OperationRegistry` and the impl half's `TransactionalOperationRunner`, which refuses before
-  reading state, serialises same-key commands on a transaction-scoped lock on (operation id, repeat key), checks
-  the precondition and the repeat in one transaction and commits the audit entry with
+  reading state, checks the precondition and the repeat in one transaction and commits the audit entry with
   the change. `JobCommand` now carries its contract reversibility.
 - runJobNow, pauseJob and resumeJob over HTTP (INV-API-3023, INV-API-3025, INV-Q-3535): `JobCommandServlet`
-  at `/internal/v1/jobs/{job}/run|pause|resume` onto `JobCommands`, the actor (`sub`) and tenant
-  (`tenant_id`) from the token and the entity set from the authority replica, through the
-  `EndUserPrincipalResolver` port (the service's; owner ruling INV-Q-3716 A, default resolver in INV-T-3335),
-  the entityRef held to that entity set, JOB-001..004 as problem responses at their statuses and the closed cases (ARC-19) as
-  `ClosedErrorCode` SRT-001..SRT-010 at theirs (owner ruling INV-Q-3720, INV-REQ-827 b3), so no response is
-  code-less. `IdempotencyStore` and `IdempotencySchema.ddl` keep API-15 keys per (tenant, principal) for at
+  at `/internal/v1/jobs/{job}/run|pause|resume` onto `JobCommands`, the actor and tenant from the
+  `EndUserPrincipalResolver` port (the service's resource-server verification), the entityRef held to the
+  token's entity set, JOB-001..004 as problem responses at their statuses and the closed cases code-less
+  (ARC-19). `IdempotencyStore` and `IdempotencySchema.ddl` keep API-15 keys per (tenant, principal) for at
   least 24 hours: a replay returns the stored response, a different body 422, a request in flight 409.
-  Every coded response carries `type` `https://errors.invoice.internal/<code>` (API-20, coordinator ruling
-  INV-Q-3796; the host is the one constant `Problems.ERROR_TYPE_HOST`, pending owner question INV-Q-3800). The
-  auto-configured store gets the worker role, and `IdempotencyKeyPurgeJob` registers `idempotency-key-purge` in
-  the service's `JobRuntime`: hourly, under ShedLock, deleting expired keys in batches on the worker role; key
-  retention `service-runtime.idempotency.retention` is per installation, default 24 hours, and a shorter one is
-  refused at start-up (coordinator ruling INV-Q-3798).
   `JobCommandHttpAutoConfiguration` registers them when the service has `JobCommands`, an
   `EndUserPrincipalResolver`, a `TenantScope` and a `DataSource` (`service-runtime.idempotency.schema`).
-- The L1 composition root (INV-MOD-2371, TPL-18; coordinator rulings INV-Q-3710, INV-Q-3730, INV-Q-3732):
-  `ServiceRuntimeConfiguration` now wires every L1 module the service embeds (`composition/`: tenancy-kernel,
-  outbox-and-queue, audit-log, config-resolver, evidence-store, adapter-runtime, crypto, rulepack-kernel, and
-  service-runtime's own `OperationRunner`, `ConnectionStatusReporter`, `EvidenceArtefactRecorder` and
-  `JobRuntime`), each gated by @ConditionalOnClass and overridable by the service (@ConditionalOnMissingBean).
-  Implementations needing service-only inputs are created only when the service declares them
-  (`ServiceDataSources` bean names, `service-runtime.modules.*`, `gst.service`, `gst.instance-id`); the README
-  lists every port. The §12.1 `EventBinding` and `ObjectStore` are selected by `gst.bindings.event-binding`
-  (`postgres`) and `gst.bindings.object-store` (`s3-compatible`), the `SecretStore` by
-  `gst.bindings.secret-store.implementation` (`kubernetes`), and adapter-runtime's `SecretStore` reads it. A base
-  `LicenceCheck` the service declares is wrapped in `NonBlockingLicenceCheck`. adapter-runtime's
-  `ConnectionStatusReporter` is a local bean, not bridged: `ConnectionStatusChanged` is published only by
-  service-runtime's reporter. rulepack-kernel, evidence-store, adapter-runtime and crypto are compileOnly.
 
 ## [2.1.0] - 2026-10-11
 ### Added

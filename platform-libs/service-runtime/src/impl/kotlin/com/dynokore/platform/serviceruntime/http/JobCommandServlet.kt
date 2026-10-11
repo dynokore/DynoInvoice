@@ -5,7 +5,6 @@ import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
-import com.dynokore.platform.serviceruntime.jobs.JobCommandJournal
 import com.dynokore.platform.serviceruntime.jobs.JobCommandOutcome
 import com.dynokore.platform.serviceruntime.jobs.JobCommandRequest
 import com.dynokore.platform.serviceruntime.jobs.JobCommands
@@ -32,15 +31,14 @@ import java.util.UUID
  * `service-runtime/openapi.yaml`), onto the service's [JobCommands] (INV-Q-3535):
  * `POST /internal/v1/jobs/{job}/run|pause|resume`.
  *
- * - The actor (`sub`) and tenant (`tenant_id`) come from the propagated end-user token, and the entity set from
- *   the authority replica, through [principals] (CS-23, API-24; owner ruling INV-Q-3716 A), never from a field;
- *   an `entityRef` outside the principal's entity set is 403 before anything runs. The
+ * - The actor, tenant and entity set come from the propagated end-user token through [principals] (CS-23,
+ *   API-24), never from a field; an `entityRef` outside the token's entity set is 403 before anything runs. The
  *   caller's tenant is bound for the command (ARC-21); the roles are checked by the service's
  *   `JobCommandAuthorizer` against its authority replica inside [JobCommands].
  * - `Idempotency-Key` (a UUID, the contract's `format: uuid`) is required and kept in [idempotency]
  *   with a fingerprint of the method, path and body (API-15).
- * - A refused command is its JOB catalogue code at the code's status (API-21); each closed case (ARC-19) is
- *   its SRT code (INV-Q-3720), so no response is code-less, see [Problems].
+ * - A refused command is its JOB catalogue code at the code's status (API-21); the closed cases are code-less
+ *   (ARC-19), see [Problems].
  * - runJobNow answers 202 when it started a run, 200 for a repeat in the same run window (INV-Q-3034); pauseJob
  *   and resumeJob answer 200 with the key's own `JobPauseState`.
  */
@@ -54,10 +52,7 @@ class JobCommandServlet(
 
     private enum class Action { RUN, PAUSE, RESUME }
 
-    private class Violation(
-        message: String,
-        val code: ClosedErrorCode = ClosedErrorCode.CONTRACT_VIOLATION,
-    ) : RuntimeException(message)
+    private class Violation(message: String) : RuntimeException(message)
 
     override fun service(
         request: HttpServletRequest,
@@ -96,14 +91,14 @@ class JobCommandServlet(
                     body = jsonObject(body),
                 ).also { it.validate(action) }
             } catch (violation: Violation) {
-                return Problems.closed(violation.code, correlation, violation.message.orEmpty())
+                return Problems.contractViolation(violation.message.orEmpty(), correlation)
             }
         val entity = parsed.entity
         if (entity != null && !principal.covers(entity)) return Problems.accessDenied(correlation)
         val fingerprint = fingerprint(request.method, path, body)
         val outcome =
-            idempotency.once(principal.tenant, principal.actor, parsed.key, fingerprint) { recorder ->
-                execute(action, parsed, principal, correlation, recorder)
+            idempotency.once(principal.tenant, principal.actor, parsed.key, fingerprint) {
+                execute(action, parsed, principal, correlation)
             }
         return when (outcome) {
             is IdempotencyOutcome.Fresh -> outcome.response
@@ -148,10 +143,7 @@ class JobCommandServlet(
         parsed: Parsed,
         principal: EndUserPrincipal,
         correlation: String,
-        recorder: IdempotencyRecorder,
     ): StoredResponse {
-        // the API-15 record is written inside the command's own transaction (ARC-05, TPL-04)
-        val journal = JobCommandJournal { done -> recorder.record(render(action, done, correlation)) }
         val command =
             try {
                 JobCommandRequest(
@@ -162,7 +154,6 @@ class JobCommandServlet(
                     reason = parsed.reason,
                     correlation = CorrelationId(correlation),
                     causation = CausationId("idempotency-key:${parsed.key}"),
-                    journal = journal,
                 )
             } catch (invalid: IllegalArgumentException) {
                 return Problems.contractViolation(invalid.message.orEmpty(), correlation)
@@ -180,16 +171,6 @@ class JobCommandServlet(
                 Problems.contractViolation(invalid.message.orEmpty(), correlation)
             }
         }
-    }
-
-    @Suppress("UNCHECKED_CAST")
-    private fun render(
-        action: Action,
-        done: JobCommandOutcome.Done<*>,
-        correlation: String,
-    ): StoredResponse = when (action) {
-        Action.RUN -> runResponse(done as JobCommandOutcome.Done<JobRunState>, correlation)
-        Action.PAUSE, Action.RESUME -> pauseResponse(done as JobCommandOutcome.Done<JobPauseState>, correlation)
     }
 
     /** Binds the caller's tenant for the command (ARC-21); a caller without a tenant binds none. */
@@ -251,11 +232,11 @@ class JobCommandServlet(
     }
 
     private fun idempotencyKey(header: String?): UUID {
-        val text = header?.trim() ?: throw Violation("Idempotency-Key is required", KEY_INVALID)
+        val text = header?.trim() ?: throw Violation("Idempotency-Key is required")
         return try {
-            UUID.fromString(text).also { if (it.toString() != text.lowercase()) throw Violation("Idempotency-Key must be a UUID", KEY_INVALID) }
+            UUID.fromString(text).also { if (it.toString() != text.lowercase()) throw Violation("Idempotency-Key must be a UUID") }
         } catch (_: IllegalArgumentException) {
-            throw Violation("Idempotency-Key must be a UUID", KEY_INVALID)
+            throw Violation("Idempotency-Key must be a UUID")
         }
     }
 
@@ -275,7 +256,6 @@ class JobCommandServlet(
         /** The servlet mapping of the three operations. */
         const val MAPPING = "/internal/v1/jobs/*"
         private val ROUTE = Regex("^/internal/v1/jobs/([^/]+)/(run|pause|resume)$")
-        private val KEY_INVALID = ClosedErrorCode.IDEMPOTENCY_KEY_INVALID
         private const val AUTHORIZATION = "Authorization"
         private const val IDEMPOTENCY_KEY = "Idempotency-Key"
         private const val JSON = "application/json"

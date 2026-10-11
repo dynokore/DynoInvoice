@@ -4,11 +4,10 @@ import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.tenancykernel.TenantId
 
 /**
- * The caller of an internal operation, from the propagated end-user token (INV-REQ-1202 b2 and b4, API-24,
- * CS-23; owner ruling INV-Q-3716 A): [actor] is the token's `sub` and [tenant] its `tenant_id`, never a request
- * field; [entities] are the principal's granted entities, read from the authority replica by the service's
- * resolver, not from the token. A token without a tenant (a platform operator) has none and no entities. Roles
- * are not here: they are re-checked in the owning service against the authority replica (CS-23).
+ * The caller of an internal operation, from the propagated end-user token (INV-REQ-1202 b2, API-24, CS-23):
+ * [actor] is the principal, never a request field; [tenant] and [entities] are the token's tenant and entity
+ * set. A token without a tenant (a platform operator) has none and no entities. Roles are not here: they are
+ * re-checked in the owning service against the authority replica (CS-23).
  */
 data class EndUserPrincipal(
     val actor: String,
@@ -22,16 +21,15 @@ data class EndUserPrincipal(
         require(tenant == null || !tenant.isPlatform) { "a token never carries the reserved platform tenant" }
     }
 
-    /** API-24: an entityRef inside the principal's granted entities. */
+    /** API-24: an entityRef inside the token's entity set. */
     fun covers(entity: EntityRef): Boolean = entity in entities
 }
 
 /**
  * Verifies the propagated end-user token (the inbound `Authorization` header) and reads its principal. The
  * owning service supplies it with its resource-server configuration over the `IdentityProvider` binding
- * (STK-27). Layout per owner ruling INV-Q-3716 A (INV-REQ-1202 b4): the actor is the token's `sub`, the tenant
- * its `tenant_id`, and the entity set the principal's granted entities read from the authority replica; the
- * default resolver ships with INV-T-3335. Returns `null` when the token is missing, invalid or expired (401).
+ * (STK-27): where the tenant and entity set sit in the token is not fixed in Keel yet, so service-runtime does
+ * not read claims itself. Returns `null` when the token is missing, invalid or expired (401).
  */
 fun interface EndUserPrincipalResolver {
     fun resolve(authorization: String?): EndUserPrincipal?

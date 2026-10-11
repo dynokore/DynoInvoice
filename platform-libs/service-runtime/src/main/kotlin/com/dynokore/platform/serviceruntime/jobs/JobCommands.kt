@@ -33,7 +33,6 @@ data class JobCommandRequest(
     val reason: String? = null,
     val correlation: CorrelationId,
     val causation: CausationId,
-    val journal: JobCommandJournal? = null,
 ) {
     init {
         require(actor.isNotBlank()) { "actor must not be blank" }
@@ -46,16 +45,6 @@ data class JobCommandRequest(
     companion object {
         const val MAX_REASON = 500
     }
-}
-
-/**
- * Called by [JobCommands] inside the command's own transaction, after its state change and audit entry and before
- * it commits (ARC-05: one command, one transaction; TPL-04, API-15 S2 T1). The HTTP adapter stores its API-15
- * idempotency record here, so the record commits or rolls back with the effect. A refusal writes no state and does
- * not call it.
- */
-fun interface JobCommandJournal {
-    fun withinTransaction(outcome: JobCommandOutcome.Done<*>)
 }
 
 /**
