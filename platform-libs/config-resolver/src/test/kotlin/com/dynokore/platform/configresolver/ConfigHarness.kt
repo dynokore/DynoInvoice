@@ -87,7 +87,7 @@ class ConfigHarness(
                 it.setString(10, profile?.first)
                 it.setString(11, profile?.second)
                 it.setObject(12, from)
-                it.setTimestamp(13, Timestamp.from(Instant.now()))
+                it.setTimestamp(13, Timestamp.from(CLOCK.instant()))
                 it.executeUpdate()
             }
             id
@@ -104,12 +104,13 @@ class ConfigHarness(
         c.prepareStatement(
             "insert into $SCHEMA.config_installation_setting (id, vp_key, option_keys, option_values, " +
                 "effective_from, set_by, reason, recorded_at) " +
-                "values (?, ?, ?, ?, ?, 'operator-1', 'test', now())",
+                "values (?, ?, ?, ?, ?, 'operator-1', 'test', ?)",
         ).use {
             it.setObject(1, id)
             it.setString(2, key.value)
             bindSelected(it, c, 3, selected)
             it.setObject(5, from)
+            it.setTimestamp(6, Timestamp.from(CLOCK.instant()))
             it.executeUpdate()
         }
         id

@@ -33,8 +33,7 @@ internal class SelectedOptionsColumns(
     }
 
     fun read(rows: ResultSet): List<SelectedOption> {
-        @Suppress("UNCHECKED_CAST")
-        val keys = (rows.getArray("option_keys").array as Array<String>).toList()
+        val keys = (rows.getArray("option_keys").array as Array<*>).map { it as String }
         val values = rows.getString("option_values")?.let { mapper.readTree(it) }
         return keys.map { key -> SelectedOption(key, values?.get(key)?.let { mapper.writeValueAsString(it) }) }
     }

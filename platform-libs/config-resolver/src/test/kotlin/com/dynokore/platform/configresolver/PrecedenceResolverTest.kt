@@ -214,7 +214,7 @@ class PrecedenceResolverTest {
     }
 
     @Test
-    fun `INV-AC-2234 both forms offer the same catalogue, only a by-form default differs`() {
+    fun `both forms offer the same options, only a by-form default differs (INV-REQ-1248)`() {
         TestCatalogue.rows.values.forEach {
             assertEquals(it.offeredOptions(DeploymentForm.SAAS), it.offeredOptions(DeploymentForm.PRIVATE), "${it.key}")
         }

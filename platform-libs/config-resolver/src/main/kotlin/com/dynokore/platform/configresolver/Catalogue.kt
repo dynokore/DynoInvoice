@@ -61,7 +61,7 @@ data class OptionSpec(
 /**
  * One registered variation point, as the gst-catalogue 1.2.0 `VariationPoint` states it (STK-61, CS-28;
  * INV-Q-2934). The catalogue is the only source of what may be resolved; this module holds no list of its
- * own. A service adapts the generated `VariationPoint` to this shape in its composition root.
+ * own. product-runtime adapts the generated `VariationPoint` to this shape (INV-Q-3119).
  *
  * @property scopeLevels the levels the row allows (INV-REQ-1242 behaviour #1).
  * @property setBy the roles that may set it.
@@ -135,7 +135,7 @@ data class VariationPointDefinition(
     }
 }
 
-/** The registered variation points. An implementation adapts the generated gst-catalogue `VariationPoint`. */
+/** The registered variation points; product-runtime's adapter binds gst-catalogue (INV-Q-3119). */
 fun interface VariationPointCatalogue {
     /** `null` when [key] is not registered: such a key is refused, never defaulted. */
     fun find(key: VariationPointKey): VariationPointDefinition?
