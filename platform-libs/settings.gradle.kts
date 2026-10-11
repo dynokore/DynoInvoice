@@ -118,13 +118,9 @@ include(
 )
 
 // product-runtime's generated contract code (INV-T-2876, INV-Q-3852): one project per generator source, as
-// gst.event-types and gst.contract-client take exactly one; each project's name becomes the package segment of its
-// event, api and model types (com.dynokore.gst.productRuntime...), so those never clash with a service's own generated
-// tenancy or access types. The openapi-generator infrastructure package (org.openapitools.client.infrastructure) is
-// not segmented by platform-build 0.6.1: every gst.contract-client project, product-runtime's and a service's own,
-// generates it under the same names, so a service that embeds product-runtime and generates a client of its own has
-// two copies on its classpath (platform-build follow-up: a per-project infrastructure package). Their classes ship
-// inside product-runtime's impl artefact, with one copy of that package (product-runtime/build.gradle.kts).
+// gst.event-types and gst.contract-client take exactly one; each project's name becomes its package segment
+// (com.dynokore.gst.productRuntime...), so these types never clash with a service's own generated tenancy or
+// access types. Their classes ship inside product-runtime's impl artefact.
 listOf(
     "product-runtime-tenancy-client" to "tenancy-client",
     "product-runtime-access-client" to "access-client",

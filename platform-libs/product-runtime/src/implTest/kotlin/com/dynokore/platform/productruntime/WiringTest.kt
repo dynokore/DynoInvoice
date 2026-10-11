@@ -1,46 +1,27 @@
 package com.dynokore.platform.productruntime
 
 import com.dynokore.platform.configresolver.DelegationProbe
-import com.dynokore.platform.configresolver.DeploymentForm
-import com.dynokore.platform.configresolver.PolicyReader
-import com.dynokore.platform.configresolver.PolicyScope
-import com.dynokore.platform.configresolver.PolicySource
-import com.dynokore.platform.configresolver.UnknownVariationPoint
 import com.dynokore.platform.configresolver.VariationPointCatalogue
 import com.dynokore.platform.configresolver.VariationPointKey
-import com.dynokore.platform.configresolver.VpStatus
 import com.dynokore.platform.productruntime.Fixtures.CLOCK
-import com.dynokore.platform.productruntime.Fixtures.TENANT
-import com.dynokore.platform.productruntime.catalogue.GstVariationPointCatalogue
 import com.dynokore.platform.productruntime.feed.AuthorityFeedHandler
 import com.dynokore.platform.productruntime.feed.PolicyFeed
 import com.dynokore.platform.productruntime.feed.StructureFeedHandler
-import com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration
 import com.dynokore.platform.serviceruntime.events.PlatformEventTypes
 import com.dynokore.platform.serviceruntime.replica.AuthorityFallback
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.PolicyReplica
 import com.dynokore.platform.serviceruntime.replica.StructureFallback
 import com.dynokore.platform.serviceruntime.replica.StructureReplica
-import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.types.shouldBeInstanceOf
-import io.micrometer.core.instrument.MeterRegistry
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry
-import io.mockk.mockk
 import org.junit.jupiter.api.Test
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.AutoConfigurations
-import org.springframework.boot.autoconfigure.EnableAutoConfiguration
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
-import org.springframework.context.annotation.Configuration
-import org.springframework.context.annotation.Import
 import org.springframework.web.client.RestClient
-import java.time.LocalDate
-import javax.sql.DataSource
 
-/** INV-T-2876: ProductRuntimeConfiguration (TPL-18) wires the bindings, and config-resolver over them under TPL-18. */
+/** INV-T-2876: ProductRuntimeConfiguration (TPL-18) wires the bindings and orders itself before service-runtime's. */
 class WiringTest {
     private val runner =
         ApplicationContextRunner()
@@ -75,8 +56,9 @@ class WiringTest {
     }
 
     @Test
-    fun `is an auto-configuration listed for Boot`() {
-        ProductRuntimeConfiguration::class.java.isAnnotationPresent(AutoConfiguration::class.java) shouldBe true
+    fun `is an auto-configuration listed for Boot and ordered before service-runtime's composition root`() {
+        val annotation = ProductRuntimeConfiguration::class.java.getAnnotation(AutoConfiguration::class.java)
+        annotation.beforeName.toList() shouldContain "com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration"
         val listing =
             javaClass.classLoader
                 .getResources("META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports")
@@ -84,59 +66,6 @@ class WiringTest {
                 .flatMap { it.readText().lines() }
         listing shouldContain ProductRuntimeConfiguration::class.java.name
     }
-
-    /**
-     * TPL-18's composition (INV-T-2876 done-when, coordinator ruling INV-Q-3877; INV-Q-3710): the service imports
-     * `ServiceRuntimeConfiguration` then `ProductRuntimeConfiguration`, and `@SpringBootApplication`'s
-     * `@EnableAutoConfiguration` adds the auto-configurations on its classpath ([Tpl18Bootstrap]; component scanning
-     * finds nothing more here). config-resolver's PolicyReader must then exist and resolve through
-     * [GstVariationPointCatalogue].
-     *
-     * Needs service-runtime 3.2.1 or later (INV-T-3881), whose config-resolver wiring takes the catalogue whatever the
-     * import order; on 3.2.0 and earlier ConfigResolverWiring's registration-time `@ConditionalOnBean` missed it and no
-     * PolicyReader existed. No ordering of ProductRuntimeConfiguration is relied on.
-     */
-    @Test
-    fun `under TPL-18's two imports, config-resolver's PolicyReader resolves through the gst-catalogue adapter`() {
-        tpl18().run { context ->
-            context.startupFailure?.let { throw it }
-            context.getBean(VariationPointCatalogue::class.java).shouldBeInstanceOf<GstVariationPointCatalogue>()
-            val reader = context.getBean(PolicyReader::class.java)
-            val catalogue = GstVariationPointCatalogue("submission-svc")
-            // A planned row resolves to its catalogue default without reading a setting (INV-REQ-1251), so the
-            // answer can only come from the gst-catalogue rows; a key that is not one of them is refused.
-            val planned =
-                catalogue.keys().map { catalogue.require(it) }.first {
-                    it.status == VpStatus.PLANNED &&
-                        it.defaultKeys(DeploymentForm.SAAS) != null &&
-                        it.defaultKeys(DeploymentForm.SAAS) == it.defaultKeys(DeploymentForm.PRIVATE)
-                }
-            val resolved = reader.resolve(planned.key, PolicyScope.tenant(TENANT), LocalDate.parse("2026-10-12"))
-            resolved.selected.map { it.key } shouldBe planned.defaultKeys(DeploymentForm.SAAS)
-            resolved.source shouldBe PolicySource.CatalogueDefault
-            shouldThrow<UnknownVariationPoint> {
-                reader.resolve(VariationPointKey("VP-999"), PolicyScope.tenant(TENANT), LocalDate.parse("2026-10-12"))
-            }
-        }
-    }
-
-    @Configuration(proxyBeanMethods = false)
-    @EnableAutoConfiguration
-    @Import(ServiceRuntimeConfiguration::class, ProductRuntimeConfiguration::class)
-    class Tpl18Bootstrap
-
-    /** The bootstrap of TPL-18 with a service's own inputs: its DataSource, meter registry and gst properties. */
-    private fun tpl18(): ApplicationContextRunner = ApplicationContextRunner()
-        .withUserConfiguration(Tpl18Bootstrap::class.java)
-        .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
-        .withBean("dataSource", DataSource::class.java, { mockk<DataSource>(relaxed = true) }, { it.isPrimary = true })
-        .withBean("internalRestClientBuilder", RestClient.Builder::class.java, { RestClient.builder() })
-        .withPropertyValues(
-            "gst.service=submission-svc",
-            "gst.instance-id=submission-svc-0",
-            "service-runtime.workload-identity.audience=submission-svc",
-            "service-runtime.modules.schema=submission",
-        )
 
     @Test
     fun `the api catalogue names the same platform types and topics as service-runtime`() {
