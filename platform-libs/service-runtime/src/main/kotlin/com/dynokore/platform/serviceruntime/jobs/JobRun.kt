@@ -53,8 +53,9 @@ fun interface JobEntitySource {
 interface DeadlineSource {
     /**
      * The nearest due date the job serves for [target], or `null` when none is pending. For [JobTarget.Whole]
-     * (a job-wide pause, or a PLATFORM-scoped job) the service answers for the whole job: with [safetyMargin]
-     * it gives the earliest "due date minus margin" over every entity the job serves (INV-Q-3531).
+     * (a job-wide pause, or a PLATFORM-scoped job) the service answers for the whole job with a (due date,
+     * [safetyMargin]) pair whose difference is the earliest "due date minus margin" over every entity the job
+     * serves; margins can differ per entity, so it returns the pair of the entity that bounds first (INV-Q-3531).
      */
     fun nearestDueDate(
         job: JobDefinition,

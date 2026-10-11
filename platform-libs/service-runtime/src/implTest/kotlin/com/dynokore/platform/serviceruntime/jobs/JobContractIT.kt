@@ -49,7 +49,7 @@ class JobContractIT {
     private val entities = JobEntitySource { listOf(e1, e2) }
     private val operator = "platform-op"
     private val engineer = "eng-e1"
-    private val authorizer = FakeAuthorizer(mapOf(engineer to setOf(E1)), setOf(operator))
+    private val authorizer = FakeAuthorizer(mapOf(engineer to setOf(E1), "eng-e2" to setOf(E2)), setOf(operator))
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
@@ -287,6 +287,71 @@ class JobContractIT {
         prior shouldContain "OVERRIDDEN"
         (prior.contains("E-002")) shouldBe false
         h.runs(def.name).single()["status"] shouldBe "SUCCEEDED"
+    }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `INV-Q-3567 a whole-job run-now with every entity under a pause it cannot lift is refused`(image: String) {
+        val h = harness(image)
+        val replica = h.replica("svc-1", MutableClock(START), authorizer)
+        val processed = CopyOnWriteArrayList<JobTarget>()
+        val def = job("q3567-covered")
+        replica.runtime.register(def, entities) { processed += it.target }
+        val until = START.plus(Duration.ofHours(2))
+        replica.inA { pause(request(engineer, def.name, E1), until) }
+        replica.asTenant(TENANT_B) { replica.runtime.pause(request("eng-e2", def.name, E2), until) }
+        val auditsBefore = h.events(AUDIT, "$SERVICE/${def.name}").size
+
+        replica.inA { runNow(request(operator, def.name, null)) } shouldBe
+            JobCommandOutcome.Refused(JobErrorCode.SCOPE_NOT_PERMITTED)
+
+        processed shouldHaveSize 0
+        h.runs(def.name) shouldHaveSize 0
+        h.events(JobPayloads.JOB_RUN_RECORDED, "$SERVICE/${def.name}") shouldHaveSize 0
+        h.events(AUDIT, "$SERVICE/${def.name}") shouldHaveSize auditsBefore
+    }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `a pause or resume outside the caller's role is refused with JOB-002 and changes nothing`(image: String) {
+        val h = harness(image)
+        val replica = h.replica("svc-1", MutableClock(START), authorizer)
+        val def = job("pause-roles")
+        replica.runtime.register(def, entities) { }
+        val until = START.plus(Duration.ofHours(2))
+        replica.inA { pause(request(operator, def.name, null), until) }
+        replica.inA { pause(request(engineer, def.name, E1), until) }
+        val audits = h.events(AUDIT, "$SERVICE/${def.name}").size
+
+        replica.inA { resume(request(engineer, def.name, null)) } shouldBe
+            JobCommandOutcome.Refused(JobErrorCode.SCOPE_NOT_PERMITTED)
+        replica.inA { resume(request("eng-e2", def.name, E1)) } shouldBe
+            JobCommandOutcome.Refused(JobErrorCode.SCOPE_NOT_PERMITTED)
+        replica.inA { pause(request(engineer, def.name, E2), until) } shouldBe
+            JobCommandOutcome.Refused(JobErrorCode.SCOPE_NOT_PERMITTED)
+
+        val pauses = h.rows("select entity_ref, ended_at from submission.job_pause where job = ?", def.name)
+        pauses.map { it["entity_ref"] } shouldContainExactlyInAnyOrder listOf(E1.value, EntityRef.PLATFORM.value)
+        pauses.map { it["ended_at"] } shouldContainExactly listOf(null, null)
+        h.events(AUDIT, "$SERVICE/${def.name}") shouldHaveSize audits
+    }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `INV-Q-3531 a pause of a PLATFORM-scoped deadline-critical job is bounded by the whole job's bound`(
+        image: String,
+    ) {
+        val h = harness(image)
+        val deadlines = MovableDeadlines(margin = Duration.ofHours(1))
+        deadlines.due[JobTarget.Whole] = START.plus(Duration.ofHours(4))
+        val replica = h.replica("svc-1", MutableClock(START), authorizer, deadlines)
+        val def = job("q3531-platform", scope = JobEntityScope.PLATFORM, criticality = JobCriticality.DEADLINE_CRITICAL)
+        replica.runtime.register(def) { }
+
+        replica.inA { pause(request(operator, def.name, null), START.plus(Duration.ofHours(3)).plusSeconds(1)) } shouldBe
+            JobCommandOutcome.Refused(JobErrorCode.PAUSE_PAST_DEADLINE)
+        replica.inA { pause(request(operator, def.name, null), START.plus(Duration.ofHours(3))) }
+            .shouldBeInstanceOf<JobCommandOutcome.Done<JobPauseState>>()
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
