@@ -32,6 +32,12 @@ constraints() {
 ./gradlew :platform-libs-bom:generatePomFileForMavenPublication -PbomVersion=0.0.0-compare --stacktrace
 constraints platform-libs-bom/build/publications/maven/pom-default.xml > build/bom-new.txt
 
+# A version that did not resolve ("unspecified") must never be published.
+if grep -q ':unspecified$' build/bom-new.txt; then
+  echo "gst-ci: platform-libs-bom constraint set has an unspecified version:"; grep ':unspecified$' build/bom-new.txt
+  exit 1
+fi
+
 get "${registry}/maven-metadata.xml" build/bom-metadata.xml \
   || { echo "gst-ci: cannot read platform-libs-bom maven-metadata.xml from the registry"; exit 1; }
 latest="$(sed -n 's#.*<version>\([0-9][0-9.]*\)</version>.*#\1#p' build/bom-metadata.xml | sort -V | tail -1)"
@@ -39,6 +45,17 @@ latest="$(sed -n 's#.*<version>\([0-9][0-9.]*\)</version>.*#\1#p' build/bom-meta
 get "${registry}/${latest}/platform-libs-bom-${latest}.pom" build/bom-published.pom \
   || { echo "gst-ci: cannot read platform-libs-bom ${latest} pom"; exit 1; }
 constraints build/bom-published.pom > build/bom-old.txt
+
+# Only the tip of origin/main publishes: an older main pipeline (rerun, or queued behind a newer
+# merge) must not publish a BOM built from superseded constraints.
+if [ -n "${CI_COMMIT_BRANCH:-}" ] && [ "${CI_COMMIT_BRANCH}" = "${CI_DEFAULT_BRANCH:-}" ]; then
+  git fetch -q origin "${CI_DEFAULT_BRANCH}" || { echo "gst-ci: cannot fetch origin/${CI_DEFAULT_BRANCH}"; exit 1; }
+  if [ "$(git rev-parse FETCH_HEAD)" != "$(git rev-parse HEAD)" ]; then
+    echo "gst-ci: this commit is not the tip of origin/${CI_DEFAULT_BRANCH}: platform-libs-bom not published by this pipeline"
+    printf 'BOM_VERSION=%s\nBOM_ACTION=skip\n' "$latest" > build/bom.env
+    exit 0
+  fi
+fi
 
 if cmp -s build/bom-old.txt build/bom-new.txt; then
   echo "gst-ci: platform-libs-bom constraint set equals ${latest}: nothing to publish"
@@ -48,6 +65,9 @@ fi
 
 major="${latest%%.*}"; rest="${latest#*.}"; minor="${rest%%.*}"
 next="${major}.$((minor + 1)).0"
+# The next version must not exist yet (a stale metadata listing must never lead to an overwrite).
+code="$(curl -s -o /dev/null -w '%{http_code}' --header "JOB-TOKEN: ${CI_JOB_TOKEN}" "${registry}/${next}/platform-libs-bom-${next}.pom")"
+[ "$code" = "404" ] || { echo "gst-ci: platform-libs-bom ${next} pom answered HTTP ${code}, expected 404: refusing to publish"; exit 1; }
 {
   echo "platform-libs-bom ${next} ($(date -u +%Y-%m-%d), pipeline ${CI_PIPELINE_ID:-local}, commit ${CI_COMMIT_SHORT_SHA:-local}); previous ${latest}"
   diff build/bom-old.txt build/bom-new.txt | sed -n 's/^< /removed or changed from: /p; s/^> /added or changed to:    /p'
