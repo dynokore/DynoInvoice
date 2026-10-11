@@ -14,8 +14,9 @@ import java.time.LocalDate
  *  - **Cross-scope** ([VariationPointDefinition.crossScope]): a narrower value's directed numeric fields
  *    (direction UP/DOWN_STRICTER) may not be looser than the same-named fields of the value the nearest
  *    broader allowed scope resolves to; fields with no direction (VP-08's pair) are never compared
- *    (INV-REQ-780 b1, INV-Q-2936, INV-Q-3204). An option without a value counts by its fixed number
- *    (`min` = `max`, VP-08's DEFAULT_PAIR_4H).
+ *    (INV-REQ-780 b1, INV-Q-2936, INV-Q-3204). An option without a value counts by its catalogue default,
+ *    else its fixed number ([TypedValueSpec.absentAs]): VP-08's DEFAULT_PAIR_4H window, configurable from
+ *    1 to 8 hours, counts as its default 4 hours (INV-Q-3320).
  *  - **Installation bound** ([Bound.row]): a number bounded by another row takes that row's value resolved
  *    at installation scope in the same service: a single number in the same unit, else the bound cannot be
  *    evaluated (INV-Q-3202).
@@ -89,7 +90,7 @@ internal class ScopeBounds(
             resolved.selected.map { option ->
                 val mine = limits.filter { it.field.option == option.key && it.violatedBy(it.field.value) }
                 if (mine.isEmpty()) return@map option
-                // An option stored without a value counts by its fixed number (INV-Q-3204); its capped value is
+                // An option stored without a value counts by its default (INV-Q-3320); its capped value is
                 // built from the spec, the key kept (INV-Q-3206).
                 var node: JsonNode = option.valueJson?.let { mapper.readTree(it) } ?: mapper.createObjectNode()
                 mine.groupBy { it.field.path }.forEach { (path, onField) ->
@@ -112,7 +113,7 @@ internal class ScopeBounds(
         return if (caps.isEmpty()) resolved else resolved.copy(selected = selected, caps = resolved.caps + caps)
     }
 
-    /** A number field of a chosen option: [value] from the stored value, or the option's fixed number. */
+    /** A number field of a chosen option: [value] from the stored value, else [TypedValueSpec.absentAs]. */
     data class Field(
         val option: String,
         val path: String,
@@ -191,7 +192,7 @@ internal class ScopeBounds(
         if (spec == null || !spec.type.numeric || spec.unit != unit) {
             throw BoundUnavailable(key, "$row option '${only.key}' is not a number in $unit")
         }
-        val number = only.valueJson?.let { json -> parse(row, json).takeIf { it.isNumber }?.decimalValue() } ?: spec.fixed
+        val number = only.valueJson?.let { json -> parse(row, json).takeIf { it.isNumber }?.decimalValue() } ?: spec.absentAs
         return number ?: throw BoundUnavailable(key, "$row option '${only.key}' has no number")
     }
 
@@ -217,7 +218,7 @@ internal class ScopeBounds(
             val value = if (node != null && node.isNumber) {
                 node.decimalValue()
             } else if (node == null) {
-                spec.fixed
+                spec.absentAs
             } else {
                 null
             }

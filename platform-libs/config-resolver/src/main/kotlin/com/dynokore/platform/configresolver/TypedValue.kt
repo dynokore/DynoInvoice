@@ -70,6 +70,9 @@ data class Bound(
  *
  * @property requires a worded requirement such as VP-43's "justification text"; it is met by the change's
  *   mandatory reason (INV-Q-3167), so it is never sent to the port.
+ * @property default the catalogue's typed default (gst-catalogue `TypedValue.default`), e.g. VP-08's window
+ *   default of 4 hours (min 1, max 8, ruling INV-Q-3320): what a value stored without this number counts as.
+ *   Only a number is used; a named or row default is not evaluated here.
  */
 data class TypedValueSpec(
     val type: ValueType,
@@ -91,6 +94,7 @@ data class TypedValueSpec(
     val ref: String? = null,
     val rule: String? = null,
     val requires: String? = null,
+    val default: Bound? = null,
 ) {
     init {
         require(type != ValueType.ENUM || values.isNotEmpty()) { "an enum value lists its values" }
@@ -108,12 +112,20 @@ data class TypedValueSpec(
             listOfNotNull(item, key, value).flatMap { it.boundingRows } +
             fields.values.flatMap { it.boundingRows }
 
-    /** The number this value is fixed at (`min` = `max`), e.g. VP-08's DEFAULT_PAIR_4H window (INV-Q-3204). */
+    /** The number this value is fixed at (`min` = `max`), e.g. VP-79's DAYS_14 (INV-Q-3223). */
     val fixed: BigDecimal?
         get() {
             val low = min?.number ?: return null
             return low.takeIf { max?.number?.compareTo(it) == 0 }
         }
+
+    /**
+     * The number a value stored without it counts as: the catalogue [default], else the number it is [fixed]
+     * at; `null` when neither is a number. VP-08's DEFAULT_PAIR_4H window counts as its default 4 hours
+     * (INV-Q-3320, superseding INV-Q-3204's fixed 4 hours).
+     */
+    val absentAs: BigDecimal?
+        get() = default?.number ?: fixed
 
     /** Whether any part of this spec needs the owning service's [ValueConstraints] (INV-Q-3167). */
     val needsOwningService: Boolean

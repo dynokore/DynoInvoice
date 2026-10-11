@@ -1,6 +1,8 @@
 package com.dynokore.platform.configresolver
 
 import com.dynokore.platform.tenancykernel.TenantId
+import tools.jackson.databind.JsonNode
+import tools.jackson.databind.node.JsonNodeFactory
 import java.time.LocalDate
 import java.util.UUID
 
@@ -130,7 +132,25 @@ class PrecedenceResolver(
         at: LocalDate,
     ): ResolvedSetting {
         val keys = definition.defaultKeys(form) ?: throw ElectionRequired(definition.key)
-        return ResolvedSetting(definition.key, at, keys.map { SelectedOption(it) }, PolicySource.CatalogueDefault)
+        val selected = keys.map { SelectedOption(it, definition.option(it)?.typedValue?.let(::defaultValue)?.toString()) }
+        return ResolvedSetting(definition.key, at, selected, PolicySource.CatalogueDefault)
+    }
+
+    /**
+     * A typed default option's value built from the catalogue's typed defaults, e.g. VP-08's DEFAULT_PAIR_4H
+     * resolves as `{"window":4}` (INV-Q-3320, INV-Q-3548): a number with a numeric [TypedValueSpec.default], or
+     * a record whose every field has one; `null` (no value) otherwise.
+     */
+    private fun defaultValue(spec: TypedValueSpec): JsonNode? = when {
+        spec.type.numeric -> spec.default?.number?.let { JsonNodeFactory.instance.numberNode(it) }
+
+        spec.type == ValueType.RECORD -> {
+            val node = JsonNodeFactory.instance.objectNode()
+            spec.fields.forEach { (name, field) -> node.set(name, defaultValue(field) ?: return null) }
+            node
+        }
+
+        else -> null
     }
 
     private companion object {

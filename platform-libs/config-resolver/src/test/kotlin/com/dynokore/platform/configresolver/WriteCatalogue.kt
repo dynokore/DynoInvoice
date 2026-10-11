@@ -49,8 +49,14 @@ object WriteCatalogue {
     /** A POLICY allowed at every level, to set at each (INV-AC-2227's positive half, INV-REQ-1242). */
     val EVERY_LEVEL = VariationPointKey("VP-12")
 
-    /** VP-08-like: installation and tenant; a record whose `window` is directed, `pair` not (INV-Q-3204). */
+    /**
+     * VP-08 as gst-catalogue 1.6.0 states it: installation and tenant; a record whose `window` (1 to 8 hours,
+     * default 4, DOWN_STRICTER) is directed and `pair` is not (INV-Q-3204, INV-Q-3320).
+     */
     val CROSS_SCOPE = VariationPointKey("VP-08")
+
+    /** A second VP-08-like row, so a test can set its own installation value (INV-Q-3320). */
+    val DEFAULT_PAIR = VariationPointKey("VP-86")
 
     /** VP-67-like: a tenant window up to the installation row [RETRY_MAX] (INV-Q-3202), no direction. */
     val INSTALLATION_BOUND = VariationPointKey("VP-67")
@@ -278,22 +284,8 @@ object WriteCatalogue {
                 vpClass = VpClass.POLICY,
                 setBy = setOf("tenant.admin", "platform.engineer", "deployment.operator"),
             ),
-            def(
-                CROSS_SCOPE,
-                setOf(ScopeLevel.INSTALLATION, ScopeLevel.TENANT),
-                listOf(
-                    OptionSpec("PAIR_4H", Strictness.DEFAULT, true, record("window" to hours(4, 4))),
-                    OptionSpec(
-                        "OTHER",
-                        Strictness.NEUTRAL,
-                        true,
-                        record("pair" to TypedValueSpec(ValueType.LIST_REF, ref = "pairs"), "window" to hours(1, 8)),
-                    ),
-                ),
-                modifiers = setOf(VpModifier.NON_WAIVABLE_IN_PART),
-                setBy = setOf("security.officer"),
-                crossScope = "A tenant value may not exceed the installation value",
-            ),
+            breakGlass(CROSS_SCOPE),
+            breakGlass(DEFAULT_PAIR),
             def(
                 INSTALLATION_BOUND,
                 setOf(ScopeLevel.TENANT),

@@ -2,6 +2,7 @@ package com.dynokore.platform.configresolver
 
 import com.dynokore.platform.configresolver.WriteCatalogue.CROSS_ENTITY
 import com.dynokore.platform.configresolver.WriteCatalogue.CROSS_SCOPE
+import com.dynokore.platform.configresolver.WriteCatalogue.DEFAULT_PAIR
 import com.dynokore.platform.configresolver.WriteCatalogue.GRACE
 import com.dynokore.platform.configresolver.WriteCatalogue.GRACE_MAX
 import com.dynokore.platform.configresolver.WriteCatalogue.INSTALLATION_BOUND
@@ -19,7 +20,7 @@ import java.time.LocalDate
 
 /**
  * VP-08's cross-scope rule and the VP-57/VP-67 installation bound (INV-T-3176; INV-REQ-780 b1, INV-REQ-1248,
- * INV-REQ-1242 b5; rulings INV-Q-3202, INV-Q-3204, INV-Q-3206) against PostgreSQL 17 and 18. Installation
+ * INV-REQ-1242 b5; rulings INV-Q-3202, INV-Q-3204, INV-Q-3206, INV-Q-3320) against PostgreSQL 17 and 18. Installation
  * values are shared by every tenant of a database, so each bounded row is used by one test only.
  */
 @Tag("integration")
@@ -33,7 +34,7 @@ class BoundsPostgresIT : WritePathBase() {
     private fun pair(
         hours: Int,
         pair: String = ops,
-    ) = listOf(SelectedOption("OTHER", "{\"pair\":$pair,\"window\":$hours}"))
+    ) = listOf(SelectedOption("OTHER_NAMED_PAIR", "{\"pair\":$pair,\"window\":$hours}"))
 
     private fun number(
         option: String,
@@ -75,15 +76,15 @@ class BoundsPostgresIT : WritePathBase() {
         val atInstallation = { selected: List<SelectedOption>, from: LocalDate ->
             set(CROSS_SCOPE, r.tenantScope, ScopeLevel.INSTALLATION, selected, operator, from)
         }
-        // The installation default PAIR_4H counts by its fixed 4 h window (INV-Q-3204).
+        // Nothing set at installation: the default DEFAULT_PAIR_4H resolves with its default 4 h window (INV-Q-3320).
         assertEquals(PolicyRefusal.LOOSER_THAN_BROADER, r.refusedPut(tenant(pair(6), today), w))
         assertEquals(0L, r.settings())
         r.put(tenant(pair(3, "[\"tenant.admin\",\"tax.approver\"]"), today), w) // the pair is never compared
         r.installation(atInstallation(pair(8), today))
         r.put(tenant(pair(6), today), w)
-        // A second tenant keeps the default pair, stored with its fixed 4 h window.
+        // A second tenant keeps the default pair, stored with a 4 h window.
         val r2 = Run(image)
-        val pair4h = listOf(SelectedOption("PAIR_4H", "{\"window\":4}"))
+        val pair4h = listOf(SelectedOption("DEFAULT_PAIR_4H", "{\"window\":4}"))
         r2.put(set(CROSS_SCOPE, r2.tenantScope, ScopeLevel.TENANT, pair4h, officer), w)
         // Tightening the installation value is never refused (INV-Q-3206) ...
         r.installation(atInstallation(pair(2), nextMonth))
@@ -95,22 +96,73 @@ class BoundsPostgresIT : WritePathBase() {
         val capped = r.resolve(CROSS_SCOPE, r.tenantScope, nextMonth)
         assertEquals(BigDecimal(2), window(capped))
         assertTrue(capped.source is PolicySource.Override)
-        assertEquals(cap("OTHER", "window", 6, 2, CROSS_SCOPE), capped.caps)
+        assertEquals(cap("OTHER_NAMED_PAIR", "window", 6, 2, CROSS_SCOPE), capped.caps)
         assertTrue(capped.selected.single().valueJson!!.contains("deployment.operator")) // the stored pair is kept
         // The recorded resolution keeps the capped value and its caps (INV-REQ-1068).
         val subject = ResolutionSubject("submission", "S1")
         val recorded = r.h.inTenant(r.t) { r.h.recorder().record(subject, capped, r.tenantScope) }
         assertEquals(capped.caps, recorded.caps)
         assertEquals(capped.selected, recorded.selected)
-        // PAIR_4H keeps its key and shows the capped window (INV-Q-3206), stored with or without its value.
-        val cappedPair = cap("PAIR_4H", "window", 4, 2, CROSS_SCOPE)
+        // DEFAULT_PAIR_4H keeps its key and shows the capped window (INV-Q-3206), stored with or without its value.
+        val cappedPair = cap("DEFAULT_PAIR_4H", "window", 4, 2, CROSS_SCOPE)
         val fromStore = r2.resolve(CROSS_SCOPE, r2.tenantScope, nextMonth)
-        assertEquals("PAIR_4H", fromStore.selected.single().key)
+        assertEquals("DEFAULT_PAIR_4H", fromStore.selected.single().key)
         assertEquals(BigDecimal(2), window(fromStore))
         assertEquals(cappedPair, fromStore.caps)
-        val bare = r2.capped(CROSS_SCOPE, listOf(SelectedOption("PAIR_4H")), nextMonth)
-        assertEquals(SelectedOption("PAIR_4H", "{\"window\":2}"), bare.selected.single())
+        val bare = r2.capped(CROSS_SCOPE, listOf(SelectedOption("DEFAULT_PAIR_4H")), nextMonth)
+        assertEquals(SelectedOption("DEFAULT_PAIR_4H", "{\"window\":2}"), bare.selected.single())
         assertEquals(cappedPair, bare.caps)
+    }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `INV-Q-3320 VP-08 the default pair's window is 1 to 8 hours, default 4, tighten-only`(image: String) {
+        val r = Run(image)
+        val w = r.h.writer(constraints = accept)
+        val defaultPair = { hours: Int -> listOf(SelectedOption("DEFAULT_PAIR_4H", "{\"window\":$hours}")) }
+        val tenant = { selected: List<SelectedOption> ->
+            set(DEFAULT_PAIR, r.tenantScope, ScopeLevel.TENANT, selected, officer)
+        }
+        val atInstallation = { selected: List<SelectedOption>, from: LocalDate ->
+            set(DEFAULT_PAIR, r.tenantScope, ScopeLevel.INSTALLATION, selected, operator, from)
+        }
+        // Nothing set: the catalogue default DEFAULT_PAIR_4H resolves with its default 4 h window (INV-Q-3320) ...
+        val nothingSet = r.resolve(DEFAULT_PAIR, r.tenantScope)
+        assertEquals(SelectedOption("DEFAULT_PAIR_4H", "{\"window\":4}"), nothingSet.selected.single())
+        assertEquals(PolicySource.CatalogueDefault, nothingSet.source)
+        // ... and counts as 4 h in the cross-scope check.
+        assertEquals(PolicyRefusal.LOOSER_THAN_BROADER, r.refusedPut(tenant(defaultPair(5)), w))
+        // A write without a value or without its window is refused (INV-Q-3167, INV-Q-3548) ...
+        val noValue = listOf(SelectedOption("DEFAULT_PAIR_4H"))
+        val noWindow = listOf(SelectedOption("DEFAULT_PAIR_4H", "{}"))
+        assertEquals(PolicyRefusal.OUT_OF_BOUNDS, r.refusedPut(tenant(noValue), w))
+        assertEquals(PolicyRefusal.OUT_OF_BOUNDS, r.refusedPut(tenant(noWindow), w))
+        // ... as is a window outside 1 to 8 hours; nothing is stored (INV-REQ-1269, INV-REQ-896 b2).
+        assertEquals(PolicyRefusal.OUT_OF_BOUNDS, r.refusedPut(tenant(defaultPair(9)), w))
+        assertEquals(PolicyRefusal.OUT_OF_BOUNDS, r.refusedPut(tenant(defaultPair(0)), w))
+        assertEquals(0L, r.settings())
+        val installationRefusal =
+            refusal { r.installation(atInstallation(defaultPair(9), today)) }
+        assertEquals(PolicyRefusal.OUT_OF_BOUNDS, installationRefusal)
+        // The default pair at 8 h at installation, then at 6 h for the tenant: no longer fixed at 4 h.
+        r.installation(atInstallation(defaultPair(8), today))
+        r.put(tenant(defaultPair(6)), w)
+        assertEquals(BigDecimal(6), window(r.resolve(DEFAULT_PAIR, r.tenantScope)))
+        // The installation default pair tightened to 2 h from next month: a tenant 6 h is refused, whichever
+        // option it is (the pair is never compared, INV-Q-3204) ...
+        r.installation(atInstallation(defaultPair(2), nextMonth))
+        assertEquals(PolicyRefusal.LOOSER_THAN_BROADER, r.refusedPut(tenant(defaultPair(6)), w))
+        assertEquals(PolicyRefusal.LOOSER_THAN_BROADER, r.refusedPut(tenant(pair(6)), w))
+        assertEquals(1L, r.settings())
+        // ... and the stored 6 h resolves capped at 2 h from that date, the stored value unchanged (INV-Q-3206).
+        assertEquals(BigDecimal(6), window(r.resolve(DEFAULT_PAIR, r.tenantScope, today)))
+        val capped = r.resolve(DEFAULT_PAIR, r.tenantScope, nextMonth)
+        assertEquals(SelectedOption("DEFAULT_PAIR_4H", "{\"window\":2}"), capped.selected.single())
+        assertEquals(cap("DEFAULT_PAIR_4H", "window", 6, 2, DEFAULT_PAIR), capped.caps)
+        // The default pair at 2 h is within the installation value.
+        r.put(tenant(defaultPair(2)), w)
+        assertEquals(BigDecimal(2), window(r.resolve(DEFAULT_PAIR, r.tenantScope, nextMonth)))
+        assertEquals(emptyList<PolicyCap>(), r.resolve(DEFAULT_PAIR, r.tenantScope, nextMonth).caps)
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
