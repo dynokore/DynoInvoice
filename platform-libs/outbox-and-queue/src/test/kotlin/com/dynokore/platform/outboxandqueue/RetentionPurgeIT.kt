@@ -7,12 +7,14 @@ import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
+import java.sql.Connection
 import java.sql.SQLException
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
+import javax.sql.DataSource
 
 /** INV-T-2998: the purge of published outbox rows (content window) and inbox rows (event-log retention + 1 day). */
 @Tag("integration")
@@ -37,6 +39,11 @@ class RetentionPurgeIT {
         retention: Retention,
         batchSize: Int = 1000,
     ) = JdbcRetentionPurge(harness.fixture.workerDataSource(), "payload", retention, clock, batchSize)
+
+    /** A pool that hands out connections with autocommit off, as Hikari can be configured to. */
+    private fun manualCommit(source: DataSource): DataSource = object : DataSource by source {
+        override fun getConnection(): Connection = source.connection.also { it.autoCommit = false }
+    }
 
     private fun outbox(
         harness: OutboxHarness,
@@ -130,6 +137,13 @@ class RetentionPurgeIT {
                 }
             }
             assertEquals(setOf("unpublished"), ids(harness, "outbox", "id"))
+            harness.fixture.workerDataSource().connection.use { c ->
+                c.createStatement().use {
+                    it.execute("select set_config('app.tenant_id', '$tenantA', false)")
+                    assertEquals(0, it.executeUpdate("delete from payload.outbox"), "a tenant-bound worker too")
+                }
+            }
+            assertEquals(setOf("unpublished"), ids(harness, "outbox", "id"))
             harness.fixture.appDataSource().connection.use { c ->
                 assertThrows(SQLException::class.java) {
                     c.createStatement().use { it.executeUpdate("delete from payload.inbox") }
@@ -140,14 +154,37 @@ class RetentionPurgeIT {
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
-    fun `upgradeTo130 gives a 1_2_0 schema the purge access, twice over`(image: String) {
+    fun `a purge on an autocommit-off pool still commits every batch`(image: String) {
         OutboxHarness(image).use { harness ->
-            val upgrade = OutboxSchema.upgradeTo130("payload", "outbox_worker")
-            harness.fixture.run(upgrade)
-            harness.fixture.run(upgrade)
+            outbox(harness, "old-a", tenantA, 40)
+            outbox(harness, "old-b", tenantB, 40)
+            outbox(harness, "old-c", tenantA, 40)
             inbox(harness, "old", tenantA, 40 * 24)
-            val purge = purger(harness, Retention())
-            assertEquals(1, purge.purge().inboxRows)
+            val pool = manualCommit(harness.fixture.workerDataSource())
+            val purge = JdbcRetentionPurge(pool, "payload", Retention(), clock, 2)
+            assertEquals(PurgeResult(3, 1), purge.purge())
+            assertEquals(emptySet<String>(), ids(harness, "outbox", "id"))
+            assertEquals(emptySet<String>(), ids(harness, "inbox", "event_id"))
+        }
+    }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `upgradeTo130 takes a real 1_2_0 schema from no purge access to purge access, twice over`(image: String) {
+        OutboxPostgresFixture(image).use { fixture ->
+            fixture.runAsAdmin("create schema legacy authorization outbox_owner")
+            fixture.run(OutboxSchema120.ddl("legacy", OutboxPostgresFixture.APP, OutboxPostgresFixture.WORKER))
+            fixture.runAsAdmin(
+                "insert into legacy.inbox (consumer, event_id, tenant_id, received_at) values " +
+                    "('c', 'old', '$tenantA', timestamptz '$now' - interval '40 days')",
+            )
+            val purge = JdbcRetentionPurge(fixture.workerDataSource(), "legacy", Retention(), clock)
+            assertThrows(SQLException::class.java) { purge.purge() }
+
+            val upgrade = OutboxSchema.upgradeTo130("legacy", OutboxPostgresFixture.WORKER)
+            fixture.run(upgrade)
+            fixture.run(upgrade)
+            assertEquals(PurgeResult(0, 1), purge.purge())
         }
     }
 }

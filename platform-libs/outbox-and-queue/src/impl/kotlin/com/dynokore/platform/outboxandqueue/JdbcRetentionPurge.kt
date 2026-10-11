@@ -43,13 +43,21 @@ class JdbcRetentionPurge(
     ): Long {
         var total = 0L
         workerSource.connection.use { connection ->
-            connection.prepareStatement(sql).use { statement ->
-                do {
-                    statement.setTimestamp(1, cutoff)
-                    statement.setInt(2, batchSize)
-                    val deleted = statement.executeUpdate()
-                    total += deleted
-                } while (deleted == batchSize)
+            // Each batch is its own transaction whatever the pool defaults to (an autoCommit=false pool would run the
+            // whole loop as one transaction and roll it back on close).
+            val wasAutoCommit = connection.autoCommit
+            connection.autoCommit = true
+            try {
+                connection.prepareStatement(sql).use { statement ->
+                    do {
+                        statement.setTimestamp(1, cutoff)
+                        statement.setInt(2, batchSize)
+                        val deleted = statement.executeUpdate()
+                        total += deleted
+                    } while (deleted == batchSize)
+                }
+            } finally {
+                connection.autoCommit = wasAutoCommit
             }
         }
         return total

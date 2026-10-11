@@ -120,8 +120,11 @@ object OutboxSchema {
 
     /**
      * The worker's retention purge access (INV-T-2998): `DELETE` on published outbox rows and on inbox rows, each
-     * through its own policy, and the column `SELECT` the `WHERE` needs. The outbox policy cannot reach an unpublished
-     * row, and the worker still cannot read `data` or any other outbox column beyond the claim grant.
+     * through its own policy, and the column `SELECT` the `WHERE` needs. The outbox policies cannot reach an unpublished
+     * row: the restrictive one holds even for a worker session that has bound a tenant (the tenant policy is permissive
+     * and would otherwise let it delete that tenant's unpublished rows). The cut-off indexes serve the purge batches;
+     * they are not tenant-led because the purge is installation-wide. On a large table run them `CONCURRENTLY` (CS-19)
+     * in a migration of their own. The worker, and the worker still cannot read `data` or any other outbox column beyond the claim grant.
      */
     private fun purgeAccess(
         s: String,
@@ -129,6 +132,11 @@ object OutboxSchema {
     ): String = """
         drop policy if exists ${OUTBOX}_purge on $s.$OUTBOX;
         create policy ${OUTBOX}_purge on $s.$OUTBOX for delete to $worker using (published_at is not null);
+        drop policy if exists ${OUTBOX}_purge_published on $s.$OUTBOX;
+        create policy ${OUTBOX}_purge_published on $s.$OUTBOX as restrictive for delete to $worker
+            using (published_at is not null);
+        create index if not exists ${OUTBOX}_published_at on $s.$OUTBOX (published_at) where published_at is not null;
+        create index if not exists ${INBOX}_received_at on $s.$INBOX (received_at);
         grant delete on $s.$OUTBOX to $worker;
         drop policy if exists ${INBOX}_purge on $s.$INBOX;
         drop policy if exists ${INBOX}_purge_select on $s.$INBOX;

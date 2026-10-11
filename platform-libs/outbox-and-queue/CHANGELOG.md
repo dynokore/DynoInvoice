@@ -15,7 +15,9 @@ train is its own (README.md: "own version and changelog").
   tenants on the worker role, in batches. One retention serves all topics; the inbox has no topic column.
 - `OutboxSchema.ddl` gives the worker role the purge access (a `DELETE` policy on published outbox rows, `SELECT`
   of `inbox.received_at` and `DELETE` on the inbox); `OutboxSchema.upgradeTo130` does the same for a 1.2.0
-  schema (idempotent; run once in the service's migration).
+  schema (idempotent; run once in the service's migration). A restrictive `DELETE` policy keeps the worker off
+  unpublished outbox rows even with a tenant bound; indexes on `outbox(published_at)` (published rows) and
+  `inbox(received_at)` serve the batches. Each batch commits on its own whatever the pool's autocommit.
 ### Not included
 - The `eventlog` topic tables are created by the event-log component's migration (`EventLogSchema`), not this
   module's service schema, and this module holds INSERT and SELECT on them only; purging them past the
