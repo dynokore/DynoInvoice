@@ -130,6 +130,9 @@ enum class PolicyRefusal {
 
     /** A profile value without its profile id and version (INV-Q-2979). */
     PROFILE_INCOMPLETE,
+
+    /** A profile value at installation scope: profile values are tenant-and-below settings (INV-Q-2979). */
+    PROFILE_AT_INSTALLATION,
 }
 
 /** A write refused before anything was stored. */

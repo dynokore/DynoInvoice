@@ -70,6 +70,10 @@ class JdbcPolicyWriter(
         if (command.source == SettingSource.PROFILE && (command.profileId.isNullOrBlank() || command.profileVersion.isNullOrBlank())) {
             refuse(key, PolicyRefusal.PROFILE_INCOMPLETE, "a profile value names the profile and its version")
         }
+        if (command.source == SettingSource.PROFILE && target.level == ScopeLevel.INSTALLATION) {
+            // Profile values are tenant-and-below settings in config_setting (T26 slot scope, INV-Q-2979).
+            refuse(key, PolicyRefusal.PROFILE_AT_INSTALLATION, "an operating profile applies to a tenant, not the installation")
+        }
         unsupported(definition)
         checkSelection(definition, target, command.selected, command.effectiveFrom)
         val looser = looserOptions(definition, command.selected)
@@ -111,7 +115,7 @@ class JdbcPolicyWriter(
                 AuditEntry(
                     actor = command.actor.principal,
                     action = SET_POLICY,
-                    scope = "${target.scopeText}/$key",
+                    scope = target.scopeText,
                     reason = reason,
                     priorStateJson = priorState(key, target, command.effectiveFrom, prior),
                 ),
@@ -130,8 +134,9 @@ class JdbcPolicyWriter(
         val looser = looserOptions(definition, command.selected)
         if (looser.isEmpty()) refuse(key, PolicyRefusal.NOT_LOOSER, "the value relaxes nothing")
         val required = requiredRoles(definition, looser, target, command.effectiveFrom).map { it.first }
-        val allowed =
-            looser.flatMap { option -> option.acknowledgers.mapNotNull { it.roleIn(form) } }.toSet()
+        // Only the roles that apply here may acknowledge: an UNDER_DELEGATION role where no delegation applies
+        // is not accountable for this relaxation (T26 slot default_source, INV-Q-3136).
+        val allowed = required.toSet()
         if (command.asRole !in allowed || command.asRole !in command.actor.roles) {
             refuse(key, PolicyRefusal.ACKNOWLEDGER_NOT_ALLOWED, "acknowledging needs one of ${allowed.sorted()}, held")
         }
@@ -179,7 +184,7 @@ class JdbcPolicyWriter(
             AuditEntry(
                 actor = command.actor.principal,
                 action = ACKNOWLEDGE_CONTROL_RELAXATION,
-                scope = "${target.scopeText}/$key/${command.selected.joinToString("+") { it.key }}",
+                scope = target.scopeText,
                 reason = row.reason,
                 priorStateJson = mapper.writeValueAsString(prior),
             ),
@@ -243,6 +248,7 @@ class JdbcPolicyWriter(
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // any failure of the owning service's port refuses (INV-Q-3167)
     private fun checkSelection(
         definition: VariationPointDefinition,
         target: SettingTarget,
@@ -253,7 +259,7 @@ class JdbcPolicyWriter(
         val verdict =
             try {
                 constraints?.check(target, definition.key, selected, onDate)
-            } catch (@Suppress("TooGenericExceptionCaught") failure: RuntimeException) {
+            } catch (failure: RuntimeException) {
                 refuse(definition.key, PolicyRefusal.CONSTRAINT_REFUSED, "the owning service's check failed: ${failure.javaClass.simpleName}")
             }
         when (verdict) {

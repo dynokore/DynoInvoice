@@ -79,7 +79,7 @@ internal class ValueValidator(
     }
 
     /** The first reason [node] does not fit [spec], or `null`. */
-    @Suppress("CyclomaticComplexMethod", "ReturnCount")
+    @Suppress("CyclomaticComplexMethod", "ReturnCount") // one branch per catalogue value type, first problem wins
     private fun problem(
         spec: TypedValueSpec,
         node: JsonNode,
