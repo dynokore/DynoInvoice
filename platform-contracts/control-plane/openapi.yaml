@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: control-plane API
-  version: 1.0.0
+  version: 1.1.0
   description: 'Contract-first source of truth for control-plane (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1), SaaS-operator-only: the operator
     console for regulatory, release and commercial roles (regulatory pack authoring/signing/publication,
@@ -531,8 +531,9 @@ paths:
         with no default. It is fixed afterwards except through migration (UC-35); no operation
         changes it. A request without dataRegion fails validation with 400 and SRT-001, a closed
         service-runtime case (ARC-19, owner ruling INV-Q-3720), and one naming a region not on
-        the list is refused with 400 (API-20 envelope, errors[] with field /dataRegion, no
-        catalogue code, INV-Q-3590); in both cases no provisioning request or tenant is
+        the list is refused with 422 and CPL-003 (API-20 envelope, errors[] with field
+        /dataRegion; owner ruling INV-Q-3756 B) instead of the earlier code-less 400
+        (INV-Q-3590); in both cases no provisioning request or tenant is
         recorded (INV-AC-2293). The 201 and getTenantProvisioningRequest echo the elected
         dataRegion.
       tags:
@@ -544,7 +545,8 @@ paths:
       - FR-AC.1
       - FR-AC.19
       - INV-REQ-1306
-      x-error-codes: []
+      x-error-codes:
+      - CPL-003
       x-operation:
         role: commercial.admin
         scope: platform
@@ -597,6 +599,28 @@ paths:
           $ref: '#/components/responses/Error'
         "409":
           $ref: '#/components/responses/Error'
+        "422":
+          description: dataRegion is not on the platform's region list (CPL-003, INV-REQ-1306, owner
+            ruling INV-Q-3756 B); no provisioning request or tenant is recorded
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../service-runtime/schemas/error-envelope.schema.json
+              examples:
+                default:
+                  value:
+                    type: https://errors.invoice.internal/CPL-003
+                    title: Data region not on the region list
+                    status: 422
+                    code: CPL-003
+                    severity: BLOCK
+                    disposition: TERMINAL
+                    remediationOwner: Platform
+                    errors:
+                    - code: CPL-003
+                      field: /dataRegion
+                      message: dataRegion XX is not on the platform's region list
+                    correlationId: 3fa85f64-5717-4562-b3fc-2c963f66afa6
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/control-plane/tenant-provisioning-requests/{contractReference}:
@@ -1020,7 +1044,8 @@ components:
           description: The tenant's data region, the key of an entry on control-plane-svc's region
             list (SaaS only, seeded with Singapore); elected here with no default and fixed
             afterwards except through migration (INV-REQ-1306, INV-Q-3590). A key not on the list
-            is refused with 400.
+            is refused with 422 and CPL-003 instead of a code-less 400 (owner ruling INV-Q-3756 B);
+            a request without dataRegion stays a schema 400 (SRT-001).
     TenantProvisioningResponse:
       type: object
       required:

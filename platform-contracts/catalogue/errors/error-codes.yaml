@@ -1,7 +1,8 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
-# pinned at commit 5726dece3a98d101c2df86ec430447fe68ccd56b (2026-10-12), the
-# merge of invoice-docs!8 adding SRT-001..SRT-010 (INV-T-3742, owner ruling INV-Q-3720,
-# INV-Q-3754; previously pinned at d6026e5f13c0e12048d27d054d0287941f901de9, INV-T-3634).
+# pinned at commit 6d68f1f141245bad66c614b4e858dcc8a4a930c2 (2026-10-12), the head
+# of invoice-docs!10 adding CPL-001..CPL-003 and SRT-011 (INV-T-3762, owner rulings
+# INV-Q-3267 a, INV-Q-3756 B, coordinator ruling INV-Q-3773; to be re-pinned to its merge
+# commit; previously pinned at 5726dece3a98d101c2df86ec430447fe68ccd56b, INV-T-3742).
 #
 # This copy is the generator's (catalogue/generator/) sole input for the
 # gst-catalogue ErrorCode catalogue (STK-61, CS-13). It is never hand-edited:
@@ -620,6 +621,27 @@ error_codes:
   owner: Platform
 - code: SRT-010
   condition: Internal error, with no detail in the response (ARC-19, API-22; HTTP 500; INV-Q-3720, INV-REQ-827 b3)
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: SRT-011
+  condition: 'The token issuer is unavailable, so the token cannot be verified now; retry later (cached issuer keys are
+    used first; HTTP 503; INV-Q-3773, INV-REQ-827 b3)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: CPL-001
+  condition: 'Audit purge cut-off younger than the floor (HTTP 422; INV-Q-3267 a, INV-Q-3097)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: CPL-002
+  condition: 'Audit purge floor cannot be determined; nothing deleted; retryable (HTTP 503; INV-Q-3267 a)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: CPL-003
+  condition: 'dataRegion is not on the platform''s region list (HTTP 422; INV-Q-3756 B, INV-REQ-1306)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
