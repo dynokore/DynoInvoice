@@ -1,7 +1,7 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
-# pinned at commit 2dfb6f809a3963ef15ed8426d7bba38ba5376068 (2026-10-11), the
-# merge of invoice-docs!4 adding the JOB prefix (INV-T-3007; previously pinned at
-# dcd475a1d6ceb2b19bf53afcdd563da589bb9faf, INV-T-2851 / T7).
+# pinned at commit 6c367e5c6f7c05bc9bac7c256b82ddf91450e9f0 (2026-10-11), the
+# merge of invoice-docs!5 adding ING-019 (INV-T-3457; previously pinned at
+# 2dfb6f809a3963ef15ed8426d7bba38ba5376068, INV-T-3007).
 #
 # This copy is the generator's (catalogue/generator/) sole input for the
 # gst-catalogue ErrorCode catalogue (STK-61, CS-13). It is never hand-edited:
@@ -103,6 +103,13 @@ error_codes:
   owner: Finance
 - code: ING-018
   condition: Pre-aggregated call whose period crosses a prescribed-period boundary (FR-AE.49). Added 25 Sep 2026
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Integration
+- code: ING-019
+  condition: Credit note with neither precedingDocumentNumber nor precedingDocumentDate sent without precedingBlankJustification
+    or evidenceRef (FR-8.15; HTTP 400, as ING-009 under INV-Q-1841). Raised by ingestion-svc and canonical-svc. Added 11 Oct
+    2026 (Keel INV-REQ-561, INV-API-3458, INV-API-3459, INV-Q-3488)
   severity: BLOCK
   disposition: TERMINAL
   owner: Integration
