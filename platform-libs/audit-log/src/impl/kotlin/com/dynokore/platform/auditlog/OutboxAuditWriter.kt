@@ -4,9 +4,7 @@ import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
-import tools.jackson.core.JacksonException
 import tools.jackson.databind.ObjectMapper
-import tools.jackson.databind.node.ObjectNode
 
 /**
  * [AuditWriter] over outbox-and-queue's [OutboxWriter]: one `AuditEntryRecorded` row in the service's own
@@ -29,29 +27,10 @@ class OutboxAuditWriter(
         }
     }
 
-    private fun payload(entry: AuditEntry): String {
-        val node = mapper.createObjectNode()
-        node.put("actor", entry.actor)
-        node.put("action", entry.action)
-        node.put("scope", entry.scope)
-        entry.reason?.let { node.put("reason", it) }
-        entry.priorStateJson?.let { node.set("priorState", parseObject(it)) }
-        return mapper.writeValueAsString(node)
-    }
-
-    private fun parseObject(json: String): ObjectNode {
-        val node =
-            try {
-                mapper.readTree(json)
-            } catch (failure: JacksonException) {
-                throw IllegalArgumentException("prior state is not JSON", failure)
-            }
-        require(node is ObjectNode) { "prior state must be a JSON object" }
-        return node
-    }
+    private fun payload(entry: AuditEntry): String = AuditPayload.json(entry, mapper)
 
     companion object {
         /** The platform event type (API-40), schema owned by `service-runtime`. */
-        const val EVENT_TYPE = "com.dynokore.gst.platform.AuditEntryRecorded.v1"
+        const val EVENT_TYPE = AuditPayload.EVENT_TYPE
     }
 }

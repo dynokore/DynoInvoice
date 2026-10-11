@@ -9,7 +9,7 @@ train is its own (README.md: "own version and changelog").
 ## [1.2.0] - 2026-10-11
 ### Added
 - Tenantless platform events (Keel INV-Q-2927 option D, INV-Q-3014, INV-Q-3018): a platform event
-  type (`com.dynokore.gst.platform.*`, `Envelope.isPlatformType`) may be written under
+  type (one of INV-REQ-1226's seven `com.dynokore.gst.platform.*` events, `Envelope.isPlatformType`) may be written under
   tenancy-kernel's `TenantId.PLATFORM` with the reserved `EntityRef.PLATFORM`. Its rows keep
   `tenant_id NOT NULL` with forced RLS in `outbox`, `outbox_sequence`, `inbox` and
   `consumer_sequence` (CS-19, no schema change). The envelope leaves `tenantid` and `entityref` out
@@ -23,6 +23,12 @@ train is its own (README.md: "own version and changelog").
 - On consume, a record without `tenantid` is a contract violation unless its type is a platform type,
   and a record naming the reserved platform id in `tenantid` is one too; `EnvelopeJson.tenantOf`
   returns the platform tenant for a tenantless platform record and `null` for the reserved id.
+- `TenantScope` gains a defaulted `platform` parameter; `@JvmOverloads` keeps the 1.1.0 JVM constructor.
+### Fixed
+- `consumer_sequence` is keyed `(consumer, tenant_id, source, subject)`, like the producer's per-tenant
+  counter: under 1.1.0's `(consumer, source, subject)` a second tenant's event with the same source and
+  subject failed row-level security and stalled the consumer. `OutboxSchema.upgradeTo120` migrates a
+  1.1.0 schema, keeping its rows.
 
 ## [1.1.0] - 2026-10-11
 ### Added

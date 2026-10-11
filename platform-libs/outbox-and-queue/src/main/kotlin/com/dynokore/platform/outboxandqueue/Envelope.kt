@@ -8,11 +8,11 @@ import java.time.LocalDate
  * The common event envelope of FR-K.3 / FR-M.11 in CloudEvents 1.0 terms, plus the
  * payload as JSON text (INV-REQ-1162).
  *
- * @property id the idempotency key (CloudEvents `id`).
- * @property source `/gst/<emitting service>`; [instanceId] names the instance.
  * A tenantless platform event carries `TenantId.PLATFORM` and [EntityRef.PLATFORM] here (INV-Q-2927
  * option D); its CloudEvents form leaves `tenantid` and `entityref` out.
  *
+ * @property id the idempotency key (CloudEvents `id`).
+ * @property source `/gst/<emitting service>`; [instanceId] names the instance.
  * @property subject the aggregate key events are ordered under.
  * @property docUuid present when the event concerns a document.
  * @property docSequence per-aggregate monotonic sequence (FR-AH.10); absent when the event
@@ -52,12 +52,26 @@ data class Envelope(
     companion object {
         private const val PLATFORM_TYPE_PREFIX = "com.dynokore.gst.platform."
 
+        /** INV-REQ-1226 behaviour 1: the closed platform class. */
+        private val PLATFORM_EVENTS =
+            setOf(
+                "AuditEntryRecorded",
+                "JobRunRecorded",
+                "JobRegistered",
+                "ConnectionStatusChanged",
+                "EvidenceArtefactRecorded",
+                "PolicyChanged",
+                "PackReadinessAcknowledged",
+            )
+
         /**
-         * True for a platform event type (`com.dynokore.gst.platform.<Name>.v<N>`, INV-REQ-1226): the
+         * True for a platform event type (`com.dynokore.gst.platform.<Name>.v<N>` with `<Name>` one of
+         * INV-REQ-1226's seven platform events): the
          * only types that may be written under `TenantId.PLATFORM` and travel without `tenantid` and
          * `entityref` (INV-Q-3018). A domain event always carries a real tenant (FR-K.3, INV-REQ-1162).
          */
-        fun isPlatformType(type: String): Boolean = type.startsWith(PLATFORM_TYPE_PREFIX)
+        fun isPlatformType(type: String): Boolean = type.startsWith(PLATFORM_TYPE_PREFIX) &&
+            type.removePrefix(PLATFORM_TYPE_PREFIX).substringBefore(".v") in PLATFORM_EVENTS
 
         private val SOURCE_PATTERN = Regex("^/gst/[a-z-]+$")
         private val TYPE_PATTERN = Regex("^com\\.dynokore\\.gst\\.[a-z-]+\\.[A-Za-z]+\\.v[0-9]+$")

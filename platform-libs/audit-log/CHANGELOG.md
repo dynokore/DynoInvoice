@@ -6,6 +6,17 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-10-11
+### Added
+- `LocalAuditWriter`: `AuditWriter.record(entry, ctx)` for a service without an outbox
+  (`control-plane-svc`, INV-Q-2958): one row in the local `audit_entry` table of the service's schema, in
+  the command's transaction (INV-REQ-1226, -2588); operator actions with no tenant are stored under the
+  reserved `TenantId.PLATFORM` (INV-Q-2927 option D). Returns the envelope the outbox writer would stamp.
+- `AuditSchema.auditEntryDdl`: the `audit_entry` table, `tenant_id` NOT NULL leading every index, forced
+  row-level security, select and insert only; `actor` classed personal, `reason` and `prior_state` content
+  (CS-56). Retention per INV-Q-3028: at least the longest tenant VP-43 period, never under 5 years, no
+  automatic expiry, deletion only by an audited purge (not in this module).
+
 ## [2.0.0] - 2026-10-11
 ### Changed
 - BREAKING: `OverridePolicy` no longer takes `additionalRequiredRoles`; an override needs one

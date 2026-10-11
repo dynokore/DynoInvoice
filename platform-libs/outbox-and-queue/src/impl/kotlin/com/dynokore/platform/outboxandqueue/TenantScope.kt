@@ -13,7 +13,9 @@ import com.dynokore.platform.tenancykernel.TransactionRunner
  * Rows under the reserved platform tenant are bound through the [PlatformTenantBinding] (INV-Q-2927).
  * The composition root builds one from the service's `TransactionRunnerImpl`.
  */
-class TenantScope(
+class TenantScope
+@JvmOverloads
+constructor(
     val tenants: TenantContext,
     val transactions: TransactionRunner,
     val connections: CurrentConnection,

@@ -4,9 +4,15 @@ All notable changes to `platform-libs-bom` are recorded here (FR-L.6). Format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+
+## [0.5.0] - 2026-10-11
 ### Added
 - `outbox-and-queue-api`/`outbox-and-queue` constraint pair, pinned to `outbox-and-queue`'s own
-  `1.2.0` (INV-T-2995 / FU-C1); `tenancy-kernel`'s pair now resolves to its `1.1.0`.
+  `1.2.0` (INV-T-2995 / FU-C1).
+- `audit-log-api`/`audit-log` constraint pair, pinned to `audit-log`'s own `2.0.0` (missed when
+  T24 / INV-T-2868 added the module).
+### Changed
+- `tenancy-kernel`'s pair now resolves to its `1.1.0` (INV-T-2995).
 
 ## [0.4.0] - 2026-09-27
 ### Added
