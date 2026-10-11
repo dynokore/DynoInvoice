@@ -28,6 +28,10 @@ class RetentionPurgeIT {
     fun `periods default to 30 days and are refused below 7`() {
         assertEquals(Duration.ofDays(30), Retention().contentWindow)
         assertEquals(Duration.ofDays(31), Retention().inboxRetention)
+        val week = Duration.ofDays(7)
+        val forty = Duration.ofDays(40)
+        assertEquals(Duration.ofDays(41), Retention(forty, week).inboxRetention, "content window longer")
+        assertEquals(Duration.ofDays(41), Retention(week, forty).inboxRetention, "event-log retention longer")
         Retention(Duration.ofDays(7), Duration.ofDays(7))
         val belowFloor = Duration.ofDays(7).minusSeconds(1)
         assertThrows(IllegalArgumentException::class.java) { Retention(contentWindow = belowFloor) }
@@ -113,9 +117,24 @@ class RetentionPurgeIT {
             assertEquals(PurgeResult(0, 2), purge.purge())
             assertEquals(setOf("inside-margin", "recent"), ids(harness, "inbox", "event_id"))
 
-            val shorter = Retention(eventLogRetention = Duration.ofDays(7))
+            val shorter = Retention(contentWindow = Duration.ofDays(7), eventLogRetention = Duration.ofDays(7))
             assertEquals(1, purger(harness, shorter).purge().inboxRows)
             assertEquals(setOf("recent"), ids(harness, "inbox", "event_id").also { assertTrue(it.isNotEmpty()) })
+        }
+    }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `a content window longer than event-log retention keeps the inbox row while a content event is in the log`(
+        image: String,
+    ) {
+        OutboxHarness(image).use { harness ->
+            // A content-topic event 31 days old is still in the log under a 40-day window, so its inbox row stays.
+            inbox(harness, "content-still-in-log", tenantA, 31 * 24)
+            inbox(harness, "past-window", tenantB, 41 * 24 + 1)
+            val retention = Retention(contentWindow = Duration.ofDays(40), eventLogRetention = Duration.ofDays(7))
+            assertEquals(1, purger(harness, retention).purge().inboxRows)
+            assertEquals(setOf("content-still-in-log"), ids(harness, "inbox", "event_id"))
         }
     }
 

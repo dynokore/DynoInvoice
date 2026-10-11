@@ -160,6 +160,39 @@ class EventLogPurgeIT {
         }
     }
 
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `a consumer role reads only the watermark rows of its own topics`(image: String) {
+        OutboxHarness(image).use { harness ->
+            val solo = "gst.solo.solo-event.v1"
+            harness.fixture.runAsAdmin("create role solo_claim nologin; create role solo_reader nologin")
+            harness.fixture.runAsAdmin("grant usage on schema eventlog to solo_claim, solo_reader")
+            val roles = listOf(EventLogSchema.ConsumerRoles("solo_claim", "solo_reader"))
+            harness.fixture.run(
+                EventLogSchema.topicDdl(solo, OutboxPostgresFixture.RELAY, roles, OutboxPostgresFixture.PURGE),
+            )
+            harness.fixture.runAsAdmin(
+                "insert into eventlog.purge_watermark values ('$solo', 4, now()), ('$other', 9, now())",
+            )
+            for (role in listOf("solo_claim", "solo_reader")) {
+                assertEquals(mapOf(solo to 4L), watermarksAs(harness, role), role)
+            }
+        }
+    }
+
+    /** The watermark rows [role] can read (`set role` on a superuser connection, so its policies apply). */
+    private fun watermarksAs(
+        harness: OutboxHarness,
+        role: String,
+    ): Map<String, Long> = harness.fixture.adminDataSource().connection.use { connection ->
+        connection.createStatement().use { statement ->
+            statement.execute("set role $role")
+            statement.executeQuery("select topic, watermark from eventlog.purge_watermark").use { rows ->
+                buildMap { while (rows.next()) put(rows.getString(1), rows.getLong(2)) }
+            }
+        }
+    }
+
     @Test
     fun `a period below 7 days is refused, and so is a topic without a content marker`() {
         assertThrows(IllegalArgumentException::class.java) { Retention(contentWindow = Duration.ofDays(6)) }

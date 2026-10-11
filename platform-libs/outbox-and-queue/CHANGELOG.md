@@ -32,6 +32,9 @@ train is its own (README.md: "own version and changelog").
   the recovery path (producers' replay by scope or full sync, not in this module) has moved its offset past the
   watermark.
 ### Changed
+- `Retention.inboxRetention` is now `max(contentWindow, eventLogRetention) + 1 day` (was `eventLogRetention + 1 day`):
+  with per-topic periods a content-topic event stays in the log for the content window, so its inbox row must not
+  expire sooner, or a redelivery would be applied twice. Unchanged under the defaults (both 30 days).
 - **API change:** `EventLogSchema.topicDdl(topic, relayRole, consumers, purgeRole)` (new required `purgeRole`; run
   `watermarkDdl` first); `JdbcInboxConsumer(subscription, reader, claimSource, scope, handler, rebuildRequired, …)`
   (new required `RebuildRequiredSink` before `clock`). No topic table exists in any installation yet (INV-T-2890 is
