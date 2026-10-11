@@ -40,7 +40,9 @@ import java.util.UUID
  * pairs, and the response lists every addressee in `producers` with producer 'several producers'. A full sync moves
  * every topic of its producers the consumer reads, so when one of those topics has other producers too they are
  * addressed as well, until the set is closed (no moved topic has a producer left out): the clear of every addressee
- * runs and, addressed to several producers, no docsequence row is deleted (coordinator ruling on INV-Q-3788).
+ * runs and each addressee's docsequence rows are deleted (coordinator ruling INV-Q-3843; none for 'every service').
+ * The replay stays pending until its incident closes: a repeat returns it also after some producers have completed
+ * (coordinator ruling INV-Q-3845).
  *
  * Wiring: [scope] is the service's tenant binding, transactions and current connection (app role); [outbox] and
  * [audit] the service's outbox and audit writers; [head] the consumer's event-log claim path

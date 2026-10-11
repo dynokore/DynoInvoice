@@ -40,8 +40,8 @@ train is its own (README.md: "own version and changelog").
 - A topic with several catalogue producers (owner ruling INV-Q-3788 A): `JdbcConsumerReplay.request` and `fullSync`
   take one request per producer under one replay id, move the topics to the head once and write one ReplayRequested
   per producer; `addressees` lists a replay's producers. Each pair completes on its producer's marker and the
-  incidents close only once every addressee has completed. A full sync addressed to several producers deletes no
-  docsequence row.
+  incidents close only once every addressee has completed. A full sync addressed to several producers deletes each
+  addressee's docsequence rows (coordinator ruling INV-Q-3843).
 - Schema: `consumer_replay` (key (replay_id, producer)), `consumer_replay_marker`, `consumer_source_seen`;
   `OutboxSchema.upgradeTo1100`.
 

@@ -196,7 +196,8 @@ class ConsumerRebuildIT {
             assertEquals(listOf("a-svc", "b-svc"), scope.get("producers").let { a -> (0 until a.size()).map { a.get(it).asString() } }, "the audit names every addressee")
             assertEquals(3L, h.count("select count(*) from $SCHEMA.outbox"))
 
-            // The repeat rule over the set of pairs: the pending replay, nothing written; also once one pair completed.
+            // The repeat rule over the set of pairs: the pending replay, nothing written; also once one pair completed,
+            // since the replay stays pending until its incident closes (coordinator ruling INV-Q-3845).
             for (step in listOf("both pending", "a-svc completed")) {
                 val repeat = h.runtime().rebuildConsumer(h.request(topic = MULTI)) as RebuildOutcome.Done
                 assertEquals(listOf(false, true), listOf(repeat.created, repeat.state.repeat), step)
@@ -220,13 +221,15 @@ class ConsumerRebuildIT {
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
-    fun `INV-Q-3788 a full sync addresses every producer of the topics it moves and keeps docsequence rows`(image: String) {
+    fun `INV-Q-3788 a full sync addresses every producer of the topics it moves and deletes their docsequence rows`(image: String) {
         Harness(image).use { h ->
             h.behind(watermark = 5)
             h.matchView()
             h.fixture.runAsAdmin(
                 "insert into $SCHEMA.match_view values ('$CONSUMER', '${TENANT.value}', 'n');" +
-                    "insert into $SCHEMA.consumer_sequence values ('$CONSUMER', '/gst/$PRODUCER', 's', '${TENANT.value}', 4)",
+                    "insert into $SCHEMA.consumer_sequence values ('$CONSUMER', '/gst/$PRODUCER', 's', '${TENANT.value}', 4);" +
+                    "insert into $SCHEMA.consumer_sequence values ('$CONSUMER', '/gst/b-svc', 's', '${TENANT.value}', 4);" +
+                    "insert into $SCHEMA.consumer_sequence values ('$CONSUMER', '/gst/other-svc', 's', '${TENANT.value}', 4)",
             )
             val full = h.request(mode = ReplayMode.FULL_SYNC, scope = null)
             // canonical-svc shares SHARED with b-svc, and b-svc shares MULTI with a-svc: all three are addressed.
@@ -234,6 +237,7 @@ class ConsumerRebuildIT {
             assertThrows(IllegalStateException::class.java) {
                 h.runtime(fullSync = true, clears = partial, extra = listOf(SHARED)).rebuildConsumer(full)
             }
+            assertEquals(3L, h.count("select count(*) from $SCHEMA.consumer_sequence"), "no clear for a-svc: nothing deleted")
             assertEquals(0L, h.count("select count(*) from $SCHEMA.outbox"), "no clear for a-svc: refused, nothing written")
             val clears = listOf(PRODUCER, "a-svc", "b-svc").map { ReadModelClear(it, listOf(CLEAR)) }
             val done = h.runtime(fullSync = true, clears = clears, extra = listOf(SHARED)).rebuildConsumer(full) as RebuildOutcome.Done
@@ -244,7 +248,11 @@ class ConsumerRebuildIT {
             assertEquals(listOf("a-svc", "b-svc", PRODUCER), requested.map { it.get("producer").asString() }.sorted())
             assertEquals(setOf(done.state.replayId.toString()), requested.map { it.get("replayId").asString() }.toSet())
             assertEquals(0L, h.count("select count(*) from $SCHEMA.match_view"), "every addressee's clear ran")
-            assertEquals(1L, h.count("select count(*) from $SCHEMA.consumer_sequence"), "no docsequence row deleted")
+            assertEquals(
+                listOf("/gst/other-svc"),
+                h.strings("select source from $SCHEMA.consumer_sequence"),
+                "every addressee's docsequence rows deleted, another producer's kept (INV-Q-3843)",
+            )
         }
     }
 

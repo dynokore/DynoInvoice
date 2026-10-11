@@ -19,8 +19,9 @@ train is its own (README.md: "own version and changelog").
   that set of pairs; `ReplayState.producers` lists every addressee and `producer` is 'several producers'
   (`ReplayState.SEVERAL_PRODUCERS`; service-runtime contract 1.2.0, INV-T-3819); the audit scope names every
   addressee. A full sync addresses every producer of the topics it moves, until no moved topic has a producer left
-  out, runs each addressee's clear and, addressed to several producers, deletes no docsequence row (coordinator
-  ruling on INV-Q-3788).
+  out, runs each addressee's clear and deletes each addressee's docsequence rows (coordinator ruling INV-Q-3843;
+  none for 'every service', INV-Q-3805). A repeat returns the pending replay until its incident closes, also after
+  some producers completed (coordinator ruling INV-Q-3845).
 - The inbox consumer bean takes the `EventCatalogue` (record topics, INV-Q-3809). The tests' pinned
   `service-runtime/openapi.yaml` is platform-contracts 0b685b5 (service-runtime contract 1.2.0).
 

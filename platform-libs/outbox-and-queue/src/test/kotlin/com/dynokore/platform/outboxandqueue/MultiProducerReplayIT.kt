@@ -1,19 +1,23 @@
 package com.dynokore.platform.outboxandqueue
 
+import com.dynokore.platform.tenancykernel.TenantContextImpl
 import com.dynokore.platform.tenancykernel.TenantId
+import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import java.time.Clock
+import java.time.LocalDate
 import java.util.UUID
 
 /**
  * A topic with several catalogue producers (owner ruling INV-Q-3788 A; INV-AC-3817, INV-TS-3818; Keel INV-T-3385) on
  * PostgreSQL 17 and 18: one request moves the head once and writes one ReplayRequested per producer under one replay
  * id; each producer answers only its own request on its pair's replay topic; the incident stays open while one
- * producer has not answered and closes once, when every producer's ReplayCompleted has been applied.
+ * producer has not answered and closes once, when every producer's ReplayCompleted has been applied; a full sync
+ * deletes every addressee's docsequence rows, so an addressee's other docsequence topic is rebuilt (INV-Q-3843).
  */
 @Tag("integration")
 class MultiProducerReplayIT {
@@ -24,11 +28,7 @@ class MultiProducerReplayIT {
     fun `one replay id addresses every producer and the incident closes only when all have completed`(image: String) {
         OutboxHarness(image).use { harness ->
             val evidence = harness.evidence
-            val kits =
-                listOf("access", "masterdata", "rules").associateWith { schema ->
-                    harness.fixture.createService(schema)
-                    ServiceKit(harness, schema, "$schema-svc", harness.catalogue)
-                } + ("payload" to harness.payload)
+            val kits = producerKits(harness)
             val producers = kits.values.map { it.service }.sorted()
             assertEquals(producers, harness.catalogue.topic(topic)!!.producers.sorted(), "every catalogue producer")
             val replayId = UUID.randomUUID()
@@ -58,6 +58,97 @@ class MultiProducerReplayIT {
         }
     }
 
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `INV-Q-3843 a full sync deletes each addressee's docsequence rows, its other topics rebuilt`(image: String) {
+        OutboxHarness(image).use { harness ->
+            val doc = UUID.randomUUID()
+            val tenant = ServiceKit.TENANT
+            // evidence-svc applied payload-svc's PayloadReady for doc at docsequence 3, and something of canonical-svc.
+            harness.fixture.runAsAdmin(
+                "insert into evidence.consumer_sequence values " +
+                    "('evidence-svc', '/gst/payload-svc', '$doc', '$tenant', 3), " +
+                    "('evidence-svc', '/gst/canonical-svc', 's', '$tenant', 7)",
+            )
+            val kits = producerKits(harness)
+            val producers = kits.values.map { it.service }.sorted()
+            val replayId = UUID.randomUUID()
+            fullSync(harness, replayId, producers)
+            val rows = "select count(*) from evidence.consumer_sequence"
+            assertEquals(1L, harness.count(rows), "every addressee's rows deleted")
+            assertEquals(1L, harness.count("$rows where source = '/gst/canonical-svc'"), "another producer's row kept")
+
+            // payload-svc replays doc at its current docsequence 3: applied, not STALE, and held again.
+            harness.drain(harness.evidence.relay)
+            val applied = mutableListOf<String>()
+            answer(harness, kits.getValue("payload"), listOf(PayloadStates(doc)))
+            val result = intake(harness, "payload", "payload-svc") { applied += it.type }.pollOnce()
+            assertEquals(listOf(2, 0), listOf(result.applied, result.stale), "the state and the marker")
+            assertEquals(listOf(TestCatalogue.PAYLOAD_READY), applied)
+            assertEquals(3L, harness.count("select last_value from evidence.consumer_sequence where subject = '$doc'"))
+        }
+    }
+
+    /** evidence-svc's full sync addressed to every one of [producers], on its worker role bound to the platform. */
+    private fun fullSync(
+        harness: OutboxHarness,
+        replayId: UUID,
+        producers: List<String>,
+    ) {
+        val workerTenants = TenantContextImpl()
+        val workerTx = TransactionRunnerImpl(harness.fixture.workerDataSource(), workerTenants)
+        val clock = Clock.systemUTC()
+        val catalogue = harness.catalogue
+        val writer = JdbcOutboxWriter(workerTx, "evidence", "evidence-svc", "evidence-svc-w", catalogue, clock)
+        workerTenants.bindPlatform {
+            workerTx.inTransaction {
+                JdbcConsumerReplay("evidence", workerTx, harness.reader, writer, clock).fullSync(
+                    "evidence-svc",
+                    listOf(topic, "gst.payload.payload-ready.v1"),
+                    producers.map { ReplayRequest(replayId, it, ReplayMode.FULL_SYNC, null) },
+                    emptyList(),
+                    CorrelationId("c-$replayId"),
+                    CausationId("o-$replayId"),
+                )
+            }
+        }
+    }
+
+    /** The other catalogue producers of [topic] (access-svc, masterdata-svc, rules-svc) and payload-svc, by schema. */
+    private fun producerKits(harness: OutboxHarness): Map<String, ServiceKit> {
+        val others = listOf("access", "masterdata", "rules")
+        return others.associateWith { schema ->
+            harness.fixture.createService(schema)
+            ServiceKit(harness, schema, "$schema-svc", harness.catalogue)
+        } + ("payload" to harness.payload)
+    }
+
+    /** payload-svc's PayloadReady state source: one document at docsequence 3 in the fixture tenant. */
+    private class PayloadStates(
+        private val doc: UUID,
+    ) : ReplayStateSource {
+        override val eventType = TestCatalogue.PAYLOAD_READY
+
+        override fun tenants() = listOf(TenantId(ServiceKit.TENANT))
+
+        override fun page(
+            scope: ReplayScope?,
+            cursor: String?,
+            limit: Int,
+        ): ReplayPage {
+            val state = ReplayedState(
+                eventType,
+                """{"version":3}""",
+                EntityRef("entity-$doc"),
+                doc.toString(),
+                3L,
+                DocUuid(doc),
+                LocalDate.of(2026, 9, 30),
+            )
+            return ReplayPage(if (cursor == null) listOf(state) else emptyList(), null)
+        }
+    }
+
     /** evidence-svc's one request to every one of [producers] under [replayId]: one head move. */
     private fun request(
         harness: OutboxHarness,
@@ -79,10 +170,11 @@ class MultiProducerReplayIT {
     private fun answer(
         harness: OutboxHarness,
         kit: ServiceKit,
+        sources: List<ReplayStateSource> = emptyList(),
     ): List<ReplayAnswer> {
         val responder = JdbcReplayResponder(
             kit.service, kit.schema, harness.catalogue, harness.reader, harness.fixture.workerDataSource(),
-            TenantScope(kit.tenants, kit.boundary, kit.boundary), kit.writer, emptyList(), harness.rebuildSink,
+            TenantScope(kit.tenants, kit.boundary, kit.boundary), kit.writer, sources, harness.rebuildSink,
         )
         val answers = responder.runOnce()
         harness.drain(kit.relay)
@@ -94,6 +186,7 @@ class MultiProducerReplayIT {
         harness: OutboxHarness,
         prefix: String,
         producer: String,
+        seen: (Envelope) -> Unit = {},
     ): JdbcReplayIntake {
         val roles = harness.fixture.replayRoles("evidence-svc")
         val evidence = harness.evidence
@@ -108,7 +201,10 @@ class MultiProducerReplayIT {
             harness.fixture.workerDataSource(),
             TenantScope(evidence.tenants, evidence.boundary, evidence.boundary),
             object : EventHandler {
-                override fun handle(event: Envelope) = HandleOutcome.APPLIED
+                override fun handle(event: Envelope): HandleOutcome {
+                    seen(event)
+                    return HandleOutcome.APPLIED
+                }
             },
             harness.rebuildSink,
         )

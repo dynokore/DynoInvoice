@@ -139,10 +139,9 @@ class JdbcConsumerReplay(
 
     /**
      * [fullSync] addressed to several producers under one replay id (owner ruling INV-Q-3788 A): runs every one of
-     * [clears] (one per producer of [requests]), moves [topics] to the head once and writes one request per producer.
-     * The consumer's docsequence rows are deleted only for a full sync from one named producer (INV-Q-3603); one
-     * addressed to several producers, as one from 'every service', deletes none (coordinator ruling on INV-Q-3788,
-     * after INV-Q-3805).
+     * [clears] (one per producer of [requests]), deletes the consumer's docsequence rows of every addressee (INV-Q-3603,
+     * coordinator ruling INV-Q-3843; none for 'every service', INV-Q-3805), moves [topics] to the head once and writes
+     * one request per producer.
      */
     fun fullSync(
         consumer: String,
@@ -158,11 +157,10 @@ class JdbcConsumerReplay(
         require(clears.all { it.producer in producers }) { "the clear of a producer not addressed" }
         val connection = connections.require()
         clears.flatMap { it.statements }.forEach { sql -> connection.createStatement().use { it.executeUpdate(sql) } }
-        // An 'every service' full sync deletes no docsequence rows (coordinator ruling INV-Q-3805): the events on those
-        // topics write none, and deleting by source would strip other producers' guards. Nor does one addressed to
-        // several producers (coordinator ruling on INV-Q-3788).
-        val producer = producers.singleOrNull()
-        if (producer != null && producer != CatalogueEntry.EVERY_SERVICE) {
+        // Each addressee's docsequence rows are deleted, as INV-Q-3603 does per pair (coordinator ruling INV-Q-3843), so
+        // its replayed states are applied, not STALE. An 'every service' full sync deletes none (INV-Q-3805): the events
+        // on those topics write none, and deleting by source would strip other producers' guards.
+        producers.filter { it != CatalogueEntry.EVERY_SERVICE }.forEach { producer ->
             connection.prepareStatement(
                 "delete from $s.${OutboxSchema.CONSUMER_SEQUENCE} where consumer = ? and source = ?",
             ).use {
