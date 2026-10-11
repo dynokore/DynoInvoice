@@ -5,10 +5,7 @@
   "consentRecord": {
     "clientEntityRef": "ENT-CL0042",
     "state": "WITHDRAWN",
-    "scopeItems": [
-      "SUBMIT_INVOICE_DATA",
-      "FILE_GST_RETURN"
-    ],
+    "scopeItems": ["submission", "document.read"],
     "validFrom": "2026-11-01T00:00:00Z",
     "validUntil": "2027-03-31T23:59:59Z"
   }
