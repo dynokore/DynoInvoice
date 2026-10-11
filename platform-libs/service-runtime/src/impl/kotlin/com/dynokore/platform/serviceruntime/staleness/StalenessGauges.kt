@@ -84,8 +84,8 @@ class StalenessGauges(
 
     companion object {
         /**
-         * The lag gauge, rendered by the Prometheus registry as `gst_platform_consumer_staleness_lag_seconds`. Named per
-         * ruling INV-Q-3831 (A, HIGH); INV-T-3035's alert rules read this name.
+         * The lag gauge, rendered by the Prometheus registry as `gst_platform_consumer_staleness_lag_seconds`. The
+         * name is pending a ruling (see the module CHANGELOG, 3.2.0).
          */
         const val LAG = "gst.platform.consumer.staleness.lag"
 

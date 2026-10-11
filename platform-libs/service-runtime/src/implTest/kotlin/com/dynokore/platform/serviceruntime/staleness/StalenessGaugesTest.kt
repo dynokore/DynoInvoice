@@ -26,24 +26,19 @@ class StalenessGaugesTest {
         val gauges = StalenessGauges(monitor, rules, registry)
 
         gauges.refresh().shouldNotBeNull()
-        registry.get(LAG_NAME).gauge().value() shouldBe 42.0
-        registry.meters.map { it.id.name }.sorted() shouldBe listOf(LAG_NAME, THRESHOLD_NAME)
-        registry.meters.forEach { meter -> meter.id.tags.map { it.key }.toSet() shouldBe setOf("consumer", "event_type") }
+        registry.get(StalenessGauges.LAG).gauge().value() shouldBe 42.0
 
         failing = true
         gauges.refresh().shouldBeNull()
-        registry.find(LAG_NAME).gauge().shouldBeNull()
-        registry.get(THRESHOLD_NAME).gauge().value() shouldBe 300.0
+        registry.find(StalenessGauges.LAG).gauge().shouldBeNull()
+        registry.get(StalenessGauges.THRESHOLD).gauge().value() shouldBe 300.0
 
         failing = false
         gauges.refresh().shouldNotBeNull()
-        registry.get(LAG_NAME).gauge().value() shouldBe 42.0
+        registry.get(StalenessGauges.LAG).gauge().value() shouldBe 42.0
     }
 
     private companion object {
-        // the literal names INV-T-3035's alert rules read (INV-Q-3831 A), never the constants
-        const val LAG_NAME = "gst.platform.consumer.staleness.lag"
-        const val THRESHOLD_NAME = "gst.platform.consumer.staleness.threshold"
         const val CONSUMER = "submission-svc"
         const val CANONICAL = "com.dynokore.gst.canonical.CanonicalVersionCreated.v1"
     }

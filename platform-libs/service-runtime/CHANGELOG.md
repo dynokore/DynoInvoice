@@ -14,8 +14,8 @@ train is its own (README.md: "own version and changelog").
   only (CS-36), the gauges `gst.platform.consumer.staleness.lag` and `gst.platform.consumer.staleness.threshold`
   (Prometheus: `gst_platform_consumer_staleness_lag_seconds`, `gst_platform_consumer_staleness_threshold_seconds`).
   The incident is raised by the observability bundle's alert rules on them (INV-T-3035). A failed measurement
-  withdraws the lag gauges until the next success, so it reads as absent, never as zero. The meter names follow ruling
-  INV-Q-3831 (A, HIGH: `gst.platform.*` for this library-owned meter under CS-36).
+  withdraws the lag gauges until the next success, so it reads as absent, never as zero. **The meter names await a
+  ruling** (CS-36 `gst.<service>.<noun>` for a library-owned meter; see the merge request).
 - Staleness rules as `service-runtime.staleness.rules[n].consumer|event-type|threshold` (CS-27), alongside any
   `StalenessRule` beans. A rule without a threshold takes `ProvisionalStalenessThresholds`: 5 minutes for
   payload-svc and submission-svc on CanonicalVersionCreated, PayloadReady, PayloadRejected and DocumentReleased,
