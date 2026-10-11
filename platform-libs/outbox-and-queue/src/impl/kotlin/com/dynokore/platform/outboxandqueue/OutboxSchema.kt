@@ -124,7 +124,8 @@ object OutboxSchema {
      * row: the restrictive one holds even for a worker session that has bound a tenant (the tenant policy is permissive
      * and would otherwise let it delete that tenant's unpublished rows). The cut-off indexes serve the purge batches;
      * they are not tenant-led because the purge is installation-wide. On a large table run them `CONCURRENTLY` (CS-19)
-     * in a migration of their own. The worker, and the worker still cannot read `data` or any other outbox column beyond the claim grant.
+     * in a migration of their own. The worker still cannot read `data` or any other outbox column beyond the claim
+     * grant.
      */
     private fun purgeAccess(
         s: String,
