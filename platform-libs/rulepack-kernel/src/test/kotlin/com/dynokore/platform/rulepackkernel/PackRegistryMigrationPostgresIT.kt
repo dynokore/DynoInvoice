@@ -136,9 +136,9 @@ class PackRegistryMigrationPostgresIT {
         tenantA: UUID,
         tenantB: UUID,
     ) {
-        insert(app, platformOperator = true, rowTenant = null, packId = "platform-v1")
+        insert(app, platformOperator = true, rowTenant = null, packId = "platform-v3", version = "3.0.0")
         assertThrows(SQLException::class.java) {
-            insert(app, platformOperator = true, rowTenant = null, packId = "platform-v1-again")
+            insert(app, platformOperator = true, rowTenant = null, packId = "platform-v3-again", version = "3.0.0")
         }
         // Same pack_type and version in two different tenants, and as a platform row, stays allowed.
         insert(app, tenant = tenantB, rowTenant = tenantB, packId = "b-second-own-pack-other-version", version = "2.0.0")
