@@ -63,7 +63,8 @@ object VariationPointCatalogueArtefact {
                 "\"options\": [" +
                     f.options.joinToString(", ") { o ->
                         "{ \"key\": ${o.key.jsonString()}, \"strictness\": \"${o.strictness}\", " +
-                            "\"typedValue\": ${o.typedValue?.let { typedJson(it) } ?: "null"} }"
+                            "\"typedValue\": ${o.typedValue?.let { typedJson(it) } ?: "null"}, " +
+                            "\"acknowledgedBy\": [${o.acknowledgedBy.joinToString(", ") { ackJson(it) }}] }"
                     } + "]",
                 "\"multiSelect\": ${f.multiSelect}",
                 "\"exclusiveKeys\": [${f.exclusiveKeys.joinToString(", ") { it.jsonString() }}]",
@@ -81,6 +82,11 @@ object VariationPointCatalogueArtefact {
         f.secondApprover?.let { parts += "\"secondApprover\": ${it.jsonString()}" }
         return "{ " + parts.joinToString(", ") + " }"
     }
+
+    private fun ackJson(a: Acknowledger): String =
+        "{ \"roles\": [${a.roles.joinToString(", ") { it.jsonString() }}], \"condition\": \"${a.condition}\", " +
+            "\"distinctFromSetter\": ${a.distinctFromSetter}, \"rolesByForm\": { " +
+            a.rolesByForm.entries.joinToString(", ") { (k, r) -> "\"$k\": [${r.joinToString(", ") { it.jsonString() }}]" } + " } }"
 
     private fun typedJson(t: TypedValue): String {
         val parts = mutableListOf("\"type\": \"${t.type.keelName}\"")

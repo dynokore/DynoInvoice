@@ -66,7 +66,7 @@ object VariationPointFieldsParser {
         return raw as Map<String, Any?>
     }
 
-    private val optionKeys = setOf("key", "strictness", "typed_value")
+    private val optionKeys = setOf("key", "strictness", "typed_value", "acknowledged_by")
 
     fun parse(
         id: String,
@@ -102,7 +102,13 @@ object VariationPointFieldsParser {
                 val strictness =
                     runCatching { Strictness.valueOf(strictnessText) }
                         .getOrElse { fail("option $key's strictness '$strictnessText' is not one of ${Strictness.entries.joinToString()}") }
-                VpOptionSpec(key, strictness, f.map("typed_value")?.let { typedValue(it, "option $key", ::fail) })
+                VpOptionSpec(
+                    key,
+                    strictness,
+                    f.map("typed_value")?.let { typedValue(it, "option $key", ::fail) },
+                    f.list("acknowledged_by")?.mapIndexed { i, raw -> acknowledger(raw, "option $key's acknowledged_by #${i + 1}", ::fail) }
+                        ?: emptyList(),
+                )
             }
         return VpCatalogueFields(
             scopeLevels = scopeLevels,
@@ -121,6 +127,37 @@ object VariationPointFieldsParser {
                 } ?: emptyMap(),
             installationParameter = top.map("installation_parameter")?.let { typedValue(it, "installation_parameter", ::fail) },
             secondApprover = top.string("second_approver"),
+        )
+    }
+
+    private val acknowledgerKeys = setOf("roles", "condition", "roles_by_form", "distinct_from_setter")
+
+    private fun acknowledger(
+        raw: Any?,
+        where: String,
+        fail: (String) -> Nothing,
+    ): Acknowledger {
+        val map = asMap(raw, where, fail)
+        val unknown = map.keys - acknowledgerKeys
+        if (unknown.isNotEmpty()) fail("$where has unknown field(s) ${unknown.sorted().joinToString()}; extend the generator")
+        val f = Fields(map, where, fail)
+        val conditionText = f.string("condition") ?: fail("$where has no 'condition'")
+        val condition =
+            runCatching { AckCondition.valueOf(conditionText) }
+                .getOrElse { fail("$where's condition '$conditionText' is not one of ${AckCondition.entries.joinToString()}") }
+        val byForm =
+            f.map("roles_by_form")?.entries?.associate { (formText, roles) ->
+                val form =
+                    runCatching { DeploymentForm.valueOf(formText) }
+                        .getOrElse { fail("$where's roles_by_form form '$formText' is not one of ${DeploymentForm.entries.joinToString()}") }
+                if (roles !is List<*>) fail("$where's roles_by_form '$formText' must be a list of roles")
+                form to roles.map { it as? String ?: fail("$where's roles_by_form '$formText' holds a non-text entry '$it'") }
+            } ?: emptyMap()
+        return Acknowledger(
+            roles = f.stringList("roles") ?: emptyList(),
+            condition = condition,
+            distinctFromSetter = f.boolean("distinct_from_setter") ?: fail("$where has no 'distinct_from_setter'"),
+            rolesByForm = byForm,
         )
     }
 

@@ -122,7 +122,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1263; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-03
   requirement: INV-REQ-1264
-  revision: e35812cd-1f78-4078-8253-393ebb711037
+  revision: f6be99f7-8c05-412f-a86d-435520b85689
   title: "A tenant's mapping packs are approved by a distinct tax.approver on staff by default; an external advisor, a non-finance officer or a recorded sole-operator acknowledgement are the alternatives"
   class: CONTROL
   class_modifiers: []
@@ -158,7 +158,13 @@ variation_points:
         strictness: "NEUTRAL"
       - key: "SOLE_OPERATOR_ACK"
         strictness: "LOOSER"
-    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1264: \"the last option is the looser one\"; the middle two depend on G2; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
+        acknowledged_by:
+          - roles:
+              - "tenant.admin"
+            condition: "ALWAYS"
+            roles_by_form: null
+            distinct_from_setter: false
+    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1264: \"the last option is the looser one\"; the middle two depend on G2; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; acknowledged_by: VP-03 tenant.admin: owner ruling INV-Q-3155; for INV-T-3148"
 - id: VP-04
   requirement: INV-REQ-1265
   revision: 3a7b4bce-e7be-458e-af31-9b84cc4dd6e3
@@ -270,7 +276,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3051, recommended option (A) accepted; INV-REQ-1267; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-07
   requirement: INV-REQ-1268
-  revision: 3df960fc-1c75-4799-b9b4-eafa853c15fa
+  revision: c35c876c-4ca4-4758-ad84-3427f58408c5
   title: "Operator diagnostic access is approved by security.officer by default, or by tenant.admin with a sole-operator acknowledgement where no security officer exists"
   class: CONTROL
   class_modifiers: []
@@ -299,7 +305,13 @@ variation_points:
         strictness: "DEFAULT"
       - key: "TENANT_ADMIN_SOLE_OPERATOR"
         strictness: "LOOSER"
-    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1268: the second option needs the sole-operator acknowledgement; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
+        acknowledged_by:
+          - roles:
+              - "tenant.admin"
+            condition: "ALWAYS"
+            roles_by_form: null
+            distinct_from_setter: false
+    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1268: the second option needs the sole-operator acknowledgement; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; acknowledged_by: VP-07 tenant.admin: owner ruling INV-Q-3155; for INV-T-3148"
 - id: VP-08
   requirement: INV-REQ-1269
   revision: 34f08967-062f-446a-a3b8-8ee73c01e2c2
@@ -490,7 +502,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1273; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-13
   requirement: INV-REQ-1274
-  revision: 232c6a21-cd3e-4caa-a6ec-ba6c2297c748
+  revision: 0aa57e08-466d-4298-9d36-82cb4d0579db
   title: "When two filing facts disagree, the earlier date governs until corrected by default; using the filer of record's date is looser and needs the client signatory's acknowledgement"
   class: CONTROL
   class_modifiers: []
@@ -518,7 +530,13 @@ variation_points:
         strictness: "DEFAULT"
       - key: "FILER_OF_RECORD"
         strictness: "LOOSER"
-    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1274: \"the second option is the looser one\"; keys as in the TPL-10 example; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
+        acknowledged_by:
+          - roles:
+              - "client.signatory"
+            condition: "ALWAYS"
+            roles_by_form: null
+            distinct_from_setter: false
+    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1274: \"the second option is the looser one\"; keys as in the TPL-10 example; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; acknowledged_by: VP-13 client.signatory: bounds; INV-Q-3134; for INV-T-3148"
 - id: VP-14
   requirement: INV-REQ-1275
   revision: af8fd973-702c-4b4a-bbe3-f0621d2f0f80
@@ -1478,7 +1496,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1300; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-40
   requirement: INV-REQ-1301
-  revision: ad8b27a6-8726-472e-a3f4-28bcf8a7d5de
+  revision: d3b0052d-a29a-4e76-80c8-0b406d70ec5c
   title: "The reconciliation work-paper is attested by a preparer and a separate approver by default; one attestation with a sole-operator acknowledgement is the looser option"
   class: CONTROL
   class_modifiers: []
@@ -1506,7 +1524,13 @@ variation_points:
         strictness: "DEFAULT"
       - key: "SINGLE_ATTESTATION_SOLE_OPERATOR"
         strictness: "LOOSER"
-    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1301: \"the looser option\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
+        acknowledged_by:
+          - roles:
+              - "tenant.admin"
+            condition: "ALWAYS"
+            roles_by_form: null
+            distinct_from_setter: false
+    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1301: \"the looser option\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; acknowledged_by: VP-40 tenant.admin: owner ruling INV-Q-3155; for INV-T-3148"
 - id: VP-41
   requirement: INV-REQ-1302
   revision: 720768f8-819b-4c20-aaa6-ad01800dd7f3
@@ -1630,7 +1654,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1304: \"never shorter than 5 years\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-44
   requirement: INV-REQ-1305
-  revision: 2dd42fae-acf5-4055-ae18-43ba0e9f60df
+  revision: 3d175231-5a6b-4d5f-ab82-f22ebcbc6e8c
   title: "Anonymised production samples in workspaces are off by default; turning them on is looser and every copy then needs security.officer approval"
   class: CONTROL
   class_modifiers: []
@@ -1658,7 +1682,13 @@ variation_points:
         strictness: "DEFAULT"
       - key: "ON"
         strictness: "LOOSER"
-    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1305: \"turning them on is looser\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
+        acknowledged_by:
+          - roles:
+              - "tenant.admin"
+            condition: "ALWAYS"
+            roles_by_form: null
+            distinct_from_setter: false
+    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1305: \"turning them on is looser\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; acknowledged_by: VP-44 tenant.admin (security.officer sets the switch and approves each copy): owner ruling INV-Q-3157; for INV-T-3148"
 - id: VP-45
   requirement: INV-REQ-1306
   revision: d3447dc7-8ddc-4d9c-8f9d-9e2cac939fa9
@@ -1858,7 +1888,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1310, must elect; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-50
   requirement: INV-REQ-1311
-  revision: 0510fd86-00b6-416c-90ae-c1b46c97f929
+  revision: 1d3eff79-bc37-4ce2-a0b6-036d0ed00081
   title: "The System performs the wrongful GST charge check on every path by default; relying on the AP's documented check is looser and needs its record and tax.approver acknowledgement"
   class: CONTROL
   class_modifiers: []
@@ -1889,7 +1919,13 @@ variation_points:
         strictness: "DEFAULT"
       - key: "RELY_ON_AP_CHECK"
         strictness: "LOOSER"
-    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1311: \"the looser option\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
+        acknowledged_by:
+          - roles:
+              - "tax.approver"
+            condition: "ALWAYS"
+            roles_by_form: null
+            distinct_from_setter: false
+    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1311: \"the looser option\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; acknowledged_by: VP-50 tax.approver (the AP's check must also be recorded, per bounds): INV-Q-3134; for INV-T-3148"
 - id: VP-51
   requirement: INV-REQ-1312
   revision: 57a4cc33-7ba7-445c-af53-f53aa43c022a
@@ -2228,7 +2264,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1319; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-59
   requirement: INV-REQ-1320
-  revision: 42f1a853-c330-42b4-b243-9140493bf31b
+  revision: d86d882b-2a29-41d2-9bd6-41b8c31bbd88
   title: "A credit note whose preceding document cannot go first is released alone at the due date minus the safety margin with SUB-012 by default; holding it is looser and needs acknowledgement"
   class: CONTROL
   class_modifiers: []
@@ -2257,7 +2293,18 @@ variation_points:
         strictness: "DEFAULT"
       - key: "HOLD_FOR_APPROVER"
         strictness: "LOOSER"
-    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1320: \"holding is the looser option\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
+        acknowledged_by:
+          - roles:
+              - "tax.approver"
+            condition: "ALWAYS"
+            roles_by_form: null
+            distinct_from_setter: false
+          - roles:
+              - "client.signatory"
+            condition: "UNDER_DELEGATION"
+            roles_by_form: null
+            distinct_from_setter: false
+    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1320: \"holding is the looser option\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; acknowledged_by: VP-59 tax.approver, plus client.signatory under delegation: INV-REQ-1320 b2, INV-Q-2223, INV-Q-3134; for INV-T-3148"
 - id: VP-60
   requirement: INV-REQ-1321
   revision: 5cf1f0a3-676c-4928-8344-2d215725be6f
@@ -2292,7 +2339,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1321; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-61
   requirement: INV-REQ-1322
-  revision: 74165f14-6675-473f-9ec5-87ae18599d98
+  revision: 795e02c4-14a3-4660-91a4-3233380e9463
   title: "Every trigger class is covered by this System by default; covering named classes by another solution is looser and needs entity.admin acknowledgement and evidence"
   class: CONTROL
   class_modifiers: []
@@ -2330,10 +2377,16 @@ variation_points:
             evidence:
               type: "ref"
               ref: "evidence reference"
-    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1322: \"the looser option\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
+        acknowledged_by:
+          - roles:
+              - "entity.admin"
+            condition: "ALWAYS"
+            roles_by_form: null
+            distinct_from_setter: false
+    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1322: \"the looser option\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; acknowledged_by: VP-61 entity.admin (with evidence, per bounds): INV-Q-3134; for INV-T-3148"
 - id: VP-62
   requirement: INV-REQ-1323
-  revision: eb0d6eac-46f8-4e21-9dfb-4f1ae1776c03
+  revision: 27b60081-c95b-4245-ab3a-1f077cc18083
   title: "A due date on a weekend or public holiday does not move by default; moving it to the next working day is looser and needs tax.approver acknowledgement, and the client signatory's under an agent"
   class: CONTROL
   class_modifiers: []
@@ -2364,7 +2417,18 @@ variation_points:
         strictness: "DEFAULT"
       - key: "NEXT_WORKING_DAY"
         strictness: "LOOSER"
-    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1323: \"the second option is the looser one\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
+        acknowledged_by:
+          - roles:
+              - "tax.approver"
+            condition: "ALWAYS"
+            roles_by_form: null
+            distinct_from_setter: false
+          - roles:
+              - "client.signatory"
+            condition: "UNDER_DELEGATION"
+            roles_by_form: null
+            distinct_from_setter: false
+    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1323: \"the second option is the looser one\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; acknowledged_by: VP-62 tax.approver, plus client.signatory under delegation: INV-Q-181, INV-Q-2349, INV-Q-3134; for INV-T-3148"
 - id: VP-63
   requirement: INV-REQ-1401
   revision: 3cea210e-095c-460a-b4d5-78084ff274bf
@@ -2488,7 +2552,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3057, recommended option (A) accepted; INV-REQ-1548; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-66
   requirement: INV-REQ-2462
-  revision: f06546b8-4883-4580-ba63-135ce9762f63
+  revision: cfb26a06-081d-4fab-86a2-f311df7538af
   title: "The notice window for a custody holder's legal-hold request before retention deletion is 90 days by default at installation level; lengthening is free, shortening needs a recorded acknowledgement"
   class: CONTROL
   class_modifiers: []
@@ -2531,8 +2595,17 @@ variation_points:
           min: 1
           max: 89
           direction: "UP_STRICTER"
+        acknowledged_by:
+          - roles: []
+            condition: "ALWAYS"
+            roles_by_form:
+              SAAS:
+                - "security.officer"
+              PRIVATE:
+                - "tax.approver"
+            distinct_from_setter: true
     note: "the shorter window keeps its acknowledgement and deletion-record entry; the per-tenant longer value at offboardTenant is an override, not a scope level"
-    basis: "Owner ruling (2026-10-11) on INV-Q-3057, recommended option (A) accepted; INV-REQ-2462; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
+    basis: "Owner ruling (2026-10-11) on INV-Q-3057, recommended option (A) accepted; INV-REQ-2462; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; acknowledged_by: VP-66 by form (security.officer in SaaS, the customer's tax.approver in private), distinct from the setter; one person holding both roles uses the recorded sole-operator acknowledgement: INV-Q-2480, INV-Q-3134; for INV-T-3148"
 - id: VP-67
   requirement: INV-REQ-2463
   revision: 02b3afd3-d278-427c-8fa3-56147ba6db31

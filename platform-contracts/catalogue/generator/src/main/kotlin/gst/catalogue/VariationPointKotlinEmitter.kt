@@ -173,12 +173,26 @@ object VariationPointKotlinEmitter {
         appendLine("    val comparedWith: String? = null,")
         appendLine(")")
         appendLine()
+        enumBlock("When a looser option's acknowledger is required (INV-REQ-1244 b2, INV-Q-3134).", "AckCondition", AckCondition.entries.map { it.name })
+        enumBlock("The deployment forms a role set can differ by (INV-REQ-1248).", "DeploymentForm", DeploymentForm.entries.map { it.name })
+        appendLine("/**")
+        appendLine(" * One acknowledger of a LOOSER option (INV-T-3148): [roles] required under [condition]; [rolesByForm] names the")
+        appendLine(" * roles per deployment form where they differ (then [roles] is empty); [distinctFromSetter] bars the setter.")
+        appendLine(" */")
+        appendLine("data class Acknowledger(")
+        appendLine("    val roles: List<String>,")
+        appendLine("    val condition: AckCondition,")
+        appendLine("    val distinctFromSetter: Boolean,")
+        appendLine("    val rolesByForm: Map<DeploymentForm, List<String>> = emptyMap(),")
+        appendLine(")")
+        appendLine()
         appendLine("/** One option at its catalogue position: [key] is the owning enum's constant (TPL-10). */")
         appendLine("data class VpOption(")
         appendLine("    val key: String,")
         appendLine("    val label: String,")
         appendLine("    val strictness: Strictness,")
         appendLine("    val typedValue: TypedValue? = null,")
+        appendLine("    val acknowledgedBy: List<Acknowledger> = emptyList(),")
         appendLine(")")
         appendLine()
     }
@@ -188,9 +202,27 @@ object VariationPointKotlinEmitter {
         return "listOf(" +
             specs.withIndex().joinToString(", ") { (i, o) ->
                 "VpOption(${o.key.kotlinStringLiteralBody()}, ${row.options.getOrElse(i) { o.key }.kotlinStringLiteralBody()}, " +
-                    "Strictness.${o.strictness}, ${o.typedValue?.let { typedLiteral(it) } ?: "null"})"
+                    "Strictness.${o.strictness}, ${o.typedValue?.let { typedLiteral(it) } ?: "null"}, " +
+                    "${ackListLiteral(o.acknowledgedBy)})"
             } + ")"
     }
+
+    private fun ackListLiteral(list: List<Acknowledger>): String =
+        if (list.isEmpty()) {
+            "emptyList()"
+        } else {
+            "listOf(" +
+                list.joinToString(", ") { a ->
+                    "Acknowledger(${a.roles.kotlinListLiteral()}, AckCondition.${a.condition}, ${a.distinctFromSetter}, " +
+                        (
+                            if (a.rolesByForm.isEmpty()) {
+                                "emptyMap()"
+                            } else {
+                                "mapOf(" + a.rolesByForm.entries.joinToString(", ") { (k, r) -> "DeploymentForm.$k to ${r.kotlinListLiteral()}" } + ")"
+                            }
+                        ) + ")"
+                } + ")"
+        }
 
     private fun typedLiteral(t: TypedValue): String {
         val args = mutableListOf("ValueType.${t.type}")

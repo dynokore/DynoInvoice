@@ -16,6 +16,8 @@ package gst.catalogue
  * - strictness (INV-Q-2936): POLICY options are DEFAULT or NEUTRAL (G1 A); PARAMETER
  *   options are never LOOSER (G5 A); a CONTROL marked non-waivable (in full or in part)
  *   or tighten-only has no LOOSER option (INV-REQ-780 b1, INV-REQ-1244 b4);
+ * - acknowledgers (INV-T-3148, INV-REQ-1244 b2): every LOOSER option has at least one, each naming
+ *   its roles (or roles by form, not both); an option that is not LOOSER has none;
  * - exclusive keys exist only on a multi-select row and name its own keys (G3 A);
  * - typed values (INV-Q-2934): an int, decimal, amount, money, rate or duration states its direction
  *   (a list item or map key/value takes its container's direction, so a list or map of numeric items states one); numeric min <= max (an
@@ -52,6 +54,7 @@ object VariationPointFieldsChecker {
         }
         checkOptions(row, fields, ::v)
         checkStrictness(row, fields, ::v)
+        checkAcknowledgers(fields, ::v)
         if (fields.exclusiveKeys.isNotEmpty()) {
             if (!fields.multiSelect) v("exclusive_keys on a row that is not multi_select")
             val unknown = fields.exclusiveKeys - fields.options.map { it.key }.toSet()
@@ -117,6 +120,28 @@ object VariationPointFieldsChecker {
                 val modifiers = row.classModifiers.filter { it in noLooserModifiers }
                 if (modifiers.isNotEmpty()) {
                     looser.forEach { v("option $it is LOOSER on a ${modifiers.joinToString()} CONTROL (INV-REQ-780 b1)") }
+                }
+            }
+        }
+    }
+
+    private fun checkAcknowledgers(
+        fields: VpCatalogueFields,
+        v: (String) -> Boolean,
+    ) {
+        fields.options.forEach { o ->
+            if (o.strictness == Strictness.LOOSER && o.acknowledgedBy.isEmpty()) {
+                v("option ${o.key} is LOOSER but has no acknowledged_by (INV-REQ-1244 b2)")
+            }
+            if (o.strictness != Strictness.LOOSER && o.acknowledgedBy.isNotEmpty()) {
+                v("option ${o.key} is ${o.strictness} but has acknowledged_by; only a LOOSER option is acknowledged")
+            }
+            o.acknowledgedBy.forEachIndexed { i, a ->
+                val where = "option ${o.key} acknowledged_by #${i + 1}"
+                if (a.roles.isEmpty() && a.rolesByForm.isEmpty()) v("$where names no role")
+                if (a.roles.isNotEmpty() && a.rolesByForm.isNotEmpty()) v("$where names both roles and roles_by_form")
+                if (a.roles.any { it.isBlank() } || a.rolesByForm.values.any { r -> r.isEmpty() || r.any { it.isBlank() } }) {
+                    v("$where has an empty role")
                 }
             }
         }

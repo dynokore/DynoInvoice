@@ -175,11 +175,36 @@ data class TypedValue(
     val comparedWith: String? = null,
 )
 
+/** When a looser option's acknowledger is required (INV-REQ-1244 b2, INV-Q-3134). */
+enum class AckCondition {
+    ALWAYS,
+    UNDER_DELEGATION,
+}
+
+/** The deployment forms a role set can differ by (INV-REQ-1248). */
+enum class DeploymentForm {
+    SAAS,
+    PRIVATE,
+}
+
+/**
+ * One acknowledger of a LOOSER option (INV-T-3148): [roles] always required under [condition];
+ * [rolesByForm] names the roles per deployment form where they differ (then [roles] is empty);
+ * [distinctFromSetter] means the acknowledger must not be the person who set the option.
+ */
+data class Acknowledger(
+    val roles: List<String>,
+    val condition: AckCondition,
+    val distinctFromSetter: Boolean,
+    val rolesByForm: Map<DeploymentForm, List<String>> = emptyMap(),
+)
+
 /** One option of a row, at its catalogue position: [key] is the owning enum's constant (TPL-10). */
 data class VpOptionSpec(
     val key: String,
     val strictness: Strictness,
     val typedValue: TypedValue? = null,
+    val acknowledgedBy: List<Acknowledger> = emptyList(),
 )
 
 /** Keel's `io_contract.catalogue` for one row (INV-T-3000; INV-Q-2934, INV-Q-2936; G1-G6 option A). */

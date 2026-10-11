@@ -42,10 +42,64 @@ class VariationPointFieldsCheckerTest {
     private fun fields(
         vararg options: Pair<String, Strictness>,
         typed: TypedValue? = null,
+        acknowledgedBy: List<Acknowledger>? = null,
     ) = VpCatalogueFields(
         scopeLevels = listOf(ScopeLevel.ENTITY),
-        options = options.mapIndexed { i, (k, s) -> VpOptionSpec(k, s, if (i == options.lastIndex) typed else null) },
+        options =
+            options.mapIndexed { i, (k, s) ->
+                VpOptionSpec(
+                    k,
+                    s,
+                    if (i == options.lastIndex) typed else null,
+                    if (s == Strictness.LOOSER) acknowledgedBy ?: listOf(ack()) else emptyList(),
+                )
+            },
     )
+
+    private fun ack(
+        roles: List<String> = listOf("tax.approver"),
+        byForm: Map<DeploymentForm, List<String>> = emptyMap(),
+    ) = Acknowledger(roles, AckCondition.ALWAYS, false, byForm)
+
+    @Test
+    fun `every LOOSER option needs a non-empty acknowledged_by naming roles`() {
+        fun check(a: List<Acknowledger>) =
+            VariationPointFieldsChecker.check(row(fields = fields("A" to Strictness.DEFAULT, "B" to Strictness.LOOSER, acknowledgedBy = a)))
+        assertEquals(1, check(emptyList()).size)
+        assertEquals(1, check(listOf(ack(roles = emptyList()))).size)
+        assertEquals(1, check(listOf(ack(byForm = mapOf(DeploymentForm.SAAS to listOf("security.officer"))))).size)
+        assertEquals(1, check(listOf(ack(roles = listOf(" ")))).size)
+        assertTrue(check(listOf(ack(roles = emptyList(), byForm = mapOf(DeploymentForm.SAAS to listOf("a"), DeploymentForm.PRIVATE to listOf("b"))))).isEmpty())
+    }
+
+    @Test
+    fun `a non-LOOSER option may not carry acknowledged_by`() {
+        val f = fields("A" to Strictness.DEFAULT, "B" to Strictness.LOOSER)
+        val withAckOnDefault = f.copy(options = listOf(f.options[0].copy(acknowledgedBy = listOf(ack())), f.options[1]))
+        assertEquals(1, VariationPointFieldsChecker.check(row(fields = withAckOnDefault)).size)
+    }
+
+    @Test
+    fun `acknowledged_by parses strictly into typed entries`() {
+        val entry =
+            mapOf("roles" to listOf("tax.approver"), "condition" to "UNDER_DELEGATION", "distinct_from_setter" to true, "roles_by_form" to null)
+        val f = VariationPointFieldsParser.parse("VP-99", catWith(optionB = mapOf("strictness" to "LOOSER", "acknowledged_by" to listOf(entry))), java.io.File("x"))
+        assertEquals(listOf(Acknowledger(listOf("tax.approver"), AckCondition.UNDER_DELEGATION, true)), f.options[1].acknowledgedBy)
+        val byForm = entry + mapOf("roles" to emptyList<String>(), "roles_by_form" to mapOf("SAAS" to listOf("s"), "PRIVATE" to listOf("p")))
+        val g = VariationPointFieldsParser.parse("VP-99", catWith(optionB = mapOf("acknowledged_by" to listOf(byForm))), java.io.File("x"))
+        assertEquals(mapOf(DeploymentForm.SAAS to listOf("s"), DeploymentForm.PRIVATE to listOf("p")), g.options[1].acknowledgedBy.single().rolesByForm)
+        fun bad(vararg e: Pair<String, Any?>) = catWith(optionB = mapOf("acknowledged_by" to listOf(entry + mapOf(*e))))
+        parseFails(bad("condition" to "SOMETIMES"), "is not one of ALWAYS, UNDER_DELEGATION")
+        parseFails(bad("distinct_from_setter" to "yes"), "'distinct_from_setter' must be true or false")
+        parseFails(bad("roles" to "tax.approver"), "'roles' must be a list")
+        parseFails(bad("roles" to listOf(3)), "non-text entry")
+        parseFails(bad("extra" to 1), "unknown field(s) extra")
+        parseFails(bad("roles_by_form" to mapOf("CLOUD" to listOf("x"))), "is not one of SAAS, PRIVATE")
+        parseFails(bad("roles_by_form" to mapOf("SAAS" to "x")), "must be a list of roles")
+        parseFails(catWith(optionB = mapOf("acknowledged_by" to listOf(entry - "condition"))), "no 'condition'")
+        parseFails(catWith(optionB = mapOf("acknowledged_by" to listOf(entry - "distinct_from_setter"))), "no 'distinct_from_setter'")
+        parseFails(catWith(optionB = mapOf("acknowledged_by" to "x")), "'acknowledged_by' must be a list")
+    }
 
     @Test
     fun `a row without fields needs a pending marker unless retired`() {

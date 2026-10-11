@@ -35,6 +35,31 @@ class RealVariationPointCatalogueSelfTest {
     }
 
     @Test
+    fun `INV-T-3148 every LOOSER option carries the ruled acknowledgers`() {
+        val rows = VariationPointYamlParser.parse(vendoredFile, pendingFile).associateBy { it.id }
+        val looser =
+            rows.values.flatMap { r -> r.fields?.options.orEmpty().filter { it.strictness == Strictness.LOOSER }.map { r.id to it } }
+        assertEquals(10, looser.size)
+        looser.forEach { (id, o) -> assertTrue(o.acknowledgedBy.isNotEmpty(), "$id ${o.key} has no acknowledgers") }
+
+        fun roles(id: String) = rows.getValue(id).fields!!.options.single { it.strictness == Strictness.LOOSER }.acknowledgedBy
+        assertEquals(listOf("client.signatory"), roles("VP-13").single().roles)
+        assertEquals(listOf("tax.approver"), roles("VP-50").single().roles)
+        listOf("VP-59", "VP-62").forEach {
+            assertEquals(
+                listOf(listOf("tax.approver") to AckCondition.ALWAYS, listOf("client.signatory") to AckCondition.UNDER_DELEGATION),
+                roles(it).map { a -> a.roles to a.condition },
+                it,
+            )
+        }
+        assertEquals(listOf("entity.admin"), roles("VP-61").single().roles)
+        listOf("VP-03", "VP-07", "VP-40", "VP-44").forEach { assertTrue(roles(it).any { a -> a.roles == listOf("tenant.admin") }, it) }
+        val vp66 = roles("VP-66").single()
+        assertEquals(mapOf(DeploymentForm.SAAS to listOf("security.officer"), DeploymentForm.PRIVATE to listOf("tax.approver")), vp66.rolesByForm)
+        assertTrue(vp66.distinctFromSetter)
+    }
+
+    @Test
     fun `the vendored catalogue parses cleanly and every id is well-formed and unique`() {
         assertTrue(vendoredFile.exists(), "expected ${vendoredFile.absolutePath} to exist")
         val rows = VariationPointYamlParser.parse(vendoredFile)
