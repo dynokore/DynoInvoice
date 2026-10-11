@@ -34,15 +34,25 @@ import com.dynokore.platform.outboxandqueue.StalenessRule
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.outboxandqueue.WorkQueue
 import com.dynokore.platform.serviceruntime.binding.GstProperties
+import com.dynokore.platform.serviceruntime.staleness.LoggingStalenessBreachSink
+import com.dynokore.platform.serviceruntime.staleness.OnStalenessRules
+import com.dynokore.platform.serviceruntime.staleness.StalenessCheckSchedule
+import com.dynokore.platform.serviceruntime.staleness.StalenessGauges
+import com.dynokore.platform.serviceruntime.staleness.StalenessProperties
+import com.dynokore.platform.serviceruntime.staleness.StalenessRules
 import com.dynokore.platform.tenancykernel.CurrentConnection
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
+import io.micrometer.core.instrument.MeterRegistry
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
+import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Conditional
 import org.springframework.context.annotation.Configuration
 import java.time.Clock
 import javax.sql.DataSource
@@ -51,12 +61,13 @@ import javax.sql.DataSource
  * outbox-and-queue's ports (INV-T-2875, INV-Q-3710), when the service embeds its impl half. Each implementation
  * is created only when the service declares the inputs only it has: its role DataSources ([ServiceDataSources]),
  * the topics [EventCatalogue] (from platform-contracts `event-log/topics.yaml`, TPL-18's platform-event catalogue),
- * [Retention], [LaneLimits], its [StalenessRule]s and sinks, and a consumer's [ConsumerSubscription] and
+ * [Retention], [LaneLimits], its staleness rules ([StalenessProperties] or [StalenessRule]s), and a consumer's [ConsumerSubscription] and
  * [EventHandler]; plus `gst.service` and `service-runtime.modules.schema`. The §12.1 [EventBinding] is the one
  * selected by `gst.bindings.event-binding` (`postgres`: [PostgresEventBinding], INV-REQ-1212).
  */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnClass(name = ["com.dynokore.platform.outboxandqueue.JdbcOutboxWriter"])
+@EnableConfigurationProperties(StalenessProperties::class)
 class OutboxAndQueueWiring {
     @Bean
     @ConditionalOnBean(TransactionRunner::class, CurrentConnection::class)
@@ -160,9 +171,22 @@ class OutboxAndQueueWiring {
         clock: Clock,
     ): JdbcEventLogPurge = JdbcEventLogPurge(purge, catalogue, retention, clock)
 
+    /**
+     * The service's staleness rules (INV-REQ-1165): `service-runtime.staleness.rules` and any [StalenessRule] beans,
+     * defaulted and capped by the provisional thresholds (INV-Q-2991, INV-Q-2987); a longer value stops start-up.
+     */
+    @Bean
+    @Conditional(OnStalenessRules::class)
+    @ConditionalOnMissingBean(StalenessRules::class)
+    fun stalenessRules(
+        properties: StalenessProperties,
+        declared: ObjectProvider<StalenessRule>,
+    ): StalenessRules = StalenessRules.resolve(properties.rules, declared.orderedStream().toList())
+
+    /** A service's own [StalenessBreachSink] replaces the logging default (the incident is the alert rule's, INV-Q-3030). */
     @Bean
     @ConditionalOnBean(
-        value = [EventLogLag::class, EventCatalogue::class, StalenessRule::class, StalenessBreachSink::class],
+        value = [EventLogLag::class, EventCatalogue::class, StalenessRules::class],
         name = [ServiceDataSources.WORKER],
     )
     @ConditionalOnProperty(name = [Props.SCHEMA])
@@ -172,11 +196,29 @@ class OutboxAndQueueWiring {
         @Qualifier(ServiceDataSources.WORKER) worker: DataSource,
         lag: EventLogLag,
         catalogue: EventCatalogue,
-        rules: List<StalenessRule>,
-        sink: StalenessBreachSink,
+        rules: StalenessRules,
+        sink: ObjectProvider<StalenessBreachSink>,
         modules: ModuleProperties,
         clock: Clock,
-    ): JdbcStalenessMonitor = JdbcStalenessMonitor(worker, lag, catalogue, modules.requireSchema(), rules, clock, sink)
+    ): JdbcStalenessMonitor = JdbcStalenessMonitor(worker, lag, catalogue, modules.requireSchema(), rules.rules, clock, sink.getIfAvailable { LoggingStalenessBreachSink() })
+
+    /** The lag and threshold gauges per (consumer, event type) (INV-T-3005, INV-Q-3030 (a)). */
+    @Bean
+    @ConditionalOnBean(StalenessMonitor::class, StalenessRules::class)
+    @ConditionalOnMissingBean(StalenessGauges::class)
+    fun stalenessGauges(
+        monitor: StalenessMonitor,
+        rules: StalenessRules,
+        registry: MeterRegistry,
+    ): StalenessGauges = StalenessGauges(monitor, rules.rules, registry)
+
+    @Bean
+    @ConditionalOnBean(StalenessGauges::class)
+    @ConditionalOnMissingBean(StalenessCheckSchedule::class)
+    fun stalenessCheckSchedule(
+        gauges: StalenessGauges,
+        properties: StalenessProperties,
+    ): StalenessCheckSchedule = StalenessCheckSchedule(gauges, properties.checkInterval)
 
     /** One consumer per service by default; a service with several declares its own [JdbcInboxConsumer]s. */
     @Bean

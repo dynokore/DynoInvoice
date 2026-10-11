@@ -161,7 +161,9 @@ class CompositionRootTest {
             { it.withBean(StalenessRule::class.java, { StalenessRule("submission-svc", "SubmissionFailed", Duration.ofMinutes(5)) }) },
             setOf(StalenessMonitor::class),
         ),
-        STALENESS_BREACH_SINK({ it.withBean(StalenessBreachSink::class.java, { StalenessBreachSink { } }) }, setOf(StalenessMonitor::class)),
+
+        // INV-T-3005: optional, the monitor falls back to a logging sink (the incident is the alert rule's, INV-Q-3030)
+        STALENESS_BREACH_SINK({ it.withBean(StalenessBreachSink::class.java, { StalenessBreachSink { } }) }, emptySet()),
         CONSUMER_SUBSCRIPTION(
             { it.withBean(ConsumerSubscription::class.java, { ConsumerSubscription("submission-svc", "canonical", "submission") }) },
             INBOX,

@@ -43,7 +43,7 @@ Service inputs:
 | outbox-and-queue | `DeadLetterTriage` | `JdbcDeadLetterTriage` | `workerDataSource`, schema |
 | outbox-and-queue | `RetentionPurge` | `JdbcRetentionPurge` | `Retention`, `workerDataSource`, schema |
 | outbox-and-queue | `EventLogPurge` | `JdbcEventLogPurge` | `Retention`, `EventCatalogue`, `eventLogPurgeDataSource` |
-| outbox-and-queue | `StalenessMonitor` | `JdbcStalenessMonitor` | `StalenessRule`s, `StalenessBreachSink`, `EventCatalogue`, `workerDataSource`, schema |
+| outbox-and-queue | `StalenessMonitor` | `JdbcStalenessMonitor`, with `StalenessGauges` (see "Consumer staleness") | `service-runtime.staleness.rules` or `StalenessRule`s, `EventCatalogue`, `workerDataSource`, schema (a `StalenessBreachSink` is optional) |
 | outbox-and-queue | `InboxConsumer` | `JdbcInboxConsumer` (one; a service with several declares its own) | `ConsumerSubscription`, `EventHandler`, `RebuildRequiredSink`, `workerDataSource` |
 | outbox-and-queue | `ReplayDelivery` | `JdbcReplayDelivery` | (a `WorkQueue` and a `JdbcInboxConsumer`) |
 | audit-log | `AuditWriter` | `OutboxAuditWriter`, or `LocalAuditWriter` without an outbox (INV-Q-2958) | (an `OutboxWriter`), else `gst.service`, schema |
@@ -71,3 +71,29 @@ INV-REQ-1079), the base `LicenceCheck` (tenancy-svc, INV-REQ-1076), `MessageDeli
 `IdentityProvider` (INV-REQ-882) and `TelemetryExport` (INV-REQ-1104); `JobCommandAuthorizer`, `DeadlineSource`
 and `EndUserPrincipalResolver`; and the per-edge or per-adapter `ResilientExecutor`, `VersionedAdapterRouter` and
 `SigningKey`. No other L1 module depends on service-runtime (`CompositionRootDirectionTest`).
+
+## Consumer staleness (INV-T-3005; INV-REQ-1165, INV-AC-2150, INV-Q-3030 (a))
+
+A service lists one rule per consumer and event type it consumes:
+
+```yaml
+service-runtime:
+  staleness:
+    check-interval: 30s          # default; how often every rule is measured
+    rules:
+      - consumer: submission-svc
+        event-type: com.dynokore.gst.canonical.CanonicalVersionCreated.v1
+        # threshold: 3m          # optional; may only be shorter than the provisional value
+```
+
+Without a threshold a rule takes its **provisional** value (`ProvisionalStalenessThresholds`, INV-Q-2991): 5 minutes
+for payload-svc and submission-svc on CanonicalVersionCreated, PayloadReady, PayloadRejected and DocumentReleased,
+30 minutes for every other consumer and event type. They are provisional until the SDS §13.7 performance tests
+(INV-Q-2987) and travel with this module's release train. An installation may only tighten them: a longer value
+stops start-up, naming the rule (INV-REQ-1165 b4).
+
+Every instance exports, per rule, the gauges `gst.platform.consumer.staleness.lag` (age of the oldest unconsumed
+event, zero with none) and `gst.platform.consumer.staleness.threshold`, in seconds, labelled `consumer` and
+`event_type` only. The incident is raised by the observability bundle's alert rules (INV-T-3035): lag above
+threshold, and a lag gauge that stops being reported. When a measurement fails the lag gauges are withdrawn until
+the next success. A breach is also logged at WARN unless the service declares its own `StalenessBreachSink`.

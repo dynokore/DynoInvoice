@@ -6,6 +6,25 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-10-12
+### Added
+- Consumer staleness gauges (INV-T-3005; INV-REQ-1165, INV-AC-2150; coordinator ruling INV-Q-3030 (a)): the
+  composition root runs outbox-and-queue's `JdbcStalenessMonitor` every `service-runtime.staleness.check-interval`
+  (default 30 s, a technical setting) and exports per (consumer, event type), labelled `consumer` and `event_type`
+  only (CS-36), the gauges `gst.platform.consumer.staleness.lag` and `gst.platform.consumer.staleness.threshold`
+  (Prometheus: `gst_platform_consumer_staleness_lag_seconds`, `gst_platform_consumer_staleness_threshold_seconds`).
+  The incident is raised by the observability bundle's alert rules on them (INV-T-3035). A failed measurement
+  withdraws the lag gauges until the next success, so it reads as absent, never as zero. The meter names follow ruling
+  INV-Q-3831 (A, HIGH: `gst.platform.*` for this library-owned meter under CS-36).
+- Staleness rules as `service-runtime.staleness.rules[n].consumer|event-type|threshold` (CS-27), alongside any
+  `StalenessRule` beans. A rule without a threshold takes `ProvisionalStalenessThresholds`: 5 minutes for
+  payload-svc and submission-svc on CanonicalVersionCreated, PayloadReady, PayloadRejected and DocumentReleased,
+  30 minutes otherwise (INV-Q-2991), **provisional until the SDS §13.7 performance tests** (INV-Q-2987). An
+  installation may only tighten: a longer value stops start-up with a message naming the rule (INV-REQ-1165 b4).
+  Not variation points (ARC-12).
+
+### Changed
+- `StalenessBreachSink` is optional: without one the monitor logs each breach at WARN (`LoggingStalenessBreachSink`).
 ## [3.0.0] - 2026-10-12
 ### Changed (breaking: 2.x -> 3.0.0; no consumer exists yet, product-runtime binds these in INV-T-2876)
 - `AuthorityReplica` keys grant state per (tenant, principal, entityRef) (INV-Q-3322 (b), INV-T-3335).
