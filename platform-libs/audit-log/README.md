@@ -16,4 +16,4 @@ Released on its own version with its own changelog. Services consume it only as 
 
 - `audit-log-api`: `AuditEntry`, `AuditWriter`, `AuditedOperations`, `OverrideService`, `OverrideRegister`, `ErrorCatalogue`, `OverridePolicy`.
 - `audit-log` (impl): `OutboxAuditWriter` (over outbox-and-queue's `OutboxWriter`), `TransactionalAuditedOperations`, `JdbcOverrideService`, `AuditSchema.ddl(schema, appRole)` for the service's migration.
-- The owning service supplies the `ErrorCatalogue` (TERMINAL, MANUAL or OVERRIDABLE per code) and the verified roles of the caller. Authorised role: `tax.approver`; a policy may only add required roles (tighten-only).
+- The owning service supplies the `ErrorCatalogue` (TERMINAL, MANUAL or OVERRIDABLE per code) and the verified roles of the caller. Authorised role: `tax.approver`; one `tax.approver` per document version (VP-32 default, INV-REQ-1293); no extra roles.

@@ -6,6 +6,12 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-11
+### Changed
+- BREAKING: `OverridePolicy` no longer takes `additionalRequiredRoles`; an override needs one
+  `tax.approver` per document version (VP-32 default, INV-REQ-1293; INV-Q-2972). The
+  "Keel controls are tighten-only" comment is corrected to INV-REQ-1244's rule.
+
 ## [1.0.0] - 2026-10-11
 ### Added
 - `AuditWriter`: actor, action, scope, reason and prior state written as `AuditEntryRecorded`

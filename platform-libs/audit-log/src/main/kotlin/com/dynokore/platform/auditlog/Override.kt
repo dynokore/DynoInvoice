@@ -102,19 +102,14 @@ interface OverrideRegister {
 }
 
 /**
- * Who may override: a holder of `tax.approver` (INV-REQ-1293, INV-AC-2279), and of every role in
- * [additionalRequiredRoles]. Keel controls are tighten-only: the policy can add requirements but never
- * replace `tax.approver` by, or widen it to, another role, so widening is not expressible.
+ * Who may override: one holder of `tax.approver` per document version (INV-REQ-1293, VP-32's
+ * default, INV-AC-2279). Looser options of a CONTROL are not silent: choosing one records an
+ * acknowledgement by the accountable role and shows the relaxation in readiness output and the
+ * work-paper (INV-REQ-1244). A second approver (VP-32's tighter options) is not expressed here.
  */
-data class OverridePolicy(
-    val additionalRequiredRoles: Set<String> = emptySet(),
-) {
-    init {
-        require(additionalRequiredRoles.none { it.isBlank() }) { "a required role must not be blank" }
-    }
-
+class OverridePolicy {
     /** Whether [roles] satisfy this policy. */
-    fun permits(roles: Set<String>): Boolean = TAX_APPROVER in roles && roles.containsAll(additionalRequiredRoles)
+    fun permits(roles: Set<String>): Boolean = TAX_APPROVER in roles
 
     companion object {
         const val TAX_APPROVER = "tax.approver"
