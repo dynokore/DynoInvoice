@@ -134,27 +134,12 @@ enum class ValueType(
 }
 
 /**
- * A bound or default as Keel states it: a number, a named value resolved elsewhere
- * (e.g. VP-51's "the mandatory date"), or [row], another variation point whose value in
- * force is the bound (VP-57's max `{row: VP-79}`, INV-Q-3202). Exactly one is set.
+ * A bound or default as Keel states it: a number, or a named value resolved elsewhere
+ * (e.g. VP-51's "the mandatory date"). Exactly one of the two is set.
  */
 data class BoundValue(
     val number: java.math.BigDecimal? = null,
     val symbolic: String? = null,
-    val row: String? = null,
-)
-
-/**
- * An installation parameter that Keel made its own variation point (INV-Q-3202): [row]
- * is that variation point and [requirement] its Keel requirement; its typed values live
- * on that row, not here. [name], [note] and [rule] are Keel's own words.
- */
-data class InstallationParameterRef(
-    val row: String,
-    val requirement: String,
-    val name: String? = null,
-    val note: String? = null,
-    val rule: String? = null,
 )
 
 /**
@@ -236,10 +221,8 @@ data class VpCatalogueFields(
     val basis: String? = null,
     /** A default that depends on the deployment form (e.g. VP-74: SAAS → ON, PRIVATE → OFF); then no option is DEFAULT. */
     val defaultByForm: Map<String, String> = emptyMap(),
-    /** An installation-level value that bounds this row, typed here. */
+    /** An installation-level value that bounds this row (e.g. VP-67's operator maximum). */
     val installationParameter: TypedValue? = null,
-    /** An installation-level value that bounds this row, made its own row (VP-57 -> VP-79, VP-67 -> VP-80; INV-Q-3202). */
-    val installationParameterRef: InstallationParameterRef? = null,
     /** Who the second approver is, where the row names one (VP-32). */
     val secondApprover: String? = null,
 )

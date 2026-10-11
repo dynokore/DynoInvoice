@@ -12,16 +12,11 @@ enum class ProfileStatus {
     PLANNED,
 }
 
-/**
- * A typed value a profile sets within its option's bounds (e.g. PRF-7 VP-43: 7 years). A
- * scalar carries [value]; a record (e.g. PRF-7 VP-08: DEFAULT_PAIR_4H with a 2 h window,
- * INV-Q-3320) carries no value of its own, only the [fields] it sets, each a typed value.
- */
+/** A typed value a profile sets within its option's bounds (e.g. PRF-7 VP-43: 7 years). */
 data class ProfileTypedValue(
     val type: ValueType,
     val unit: String?,
-    val value: BigDecimal?,
-    val fields: Map<String, ProfileTypedValue> = emptyMap(),
+    val value: BigDecimal,
 )
 
 /**

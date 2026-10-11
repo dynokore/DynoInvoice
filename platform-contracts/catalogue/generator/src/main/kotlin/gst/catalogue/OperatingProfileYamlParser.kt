@@ -21,7 +21,7 @@ object OperatingProfileYamlParser {
             "otherwise_option", "alternatives", "alternative_by", "adds", "at_apply", "explicit_default",
             "needs_acknowledgement", "untyped_reason",
         )
-    private val typedKeys = setOf("type", "unit", "value", "fields")
+    private val typedKeys = setOf("type", "unit", "value")
 
     /** Parses [file]; an untyped value takes its question from [pendingFile] (pending-values.yaml). */
     fun parse(
@@ -155,17 +155,6 @@ object OperatingProfileYamlParser {
         unknownKeys(t, typedKeys, "$where typed_value", file)
         val typeName = text(t, "type", where, file)
         val type = ValueType.fromKeel(typeName) ?: error("gst-catalogue: $where typed_value type '$typeName' is unknown (INV-Q-2934).")
-        if (type == ValueType.RECORD) {
-            if (t.containsKey("value") || t.containsKey("unit")) {
-                error("gst-catalogue: $where typed_value is a record: it sets 'fields', not a 'value' or 'unit', in $file.")
-            }
-            val fields =
-                map(t["fields"] ?: error("gst-catalogue: $where typed_value is a record with no 'fields' in $file."), "$where fields", file)
-                    .mapValues { (name, f) -> parseTyped(map(f, "$where field '$name'", file), "$where.$name", file) }
-            if (fields.isEmpty()) error("gst-catalogue: $where typed_value is a record with no fields in $file.")
-            return ProfileTypedValue(type, null, null, fields)
-        }
-        if (t.containsKey("fields")) error("gst-catalogue: $where typed_value has 'fields' but is not a record in $file.")
         val number =
             when (val raw = t["value"]) {
                 is Int, is Long, is Double -> BigDecimal(raw.toString())

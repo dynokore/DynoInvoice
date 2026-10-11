@@ -32,24 +32,6 @@ class RealVariationPointCatalogueSelfTest {
         val window = vp08.options[1].typedValue!!.fields.getValue("window")
         assertEquals(Direction.DOWN_STRICTER, window.direction)
         assertEquals(0, window.max!!.number!!.compareTo(java.math.BigDecimal(8)))
-        // INV-Q-3320 A': the default pair's window is 1 to 8 h, default 4, like any pair's; the key is kept.
-        assertEquals("DEFAULT_PAIR_4H", vp08.options[0].key)
-        val defaultWindow = vp08.options[0].typedValue!!.fields.getValue("window")
-        assertEquals(listOf(1, 8, 4), listOf(defaultWindow.min, defaultWindow.max, defaultWindow.default).map { it!!.number!!.toInt() })
-        assertEquals(Direction.DOWN_STRICTER, defaultWindow.direction)
-    }
-
-    @Test
-    fun `INV-Q-3202 VP-57 and VP-67 take their maximum from their own installation rows`() {
-        val rows = VariationPointYamlParser.parse(vendoredFile, pendingFile).associateBy { it.id }
-        val vp57 = rows.getValue("VP-57").fields!!
-        assertEquals(BoundValue(row = "VP-79"), vp57.options.single { it.key == "SHORTER" }.typedValue!!.max)
-        assertEquals("VP-79", vp57.installationParameterRef!!.row)
-        assertEquals("INV-REQ-3210", vp57.installationParameterRef!!.requirement)
-        val vp67 = rows.getValue("VP-67").fields!!
-        assertEquals(BoundValue(row = "VP-80"), vp67.options.mapNotNull { it.typedValue?.max }.single { it.row != null })
-        assertEquals("INV-REQ-3211", vp67.installationParameterRef!!.requirement)
-        assertTrue(VariationPointFieldsChecker.checkRowReferences(rows.values.toList()).isEmpty())
     }
 
     @Test

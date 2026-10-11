@@ -86,7 +86,6 @@ object VariationPointKotlinEmitter {
             appendLine("    val crossRow: String?,")
             appendLine("    val defaultByForm: Map<String, String>,")
             appendLine("    val installationParameter: TypedValue?,")
-            appendLine("    val installationParameterRef: InstallationParameterRef?,")
             appendLine("    val secondApprover: String?,")
             appendLine("    val pendingQuestions: List<String>,")
             appendLine(") {")
@@ -141,23 +140,10 @@ object VariationPointKotlinEmitter {
         )
         enumBlock("Which way a typed value tightens (INV-Q-2934).", "Direction", Direction.entries.map { it.name })
         enumBlock("The kind of a typed value (INV-Q-2934).", "ValueType", ValueType.entries.map { it.name })
-        appendLine("/**")
-        appendLine(" * A bound or default: a number, a named value resolved elsewhere, or [row], the id of the variation point")
-        appendLine(" * whose value in force is the bound (INV-Q-3202). Exactly one is set.")
-        appendLine(" */")
+        appendLine("/** A bound or default: a number, or a named value resolved elsewhere (exactly one is set). */")
         appendLine("data class BoundValue(")
         appendLine("    val number: java.math.BigDecimal? = null,")
         appendLine("    val symbolic: String? = null,")
-        appendLine("    val row: String? = null,")
-        appendLine(")")
-        appendLine()
-        appendLine("/** An installation parameter made its own variation point [row] (requirement [requirement]; INV-Q-3202); its typed values are that row's. */")
-        appendLine("data class InstallationParameterRef(")
-        appendLine("    val row: String,")
-        appendLine("    val requirement: String,")
-        appendLine("    val name: String? = null,")
-        appendLine("    val note: String? = null,")
-        appendLine("    val rule: String? = null,")
         appendLine(")")
         appendLine()
         appendLine("/** A typed value with its bounds (INV-Q-2934); what Keel does not state stays null. */")
@@ -270,12 +256,7 @@ object VariationPointKotlinEmitter {
 
     private fun boundLiteral(b: BoundValue): String =
         b.number?.let { "BoundValue(number = java.math.BigDecimal(\"${it.toPlainString()}\"))" }
-            ?: b.symbolic?.let { "BoundValue(symbolic = ${it.kotlinStringLiteralBody()})" }
-            ?: "BoundValue(row = ${b.row!!.kotlinStringLiteralBody()})"
-
-    private fun parameterRefLiteral(p: InstallationParameterRef): String =
-        "InstallationParameterRef(${p.row.kotlinStringLiteralBody()}, ${p.requirement.kotlinStringLiteralBody()}, " +
-            "${p.name.kotlinNullableStringLiteral()}, ${p.note.kotlinNullableStringLiteral()}, ${p.rule.kotlinNullableStringLiteral()})"
+            ?: "BoundValue(symbolic = ${b.symbolic!!.kotlinStringLiteralBody()})"
 
     private fun entryLine(row: ParsedVariationPoint): String {
         val constantName = row.id.replace("-", "_")
@@ -311,7 +292,6 @@ object VariationPointKotlinEmitter {
             "${row.fields?.crossRow.kotlinNullableStringLiteral()}, " +
             "${row.fields?.defaultByForm.orEmpty().let { m -> if (m.isEmpty()) "emptyMap()" else "mapOf(" + m.entries.joinToString(", ") { (k, v) -> "${k.kotlinStringLiteralBody()} to ${v.kotlinStringLiteralBody()}" } + ")" }}, " +
             "${row.fields?.installationParameter?.let { typedLiteral(it) } ?: "null"}, " +
-            "${row.fields?.installationParameterRef?.let { parameterRefLiteral(it) } ?: "null"}, " +
             "${row.fields?.secondApprover.kotlinNullableStringLiteral()}, " +
             row.pendingQuestions.kotlinListLiteral() +
             ")"
