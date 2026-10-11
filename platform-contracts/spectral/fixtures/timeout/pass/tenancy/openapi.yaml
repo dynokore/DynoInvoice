@@ -1,0 +1,20 @@
+openapi: 3.1.0
+info: {title: fixture, version: 1.0.0}
+paths:
+  /internal/v1/tenancy/entities/{entityRef}:
+    get:
+      operationId: getEntityStructure
+      x-sync-edge: any->tenancy-svc
+      x-timeout: 500
+      responses: {"200": {description: ok}}
+  /internal/v1/tenancy/tenants/{tenantRef}/usage-counters:
+    get:
+      operationId: getUsageCounters
+      x-sync-edge: control-plane-svc->tenancy-svc
+      x-timeout: 2000
+      responses: {"200": {description: ok}}
+  /v1/tenancy/public:
+    get:
+      operationId: publicOp
+      x-timeout: 3000
+      responses: {"200": {description: ok}}

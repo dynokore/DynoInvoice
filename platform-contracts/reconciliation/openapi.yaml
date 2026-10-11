@@ -184,7 +184,7 @@ paths:
       tags: [runs]
       x-principal: reporting
       x-sync-edge: console-bff->reconciliation-svc
-      x-timeout: 3000
+      x-timeout: 2000
       x-error-codes: []
       x-requirements: []
       parameters:
@@ -227,7 +227,7 @@ paths:
       tags: [runs]
       x-principal: reporting
       x-sync-edge: console-bff->reconciliation-svc
-      x-timeout: 3000
+      x-timeout: 2000
       x-error-codes: []
       x-requirements: []
       parameters:
@@ -261,7 +261,7 @@ paths:
       tags: [runs]
       x-principal: reporting
       x-sync-edge: console-bff->reconciliation-svc
-      x-timeout: 3000
+      x-timeout: 2000
       x-error-codes: []
       x-requirements: [INV-REQ-947, INV-REQ-982, INV-REQ-634]
       parameters:
@@ -306,7 +306,7 @@ paths:
       tags: [reconciliation]
       x-principal: filing-workflow
       x-sync-edge: console-bff->reconciliation-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010]
       x-operation:
@@ -363,7 +363,7 @@ paths:
       tags: [runs]
       x-principal: filing-workflow
       x-sync-edge: console-bff->reconciliation-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-error-codes: []
       x-requirements: [INV-REQ-947, INV-REQ-957, INV-REQ-1010]
       x-operation:

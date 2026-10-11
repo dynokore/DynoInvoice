@@ -1,0 +1,9 @@
+openapi: 3.1.0
+info: {title: fixture, version: 1.0.0}
+paths:
+  /internal/v1/access/grants:
+    post:
+      operationId: grantRole
+      x-sync-edge: console-bff->access-svc
+      x-timeout: 5000
+      responses: {"201": {description: ok}}

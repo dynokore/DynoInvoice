@@ -34,7 +34,7 @@ paths:
       - packs
       x-principal: filing-workflow
       x-sync-edge: console-bff->control-plane-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-requirements:
       - FR-AC.1
       - FR-H.5
@@ -93,7 +93,7 @@ paths:
       - packs
       x-principal: filing-workflow
       x-sync-edge: console-bff->control-plane-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-requirements:
       - FR-AC.1
       - FR-H.5
@@ -160,7 +160,7 @@ paths:
       - packs
       x-principal: filing-workflow
       x-sync-edge: console-bff->control-plane-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-requirements:
       - FR-AC.1
       - FR-H.5
@@ -217,7 +217,7 @@ paths:
       - releases
       x-principal: filing-workflow
       x-sync-edge: console-bff->control-plane-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-requirements:
       - FR-AC.1
       - FR-H.10
@@ -273,7 +273,7 @@ paths:
       - releases
       x-principal: filing-workflow
       x-sync-edge: console-bff->control-plane-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-requirements:
       - FR-AC.1
       - FR-H.11
@@ -332,7 +332,7 @@ paths:
       - commercial
       x-principal: filing-workflow
       x-sync-edge: console-bff->control-plane-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-requirements:
       - FR-AC.1
       - FR-H.12
@@ -393,7 +393,7 @@ paths:
       - commercial
       x-principal: filing-workflow
       x-sync-edge: console-bff->control-plane-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-requirements:
       - FR-AC.1
       - FR-AF.28
@@ -450,7 +450,7 @@ paths:
       - commercial
       x-principal: filing-workflow
       x-sync-edge: console-bff->control-plane-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-requirements:
       - FR-AC.1
       - FR-AF.28

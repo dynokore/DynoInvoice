@@ -554,7 +554,7 @@ paths:
         footnote) — a separate console-bff path, not this resource.
       tags: [control-totals]
       x-principal: ingest
-      x-timeout: 5000
+      x-timeout: 3000
       x-error-codes: [ING-004]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-791]
       x-operation:
@@ -627,7 +627,7 @@ paths:
         the seven elements of the adapter contract (FR-E.5, INV-REQ-799).
       tags: [administration]
       x-principal: filing-workflow
-      x-timeout: 5000
+      x-timeout: 2000
       x-sync-edge: console-bff->ingestion-svc
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-799]
@@ -680,7 +680,7 @@ paths:
         the same way.
       tags: [administration]
       x-principal: filing-workflow
-      x-timeout: 5000
+      x-timeout: 2000
       x-sync-edge: console-bff->ingestion-svc
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-788]
@@ -735,7 +735,7 @@ paths:
         is authorised the same way.
       tags: [administration]
       x-principal: filing-workflow
-      x-timeout: 5000
+      x-timeout: 2000
       x-sync-edge: console-bff->ingestion-svc
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-788, INV-REQ-953, INV-REQ-1322]
@@ -789,7 +789,7 @@ paths:
         `degradation`, FR-F.6).
       tags: [administration]
       x-principal: filing-workflow
-      x-timeout: 3000
+      x-timeout: 2000
       x-sync-edge: console-bff->ingestion-svc
       x-error-codes: [ING-008]
       x-requirements: [INV-REQ-790, INV-REQ-791]
@@ -827,7 +827,7 @@ paths:
         resource in `submission/openapi.yaml`).
       tags: [administration]
       x-principal: filing-workflow
-      x-timeout: 5000
+      x-timeout: 2000
       x-sync-edge: console-bff->ingestion-svc
       x-error-codes: [ING-008]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-790]
@@ -886,7 +886,7 @@ paths:
         describes; never becomes a production record and is never counted.
       tags: [administration]
       x-principal: filing-workflow
-      x-timeout: 5000
+      x-timeout: 2000
       x-sync-edge: console-bff->ingestion-svc
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-799]

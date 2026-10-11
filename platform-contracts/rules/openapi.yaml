@@ -161,7 +161,7 @@ paths:
       tags: [mapping-packs]
       x-principal: filing-workflow
       x-sync-edge: console-bff->rules-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-2.1, FR-B.4]
       x-operation:
@@ -207,7 +207,7 @@ paths:
       tags: [mapping-packs]
       x-principal: filing-workflow
       x-sync-edge: console-bff->rules-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-error-codes: [RUL-001]
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-2.3, C-4]
       x-operation:
@@ -298,7 +298,7 @@ paths:
       tags: [mapping-packs]
       x-principal: filing-workflow
       x-sync-edge: console-bff->rules-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-error-codes: [RUL-007]
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-AA.17, FR-AA.18, RUL-007]
       x-operation:
@@ -349,7 +349,7 @@ paths:
       tags: [mapping-packs]
       x-principal: filing-workflow
       x-sync-edge: console-bff->rules-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-B.3]
       x-operation:
@@ -389,7 +389,7 @@ paths:
       tags: [mapping-packs]
       x-principal: filing-workflow
       x-sync-edge: console-bff->rules-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-error-codes: [RUL-006, RUL-007, RUL-009, RUL-010]
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-P.2, RUL-007, RUL-009, RUL-010]
       x-operation:
@@ -431,7 +431,7 @@ paths:
       tags: [mapping-packs]
       x-principal: filing-workflow
       x-sync-edge: console-bff->rules-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-B.1, FR-B.4]
       x-operation:
@@ -524,7 +524,7 @@ paths:
       tags: [regulatory-packs]
       x-principal: filing-workflow
       x-sync-edge: console-bff->rules-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-G.8, FR-G.9]
       x-operation:
@@ -570,7 +570,7 @@ paths:
       tags: [regulatory-packs]
       x-principal: filing-workflow
       x-sync-edge: console-bff->rules-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-error-codes: [RUL-005]
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-AB.10, FR-K.7, RUL-005]
       x-operation:
@@ -621,7 +621,7 @@ paths:
       tags: [regulatory-packs]
       x-principal: filing-workflow
       x-sync-edge: console-bff->rules-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-AC.6]
       x-operation:
@@ -668,7 +668,7 @@ paths:
       tags: [regulatory-packs]
       x-principal: filing-workflow
       x-sync-edge: console-bff->rules-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, "§31.4.1"]
       x-operation:
@@ -705,10 +705,19 @@ paths:
         writes nothing to canonical or submission state, and produces, per
         changed document, the old and new verdict or code, the taxable
         value and the GST value (FR-B.3).
+
+
+        Long command (INV-Q-3438 A, INV-Q-3466 A, API-17): a dry run
+        finished within x-timeout returns `200` with `DryRunResult`; one
+        that is not returns `202` with `Location` and `Retry-After` pointing
+        at its own status resource, `getDryRun`
+        (`/internal/v1/rules/packs/{packRef}/dry-runs/{dryRunId}`), whose
+        `result` is the stored delta the approver signs (UC-4). A repeat with
+        the same Idempotency-Key replays the stored `202` (API-15).
       tags: [mapping-packs, regulatory-packs]
       x-principal: filing-workflow
       x-sync-edge: console-bff->rules-svc
-      x-timeout: 30000
+      x-timeout: 2000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-B.3, FR-G.8]
       x-operation:
@@ -741,6 +750,79 @@ paths:
                         newCategoryCode: "SR"
                         taxableValue: "1000.00"
                         gstValue: "90.00"
+        '202':
+          description: >-
+            The dry run did not finish within x-timeout and continues
+            asynchronously (API-17, INV-Q-3438 A); poll the status resource.
+          headers:
+            Location:
+              schema: { type: string }
+              description: '`/internal/v1/rules/packs/{packRef}/dry-runs/{dryRunId}` (API-17).'
+            Retry-After:
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RulesDryRunStatus'
+              examples:
+                default:
+                  value:
+                    dryRunId: "DRY-0042-01"
+                    packRef: "MAP-0042"
+                    state: "RUNNING"
+                    startedAt: "2026-03-20T03:15:00Z"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/rules/packs/{packRef}/dry-runs/{dryRunId}:
+    get:
+      operationId: getDryRun
+      summary: Read a dry run's status and, once it has succeeded, the stored delta
+      description: >-
+        The status resource of `dryRun` (API-17, INV-Q-3438 A, INV-Q-3466 A).
+        `state` is RUNNING, SUCCEEDED or FAILED; `result` is the stored
+        delta the approver signs (UC-4, INV-AC-1968), present only when
+        SUCCEEDED, and `error` the API-20 envelope only when FAILED. Readable
+        only by the principal that started the dry run, and kept at least 7
+        days (API-17).
+      tags: [mapping-packs, regulatory-packs]
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->rules-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [FR-B.3, FR-G.8, INV-REQ-1232]
+      parameters:
+        - name: packRef
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+        - name: dryRunId
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+      responses:
+        '200':
+          description: The dry run's status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RulesDryRunStatus'
+              examples:
+                default:
+                  value:
+                    dryRunId: "DRY-0042-01"
+                    packRef: "MAP-0042"
+                    state: "SUCCEEDED"
+                    startedAt: "2026-03-20T03:15:00Z"
+                    completedAt: "2026-03-20T03:17:42Z"
+                    result:
+                      packRef: "MAP-0042"
+                      changedCount: 3
+                      sample:
+                        - docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                          oldCategoryCode: "ZR"
+                          newCategoryCode: "SR"
+                          taxableValue: "1000.00"
+                          gstValue: "90.00"
         default:
           $ref: '#/components/responses/Error'
 components:
@@ -968,6 +1050,38 @@ components:
                 description: Money as a decimal string (API-12).
             required: [docUuid, oldCategoryCode, newCategoryCode, taxableValue, gstValue]
       required: [packRef, changedCount]
+    RulesDryRunStatus:
+      type: object
+      description: >-
+        Status resource of dryRun (API-17, INV-Q-3466 A); also the 202 body,
+        with state RUNNING. DryRunResult is unchanged.
+      properties:
+        dryRunId:
+          type: string
+          maxLength: 40
+        packRef:
+          type: string
+          maxLength: 40
+        state:
+          type: string
+          enum: [RUNNING, SUCCEEDED, FAILED]
+          x-extensible-enum: true
+          description: API-17's operation-resource state vocabulary.
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          description: Present when state is not RUNNING.
+        result:
+          $ref: '#/components/schemas/DryRunResult'
+        error:
+          $ref: '#/components/schemas/ErrorEnvelope'
+      required: [dryRunId, packRef, state, startedAt]
+    ErrorEnvelope:
+      description: The API-20 error envelope, carried in a status resource's `error` when its state is FAILED (API-17).
+      $ref: '../service-runtime/schemas/error-envelope.schema.json'
   responses:
     Error:
       description: Error (API-20 envelope)

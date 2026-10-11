@@ -1,0 +1,13 @@
+# Fixture for spectral/self-test-timeouts.sh: rows in the shape of invoice-docs
+# model/architecture/sync-edges.yaml resilience_policy (INV-NOTE-3 §36.6 values).
+resilience_policy:
+- edge: payload-svc → masterdata-svc
+  timeout_or_budget: 80 ms budget (pre-issuance), 1 s otherwise
+- edge: Any → tenancy-svc (fallback)
+  timeout_or_budget: 500 ms
+- edge: Any → access-svc (fallback)
+  timeout_or_budget: 500 ms
+- edge: control-plane-svc → tenancy-svc
+  timeout_or_budget: Per §13.7
+- edge: console-bff → any
+  timeout_or_budget: 2 s per call, at most 2 calls per view

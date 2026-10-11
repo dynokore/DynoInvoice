@@ -36,7 +36,7 @@ paths:
       - entities
       x-principal: filing-workflow
       x-sync-edge: console-bff->tenancy-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-requirements:
       - FR-AC.1
       - FR-G.1
@@ -97,7 +97,7 @@ paths:
       - entities
       x-principal: filing-workflow
       x-sync-edge: console-bff->tenancy-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-requirements:
       - FR-AC.1
       - FR-AA.5
@@ -161,7 +161,7 @@ paths:
       - entities
       x-principal: filing-workflow
       x-sync-edge: console-bff->tenancy-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-requirements:
       - FR-AC.1
       - FR-AG.13
@@ -227,7 +227,7 @@ paths:
       - entities
       x-principal: filing-workflow
       x-sync-edge: console-bff->tenancy-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-requirements:
       - FR-AC.1
       - FR-AC.19
@@ -294,7 +294,7 @@ paths:
       - entities
       x-principal: filing-workflow
       x-sync-edge: console-bff->tenancy-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-requirements:
       - FR-AC.1
       - FR-AC.7
@@ -358,7 +358,7 @@ paths:
       - entities
       x-principal: filing-workflow
       x-sync-edge: console-bff->tenancy-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-requirements:
       - FR-AC.1
       - FR-X.5
@@ -427,7 +427,7 @@ paths:
       - tenants
       x-principal: filing-workflow
       x-sync-edge: console-bff->tenancy-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-requirements:
       - FR-AC.1
       - FR-AI.7
@@ -495,7 +495,7 @@ paths:
       - entities
       x-principal: filing-workflow
       x-sync-edge: console-bff->tenancy-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-requirements:
       - FR-AC.1
       - FR-AA.6
@@ -560,7 +560,7 @@ paths:
       - periods
       x-principal: filing-workflow
       x-sync-edge: console-bff->tenancy-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-requirements:
       - FR-AC.1
       - FR-7.12
@@ -627,7 +627,7 @@ paths:
       - workspaces
       x-principal: filing-workflow
       x-sync-edge: console-bff->tenancy-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-requirements:
       - FR-AC.1
       - FR-D.9
@@ -686,7 +686,7 @@ paths:
       - workspaces
       x-principal: filing-workflow
       x-sync-edge: console-bff->tenancy-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-requirements:
       - FR-AC.1
       - FR-D.10
@@ -729,7 +729,7 @@ paths:
       - entities
       x-principal: filing-workflow
       x-sync-edge: console-bff->tenancy-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-requirements:
       - FR-AC.1
       - FR-6.13
@@ -795,7 +795,7 @@ paths:
       - installation
       x-principal: filing-workflow
       x-sync-edge: console-bff->tenancy-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-requirements:
       - FR-AC.1
       - FR-G.12
@@ -852,7 +852,7 @@ paths:
       - entities
       x-principal: filing-workflow
       x-sync-edge: console-bff->tenancy-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-requirements:
       - FR-AC.1
       - FR-6.1
@@ -918,7 +918,7 @@ paths:
       - periods
       x-principal: filing-workflow
       x-sync-edge: console-bff->tenancy-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-requirements:
       - FR-AC.1
       - FR-T.8
@@ -991,7 +991,7 @@ paths:
       - entities
       x-principal: filing-workflow
       x-sync-edge: console-bff->tenancy-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-requirements:
       - FR-AC.1
       - FR-6.14
@@ -1056,7 +1056,7 @@ paths:
       - entities
       x-principal: filing-workflow
       x-sync-edge: console-bff->tenancy-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-requirements:
       - FR-AC.1
       - FR-10.12
@@ -1121,7 +1121,7 @@ paths:
       - entities
       x-principal: filing-workflow
       x-sync-edge: console-bff->tenancy-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-requirements:
       - FR-AC.1
       - FR-10.13
@@ -1292,7 +1292,7 @@ paths:
       - entities
       x-principal: filing-workflow
       x-sync-edge: any->tenancy-svc
-      x-timeout: 2000
+      x-timeout: 500
       x-requirements:
       - FR-AC.1
       - FR-AH.4

@@ -114,7 +114,7 @@ paths:
         payload-svc to hold (PAY-013).
       tags: [register-and-rates]
       x-principal: ingest
-      x-timeout: 80
+      x-timeout: 1000
       x-sync-edge: payload-svc->masterdata-svc
       x-error-codes: [MDM-007]
       x-requirements: [FR-E.7, FR-E.8, FR-E.9, "AD-23"]
@@ -161,7 +161,7 @@ paths:
       tags: [identity-triples]
       x-principal: filing-workflow
       x-sync-edge: console-bff->masterdata-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-error-codes: [MDM-005]
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-1.1, FR-1.2, FR-AC.15, FR-AC.16, "VP-09"]
       x-operation:
@@ -216,7 +216,7 @@ paths:
       tags: [remediation]
       x-principal: filing-workflow
       x-sync-edge: console-bff->masterdata-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-error-codes: [MDM-001, MDM-002, MDM-003, MDM-004, MDM-006]
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-1.5, FR-1.14, FR-1.15, "MDM-001"]
       x-operation:
@@ -268,7 +268,7 @@ paths:
       tags: [remediation]
       x-principal: filing-workflow
       x-sync-edge: console-bff->masterdata-svc
-      x-timeout: 10000
+      x-timeout: 2000
       x-error-codes: [MDM-001, MDM-002, MDM-003, MDM-004, MDM-006]
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-AC.3, FR-AC.14]
       x-operation:
@@ -318,7 +318,7 @@ paths:
       tags: [counterparty-requests]
       x-principal: filing-workflow
       x-sync-edge: console-bff->masterdata-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-AF.23]
       x-operation:
@@ -360,7 +360,7 @@ paths:
       tags: [counterparty-requests]
       x-principal: filing-workflow
       x-sync-edge: console-bff->masterdata-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-error-codes: [MDM-002, MDM-003, MDM-006]
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-AF.24, FR-1.5]
       x-operation:
@@ -406,16 +406,33 @@ paths:
         provenance and emit `MasterDataResolved`; migrated data is marked
         `MIGRATED`, never `COUNTERPARTY`-provided, because its evidentiary
         standing differs (FR-R.12, FR-1.5).
+
+
+        The request names the reviewed dry run in `dryRunId`
+        (`dryRunCounterpartyImport`, INV-Q-3442 A, INV-REQ-830 b2); a
+        `dryRunId` that is unknown, not SUCCEEDED or for another `fileHash`
+        is refused `422` (type about:blank) and nothing is recorded
+        (INV-Q-3466 A). `dryRunId` is optional in the schema only so that
+        this change stays additive (API-03).
+
+
+        Long command (INV-Q-3438 A, INV-Q-3466 A, API-17): an import
+        finished within x-timeout returns `201` with `ImportResult`; one that
+        is not returns `202` with `Location` and `Retry-After` pointing at
+        its FR-AG.57 import record, `getImportRecord`
+        (`/internal/v1/masterdata/imports/{importId}`, INV-REQ-833), and the
+        `ImportRecord` body with state RUNNING. A repeat with the same
+        Idempotency-Key replays the stored `202` (API-15).
       tags: [import]
       x-principal: filing-workflow
       x-sync-edge: console-bff->masterdata-svc
-      x-timeout: 30000
+      x-timeout: 2000
       x-error-codes: [MDM-002, MDM-003, MDM-006]
       x-requirements: [INV-REQ-957, INV-REQ-1010, "§35.10", FR-R.12]
       x-operation:
         role: tax.operator
         scope: tenant
-        precondition: "The import's dry run has been reviewed."
+        precondition: "The import's dry run (dryRunCounterpartyImport) has SUCCEEDED for the same fileHash and has been reviewed; its dryRunId is named in the request (INV-REQ-830 b2, INV-Q-3442 A)."
         reversibility: UNDOABLE
         repeatKey: "fileHash — undoable before any affected document submits."
       parameters:
@@ -428,7 +445,7 @@ paths:
               $ref: '#/components/schemas/ImportCounterpartiesRequest'
             examples:
               default:
-                value: { fileHash: "sha256:1a2b3c4d5e6f708192a3b4c5d6e7f809", rowCount: 240 }
+                value: { fileHash: "sha256:1a2b3c4d5e6f708192a3b4c5d6e7f809", rowCount: 240, dryRunId: "CDR-12" }
       responses:
         '201':
           description: The import's outcome.
@@ -439,6 +456,25 @@ paths:
               examples:
                 default:
                   value: { importId: "IMP-30", appliedCount: 238, failedCount: 2 }
+        '202':
+          description: >-
+            The work did not finish within x-timeout and continues
+            asynchronously (API-17, INV-Q-3438 A); poll the status resource.
+          headers:
+            Location:
+              schema: { type: string }
+              description: '`/internal/v1/masterdata/imports/{importId}` (API-17).'
+            Retry-After:
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportRecord'
+              examples:
+                default:
+                  value: { importId: "IMP-30", importKind: "COUNTERPARTIES", state: "RUNNING", startedAt: "2026-03-20T03:15:00Z", actorRef: "IDN-0031", fileHash: "sha256:1a2b3c4d5e6f708192a3b4c5d6e7f809", dryRunId: "CDR-12" }
+        '422':
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/masterdata/exchange-rates/import:
@@ -450,10 +486,19 @@ paths:
         `provides`; SCR-13.4, §35.2). The source must be the one the entity
         elected in tenancy-svc (`electRateSource`); rates are stored and
         `ReferenceRateLoaded` is emitted.
+
+
+        Long command (INV-Q-3438 A, INV-Q-3466 A, API-17): an import
+        finished within x-timeout returns `201` with `ImportResult`; one that
+        is not returns `202` with `Location` and `Retry-After` pointing at
+        its FR-AG.57 import record, `getImportRecord`
+        (`/internal/v1/masterdata/imports/{importId}`), and the
+        `ImportRecord` body with state RUNNING. A repeat with the same
+        Idempotency-Key replays the stored `202` (API-15).
       tags: [import]
       x-principal: filing-workflow
       x-sync-edge: console-bff->masterdata-svc
-      x-timeout: 10000
+      x-timeout: 2000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, "§35.2"]
       x-operation:
@@ -483,6 +528,206 @@ paths:
               examples:
                 default:
                   value: { importId: "IMP-31", appliedCount: 31, failedCount: 0 }
+        '202':
+          description: >-
+            The work did not finish within x-timeout and continues
+            asynchronously (API-17, INV-Q-3438 A); poll the status resource.
+          headers:
+            Location:
+              schema: { type: string }
+              description: '`/internal/v1/masterdata/imports/{importId}` (API-17).'
+            Retry-After:
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportRecord'
+              examples:
+                default:
+                  value: { importId: "IMP-31", importKind: "RATES", state: "RUNNING", startedAt: "2026-03-20T03:15:00Z", actorRef: "IDN-0007", source: "MAS", dateRange: { from: "2026-03-01", to: "2026-03-31" } }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/masterdata/imports/{importId}:
+    get:
+      operationId: getImportRecord
+      summary: Read an import's FR-AG.57 record, its status and outcome
+      description: >-
+        The FR-AG.57 import record (INV-REQ-833, INV-AC-1882), and the
+        status resource of `importCounterparties` and `importRates` (API-17,
+        INV-Q-3438 A, INV-Q-3466 A). `state` is RUNNING, SUCCEEDED or FAILED;
+        `result` is the `ImportResult` only when SUCCEEDED and `error` the
+        API-20 envelope only when FAILED. `actorRef` is filled by the server
+        from the token. Readable only by the principal that started the
+        import while it serves as a status resource, and kept at least 7
+        days (API-17).
+      tags: [import]
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->masterdata-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-833, INV-REQ-1232, "§35.10"]
+      parameters:
+        - name: importId
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+      responses:
+        '200':
+          description: The import record.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportRecord'
+              examples:
+                default:
+                  value:
+                    importId: "IMP-30"
+                    importKind: "COUNTERPARTIES"
+                    state: "SUCCEEDED"
+                    startedAt: "2026-03-20T03:15:00Z"
+                    completedAt: "2026-03-20T03:16:05Z"
+                    actorRef: "IDN-0031"
+                    fileHash: "sha256:1a2b3c4d5e6f708192a3b4c5d6e7f809"
+                    dryRunId: "CDR-12"
+                    result: { importId: "IMP-30", appliedCount: 238, failedCount: 2 }
+                    rejectedRows:
+                      - { row: 17, code: "MDM-003", field: "/uen", message: "UEN format is invalid" }
+                      - { row: 88, code: "MDM-006", field: "/address", message: "Address is incomplete" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/masterdata/counterparties/import/dry-runs:
+    post:
+      operationId: dryRunCounterpartyImport
+      summary: Dry-run a counterparty import file before it is applied
+      description: >-
+        Import dry run to console-bff (INV-Q-3442 A; FR-AG.54, INV-REQ-830
+        b2, INV-AC-1880), mirroring rules `dryRun`: read-only on counterparty
+        records, it returns per-row validation (UEN format, NA consistency
+        per C-7, address completeness), duplicates by UEN and the change
+        preview against existing records. The request names only the input
+        (the file transfer and column mapping stay outside the contract);
+        the result is kept as the import record's dry-run result (FR-AG.57,
+        INV-REQ-833), and `importCounterparties` names its `dryRunId`.
+
+
+        Long command (API-17): a dry run finished within x-timeout returns
+        `200` with `CounterpartyDryRunResult`; one that is not returns `202`
+        with `Location` and `Retry-After` pointing at
+        `getCounterpartyImportDryRun`
+        (`/internal/v1/masterdata/counterparties/import/dry-runs/{dryRunId}`)
+        and the `CounterpartyDryRunStatus` body with state RUNNING. A repeat
+        with the same Idempotency-Key replays the stored response (API-15).
+      tags: [import]
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->masterdata-svc
+      x-timeout: 2000
+      x-error-codes: [MDM-002, MDM-003, MDM-004, MDM-006]
+      x-requirements: [INV-REQ-830, INV-REQ-833, INV-REQ-1232, "§35.10"]
+      x-operation:
+        role: tax.operator
+        scope: tenant
+        precondition: "A counterparty import file (CSV or XLSX, column-mapped) has been uploaded; its fileHash is known (INV-REQ-830)."
+        reversibility: UNDOABLE
+        repeatKey: "Idempotency-Key — read-only on counterparty records; a repeat replays the stored result."
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CounterpartyDryRunRequest'
+            examples:
+              default:
+                value: { fileHash: "sha256:1a2b3c4d5e6f708192a3b4c5d6e7f809", rowCount: 240 }
+      responses:
+        '200':
+          description: The dry run's result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CounterpartyDryRunResult'
+              examples:
+                default:
+                  value:
+                    dryRunId: "CDR-12"
+                    fileHash: "sha256:1a2b3c4d5e6f708192a3b4c5d6e7f809"
+                    rowCount: 240
+                    validCount: 237
+                    rejectedRows:
+                      - { row: 17, code: "MDM-003", field: "/uen", message: "UEN format is invalid" }
+                    duplicates:
+                      - { uen: "201954321B", rows: [42, 97], existingCounterpartyRef: "CTP-118" }
+                    preview:
+                      createCount: 200
+                      updateCount: 30
+                      unchangedCount: 7
+                      changes:
+                        - { uen: "201954321B", counterpartyRef: "CTP-118", field: "address", oldValue: "1 Raffles Place", newValue: "1 Raffles Place, #10-01, Singapore 048616" }
+        '202':
+          description: >-
+            The work did not finish within x-timeout and continues
+            asynchronously (API-17, INV-Q-3438 A); poll the status resource.
+          headers:
+            Location:
+              schema: { type: string }
+              description: '`/internal/v1/masterdata/counterparties/import/dry-runs/{dryRunId}` (API-17).'
+            Retry-After:
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CounterpartyDryRunStatus'
+              examples:
+                default:
+                  value: { dryRunId: "CDR-12", state: "RUNNING", startedAt: "2026-03-20T03:10:00Z" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/masterdata/counterparties/import/dry-runs/{dryRunId}:
+    get:
+      operationId: getCounterpartyImportDryRun
+      summary: Read a counterparty import dry run's status and result
+      description: >-
+        The status resource of `dryRunCounterpartyImport` (API-17,
+        INV-Q-3442 A, INV-Q-3466 A). `state` is RUNNING, SUCCEEDED or
+        FAILED; `result` is the `CounterpartyDryRunResult` only when
+        SUCCEEDED and `error` the API-20 envelope only when FAILED. Readable
+        only by the principal that started the dry run, and kept at least 7
+        days (API-17).
+      tags: [import]
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->masterdata-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-830, INV-REQ-833, INV-REQ-1232]
+      parameters:
+        - name: dryRunId
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+      responses:
+        '200':
+          description: The dry run's status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CounterpartyDryRunStatus'
+              examples:
+                default:
+                  value:
+                    dryRunId: "CDR-12"
+                    state: "SUCCEEDED"
+                    startedAt: "2026-03-20T03:10:00Z"
+                    completedAt: "2026-03-20T03:11:20Z"
+                    result:
+                      dryRunId: "CDR-12"
+                      fileHash: "sha256:1a2b3c4d5e6f708192a3b4c5d6e7f809"
+                      rowCount: 240
+                      validCount: 239
+                      rejectedRows:
+                        - { row: 17, code: "MDM-003", field: "/uen", message: "UEN format is invalid" }
+                      duplicates: []
+                      preview: { createCount: 200, updateCount: 30, unchangedCount: 9, changes: [] }
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/masterdata/exchange-rates:
@@ -496,7 +741,7 @@ paths:
       tags: [import]
       x-principal: filing-workflow
       x-sync-edge: console-bff->masterdata-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-error-codes: [PAY-013]
       x-requirements: [INV-REQ-957, INV-REQ-1010, "§35.2"]
       x-operation:
@@ -654,7 +899,146 @@ components:
       properties:
         fileHash: { type: string, maxLength: 128 }
         rowCount: { type: integer, minimum: 0 }
+        dryRunId:
+          type: string
+          maxLength: 40
+          description: >-
+            The reviewed counterparty import dry run (INV-Q-3442 A); unknown,
+            not SUCCEEDED or for another fileHash is refused 422. Optional
+            only to keep the change additive (API-03).
       required: [fileHash, rowCount]
+    CounterpartyDryRunRequest:
+      type: object
+      description: The dry run's input, as ImportCounterpartiesRequest names it (INV-Q-3466 A).
+      properties:
+        fileHash: { type: string, maxLength: 128 }
+        rowCount: { type: integer, minimum: 0 }
+      required: [fileHash, rowCount]
+    RejectedRow:
+      type: object
+      description: One rejected file row, in the API-20 error item shape plus its row number.
+      properties:
+        row: { type: integer, minimum: 1 }
+        code: { type: string, pattern: '^[A-Z]{2,10}-[0-9]{3}$' }
+        field: { type: string, maxLength: 200, description: A JSON Pointer or column name (FR-AG.41). }
+        message: { type: string, maxLength: 500 }
+      required: [row, code, message]
+    CounterpartyDryRunRejectedRow:
+      type: object
+      description: A row the dry run rejects, as RejectedRow with the code limited to the four dry-run checks (INV-Q-3466 A).
+      properties:
+        row: { type: integer, minimum: 1 }
+        code:
+          type: string
+          pattern: '^MDM-00[2346]$'
+          description: MDM-002 (UEN absent), MDM-003 (UEN format), MDM-004 (NA consistency, C-7) or MDM-006 (address incomplete).
+        field: { type: string, maxLength: 200, description: A JSON Pointer or column name (FR-AG.41). }
+        message: { type: string, maxLength: 500 }
+      required: [row, code, message]
+    CounterpartyDryRunResult:
+      type: object
+      description: >-
+        Counterparty import dry run result (INV-Q-3466 A; INV-REQ-830 b2),
+        mirroring rules DryRunResult: counts plus per-item old and new values.
+      properties:
+        dryRunId: { type: string, maxLength: 40 }
+        fileHash: { type: string, maxLength: 128 }
+        rowCount: { type: integer, minimum: 0 }
+        validCount: { type: integer, minimum: 0 }
+        rejectedRows:
+          type: array
+          items:
+            $ref: '#/components/schemas/CounterpartyDryRunRejectedRow'
+        duplicates:
+          type: array
+          items:
+            type: object
+            properties:
+              uen: { type: string, maxLength: 20 }
+              rows:
+                type: array
+                items: { type: integer, minimum: 1 }
+              existingCounterpartyRef: { type: string, maxLength: 40 }
+            required: [uen, rows]
+        preview:
+          type: object
+          properties:
+            createCount: { type: integer, minimum: 0 }
+            updateCount: { type: integer, minimum: 0 }
+            unchangedCount: { type: integer, minimum: 0 }
+            changes:
+              type: array
+              items:
+                type: object
+                properties:
+                  uen: { type: string, maxLength: 20 }
+                  counterpartyRef: { type: string, maxLength: 40 }
+                  field: { type: string, maxLength: 64 }
+                  oldValue: { type: string, maxLength: 500 }
+                  newValue: { type: string, maxLength: 500 }
+                required: [uen, field, newValue]
+          required: [createCount, updateCount, unchangedCount, changes]
+      required: [dryRunId, fileHash, rowCount, validCount, rejectedRows, duplicates, preview]
+    CounterpartyDryRunStatus:
+      type: object
+      description: >-
+        Status resource of dryRunCounterpartyImport (API-17, INV-Q-3466 A);
+        also the 202 body, with state RUNNING.
+      properties:
+        dryRunId: { type: string, maxLength: 40 }
+        state:
+          $ref: '#/components/schemas/OperationState'
+        startedAt: { type: string, format: date-time }
+        completedAt: { type: string, format: date-time, description: Present when state is not RUNNING. }
+        result:
+          $ref: '#/components/schemas/CounterpartyDryRunResult'
+        error:
+          $ref: '#/components/schemas/ErrorEnvelope'
+      required: [dryRunId, state, startedAt]
+    ImportRecord:
+      type: object
+      description: >-
+        The FR-AG.57 import record (INV-REQ-833, INV-AC-1882) and the status
+        resource of importCounterparties and importRates (API-17,
+        INV-Q-3466 A); also their 202 body, with state RUNNING.
+      properties:
+        importId: { type: string, maxLength: 40 }
+        importKind:
+          type: string
+          enum: [COUNTERPARTIES, RATES]
+          x-extensible-enum: true
+        state:
+          $ref: '#/components/schemas/OperationState'
+        startedAt: { type: string, format: date-time }
+        completedAt: { type: string, format: date-time, description: Present when state is not RUNNING. }
+        actorRef: { type: string, maxLength: 64, description: 'The importing principal; the server fills it from the token.' }
+        fileHash: { type: string, maxLength: 128, description: Counterparty imports only. }
+        dryRunId: { type: string, maxLength: 40, description: Counterparty imports only; the reviewed dry run. }
+        source: { type: string, maxLength: 40, description: Rate imports only. }
+        dateRange:
+          type: object
+          description: Rate imports only.
+          properties:
+            from: { type: string, format: date }
+            to: { type: string, format: date }
+          required: [from, to]
+        result:
+          $ref: '#/components/schemas/ImportResult'
+        rejectedRows:
+          type: array
+          items:
+            $ref: '#/components/schemas/RejectedRow'
+        error:
+          $ref: '#/components/schemas/ErrorEnvelope'
+      required: [importId, importKind, state, startedAt, actorRef]
+    OperationState:
+      type: string
+      enum: [RUNNING, SUCCEEDED, FAILED]
+      x-extensible-enum: true
+      description: API-17's operation-resource state vocabulary.
+    ErrorEnvelope:
+      description: The API-20 error envelope, carried in a status resource's `error` when its state is FAILED (API-17).
+      $ref: '../service-runtime/schemas/error-envelope.schema.json'
     ImportResult:
       type: object
       properties:

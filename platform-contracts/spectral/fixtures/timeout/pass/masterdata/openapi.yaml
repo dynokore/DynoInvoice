@@ -1,0 +1,15 @@
+openapi: 3.1.0
+info: {title: fixture, version: 1.0.0}
+paths:
+  /internal/v1/masterdata/register-and-rates:
+    get:
+      operationId: getRegisterAndRates
+      x-sync-edge: payload-svc->masterdata-svc
+      x-timeout: 1000
+      responses: {"200": {description: ok}}
+  /internal/v1/masterdata/counterparties/import:
+    post:
+      operationId: importCounterparties
+      x-sync-edge: console-bff->masterdata-svc
+      x-timeout: 2000
+      responses: {"201": {description: ok}}

@@ -262,9 +262,35 @@ sync-edge-allowlist-check:
       python3 spectral/check-sync-edges.py
       /tmp/invoice-docs/model/architecture/sync-edges.yaml .
 
+x-timeout-check:
+  # INV-T-3431 (INV-Q-3429 A, INV-REQ-1232 b4, INV-REQ-1204): every operation's
+  # x-timeout is a figure of its edge's INV-NOTE-3 §36.6 row, read from invoice-docs
+  # model/architecture/sync-edges.yaml `resilience_policy` on main on every run
+  # (never vendored), cloned with gitlab-ci-token:$CI_JOB_TOKEN as
+  # sync-edge-allowlist-check does. Public operations, edges without a row and rows
+  # without a figure are listed as unchecked; the operations reserved for
+  # INV-T-3491 are listed as deferred (see the TODO in the script).
+  stage: verify
+  image:
+    name: "$OASDIFF_IMAGE"
+    entrypoint: [""]
+  before_script:
+    - apk add --no-cache python3 py3-yaml git
+  script:
+    - >
+      git clone --depth 1
+      "${CI_SERVER_PROTOCOL}://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}:${CI_SERVER_PORT}/invoice/invoice-docs.git"
+      /tmp/invoice-docs
+    - >
+      echo "gst-ci: resilience_policy from invoice-docs $(git -C /tmp/invoice-docs rev-parse --short HEAD)"
+    - >
+      python3 spectral/check-timeouts.py
+      /tmp/invoice-docs/model/architecture/sync-edges.yaml .
+
 contract-check-self-tests:
   # INV-T-2850 follow-up (lesson P20): proves the API-08 allowlist check and the
-  # examples check fire (negative fixtures under spectral/fixtures/).
+  # examples check fire (negative fixtures under spectral/fixtures/); INV-T-3431
+  # adds the x-timeout check's self-test.
   stage: verify
   image:
     name: "$OASDIFF_IMAGE"
@@ -274,6 +300,7 @@ contract-check-self-tests:
   script:
     - sh spectral/self-test-sync-edges.sh
     - sh spectral/self-test-schema-samples.sh
+    - sh spectral/self-test-timeouts.sh   # INV-T-3431: proves check-timeouts.py fires
 
 sync-edge-rule-self-test:
   # INV-T-2850 follow-up (lesson P20): proves Spectral rule inv-api-08-x-sync-edge fires.

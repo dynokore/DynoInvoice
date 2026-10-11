@@ -1,0 +1,9 @@
+openapi: 3.1.0
+info: {title: fixture, version: 1.0.0}
+paths:
+  /internal/v1/rules/mapping-packs/import:
+    post:
+      operationId: importMappingSpreadsheet
+      x-sync-edge: console-bff->rules-svc
+      x-timeout: 10000
+      responses: {"201": {description: ok}}

@@ -72,7 +72,7 @@ paths:
       tags: [policies]
       x-principal: filing-workflow
       x-sync-edge: console-bff->notification-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-1113, INV-REQ-1114, INV-REQ-1115, INV-REQ-1117]
       x-operation:
@@ -140,7 +140,7 @@ paths:
       tags: [policies]
       x-principal: reporting
       x-sync-edge: console-bff->notification-svc
-      x-timeout: 3000
+      x-timeout: 2000
       x-error-codes: []
       x-requirements: [INV-REQ-1113]
       parameters:
@@ -180,7 +180,7 @@ paths:
       tags: [webhooks]
       x-principal: filing-workflow
       x-sync-edge: console-bff->notification-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010]
       x-operation:
@@ -250,7 +250,7 @@ paths:
       tags: [webhooks]
       x-principal: reporting
       x-sync-edge: console-bff->notification-svc
-      x-timeout: 3000
+      x-timeout: 2000
       x-error-codes: []
       x-requirements: []
       parameters:
@@ -288,7 +288,7 @@ paths:
       tags: [webhooks]
       x-principal: filing-workflow
       x-sync-edge: console-bff->notification-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010]
       x-operation:
@@ -312,7 +312,7 @@ paths:
       tags: [webhooks]
       x-principal: filing-workflow
       x-sync-edge: console-bff->notification-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010]
       x-operation:
@@ -346,7 +346,7 @@ paths:
       tags: [deliveries]
       x-principal: reporting
       x-sync-edge: console-bff->notification-svc
-      x-timeout: 3000
+      x-timeout: 2000
       x-error-codes: []
       x-requirements: []
       parameters:
@@ -405,7 +405,7 @@ paths:
       tags: [webhooks]
       x-principal: filing-workflow
       x-sync-edge: console-bff->notification-svc
-      x-timeout: 5000
+      x-timeout: 2000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010]
       x-operation:
@@ -446,7 +446,7 @@ paths:
       tags: [deliveries]
       x-principal: reporting
       x-sync-edge: console-bff->notification-svc
-      x-timeout: 3000
+      x-timeout: 2000
       x-error-codes: []
       x-requirements: []
       parameters:

@@ -248,7 +248,7 @@ paths:
         authorised the same way.
       tags: [administration]
       x-principal: filing-workflow
-      x-timeout: 5000
+      x-timeout: 2000
       x-sync-edge: console-bff->transport-svc
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, "INV-NOTE-7 §7"]
@@ -305,7 +305,7 @@ paths:
         authorised the same way.
       tags: [administration]
       x-principal: filing-workflow
-      x-timeout: 5000
+      x-timeout: 2000
       x-sync-edge: console-bff->transport-svc
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, "INV-NOTE-7 §7"]
@@ -357,7 +357,7 @@ paths:
         role.
       tags: [administration]
       x-principal: filing-workflow
-      x-timeout: 5000
+      x-timeout: 2000
       x-sync-edge: console-bff->transport-svc
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-E.2, "INV-NOTE-7 §3 SCR-18.4", "INV-FLOW-247"]
