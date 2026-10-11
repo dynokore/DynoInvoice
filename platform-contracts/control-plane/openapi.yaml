@@ -522,6 +522,18 @@ paths:
         201's Location points at getTenantProvisioningRequest, the request's status read, in
         which it reads PENDING and then CREATED. A replay of provisionTenant returns its
         original body (API-15), so it is not the status read.
+
+
+        Data region (INV-REQ-1306 b1-b2, INV-FLOW-227 step 1, INV-Q-3590): SaaS form only
+        (a private installation's region is where it is deployed, INV-REQ-1248 b2), the
+        tenant's data region is elected here, in the required dataRegion, the key of an entry
+        on control-plane-svc's region list (seeded with Singapore; INV-Q-3055, INV-Q-2322),
+        with no default. It is fixed afterwards except through migration (UC-35); no operation
+        changes it. A request without dataRegion fails validation with 400, and one naming a
+        region not on the list is refused with 400 (API-20 envelope, errors[] with field
+        /dataRegion, no catalogue code); in both cases no provisioning request or tenant is
+        recorded (INV-AC-2293). The 201 and getTenantProvisioningRequest echo the elected
+        dataRegion.
       tags:
       - commercial
       x-principal: filing-workflow
@@ -530,6 +542,7 @@ paths:
       x-requirements:
       - FR-AC.1
       - FR-AC.19
+      - INV-REQ-1306
       x-error-codes: []
       x-operation:
         role: commercial.admin
@@ -552,6 +565,7 @@ paths:
                   legalName: Acme Holdings Pte Ltd
                   planRef: PLAN-STANDARD
                   firstAdministratorEmail: admin@acme.example
+                  dataRegion: SG
       responses:
         "201":
           description: Tenant provisioning request recorded
@@ -571,6 +585,7 @@ paths:
                     contractReference: CTR-2026-0091
                     tenantRef: TEN-7B1004
                     status: CREATED
+                    dataRegion: SG
         "400":
           $ref: '#/components/responses/Error'
         "401":
@@ -627,6 +642,7 @@ paths:
                     contractReference: CTR-2026-0091
                     tenantRef: TEN-7B1004
                     status: PENDING
+                    dataRegion: SG
         "401":
           $ref: '#/components/responses/Error'
         "403":
@@ -982,6 +998,7 @@ components:
       - legalName
       - planRef
       - firstAdministratorEmail
+      - dataRegion
       properties:
         contractReference:
           type: string
@@ -996,12 +1013,20 @@ components:
           type: string
           format: email
           maxLength: 254
+        dataRegion:
+          type: string
+          maxLength: 64
+          description: The tenant's data region, the key of an entry on control-plane-svc's region
+            list (SaaS only, seeded with Singapore); elected here with no default and fixed
+            afterwards except through migration (INV-REQ-1306, INV-Q-3590). A key not on the list
+            is refused with 400.
     TenantProvisioningResponse:
       type: object
       required:
       - contractReference
       - tenantRef
       - status
+      - dataRegion
       properties:
         contractReference:
           type: string
@@ -1019,6 +1044,11 @@ components:
           description: PENDING while createTenant runs under background retry; CREATED once the
             tenant is created (INV-Q-3476 (d), INV-AC-3485). PROVISIONED is kept so no value is
             removed (API-03).
+        dataRegion:
+          type: string
+          maxLength: 64
+          description: The data region elected in the provisioning request, echoed (INV-REQ-1306,
+            INV-AC-2293, INV-Q-3590).
   responses:
     Error:
       description: Error (API-20 envelope)
