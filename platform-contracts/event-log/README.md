@@ -13,13 +13,25 @@ diffs it.
 - `replay_topics:` one replay topic per (producer, subscriber) pair of the
   event topics, `gst.<producer>.replay-<subscriber>.v1` (service names
   without `-svc`), derived, never hand-entered (coordinator ruling
-  INV-Q-3601). It carries the events the producer re-emits when it replays
-  by scope or runs a full sync (INV-REQ-1205 b4), limited to the types that
-  subscriber subscribes to from that producer. It is addressed by grant to
-  one consumer: only that producer's relay inserts and only that subscriber
-  selects, so a consumer never reads another consumer's replay. Like every
-  topic it is purged by its `content_topic` marker: true when any type it
-  carries is a content topic (content window), false otherwise (event-log
-  retention).
-- Pairs whose producer is `every service` have no replay topic yet (open
-  question, see INV-T-3606).
+  INV-Q-3601). A pair whose producer is `every service` (INV-Q-3539) gets
+  `gst.platform.replay-<subscriber>.v1` with producers `[every service]`, the
+  namespace its event topics share (INV-Q-3625). A replay topic carries the
+  events the producer re-emits when it replays by scope or runs a full sync
+  (INV-REQ-1205 b4), limited to the types that subscriber subscribes to from
+  that producer, and ends each replay with a `ReplayCompleted` completion
+  marker (INV-Q-3644). It is addressed by grant to one consumer: only that
+  producer's relay inserts and only that subscriber selects, so a consumer
+  never reads another consumer's replay. Like every topic it is purged by
+  its `content_topic` marker: true when any type it carries is a content
+  topic (content window), false otherwise (event-log retention).
+- `replay_request_topics:` one request topic per consumer,
+  `gst.<consumer>.replay-requested.v1`, carrying `ReplayRequested` (owner
+  ruling INV-Q-3599). The consumer's relay inserts and every producer of a
+  topic it subscribes to selects (`every service` counting as one value),
+  so a producer reads the request under the consumer `SELECT` grant of
+  INV-REQ-1205 b3.
+- `record_topic` on every topic: true when the topic's message declares
+  `x-record-topic: true` (today AuditEntryRecorded and DecisionTraceRecorded),
+  false on every other topic, including replay and request topics. The purge
+  never removes a record topic's rows above evidence-svc's recorded position
+  (owner ruling INV-Q-3627).

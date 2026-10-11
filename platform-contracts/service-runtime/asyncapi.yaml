@@ -143,6 +143,9 @@ components:
         prior state. Written through the producing service's own outbox in the same transaction as the
         change it records (ARC-05, INV-NOTE-3#row:SB-05); evidence-svc is its system of record (INV-ADR-282).
         Authored by INV-T-2855 (T11).
+      # INV-T-3606 (owner ruling INV-Q-3627): a record topic; the purge never removes it above
+      # evidence-svc's recorded position. Copied into event-log/topics.yaml as record_topic.
+      x-record-topic: true
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/audit-entry-recorded-payload.schema.json'

@@ -34,19 +34,30 @@ producer value must be a service name (`<name>-svc` or `console-bff`) or
 exactly `every service` — the wording for a platform event service-runtime
 emits in any service. Any other phrase fails both modes, naming the topic.
 
-Replay topics (INV-T-3606, coordinator ruling INV-Q-3601, INV-REQ-1205 b3,
-b4): derived, never hand-entered, from the producer and subscriber lists of
-the event topics above — one topic per (producer, subscriber) pair,
-`gst.<producer>.replay-<subscriber>.v1` (service names without `-svc`), that
-producer's relay alone INSERTs and that subscriber alone SELECTs, carrying
-only the event types the subscriber subscribes to from that producer, and
-`content_topic` true when any carried type is a content topic. They render
-under their own `replay_topics:` key so the event topics' entries stay as
-they were. Derived topic families are listed in DERIVED_FAMILIES: a further
-family (e.g. a replay request topic per consumer, INV-Q-3599) is one more
-(key, derive function, validate function) entry. Pairs whose producer is
-`every service` get no replay topic yet: the ruling names no single producer
-relay for them (open gap, see the INV-T-3606 merge request).
+Replay topics (INV-T-3606, coordinator rulings INV-Q-3601, INV-Q-3625,
+INV-Q-3644, INV-REQ-1205 b3, b4): derived, never hand-entered, from the
+producer and subscriber lists of the event topics above — one topic per
+(producer, subscriber) pair, `gst.<producer>.replay-<subscriber>.v1`
+(service names without `-svc`; for the producer `every service`, the
+namespace its event topics share, i.e. gst.platform.replay-<subscriber>.v1),
+that producer's relay alone INSERTs and that subscriber alone SELECTs,
+carrying the event types the subscriber subscribes to from that producer
+plus the ReplayCompleted completion marker, and `content_topic` true when
+any carried type is a content topic.
+
+Request topics (owner ruling INV-Q-3599): one per subscriber of the event
+topics, `gst.<consumer>.replay-requested.v1`, producers [that consumer],
+subscribers every producer of a topic it subscribes to (`every service` is
+one value), carrying ReplayRequested, content_topic false. ReplayRequested
+and ReplayCompleted (INV-REQ-1205 b4) are the only type names held here.
+
+Record topics (owner ruling INV-Q-3627): a message declaring
+`x-record-topic: true` gives its topic `record_topic: true`; every other
+topic (event, replay, request) gets `record_topic: false`.
+
+Derived families render under their own keys (`replay_topics:`,
+`replay_request_topics:`) so the event topics keep their shape; they are
+listed in DERIVED_FAMILIES as (key, derive function, validate function).
 
 Two modes:
     generate-topics.py <repo-root> --write <out.yaml>
@@ -85,6 +96,8 @@ _NAME_RE = re.compile(r"^      name: (?P<name>\S+)$", re.MULTILINE)
 # Message-level content marker (6-space indent, so text inside a folded
 # `description: >-` block, indented 8, never matches).
 _CONTENT_RE = re.compile(r"^      x-invoice-content:[ \t]*(?P<value>.*?)[ \t]*$", re.MULTILINE)
+# Message-level record-topic marker (INV-T-3606, owner ruling INV-Q-3627), same indent rule.
+_RECORD_RE = re.compile(r"^      x-record-topic:[ \t]*(?P<value>.*?)[ \t]*$", re.MULTILINE)
 _EMITTED_CONSUMED_RE = re.compile(
     r"Emitted by: (?P<producers>.+?)\. Consumed by: (?P<consumers>.+?)\.",
     re.DOTALL,
@@ -134,6 +147,13 @@ def parse_asyncapi_file(path: Path) -> list[dict]:
                 f"gst-ci: {path}: message '{key}' has x-invoice-content: '{content_value}'"
                 " — must be true or false"
             )
+        record_m = _RECORD_RE.search(body)
+        record_value = record_m.group("value") if record_m else "false"
+        if record_value not in ("true", "false"):
+            raise SystemExit(
+                f"gst-ci: {path}: message '{key}' has x-record-topic: '{record_value}'"
+                " — must be true or false"
+            )
         topics.append(
             {
                 "topic": address,
@@ -141,6 +161,7 @@ def parse_asyncapi_file(path: Path) -> list[dict]:
                 "producers": _split_list(ec_m.group("producers")),
                 "subscribers": _split_list(ec_m.group("consumers")),
                 "content_topic": content_value == "true",
+                "record_topic": record_value == "true",
             }
         )
     return topics
@@ -161,6 +182,12 @@ def collect_topics(repo_root: Path) -> list[dict]:
 
 _SVC_SUFFIX = "-svc"
 
+# The replay protocol's two type names, fixed by INV-REQ-1205 b4 (owner ruling
+# INV-Q-3599, coordinator ruling INV-Q-3644); their schemas are INV-T-3634's.
+# They are the only type names this generator holds.
+REPLAY_REQUESTED_TYPE = "com.dynokore.gst.platform.ReplayRequested.v1"
+REPLAY_COMPLETED_TYPE = "com.dynokore.gst.platform.ReplayCompleted.v1"
+
 
 def short_service_name(service: str) -> str:
     """A service name as it appears in a topic address: without `-svc`
@@ -168,65 +195,112 @@ def short_service_name(service: str) -> str:
     return service[: -len(_SVC_SUFFIX)] if service.endswith(_SVC_SUFFIX) else service
 
 
-def replay_topic_address(producer: str, subscriber: str) -> str:
-    return f"gst.{short_service_name(producer)}.replay-{short_service_name(subscriber)}.v1"
+def producer_namespace(producer: str, topics: list[dict]) -> str:
+    """The address segment a producer's replay topics use. For a service, its
+    name without `-svc`; for `every service` (INV-Q-3625), the one namespace
+    its event topics already share (read from their addresses, not named)."""
+    if producer != EVERY_SERVICE:
+        return short_service_name(producer)
+    spaces = sorted({t["topic"].split(".")[1] for t in topics if EVERY_SERVICE in t["producers"]})
+    if len(spaces) != 1:
+        raise SystemExit(
+            f"gst-ci: '{EVERY_SERVICE}' topics span namespaces {spaces} — need exactly one"
+            " for their replay topics (INV-Q-3625)"
+        )
+    return spaces[0]
+
+
+def replay_topic_address(namespace: str, subscriber: str) -> str:
+    return f"gst.{namespace}.replay-{short_service_name(subscriber)}.v1"
+
+
+def request_topic_address(consumer: str) -> str:
+    return f"gst.{short_service_name(consumer)}.replay-requested.v1"
 
 
 def replay_pairs(topics: list[dict]) -> dict[tuple[str, str], list[dict]]:
     """Every (producer, subscriber) pair of the event topics, with the event
-    topics that pair shares. `every service` pairs are left out (open gap:
-    INV-Q-3601 names no single producer relay for them)."""
+    topics that pair shares; `every service` is one producer (INV-Q-3625)."""
     pairs: dict[tuple[str, str], list[dict]] = {}
     for t in topics:
         for producer in t["producers"]:
-            if producer == EVERY_SERVICE:
-                continue
             for subscriber in t["subscribers"]:
                 pairs.setdefault((producer, subscriber), []).append(t)
     return pairs
 
 
+def producers_by_consumer(topics: list[dict]) -> dict[str, list[str]]:
+    """Each subscriber of the event topics, with every producer of a topic it
+    subscribes to (`every service` counting as one value, INV-Q-3599)."""
+    out: dict[str, set[str]] = {}
+    for t in topics:
+        for subscriber in t["subscribers"]:
+            out.setdefault(subscriber, set()).update(t["producers"])
+    return {c: sorted(p) for c, p in out.items()}
+
+
+def _entry(topic, event_types, producers, subscribers, content=False):
+    return {"topic": topic, "event_types": event_types, "producers": producers,
+            "subscribers": subscribers, "content_topic": content, "record_topic": False}
+
+
 def derive_replay_topics(topics: list[dict]) -> list[dict]:
-    """One replay topic per (producer, subscriber) pair (INV-Q-3601)."""
-    replay = []
-    for (producer, subscriber), carried in replay_pairs(topics).items():
-        replay.append(
-            {
-                "topic": replay_topic_address(producer, subscriber),
-                "event_types": sorted({t["event_type"] for t in carried}),
-                "producers": [producer],
-                "subscribers": [subscriber],
-                "content_topic": any(t["content_topic"] for t in carried),
-            }
+    """One replay topic per (producer, subscriber) pair (INV-Q-3601,
+    INV-Q-3625), carrying that subscriber's types from that producer plus the
+    completion marker (INV-Q-3644)."""
+    replay = [
+        _entry(
+            replay_topic_address(producer_namespace(producer, topics), subscriber),
+            sorted({t["event_type"] for t in carried} | {REPLAY_COMPLETED_TYPE}),
+            [producer],
+            [subscriber],
+            any(t["content_topic"] for t in carried),
         )
-    replay.sort(key=lambda r: r["topic"])
-    return replay
+        for (producer, subscriber), carried in replay_pairs(topics).items()
+    ]
+    return sorted(replay, key=lambda r: r["topic"])
+
+
+def derive_request_topics(topics: list[dict]) -> list[dict]:
+    """One request topic per consumer (owner ruling INV-Q-3599): the consumer's
+    relay inserts ReplayRequested, every producer it subscribes to reads it."""
+    request = [
+        _entry(request_topic_address(consumer), [REPLAY_REQUESTED_TYPE], [consumer], producers)
+        for consumer, producers in producers_by_consumer(topics).items()
+    ]
+    return sorted(request, key=lambda r: r["topic"])
+
+
+def _check_one(r: dict, errors: list[str]) -> None:
+    for field in ("producers", "subscribers"):
+        if len(r[field]) != 1:
+            errors.append(f"topic '{r['topic']}' has {len(r[field])} {field} — must have one")
 
 
 def validate_replay_topics(topics: list[dict], replay: list[dict]) -> list[str]:
     """Returns one error per missing pair, extra topic, replay topic with
     other than one producer and one subscriber, carried type its subscriber
-    does not subscribe to from that producer (or subscribed type missing), or
-    content_topic disagreeing with the carried types (INV-Q-3601)."""
-    errors = []
+    does not subscribe to from that producer (or subscribed type missing),
+    missing completion type, or content_topic disagreeing with the carried
+    types (INV-Q-3601, INV-Q-3625, INV-Q-3644)."""
+    errors: list[str] = []
     pairs = replay_pairs(topics)
-    by_address = {replay_topic_address(p, s): (p, s) for p, s in pairs}
+    by_address = {replay_topic_address(producer_namespace(p, topics), s): (p, s) for p, s in pairs}
     content_by_type = {t["event_type"]: t["content_topic"] for t in topics}
     seen = set()
     for r in replay:
         name = r["topic"]
-        if len(r["producers"]) != 1:
-            errors.append(f"replay topic '{name}' has {len(r['producers'])} producers — must have one")
-        if len(r["subscribers"]) != 1:
-            errors.append(f"replay topic '{name}' has {len(r['subscribers'])} subscribers — must have one")
+        _check_one(r, errors)
         pair = (r["producers"][0] if r["producers"] else None, r["subscribers"][0] if r["subscribers"] else None)
         if pair not in pairs or by_address.get(name) != pair:
             errors.append(f"replay topic '{name}' matches no (producer, subscriber) pair of the event topics")
             continue
         seen.add(pair)
         subscribed = {t["event_type"] for t in pairs[pair]}
+        if REPLAY_COMPLETED_TYPE not in r["event_types"]:
+            errors.append(f"replay topic '{name}' lacks the completion type {REPLAY_COMPLETED_TYPE}")
         for et in r["event_types"]:
-            if et not in subscribed:
+            if et not in subscribed and et != REPLAY_COMPLETED_TYPE:
                 errors.append(f"replay topic '{name}' carries {et}, which {pair[1]} does not subscribe to from {pair[0]}")
         for et in sorted(subscribed - set(r["event_types"])):
             errors.append(f"replay topic '{name}' lacks {et}, which {pair[1]} subscribes to from {pair[0]}")
@@ -234,14 +308,44 @@ def validate_replay_topics(topics: list[dict], replay: list[dict]) -> list[str]:
         if r["content_topic"] != expected:
             errors.append(f"replay topic '{name}' has content_topic {str(r['content_topic']).lower()} — its types make it {str(expected).lower()}")
     for p, s in sorted(set(pairs) - seen):
-        errors.append(f"pair ({p}, {s}) lacks its replay topic {replay_topic_address(p, s)}")
+        errors.append(f"pair ({p}, {s}) lacks its replay topic {replay_topic_address(producer_namespace(p, topics), s)}")
+    return errors
+
+
+def validate_request_topics(topics: list[dict], request: list[dict]) -> list[str]:
+    """Returns one error per consumer lacking its request topic, extra topic,
+    request topic whose producers are not [its consumer], whose subscribers
+    differ from its consumer's producers, or which carries anything but
+    ReplayRequested or is a content topic (INV-Q-3599)."""
+    errors: list[str] = []
+    expected = producers_by_consumer(topics)
+    by_address = {request_topic_address(c): c for c in expected}
+    seen = set()
+    for r in request:
+        name = r["topic"]
+        consumer = by_address.get(name)
+        if consumer is None:
+            errors.append(f"request topic '{name}' matches no consumer of the event topics")
+            continue
+        seen.add(consumer)
+        if r["producers"] != [consumer]:
+            errors.append(f"request topic '{name}' has producers {r['producers']} — must be [{consumer}]")
+        if sorted(r["subscribers"]) != expected[consumer]:
+            errors.append(f"request topic '{name}' has subscribers {sorted(r['subscribers'])} — {consumer}'s producers are {expected[consumer]}")
+        if r["event_types"] != [REPLAY_REQUESTED_TYPE]:
+            errors.append(f"request topic '{name}' carries {r['event_types']} — must carry only {REPLAY_REQUESTED_TYPE}")
+        if r["content_topic"]:
+            errors.append(f"request topic '{name}' has content_topic true — must be false")
+    for c in sorted(set(expected) - seen):
+        errors.append(f"consumer {c} lacks its request topic {request_topic_address(c)}")
     return errors
 
 
 # Derived topic families: (topics.yaml key, derive, validate). A new family
-# (such as a replay request topic per consumer, INV-Q-3599) is one more entry.
+# is one more entry.
 DERIVED_FAMILIES = [
     ("replay_topics", derive_replay_topics, validate_replay_topics),
+    ("replay_request_topics", derive_request_topics, validate_request_topics),
 ]
 
 
@@ -282,17 +386,27 @@ def render_yaml(topics: list[dict], derived: dict[str, list[dict]] | None = None
         "# content, FR-AH.12) — the purge keeps such a topic for the content",
         "# window (INV-ADR-2772), every other topic for the event-log retention.",
         "#",
-        "# replay_topics (INV-T-3606, coordinator ruling INV-Q-3601): one per",
-        "# (producer, subscriber) pair of the topics above, derived — the",
+        "# record_topic (INV-T-3606, owner ruling INV-Q-3627): true when the",
+        "# message declares x-record-topic: true — the purge never removes such",
+        "# a topic above evidence-svc's recorded position; false elsewhere.",
+        "#",
+        "# replay_topics (INV-T-3606, rulings INV-Q-3601, INV-Q-3625, INV-Q-3644):",
+        "# one per (producer, subscriber) pair of the topics above, derived — the",
         "# producer's relay INSERTs its replay (INV-REQ-1205 b4) and only that",
         "# subscriber SELECTs; it carries the types the subscriber subscribes",
-        "# to from that producer and is a content topic when any of them is.",
+        "# to from that producer plus ReplayCompleted, and is a content topic",
+        "# when any of them is.",
+        "#",
+        "# replay_request_topics (INV-T-3606, owner ruling INV-Q-3599): one per",
+        "# consumer — its relay INSERTs ReplayRequested, every producer it",
+        "# subscribes to SELECTs.",
         "topics:",
     ]
     for t in topics:
         lines.append(f"  - topic: {t['topic']}")
         lines.append(f"    event_type: {t['event_type']}")
         lines.append(f"    content_topic: {'true' if t['content_topic'] else 'false'}")
+        lines.append(f"    record_topic: {'true' if t['record_topic'] else 'false'}")
         lines.append("    producers:")
         lines.append(_list_block("      ", t["producers"]).rstrip("\n"))
         lines.append("    subscribers:")
@@ -306,6 +420,7 @@ def render_yaml(topics: list[dict], derived: dict[str, list[dict]] | None = None
             lines.append("    event_types:")
             lines.append(_list_block("      ", r["event_types"]).rstrip("\n"))
             lines.append(f"    content_topic: {'true' if r['content_topic'] else 'false'}")
+            lines.append(f"    record_topic: {'true' if r['record_topic'] else 'false'}")
             lines.append("    producers:")
             lines.append(_list_block("      ", r["producers"]).rstrip("\n"))
             lines.append("    subscribers:")
@@ -336,24 +451,46 @@ def validate_producers(topics: list[dict]) -> list[str]:
 
 _TOPIC_ENTRY_RE = re.compile(r"^  - topic: (?P<topic>\S+)$", re.MULTILINE)
 _CONTENT_TOPIC_LINE_RE = re.compile(r"^    content_topic: (?P<value>\S+)$", re.MULTILINE)
+_RECORD_TOPIC_LINE_RE = re.compile(r"^    record_topic: (?P<value>\S+)$", re.MULTILINE)
 
 
 def validate_topics_yaml(text: str) -> list[str]:
     """Returns one error per topic entry of a topics.yaml text that lacks
-    `content_topic`, carries it more than once, or carries a value other
-    than true/false (INV-T-3386)."""
+    `content_topic` or `record_topic`, carries one more than once, or carries
+    a value other than true/false (INV-T-3386, INV-T-3606)."""
     errors = []
     entries = list(_TOPIC_ENTRY_RE.finditer(text))
     for i, m in enumerate(entries):
         end = entries[i + 1].start() if i + 1 < len(entries) else len(text)
-        values = [c.group("value") for c in _CONTENT_TOPIC_LINE_RE.finditer(text, m.end(), end)]
         topic = m.group("topic")
-        if not values:
-            errors.append(f"topic '{topic}' lacks content_topic")
-        elif len(values) > 1:
-            errors.append(f"topic '{topic}' has content_topic {len(values)} times")
-        elif values[0] not in ("true", "false"):
-            errors.append(f"topic '{topic}' has content_topic: {values[0]} — must be true or false")
+        for field, line_re in (("content_topic", _CONTENT_TOPIC_LINE_RE), ("record_topic", _RECORD_TOPIC_LINE_RE)):
+            values = [c.group("value") for c in line_re.finditer(text, m.end(), end)]
+            if not values:
+                errors.append(f"topic '{topic}' lacks {field}")
+            elif len(values) > 1:
+                errors.append(f"topic '{topic}' has {field} {len(values)} times")
+            elif values[0] not in ("true", "false"):
+                errors.append(f"topic '{topic}' has {field}: {values[0]} — must be true or false")
+    return errors
+
+
+def validate_record_topics(text: str, topics: list[dict]) -> list[str]:
+    """Returns one error per topic entry whose record_topic disagrees with its
+    message's x-record-topic marker; derived topics must be false (INV-Q-3627)."""
+    marker = {t["topic"]: t["record_topic"] for t in topics}
+    errors = []
+    entries = list(_TOPIC_ENTRY_RE.finditer(text))
+    for i, m in enumerate(entries):
+        end = entries[i + 1].start() if i + 1 < len(entries) else len(text)
+        value = _RECORD_TOPIC_LINE_RE.search(text, m.end(), end)
+        if value is None or value.group("value") not in ("true", "false"):
+            continue  # reported by validate_topics_yaml
+        expected = marker.get(m.group("topic"), False)
+        if (value.group("value") == "true") != expected:
+            errors.append(
+                f"topic '{m.group('topic')}' has record_topic {value.group('value')}"
+                f" — its message's x-record-topic makes it {str(expected).lower()}"
+            )
     return errors
 
 
@@ -387,9 +524,9 @@ def main(argv: list[str]) -> int:
         return 0
 
     existing = target.read_text() if target.exists() else ""
-    errors = validate_topics_yaml(existing)
+    errors = validate_topics_yaml(existing) or validate_record_topics(existing, topics)
     if errors:
-        print(f"gst-ci: {target} fails the content_topic check (INV-T-3386):")
+        print(f"gst-ci: {target} fails the content_topic/record_topic check (INV-T-3386, INV-T-3606):")
         for e in errors:
             print(f"  {e}")
         return 1

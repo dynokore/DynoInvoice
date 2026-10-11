@@ -172,6 +172,9 @@ components:
       # carries invoice content, so its topic keeps the content window (INV-ADR-2772), not the
       # event-log retention. Copied into event-log/topics.yaml as content_topic by generate-topics.py.
       x-invoice-content: true
+      # INV-T-3606 (owner ruling INV-Q-3627): a record topic; the purge never removes it above
+      # evidence-svc's recorded position. Copied into event-log/topics.yaml as record_topic.
+      x-record-topic: true
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/decision-trace-recorded-payload.schema.json'
