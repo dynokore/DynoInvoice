@@ -8,14 +8,16 @@ info:
     rather than redeclaring its own copy, and the platform event class
     (FR-AH.15, AD-27, AD-31) — AuditEntryRecorded, JobRunRecorded,
     PolicyChanged, PackReadinessAcknowledged, ConnectionStatusChanged,
-    EvidenceArtefactRecorded — whose schema is owned by `service-runtime`
+    EvidenceArtefactRecorded, JobRegistered — whose schema is owned by `service-runtime`
     alone rather than by any one producer (STK-61, INV-REQ-1226 b1-b2,
     INV-ADR-285; INV-T-2853/T9's "T11 authors the three platform events
     once under service-runtime/" follow-up, extended by INV-T-2855/T11 to
     five; EvidenceArtefactRecorded added by INV-T-3313 per INV-Q-3257 and
     INV-API-3310 — T11's note leaving it to evidence-svc under INV-ADR-282
     is superseded: INV-ADR-282 makes evidence-svc the system of record for
-    audit entries and decision traces, not the owner of this schema). Every platform event's `type` uses the shared
+    audit entries and decision traces, not the owner of this schema;
+    JobRegistered added by INV-T-3007 per owner ruling INV-Q-2981 and
+    INV-API-3020). Every platform event's `type` uses the shared
     `com.dynokore.gst.platform.<EventName>.v1` name (AD-24 convention) so
     every producer's instances are one consumer subscription; a producer
     references the message defined here rather than redeclaring its own
@@ -66,6 +68,12 @@ channels:
     messages:
       EvidenceArtefactRecorded:
         $ref: '#/components/messages/EvidenceArtefactRecorded'
+
+  platformJobRegistered:
+    address: 'gst.platform.job-registered.v1'
+    messages:
+      JobRegistered:
+        $ref: '#/components/messages/JobRegistered'
 operations:
   publishAuditEntryRecorded:
     action: send
@@ -114,6 +122,14 @@ operations:
       $ref: '#/channels/platformEvidenceArtefactRecorded'
     messages:
       - $ref: '#/channels/platformEvidenceArtefactRecorded/messages/EvidenceArtefactRecorded'
+
+  publishJobRegistered:
+    action: send
+    description: JobRegistered — platform event added by owner ruling INV-Q-2981 (INV-REQ-1226, INV-API-3020).
+    channel:
+      $ref: '#/channels/platformJobRegistered'
+    messages:
+      - $ref: '#/channels/platformJobRegistered/messages/JobRegistered'
 components:
   messages:
     AuditEntryRecorded:
@@ -140,6 +156,8 @@ components:
         INV-REQ-1226; class: platform). Emitted by: every service with scheduled jobs. Consumed by:
         console-bff, notification-svc. Delivery: At-least-once — platform event (AD-27). Payload (catalogue
         text): job, owner service, entity scope, outcome, duration. Authored by INV-T-2855 (T11).
+        INV-T-3007 adds the optional fields schedule, criticality, tolerance, scheduledFor and
+        nextRunAt (coordinator ruling INV-Q-2942; additive minor, API-41).
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/job-run-recorded-payload.schema.json'
@@ -203,3 +221,24 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/evidence-artefact-recorded-payload.schema.json'
+
+    JobRegistered:
+      name: com.dynokore.gst.platform.JobRegistered.v1
+      title: JobRegistered
+      summary: JobRegistered — a scheduled job announced at service start (INV-Q-2981).
+      description: >-
+        Platform event JobRegistered (INV-REQ-1226 b1-b2, INV-ADR-285, owner ruling INV-Q-2981,
+        INV-API-3020; class: platform). Emitted by: every service with scheduled jobs. Consumed by:
+        console-bff, notification-svc. Delivery: At-least-once — platform event (AD-27): at start each
+        instance's service-runtime writes one JobRegistered per registered job to the service's
+        transactional outbox (INV-ADR-283). A registration belongs to the service, not to a tenant: it is
+        stored under the reserved platform TenantId and published without tenantid or entityref
+        (INV-Q-2927 option D, INV-REQ-1226 b7). Partition key (ownerService, job); consumers deduplicate
+        on the event id and upsert on (ownerService, job), the latest envelope time superseding earlier
+        registrations; a JobRunRecorded seen before its job's registration is kept and joined later.
+        Payload: job, owner service, entity scope (PLATFORM or ENTITY), schedule, criticality
+        (STANDARD or DEADLINE_CRITICAL) and tolerance, all required (INV-REQ-1136, INV-Q-2942).
+        Authored by INV-T-3007.
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/job-registered-payload.schema.json'

@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/service-runtime/schemas/job-registered-payload.schema.json",
+  "title": "JobRegisteredPayload",
+  "description": "Payload of the JobRegistered platform event (INV-REQ-1226 b1-b2, INV-ADR-285; class: platform; FR-AH.15), added by owner ruling INV-Q-2981 and drafted in INV-API-3020. service-runtime emits it when a service instance starts, once per registered job, so a job that has never run is visible to console-bff and notification-svc (INV-REQ-1136, INV-REQ-1139 b5). Consumers treat it as an upsert keyed by (ownerService, job). Authored by INV-T-3007. Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "job": {
+      "type": "string",
+      "description": "The scheduled job's own name, e.g. 'scheduled-despatch' (TPL-09); unique within its owner service."
+    },
+    "ownerService": {
+      "type": "string",
+      "description": "The service the job runs in."
+    },
+    "entityScope": {
+      "type": "string",
+      "description": "PLATFORM for a job that runs once for the installation; ENTITY for a job that runs per entity, the entity given per run (INV-Q-2942). Extensible (API-09, API-41).",
+      "enum": [
+        "PLATFORM",
+        "ENTITY"
+      ],
+      "x-extensible-enum": true
+    },
+    "schedule": {
+      "type": "string",
+      "description": "The job's registered schedule, as the job declares it (INV-REQ-1136)."
+    },
+    "criticality": {
+      "type": "string",
+      "description": "The job's criticality as registered (INV-REQ-1136, INV-Q-2942): STANDARD, or DEADLINE_CRITICAL for a job such as scheduled submission or a readiness drain whose pause is bounded by the entity's nearest due date minus its safety margin (INV-REQ-1138 b3). Extensible (API-09, API-41).",
+      "enum": [
+        "STANDARD",
+        "DEADLINE_CRITICAL"
+      ],
+      "x-extensible-enum": true
+    },
+    "tolerance": {
+      "type": "string",
+      "format": "duration",
+      "description": "How late a run may be before it counts as missed, an ISO-8601 duration; mandatory at registration (INV-REQ-1136 b1, INV-REQ-1139, rulings INV-Q-2067, INV-Q-2942)."
+    }
+  },
+  "required": [
+    "job",
+    "ownerService",
+    "entityScope",
+    "schedule",
+    "criticality",
+    "tolerance"
+  ],
+  "additionalProperties": true
+}

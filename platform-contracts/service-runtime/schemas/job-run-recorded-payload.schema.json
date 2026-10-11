@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://platform-contracts.invoice.internal/service-runtime/schemas/job-run-recorded-payload.schema.json",
   "title": "JobRunRecordedPayload",
-  "description": "Payload of the JobRunRecorded platform event (catalogued in model/architecture/events.yaml, INV-NOTE-3 §19.8, §28.18; class: platform; FR-AH.15). Emitted by a scheduled job's JobRunRecorder (TPL-09). Authored by INV-T-2855 (T11). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "description": "Payload of the JobRunRecorded platform event (catalogued in model/architecture/events.yaml, INV-NOTE-3 §19.8, §28.18; class: platform; FR-AH.15). Emitted by a scheduled job's JobRunRecorder (TPL-09). Authored by INV-T-2855 (T11); optional schedule, criticality, tolerance, scheduledFor and nextRunAt added by INV-T-3007 (INV-Q-2942, additive minor), so console-bff and notification-svc learn a job from its runs. Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
   "type": "object",
   "properties": {
     "job": {
@@ -43,6 +43,34 @@
       "type": "integer",
       "minimum": 0,
       "description": "Duration of the job run, in milliseconds."
+    },
+    "schedule": {
+      "type": "string",
+      "description": "The job's registered schedule, as the job declared it at registration (INV-REQ-1136, INV-Q-2942). Optional; added by INV-T-3007."
+    },
+    "criticality": {
+      "type": "string",
+      "description": "The job's criticality as registered (INV-REQ-1136, INV-Q-2942): STANDARD, or DEADLINE_CRITICAL for a job such as scheduled submission or a readiness drain whose pause is bounded by the entity's nearest due date minus its safety margin (INV-REQ-1138 b3). Extensible (API-09, API-41). Optional; added by INV-T-3007.",
+      "enum": [
+        "STANDARD",
+        "DEADLINE_CRITICAL"
+      ],
+      "x-extensible-enum": true
+    },
+    "tolerance": {
+      "type": "string",
+      "format": "duration",
+      "description": "How late a run may be before it counts as missed, an ISO-8601 duration (INV-REQ-1136 b1, INV-REQ-1139, ruling INV-Q-2067, INV-Q-2942). Optional; added by INV-T-3007."
+    },
+    "scheduledFor": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The schedule tick this run belongs to (INV-Q-2942, INV-Q-2948); for a run-now, the tick of the schedule interval containing the request (INV-Q-3034). Optional; added by INV-T-3007."
+    },
+    "nextRunAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the job is next scheduled to fire, as known at the end of this run (INV-Q-2942), so a missed run can be detected outside the owning service (INV-REQ-1139). Optional; added by INV-T-3007."
     }
   },
   "required": [
