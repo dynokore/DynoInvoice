@@ -89,8 +89,9 @@ internal class ScopeBounds(
             resolved.selected.map { option ->
                 val mine = limits.filter { it.field.option == option.key && it.violatedBy(it.field.value) }
                 if (mine.isEmpty()) return@map option
-                val json = option.valueJson ?: throw BoundUnavailable(resolved.key, "option '${option.key}' has no stored value to cap")
-                var node = mapper.readTree(json)
+                // An option stored without a value counts by its fixed number (INV-Q-3204); its capped value is
+                // built from the spec, the key kept (INV-Q-3206).
+                var node: JsonNode = option.valueJson?.let { mapper.readTree(it) } ?: mapper.createObjectNode()
                 mine.groupBy { it.field.path }.forEach { (path, onField) ->
                     val stored = checkNotNull(onField.first().field.value)
                     var value = stored
@@ -251,9 +252,11 @@ internal class ScopeBounds(
     ): JsonNode {
         if (path.isEmpty()) return mapper.getNodeFactory().numberNode(value)
         val names = path.split('.')
-        var parent = node
-        names.dropLast(1).forEach { parent = parent.get(it) }
-        (parent as ObjectNode).put(names.last(), value)
+        var parent = node as ObjectNode
+        names.dropLast(1).forEach { name ->
+            parent = parent.get(name) as? ObjectNode ?: parent.putObject(name)
+        }
+        parent.put(names.last(), value)
         return node
     }
 

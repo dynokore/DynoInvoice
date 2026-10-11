@@ -1,10 +1,13 @@
 package com.dynokore.platform.configresolver
 
+import com.dynokore.platform.configresolver.WriteCatalogue.CROSS_ENTITY
 import com.dynokore.platform.configresolver.WriteCatalogue.CROSS_SCOPE
 import com.dynokore.platform.configresolver.WriteCatalogue.GRACE
 import com.dynokore.platform.configresolver.WriteCatalogue.GRACE_MAX
 import com.dynokore.platform.configresolver.WriteCatalogue.INSTALLATION_BOUND
 import com.dynokore.platform.configresolver.WriteCatalogue.RETRY_MAX
+import com.dynokore.platform.configresolver.WriteCatalogue.UNTYPED_BOUNDED
+import com.dynokore.platform.configresolver.WriteCatalogue.UNTYPED_MAX
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -78,6 +81,10 @@ class BoundsPostgresIT : WritePathBase() {
         r.put(tenant(pair(3, "[\"tenant.admin\",\"tax.approver\"]"), today), w) // the pair is never compared
         r.installation(atInstallation(pair(8), today))
         r.put(tenant(pair(6), today), w)
+        // A second tenant keeps the default pair, stored with its fixed 4 h window.
+        val r2 = Run(image)
+        val pair4h = listOf(SelectedOption("PAIR_4H", "{\"window\":4}"))
+        r2.put(set(CROSS_SCOPE, r2.tenantScope, ScopeLevel.TENANT, pair4h, officer), w)
         // Tightening the installation value is never refused (INV-Q-3206) ...
         r.installation(atInstallation(pair(2), nextMonth))
         // ... a new tenant value is checked against it on every later date ...
@@ -95,6 +102,34 @@ class BoundsPostgresIT : WritePathBase() {
         val recorded = r.h.inTenant(r.t) { r.h.recorder().record(subject, capped, r.tenantScope) }
         assertEquals(capped.caps, recorded.caps)
         assertEquals(capped.selected, recorded.selected)
+        // PAIR_4H keeps its key and shows the capped window (INV-Q-3206), stored with or without its value.
+        val cappedPair = cap("PAIR_4H", "window", 4, 2, CROSS_SCOPE)
+        val fromStore = r2.resolve(CROSS_SCOPE, r2.tenantScope, nextMonth)
+        assertEquals("PAIR_4H", fromStore.selected.single().key)
+        assertEquals(BigDecimal(2), window(fromStore))
+        assertEquals(cappedPair, fromStore.caps)
+        val bare = r2.capped(CROSS_SCOPE, listOf(SelectedOption("PAIR_4H")), nextMonth)
+        assertEquals(SelectedOption("PAIR_4H", "{\"window\":2}"), bare.selected.single())
+        assertEquals(cappedPair, bare.caps)
+    }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `INV-REQ-780 a later operating-profile version of the broader scope also bounds a write`(image: String) {
+        val r = Run(image)
+        val profile = { hours: Int, version: String, from: LocalDate ->
+            val selected = number("CUSTOM", hours)
+            val p1 = "P1" to version
+            val tenant = ScopeLevel.TENANT
+            set(CROSS_ENTITY, r.e1, tenant, selected, from = from, source = SettingSource.PROFILE, profile = p1)
+        }
+        val entity = { hours: Int -> set(CROSS_ENTITY, r.e1, ScopeLevel.ENTITY, number("CUSTOM", hours)) }
+        r.put(profile(8, "v1", today))
+        r.put(entity(6))
+        r.put(profile(2, "v2", nextMonth))
+        assertEquals(PolicyRefusal.LOOSER_THAN_BROADER, r.refusedPut(entity(5)))
+        r.put(entity(2))
+        assertEquals("2", r.resolve(CROSS_ENTITY, r.e1, nextMonth).selected.single().valueJson)
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
@@ -104,9 +139,11 @@ class BoundsPostgresIT : WritePathBase() {
         val tenant = { hours: Int ->
             set(INSTALLATION_BOUND, r.tenantScope, ScopeLevel.TENANT, number("CUSTOM", hours), integrator)
         }
-        // The maximum's default HOURS_168 counts by its fixed value.
+        // The maximum's default HOURS_168 is a typed value fixed at 168 hours (INV-Q-3223): 169 h is refused.
+        assertEquals(PolicyRefusal.BEYOND_INSTALLATION_BOUND, r.refusedPut(tenant(169)))
+        r.put(tenant(168))
         assertEquals(PolicyRefusal.BEYOND_INSTALLATION_BOUND, r.refusedPut(tenant(200)))
-        assertEquals(0L, r.settings())
+        assertEquals(1L, r.settings())
         r.put(tenant(100))
         val lowered = number("CUSTOM", 80)
         r.installation(set(RETRY_MAX, r.tenantScope, ScopeLevel.INSTALLATION, lowered, operator, nextMonth))
@@ -128,18 +165,37 @@ class BoundsPostgresIT : WritePathBase() {
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
-    fun `INV-Q-3202 a bounding row whose value is not a number refuses, until the operator sets one`(image: String) {
+    fun `INV-Q-3223 VP-57 the default maximum of 14 days bounds a shorter window, capped when lowered`(image: String) {
         val r = Run(image)
         val shorter = { days: Int ->
             set(GRACE, r.tenantScope, ScopeLevel.TENANT, number("SHORTER", days), approver)
         }
-        // DAYS_14, as published, carries no typed value: the bound cannot be evaluated (fail closed).
+        // DAYS_14, the default, is a typed value fixed at 14 days (INV-Q-3223).
+        assertEquals(PolicyRefusal.BEYOND_INSTALLATION_BOUND, r.refusedPut(shorter(15)))
+        assertEquals(0L, r.settings())
+        r.put(shorter(14))
+        r.installation(set(GRACE_MAX, r.tenantScope, ScopeLevel.INSTALLATION, number("CUSTOM", 7), operator, nextMonth))
+        assertEquals("14", r.resolve(GRACE, r.tenantScope).selected.single().valueJson)
+        val capped = r.resolve(GRACE, r.tenantScope, nextMonth)
+        assertEquals("7", capped.selected.single().valueJson)
+        assertEquals(cap("SHORTER", "", 14, 7, GRACE_MAX), capped.caps)
+        assertEquals(PolicyRefusal.BEYOND_INSTALLATION_BOUND, r.refusedPut(shorter(10)))
+    }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `INV-Q-3202 a bounding row whose value is not a number refuses, until the operator sets one`(image: String) {
+        val r = Run(image)
+        val shorter = { days: Int ->
+            set(UNTYPED_BOUNDED, r.tenantScope, ScopeLevel.TENANT, number("SHORTER", days), approver)
+        }
+        // The maximum's default carries no typed value: the bound cannot be evaluated (fail closed).
         assertEquals(PolicyRefusal.BOUND_UNAVAILABLE, r.refusedPut(shorter(10)))
-        r.installation(set(GRACE_MAX, r.tenantScope, ScopeLevel.INSTALLATION, number("CUSTOM", 20), operator))
+        r.installation(set(UNTYPED_MAX, r.tenantScope, ScopeLevel.INSTALLATION, number("CUSTOM", 20), operator))
         assertEquals(PolicyRefusal.BEYOND_INSTALLATION_BOUND, r.refusedPut(shorter(25)))
         r.put(shorter(10))
-        assertEquals("10", r.resolve(GRACE, r.tenantScope).selected.single().valueJson)
+        assertEquals("10", r.resolve(UNTYPED_BOUNDED, r.tenantScope).selected.single().valueJson)
         val unreadable = listOf(SelectedOption("SHORTER", "\"x\""))
-        assertThrows(BoundUnavailable::class.java) { r.capped(GRACE, unreadable, today) }
+        assertThrows(BoundUnavailable::class.java) { r.capped(UNTYPED_BOUNDED, unreadable, today) }
     }
 }
