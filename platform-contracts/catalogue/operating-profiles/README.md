@@ -30,7 +30,7 @@ difference shown when an update is offered (INV-REQ-1245 b4, INV-AC-2231).
 
 ## Untyped values
 
-A value Keel marks `typed: false` (today only PRF-7 VP-08, "two-hour sessions") is
+A value Keel marks `typed: false` (none today; PRF-7 VP-08 was until INV-Q-3320 typed it) is
 carried as `unresolved` with Keel's reason and the open question from
 `pending-values.yaml` (INV-Q-3320), never as an invented option. The generator fails if
 an untyped value has no marker, or a marker is stale.

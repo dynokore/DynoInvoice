@@ -21,12 +21,30 @@ class OperatingProfileCheckerTest {
 
     private val years = TypedValue(ValueType.DURATION, unit = "years", min = BoundValue(number = BigDecimal(5)))
     private val warnCodes = TypedValue(ValueType.LIST_REF, ref = "error-codes catalogue", filter = "severity WARN only")
+    private val pairWindow =
+        TypedValue(
+            ValueType.RECORD,
+            fields =
+                mapOf(
+                    "window" to
+                        TypedValue(
+                            ValueType.DURATION, unit = "hours", min = BoundValue(number = BigDecimal(1)), max = BoundValue(number = BigDecimal(8)),
+                            default = BoundValue(number = BigDecimal(4)), direction = Direction.DOWN_STRICTER,
+                        ),
+                ),
+        )
+
+    private fun record(vararg fields: Pair<String, ProfileTypedValue>) = ProfileTypedValue(ValueType.RECORD, null, null, fields.toMap())
+
+    private fun hours(n: Int) = ProfileTypedValue(ValueType.DURATION, "hours", BigDecimal(n))
+
     private val catalogue =
         listOf(
             vp("VP-1", listOf(VpOptionSpec("A", Strictness.DEFAULT), VpOptionSpec("LOOSE", Strictness.LOOSER))),
             vp("VP-2", listOf(VpOptionSpec("Y5", Strictness.DEFAULT), VpOptionSpec("LONGER", Strictness.STRICTER, years))),
             vp("VP-3", listOf(VpOptionSpec("BLOCK_ONLY", Strictness.DEFAULT), VpOptionSpec("ADD", Strictness.STRICTER, warnCodes))),
             vp("VP-4", listOf(VpOptionSpec("NONE", Strictness.DEFAULT), VpOptionSpec("X", Strictness.NEUTRAL)), multi = true),
+            vp("VP-5", listOf(VpOptionSpec("PAIR", Strictness.DEFAULT, pairWindow))),
         )
     private val codes =
         listOf(
@@ -94,5 +112,18 @@ class OperatingProfileCheckerTest {
         val gap = value("VP-1").copy(unresolved = UnresolvedValue("no option fits", "INV-Q-1"))
         assertTrue(check(gap).isEmpty())
         assertTrue(check(gap.copy(vp = "VP-9", requirement = "REQ-VP-9")).single().contains("no such variation point"))
+    }
+
+    @Test
+    fun `INV-Q-3320 a record value is checked field by field against its option's record`() {
+        assertEquals(emptyList<String>(), check(value("VP-5", "PAIR").copy(typedValue = record("window" to hours(2)))))
+        assertTrue(check(value("VP-5", "PAIR").copy(typedValue = record("window" to hours(9)))).single().contains("VP-5.window: typed value 9 violates max 8"))
+        assertTrue(check(value("VP-5", "PAIR").copy(typedValue = record("pair" to hours(2)))).single().contains("field 'pair'"))
+        assertTrue(
+            check(value("VP-5", "PAIR").copy(typedValue = record("window" to ProfileTypedValue(ValueType.DURATION, "days", BigDecimal(1)))))
+                .single()
+                .contains("unit 'days'"),
+        )
+        assertTrue(check(value("VP-5", "PAIR").copy(typedValue = hours(2))).single().contains("typed value is DURATION, its option takes RECORD"))
     }
 }

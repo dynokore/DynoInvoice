@@ -11,9 +11,7 @@
 # Nothing here supplies a value: the generated OperatingProfile carries the value as
 # unresolved (its text, Keel's reason and this question), never a guessed option.
 #
-# PRF-7 VP-08: "two-hour sessions" fits no option of INV-REQ-1269 (INV-Q-3285 breakdown:
-# DEFAULT_PAIR_4H fixes 4 h; OTHER_NAMED_PAIR needs a pair the text does not name);
-# raised as INV-Q-3320 at INV-REQ-1258. Both PRF-7 and VP-08 are planned.
-pending:
-  PRF-7:
-    VP-08: INV-Q-3320
+# No value is pending: PRF-7 VP-08 ("two-hour sessions"), the only one held here before,
+# was typed in Keel by owner ruling INV-Q-3320 (A', 2026-10-11) as DEFAULT_PAIR_4H with a
+# 2 h window, PRF-7 version 2; its marker was removed when that was re-vendored (INV-T-3377).
+pending: {}

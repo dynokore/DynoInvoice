@@ -205,13 +205,13 @@ operating_profiles:
         explicit_default: true
 - id: PRF-7
   requirement: INV-REQ-1258
-  revision: 56145491-8eee-46d3-bda2-6e3caa4cbc0e
+  revision: c80a57f9-03aa-4e1a-bd1a-fecbbf17f916
   name: "Regulated private installation"
   title: "The regulated private installation profile sets customer OIDC, SCIM, monthly reviews, two-hour break-glass, a second override approver always, 7-year retention with justification and no production samples"
   profile:
-    version: 1
+    version: 2
     status: "planned"
-    basis: "Coordinator ruling (HIGH, owner rule 2026-10-11): INV-Q-3283 option A (version), INV-Q-3285 option A (typed values beside the unchanged behavior text, as io_contract.catalogue, INV-CS-3045); keys from the live VP catalogue; for INV-T-3277"
+    basis: "Coordinator ruling (HIGH, owner rule 2026-10-11): INV-Q-3283 option A (version), INV-Q-3285 option A (typed values beside the unchanged behavior text, as io_contract.catalogue, INV-CS-3045); keys from the live VP catalogue; for INV-T-3277; VP-08 typed and version raised to 2 by owner ruling INV-Q-3320 (A′, 2026-10-11): the default pair with a 2 h window, stricter than the 4 h default (tighten-only)"
     values:
       VP-01:
         requirement: "INV-REQ-1262"
@@ -228,8 +228,14 @@ operating_profiles:
       VP-08:
         requirement: "INV-REQ-1269"
         text: "two-hour sessions"
-        typed: false
-        untyped_reason: "no option of INV-REQ-1269 fits: DEFAULT_PAIR_4H fixes the window at 4 h and only OTHER_NAMED_PAIR allows 1..8 h with a pair the text does not name; left untyped pending its own ruling"
+        option: "DEFAULT_PAIR_4H"
+        typed_value:
+          type: "record"
+          fields:
+            window:
+              type: "duration"
+              unit: "hours"
+              value: 2
       VP-32:
         requirement: "INV-REQ-1293"
         text: "second approver always"

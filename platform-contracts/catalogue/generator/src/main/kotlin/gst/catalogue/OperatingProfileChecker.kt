@@ -77,6 +77,16 @@ object OperatingProfileChecker {
         if (spec == null) return listOf("$where: carries a typed value, but its option has none")
         val out = mutableListOf<String>()
         if (spec.type != t.type) out += "$where: typed value is ${t.type}, its option takes ${spec.type}"
+        if (spec.type != t.type) return out
+        if (t.type == ValueType.RECORD) {
+            // A record sets some or all of its option's fields; a field it omits keeps the option's default (INV-Q-3320).
+            t.fields.forEach { (name, field) ->
+                val fieldSpec = spec.fields[name]
+                if (fieldSpec == null) out += "$where: sets field '$name', which its option's record does not have"
+                else out += checkTyped("$where.$name", field, fieldSpec)
+            }
+            return out
+        }
         if (spec.unit != null && spec.unit != t.unit) out += "$where: typed value unit '${t.unit}', its option takes '${spec.unit}'"
         fun bound(
             name: String,
@@ -84,8 +94,9 @@ object OperatingProfileChecker {
             ok: (Int) -> Boolean,
         ) {
             if (b == null) return
-            val n = b.number ?: return run { out += "$where: $name bound '${b.symbolic}' is not numeric and cannot be checked" }
-            if (!ok(t.value.compareTo(n))) out += "$where: typed value ${t.value.toPlainString()} violates $name ${n.toPlainString()}"
+            val n = b.number ?: return run { out += "$where: $name bound '${b.symbolic ?: "row " + b.row}' is not numeric and cannot be checked" }
+            val value = t.value ?: return run { out += "$where: typed value has no value" }
+            if (!ok(value.compareTo(n))) out += "$where: typed value ${value.toPlainString()} violates $name ${n.toPlainString()}"
         }
         bound("min", spec.min) { it >= 0 }
         bound("max", spec.max) { it <= 0 }

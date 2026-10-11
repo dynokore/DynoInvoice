@@ -22,6 +22,23 @@ live Keel instead of diffing. Each row's `catalogue` block (scope levels, option
 per-option strictness, typed values, INV-Q-2934, INV-Q-2936) is io_contract.catalogue,
 copied unedited; a row Keel has not filled yet renders `catalogue: null`.
 
+Installation-parameter rows (INV-T-3377; INV-Q-3202, P57): a variation point whose
+installation maximum Keel made its own row (VP-57 -> VP-79, VP-67 -> VP-80) states the
+mapping in its own published catalogue as `installation_parameter: {row: VP-nn,
+requirement: INV-REQ-nnnn}`. Keel writes `entity.source_ids` only when an entity is
+created (P57), so INV-REQ-3210/3211 carry no `VP-nn` source id and the source-id query
+alone misses them. The re-vendor therefore also takes every published requirement that
+some row's `installation_parameter.requirement` names, with that `installation_parameter.row`
+as its id (`derive_parameter_rows`). It fails closed (exit 2, nothing written) when:
+  - two referencers name different rows for the same requirement;
+  - the requirement already has source ids and they are not exactly the derived id
+    (once Keel gains them, the derived and stored ids must agree);
+  - the derived id is already the id of another requirement's row;
+  - the named requirement is not a published INV requirement.
+The generator's own `checkVariationPointFields` still fails any bound or parameter row
+that names a variation point missing from the vendored file (dangling references).
+Tests: `python3 -m unittest discover -s catalogue/variation-points -p 'test_*.py'`.
+
 Exit code 0: no drift (or re-vendored). Exit code 1: drift found (a diff is printed)
 or the vendored file's header could not be read. This script only reads Keel; it
 writes the vendored file only under --write.
@@ -46,6 +63,82 @@ where e.project_id = (select id from project where code = 'INV')
 # Mirrors variation-points.yaml's own header: the two VPs INV-REQ-1248 behaviour #2
 # itself names as its own examples of an option that depends on a form. Kept in sync
 # by hand (same as the vendored file itself) — this script does not infer them.
+PARAMETER_QUERY = """
+select json_agg(json_build_object(
+    'k', e.key, 'src', e.source_ids, 'rev', r.id,
+    'io', r.attrs->'io_contract', 't', r.title, 'beh', r.attrs->>'behavior'))
+from entity e join entity_revision r on r.entity_id = e.id
+  and r.published_in is not null and r.superseded_in is null
+where e.project_id = (select id from project where code = 'INV')
+  and e.type = 'requirement' and e.key = any(array[{keys}])
+"""
+
+VP_ID = re.compile(r"^VP-\d+$")
+
+
+class DerivationError(Exception):
+    """A fail-closed condition of derive_parameter_rows (INV-Q-3202, P57)."""
+
+
+def parameter_references(rows: list[dict]) -> dict[str, set[tuple[str, str]]]:
+    """requirement key -> {(referencing VP id, named row id)} from each row's installation_parameter."""
+    refs: dict[str, set[tuple[str, str]]] = {}
+    for d in rows:
+        param = ((d.get("io") or {}).get("catalogue") or {}).get("installation_parameter") or {}
+        if "row" not in param:
+            continue
+        req, row = param.get("requirement"), param.get("row")
+        if not isinstance(req, str) or not isinstance(row, str) or not VP_ID.match(row):
+            raise DerivationError(f"{d['src'][0]}: installation_parameter row {row!r} / requirement {req!r} is malformed")
+        refs.setdefault(req, set()).add((d["src"][0], row))
+    return refs
+
+
+def derive_parameter_rows(rows: list[dict], fetch) -> list[dict]:
+    """The installation-parameter rows to vendor beside [rows] (the source-id query's result).
+
+    [fetch] takes requirement keys and returns their published Keel rows (same shape as
+    QUERY's). A referenced requirement already in [rows] (it has its VP source id) must carry
+    the derived id; it is not added twice. Raises DerivationError on any disagreement.
+    """
+    refs = parameter_references(rows)
+    by_req = {d["k"]: d for d in rows}
+    id_owner = {d["src"][0]: d["k"] for d in rows}
+    derived: dict[str, str] = {}
+    for req, pairs in sorted(refs.items()):
+        named = {row for _, row in pairs}
+        if len(named) != 1:
+            who = ", ".join(f"{vp} -> {row}" for vp, row in sorted(pairs))
+            raise DerivationError(f"{req}: referencers disagree on its row id ({who})")
+        derived[req] = named.pop()
+    missing = [r for r in derived if r not in by_req]
+    fetched = {d["k"]: d for d in (fetch(missing) if missing else [])}
+    out = []
+    for req, row in derived.items():
+        if req in by_req:
+            stored = by_req[req]["src"]
+            if stored != [row]:
+                raise DerivationError(f"{req}: stored source ids {stored} disagree with the derived id {row}")
+            continue
+        d = fetched.get(req)
+        if d is None:
+            raise DerivationError(f"{req} (named as {row}) is not a published INV requirement")
+        if d["src"]:
+            raise DerivationError(f"{req}: source ids {d['src']} disagree with the derived id {row}")
+        if row in id_owner and id_owner[row] != req:
+            raise DerivationError(f"derived id {row} for {req} collides with {id_owner[row]}")
+        id_owner[row] = req
+        out.append({**d, "src": [row]})
+    return out
+
+
+def fetch_published(keys: list[str]) -> list[dict]:
+    import kdb  # deferred, as in main()
+
+    quoted = ", ".join("'" + k.replace("'", "''") + "'" for k in keys)
+    return kdb.q(PARAMETER_QUERY.format(keys=quoted)) or []
+
+
 FORM_DEPENDENCE = {
     "VP-45": (
         "SaaS only: the VP's own title and behaviour frame this as \"every SaaS tenant "
@@ -219,6 +312,11 @@ def main() -> int:
     import kdb  # deferred: only present once ~/projects/invoice/tooling/k.sh is sourced
 
     rows = kdb.q(QUERY)
+    try:
+        rows = rows + derive_parameter_rows(rows, fetch_published)
+    except DerivationError as e:
+        print(f"check-drift: cannot derive installation-parameter rows (INV-Q-3202, P57): {e}", file=sys.stderr)
+        return 2
     fresh_body = render_body(rows)
     old_body = committed_body(vendored_text)
 

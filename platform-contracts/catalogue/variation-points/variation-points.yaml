@@ -33,6 +33,10 @@
 #     and r.published_in is not null and r.superseded_in is null
 #   where e.project_id = (select id from project where code = 'INV')
 #     and e.type = 'requirement' and e.source_ids::text like '%VP-%'
+# Re-extracted 2026-10-11 (INV-T-3377, INV-Q-3320; 80 rows): VP-79 and VP-80 have no
+# VP source id in Keel (source_ids is written only at creation, P57), so they are taken by
+# the requirement that VP-57's and VP-67's own installation_parameter names, with that
+# installation_parameter.row as their id (INV-Q-3202); see check-drift.py's docstring.
 #
 # Keel has no single repository-wide commit the way invoice-docs does, so each row
 # below pins to its own published entity_revision id (`revision`), not a shared SHA.
@@ -314,7 +318,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1268: the second option needs the sole-operator acknowledgement; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; acknowledged_by: VP-07 tenant.admin: owner ruling INV-Q-3155; for INV-T-3148"
 - id: VP-08
   requirement: INV-REQ-1269
-  revision: 34f08967-062f-446a-a3b8-8ee73c01e2c2
+  revision: a7358dfb-670b-446b-945a-3b89d1d564b8
   title: "Break-glass pairs deployment.operator or tenant.admin with tax.approver for 4 hours by default; other named pairs and 1 to 8 hours are possible, and it is always two people"
   class: CONTROL
   class_modifiers:
@@ -343,6 +347,16 @@ variation_points:
     options:
       - key: "DEFAULT_PAIR_4H"
         strictness: "DEFAULT"
+        typed_value:
+          type: "record"
+          fields:
+            window:
+              type: "duration"
+              unit: "hours"
+              min: 1
+              max: 8
+              default: 4
+              direction: "DOWN_STRICTER"
       - key: "OTHER_NAMED_PAIR"
         strictness: "NEUTRAL"
         typed_value:
@@ -358,8 +372,8 @@ variation_points:
               max: 8
               default: 4
               direction: "DOWN_STRICTER"
-    cross_scope: "A tenant value may not exceed the installation value (tighten-only across scopes, INV-Q-2936); the 1 to 8 hour range is the row's bound, so nothing inside it needs an acknowledgement and nothing outside it is offered."
-    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1269, INV-REQ-896 b2 (1 to 8 hours set by security.officer), INV-AC-2253 (only above 8 hours refused), INV-Q-2936 (non-waivable rows offer nothing looser; VP-08 tighten-only across scopes): the 1 to 8 h range is the row's bound, the installation value bounds the tenant's; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
+    cross_scope: "A tenant value may not exceed the installation value (tighten-only across scopes, INV-Q-2936); the 1 to 8 hour range is the row's bound, so nothing inside it needs an acknowledgement and nothing outside it is offered. Compared on fields with a direction (window); the pair is not compared (INV-Q-3204). At resolution a tenant window above the installation value in force on the date is capped at it, the stored value unchanged (INV-REQ-1242 b5, INV-Q-3206). The default pair's window is configurable from 1 to 8 hours like any pair's; a DEFAULT_PAIR_4H value stored without a window counts as its default, 4 hours (INV-Q-3320)."
+    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1269, INV-REQ-896 b2 (1 to 8 hours set by security.officer), INV-AC-2253 (only above 8 hours refused), INV-Q-2936 (non-waivable rows offer nothing looser; VP-08 tighten-only across scopes): the 1 to 8 h range is the row's bound, the installation value bounds the tenant's; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; DEFAULT_PAIR_4H typed window fixed at 4 h, directed fields only compared across scopes: coordinator ruling INV-Q-3204; resolution cap: INV-Q-3206; for INV-T-3176; owner ruling INV-Q-3320 (A′, 2026-10-11): INV-REQ-1269 allows 1 to 8 hours for any pair, so DEFAULT_PAIR_4H's window is 1 to 8 h, default 4 (supersedes INV-Q-3204's fixed 4 h); the key is kept"
 - id: VP-09
   requirement: INV-REQ-1270
   revision: ef8a531f-ad28-46bc-a663-35f0bf03aca3
@@ -871,7 +885,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1283, must elect; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-23
   requirement: INV-REQ-1284
-  revision: b97d2851-473e-4173-bfce-31e7ce02ffc4
+  revision: 2434cb9a-6fee-4095-aea4-24ec51e534d6
   title: "Every entity that records purchases elects its apportionment submission mode — claimable portion or entire invoice — before go-live"
   class: POLICY
   class_modifiers: []
@@ -2189,7 +2203,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3053, recommended option (A) accepted; INV-REQ-1317; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-57
   requirement: INV-REQ-1318
-  revision: 9c32e049-f882-4814-9b9f-f9110bbd5165
+  revision: 74767cb5-b478-4d4f-8fcf-24672e3e4c6d
   title: "The grace window for reviewing a regulatory pack delta is the platform maximum by default, or shorter"
   class: PARAMETER
   class_modifiers:
@@ -2204,7 +2218,7 @@ variation_points:
   options:
     - "The platform maximum"
     - "a shorter window"
-  bounds: "Never longer than the platform maximum (INV-REQ-858)"
+  bounds: "Never longer than the platform maximum, VP-79 (INV-REQ-3210; INV-Q-3202) (INV-REQ-858); a stored window above a later-lowered maximum resolves capped at it (INV-REQ-1242 b5). Private form: arming by tax.approver is fixed (INV-REQ-990); no grace window or automatic activation (INV-REQ-2586 b2; INV-Q-3218)"
   status: planned
   status_note: null
   governs:
@@ -2222,15 +2236,17 @@ variation_points:
           type: "duration"
           unit: "days"
           min: 1
-          max: "the platform maximum"
+          max:
+            row: "VP-79"
           direction: "DOWN_STRICTER"
-    basis: "Owner ruling (2026-10-11) on INV-Q-3059, recommended option (A) accepted; INV-REQ-1318; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; minimum 1 day by the smallest-step rule of INV-Q-3057 (A), applied by analogy as on VP-63"
+    note: "PLATFORM_MAXIMUM resolves to the VP-79 value in force on the date; a stored tenant window above a later-lowered maximum resolves capped at it (INV-REQ-1242 b5, INV-Q-3206)"
+    basis: "Owner ruling (2026-10-11) on INV-Q-3059, recommended option (A) accepted; INV-REQ-1318; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; minimum 1 day by the smallest-step rule of INV-Q-3057 (A), applied by analogy as on VP-63; installation maximum as its own row VP-79: coordinator ruling INV-Q-3202; resolution cap: INV-Q-3206; for INV-T-3176"
     installation_parameter:
+      row: "VP-79"
       name: "platform maximum grace window"
+      note: "the maximum is its own INSTALLATION-scope variation point VP-79, set on SCR-41.8 (INV-Q-3202)"
       rule: "always ends at the pack's effective date"
-      type: "duration"
-      unit: "days"
-      default: 14
+      requirement: "INV-REQ-3210"
 - id: VP-58
   requirement: INV-REQ-1319
   revision: a7966005-f0dc-40f4-91f9-dc9039dee2b2
@@ -2608,7 +2624,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3057, recommended option (A) accepted; INV-REQ-2462; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; acknowledged_by: VP-66 by form (security.officer in SaaS, the customer's tax.approver in private), distinct from the setter; one person holding both roles uses the recorded sole-operator acknowledgement: INV-Q-2480, INV-Q-3134; for INV-T-3148"
 - id: VP-67
   requirement: INV-REQ-2463
-  revision: 02b3afd3-d278-427c-8fa3-56147ba6db31
+  revision: f34e5416-62c5-4cf1-a4b5-3fca1b0b4a5e
   title: "A webhook delivery is retried for 72 hours by default before dead-letter, set per subscription and never beyond the operator's maximum"
   class: PARAMETER
   class_modifiers: []
@@ -2622,7 +2638,7 @@ variation_points:
   options:
     - "72 hours"
     - "a shorter or longer window, up to the operator's maximum"
-  bounds: "Set per subscription, beside INV-REQ-1308; never beyond the maximum the operator sets (deployment.operator in private, INV-REQ-1248). Dead-letter alert and replay remain (INV-REQ-821; INV-Q-1837)"
+  bounds: "Set per subscription, beside INV-REQ-1308; never beyond the maximum the operator sets, VP-80 (INV-REQ-3211; INV-Q-3202), by platform.engineer in SaaS and deployment.operator in private (INV-REQ-1248); a stored window above a later-lowered maximum resolves capped at it (INV-REQ-1242 b5). Dead-letter alert and replay remain (INV-REQ-821; INV-Q-1837)"
   status: planned
   status_note: null
   governs:
@@ -2640,18 +2656,17 @@ variation_points:
           type: "duration"
           unit: "hours"
           min: 1
-          max: "the operator maximum"
+          max:
+            row: "VP-80"
           default: 72
           direction: "NONE"
-    note: "set per webhook subscription"
-    basis: "Owner ruling (2026-10-11) on INV-Q-3059, recommended option (A) accepted; INV-REQ-2463; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
+    note: "set per webhook subscription; a stored window above a later-lowered VP-80 value resolves capped at it (INV-REQ-1242 b5, INV-Q-3206)"
+    basis: "Owner ruling (2026-10-11) on INV-Q-3059, recommended option (A) accepted; INV-REQ-2463; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; installation maximum as its own row VP-80: coordinator ruling INV-Q-3202; resolution cap: INV-Q-3206; for INV-T-3176"
     installation_parameter:
-      max: 720
-      min: 72
+      row: "VP-80"
       name: "operator maximum retry window"
-      type: "duration"
-      unit: "hours"
-      default: 168
+      note: "the maximum is its own INSTALLATION-scope variation point VP-80, set on SCR-41.9 (INV-Q-3202)"
+      requirement: "INV-REQ-3211"
 - id: VP-68
   requirement: INV-REQ-2464
   revision: f7fd3e7b-ef5f-4644-9934-6a825eb73b00
@@ -3114,3 +3129,98 @@ variation_points:
               max: 10000
               direction: "DOWN_STRICTER"
     basis: "Owner ruling (2026-10-11) on INV-Q-3057, recommended option (A) accepted; INV-REQ-2761; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
+- id: VP-79
+  requirement: INV-REQ-3210
+  revision: 112207bd-3d07-4cf6-a001-af6e18cbfb5e
+  title: "The platform maximum grace window for reviewing a regulatory pack delta is 14 days by default, set at installation level"
+  class: PARAMETER
+  class_modifiers: []
+  scope:
+    - "installation"
+  owner: rules-svc
+  set_by:
+    - "platform.engineer"
+    - "deployment.operator"
+  must_be_elected: false
+  default: "14 days"
+  options:
+    - "14 days"
+    - "another number of days, at least 1"
+  bounds: "At least 1 day; Keel states no upper figure. Bounds VP-57 (INV-REQ-1318). The grace window always ends at the pack's effective date whatever this value (INV-REQ-858). Private form: arming by tax.approver is fixed (INV-REQ-990; INV-REQ-858 b4); the grace window and the activation that proceeds at its end are SaaS-only (INV-REQ-2586 b2); shown read-only on SCR-41.8 in the private form (INV-Q-3218)"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-858"
+    - "INV-REQ-1318"
+  form_dependence: null
+  catalogue:
+    scope_levels:
+      - "INSTALLATION"
+    options:
+      - key: "DAYS_14"
+        strictness: "DEFAULT"
+        typed_value:
+          type: "duration"
+          unit: "days"
+          min: 14
+          max: 14
+          default: 14
+          direction: "NONE"
+      - key: "CUSTOM"
+        strictness: "NEUTRAL"
+        typed_value:
+          type: "duration"
+          unit: "days"
+          min: 1
+          default: 14
+          direction: "NONE"
+    note: "the maximum of VP-57 (INV-REQ-1318 typed max {row: VP-79}); resolved at INSTALLATION scope inside rules-svc"
+    basis: "Coordinator ruling (HIGH, owner rule 2026-10-11) on INV-Q-3202, option D; values from INV-Q-3059 (A); minimum 1 day as on VP-57; for INV-T-3176; private form: no effect, read-only on SCR-41.8, owner ruling INV-Q-3218; default option typed as fixed 14 days: coordinator ruling INV-Q-3223"
+- id: VP-80
+  requirement: INV-REQ-3211
+  revision: 2caa02a9-38bd-4e43-8779-5fb261207b86
+  title: "The operator maximum webhook retry window is 168 hours by default, from 72 to 720 hours, set at installation level"
+  class: PARAMETER
+  class_modifiers: []
+  scope:
+    - "installation"
+  owner: notification-svc
+  set_by:
+    - "platform.engineer"
+    - "deployment.operator"
+  must_be_elected: false
+  default: "168 hours"
+  options:
+    - "168 hours"
+    - "another number of hours from 72 to 720"
+  bounds: "From 72 to 720 hours. Bounds VP-67 (INV-REQ-2463)"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-821"
+    - "INV-REQ-2463"
+  form_dependence: null
+  catalogue:
+    scope_levels:
+      - "INSTALLATION"
+    options:
+      - key: "HOURS_168"
+        strictness: "DEFAULT"
+        typed_value:
+          type: "duration"
+          unit: "hours"
+          min: 168
+          max: 168
+          default: 168
+          direction: "NONE"
+      - key: "CUSTOM"
+        strictness: "NEUTRAL"
+        typed_value:
+          type: "duration"
+          unit: "hours"
+          min: 72
+          max: 720
+          default: 168
+          direction: "NONE"
+    note: "the maximum of VP-67 (INV-REQ-2463 typed max {row: VP-80}); resolved at INSTALLATION scope inside notification-svc"
+    basis: "Coordinator ruling (HIGH, owner rule 2026-10-11) on INV-Q-3202, option D; values from INV-Q-3059 (A); for INV-T-3176; default option typed as fixed 168 hours: coordinator ruling INV-Q-3223"

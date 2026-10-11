@@ -33,11 +33,15 @@ object OperatingProfileKotlinEmitter {
             ProfileStatus.entries.forEach { appendLine("    $it,") }
             appendLine("}")
             appendLine()
-            appendLine("/** A typed value a profile sets within its option's bounds (INV-Q-2934). */")
+            appendLine("/**")
+            appendLine(" * A typed value a profile sets within its option's bounds (INV-Q-2934): a scalar carries [value]; a record")
+            appendLine(" * carries only the [fields] it sets (a field it omits keeps the option's default, INV-Q-3320).")
+            appendLine(" */")
             appendLine("data class ProfileTypedValue(")
             appendLine("    val type: ValueType,")
             appendLine("    val unit: String?,")
-            appendLine("    val value: java.math.BigDecimal,")
+            appendLine("    val value: java.math.BigDecimal?,")
+            appendLine("    val fields: Map<String, ProfileTypedValue> = emptyMap(),")
             appendLine(")")
             appendLine()
             appendLine("/** A value Keel has not typed yet: its reason and the open question that holds it. Never applied. */")
@@ -184,10 +188,7 @@ object OperatingProfileKotlinEmitter {
         val args = mutableListOf("VariationPoint.${v.vp.replace("-", "_")}", v.requirement.lit(), v.text.lit())
         v.option?.let { args += "option = ${it.lit()}" }
         if (v.options.isNotEmpty()) args += "options = ${v.options.lit()}"
-        v.typedValue?.let {
-            args += "typedValue = ProfileTypedValue(ValueType.${it.type}, ${it.unit?.lit() ?: "null"}, " +
-                "java.math.BigDecimal(\"${it.value.toPlainString()}\"))"
-        }
+        v.typedValue?.let { args += "typedValue = ${typedLiteral(it)}" }
         v.condition?.let { args += "condition = ${it.lit()}" }
         if (v.recommended) args += "recommended = true"
         v.otherwiseOption?.let { args += "otherwiseOption = ${it.lit()}" }
@@ -199,6 +200,13 @@ object OperatingProfileKotlinEmitter {
         if (v.needsAcknowledgement.isNotEmpty()) args += "needsAcknowledgement = ${v.needsAcknowledgement.lit()}"
         v.unresolved?.let { args += "unresolved = UnresolvedValue(${it.reason.lit()}, ${it.pendingQuestion.lit()})" }
         return "ProfileValue(" + args.joinToString(", ") + ")"
+    }
+
+    private fun typedLiteral(t: ProfileTypedValue): String {
+        val value = t.value?.let { "java.math.BigDecimal(\"${it.toPlainString()}\")" } ?: "null"
+        val fields =
+            if (t.fields.isEmpty()) "" else ", mapOf(" + t.fields.entries.joinToString(", ") { (k, f) -> "${k.lit()} to ${typedLiteral(f)}" } + ")"
+        return "ProfileTypedValue(ValueType.${t.type}, ${t.unit?.lit() ?: "null"}, $value$fields)"
     }
 
     private fun List<String>.lit(): String = "listOf(" + joinToString(", ") { it.lit() } + ")"

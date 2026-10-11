@@ -79,6 +79,7 @@ object VariationPointCatalogueArtefact {
                 f.defaultByForm.entries.joinToString(", ") { (k, v) -> "${k.jsonString()}: ${v.jsonString()}" } + " }"
         }
         f.installationParameter?.let { parts += "\"installationParameter\": ${typedJson(it)}" }
+        f.installationParameterRef?.let { parts += "\"installationParameterRef\": ${parameterRefJson(it)}" }
         f.secondApprover?.let { parts += "\"secondApprover\": ${it.jsonString()}" }
         return "{ " + parts.joinToString(", ") + " }"
     }
@@ -117,7 +118,16 @@ object VariationPointCatalogueArtefact {
         return "{ " + parts.joinToString(", ") + " }"
     }
 
-    private fun boundJson(b: BoundValue): String = b.number?.toPlainString() ?: b.symbolic!!.jsonString()
+    private fun boundJson(b: BoundValue): String =
+        b.number?.toPlainString() ?: b.symbolic?.jsonString() ?: "{ \"row\": ${b.row!!.jsonString()} }"
+
+    private fun parameterRefJson(p: InstallationParameterRef): String {
+        val parts = mutableListOf("\"row\": ${p.row.jsonString()}", "\"requirement\": ${p.requirement.jsonString()}")
+        p.name?.let { parts += "\"name\": ${it.jsonString()}" }
+        p.note?.let { parts += "\"note\": ${it.jsonString()}" }
+        p.rule?.let { parts += "\"rule\": ${it.jsonString()}" }
+        return "{ " + parts.joinToString(", ") + " }"
+    }
 
     private fun String.jsonString(): String {
         val escaped =
