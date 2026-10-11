@@ -184,7 +184,85 @@ class RetentionPurgeIT {
             val upgrade = OutboxSchema.upgradeTo130("legacy", OutboxPostgresFixture.WORKER)
             fixture.run(upgrade)
             fixture.run(upgrade)
+            // The 1.5.0 purge also deletes triaged dead letters, so it needs the 1.5.0 access as well.
+            fixture.run(OutboxSchema.upgradeTo140("legacy"))
+            fixture.run(OutboxSchema.upgradeTo150("legacy", OutboxPostgresFixture.APP, OutboxPostgresFixture.WORKER))
             assertEquals(PurgeResult(0, 1), purge.purge())
+        }
+    }
+
+    private fun deadLetter(
+        harness: OutboxHarness,
+        tenant: UUID?,
+        status: String,
+        resolvedDaysAgo: Long?,
+    ) {
+        val resolved = resolvedDaysAgo?.let { "timestamptz '$now' - interval '$it days'" } ?: "null"
+        harness.fixture.runAsAdmin(
+            "insert into payload.event_dead_letter " +
+                "(consumer, topic, log_offset, tenant_id, reason, raw, status, resolved_at) " +
+                "values ('c', 't', 1, ${tenant?.let { "'$it'" } ?: "null"}, 'r', '{}', '$status', $resolved)",
+        )
+    }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `triaged dead letters expire past the content window from resolved_at and open ones never do`(image: String) {
+        OutboxHarness(image).use { harness ->
+            deadLetter(harness, tenantA, "REPLAYED", 40) // expires
+            deadLetter(harness, null, "DISCARDED", 40) // tenantless expires too
+            deadLetter(harness, tenantB, "DISCARDED", 10) // inside the window
+            deadLetter(harness, tenantA, "OPEN", null) // open, never
+            val purge = purger(harness, Retention())
+            assertEquals(PurgeResult(0, 0, 2), purge.purge())
+            assertEquals(2L, harness.count("select count(*) from payload.event_dead_letter"))
+            assertEquals(1L, harness.count("select count(*) from payload.event_dead_letter where status = 'OPEN'"))
+            assertEquals(PurgeResult(0, 0, 0), purge.purge())
+            // A shorter window (the floor) expires the 10-day letter too; the open one still stays.
+            val floor = Retention(Duration.ofDays(7), Duration.ofDays(7))
+            assertEquals(PurgeResult(0, 0, 1), purger(harness, floor).purge())
+            assertEquals(1L, harness.count("select count(*) from payload.event_dead_letter"))
+        }
+    }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `the worker cannot delete an open dead letter even with a tenant bound`(image: String) {
+        OutboxHarness(image).use { harness ->
+            deadLetter(harness, tenantA, "OPEN", null)
+            harness.fixture.workerDataSource().connection.use { c ->
+                c.createStatement().use { s ->
+                    s.execute("select set_config('app.tenant_id', '$tenantA', false)")
+                    assertEquals(0, s.executeUpdate("delete from payload.event_dead_letter"))
+                }
+            }
+            assertEquals(1L, harness.count("select count(*) from payload.event_dead_letter"))
+        }
+    }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `upgradeTo150 takes a 1_3_0 schema to no worker raw and a tenant read, twice over`(image: String) {
+        OutboxPostgresFixture(image).use { fixture ->
+            fixture.runAsAdmin("create schema legacy authorization outbox_owner")
+            fixture.run(OutboxSchema120.ddl("legacy", OutboxPostgresFixture.APP, OutboxPostgresFixture.WORKER))
+            fixture.run(OutboxSchema.upgradeTo130("legacy", OutboxPostgresFixture.WORKER))
+            fixture.runAsAdmin(
+                "insert into legacy.event_dead_letter " +
+                    "(consumer, topic, log_offset, tenant_id, reason, raw, status, resolved_at) " +
+                    "values ('c', 't', 1, '$tenantA', 'r', '{}', 'DISCARDED', timestamptz '$now' - interval '40 days')",
+            )
+            fun workerReadsRaw() = fixture.workerDataSource().connection.use { c ->
+                c.createStatement().use { it.executeQuery("select raw from legacy.event_dead_letter").close() }
+            }
+            workerReadsRaw() // 1.3.0: the worker can read raw
+            val purge = JdbcRetentionPurge(fixture.workerDataSource(), "legacy", Retention(), clock)
+            assertThrows(SQLException::class.java) { purge.purge() }
+            val upgrade = OutboxSchema.upgradeTo150("legacy", OutboxPostgresFixture.APP, OutboxPostgresFixture.WORKER)
+            fixture.run(upgrade)
+            fixture.run(upgrade)
+            assertThrows(SQLException::class.java) { workerReadsRaw() }
+            assertEquals(PurgeResult(0, 0, 1), purge.purge())
         }
     }
 }

@@ -6,6 +6,24 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-11
+### Changed
+- Dead-letter content is restricted to tenant sessions (INV-T-2997, Keel INV-Q-2962 A6, INV-Q-3130, ARC 4.3 step 1a,
+  INV-REQ-854). The worker role is granted `SELECT` on the non-content columns of `event_dead_letter` only, so it can
+  no longer select `raw` (it still inserts the letter, updates the triage columns, and deletes triaged letters); the
+  app role is granted `SELECT` under the existing tenant policy. `JdbcDeadLetterTriage` lists and resolves from
+  metadata on the worker connection and reads `raw` (and applies the `subject` / `entity` scope filters) in the
+  letter's tenant session. A letter without a tenant is triaged from metadata only: its `raw` is read by nobody, it
+  cannot be replayed and a `subject` / `entity` filter never matches it.
+- **API change:** `DeadLetter.raw` is now nullable, `String?` (it was `String`; `null` for a tenantless letter). `OutboxSchema.ddl` splits the worker's `FOR ALL`
+  policy into per-command policies; `OutboxSchema.upgradeTo150(schema, appRole, workerRole)` does the same for an
+  existing schema (idempotent; run once in the service's migration, after `upgradeTo140`).
+### Added
+- Triaged dead letters (`REPLAYED` or `DISCARDED`) expire: `JdbcRetentionPurge` deletes them once `resolved_at` is
+  older than `Retention.contentWindow` (installation profile, default 30 days, floor 7, INV-ADR-2772), tenantless
+  letters included; an open letter is never deleted (a restrictive `DELETE` policy holds even with a tenant bound).
+  `PurgeResult.deadLetters` reports the count. An index on `resolved_at` serves the batches.
+
 ## [1.4.0] - 2026-10-11
 ### Added
 - Consumer retry with bounded, jittered backoff (ARC 4.2 step 5, Keel INV-Q-2966 / INV-T-3004, INV-REQ-1164):

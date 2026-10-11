@@ -7,7 +7,7 @@ import javax.sql.DataSource
 /**
  * [RetentionPurge] over one service schema. It runs on [workerSource], the cross-tenant worker-role connection
  * (ARC 4.3 step 1a, never BYPASSRLS): [OutboxSchema.ddl] gives that role `DELETE` on exactly the expired rows,
- * published outbox rows and inbox rows, through its own policies. The cut-offs come from the injected [Clock].
+ * published outbox rows, inbox rows and triaged dead letters, through its own policies. The cut-offs come from the injected [Clock].
  */
 class JdbcRetentionPurge(
     private val workerSource: DataSource,
@@ -34,7 +34,13 @@ class JdbcRetentionPurge(
                 "(select consumer, event_id from $s.${OutboxSchema.INBOX} where received_at < ? limit ?)",
             Timestamp.from(now - retention.inboxRetention),
         )
-        return PurgeResult(outbox, inbox)
+        val deadLetters = deleteBatches(
+            "delete from $s.${OutboxSchema.DEAD_LETTER} where id in " +
+                "(select id from $s.${OutboxSchema.DEAD_LETTER} " +
+                "where status <> 'OPEN' and resolved_at is not null and resolved_at < ? limit ?)",
+            Timestamp.from(now - retention.contentWindow),
+        )
+        return PurgeResult(outbox, inbox, deadLetters)
     }
 
     private fun deleteBatches(

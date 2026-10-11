@@ -14,7 +14,10 @@ enum class DeadLetterStatus {
     DISCARDED,
 }
 
-/** A dead-lettered record as triage sees it. [raw] is content (CS-34). */
+/**
+ * A dead-lettered record as triage sees it. [raw] is content (CS-34): it is read in the letter's tenant session only,
+ * so it is `null` for a letter without a tenant (INV-Q-2962, INV-Q-3130).
+ */
 data class DeadLetter(
     val id: Long,
     val consumer: String,
@@ -22,7 +25,7 @@ data class DeadLetter(
     val logOffset: Long,
     val tenant: TenantId?,
     val reason: String,
-    val raw: String,
+    val raw: String?,
     val status: DeadLetterStatus,
     val recordedAt: Instant,
     val resolvedAt: Instant?,
@@ -32,7 +35,8 @@ data class DeadLetter(
 
 /**
  * Which dead letters. Every given field must match. [failureClass] is a prefix of the recorded reason,
- * [subject] the Doc UUID text (the CloudEvents `subject`) and [entity] the `entityref` of the raw envelope.
+ * [subject] the Doc UUID text (the CloudEvents `subject`) and [entity] the `entityref` of the raw envelope. The
+ * last two read `raw`, so they match letters with a tenant only (read in that tenant's session).
  */
 data class DeadLetterScope(
     val ids: Set<Long> = emptySet(),
@@ -60,8 +64,9 @@ data class ReplayResult(
 )
 
 /**
- * Triage and replay of the dead letters of a service's schema. It runs as the worker role: dead letters are
- * content, so the app role and every tenant session have no access to them (RLS, `OutboxSchema`).
+ * Triage and replay of the dead letters of a service's schema. The worker role lists and resolves them from the
+ * non-content columns only; `raw` is read in the letter's tenant session under the tenant policy, and a letter
+ * without a tenant is triaged from metadata alone (RLS, `OutboxSchema`).
  */
 interface DeadLetterTriage {
     /** The dead letters in [status] matching [scope], oldest first, at most [limit]. */
@@ -81,7 +86,8 @@ interface DeadLetterTriage {
 
     /**
      * Queues the open dead letters of [scope] on the replay lane for [consumer] alone: no other consumer receives
-     * them. Idempotent: a dead letter is queued once. A dead letter without a tenant cannot be replayed.
+     * them. Idempotent: a dead letter is queued once. A dead letter without a tenant cannot be replayed (its `raw`
+     * is unreadable).
      *
      * @throws IllegalArgumentException when [scope] gives no criterion.
      */

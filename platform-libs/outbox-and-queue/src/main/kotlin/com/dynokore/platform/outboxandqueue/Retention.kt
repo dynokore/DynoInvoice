@@ -9,6 +9,8 @@ import java.time.Duration
  *
  * - [contentWindow]: published outbox rows (whose `data` is content) are deleted once `published_at` is older
  *   than this. An unpublished row is never deleted.
+ * - triaged dead letters (replayed or discarded; `raw` is content) are deleted once `resolved_at` is older than
+ *   [contentWindow] too (INV-T-2997). An open dead letter is never deleted, so no event is lost silently.
  * - [eventLogRetention]: how long the event log keeps events. An inbox row can only matter while its event could
  *   still be redelivered, so it is deleted once `received_at` is older than this plus [INBOX_MARGIN]. One value
  *   serves every topic; the inbox has no topic column.
@@ -36,9 +38,10 @@ data class Retention(
 data class PurgeResult(
     val outboxRows: Long,
     val inboxRows: Long,
+    val deadLetters: Long = 0,
 )
 
-/** Deletes expired rows of one service schema's outbox and inbox, across tenants (INV-T-2998). */
+/** Deletes expired rows of one service schema's outbox, inbox and triaged dead letters, across tenants (INV-T-2998). */
 interface RetentionPurge {
     /** One run; safe to repeat and to run from several workers. Deletes in batches until nothing expired is left. */
     fun purge(): PurgeResult

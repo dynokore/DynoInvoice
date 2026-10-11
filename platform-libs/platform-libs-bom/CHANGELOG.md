@@ -5,6 +5,10 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-11
+### Changed
+- `outbox-and-queue` pair now resolves to its `1.5.0` (INV-T-2997); version bump only.
+
 ## [0.11.0] - 2026-10-11
 ### Changed
 - `outbox-and-queue`'s pair now resolves to its `1.4.0` (INV-T-3004 / FU-B1b: consumer retry backoff).

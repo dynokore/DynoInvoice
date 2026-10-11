@@ -14,8 +14,9 @@ import java.time.LocalDate
 import java.util.UUID
 
 /**
- * Dead-letter triage and replay by scope to one named consumer. Dead letters are content under forced RLS with a
- * worker-only policy ([OutboxSchema]): triage and replay keep that. `submission-svc` and `reconciliation-svc`
+ * Dead-letter triage and replay by scope to one named consumer. Dead letters are content under forced RLS: the worker
+ * lists from non-content columns, `raw` is read in the tenant's session ([OutboxSchema], INV-T-2997).
+ * `submission-svc` and `reconciliation-svc`
  * do not exist yet; the fixtures play them.
  */
 @Tag("integration")
@@ -205,8 +206,9 @@ class DeadLetterReplayIT {
             assertEquals(listOf(true, true), harness.flags("submission", "work_queue"))
             assertEquals(1, count(tenantA, "work_queue"))
             assertEquals(0, count(tenantB, "work_queue"), "another tenant sees no queue item")
-            // The app role has no privilege on dead letters, so a tenant session cannot read or triage them.
-            assertThrows(SQLException::class.java) { count(tenantA, "event_dead_letter") }
+            // A tenant session reads its own dead letters under the tenant policy and no other tenant's.
+            assertEquals(1, count(tenantA, "event_dead_letter"))
+            assertEquals(0, count(tenantB, "event_dead_letter"), "a cross-tenant raw read is refused")
             harness.fixture.workerDataSource().connection.use { c ->
                 c.createStatement().use { s ->
                     // The worker claims across tenants but sees no payload and cannot insert queue items.
@@ -228,6 +230,40 @@ class DeadLetterReplayIT {
                     }
                 }
             }
+        }
+    }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `the worker cannot select raw, a tenantless letter is triaged from metadata, and raw filters read per tenant`(
+        image: String,
+    ) {
+        OutboxHarness(image).use { harness ->
+            val doc = UUID.randomUUID()
+            val a = letter(harness, tenantA, json.write(envelope(tenantA, doc)))
+            val b = letter(harness, tenantB, json.write(envelope(tenantB, doc)))
+            val none = letter(harness, null, "{not json", reason = "record is not JSON")
+            val t = Triage(harness)
+            harness.fixture.workerDataSource().connection.use { c ->
+                c.createStatement().use { s ->
+                    val table = "submission.event_dead_letter"
+                    assertThrows(SQLException::class.java) { s.executeQuery("select raw from $table") }
+                    assertThrows(SQLException::class.java) { s.executeQuery("select * from $table") }
+                    assertThrows(SQLException::class.java) {
+                        s.executeQuery("select id from submission.event_dead_letter where raw is not null")
+                    }
+                }
+            }
+            val all = t.triage.list().associateBy { it.id }
+            assertNull(all.getValue(none).raw, "a tenantless letter's raw is read by nobody")
+            assertTrue(notNull(all.getValue(a).raw).contains(tenantA.toString()))
+            assertTrue(notNull(all.getValue(b).raw).contains(tenantB.toString()))
+            assertEquals(listOf(a, b), t.triage.list(DeadLetterScope(subject = doc.toString())).map { it.id })
+            val ofA = DeadLetterScope(subject = doc.toString(), tenant = TenantId(tenantA))
+            assertEquals(listOf(a), t.triage.list(ofA).map { it.id })
+            assertEquals(emptyList<Long>(), t.triage.list(DeadLetterScope(entity = "nope")).map { it.id })
+            assertNull(notNull(t.triage.get(none)).raw)
+            assertTrue(t.triage.discard(none, "unparsable, producer fixed"))
         }
     }
 }

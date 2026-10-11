@@ -39,7 +39,7 @@ class TenantIsolationIT {
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
-    fun `dead letters carry the tenant when it parses and only the worker role can read them`(image: String) {
+    fun `dead letters carry the tenant, tenants read only their own raw, the worker none`(image: String) {
         OutboxHarness(image).use { harness ->
             val tenant = UUID.randomUUID()
             val topic = "eventlog.gst_payload_payload_ready_v1"
@@ -62,14 +62,26 @@ class TenantIsolationIT {
             val deadLetters = "select count(*) from submission.event_dead_letter"
             assertEquals(1, harness.count("$deadLetters where tenant_id = ?", tenant))
             assertEquals(1, harness.count("$deadLetters where tenant_id is null"))
-            assertThrows(SQLException::class.java) { kit.inTx(tenant) { visible(kit, "event_dead_letter") } }
-            harness.fixture.workerDataSource().connection.use { connection ->
-                connection.createStatement().use { statement ->
-                    statement.executeQuery("select count(*) from submission.event_dead_letter").use {
-                        it.next()
-                        assertEquals(2, it.getInt(1))
-                    }
+            assertEquals(1, kit.inTx(tenant) { visible(kit, "event_dead_letter") }, "a tenant reads its own letter")
+            val other = UUID.randomUUID()
+            assertEquals(0, kit.inTx(other) { visible(kit, "event_dead_letter") }, "a cross-tenant read is refused")
+            assertEquals(0, kit.inTx(other) { rawCount(kit) }, "another tenant reads no raw")
+            assertEquals(1, kit.inTx(tenant) { rawCount(kit) }, "a tenant reads its own letter only")
+            workerReadsMetadataOnly(harness)
+        }
+    }
+
+    private fun workerReadsMetadataOnly(harness: OutboxHarness) {
+        harness.fixture.workerDataSource().connection.use { connection ->
+            connection.createStatement().use { statement ->
+                val table = "submission.event_dead_letter"
+                statement.executeQuery("select count(*) from $table").use {
+                    it.next()
+                    assertEquals(2, it.getInt(1))
                 }
+                statement.executeQuery("select id, reason from $table").close()
+                listOf("select raw from $table", "select * from $table", "select id from $table where raw like '%'")
+                    .forEach { sql -> assertThrows(SQLException::class.java, { statement.executeQuery(sql) }, sql) }
             }
         }
     }
@@ -106,6 +118,13 @@ class TenantIsolationIT {
             "insert into submission.event_dead_letter (consumer, topic, log_offset, tenant_id, reason, raw) " +
                 "values ('c', 't', 1, '$tenant', 'r', '{}')",
         )
+    }
+
+    private fun rawCount(kit: ServiceKit): Int = kit.boundary.require().createStatement().use { statement ->
+        statement.executeQuery("select count(raw) from submission.event_dead_letter").use { rows ->
+            rows.next()
+            rows.getInt(1)
+        }
     }
 
     private fun visible(

@@ -16,8 +16,10 @@ import com.dynokore.platform.tenancykernel.TenantRlsMigration
  * before touching its row. [CONSUMER_OFFSET] holds no tenant data (a position per consumer and topic)
  * and has no RLS. [DEAD_LETTER] keeps whole rejected envelopes (content) for triage and replay: it has a
  * nullable `tenant_id` (filled whenever the envelope's tenant parses), forced RLS with the tenant policy,
- * and a policy for the worker role only; the app role has no privilege on it, so only the worker reads
- * it, and a row without a tenant is invisible to every tenant session.
+ * and worker policies that never expose `raw`: the worker role holds `SELECT` on the non-content columns only
+ * (ARC 4.3 step 1a), the app role holds `SELECT` under the tenant policy (a tenant session reads its own letters'
+ * `raw`), and a row without a tenant is invisible to every tenant session, so its `raw` is read by nobody
+ * (INV-T-2997, INV-Q-2962, INV-Q-3130). See [deadLetterAccess].
  */
 object OutboxSchema {
     const val OUTBOX = "outbox"
@@ -108,13 +110,11 @@ object OutboxSchema {
             comment on column $s.$OUTBOX.data is 'class: content';
             comment on column $s.$DEAD_LETTER.raw is 'class: content';
             $rls
-            create policy ${DEAD_LETTER}_worker on $s.$DEAD_LETTER for all to $worker using (true) with check (true);
             create policy ${OUTBOX}_claim on $s.$OUTBOX for select to $worker using (true);
             grant usage on schema $s to $worker;
             grant select (seq, tenant_id, published_at) on $s.$OUTBOX to $worker;
             grant select, insert, update on $s.$CONSUMER_OFFSET to $worker;
-            grant select, insert on $s.$DEAD_LETTER to $worker;
-            grant update (status, resolved_at, note, replayed_to) on $s.$DEAD_LETTER to $worker;
+            ${deadLetterAccess(s, role, worker)}
             grant select, insert, update on $s.$OUTBOX, $s.$OUTBOX_SEQUENCE, $s.$CONSUMER_SEQUENCE,
                 $s.$CONSUMER_OFFSET to $role;
             grant select, insert on $s.$INBOX to $role;
@@ -150,6 +150,43 @@ object OutboxSchema {
         grant select (consumer, event_id, received_at) on $s.$INBOX to $worker;
         grant delete on $s.$INBOX to $worker;
     """.trimIndent()
+
+    /**
+     * Dead-letter access (INV-T-2997): the worker role gets `INSERT` (it records the letter, `raw` included, but cannot
+     * read it back), `SELECT` on the non-content columns, `UPDATE` of the triage columns and `DELETE` of triaged letters
+     * only, each through its own policy; the restrictive `DELETE` policy holds even for a worker session that has
+     * bound a tenant. The app role gets `SELECT` under the tenant policy. Idempotent; replaces the 1.0.0 to 1.4.0
+     * `FOR ALL` worker policy and the table-wide worker `SELECT`.
+     */
+    private fun deadLetterAccess(
+        s: String,
+        role: String,
+        worker: String,
+    ): String {
+        val t = "$s.$DEAD_LETTER"
+        return """
+            drop policy if exists ${DEAD_LETTER}_worker on $t;
+            drop policy if exists ${DEAD_LETTER}_worker_select on $t;
+            drop policy if exists ${DEAD_LETTER}_worker_insert on $t;
+            drop policy if exists ${DEAD_LETTER}_worker_update on $t;
+            drop policy if exists ${DEAD_LETTER}_purge on $t;
+            drop policy if exists ${DEAD_LETTER}_purge_triaged on $t;
+            create policy ${DEAD_LETTER}_worker_select on $t for select to $worker using (true);
+            create policy ${DEAD_LETTER}_worker_insert on $t for insert to $worker with check (true);
+            create policy ${DEAD_LETTER}_worker_update on $t for update to $worker using (true) with check (true);
+            create policy ${DEAD_LETTER}_purge on $t for delete to $worker using (resolved_at is not null);
+            create policy ${DEAD_LETTER}_purge_triaged on $t as restrictive for delete to $worker
+                using (resolved_at is not null and status <> 'OPEN');
+            revoke select on $t from $worker;
+            grant select (id, consumer, topic, log_offset, tenant_id, reason, recorded_at, status, resolved_at, note,
+                replayed_to) on $t to $worker;
+            grant insert on $t to $worker;
+            grant update (status, resolved_at, note, replayed_to) on $t to $worker;
+            grant delete on $t to $worker;
+            grant select on $t to $role;
+            create index if not exists ${DEAD_LETTER}_resolved_at on $t (resolved_at) where resolved_at is not null;
+        """.trimIndent()
+    }
 
     /**
      * Brings a schema created by 1.0.0 to 1.1.0: the triage columns of [DEAD_LETTER] and the worker's column
@@ -213,4 +250,20 @@ object OutboxSchema {
                 add column if not exists retry_not_before timestamptz;
         """.trimIndent()
     }
+
+    /**
+     * Brings a 1.4.0 schema (run after [upgradeTo140]) to 1.5.0: the worker role loses `SELECT` on
+     * `event_dead_letter.raw`, the app role gains `SELECT` under the tenant policy, and the worker may delete triaged
+     * letters ([JdbcRetentionPurge]). Run once by the service's migration (TPL-12); not needed for a schema created by
+     * [ddl].
+     */
+    fun upgradeTo150(
+        schema: String,
+        appRole: String,
+        workerRole: String,
+    ): String = deadLetterAccess(
+        SqlIdentifier.require(schema, "schema"),
+        SqlIdentifier.require(appRole, "role"),
+        SqlIdentifier.require(workerRole, "worker role"),
+    )
 }
