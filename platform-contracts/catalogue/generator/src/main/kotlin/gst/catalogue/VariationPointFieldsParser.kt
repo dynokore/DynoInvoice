@@ -68,6 +68,26 @@ object VariationPointFieldsParser {
 
     private val optionKeys = setOf("key", "strictness", "typed_value", "acknowledged_by")
 
+    /**
+     * INV-T-3528, only so the re-vendored file loads: cross_row / cross_option are now lists of typed
+     * records (Keel INV-CS-3604); 1.x keeps them as text, the records' rules joined. gst-catalogue
+     * 1.9.0 parses and checks the records themselves.
+     */
+    private fun ruleText(
+        value: Any?,
+        name: String,
+        fail: (String) -> Nothing,
+    ): String? =
+        when (value) {
+            null -> null
+            is String -> value
+            is List<*> ->
+                value.joinToString(" ") { r ->
+                    (r as? Map<*, *>)?.get("rule") as? String ?: fail("$name record has no 'rule' text")
+                }
+            else -> fail("'$name' must be text or a list of records, got ${value::class.simpleName}")
+        }
+
     fun parse(
         id: String,
         cat: Map<String, Any?>,
@@ -80,6 +100,8 @@ object VariationPointFieldsParser {
                 "scope_levels", "options", "must_be_elected", "multi_select", "exclusive_keys",
                 "cross_scope", "cross_option", "cross_row", "note", "basis", "default_by_form", "installation_parameter",
                 "second_approver",
+                // INV-T-3528: accepted only so the re-vendored file loads; gst-catalogue 1.9.0 parses and checks the records.
+                "constraints",
             )
         val unknownKeys = cat.keys - known
         if (unknownKeys.isNotEmpty()) fail("unknown field(s) ${unknownKeys.sorted().joinToString()}; extend the generator")
@@ -117,8 +139,8 @@ object VariationPointFieldsParser {
             multiSelect = top.boolean("multi_select") ?: false,
             exclusiveKeys = top.stringList("exclusive_keys") ?: emptyList(),
             crossScope = top.string("cross_scope"),
-            crossOption = top.string("cross_option"),
-            crossRow = top.string("cross_row"),
+            crossOption = ruleText(cat["cross_option"], "cross_option", ::fail),
+            crossRow = ruleText(cat["cross_row"], "cross_row", ::fail),
             note = top.string("note"),
             basis = top.string("basis"),
             defaultByForm =
