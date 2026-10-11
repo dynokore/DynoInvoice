@@ -53,7 +53,7 @@ class ReplicaAutoConfigurationTest {
         val slow =
             StructureFallback { _, _ ->
                 Thread.sleep(SLOW_MILLIS)
-                FallbackResult.Found(StructureNode(StructureNodeKind.ENTITY, null))
+                FallbackResult.Found(StructureNode(StructureNodeKind.ENTITY, null, false, "e", null, emptyList(), 1))
             }
         contextRunner
             .withBean(StructureFallback::class.java, { slow })

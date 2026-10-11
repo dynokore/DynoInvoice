@@ -9,11 +9,16 @@ import com.dynokore.platform.tenancykernel.TenantId
  * field; [entities] are the principal's granted entities, read from the authority replica by the service's
  * resolver, not from the token. A token without a tenant (a platform operator) has none and no entities. Roles
  * are not here: they are re-checked in the owning service against the authority replica (CS-23).
+ *
+ * [entitySetCurrent] is false while the authority replica is beyond its lag bound or has received no version yet
+ * (coordinator ruling INV-Q-3771): [entities] is then not to be trusted, and an entityRef check goes to the
+ * authority decision with the operation's own permission instead (INV-Q-3782), never refused for an empty set.
  */
 data class EndUserPrincipal(
     val actor: String,
     val tenant: TenantId?,
     val entities: Set<EntityRef>,
+    val entitySetCurrent: Boolean = true,
 ) {
     init {
         require(actor.isNotBlank()) { "actor must not be blank" }
@@ -32,7 +37,16 @@ data class EndUserPrincipal(
  * (STK-27). Layout per owner ruling INV-Q-3716 A (INV-REQ-1202 b4): the actor is the token's `sub`, the tenant
  * its `tenant_id`, and the entity set the principal's granted entities read from the authority replica; the
  * default resolver ships with INV-T-3335. Returns `null` when the token is missing, invalid or expired (401).
+ * Throws [TokenIssuerUnavailableException] when the issuer's keys cannot be obtained and no cached key verifies
+ * the token (503 SRT-011, coordinator ruling INV-Q-3773): the token may be valid, so it is never a 401.
  */
 fun interface EndUserPrincipalResolver {
     fun resolve(authorization: String?): EndUserPrincipal?
+}
+
+/** The token issuer's keys cannot be obtained and no cached key verifies the token (INV-Q-3773). Retryable. */
+class TokenIssuerUnavailableException(cause: Throwable? = null) : RuntimeException(MESSAGE, cause) {
+    private companion object {
+        const val MESSAGE = "the token issuer is unavailable, so the token cannot be verified now"
+    }
 }

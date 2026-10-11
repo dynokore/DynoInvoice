@@ -46,8 +46,8 @@ class CompositionRootDirectionTest {
     ) {
         File(dir, "Offender.kt").writeText(
             "package com.dynokore.platform.outboxandqueue\n" +
-                "import com.dynokore.platform.serviceruntime.binding.EventBinding\n" +
-                "class Offender(val b: EventBinding)\n",
+                "import com.dynokore.platform.serviceruntime.binding.IdentityProvider\n" +
+                "class Offender(val b: IdentityProvider)\n",
         )
         assertThrows(Throwable::class.java) {
             assertNoServiceRuntimeImport(Konsist.scopeFromExternalDirectory(dir.absolutePath))

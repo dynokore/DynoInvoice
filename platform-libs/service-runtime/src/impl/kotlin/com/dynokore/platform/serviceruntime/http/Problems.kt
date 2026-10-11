@@ -25,6 +25,13 @@ enum class ClosedErrorCode(
     STALE_AGGREGATE("SRT-008", 409, "Stale aggregate version", "TERMINAL"),
     DIFFERENT_REQUEST("SRT-009", 422, "Idempotency-Key reused with a different request", "TERMINAL"),
     INTERNAL_ERROR("SRT-010", 500, "Internal error", "TERMINAL"),
+
+    /**
+     * The token issuer is unreachable and no cached key verifies the token: retryable, never 401 or 500 (coordinator
+     * ruling INV-Q-3773). Its catalogue row lands with INV-T-3762; until the pinned catalogue carries it, the code
+     * string is used here and `ProblemsTest` lists it as pending.
+     */
+    ISSUER_UNAVAILABLE("SRT-011", 503, "Token issuer unavailable", "TERMINAL"),
     ;
 
     /** Every SRT code is remediated by the platform (error-codes.yaml `owner`). */
@@ -37,11 +44,22 @@ enum class ClosedErrorCode(
  * place (ARC-19, CS-14). Every response carries its catalogue code, severity, disposition and remediation owner
  * at the code's single status (API-21, INV-REQ-827): the JOB codes (catalogue gst-catalogue 1.5.0) for a refused
  * job command, the SRT codes of [ClosedErrorCode] for the closed service-runtime cases (owner ruling
- * INV-Q-3720), so no response is code-less. A server error carries no detail (API-22).
+ * INV-Q-3720), so no response is code-less. Every coded response carries `type` `https://errors.<host>/<code>`
+ * (API-20, coordinator ruling INV-Q-3796); `about:blank` is only for a response with no code, and none is left
+ * here. A server error carries no detail (API-22).
  */
 object Problems {
     const val CONTENT_TYPE = "application/problem+json"
-    private const val ABOUT_BLANK = "about:blank"
+
+    /**
+     * The product-wide host of the error-documentation URIs (API-20): one constant, not configuration
+     * (INV-Q-3796), set to the host the published contracts use until owner question INV-Q-3800 is ruled.
+     */
+    const val ERROR_TYPE_HOST = "invoice.internal"
+
+    /** The documentation URI of catalogue [code], the `type` of every response carrying it (API-20). */
+    fun typeOf(code: String): String = "https://errors.$ERROR_TYPE_HOST/$code"
+
     private const val BLOCK = "BLOCK"
     private val mapper = ObjectMapper()
 
@@ -116,7 +134,7 @@ object Problems {
     ): StoredResponse {
         val node =
             mapper.createObjectNode().apply {
-                put("type", ABOUT_BLANK)
+                put("type", typeOf(code))
                 put("title", title)
                 put("status", status)
                 detail?.let { put("detail", it) }

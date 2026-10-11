@@ -62,7 +62,7 @@ object IdempotencySchema {
             |create policy ${TABLE}_worker_select on $s.$TABLE for select to $worker using (true);
             |create policy ${TABLE}_worker_delete on $s.$TABLE for delete to $worker using (true);
             |grant usage on schema $s to $worker;
-            |grant select (created_at) on $s.$TABLE to $worker;
+            |grant select (tenant_id, principal, idempotency_key, created_at) on $s.$TABLE to $worker;
             |grant delete on $s.$TABLE to $worker;
             |grant select, insert on $s.$TABLE to $app;
         """.trimMargin()
@@ -160,15 +160,30 @@ class IdempotencyStore(
         }
     }
 
-    /** Deletes keys stored more than [retention] ago, across tenants, through the worker role; returns the count. */
+    /**
+     * Deletes keys stored more than [retention] ago, across tenants, through the worker role (ARC 4.3 step 1a),
+     * in batches of [PURGE_BATCH] so no statement holds many row locks; returns the count.
+     */
     fun purge(): Int {
         val purger = checkNotNull(worker) { "the purge needs the service's worker role" }
-        return purger.connection.use { connection ->
-            connection.prepareStatement("delete from $table where created_at < ?").use {
-                it.setTimestamp(1, Timestamp.from(clock.instant().minus(retention)))
-                it.executeUpdate()
+        val cutoff = Timestamp.from(clock.instant().minus(retention))
+        var total = 0
+        purger.connection.use { connection ->
+            connection.prepareStatement(
+                """
+                delete from $table where (tenant_id, principal, idempotency_key) in (
+                    select tenant_id, principal, idempotency_key from $table where created_at < ? limit $PURGE_BATCH
+                )
+                """.trimIndent(),
+            ).use { statement ->
+                do {
+                    statement.setTimestamp(1, cutoff)
+                    val deleted = statement.executeUpdate()
+                    total += deleted
+                } while (deleted == PURGE_BATCH)
             }
         }
+        return total
     }
 
     private fun find(
@@ -221,5 +236,8 @@ class IdempotencyStore(
     companion object {
         val DEFAULT_RETENTION: Duration = Duration.ofHours(24)
         private const val SERVER_ERROR = 500
+
+        /** Rows deleted per purge statement. */
+        const val PURGE_BATCH = 1000
     }
 }

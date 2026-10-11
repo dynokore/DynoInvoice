@@ -5,6 +5,7 @@ import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
+import com.dynokore.platform.serviceruntime.identity.TokenIssuerUnavailableException
 import com.dynokore.platform.serviceruntime.jobs.JobCommandJournal
 import com.dynokore.platform.serviceruntime.jobs.JobCommandOutcome
 import com.dynokore.platform.serviceruntime.jobs.JobCommandRequest
@@ -13,6 +14,12 @@ import com.dynokore.platform.serviceruntime.jobs.JobPauseState
 import com.dynokore.platform.serviceruntime.jobs.JobRunState
 import com.dynokore.platform.serviceruntime.jobs.JobTarget
 import com.dynokore.platform.serviceruntime.logging.CorrelationContext
+import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
+import com.dynokore.platform.serviceruntime.replica.AuthorizationRequest
+import com.dynokore.platform.serviceruntime.replica.Principal
+import com.dynokore.platform.serviceruntime.replica.PrincipalKind
+import com.dynokore.platform.serviceruntime.resilience.Deadline
+import com.dynokore.platform.serviceruntime.resilience.http.CurrentDeadline
 import com.dynokore.platform.tenancykernel.TenantContext
 import jakarta.servlet.http.HttpServlet
 import jakarta.servlet.http.HttpServletRequest
@@ -23,6 +30,8 @@ import tools.jackson.databind.ObjectMapper
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
+import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.format.DateTimeParseException
 import java.util.UUID
@@ -49,6 +58,8 @@ class JobCommandServlet(
     private val principals: EndUserPrincipalResolver,
     private val tenants: TenantContext,
     private val idempotency: IdempotencyStore,
+    private val authority: AuthorityReplica? = null,
+    private val clock: Clock = Clock.systemUTC(),
 ) : HttpServlet() {
     private val mapper = ObjectMapper()
 
@@ -77,6 +88,21 @@ class JobCommandServlet(
         response.writer.write(answer.body)
     }
 
+    /**
+     * API-24: the entity inside the caller's entity set. While the authority replica catches up the set is not
+     * current, so the check asks the authority decision, and through it the access-svc fallback, for
+     * [JOB_OPERATE] on that entity (coordinator rulings INV-Q-3771, INV-Q-3782); it is never skipped.
+     */
+    private fun inScope(
+        principal: EndUserPrincipal,
+        entity: EntityRef,
+    ): Boolean {
+        val tenant = principal.tenant
+        if (principal.entitySetCurrent || tenant == null || authority == null) return principal.covers(entity)
+        val request = AuthorizationRequest(tenant, Principal(principal.actor, PrincipalKind.HUMAN), entity.value, JOB_OPERATE)
+        return authority.decide(request, CurrentDeadline.current() ?: Deadline.after(FALLBACK_BUDGET, clock)).allowed
+    }
+
     private fun handle(
         request: HttpServletRequest,
         correlation: String,
@@ -85,7 +111,12 @@ class JobCommandServlet(
         val route = ROUTE.matchEntire(path) ?: return Problems.notFound(correlation)
         val action = Action.valueOf(route.groupValues[2].uppercase())
         if (request.method != "POST") return Problems.methodNotAllowed(correlation)
-        val principal = principals.resolve(request.getHeader(AUTHORIZATION)) ?: return Problems.unauthenticated(correlation)
+        val principal =
+            try {
+                principals.resolve(request.getHeader(AUTHORIZATION))
+            } catch (_: TokenIssuerUnavailableException) {
+                return Problems.closed(ClosedErrorCode.ISSUER_UNAVAILABLE, correlation)
+            } ?: return Problems.unauthenticated(correlation)
         val body = request.inputStream.readNBytes(MAX_BODY + 1)
         val parsed =
             try {
@@ -99,7 +130,7 @@ class JobCommandServlet(
                 return Problems.closed(violation.code, correlation, violation.message.orEmpty())
             }
         val entity = parsed.entity
-        if (entity != null && !principal.covers(entity)) return Problems.accessDenied(correlation)
+        if (entity != null && !inScope(principal, entity)) return Problems.accessDenied(correlation)
         val fingerprint = fingerprint(request.method, path, body)
         val outcome =
             idempotency.once(principal.tenant, principal.actor, parsed.key, fingerprint) { recorder ->
@@ -272,6 +303,10 @@ class JobCommandServlet(
     }
 
     companion object {
+        /** The §22.3 permission for run now, pause and resume (FR-AG.64, INV-REQ-859, INV-Q-3782). */
+        const val JOB_OPERATE = "job.operate"
+        private val FALLBACK_BUDGET: Duration = Duration.ofSeconds(2)
+
         /** The servlet mapping of the three operations. */
         const val MAPPING = "/internal/v1/jobs/*"
         private val ROUTE = Regex("^/internal/v1/jobs/([^/]+)/(run|pause|resume)$")

@@ -3,6 +3,7 @@ package com.dynokore.platform.serviceruntime.arch
 import com.lemonappdev.konsist.api.Konsist
 import com.lemonappdev.konsist.api.ext.list.withParentInterfaceNamed
 import com.lemonappdev.konsist.api.verify.assertTrue
+import io.kotest.matchers.collections.shouldBeEmpty
 import org.junit.jupiter.api.Test
 
 /**
@@ -34,5 +35,16 @@ class ClosedBindingSetTest {
             .interfaces()
             .withParentInterfaceNamed("Binding")
             .assertTrue { it.name in frH1Names }
+    }
+
+    /** INV-Q-3775: outbox-and-queue's EventBinding is the one §12.1 EventBinding; service-runtime declares none. */
+    @Test
+    fun `service-runtime declares no EventBinding of its own`() {
+        Konsist
+            .scopeFromModule("service-runtime", "main")
+            .interfaces()
+            .filter { it.name == "EventBinding" }
+            .map { it.path }
+            .shouldBeEmpty()
     }
 }

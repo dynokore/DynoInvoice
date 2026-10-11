@@ -15,6 +15,7 @@ import com.dynokore.platform.serviceruntime.composition.TenancyKernelWiring
 import com.dynokore.platform.serviceruntime.diagnostics.DiagnosticsAutoConfiguration
 import com.dynokore.platform.serviceruntime.health.HealthAutoConfiguration
 import com.dynokore.platform.serviceruntime.http.JobCommandHttpAutoConfiguration
+import com.dynokore.platform.serviceruntime.identity.EndUserIdentityAutoConfiguration
 import com.dynokore.platform.serviceruntime.identity.IdentityAutoConfiguration
 import com.dynokore.platform.serviceruntime.logging.LoggingAutoConfiguration
 import com.dynokore.platform.serviceruntime.replica.ReplicaAutoConfiguration
@@ -76,6 +77,7 @@ import org.springframework.context.annotation.PropertySource
     RulepackKernelWiring::class,
     ServiceRuntimeWiring::class,
     ReplicaAutoConfiguration::class,
+    EndUserIdentityAutoConfiguration::class,
     JobCommandHttpAutoConfiguration::class,
 )
 @PropertySource("classpath:service-runtime-defaults.properties")

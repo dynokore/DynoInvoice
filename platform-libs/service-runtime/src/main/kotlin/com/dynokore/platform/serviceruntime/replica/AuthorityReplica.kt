@@ -5,53 +5,207 @@ import com.dynokore.platform.tenancykernel.TenantId
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalDate
 
 /** Who is acting. Only [MACHINE] keeps working when no decision can be had (INV-REQ-1201 behaviours #4 and #5). */
 enum class PrincipalKind { HUMAN, CONSENT_AGENT, MACHINE }
 
+/** The acting principal. Its kind comes from the propagated token, never from `AuthorityChanged` (INV-Q-3259). */
 data class Principal(val id: String, val kind: PrincipalKind)
 
-data class AuthorityKey(val tenant: TenantId, val principalId: String)
+/** One grant record's key: a principal's grant state on one entity (INV-Q-3322 (b)). */
+data class AuthorityKey(val tenant: TenantId, val principalId: String, val entityRef: String)
 
-data class Grant(
-    val entityRef: String,
-    val action: String,
-    val validFrom: Instant,
-    val validUntil: Instant? = null,
-) {
-    fun covers(
-        entityRef: String,
-        action: String,
-        at: Instant,
-    ): Boolean = this.entityRef == entityRef && this.action == action &&
-        !at.isBefore(validFrom) && (validUntil == null || at.isBefore(validUntil))
-}
+/** One consent record's key: the agent consent for one client entity (INV-REQ-853 b1). */
+data class ConsentKey(val tenant: TenantId, val clientEntityRef: String)
 
-/** What the replica holds for one principal: replaced whole by each change, so a revocation is just a smaller set. */
-data class PrincipalAuthority(val grants: List<Grant>, val revoked: Boolean = false)
+/** One principal record's key. */
+data class PrincipalKey(val tenant: TenantId, val principalId: String)
 
 /**
- * The platform event `AuthorityChanged` (grant, consent, principal or revocation
- * change). [authorityVersion] is access-svc's monotonic authority version; each
- * service measures its own lag against it (INV-REQ-1201 behaviour #1).
+ * The scope level a grant comes from (INV-REQ-864 b1, INV-Q-3339). TENANT and GROUP grants arrive already
+ * expanded to one entity by access-svc. [UNKNOWN] is any wire value this version does not recognise: it
+ * matches nothing, never read as a plain entity grant (fail closed).
+ */
+enum class ScopeLevel {
+    TENANT,
+    GROUP,
+    ENTITY,
+    ENTITY_PERIOD,
+    CONSENT,
+    UNKNOWN,
+    ;
+
+    companion object {
+        /** Maps a wire value; an unrecognised one is [UNKNOWN]. */
+        fun of(wire: String): ScopeLevel = entries.firstOrNull { it != UNKNOWN && it.name == wire } ?: UNKNOWN
+    }
+}
+
+/** A span of days, both ends included: a GST accounting period or a granted period range. */
+data class DateSpan(val start: LocalDate, val end: LocalDate) {
+    init {
+        require(!end.isBefore(start)) { "a date span must not end before it starts, was $start..$end" }
+    }
+
+    /** True when the whole of [other] lies inside this span. */
+    fun encloses(other: DateSpan): Boolean = !other.start.isBefore(start) && !other.end.isAfter(end)
+}
+
+/**
+ * One action granted on the entity of its record, with the scope it was granted under and its validity
+ * window (INV-REQ-864). An [ScopeLevel.ENTITY_PERIOD] grant holds its granted periods as a date span
+ * ([periodFrom], [periodTo]: first day of the first period, last day of the last), never a period name,
+ * because the filing frequency can change (INV-Q-3339).
+ */
+data class Grant(
+    val action: String,
+    val scopeLevel: ScopeLevel,
+    val scopeRef: String,
+    val validFrom: Instant,
+    val validUntil: Instant? = null,
+    val periodFrom: LocalDate? = null,
+    val periodTo: LocalDate? = null,
+) {
+    /**
+     * Whether this grant covers [action] at the request time [at] for a resource of period [resourcePeriod].
+     * The validity window uses the request time; the period range is a separate check on the resource's
+     * accounting period (INV-AC-1911). A CONSENT grant also needs a live consent record, checked by the replica.
+     */
+    fun covers(
+        action: String,
+        at: Instant,
+        resourcePeriod: DateSpan?,
+    ): Boolean = this.action == action && isValidAt(at) && coversPeriod(resourcePeriod)
+
+    /** Inside its validity window at [at]. */
+    fun isValidAt(at: Instant): Boolean = !at.isBefore(validFrom) && (validUntil == null || at.isBefore(validUntil))
+
+    private fun coversPeriod(resourcePeriod: DateSpan?): Boolean = when (scopeLevel) {
+        ScopeLevel.TENANT, ScopeLevel.GROUP, ScopeLevel.ENTITY, ScopeLevel.CONSENT -> true
+
+        ScopeLevel.ENTITY_PERIOD -> {
+            val from = periodFrom
+            val to = periodTo
+            resourcePeriod != null && from != null && to != null && !to.isBefore(from) &&
+                DateSpan(from, to).encloses(resourcePeriod)
+        }
+
+        ScopeLevel.UNKNOWN -> false
+    }
+}
+
+/** What the replica holds for one [AuthorityKey]: the record's grants, replaced whole, and its version. */
+data class GrantState(val grants: List<Grant>, val authorityVersion: Long)
+
+/** A consent record's state; [UNKNOWN] is any unrecognised wire value and is not live (fail closed). */
+enum class ConsentState {
+    LIVE,
+    WITHDRAWN,
+    UNKNOWN,
+    ;
+
+    companion object {
+        fun of(wire: String): ConsentState = entries.firstOrNull { it != UNKNOWN && it.name == wire } ?: UNKNOWN
+    }
+}
+
+/**
+ * A consent scope item: a VP-10 key (INV-REQ-912, INV-Q-3704). [UNKNOWN] is any wire value this version does
+ * not recognise; it never matches, neither on a consent record nor on a request (fail closed).
+ */
+enum class ConsentScopeItem {
+    SUBMIT_INVOICE_DATA,
+    FILE_GST_RETURN,
+    MAPPING_APPROVAL,
+    UNKNOWN,
+    ;
+
+    companion object {
+        fun of(wire: String): ConsentScopeItem = entries.firstOrNull { it != UNKNOWN && it.name == wire } ?: UNKNOWN
+    }
+}
+
+/** A principal record's state; every value, [UNKNOWN] included, voids the principal's older grant records. */
+enum class PrincipalState {
+    DELETED,
+    REVOKED,
+    UNKNOWN,
+    ;
+
+    companion object {
+        fun of(wire: String): PrincipalState = entries.firstOrNull { it != UNKNOWN && it.name == wire } ?: UNKNOWN
+    }
+}
+
+/** The one record an `AuthorityChanged` carries (INV-Q-3322, INV-Q-3702). */
+sealed interface AuthorityRecord {
+    /** The full grant state of (tenant, principal, [entityRef]); an empty [grants] is a removal. */
+    data class GrantRecord(val entityRef: String, val grants: List<Grant>) : AuthorityRecord
+
+    /** The full state of the agent consent for one client entity (INV-REQ-853 b1, INV-REQ-865). */
+    data class ConsentRecord(
+        val clientEntityRef: String,
+        val state: ConsentState,
+        val scopeItems: Set<ConsentScopeItem>,
+        val validFrom: Instant,
+        val validUntil: Instant? = null,
+    ) : AuthorityRecord {
+        /** LIVE and inside its validity window at [at]. */
+        fun isLiveAt(at: Instant): Boolean = state == ConsentState.LIVE && !at.isBefore(validFrom) &&
+            (validUntil == null || at.isBefore(validUntil))
+
+        /** Whether this consent lists [item]; no item asked is covered, an UNKNOWN one never (INV-Q-3734). */
+        fun lists(item: ConsentScopeItem?): Boolean {
+            val known = item != ConsentScopeItem.UNKNOWN
+            return item == null || (known && item in scopeItems)
+        }
+    }
+
+    /** A principal deleted or revoked: voids every grant record of the principal with a lower version. */
+    data class PrincipalRecord(val state: PrincipalState) : AuthorityRecord
+}
+
+/**
+ * The platform event `AuthorityChanged`. [authorityVersion] is access-svc's monotonic authority version,
+ * the version of the one [record] carried; each service measures its own lag against it (INV-REQ-1201
+ * behaviour #1). A null [record] is an event without grant state (a 1.0-shaped or faulty event).
  */
 data class AuthorityChanged(
     val tenant: TenantId,
     val principalId: String,
-    val authority: PrincipalAuthority?,
     val authorityVersion: Long,
+    val record: AuthorityRecord?,
 )
 
+/**
+ * One authorisation question. [resourcePeriod] is the GST accounting period of the document or return
+ * acted on, as a date span; null when there is none or it cannot be resolved, and then no
+ * ENTITY_PERIOD grant matches (INV-Q-3339). [requiredScopeItem] is the consent scope item the owning
+ * service's operation needs (INV-REQ-912 b1-b3, INV-REQ-913): under a CONSENT grant the live consent must
+ * list it; null decides on the grant and a live consent alone. service-runtime holds no action-to-item
+ * catalogue (INV-Q-3734).
+ */
 data class AuthorizationRequest(
     val tenant: TenantId,
     val principal: Principal,
     val entityRef: String,
     val action: String,
+    val resourcePeriod: DateSpan? = null,
+    val requiredScopeItem: ConsentScopeItem? = null,
 )
 
 enum class DecisionSource { LOCAL, FALLBACK, DEGRADED }
 
-enum class DecisionReason { GRANTED, NO_GRANT, REVOKED, AUTHORITY_UNAVAILABLE, MACHINE_FLOW_CONTINUES }
+enum class DecisionReason {
+    GRANTED,
+    NO_GRANT,
+    REVOKED,
+    NO_LIVE_CONSENT,
+    CONSENT_SCOPE_MISSING,
+    AUTHORITY_UNAVAILABLE,
+    MACHINE_FLOW_CONTINUES,
+}
 
 data class AuthorityDecision(
     val allowed: Boolean,
@@ -64,10 +218,25 @@ data class AuthorityVerdict(val allowed: Boolean)
 
 fun interface AuthorityFallback : ReplicaFallback<AuthorizationRequest, AuthorityVerdict>
 
+/** A principal record as held: the voiding version, and the state (null: voided by an event without state). */
+data class PrincipalRevocation(val state: PrincipalState?, val revocationVersion: Long)
+
 /**
- * The authority replica (INV-REQ-1201), fed by `AuthorityChanged`.
+ * The authority replica (INV-REQ-1201), fed by `AuthorityChanged` (INV-Q-3322 (b)). It holds three kinds of
+ * record, each replaced whole and versioned on its own key:
+ *  - grant records per (tenant, principal, entityRef); an empty grant list is kept as a tombstone;
+ *  - consent records per (tenant, client entityRef); a CONSENT grant decides only with a live one, so a
+ *    withdrawal takes effect at the next check with no grant event (INV-REQ-865);
+ *  - principal records per (tenant, principal), whose version voids every grant record of that principal
+ *    with a lower version, so a reinstated principal gets no old grant back.
+ * A change at or below the version held for its key is ignored. An event without a record is never kept:
+ * the replica drops every grant record it holds for that principal (each key keeps its version as a
+ * tombstone, so versions never go backwards) and voids lower versions as a principal record would, so a
+ * lost revoke cannot leave a grant live; no entry means deny (INV-REQ-1214).
+ *
+ * Decisions:
  *  - lag at most [lagBound] (default one second): decided locally;
- *  - lag above it, or never in contact: one synchronous call to `access-svc`;
+ *  - lag above it, or no version received yet: one synchronous call to `access-svc`;
  *  - that call fails too: a human or consent-derived agent action is denied, a
  *    machine flow continues. A submission is never denied for want of a decision
  *    (machine tokens are verified offline at the gateway; INV-NOTE-3 §18.6).
@@ -80,13 +249,24 @@ class AuthorityReplica(
     val lagBound: Duration = DEFAULT_LAG_BOUND,
     private val fallback: ReplicaFallback<AuthorizationRequest, AuthorityVerdict>? = null,
 ) : ReplicaFeedSink<AuthorityChanged> {
-    val replica = EventFedReplica<AuthorityKey, PrincipalAuthority>("authority", clock, lagBound = lagBound)
+    /** One feed, so one lag for all three record kinds. */
+    val tracker = ReplicaLagTracker(clock)
+    val grants = EventFedReplica<AuthorityKey, GrantState>("authority-grant", clock, lagBound, tracker = tracker)
+    val consents =
+        EventFedReplica<ConsentKey, AuthorityRecord.ConsentRecord>(
+            "authority-consent",
+            clock,
+            lagBound,
+            tracker = tracker,
+        )
+    val principals =
+        EventFedReplica<PrincipalKey, PrincipalRevocation>("authority-principal", clock, lagBound, tracker = tracker)
 
     fun decide(
         request: AuthorizationRequest,
         deadline: Deadline,
     ): AuthorityDecision {
-        if (replica.lag().isWithin(lagBound)) return decideLocally(request)
+        if (tracker.lag().isWithin(lagBound)) return decideLocally(request)
         return when (val answer = fallback?.fetch(request, deadline) ?: FallbackResult.Unavailable) {
             is FallbackResult.Found ->
                 AuthorityDecision(
@@ -102,18 +282,59 @@ class AuthorityReplica(
     }
 
     private fun decideLocally(request: AuthorizationRequest): AuthorityDecision {
-        val held = replica.peek(AuthorityKey(request.tenant, request.principal.id))
+        val held = grants.peek(AuthorityKey(request.tenant, request.principal.id, request.entityRef))
+        val voidBelow = principals.peek(PrincipalKey(request.tenant, request.principal.id))?.revocationVersion
         val now = clock.instant()
+        val covering = held?.grants.orEmpty().filter { it.covers(request.action, now, request.resourcePeriod) }
         return when {
-            held == null -> AuthorityDecision(false, DecisionSource.LOCAL, DecisionReason.NO_GRANT)
+            held == null -> local(DecisionReason.NO_GRANT)
 
-            held.revoked -> AuthorityDecision(false, DecisionSource.LOCAL, DecisionReason.REVOKED)
+            voidBelow != null && held.authorityVersion < voidBelow -> local(DecisionReason.REVOKED)
 
-            held.grants.any { it.covers(request.entityRef, request.action, now) } ->
-                AuthorityDecision(true, DecisionSource.LOCAL, DecisionReason.GRANTED)
+            covering.any { it.scopeLevel != ScopeLevel.CONSENT } -> local(DecisionReason.GRANTED)
 
-            else -> AuthorityDecision(false, DecisionSource.LOCAL, DecisionReason.NO_GRANT)
+            covering.isEmpty() -> local(DecisionReason.NO_GRANT)
+
+            consents.peek(ConsentKey(request.tenant, request.entityRef))
+                ?.let { it.isLiveAt(now) && it.lists(request.requiredScopeItem) } == true ->
+                local(DecisionReason.GRANTED)
+
+            consents.peek(ConsentKey(request.tenant, request.entityRef))?.isLiveAt(now) == true ->
+                local(DecisionReason.CONSENT_SCOPE_MISSING)
+
+            else -> local(DecisionReason.NO_LIVE_CONSENT)
         }
+    }
+
+    /**
+     * The entities on which [principalId] holds a grant in [tenant] now: the end-user principal's entity set
+     * (INV-Q-3716, INV-REQ-1202 b4). A grant record voided by a principal record is not held; an entity counts
+     * when one of its grants has a recognised scope level, is inside its validity window and, for a CONSENT
+     * grant, has a live consent (INV-REQ-865). The period of an ENTITY_PERIOD grant is checked per decision.
+     */
+    fun heldEntities(
+        tenant: TenantId,
+        principalId: String,
+    ): Set<String> {
+        val voidBelow = principals.peek(PrincipalKey(tenant, principalId))?.revocationVersion ?: Long.MIN_VALUE
+        val now = clock.instant()
+        return grants
+            .heldWhere { it.tenant == tenant && it.principalId == principalId }
+            .filter { (key, state) ->
+                val consentLive by lazy { consents.peek(ConsentKey(tenant, key.entityRef))?.isLiveAt(now) == true }
+                state.authorityVersion >= voidBelow &&
+                    state.grants.any {
+                        it.isValidAt(now) && it.scopeLevel != ScopeLevel.UNKNOWN &&
+                            (it.scopeLevel != ScopeLevel.CONSENT || consentLive)
+                    }
+            }
+            .keys
+            .mapTo(mutableSetOf()) { it.entityRef }
+    }
+
+    private fun local(reason: DecisionReason): AuthorityDecision {
+        val allowed = reason == DecisionReason.GRANTED
+        return AuthorityDecision(allowed, DecisionSource.LOCAL, reason)
     }
 
     private fun degraded(principal: Principal): AuthorityDecision = if (principal.kind == PrincipalKind.MACHINE) {
@@ -123,22 +344,45 @@ class AuthorityReplica(
     }
 
     override fun accept(event: AuthorityChanged) {
-        val key = AuthorityKey(event.tenant, event.principalId)
-        val authority = event.authority
-        if (authority == null) {
-            replica.apply(ReplicaChange.Remove(key, event.authorityVersion))
-        } else {
-            replica.apply(ReplicaChange.Upsert(key, authority, event.authorityVersion))
+        val version = event.authorityVersion
+        when (val record = event.record) {
+            is AuthorityRecord.GrantRecord -> {
+                val key = AuthorityKey(event.tenant, event.principalId, record.entityRef)
+                if (record.grants.isEmpty()) {
+                    grants.apply(ReplicaChange.Remove(key, version))
+                } else {
+                    grants.apply(ReplicaChange.Upsert(key, GrantState(record.grants, version), version))
+                }
+            }
+
+            is AuthorityRecord.ConsentRecord ->
+                consents.apply(ReplicaChange.Upsert(ConsentKey(event.tenant, record.clientEntityRef), record, version))
+
+            is AuthorityRecord.PrincipalRecord -> revoke(event, record.state)
+
+            null -> {
+                revoke(event, null)
+                grants.tombstoneIf { it.tenant == event.tenant && it.principalId == event.principalId }
+            }
         }
     }
 
-    override fun observeHead(version: Long) = replica.tracker.observeHead(version)
+    private fun revoke(
+        event: AuthorityChanged,
+        state: PrincipalState?,
+    ) {
+        val key = PrincipalKey(event.tenant, event.principalId)
+        val version = event.authorityVersion
+        principals.apply(ReplicaChange.Upsert(key, PrincipalRevocation(state, version), version))
+    }
 
-    override fun onSnapshotComplete(version: Long) = replica.tracker.onSnapshotComplete(version)
+    override fun observeHead(version: Long) = tracker.observeHead(version)
 
-    override fun onDisconnected() = replica.tracker.onDisconnected()
+    override fun onSnapshotComplete(version: Long) = tracker.onSnapshotComplete(version)
 
-    fun lag(): Lag = replica.lag()
+    override fun onDisconnected() = tracker.onDisconnected()
+
+    fun lag(): Lag = tracker.lag()
 
     companion object {
         /** INV-REQ-1201: lag at most one second is decided locally. */

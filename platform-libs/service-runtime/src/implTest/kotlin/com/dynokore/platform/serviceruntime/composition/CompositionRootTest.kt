@@ -55,6 +55,7 @@ import com.dynokore.platform.serviceruntime.binding.SecretStore
 import com.dynokore.platform.serviceruntime.connection.ConnectionStatusReporter
 import com.dynokore.platform.serviceruntime.connection.OutboxConnectionStatusReporter
 import com.dynokore.platform.serviceruntime.events.EvidenceArtefactRecorder
+import com.dynokore.platform.serviceruntime.http.IdempotencyKeyPurgeJob
 import com.dynokore.platform.serviceruntime.http.IdempotencyStore
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.jobs.DeadlineSource
@@ -71,6 +72,7 @@ import com.dynokore.platform.tenancykernel.TenantContextImpl
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
 import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.matchers.types.shouldBeSameInstanceAs
@@ -78,9 +80,9 @@ import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.mockk
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.EnumSource
-import org.junit.jupiter.api.io.TempDir
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.test.context.FilteredClassLoader
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
@@ -132,7 +134,7 @@ class CompositionRootTest {
             dataSource(ServiceDataSources.WORKER),
             setOf(
                 OutboxRelay::class, LaneRateLimiter::class, WorkQueue::class, DeadLetterTriage::class, RetentionPurge::class,
-                StalenessMonitor::class, InboxConsumer::class, ReplayDelivery::class, JobCommands::class, IdempotencyStore::class,
+                StalenessMonitor::class, InboxConsumer::class, ReplayDelivery::class, JobCommands::class, IdempotencyStore::class, IdempotencyKeyPurgeJob::class,
             ),
         ),
         EVENT_LOG_RELAY_DATA_SOURCE(dataSource(ServiceDataSources.EVENT_LOG_RELAY), setOf(EventBinding::class, OutboxRelay::class)),
@@ -143,8 +145,14 @@ class CompositionRootTest {
             { it.withBean(EventCatalogue::class.java, { EventCatalogue(listOf(CatalogueEntry("SubmissionFailed", "submission", setOf("submission-svc"), contentTopic = false))) }) },
             // without an outbox the service gets the local audit writer instead
             setOf(
-                OutboxWriter::class, EventLogPurge::class, StalenessMonitor::class, ConnectionStatusReporter::class,
-                EvidenceArtefactRecorder::class, JobCommands::class, IdempotencyStore::class,
+                OutboxWriter::class,
+                EventLogPurge::class,
+                StalenessMonitor::class,
+                ConnectionStatusReporter::class,
+                EvidenceArtefactRecorder::class,
+                JobCommands::class,
+                IdempotencyStore::class,
+                IdempotencyKeyPurgeJob::class,
             ),
         ),
         RETENTION({ it.withBean(Retention::class.java, { Retention() }) }, setOf(RetentionPurge::class, EventLogPurge::class)),
@@ -168,15 +176,15 @@ class CompositionRootTest {
         S3_CLIENT({ it.withBean(S3Client::class.java, { mockk<S3Client>(relaxed = true) }) }, setOf(ObjectStore::class)),
         JOB_COMMAND_AUTHORIZER(
             { it.withBean(JobCommandAuthorizer::class.java, { mockk<JobCommandAuthorizer>(relaxed = true) }) },
-            setOf(JobCommands::class, IdempotencyStore::class),
+            setOf(JobCommands::class, IdempotencyStore::class, IdempotencyKeyPurgeJob::class),
         ),
         DEADLINE_SOURCE(
             { it.withBean(DeadlineSource::class.java, { mockk<DeadlineSource>(relaxed = true) }) },
-            setOf(JobCommands::class, IdempotencyStore::class),
+            setOf(JobCommands::class, IdempotencyStore::class, IdempotencyKeyPurgeJob::class),
         ),
         END_USER_PRINCIPAL_RESOLVER(
             { it.withBean(EndUserPrincipalResolver::class.java, { EndUserPrincipalResolver { null } }) },
-            setOf(IdempotencyStore::class),
+            setOf(IdempotencyStore::class, IdempotencyKeyPurgeJob::class),
         ),
         BASE_LICENCE_CHECK(
             { it.withBean("baseLicenceCheck", LicenceCheck::class.java, { LicenceCheck { LicenceStatus.entries.first() } }) },
@@ -188,7 +196,7 @@ class CompositionRootTest {
             setOf(
                 OutboxWriter::class, AuditWriter::class, AuditedOperations::class, OverrideService::class, PolicyWriter::class,
                 OperationRunner::class, ConnectionStatusReporter::class, EvidenceArtefactRecorder::class, JobCommands::class,
-                IdempotencyStore::class,
+                IdempotencyStore::class, IdempotencyKeyPurgeJob::class,
             ),
         ),
         SCHEMA(
@@ -198,7 +206,7 @@ class CompositionRootTest {
                 LaneRateLimiter::class, WorkQueue::class, DeadLetterTriage::class, RetentionPurge::class, StalenessMonitor::class,
                 ReplayDelivery::class, PolicyReader::class, PolicyHistory::class, ConfigPurge::class, ResolutionRecorder::class,
                 PolicyWriter::class, EvidenceLedger::class, LegalHoldRegistry::class, OperationRunner::class,
-                ConnectionStatusReporter::class, EvidenceArtefactRecorder::class, JobCommands::class, IdempotencyStore::class,
+                ConnectionStatusReporter::class, EvidenceArtefactRecorder::class, JobCommands::class, IdempotencyStore::class, IdempotencyKeyPurgeJob::class,
             ),
         ),
         LEDGER_TABLE({ it.withPropertyValues("service-runtime.modules.evidence.ledger-table=evidence_ledger") }, setOf(EvidenceLedger::class)),
@@ -259,7 +267,25 @@ class CompositionRootTest {
             context.getBean(EvidenceArtefactRecorder::class.java)
             context.getBean(JobCommands::class.java).shouldBeInstanceOf<JobRuntime>()
             context.getBean(IdempotencyStore::class.java)
+            context.getBean(IdempotencyKeyPurgeJob::class.java).definition.name shouldBe "idempotency-key-purge"
+            context.getBean(JobRuntime::class.java).registered().map { it.name } shouldBe listOf("idempotency-key-purge")
             context.getBeansOfType(ServletRegistrationBean::class.java).size shouldBe 1
+        }
+    }
+
+    @Test
+    fun `the API-15 key retention is per installation, 24 hours by default, and a shorter one is refused at start-up`(
+        @TempDir mountRoot: Path,
+    ) {
+        base.withServiceInputs(mountRoot).run { context ->
+            context.getBean(IdempotencyStore::class.java).retention shouldBe Duration.ofHours(24)
+        }
+        base.withServiceInputs(mountRoot).withPropertyValues("service-runtime.idempotency.retention=P3D").run { context ->
+            context.getBean(IdempotencyStore::class.java).retention shouldBe Duration.ofDays(3)
+        }
+        base.withServiceInputs(mountRoot).withPropertyValues("service-runtime.idempotency.retention=PT23H").run { context ->
+            val failure = context.startupFailure.shouldNotBeNull()
+            generateSequence<Throwable>(failure) { it.cause }.any { it.message?.contains("at least 24 hours") == true } shouldBe true
         }
     }
 

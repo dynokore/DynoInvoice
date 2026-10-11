@@ -6,6 +6,64 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-10-12
+### Changed (breaking: 2.x -> 3.0.0; no consumer exists yet, product-runtime binds these in INV-T-2876)
+- `AuthorityReplica` keys grant state per (tenant, principal, entityRef) (INV-Q-3322 (b), INV-T-3335).
+  `AuthorityKey` gains `entityRef`. `AuthorityChanged` carries `authorityVersion` and one `AuthorityRecord`:
+  a `GrantRecord` (one entity's grants, replaced whole and held with its version as `GrantState`; an empty
+  list is a tombstone), a `ConsentRecord` per (tenant, client entityRef) (a CONSENT grant decides only with
+  a live consent, so a withdrawal denies at the next check with no grant event; INV-REQ-853, INV-REQ-865,
+  INV-Q-3136), or a `PrincipalRecord` (deleted or revoked: voids every grant record of the principal with a
+  lower version, so a reinstated principal gets no old grant back). A change at or below the version held
+  for its key is ignored. An event with no record is never kept: the principal's grant records are dropped (each key keeps
+  its version as a tombstone),
+  lower versions voided, and decisions deny (INV-REQ-1214). `PrincipalAuthority` is removed.
+- `Grant` loses `entityRef` (the record's key) and gains `scopeLevel` (`ScopeLevel`: TENANT, GROUP, ENTITY,
+  ENTITY_PERIOD, CONSENT; an unrecognised wire value is UNKNOWN and matches nothing), `scopeRef`, and for
+  ENTITY_PERIOD the granted period as a date span (`periodFrom`, `periodTo`). `AuthorizationRequest` gains
+  `resourcePeriod` (`DateSpan`), the GST accounting period acted on; an ENTITY_PERIOD grant matches only
+  when the whole period lies inside its span, checked apart from the validity window, and never without a
+  period; an ENTITY grant covers every period (INV-Q-3339 (a), INV-REQ-864 b1, INV-AC-1911).
+  `DecisionReason` gains `NO_LIVE_CONSENT` and `CONSENT_SCOPE_MISSING`.
+- `AuthorizationRequest` gains an optional `requiredScopeItem` (`ConsentScopeItem`, the VP-10 keys), set by the
+  owning service: under a CONSENT grant the live consent must list it, an unknown item never matches, and a
+  request without it is decided on the grant and a live consent alone; `ConsentRecord.scopeItems` is a
+  `Set<ConsentScopeItem>` (INV-Q-3734, INV-REQ-912, INV-REQ-913, INV-AC-1946).
+- `StructureReplica` replaces whole nodes from either structure event or a `getEntityStructure` fill,
+  instead of merging deltas (INV-Q-3324 (a)). `StructureNode` is the full node state (kind, parentRef,
+  retired, name, code, effective-dated `ProfileEntry` list, structureVersion); `attribute(name, onDate)`
+  serves a profile attribute by its effective date. `OrganisationStructureChanged` and
+  `EntityProfileChanged` carry the node; `StructureChange` gains UPDATED and UNKNOWN, and every changeType
+  applies the full node (INV-Q-3337). `StructureNodeKind` gains UNKNOWN.
+- `EventFedReplica` takes an optional `versionOf`: a fill then keeps its returned version and never
+  overwrites a newer state held; it also gains `tombstoneIf`, which drops values but keeps each key's
+  version, so versions never go backwards.
+
+- Removed: service-runtime's placeholder `binding.EventBinding`. It had no implementation, and outbox-and-queue's
+  `EventBinding` (implementation `PostgresEventBinding`) is the one §12.1 EventBinding, bound by the composition
+  root (coordinator ruling INV-Q-3775). No consumer existed.
+
+### Added
+- The default `EndUserPrincipalResolver`, `JwtEndUserPrincipalResolver` (owner ruling INV-Q-3716, INV-REQ-1202 b4;
+  port from INV-T-2875). It verifies the end-user token against the `IdentityProvider` binding's issuer
+  (signature, issuer, expiry, and the audience `service-runtime.end-user-identity.audience`). It reads `sub` as
+  the actor and `tenant_id` as the tenant; a platform operator has no tenant and no entities. The entity set is
+  `AuthorityReplica.heldEntities`: the entities where the principal holds a grant that is currently valid and
+  not voided, with a recognised scope and, for CONSENT, a live consent. A missing or invalid token, or an
+  unreadable `tenant_id`, resolves to null (401). It is wired in `ServiceRuntimeConfiguration` through
+  `EndUserIdentityAutoConfiguration` when an `IdentityProvider` is bound, with `@ConditionalOnMissingBean`.
+  `EventFedReplica` gains `heldWhere`.
+- During authority replica catch-up (lag above the bound, or no version yet), `EndUserPrincipal.entitySetCurrent`
+  is false. The job-command servlet's entity check then asks `AuthorityReplica.decide`, which goes to the
+  access-svc fallback, for `job.operate` on that entity (§22.3, FR-AG.64). It is never refused for an empty set
+  and never skipped; it is denied only when the fallback refuses or fails (coordinator rulings INV-Q-3771,
+  INV-Q-3782).
+- If the token issuer is unreachable, tokens keep verifying against the last keys obtained (`LastKnownKeySource`).
+  When no cached key verifies a token, the resolver throws `TokenIssuerUnavailableException`, and the job-command
+  servlet answers 503 with the new `ClosedErrorCode.ISSUER_UNAVAILABLE` (SRT-011), never 401 or 500 (coordinator
+  ruling INV-Q-3773). SRT-011's catalogue row comes with INV-T-3762; until that pin moves, `ProblemsTest` lists the
+  code as pending.
+
 ## [2.2.0] - 2026-10-12
 ### Added
 - Platform events (INV-REQ-1226, INV-REQ-1163; INV-T-2875): `PlatformEventTypes` (the seven platform types and
@@ -33,6 +91,12 @@ train is its own (README.md: "own version and changelog").
   `ClosedErrorCode` SRT-001..SRT-010 at theirs (owner ruling INV-Q-3720, INV-REQ-827 b3), so no response is
   code-less. `IdempotencyStore` and `IdempotencySchema.ddl` keep API-15 keys per (tenant, principal) for at
   least 24 hours: a replay returns the stored response, a different body 422, a request in flight 409.
+  Every coded response carries `type` `https://errors.invoice.internal/<code>` (API-20, coordinator ruling
+  INV-Q-3796; the host is the one constant `Problems.ERROR_TYPE_HOST`, pending owner question INV-Q-3800). The
+  auto-configured store gets the worker role, and `IdempotencyKeyPurgeJob` registers `idempotency-key-purge` in
+  the service's `JobRuntime`: hourly, under ShedLock, deleting expired keys in batches on the worker role; key
+  retention `service-runtime.idempotency.retention` is per installation, default 24 hours, and a shorter one is
+  refused at start-up (coordinator ruling INV-Q-3798).
   `JobCommandHttpAutoConfiguration` registers them when the service has `JobCommands`, an
   `EndUserPrincipalResolver`, a `TenantScope` and a `DataSource` (`service-runtime.idempotency.schema`).
 - The L1 composition root (INV-MOD-2371, TPL-18; coordinator rulings INV-Q-3710, INV-Q-3730, INV-Q-3732):
