@@ -29,7 +29,7 @@ class QueueKit(
     consumer: String? = null,
 ) {
     val kit = harness.submission
-    val limiter = LaneRateLimiter(harness.fixture.workerDataSource(), "submission", limits)
+    val limiter = LaneRateLimiter(harness.fixture.workerDataSource(), "submission", limits, clock)
     val scope = TenantScope(kit.tenants, kit.boundary, kit.boundary)
     val queue = JdbcWorkQueue(harness.fixture.workerDataSource(), scope, "submission", limiter, clock, consumer)
 
@@ -39,16 +39,6 @@ class QueueKit(
         lane: Lane,
         payload: String = """{"n":1}""",
     ): Long = kit.inTx(tenant) { queue.enqueue(QueueEntry(partition, lane, payload)) }
-
-    /**
-     * Ends every lane's current rate-limit window. The windows run on the database clock, which the test cannot move,
-     * so it moves the stored window starts back by a day instead.
-     */
-    fun endRateWindows() {
-        harness.fixture.runAsAdmin(
-            "update submission.lane_rate_window set window_start = window_start - interval '1 day'",
-        )
-    }
 
     /** Claims, completes and returns the lane and partition of each item, until nothing is claimable. */
     fun drain(): List<ClaimedItem> = buildList {

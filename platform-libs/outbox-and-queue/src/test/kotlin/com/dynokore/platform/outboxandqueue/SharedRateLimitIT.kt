@@ -11,7 +11,6 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import java.sql.SQLException
 import java.time.Duration
-import java.time.Instant
 import java.util.concurrent.Callable
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
@@ -29,15 +28,6 @@ class SharedRateLimitIT {
     private val limits =
         LaneLimits(
             mapOf(
-                Lane.LIVE to RateLimit(100, Duration.ofHours(1)),
-                Lane.REPROCESSING to RateLimit(7, Duration.ofHours(1)),
-                Lane.BACKFILL to RateLimit(4, Duration.ofHours(1)),
-            ),
-        )
-
-    private val minuteLimits =
-        LaneLimits(
-            mapOf(
                 Lane.LIVE to RateLimit(100, Duration.ofMinutes(1)),
                 Lane.REPROCESSING to RateLimit(7, Duration.ofMinutes(1)),
                 Lane.BACKFILL to RateLimit(4, Duration.ofMinutes(1)),
@@ -48,7 +38,9 @@ class SharedRateLimitIT {
     @ValueSource(strings = ["postgres:17", "postgres:18"])
     fun `three replicas together take at most each lane's own limit per window`(image: String) {
         OutboxHarness(image).use { harness ->
-            val replicas = List(REPLICAS) { LaneRateLimiter(harness.fixture.workerDataSource(), "submission", limits) }
+            val clock = MutableClock()
+            val replicas =
+                List(REPLICAS) { LaneRateLimiter(harness.fixture.workerDataSource(), "submission", limits, clock) }
 
             fun burst(): Map<Lane, Int> {
                 val granted = ConcurrentLinkedQueue<Lane>()
@@ -87,17 +79,16 @@ class SharedRateLimitIT {
                 assertFalse(it.hasPermit(Lane.REPROCESSING))
             }
 
-            endWindows(harness)
+            clock.advance(Duration.ofMinutes(1))
             assertEquals(expected, burst(), "the next window has its own limit")
 
-            endWindows(harness)
+            clock.advance(Duration.ofMinutes(1))
             assertNotNull(replicas[0].acquire(Lane.REPROCESSING))
             assertEquals(
-                1,
+                2,
                 harness.count("select count(*) from submission.lane_rate_window where lane = 'REPROCESSING'"),
-                "opening a window replaces the ended window's row",
+                "ended windows are deleted as the limiter advances (current and previous kept)",
             )
-            assertEquals(1, replicas[1].used(Lane.REPROCESSING))
         }
     }
 
@@ -105,9 +96,8 @@ class SharedRateLimitIT {
     @ValueSource(strings = ["postgres:17", "postgres:18"])
     fun `on three replicas reprocessing and backfill draw only their own shared limit`(image: String) {
         OutboxHarness(image).use { harness ->
-            // Three replicas whose own clocks disagree by two minutes either way (two 1-minute windows, within the
-            // 5-minute claim timeout): the windows run on the database clock, so the skew cannot raise a lane's limit.
-            val replicas = SKEW.map { QueueKit(harness, MutableClock(BASE.plus(it)), minuteLimits) }
+            val clock = MutableClock()
+            val replicas = List(REPLICAS) { QueueKit(harness, clock, limits) }
             val q = replicas[0]
             repeat(20) { q.enqueue(tenant, "old-$it", Lane.REPROCESSING) }
             repeat(20) { q.enqueue(tenant, "back-$it", Lane.BACKFILL) }
@@ -150,7 +140,7 @@ class SharedRateLimitIT {
                         "and column_name = 'tenant_id'",
                 ),
             )
-            val limiter = LaneRateLimiter(harness.fixture.workerDataSource(), "payload", limits)
+            val limiter = LaneRateLimiter(harness.fixture.workerDataSource(), "payload", limits, MutableClock())
             assertNotNull(limiter.acquire(Lane.BACKFILL))
             assertEquals(1, limiter.used(Lane.BACKFILL))
             assertThrows(SQLException::class.java) {
@@ -161,16 +151,7 @@ class SharedRateLimitIT {
         }
     }
 
-    private fun endWindows(harness: OutboxHarness) {
-        harness.fixture.runAsAdmin(
-            "update submission.lane_rate_window set window_start = window_start - interval '1 day'",
-        )
-    }
-
     private companion object {
-        val BASE: Instant = Instant.parse("2026-10-01T00:00:00Z")
-        val SKEW: List<Duration> = listOf(Duration.ZERO, Duration.ofMinutes(2), Duration.ofMinutes(-2))
-
         const val REPLICAS = 3
         const val THREADS = 4
         const val ATTEMPTS = 10

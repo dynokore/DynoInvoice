@@ -130,9 +130,9 @@ class WorkQueueIT {
             val limits =
                 LaneLimits(
                     mapOf(
-                        Lane.LIVE to RateLimit(100, Duration.ofHours(1)),
-                        Lane.REPROCESSING to RateLimit(2, Duration.ofHours(1)),
-                        Lane.BACKFILL to RateLimit(1, Duration.ofHours(1)),
+                        Lane.LIVE to RateLimit(100, Duration.ofMinutes(1)),
+                        Lane.REPROCESSING to RateLimit(2, Duration.ofMinutes(1)),
+                        Lane.BACKFILL to RateLimit(1, Duration.ofMinutes(1)),
                     ),
                 )
             val q = QueueKit(harness, limits = limits)
@@ -146,7 +146,7 @@ class WorkQueueIT {
             assertEquals(1, q.limiter.used(Lane.BACKFILL))
             assertNull(q.queue.claimNext(), "both background lanes are used up for this window")
 
-            q.endRateWindows()
+            q.clock.advance(Duration.ofMinutes(1))
             val window2 = q.drain().map { it.lane }
             assertEquals(listOf(Lane.REPROCESSING, Lane.REPROCESSING, Lane.BACKFILL), window2)
 
@@ -161,7 +161,7 @@ class WorkQueueIT {
     @ValueSource(strings = ["postgres:17", "postgres:18"])
     fun `a lane out of permits is skipped without blocking the lanes below`(image: String) {
         OutboxHarness(image).use { harness ->
-            val limits = LaneLimits(mapOf(Lane.LIVE to RateLimit(1, Duration.ofHours(1))))
+            val limits = LaneLimits(mapOf(Lane.LIVE to RateLimit(1, Duration.ofMinutes(1))))
             val q = QueueKit(harness, limits = limits)
             assertNull(q.queue.claimNext())
             assertEquals(0, q.limiter.used(Lane.LIVE), "an empty claim refunds its permit")

@@ -89,7 +89,7 @@ class DeadLetterReplayIT {
                     scope,
                     SubmissionFixtureHandler(kit.boundary, transport),
                 )
-            val limiter = LaneRateLimiter(harness.fixture.workerDataSource(), "submission", LaneLimits())
+            val limiter = LaneRateLimiter(harness.fixture.workerDataSource(), "submission", LaneLimits(), clock)
             val queue = JdbcWorkQueue(harness.fixture.workerDataSource(), scope, "submission", limiter, clock, consumer)
             return JdbcReplayDelivery(queue, scope, inbox)
         }

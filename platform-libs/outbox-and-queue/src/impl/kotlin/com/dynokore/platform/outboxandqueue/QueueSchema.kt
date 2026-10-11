@@ -13,7 +13,7 @@ import com.dynokore.platform.tenancykernel.TenantRlsMigration
  * [LANE_RATE_WINDOW] holds each lane's shared rate-limit count ([LaneRateLimiter], INV-Q-2966): lane, window start and
  * permits used. Limits are per lane, not per tenant, so it holds no tenant data and has no `tenant_id` and no RLS
  * (a documented CS-19 exception, as for `consumer_offset`). Only the worker role is granted access to it, never
- * `BYPASSRLS`. Opening a lane's next window replaces the row of its ended window, so nothing accumulates.
+ * `BYPASSRLS`. The limiter deletes the rows of ended windows as it advances, so nothing accumulates.
  */
 object QueueSchema {
     const val WORK_QUEUE = "work_queue"
@@ -80,7 +80,7 @@ object QueueSchema {
                 lane text not null check (lane in ($lanes)),
                 window_start timestamptz not null,
                 used int not null check (used >= 0),
-                primary key (lane)
+                primary key (lane, window_start)
             );
             comment on table $s.$LANE_RATE_WINDOW is
                 'Shared per-lane rate-limit windows (no tenant data; CS-19 exception, as consumer_offset)';
