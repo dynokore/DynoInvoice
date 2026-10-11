@@ -13,7 +13,8 @@ import javax.sql.DataSource
  *
  * - **Priority.** [claimNext] walks [Lane.entries] in order and serves a lane only when every earlier lane
  *   had nothing claimable. A lane whose own rate limit is used up is skipped, so it neither blocks nor
- *   is served: the lanes below it may use their own allowance (INV-REQ-1072).
+ *   is served: the lanes below it may use their own allowance (INV-REQ-1072). The allowance is shared by every
+ *   replica of the service ([LaneRateLimiter], INV-Q-2966).
  * - **Partition order.** An item is claimable only if no earlier item of its (tenant, partition key, lane,
  *   consumer) is still in the table, claimed or not. Within a lane, a document's items are therefore
  *   handled one at a time in enqueue order; across lanes the priority applies, so a live item never waits for
@@ -73,10 +74,10 @@ class JdbcWorkQueue(
 
     override fun claimNext(): ClaimedItem? {
         for (lane in Lane.entries) {
-            if (!limiter.tryAcquire(lane)) continue
+            val permit = limiter.acquire(lane) ?: continue
             val item = claimInLane(lane)
             if (item != null) return item
-            limiter.refund(lane) // nothing claimable: no AP call will follow, so no permit is spent
+            limiter.refund(permit) // nothing claimable: no AP call will follow, so no permit is spent
         }
         return null
     }

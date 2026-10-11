@@ -40,7 +40,11 @@ Infrastructure failures (`FailureClassifier.DEFAULT`: lost connection, timeout, 
 dependency) back off to the 5 min cap without using the 8 attempts and are dead-lettered after 24 h
 (`infrastructureGiveUp`). Override the policy and the classifier per consumer on `ConsumerSubscription`.
 
+Per-lane rate limits are shared by all replicas of a service from 1.7.0 (INV-Q-2966): `LaneRateLimiter` keeps each
+lane's window count in `lane_rate_window` (worker role only, no tenant data, no RLS). Existing schemas run
+`QueueSchema.upgradeTo170` in the service's migration.
+
 Not in 1.1.0: delivery retry with backoff, inbox retention (added in 1.3.0: `Retention`, `JdbcRetentionPurge`,
-`OutboxSchema.upgradeTo130`; existing schemas run `upgradeTo130` in the service's migration), rate limits shared across worker processes (each worker
-counts its own), exporting the staleness metric and raising the incident (the composition root's sink), and scheduling of the
+`OutboxSchema.upgradeTo130`; existing schemas run `upgradeTo130` in the service's migration), rate limits shared across worker processes
+(added in 1.7.0, see below), exporting the staleness metric and raising the incident (the composition root's sink), and scheduling of the
 loops (service-runtime).

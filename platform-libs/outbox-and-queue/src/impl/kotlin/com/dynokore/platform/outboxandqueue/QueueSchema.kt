@@ -9,9 +9,15 @@ import com.dynokore.platform.tenancykernel.TenantRlsMigration
  * `TO <worker>` and column grants limited to the claim columns (no payload), never `BYPASSRLS`. Finished items
  * are deleted, so every row is unfinished: `PENDING`, or `CLAIMED` by a worker that has not completed it.
  * A service's migration (TPL-12) embeds [ddl] beside [OutboxSchema.ddl].
+ *
+ * [LANE_RATE_WINDOW] holds each lane's shared rate-limit count ([LaneRateLimiter], INV-Q-2966): lane, window start and
+ * permits used. Limits are per lane, not per tenant, so it holds no tenant data and has no `tenant_id` and no RLS
+ * (a documented CS-19 exception, as for `consumer_offset`). Only the worker role is granted access to it, never
+ * `BYPASSRLS`. Opening a lane's next window replaces the row of its ended window, so nothing accumulates.
  */
 object QueueSchema {
     const val WORK_QUEUE = "work_queue"
+    const val LANE_RATE_WINDOW = "lane_rate_window"
 
     fun ddl(
         schema: String,
@@ -51,6 +57,35 @@ object QueueSchema {
                 on $s.$WORK_QUEUE to $worker;
             grant update (state, attempts, claimed_at) on $s.$WORK_QUEUE to $worker;
             grant select, insert, update, delete on $s.$WORK_QUEUE to $role;
+        """.trimIndent() + "\n" + laneRateWindow(s, worker)
+    }
+
+    /**
+     * Brings a schema of 1.6.0 or earlier to 1.7.0: the shared per-lane rate-limit table [LANE_RATE_WINDOW] and the
+     * worker's grants on it (additive; harmless to run again). Run once by the service's migration (TPL-12) before the
+     * 1.7.0 [LaneRateLimiter] starts; not needed for a schema created by [ddl].
+     */
+    fun upgradeTo170(
+        schema: String,
+        workerRole: String,
+    ): String = laneRateWindow(SqlIdentifier.require(schema, "schema"), SqlIdentifier.require(workerRole, "worker role"))
+
+    private fun laneRateWindow(
+        s: String,
+        worker: String,
+    ): String {
+        val lanes = Lane.entries.joinToString(", ") { "'${it.name}'" }
+        return """
+            create table if not exists $s.$LANE_RATE_WINDOW (
+                lane text not null check (lane in ($lanes)),
+                window_start timestamptz not null,
+                used int not null check (used >= 0),
+                primary key (lane)
+            );
+            comment on table $s.$LANE_RATE_WINDOW is
+                'Shared per-lane rate-limit windows (no tenant data; CS-19 exception, as consumer_offset)';
+            grant usage on schema $s to $worker;
+            grant select, insert, update, delete on $s.$LANE_RATE_WINDOW to $worker;
         """.trimIndent()
     }
 }

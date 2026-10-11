@@ -6,6 +6,25 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-11
+### Changed
+- Per-lane rate limits are shared by every replica of a service (INV-T-3003, Keel INV-Q-2966, INV-REQ-1072,
+  INV-AC-2097, INV-AC-2104): `LaneRateLimiter` counts each lane's fixed window in its row of the new
+  `lane_rate_window` table of the service's schema, with one atomic upsert per permit, so N replicas together take at
+  most the lane's `RateLimit.permits` per window (it was counted per worker process). The window is chosen by the
+  database clock (`now()`) in the statement that takes the permit, so replica clock skew cannot raise the limit; a
+  lane's window opens at its first permit. Give every replica the same `LaneLimits`. Reprocessing and backfill still
+  draw only on their own limit.
+- **API change:** `LaneRateLimiter(dataSource, schema, limits)` (was `(limits, clock)`; `dataSource` is the worker
+  role's); `tryAcquire(lane): Boolean` / `refund(lane)` are replaced by `acquire(lane): LanePermit?` /
+  `refund(permit)`, so a refund returns to the window the permit was taken from. A limit's window must be at least 1 ms.
+### Added
+- `lane_rate_window` (lane, window start, permits used): no tenant data, so no `tenant_id` and no RLS (CS-19
+  exception, as for `consumer_offset`); `SELECT, INSERT, UPDATE, DELETE` to the worker role only, never `BYPASSRLS`.
+  One row per lane: opening a lane's next window replaces the ended window's row, so nothing accumulates.
+  **Schema change: run `QueueSchema.upgradeTo170(schema, workerRole)` in the service's migration before starting
+  1.7.0** (additive and repeatable; new schemas get the table from `QueueSchema.ddl`).
+
 ## [1.6.0] - 2026-10-11
 ### Added
 - `EntityRef.TENANT_WIDE` (Keel INV-Q-3165, INV-T-3175, shaped like INV-Q-3014/3018): a reserved, never-issued
