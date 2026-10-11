@@ -6,6 +6,10 @@ import java.time.LocalDate
 /**
  * What the command knows about the events it emits (TPL-03 `EventContext`; FR-K.3).
  *
+ * A tenantless platform event (INV-Q-2927 option D) is written under `TenantId.PLATFORM` with
+ * [EntityRef.PLATFORM]; the two are always paired, so the platform tenant never carries a real entity
+ * and a real tenant never carries the platform entity.
+ *
  * @property aggregateKey the key events are ordered under; becomes the CloudEvents `subject`
  *   (the Doc UUID text where the event concerns a document, FR-AH.10: [docUuid], when given,
  *   must equal it, because the CloudEvents contract has no separate Doc UUID attribute).
@@ -29,5 +33,6 @@ data class EventContext(
             docUuid == null || aggregateKey == docUuid.toString(),
         ) { "a document-scoped event is keyed by its Doc UUID" }
         require(aggregateVersion == null || aggregateVersion >= 1) { "aggregate version starts at 1" }
+        require(tenant.isPlatform == entity.isPlatform) { PLATFORM_PAIR }
     }
 }

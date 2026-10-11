@@ -86,7 +86,7 @@ class JdbcDeadLetterTriage(
         tenant: TenantId,
         letter: DeadLetter,
         consumer: String,
-    ): Boolean = this.scope.tenants.bind(tenant) {
+    ): Boolean = this.scope.bind(tenant) {
         this.scope.transactions.inTransaction {
             this.scope.connections
                 .require()

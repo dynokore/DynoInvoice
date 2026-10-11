@@ -16,7 +16,7 @@ class JdbcReplayDelivery(
     override fun runOnce(): ReplayOutcome? {
         val item = queue.claimNext() ?: return null
         try {
-            return scope.tenants.bind(item.tenant) {
+            return scope.bind(item.tenant) {
                 scope.transactions.inTransaction {
                     val raw = mapper.readTree(queue.payloadOf(item)).get("raw").asString()
                     val outcome = inbox.applyReplayed(raw, item.tenant)
@@ -25,7 +25,7 @@ class JdbcReplayDelivery(
                 }
             }
         } catch (failure: Exception) {
-            scope.tenants.bind(item.tenant) { scope.transactions.inTransaction { queue.release(item) } }
+            scope.bind(item.tenant) { scope.transactions.inTransaction { queue.release(item) } }
             throw failure
         }
     }

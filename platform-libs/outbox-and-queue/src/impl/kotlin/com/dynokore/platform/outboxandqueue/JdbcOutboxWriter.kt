@@ -18,7 +18,9 @@ import java.time.temporal.ChronoUnit
  * transaction locks until it commits, so concurrent commands on one aggregate serialise and
  * their outbox rows are numbered, and committed, in sequence order. Both tables carry the mandatory
  * `tenant_id` under tenancy-kernel's row-level security, so a row can only be written for the tenant
- * bound to the transaction (ARC-21). The relay therefore
+ * bound to the transaction (ARC-21). A tenantless platform event is stored under tenancy-kernel's reserved
+ * `TenantId.PLATFORM` and [EntityRef.PLATFORM] (INV-Q-2927 option D), so `tenant_id` stays NOT NULL with
+ * forced RLS (CS-19); only platform types may be written so (INV-Q-3018). The relay therefore
  * preserves order per key by reading in outbox order (INV-REQ-1221).
  */
 class JdbcOutboxWriter(
@@ -45,6 +47,13 @@ class JdbcOutboxWriter(
         if (events.isEmpty()) return emptyList()
         // INV-AC-1869: refuse before anything is written, so one bad type leaves no partial batch.
         val entries = events.map { guard.require(it.type) }
+        // INV-Q-3018: under the reserved platform tenant only platform event types are written; a domain
+        // event always carries a real tenant (FR-K.3). Checked for the whole batch before any row.
+        if (context.tenant.isPlatform) {
+            events.firstOrNull { !Envelope.isPlatformType(it.type) }?.let {
+                throw EmissionNotPermitted(service, it.type, "a domain event cannot be written under the platform tenant")
+            }
+        }
         val connection = connections.require()
         val stamped = context.docUuid != null || context.aggregateVersion != null
         val first = if (stamped) reserveSequence(connection, context, events.size) else null

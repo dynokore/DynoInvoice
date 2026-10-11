@@ -33,6 +33,8 @@ dependencies {
         // audit-log), then product-runtime.
         api("com.dynokore.platform:service-runtime-api:${project(":service-runtime").version}") // INV-T-2871 / T27
         api("com.dynokore.platform:service-runtime:${project(":service-runtime").version}") // INV-T-2871 / T27
+        api("com.dynokore.platform:outbox-and-queue-api:${project(":outbox-and-queue").version}") // INV-T-2995 / FU-C1
+        api("com.dynokore.platform:outbox-and-queue:${project(":outbox-and-queue").version}") // INV-T-2995 / FU-C1
         api("com.dynokore.platform:rulepack-kernel-api:${project(":rulepack-kernel").version}") // INV-T-2866 / T22
         api("com.dynokore.platform:rulepack-kernel:${project(":rulepack-kernel").version}") // INV-T-2866 / T22
         api("com.dynokore.platform:tenancy-kernel-api:${project(":tenancy-kernel").version}") // INV-T-2861 / T17
@@ -41,6 +43,8 @@ dependencies {
         api("com.dynokore.platform:evidence-store:${project(":evidence-store").version}") // INV-T-2863 / T19
         api("com.dynokore.platform:adapter-runtime-api:${project(":adapter-runtime").version}") // INV-T-2862 / T18
         api("com.dynokore.platform:adapter-runtime:${project(":adapter-runtime").version}") // INV-T-2862 / T18
+        api("com.dynokore.platform:audit-log-api:${project(":audit-log").version}") // INV-T-2868 / T24, INV-T-2999
+        api("com.dynokore.platform:audit-log:${project(":audit-log").version}") // INV-T-2868 / T24, INV-T-2999
 
         // CVE-2026-65182, CVE-2026-65905, CVE-2026-68525: service-runtime (INV-T-2871 /
         // T27) is this repository's first module on Spring Boot 4.1.1, whose managed

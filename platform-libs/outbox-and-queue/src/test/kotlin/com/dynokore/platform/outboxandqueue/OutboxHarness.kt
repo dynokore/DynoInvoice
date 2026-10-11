@@ -1,5 +1,6 @@
 package com.dynokore.platform.outboxandqueue
 
+import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 
 /**
@@ -60,6 +61,33 @@ class OutboxHarness(image: String) : AutoCloseable {
                 statement.executeQuery().use {
                     it.next()
                     listOf(it.getBoolean(1), it.getBoolean(2))
+                }
+            }
+    }
+
+    /** The raw CloudEvents JSON of every record in the event-log table [logTable] (`eventlog.<table>`). */
+    fun wire(logTable: String): List<JsonNode> = fixture.adminDataSource().connection.use { connection ->
+        connection.createStatement().use { statement ->
+            statement.executeQuery("select envelope::text from $logTable order by log_offset").use { rows ->
+                generateSequence { if (rows.next()) mapper.readTree(rows.getString(1)) else null }.toList()
+            }
+        }
+    }
+
+    /** `is_nullable` of the `tenant_id` column of `schema.table`, as `information_schema` reports it. */
+    fun nullable(
+        schema: String,
+        table: String,
+    ): List<String> = fixture.adminDataSource().connection.use { connection ->
+        connection
+            .prepareStatement(
+                "select is_nullable from information_schema.columns " +
+                    "where table_schema = ? and table_name = ? and column_name = 'tenant_id'",
+            ).use { statement ->
+                statement.setString(1, schema)
+                statement.setString(2, table)
+                statement.executeQuery().use { rows ->
+                    generateSequence { if (rows.next()) rows.getString(1) else null }.toList()
                 }
             }
     }

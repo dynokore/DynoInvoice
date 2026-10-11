@@ -5,6 +5,18 @@ All notable changes to `tenancy-kernel` are recorded here (FR-L.6). Format follo
 train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
+
+## [1.1.0] - 2026-10-11
+### Added
+- `TenantId.PLATFORM`, the reserved platform tenant (the max UUID
+  `ffffffff-ffff-ffff-ffff-ffffffffffff`; Keel INV-Q-2927 option D, INV-Q-3012), and
+  `TenantId.isPlatform`. Never provisioned (tenancy-svc refuses it, in its own task).
+- `TenantId.fromClaim`: parses a tenant from a user or machine token claim and refuses the
+  reserved id, so no token can carry it (INV-Q-3016).
+- `PlatformTenantBinding.bindPlatform`, the only way to bind `TenantId.PLATFORM`, implemented by
+  `TenantContextImpl`; the composition root hands it only to platform work's adapters (CS-29).
+### Changed
+- `TenantContext.bind` refuses `TenantId.PLATFORM` with `IllegalArgumentException`.
 ### Fixed
 - `implJar`'s local output no longer collides on disk with the default `jar`
   task's (`tenancy-kernel-<version>.jar`, `build/libs/`): moved to its own

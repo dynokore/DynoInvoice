@@ -71,7 +71,7 @@ class JdbcOutboxRelay(
         return RelayOutcome(published, pending(claim), stalled)
     }
 
-    private fun publishOne(item: Claimed): Boolean = scope.tenants.bind(item.tenant) {
+    private fun publishOne(item: Claimed): Boolean = scope.bind(item.tenant) {
         scope.transactions.inTransaction {
             val row = read(item.seq) ?: return@inTransaction false
             binding.publish(row.topic, row.envelope)

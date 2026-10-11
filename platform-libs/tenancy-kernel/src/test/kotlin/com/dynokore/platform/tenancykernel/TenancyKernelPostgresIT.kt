@@ -36,6 +36,7 @@ class TenancyKernelPostgresIT {
             assertFindNeverReturnsAnotherTenantsRow(fixture, tenantA, tenantB)
             assertForeignTenantWriteIsRefused(fixture, tenantA, tenantB)
             assertLeakedContextNeverCrossesAPooledConnection(fixture, tenantA, tenantB)
+            assertPlatformRowsAreIsolatedLikeAnyTenant(fixture, tenantA)
         }
     }
 
@@ -69,6 +70,30 @@ class TenancyKernelPostgresIT {
             val rows = ProbeTable.selectAll(connection)
             assertTrue(rows.isEmpty(), "expected no rows visible with no tenant bound, got $rows")
         }
+    }
+
+    /**
+     * INV-Q-2927 option D: rows under the reserved platform tenant sit behind the same forced RLS as
+     * any tenant's (CS-19 unchanged), so neither side sees the other's rows.
+     */
+    private fun assertPlatformRowsAreIsolatedLikeAnyTenant(
+        fixture: PostgresProbeFixture,
+        tenantA: TenantId,
+    ) {
+        val tenants = TenantContextImpl()
+        val tx = TransactionRunnerImpl(fixture.appDataSource(), tenants)
+        fun insert(
+            tenant: TenantId,
+            value: String,
+        ) = tx.inTransaction { ProbeTable.insert(tx.require(), ProbeRow(UUID.randomUUID(), tenant, value)) }
+
+        fun values() = tx.inTransaction { ProbeTable.selectAll(tx.require()).map { it.value } }
+        tenants.bindPlatform { insert(TenantId.PLATFORM, "belongs-to-platform") }
+        tenants.bind(tenantA) { insert(tenantA, "belongs-to-a-too") }
+        val seenByA = tenants.bind(tenantA) { values() }
+        val seenByPlatform = tenants.bindPlatform { values() }
+        assertFalse("belongs-to-platform" in seenByA, "tenant A must never see a platform row, saw $seenByA")
+        assertEquals(listOf("belongs-to-platform"), seenByPlatform)
     }
 
     /** TPL-14's own tenant-probe template: insert as B, read as A, expect nothing. */

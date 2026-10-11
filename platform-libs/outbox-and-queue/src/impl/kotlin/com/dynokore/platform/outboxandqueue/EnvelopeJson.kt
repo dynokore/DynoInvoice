@@ -13,7 +13,9 @@ import java.util.UUID
  * The CloudEvents 1.0 structured-JSON form of an [Envelope] (API-40; platform-contracts
  * `cloud-event-envelope.schema.json`), as stored in the event log. Reading enforces the
  * FR-K.3 fields the contract schema leaves optional (ARC 4.2 step 1): a record that
- * fails is a [ContractViolation], never handed to a handler.
+ * fails is a [ContractViolation], never handed to a handler. A platform event under the reserved
+ * platform tenant travels without `tenantid` and `entityref`, and reads back as `TenantId.PLATFORM`
+ * and [EntityRef.PLATFORM] (INV-Q-2927 option D); no other event may omit them (INV-Q-3018).
  */
 class EnvelopeJson(
     private val mapper: ObjectMapper = ObjectMapper(),
@@ -28,8 +30,11 @@ class EnvelopeJson(
         node.put("subject", envelope.subject)
         node.put("time", envelope.time.toString())
         node.put("datacontenttype", JSON)
-        node.put("tenantid", envelope.tenant.toString())
-        node.put("entityref", envelope.entity.value)
+        // INV-Q-2927 option D: the reserved platform tenant and entity never go on the wire.
+        if (!envelope.tenant.isPlatform) {
+            node.put("tenantid", envelope.tenant.toString())
+            node.put("entityref", envelope.entity.value)
+        }
         envelope.transactionDate?.let { node.put("transactiondate", it.toString()) }
         envelope.docSequence?.let { node.put("docsequence", it) }
         node.put("instanceid", envelope.instanceId)
@@ -39,9 +44,20 @@ class EnvelopeJson(
         return mapper.writeValueAsString(node)
     }
 
-    /** The `tenantid` of [json] when it parses as a UUID, even if the record is otherwise invalid; `null` if not. */
+    /**
+     * The tenant of [json] even if the record is otherwise invalid: its `tenantid` when that parses as a
+     * UUID other than the reserved platform id; `TenantId.PLATFORM` when `tenantid` is absent and the type
+     * is a platform type (INV-Q-2927 option D); `null` otherwise.
+     */
     fun tenantOf(json: String): TenantId? = try {
-        mapper.readTree(json).get("tenantid")?.takeIf { it.isString }?.asString()?.let { TenantId.of(it) }
+        val node = mapper.readTree(json)
+        val text = node.get("tenantid")
+        when {
+            text == null && node.get("type")?.takeIf { it.isString }?.asString()?.let(Envelope::isPlatformType) == true ->
+                TenantId.PLATFORM
+
+            else -> text?.takeIf { it.isString }?.asString()?.let { TenantId.fromClaim(it) }
+        }
     } catch (_: tools.jackson.core.JacksonException) {
         null
     } catch (_: IllegalArgumentException) {
@@ -73,8 +89,8 @@ class EnvelopeJson(
         type = text(node, "type"),
         subject = text(node, "subject"),
         time = Instant.parse(text(node, "time")),
-        tenant = TenantId.of(text(node, "tenantid")),
-        entity = EntityRef(text(node, "entityref")),
+        tenant = tenantOf(node),
+        entity = if (node.has("tenantid")) EntityRef(text(node, "entityref")) else platformEntityOf(node),
         docUuid = docUuidOf(text(node, "subject")),
         transactionDate = optional(node, "transactiondate")?.let { LocalDate.parse(it) },
         docSequence = docSequence(node),
@@ -83,6 +99,24 @@ class EnvelopeJson(
         causation = CausationId(text(node, "causationid")),
         dataJson = mapper.writeValueAsString(node.get("data") ?: throw ContractViolation("data is missing")),
     )
+
+    // INV-Q-2927 option D, INV-Q-3018: an absent `tenantid` maps back to the reserved platform tenant, for a
+    // platform event type only; a domain event without one is a contract violation (FR-K.3). The reserved id
+    // itself never travels on the wire, so a record naming it is refused.
+    private fun tenantOf(node: ObjectNode): TenantId {
+        if (node.has("tenantid")) {
+            val tenant = TenantId.of(text(node, "tenantid"))
+            if (tenant.isPlatform) throw ContractViolation("tenantid must not name the reserved platform tenant")
+            return tenant
+        }
+        if (!Envelope.isPlatformType(text(node, "type"))) throw ContractViolation("tenantid is required")
+        return TenantId.PLATFORM
+    }
+
+    private fun platformEntityOf(node: ObjectNode): EntityRef {
+        if (node.has("entityref")) throw ContractViolation("a tenantless platform event carries no entityref")
+        return EntityRef.PLATFORM
+    }
 
     // The contract schema has no Doc UUID attribute: `subject` is the Doc UUID where the event concerns a document
     // (FR-K.3), and EventContext forces that, so a UUID subject is the Doc UUID.

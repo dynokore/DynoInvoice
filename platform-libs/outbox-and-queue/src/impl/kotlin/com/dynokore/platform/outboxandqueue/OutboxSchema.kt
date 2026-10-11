@@ -79,7 +79,7 @@ object OutboxSchema {
                 subject text not null,
                 tenant_id uuid not null,
                 last_value bigint not null,
-                primary key (consumer, source, subject)
+                primary key (consumer, tenant_id, source, subject)
             );
             create table $s.$CONSUMER_OFFSET (
                 consumer text not null,
@@ -135,6 +135,22 @@ object OutboxSchema {
                 add column if not exists note text,
                 add column if not exists replayed_to text;
             grant update (status, resolved_at, note, replayed_to) on $s.$DEAD_LETTER to $worker;
+        """.trimIndent()
+    }
+
+    /**
+     * Brings a 1.1.0 schema to 1.2.0: [CONSUMER_SEQUENCE] is keyed per tenant, `(consumer, tenant_id, source,
+     * subject)`, as the producer's [OUTBOX_SEQUENCE] counter is `(tenant_id, aggregate_key)`. Under 1.1.0's key
+     * two tenants' (or a tenant's and the platform's, INV-Q-2927) events with one source and subject collided,
+     * and the second upsert failed row-level security, stalling the consumer. Run once by the service's
+     * migration (TPL-12); not needed for a schema created by [ddl], and harmless on one.
+     */
+    fun upgradeTo120(schema: String): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        return """
+            alter table $s.$CONSUMER_SEQUENCE
+                drop constraint if exists ${CONSUMER_SEQUENCE}_pkey,
+                add primary key (consumer, tenant_id, source, subject);
         """.trimIndent()
     }
 }

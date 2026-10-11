@@ -12,8 +12,14 @@ package com.dynokore.platform.tenancykernel
  * virtual thread per request) MUST still call [bind] once per unit of work; it
  * always restores the prior value (or nothing) on the way out, so a forgotten
  * unbind is not a way for one tenant's context to leak into the next.
+ *
+ * Also the [PlatformTenantBinding]: [bind] refuses [TenantId.PLATFORM], and only
+ * [bindPlatform] binds it (INV-Q-2927). The composition root exposes this object
+ * as a [PlatformTenantBinding] only to platform work's adapters.
  */
-class TenantContextImpl : TenantContext {
+class TenantContextImpl :
+    TenantContext,
+    PlatformTenantBinding {
     private val current = ThreadLocal<TenantId>()
 
     override fun current(): TenantId = current.get()
@@ -23,6 +29,18 @@ class TenantContextImpl : TenantContext {
         )
 
     override fun <T> bind(
+        tenant: TenantId,
+        block: () -> T,
+    ): T {
+        require(!tenant.isPlatform) {
+            "The reserved platform tenant is bound only through PlatformTenantBinding (INV-Q-2927)."
+        }
+        return bound(tenant, block)
+    }
+
+    override fun <T> bindPlatform(block: () -> T): T = bound(TenantId.PLATFORM, block)
+
+    private fun <T> bound(
         tenant: TenantId,
         block: () -> T,
     ): T {

@@ -2,6 +2,7 @@ package com.dynokore.platform.outboxandqueue
 
 import com.dynokore.platform.tenancykernel.TenantId
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -76,5 +77,49 @@ class EnvelopeJsonTest {
     fun `topic table names are plain identifiers`() {
         assertEquals("gst_payload_payload_ready_v1", EventLogSchema.tableName("gst.payload.payload-ready.v1"))
         assertThrows(IllegalArgumentException::class.java) { EventLogSchema.tableName("gst.x; drop table y") }
+    }
+
+    private val platformEnvelope =
+        envelope.copy(
+            type = TestCatalogue.AUDIT_ENTRY_RECORDED,
+            subject = "job-1",
+            docUuid = null,
+            docSequence = 1,
+            tenant = TenantId.PLATFORM,
+            entity = EntityRef.PLATFORM,
+        )
+
+    @Test
+    fun `a platform envelope leaves tenantid and entityref off the wire and reads back as the platform`() {
+        val text = json.write(platformEnvelope)
+        assertFalse(text.contains("tenantid") || text.contains("entityref") || text.contains("ffffffff"), text)
+        assertEquals(platformEnvelope, json.read(text))
+        assertEquals(TenantId.PLATFORM, json.tenantOf(text))
+    }
+
+    @Test
+    fun `only a platform type may omit the tenant and the reserved ids never travel`() {
+        val tenantless =
+            json
+                .write(envelope)
+                .replace("\"tenantid\"", "\"xtenantid\"")
+                .replace("\"entityref\"", "\"xentityref\"")
+        assertThrows(ContractViolation::class.java) { json.read(tenantless) }
+        assertEquals(null, json.tenantOf(tenantless))
+        val named = json.write(envelope).replace(envelope.tenant.toString(), TenantId.PLATFORM.toString())
+        assertThrows(ContractViolation::class.java) { json.read(named) }
+        assertEquals(null, json.tenantOf(named))
+        val withEntity = json.write(platformEnvelope).replace("\"instanceid\"", "\"entityref\":\"e\",\"instanceid\"")
+        assertThrows(ContractViolation::class.java) { json.read(withEntity) }
+    }
+
+    @Test
+    fun `the platform tenant and the platform entity always go together`() {
+        assertThrows(IllegalArgumentException::class.java) { platformEnvelope.copy(entity = EntityRef("e")) }
+        assertThrows(IllegalArgumentException::class.java) { envelope.copy(entity = EntityRef.PLATFORM) }
+        assertThrows(IllegalArgumentException::class.java) { platformEnvelope.copy(type = TestCatalogue.PAYLOAD_READY) }
+        assertThrows(IllegalArgumentException::class.java) {
+            EventContext(TenantId.PLATFORM, EntityRef("e"), null, null, "k", null, CorrelationId("c"), CausationId("k"))
+        }
     }
 }

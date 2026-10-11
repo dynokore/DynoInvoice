@@ -72,7 +72,7 @@ class JdbcInboxConsumer(
                 return ReplayOutcome.REJECTED
             }
         val step =
-            scope.tenants.bind(envelope.tenant) {
+            scope.bind(envelope.tenant) {
                 scope.transactions.inTransaction { apply(scope.connections.require(), envelope) }
             }
         return when (step) {
@@ -92,7 +92,7 @@ class JdbcInboxConsumer(
                 deadLetter(record, violation)
                 return Step.DEAD_LETTER
             }
-        return scope.tenants.bind(envelope.tenant) {
+        return scope.bind(envelope.tenant) {
             scope.transactions.inTransaction { applyInTransaction(record, envelope) }
         }
     }
@@ -175,11 +175,13 @@ class JdbcInboxConsumer(
         connection: Connection,
         envelope: Envelope,
     ): Long = connection.prepareStatement(
-        "select last_value from $s.${OutboxSchema.CONSUMER_SEQUENCE} where consumer = ? and source = ? and subject = ?",
+        "select last_value from $s.${OutboxSchema.CONSUMER_SEQUENCE} " +
+            "where consumer = ? and tenant_id = ? and source = ? and subject = ?",
     ).use {
         it.setString(1, consumer)
-        it.setString(2, envelope.source)
-        it.setString(3, envelope.subject)
+        it.setObject(2, envelope.tenant.value)
+        it.setString(3, envelope.source)
+        it.setString(4, envelope.subject)
         it.executeQuery().use { rows -> if (rows.next()) rows.getLong(1) else 0L }
     }
 
@@ -192,7 +194,7 @@ class JdbcInboxConsumer(
             """
             insert into $s.${OutboxSchema.CONSUMER_SEQUENCE} (consumer, source, subject, tenant_id, last_value)
             values (?, ?, ?, ?, ?)
-            on conflict (consumer, source, subject) do update set last_value = excluded.last_value
+            on conflict (consumer, tenant_id, source, subject) do update set last_value = excluded.last_value
             """.trimIndent(),
         ).use {
             it.setString(1, consumer)

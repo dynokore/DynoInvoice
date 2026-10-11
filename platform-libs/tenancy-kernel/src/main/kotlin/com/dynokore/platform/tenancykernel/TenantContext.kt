@@ -29,6 +29,9 @@ interface TenantContext {
      * claimed item, not a general-purpose override. Nesting restores the
      * enclosing tenant, so a worker may safely call other tenant-scoped code
      * without corrupting its caller's binding.
+     *
+     * @throws IllegalArgumentException if [tenant] is [TenantId.PLATFORM]: the reserved
+     *   platform tenant is bound only through [PlatformTenantBinding] (INV-Q-2927).
      */
     fun <T> bind(
         tenant: TenantId,
