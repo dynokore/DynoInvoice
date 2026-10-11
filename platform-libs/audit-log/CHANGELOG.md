@@ -15,7 +15,7 @@ train is its own (README.md: "own version and changelog").
 - `AuditSchema.auditEntryDdl`: the `audit_entry` table, `tenant_id` NOT NULL leading every index, forced
   row-level security, select and insert only; `actor` classed personal, `reason` and `prior_state` content
   (CS-56). Retention per INV-Q-3028: at least the longest tenant VP-43 period, never under 5 years, no
-  automatic expiry, deletion only by an audited purge (not in this module).
+  automatic expiry, deletion only through a future audited operation (its own Keel task; no purge API here).
 
 ## [2.0.0] - 2026-10-11
 ### Changed

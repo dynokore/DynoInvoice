@@ -5,6 +5,10 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-11
+### Changed
+- `audit-log`'s pair now resolves to its `2.1.0` (INV-T-3001 / FU-A4: `LocalAuditWriter`).
+
 ## [0.5.0] - 2026-10-11
 ### Added
 - `outbox-and-queue-api`/`outbox-and-queue` constraint pair, pinned to `outbox-and-queue`'s own

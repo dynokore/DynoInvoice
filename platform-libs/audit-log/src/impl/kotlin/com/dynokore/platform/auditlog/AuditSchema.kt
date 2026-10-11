@@ -55,7 +55,8 @@ object AuditSchema {
      *   cannot be edited (INV-REQ-2588, INV-REQ-1376).
      * - Retention (owner ruling INV-Q-3028): kept at least as long as the longest evidence retention any tenant
      *   of the installation has set under VP-43 (INV-REQ-1378), never less than 5 years from the action; no
-     *   automatic expiry; a row is deleted only by a deliberate, audited purge, which is not this module's.
+     *   automatic expiry. A row is deleted only through a future audited operation (a dated purge that itself
+     *   writes an audit entry), tracked as its own Keel task; this module offers no purge API.
      * - Classification (CS-56): `actor` is personal data (operator staff); `reason` and `prior_state` are content.
      */
     fun auditEntryDdl(
