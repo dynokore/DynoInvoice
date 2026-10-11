@@ -93,6 +93,10 @@ tasks.named("check") {
 val implJar =
     tasks.register<Jar>("implJar") {
         archiveBaseName.set(project.name)
+        // A separate local output directory, as tenancy-kernel's `implJar` (not a classifier, which would rename
+        // the published `impl` artifact): the api `jar` writes the same file name under `build/libs/`, so without
+        // this whichever of the two ran last overwrote the other on disk.
+        destinationDirectory.set(layout.buildDirectory.dir("libs-impl"))
         from(sourceSets["impl"].output)
     }
 
