@@ -54,6 +54,12 @@ class JdbcOutboxWriter(
                 throw EmissionNotPermitted(service, it.type, "a domain event cannot be written under the platform tenant")
             }
         }
+        // INV-Q-3165: the tenant-wide entity is for platform event types only (FR-K.3).
+        if (context.entity.isTenantWide) {
+            events.firstOrNull { !Envelope.isPlatformType(it.type) }?.let {
+                throw EmissionNotPermitted(service, it.type, "a domain event cannot carry the tenant-wide entity")
+            }
+        }
         val connection = connections.require()
         val stamped = context.docUuid != null || context.aggregateVersion != null
         val first = if (stamped) reserveSequence(connection, context, events.size) else null

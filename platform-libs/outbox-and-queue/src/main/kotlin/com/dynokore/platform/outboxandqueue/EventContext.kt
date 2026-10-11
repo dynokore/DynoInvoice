@@ -33,6 +33,6 @@ data class EventContext(
             docUuid == null || aggregateKey == docUuid.toString(),
         ) { "a document-scoped event is keyed by its Doc UUID" }
         require(aggregateVersion == null || aggregateVersion >= 1) { "aggregate version starts at 1" }
-        require(tenant.isPlatform == entity.isPlatform) { PLATFORM_PAIR }
+        require(pairingHolds(tenant, entity)) { PLATFORM_PAIR }
     }
 }

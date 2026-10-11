@@ -3,6 +3,7 @@ package com.dynokore.platform.outboxandqueue
 import com.dynokore.platform.tenancykernel.TenantId
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -120,6 +121,36 @@ class EnvelopeJsonTest {
         assertThrows(IllegalArgumentException::class.java) { platformEnvelope.copy(type = TestCatalogue.PAYLOAD_READY) }
         assertThrows(IllegalArgumentException::class.java) {
             EventContext(TenantId.PLATFORM, EntityRef("e"), null, null, "k", null, CorrelationId("c"), CausationId("k"))
+        }
+    }
+
+    private val tenantWideEnvelope = platformEnvelope.copy(tenant = envelope.tenant, entity = EntityRef.TENANT_WIDE)
+
+    @Test
+    fun `a tenant-wide platform envelope keeps tenantid, omits entityref and reads back as tenant-wide`() {
+        val text = json.write(tenantWideEnvelope)
+        assertFalse(text.contains("entityref") || text.contains("00000000-0000"), text)
+        assertEquals(envelope.tenant.toString(), json.tenantOf(text)?.toString())
+        assertEquals(tenantWideEnvelope, json.read(text))
+        assertNotEquals(EntityRef.PLATFORM, EntityRef.TENANT_WIDE)
+    }
+
+    @Test
+    fun `a domain event without entityref is refused and the tenant-wide id never travels`() {
+        val noEntity = json.write(envelope).replace("\"entityref\"", "\"xentityref\"")
+        assertThrows(ContractViolation::class.java) { json.read(noEntity) }
+        val reserved = "\"entityref\":\"${EntityRef.TENANT_WIDE}\",\"instanceid\""
+        val named = json.write(tenantWideEnvelope).replace("\"instanceid\"", reserved)
+        assertThrows(ContractViolation::class.java) { json.read(named) }
+    }
+
+    @Test
+    fun `the tenant-wide entity pairs with a real tenant and a platform type only`() {
+        assertThrows(IllegalArgumentException::class.java) { tenantWideEnvelope.copy(tenant = TenantId.PLATFORM) }
+        assertThrows(IllegalArgumentException::class.java) { envelope.copy(entity = EntityRef.TENANT_WIDE) }
+        assertThrows(IllegalArgumentException::class.java) {
+            val wide = EntityRef.TENANT_WIDE
+            EventContext(TenantId.PLATFORM, wide, null, null, "k", null, CorrelationId("c"), CausationId("k"))
         }
     }
 }

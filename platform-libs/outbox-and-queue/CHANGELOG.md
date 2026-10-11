@@ -6,6 +6,18 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-11
+### Added
+- `EntityRef.TENANT_WIDE` (Keel INV-Q-3165, INV-T-3175, shaped like INV-Q-3014/3018): a reserved, never-issued
+  entity (the nil UUID, distinct from `EntityRef.PLATFORM`) for a platform event that concerns a whole tenant or
+  group and no registered entity. It pairs only with a real tenant (`PLATFORM` still only with `TenantId.PLATFORM`);
+  any other pairing is refused in `EventContext` and `Envelope`. It is stored in `outbox.entity_ref` (NOT NULL,
+  forced RLS unchanged); a `com.dynokore.gst.platform.*` event leaves `entityref` out of the envelope and keeps
+  `tenantid`, and the consumer maps "tenantid present, entityref absent" back to it. A domain event cannot carry it
+  (refused at write with `EmissionNotPermitted` and in `Envelope`), and a domain event without `entityref` is still
+  a `ContractViolation` at consume (INV-REQ-1162). A record naming the reserved id explicitly is refused.
+  No schema change. tenancy-svc refusing it as an entity reference is that service's own task.
+
 ## [1.5.0] - 2026-10-11
 ### Changed
 - Dead-letter content is restricted to tenant sessions (INV-T-2997, Keel INV-Q-2962 A6, INV-Q-3130, ARC 4.3 step 1a,

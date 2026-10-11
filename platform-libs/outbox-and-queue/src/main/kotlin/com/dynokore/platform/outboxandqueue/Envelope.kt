@@ -40,7 +40,10 @@ data class Envelope(
         require(subject.isNotBlank()) { "subject must not be blank" }
         require(instanceId.isNotBlank()) { "instance id must not be blank" }
         require(docSequence == null || docSequence >= 1) { "docsequence starts at 1" }
-        require(tenant.isPlatform == entity.isPlatform) { PLATFORM_PAIR }
+        require(pairingHolds(tenant, entity)) { PLATFORM_PAIR }
+        require(!entity.isTenantWide || isPlatformType(type)) {
+            "only a platform event type may carry the tenant-wide entity (FR-K.3, INV-Q-3165), was '$type'"
+        }
         require(!tenant.isPlatform || isPlatformType(type)) {
             "only a platform event type may be tenantless (FR-K.3, INV-Q-3018), was '$type'"
         }

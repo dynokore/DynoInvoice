@@ -33,7 +33,8 @@ class EnvelopeJson(
         // INV-Q-2927 option D: the reserved platform tenant and entity never go on the wire.
         if (!envelope.tenant.isPlatform) {
             node.put("tenantid", envelope.tenant.toString())
-            node.put("entityref", envelope.entity.value)
+            // INV-Q-3165: the reserved tenant-wide entity never goes on the wire either.
+            if (!envelope.entity.isTenantWide) node.put("entityref", envelope.entity.value)
         }
         envelope.transactionDate?.let { node.put("transactiondate", it.toString()) }
         envelope.docSequence?.let { node.put("docsequence", it) }
@@ -90,7 +91,7 @@ class EnvelopeJson(
         subject = text(node, "subject"),
         time = Instant.parse(text(node, "time")),
         tenant = tenantOf(node),
-        entity = if (node.has("tenantid")) EntityRef(text(node, "entityref")) else platformEntityOf(node),
+        entity = if (node.has("tenantid")) realTenantEntityOf(node) else platformEntityOf(node),
         docUuid = docUuidOf(text(node, "subject")),
         transactionDate = optional(node, "transactiondate")?.let { LocalDate.parse(it) },
         docSequence = docSequence(node),
@@ -111,6 +112,19 @@ class EnvelopeJson(
         }
         if (!Envelope.isPlatformType(text(node, "type"))) throw ContractViolation("tenantid is required")
         return TenantId.PLATFORM
+    }
+
+    // INV-Q-3165: "tenantid present, entityref absent" maps back to the tenant-wide entity, for a platform
+    // event type only; a domain event without entityref is a contract violation (FR-K.3). The reserved id
+    // itself never travels on the wire.
+    private fun realTenantEntityOf(node: ObjectNode): EntityRef {
+        if (!node.has("entityref")) {
+            if (!Envelope.isPlatformType(text(node, "type"))) throw ContractViolation("entityref is required")
+            return EntityRef.TENANT_WIDE
+        }
+        val entity = EntityRef(text(node, "entityref"))
+        if (entity.isTenantWide) throw ContractViolation("entityref must not name the reserved tenant-wide entity")
+        return entity
     }
 
     private fun platformEntityOf(node: ObjectNode): EntityRef {
