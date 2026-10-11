@@ -61,14 +61,8 @@ object WriteCatalogue {
     /** VP-57-like: a tenant window up to [GRACE_MAX], as published (DOWN_STRICTER). */
     val GRACE = VariationPointKey("VP-57")
 
-    /** VP-79-like installation maximum: its default DAYS_14 is a typed value fixed at 14 days (INV-Q-3223). */
+    /** VP-79-like installation maximum as published: its default option DAYS_14 carries no typed value. */
     val GRACE_MAX = VariationPointKey("VP-79")
-
-    /** A bounded row whose maximum [UNTYPED_MAX] defaults to an option with no number: refused (fail closed). */
-    val UNTYPED_BOUNDED = VariationPointKey("VP-83")
-
-    /** An installation maximum whose default option carries no typed value. */
-    val UNTYPED_MAX = VariationPointKey("VP-84")
 
     /** An installation bound declared without the row holding it: refused (INV-Q-3173). */
     val UNNAMED_BOUND = VariationPointKey("VP-31")
@@ -130,7 +124,6 @@ object WriteCatalogue {
         )
 
     private val oneDay = Bound.of(1)
-    private val days14 = TypedValueSpec(ValueType.DURATION, "days", Bound.of(14), Bound.of(14))
 
     val rows: Map<VariationPointKey, VariationPointDefinition> =
         listOf(
@@ -343,39 +336,6 @@ object WriteCatalogue {
             ),
             def(
                 GRACE_MAX,
-                setOf(ScopeLevel.INSTALLATION),
-                listOf(
-                    OptionSpec("DAYS_14", Strictness.DEFAULT, true, days14),
-                    OptionSpec("CUSTOM", Strictness.NEUTRAL, true, TypedValueSpec(ValueType.DURATION, "days", oneDay)),
-                ),
-                vpClass = VpClass.PARAMETER,
-                setBy = setOf("platform.engineer", "deployment.operator"),
-            ),
-            def(
-                UNTYPED_BOUNDED,
-                setOf(ScopeLevel.TENANT),
-                listOf(
-                    OptionSpec("PLATFORM_MAXIMUM", Strictness.DEFAULT),
-                    OptionSpec(
-                        "SHORTER",
-                        Strictness.STRICTER,
-                        true,
-                        TypedValueSpec(
-                            ValueType.DURATION,
-                            "days",
-                            min = Bound.of(1),
-                            max = Bound.row(UNTYPED_MAX),
-                            direction = Direction.DOWN_STRICTER,
-                        ),
-                    ),
-                ),
-                vpClass = VpClass.PARAMETER,
-                modifiers = setOf(VpModifier.TIGHTEN_ONLY),
-                installationBound = true,
-                installationParameter = UNTYPED_MAX,
-            ),
-            def(
-                UNTYPED_MAX,
                 setOf(ScopeLevel.INSTALLATION),
                 listOf(
                     OptionSpec("DAYS_14", Strictness.DEFAULT),

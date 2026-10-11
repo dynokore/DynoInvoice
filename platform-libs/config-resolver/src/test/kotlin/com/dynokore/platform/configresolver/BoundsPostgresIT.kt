@@ -5,8 +5,6 @@ import com.dynokore.platform.configresolver.WriteCatalogue.GRACE
 import com.dynokore.platform.configresolver.WriteCatalogue.GRACE_MAX
 import com.dynokore.platform.configresolver.WriteCatalogue.INSTALLATION_BOUND
 import com.dynokore.platform.configresolver.WriteCatalogue.RETRY_MAX
-import com.dynokore.platform.configresolver.WriteCatalogue.UNTYPED_BOUNDED
-import com.dynokore.platform.configresolver.WriteCatalogue.UNTYPED_MAX
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -106,11 +104,9 @@ class BoundsPostgresIT : WritePathBase() {
         val tenant = { hours: Int ->
             set(INSTALLATION_BOUND, r.tenantScope, ScopeLevel.TENANT, number("CUSTOM", hours), integrator)
         }
-        // The maximum's default HOURS_168 is a typed value fixed at 168 hours (INV-Q-3223): 169 h is refused.
-        assertEquals(PolicyRefusal.BEYOND_INSTALLATION_BOUND, r.refusedPut(tenant(169)))
-        r.put(tenant(168))
+        // The maximum's default HOURS_168 counts by its fixed value.
         assertEquals(PolicyRefusal.BEYOND_INSTALLATION_BOUND, r.refusedPut(tenant(200)))
-        assertEquals(1L, r.settings())
+        assertEquals(0L, r.settings())
         r.put(tenant(100))
         val lowered = number("CUSTOM", 80)
         r.installation(set(RETRY_MAX, r.tenantScope, ScopeLevel.INSTALLATION, lowered, operator, nextMonth))
@@ -132,37 +128,18 @@ class BoundsPostgresIT : WritePathBase() {
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
-    fun `INV-Q-3223 VP-57 the default maximum of 14 days bounds a shorter window, capped when lowered`(image: String) {
+    fun `INV-Q-3202 a bounding row whose value is not a number refuses, until the operator sets one`(image: String) {
         val r = Run(image)
         val shorter = { days: Int ->
             set(GRACE, r.tenantScope, ScopeLevel.TENANT, number("SHORTER", days), approver)
         }
-        // DAYS_14, the default, is a typed value fixed at 14 days (INV-Q-3223).
-        assertEquals(PolicyRefusal.BEYOND_INSTALLATION_BOUND, r.refusedPut(shorter(15)))
-        assertEquals(0L, r.settings())
-        r.put(shorter(14))
-        r.installation(set(GRACE_MAX, r.tenantScope, ScopeLevel.INSTALLATION, number("CUSTOM", 7), operator, nextMonth))
-        assertEquals("14", r.resolve(GRACE, r.tenantScope).selected.single().valueJson)
-        val capped = r.resolve(GRACE, r.tenantScope, nextMonth)
-        assertEquals("7", capped.selected.single().valueJson)
-        assertEquals(cap("SHORTER", "", 14, 7, GRACE_MAX), capped.caps)
-        assertEquals(PolicyRefusal.BEYOND_INSTALLATION_BOUND, r.refusedPut(shorter(10)))
-    }
-
-    @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
-    fun `INV-Q-3202 a bounding row whose value is not a number refuses, until the operator sets one`(image: String) {
-        val r = Run(image)
-        val shorter = { days: Int ->
-            set(UNTYPED_BOUNDED, r.tenantScope, ScopeLevel.TENANT, number("SHORTER", days), approver)
-        }
-        // The maximum's default carries no typed value: the bound cannot be evaluated (fail closed).
+        // DAYS_14, as published, carries no typed value: the bound cannot be evaluated (fail closed).
         assertEquals(PolicyRefusal.BOUND_UNAVAILABLE, r.refusedPut(shorter(10)))
-        r.installation(set(UNTYPED_MAX, r.tenantScope, ScopeLevel.INSTALLATION, number("CUSTOM", 20), operator))
+        r.installation(set(GRACE_MAX, r.tenantScope, ScopeLevel.INSTALLATION, number("CUSTOM", 20), operator))
         assertEquals(PolicyRefusal.BEYOND_INSTALLATION_BOUND, r.refusedPut(shorter(25)))
         r.put(shorter(10))
-        assertEquals("10", r.resolve(UNTYPED_BOUNDED, r.tenantScope).selected.single().valueJson)
+        assertEquals("10", r.resolve(GRACE, r.tenantScope).selected.single().valueJson)
         val unreadable = listOf(SelectedOption("SHORTER", "\"x\""))
-        assertThrows(BoundUnavailable::class.java) { r.capped(UNTYPED_BOUNDED, unreadable, today) }
+        assertThrows(BoundUnavailable::class.java) { r.capped(GRACE, unreadable, today) }
     }
 }
