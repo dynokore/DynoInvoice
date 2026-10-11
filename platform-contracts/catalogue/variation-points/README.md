@@ -92,5 +92,7 @@ at, rows / scope_level, check / inputs, rule, refused, source}`. The generator f
 on an unknown field, kind, form or scope level, and `check` fails on a record naming
 an option key, row or row option that does not exist. The library exposes them as
 `VariationPoint.constraints` (and `VariationPoint.allConstraints()`); `crossRow` and
-`crossOption` keep the records' rule text for 1.x readers. VP-64 is untyped by
+`crossOption` keep the records' rule text for 1.x readers, in the library and in the
+JSON artefact alike; the artefact lists every record under a new `constraints` field,
+each with its `placement` (`constraints`, `cross_row` or `cross_option`). VP-64 is untyped by
 design (INV-Q-3616); VP-01 stays untyped while INV-Q-3612 is open.

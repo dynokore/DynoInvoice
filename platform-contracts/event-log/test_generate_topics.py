@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-"""event-log/test_generate_topics.py — INV-T-3386, INV-T-3542
+"""event-log/test_generate_topics.py — INV-T-3386, INV-T-3542, INV-T-3606
 
 Tests generate-topics.py's content-topic marker (owner ruling INV-Q-3249,
 INV-REQ-1205 b4): x-invoice-content is copied into topics.yaml as
 content_topic on every topic, and the check fails when a topic lacks it.
+INV-T-3606 (coordinator ruling INV-Q-3601): one replay topic per
+(producer, subscriber) pair, one producer and one subscriber each, carrying
+only that subscriber's types from that producer, content_topic derived.
 Stdlib only. Run: python3 -m unittest discover -s event-log -p 'test_*.py'
 """
 from __future__ import annotations
@@ -140,6 +143,86 @@ class ContentTopicTest(unittest.TestCase):
         src = (_HERE / "generate-topics.py").read_text()
         for name in ("CanonicalVersionCreated", "PayloadReady", "canonical-version-created", "payload-ready"):
             self.assertNotIn(name, src)
+
+
+def _topic(name, et, producers, subscribers, content=False):
+    return {"topic": name, "event_type": et, "producers": producers,
+            "subscribers": subscribers, "content_topic": content}
+
+
+class ReplayTopicTest(unittest.TestCase):
+    """INV-T-3606 (INV-Q-3601, INV-REQ-1205 b3, b4)."""
+
+    TOPICS = [
+        _topic("gst.a.x.v1", "X", ["a-svc"], ["b-svc", "console-bff"], content=True),
+        _topic("gst.a.y.v1", "Y", ["a-svc"], ["b-svc"]),
+        _topic("gst.platform.z.v1", "Z", ["a-svc", "c-svc"], ["b-svc"]),
+        _topic("gst.platform.w.v1", "W", [gen.EVERY_SERVICE], ["b-svc"]),
+        _topic("gst.c.none.v1", "N", ["c-svc"], []),
+    ]
+
+    def _derived(self):
+        return gen.derive_replay_topics(self.TOPICS)
+
+    def test_one_topic_per_pair_with_its_types_and_content(self):
+        by = {r["topic"]: r for r in self._derived()}
+        self.assertEqual(sorted(by), [
+            "gst.a.replay-b.v1", "gst.a.replay-console-bff.v1", "gst.c.replay-b.v1"])
+        self.assertEqual(by["gst.a.replay-b.v1"]["event_types"], ["X", "Y", "Z"])
+        self.assertTrue(by["gst.a.replay-b.v1"]["content_topic"])
+        self.assertEqual(by["gst.a.replay-console-bff.v1"]["event_types"], ["X"])
+        self.assertEqual(by["gst.c.replay-b.v1"]["event_types"], ["Z"])
+        self.assertFalse(by["gst.c.replay-b.v1"]["content_topic"])
+        for r in by.values():
+            self.assertEqual((len(r["producers"]), len(r["subscribers"])), (1, 1))
+        self.assertEqual(gen.validate_replay_topics(self.TOPICS, self._derived()), [])
+
+    def _errors_after(self, mutate):
+        replay = self._derived()
+        mutate({r["topic"]: r for r in replay}, replay)
+        return gen.validate_replay_topics(self.TOPICS, replay)
+
+    def test_missing_pair_fails(self):
+        errs = self._errors_after(lambda by, l: l.remove(by["gst.c.replay-b.v1"]))
+        self.assertEqual(errs, ["pair (c-svc, b-svc) lacks its replay topic gst.c.replay-b.v1"])
+
+    def test_second_subscriber_fails(self):
+        errs = self._errors_after(lambda by, l: by["gst.a.replay-b.v1"]["subscribers"].append("console-bff"))
+        self.assertTrue(any("2 subscribers" in e for e in errs), errs)
+
+    def test_second_producer_fails(self):
+        errs = self._errors_after(lambda by, l: by["gst.c.replay-b.v1"]["producers"].append("a-svc"))
+        self.assertTrue(any("2 producers" in e for e in errs), errs)
+
+    def test_unsubscribed_type_fails(self):
+        errs = self._errors_after(lambda by, l: by["gst.a.replay-console-bff.v1"]["event_types"].append("Y"))
+        self.assertTrue(any("carries Y" in e for e in errs), errs)
+
+    def test_content_topic_disagreeing_fails(self):
+        for name, value in (("gst.a.replay-b.v1", False), ("gst.c.replay-b.v1", True)):
+            errs = self._errors_after(lambda by, l: by[name].update(content_topic=value))
+            self.assertTrue(any("content_topic" in e for e in errs), (name, errs))
+
+    def test_committed_catalogue_has_a_replay_topic_per_pair(self):
+        topics = gen.collect_topics(_HERE.parent)
+        derived = gen.derive_all(topics)
+        self.assertEqual(gen.validate_derived(topics, derived), [])
+        pairs = {(p, s) for t in topics for p in t["producers"] if p != gen.EVERY_SERVICE for s in t["subscribers"]}
+        self.assertEqual(len(derived["replay_topics"]), len(pairs))
+        text = (_HERE / "topics.yaml").read_text()
+        for r in derived["replay_topics"]:
+            self.assertIn(f"  - topic: {r['topic']}\n", text)
+
+    def test_check_fails_on_hand_edited_replay_topic(self):
+        repo = Path(tempfile.mkdtemp())
+        (repo / "svc").mkdir()
+        (repo / "svc" / "asyncapi.yaml").write_text(_asyncapi({"Ev": "true"}))
+        out = repo / "topics.yaml"
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(gen.main(["g", str(repo), "--write", str(out)]), 0)
+            self.assertIn("  - topic: gst.a.replay-b.v1\n", out.read_text())
+            out.write_text(out.read_text().replace("    content_topic: true\n", "    content_topic: false\n"))
+            self.assertEqual(gen.main(["g", str(repo), "--check", str(out)]), 1)
 
 
 if __name__ == "__main__":

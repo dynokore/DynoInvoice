@@ -34,6 +34,20 @@ producer value must be a service name (`<name>-svc` or `console-bff`) or
 exactly `every service` — the wording for a platform event service-runtime
 emits in any service. Any other phrase fails both modes, naming the topic.
 
+Replay topics (INV-T-3606, coordinator ruling INV-Q-3601, INV-REQ-1205 b3,
+b4): derived, never hand-entered, from the producer and subscriber lists of
+the event topics above — one topic per (producer, subscriber) pair,
+`gst.<producer>.replay-<subscriber>.v1` (service names without `-svc`), that
+producer's relay alone INSERTs and that subscriber alone SELECTs, carrying
+only the event types the subscriber subscribes to from that producer, and
+`content_topic` true when any carried type is a content topic. They render
+under their own `replay_topics:` key so the event topics' entries stay as
+they were. Derived topic families are listed in DERIVED_FAMILIES: a further
+family (e.g. a replay request topic per consumer, INV-Q-3599) is one more
+(key, derive function, validate function) entry. Pairs whose producer is
+`every service` get no replay topic yet: the ruling names no single producer
+relay for them (open gap, see the INV-T-3606 merge request).
+
 Two modes:
     generate-topics.py <repo-root> --write <out.yaml>
         Regenerates topics.yaml from every */asyncapi.yaml under repo-root.
@@ -145,7 +159,106 @@ def collect_topics(repo_root: Path) -> list[dict]:
     return topics
 
 
-def render_yaml(topics: list[dict]) -> str:
+_SVC_SUFFIX = "-svc"
+
+
+def short_service_name(service: str) -> str:
+    """A service name as it appears in a topic address: without `-svc`
+    (EventLogSchema topic form gst.<service>.<event-name>.v<N>)."""
+    return service[: -len(_SVC_SUFFIX)] if service.endswith(_SVC_SUFFIX) else service
+
+
+def replay_topic_address(producer: str, subscriber: str) -> str:
+    return f"gst.{short_service_name(producer)}.replay-{short_service_name(subscriber)}.v1"
+
+
+def replay_pairs(topics: list[dict]) -> dict[tuple[str, str], list[dict]]:
+    """Every (producer, subscriber) pair of the event topics, with the event
+    topics that pair shares. `every service` pairs are left out (open gap:
+    INV-Q-3601 names no single producer relay for them)."""
+    pairs: dict[tuple[str, str], list[dict]] = {}
+    for t in topics:
+        for producer in t["producers"]:
+            if producer == EVERY_SERVICE:
+                continue
+            for subscriber in t["subscribers"]:
+                pairs.setdefault((producer, subscriber), []).append(t)
+    return pairs
+
+
+def derive_replay_topics(topics: list[dict]) -> list[dict]:
+    """One replay topic per (producer, subscriber) pair (INV-Q-3601)."""
+    replay = []
+    for (producer, subscriber), carried in replay_pairs(topics).items():
+        replay.append(
+            {
+                "topic": replay_topic_address(producer, subscriber),
+                "event_types": sorted({t["event_type"] for t in carried}),
+                "producers": [producer],
+                "subscribers": [subscriber],
+                "content_topic": any(t["content_topic"] for t in carried),
+            }
+        )
+    replay.sort(key=lambda r: r["topic"])
+    return replay
+
+
+def validate_replay_topics(topics: list[dict], replay: list[dict]) -> list[str]:
+    """Returns one error per missing pair, extra topic, replay topic with
+    other than one producer and one subscriber, carried type its subscriber
+    does not subscribe to from that producer (or subscribed type missing), or
+    content_topic disagreeing with the carried types (INV-Q-3601)."""
+    errors = []
+    pairs = replay_pairs(topics)
+    by_address = {replay_topic_address(p, s): (p, s) for p, s in pairs}
+    content_by_type = {t["event_type"]: t["content_topic"] for t in topics}
+    seen = set()
+    for r in replay:
+        name = r["topic"]
+        if len(r["producers"]) != 1:
+            errors.append(f"replay topic '{name}' has {len(r['producers'])} producers — must have one")
+        if len(r["subscribers"]) != 1:
+            errors.append(f"replay topic '{name}' has {len(r['subscribers'])} subscribers — must have one")
+        pair = (r["producers"][0] if r["producers"] else None, r["subscribers"][0] if r["subscribers"] else None)
+        if pair not in pairs or by_address.get(name) != pair:
+            errors.append(f"replay topic '{name}' matches no (producer, subscriber) pair of the event topics")
+            continue
+        seen.add(pair)
+        subscribed = {t["event_type"] for t in pairs[pair]}
+        for et in r["event_types"]:
+            if et not in subscribed:
+                errors.append(f"replay topic '{name}' carries {et}, which {pair[1]} does not subscribe to from {pair[0]}")
+        for et in sorted(subscribed - set(r["event_types"])):
+            errors.append(f"replay topic '{name}' lacks {et}, which {pair[1]} subscribes to from {pair[0]}")
+        expected = any(content_by_type.get(et, False) for et in r["event_types"])
+        if r["content_topic"] != expected:
+            errors.append(f"replay topic '{name}' has content_topic {str(r['content_topic']).lower()} — its types make it {str(expected).lower()}")
+    for p, s in sorted(set(pairs) - seen):
+        errors.append(f"pair ({p}, {s}) lacks its replay topic {replay_topic_address(p, s)}")
+    return errors
+
+
+# Derived topic families: (topics.yaml key, derive, validate). A new family
+# (such as a replay request topic per consumer, INV-Q-3599) is one more entry.
+DERIVED_FAMILIES = [
+    ("replay_topics", derive_replay_topics, validate_replay_topics),
+]
+
+
+def derive_all(topics: list[dict]) -> dict[str, list[dict]]:
+    derived = {key: derive(topics) for key, derive, _ in DERIVED_FAMILIES}
+    names = [t["topic"] for t in topics] + [d["topic"] for ds in derived.values() for d in ds]
+    dups = sorted({n for n in names if names.count(n) > 1})
+    if dups:
+        raise SystemExit(f"gst-ci: derived topic(s) collide with another topic: {', '.join(dups)}")
+    return derived
+
+
+def validate_derived(topics: list[dict], derived: dict[str, list[dict]]) -> list[str]:
+    return [e for key, _, validate in DERIVED_FAMILIES for e in validate(topics, derived.get(key, []))]
+
+
+def render_yaml(topics: list[dict], derived: dict[str, list[dict]] | None = None) -> str:
     def _list_block(indent: str, items: list[str]) -> str:
         if not items:
             return f"{indent}[]\n"
@@ -168,6 +281,12 @@ def render_yaml(topics: list[dict]) -> str:
         "# message declares x-invoice-content: true (its events carry invoice",
         "# content, FR-AH.12) — the purge keeps such a topic for the content",
         "# window (INV-ADR-2772), every other topic for the event-log retention.",
+        "#",
+        "# replay_topics (INV-T-3606, coordinator ruling INV-Q-3601): one per",
+        "# (producer, subscriber) pair of the topics above, derived — the",
+        "# producer's relay INSERTs its replay (INV-REQ-1205 b4) and only that",
+        "# subscriber SELECTs; it carries the types the subscriber subscribes",
+        "# to from that producer and is a content topic when any of them is.",
         "topics:",
     ]
     for t in topics:
@@ -178,6 +297,19 @@ def render_yaml(topics: list[dict]) -> str:
         lines.append(_list_block("      ", t["producers"]).rstrip("\n"))
         lines.append("    subscribers:")
         lines.append(_list_block("      ", t["subscribers"]).rstrip("\n"))
+    for key, entries in (derived or {}).items():
+        lines.append(f"{key}:")
+        if not entries:
+            lines[-1] += " []"
+        for r in entries:
+            lines.append(f"  - topic: {r['topic']}")
+            lines.append("    event_types:")
+            lines.append(_list_block("      ", r["event_types"]).rstrip("\n"))
+            lines.append(f"    content_topic: {'true' if r['content_topic'] else 'false'}")
+            lines.append("    producers:")
+            lines.append(_list_block("      ", r["producers"]).rstrip("\n"))
+            lines.append("    subscribers:")
+            lines.append(_list_block("      ", r["subscribers"]).rstrip("\n"))
     return "\n".join(lines) + "\n"
 
 
@@ -239,11 +371,19 @@ def main(argv: list[str]) -> int:
         for e in producer_errors:
             print(f"  {e}")
         return 1
-    rendered = render_yaml(topics)
+    derived = derive_all(topics)
+    derived_errors = validate_derived(topics, derived)
+    if derived_errors:
+        print("gst-ci: derived topics fail their check (INV-Q-3601):")
+        for e in derived_errors:
+            print(f"  {e}")
+        return 1
+    rendered = render_yaml(topics, derived)
 
     if mode == "--write":
         target.write_text(rendered)
-        print(f"gst-ci: wrote {len(topics)} topic(s) to {target}")
+        n_derived = sum(len(d) for d in derived.values())
+        print(f"gst-ci: wrote {len(topics)} topic(s) and {n_derived} derived topic(s) to {target}")
         return 0
 
     existing = target.read_text() if target.exists() else ""
