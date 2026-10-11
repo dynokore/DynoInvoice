@@ -289,6 +289,86 @@
             "classification"
           ],
           "additionalProperties": true
+        },
+        "precedingDocumentNumber": {
+          "type": "object",
+          "description": "Preceding Invoice Number (IBT-025) of the invoice a credit note corrects, where known (INV-REQ-560); payload-svc builds IBT-025 from it (INV-AC-1777). Optional. Wrapped with its FR-AE.72 classification (INV-NOTE-3 \u00a720.2, INV-TERM-302; added by INV-T-3457, INV-Q-3450).",
+          "properties": {
+            "value": {
+              "type": "string",
+              "maxLength": 64,
+              "description": "The preceding invoice number."
+            },
+            "classification": {
+              "type": "string",
+              "description": "The FR-AE.72 data classification tag for this content field."
+            }
+          },
+          "required": [
+            "value",
+            "classification"
+          ],
+          "additionalProperties": true
+        },
+        "precedingDocumentDate": {
+          "type": "object",
+          "description": "Preceding Invoice Date (IBT-026) of the invoice a credit note corrects, where known (INV-REQ-560); payload-svc builds IBT-026 from it (INV-AC-1777). Optional. Wrapped with its FR-AE.72 classification (INV-NOTE-3 \u00a720.2, INV-TERM-302; added by INV-T-3457, INV-Q-3450).",
+          "properties": {
+            "value": {
+              "type": "string",
+              "format": "date",
+              "description": "The preceding invoice date."
+            },
+            "classification": {
+              "type": "string",
+              "description": "The FR-AE.72 data classification tag for this content field."
+            }
+          },
+          "required": [
+            "value",
+            "classification"
+          ],
+          "additionalProperties": true
+        },
+        "precedingBlankJustification": {
+          "type": "object",
+          "description": "Justification recorded for a credit note with blank preceding-invoice fields (INV-REQ-561). Optional. Wrapped with its FR-AE.72 classification (INV-NOTE-3 \u00a720.2, INV-TERM-302; added by INV-T-3457, INV-Q-3450).",
+          "properties": {
+            "value": {
+              "type": "string",
+              "maxLength": 512,
+              "description": "The blank-linkage justification."
+            },
+            "classification": {
+              "type": "string",
+              "description": "The FR-AE.72 data classification tag for this content field."
+            }
+          },
+          "required": [
+            "value",
+            "classification"
+          ],
+          "additionalProperties": true
+        },
+        "evidenceRef": {
+          "type": "object",
+          "description": "Reference to the documentary evidence that GST was accounted for on the original supplies, for a blank-linked credit note (INV-REQ-561). Optional. Wrapped with its FR-AE.72 classification (INV-NOTE-3 \u00a720.2, INV-TERM-302; added by INV-T-3457, INV-Q-3450).",
+          "properties": {
+            "value": {
+              "type": "string",
+              "maxLength": 256,
+              "description": "The evidence reference."
+            },
+            "classification": {
+              "type": "string",
+              "description": "The FR-AE.72 data classification tag for this content field."
+            }
+          },
+          "required": [
+            "value",
+            "classification"
+          ],
+          "additionalProperties": true
         }
       },
       "required": [

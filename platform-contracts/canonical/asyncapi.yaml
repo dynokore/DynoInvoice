@@ -148,7 +148,9 @@ components:
         builds the projection from it, reconciliation-svc its Box read model (FR-Z.16), evidence-svc its
         retained copy (FR-AA.15) and console-bff its search index (SCR-03.1); submission-svc reads the
         identifiers only. Every content field carries its FR-AE.72 classification. Kept for the content
-        window only (FR-AH.9). Authored by INV-T-2854 (T10).
+        window only (FR-AH.9). Authored by INV-T-2854 (T10). The credit note's optional preceding-document
+        fields (IBT-025, IBT-026), blank-linkage justification and evidenceRef added by INV-T-3457
+        (INV-REQ-560, INV-REQ-561, INV-Q-3450), additive within v1 (API-41).
       # INV-T-3386 (owner ruling INV-Q-3249, INV-REQ-1205 b4): this event carries invoice content
       # (FR-AH.12, INV-REQ-1223), so its topic keeps the content window (INV-ADR-2772), not the
       # event-log retention. Copied into event-log/topics.yaml as content_topic by generate-topics.py.
