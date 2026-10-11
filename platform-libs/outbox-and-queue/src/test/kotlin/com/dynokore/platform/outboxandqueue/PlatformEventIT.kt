@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Tag
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import java.sql.SQLException
+import java.time.Duration
 import java.time.LocalDate
 import java.util.UUID
 import java.util.concurrent.CopyOnWriteArrayList
@@ -108,8 +109,16 @@ class PlatformEventIT {
             producer.inPlatformTx { producer.writer.append(listOf(audit("operator")), platformContext("job-a")) }
             harness.drain(producer.relay)
             val kit = harness.reconciliation
+            val clock = MutableClock()
             val consumer =
-                harness.consumer("evidence-svc", auditTopic, "reconciliation", kit.boundary, RecordingHandler())
+                JdbcInboxConsumer(
+                    ConsumerSubscription("evidence-svc", auditTopic, "reconciliation"),
+                    harness.reader,
+                    harness.fixture.workerDataSource(),
+                    TenantScope(kit.tenants, kit.boundary, kit.boundary),
+                    RecordingHandler(),
+                    clock,
+                )
 
             // 1.1.0: the platform event's sequence upsert hits the tenant's row and fails row-level security.
             assertThrows(SQLException::class.java) { consumer.pollOnce() }
@@ -118,6 +127,7 @@ class PlatformEventIT {
             harness.fixture.runAsAdmin(OutboxSchema.upgradeTo120("reconciliation"))
             assertEquals(1, harness.count(seeded, tenant), "the 1.1.0 row survives unchanged")
 
+            clock.advance(Duration.ofMinutes(10)) // past the retry wait
             assertEquals(1, consumer.pollOnce().applied)
             assertEquals(1, harness.count(seeded, tenant))
             val platformRow = "$sequences where tenant_id = ? and subject = 'job-a'"

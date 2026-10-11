@@ -63,6 +63,7 @@ class InboxConsumerIT {
             val doc = UUID.randomUUID()
             acknowledge(harness, doc)
 
+            val clock = MutableClock()
             val dying = KillableTransactionRunner(harness.fixture.appDataSource(), TenantContextImpl())
             val firstRun =
                 harness.consumer(
@@ -71,6 +72,7 @@ class InboxConsumerIT {
                     "reconciliation",
                     dying,
                     ReconciliationFixtureHandler(dying, afterUpdate = { dying.armKill() }),
+                    clock,
                 )
             assertThrows(ProcessKilled::class.java) { firstRun.pollOnce() }
             assertEquals(0, harness.count("select count(*) from reconciliation.ack_read_model"))
@@ -84,7 +86,9 @@ class InboxConsumerIT {
                     "reconciliation",
                     restarted.boundary,
                     ReconciliationFixtureHandler(restarted.boundary),
+                    clock,
                 )
+            clock.advance(java.time.Duration.ofMinutes(1)) // past the retry wait the failed run left
             assertEquals(1, secondRun.pollOnce().applied)
             assertEquals(
                 1,

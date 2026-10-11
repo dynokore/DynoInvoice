@@ -6,6 +6,32 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-11
+### Added
+- Consumer retry with bounded, jittered backoff (ARC 4.2 step 5, Keel INV-Q-2966 / INV-T-3004, INV-REQ-1164):
+  `ConsumerRetryPolicy` (defaults: 8 attempts, 1 s doubling to 5 min, each wait shortened by up to 50 % at random),
+  set per consumer through the new defaulted `ConsumerSubscription.retry`. `JdbcInboxConsumer` takes a defaulted
+  `Clock` and jitter source (`@JvmOverloads` keeps the 1.2.0 JVM constructor).
+- Delivery-attempt state on the consumer offset row (INV-Q-3108): `attempts`, `infra_failures`,
+  `first_infra_failure_at`, `retry_not_before`. **Schema change: run `OutboxSchema.upgradeTo140(schema)` in the
+  service's migration before starting 1.4.0** (new schemas get the columns from `ddl`; the upgrade is repeatable).
+  The attempt is counted in its own transaction before each handler call and reset when the record succeeds, so the
+  bound holds across restarts, a kill during the handler and replicas; a record whose recorded attempts exceed the
+  bound without a reported failure is dead-lettered without calling the handler again.
+- `FailureClassifier` / `FailureKind` / `DependencyUnavailable` (INV-Q-3110), set per consumer through
+  `ConsumerSubscription.classifier`. The default calls a lost connection or timeout (SQLState class 08, 57P, 40001,
+  40P01, transient/recoverable/timeout SQL exceptions, `IOException`, `TimeoutException`), `EventBindingUnavailable`
+  and a `DependencyUnavailable` an infrastructure failure; anything else is a record failure. Infrastructure failures
+  back off up to `maxDelay` without using the bound; after `ConsumerRetryPolicy.infrastructureGiveUp` (24 h) since
+  the first one the record is dead-lettered.
+### Changed
+- Any non-fatal `Throwable` from the handler (an `Error` such as `StackOverflowError` too) is a failure; only a
+  `VirtualMachineError` is rethrown at once.
+- A handler failure still rolls the record back and is rethrown by `pollOnce`, but the next attempt waits for the
+  backoff (a poll inside the wait reads nothing, so the order holds); after the last attempt the record goes to
+  `event_dead_letter` with reason `handler failed, retries exhausted after N attempts: <exception class>` and the
+  consumer moves on. A `ContractViolation` raised by the handler is dead-lettered at once.
+
 ## [1.3.0] - 2026-10-11
 ### Added
 - Retention purge (INV-T-2998, Keel INV-Q-2954 A2, INV-Q-3091, INV-ADR-2772): `Retention` (content window and

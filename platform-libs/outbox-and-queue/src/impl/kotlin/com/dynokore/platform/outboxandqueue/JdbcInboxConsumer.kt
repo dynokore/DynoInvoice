@@ -2,6 +2,9 @@ package com.dynokore.platform.outboxandqueue
 
 import com.dynokore.platform.tenancykernel.TenantId
 import java.sql.Connection
+import java.time.Clock
+import java.time.Instant
+import java.util.concurrent.ThreadLocalRandom
 import javax.sql.DataSource
 
 /**
@@ -17,19 +20,25 @@ import javax.sql.DataSource
  * 4. a `docsequence` not newer than the one held for (source, subject) is ignored; sequences are
  *    never compared across producers (INV-REQ-1221);
  * 5. the handler runs in this transaction (its state change and outbox rows join it);
- * 6. the new sequence and the offset are written, and everything commits together. A kill before
+ * 6. a handler failure rolls the record back; it is retried after a bounded, jittered backoff and dead-lettered
+ *    when [ConsumerRetryPolicy.maxAttempts] is spent (a [ContractViolation] at once), see [pollOnce];
+ * 7. the new sequence and the offset are written, and everything commits together. A kill before
  *    the commit leaves no inbox row, so the restart applies the event exactly once (INV-AC-2205).
  *
  * [claimSource] is the worker-role connection of ARC 4.3 step 1a: it only reads the offset to know
  * where to poll, and records dead letters; the inbox and sequence tables (row-level security) are
  * reached only inside a tenant transaction.
  */
-class JdbcInboxConsumer(
+class JdbcInboxConsumer
+@JvmOverloads
+constructor(
     private val subscription: ConsumerSubscription,
     private val reader: EventLogReader,
     private val claimSource: DataSource,
     private val scope: TenantScope,
     private val handler: EventHandler,
+    private val clock: Clock = Clock.systemUTC(),
+    private val randomUnit: () -> Double = { ThreadLocalRandom.current().nextDouble() },
 ) : InboxConsumer {
     private val json = EnvelopeJson()
     private val consumer = subscription.consumer
@@ -37,8 +46,10 @@ class JdbcInboxConsumer(
     private val s = SqlIdentifier.require(subscription.schema, "schema")
     private val offsets = "$s.${OutboxSchema.CONSUMER_OFFSET}"
 
+    @Synchronized
     override fun pollOnce(): PollResult {
-        val next = claimSource.connection.use { nextOffset(it) }
+        val (next, notBefore) = claimSource.connection.use { position(it) }
+        if (notBefore != null && clock.instant().isBefore(notBefore)) return PollResult(0, 0, 0, 0, 0)
         val counts = IntArray(Step.entries.size)
         for (record in reader.read(topic, next - 1, BATCH)) {
             counts[processRecord(record).ordinal]++
@@ -68,7 +79,7 @@ class JdbcInboxConsumer(
                     if (it.tenant != expectedTenant) throw ContractViolation("replayed envelope is for another tenant")
                 }
             } catch (violation: ContractViolation) {
-                deadLetter(LogRecord(REPLAY_OFFSET, raw), violation)
+                deadLetter(LogRecord(REPLAY_OFFSET, raw), violation.message ?: "contract violation")
                 return ReplayOutcome.REJECTED
             }
         val step =
@@ -89,11 +100,103 @@ class JdbcInboxConsumer(
             try {
                 json.read(record.envelopeJson)
             } catch (violation: ContractViolation) {
-                deadLetter(record, violation)
+                deadLetter(record, violation.message ?: "contract violation")
                 return Step.DEAD_LETTER
             }
-        return scope.bind(envelope.tenant) {
-            scope.transactions.inTransaction { applyInTransaction(record, envelope) }
+        val state = beginAttempt(record.offset)
+        if (state != null && state.attempts > subscription.retry.maxAttempts) {
+            // Earlier attempts were recorded but never reported a failure (the process died in the handler).
+            deadLetter(record, "$EXHAUSTED after ${state.attempts - 1} attempts: the handler did not complete")
+            return Step.DEAD_LETTER
+        }
+        return try {
+            scope.bind(envelope.tenant) {
+                scope.transactions.inTransaction { applyInTransaction(record, envelope) }
+            }
+        } catch (violation: ContractViolation) {
+            deadLetter(record, violation.message ?: "contract violation")
+            Step.DEAD_LETTER
+        } catch (failure: VirtualMachineError) {
+            throw failure // the process is not fit to carry on: the recorded attempt stands, no backoff
+        } catch (failure: Throwable) {
+            if (state != null && failed(record, state, failure)) return Step.DEAD_LETTER
+            throw failure
+        }
+    }
+
+    /** Records the failure in the offset row; true when the record was dead-lettered instead of scheduled. */
+    private fun failed(
+        record: LogRecord,
+        state: AttemptState,
+        failure: Throwable,
+    ): Boolean {
+        val retry = subscription.retry
+        val now = clock.instant()
+        if (subscription.classifier.classify(failure) == FailureKind.RECORD) {
+            if (state.attempts >= retry.maxAttempts) {
+                deadLetter(record, "$EXHAUSTED after ${state.attempts} attempts: ${failure.javaClass.name}")
+                return true
+            }
+            schedule(record.offset, 0, state.infraFailures, state.firstInfra, now.plus(retry.delayAfter(state.attempts, randomUnit())))
+            return false
+        }
+        val first = state.firstInfra ?: now
+        if (!now.isBefore(first.plus(retry.infrastructureGiveUp))) {
+            deadLetter(record, "$INFRA_EXHAUSTED ${retry.infrastructureGiveUp}: ${failure.javaClass.name}")
+            return true
+        }
+        val infra = state.infraFailures + 1
+        schedule(record.offset, 1, infra, first, now.plus(retry.delayAfter(infra, randomUnit())))
+        return false
+    }
+
+    private class AttemptState(val attempts: Int, val infraFailures: Int, val firstInfra: Instant?)
+
+    /** In its own transaction, before the handler runs: counts this delivery on the offset row (INV-Q-3108). */
+    private fun beginAttempt(offset: Long): AttemptState? = claimSource.connection.use { connection ->
+        connection.autoCommit = true
+        connection.prepareStatement(
+            "insert into $offsets (consumer, topic, next_offset, attempts) values (?, ?, $FIRST_OFFSET, 1) " +
+                "on conflict (consumer, topic) do update set attempts = $offsets.attempts + 1 " +
+                "where $offsets.next_offset <= ? returning attempts, infra_failures, first_infra_failure_at",
+        ).use {
+            it.setString(1, consumer)
+            it.setString(2, topic)
+            it.setLong(3, offset)
+            it.executeQuery().use { rows ->
+                if (!rows.next()) {
+                    null
+                } else {
+                    AttemptState(rows.getInt(1), rows.getInt(2), rows.getTimestamp(3)?.toInstant())
+                }
+            }
+        }
+    }
+
+    /** Gives back [uncount] attempts (an infrastructure failure does not use the bound) and sets the next wait. */
+    private fun schedule(
+        offset: Long,
+        uncount: Int,
+        infraFailures: Int,
+        firstInfra: Instant?,
+        notBefore: Instant,
+    ) {
+        claimSource.connection.use { connection ->
+            connection.autoCommit = true
+            connection.prepareStatement(
+                "update $offsets set attempts = greatest(attempts - ?, 0), infra_failures = ?, " +
+                    "first_infra_failure_at = ?, retry_not_before = ? " +
+                    "where consumer = ? and topic = ? and next_offset <= ?",
+            ).use {
+                it.setInt(1, uncount)
+                it.setInt(2, infraFailures)
+                it.setTimestamp(3, firstInfra?.let(java.sql.Timestamp::from))
+                it.setTimestamp(4, java.sql.Timestamp.from(notBefore))
+                it.setString(5, consumer)
+                it.setString(6, topic)
+                it.setLong(7, offset)
+                it.executeUpdate()
+            }
         }
     }
 
@@ -123,10 +226,14 @@ class JdbcInboxConsumer(
         }
     }
 
-    private fun nextOffset(connection: Connection): Long = connection.prepareStatement("select next_offset from $offsets where consumer = ? and topic = ?").use {
+    private fun position(connection: Connection): Pair<Long, Instant?> = connection.prepareStatement(
+        "select next_offset, retry_not_before from $offsets where consumer = ? and topic = ?",
+    ).use {
         it.setString(1, consumer)
         it.setString(2, topic)
-        it.executeQuery().use { rows -> if (rows.next()) rows.getLong(1) else FIRST_OFFSET }
+        it.executeQuery().use { rows ->
+            if (rows.next()) rows.getLong(1) to rows.getTimestamp(2)?.toInstant() else FIRST_OFFSET to null
+        }
     }
 
     private fun lockOffset(connection: Connection): Long {
@@ -151,7 +258,10 @@ class JdbcInboxConsumer(
         connection: Connection,
         offset: Long,
     ) {
-        connection.prepareStatement("update $offsets set next_offset = ? where consumer = ? and topic = ?").use {
+        connection.prepareStatement(
+            "update $offsets set next_offset = ?, attempts = 0, infra_failures = 0, first_infra_failure_at = null, " +
+                "retry_not_before = null where consumer = ? and topic = ?",
+        ).use {
             it.setLong(1, offset + 1)
             it.setString(2, consumer)
             it.setString(3, topic)
@@ -209,7 +319,7 @@ class JdbcInboxConsumer(
     /** Records the dead letter and moves the offset past it in one worker-role transaction. */
     private fun deadLetter(
         record: LogRecord,
-        violation: ContractViolation,
+        reason: String,
     ) {
         claimSource.connection.use { connection ->
             connection.autoCommit = false
@@ -221,13 +331,16 @@ class JdbcInboxConsumer(
                 it.setString(2, topic)
                 it.setLong(3, record.offset)
                 it.setObject(4, json.tenantOf(record.envelopeJson)?.value, java.sql.Types.OTHER)
-                it.setString(5, violation.message ?: "contract violation")
+                it.setString(5, reason)
                 it.setString(6, record.envelopeJson)
                 it.executeUpdate()
             }
             connection.prepareStatement(
                 "insert into $offsets (consumer, topic, next_offset) values (?, ?, ?) " +
-                    "on conflict (consumer, topic) do update set next_offset = greatest($offsets.next_offset, excluded.next_offset)",
+                    "on conflict (consumer, topic) do update set next_offset = greatest($offsets.next_offset, excluded.next_offset), " +
+                    "attempts = ${keepUnlessMoved("attempts", "0")}, infra_failures = ${keepUnlessMoved("infra_failures", "0")}, " +
+                    "first_infra_failure_at = ${keepUnlessMoved("first_infra_failure_at", "null")}, " +
+                    "retry_not_before = ${keepUnlessMoved("retry_not_before", "null")}",
             ).use {
                 it.setString(1, consumer)
                 it.setString(2, topic)
@@ -238,11 +351,19 @@ class JdbcInboxConsumer(
         }
     }
 
+    /** SQL: [column]'s value, or [reset] when the offset moved past the row's record. */
+    private fun keepUnlessMoved(
+        column: String,
+        reset: String,
+    ) = "case when excluded.next_offset > $offsets.next_offset then $reset else $offsets.$column end"
+
     private enum class Step { APPLIED, IGNORED, DUPLICATE, STALE, DEAD_LETTER }
 
     private companion object {
         const val BATCH = 100
         const val FIRST_OFFSET = 1L
+        const val EXHAUSTED = "handler failed, retries exhausted"
+        const val INFRA_EXHAUSTED = "handler failed on infrastructure failures for"
         const val REPLAY_OFFSET = 0L // a replayed record has no position in the topic
     }
 }

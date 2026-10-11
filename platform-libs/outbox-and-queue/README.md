@@ -32,6 +32,14 @@ one table per topic), `JdbcInboxConsumer` (inbox, `docsequence` rule, offsets, d
 `ReplayDelivery`/`JdbcReplayDelivery`, `StalenessMonitor`/`JdbcStalenessMonitor`, `EventLogLag`. Existing 1.0.0 schemas:
 run `OutboxSchema.upgradeTo110` and `QueueSchema.ddl` in the service's migration.
 
+Consumer retry with bounded, jittered backoff is in 1.4.0 (`ConsumerRetryPolicy`). Run `OutboxSchema.upgradeTo140` first
+(it adds the attempt-state columns to `consumer_offset`). Defaults: 8 attempts; the wait after failed attempt n is 1 s
+doubled each time (1, 2, 4 ... s), capped at 5 min, then shortened by a random share of up to 50 %; after the 8th failure
+the record goes to `event_dead_letter`. The attempt count is stored, so it holds across restarts, kills and replicas.
+Infrastructure failures (`FailureClassifier.DEFAULT`: lost connection, timeout, SQLState 08/57P/40001, an unavailable
+dependency) back off to the 5 min cap without using the 8 attempts and are dead-lettered after 24 h
+(`infrastructureGiveUp`). Override the policy and the classifier per consumer on `ConsumerSubscription`.
+
 Not in 1.1.0: delivery retry with backoff, inbox retention (added in 1.3.0: `Retention`, `JdbcRetentionPurge`,
 `OutboxSchema.upgradeTo130`; existing schemas run `upgradeTo130` in the service's migration), rate limits shared across worker processes (each worker
 counts its own), exporting the staleness metric and raising the incident (the composition root's sink), and scheduling of the

@@ -39,12 +39,14 @@ class OutboxHarness(image: String) : AutoCloseable {
         schema: String,
         tx: KillableTransactionRunner,
         handler: EventHandler,
+        clock: java.time.Clock = java.time.Clock.systemUTC(),
     ) = JdbcInboxConsumer(
         ConsumerSubscription(name, topic, schema),
         reader,
         fixture.workerDataSource(),
         TenantScope(tx.tenants, tx, tx),
         handler,
+        clock,
     )
 
     /** `[relrowsecurity, relforcerowsecurity]` of `schema.table`. */

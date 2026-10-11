@@ -85,6 +85,10 @@ object OutboxSchema {
                 consumer text not null,
                 topic text not null,
                 next_offset bigint not null,
+                attempts int not null default 0,
+                infra_failures int not null default 0,
+                first_infra_failure_at timestamptz,
+                retry_not_before timestamptz,
                 primary key (consumer, topic)
             );
             create table $s.$DEAD_LETTER (
@@ -192,4 +196,20 @@ object OutboxSchema {
         schema: String,
         workerRole: String,
     ): String = purgeAccess(SqlIdentifier.require(schema, "schema"), SqlIdentifier.require(workerRole, "worker role"))
+    /**
+     * Brings a 1.3.0 schema (after [upgradeTo130]) to 1.4.0: the delivery-attempt state of the record at each consumer offset
+     * (INV-Q-3108, INV-Q-3110): `attempts` (deliveries begun, counted before the handler runs), `infra_failures`,
+     * `first_infra_failure_at` and `retry_not_before`. They reset when the record succeeds. Run once by the
+     * service's migration (TPL-12) before the 1.4.0 consumer starts; harmless on a schema created by [ddl].
+     */
+    fun upgradeTo140(schema: String): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        return """
+            alter table $s.$CONSUMER_OFFSET
+                add column if not exists attempts int not null default 0,
+                add column if not exists infra_failures int not null default 0,
+                add column if not exists first_infra_failure_at timestamptz,
+                add column if not exists retry_not_before timestamptz;
+        """.trimIndent()
+    }
 }
