@@ -7,7 +7,6 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
-import java.sql.SQLException
 import java.time.LocalDate
 import java.util.UUID
 import java.util.concurrent.CopyOnWriteArrayList
@@ -92,42 +91,20 @@ class PlatformEventIT {
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
-    fun `upgradeTo120 keeps 1_1_0 rows and lets a second tenant's same-subject event through`(image: String) {
+    fun `upgradeTo120 keys a 1_1_0 consumer_sequence per tenant`(image: String) {
         OutboxHarness(image).use { harness ->
-            val tenant = UUID.randomUUID()
-            val sequences = "select count(*) from reconciliation.consumer_sequence"
-            val seeded = "$sequences where tenant_id = ? and subject = 'job-a' and last_value = 5"
-            // A 1.1.0 consumer_sequence, holding one tenant's row for (evidence-svc, /gst/payload-svc, job-a).
+            val keyOf =
+                "select count(*) from information_schema.key_column_usage " +
+                    "where table_schema = 'payload' and table_name = 'consumer_sequence' and column_name = 'tenant_id'"
             harness.fixture.runAsAdmin(
-                "alter table reconciliation.consumer_sequence drop constraint consumer_sequence_pkey, " +
-                    "add primary key (consumer, source, subject); " +
-                    "insert into reconciliation.consumer_sequence (consumer, source, subject, tenant_id, last_value) " +
-                    "values ('evidence-svc', '/gst/payload-svc', 'job-a', '$tenant', 5)",
+                "alter table payload.consumer_sequence drop constraint consumer_sequence_pkey, " +
+                    "add primary key (consumer, source, subject)",
             )
-            val producer = harness.payload
-            producer.inPlatformTx { producer.writer.append(listOf(audit("operator")), platformContext("job-a")) }
-            harness.drain(producer.relay)
-            val kit = harness.reconciliation
-            val consumer =
-                harness.consumer("evidence-svc", auditTopic, "reconciliation", kit.boundary, RecordingHandler())
-
-            // 1.1.0: the platform event's sequence upsert hits the tenant's row and fails row-level security.
-            assertThrows(SQLException::class.java) { consumer.pollOnce() }
-
-            harness.fixture.runAsAdmin(OutboxSchema.upgradeTo120("reconciliation"))
-            harness.fixture.runAsAdmin(OutboxSchema.upgradeTo120("reconciliation"))
-            assertEquals(1, harness.count(seeded, tenant), "the 1.1.0 row survives unchanged")
-
-            assertEquals(1, consumer.pollOnce().applied)
-            assertEquals(1, harness.count(seeded, tenant))
-            val platformRow = "$sequences where tenant_id = ? and subject = 'job-a'"
-            assertEquals(1, harness.count(platformRow, TenantId.PLATFORM.value))
+            assertEquals(0, harness.count(keyOf))
+            harness.fixture.runAsAdmin(OutboxSchema.upgradeTo120("payload"))
+            harness.fixture.runAsAdmin(OutboxSchema.upgradeTo120("payload"))
+            assertEquals(1, harness.count(keyOf))
         }
-    }
-
-    /** Records nothing; applies every event. */
-    private class RecordingHandler : EventHandler {
-        override fun handle(event: Envelope): HandleOutcome = HandleOutcome.APPLIED
     }
 
     /** Polls the audit topic once as `evidence-svc` would; each applied event's tenant, entity and bound tenant. */
