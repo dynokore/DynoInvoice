@@ -12,6 +12,7 @@ import com.dynokore.platform.outboxandqueue.EventId
 import com.dynokore.platform.outboxandqueue.LogRecord
 import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
+import com.dynokore.platform.serviceruntime.connection.ConnectionState
 import com.dynokore.platform.serviceruntime.contract.ContractValidator
 import com.dynokore.platform.serviceruntime.events.ConnectionStatusBoard.ConnectionKey
 import com.dynokore.platform.serviceruntime.jobs.MutableClock
@@ -20,6 +21,7 @@ import com.dynokore.platform.serviceruntime.replica.PolicySource
 import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -139,7 +141,7 @@ class PlatformEventsTest {
             return reader.connectionStatusChanged(text)
         }
 
-        fun apply(report: ConnectionStatusReport) = board.apply(ConnectionKey(report.service, report.connection), report.instance, report.state, report.time)
+        fun apply(report: ConnectionStatusReport) = board.apply(ConnectionKey(report.service, report.connection), report.instance, report.state!!, report.time)
         val key = ConnectionKey("transport-svc", "ap-primary")
 
         val first = report("svc-1", "down", start)
@@ -150,38 +152,23 @@ class PlatformEventsTest {
 
         apply(first) shouldBe true
         apply(report("svc-2", "up", start.plusSeconds(5))) shouldBe true
-        board.worst(key) shouldBe ReceivedConnectionState.DOWN
+        board.worst(key) shouldBe ConnectionState.DOWN
         apply(report("svc-1", "degraded", start.plusSeconds(10))) shouldBe true
-        board.worst(key) shouldBe ReceivedConnectionState.DEGRADED
+        board.worst(key) shouldBe ConnectionState.DEGRADED
         // within one instance's stream the latest envelope time wins: an older report changes nothing
         apply(report("svc-1", "down", start.plusSeconds(1))) shouldBe false
-        board.worst(key) shouldBe ReceivedConnectionState.DEGRADED
+        board.worst(key) shouldBe ConnectionState.DEGRADED
         apply(report("svc-1", "up", start.plusSeconds(20))) shouldBe true
-        board.worst(key) shouldBe ReceivedConnectionState.UP
-        board.instances(key) shouldBe mapOf("svc-1" to ReceivedConnectionState.UP, "svc-2" to ReceivedConnectionState.UP)
+        board.worst(key) shouldBe ConnectionState.UP
+        board.instances(key) shouldBe mapOf("svc-1" to ConnectionState.UP, "svc-2" to ConnectionState.UP)
     }
 
     @Test
-    fun `INV-Q-3718 a state outside up, degraded and down is shown as UNKNOWN, ranked between degraded and down`() {
+    fun `a ConnectionStatusChanged state outside the contract's vocabulary is kept as received and not ranked`() {
         val data = mapper.createObjectNode().put("connection", "ap-primary").put("state", "maintenance")
         val read = reader.connectionStatusChanged(record(PlatformEventTypes.CONNECTION_STATUS_CHANGED, data))
         read.stateText shouldBe "maintenance"
-        read.state shouldBe ReceivedConnectionState.UNKNOWN
-
-        val board = ConnectionStatusBoard()
-        val key = ConnectionKey(read.service, read.connection)
-        board.apply(key, "svc-1", ReceivedConnectionState.DEGRADED, start) shouldBe true
-        board.apply(key, "svc-2", read.state, start) shouldBe true
-        // an unknown instance outranks degraded and up ...
-        board.worst(key) shouldBe ReceivedConnectionState.UNKNOWN
-        // ... but not down
-        board.apply(key, "svc-1", ReceivedConnectionState.DOWN, start.plusSeconds(1)) shouldBe true
-        board.worst(key) shouldBe ReceivedConnectionState.DOWN
-        // and a contract state from the same instance replaces the unknown one
-        board.apply(key, "svc-1", ReceivedConnectionState.UP, start.plusSeconds(2)) shouldBe true
-        board.apply(key, "svc-2", ReceivedConnectionState.UP, start.plusSeconds(2)) shouldBe true
-        board.worst(key) shouldBe ReceivedConnectionState.UP
-        ReceivedConnectionState.entries.map { it.name } shouldBe listOf("UP", "DEGRADED", "UNKNOWN", "DOWN")
+        read.state.shouldBeNull()
     }
 
     @Test

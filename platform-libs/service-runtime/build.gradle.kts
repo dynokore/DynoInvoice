@@ -1,11 +1,10 @@
 // service-runtime/build.gradle.kts — STK-60 L1 module (ARC-16, FR-L.6; INV-T-2860 /
 // T16 scaffold; INV-T-2871 / T27 gives it its real interfaces).
 //
-// service-runtime is the L1 composition root (INV-MOD-2371) every service's bootstrap
-// imports (TPL-18): it may use the other L1 modules its service embeds, and no other L1
-// module depends on it (`CompositionRootDirectionTest`). INV-T-2875 wires each embedded
-// module's ports (`composition/`); the modules it does not otherwise use are compileOnly
-// here, so a service gets only the modules it puts on its own classpath. This train adds: Spring Boot 4.1
+// service-runtime is first in STK-60's canonical L1 order (`L1_MODULE_ORDER`): it
+// uses no other L1 module (`ArchitectureTest`, this module's own §18.9 check) and
+// is itself the composition root every service's bootstrap imports alongside the
+// other L1 modules it embeds (TPL-18). This train adds: Spring Boot 4.1
 // bootstrap auto-configuration; the closed set of SDS §12.1 binding interfaces
 // (`binding/Binding.kt`) with the `SecretStore` binding's one shipped
 // implementation (STK-29); liveness/readiness with a `DEGRADED` status distinct
@@ -66,22 +65,6 @@ val tenancyKernelImplJar = project(":tenancy-kernel").tasks.named("implJar")
 val outboxImplJar = project(":outbox-and-queue").tasks.named("implJar")
 val auditLogImplJar = project(":audit-log").tasks.named("implJar")
 
-// INV-T-2875 (INV-Q-3710): the composition root wires every L1 module the service embeds. The modules (and impl
-// halves) service-runtime does not already depend on are compileOnly in the impl half, gated by
-// @ConditionalOnClass; implTest puts every one on the classpath ("every L1 module present").
-evaluationDependsOn(":config-resolver")
-evaluationDependsOn(":crypto")
-evaluationDependsOn(":rulepack-kernel")
-evaluationDependsOn(":evidence-store")
-evaluationDependsOn(":adapter-runtime")
-val optionalL1Modules = listOf(":crypto", ":rulepack-kernel", ":evidence-store", ":adapter-runtime")
-// The impl halves' class output, not their `implJar`: rulepack-kernel's and adapter-runtime's `implJar` write to the
-// same build/libs file as their api `jar`, so whichever runs last wins.
-val optionalImplOutputs =
-    (optionalL1Modules + listOf(":config-resolver", ":audit-log")).map {
-        project(it).the<SourceSetContainer>()["impl"].output
-    }
-
 dependencies {
     // INV-T-2873 / T29: the replicas are keyed by tenancy-kernel's `TenantId`. service-runtime
     // is the L1 composition root (INV-MOD-2371): it may use the other L1 modules, none may use it.
@@ -135,6 +118,7 @@ dependencies {
     add("implTestImplementation", project(":audit-log"))
     add("implTestImplementation", files(tenancyKernelImplJar))
     add("implTestImplementation", files(outboxImplJar))
+    add("implTestImplementation", files(auditLogImplJar))
     add("implTestImplementation", testFixtures(project(":outbox-and-queue")))
     listOf("implImplementation", "implTestImplementation").forEach { config ->
         add(config, libs.shedlock.core)
@@ -153,20 +137,6 @@ dependencies {
         }
     }
     add("implTestImplementation", libs.assertj.core)
-
-    // INV-T-2875: the composition root's optional L1 modules (see `optionalL1Modules` above).
-    optionalL1Modules.forEach {
-        add("implCompileOnly", project(it))
-        add("implTestImplementation", project(it))
-    }
-    optionalImplOutputs.forEach {
-        add("implCompileOnly", it)
-        add("implTestImplementation", it)
-    }
-    add("implCompileOnly", libs.awssdk.s3)
-    add("implTestImplementation", libs.awssdk.s3)
-    add("implTestImplementation", libs.bouncycastle.bcprov)
-    add("implTestImplementation", libs.bouncycastle.bcpkix)
 
     // STK-24 (INV-T-2872 / T28): Resilience4j core for the internal-edge
     // `ResilienceRegistry` — the same modules `adapter-runtime` (T18) already

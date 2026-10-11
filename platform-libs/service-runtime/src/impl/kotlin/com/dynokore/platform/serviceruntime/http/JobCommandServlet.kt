@@ -38,8 +38,8 @@ import java.util.UUID
  *   `JobCommandAuthorizer` against its authority replica inside [JobCommands].
  * - `Idempotency-Key` (a UUID, the contract's `format: uuid`) is required and kept in [idempotency]
  *   with a fingerprint of the method, path and body (API-15).
- * - A refused command is its JOB catalogue code at the code's status (API-21); each closed case (ARC-19) is
- *   its SRT code (INV-Q-3720), so no response is code-less, see [Problems].
+ * - A refused command is its JOB catalogue code at the code's status (API-21); the closed cases are code-less
+ *   (ARC-19), see [Problems].
  * - runJobNow answers 202 when it started a run, 200 for a repeat in the same run window (INV-Q-3034); pauseJob
  *   and resumeJob answer 200 with the key's own `JobPauseState`.
  */
@@ -53,10 +53,7 @@ class JobCommandServlet(
 
     private enum class Action { RUN, PAUSE, RESUME }
 
-    private class Violation(
-        message: String,
-        val code: ClosedErrorCode = ClosedErrorCode.CONTRACT_VIOLATION,
-    ) : RuntimeException(message)
+    private class Violation(message: String) : RuntimeException(message)
 
     override fun service(
         request: HttpServletRequest,
@@ -95,7 +92,7 @@ class JobCommandServlet(
                     body = jsonObject(body),
                 ).also { it.validate(action) }
             } catch (violation: Violation) {
-                return Problems.closed(violation.code, correlation, violation.message.orEmpty())
+                return Problems.contractViolation(violation.message.orEmpty(), correlation)
             }
         val entity = parsed.entity
         if (entity != null && !principal.covers(entity)) return Problems.accessDenied(correlation)
@@ -250,11 +247,11 @@ class JobCommandServlet(
     }
 
     private fun idempotencyKey(header: String?): UUID {
-        val text = header?.trim() ?: throw Violation("Idempotency-Key is required", KEY_INVALID)
+        val text = header?.trim() ?: throw Violation("Idempotency-Key is required")
         return try {
-            UUID.fromString(text).also { if (it.toString() != text.lowercase()) throw Violation("Idempotency-Key must be a UUID", KEY_INVALID) }
+            UUID.fromString(text).also { if (it.toString() != text.lowercase()) throw Violation("Idempotency-Key must be a UUID") }
         } catch (_: IllegalArgumentException) {
-            throw Violation("Idempotency-Key must be a UUID", KEY_INVALID)
+            throw Violation("Idempotency-Key must be a UUID")
         }
     }
 
@@ -274,7 +271,6 @@ class JobCommandServlet(
         /** The servlet mapping of the three operations. */
         const val MAPPING = "/internal/v1/jobs/*"
         private val ROUTE = Regex("^/internal/v1/jobs/([^/]+)/(run|pause|resume)$")
-        private val KEY_INVALID = ClosedErrorCode.IDEMPOTENCY_KEY_INVALID
         private const val AUTHORIZATION = "Authorization"
         private const val IDEMPOTENCY_KEY = "Idempotency-Key"
         private const val JSON = "application/json"
