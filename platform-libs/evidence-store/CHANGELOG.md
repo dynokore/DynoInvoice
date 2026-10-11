@@ -6,6 +6,12 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-11
+### Changed
+- `ContentHash.of` hashes through the platform `crypto` module (`Hashing`, `HashAlgorithm.SHA_256`;
+  CS-53, INV-T-3358 / FU-E2) instead of calling `MessageDigest` itself. Same signature, same
+  output; `evidence-store-api` now depends on `crypto-api`.
+
 ## [1.0.0] - 2026-09-27
 ### Added
 - `EvidenceLedger` port and `JdbcEvidenceLedger`: an append-only, hash-chained

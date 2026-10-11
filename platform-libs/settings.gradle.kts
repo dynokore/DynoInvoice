@@ -74,5 +74,6 @@ include(
     "adapter-runtime",
     "config-resolver",
     "audit-log",
+    "crypto", // CS-53, INV-Q-3356 M-A (INV-T-3358): the lowest L1 module
     "product-runtime",
 )

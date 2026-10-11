@@ -6,6 +6,17 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-11
+### Changed
+- `BouncyCastlePackVerifier`'s detached CMS check and SHA-256 checksums now run on the platform
+  `crypto` module (CS-53; INV-Q-3356 M-A; INV-T-3358 / FU-E2), which the module now depends on.
+  The constructor gains a second parameter, `signatureVerifier: DetachedSignatureVerifier`, defaulting
+  to crypto's `BouncyCastleCms`; `BouncyCastlePackVerifier()` and `BouncyCastlePackVerifier(objectMapper)`
+  are unchanged. Step order, rejection reasons and details are unchanged.
+- The signature is now checked under the named algorithm ECDSA P-256 with SHA-256 (STK-13): a pack
+  whose signer uses another signature algorithm, digest or key curve is `SIGNATURE_INVALID`
+  (previously any algorithm Bouncy Castle could verify was accepted, then pinned to a trust anchor).
+
 ## [1.2.0] - 2026-10-11
 ### Fixed
 - The registry lineage key is now `UNIQUE NULLS NOT DISTINCT (pack_type, tenant_id, version)`, so a platform

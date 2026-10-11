@@ -80,6 +80,9 @@ dependencies {
     // (main sourceSet) — TenantId, TenantContext, TransactionRunner (ARC-16,
     // both framework-free).
     api(project(":tenancy-kernel"))
+    // ContentHash hashes through the platform crypto module (CS-53; INV-T-3358): its pure-JDK
+    // `-api` half only, which this module's own public types never expose.
+    implementation(project(":crypto"))
 
     // -impl half: `sourceSets["main"].output` above is only this project's own
     // compiled classes, not `main`'s own dependencies (Gradle does not follow
@@ -94,6 +97,7 @@ dependencies {
     // `testFixturesApi(libs.postgresql)`) sees it too, without a second
     // declaration.
     add("implImplementation", project(":tenancy-kernel"))
+    add("implImplementation", project(":crypto"))
     add("implImplementation", files(tenancyKernelImplJar))
     testFixturesApi(files(tenancyKernelImplJar))
     testImplementation(sourceSets["impl"].output)

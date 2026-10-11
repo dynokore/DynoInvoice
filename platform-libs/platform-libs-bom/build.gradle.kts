@@ -30,7 +30,7 @@ version = providers.gradleProperty("bomVersion").getOrElse("0.0.0-local")
 // module's own build file has been evaluated. Evaluate each constrained module first.
 listOf(
     "service-runtime", "outbox-and-queue", "rulepack-kernel", "tenancy-kernel",
-    "evidence-store", "adapter-runtime", "config-resolver", "audit-log",
+    "evidence-store", "adapter-runtime", "config-resolver", "audit-log", "crypto",
 ).forEach { evaluationDependsOn(":$it") }
 
 dependencies {
@@ -55,6 +55,9 @@ dependencies {
         api("com.dynokore.platform:config-resolver:${project(":config-resolver").version}") // INV-T-2869 / T25
         api("com.dynokore.platform:audit-log-api:${project(":audit-log").version}") // INV-T-2868 / T24, INV-T-2999, INV-T-3001
         api("com.dynokore.platform:audit-log:${project(":audit-log").version}") // INV-T-2868 / T24, INV-T-2999, INV-T-3001
+        // crypto (CS-53; INV-Q-3356 M-A): not yet in STK-60's L1 list, so after audit-log for now.
+        api("com.dynokore.platform:crypto-api:${project(":crypto").version}") // INV-T-3358 / FU-E2
+        api("com.dynokore.platform:crypto:${project(":crypto").version}") // INV-T-3358 / FU-E2
 
         // CVE-2026-65182, CVE-2026-65905, CVE-2026-68525: service-runtime (INV-T-2871 /
         // T27) is this repository's first module on Spring Boot 4.1.1, whose managed

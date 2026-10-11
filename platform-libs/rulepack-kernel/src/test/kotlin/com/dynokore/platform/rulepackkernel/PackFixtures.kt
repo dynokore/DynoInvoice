@@ -1,5 +1,7 @@
 package com.dynokore.platform.rulepackkernel
 
+import com.dynokore.platform.crypto.HashAlgorithm
+import com.dynokore.platform.crypto.Hashing
 import org.bouncycastle.asn1.x500.X500Name
 import org.bouncycastle.cert.X509CertificateHolder
 import org.bouncycastle.cert.X509v3CertificateBuilder
@@ -15,7 +17,6 @@ import org.bouncycastle.operator.jcajce.JcaDigestCalculatorProviderBuilder
 import java.math.BigInteger
 import java.security.KeyPair
 import java.security.KeyPairGenerator
-import java.security.MessageDigest
 import java.security.PrivateKey
 import java.security.Security
 import java.security.spec.ECGenParameterSpec
@@ -87,10 +88,7 @@ object PackFixtures {
         return signedData.encoded
     }
 
-    fun sha256Hex(bytes: ByteArray): String {
-        val digest = MessageDigest.getInstance("SHA-256").digest(bytes)
-        return digest.joinToString(separator = "") { "%02x".format(it) }
-    }
+    fun sha256Hex(bytes: ByteArray): String = Hashing.hex(HashAlgorithm.SHA_256, bytes)
 
     fun manifestJson(
         packId: String = "code-catalogue-sg",

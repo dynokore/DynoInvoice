@@ -1,16 +1,13 @@
 package com.dynokore.platform.rulepackkernel
 
-import org.bouncycastle.cert.X509CertificateHolder
-import org.bouncycastle.cms.CMSException
-import org.bouncycastle.cms.CMSProcessableByteArray
-import org.bouncycastle.cms.CMSSignedData
-import org.bouncycastle.cms.jcajce.JcaSimpleSignerInfoVerifierBuilder
-import org.bouncycastle.jce.provider.BouncyCastleProvider
-import org.bouncycastle.util.Selector
+import com.dynokore.platform.crypto.BouncyCastleCms
+import com.dynokore.platform.crypto.DetachedSignatureVerifier
+import com.dynokore.platform.crypto.DetachedVerification
+import com.dynokore.platform.crypto.HashAlgorithm
+import com.dynokore.platform.crypto.Hashing
+import com.dynokore.platform.crypto.SignatureAlgorithm
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
-import java.security.MessageDigest
-import java.security.Security
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 
@@ -34,19 +31,18 @@ import java.time.format.DateTimeParseException
  * 4. [PackArtefact.manifest] parses as JSON into a [PackManifest]
  *    (`MANIFEST_MALFORMED` otherwise).
  *
+ * The CMS steps 2 and 3 are the platform crypto module's detached verifier (CS-53; INV-T-3358),
+ * under the named algorithm ECDSA P-256 with SHA-256: a signer using any other signature
+ * algorithm, digest or curve is `SIGNATURE_INVALID`.
+ *
  * `control-plane-svc`'s side (STK-13: "bundle format and signing", this
  * module's other declared user, INV-MOD-2373) is symmetric but out of this
  * task's declared scope — signing is not this module's job, only verifying.
  */
 class BouncyCastlePackVerifier(
     private val objectMapper: ObjectMapper = ObjectMapper(),
+    private val signatureVerifier: DetachedSignatureVerifier = BouncyCastleCms(),
 ) : PackVerifier {
-    init {
-        if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null) {
-            Security.addProvider(BouncyCastleProvider())
-        }
-    }
-
     override fun verify(
         artefact: PackArtefact,
         trustAnchors: TrustAnchors,
@@ -69,61 +65,26 @@ class BouncyCastlePackVerifier(
         }
 
         val signedContent = artefact.manifest + artefact.checksums
-        val signedData = try {
-            CMSSignedData(CMSProcessableByteArray(signedContent), artefact.signature)
-        } catch (failure: CMSException) {
-            return rejected(
-                PackRejectionReason.SIGNATURE_INVALID,
-                "not a well-formed CMS SignedData: ${failure.message}",
+        val anchors = trustAnchors.anchors
+        val matchedAnchor = when (
+            val verification = signatureVerifier.verify(
+                content = signedContent,
+                signature = artefact.signature,
+                algorithm = SignatureAlgorithm.ECDSA_P256_SHA256,
+                trustedCertificatesDer = anchors.map { it.certificateDer },
             )
-        }
+        ) {
+            is DetachedVerification.SignatureInvalid ->
+                return rejected(PackRejectionReason.SIGNATURE_INVALID, verification.detail)
 
-        val signerInfos = signedData.signerInfos.signers
-        if (signerInfos.isEmpty()) {
-            return rejected(PackRejectionReason.SIGNATURE_INVALID, "CMS SignedData carries no SignerInfo")
-        }
-        val signerInfo = signerInfos.first()
+            DetachedVerification.UntrustedSigner ->
+                return rejected(
+                    PackRejectionReason.UNTRUSTED_SIGNER,
+                    "signature is mathematically valid but the signer certificate is not one of the given trust anchors",
+                )
 
-        @Suppress("UNCHECKED_CAST") // CS-50: bc-java's SignerId implements the raw (unparameterised) Selector type
-        val signerIdSelector = signerInfo.getSID() as Selector<X509CertificateHolder>
-        val signerCertificate = signedData.certificates
-            .getMatches(signerIdSelector)
-            .filterIsInstance<X509CertificateHolder>()
-            .firstOrNull()
-            ?: return rejected(
-                PackRejectionReason.SIGNATURE_INVALID,
-                "no certificate in the CMS message matches its own SignerInfo",
-            )
-
-        val mathematicallyValid = try {
-            val verifier =
-                JcaSimpleSignerInfoVerifierBuilder()
-                    .setProvider(BouncyCastleProvider.PROVIDER_NAME)
-                    .build(signerCertificate)
-            signerInfo.verify(verifier)
-        } catch (failure: CMSException) {
-            return rejected(PackRejectionReason.SIGNATURE_INVALID, "signature verification failed: ${failure.message}")
+            is DetachedVerification.Verified -> anchors[verification.trustedIndex]
         }
-        if (!mathematicallyValid) {
-            return rejected(
-                PackRejectionReason.SIGNATURE_INVALID,
-                "CMS signature does not verify against its own signer certificate",
-            )
-        }
-
-        val signerCertificateDer = try {
-            signerCertificate.encoded
-        } catch (failure: java.io.IOException) {
-            return rejected(
-                PackRejectionReason.SIGNATURE_INVALID,
-                "signer certificate could not be re-encoded: ${failure.message}",
-            )
-        }
-        val matchedAnchor = trustAnchors.anchors.firstOrNull { it.certificateDer.contentEquals(signerCertificateDer) }
-            ?: return rejected(
-                PackRejectionReason.UNTRUSTED_SIGNER,
-                "signature is mathematically valid but the signer certificate is not one of the given trust anchors",
-            )
 
         val manifestNode = parseJson(artefact.manifest)
             ?: return rejected(PackRejectionReason.MANIFEST_MALFORMED, "manifest member is not valid JSON")
@@ -197,9 +158,6 @@ class BouncyCastlePackVerifier(
     companion object {
         private const val CONTENTS_CHECKSUM_FIELD = "contents"
 
-        internal fun sha256Hex(bytes: ByteArray): String {
-            val digest = MessageDigest.getInstance("SHA-256").digest(bytes)
-            return digest.joinToString(separator = "") { "%02x".format(it) }
-        }
+        internal fun sha256Hex(bytes: ByteArray): String = Hashing.hex(HashAlgorithm.SHA_256, bytes)
     }
 }

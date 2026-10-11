@@ -12,9 +12,10 @@
 //     composition root or `product-runtime` (TPL-01, TPL-18), never by another
 //     L1/L2 module.
 //
-// Order within L1 (INV-MOD-2373, INV-ADR-2774): uses `tenancy-kernel` only, for
+// Order within L1 (INV-MOD-2373, INV-ADR-2774): uses `tenancy-kernel`, for
 // its `TenantId` value type ([PackVersion]/[PackRegistry]'s tenant-precedence
-// resolution, INV-REQ-770) — no other L1 module. Anything else this module
+// resolution, INV-REQ-770), and `crypto` (the lowest L1 module, CS-53;
+// INV-T-3358) for SHA-256 and the detached CMS verifier — no other L1 module. Anything else this module
 // might need (emitting a platform event, for a later task's fence participant)
 // goes through a port it declares itself, never a further `project(":...")`
 // dependency. `implementation`, not `api`: no `java-library` plugin is applied
@@ -43,6 +44,13 @@ sourceSets {
     }
 }
 
+// The detached CMS primitive is the platform crypto module's (CS-53; INV-T-3358): its `-api` half
+// for the port and named algorithm, its impl half (`BouncyCastleCms`, the default verifier) as that
+// project's own `implJar` output at the same commit, the same technique evidence-store uses for
+// tenancy-kernel's impl half. Evaluation is forced so that `implJar` task exists when read here.
+evaluationDependsOn(":crypto")
+val cryptoImplJar = project(":crypto").tasks.named("implJar")
+
 dependencies {
     implementation(project(":tenancy-kernel"))
 
@@ -55,7 +63,11 @@ dependencies {
     // independently) — `InMemoryPackRegistry` (impl) needs `TenantId` directly too.
     add("implImplementation", project(":tenancy-kernel"))
 
-    // STK-13: detached CMS signature verification, ECDSA P-256 with SHA-256.
+    // STK-13: detached CMS signature verification, ECDSA P-256 with SHA-256, through the crypto
+    // module; Bouncy Castle stays on the impl classpath because `files(...)` carries no transitive
+    // dependencies of crypto's impl jar.
+    add("implImplementation", project(":crypto"))
+    add("implImplementation", files(cryptoImplJar))
     add("implImplementation", libs.bouncycastle.bcprov)
     add("implImplementation", libs.bouncycastle.bcpkix)
     // STK-08: Jackson 3 (`tools.jackson`) — manifest, checksums and pack-content parsing.
@@ -63,6 +75,8 @@ dependencies {
 
     testImplementation(sourceSets["impl"].output)
     testImplementation(project(":tenancy-kernel"))
+    testImplementation(project(":crypto"))
+    testImplementation(files(cryptoImplJar))
     testImplementation(libs.bouncycastle.bcprov)
     testImplementation(libs.bouncycastle.bcpkix)
     testImplementation(libs.jackson.databind)

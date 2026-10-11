@@ -1,0 +1,138 @@
+package com.dynokore.platform.crypto
+
+import org.bouncycastle.asn1.ASN1ObjectIdentifier
+import org.bouncycastle.asn1.x509.AlgorithmIdentifier
+import org.bouncycastle.cert.X509CertificateHolder
+import org.bouncycastle.cert.jcajce.JcaCertStore
+import org.bouncycastle.cms.CMSException
+import org.bouncycastle.cms.CMSProcessableByteArray
+import org.bouncycastle.cms.CMSSignedData
+import org.bouncycastle.cms.CMSSignedDataGenerator
+import org.bouncycastle.cms.SignerInfoGeneratorBuilder
+import org.bouncycastle.cms.jcajce.JcaSimpleSignerInfoVerifierBuilder
+import org.bouncycastle.jce.provider.BouncyCastleProvider
+import org.bouncycastle.operator.ContentSigner
+import org.bouncycastle.operator.jcajce.JcaDigestCalculatorProviderBuilder
+import org.bouncycastle.util.Selector
+import java.io.ByteArrayOutputStream
+import java.io.IOException
+import java.io.OutputStream
+import java.security.Security
+
+/**
+ * Detached CMS sign and verify over Bouncy Castle (STK-13): `SignedData` without encapsulated
+ * content, one `SignerInfo`, the signer's certificate carried in the message, and on verification
+ * the signer pinned to an exact trusted certificate (see [DetachedSignatureVerifier]).
+ */
+class BouncyCastleCms :
+    DetachedSigner,
+    DetachedSignatureVerifier {
+    init {
+        if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null) {
+            Security.addProvider(BouncyCastleProvider())
+        }
+    }
+
+    override fun sign(
+        content: ByteArray,
+        key: SigningKey,
+    ): ByteArray {
+        val certificate = X509CertificateHolder(key.certificateDer)
+        val digestProvider =
+            JcaDigestCalculatorProviderBuilder().setProvider(BouncyCastleProvider.PROVIDER_NAME).build()
+        val signerInfoGenerator =
+            SignerInfoGeneratorBuilder(digestProvider).build(SigningKeyContentSigner(key), certificate)
+        val generator = CMSSignedDataGenerator()
+        generator.addSignerInfoGenerator(signerInfoGenerator)
+        generator.addCertificates(JcaCertStore(listOf(certificate)))
+        // false: detached, the content travels separately and is not encapsulated in the signature
+        return generator.generate(CMSProcessableByteArray(content), false).encoded
+    }
+
+    @Suppress("ReturnCount") // CS-50: one early return per verification step reads as the documented step order
+    override fun verify(
+        content: ByteArray,
+        signature: ByteArray,
+        algorithm: SignatureAlgorithm,
+        trustedCertificatesDer: List<ByteArray>,
+    ): DetachedVerification {
+        val signedData = try {
+            CMSSignedData(CMSProcessableByteArray(content), signature)
+        } catch (failure: CMSException) {
+            return invalid("not a well-formed CMS SignedData: ${failure.message}")
+        }
+
+        val signerInfo = signedData.signerInfos.signers.firstOrNull()
+            ?: return invalid("CMS SignedData carries no SignerInfo")
+
+        @Suppress("UNCHECKED_CAST") // CS-50: bc-java's SignerId implements the raw (unparameterised) Selector type
+        val signerIdSelector = signerInfo.getSID() as Selector<X509CertificateHolder>
+        val signerCertificate = signedData.certificates
+            .getMatches(signerIdSelector)
+            .filterIsInstance<X509CertificateHolder>()
+            .firstOrNull()
+            ?: return invalid("no certificate in the CMS message matches its own SignerInfo")
+
+        algorithmMismatch(algorithm, signerInfo.encryptionAlgOID, signerInfo.digestAlgOID, signerCertificate)
+            ?.let { return invalid(it) }
+
+        val mathematicallyValid = try {
+            val verifier =
+                JcaSimpleSignerInfoVerifierBuilder()
+                    .setProvider(BouncyCastleProvider.PROVIDER_NAME)
+                    .build(signerCertificate)
+            signerInfo.verify(verifier)
+        } catch (failure: CMSException) {
+            return invalid("signature verification failed: ${failure.message}")
+        }
+        if (!mathematicallyValid) {
+            return invalid("CMS signature does not verify against its own signer certificate")
+        }
+
+        val signerCertificateDer = try {
+            signerCertificate.encoded
+        } catch (failure: IOException) {
+            return invalid("signer certificate could not be re-encoded: ${failure.message}")
+        }
+        val trustedIndex = trustedCertificatesDer.indexOfFirst { it.contentEquals(signerCertificateDer) }
+        return if (trustedIndex < 0) DetachedVerification.UntrustedSigner else DetachedVerification.Verified(trustedIndex)
+    }
+
+    /** Why the signer's algorithms differ from [algorithm], or `null` when they match. */
+    private fun algorithmMismatch(
+        algorithm: SignatureAlgorithm,
+        signatureOid: String,
+        digestOid: String,
+        signerCertificate: X509CertificateHolder,
+    ): String? {
+        val keyParameters = signerCertificate.subjectPublicKeyInfo.algorithm.parameters
+        val curveOid = (keyParameters as? ASN1ObjectIdentifier)?.id
+        return when {
+            signatureOid != algorithm.signatureOid ->
+                "signer uses signature algorithm $signatureOid, not ${algorithm.name}"
+
+            digestOid != algorithm.digestOid ->
+                "signer uses digest algorithm $digestOid, not ${algorithm.name}"
+
+            curveOid != algorithm.curveOid ->
+                "signer key is not on the ${algorithm.name} curve (key parameters $curveOid)"
+
+            else -> null
+        }
+    }
+
+    private fun invalid(detail: String): DetachedVerification = DetachedVerification.SignatureInvalid(detail)
+
+    /** A Bouncy Castle [ContentSigner] that buffers the bytes to sign and hands them to a [SigningKey]. */
+    private class SigningKeyContentSigner(
+        private val key: SigningKey,
+    ) : ContentSigner {
+        private val buffer = ByteArrayOutputStream()
+
+        override fun getAlgorithmIdentifier(): AlgorithmIdentifier = AlgorithmIdentifier(ASN1ObjectIdentifier(key.algorithm.signatureOid))
+
+        override fun getOutputStream(): OutputStream = buffer
+
+        override fun getSignature(): ByteArray = key.sign(buffer.toByteArray())
+    }
+}
