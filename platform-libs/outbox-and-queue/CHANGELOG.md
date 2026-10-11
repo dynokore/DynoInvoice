@@ -26,7 +26,9 @@ train is its own (README.md: "own version and changelog").
   the first one the record is dead-lettered.
 ### Changed
 - Any non-fatal `Throwable` from the handler (an `Error` such as `StackOverflowError` too) is a failure; only a
-  `VirtualMachineError` is rethrown at once.
+  `VirtualMachineError` other than `StackOverflowError` (an `OutOfMemoryError`, say) is rethrown at once, with no
+  backoff; the attempt recorded before the handler still bounds it across restarts. A `StackOverflowError` is a record
+  failure.
 - A handler failure still rolls the record back and is rethrown by `pollOnce`, but the next attempt waits for the
   backoff (a poll inside the wait reads nothing, so the order holds); after the last attempt the record goes to
   `event_dead_letter` with reason `handler failed, retries exhausted after N attempts: <exception class>` and the

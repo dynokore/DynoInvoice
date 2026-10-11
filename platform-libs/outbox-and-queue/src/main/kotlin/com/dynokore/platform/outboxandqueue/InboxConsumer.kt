@@ -9,7 +9,8 @@ interface InboxConsumer {
      * A handler failure rolls that record back and is rethrown; the offset has not moved, so the next poll
      * redelivers it, but only after the backoff of [ConsumerRetryPolicy] (a poll before then reads nothing, so the
      * order holds). After the policy's last attempt the record goes to the dead letter with its reason and the
-     * consumer moves on; a [ContractViolation] from the handler goes there at once.
+     * consumer moves on; a [ContractViolation] from the handler goes there at once. Any non-fatal Throwable (a
+     * StackOverflowError too) is a failure; another VirtualMachineError is rethrown at once without backoff.
      */
     fun pollOnce(): PollResult
 }

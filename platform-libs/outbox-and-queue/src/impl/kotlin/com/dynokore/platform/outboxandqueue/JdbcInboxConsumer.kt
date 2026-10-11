@@ -116,9 +116,10 @@ constructor(
         } catch (violation: ContractViolation) {
             deadLetter(record, violation.message ?: "contract violation")
             Step.DEAD_LETTER
-        } catch (failure: VirtualMachineError) {
-            throw failure // the process is not fit to carry on: the recorded attempt stands, no backoff
         } catch (failure: Throwable) {
+            // The process is not fit to carry on after an OutOfMemoryError or another VirtualMachineError: the
+            // recorded attempt stands, no backoff. A StackOverflowError is the record's (deep payload): it backs off.
+            if (failure is VirtualMachineError && failure !is StackOverflowError) throw failure
             if (state != null && failed(record, state, failure)) return Step.DEAD_LETTER
             throw failure
         }

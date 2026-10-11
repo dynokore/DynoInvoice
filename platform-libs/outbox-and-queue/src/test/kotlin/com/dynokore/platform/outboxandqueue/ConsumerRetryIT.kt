@@ -282,6 +282,24 @@ class ConsumerRetryIT {
         }
     }
 
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `a StackOverflowError is a record failure that backs off and is dead-lettered at the bound`(image: String) {
+        OutboxHarness(image).use { harness ->
+            acknowledge(harness, UUID.randomUUID())
+            val clock = MutableClock()
+            val (consumer, handler) = consumerOf(harness, clock) { StackOverflowError() }
+
+            assertThrows(StackOverflowError::class.java) { consumer.pollOnce() }
+            assertEquals(0, consumer.pollOnce().total, "inside the wait")
+            clock.advance(Duration.ofSeconds(10))
+            assertThrows(StackOverflowError::class.java) { consumer.pollOnce() }
+            clock.advance(Duration.ofSeconds(20))
+            assertEquals(1, consumer.pollOnce().deadLettered)
+            assertEquals(3, handler.calls)
+        }
+    }
+
     private fun restart(
         harness: OutboxHarness,
         clock: MutableClock,
