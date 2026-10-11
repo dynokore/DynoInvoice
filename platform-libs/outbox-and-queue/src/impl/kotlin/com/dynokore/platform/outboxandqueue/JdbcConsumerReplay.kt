@@ -15,6 +15,8 @@ import java.util.UUID
  * - [request] moves the consumer's position on each named topic past its head (and past its purge watermark), records
  *   the pending replay and writes `ReplayRequested` to the service's own outbox; its relay publishes it on
  *   `gst.<consumer>.replay-requested.v1`;
+ * - a topic with several catalogue producers is addressed to all of them under one replay id (owner ruling
+ *   INV-Q-3788 A): one head move and one `ReplayRequested` per producer;
  * - [pending] and [isBehind] answer the operation's repeat rule (INV-Q-3665) and its precondition (EVL-003).
  *
  * [connections] is the app role's current connection (the caller's transaction); [head] reads topic heads and
@@ -52,6 +54,18 @@ class JdbcConsumerReplay(
         topic: String,
     ): Boolean = nextOffset(connections.require(), consumer, topic, lock = false) <= head.head(topic).watermark
 
+    /** The addressees of [consumer]'s replay [replayId], completed or not: one per producer it was requested from. */
+    fun addressees(
+        consumer: String,
+        replayId: UUID,
+    ): List<String> = connections.require().prepareStatement(
+        "select producer from $s.${OutboxSchema.CONSUMER_REPLAY} where consumer = ? and replay_id = ? order by producer",
+    ).use {
+        it.setString(1, consumer)
+        it.setObject(2, replayId)
+        it.executeQuery().use { rows -> buildList { while (rows.next()) add(rows.getString(1)) } }
+    }
+
     /**
      * Moves [consumer]'s position on each of [topics] past its head, records [request] as the pair's pending replay and
      * writes its `ReplayRequested` (the consumer service is its CloudEvents source) through [outbox], in the caller's
@@ -65,8 +79,23 @@ class JdbcConsumerReplay(
         request: ReplayRequest,
         correlation: CorrelationId,
         causation: CausationId,
+    ): List<MovedPosition> = request(consumer, topics, listOf(request), correlation, causation)
+
+    /**
+     * [request] for several addressees under one replay id (owner ruling INV-Q-3788 A): a topic with several catalogue
+     * producers is addressed to every one of them in one transaction. [topics] move to the head once; each of
+     * [requests] (one per producer, all with the same replay id, mode and scope) is recorded as its pair's pending
+     * replay and written as its own `ReplayRequested` naming that one producer.
+     */
+    fun request(
+        consumer: String,
+        topics: List<String>,
+        requests: List<ReplayRequest>,
+        correlation: CorrelationId,
+        causation: CausationId,
     ): List<MovedPosition> {
         require(topics.isNotEmpty()) { "a replay moves at least one topic" }
+        requireOneReplay(requests)
         val connection = connections.require()
         val moved =
             topics.distinct().sorted().map { topic ->
@@ -75,27 +104,15 @@ class JdbcConsumerReplay(
                 moveTo(connection, consumer, topic, after)
                 MovedPosition(topic, before, after)
             }
-        connection.prepareStatement(
-            "insert into $s.${OutboxSchema.CONSUMER_REPLAY} (replay_id, consumer, producer, mode, scope, topics, requested_at) " +
-                "values (?, ?, ?, ?, ?, ?, ?)",
-        ).use {
-            it.setObject(1, request.replayId)
-            it.setString(2, consumer)
-            it.setString(3, request.producer)
-            it.setString(4, request.mode.name)
-            it.setString(5, request.scope?.let(json::writeScope))
-            it.setArray(6, connection.createArrayOf("text", moved.map { m -> m.topic }.toTypedArray()))
-            it.setTimestamp(7, Timestamp.from(clock.instant()))
-            it.executeUpdate()
-        }
+        requests.forEach { record(connection, consumer, it, moved.map { m -> m.topic }) }
         outbox.append(
-            listOf(OutboundEvent(ReplayProtocol.REPLAY_REQUESTED, json.writeRequest(request))),
+            requests.map { OutboundEvent(ReplayProtocol.REPLAY_REQUESTED, json.writeRequest(it)) },
             EventContext(
                 tenant = TenantId.PLATFORM,
                 entity = EntityRef.PLATFORM,
                 docUuid = null,
                 transactionDate = null,
-                aggregateKey = "replay/${request.replayId}",
+                aggregateKey = "replay/${requests.first().replayId}",
                 aggregateVersion = null,
                 correlation = correlation,
                 causation = causation,
@@ -118,23 +135,73 @@ class JdbcConsumerReplay(
         clear: ReadModelClear?,
         correlation: CorrelationId,
         causation: CausationId,
+    ): List<MovedPosition> = fullSync(consumer, topics, listOf(request), listOfNotNull(clear), correlation, causation)
+
+    /**
+     * [fullSync] addressed to several producers under one replay id (owner ruling INV-Q-3788 A): runs every one of
+     * [clears] (one per producer of [requests]), moves [topics] to the head once and writes one request per producer.
+     * The consumer's docsequence rows are deleted only for a full sync from one named producer (INV-Q-3603); one
+     * addressed to several producers, as one from 'every service', deletes none (coordinator ruling on INV-Q-3788,
+     * after INV-Q-3805).
+     */
+    fun fullSync(
+        consumer: String,
+        topics: List<String>,
+        requests: List<ReplayRequest>,
+        clears: List<ReadModelClear>,
+        correlation: CorrelationId,
+        causation: CausationId,
     ): List<MovedPosition> {
-        require(request.mode == ReplayMode.FULL_SYNC) { "a full sync request" }
-        require(clear == null || clear.producer == request.producer) { "the clear of another producer" }
+        requireOneReplay(requests)
+        require(requests.first().mode == ReplayMode.FULL_SYNC) { "a full sync request" }
+        val producers = requests.map { it.producer }.toSet()
+        require(clears.all { it.producer in producers }) { "the clear of a producer not addressed" }
         val connection = connections.require()
-        clear?.statements?.forEach { sql -> connection.createStatement().use { it.executeUpdate(sql) } }
+        clears.flatMap { it.statements }.forEach { sql -> connection.createStatement().use { it.executeUpdate(sql) } }
         // An 'every service' full sync deletes no docsequence rows (coordinator ruling INV-Q-3805): the events on those
-        // topics write none, and deleting by source would strip other producers' guards.
-        if (request.producer != CatalogueEntry.EVERY_SERVICE) {
+        // topics write none, and deleting by source would strip other producers' guards. Nor does one addressed to
+        // several producers (coordinator ruling on INV-Q-3788).
+        val producer = producers.singleOrNull()
+        if (producer != null && producer != CatalogueEntry.EVERY_SERVICE) {
             connection.prepareStatement(
                 "delete from $s.${OutboxSchema.CONSUMER_SEQUENCE} where consumer = ? and source = ?",
             ).use {
                 it.setString(1, consumer)
-                it.setString(2, "/gst/${request.producer}")
+                it.setString(2, "/gst/$producer")
                 it.executeUpdate()
             }
         }
-        return request(consumer, topics, request, correlation, causation)
+        return request(consumer, topics, requests, correlation, causation)
+    }
+
+    private fun requireOneReplay(requests: List<ReplayRequest>) {
+        require(requests.isNotEmpty()) { "a replay has at least one addressee" }
+        val first = requests.first()
+        require(requests.all { it.replayId == first.replayId && it.mode == first.mode && it.scope == first.scope }) {
+            "the requests of one replay share its id, mode and scope"
+        }
+        require(requests.map { it.producer }.toSet().size == requests.size) { "one request per producer" }
+    }
+
+    private fun record(
+        connection: Connection,
+        consumer: String,
+        request: ReplayRequest,
+        topics: List<String>,
+    ) {
+        connection.prepareStatement(
+            "insert into $s.${OutboxSchema.CONSUMER_REPLAY} (replay_id, consumer, producer, mode, scope, topics, requested_at) " +
+                "values (?, ?, ?, ?, ?, ?, ?)",
+        ).use {
+            it.setObject(1, request.replayId)
+            it.setString(2, consumer)
+            it.setString(3, request.producer)
+            it.setString(4, request.mode.name)
+            it.setString(5, request.scope?.let(json::writeScope))
+            it.setArray(6, connection.createArrayOf("text", topics.toTypedArray()))
+            it.setTimestamp(7, Timestamp.from(clock.instant()))
+            it.executeUpdate()
+        }
     }
 
     private fun nextOffset(

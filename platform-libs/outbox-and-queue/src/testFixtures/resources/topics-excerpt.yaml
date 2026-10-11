@@ -73,6 +73,16 @@ topics:
     subscribers:
       - evidence-svc
 replay_topics:
+  - topic: gst.access.replay-evidence.v1
+    event_types:
+      - com.dynokore.gst.platform.EvidenceArtefactRecorded.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: false
+    record_topic: false
+    producers:
+      - access-svc
+    subscribers:
+      - evidence-svc
   - topic: gst.canonical.replay-reconciliation.v1
     event_types:
       - com.dynokore.gst.canonical.CanonicalVersionCreated.v1
@@ -97,6 +107,27 @@ replay_topics:
       - canonical-svc
     subscribers:
       - submission-svc
+  - topic: gst.masterdata.replay-evidence.v1
+    event_types:
+      - com.dynokore.gst.platform.EvidenceArtefactRecorded.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: false
+    record_topic: false
+    producers:
+      - masterdata-svc
+    subscribers:
+      - evidence-svc
+  - topic: gst.payload.replay-evidence.v1
+    event_types:
+      - com.dynokore.gst.payload.PayloadReady.v1
+      - com.dynokore.gst.platform.EvidenceArtefactRecorded.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: true
+    record_topic: false
+    producers:
+      - payload-svc
+    subscribers:
+      - evidence-svc
   - topic: gst.platform.replay-evidence.v1
     event_types:
       - com.dynokore.gst.platform.AuditEntryRecorded.v1
@@ -105,6 +136,16 @@ replay_topics:
     record_topic: false
     producers:
       - every service
+    subscribers:
+      - evidence-svc
+  - topic: gst.rules.replay-evidence.v1
+    event_types:
+      - com.dynokore.gst.platform.EvidenceArtefactRecorded.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: false
+    record_topic: false
+    producers:
+      - rules-svc
     subscribers:
       - evidence-svc
 replay_request_topics:

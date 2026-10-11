@@ -223,20 +223,24 @@ class OutboxAndQueueWiring {
     /** One consumer per service by default; a service with several declares its own [JdbcInboxConsumer]s. */
     @Bean
     @ConditionalOnBean(
-        value = [ConsumerSubscription::class, EventHandler::class, RebuildRequiredSink::class, EventLogReader::class, TenantScope::class],
+        value = [
+            ConsumerSubscription::class, EventCatalogue::class, EventHandler::class, RebuildRequiredSink::class,
+            EventLogReader::class, TenantScope::class,
+        ],
         name = [ServiceDataSources.WORKER],
     )
     @ConditionalOnMissingBean(InboxConsumer::class)
     @Suppress("LongParameterList")
     fun inboxConsumer(
         subscription: ConsumerSubscription,
+        catalogue: EventCatalogue,
         reader: EventLogReader,
         @Qualifier(ServiceDataSources.WORKER) worker: DataSource,
         scope: TenantScope,
         handler: EventHandler,
         rebuildRequired: RebuildRequiredSink,
         clock: Clock,
-    ): JdbcInboxConsumer = JdbcInboxConsumer(subscription, reader, worker, scope, handler, rebuildRequired, clock)
+    ): JdbcInboxConsumer = JdbcInboxConsumer(subscription, catalogue, reader, worker, scope, handler, rebuildRequired, clock)
 
     @Bean
     @ConditionalOnBean(WorkQueue::class, TenantScope::class, JdbcInboxConsumer::class)

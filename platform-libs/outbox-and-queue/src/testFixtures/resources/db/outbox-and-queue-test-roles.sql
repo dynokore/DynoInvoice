@@ -45,3 +45,10 @@ GRANT USAGE ON SCHEMA eventlog TO recon_el_claim, recon_el_reader, sub_el_claim,
     evidence_el_reader;
 CREATE SCHEMA evidence AUTHORIZATION outbox_owner;
 GRANT USAGE ON SCHEMA evidence TO outbox_app;
+
+-- INV-T-3385 (owner ruling INV-Q-3788 A): the other catalogue producers of gst.platform.evidence-artefact-recorded.v1,
+-- so a test can address every producer of a topic with several.
+CREATE SCHEMA access AUTHORIZATION outbox_owner;
+CREATE SCHEMA masterdata AUTHORIZATION outbox_owner;
+CREATE SCHEMA rules AUTHORIZATION outbox_owner;
+GRANT USAGE ON SCHEMA access, masterdata, rules TO outbox_app;

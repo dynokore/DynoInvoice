@@ -38,16 +38,35 @@ data class RebuildConsumerRequest(
     }
 }
 
-/** `ReplayState` of the operation contract: the replay started (202) or the pending one repeated (200). */
+/**
+ * `ReplayState` of the operation contract (service-runtime contract 1.2.0): the replay started (202) or the pending one
+ * repeated (200). [producers] lists every addressee, one for a single-producer topic; [producer] is that one (a service
+ * or 'every service'), or [SEVERAL_PRODUCERS] for a topic with several catalogue producers (owner ruling INV-Q-3788 A).
+ */
 data class ReplayState(
     val replayId: UUID,
     val topic: String,
     val producer: String,
+    val producers: List<String>,
     val mode: ReplayMode,
     val scope: ReplayScope?,
     val requestedAt: Instant,
     val repeat: Boolean,
-)
+) {
+    init {
+        require(producers.isNotEmpty()) { "one producer or more" }
+        require(producers.toSet().size == producers.size) { "distinct producers" }
+        require(producer == producerOf(producers)) { "producer names the one addressee, or several" }
+    }
+
+    companion object {
+        /** The `producer` literal of a replay addressed to several producers (INV-API-3656, INV-Q-3788 A). */
+        const val SEVERAL_PRODUCERS = "several producers"
+
+        /** The `producer` value for [producers]. */
+        fun producerOf(producers: List<String>): String = producers.singleOrNull() ?: SEVERAL_PRODUCERS
+    }
+}
 
 private const val HTTP_NOT_FOUND = 404
 private const val HTTP_FORBIDDEN = 403
@@ -64,7 +83,10 @@ enum class RebuildErrorCode(val code: String, val httpStatus: Int) {
     /** The consumer does not hold the topic in 'rebuild required'. */
     NOT_REBUILD_REQUIRED("EVL-003", HTTP_CONFLICT),
 
-    /** A replay for the (consumer, producer) pair is pending with another mode or scope (INV-Q-3665). */
+    /**
+     * A replay for the (consumer, producer) pair, or for one of the pairs of a topic with several producers, is pending
+     * with another replay id, mode or scope (INV-Q-3665, INV-Q-3788 A).
+     */
     OTHER_REPLAY_PENDING("EVL-004", HTTP_CONFLICT),
 }
 

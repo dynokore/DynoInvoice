@@ -129,9 +129,10 @@ object OutboxSchema {
     /**
      * The consumer's replay state (INV-T-3385; INV-REQ-1205 b4, b6; rulings INV-Q-3599, INV-Q-3644, INV-Q-3665,
      * INV-Q-3669), part of its consumption state, so a full sync never clears it:
-     * - [CONSUMER_REPLAY]: one row per requested replay, its addressee producer, mode, scope, the topics whose position
-     *   it moved to the head, when its ReplayCompleted was applied and when the incidents were closed; at most one
-     *   pending (not completed) replay per (consumer, producer) pair;
+     * - [CONSUMER_REPLAY]: one row per requested replay and addressee producer (a replay of a topic with several
+     *   catalogue producers has one row per producer under one replay id, owner ruling INV-Q-3788 A), its mode, scope,
+     *   the topics whose position it moved to the head, when that producer's ReplayCompleted was applied and when the
+     *   incidents were closed; at most one pending (not completed) replay per (consumer, producer) pair;
      * - [CONSUMER_REPLAY_MARKER]: the sources whose marker for a replay the consumer has applied;
      * - [CONSUMER_SOURCE_SEEN]: on an 'every service' pair, the sources the consumer has seen.
      * They hold no tenant data (positions and service names, as [CONSUMER_OFFSET]), so no RLS. The app role writes them
@@ -143,7 +144,7 @@ object OutboxSchema {
         worker: String,
     ): String = """
         create table if not exists $s.$CONSUMER_REPLAY (
-            replay_id uuid primary key,
+            replay_id uuid not null,
             consumer text not null,
             producer text not null,
             mode text not null check (mode in ('SCOPE', 'FULL_SYNC')),
@@ -151,7 +152,8 @@ object OutboxSchema {
             topics text[] not null,
             requested_at timestamptz not null,
             completed_at timestamptz,
-            closed_at timestamptz
+            closed_at timestamptz,
+            primary key (replay_id, producer)
         );
         create unique index if not exists ${CONSUMER_REPLAY}_pending on $s.$CONSUMER_REPLAY (consumer, producer)
             where completed_at is null;

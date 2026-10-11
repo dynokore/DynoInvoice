@@ -16,7 +16,9 @@ import javax.sql.DataSource
  * The `ReplayCompleted` marker never reaches [handler]: in the marker's transaction the intake records it and, when it
  * completes the pending replay it answers (from the pair's producer; on an 'every service' topic, once a marker for
  * the replay has been applied from each source the consumer has seen there and on that producer's live topics, owner
- * ruling INV-Q-3669), marks the replay complete. A marker for no pending replay is applied and changes nothing. After
+ * ruling INV-Q-3669), marks the pair's replay complete. A replay addressed to several producers under one replay id
+ * (owner ruling INV-Q-3788 A) completes per pair, on each producer's own intake, and its incidents close only once
+ * every addressee has completed. A marker for no pending replay is applied and changes nothing. After
  * each poll the intake closes the 'rebuild required' incident of each topic of every completed replay through
  * [sink] (INV-Q-3644, INV-AC-3658), and records that it did so.
  *
@@ -65,8 +67,10 @@ constructor(
         val done =
             claimSource.connection.use { connection ->
                 connection.prepareStatement(
-                    "select replay_id, topics from $replays where consumer = ? and producer = ? " +
-                        "and completed_at is not null and closed_at is null",
+                    // A replay addressed to several producers closes once every addressee has completed (INV-Q-3788 A).
+                    "select replay_id, topics from $replays r where consumer = ? and producer = ? " +
+                        "and completed_at is not null and closed_at is null and not exists (select 1 from $replays o " +
+                        "where o.replay_id = r.replay_id and o.consumer = r.consumer and o.completed_at is null)",
                 ).use {
                     it.setString(1, consumer)
                     it.setString(2, producer)
@@ -84,9 +88,10 @@ constructor(
             val now = clock.instant()
             topics.forEach { sink.close(RebuildRequiredClosed(consumer, it, replayId, now)) }
             claimSource.connection.use { connection ->
-                connection.prepareStatement("update $replays set closed_at = ? where replay_id = ?").use {
+                connection.prepareStatement("update $replays set closed_at = ? where replay_id = ? and consumer = ?").use {
                     it.setTimestamp(1, Timestamp.from(now))
                     it.setObject(2, replayId)
+                    it.setString(3, consumer)
                     it.executeUpdate()
                 }
             }
@@ -110,9 +115,12 @@ constructor(
                 it.executeUpdate()
             }
             if (complete(connection, replayId)) {
-                connection.prepareStatement("update $replays set completed_at = ? where replay_id = ?").use {
+                val sql = "update $replays set completed_at = ? where replay_id = ? and consumer = ? and producer = ?"
+                connection.prepareStatement(sql).use {
                     it.setTimestamp(1, Timestamp.from(clock.instant()))
                     it.setObject(2, replayId)
+                    it.setString(3, consumer)
+                    it.setString(4, producer)
                     it.executeUpdate()
                 }
             }

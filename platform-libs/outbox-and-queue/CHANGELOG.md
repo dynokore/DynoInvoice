@@ -37,7 +37,13 @@ train is its own (README.md: "own version and changelog").
 - **API change:** `JdbcInboxConsumer(subscription, catalogue, reader, …)` and
   `JdbcReplayIntake(subscription, catalogue, producer, …)` take the `EventCatalogue` (new required second parameter),
   so no consumer can run without the record-topic set. No service consumes yet, so no caller breaks in a release.
-- Schema: `consumer_replay`, `consumer_replay_marker`, `consumer_source_seen`; `OutboxSchema.upgradeTo1100`.
+- A topic with several catalogue producers (owner ruling INV-Q-3788 A): `JdbcConsumerReplay.request` and `fullSync`
+  take one request per producer under one replay id, move the topics to the head once and write one ReplayRequested
+  per producer; `addressees` lists a replay's producers. Each pair completes on its producer's marker and the
+  incidents close only once every addressee has completed. A full sync addressed to several producers deletes no
+  docsequence row.
+- Schema: `consumer_replay` (key (replay_id, producer)), `consumer_replay_marker`, `consumer_source_seen`;
+  `OutboxSchema.upgradeTo1100`.
 
 ## [1.9.0] - 2026-10-11
 ### Added

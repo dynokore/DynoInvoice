@@ -44,7 +44,7 @@ Service inputs:
 | outbox-and-queue | `RetentionPurge` | `JdbcRetentionPurge` | `Retention`, `workerDataSource`, schema |
 | outbox-and-queue | `EventLogPurge` | `JdbcEventLogPurge` | `Retention`, `EventCatalogue`, `eventLogPurgeDataSource` |
 | outbox-and-queue | `StalenessMonitor` | `JdbcStalenessMonitor`, with `StalenessGauges` (see "Consumer staleness") | `service-runtime.staleness.rules` or `StalenessRule`s, `EventCatalogue`, `workerDataSource`, schema (a `StalenessBreachSink` is optional) |
-| outbox-and-queue | `InboxConsumer` | `JdbcInboxConsumer` (one; a service with several declares its own) | `ConsumerSubscription`, `EventHandler`, `RebuildRequiredSink`, `workerDataSource` |
+| outbox-and-queue | `InboxConsumer` | `JdbcInboxConsumer` (one; a service with several declares its own) | `ConsumerSubscription`, `EventCatalogue`, `EventHandler`, `RebuildRequiredSink`, `workerDataSource` |
 | outbox-and-queue | `ReplayDelivery` | `JdbcReplayDelivery` | (a `WorkQueue` and a `JdbcInboxConsumer`) |
 | audit-log | `AuditWriter` | `OutboxAuditWriter`, or `LocalAuditWriter` without an outbox (INV-Q-2958) | (an `OutboxWriter`), else `gst.service`, schema |
 | audit-log | `AuditedOperations` | `TransactionalAuditedOperations` | (a `TransactionRunner`, an `AuditWriter`) |

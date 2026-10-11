@@ -33,8 +33,14 @@ import java.util.UUID
  * A full sync (coordinator rulings INV-Q-3603, INV-Q-3786) runs the same steps in one transaction on the consumer's
  * worker-role connection bound to the platform tenant ([FullSyncWiring]): the service's [ReadModelClear] for the
  * producer, the delete of its docsequence rows for that producer across every tenant (the inbox is kept), the move of
- * every topic of that producer the consumer reads, the request and the audit entry. A topic with more than one
- * catalogue producer is refused until the owner rules INV-Q-3788.
+ * every topic of that producer the consumer reads, the request and the audit entry.
+ *
+ * A topic with several catalogue producers is addressed to all of them by one call (owner ruling INV-Q-3788 A): one
+ * head move, one `ReplayRequested` per producer under one replay id; the repeat rule and EVL-004 hold over that set of
+ * pairs, and the response lists every addressee in `producers` with producer 'several producers'. A full sync moves
+ * every topic of its producers the consumer reads, so when one of those topics has other producers too they are
+ * addressed as well, until the set is closed (no moved topic has a producer left out): the clear of every addressee
+ * runs and, addressed to several producers, no docsequence row is deleted (coordinator ruling on INV-Q-3788).
  *
  * Wiring: [scope] is the service's tenant binding, transactions and current connection (app role); [outbox] and
  * [audit] the service's outbox and audit writers; [head] the consumer's event-log claim path
@@ -78,23 +84,20 @@ constructor(
         val entry =
             catalogue.topic(request.topic) ?: return RebuildOutcome.Refused(RebuildErrorCode.TOPIC_NOT_CONSUMED)
         if (!authorizer.isPlatformOperator(request.actor)) return RebuildOutcome.Refused(RebuildErrorCode.ROLE_NOT_PERMITTED)
-        // INV-Q-3788 (pending owner ruling): a topic with several catalogue producers (ConnectionStatusChanged,
-        // EvidenceArtefactRecorded, PackReadinessAcknowledged) has no ruled addressee, so its replay is refused.
-        val producer =
-            entry.producers.singleOrNull()
-                ?: throw UnsupportedOperationException(
-                    "topic ${request.topic} has several producers; its replay awaits ruling INV-Q-3788",
-                )
-        val side =
+        val consumer = subscription.consumer
+        val (producers, side) =
             if (request.mode == ReplayMode.FULL_SYNC) {
-                checkFullSync(subscription.consumer, producer)
-                checkNotNull(fullSyncSide) { "full sync needs the worker-role wiring (FullSyncWiring)" }
+                val closed = fullSyncAddressees(consumer, entry.producers)
+                check(fullSync?.clears?.map { it.producer }?.containsAll(closed) == true) {
+                    "a full sync from $closed needs the service's read-model clear for each (ReadModelClear)"
+                }
+                closed to checkNotNull(fullSyncSide) { "full sync needs the worker-role wiring (FullSyncWiring)" }
             } else {
-                appSide
+                entry.producers.sorted() to appSide
             }
         repeat(ATTEMPTS) {
             try {
-                return side.platformTransaction { decide(side, request, subscription.consumer, producer) }
+                return side.platformTransaction { decide(side, request, consumer, producers) }
             } catch (race: SQLException) {
                 // A concurrent call for the pair committed its pending replay first (unique index): read it again.
                 if (race.sqlState != UNIQUE_VIOLATION) throw race
@@ -104,72 +107,84 @@ constructor(
     }
 
     /**
-     * A full sync moves every topic of the producer that the consumer reads. While INV-Q-3788 is open, one of those
-     * topics having other producers too would skip their events, so the full sync is refused before anything is
-     * written; so is a full sync without the service's read-model clear for the producer (nothing would be cleared).
+     * The addressees of a full sync of a topic produced by [start]: a full sync moves every topic of its producers that
+     * [consumer] reads (INV-Q-3603), so each such topic's other producers are addressed too, until no moved topic has a
+     * producer outside the set (owner ruling INV-Q-3788 A). Without this, a moved topic's other producers' history
+     * would be skipped with no replay to fill it.
      */
-    private fun checkFullSync(
+    private fun fullSyncAddressees(
         consumer: String,
-        producer: String,
-    ) {
-        val shared =
-            subscriptions
-                .filter { it.consumer == consumer }
-                .mapNotNull { catalogue.topic(it.topic) }
-                .filter { producer in it.producers && it.producers.size > 1 }
-        if (shared.isNotEmpty()) {
-            throw UnsupportedOperationException(
-                "a full sync from $producer would move ${shared.map { it.topic }}, which have other producers; " +
-                    "it awaits ruling INV-Q-3788",
-            )
-        }
-        check(fullSync?.clears?.any { it.producer == producer } == true) {
-            "a full sync from $producer needs the service's read-model clear for it (ReadModelClear)"
-        }
+        start: Collection<String>,
+    ): List<String> {
+        val read = consumedEntries(consumer)
+        val addressees = start.toMutableSet()
+        do {
+            val added = read.filter { e -> e.producers.any { it in addressees } }.flatMap { it.producers }.filter(addressees::add)
+        } while (added.isNotEmpty())
+        return addressees.sorted()
     }
+
+    private fun consumedEntries(consumer: String) = subscriptions.filter { it.consumer == consumer }.mapNotNull { catalogue.topic(it.topic) }
 
     private fun decide(
         side: Side,
         request: RebuildConsumerRequest,
         consumer: String,
-        producer: String,
+        producers: List<String>,
     ): RebuildOutcome {
-        side.replay.pending(consumer, producer)?.let { pending ->
-            return if (pending.mode == request.mode && pending.scope == request.scope) {
-                RebuildOutcome.Done(state(pending, request.topic, repeat = true), created = false)
-            } else {
-                RebuildOutcome.Refused(RebuildErrorCode.OTHER_REPLAY_PENDING)
-            }
-        }
+        repeatOrConflict(side, request, consumer, producers)?.let { return it }
         if (!side.replay.isBehind(consumer, request.topic)) {
             return RebuildOutcome.Refused(RebuildErrorCode.NOT_REBUILD_REQUIRED)
         }
-        val replayRequest = ReplayRequest(UUID.randomUUID(), producer, request.mode, request.scope)
+        val replayId = UUID.randomUUID()
+        val requests = producers.map { ReplayRequest(replayId, it, request.mode, request.scope) }
         val moved =
             if (request.mode == ReplayMode.FULL_SYNC) {
-                // Every topic of the producer this consumer reads goes to the head (INV-Q-3603).
-                val topics =
-                    subscriptions
-                        .filter { it.consumer == consumer && catalogue.topic(it.topic)?.producers?.contains(producer) == true }
-                        .map { it.topic }
-                val clear = fullSync?.clears?.first { it.producer == producer }
-                side.replay.fullSync(consumer, topics, replayRequest, clear, request.correlation, request.causation)
+                // Every topic of the addressees this consumer reads goes to the head (INV-Q-3603, INV-Q-3788 A).
+                val topics = consumedEntries(consumer).filter { e -> e.producers.any { it in producers } }.map { it.topic }
+                val clears = fullSync?.clears.orEmpty().filter { it.producer in producers }
+                side.replay.fullSync(consumer, topics, requests, clears, request.correlation, request.causation)
             } else {
-                side.replay.request(consumer, listOf(request.topic), replayRequest, request.correlation, request.causation)
+                side.replay.request(consumer, listOf(request.topic), requests, request.correlation, request.causation)
             }
-        side.audit.record(auditEntry(request, producer, moved), context(replayRequest.replayId, request))
-        val pending = side.replay.pending(consumer, producer) ?: error("the pending replay was just written")
-        return RebuildOutcome.Done(state(pending, request.topic, repeat = false), created = true)
+        side.audit.record(auditEntry(request, producers, moved), context(replayId, request))
+        val pending = side.replay.pending(consumer, producers.first()) ?: error("the pending replay was just written")
+        return RebuildOutcome.Done(state(pending, request.topic, producers, repeat = false), created = true)
+    }
+
+    /**
+     * The repeat rule over the addressed pairs (owner rulings INV-Q-3665, INV-Q-3788 A): none pending, `null` (go on);
+     * the pending replay returned (200) when every pending pair holds one replay, of this mode and scope, addressed to
+     * exactly [producers] (pairs of it already completed stay part of it until it closes); otherwise EVL-004.
+     */
+    private fun repeatOrConflict(
+        side: Side,
+        request: RebuildConsumerRequest,
+        consumer: String,
+        producers: List<String>,
+    ): RebuildOutcome? {
+        val pending = producers.mapNotNull { side.replay.pending(consumer, it) }
+        val first = pending.firstOrNull() ?: return null
+        val same =
+            pending.all { it.replayId == first.replayId && it.mode == request.mode && it.scope == request.scope } &&
+                side.replay.addressees(consumer, first.replayId) == producers
+        return if (same) {
+            RebuildOutcome.Done(state(first, request.topic, producers, repeat = true), created = false)
+        } else {
+            RebuildOutcome.Refused(RebuildErrorCode.OTHER_REPLAY_PENDING)
+        }
     }
 
     private fun state(
         pending: PendingReplay,
         topic: String,
+        producers: List<String>,
         repeat: Boolean,
     ) = ReplayState(
         replayId = pending.replayId,
         topic = if (topic in pending.topics) topic else pending.topics.first(),
-        producer = pending.producer,
+        producer = ReplayState.producerOf(producers),
+        producers = producers,
         mode = pending.mode,
         scope = pending.scope,
         requestedAt = pending.requestedAt,
@@ -178,18 +193,19 @@ constructor(
 
     /**
      * The audit entry of INV-Q-3663 (INV-REQ-2588 b9): actor; action rebuildConsumer; scope = consumer service, topic,
-     * producer, mode and replay scope; reason = the caller's text, else the Idempotency-Key; prior state = the
-     * positions before the move.
+     * producer, every addressee (INV-Q-3788 A), mode and replay scope; reason = the caller's text, else the
+     * Idempotency-Key; prior state = the positions before the move.
      */
     private fun auditEntry(
         request: RebuildConsumerRequest,
-        producer: String,
+        producers: List<String>,
         moved: List<MovedPosition>,
     ): AuditEntry {
         val scopeNode = mapper.createObjectNode()
         scopeNode.put("consumerService", service)
         scopeNode.put("topic", request.topic)
-        scopeNode.put("producer", producer)
+        scopeNode.put("producer", ReplayState.producerOf(producers))
+        producers.forEach(scopeNode.putArray("producers")::add)
         scopeNode.put("mode", request.mode.name)
         request.scope?.let { scopeNode.set("replayScope", mapper.readTree(json.writeScope(it))) }
         val prior = mapper.createObjectNode()

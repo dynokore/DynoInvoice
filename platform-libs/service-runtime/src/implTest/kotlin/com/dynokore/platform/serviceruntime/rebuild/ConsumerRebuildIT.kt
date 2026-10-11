@@ -15,6 +15,7 @@ import com.dynokore.platform.outboxandqueue.OutboxPostgresFixture
 import com.dynokore.platform.outboxandqueue.OutboxSchema
 import com.dynokore.platform.outboxandqueue.PostgresEventLogReader
 import com.dynokore.platform.outboxandqueue.ReadModelClear
+import com.dynokore.platform.outboxandqueue.ReplayJson
 import com.dynokore.platform.outboxandqueue.ReplayMode
 import com.dynokore.platform.outboxandqueue.ReplayProtocol
 import com.dynokore.platform.outboxandqueue.ReplayRequestTopic
@@ -40,8 +41,9 @@ import java.util.UUID
 
 /**
  * rebuildConsumer (Keel INV-T-3385; INV-API-3656; INV-REQ-1205 b4, b6; rulings INV-Q-3599, INV-Q-3663, INV-Q-3665,
- * INV-Q-3667; INV-AC-3657) on PostgreSQL 17 and 18: the error codes in their order, the head move, ReplayRequested and
- * audit entry in one transaction, the repeat rule.
+ * INV-Q-3667, INV-Q-3788; INV-AC-3657, INV-AC-3817, INV-TS-3818) on PostgreSQL 17 and 18: the error codes in their
+ * order, the head move, ReplayRequested and audit entry in one transaction, the repeat rule, and a topic with several
+ * producers addressed to all of them under one replay id.
  */
 @Tag("integration")
 class ConsumerRebuildIT {
@@ -69,6 +71,7 @@ class ConsumerRebuildIT {
             assertTrue(done.created)
             assertFalse(done.state.repeat)
             assertEquals(listOf(LIVE, PRODUCER, ReplayMode.SCOPE), listOf(done.state.topic, done.state.producer, done.state.mode))
+            assertEquals(listOf(PRODUCER), done.state.producers)
             assertEquals(6L, h.nextOffset(), "moved past max(head, watermark)")
 
             val requested = h.data(ReplayProtocol.REPLAY_REQUESTED).single()
@@ -176,27 +179,72 @@ class ConsumerRebuildIT {
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
-    fun `INV-Q-3788 a topic with several producers is refused until the owner rules`(image: String) {
+    fun `INV-AC-3817 one call on a topic with several producers addresses all under one replay id`(image: String) {
         Harness(image).use { h ->
-            h.fixture.runAsAdmin("insert into eventlog.purge_watermark values ('$MULTI', 5, now())")
-            assertThrows(UnsupportedOperationException::class.java) { h.runtime().rebuildConsumer(h.request(topic = MULTI)) }
-            assertEquals(0L, h.count("select count(*) from $SCHEMA.outbox"))
+            h.behind(watermark = 5, topic = MULTI)
+            val request = h.request(topic = MULTI)
+            val done = h.runtime().rebuildConsumer(request) as RebuildOutcome.Done
+            assertTrue(done.created)
+            assertEquals(listOf("a-svc", "b-svc"), done.state.producers)
+            assertEquals(ReplayState.SEVERAL_PRODUCERS, done.state.producer)
+            assertEquals(listOf(MULTI), h.strings("select topic from $SCHEMA.consumer_offset"), "one head move, this topic only")
+            assertEquals(6L, h.nextOffset(MULTI))
+            val requested = h.data(ReplayProtocol.REPLAY_REQUESTED)
+            assertEquals(listOf("a-svc", "b-svc"), requested.map { it.get("producer").asString() }.sorted(), "one per producer")
+            assertEquals(setOf(done.state.replayId.toString()), requested.map { it.get("replayId").asString() }.toSet())
+            val scope = mapper.readTree(h.data(OutboxAuditWriter.EVENT_TYPE).single().get("scope").asString())
+            assertEquals(listOf("a-svc", "b-svc"), scope.get("producers").let { a -> (0 until a.size()).map { a.get(it).asString() } }, "the audit names every addressee")
+            assertEquals(3L, h.count("select count(*) from $SCHEMA.outbox"))
+
+            // The repeat rule over the set of pairs: the pending replay, nothing written; also once one pair completed.
+            for (step in listOf("both pending", "a-svc completed")) {
+                val repeat = h.runtime().rebuildConsumer(h.request(topic = MULTI)) as RebuildOutcome.Done
+                assertEquals(listOf(false, true), listOf(repeat.created, repeat.state.repeat), step)
+                assertEquals(done.state.replayId, repeat.state.replayId, step)
+                assertEquals(done.state.producers, repeat.state.producers, step)
+                h.fixture.runAsAdmin("update $SCHEMA.consumer_replay set completed_at = now() where producer = 'a-svc'")
+            }
+            val other = h.request(topic = MULTI, scope = ReplayScope.Tenant(TenantId(UUID.randomUUID())))
+            assertEquals(refused(RebuildErrorCode.OTHER_REPLAY_PENDING), h.runtime().rebuildConsumer(other))
+            // Another replay (same mode and scope) pending on one of the pairs only is EVL-004 too.
+            val scopeJson = ReplayJson().writeScope(ReplayScope.Tenant(TENANT))
+            h.fixture.runAsAdmin(
+                "delete from $SCHEMA.consumer_replay where producer = 'b-svc'; insert into $SCHEMA.consumer_replay " +
+                    "(replay_id, consumer, producer, mode, scope, topics, requested_at) values " +
+                    "('${UUID.randomUUID()}', '$CONSUMER', 'b-svc', 'SCOPE', '$scopeJson', array['$MULTI'], now())",
+            )
+            assertEquals(refused(RebuildErrorCode.OTHER_REPLAY_PENDING), h.runtime().rebuildConsumer(h.request(topic = MULTI)))
+            assertEquals(3L, h.count("select count(*) from $SCHEMA.outbox"))
         }
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
-    fun `INV-Q-3788 a full sync whose producer shares a read topic with other producers is refused`(image: String) {
+    fun `INV-Q-3788 a full sync addresses every producer of the topics it moves and keeps docsequence rows`(image: String) {
         Harness(image).use { h ->
             h.behind(watermark = 5)
             h.matchView()
+            h.fixture.runAsAdmin(
+                "insert into $SCHEMA.match_view values ('$CONSUMER', '${TENANT.value}', 'n');" +
+                    "insert into $SCHEMA.consumer_sequence values ('$CONSUMER', '/gst/$PRODUCER', 's', '${TENANT.value}', 4)",
+            )
             val full = h.request(mode = ReplayMode.FULL_SYNC, scope = null)
-            val runtime = h.runtime(fullSync = true, extra = listOf(SHARED))
-            assertThrows(UnsupportedOperationException::class.java) { runtime.rebuildConsumer(full) }
-            assertNull(h.nextOffsetOrNull(), "no head moved")
-            assertEquals(0L, h.count("select count(*) from $SCHEMA.consumer_offset"), "the shared topic's head untouched")
-            assertEquals(0L, h.count("select count(*) from $SCHEMA.outbox"))
-            assertEquals(0L, h.count("select count(*) from $SCHEMA.consumer_replay"))
+            // canonical-svc shares SHARED with b-svc, and b-svc shares MULTI with a-svc: all three are addressed.
+            val partial = listOf(ReadModelClear(PRODUCER, listOf(CLEAR)), ReadModelClear("b-svc", listOf(CLEAR)))
+            assertThrows(IllegalStateException::class.java) {
+                h.runtime(fullSync = true, clears = partial, extra = listOf(SHARED)).rebuildConsumer(full)
+            }
+            assertEquals(0L, h.count("select count(*) from $SCHEMA.outbox"), "no clear for a-svc: refused, nothing written")
+            val clears = listOf(PRODUCER, "a-svc", "b-svc").map { ReadModelClear(it, listOf(CLEAR)) }
+            val done = h.runtime(fullSync = true, clears = clears, extra = listOf(SHARED)).rebuildConsumer(full) as RebuildOutcome.Done
+            assertEquals(listOf("a-svc", "b-svc", PRODUCER), done.state.producers)
+            assertEquals(ReplayState.SEVERAL_PRODUCERS, done.state.producer)
+            assertEquals(listOf(MULTI, SHARED, LIVE).sorted(), h.strings("select topic from $SCHEMA.consumer_offset order by topic"))
+            val requested = h.data(ReplayProtocol.REPLAY_REQUESTED)
+            assertEquals(listOf("a-svc", "b-svc", PRODUCER), requested.map { it.get("producer").asString() }.sorted())
+            assertEquals(setOf(done.state.replayId.toString()), requested.map { it.get("replayId").asString() }.toSet())
+            assertEquals(0L, h.count("select count(*) from $SCHEMA.match_view"), "every addressee's clear ran")
+            assertEquals(1L, h.count("select count(*) from $SCHEMA.consumer_sequence"), "no docsequence row deleted")
         }
     }
 
@@ -278,17 +326,20 @@ class ConsumerRebuildIT {
             scope: ReplayScope? = ReplayScope.Tenant(TENANT),
         ) = RebuildConsumerRequest(actor, topic, mode, scope, UUID.randomUUID(), null, CorrelationId("corr-1"), CausationId("op-1"))
 
-        fun behind(watermark: Long) = fixture.runAsAdmin("insert into eventlog.purge_watermark values ('$LIVE', $watermark, now())")
+        fun behind(
+            watermark: Long,
+            topic: String = LIVE,
+        ) = fixture.runAsAdmin("insert into eventlog.purge_watermark values ('$topic', $watermark, now())")
 
-        fun nextOffsetOrNull(): Long? = fixture.adminDataSource().connection.use { connection ->
+        fun nextOffsetOrNull(topic: String = LIVE): Long? = fixture.adminDataSource().connection.use { connection ->
             connection.prepareStatement("select next_offset from $SCHEMA.consumer_offset where consumer = ? and topic = ?").use {
                 it.setString(1, CONSUMER)
-                it.setString(2, LIVE)
+                it.setString(2, topic)
                 it.executeQuery().use { rows -> if (rows.next()) rows.getLong(1) else null }
             }
         }
 
-        fun nextOffset(): Long = checkNotNull(nextOffsetOrNull())
+        fun nextOffset(topic: String = LIVE): Long = checkNotNull(nextOffsetOrNull(topic))
 
         fun count(sql: String): Long = fixture.adminDataSource().connection.use { connection ->
             connection.createStatement().executeQuery(sql).use { rows ->

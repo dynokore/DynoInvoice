@@ -153,7 +153,7 @@ class CompositionRootTest {
                 JobCommands::class,
                 IdempotencyStore::class,
                 IdempotencyKeyPurgeJob::class,
-            ),
+            ) + INBOX, // the inbox consumer takes its record topics from the catalogue (INV-Q-3809)
         ),
         RETENTION({ it.withBean(Retention::class.java, { Retention() }) }, setOf(RetentionPurge::class, EventLogPurge::class)),
         LANE_LIMITS({ it.withBean(LaneLimits::class.java, { LaneLimits() }) }, setOf(LaneRateLimiter::class, WorkQueue::class, ReplayDelivery::class)),

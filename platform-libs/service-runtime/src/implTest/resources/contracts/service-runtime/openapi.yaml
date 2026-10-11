@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: service-runtime shared contract components
-  version: 1.1.0
+  version: 1.2.0
   description: >-
     Not a service: the shared OpenAPI components every other directory's
     openapi.yaml references by relative $ref (error envelope, API-20) rather
@@ -323,7 +323,20 @@ paths:
         pair is pending, a call with the same mode and scope returns 200 with the pending replay (same
         replayId, repeat true) and writes nothing; another mode or scope is EVL-004; after the marker is
         applied a new call starts a new replay (owner ruling INV-Q-3665 A); Idempotency-Key per API-15 on
-        top. Closed service-runtime cases carry their SRT catalogue code, mapped once in
+        top.
+
+
+        Multi-producer topics (owner ruling INV-Q-3788 A, INV-AC-3817): one call addresses every catalogue
+        producer of a topic with several producers in event-log/topics.yaml (for example
+        gst.platform.evidence-artefact-recorded.v1). In one transaction the position on the topic moves to
+        the head once and one ReplayRequested is written per producer, each naming one producer and all
+        with the same replayId (for a full sync, the INV-Q-3603 clear and head move for each producer). The
+        repeat rule applies when every (consumer, producer) pair is pending with that replayId, mode and
+        scope; any other pending replay on one of the pairs is EVL-004. The incident closes when a
+        ReplayCompleted for the replayId has been applied from every catalogue producer (INV-Q-3669's
+        rule), and stays open while any producer has not answered. The audit scope names every addressee.
+        The response lists every addressee in producers and holds the literal 'several producers' in
+        producer. Closed service-runtime cases carry their SRT catalogue code, mapped once in
         ProblemMapper and not listed in x-error-codes (ARC-19, INV-REQ-827 b3, owner ruling
         INV-Q-3720): SRT-001 400 contract violation (a malformed mode or scope, a scope with
         FULL_SYNC or none with SCOPE), SRT-002 400 a missing or malformed Idempotency-Key, SRT-003
@@ -392,12 +405,31 @@ paths:
                     replayId: 3f0c2a4e-8d0b-4c1e-9a57-2b6f1e0d7c11
                     topic: gst.canonical.canonical-version-created.v1
                     producer: canonical-svc
+                    producers:
+                    - canonical-svc
                     mode: SCOPE
                     scope:
                       kind: ENTITY
                       tenantId: T-001
                       entityRef: E-001
                     requestedAt: "2026-10-11T09:12:03Z"
+                    repeat: false
+                severalProducers:
+                  summary: A topic with several catalogue producers (INV-Q-3788 A)
+                  value:
+                    replayId: 9b2e7d10-4a6c-4f3e-8c21-5d0a7e9f1b34
+                    topic: gst.platform.evidence-artefact-recorded.v1
+                    producer: several producers
+                    producers:
+                    - access-svc
+                    - masterdata-svc
+                    - payload-svc
+                    - rules-svc
+                    mode: SCOPE
+                    scope:
+                      kind: TENANT
+                      tenantId: T-001
+                    requestedAt: "2026-10-12T08:40:17Z"
                     repeat: false
         "200":
           description: A replay for the (consumer, producer) pair is pending with the same mode and scope; the
@@ -412,12 +444,31 @@ paths:
                     replayId: 3f0c2a4e-8d0b-4c1e-9a57-2b6f1e0d7c11
                     topic: gst.canonical.canonical-version-created.v1
                     producer: canonical-svc
+                    producers:
+                    - canonical-svc
                     mode: SCOPE
                     scope:
                       kind: ENTITY
                       tenantId: T-001
                       entityRef: E-001
                     requestedAt: "2026-10-11T09:12:03Z"
+                    repeat: true
+                severalProducers:
+                  summary: A topic with several catalogue producers (INV-Q-3788 A)
+                  value:
+                    replayId: 9b2e7d10-4a6c-4f3e-8c21-5d0a7e9f1b34
+                    topic: gst.platform.evidence-artefact-recorded.v1
+                    producer: several producers
+                    producers:
+                    - access-svc
+                    - masterdata-svc
+                    - payload-svc
+                    - rules-svc
+                    mode: SCOPE
+                    scope:
+                      kind: TENANT
+                      tenantId: T-001
+                    requestedAt: "2026-10-12T08:40:17Z"
                     repeat: true
         "400":
           $ref: '#/components/responses/Error'
@@ -674,6 +725,7 @@ components:
       - replayId
       - topic
       - producer
+      - producers
       - mode
       - requestedAt
       - repeat
@@ -689,7 +741,17 @@ components:
         producer:
           type: string
           description: The addressee, the topic's producer in event-log/topics.yaml, a service or 'every
-            service' (INV-Q-3625).
+            service' (INV-Q-3625); the literal 'several producers' for a topic with several catalogue
+            producers (owner ruling INV-Q-3788 A).
+        producers:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+          description: Every addressee of the call, one element for a single-producer topic (the service
+            or 'every service'), every catalogue producer of the topic in event-log/topics.yaml otherwise
+            (owner ruling INV-Q-3788 A, INV-API-3656).
         mode:
           $ref: '#/components/schemas/ReplayMode'
         scope:

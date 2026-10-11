@@ -6,6 +6,24 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-10-12
+### Added
+- rebuildConsumer (INV-T-3385; INV-API-3656; INV-REQ-1205 b4, b6; rulings INV-Q-3599, INV-Q-3663, INV-Q-3665,
+  INV-Q-3667, INV-Q-3671): `ConsumerRebuildCommands` / `ConsumerRebuildRuntime`. Platform operator only (EVL-002);
+  EVL-001 topic not consumed, EVL-003 not in rebuild required, EVL-004 another replay pending for the pair; a repeat
+  with the same mode and scope returns the pending replay and writes nothing. The head move, ReplayRequested and the
+  AuditEntryRecorded commit in one transaction (INV-AC-3657). A full sync runs on the worker role bound to the platform
+  tenant (`FullSyncWiring`, INV-Q-3786); one with no `ReadModelClear` for an addressee is refused.
+- A topic with several catalogue producers (owner ruling INV-Q-3788 A; INV-AC-3817): one call addresses all of
+  them, one head move and one ReplayRequested per producer under one replay id; the repeat rule and EVL-004 hold over
+  that set of pairs; `ReplayState.producers` lists every addressee and `producer` is 'several producers'
+  (`ReplayState.SEVERAL_PRODUCERS`; service-runtime contract 1.2.0, INV-T-3819); the audit scope names every
+  addressee. A full sync addresses every producer of the topics it moves, until no moved topic has a producer left
+  out, runs each addressee's clear and, addressed to several producers, deletes no docsequence row (coordinator
+  ruling on INV-Q-3788).
+- The inbox consumer bean takes the `EventCatalogue` (record topics, INV-Q-3809). The tests' pinned
+  `service-runtime/openapi.yaml` is platform-contracts 0b685b5 (service-runtime contract 1.2.0).
+
 ## [3.1.0] - 2026-10-12
 ### Added
 - Consumer staleness gauges (INV-T-3005; INV-REQ-1165, INV-AC-2150; coordinator ruling INV-Q-3030 (a)): the
@@ -131,17 +149,6 @@ train is its own (README.md: "own version and changelog").
   `LicenceCheck` the service declares is wrapped in `NonBlockingLicenceCheck`. adapter-runtime's
   `ConnectionStatusReporter` is a local bean, not bridged: `ConnectionStatusChanged` is published only by
   service-runtime's reporter. rulepack-kernel, evidence-store, adapter-runtime and crypto are compileOnly.
-
-## [3.1.0] - 2026-10-12
-### Added
-- rebuildConsumer (INV-T-3385; INV-API-3656; INV-REQ-1205 b4, b6; rulings INV-Q-3599, INV-Q-3663, INV-Q-3665,
-  INV-Q-3667, INV-Q-3671): `ConsumerRebuildCommands` / `ConsumerRebuildRuntime`. Platform operator only (EVL-002);
-  EVL-001 topic not consumed, EVL-003 not in rebuild required, EVL-004 another replay pending for the pair; a repeat
-  with the same mode and scope returns the pending replay and writes nothing. The head move, ReplayRequested and the
-  AuditEntryRecorded commit in one transaction (INV-AC-3657). A full sync runs on the worker role bound to the platform
-  tenant (`FullSyncWiring`, INV-Q-3786). A topic with more than one producer is refused until INV-Q-3788 is ruled,
-  and so is a full sync whose producer shares a consumed topic with other producers (it would move that topic's
-  head) or that has no `ReadModelClear` for the producer.
 
 ## [2.1.0] - 2026-10-11
 ### Added
