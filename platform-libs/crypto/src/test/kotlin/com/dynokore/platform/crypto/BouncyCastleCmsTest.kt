@@ -1,9 +1,19 @@
 package com.dynokore.platform.crypto
 
+import org.bouncycastle.asn1.ASN1ObjectIdentifier
+import org.bouncycastle.asn1.nist.NISTObjectIdentifiers
 import org.bouncycastle.asn1.x500.X500Name
+import org.bouncycastle.asn1.x509.AlgorithmIdentifier
+import org.bouncycastle.cert.X509CertificateHolder
+import org.bouncycastle.cert.jcajce.JcaCertStore
 import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder
+import org.bouncycastle.cms.CMSProcessableByteArray
+import org.bouncycastle.cms.CMSSignedDataGenerator
+import org.bouncycastle.cms.SignerInfoGeneratorBuilder
 import org.bouncycastle.jce.provider.BouncyCastleProvider
+import org.bouncycastle.operator.DigestCalculatorProvider
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder
+import org.bouncycastle.operator.jcajce.JcaDigestCalculatorProviderBuilder
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -64,11 +74,84 @@ class BouncyCastleCmsTest {
         assertTrue(invalid.detail.contains("curve"), invalid.detail)
     }
 
-    private fun signingKey(curve: String): JcaSigningKey {
+    @Test
+    fun `a signer using another signature algorithm is refused even when trusted`() {
+        val keyPair = keyPair("secp256r1")
+        val key = signingKeyOf(keyPair)
+        val signature = foreignCms(keyPair, key, contentSignature = "SHA384withECDSA", digestOverride = null)
+        val outcome = cms.verify(content, signature, alg, listOf(key.certificateDer))
+        val invalid = assertInstanceOf(DetachedVerification.SignatureInvalid::class.java, outcome)
+        assertTrue(invalid.detail.contains("signature algorithm"), invalid.detail)
+    }
+
+    @Test
+    fun `a signer using another digest is refused even when trusted`() {
+        val keyPair = keyPair("secp256r1")
+        val key = signingKeyOf(keyPair)
+        val signature =
+            foreignCms(
+                keyPair,
+                key,
+                contentSignature = "SHA256withECDSA",
+                digestOverride = NISTObjectIdentifiers.id_sha384,
+            )
+        val outcome = cms.verify(content, signature, alg, listOf(key.certificateDer))
+        val invalid = assertInstanceOf(DetachedVerification.SignatureInvalid::class.java, outcome)
+        assertTrue(invalid.detail.contains("digest algorithm"), invalid.detail)
+    }
+
+    @Test
+    fun `an injected provider instance is used for signing and verification`() {
+        val injected = BouncyCastleCms(BouncyCastleProvider())
+        val key = signingKey("secp256r1")
+        val signature = injected.sign(content, key)
+        val outcome = injected.verify(content, signature, alg, listOf(key.certificateDer))
+        assertEquals(DetachedVerification.Verified(0), outcome)
+    }
+
+    /**
+     * A detached CMS signature made directly with Bouncy Castle, not through [BouncyCastleCms]:
+     * [contentSignature] signs the signed attributes and [digestOverride], when set, replaces the
+     * message digest algorithm the SignerInfo declares.
+     */
+    private fun foreignCms(
+        keyPair: KeyPair,
+        key: JcaSigningKey,
+        contentSignature: String,
+        digestOverride: ASN1ObjectIdentifier?,
+    ): ByteArray {
+        val base = JcaDigestCalculatorProviderBuilder().setProvider(BouncyCastleProvider.PROVIDER_NAME).build()
+        val digests =
+            if (digestOverride == null) {
+                base
+            } else {
+                DigestCalculatorProvider { _ -> base.get(AlgorithmIdentifier(digestOverride)) }
+            }
+        val signer =
+            JcaContentSignerBuilder(contentSignature)
+                .setProvider(BouncyCastleProvider.PROVIDER_NAME)
+                .build(keyPair.private)
+        val certificate = X509CertificateHolder(key.certificateDer)
+        val generator = CMSSignedDataGenerator()
+        generator.addSignerInfoGenerator(SignerInfoGeneratorBuilder(digests).build(signer, certificate))
+        generator.addCertificates(JcaCertStore(listOf(certificate)))
+        return generator.generate(CMSProcessableByteArray(content), false).encoded
+    }
+
+    private fun keyPair(curve: String): KeyPair {
         val generator = KeyPairGenerator.getInstance("EC", BouncyCastleProvider.PROVIDER_NAME)
         generator.initialize(ECGenParameterSpec(curve))
-        val keyPair = generator.generateKeyPair()
-        return JcaSigningKey(alg, keyPair.private, selfSigned(keyPair), BouncyCastleProvider.PROVIDER_NAME)
+        return generator.generateKeyPair()
+    }
+
+    private fun signingKey(curve: String): JcaSigningKey {
+        val keyPair = keyPair(curve)
+        return signingKeyOf(keyPair)
+    }
+
+    private fun signingKeyOf(keyPair: KeyPair): JcaSigningKey {
+        val certificateDer = selfSigned(keyPair)
+        return JcaSigningKey(alg, keyPair.private, certificateDer, BouncyCastleProvider.PROVIDER_NAME)
     }
 
     private fun selfSigned(keyPair: KeyPair): ByteArray {

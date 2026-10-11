@@ -17,21 +17,22 @@ import org.bouncycastle.util.Selector
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.OutputStream
+import java.security.Provider
 import java.security.Security
 
 /**
  * Detached CMS sign and verify over Bouncy Castle (STK-13): `SignedData` without encapsulated
  * content, one `SignerInfo`, the signer's certificate carried in the message, and on verification
  * the signer pinned to an exact trusted certificate (see [DetachedSignatureVerifier]).
+ *
+ * [provider] is the JCA provider every digest and signature check runs on. It defaults to the
+ * Bouncy Castle provider already registered in this JVM, or a new one. A FIPS 140-3 installation
+ * binds its validated provider (for example Bouncy Castle FIPS) here, with no code change.
  */
-class BouncyCastleCms :
-    DetachedSigner,
+class BouncyCastleCms(
+    private val provider: Provider = defaultProvider(),
+) : DetachedSigner,
     DetachedSignatureVerifier {
-    init {
-        if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null) {
-            Security.addProvider(BouncyCastleProvider())
-        }
-    }
 
     override fun sign(
         content: ByteArray,
@@ -39,7 +40,7 @@ class BouncyCastleCms :
     ): ByteArray {
         val certificate = X509CertificateHolder(key.certificateDer)
         val digestProvider =
-            JcaDigestCalculatorProviderBuilder().setProvider(BouncyCastleProvider.PROVIDER_NAME).build()
+            JcaDigestCalculatorProviderBuilder().setProvider(provider).build()
         val signerInfoGenerator =
             SignerInfoGeneratorBuilder(digestProvider).build(SigningKeyContentSigner(key), certificate)
         val generator = CMSSignedDataGenerator()
@@ -79,7 +80,7 @@ class BouncyCastleCms :
         val mathematicallyValid = try {
             val verifier =
                 JcaSimpleSignerInfoVerifierBuilder()
-                    .setProvider(BouncyCastleProvider.PROVIDER_NAME)
+                    .setProvider(provider)
                     .build(signerCertificate)
             signerInfo.verify(verifier)
         } catch (failure: CMSException) {
@@ -122,6 +123,10 @@ class BouncyCastleCms :
     }
 
     private fun invalid(detail: String): DetachedVerification = DetachedVerification.SignatureInvalid(detail)
+
+    private companion object {
+        fun defaultProvider(): Provider = Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) ?: BouncyCastleProvider()
+    }
 
     /** A Bouncy Castle [ContentSigner] that buffers the bytes to sign and hands them to a [SigningKey]. */
     private class SigningKeyContentSigner(

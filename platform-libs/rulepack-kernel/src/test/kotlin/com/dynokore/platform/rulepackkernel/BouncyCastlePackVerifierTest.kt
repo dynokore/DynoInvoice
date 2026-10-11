@@ -1,5 +1,6 @@
 package com.dynokore.platform.rulepackkernel
 
+import com.dynokore.platform.crypto.SignatureAlgorithm
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Test
@@ -119,5 +120,30 @@ class BouncyCastlePackVerifierTest {
 
         val rejected = assertInstanceOf(PackVerificationOutcome.Rejected::class.java, outcome)
         assertEquals(PackRejectionReason.MANIFEST_MALFORMED, rejected.reason)
+    }
+
+    @Test
+    fun `a pack signed with a key off the P-256 curve is refused even when its certificate is trusted (STK-13)`() {
+        val keyPair = PackFixtures.signingKeyPair(curve = "secp384r1")
+        val certificate = PackFixtures.selfSignedCertificate(keyPair, "2026-train-p384")
+        val artefact = PackFixtures.artefact(keyPair = keyPair, certificate = certificate)
+        val trustAnchors = TrustAnchors(listOf(TrustAnchor("p384", certificate.encoded)))
+
+        val outcome = verifier.verify(artefact, trustAnchors)
+
+        val rejected = assertInstanceOf(PackVerificationOutcome.Rejected::class.java, outcome)
+        assertEquals(PackRejectionReason.SIGNATURE_INVALID, rejected.reason)
+    }
+
+    @Test
+    fun `the configured signature algorithm is the one enforced`() {
+        val keyPair = PackFixtures.signingKeyPair()
+        val certificate = PackFixtures.selfSignedCertificate(keyPair, "2026-train-primary")
+        val artefact = PackFixtures.artefact(keyPair = keyPair, certificate = certificate)
+        val trustAnchors = TrustAnchors(listOf(TrustAnchor("primary", certificate.encoded)))
+        val configured =
+            BouncyCastlePackVerifier(signatureAlgorithm = SignatureAlgorithm.ECDSA_P256_SHA256)
+
+        assertInstanceOf(PackVerificationOutcome.Verified::class.java, configured.verify(artefact, trustAnchors))
     }
 }

@@ -19,6 +19,6 @@ Released on its own version with its own changelog. Services consume it only as 
   - `SecureTokens.randomBytes`, `urlSafeToken`, `numericPasscode`, all from `SecureRandom`.
   - `ConstantTime.equals` for any MAC, digest or passcode comparison.
   - Ports `DetachedSigner` and `DetachedSignatureVerifier`, `SigningKey`, `SignatureAlgorithm.ECDSA_P256_SHA256` (STK-13), `DetachedVerification`.
-- `crypto` (impl): `BouncyCastleCms` implements both ports; `JcaSigningKey` wraps a JCA private key (key file, or an HSM through PKCS#11). A KMS key implements `SigningKey` itself: the private key never leaves its holder.
+- `crypto` (impl): `BouncyCastleCms(provider)` implements both ports on the given JCA provider (default: Bouncy Castle; bind a FIPS 140-3 provider for a FIPS installation); `JcaSigningKey` wraps a JCA private key (key file, or an HSM through PKCS#11). A KMS key implements `SigningKey` itself: the private key never leaves its holder.
 
 Verification pins the signer to an exact trusted certificate (byte for byte), never to a certificate the message merely carries, and refuses a signature whose algorithm, digest or key curve is not the named one.

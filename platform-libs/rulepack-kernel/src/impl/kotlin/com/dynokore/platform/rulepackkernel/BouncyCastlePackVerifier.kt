@@ -32,8 +32,9 @@ import java.time.format.DateTimeParseException
  *    (`MANIFEST_MALFORMED` otherwise).
  *
  * The CMS steps 2 and 3 are the platform crypto module's detached verifier (CS-53; INV-T-3358),
- * under the named algorithm ECDSA P-256 with SHA-256: a signer using any other signature
- * algorithm, digest or curve is `SIGNATURE_INVALID`.
+ * under [signatureAlgorithm], this module's configuration of the pack signature algorithm (STK-13),
+ * ECDSA P-256 with SHA-256 by default: a signer using any other signature algorithm, digest or
+ * curve is `SIGNATURE_INVALID`.
  *
  * `control-plane-svc`'s side (STK-13: "bundle format and signing", this
  * module's other declared user, INV-MOD-2373) is symmetric but out of this
@@ -42,6 +43,7 @@ import java.time.format.DateTimeParseException
 class BouncyCastlePackVerifier(
     private val objectMapper: ObjectMapper = ObjectMapper(),
     private val signatureVerifier: DetachedSignatureVerifier = BouncyCastleCms(),
+    private val signatureAlgorithm: SignatureAlgorithm = SignatureAlgorithm.ECDSA_P256_SHA256,
 ) : PackVerifier {
     override fun verify(
         artefact: PackArtefact,
@@ -70,7 +72,7 @@ class BouncyCastlePackVerifier(
             val verification = signatureVerifier.verify(
                 content = signedContent,
                 signature = artefact.signature,
-                algorithm = SignatureAlgorithm.ECDSA_P256_SHA256,
+                algorithm = signatureAlgorithm,
                 trustedCertificatesDer = anchors.map { it.certificateDer },
             )
         ) {

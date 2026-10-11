@@ -39,9 +39,9 @@ object PackFixtures {
         }
     }
 
-    fun signingKeyPair(): KeyPair {
+    fun signingKeyPair(curve: String = "secp256r1"): KeyPair {
         val generator = KeyPairGenerator.getInstance("EC", BouncyCastleProvider.PROVIDER_NAME)
-        generator.initialize(ECGenParameterSpec("secp256r1"))
+        generator.initialize(ECGenParameterSpec(curve))
         return generator.generateKeyPair()
     }
 

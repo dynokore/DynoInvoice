@@ -17,5 +17,7 @@ train is its own (README.md: "own version and changelog").
   `SigningKey`, `SignatureAlgorithm.ECDSA_P256_SHA256` (STK-13) and `DetachedVerification`.
 - `crypto` (impl): `BouncyCastleCms`, detached CMS `SignedData` sign and verify (STK-13); the
   verifier refuses a signer whose signature algorithm, digest or key curve is not the named
-  algorithm, and pins the signer to an exact trusted certificate. `JcaSigningKey` signs with a JCA
+  algorithm, and pins the signer to an exact trusted certificate. Its JCA `Provider` is a
+  constructor parameter (default: the registered Bouncy Castle provider), so a FIPS 140-3 provider
+  is a binding choice, not a code change. `JcaSigningKey` signs with a JCA
   private key (key file or PKCS#11 HSM); a KMS key implements `SigningKey` itself.
