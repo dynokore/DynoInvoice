@@ -44,7 +44,7 @@ paths:
       x-principal: ingest
       x-timeout: 2000
       x-sync-edge: ingestion-svc->canonical-svc
-      x-error-codes: [ING-002, ING-005, ING-011, ING-012, ING-016]
+      x-error-codes: [ING-002, ING-005, ING-011, ING-012, ING-016, ING-019]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-547, INV-REQ-806]
       x-operation:
         role: ingest
@@ -330,13 +330,15 @@ components:
           description: >-
             Preceding Invoice Number (IBT-025) of the invoice a credit note corrects, where known
             (INV-REQ-560, INV-TERM-302). Mirrors TransactionRequest. A number without a date is valid
-            (INV-REQ-701).
+            (INV-REQ-701). On a credit note with neither preceding field, precedingBlankJustification and
+            evidenceRef are required (ING-019).
         precedingDocumentDate:
           type: string
           format: date
           description: >-
             Preceding Invoice Date (IBT-026) of the invoice a credit note corrects, where known
-            (INV-REQ-560, INV-TERM-302). Mirrors TransactionRequest.
+            (INV-REQ-560, INV-TERM-302). Mirrors TransactionRequest. On a credit note with neither preceding
+            field, precedingBlankJustification and evidenceRef are required (ING-019).
         precedingBlankJustification:
           type: string
           maxLength: 512
@@ -345,8 +347,8 @@ components:
             INV-TERM-302).
             Required, together with evidenceRef, when documentFunction is CREDIT_NOTE and neither
             precedingDocumentNumber nor precedingDocumentDate is present; otherwise optional (INV-REQ-561,
-            INV-Q-1677, INV-Q-3450). Enforced by canonical-svc with an error code, not by this schema
-            (as for TransactionRequest).
+            INV-Q-1677, INV-Q-3450, INV-Q-3488); refused with ING-019. Enforced by canonical-svc, not by
+            this schema (as for TransactionRequest).
         evidenceRef:
           type: string
           maxLength: 256
@@ -355,8 +357,8 @@ components:
             for a blank-linked credit note (INV-REQ-561).
             Required, together with precedingBlankJustification, when documentFunction is CREDIT_NOTE and neither
             precedingDocumentNumber nor precedingDocumentDate is present; otherwise optional (INV-REQ-561,
-            INV-Q-1677, INV-Q-3450). Enforced by canonical-svc with an error code, not by this schema
-            (as for TransactionRequest).
+            INV-Q-1677, INV-Q-3450, INV-Q-3488); refused with ING-019. Enforced by canonical-svc, not by
+            this schema (as for TransactionRequest).
       required:
         [tenantId, entityRef, sourceSystem, sourceKey, sourceRevision, documentFunction, transactionDate, currency, lines]
     RecordDocumentResponse:
