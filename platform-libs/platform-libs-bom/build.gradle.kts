@@ -26,13 +26,6 @@ plugins {
 
 version = providers.gradleProperty("bomVersion").getOrElse("0.0.0-local")
 
-// Every constraint below reads `project(":<module>").version`, which is `unspecified` until that
-// module's own build file has been evaluated. Evaluate each constrained module first.
-listOf(
-    "service-runtime", "outbox-and-queue", "rulepack-kernel", "tenancy-kernel",
-    "evidence-store", "adapter-runtime", "config-resolver", "audit-log",
-).forEach { evaluationDependsOn(":$it") }
-
 dependencies {
     constraints {
         // One pair per Wave 1 module, added by that module's own task, in STK-60's

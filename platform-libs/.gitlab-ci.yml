@@ -188,11 +188,6 @@ maven-publish:
     MAVEN_REGISTRY_PROJECT_ID: "$CI_PROJECT_ID"
   # Two main pipelines never decide the BOM version at the same time.
   resource_group: platform-libs-bom-version
-  # Main only: the shared template also runs on tags, but a tag pipeline must not version the BOM.
-  rules:
-    - if: '$MAVEN_PUBLISH != "true"'
-      when: never
-    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
   script:
     - ci/bom-version.sh
     - |
@@ -246,6 +241,5 @@ bom-verify:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   script:
     - ci/bom-version.sh
-    - |
-      . build/bom.env
-      echo "gst-ci: on main this change would ${BOM_ACTION} platform-libs-bom ${BOM_VERSION}"
+    - . build/bom.env
+    - echo "gst-ci: on main this change would ${BOM_ACTION} platform-libs-bom ${BOM_VERSION}"
