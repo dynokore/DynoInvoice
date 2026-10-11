@@ -1,0 +1,4 @@
+openapi: 3.1.0
+info: {title: fixture, version: 1.0.0}
+x-scheduled-jobs: [scheduled-pull]
+paths: {}

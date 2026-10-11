@@ -7,8 +7,220 @@ info:
     openapi.yaml references by relative $ref (error envelope, API-20) rather
     than redeclaring its own copy. Owned by whoever owns the `service-runtime`
     L1 module (STK-60), since these mirror what it implements at runtime.
-paths: {}
+    Also the shared runtime contract every service that owns scheduled jobs
+    mounts: runJobNow, pauseJob and resumeJob are defined once here and
+    served by service-runtime in each owning service (INV-Q-2950,
+    INV-API-3023, INV-API-3025; INV-T-3007). console-bff calls them over its
+    existing console-bff-><owning service> edges, so their x-sync-edge names
+    the placeholder callee owning-svc, checked by spectral/check-sync-edges.py
+    against every service declaring x-scheduled-jobs (API-08).
+tags:
+- name: jobs
+  description: Scheduled-job controls of the shared runtime contract (INV-REQ-1138).
+paths:
+  /internal/v1/jobs/{job}/run-now:
+    post:
+      operationId: runJobNow
+      summary: Run a scheduled job once now, for one entity's share or, for the platform operator role, the whole job
+      description: >-
+        Runs the job once outside its schedule (INV-REQ-1138 b1, INV-API-3025, INV-NOTE-7 SCR-23.2). Takes
+        the job and an entity, absent meaning the whole job; with an entity the run processes only that
+        entity's items. Irreversible where the job transmits. Records a JobRunRecorded and writes an
+        AuditEntryRecorded in its transaction (INV-REQ-2588). Repeat key (job, entity or whole job, run
+        window), the run window being the job's schedule interval containing the request: a second
+        run-now in the window returns the first while it is in progress or has succeeded; after a FAILED
+        run a new attempt is allowed and recorded as a new attempt (INV-Q-3034). Run-now and scheduled
+        runs are keyed apart by trigger; a run-now never suppresses the next scheduled run (INV-Q-3039).
+        Closed service-runtime cases stay code-less with type about:blank (ARC-19): 400 contract
+        violation (e.g. a missing Idempotency-Key), 403 AccessDenied for an entityRef outside the token's
+        entity set (API-24), 409 request in flight, 422 Idempotency-Key reused with a different body
+        (API-15).
+      tags:
+      - jobs
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->owning-svc
+      # TODO(INV-T-3007): x-timeout is not ruled for the job operations; 5000 ms is the
+      # console-command value used across platform-contracts, pending the Keel ruling.
+      x-timeout: 5000
+      x-requirements:
+      - INV-REQ-1138
+      - INV-REQ-1136
+      - INV-REQ-2588
+      - INV-AC-3040
+      - INV-AC-3041
+      # TODO(INV-T-3007): JOB-001 and JOB-002 enter the vendored catalogue when invoice-docs!4
+      # merges and catalogue/errors/error-codes.yaml is re-vendored.
+      x-error-codes:
+      - JOB-001
+      - JOB-002
+      x-operation:
+        role: integration.engineer with a grant on the entity, or deployment.operator (private form), per
+          (job, entity); a whole-job run or any run of a PLATFORM-scoped job only by the form's platform
+          operator role, platform.engineer (SaaS) or deployment.operator (private) (INV-REQ-1138 b1,
+          INV-Q-3032). Roles re-checked against the authority replica, never taken from the caller (CS-23)
+        scope: (job, entity), or the whole job
+        precondition: The job is registered in the owning service (JOB-001); the caller's role permits the
+          run at the requested scope (JOB-002); same confirmation for every job (INV-REQ-1138 b1)
+        repeatKey: (job, entity or whole job, run window = the schedule interval containing the request);
+          a repeat returns the first run while in progress or succeeded; after FAILED a new attempt
+          (INV-Q-3034, INV-Q-3039)
+        reversibility: IRREVERSIBLE
+      parameters:
+      - $ref: '#/components/parameters/Job'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      # TODO(INV-T-3007): request body (the entity, absent = whole job, and any further field) and
+      # the success response are pending the Keel question on the job operations' fields.
+      responses:
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "409":
+          $ref: '#/components/responses/Error'
+        "422":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/jobs/{job}/pause:
+    post:
+      operationId: pauseJob
+      summary: Pause a scheduled job until a mandatory end time, per (job, entity) or, for the platform operator role, job-wide
+      description: >-
+        Pauses the job for one entity's share or, absent an entity, job-wide, until a mandatory end time
+        (INV-REQ-1138 b2-b3, INV-Q-2985, INV-API-3023, INV-NOTE-7 SCR-23.3). A deadline-critical job cannot
+        be paused beyond the entity's nearest due date minus its VP-18 margin (JOB-003, INV-AC-1149); the
+        bound is re-checked at every firing (INV-Q-2946). Writes an AuditEntryRecorded with actor, scope,
+        reason and prior state in its transaction (INV-REQ-2588). A (job, entity) has at most one active
+        pause: the same until has no second effect; a different until replaces the active pause's end time,
+        earlier or later, under the same deadline bound, audited with the prior until (INV-Q-3037). Closed
+        service-runtime cases stay code-less with type about:blank (ARC-19): 400 contract violation (e.g. a
+        missing until or Idempotency-Key), 403 AccessDenied for an entityRef outside the token's entity set
+        (API-24), 409 request in flight, 422 Idempotency-Key reused with a different body (API-15).
+      tags:
+      - jobs
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->owning-svc
+      # TODO(INV-T-3007): x-timeout pending the Keel ruling (see runJobNow).
+      x-timeout: 5000
+      x-requirements:
+      - INV-REQ-1138
+      - INV-REQ-2588
+      - INV-AC-1149
+      # TODO(INV-T-3007): JOB-001..JOB-004 enter the vendored catalogue on the re-vendor.
+      x-error-codes:
+      - JOB-001
+      - JOB-002
+      - JOB-003
+      - JOB-004
+      x-operation:
+        role: integration.engineer with a grant on the entity, or deployment.operator (private form), per
+          (job, entity); a job-wide pause only by the form's platform operator role, platform.engineer
+          (SaaS) or deployment.operator (private) (INV-REQ-1138 b2, INV-Q-2985). Roles re-checked against
+          the authority replica (CS-23)
+        scope: (job, entity), or job-wide
+        precondition: The job is registered (JOB-001); the role permits the scope (JOB-002); until is later
+          than the request time (JOB-004) and, for a deadline-critical job, not past the entity's nearest due
+          date minus its VP-18 margin (JOB-003)
+        repeatKey: (job, entity or job-wide); the same until has no second effect, a different until
+          replaces the active pause's end time (INV-Q-3037)
+        reversibility: UNDOABLE
+      parameters:
+      - $ref: '#/components/parameters/Job'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      # TODO(INV-T-3007): request body (the entity, absent = job-wide; the mandatory until; any further
+      # field) and the success response are pending the Keel question on the job operations' fields.
+      responses:
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "409":
+          $ref: '#/components/responses/Error'
+        "422":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/jobs/{job}/resume:
+    post:
+      operationId: resumeJob
+      summary: Resume a paused scheduled job, per (job, entity) or, for the platform operator role, job-wide
+      description: >-
+        Ends the active pause for one entity's share or, absent an entity, job-wide (INV-REQ-1138 b2,
+        INV-Q-2985, INV-API-3023, INV-NOTE-7 SCR-23.3). Writes an AuditEntryRecorded with actor, scope,
+        reason and prior state in its transaction (INV-REQ-2588). A resume of a (job, entity) that is not
+        paused returns its current state and has no effect. Closed service-runtime cases stay code-less with
+        type about:blank (ARC-19): 400 contract violation, 403 AccessDenied for an entityRef outside the
+        token's entity set (API-24), 409 request in flight, 422 Idempotency-Key reused with a different
+        body (API-15).
+      tags:
+      - jobs
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->owning-svc
+      # TODO(INV-T-3007): x-timeout pending the Keel ruling (see runJobNow).
+      x-timeout: 5000
+      x-requirements:
+      - INV-REQ-1138
+      - INV-REQ-2588
+      # TODO(INV-T-3007): JOB-001 and JOB-002 enter the vendored catalogue on the re-vendor.
+      x-error-codes:
+      - JOB-001
+      - JOB-002
+      x-operation:
+        role: integration.engineer with a grant on the entity, or deployment.operator (private form), per
+          (job, entity); a job-wide resume only by the form's platform operator role, platform.engineer
+          (SaaS) or deployment.operator (private) (INV-REQ-1138 b2, INV-Q-2985). Roles re-checked against
+          the authority replica (CS-23)
+        scope: (job, entity), or job-wide
+        precondition: The job is registered (JOB-001); the role permits the scope (JOB-002)
+        repeatKey: (job, entity or job-wide); a resume of a scope that is not paused returns its current
+          state with no effect
+        reversibility: UNDOABLE
+      parameters:
+      - $ref: '#/components/parameters/Job'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      # TODO(INV-T-3007): request body (the entity, absent = job-wide; any further field) and the
+      # success response are pending the Keel question on the job operations' fields.
+      responses:
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "409":
+          $ref: '#/components/responses/Error'
+        "422":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
 components:
+  parameters:
+    Job:
+      name: job
+      in: path
+      required: true
+      description: The scheduled job's name, as registered by the owning service (JobRegistered.job, INV-API-3020).
+      schema:
+        type: string
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: 'API-15: a UUID, deduplicating an exact request replay for at least 24h; a same-key replay
+        returns the stored response, a different body gives 422, a request in flight 409.'
+      schema:
+        type: string
+        format: uuid
   schemas: {}
   responses:
     Error:
