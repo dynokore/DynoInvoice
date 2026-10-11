@@ -1,5 +1,5 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
-# pinned at commit a0502bd2edf8ff70c72b99f095b1cb424ed1420e (2026-10-12), the
+# pinned at commit 46607d458b13016f10135d81ee583a47cc063a3c (2026-10-12), the
 # head of invoice-docs branch t/inv-t-3742 (invoice-docs!8) adding SRT-001..SRT-010
 # (INV-T-3742, owner ruling INV-Q-3720; re-pinned to its merge commit once it merges;
 # previously pinned at d6026e5f13c0e12048d27d054d0287941f901de9, INV-T-3634).
@@ -602,16 +602,16 @@ error_codes:
   disposition: TERMINAL
   owner: Platform
 - code: SRT-007
-  condition: A request with this Idempotency-Key is in flight; retry once it completes (IdempotencyConflict, ARC-19, API-15;
-    HTTP 409; INV-Q-3720, INV-REQ-827 b3)
+  condition: A request with this Idempotency-Key is in flight; the caller may resend with the same key once the first request
+    completes (IdempotencyConflict, ARC-19, API-15; HTTP 409; INV-Q-3720, INV-Q-3754, INV-REQ-827 b3)
   severity: BLOCK
-  disposition: AUTO_RETRY
+  disposition: TERMINAL
   owner: Platform
 - code: SRT-008
-  condition: 'Stale aggregate version: the aggregate changed since it was read; retry on the current version (StaleAggregate,
-    ARC-19; HTTP 409; INV-Q-3720, INV-REQ-827 b3)'
+  condition: 'Stale aggregate version: the aggregate changed since it was read; the caller re-reads and resends with the current
+    version (StaleAggregate, ARC-19; HTTP 409; INV-Q-3720, INV-Q-3754, INV-REQ-827 b3)'
   severity: BLOCK
-  disposition: AUTO_RETRY
+  disposition: TERMINAL
   owner: Platform
 - code: SRT-009
   condition: 'Idempotency-Key reused with a different request: the method, path or body fingerprint differs from the original
