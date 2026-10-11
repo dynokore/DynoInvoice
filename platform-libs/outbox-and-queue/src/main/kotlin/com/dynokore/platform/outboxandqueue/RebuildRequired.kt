@@ -25,9 +25,25 @@ data class RebuildRequiredIncident(
 )
 
 /**
- * Where a 'rebuild required' incident goes: the service raises the incident (INV-REQ-1165's alert path). Called once
- * when a consumer stops a topic, and again only after it has resumed and stopped once more.
+ * The close of a 'rebuild required' incident (INV-REQ-1205 b6, INV-Q-3644, INV-AC-3658): the consumer applied the
+ * ReplayCompleted marker of [replayId] (on an 'every service' replay topic, a marker from each source it has seen,
+ * INV-Q-3669), so the replay that rebuilds [topic] is complete.
+ */
+data class RebuildRequiredClosed(
+    val consumer: String,
+    val topic: String,
+    val replayId: java.util.UUID,
+    val closedAt: Instant,
+)
+
+/**
+ * Where a 'rebuild required' incident goes: the service raises the incident (INV-REQ-1165's alert path). [raise] is
+ * called once when a consumer stops a topic, and again only after it has resumed and stopped once more; [close] once
+ * per topic of a replay when that replay completes, and only then (at least once: after a crash before it is recorded
+ * as sent it is called again).
  */
 fun interface RebuildRequiredSink {
     fun raise(incident: RebuildRequiredIncident)
+
+    fun close(closed: RebuildRequiredClosed) {}
 }

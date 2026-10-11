@@ -53,9 +53,16 @@ class StalenessGaugesIT {
             lag(registry, POLICY) shouldBe 0.0
             threshold(registry, CANONICAL) shouldBe 300.0
             threshold(registry, POLICY) shouldBe 1800.0
-            registry.find(StalenessGauges.LAG).gauges().forEach { gauge ->
-                gauge.id.tags.map { it.key } shouldContainExactlyInAnyOrder listOf("consumer", "event_type")
+            // exactly two series per name, one per rule, each labelled consumer and event_type only (CS-36)
+            listOf(LAG_NAME, THRESHOLD_NAME).forEach { name ->
+                val found = registry.meters.filter { it.id.name == name }
+                found.size shouldBe 2
+                found.forEach { meter ->
+                    meter.id.tags.map { it.key } shouldContainExactlyInAnyOrder listOf("consumer", "event_type")
+                    meter.id.baseUnit shouldBe "seconds"
+                }
             }
+            registry.meters.map { it.id.name }.toSet() shouldBe setOf(LAG_NAME, THRESHOLD_NAME)
 
             // submission-svc is stopped while CanonicalVersionCreated events keep arriving, the oldest at T0
             repeat(3) { insertEvent(fixture, CANONICAL_TOPIC, T0.plusSeconds(it.toLong())) }
@@ -85,12 +92,12 @@ class StalenessGaugesIT {
     private fun lag(
         registry: SimpleMeterRegistry,
         eventType: String,
-    ) = gauge(registry, StalenessGauges.LAG, eventType).value()
+    ) = gauge(registry, LAG_NAME, eventType).value()
 
     private fun threshold(
         registry: SimpleMeterRegistry,
         eventType: String,
-    ) = gauge(registry, StalenessGauges.THRESHOLD, eventType).value()
+    ) = gauge(registry, THRESHOLD_NAME, eventType).value()
 
     private fun insertEvent(
         fixture: OutboxPostgresFixture,
@@ -102,6 +109,9 @@ class StalenessGaugesIT {
     )
 
     private companion object {
+        // the literal names INV-T-3035's alert rules read (INV-Q-3831 A), never the constants
+        const val LAG_NAME = "gst.platform.consumer.staleness.lag"
+        const val THRESHOLD_NAME = "gst.platform.consumer.staleness.threshold"
         const val SCHEMA = "submission"
         const val CONSUMER = "submission-svc"
         const val CANONICAL = "com.dynokore.gst.canonical.CanonicalVersionCreated.v1"

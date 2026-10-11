@@ -31,7 +31,8 @@ class PostgresEventLogReader(
     private val claimSource: DataSource,
     private val envelopeSource: DataSource,
 ) : EventLogReader,
-    EventLogLag {
+    EventLogLag,
+    EventLogHead {
     override fun read(
         topic: String,
         afterOffset: Long,
@@ -71,6 +72,27 @@ class PostgresEventLogReader(
                         statement.executeQuery().use {
                             it.next()
                             LogBacklog(it.getLong(1), it.getTimestamp(2)?.toInstant())
+                        }
+                    }
+            }
+        } catch (failure: SQLException) {
+            throw EventBindingUnavailable("event log unreadable for $topic: ${failure.sqlState}", failure)
+        }
+    }
+
+    override fun head(topic: String): TopicHead {
+        val table = "${EventLogSchema.SCHEMA}.${EventLogSchema.tableName(topic)}"
+        try {
+            return claimSource.connection.use { connection ->
+                connection
+                    .prepareStatement(
+                        "select (select coalesce(max(log_offset), 0) from $table), " +
+                            "(select coalesce(max(watermark), 0) from $WATERMARK where topic = ?)",
+                    ).use { statement ->
+                        statement.setString(1, topic)
+                        statement.executeQuery().use {
+                            it.next()
+                            TopicHead(it.getLong(1), it.getLong(2))
                         }
                     }
             }

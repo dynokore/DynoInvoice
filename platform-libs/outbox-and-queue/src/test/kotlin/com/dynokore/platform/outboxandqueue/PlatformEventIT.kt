@@ -216,8 +216,6 @@ class PlatformEventIT {
         causation = CausationId("cmd-$service"),
     )
 
-    private fun <T> ServiceKit.inPlatformTx(block: () -> T): T = tenants.bindPlatform { boundary.inTransaction(block) }
-
     /** Rows of [table] with [owner]'s tenant id visible in the open transaction. */
     private fun ServiceKit.visible(
         table: String,

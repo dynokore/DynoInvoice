@@ -14,8 +14,8 @@ train is its own (README.md: "own version and changelog").
   only (CS-36), the gauges `gst.platform.consumer.staleness.lag` and `gst.platform.consumer.staleness.threshold`
   (Prometheus: `gst_platform_consumer_staleness_lag_seconds`, `gst_platform_consumer_staleness_threshold_seconds`).
   The incident is raised by the observability bundle's alert rules on them (INV-T-3035). A failed measurement
-  withdraws the lag gauges until the next success, so it reads as absent, never as zero. **The meter names await a
-  ruling** (CS-36 `gst.<service>.<noun>` for a library-owned meter; see the merge request).
+  withdraws the lag gauges until the next success, so it reads as absent, never as zero. The meter names follow ruling
+  INV-Q-3831 (A, HIGH: `gst.platform.*` for this library-owned meter under CS-36).
 - Staleness rules as `service-runtime.staleness.rules[n].consumer|event-type|threshold` (CS-27), alongside any
   `StalenessRule` beans. A rule without a threshold takes `ProvisionalStalenessThresholds`: 5 minutes for
   payload-svc and submission-svc on CanonicalVersionCreated, PayloadReady, PayloadRejected and DocumentReleased,
@@ -131,6 +131,17 @@ train is its own (README.md: "own version and changelog").
   `LicenceCheck` the service declares is wrapped in `NonBlockingLicenceCheck`. adapter-runtime's
   `ConnectionStatusReporter` is a local bean, not bridged: `ConnectionStatusChanged` is published only by
   service-runtime's reporter. rulepack-kernel, evidence-store, adapter-runtime and crypto are compileOnly.
+
+## [3.1.0] - 2026-10-12
+### Added
+- rebuildConsumer (INV-T-3385; INV-API-3656; INV-REQ-1205 b4, b6; rulings INV-Q-3599, INV-Q-3663, INV-Q-3665,
+  INV-Q-3667, INV-Q-3671): `ConsumerRebuildCommands` / `ConsumerRebuildRuntime`. Platform operator only (EVL-002);
+  EVL-001 topic not consumed, EVL-003 not in rebuild required, EVL-004 another replay pending for the pair; a repeat
+  with the same mode and scope returns the pending replay and writes nothing. The head move, ReplayRequested and the
+  AuditEntryRecorded commit in one transaction (INV-AC-3657). A full sync runs on the worker role bound to the platform
+  tenant (`FullSyncWiring`, INV-Q-3786). A topic with more than one producer is refused until INV-Q-3788 is ruled,
+  and so is a full sync whose producer shares a consumed topic with other producers (it would move that topic's
+  head) or that has no `ReadModelClear` for the producer.
 
 ## [2.1.0] - 2026-10-11
 ### Added

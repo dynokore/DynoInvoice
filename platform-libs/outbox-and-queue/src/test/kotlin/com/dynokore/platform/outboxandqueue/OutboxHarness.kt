@@ -18,13 +18,24 @@ class OutboxHarness(image: String) : AutoCloseable {
 
     /** Every 'rebuild required' incident raised by a consumer built here (INV-REQ-1205 b6). */
     val rebuildIncidents: MutableList<RebuildRequiredIncident> = java.util.Collections.synchronizedList(mutableListOf())
-    val rebuildSink = RebuildRequiredSink { rebuildIncidents += it }
+    val closed: MutableList<RebuildRequiredClosed> = java.util.Collections.synchronizedList(mutableListOf())
+    val rebuildSink =
+        object : RebuildRequiredSink {
+            override fun raise(incident: RebuildRequiredIncident) {
+                rebuildIncidents += incident
+            }
+
+            override fun close(closed: RebuildRequiredClosed) {
+                this@OutboxHarness.closed += closed
+            }
+        }
 
     init {
         fixture.createService("submission", SUBMISSION_STATE + QueueSchema.ddl("submission", APP, WORKER))
         fixture.createService("reconciliation", RECONCILIATION_STATE)
         fixture.createService("payload")
         fixture.createService("canonical")
+        fixture.createService("evidence")
         fixture.createTopics(catalogue)
     }
 
@@ -32,6 +43,7 @@ class OutboxHarness(image: String) : AutoCloseable {
     val payload = ServiceKit(this, "payload", "payload-svc", catalogue)
     val reconciliation = ServiceKit(this, "reconciliation", "reconciliation-svc", catalogue)
     val canonical = ServiceKit(this, "canonical", "canonical-svc", catalogue)
+    val evidence = ServiceKit(this, "evidence", "evidence-svc", catalogue)
 
     /** Everything on [topic], decoded. */
     fun logOf(topic: String): List<Envelope> = reader.read(topic, 0, LOG_LIMIT).map { json.read(it.envelopeJson) }
@@ -111,6 +123,20 @@ class OutboxHarness(image: String) : AutoCloseable {
         repeat(MAX_RUNS) {
             val outcome = relay.runOnce()
             if (outcome.pending == 0L || outcome.stalled) return
+        }
+    }
+
+    /** The consumer's stored position on [topic] in [schema], or null when it has none. */
+    fun nextOffsetOrNull(
+        schema: String,
+        consumer: String,
+        topic: String,
+    ): Long? = fixture.adminDataSource().connection.use { connection ->
+        val sql = "select next_offset from $schema.consumer_offset where consumer = ? and topic = ?"
+        connection.prepareStatement(sql).use {
+            it.setString(1, consumer)
+            it.setString(2, topic)
+            it.executeQuery().use { rows -> if (rows.next()) rows.getLong(1) else null }
         }
     }
 

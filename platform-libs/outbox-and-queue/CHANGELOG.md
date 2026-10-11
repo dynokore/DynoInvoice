@@ -6,6 +6,35 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-10-11
+### Added
+- Rebuild of a consumer behind the purge watermark by the producer's replay (INV-T-3385; INV-REQ-1205 b3, b4, b6;
+  INV-REQ-1372; rulings INV-Q-3599, INV-Q-3601, INV-Q-3625, INV-Q-3644, INV-Q-3669, INV-Q-3671, INV-Q-3676;
+  INV-AC-3657, INV-AC-3658). The catalogue holds the replay topics (`gst.<producer>.replay-<subscriber>.v1`, one per
+  (producer, consumer) pair; `gst.platform.replay-<subscriber>.v1` for 'every service') and the request topics
+  (`gst.<consumer>.replay-requested.v1`); `TopicsYamlCatalogue` parses both new sections of topics.yaml and the
+  pinned excerpt is re-copied from platform-contracts main. ReplayRequested and ReplayCompleted are platform events.
+- `JdbcConsumerReplay`: in the caller's platform transaction, moves the consumer's positions past
+  max(head, watermark) and writes ReplayRequested through the outbox (`consumer_replay` keeps the pending replay).
+- `JdbcReplayResponder` (producer): answers each request addressed to it on the pair's replay topic from its
+  `ReplayStateSource`s, page by page per tenant with the states' own docsequence, then commits the request's inbox
+  row, its position and the ReplayCompleted marker in one transaction; a crash restarts the replay.
+- `JdbcReplayIntake` (consumer): applies the replay topic with the STALE check shared with the live subscription,
+  completes on the producer's marker (for 'every service': a marker from each source seen) and closes the
+  rebuild-required incident through `RebuildRequiredSink.close`.
+- `EventLogHead` on `PostgresEventLogReader`; the purge covers the replay and request topics.
+- Full sync (rulings INV-Q-3603, INV-Q-3786): `JdbcConsumerReplay.fullSync` runs the service's `ReadModelClear`,
+  deletes the consumer's docsequence rows for the producer across tenants (none for an 'every service' full sync,
+  INV-Q-3805) and keeps the inbox, then moves the head and
+  writes the request, in one transaction on the worker role bound to the platform tenant. The worker gets DELETE and
+  column SELECT (consumer, source, tenant_id) on `consumer_sequence`, INSERT on `consumer_replay` and the outbox writes
+  under the tenant policy; `OutboxSchema.readModelClearAccess` grants a read-model table's clear. Never BYPASSRLS.
+- Record topics (coordinator ruling INV-Q-3809, INV-REQ-1221 b4): the catalogue reads `record_topic`
+  (`CatalogueEntry.recordTopic`, `EventCatalogue.recordTypes()`); a consumer given those types
+  (`ConsumerSubscription.recordTypes`) applies such an event on inbox dedupe by event id only, with no docsequence
+  check and no held-sequence row, live and on dead-letter replay.
+- Schema: `consumer_replay`, `consumer_replay_marker`, `consumer_source_seen`; `OutboxSchema.upgradeTo1100`.
+
 ## [1.9.0] - 2026-10-11
 ### Added
 - Event-log purge by age per topic with a purge watermark (INV-T-3384; owner ruling INV-Q-3249; INV-REQ-1205 b3, b4,

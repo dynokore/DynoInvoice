@@ -32,3 +32,16 @@ GRANT USAGE ON SCHEMA eventlog TO outbox_worker;
 -- The event-log component's dedicated purge role (INV-REQ-1205 b3, INV-Q-3249): no SUPERUSER, BYPASSRLS or CREATEROLE.
 CREATE ROLE eventlog_purge LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEROLE PASSWORD 'eventlog_purge_pw';
 GRANT USAGE ON SCHEMA eventlog TO eventlog_purge;
+
+-- INV-T-3385: each fixture consumer's own event-log roles for its replay topics (INV-Q-3601: SELECT by that consumer
+-- alone), so a test can show one consumer's roles cannot read another pair's replay topic.
+CREATE ROLE recon_el_claim    LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD 'recon_el_claim_pw';
+CREATE ROLE recon_el_reader   LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD 'recon_el_reader_pw';
+CREATE ROLE sub_el_claim      LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD 'sub_el_claim_pw';
+CREATE ROLE sub_el_reader     LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD 'sub_el_reader_pw';
+CREATE ROLE evidence_el_claim  LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD 'evidence_el_claim_pw';
+CREATE ROLE evidence_el_reader LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD 'evidence_el_reader_pw';
+GRANT USAGE ON SCHEMA eventlog TO recon_el_claim, recon_el_reader, sub_el_claim, sub_el_reader, evidence_el_claim,
+    evidence_el_reader;
+CREATE SCHEMA evidence AUTHORIZATION outbox_owner;
+GRANT USAGE ON SCHEMA evidence TO outbox_app;

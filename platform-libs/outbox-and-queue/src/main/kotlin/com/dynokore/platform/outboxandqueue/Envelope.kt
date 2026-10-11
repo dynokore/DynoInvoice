@@ -65,11 +65,13 @@ data class Envelope(
                 "EvidenceArtefactRecorded",
                 "PolicyChanged",
                 "PackReadinessAcknowledged",
+                "ReplayRequested",
+                "ReplayCompleted",
             )
 
         /**
          * True for a platform event type (`com.dynokore.gst.platform.<Name>.v<N>` with `<Name>` one of
-         * INV-REQ-1226's seven platform events): the
+         * INV-REQ-1226's nine platform events (ReplayRequested and ReplayCompleted by INV-Q-3674)): the
          * only types that may be written under `TenantId.PLATFORM` and travel without `tenantid` and
          * `entityref` (INV-Q-3018). A domain event always carries a real tenant (FR-K.3, INV-REQ-1162).
          */

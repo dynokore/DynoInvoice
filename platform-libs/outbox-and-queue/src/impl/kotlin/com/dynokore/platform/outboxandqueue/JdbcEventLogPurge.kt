@@ -17,7 +17,9 @@ import javax.sql.DataSource
  *
  * The period of each topic of [catalogue] comes from its `content_topic` marker only (INV-REQ-1205 b4): the content
  * window for a content topic, the event-log retention for any other. [Retention] refuses either below 7 days. A topic
- * whose catalogue entry carries no marker is refused at construction rather than given a guessed period.
+ * whose catalogue entry carries no marker is refused at construction rather than given a guessed period. The replay
+ * topics (INV-T-3606) are purged by their own `content_topic` marker and the request topics as non-content topics, like
+ * every topic (INV-REQ-1205 b4).
  *
  * Each batch is one statement, so one transaction: it deletes up to [batchSize] rows with `inserted_at` before the
  * cut-off, lowest offsets first, and raises the topic's watermark to the highest offset it deleted (never lowers it).
@@ -46,7 +48,8 @@ constructor(
                     "topic $topic carries no single content_topic marker in topics.yaml, was $markers (INV-REQ-1205 b4)"
                 }
             Topic(topic, "${EventLogSchema.SCHEMA}.${EventLogSchema.tableName(topic)}", content)
-        }
+        } + catalogue.replayTopics().map { Topic(it.topic, "${EventLogSchema.SCHEMA}.${EventLogSchema.tableName(it.topic)}", it.contentTopic) } +
+            catalogue.requestTopics().map { Topic(it.topic, "${EventLogSchema.SCHEMA}.${EventLogSchema.tableName(it.topic)}", false) }
 
     init {
         require(batchSize > 0) { "batch size must be positive" }

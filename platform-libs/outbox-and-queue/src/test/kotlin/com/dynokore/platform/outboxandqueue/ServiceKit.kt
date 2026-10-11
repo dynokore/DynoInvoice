@@ -37,6 +37,9 @@ class ServiceKit(
         block: () -> T,
     ): T = tenants.bind(TenantId(tenant)) { boundary.inTransaction(block) }
 
+    /** Runs [block] in a transaction under the reserved platform tenant (INV-Q-2927). */
+    fun <T> inPlatformTx(block: () -> T): T = tenants.bindPlatform { boundary.inTransaction(block) }
+
     /** A context for a document-scoped event (keyed by the Doc UUID). */
     fun docContext(
         tenant: UUID,

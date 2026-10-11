@@ -237,7 +237,9 @@ constructor(
         envelope: Envelope,
     ): Step {
         if (!claimInbox(connection, envelope)) return Step.DUPLICATE
-        val sequence = envelope.docSequence
+        if (subscription.trackSources && envelope.type != ReplayProtocol.REPLAY_COMPLETED) recordSource(connection, envelope)
+        // A record-topic event is deduped by event id only: no docsequence check, no held row (INV-Q-3809).
+        val sequence = envelope.docSequence?.takeUnless { envelope.type in subscription.recordTypes }
         if (sequence != null && sequence <= heldSequence(connection, envelope)) return Step.STALE
         val outcome = handler.handle(envelope)
         if (sequence != null) recordSequence(connection, envelope, sequence)
@@ -300,6 +302,25 @@ constructor(
         it.setString(2, envelope.id.value)
         it.setObject(3, envelope.tenant.value)
         it.executeUpdate() == 1
+    }
+
+    /**
+     * INV-Q-3669: the source of an event on an 'every service' topic joins the consumer's seen set (a completion marker
+     * from a service never seen changes nothing, so it does not join).
+     */
+    private fun recordSource(
+        connection: Connection,
+        envelope: Envelope,
+    ) {
+        connection.prepareStatement(
+            "insert into $s.${OutboxSchema.CONSUMER_SOURCE_SEEN} (consumer, producer, source) values (?, ?, ?) " +
+                "on conflict do nothing",
+        ).use {
+            it.setString(1, consumer)
+            it.setString(2, CatalogueEntry.EVERY_SERVICE)
+            it.setString(3, envelope.source)
+            it.executeUpdate()
+        }
     }
 
     private fun heldSequence(

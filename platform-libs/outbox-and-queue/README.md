@@ -54,6 +54,17 @@ event-log retention for the others; each delete batch raises the topic's `eventl
 transaction (`EventLogSchema.watermarkDdl`). A consumer whose next offset is at or below the watermark stops that topic
 and raises a 'rebuild required' incident (`RebuildRequiredSink`) instead of skipping purged events.
 
+From 1.10.0 such a consumer is rebuilt by the producer's replay (INV-T-3385, INV-Q-3599): service-runtime's
+rebuildConsumer moves its positions past the head and writes ReplayRequested on `gst.<consumer>.replay-requested.v1`
+in one transaction (`JdbcConsumerReplay`); each producer runs `JdbcReplayResponder` over the request topics it reads and
+answers on the pair's replay topic from its `ReplayStateSource`s, ending with ReplayCompleted; the consumer runs
+`JdbcReplayIntake` on its replay topic under the same consumer name as its live subscription (so the docsequence STALE
+check spans both), and the incident closes on the marker (`RebuildRequiredSink.close`). Existing schemas run
+`OutboxSchema.upgradeTo1100`. A full sync (INV-Q-3603, INV-Q-3786) runs `JdbcConsumerReplay.fullSync` on the consumer's
+worker-role connection bound to the platform tenant: the service's `ReadModelClear`, the delete of the producer's
+docsequence rows across tenants (the inbox is kept), the head move and the request in one transaction; each read-model
+table gets its worker access from `OutboxSchema.readModelClearAccess`.
+
 Not in 1.1.0: delivery retry with backoff, inbox retention (added in 1.3.0: `Retention`, `JdbcRetentionPurge`,
 `OutboxSchema.upgradeTo130`; existing schemas run `upgradeTo130` in the service's migration), rate limits shared across worker processes
 (added in 1.7.0, see below), exporting the staleness metric and raising the incident (the composition root's sink), and scheduling of the

@@ -28,6 +28,9 @@ object OutboxSchema {
     const val CONSUMER_SEQUENCE = "consumer_sequence"
     const val CONSUMER_OFFSET = "consumer_offset"
     const val DEAD_LETTER = "event_dead_letter"
+    const val CONSUMER_REPLAY = "consumer_replay"
+    const val CONSUMER_REPLAY_MARKER = "consumer_replay_marker"
+    const val CONSUMER_SOURCE_SEEN = "consumer_source_seen"
 
     /** `CREATE TABLE` statements for every table, in [schema], with the grants for [appRole]. */
     fun ddl(
@@ -119,8 +122,126 @@ object OutboxSchema {
                 $s.$CONSUMER_OFFSET to $role;
             grant select, insert on $s.$INBOX to $role;
             ${purgeAccess(s, worker)}
+            ${replayDdl(s, role, worker)}
         """.trimIndent()
     }
+
+    /**
+     * The consumer's replay state (INV-T-3385; INV-REQ-1205 b4, b6; rulings INV-Q-3599, INV-Q-3644, INV-Q-3665,
+     * INV-Q-3669), part of its consumption state, so a full sync never clears it:
+     * - [CONSUMER_REPLAY]: one row per requested replay, its addressee producer, mode, scope, the topics whose position
+     *   it moved to the head, when its ReplayCompleted was applied and when the incidents were closed; at most one
+     *   pending (not completed) replay per (consumer, producer) pair;
+     * - [CONSUMER_REPLAY_MARKER]: the sources whose marker for a replay the consumer has applied;
+     * - [CONSUMER_SOURCE_SEEN]: on an 'every service' pair, the sources the consumer has seen.
+     * They hold no tenant data (positions and service names, as [CONSUMER_OFFSET]), so no RLS. The app role writes them
+     * in the consumer's transactions; the worker role reads them and records that an incident was closed.
+     */
+    private fun replayDdl(
+        s: String,
+        role: String,
+        worker: String,
+    ): String = """
+        create table if not exists $s.$CONSUMER_REPLAY (
+            replay_id uuid primary key,
+            consumer text not null,
+            producer text not null,
+            mode text not null check (mode in ('SCOPE', 'FULL_SYNC')),
+            scope text,
+            topics text[] not null,
+            requested_at timestamptz not null,
+            completed_at timestamptz,
+            closed_at timestamptz
+        );
+        create unique index if not exists ${CONSUMER_REPLAY}_pending on $s.$CONSUMER_REPLAY (consumer, producer)
+            where completed_at is null;
+        create table if not exists $s.$CONSUMER_REPLAY_MARKER (
+            replay_id uuid not null,
+            source text not null,
+            applied_at timestamptz not null default now(),
+            primary key (replay_id, source)
+        );
+        create table if not exists $s.$CONSUMER_SOURCE_SEEN (
+            consumer text not null,
+            producer text not null,
+            source text not null,
+            primary key (consumer, producer, source)
+        );
+        grant select, insert, update on $s.$CONSUMER_REPLAY, $s.$CONSUMER_REPLAY_MARKER, $s.$CONSUMER_SOURCE_SEEN
+            to $role;
+        grant select on $s.$CONSUMER_REPLAY to $worker;
+        grant update (closed_at) on $s.$CONSUMER_REPLAY to $worker;
+        ${fullSyncAccess(s, worker)}
+    """.trimIndent()
+
+    /**
+     * The worker's full-sync access (coordinator ruling INV-Q-3786), the [purgeAccess] shape: `DELETE` on every
+     * tenant's [CONSUMER_SEQUENCE] rows through its own policies, with column `SELECT` on the filter columns
+     * (`consumer`, `source`, `tenant_id`) only, never `last_value`; `INSERT` of the pending replay; and the outbox
+     * writes of the request and its audit entry, which stay under the tenant policy, so the worker bound to the platform
+     * tenant writes platform rows only. Never BYPASSRLS; the app role is unchanged.
+     */
+    private fun fullSyncAccess(
+        s: String,
+        worker: String,
+    ): String = """
+        drop policy if exists ${CONSUMER_SEQUENCE}_full_sync_select on $s.$CONSUMER_SEQUENCE;
+        drop policy if exists ${CONSUMER_SEQUENCE}_full_sync on $s.$CONSUMER_SEQUENCE;
+        create policy ${CONSUMER_SEQUENCE}_full_sync_select on $s.$CONSUMER_SEQUENCE for select to $worker using (true);
+        create policy ${CONSUMER_SEQUENCE}_full_sync on $s.$CONSUMER_SEQUENCE for delete to $worker using (true);
+        grant select (consumer, source, tenant_id) on $s.$CONSUMER_SEQUENCE to $worker;
+        grant delete on $s.$CONSUMER_SEQUENCE to $worker;
+        grant insert on $s.$CONSUMER_REPLAY to $worker;
+        grant insert on $s.$OUTBOX to $worker;
+        grant select, insert, update on $s.$OUTBOX_SEQUENCE to $worker;
+    """.trimIndent()
+
+    /**
+     * The worker access one read-model [table] needs for a full sync's [ReadModelClear] (coordinator ruling
+     * INV-Q-3786), for the service's own migration: `DELETE` on every tenant's rows through its own policies, and column
+     * `SELECT` only on [filterColumns], the columns its clear statements filter on, never a content column. Idempotent.
+     */
+    fun readModelClearAccess(
+        schema: String,
+        table: String,
+        workerRole: String,
+        filterColumns: List<String>,
+    ): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        val t = SqlIdentifier.require(table, "table")
+        val worker = SqlIdentifier.require(workerRole, "worker role")
+        val columns = filterColumns.map { SqlIdentifier.require(it, "column") }
+        val select =
+            if (columns.isEmpty()) {
+                ""
+            } else {
+                "create policy ${t}_full_sync_select on $s.$t for select to $worker using (true);\n" +
+                    "grant select (${columns.joinToString(", ")}) on $s.$t to $worker;"
+            }
+        return """
+            |drop policy if exists ${t}_full_sync_select on $s.$t;
+            |drop policy if exists ${t}_full_sync on $s.$t;
+            |create policy ${t}_full_sync on $s.$t for delete to $worker using (true);
+            |grant usage on schema $s to $worker;
+            |grant delete on $s.$t to $worker;
+            |$select
+        """.trimMargin()
+    }
+
+    /**
+     * Brings a 1.9.0 schema to 1.10.0: the consumer's replay state ([CONSUMER_REPLAY], [CONSUMER_REPLAY_MARKER],
+     * [CONSUMER_SOURCE_SEEN]; INV-T-3385). Run once by the service's migration (TPL-12); not needed for a schema
+     * created by [ddl], and harmless on one.
+     */
+    fun upgradeTo1100(
+        schema: String,
+        appRole: String,
+        workerRole: String,
+    ): String = replayDdl(
+        SqlIdentifier.require(schema, "schema"),
+        SqlIdentifier.require(appRole, "role"),
+        SqlIdentifier.require(workerRole, "worker role"),
+    )
 
     /**
      * The worker's retention purge access (INV-T-2998): `DELETE` on published outbox rows and on inbox rows, each

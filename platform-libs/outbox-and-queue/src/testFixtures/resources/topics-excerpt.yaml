@@ -1,8 +1,9 @@
-# Excerpt of platform-contracts event-log/topics.yaml (6b17e07): the entries these tests use. Regenerate by copying entries, never hand-edit.
+# Excerpt of platform-contracts event-log/topics.yaml (710bed2): the entries these tests use. Regenerate by copying entries, never hand-edit.
 topics:
   - topic: gst.canonical.canonical-version-created.v1
     event_type: com.dynokore.gst.canonical.CanonicalVersionCreated.v1
     content_topic: true
+    record_topic: false
     producers:
       - canonical-svc
     subscribers:
@@ -14,6 +15,7 @@ topics:
   - topic: gst.payload.payload-ready.v1
     event_type: com.dynokore.gst.payload.PayloadReady.v1
     content_topic: true
+    record_topic: false
     producers:
       - payload-svc
     subscribers:
@@ -22,6 +24,7 @@ topics:
   - topic: gst.platform.audit-entry-recorded.v1
     event_type: com.dynokore.gst.platform.AuditEntryRecorded.v1
     content_topic: false
+    record_topic: true
     producers:
       - every service
     subscribers:
@@ -29,6 +32,7 @@ topics:
   - topic: gst.submission.submission-acknowledged.v1
     event_type: com.dynokore.gst.submission.SubmissionAcknowledged.v1
     content_topic: false
+    record_topic: false
     producers:
       - submission-svc
     subscribers:
@@ -41,6 +45,7 @@ topics:
   - topic: gst.submission.submission-despatched.v1
     event_type: com.dynokore.gst.submission.SubmissionDespatched.v1
     content_topic: false
+    record_topic: false
     producers:
       - submission-svc
     subscribers:
@@ -50,12 +55,12 @@ topics:
   - topic: gst.submission.submission-failed.v1
     event_type: com.dynokore.gst.submission.SubmissionFailed.v1
     content_topic: false
+    record_topic: false
     producers:
       - submission-svc
     subscribers:
       - console-bff
       - notification-svc
-  # Added verbatim from platform-contracts main 5efeba8 (event-log/topics.yaml last changed at 710bed2) for INV-T-2875; the rest of the excerpt is still 6b17e07.
   - topic: gst.platform.evidence-artefact-recorded.v1
     event_type: com.dynokore.gst.platform.EvidenceArtefactRecorded.v1
     content_topic: false
@@ -67,3 +72,80 @@ topics:
       - rules-svc
     subscribers:
       - evidence-svc
+replay_topics:
+  - topic: gst.canonical.replay-reconciliation.v1
+    event_types:
+      - com.dynokore.gst.canonical.CanonicalVersionCreated.v1
+      - com.dynokore.gst.canonical.PeriodReassigned.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: true
+    record_topic: false
+    producers:
+      - canonical-svc
+    subscribers:
+      - reconciliation-svc
+  - topic: gst.canonical.replay-submission.v1
+    event_types:
+      - com.dynokore.gst.canonical.CanonicalVersionCreated.v1
+      - com.dynokore.gst.canonical.DocumentHeld.v1
+      - com.dynokore.gst.canonical.DocumentReleased.v1
+      - com.dynokore.gst.canonical.PeriodReassigned.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: true
+    record_topic: false
+    producers:
+      - canonical-svc
+    subscribers:
+      - submission-svc
+  - topic: gst.platform.replay-evidence.v1
+    event_types:
+      - com.dynokore.gst.platform.AuditEntryRecorded.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: false
+    record_topic: false
+    producers:
+      - every service
+    subscribers:
+      - evidence-svc
+replay_request_topics:
+  - topic: gst.evidence.replay-requested.v1
+    event_types:
+      - com.dynokore.gst.platform.ReplayRequested.v1
+    content_topic: false
+    record_topic: false
+    producers:
+      - evidence-svc
+    subscribers:
+      - access-svc
+      - canonical-svc
+      - every service
+      - masterdata-svc
+      - payload-svc
+      - rules-svc
+      - submission-svc
+  - topic: gst.reconciliation.replay-requested.v1
+    event_types:
+      - com.dynokore.gst.platform.ReplayRequested.v1
+    content_topic: false
+    record_topic: false
+    producers:
+      - reconciliation-svc
+    subscribers:
+      - canonical-svc
+      - rules-svc
+      - submission-svc
+  - topic: gst.submission.replay-requested.v1
+    event_types:
+      - com.dynokore.gst.platform.ReplayRequested.v1
+    content_topic: false
+    record_topic: false
+    producers:
+      - submission-svc
+    subscribers:
+      - aggregation-svc
+      - canonical-svc
+      - ingestion-svc
+      - payload-svc
+      - reconciliation-svc
+      - tenancy-svc
+      - transport-svc

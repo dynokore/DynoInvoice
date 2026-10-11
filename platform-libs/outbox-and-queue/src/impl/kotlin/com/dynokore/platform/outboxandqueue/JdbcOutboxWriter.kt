@@ -1,6 +1,7 @@
 package com.dynokore.platform.outboxandqueue
 
 import com.dynokore.platform.tenancykernel.CurrentConnection
+import com.dynokore.platform.tenancykernel.TenantId
 import java.sql.Connection
 import java.sql.Timestamp
 import java.time.Clock
@@ -69,6 +70,66 @@ class JdbcOutboxWriter(
             insert(connection, entries[index].topic, envelope)
             envelope
         }
+    }
+
+    /**
+     * Writes a replay's re-emitted [states] to the pair's replay [topic] (INV-REQ-1205 b4, INV-Q-3601) in the caller's
+     * open transaction, under [tenant] (the bound tenant): each gets a fresh id and keeps the `docsequence` of the
+     * state it carries ([ReplayedState.docSequence]); the producer's own per-key counter is not touched, since the
+     * state's sequence was already issued (INV-Q-3603). Refused, with nothing written, when this service may not
+     * insert a type into [topic].
+     */
+    fun appendReplayed(
+        topic: String,
+        states: List<ReplayedState>,
+        tenant: TenantId,
+        correlation: CorrelationId,
+        causation: CausationId,
+    ): List<Envelope> {
+        states.forEach { guard.requireReplay(topic, it.type) }
+        require(!tenant.isPlatform || states.all { Envelope.isPlatformType(it.type) }) {
+            "a domain event cannot be written under the platform tenant"
+        }
+        val connection = connections.require()
+        val now = clock.instant().truncatedTo(ChronoUnit.MICROS)
+        return states.map { state ->
+            val envelope =
+                Envelope(
+                    id = EventId(ids.next(now).toString()),
+                    source = "/gst/$service",
+                    type = state.type,
+                    subject = state.aggregateKey,
+                    time = now,
+                    tenant = tenant,
+                    entity = state.entity,
+                    docUuid = state.docUuid,
+                    transactionDate = state.transactionDate,
+                    docSequence = state.docSequence,
+                    instanceId = instanceId,
+                    correlation = correlation,
+                    causation = causation,
+                    dataJson = state.dataJson,
+                )
+            insert(connection, topic, envelope)
+            envelope
+        }
+    }
+
+    /**
+     * Writes the `ReplayCompleted` marker of [replayId] to the replay [topic] (INV-Q-3644), under the platform tenant
+     * the caller's transaction has bound (INV-REQ-1226 b7): written last, in the transaction that commits the request
+     * as handled (INV-Q-3676).
+     */
+    fun appendCompleted(
+        topic: String,
+        replayId: java.util.UUID,
+        eventsReplayed: Long,
+        correlation: CorrelationId,
+        causation: CausationId,
+    ): Envelope {
+        val data = """{"replayId":"$replayId","eventsReplayed":$eventsReplayed}"""
+        val marker = ReplayedState(ReplayProtocol.REPLAY_COMPLETED, data, EntityRef.PLATFORM, "replay/$replayId", null)
+        return appendReplayed(topic, listOf(marker), TenantId.PLATFORM, correlation, causation).single()
     }
 
     private fun envelope(

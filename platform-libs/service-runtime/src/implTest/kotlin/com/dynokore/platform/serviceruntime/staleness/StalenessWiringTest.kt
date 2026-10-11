@@ -43,7 +43,7 @@ class StalenessWiringTest {
                 context.getBean(StalenessCheckSchedule::class.java).isRunning shouldBe true
                 context
                     .getBean(MeterRegistry::class.java)
-                    .get(StalenessGauges.THRESHOLD)
+                    .get(THRESHOLD_NAME)
                     .tags("consumer", "submission-svc", "event_type", CANONICAL)
                     .gauge()
                     .value() shouldBe 300.0
@@ -73,6 +73,9 @@ class StalenessWiringTest {
     }
 
     private companion object {
+        // the literal names INV-T-3035's alert rules read (INV-Q-3831 A), never the constants
+        const val LAG_NAME = "gst.platform.consumer.staleness.lag"
+        const val THRESHOLD_NAME = "gst.platform.consumer.staleness.threshold"
         const val CANONICAL = "com.dynokore.gst.canonical.CanonicalVersionCreated.v1"
     }
 }

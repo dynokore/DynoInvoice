@@ -62,7 +62,22 @@ class OutboxPostgresFixture(image: String) : AutoCloseable {
         catalogue.entries().map { it.topic }.distinct().forEach {
             run(EventLogSchema.topicDdl(it, RELAY, consumers, PURGE))
         }
+        // INV-T-3385: a replay topic is read by its one subscriber's own roles (INV-Q-3601); a request topic by the
+        // producers' shared roles of this fixture.
+        catalogue.replayTopics().forEach {
+            run(EventLogSchema.topicDdl(it.topic, RELAY, listOf(replayRoles(it.subscriber)), PURGE))
+        }
+        catalogue.requestTopics().forEach { run(EventLogSchema.topicDdl(it.topic, RELAY, consumers, PURGE)) }
     }
+
+    /** The event-log roles a fixture consumer reads its replay topics with (`<prefix>_el_claim`, `<prefix>_el_reader`). */
+    fun replayRoles(subscriber: String): EventLogSchema.ConsumerRoles {
+        val prefix = REPLAY_ROLE_PREFIX[subscriber] ?: error("no replay roles for $subscriber in the fixture")
+        return EventLogSchema.ConsumerRoles(claimRole = "${prefix}_el_claim", readerRole = "${prefix}_el_reader")
+    }
+
+    /** A login data source for one of the fixture's [replayRoles]. */
+    fun roleDataSource(role: String): DataSource = dataSourceFor(role, "${role}_pw")
 
     /** Runs [sql] as the superuser. */
     fun runAsAdmin(sql: String) {
@@ -97,5 +112,7 @@ class OutboxPostgresFixture(image: String) : AutoCloseable {
         const val RELAY = "outbox_relay"
         const val READER = "outbox_reader"
         const val PURGE = "eventlog_purge"
+        private val REPLAY_ROLE_PREFIX =
+            mapOf("reconciliation-svc" to "recon", "submission-svc" to "sub", "evidence-svc" to "evidence")
     }
 }
