@@ -47,6 +47,7 @@ class ConsumerRetryIT {
         val consumer =
             JdbcInboxConsumer(
                 ConsumerSubscription("reconciliation-svc", ACK_TOPIC, "reconciliation", retry, classifier),
+                harness.catalogue,
                 harness.reader,
                 harness.fixture.workerDataSource(),
                 TenantScope(kit.tenants, kit.boundary, kit.boundary),

@@ -53,6 +53,9 @@ constructor(
         return read.sortedBy { it.topic }
     }
 
+    /** The event types catalogued on a record topic (INV-Q-3809); every inbox consumer takes them from here. */
+    fun recordTypes(): Set<String> = byType.values.filter { it.recordTopic }.map { it.eventType }.toSet()
+
     /** The event topic named [topic], or `null`. */
     fun topic(topic: String): CatalogueEntry? = byType.values.firstOrNull { it.topic == topic }
 }

@@ -113,6 +113,7 @@ class PlatformEventIT {
             val consumer =
                 JdbcInboxConsumer(
                     ConsumerSubscription("evidence-svc", auditTopic, "reconciliation"),
+                    harness.sequencedCatalogue, // the sequence rule under test
                     harness.reader,
                     harness.fixture.workerDataSource(),
                     TenantScope(kit.tenants, kit.boundary, kit.boundary),

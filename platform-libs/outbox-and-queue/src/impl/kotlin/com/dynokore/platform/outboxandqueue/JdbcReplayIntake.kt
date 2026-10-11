@@ -22,12 +22,14 @@ import javax.sql.DataSource
  *
  * @param subscription the replay topic's subscription; [ConsumerSubscription.consumer] is the consumer name of the
  *   live subscriptions to [producer].
+ * @param catalogue the topics catalogue; record-topic types are taken from it (INV-Q-3809).
  * @param producer the pair's catalogue producer value (a service name or 'every service').
  */
 class JdbcReplayIntake
 @JvmOverloads
 constructor(
     subscription: ConsumerSubscription,
+    catalogue: EventCatalogue,
     private val producer: String,
     reader: EventLogReader,
     private val claimSource: DataSource,
@@ -43,6 +45,7 @@ constructor(
     private val inbox =
         JdbcInboxConsumer(
             subscription.copy(trackSources = producer == CatalogueEntry.EVERY_SERVICE),
+            catalogue,
             reader,
             claimSource,
             scope,

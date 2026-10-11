@@ -11,6 +11,12 @@ import tools.jackson.databind.ObjectMapper
 class OutboxHarness(image: String) : AutoCloseable {
     val fixture = OutboxPostgresFixture(image)
     val catalogue: EventCatalogue = TestCatalogue.load()
+
+    /** [catalogue] with no record topic: a platform topic then keeps the docsequence rule (INV-Q-3809). */
+    val sequencedCatalogue: EventCatalogue =
+        catalogue.entries().map { it.copy(recordTopic = false) }.let {
+            EventCatalogue(it, catalogue.replayTopics(), catalogue.requestTopics())
+        }
     val eventLogForRelay = FlakyDataSource(fixture.relayDataSource())
     val reader = PostgresEventLogReader(fixture.workerDataSource(), fixture.readerDataSource())
     val mapper = ObjectMapper()
@@ -58,6 +64,7 @@ class OutboxHarness(image: String) : AutoCloseable {
         clock: java.time.Clock = java.time.Clock.systemUTC(),
     ) = JdbcInboxConsumer(
         ConsumerSubscription(name, topic, schema),
+        catalogue,
         reader,
         fixture.workerDataSource(),
         TenantScope(tx.tenants, tx, tx),

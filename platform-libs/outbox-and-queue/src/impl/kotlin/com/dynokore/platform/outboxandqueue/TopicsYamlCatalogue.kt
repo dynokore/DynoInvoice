@@ -4,7 +4,7 @@ package com.dynokore.platform.outboxandqueue
  * Reads the event catalogue from platform-contracts' generated `event-log/topics.yaml`. Three sections:
  * - `topics`: one entry per event topic: `topic`, `event_type`, `producers`, `subscribers`, from INV-T-3386
  *   `content_topic: true|false` (INV-REQ-1205 b4; an entry without it gets [CatalogueEntry.contentTopic] `null`) and
- *   from INV-T-3606 `record_topic` (read by the event-log component, not here);
+ *   from INV-T-3606 `record_topic` ([CatalogueEntry.recordTopic], INV-Q-3809);
  * - `replay_topics` (INV-T-3606): one per (producer, subscriber) pair, with `event_types`, exactly one producer and
  *   one subscriber ([ReplayTopic]);
  * - `replay_request_topics` (INV-T-3606): one per consumer, with `event_types`, the consumer as its one producer and
@@ -26,6 +26,7 @@ object TopicsYamlCatalogue {
         val producers = mutableSetOf<String>()
         val subscribers = mutableSetOf<String>()
         var content: Boolean? = null
+        var record = false
     }
 
     /** Parses [text] into an [EventCatalogue]; throws [IllegalArgumentException] on a malformed entry. */
@@ -72,6 +73,15 @@ object TopicsYamlCatalogue {
                     list = null
                 }
 
+                line.startsWith("record_topic:") -> {
+                    val value = line.removePrefix("record_topic:").trim()
+                    entry.record =
+                        requireNotNull(value.toBooleanStrictOrNull()) {
+                            "topic ${entry.topic} has record_topic '$value', expected true or false"
+                        }
+                    list = null
+                }
+
                 line == "event_types:" -> list = entry.types
 
                 line == "producers:" -> list = entry.producers
@@ -80,7 +90,7 @@ object TopicsYamlCatalogue {
 
                 line.startsWith("- ") && list != null -> list += line.removePrefix("- ").trim()
 
-                else -> list = null // another key (record_topic, an empty list `[]`, ...)
+                else -> list = null // another key (an empty list `[]`, ...)
             }
         }
         return EventCatalogue(
@@ -93,7 +103,7 @@ object TopicsYamlCatalogue {
     private fun eventEntry(entry: Entry): CatalogueEntry {
         val eventType = requireNotNull(entry.type) { "topic ${entry.topic} has no event_type" }
         require(entry.producers.isNotEmpty()) { "topic ${entry.topic} has no producer" }
-        return CatalogueEntry(eventType, entry.topic, entry.producers.toSet(), entry.content)
+        return CatalogueEntry(eventType, entry.topic, entry.producers.toSet(), entry.content, entry.record)
     }
 
     private fun replayTopic(entry: Entry): ReplayTopic {

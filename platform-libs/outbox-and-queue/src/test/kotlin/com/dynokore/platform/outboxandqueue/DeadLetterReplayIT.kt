@@ -84,6 +84,7 @@ class DeadLetterReplayIT {
             val inbox =
                 JdbcInboxConsumer(
                     ConsumerSubscription(consumer, "gst.canonical.canonical-version-created.v1", "submission"),
+                    harness.catalogue,
                     harness.reader,
                     harness.fixture.workerDataSource(),
                     scope,

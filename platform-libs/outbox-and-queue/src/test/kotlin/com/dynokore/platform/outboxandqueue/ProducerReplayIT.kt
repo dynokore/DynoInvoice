@@ -314,6 +314,28 @@ class ProducerReplayIT {
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `INV-Q-3805 an 'every service' full sync deletes no docsequence rows`(image: String) {
+        Scenario(image).use { s ->
+            s.change(tenantA, UUID.randomUUID(), 1)
+            s.change(tenantB, UUID.randomUUID(), 1)
+            s.publishCanonical()
+            assertEquals(2, s.behindConsumer.pollOnce().applied)
+            val sequences = "select count(*) from reconciliation.consumer_sequence where consumer = '$consumer'"
+            assertEquals(2L, s.harness.count(sequences))
+            val request = ReplayRequest(UUID.randomUUID(), CatalogueEntry.EVERY_SERVICE, ReplayMode.FULL_SYNC, null)
+            s.workerTenants.bindPlatform {
+                s.workerTx.inTransaction {
+                    JdbcConsumerReplay("reconciliation", s.workerTx, s.harness.reader, s.workerWriter, clock)
+                        .fullSync(consumer, listOf(live), request, null, corr(), cause())
+                }
+            }
+            assertEquals(2L, s.harness.count(sequences), "every docsequence row survives")
+            assertEquals(1L, s.harness.count("select count(*) from reconciliation.consumer_replay"))
+        }
+    }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
     fun `a full sync failing before its commit leaves read model, sequences and position as they were`(image: String) {
         Scenario(image).use { s ->
             s.change(tenantA, UUID.randomUUID(), 1)
@@ -386,46 +408,6 @@ class ProducerReplayIT {
         }
     }
 
-    private fun evidenceConsumer(
-        harness: OutboxHarness,
-        subscription: ConsumerSubscription,
-    ) = JdbcInboxConsumer(
-        subscription,
-        harness.reader,
-        harness.fixture.workerDataSource(),
-        TenantScope(harness.evidence.tenants, harness.evidence.boundary, harness.evidence.boundary),
-        countingHandler(),
-        harness.rebuildSink,
-    )
-
-    private fun evidenceIntake(harness: OutboxHarness) = JdbcReplayIntake(
-        ConsumerSubscription("evidence-svc", "gst.platform.replay-evidence.v1", "evidence"),
-        CatalogueEntry.EVERY_SERVICE,
-        replayReader(harness, harness.fixture.replayRoles("evidence-svc")),
-        harness.fixture.workerDataSource(),
-        TenantScope(harness.evidence.tenants, harness.evidence.boundary, harness.evidence.boundary),
-        countingHandler(),
-        harness.rebuildSink,
-    )
-
-    /** [kit]'s responder answers the pending 'every service' request with no state: the marker alone. */
-    private fun answerEmpty(
-        harness: OutboxHarness,
-        kit: ServiceKit,
-        schema: String,
-    ) {
-        val responder = JdbcReplayResponder(
-            kit.service, schema, harness.catalogue, harness.reader, harness.fixture.workerDataSource(),
-            TenantScope(kit.tenants, kit.boundary, kit.boundary), kit.writer, emptyList(), harness.rebuildSink,
-        )
-        assertEquals(listOf(0L), responder.runOnce().map { it.eventsReplayed })
-        harness.drain(kit.relay)
-    }
-
-    private fun countingHandler() = object : EventHandler {
-        override fun handle(event: Envelope) = HandleOutcome.APPLIED
-    }
-
     private fun replayRequest(scope: ReplayScope): ReplayRequest {
         val id = UUID.randomUUID()
         return ReplayRequest(id, "canonical-svc", ReplayMode.SCOPE, scope)
@@ -435,15 +417,6 @@ class ProducerReplayIT {
         val scope = ReplayScope.Tenant(tenantA)
         return ReplayRequest(replayId, CatalogueEntry.EVERY_SERVICE, ReplayMode.SCOPE, scope)
     }
-
-    /** A reader on a fixture consumer's own replay-topic roles. */
-    private fun replayReader(
-        harness: OutboxHarness,
-        roles: EventLogSchema.ConsumerRoles,
-    ) = PostgresEventLogReader(
-        harness.fixture.roleDataSource(roles.claimRole),
-        harness.fixture.roleDataSource(roles.readerRole),
-    )
 
     private fun corr() = CorrelationId("test-${UUID.randomUUID()}")
 
@@ -483,7 +456,7 @@ class ProducerReplayIT {
         /** reconciliation-svc's worker-role side: its full sync runs here, bound to the platform tenant. */
         val workerTenants = TenantContextImpl()
         val workerTx = TransactionRunnerImpl(harness.fixture.workerDataSource(), workerTenants)
-        private val workerWriter =
+        val workerWriter =
             JdbcOutboxWriter(workerTx, "reconciliation", consumer, "$consumer-w", harness.catalogue, clock)
 
         fun readModelClear(): ReadModelClear {
@@ -508,18 +481,16 @@ class ProducerReplayIT {
 
         val controlConsumer = harness.consumer(control, live, "reconciliation", recon.boundary, ViewHandler(control))
         val behindConsumer = harness.consumer(consumer, live, "reconciliation", recon.boundary, ViewHandler(consumer))
-        val intake: JdbcReplayIntake =
-            harness.fixture.replayRoles(consumer).let { roles ->
-                JdbcReplayIntake(
-                    ConsumerSubscription(consumer, replayTopic, "reconciliation"),
-                    "canonical-svc",
-                    replayReader(harness, roles),
-                    harness.fixture.workerDataSource(),
-                    TenantScope(recon.tenants, recon.boundary, recon.boundary),
-                    ViewHandler(consumer),
-                    harness.rebuildSink,
-                )
-            }
+        val intake = JdbcReplayIntake(
+            ConsumerSubscription(consumer, replayTopic, "reconciliation"),
+            harness.catalogue,
+            "canonical-svc",
+            replayReader(harness, harness.fixture.replayRoles(consumer)),
+            harness.fixture.workerDataSource(),
+            TenantScope(recon.tenants, recon.boundary, recon.boundary),
+            ViewHandler(consumer),
+            harness.rebuildSink,
+        )
 
         /** canonical-svc's command: the state change and its event in one transaction, docsequence = version. */
         fun change(
@@ -690,3 +661,54 @@ class ProducerReplayIT {
         table: String,
     ) = TenantRlsMigration.ddl(schema, table, policyName = "${table}_tenant_isolation")
 }
+
+private fun evidenceConsumer(
+    harness: OutboxHarness,
+    subscription: ConsumerSubscription,
+) = JdbcInboxConsumer(
+    subscription,
+    harness.catalogue,
+    harness.reader,
+    harness.fixture.workerDataSource(),
+    TenantScope(harness.evidence.tenants, harness.evidence.boundary, harness.evidence.boundary),
+    countingHandler(),
+    harness.rebuildSink,
+)
+
+private fun evidenceIntake(harness: OutboxHarness) = JdbcReplayIntake(
+    ConsumerSubscription("evidence-svc", "gst.platform.replay-evidence.v1", "evidence"),
+    harness.catalogue,
+    CatalogueEntry.EVERY_SERVICE,
+    replayReader(harness, harness.fixture.replayRoles("evidence-svc")),
+    harness.fixture.workerDataSource(),
+    TenantScope(harness.evidence.tenants, harness.evidence.boundary, harness.evidence.boundary),
+    countingHandler(),
+    harness.rebuildSink,
+)
+
+/** [kit]'s responder answers the pending 'every service' request with no state: the marker alone. */
+private fun answerEmpty(
+    harness: OutboxHarness,
+    kit: ServiceKit,
+    schema: String,
+) {
+    val responder = JdbcReplayResponder(
+        kit.service, schema, harness.catalogue, harness.reader, harness.fixture.workerDataSource(),
+        TenantScope(kit.tenants, kit.boundary, kit.boundary), kit.writer, emptyList(), harness.rebuildSink,
+    )
+    assertEquals(listOf(0L), responder.runOnce().map { it.eventsReplayed })
+    harness.drain(kit.relay)
+}
+
+private fun countingHandler() = object : EventHandler {
+    override fun handle(event: Envelope) = HandleOutcome.APPLIED
+}
+
+/** A reader on a fixture consumer's own replay-topic roles. */
+private fun replayReader(
+    harness: OutboxHarness,
+    roles: EventLogSchema.ConsumerRoles,
+) = PostgresEventLogReader(
+    harness.fixture.roleDataSource(roles.claimRole),
+    harness.fixture.roleDataSource(roles.readerRole),
+)

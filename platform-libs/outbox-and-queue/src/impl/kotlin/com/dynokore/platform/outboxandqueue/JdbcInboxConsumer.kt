@@ -25,6 +25,9 @@ import javax.sql.DataSource
  * 7. the new sequence and the offset are written, and everything commits together. A kill before
  *    the commit leaves no inbox row, so the restart applies the event exactly once (INV-AC-2205).
  *
+ * [catalogue] gives the record-topic event types (INV-Q-3809); a [ConsumerSubscription.recordTypes] declaration that
+ * differs from them fails construction, so a service cannot run with record events under the sequence check.
+ *
  * [claimSource] is the worker-role connection of ARC 4.3 step 1a: it only reads the offset to know
  * where to poll, and records dead letters; the inbox and sequence tables (row-level security) are
  * reached only inside a tenant transaction.
@@ -38,6 +41,7 @@ class JdbcInboxConsumer
 @JvmOverloads
 constructor(
     private val subscription: ConsumerSubscription,
+    catalogue: EventCatalogue,
     private val reader: EventLogReader,
     private val claimSource: DataSource,
     private val scope: TenantScope,
@@ -52,6 +56,12 @@ constructor(
     private val s = SqlIdentifier.require(subscription.schema, "schema")
     private val offsets = "$s.${OutboxSchema.CONSUMER_OFFSET}"
     private var stopped = false
+    private val recordTypes =
+        catalogue.recordTypes().also {
+            check(subscription.recordTypes == null || subscription.recordTypes == it) {
+                "consumer $consumer declares record types ${subscription.recordTypes}, catalogue has $it (INV-Q-3809)"
+            }
+        }
 
     @Synchronized
     override fun pollOnce(): PollResult {
@@ -238,7 +248,8 @@ constructor(
     ): Step {
         if (!claimInbox(connection, envelope)) return Step.DUPLICATE
         if (subscription.trackSources && envelope.type != ReplayProtocol.REPLAY_COMPLETED) recordSource(connection, envelope)
-        val sequence = envelope.docSequence
+        // A record-topic event is deduped by event id only: no docsequence check, no held row (INV-Q-3809).
+        val sequence = envelope.docSequence?.takeUnless { envelope.type in recordTypes }
         if (sequence != null && sequence <= heldSequence(connection, envelope)) return Step.STALE
         val outcome = handler.handle(envelope)
         if (sequence != null) recordSequence(connection, envelope, sequence)
