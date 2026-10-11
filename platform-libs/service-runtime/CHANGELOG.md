@@ -20,10 +20,13 @@ train is its own (README.md: "own version and changelog").
   (`ReplayState.SEVERAL_PRODUCERS`; service-runtime contract 1.2.0, INV-T-3819); the audit scope names every
   addressee. A full sync addresses every producer of the topics it moves, until no moved topic has a producer left
   out, runs each addressee's clear and deletes each addressee's docsequence rows (coordinator ruling INV-Q-3843;
-  none for 'every service', INV-Q-3805). A repeat returns the pending replay until its incident closes, also after
-  some producers completed (coordinator ruling INV-Q-3845).
+  none for 'every service', INV-Q-3805). A replay stays pending until its incident closes, also after every
+  producer completed (coordinator ruling INV-Q-3845): a same mode and scope call returns it, any other call touching
+  one of its pairs is EVL-004, and EVL-003 applies only after the close.
 - The inbox consumer bean takes the `EventCatalogue` (record topics, INV-Q-3809). The tests' pinned
   `service-runtime/openapi.yaml` is platform-contracts 0b685b5 (service-runtime contract 1.2.0).
+- The tests' pinned `catalogue/errors/error-codes.yaml` and error envelope are platform-contracts fadead4
+  (gst-catalogue 1.14.0), which carries SRT-011; `ProblemsTest` checks SRT-011 against its row like the others.
 
 ## [3.1.0] - 2026-10-12
 ### Added

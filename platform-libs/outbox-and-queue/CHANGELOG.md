@@ -15,7 +15,8 @@ train is its own (README.md: "own version and changelog").
   (`gst.<consumer>.replay-requested.v1`); `TopicsYamlCatalogue` parses both new sections of topics.yaml and the
   pinned excerpt is re-copied from platform-contracts main. ReplayRequested and ReplayCompleted are platform events.
 - `JdbcConsumerReplay`: in the caller's platform transaction, moves the consumer's positions past
-  max(head, watermark) and writes ReplayRequested through the outbox (`consumer_replay` keeps the pending replay).
+  max(head, watermark) and writes ReplayRequested through the outbox (`consumer_replay` keeps the pending replay;
+  a replay stays pending until its incident closes, one per (consumer, producer) pair, INV-Q-3845).
 - `JdbcReplayResponder` (producer): answers each request addressed to it on the pair's replay topic from its
   `ReplayStateSource`s, page by page per tenant with the states' own docsequence, then commits the request's inbox
   row, its position and the ReplayCompleted marker in one transaction; a crash restarts the replay.

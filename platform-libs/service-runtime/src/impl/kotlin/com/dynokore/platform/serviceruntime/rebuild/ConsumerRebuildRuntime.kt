@@ -157,7 +157,8 @@ constructor(
     /**
      * The repeat rule over the addressed pairs (owner rulings INV-Q-3665, INV-Q-3788 A): none pending, `null` (go on);
      * the pending replay returned (200) when every pending pair holds one replay, of this mode and scope, addressed to
-     * exactly [producers] (pairs of it already completed stay part of it until it closes); otherwise EVL-004.
+     * exactly [producers] (pairs of it already completed stay part of it until its incident closes, INV-Q-3845);
+     * otherwise EVL-004. EVL-003 is reached only once the incident has closed.
      */
     private fun repeatOrConflict(
         side: Side,

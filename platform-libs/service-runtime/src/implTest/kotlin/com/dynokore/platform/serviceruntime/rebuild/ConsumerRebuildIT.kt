@@ -221,6 +221,55 @@ class ConsumerRebuildIT {
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `INV-Q-3845 a set's replay stays pending until its incident closes, not until each pair completes`(image: String) {
+        Harness(image).use { h ->
+            h.behind(watermark = 5, topic = MULTI)
+            h.behind(watermark = 5, topic = A_ONLY)
+            h.matchView()
+            h.fixture.runAsAdmin("insert into $SCHEMA.match_view values ('$CONSUMER', '${TENANT.value}', 'n')")
+            val clears = listOf("a-svc", "b-svc").map { ReadModelClear(it, listOf(CLEAR)) }
+            val runtime = h.runtime(fullSync = true, clears = clears, extra = listOf(A_ONLY))
+            val done = runtime.rebuildConsumer(h.request(topic = MULTI)) as RebuildOutcome.Done
+            assertEquals(listOf("a-svc", "b-svc"), done.state.producers)
+            val written = h.count("select count(*) from $SCHEMA.outbox")
+            fun nothingWritten(step: String) {
+                assertEquals(written, h.count("select count(*) from $SCHEMA.outbox"), step)
+                assertEquals(2L, h.count("select count(*) from $SCHEMA.consumer_replay"), step)
+                assertNull(h.nextOffsetOrNull(A_ONLY), "$step: no head move on a-svc's own topic")
+                assertEquals(6L, h.nextOffset(MULTI), "$step: no second head move")
+                assertEquals(1L, h.count("select count(*) from $SCHEMA.match_view"), "$step: nothing cleared")
+            }
+
+            // a-svc completed, b-svc still pending: a replay on a-svc's own topic touches the open set's pair, EVL-004.
+            h.fixture.runAsAdmin("update $SCHEMA.consumer_replay set completed_at = now() where producer = 'a-svc'")
+            assertEquals(refused(RebuildErrorCode.OTHER_REPLAY_PENDING), runtime.rebuildConsumer(h.request(topic = A_ONLY)))
+            nothingWritten("a-svc completed, scope replay on its own topic")
+            // A full sync on the part-complete set is refused too.
+            val full = h.request(topic = MULTI, mode = ReplayMode.FULL_SYNC, scope = null)
+            assertEquals(refused(RebuildErrorCode.OTHER_REPLAY_PENDING), runtime.rebuildConsumer(full))
+            nothingWritten("a-svc completed, full sync")
+
+            // Every pair completed but the incident not yet closed (closeCompleted not yet run, or the sink failed):
+            // a same mode and scope call returns the pending set, never EVL-003; a-svc's own topic is still EVL-004.
+            h.fixture.runAsAdmin("update $SCHEMA.consumer_replay set completed_at = now() where producer = 'b-svc'")
+            val repeat = runtime.rebuildConsumer(h.request(topic = MULTI)) as RebuildOutcome.Done
+            assertEquals(listOf(false, true), listOf(repeat.created, repeat.state.repeat))
+            assertEquals(done.state.replayId, repeat.state.replayId)
+            assertEquals(done.state.producers, repeat.state.producers)
+            assertEquals(refused(RebuildErrorCode.OTHER_REPLAY_PENDING), runtime.rebuildConsumer(h.request(topic = A_ONLY)))
+            nothingWritten("every pair completed, incident open")
+
+            // Once the incident has closed: EVL-003 on the rebuilt topic, and a-svc's pair is free for a new replay.
+            h.fixture.runAsAdmin("update $SCHEMA.consumer_replay set closed_at = now()")
+            assertEquals(refused(RebuildErrorCode.NOT_REBUILD_REQUIRED), runtime.rebuildConsumer(h.request(topic = MULTI)))
+            val next = runtime.rebuildConsumer(h.request(topic = A_ONLY)) as RebuildOutcome.Done
+            assertTrue(next.created)
+            assertEquals(listOf("a-svc"), next.state.producers)
+        }
+    }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
     fun `INV-Q-3788 a full sync addresses every producer of the topics it moves and deletes their docsequence rows`(image: String) {
         Harness(image).use { h ->
             h.behind(watermark = 5)
@@ -373,6 +422,7 @@ class ConsumerRebuildIT {
         const val LIVE = "gst.canonical.canonical-version-created.v1"
         const val MULTI = "gst.platform.connection-status-changed.v1"
         const val SHARED = "gst.platform.evidence-artefact-recorded.v1"
+        const val A_ONLY = "gst.a.thing-recorded.v1"
         const val CLEAR = "delete from $SCHEMA.match_view where consumer = '$CONSUMER'"
         val TENANT = TenantId(UUID.fromString("0a000000-0000-0000-0000-00000000000a"))
         val CATALOGUE =
@@ -381,6 +431,7 @@ class ConsumerRebuildIT {
                     CatalogueEntry("com.dynokore.gst.canonical.CanonicalVersionCreated.v1", LIVE, setOf(PRODUCER), false),
                     CatalogueEntry("com.dynokore.gst.platform.ConnectionStatusChanged.v1", MULTI, setOf("a-svc", "b-svc"), false),
                     CatalogueEntry("com.dynokore.gst.platform.EvidenceArtefactRecorded.v1", SHARED, setOf(PRODUCER, "b-svc"), false),
+                    CatalogueEntry("com.dynokore.gst.a.ThingRecorded.v1", A_ONLY, setOf("a-svc"), false),
                     CatalogueEntry(OutboxAuditWriter.EVENT_TYPE, "gst.platform.audit-entry-recorded.v1", setOf(CatalogueEntry.EVERY_SERVICE), false),
                 ),
                 listOf(

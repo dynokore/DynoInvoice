@@ -32,13 +32,17 @@ class JdbcConsumerReplay(
     private val s = SqlIdentifier.require(schema, "schema")
     private val json = ReplayJson()
 
-    /** The pending replay of the ([consumer], [producer]) pair, or `null`. */
+    /**
+     * The pending replay of the ([consumer], [producer]) pair, or `null`. A replay stays pending until its incident
+     * closes, also after this pair's producer has completed (INV-Q-3845): a set addressed to several producers is one
+     * replay until every addressee has completed and the incident has closed (INV-Q-3788 A, INV-Q-3665).
+     */
     fun pending(
         consumer: String,
         producer: String,
     ): PendingReplay? = connections.require().prepareStatement(
         "select replay_id, consumer, producer, mode, scope, topics, requested_at from $s.${OutboxSchema.CONSUMER_REPLAY} " +
-            "where consumer = ? and producer = ? and completed_at is null",
+            "where consumer = ? and producer = ? and closed_at is null",
     ).use {
         it.setString(1, consumer)
         it.setString(2, producer)

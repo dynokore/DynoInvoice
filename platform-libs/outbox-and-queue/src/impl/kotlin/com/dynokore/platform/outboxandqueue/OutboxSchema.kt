@@ -132,7 +132,7 @@ object OutboxSchema {
      * - [CONSUMER_REPLAY]: one row per requested replay and addressee producer (a replay of a topic with several
      *   catalogue producers has one row per producer under one replay id, owner ruling INV-Q-3788 A), its mode, scope,
      *   the topics whose position it moved to the head, when that producer's ReplayCompleted was applied and when the
-     *   incidents were closed; at most one pending (not completed) replay per (consumer, producer) pair;
+     *   incidents were closed; at most one pending (not closed) replay per (consumer, producer) pair (INV-Q-3845);
      * - [CONSUMER_REPLAY_MARKER]: the sources whose marker for a replay the consumer has applied;
      * - [CONSUMER_SOURCE_SEEN]: on an 'every service' pair, the sources the consumer has seen.
      * They hold no tenant data (positions and service names, as [CONSUMER_OFFSET]), so no RLS. The app role writes them
@@ -156,7 +156,7 @@ object OutboxSchema {
             primary key (replay_id, producer)
         );
         create unique index if not exists ${CONSUMER_REPLAY}_pending on $s.$CONSUMER_REPLAY (consumer, producer)
-            where completed_at is null;
+            where closed_at is null;
         create table if not exists $s.$CONSUMER_REPLAY_MARKER (
             replay_id uuid not null,
             source text not null,

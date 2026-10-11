@@ -27,7 +27,7 @@ class ProblemsTest {
 
     @Test
     fun `the closed cases are exactly the catalogue's SRT rows, at their HTTP statuses`() {
-        ClosedErrorCode.entries.map { it.code } shouldBe (catalogue.keys + PENDING_ROWS).sorted()
+        ClosedErrorCode.entries.map { it.code } shouldBe catalogue.keys.sorted()
         ClosedErrorCode.entries.associate { it.code to it.httpStatus } shouldBe
             mapOf(
                 "SRT-001" to 400,
@@ -42,7 +42,7 @@ class ProblemsTest {
                 "SRT-010" to 500,
                 "SRT-011" to 503,
             )
-        ClosedErrorCode.entries.filter { it.code !in PENDING_ROWS }.forEach { code ->
+        ClosedErrorCode.entries.forEach { code ->
             val row = catalogue.getValue(code.code)
             (row["condition"] as String).replace(Regex("\\s+"), " ").contains("HTTP ${code.httpStatus}") shouldBe true
             row["severity"] shouldBe "BLOCK"
@@ -79,13 +79,5 @@ class ProblemsTest {
             body.get("type").asString() shouldBe "https://errors.invoice.internal/${code.code}"
         }
         Problems.typeOf("SRT-010") shouldBe "https://errors.invoice.internal/SRT-010"
-    }
-
-    private companion object {
-        /**
-         * SRT-011 (coordinator ruling INV-Q-3773) gets its catalogue row from INV-T-3762, not yet merged; remove it here
-         * once the pinned catalogue carries it.
-         */
-        val PENDING_ROWS = setOf("SRT-011")
     }
 }
