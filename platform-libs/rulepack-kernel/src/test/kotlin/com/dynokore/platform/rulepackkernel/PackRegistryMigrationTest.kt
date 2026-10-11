@@ -16,7 +16,11 @@ class PackRegistryMigrationTest {
         assertTrue(ddl.contains("effective_to       date NULL"))
         assertTrue(ddl.contains("manifest           jsonb NOT NULL"))
         assertTrue(ddl.contains("signature          bytea NOT NULL"))
-        assertTrue(ddl.contains("CONSTRAINT rule_pack_version_lineage_key UNIQUE NULLS NOT DISTINCT (pack_type, tenant_id, version)"))
+        assertTrue(
+            ddl.contains(
+                "CONSTRAINT rule_pack_version_lineage_key UNIQUE NULLS NOT DISTINCT (pack_type, tenant_id, version)",
+            ),
+        )
         assertTrue(
             ddl.contains(
                 "CREATE INDEX rule_pack_version_resolution_idx ON rules.rule_pack_version " +

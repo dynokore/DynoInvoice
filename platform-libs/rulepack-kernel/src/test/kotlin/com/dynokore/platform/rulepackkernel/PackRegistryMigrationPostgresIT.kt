@@ -141,7 +141,7 @@ class PackRegistryMigrationPostgresIT {
             insert(app, platformOperator = true, rowTenant = null, packId = "platform-v3-again", version = "3.0.0")
         }
         // Same pack_type and version in two different tenants, and as a platform row, stays allowed.
-        insert(app, tenant = tenantB, rowTenant = tenantB, packId = "b-second-own-pack-other-version", version = "2.0.0")
+        insert(app, tenant = tenantB, rowTenant = tenantB, packId = "b-v2", version = "2.0.0")
         insert(app, tenant = tenantA, rowTenant = tenantA, packId = "a-v2", version = "2.0.0")
         // The same tenant and version twice stays refused, as before.
         assertThrows(SQLException::class.java) {
@@ -164,8 +164,12 @@ class PackRegistryMigrationPostgresIT {
                         "(gen_random_uuid(), 'p', 'Scope', '1.0.0', NULL, now(), '1', '{}', '{}', '\\x01', '{}', 'a')"
                 statement.execute(row)
                 statement.execute(row) // old constraint admits the duplicate
-                statement.execute("DELETE FROM rulepack_test.old_pack WHERE ctid = (SELECT max(ctid) FROM rulepack_test.old_pack)")
-                statement.execute(PackRegistryMigration.lineageKeyUpgradeDdl(schema = "rulepack_test", table = "old_pack"))
+                statement.execute(
+                    "DELETE FROM rulepack_test.old_pack WHERE ctid = (SELECT max(ctid) FROM rulepack_test.old_pack)",
+                )
+                statement.execute(
+                    PackRegistryMigration.lineageKeyUpgradeDdl(schema = "rulepack_test", table = "old_pack"),
+                )
                 assertThrows(SQLException::class.java) { statement.execute(row) }
             }
         }
