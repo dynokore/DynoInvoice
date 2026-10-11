@@ -5,7 +5,9 @@ T6's "Schema validation tests with valid and invalid samples pass": a
 minimal, dependency-free JSON Schema (2020-12 subset) validator, covering
 exactly the keywords the two envelope schemas use (type, properties,
 required, additionalProperties, pattern, format, const, enum, minLength,
-minimum, items, local $ref into #/$defs). No pip install in CI (mirrors
+minimum, items, local $ref into #/$defs), plus uniqueItems and a calendar
+check of format: date (a date matching YYYY-MM-DD must also exist, so
+2027-13-45 fails). No pip install in CI (mirrors
 check-payload-compat.py's stdlib-only style); networknt json-schema-validator
 (STK-74) is the consumer-edge validator once services exist in Kotlin — this
 script only proves the two envelope schemas in this repository behave as
@@ -31,6 +33,7 @@ Exits 0 if every valid sample passes and every invalid sample fails; 1 otherwise
 """
 from __future__ import annotations
 
+import datetime
 import json
 import re
 import sys
@@ -88,6 +91,13 @@ def _check(instance, schema: dict, root: dict, path: str) -> None:
             raise Invalid(f"{path}: fewer than minItems {schema['minItems']}")
         if "maxItems" in schema and len(instance) > schema["maxItems"]:
             raise Invalid(f"{path}: more than maxItems {schema['maxItems']}")
+        if schema.get("uniqueItems") is True:
+            seen = set()
+            for i, el in enumerate(instance):
+                key = json.dumps(el, sort_keys=True)
+                if key in seen:
+                    raise Invalid(f"{path}[{i}]: duplicate item {el!r} violates uniqueItems")
+                seen.add(key)
         items = schema.get("items")
         if items is not None:
             for i, el in enumerate(instance):
@@ -104,6 +114,11 @@ def _check(instance, schema: dict, root: dict, path: str) -> None:
         fmt = schema.get("format")
         if fmt in _FORMAT_PATTERNS and not _FORMAT_PATTERNS[fmt].match(instance):
             raise Invalid(f"{path}: {instance!r} does not match format '{fmt}'")
+        if fmt == "date":
+            try:
+                datetime.date.fromisoformat(instance)
+            except ValueError:
+                raise Invalid(f"{path}: {instance!r} is not a valid calendar date (format 'date')") from None
     elif t == "integer":
         if not isinstance(instance, int) or isinstance(instance, bool):
             raise Invalid(f"{path}: expected integer, got {type(instance).__name__}")

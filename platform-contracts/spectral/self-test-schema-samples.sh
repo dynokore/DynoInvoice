@@ -2,7 +2,8 @@
 # spectral/self-test-schema-samples.sh — INV-T-2850 follow-up (lesson P20).
 # Proves validate-schema-samples.py --discover fires: a compliant tree passes;
 # an examples/valid sample that violates its schema, an examples/invalid sample
-# that satisfies it, and a samples directory with no declared schema each fail.
+# that satisfies it, a samples directory with no declared schema, a duplicate
+# item under uniqueItems and a non-existent format: date (2027-13-45) each fail.
 set -u
 cd "$(dirname "$0")"
 N=fixtures/schema-samples-negative
@@ -17,5 +18,7 @@ expect_fail() {
 expect_fail valid-sample-fails "expected VALID but failed"
 expect_fail invalid-sample-passes "expected INVALID but passed"
 expect_fail no-schema-declared "no schema.txt"
+expect_fail duplicate-items "violates uniqueItems"
+expect_fail bad-calendar-date "is not a valid calendar date"
 [ "$failed" -eq 0 ] && echo "gst-ci: validate-schema-samples.py self-test passed."
 exit $failed
