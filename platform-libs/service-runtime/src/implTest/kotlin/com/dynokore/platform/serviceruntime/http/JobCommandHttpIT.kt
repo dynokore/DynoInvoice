@@ -1,10 +1,13 @@
 package com.dynokore.platform.serviceruntime.http
 
 import com.dynokore.platform.outboxandqueue.OutboxPostgresFixture
+import com.dynokore.platform.outboxandqueue.TenantScope
+import com.dynokore.platform.serviceruntime.composition.ServiceDataSources
 import com.dynokore.platform.serviceruntime.contract.ContractValidator
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.jobs.FakeAuthorizer
+import com.dynokore.platform.serviceruntime.jobs.FireResult
 import com.dynokore.platform.serviceruntime.jobs.JobCommand
 import com.dynokore.platform.serviceruntime.jobs.JobCommandOutcome
 import com.dynokore.platform.serviceruntime.jobs.JobCommandRequest
@@ -14,27 +17,33 @@ import com.dynokore.platform.serviceruntime.jobs.JobEntityScope
 import com.dynokore.platform.serviceruntime.jobs.JobEntitySource
 import com.dynokore.platform.serviceruntime.jobs.JobPauseState
 import com.dynokore.platform.serviceruntime.jobs.JobRunState
+import com.dynokore.platform.serviceruntime.jobs.JobRuntime
 import com.dynokore.platform.serviceruntime.jobs.JobTarget
 import com.dynokore.platform.serviceruntime.jobs.JobsHarness
 import com.dynokore.platform.serviceruntime.jobs.JobsHarness.Companion.E1
 import com.dynokore.platform.serviceruntime.jobs.JobsHarness.Companion.E2
 import com.dynokore.platform.serviceruntime.jobs.JobsHarness.Companion.SCHEMA
+import com.dynokore.platform.serviceruntime.jobs.JobsHarness.Companion.SERVICE
 import com.dynokore.platform.serviceruntime.jobs.JobsHarness.Companion.START
 import com.dynokore.platform.serviceruntime.jobs.JobsHarness.Companion.TENANT_A
 import com.dynokore.platform.serviceruntime.jobs.JobsHarness.Companion.job
 import com.dynokore.platform.serviceruntime.jobs.MovableDeadlines
 import com.dynokore.platform.serviceruntime.jobs.MutableClock
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
+import org.springframework.boot.autoconfigure.AutoConfigurations
+import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.mock.web.MockHttpServletRequest
 import org.springframework.mock.web.MockHttpServletResponse
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
+import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
@@ -42,6 +51,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import javax.sql.DataSource
 
 /**
  * runJobNow, pauseJob and resumeJob driven through HTTP onto INV-T-2874's JobRuntime over PostgreSQL 17 and 18
@@ -135,6 +145,7 @@ class JobCommandHttpIT {
             status shouldBe expected.httpStatus
             contentType.substringBefore(';') shouldBe Problems.CONTENT_TYPE
             body.get("code").asString() shouldBe expected.code
+            body.get("type").asString() shouldBe "https://errors.invoice.internal/${expected.code}"
             body.get("severity").asString() shouldBe "BLOCK"
             body.get("disposition").asString() shouldBe expected.disposition
             body.get("remediationOwner").asString() shouldBe "Platform"
@@ -150,6 +161,7 @@ class JobCommandHttpIT {
         ): Answer {
             status shouldBe expected
             body.get("code").asString() shouldBe code
+            body.get("type").asString() shouldBe "https://errors.invoice.internal/$code"
             body.get("severity").asString() shouldBe "BLOCK"
             body.get("disposition").asString() shouldBe "TERMINAL"
             contracts.schemaErrors(envelope, body).shouldBeEmpty()
@@ -279,7 +291,7 @@ class JobCommandHttpIT {
         // a whole-job run by a tenant role, and an entity in the token without a grant
         s.post(runPath("http-refuse"), "{}").coded("JOB-002", 403)
         s.post(runPath("http-refuse"), """{"entityRef":"E-002"}""").coded("JOB-002", 403)
-        // an entityRef outside the token's entity set (API-24), whether or not it exists
+        // an entityRef outside the principal's entity set (API-24), whether or not it exists
         s.post(runPath("http-refuse"), """{"entityRef":"E-404"}""").closed(ClosedErrorCode.ACCESS_DENIED)
         s.post(runPath("http-refuse"), """{"entityRef":"E-001"}""", token = null).closed(ClosedErrorCode.UNAUTHENTICATED)
         s.post(runPath("http-refuse"), """{"entityRef":"E-001"}""", token = "Bearer forged").closed(ClosedErrorCode.UNAUTHENTICATED)
@@ -345,5 +357,41 @@ class JobCommandHttpIT {
         s.post(runPath("http-purge"), """{"entityRef":"E-001"}""").status shouldBe 202
         s.clock.advance(Duration.ofHours(25))
         (s.idempotency.purge() >= 1) shouldBe true
+    }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `the auto-configured store purges on the worker role as a ShedLock platform job (INV-Q-3798)`(image: String) {
+        val s = Service(image)
+        s.replica.runtime.register(job("http-auto-purge"), entities) { }
+        val key = UUID.randomUUID().toString()
+        s.post(runPath("http-auto-purge"), """{"entityRef":"E-001"}""", key = key).status shouldBe 202
+        fun stored() = s.h.rows("select count(*) as n from $SCHEMA.idempotency_key where idempotency_key = ?::uuid", key).single()["n"]
+        ApplicationContextRunner()
+            .withConfiguration(AutoConfigurations.of(JobCommandHttpAutoConfiguration::class.java))
+            .withBean("dataSource", DataSource::class.java, { s.h.fixture.appDataSource() }, { it.isPrimary = true })
+            .withBean(ServiceDataSources.WORKER, DataSource::class.java, { s.h.fixture.workerDataSource() })
+            .withBean(JobRuntime::class.java, { s.replica.runtime })
+            .withBean(TenantScope::class.java, { s.replica.scope })
+            .withBean(EndUserPrincipalResolver::class.java, { principals })
+            .withBean(Clock::class.java, { s.clock })
+            .withPropertyValues("gst.service=$SERVICE", "service-runtime.idempotency.schema=$SCHEMA")
+            .run { context ->
+                context.startupFailure shouldBe null
+                context.getBean(IdempotencyKeyPurgeJob::class.java).isRunning shouldBe true
+                s.replica.runtime.registered().map { it.name } shouldContain IdempotencyKeyPurgeJob.NAME
+                stored() shouldBe 1L
+                // the auto-configured store holds the worker role; within the retention it keeps the key
+                context.getBean(IdempotencyStore::class.java).purge()
+                stored() shouldBe 1L
+                // past it, the next tick's run deletes the key, through the auto-configured store's worker role
+                s.clock.advance(Duration.ofHours(25))
+                s.replica.runtime.fire(IdempotencyKeyPurgeJob.NAME, s.clock.instant().plusSeconds(60)) shouldBe
+                    mapOf(JobTarget.Whole to FireResult.RAN)
+                stored() shouldBe 0L
+                s.h.runs(IdempotencyKeyPurgeJob.NAME).map { it["status"] }.toSet() shouldBe setOf("SUCCEEDED")
+                // a second poll in the same tick runs nothing
+                (s.replica.runtime.fire(IdempotencyKeyPurgeJob.NAME, s.clock.instant().plusSeconds(60)).getValue(JobTarget.Whole) == FireResult.RAN) shouldBe false
+            }
     }
 }

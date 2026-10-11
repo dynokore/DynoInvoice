@@ -1,6 +1,7 @@
 package com.dynokore.platform.serviceruntime.http
 
 import com.dynokore.platform.serviceruntime.contract.ContractValidator
+import com.dynokore.platform.serviceruntime.jobs.JobErrorCode
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
@@ -58,10 +59,24 @@ class ProblemsTest {
             val body = mapper.readTree(response.body)
             contracts.schemaErrors("service-runtime/schemas/error-envelope.schema.json", body).shouldBeEmpty()
             body.get("code").asString() shouldBe code.code
+            body.get("type").asString() shouldBe "https://errors.invoice.internal/${code.code}"
             body.get("severity").asString() shouldBe "BLOCK"
             body.get("disposition").asString() shouldBe code.disposition
             body.get("remediationOwner").asString() shouldBe "Platform"
             body.has("detail") shouldBe (code != ClosedErrorCode.INTERNAL_ERROR)
         }
+    }
+
+    @Test
+    fun `every coded response carries its code's documentation URI as type, never about-blank (API-20, INV-Q-3796)`() {
+        JobErrorCode.entries.forEach { code ->
+            val response = Problems.job(code, "corr-1")
+            response.status shouldBe code.httpStatus
+            val body = mapper.readTree(response.body)
+            contracts.schemaErrors("service-runtime/schemas/error-envelope.schema.json", body).shouldBeEmpty()
+            body.get("code").asString() shouldBe code.code
+            body.get("type").asString() shouldBe "https://errors.invoice.internal/${code.code}"
+        }
+        Problems.typeOf("SRT-010") shouldBe "https://errors.invoice.internal/SRT-010"
     }
 }

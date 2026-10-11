@@ -32,8 +32,9 @@ import java.util.UUID
  * `service-runtime/openapi.yaml`), onto the service's [JobCommands] (INV-Q-3535):
  * `POST /internal/v1/jobs/{job}/run|pause|resume`.
  *
- * - The actor, tenant and entity set come from the propagated end-user token through [principals] (CS-23,
- *   API-24), never from a field; an `entityRef` outside the token's entity set is 403 before anything runs. The
+ * - The actor (`sub`) and tenant (`tenant_id`) come from the propagated end-user token, and the entity set from
+ *   the authority replica, through [principals] (CS-23, API-24; owner ruling INV-Q-3716 A), never from a field;
+ *   an `entityRef` outside the principal's entity set is 403 before anything runs. The
  *   caller's tenant is bound for the command (ARC-21); the roles are checked by the service's
  *   `JobCommandAuthorizer` against its authority replica inside [JobCommands].
  * - `Idempotency-Key` (a UUID, the contract's `format: uuid`) is required and kept in [idempotency]

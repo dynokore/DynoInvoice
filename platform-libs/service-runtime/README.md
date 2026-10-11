@@ -59,11 +59,12 @@ Service inputs:
 | crypto | `DetachedSigner`, `DetachedSignatureVerifier` | `BouncyCastleCms` | nothing |
 | rulepack-kernel | `PackVerifier`, `PackContentValidator`, `PackRegistry` | `BouncyCastlePackVerifier`, `JacksonPackContentValidator`, `InMemoryPackRegistry` | nothing |
 | service-runtime | `SecretStore` (§12.1) | `MountedFileSecretStore` | nothing |
-| service-runtime | `OperationRunner` | `TransactionalOperationRunner` | (a `TransactionRunner`, an `AuditWriter`) |
+| service-runtime | `OperationRunner` | `TransactionalOperationRunner` | (a `TransactionRunner` with its `CurrentConnection`, an `AuditWriter`) |
 | service-runtime | `ConnectionStatusReporter`, the only `ConnectionStatusChanged` publisher (INV-REQ-836 b4) | `OutboxConnectionStatusReporter` | (an `OutboxWriter`) |
 | service-runtime | `EvidenceArtefactRecorder` | `OutboxEvidenceArtefactRecorder` | (an `OutboxWriter`) |
 | service-runtime | `JobCommands` | `JobRuntime` | `JobCommandAuthorizer`, `DeadlineSource`, `workerDataSource`, `gst.service`, schema; optional `jobRunNowExecutor` |
 | service-runtime | runJobNow / pauseJob / resumeJob servlet, `IdempotencyStore` | `JobCommandServlet` | `JobCommands`, `EndUserPrincipalResolver`, `service-runtime.idempotency.schema` |
+| service-runtime | API-15 key purge, a ShedLock-guarded platform job (INV-Q-3798) | `IdempotencyKeyPurgeJob` (`idempotency-key-purge`, hourly, batched on the worker role) | a `JobRuntime`, `workerDataSource`, `gst.service`; `service-runtime.idempotency.retention` (default 24 hours, below 24 hours refused at start-up) |
 
 Left for the service, with no platform-libs implementation: the §12.1 `PackSource` (rules-svc, INV-ADR-2773,
 INV-REQ-1079), the base `LicenceCheck` (tenancy-svc, INV-REQ-1076), `MessageDelivery` (INV-REQ-817),
