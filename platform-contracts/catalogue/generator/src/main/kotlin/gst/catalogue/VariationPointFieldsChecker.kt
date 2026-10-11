@@ -36,7 +36,39 @@ object VariationPointFieldsChecker {
     private val noLooserModifiers =
         setOf(VpClassModifier.NON_WAIVABLE, VpClassModifier.NON_WAIVABLE_IN_PART, VpClassModifier.TIGHTEN_ONLY)
 
-    fun check(rows: List<ParsedVariationPoint>): List<Violation> = rows.flatMap { check(it) }
+    fun check(rows: List<ParsedVariationPoint>): List<Violation> = rows.flatMap { check(it) } + checkRowReferences(rows)
+
+    /**
+     * INV-Q-3202: a bound `{row: VP-nn}` and an installation parameter made its own row must
+     * name a variation point of this catalogue (the parameter's requirement must be that
+     * row's requirement); a dangling reference fails rather than leaving the bound unresolvable.
+     */
+    fun checkRowReferences(rows: List<ParsedVariationPoint>): List<Violation> {
+        val byId = rows.associateBy { it.id }
+        val out = mutableListOf<Violation>()
+        rows.forEach { row ->
+            val fields = row.fields ?: return@forEach
+            fun refs(t: TypedValue, where: String): List<Pair<String, String>> =
+                listOfNotNull(t.min, t.max, t.default, t.minExclusive, t.length).mapNotNull { b -> b.row?.let { it to where } } +
+                    t.fields.flatMap { (n, f) -> refs(f, "$where.$n") } +
+                    listOfNotNull(t.item, t.key, t.value).flatMap { refs(it, where) }
+            val bounds =
+                fields.options.flatMap { o -> o.typedValue?.let { refs(it, "option ${o.key}") } ?: emptyList() } +
+                    (fields.installationParameter?.let { refs(it, "installation_parameter") } ?: emptyList())
+            bounds.filter { (ref, _) -> ref !in byId }.forEach { (ref, where) ->
+                out += Violation(row.id, "$where: bound row $ref is not a variation point of this catalogue")
+            }
+            fields.installationParameterRef?.let { p ->
+                val target = byId[p.row]
+                when {
+                    target == null -> out += Violation(row.id, "installation_parameter row ${p.row} is not a variation point of this catalogue")
+                    target.requirement != p.requirement ->
+                        out += Violation(row.id, "installation_parameter row ${p.row} is ${target.requirement}, not ${p.requirement}")
+                }
+            }
+        }
+        return out
+    }
 
     fun check(row: ParsedVariationPoint): List<Violation> {
         val out = mutableListOf<Violation>()

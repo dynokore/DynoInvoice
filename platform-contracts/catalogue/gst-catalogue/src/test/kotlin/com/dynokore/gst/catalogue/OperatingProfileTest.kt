@@ -25,13 +25,17 @@ class OperatingProfileTest {
     }
 
     @Test
-    fun `planned variation points and unresolved values are marked`() {
+    fun `planned variation points are marked, and PRF-7 VP-08 is the typed default pair with a 2 hour window`() {
         val prf7 = OperatingProfile.PRF_7
         assertTrue(VariationPoint.VP_08 in prf7.plannedVariationPoints)
-        val gap = prf7.unresolvedValues.single()
-        assertEquals(VariationPoint.VP_08, gap.variationPoint)
-        assertEquals("INV-Q-3320", gap.unresolved!!.pendingQuestion)
-        assertNull(gap.option)
+        assertTrue(OperatingProfile.entries.all { it.unresolvedValues.isEmpty() })
+        val vp08 = prf7.valueFor(VariationPoint.VP_08)!!
+        assertEquals("DEFAULT_PAIR_4H", vp08.option)
+        assertNull(vp08.unresolved)
+        val window = vp08.typedValue!!.fields.getValue("window")
+        assertEquals(ValueType.DURATION, window.type)
+        assertEquals("hours", window.unit)
+        assertEquals(0, window.value!!.compareTo(java.math.BigDecimal(2)))
     }
 
     @Test
@@ -49,6 +53,15 @@ class OperatingProfileTest {
             changes.map { it.variationPoint to it.kind },
         )
         assertTrue(OperatingProfiles.differences(v1, v1.map { it.copy(text = "reworded") }).isEmpty())
-        assertTrue(OperatingProfile.entries.all { it.previousVersion == null && it.changesFromPrevious.isEmpty() })
+        // INV-AC-2231: PRF-7 v2 against the previous snapshot's v1 shows VP-08 only; the others are unchanged.
+        val prf7 = OperatingProfile.PRF_7
+        assertEquals(2, prf7.version)
+        assertEquals(1, prf7.previousVersion)
+        assertEquals(
+            listOf(VariationPoint.VP_08 to ProfileChangeKind.CHANGED),
+            prf7.changesFromPrevious.map { it.variationPoint to it.kind },
+        )
+        val others = OperatingProfile.entries.filter { it != prf7 }
+        assertTrue(others.all { it.previousVersion == it.version && it.changesFromPrevious.isEmpty() })
     }
 }

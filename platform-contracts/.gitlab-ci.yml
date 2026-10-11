@@ -196,6 +196,19 @@ asyncapi-validate:
       done
       exit $failed
 
+catalogue-vendor-tool-tests:
+  # INV-T-3377 review must-fix: the unittests of catalogue/variation-points/check-drift.py's
+  # installation-parameter row derivation (INV-Q-3202, P57; fail-closed cases). Stdlib-only,
+  # so it reuses catalogue-drift-check's pinned OASDIFF_IMAGE + python3 like the jobs below.
+  stage: verify
+  image:
+    name: "$OASDIFF_IMAGE"
+    entrypoint: [""]
+  before_script:
+    - apk add --no-cache python3
+  script:
+    - python3 -m unittest discover -s catalogue/variation-points -p 'test_*.py' -v
+
 breaking-change-self-test:
   stage: verify
   image:

@@ -125,10 +125,37 @@ object VariationPointFieldsParser {
                 top.map("default_by_form")?.mapValues { (form, option) ->
                     option as? String ?: fail("default_by_form's '$form' must name an option key as text")
                 } ?: emptyMap(),
-            installationParameter = top.map("installation_parameter")?.let { typedValue(it, "installation_parameter", ::fail) },
+            installationParameter =
+                top.map("installation_parameter")?.takeUnless { "row" in it }?.let { typedValue(it, "installation_parameter", ::fail) },
+            installationParameterRef =
+                top.map("installation_parameter")?.takeIf { "row" in it }?.let { installationParameterRef(it, ::fail) },
             secondApprover = top.string("second_approver"),
         )
     }
+
+    private val parameterRefKeys = setOf("row", "requirement", "name", "note", "rule")
+
+    /** `installation_parameter: { row: VP-nn, requirement: INV-REQ-nnnn, ... }` (INV-Q-3202): no typed value of its own. */
+    private fun installationParameterRef(
+        map: Map<String, Any?>,
+        fail: (String) -> Nothing,
+    ): InstallationParameterRef {
+        val where = "installation_parameter"
+        val unknown = map.keys - parameterRefKeys
+        if (unknown.isNotEmpty()) fail("$where has unknown field(s) ${unknown.sorted().joinToString()}; extend the generator")
+        val f = Fields(map, where, fail)
+        val row = f.string("row")?.trim() ?: fail("$where has no 'row'")
+        if (!rowPattern.matches(row)) fail("$where's row '$row' is not a VP-nn id")
+        return InstallationParameterRef(
+            row = row,
+            requirement = f.string("requirement")?.trim() ?: fail("$where names row $row but no 'requirement'"),
+            name = f.string("name"),
+            note = f.string("note"),
+            rule = f.string("rule"),
+        )
+    }
+
+    private val rowPattern = Regex("^VP-\\d+$")
 
     private val acknowledgerKeys = setOf("roles", "condition", "roles_by_form", "distinct_from_setter")
 
@@ -231,7 +258,14 @@ object VariationPointFieldsParser {
             null -> null
             is Number -> BoundValue(number = BigDecimal(value.toString()))
             is String -> BoundValue(symbolic = value)
-            else -> error("gst-catalogue: a bound must be a number or a symbolic name, got ${value::class.simpleName} '$value'")
+            is Map<*, *> -> {
+                val row = value["row"]
+                if (value.keys != setOf("row") || row !is String || !rowPattern.matches(row.trim())) {
+                    error("gst-catalogue: a bound map must be exactly {row: VP-nn}, got '$value'")
+                }
+                BoundValue(row = row.trim())
+            }
+            else -> error("gst-catalogue: a bound must be a number, a symbolic name or {row: VP-nn}, got ${value::class.simpleName} '$value'")
         }
 }
 

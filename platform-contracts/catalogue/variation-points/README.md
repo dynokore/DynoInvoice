@@ -27,6 +27,18 @@ such a change:
    `checkNonWaivableFloor` (INV-AC-1786) run against the re-vendored file, same as any
    other change to it.
 
+## Installation-parameter rows (INV-T-3377; INV-Q-3202, P57)
+
+VP-79 and VP-80 (INV-REQ-3210, INV-REQ-3211) are the installation maxima of VP-57 and
+VP-67, made their own rows. Keel writes `source_ids` only when an entity is created
+(P57), so they carry no `VP-nn` source id. `check-drift.py` takes them by the mapping
+Keel already publishes on the referencing row (`installation_parameter: {row, requirement}`)
+and fails closed if referencers disagree, if the requirement's own source ids differ
+from the derived id (once Keel gains them, the two must agree), if the derived id
+collides with another row, or if the requirement is not published. The generator still
+fails any `{row: VP-nn}` bound or parameter row that names a row missing from this file.
+Tests: `python3 -m unittest discover -s catalogue/variation-points -p 'test_*.py'`.
+
 ## Catalogue fields and pending markers (INV-T-3000)
 
 Each row's `catalogue` block is Keel's `io_contract.catalogue`, copied unedited:
