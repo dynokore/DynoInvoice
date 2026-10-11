@@ -4,7 +4,8 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Tag
-import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import org.postgresql.ds.PGSimpleDataSource
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.utility.DockerImageName
@@ -30,9 +31,10 @@ private class Postgres(image: DockerImageName) : PostgreSQLContainer<Postgres>(i
  */
 @Tag("integration")
 class PackRegistryMigrationPostgresIT {
-    @Test
-    fun `RLS isolates tenants, admits the platform operator, and fails closed with no identity bound`() {
-        val container = Postgres(DockerImageName.parse("postgres:17"))
+    @ParameterizedTest
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `RLS isolates tenants, admits the platform operator, and fails closed with no identity bound`(image: String) {
+        val container = Postgres(DockerImageName.parse(image))
         container.start()
         try {
             val owner = dataSourceFor(container, container.username, container.password)
@@ -57,6 +59,8 @@ class PackRegistryMigrationPostgresIT {
             assertTenantCannotSmuggleAPlatformWideRow(app, tenantA)
             assertPlatformOperatorCanInsertAndReadAPlatformWideRow(app)
             assertNoIdentityBoundFailsClosedOnReadAndWrite(app, tenantA)
+            assertLineageKeyRefusesDuplicatePlatformVersionButNotTenantRows(app, tenantA, tenantB)
+            assertUpgradeMigrationFixesAnOldConstraint(owner)
         } finally {
             container.stop()
         }
@@ -126,12 +130,53 @@ class PackRegistryMigrationPostgresIT {
         }
     }
 
+    /** INV-Q-2964: a second platform row with the same pack_type and version is refused; tenant rows are unchanged. */
+    private fun assertLineageKeyRefusesDuplicatePlatformVersionButNotTenantRows(
+        app: DataSource,
+        tenantA: UUID,
+        tenantB: UUID,
+    ) {
+        insert(app, platformOperator = true, rowTenant = null, packId = "platform-v1")
+        assertThrows(SQLException::class.java) {
+            insert(app, platformOperator = true, rowTenant = null, packId = "platform-v1-again")
+        }
+        // Same pack_type and version in two different tenants, and as a platform row, stays allowed.
+        insert(app, tenant = tenantB, rowTenant = tenantB, packId = "b-second-own-pack-other-version", version = "2.0.0")
+        insert(app, tenant = tenantA, rowTenant = tenantA, packId = "a-v2", version = "2.0.0")
+        // The same tenant and version twice stays refused, as before.
+        assertThrows(SQLException::class.java) {
+            insert(app, tenant = tenantA, rowTenant = tenantA, packId = "a-v2-again", version = "2.0.0")
+        }
+    }
+
+    /** A holder's existing table (old constraint) is repaired by the upgrade migration. */
+    private fun assertUpgradeMigrationFixesAnOldConstraint(owner: DataSource) {
+        owner.connection.use { connection ->
+            connection.createStatement().use { statement ->
+                statement.execute(
+                    PackRegistryMigration.ddl(schema = "rulepack_test", table = "old_pack")
+                        .replace("UNIQUE NULLS NOT DISTINCT", "UNIQUE")
+                        .replace("rulepack_test.old_pack ENABLE", "rulepack_test.old_pack DISABLE"),
+                )
+                val row =
+                    "INSERT INTO rulepack_test.old_pack (id, pack_id, pack_type, version, tenant_id, effective_from, " +
+                        "min_engine_version, manifest, checksums, signature, contents, trusted_anchor) VALUES " +
+                        "(gen_random_uuid(), 'p', 'Scope', '1.0.0', NULL, now(), '1', '{}', '{}', '\\x01', '{}', 'a')"
+                statement.execute(row)
+                statement.execute(row) // old constraint admits the duplicate
+                statement.execute("DELETE FROM rulepack_test.old_pack WHERE ctid = (SELECT max(ctid) FROM rulepack_test.old_pack)")
+                statement.execute(PackRegistryMigration.lineageKeyUpgradeDdl(schema = "rulepack_test", table = "old_pack"))
+                assertThrows(SQLException::class.java) { statement.execute(row) }
+            }
+        }
+    }
+
     private val insertSql =
         """
         INSERT INTO rulepack_test.rule_pack_version
             (id, pack_id, pack_type, version, tenant_id, effective_from, min_engine_version,
              manifest, checksums, signature, contents, trusted_anchor)
-        VALUES (?, ?, 'Scope', '1.0.0', ?, ?, '1.0.0', ?::jsonb, ?::jsonb, ?, ?::jsonb, 'test-anchor')
+        VALUES (?, ?, 'Scope', ?, ?, ?, '1.0.0', ?::jsonb, ?::jsonb, ?, ?::jsonb, 'test-anchor')
         """.trimIndent()
 
     /**
@@ -145,6 +190,7 @@ class PackRegistryMigrationPostgresIT {
         platformOperator: Boolean = false,
         rowTenant: UUID?,
         packId: String,
+        version: String = "1.0.0",
     ) {
         dataSource.connection.use { connection ->
             connection.autoCommit = false
@@ -152,12 +198,13 @@ class PackRegistryMigrationPostgresIT {
             connection.prepareStatement(insertSql).use { ps ->
                 ps.setObject(1, UUID.randomUUID())
                 ps.setString(2, packId)
-                if (rowTenant == null) ps.setNull(3, Types.OTHER) else ps.setObject(3, rowTenant)
-                ps.setObject(4, LocalDate.now())
-                ps.setString(5, "{}")
+                ps.setString(3, version)
+                if (rowTenant == null) ps.setNull(4, Types.OTHER) else ps.setObject(4, rowTenant)
+                ps.setObject(5, LocalDate.now())
                 ps.setString(6, "{}")
-                ps.setBytes(7, byteArrayOf(1, 2, 3))
-                ps.setString(8, "{}")
+                ps.setString(7, "{}")
+                ps.setBytes(8, byteArrayOf(1, 2, 3))
+                ps.setString(9, "{}")
                 ps.executeUpdate()
             }
             connection.commit()

@@ -16,7 +16,7 @@ class PackRegistryMigrationTest {
         assertTrue(ddl.contains("effective_to       date NULL"))
         assertTrue(ddl.contains("manifest           jsonb NOT NULL"))
         assertTrue(ddl.contains("signature          bytea NOT NULL"))
-        assertTrue(ddl.contains("CONSTRAINT rule_pack_version_lineage_key UNIQUE (pack_type, tenant_id, version)"))
+        assertTrue(ddl.contains("CONSTRAINT rule_pack_version_lineage_key UNIQUE NULLS NOT DISTINCT (pack_type, tenant_id, version)"))
         assertTrue(
             ddl.contains(
                 "CREATE INDEX rule_pack_version_resolution_idx ON rules.rule_pack_version " +
@@ -71,5 +71,13 @@ class PackRegistryMigrationTest {
         assertThrows(IllegalArgumentException::class.java) {
             PackRegistryMigration.ddl(schema = "rules", table = "Rule Pack Version")
         }
+    }
+
+    @Test
+    fun `upgrade replaces the lineage constraint with NULLS NOT DISTINCT`() {
+        val ddl = PackRegistryMigration.lineageKeyUpgradeDdl(schema = "rules", table = "rule_pack_version")
+
+        assertTrue(ddl.contains("DROP CONSTRAINT rule_pack_version_lineage_key;"))
+        assertTrue(ddl.contains("UNIQUE NULLS NOT DISTINCT (pack_type, tenant_id, version)"))
     }
 }

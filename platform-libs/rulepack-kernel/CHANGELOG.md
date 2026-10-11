@@ -6,6 +6,15 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-11
+### Fixed
+- The registry lineage key is now `UNIQUE NULLS NOT DISTINCT (pack_type, tenant_id, version)`, so a platform
+  pack version (`tenant_id IS NULL`) cannot be stored twice (INV-Q-2964; INV-T-2996 / FU-A7). Tenant rows are
+  unchanged.
+### Added
+- `PackRegistryMigration.lineageKeyUpgradeDdl`: the forward-only migration for a holder whose table already
+  exists with the old constraint (PostgreSQL 15 or later).
+
 ## [1.1.0] - 2026-10-11
 ### Added
 - The fence participant (INV-REQ-1166, INV-REQ-1009; INV-T-2867 / T23): `FenceParticipant` verifies a

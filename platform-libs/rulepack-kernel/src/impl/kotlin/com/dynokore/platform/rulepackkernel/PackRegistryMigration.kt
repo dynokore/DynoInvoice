@@ -84,6 +84,28 @@ object PackRegistryMigration {
     private val IDENTIFIER = Regex("^[a-z_][a-z0-9_]*$")
 
     /**
+     * The forward-only migration for a holder whose registry table already exists
+     * from the earlier [ddl] (UNIQUE without NULLS NOT DISTINCT, so a platform pack
+     * version, `tenant_id IS NULL`, could be stored twice; INV-Q-2964, INV-T-2996):
+     * replaces the lineage constraint with `UNIQUE NULLS NOT DISTINCT`. Fails if the
+     * table already holds a duplicate platform version, which the holder resolves
+     * first. Requires PostgreSQL 15 or later.
+     */
+    fun lineageKeyUpgradeDdl(
+        schema: String,
+        table: String,
+    ): String {
+        require(IDENTIFIER.matches(schema)) { "schema must be a plain lower-case identifier, was '$schema'" }
+        require(IDENTIFIER.matches(table)) { "table must be a plain lower-case identifier, was '$table'" }
+        val uniqueConstraint = "${table}_lineage_key"
+        return """
+            |ALTER TABLE $schema.$table DROP CONSTRAINT $uniqueConstraint;
+            |ALTER TABLE $schema.$table ADD CONSTRAINT $uniqueConstraint
+            |    UNIQUE NULLS NOT DISTINCT (pack_type, tenant_id, version);
+        """.trimMargin()
+    }
+
+    /**
      * `CREATE TABLE "schema"."table"` plus its uniqueness constraint,
      * resolution index, and the row-level-security trailer that admits both
      * platform-wide (`tenant_id IS NULL`) and tenant-scoped rows, fail-closed
@@ -132,7 +154,7 @@ object PackRegistryMigration {
             |    contents           jsonb NOT NULL,
             |    trusted_anchor     text NOT NULL,
             |    created_at         timestamptz NOT NULL DEFAULT clock_timestamp(),
-            |    CONSTRAINT $uniqueConstraint UNIQUE (pack_type, tenant_id, version)
+            |    CONSTRAINT $uniqueConstraint UNIQUE NULLS NOT DISTINCT (pack_type, tenant_id, version)
             |);
             |CREATE INDEX $index ON $qualified (pack_type, tenant_id, effective_from);
             |ALTER TABLE $qualified ENABLE ROW LEVEL SECURITY;
