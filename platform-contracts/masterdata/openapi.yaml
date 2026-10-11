@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: masterdata API
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     Contract-first source of truth for masterdata (API-01, STK-44). The
     `masterdata-contract` module generates its server interfaces and DTOs
@@ -419,8 +419,8 @@ paths:
         The request names the reviewed dry run in `dryRunId`
         (`dryRunCounterpartyImport`, INV-Q-3442 A, INV-REQ-830 b2); a
         `dryRunId` that is unknown, not SUCCEEDED or for another `fileHash`
-        is refused `422` (type about:blank) and nothing is recorded
-        (INV-Q-3466 A). `dryRunId` is optional in the schema only so that
+        is refused `422` with MDM-009 and nothing is recorded
+        (INV-Q-3466 A, INV-Q-3749). `dryRunId` is optional in the schema only so that
         this change stays additive (API-03).
 
 
@@ -435,7 +435,7 @@ paths:
       x-principal: filing-workflow
       x-sync-edge: console-bff->masterdata-svc
       x-timeout: 2000
-      x-error-codes: [MDM-002, MDM-003, MDM-006]
+      x-error-codes: [MDM-002, MDM-003, MDM-006, MDM-009]
       x-requirements: [INV-REQ-957, INV-REQ-1010, "§35.10", FR-R.12]
       x-operation:
         role: tax.operator
@@ -483,7 +483,26 @@ paths:
                 default:
                   value: { importId: "IMP-30", importKind: "COUNTERPARTIES", state: "RUNNING", startedAt: "2026-03-20T03:15:00Z", actorRef: "IDN-0031", fileHash: "sha256:1a2b3c4d5e6f708192a3b4c5d6e7f809", dryRunId: "CDR-12" }
         '422':
-          $ref: '#/components/responses/Error'
+          description: >-
+            The named dry run is unknown, not SUCCEEDED or for another
+            fileHash (MDM-009, INV-Q-3749); nothing is recorded.
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../service-runtime/schemas/error-envelope.schema.json
+              examples:
+                default:
+                  value:
+                    type: https://errors.invoice.internal/MDM-009
+                    title: Dry run not usable for this import
+                    status: 422
+                    code: MDM-009
+                    severity: BLOCK
+                    disposition: MANUAL
+                    remediationOwner: Finance
+                    errors:
+                      - { code: "MDM-009", field: "/dryRunId", message: "Dry run CDR-12 is for another fileHash" }
+                    correlationId: 3fa85f64-5717-4562-b3fc-2c963f66afa6
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/masterdata/exchange-rates/import:
@@ -919,7 +938,8 @@ components:
           maxLength: 40
           description: >-
             The reviewed counterparty import dry run (INV-Q-3442 A); unknown,
-            not SUCCEEDED or for another fileHash is refused 422. Optional
+            not SUCCEEDED or for another fileHash is refused 422 with MDM-009
+            (INV-Q-3749). Optional
             only to keep the change additive (API-03).
       required: [fileHash, rowCount]
     CounterpartyDryRunRequest:

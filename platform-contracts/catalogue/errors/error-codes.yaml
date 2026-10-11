@@ -1,8 +1,8 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
-# pinned at commit 672ae1a8422ba94caa682e3b02336bd8eb23b78a (2026-10-12), the
-# merge of invoice-docs!10 adding CPL-001..CPL-003 and SRT-011 (INV-T-3762, owner rulings
-# INV-Q-3267 a, INV-Q-3756 B, coordinator ruling INV-Q-3773; previously pinned at
-# 5726dece3a98d101c2df86ec430447fe68ccd56b, INV-T-3742).
+# pinned at commit 197c0e7ec00056a904710f56204fe4fa6281333b (2026-10-12), the head
+# of invoice-docs!11 adding MDM-009 (INV-T-3751, coordinator ruling INV-Q-3749; to be
+# re-pinned to its merge commit; previously pinned at
+# 672ae1a8422ba94caa682e3b02336bd8eb23b78a, INV-T-3762).
 #
 # This copy is the generator's (catalogue/generator/) sole input for the
 # gst-catalogue ErrorCode catalogue (STK-61, CS-13). It is never hand-edited:
@@ -154,6 +154,12 @@ error_codes:
   severity: INFO
   disposition: AUTO_RETRY
   owner: Platform
+- code: MDM-009
+  condition: 'Counterparty import names a dry run that is unknown, not SUCCEEDED or for another fileHash (HTTP 422, nothing
+    recorded; INV-Q-3749, INV-REQ-830 b2)'
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Finance
 - code: RUL-001
   condition: Internal tax code has no mapping in the active pack
   severity: BLOCK
