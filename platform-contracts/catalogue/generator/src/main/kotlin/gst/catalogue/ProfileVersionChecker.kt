@@ -4,8 +4,7 @@ package gst.catalogue
  * INV-Q-3283 A′: a profile's version is a positive whole number that never decreases and
  * is never reused for different values. "Values" is the structured value set (variation
  * point, option keys, typed values, alternatives, conditions, required-at-apply marks), not
- * the status, title or the values' prose, nor a newly added condition_fact
- * ([ParsedProfileValue.sameValueAs]). Compared with
+ * the status, title or the values' prose ([ParsedProfileValue.comparable]). Compared with
  * the previous vendored snapshot (previous-snapshot.yaml); the first snapshot has none, so
  * the check starts with the second. [differences] is the per-profile difference INV-REQ-1245
  * b4 shows when an update is offered. Pure (no I/O).
@@ -42,7 +41,7 @@ object ProfileVersionChecker {
             when {
                 old == null -> ProfileValueChange(vp, ProfileChangeKind.ADDED, null, new)
                 new == null -> ProfileValueChange(vp, ProfileChangeKind.REMOVED, old, null)
-                !old.sameValueAs(new) -> ProfileValueChange(vp, ProfileChangeKind.CHANGED, old, new)
+                old.comparable() != new.comparable() -> ProfileValueChange(vp, ProfileChangeKind.CHANGED, old, new)
                 else -> null
             }
         }

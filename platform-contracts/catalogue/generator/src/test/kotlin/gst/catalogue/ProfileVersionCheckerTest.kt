@@ -37,22 +37,6 @@ class ProfileVersionCheckerTest {
     }
 
     @Test
-    fun `INV-Q-3692 a newly added condition_fact is no change, but changing or removing one needs a higher version`() {
-        val dir = ConditionFact("VP-1.DIR", ConstraintFact(ScopeLevel.TENANT, "directory"))
-        val other = ConditionFact("VP-1.DIR", ConstraintFact(ScopeLevel.ENTITY, "directory"))
-        val plain = v("VP-1", "A").copy(condition = "where one exists")
-        fun check(
-            before: ParsedProfileValue,
-            after: ParsedProfileValue,
-            version: Int = 1,
-        ) = ProfileVersionChecker.check(listOf(profile(1, before)), listOf(profile(version, after)))
-        assertTrue(check(plain, plain.copy(conditionFact = dir)).isEmpty())
-        assertTrue(check(plain.copy(conditionFact = dir), plain.copy(conditionFact = other)).single().contains("without a higher version"))
-        assertTrue(check(plain.copy(conditionFact = dir), plain).single().contains("without a higher version"))
-        assertTrue(check(plain.copy(conditionFact = dir), plain.copy(conditionFact = other), version = 2).isEmpty())
-    }
-
-    @Test
     fun `a removed profile fails`() {
         assertTrue(ProfileVersionChecker.check(listOf(profile(1)), emptyList()).single().contains("absent"))
     }
