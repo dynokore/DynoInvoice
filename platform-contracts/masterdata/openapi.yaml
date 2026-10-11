@@ -466,6 +466,7 @@ paths:
               description: '`/internal/v1/masterdata/imports/{importId}` (API-17).'
             Retry-After:
               schema: { type: integer }
+              description: Seconds to wait before polling the status resource (API-17).
           content:
             application/json:
               schema:
@@ -538,6 +539,7 @@ paths:
               description: '`/internal/v1/masterdata/imports/{importId}` (API-17).'
             Retry-After:
               schema: { type: integer }
+              description: Seconds to wait before polling the status resource (API-17).
           content:
             application/json:
               schema:
@@ -674,6 +676,7 @@ paths:
               description: '`/internal/v1/masterdata/counterparties/import/dry-runs/{dryRunId}` (API-17).'
             Retry-After:
               schema: { type: integer }
+              description: Seconds to wait before polling the status resource (API-17).
           content:
             application/json:
               schema:

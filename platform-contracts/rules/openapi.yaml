@@ -725,7 +725,7 @@ paths:
         scope: tenant
         precondition: "The pack has a draft or published delta; a historical sample is available (FR-B.3)."
         reversibility: UNDOABLE
-        repeatKey: "None — read-only, writes nothing to canonical or submission state (FR-B.3)."
+        repeatKey: "Idempotency-Key — read-only, writes nothing to canonical or submission state (FR-B.3); a repeat with the same key replays the stored result or 202 (API-15)."
       parameters:
         - name: packRef
           in: path
@@ -760,6 +760,7 @@ paths:
               description: '`/internal/v1/rules/packs/{packRef}/dry-runs/{dryRunId}` (API-17).'
             Retry-After:
               schema: { type: integer }
+              description: Seconds to wait before polling the status resource (API-17).
           content:
             application/json:
               schema:
@@ -1063,10 +1064,7 @@ components:
           type: string
           maxLength: 40
         state:
-          type: string
-          enum: [RUNNING, SUCCEEDED, FAILED]
-          x-extensible-enum: true
-          description: API-17's operation-resource state vocabulary.
+          $ref: '#/components/schemas/OperationState'
         startedAt:
           type: string
           format: date-time
@@ -1079,6 +1077,11 @@ components:
         error:
           $ref: '#/components/schemas/ErrorEnvelope'
       required: [dryRunId, packRef, state, startedAt]
+    OperationState:
+      type: string
+      enum: [RUNNING, SUCCEEDED, FAILED]
+      x-extensible-enum: true
+      description: API-17's operation-resource state vocabulary.
     ErrorEnvelope:
       description: The API-20 error envelope, carried in a status resource's `error` when its state is FAILED (API-17).
       $ref: '../service-runtime/schemas/error-envelope.schema.json'

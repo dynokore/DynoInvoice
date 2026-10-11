@@ -597,12 +597,23 @@ paths:
         that is not returns `202` with `Location` and `Retry-After` pointing
         at its own status resource, `getPartitionDeletion`
         (`/internal/v1/evidence/partitions/{partitionId}/deletion`), and the
-        `DeletionStatus` body with state RUNNING. A repeat with the same
-        Idempotency-Key replays the stored `202` (API-15); a new key while
-        the deletion is in progress returns `409`; after DELETED a repeat
-        still fails loudly (INV-REQ-1011, INV-AC-666). The Idempotency-Key
-        header is declared optional only so that this change stays additive
-        (API-03); console-bff always sends it.
+        `DeletionStatus` body with state RUNNING.
+
+
+        The server is single-flight on the natural key `partitionId`
+        (INV-Q-3551), with or without an Idempotency-Key: while a deletion of
+        the partition is RUNNING, a call with a new key or with no key
+        returns `409` and starts nothing; once the partition is DELETED, any
+        repeat, keyed or keyless, fails loudly with the same explicit error
+        and deletes nothing (INV-REQ-1011, INV-AC-666); no call ever starts a
+        second deletion of a partition. The key only adds API-15's replay: a
+        repeat with the same key replays the stored `202`. Departure from
+        API-15: a keyless call never gets API-15's missing-key `400`,
+        because the 1.0.0 contract declared no Idempotency-Key and requiring
+        one now would break existing callers (API-03); API-15 already keys
+        some operations on a natural key (sourceKey + sourceRevision,
+        batchId, the AP notification ID). console-bff still always sends a
+        key.
       tags: [retention]
       x-principal: filing-workflow
       x-sync-edge: console-bff->evidence-svc
@@ -628,7 +639,7 @@ paths:
         - name: Idempotency-Key
           in: header
           required: false
-          description: 'API-15: a UUID; a repeat with the same key replays the stored 202 (INV-Q-3438). Optional only to keep the change additive (API-03).'
+          description: 'API-15: a UUID; a repeat with the same key replays the stored 202 (INV-Q-3438). Optional because requiring it would break 1.0.0 callers (API-03); without it the server stays single-flight on partitionId (409 while RUNNING, loud failure after DELETED) and never returns 400 (INV-Q-3551).'
           schema:
             type: string
             format: uuid
@@ -655,6 +666,7 @@ paths:
               description: '`/internal/v1/evidence/partitions/{partitionId}/deletion` (API-17).'
             Retry-After:
               schema: { type: integer }
+              description: Seconds to wait before polling the status resource (API-17).
           content:
             application/json:
               schema:
@@ -1088,10 +1100,7 @@ components:
         partitionId:
           type: string
         state:
-          type: string
-          enum: [RUNNING, SUCCEEDED, FAILED]
-          x-extensible-enum: true
-          description: API-17's operation-resource state vocabulary.
+          $ref: '#/components/schemas/OperationState'
         startedAt:
           type: string
           format: date-time
@@ -1104,6 +1113,11 @@ components:
         error:
           $ref: '#/components/schemas/ErrorEnvelope'
       required: [partitionId, state, startedAt]
+    OperationState:
+      type: string
+      enum: [RUNNING, SUCCEEDED, FAILED]
+      x-extensible-enum: true
+      description: API-17's operation-resource state vocabulary.
     ErrorEnvelope:
       description: The API-20 error envelope, carried in a status resource's `error` when its state is FAILED (API-17).
       $ref: '../service-runtime/schemas/error-envelope.schema.json'
