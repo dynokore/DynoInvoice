@@ -241,5 +241,6 @@ bom-verify:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   script:
     - ci/bom-version.sh
-    - . build/bom.env
-    - echo "gst-ci: on main this change would ${BOM_ACTION} platform-libs-bom ${BOM_VERSION}"
+    - |
+      . build/bom.env
+      echo "gst-ci: on main this change would ${BOM_ACTION} platform-libs-bom ${BOM_VERSION}"
