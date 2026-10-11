@@ -53,7 +53,8 @@
             "GROUP",
             "ENTITY",
             "BUSINESS_UNIT"
-          ]
+          ],
+          "x-extensible-enum": true
         },
         "parentRef": {
           "type": "string",
