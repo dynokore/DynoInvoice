@@ -1,7 +1,8 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
-# pinned at commit d6026e5f13c0e12048d27d054d0287941f901de9 (2026-10-11), the
-# merge of invoice-docs!7 adding EVL-001..EVL-004 (INV-T-3634, owner ruling
-# INV-Q-3667; previously pinned at 6c367e5c6f7c05bc9bac7c256b82ddf91450e9f0, INV-T-3457).
+# pinned at commit a0502bd2edf8ff70c72b99f095b1cb424ed1420e (2026-10-12), the
+# head of invoice-docs branch t/inv-t-3742 (invoice-docs!8) adding SRT-001..SRT-010
+# (INV-T-3742, owner ruling INV-Q-3720; re-pinned to its merge commit once it merges;
+# previously pinned at d6026e5f13c0e12048d27d054d0287941f901de9, INV-T-3634).
 #
 # This copy is the generator's (catalogue/generator/) sole input for the
 # gst-catalogue ErrorCode catalogue (STK-61, CS-13). It is never hand-edited:
@@ -564,6 +565,62 @@ error_codes:
 - code: EVL-004
   condition: 'A replay for the (consumer, producer) pair is pending with another mode or scope; the same mode and scope returns
     the pending replay instead (HTTP 409; INV-Q-3665, INV-Q-3667, INV-API-3656)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: SRT-001
+  condition: 'Request does not match the contract: shape, type or a missing required field (ContractViolation, ARC-19; HTTP
+    400; INV-Q-3720, INV-REQ-827 b3)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: SRT-002
+  condition: Idempotency-Key missing or malformed on an operation that requires it (API-15; HTTP 400; INV-Q-3720, INV-REQ-827
+    b3)
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: SRT-003
+  condition: 'Not authenticated: no token, or an invalid one (HTTP 401; INV-Q-3720, INV-REQ-827 b3)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: SRT-004
+  condition: 'Access denied: authenticated, but outside the caller''s role or scope (AccessDenied, ARC-19, API-24; HTTP 403;
+    INV-Q-3720, INV-REQ-827 b3)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: SRT-005
+  condition: No such resource or operation, or one outside the caller's scope (API-24; HTTP 404; INV-Q-3720, INV-REQ-827 b3)
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: SRT-006
+  condition: Method not allowed on the resource (HTTP 405; INV-Q-3720, INV-REQ-827 b3)
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: SRT-007
+  condition: A request with this Idempotency-Key is in flight; retry once it completes (IdempotencyConflict, ARC-19, API-15;
+    HTTP 409; INV-Q-3720, INV-REQ-827 b3)
+  severity: BLOCK
+  disposition: AUTO_RETRY
+  owner: Platform
+- code: SRT-008
+  condition: 'Stale aggregate version: the aggregate changed since it was read; retry on the current version (StaleAggregate,
+    ARC-19; HTTP 409; INV-Q-3720, INV-REQ-827 b3)'
+  severity: BLOCK
+  disposition: AUTO_RETRY
+  owner: Platform
+- code: SRT-009
+  condition: 'Idempotency-Key reused with a different request: the method, path or body fingerprint differs from the original
+    (IdempotencyConflict, ARC-19, API-15; HTTP 422; INV-Q-3720, INV-REQ-827 b3)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: SRT-010
+  condition: Internal error, with no detail in the response (ARC-19, API-22; HTTP 500; INV-Q-3720, INV-REQ-827 b3)
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform

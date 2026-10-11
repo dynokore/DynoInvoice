@@ -529,9 +529,10 @@ paths:
         tenant's data region is elected here, in the required dataRegion, the key of an entry
         on control-plane-svc's region list (seeded with Singapore; INV-Q-3055, INV-Q-2322),
         with no default. It is fixed afterwards except through migration (UC-35); no operation
-        changes it. A request without dataRegion fails validation with 400, and one naming a
-        region not on the list is refused with 400 (API-20 envelope, errors[] with field
-        /dataRegion, no catalogue code); in both cases no provisioning request or tenant is
+        changes it. A request without dataRegion fails validation with 400 and SRT-001, a closed
+        service-runtime case (ARC-19, owner ruling INV-Q-3720), and one naming a region not on
+        the list is refused with 400 (API-20 envelope, errors[] with field /dataRegion, no
+        catalogue code, INV-Q-3590); in both cases no provisioning request or tenant is
         recorded (INV-AC-2293). The 201 and getTenantProvisioningRequest echo the elected
         dataRegion.
       tags:

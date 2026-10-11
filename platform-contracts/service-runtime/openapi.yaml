@@ -39,10 +39,12 @@ paths:
         run-now in the window returns the first while it is in progress or has succeeded; after a FAILED
         run a new attempt is allowed and recorded as a new attempt (INV-Q-3034). Run-now and scheduled
         runs are keyed apart by trigger; a run-now never suppresses the next scheduled run (INV-Q-3039).
-        Closed service-runtime cases stay code-less with type about:blank (ARC-19): 400 contract
-        violation (e.g. a missing Idempotency-Key), 403 AccessDenied for an entityRef outside the token's
-        entity set (API-24), 409 request in flight, 422 Idempotency-Key reused with a different body
-        (API-15).
+        Closed service-runtime cases carry their SRT catalogue code, mapped once in ProblemMapper
+        and not listed in x-error-codes (ARC-19, INV-REQ-827 b3, owner ruling INV-Q-3720): SRT-001
+        400 contract violation, SRT-002 400 a missing or malformed Idempotency-Key, SRT-003 401
+        without a valid end-user token, SRT-004 403 AccessDenied for an entityRef outside the
+        token's entity set (API-24), SRT-007 409 request in flight, SRT-009 422 Idempotency-Key
+        reused with a different body (API-15), SRT-010 500.
       tags:
       - jobs
       x-principal: filing-workflow
@@ -142,12 +144,15 @@ paths:
         (INV-REQ-1138 b2-b3, INV-Q-2985, INV-API-3023, INV-NOTE-7 SCR-23.3). A deadline-critical job cannot
         be paused beyond the entity's nearest due date minus its VP-18 margin (JOB-003, INV-AC-1149); the
         bound is re-checked at every firing (INV-Q-2946). Writes an AuditEntryRecorded with actor, scope,
-        reason and prior state in its transaction (INV-REQ-2588). A (job, entity) has at most one active
-        pause: the same until has no second effect; a different until replaces the active pause's end time,
-        earlier or later, under the same deadline bound, audited with the prior until (INV-Q-3037). Closed
-        service-runtime cases stay code-less with type about:blank (ARC-19): 400 contract violation (e.g. a
-        missing until or Idempotency-Key), 403 AccessDenied for an entityRef outside the token's entity set
-        (API-24), 409 request in flight, 422 Idempotency-Key reused with a different body (API-15).
+        reason and prior state in its transaction (INV-REQ-2588). A (job, entity) has at most one
+        active pause: the same until has no second effect; a different until replaces the active
+        pause's end time, earlier or later, under the same deadline bound, audited with the prior
+        until (INV-Q-3037). Closed service-runtime cases carry their SRT catalogue code, mapped once
+        in ProblemMapper and not listed in x-error-codes (ARC-19, INV-REQ-827 b3, owner ruling
+        INV-Q-3720): SRT-001 400 contract violation (e.g. a missing until), SRT-002 400 a missing or
+        malformed Idempotency-Key, SRT-003 401 without a valid end-user token, SRT-004 403
+        AccessDenied for an entityRef outside the token's entity set (API-24), SRT-007 409 request
+        in flight, SRT-009 422 Idempotency-Key reused with a different body (API-15), SRT-010 500.
       tags:
       - jobs
       x-principal: filing-workflow
@@ -226,10 +231,13 @@ paths:
         Ends the active pause for one entity's share or, absent an entity, job-wide (INV-REQ-1138 b2,
         INV-Q-2985, INV-API-3023, INV-NOTE-7 SCR-23.3). Writes an AuditEntryRecorded with actor, scope,
         reason and prior state in its transaction (INV-REQ-2588). A resume of a (job, entity) that is not
-        paused returns its current state and has no effect. Closed service-runtime cases stay code-less with
-        type about:blank (ARC-19): 400 contract violation, 403 AccessDenied for an entityRef outside the
-        token's entity set (API-24), 409 request in flight, 422 Idempotency-Key reused with a different
-        body (API-15).
+        paused returns its current state and has no effect. Closed service-runtime cases carry their
+        SRT catalogue code, mapped once in ProblemMapper and not listed in x-error-codes (ARC-19,
+        INV-REQ-827 b3, owner ruling INV-Q-3720): SRT-001 400 contract violation, SRT-002 400 a
+        missing or malformed Idempotency-Key, SRT-003 401 without a valid end-user token, SRT-004
+        403 AccessDenied for an entityRef outside the token's entity set (API-24), SRT-007 409
+        request in flight, SRT-009 422 Idempotency-Key reused with a different body (API-15),
+        SRT-010 500.
       tags:
       - jobs
       x-principal: filing-workflow
@@ -315,10 +323,13 @@ paths:
         pair is pending, a call with the same mode and scope returns 200 with the pending replay (same
         replayId, repeat true) and writes nothing; another mode or scope is EVL-004; after the marker is
         applied a new call starts a new replay (owner ruling INV-Q-3665 A); Idempotency-Key per API-15 on
-        top. Closed service-runtime cases stay code-less with type about:blank (ARC-19): 400 contract
-        violation (a missing Idempotency-Key, a malformed mode or scope, a scope with FULL_SYNC or none with
-        SCOPE), 403 AccessDenied for a tenantId or entityRef outside the token's entity set (API-24), 409
-        request in flight, 422 Idempotency-Key reused with a different body (API-15).
+        top. Closed service-runtime cases carry their SRT catalogue code, mapped once in
+        ProblemMapper and not listed in x-error-codes (ARC-19, INV-REQ-827 b3, owner ruling
+        INV-Q-3720): SRT-001 400 contract violation (a malformed mode or scope, a scope with
+        FULL_SYNC or none with SCOPE), SRT-002 400 a missing or malformed Idempotency-Key, SRT-003
+        401 without a valid end-user token, SRT-004 403 AccessDenied for a tenantId or entityRef
+        outside the token's entity set (API-24), SRT-007 409 request in flight, SRT-009 422
+        Idempotency-Key reused with a different body (API-15), SRT-010 500.
       tags:
       - event-consumers
       x-principal: filing-workflow
