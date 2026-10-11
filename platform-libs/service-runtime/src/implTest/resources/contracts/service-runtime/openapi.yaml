@@ -1,9 +1,7 @@
-# Pinned copy of platform-contracts service-runtime/openapi.yaml at ea5b62a (INV-T-2875 tests validate the job operations
-# against it). Regenerate by copying the file, never hand-edit.
 openapi: 3.1.0
 info:
   title: service-runtime shared contract components
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     Not a service: the shared OpenAPI components every other directory's
     openapi.yaml references by relative $ref (error envelope, API-20) rather
@@ -19,9 +17,14 @@ info:
     jobs, they are known at runtime from JobRegistered (INV-Q-2981). Fields
     as ruled in INV-Q-3425 A. x-timeout 2000 with no client retry: these are
     commands (INV-NOTE-3 §36.6 console-bff -> any, INV-REQ-1232 b1).
+    rebuildConsumer (INV-T-3634, owner ruling INV-Q-3599 A, INV-API-3656) is
+    declared the same way and served by service-runtime in every service that
+    consumes event-log topics.
 tags:
 - name: jobs
   description: Scheduled-job controls of the shared runtime contract (INV-REQ-1138).
+- name: event-consumers
+  description: Recovery of an event-log consumer in 'rebuild required' (INV-REQ-1205 b4, b6).
 paths:
   /internal/v1/jobs/{job}/run:
     post:
@@ -36,10 +39,12 @@ paths:
         run-now in the window returns the first while it is in progress or has succeeded; after a FAILED
         run a new attempt is allowed and recorded as a new attempt (INV-Q-3034). Run-now and scheduled
         runs are keyed apart by trigger; a run-now never suppresses the next scheduled run (INV-Q-3039).
-        Closed service-runtime cases stay code-less with type about:blank (ARC-19): 400 contract
-        violation (e.g. a missing Idempotency-Key), 403 AccessDenied for an entityRef outside the token's
-        entity set (API-24), 409 request in flight, 422 Idempotency-Key reused with a different body
-        (API-15).
+        Closed service-runtime cases carry their SRT catalogue code, mapped once in ProblemMapper
+        and not listed in x-error-codes (ARC-19, INV-REQ-827 b3, owner ruling INV-Q-3720): SRT-001
+        400 contract violation, SRT-002 400 a missing or malformed Idempotency-Key, SRT-003 401
+        without a valid end-user token, SRT-004 403 AccessDenied for an entityRef outside the
+        token's entity set (API-24), SRT-007 409 request in flight, SRT-009 422 Idempotency-Key
+        reused with a different body (API-15), SRT-010 500.
       tags:
       - jobs
       x-principal: filing-workflow
@@ -139,12 +144,15 @@ paths:
         (INV-REQ-1138 b2-b3, INV-Q-2985, INV-API-3023, INV-NOTE-7 SCR-23.3). A deadline-critical job cannot
         be paused beyond the entity's nearest due date minus its VP-18 margin (JOB-003, INV-AC-1149); the
         bound is re-checked at every firing (INV-Q-2946). Writes an AuditEntryRecorded with actor, scope,
-        reason and prior state in its transaction (INV-REQ-2588). A (job, entity) has at most one active
-        pause: the same until has no second effect; a different until replaces the active pause's end time,
-        earlier or later, under the same deadline bound, audited with the prior until (INV-Q-3037). Closed
-        service-runtime cases stay code-less with type about:blank (ARC-19): 400 contract violation (e.g. a
-        missing until or Idempotency-Key), 403 AccessDenied for an entityRef outside the token's entity set
-        (API-24), 409 request in flight, 422 Idempotency-Key reused with a different body (API-15).
+        reason and prior state in its transaction (INV-REQ-2588). A (job, entity) has at most one
+        active pause: the same until has no second effect; a different until replaces the active
+        pause's end time, earlier or later, under the same deadline bound, audited with the prior
+        until (INV-Q-3037). Closed service-runtime cases carry their SRT catalogue code, mapped once
+        in ProblemMapper and not listed in x-error-codes (ARC-19, INV-REQ-827 b3, owner ruling
+        INV-Q-3720): SRT-001 400 contract violation (e.g. a missing until), SRT-002 400 a missing or
+        malformed Idempotency-Key, SRT-003 401 without a valid end-user token, SRT-004 403
+        AccessDenied for an entityRef outside the token's entity set (API-24), SRT-007 409 request
+        in flight, SRT-009 422 Idempotency-Key reused with a different body (API-15), SRT-010 500.
       tags:
       - jobs
       x-principal: filing-workflow
@@ -223,10 +231,13 @@ paths:
         Ends the active pause for one entity's share or, absent an entity, job-wide (INV-REQ-1138 b2,
         INV-Q-2985, INV-API-3023, INV-NOTE-7 SCR-23.3). Writes an AuditEntryRecorded with actor, scope,
         reason and prior state in its transaction (INV-REQ-2588). A resume of a (job, entity) that is not
-        paused returns its current state and has no effect. Closed service-runtime cases stay code-less with
-        type about:blank (ARC-19): 400 contract violation, 403 AccessDenied for an entityRef outside the
-        token's entity set (API-24), 409 request in flight, 422 Idempotency-Key reused with a different
-        body (API-15).
+        paused returns its current state and has no effect. Closed service-runtime cases carry their
+        SRT catalogue code, mapped once in ProblemMapper and not listed in x-error-codes (ARC-19,
+        INV-REQ-827 b3, owner ruling INV-Q-3720): SRT-001 400 contract violation, SRT-002 400 a
+        missing or malformed Idempotency-Key, SRT-003 401 without a valid end-user token, SRT-004
+        403 AccessDenied for an entityRef outside the token's entity set (API-24), SRT-007 409
+        request in flight, SRT-009 422 Idempotency-Key reused with a different body (API-15),
+        SRT-010 500.
       tags:
       - jobs
       x-principal: filing-workflow
@@ -274,6 +285,140 @@ paths:
                     job: scheduled-despatch
                     entityRef: E-001
                     state: ACTIVE
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "409":
+          $ref: '#/components/responses/Error'
+        "422":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/event-consumers/rebuilds:
+    post:
+      operationId: rebuildConsumer
+      summary: Recover a topic this service's consumer holds in 'rebuild required' by replay by scope or full sync
+      description: >-
+        Recovers a topic that this service's event-log consumer holds in 'rebuild required' (INV-REQ-1205
+        b6) by a replay by scope or a full sync from the topic's producer (INV-REQ-1205 b4, owner ruling
+        INV-Q-3599 A, INV-API-3656). In one transaction it moves the consumer's position to the head (replay
+        by scope: that topic; full sync: every topic of that producer it subscribes to, after clearing the
+        read model built from them and deleting its held docsequence rows for that producer, keeping its
+        inbox rows, INV-Q-3603), writes a ReplayRequested event to the consumer's own outbox, and writes an
+        AuditEntryRecorded (INV-REQ-2588 b9, coordinator ruling INV-Q-3663): actor; action rebuildConsumer;
+        scope = consumer service, topic, producer, mode and replay scope; reason = the caller's text,
+        otherwise the Idempotency-Key; prior state = the consumer's positions on the moved topics before the
+        move and, for a full sync, the producer whose read model and docsequence rows were cleared; a
+        tenantless platform event under the platform TenantId (INV-REQ-1226 b7). Either all of it commits or
+        none (INV-AC-3657). It answers with the replay id once that transaction has committed; the replay
+        runs after the response, and the incident closes when the consumer applies the producer's
+        ReplayCompleted marker (INV-Q-3644, INV-AC-3658; on an 'every service' topic, a marker from each
+        source seen, INV-Q-3669). The addressee producer is the topic's producer in event-log/topics.yaml, a
+        service or 'every service' (INV-Q-3625). Repeat key (consumer, producer): while a replay for the
+        pair is pending, a call with the same mode and scope returns 200 with the pending replay (same
+        replayId, repeat true) and writes nothing; another mode or scope is EVL-004; after the marker is
+        applied a new call starts a new replay (owner ruling INV-Q-3665 A); Idempotency-Key per API-15 on
+        top. Closed service-runtime cases carry their SRT catalogue code, mapped once in
+        ProblemMapper and not listed in x-error-codes (ARC-19, INV-REQ-827 b3, owner ruling
+        INV-Q-3720): SRT-001 400 contract violation (a malformed mode or scope, a scope with
+        FULL_SYNC or none with SCOPE), SRT-002 400 a missing or malformed Idempotency-Key, SRT-003
+        401 without a valid end-user token, SRT-004 403 AccessDenied for a tenantId or entityRef
+        outside the token's entity set (API-24), SRT-007 409 request in flight, SRT-009 422
+        Idempotency-Key reused with a different body (API-15), SRT-010 500.
+      tags:
+      - event-consumers
+      x-principal: filing-workflow
+      x-sync-edge: "console-bff->*"
+      x-timeout: 2000
+      x-requirements:
+      - INV-REQ-1205
+      - INV-REQ-1226
+      - INV-REQ-2588
+      - INV-AC-3657
+      - INV-AC-3658
+      x-error-codes:
+      - EVL-001
+      - EVL-002
+      - EVL-003
+      - EVL-004
+      x-operation:
+        role: only the form's platform operator role, platform.engineer (SaaS) or deployment.operator (private),
+          for every mode and scope (INV-REQ-888, coordinator ruling INV-Q-3663); any other role EVL-002. Roles
+          re-checked against the authority replica, never taken from the caller (CS-23)
+        scope: (consumer service, topic); a full sync covers every topic of the topic's producer the consumer
+          subscribes to (INV-Q-3603)
+        precondition: The topic is one this service consumes (EVL-001); the caller holds the platform operator
+          role (EVL-002); the consumer holds the topic in 'rebuild required' (EVL-003); no replay for the
+          (consumer, producer) pair is pending with another mode or scope (EVL-004)
+        repeatKey: (consumer, producer); while a replay for the pair is pending, the same mode and scope
+          returns the pending replay (200, repeat true) and writes nothing, another mode or scope is EVL-004;
+          after its ReplayCompleted is applied a new call starts a new replay (owner ruling INV-Q-3665 A);
+          Idempotency-Key (API-15) on top
+        reversibility: IRREVERSIBLE
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RebuildConsumerRequest'
+            examples:
+              default:
+                value:
+                  topic: gst.canonical.canonical-version-created.v1
+                  mode: SCOPE
+                  scope:
+                    kind: ENTITY
+                    tenantId: T-001
+                    entityRef: E-001
+                  reason: Consumer fell behind the purge watermark
+      responses:
+        "202":
+          description: The head move, the ReplayRequested and the audit entry have committed; the replay runs
+            after the response and the incident closes when ReplayCompleted is applied (INV-Q-3599 A)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplayState'
+              examples:
+                default:
+                  value:
+                    replayId: 3f0c2a4e-8d0b-4c1e-9a57-2b6f1e0d7c11
+                    topic: gst.canonical.canonical-version-created.v1
+                    producer: canonical-svc
+                    mode: SCOPE
+                    scope:
+                      kind: ENTITY
+                      tenantId: T-001
+                      entityRef: E-001
+                    requestedAt: "2026-10-11T09:12:03Z"
+                    repeat: false
+        "200":
+          description: A replay for the (consumer, producer) pair is pending with the same mode and scope; the
+            pending replay is returned and nothing is written (owner ruling INV-Q-3665 A)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplayState'
+              examples:
+                default:
+                  value:
+                    replayId: 3f0c2a4e-8d0b-4c1e-9a57-2b6f1e0d7c11
+                    topic: gst.canonical.canonical-version-created.v1
+                    producer: canonical-svc
+                    mode: SCOPE
+                    scope:
+                      kind: ENTITY
+                      tenantId: T-001
+                      entityRef: E-001
+                    requestedAt: "2026-10-11T09:12:03Z"
+                    repeat: true
         "400":
           $ref: '#/components/responses/Error'
         "401":
@@ -433,6 +578,129 @@ components:
           type: string
           format: date-time
           description: Only when this call replaced an active pause's end time (INV-Q-3037).
+    RebuildConsumerRequest:
+      type: object
+      description: rebuildConsumer request (INV-API-3656). The actor comes from the propagated token, never a
+        field (CS-23).
+      required:
+      - topic
+      - mode
+      properties:
+        topic:
+          type: string
+          maxLength: 128
+          description: The gst.* event topic this service's consumer holds in 'rebuild required' (INV-REQ-1205
+            b6); not one it consumes is EVL-001.
+        mode:
+          $ref: '#/components/schemas/ReplayMode'
+        scope:
+          $ref: '#/components/schemas/ReplayScope'
+        reason:
+          type: string
+          maxLength: 500
+          description: Optional free text recorded as the audit entry's reason; absent, the reason is the
+            Idempotency-Key (INV-REQ-2588 b5, INV-Q-3663).
+    ReplayMode:
+      type: string
+      enum:
+      - SCOPE
+      - FULL_SYNC
+      x-extensible-enum: true
+      description: SCOPE for a replay by scope (scope required), FULL_SYNC for a full sync (no scope)
+        (INV-REQ-1205 b4); extensible (API-09).
+    ReplayScope:
+      type: object
+      description: The scope of a replay by scope, present only with mode SCOPE; a tagged union on kind (owner
+        ruling INV-Q-3671), the same shape as ReplayRequested.scope (schemas/replay-requested-payload.schema.json)
+        - TENANT {tenantId}; ENTITY {tenantId, entityRef}; PERIOD {from, to, tenantId?}, a half-open range
+        [from, to) on the time the producer's state was last changed, across all tenants unless narrowed by
+        tenantId. A tenantId or entityRef outside the token's entity set is 403 (API-24).
+      required:
+      - kind
+      properties:
+        kind:
+          type: string
+          enum:
+          - TENANT
+          - ENTITY
+          - PERIOD
+          x-extensible-enum: true
+          description: Which scope shape this is (INV-Q-3671); extensible (API-09).
+        tenantId:
+          type: string
+          maxLength: 40
+          description: Required for TENANT and ENTITY; optional for PERIOD, narrowing it to one tenant.
+        entityRef:
+          type: string
+          maxLength: 40
+          description: Required for ENTITY.
+        from:
+          type: string
+          format: date-time
+          description: PERIOD only, required there; inclusive start.
+        to:
+          type: string
+          format: date-time
+          description: PERIOD only, required there; exclusive end, later than from.
+      allOf:
+      - if:
+          properties:
+            kind:
+              const: TENANT
+        then:
+          required:
+          - tenantId
+      - if:
+          properties:
+            kind:
+              const: ENTITY
+        then:
+          required:
+          - tenantId
+          - entityRef
+      - if:
+          properties:
+            kind:
+              const: PERIOD
+        then:
+          required:
+          - from
+          - to
+    ReplayState:
+      type: object
+      description: The replay a rebuildConsumer started or, on a repeat, the pending one (INV-API-3656,
+        INV-Q-3665).
+      required:
+      - replayId
+      - topic
+      - producer
+      - mode
+      - requestedAt
+      - repeat
+      properties:
+        replayId:
+          type: string
+          format: uuid
+          description: The ReplayRequested's replayId, echoed by the ReplayCompleted that closes the incident.
+        topic:
+          type: string
+          maxLength: 128
+          description: The topic the call named.
+        producer:
+          type: string
+          description: The addressee, the topic's producer in event-log/topics.yaml, a service or 'every
+            service' (INV-Q-3625).
+        mode:
+          $ref: '#/components/schemas/ReplayMode'
+        scope:
+          $ref: '#/components/schemas/ReplayScope'
+        requestedAt:
+          type: string
+          format: date-time
+          description: When the request committed.
+        repeat:
+          type: boolean
+          description: True when a pending replay with the same mode and scope is returned (INV-Q-3665).
   responses:
     Error:
       description: Error (API-20 envelope)

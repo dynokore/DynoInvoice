@@ -75,6 +75,14 @@ object IdempotencySchema {
 }
 
 /**
+ * Writes the request's API-15 record in the caller's open transaction, the command's own; the record then commits
+ * or rolls back with the command's effect. Called at most once, inside the transaction.
+ */
+fun interface IdempotencyRecorder {
+    fun record(response: StoredResponse)
+}
+
+/**
  * The API-15 Idempotency-Key store of the internal operations service-runtime serves (INV-API-3023, INV-API-3025).
  * The key is stored per principal with a fingerprint of the method, path and body, for at least [retention]
  * (24 hours by default, API-15's minimum): a replay with the same fingerprint returns the original status and
@@ -82,11 +90,10 @@ object IdempotencySchema {
  * the original is still running is [IdempotencyOutcome.InFlight] (409).
  *
  * In flight is a PostgreSQL session advisory lock on (tenant, principal, key), held on its own connection of [app]
- * while the request runs, so a crashed instance releases it with its connection. The stored response is written
- * in its own transaction after the operation: the job commands open their own transactions per target tenant
- * (INV-T-2874's `JobRuntime`), so the record cannot share them. A crash between the operation and that write
- * leaves no record, and the retried key runs the command again, which its own repeat key keeps free of a second
- * effect (INV-REQ-957 b7; the run window, or the (job, entity) pause key).
+ * while the request runs, so a crashed instance releases it with its connection. The record is written through
+ * the [IdempotencyRecorder] inside the command's own transaction (ARC-05, TPL-04, API-15 S2 T1: the job commands
+ * call it through `JobCommandJournal`), so the stored response commits or rolls back with the effect. A response
+ * that wrote no state (a refusal, a contract violation) is stored on its own afterwards.
  */
 class IdempotencyStore(
     private val scope: TenantScope,
@@ -111,7 +118,7 @@ class IdempotencyStore(
         principal: String,
         key: UUID,
         fingerprint: String,
-        block: () -> StoredResponse,
+        block: (IdempotencyRecorder) -> StoredResponse,
     ): IdempotencyOutcome {
         val owner = tenant ?: TenantId.PLATFORM
         val lockName = "$table/$owner/$principal/$key"
@@ -126,8 +133,17 @@ class IdempotencyStore(
                 val stored = find(owner, principal, key)
                 when {
                     stored == null -> {
-                        val response = block()
-                        if (response.status < SERVER_ERROR) store(owner, principal, key, fingerprint, response)
+                        var recorded = false
+                        val recorder =
+                            IdempotencyRecorder { response ->
+                                check(scope.tenants.current() == owner) { "the command transaction is not the key's tenant" }
+                                insert(owner, principal, key, fingerprint, response)
+                                recorded = true
+                            }
+                        val response = block(recorder)
+                        if (!recorded && response.status < SERVER_ERROR) {
+                            inTenant(owner) { insert(owner, principal, key, fingerprint, response) }
+                        }
                         IdempotencyOutcome.Fresh(response)
                     }
 
@@ -172,13 +188,14 @@ class IdempotencyStore(
         }
     }
 
-    private fun store(
+    /** Inserts the record in the open transaction of the current thread. */
+    private fun insert(
         tenant: TenantId,
         principal: String,
         key: UUID,
         fingerprint: String,
         response: StoredResponse,
-    ) = inTenant(tenant) {
+    ) {
         scope.connections.require().prepareStatement(
             """
             insert into $table (tenant_id, principal, idempotency_key, fingerprint, status, body, created_at)

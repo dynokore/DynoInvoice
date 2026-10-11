@@ -46,11 +46,10 @@ import java.util.concurrent.TimeUnit
 /**
  * runJobNow, pauseJob and resumeJob driven through HTTP onto INV-T-2874's JobRuntime over PostgreSQL 17 and 18
  * (INV-API-3023, INV-API-3025, INV-Q-3535): paths, Idempotency-Key (API-15), JobRunState 202/200, JobPauseState
- * 200, the JOB catalogue codes at their statuses (API-21) and the closed code-less cases (ARC-19), the actor from
- * the propagated token (CS-23, API-24). Every request sent and every 2xx or catalogue-coded response is validated
- * against the pinned platform-contracts `service-runtime/openapi.yaml`. The closed code-less cases are checked
- * for their ARC-19 shape only: the pinned error envelope requires `code`, which ARC-19 and INV-API-3023 leave out
- * for them (reported on INV-T-2875).
+ * 200, the JOB catalogue codes at their statuses (API-21) and the closed cases (ARC-19) at their SRT codes (owner
+ * ruling INV-Q-3720), the actor from the propagated token (CS-23, API-24). Every request sent and every response
+ * is validated against the pinned platform-contracts `service-runtime/openapi.yaml`, and every error response
+ * against the pinned error envelope, which requires `code`: no response is code-less (INV-REQ-827).
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class JobCommandHttpIT {
@@ -58,6 +57,8 @@ class JobCommandHttpIT {
     private val mapper = ObjectMapper()
     private val contracts = ContractValidator()
     private val openapi = "service-runtime/openapi.yaml"
+    private val envelope = "service-runtime/schemas/error-envelope.schema.json"
+    private val keyInvalid = ClosedErrorCode.IDEMPOTENCY_KEY_INVALID
 
     private fun harness(image: String) = harnesses.computeIfAbsent(image) {
         JobsHarness(it).also { h -> h.fixture.run(IdempotencySchema.ddl(SCHEMA, OutboxPostgresFixture.APP, OutboxPostgresFixture.WORKER)) }
@@ -96,8 +97,9 @@ class JobCommandHttpIT {
             body: String?,
             key: String? = UUID.randomUUID().toString(),
             token: String? = "Bearer eng",
+            method: String = "POST",
         ): Answer {
-            val request = MockHttpServletRequest("POST", path)
+            val request = MockHttpServletRequest(method, path)
             token?.let { request.addHeader("Authorization", it) }
             key?.let { request.addHeader("Idempotency-Key", it) }
             body?.let {
@@ -128,14 +130,17 @@ class JobCommandHttpIT {
             return this
         }
 
-        /** A closed service-runtime case (ARC-19): the status, code-less, type about:blank, a correlation id. */
-        fun closed(expected: Int): Answer {
-            status shouldBe expected
+        /** A closed service-runtime case (ARC-19) at its SRT code and status (INV-Q-3720), never code-less. */
+        fun closed(expected: ClosedErrorCode): Answer {
+            status shouldBe expected.httpStatus
             contentType.substringBefore(';') shouldBe Problems.CONTENT_TYPE
-            body.has("code") shouldBe false
-            body.get("type").asString() shouldBe "about:blank"
-            body.get("status").asInt() shouldBe expected
-            body.has("correlationId") shouldBe true
+            body.get("code").asString() shouldBe expected.code
+            body.get("severity").asString() shouldBe "BLOCK"
+            body.get("disposition").asString() shouldBe expected.disposition
+            body.get("remediationOwner").asString() shouldBe "Platform"
+            body.get("status").asInt() shouldBe expected.httpStatus
+            if (expected == ClosedErrorCode.INTERNAL_ERROR) body.has("detail") shouldBe false
+            contracts.schemaErrors(envelope, body).shouldBeEmpty()
             return this
         }
 
@@ -147,6 +152,7 @@ class JobCommandHttpIT {
             body.get("code").asString() shouldBe code
             body.get("severity").asString() shouldBe "BLOCK"
             body.get("disposition").asString() shouldBe "TERMINAL"
+            contracts.schemaErrors(envelope, body).shouldBeEmpty()
             return conforms()
         }
     }
@@ -189,12 +195,12 @@ class JobCommandHttpIT {
     fun `the Idempotency-Key is required, and reusing it with a different body is 422`(image: String) {
         val s = Service(image)
         s.replica.runtime.register(job("http-key"), entities) { }
-        s.post(runPath("http-key"), """{"entityRef":"E-001"}""", key = null).closed(400)
-        s.post(runPath("http-key"), """{"entityRef":"E-001"}""", key = "not-a-uuid").closed(400)
+        s.post(runPath("http-key"), """{"entityRef":"E-001"}""", key = null).closed(keyInvalid)
+        s.post(runPath("http-key"), """{"entityRef":"E-001"}""", key = "not-a-uuid").closed(keyInvalid)
         val key = UUID.randomUUID().toString()
-        s.post(runPath("http-key"), """{"entityRef":"E-001"}""", "\"$key\"").closed(400)
+        s.post(runPath("http-key"), """{"entityRef":"E-001"}""", "\"$key\"").closed(keyInvalid)
         s.post(runPath("http-key"), """{"entityRef":"E-001"}""", key).conforms().status shouldBe 202
-        s.post(runPath("http-key"), """{"entityRef":"E-001","reason":"other"}""", key).closed(422)
+        s.post(runPath("http-key"), """{"entityRef":"E-001","reason":"other"}""", key).closed(ClosedErrorCode.DIFFERENT_REQUEST)
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
@@ -218,7 +224,7 @@ class JobCommandHttpIT {
         try {
             val first = pool.submit<Answer> { s.post(runPath("http-flight"), """{"entityRef":"E-001"}""", key) }
             entered.await(10, TimeUnit.SECONDS) shouldBe true
-            s.post(runPath("http-flight"), """{"entityRef":"E-001"}""", key).closed(409)
+            s.post(runPath("http-flight"), """{"entityRef":"E-001"}""", key).closed(ClosedErrorCode.IN_FLIGHT)
             release.countDown()
             first.get(10, TimeUnit.SECONDS).status shouldBe 202
         } finally {
@@ -229,7 +235,43 @@ class JobCommandHttpIT {
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
-    fun `refusals map to their catalogue code and status, the closed cases stay code-less`(image: String) {
+    fun `the idempotency record commits with the command, and a rollback leaves neither`(image: String) {
+        var crash = true
+        val s =
+            Service(image) { inner ->
+                object : JobCommands by inner {
+                    override fun runNow(request: JobCommandRequest): JobCommandOutcome<JobRunState> {
+                        if (!crash) return inner.runNow(request)
+                        // the command fails after its record is written, before its transaction commits
+                        val failing =
+                            request.copy(
+                                journal = { done ->
+                                    request.journal?.withinTransaction(done)
+                                    error("crash before commit")
+                                },
+                            )
+                        return inner.runNow(failing)
+                    }
+                }
+            }
+        s.replica.runtime.register(job("http-tx"), entities) { }
+        val key = UUID.randomUUID().toString()
+        fun records() = s.h.rows("select status from $SCHEMA.idempotency_key where idempotency_key = ?::uuid", key)
+
+        s.post(runPath("http-tx"), """{"entityRef":"E-001"}""", key).closed(ClosedErrorCode.INTERNAL_ERROR)
+        records() shouldHaveSize 0
+        s.h.runs("http-tx").filter { it["trigger"] == "MANUAL" } shouldHaveSize 0
+        s.h.events(JobsHarness.AUDIT, "submission-svc/http-tx") shouldHaveSize 0
+
+        crash = false
+        s.post(runPath("http-tx"), """{"entityRef":"E-001"}""", key).conforms().status shouldBe 202
+        records().map { it["status"] } shouldBe listOf(202)
+        s.h.runs("http-tx").filter { it["trigger"] == "MANUAL" } shouldHaveSize 1
+    }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `refusals map to their catalogue code and status, the closed cases to their SRT codes`(image: String) {
         val s = Service(image)
         s.replica.runtime.register(job("http-refuse"), entities) { }
         s.replica.runtime.register(job("http-platform", scope = JobEntityScope.PLATFORM), body = { })
@@ -238,15 +280,16 @@ class JobCommandHttpIT {
         s.post(runPath("http-refuse"), "{}").coded("JOB-002", 403)
         s.post(runPath("http-refuse"), """{"entityRef":"E-002"}""").coded("JOB-002", 403)
         // an entityRef outside the token's entity set (API-24), whether or not it exists
-        s.post(runPath("http-refuse"), """{"entityRef":"E-404"}""").closed(403)
-        s.post(runPath("http-refuse"), """{"entityRef":"E-001"}""", token = null).closed(401)
-        s.post(runPath("http-refuse"), """{"entityRef":"E-001"}""", token = "Bearer forged").closed(401)
+        s.post(runPath("http-refuse"), """{"entityRef":"E-404"}""").closed(ClosedErrorCode.ACCESS_DENIED)
+        s.post(runPath("http-refuse"), """{"entityRef":"E-001"}""", token = null).closed(ClosedErrorCode.UNAUTHENTICATED)
+        s.post(runPath("http-refuse"), """{"entityRef":"E-001"}""", token = "Bearer forged").closed(ClosedErrorCode.UNAUTHENTICATED)
         // the platform operator naming an entity of a PLATFORM-scoped job (INV-Q-3537)
-        s.post(runPath("http-platform"), """{"entityRef":"E-001"}""", token = "Bearer op").closed(403)
+        s.post(runPath("http-platform"), """{"entityRef":"E-001"}""", token = "Bearer op").closed(ClosedErrorCode.ACCESS_DENIED)
         s.post(runPath("http-platform"), "{}", token = "Bearer op").conforms().status shouldBe 202
-        s.post(runPath("http-refuse"), """{"entityRef":42}""").closed(400)
-        s.post(runPath("http-refuse"), "not json").closed(400)
-        s.post("/internal/v1/jobs/http-refuse/stop", "{}").closed(404)
+        s.post(runPath("http-refuse"), """{"entityRef":42}""").closed(ClosedErrorCode.CONTRACT_VIOLATION)
+        s.post(runPath("http-refuse"), "not json").closed(ClosedErrorCode.CONTRACT_VIOLATION)
+        s.post("/internal/v1/jobs/http-refuse/stop", "{}").closed(ClosedErrorCode.NOT_FOUND)
+        s.post(runPath("http-refuse"), null, method = "GET").closed(ClosedErrorCode.METHOD_NOT_ALLOWED)
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
@@ -256,8 +299,8 @@ class JobCommandHttpIT {
         s.replica.runtime.register(job("http-pause", criticality = JobCriticality.DEADLINE_CRITICAL), entities) { }
         s.deadlines.due[e1] = START.plus(Duration.ofDays(2))
         val until = START.plus(Duration.ofHours(5))
-        s.post(pausePath("http-pause"), """{"entityRef":"E-001"}""").closed(400)
-        s.post(pausePath("http-pause"), """{"entityRef":"E-001","until":"yesterday"}""").closed(400)
+        s.post(pausePath("http-pause"), """{"entityRef":"E-001"}""").closed(ClosedErrorCode.CONTRACT_VIOLATION)
+        s.post(pausePath("http-pause"), """{"entityRef":"E-001","until":"yesterday"}""").closed(ClosedErrorCode.CONTRACT_VIOLATION)
         s.post(pausePath("http-pause"), """{"entityRef":"E-001","until":"${START.minusSeconds(1)}"}""").coded("JOB-004", 422)
         s.post(pausePath("http-pause"), """{"entityRef":"E-001","until":"${START.plus(Duration.ofDays(3))}"}""").coded("JOB-003", 422)
 
