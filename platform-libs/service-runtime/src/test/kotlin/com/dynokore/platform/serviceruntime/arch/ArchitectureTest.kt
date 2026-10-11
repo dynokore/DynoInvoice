@@ -15,6 +15,8 @@ import java.io.File
  * `TenantId` (the replicas are tenant-keyed), so that is the one allowed import
  * here; any other L1 module still fails until a task needs it and names it.
  * INV-T-3002 adds config-resolver's `PolicyScope` (the policy replica resolves over its scope chain).
+ * INV-T-2874 adds outbox-and-queue (job targets name its `EntityRef`; the platform events go through its
+ * `OutboxWriter`) and audit-log (the job commands' audit entries, INV-Q-2950).
  * (This replaces the provisional "uses no other L1 module" reading, which
  * konsist-rules 0.2.0's inverted order encoded; platform-build 0.5.0 corrects it.)
  *
@@ -29,11 +31,9 @@ import java.io.File
 class ArchitectureTest {
     private val otherL1PackageRoots =
         listOf(
-            "outboxandqueue",
             "rulepackkernel",
             "evidencestore",
             "adapterruntime",
-            "auditlog",
         ).map { "com.dynokore.platform.$it" }
 
     private fun assertNoOtherL1Import(scope: KoScope) {
@@ -43,7 +43,7 @@ class ArchitectureTest {
     }
 
     @Test
-    fun `service-runtime imports no L1 module beyond tenancy-kernel and config-resolver`() {
+    fun `service-runtime imports no L1 module outside its allowed dependencies`() {
         assertNoOtherL1Import(
             Konsist.scopeFromModule("service-runtime", "main", "impl", "test", "implTest"),
         )
@@ -56,7 +56,7 @@ class ArchitectureTest {
      * `ArchitectureTest` use for theirs.
      */
     @Test
-    fun `would fail if service-runtime imported an L1 module beyond tenancy-kernel and config-resolver`(
+    fun `would fail if service-runtime imported an L1 module outside its allowed dependencies`(
         @TempDir dir: File,
     ) {
         val offender = File(dir, "Offender.kt")

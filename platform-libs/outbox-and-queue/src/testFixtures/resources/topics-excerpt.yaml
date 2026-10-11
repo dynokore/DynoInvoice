@@ -1,7 +1,8 @@
-# Excerpt of platform-contracts event-log/topics.yaml (efde985): the entries these tests use. Regenerate by copying entries, never hand-edit.
+# Excerpt of platform-contracts event-log/topics.yaml (6b17e07): the entries these tests use. Regenerate by copying entries, never hand-edit.
 topics:
   - topic: gst.canonical.canonical-version-created.v1
     event_type: com.dynokore.gst.canonical.CanonicalVersionCreated.v1
+    content_topic: true
     producers:
       - canonical-svc
     subscribers:
@@ -12,6 +13,7 @@ topics:
       - submission-svc
   - topic: gst.payload.payload-ready.v1
     event_type: com.dynokore.gst.payload.PayloadReady.v1
+    content_topic: true
     producers:
       - payload-svc
     subscribers:
@@ -19,12 +21,14 @@ topics:
       - submission-svc
   - topic: gst.platform.audit-entry-recorded.v1
     event_type: com.dynokore.gst.platform.AuditEntryRecorded.v1
+    content_topic: false
     producers:
       - every service
     subscribers:
       - evidence-svc
   - topic: gst.submission.submission-acknowledged.v1
     event_type: com.dynokore.gst.submission.SubmissionAcknowledged.v1
+    content_topic: false
     producers:
       - submission-svc
     subscribers:
@@ -36,6 +40,7 @@ topics:
       - tenancy-svc
   - topic: gst.submission.submission-despatched.v1
     event_type: com.dynokore.gst.submission.SubmissionDespatched.v1
+    content_topic: false
     producers:
       - submission-svc
     subscribers:
@@ -44,6 +49,7 @@ topics:
       - evidence-svc
   - topic: gst.submission.submission-failed.v1
     event_type: com.dynokore.gst.submission.SubmissionFailed.v1
+    content_topic: false
     producers:
       - submission-svc
     subscribers:

@@ -1,5 +1,7 @@
 package com.dynokore.platform.outboxandqueue
 
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import java.sql.Connection
 import java.sql.SQLException
 import java.sql.Timestamp
@@ -60,16 +62,16 @@ constructor(
                 },
             )
         run.topics.forEach {
-            LOG.log(
-                System.Logger.Level.INFO,
-                "event-log purge: topic={0} content_topic={1} period={2} cutoff={3} rows={4} watermark={5}",
-                it.topic,
-                it.contentTopic,
-                it.period,
-                it.cutoff,
-                it.rows,
-                it.watermark,
-            )
+            LOG
+                .atInfo()
+                .setMessage("event-log purge run")
+                .addKeyValue("topic", it.topic)
+                .addKeyValue("content_topic", it.contentTopic)
+                .addKeyValue("period", it.period)
+                .addKeyValue("cutoff", it.cutoff)
+                .addKeyValue("rows", it.rows)
+                .addKeyValue("watermark", it.watermark)
+                .log()
         }
         return run
     }
@@ -138,6 +140,6 @@ constructor(
     private companion object {
         const val BATCH = 1000
         const val WATERMARK = "${EventLogSchema.SCHEMA}.${EventLogSchema.PURGE_WATERMARK}"
-        val LOG: System.Logger = System.getLogger(JdbcEventLogPurge::class.java.name)
+        val LOG: Logger = LoggerFactory.getLogger(JdbcEventLogPurge::class.java)
     }
 }

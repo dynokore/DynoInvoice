@@ -57,6 +57,14 @@ sourceSets {
     }
 }
 
+// Project evaluation order is alphabetical, so these modules' `implJar` tasks would not exist yet (as audit-log).
+evaluationDependsOn(":tenancy-kernel")
+evaluationDependsOn(":outbox-and-queue")
+evaluationDependsOn(":audit-log")
+val tenancyKernelImplJar = project(":tenancy-kernel").tasks.named("implJar")
+val outboxImplJar = project(":outbox-and-queue").tasks.named("implJar")
+val auditLogImplJar = project(":audit-log").tasks.named("implJar")
+
 dependencies {
     // INV-T-2873 / T29: the replicas are keyed by tenancy-kernel's `TenantId`. service-runtime
     // is the L1 composition root (INV-MOD-2371): it may use the other L1 modules, none may use it.
@@ -91,6 +99,41 @@ dependencies {
         add(config, libs.springSecurity.oauth2Jose)
     }
     add("implTestImplementation", libs.springBoot.test)
+
+    // INV-T-2874 / T30: the job and connection contracts. The api half names outbox-and-queue's `EntityRef`
+    // (the entity of a job target); the impl half writes JobRegistered, JobRunRecorded and
+    // ConnectionStatusChanged through outbox-and-queue's `OutboxWriter` and the command audit entries
+    // through audit-log's `AuditWriter`, in transactions of tenancy-kernel's `TransactionRunner`
+    // (`CurrentConnection`, `TenantRlsMigration` and `TenantScope` live in those modules' impl halves,
+    // wired as audit-log wires them). ShedLock 6 on PostgreSQL is the leader election (STK-25,
+    // INV-REQ-2405); Jackson 3 writes the payloads (STK-08).
+    api(project(":outbox-and-queue"))
+    add("implImplementation", project(":outbox-and-queue"))
+    add("implImplementation", project(":audit-log"))
+    add("implImplementation", files(tenancyKernelImplJar))
+    add("implImplementation", files(outboxImplJar))
+    add("implTestImplementation", project(":outbox-and-queue"))
+    add("implTestImplementation", project(":audit-log"))
+    add("implTestImplementation", files(tenancyKernelImplJar))
+    add("implTestImplementation", files(outboxImplJar))
+    add("implTestImplementation", files(auditLogImplJar))
+    add("implTestImplementation", testFixtures(project(":outbox-and-queue")))
+    listOf("implImplementation", "implTestImplementation").forEach { config ->
+        add(config, libs.shedlock.core)
+        add(config, libs.shedlock.providerJdbcTemplate)
+        add(config, libs.spring.jdbc)
+        add(config, libs.jackson.databind)
+    }
+    add("implTestImplementation", libs.junit.params)
+    add("implTestImplementation", libs.postgresql)
+    add("implTestImplementation", libs.testcontainers.postgresql)
+    // Spring Boot's BOM manages Testcontainers 2.x; outbox-and-queue's fixture is built on the repository's
+    // 1.21 line (libs.versions.toml), so the core artifact is held to it here.
+    constraints {
+        add("implTestImplementation", "org.testcontainers:testcontainers") {
+            version { strictly(libs.versions.testcontainers.get()) }
+        }
+    }
     add("implTestImplementation", libs.assertj.core)
 
     // STK-24 (INV-T-2872 / T28): Resilience4j core for the internal-edge

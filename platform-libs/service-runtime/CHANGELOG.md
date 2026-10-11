@@ -6,6 +6,34 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-10-11
+### Added
+- The job contract (INV-REQ-1136, INV-REQ-1138, INV-REQ-2405; INV-T-2874). The api half has `JobDefinition`
+  (name, owner service, entity scope PLATFORM or ENTITY, cron schedule and zone, criticality STANDARD or
+  DEADLINE_CRITICAL, a mandatory tolerance, ShedLock leases defaulting to PT10M and PT30S), `JobTarget`,
+  `JobCommands` (run now, pause, resume) with `JobCommandAuthorizer`, the `DeadlineSource` port and its
+  `FixedDeadlineSource` fake, and `JobErrorCode` JOB-001..004 (gst-catalogue 1.5.0).
+- The impl half's `JobRuntime`: `JobRegistered` once per job at start, one `JobRunRecorded` per run, ShedLock
+  leader election on PostgreSQL with database time (one lock per job, or per job and entity), and a sweeper
+  that records a run abandoned by a dead instance as FAILED `abandoned` (INV-Q-2948).
+- Run now, pause and resume by role (INV-Q-2985, INV-Q-3032): tenant roles act per (job, entity); a
+  whole-job command or any command on a PLATFORM-scoped job needs the platform operator role (JOB-002). A
+  run-now repeated in its run window, the schedule interval containing the request, returns the first run;
+  after FAILED a new attempt runs (INV-Q-3034). Every pause has an end time; a deadline-critical pause is
+  refused past the nearest due date minus the safety margin (JOB-003) and lapses at that bound, re-checked
+  at every firing (INV-Q-2946). A different end time replaces the old one and is audited with it (INV-Q-3037).
+- `JobSchema.ddl`: `job_run` and `job_pause` under forced row-level security with a worker role for
+  cross-tenant reads (never BYPASSRLS), and `shedlock`, granted to the worker only. `purge()` deletes runs and
+  ended pauses older than the retention window (default 30 days); a window shorter than a job's interval
+  plus tolerance is refused at registration.
+- The connection contract (INV-REQ-834..836): `ConnectionRecord`, `ConnectionTester` with code-only
+  results (INV-Q-2944), `ConnectionHealth`, and `OutboxConnectionStatusReporter`, which publishes
+  `ConnectionStatusChanged` per instance when its own breaker-mapped state changes (CLOSED up, HALF_OPEN
+  degraded, OPEN down).
+
+### Changed
+- service-runtime now depends on outbox-and-queue and audit-log (the architecture test allows them).
+
 ## [2.0.0] - 2026-10-11
 ### Changed (breaking)
 - `PolicyReplica` resolves over config-resolver's scope chain (INV-REQ-1242 behaviour #1;

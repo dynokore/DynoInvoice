@@ -12,9 +12,11 @@ import java.time.Duration
  * - triaged dead letters (replayed or discarded; `raw` is content) are deleted once `resolved_at` is older than
  *   [contentWindow] too (INV-T-2997). An open dead letter is never deleted, so no event is lost silently.
  * - [eventLogRetention]: how long the event log keeps the events of a topic not marked as a content topic; a content
- *   topic keeps [contentWindow] ([EventLogPurge], INV-Q-3249). An inbox row can only matter while its event could
- *   still be redelivered, so it is deleted once `received_at` is older than this plus [INBOX_MARGIN]; the inbox has
- *   no topic column, so this one value serves every topic.
+ *   topic keeps [contentWindow] ([EventLogPurge], INV-Q-3249).
+ * - [inboxRetention]: an inbox row can only matter while its event could still be redelivered, so it is deleted once
+ *   `received_at` is older than the longest period any topic keeps, `max(contentWindow, eventLogRetention)`, plus
+ *   [INBOX_MARGIN]. The inbox has no topic column, so this one value serves every topic: an inbox row never expires
+ *   while its event is still in the log, whichever of the two periods is longer.
  */
 data class Retention(
     val contentWindow: Duration = DEFAULT,
@@ -25,8 +27,8 @@ data class Retention(
         require(eventLogRetention >= FLOOR) { "event-log retention must be at least $FLOOR, was $eventLogRetention" }
     }
 
-    /** The age past which an inbox row is deleted. */
-    val inboxRetention: Duration get() = eventLogRetention + INBOX_MARGIN
+    /** The age past which an inbox row is deleted: the longest topic period plus [INBOX_MARGIN]. */
+    val inboxRetention: Duration get() = maxOf(contentWindow, eventLogRetention) + INBOX_MARGIN
 
     companion object {
         val DEFAULT: Duration = Duration.ofDays(30)
