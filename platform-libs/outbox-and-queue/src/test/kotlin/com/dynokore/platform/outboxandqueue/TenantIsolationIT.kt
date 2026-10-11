@@ -44,9 +44,9 @@ class TenantIsolationIT {
             val tenant = UUID.randomUUID()
             val topic = "eventlog.gst_payload_payload_ready_v1"
             harness.fixture.runAsAdmin(
-                "insert into $topic (event_id, subject, envelope) values " +
-                    "('a', 's', '{\"specversion\":\"1.0\",\"tenantid\":\"$tenant\"}'), " +
-                    "('b', 's', '{\"specversion\":\"1.0\"}')",
+                "insert into $topic (tenant_id, event_id, subject, envelope) values " +
+                    "('$tenant', 'a', 's', '{\"specversion\":\"1.0\",\"tenantid\":\"$tenant\"}'), " +
+                    "('${UUID.randomUUID()}', 'b', 's', '{\"specversion\":\"1.0\"}')",
             )
             val kit = harness.submission
             val consumer =

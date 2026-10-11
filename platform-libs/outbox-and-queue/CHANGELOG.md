@@ -6,6 +6,26 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-10-11
+### Changed
+- Event-log topic tables are tenant data under row-level security (INV-T-3300, Keel INV-Q-3251 option D, INV-REQ-854,
+  CS-19, ARC 4.3 step 1a). `EventLogSchema.topicDdl` creates every topic table with `tenant_id uuid NOT NULL` (no
+  default; platform events under `TenantId.PLATFORM`, INV-Q-2927 option D) and ENABLE + FORCE ROW LEVEL SECURITY with
+  tenancy-kernel's tenant policy, so a row without a tenant, or under a tenant other than the bound one, is refused.
+  `PostgresEventBinding` inserts each row in a transaction that binds the envelope's tenant
+  (`set_config('app.tenant_id', …, true)`); the relay role keeps INSERT only.
+- Consumers read through the ARC 4.3 step 1a claim path, as `event_dead_letter` already does: the consumer's claim
+  role has a `SELECT` policy `USING (true)` and column `SELECT` on `log_offset`, `tenant_id`, `inserted_at` only; its
+  reader role has `SELECT` under the tenant policy only. `PostgresEventLogReader` claims offsets and tenants on the
+  claim role, then reads `envelope` once per tenant of the batch in a transaction bound to that tenant, returning
+  records in `log_offset` order (a record purged between claim and read ends the batch before it). The staleness
+  `backlog` (count and `min(inserted_at)`) runs on the claim role. `topicDdl` refuses a role that is both a claim
+  role and a reader (or the relay) role, because PostgreSQL ORs a role's permissive policies. No role has `BYPASSRLS`.
+- **API change:** `EventLogSchema.topicDdl(topic, relayRole, consumers: List<EventLogSchema.ConsumerRoles>)` (was
+  `consumerRoles: List<String>`); `PostgresEventLogReader(claimSource, envelopeSource)` (was `(dataSource)`).
+  No topic table exists in any installation yet (INV-T-2890 is not built), so there is no upgrade script and no data
+  migration. Event-log retention is unchanged.
+
 ## [1.7.0] - 2026-10-11
 ### Changed
 - Per-lane rate limits are shared by every replica of a service (INV-T-3003, Keel INV-Q-2966, INV-REQ-1072,

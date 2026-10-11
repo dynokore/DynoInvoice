@@ -10,6 +10,11 @@ import javax.sql.DataSource
  * on the topic's table, so inserts into one topic are serialised and `log_offset` order equals
  * commit order: a reader that has seen offset N never later sees an offset below N appear
  * (S2-30's "exactly one relay inserts serially" option, enforced in the database).
+ *
+ * The topic tables are under forced tenant row-level security ([EventLogSchema], INV-REQ-854, Keel INV-Q-3251):
+ * the transaction binds the envelope's tenant (`set_config('app.tenant_id', …, true)`, transaction-local as
+ * ARC-21 requires; `TenantId.PLATFORM` for a platform event, INV-Q-2927) and inserts the row under that tenant.
+ * The relay role holds INSERT only, so a row whose tenant differs from the bound one is refused by the database.
  */
 class PostgresEventBinding(
     private val dataSource: DataSource,
@@ -29,12 +34,17 @@ class PostgresEventBinding(
                     it.setString(1, table)
                     it.execute()
                 }
+                connection.prepareStatement("select set_config('app.tenant_id', ?, true)").use {
+                    it.setString(1, envelope.tenant.toString())
+                    it.execute()
+                }
                 connection.prepareStatement(
-                    "insert into $table (event_id, subject, envelope) values (?, ?, ?::jsonb)",
+                    "insert into $table (tenant_id, event_id, subject, envelope) values (?, ?, ?, ?::jsonb)",
                 ).use {
-                    it.setString(1, envelope.id.value)
-                    it.setString(2, envelope.subject)
-                    it.setString(3, body)
+                    it.setObject(1, envelope.tenant.value)
+                    it.setString(2, envelope.id.value)
+                    it.setString(3, envelope.subject)
+                    it.setString(4, body)
                     it.executeUpdate()
                 }
                 connection.commit()

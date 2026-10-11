@@ -4,7 +4,8 @@
 --   outbox_owner  — runs migrations (DDL only).
 --   outbox_app    — a service's runtime role: LOGIN, NOSUPERUSER, NOBYPASSRLS, owns no table.
 --   outbox_relay  — INSERT on the producer's own event-log topics, and nothing else.
---   outbox_reader — SELECT on the event-log topics a consumer subscribes to, and nothing else.
+--   outbox_reader — SELECT on the event-log topics a consumer subscribes to, under the tenant policy only.
+--   outbox_worker — also the consumers' event-log claim role: claim policy and SELECT on the claim columns only.
 -- One schema per fixture service (submission, reconciliation, payload, canonical), and `eventlog`.
 
 CREATE ROLE outbox_owner  LOGIN PASSWORD 'outbox_owner_pw';
@@ -24,3 +25,4 @@ GRANT USAGE ON SCHEMA eventlog TO outbox_relay, outbox_reader;
 -- The cross-tenant worker role of ARC 4.3 step 1a: no BYPASSRLS. Its only reach into tenant data is the
 -- outbox claim policy and column grant that OutboxSchema.ddl creates; it also holds the offset and dead-letter tables.
 CREATE ROLE outbox_worker LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD 'outbox_worker_pw';
+GRANT USAGE ON SCHEMA eventlog TO outbox_worker;

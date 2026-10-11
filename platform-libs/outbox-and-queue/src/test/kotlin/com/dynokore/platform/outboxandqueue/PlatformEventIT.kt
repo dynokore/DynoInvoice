@@ -73,8 +73,8 @@ class PlatformEventIT {
 
             val doc = UUID.randomUUID()
             harness.fixture.runAsAdmin(
-                "insert into eventlog.gst_payload_payload_ready_v1 (event_id, subject, envelope) " +
-                    "values ('d', '$doc', " +
+                "insert into eventlog.gst_payload_payload_ready_v1 (tenant_id, event_id, subject, envelope) " +
+                    "values ('${TenantId.PLATFORM}', 'd', '$doc', " +
                     "'${harness.mapper.writeValueAsString(tenantlessDomainRecord(doc))}')",
             )
             val kit = harness.submission

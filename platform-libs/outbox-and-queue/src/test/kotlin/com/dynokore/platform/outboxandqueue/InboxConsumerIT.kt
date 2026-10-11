@@ -104,8 +104,8 @@ class InboxConsumerIT {
     fun `a malformed record goes to dead letter and the consumer carries on`(image: String) {
         OutboxHarness(image).use { harness ->
             harness.fixture.runAsAdmin(
-                "insert into eventlog.gst_payload_payload_ready_v1 (event_id, subject, envelope) " +
-                    "values ('bad', 's', '{\"specversion\":\"1.0\"}')",
+                "insert into eventlog.gst_payload_payload_ready_v1 (tenant_id, event_id, subject, envelope) " +
+                    "values ('${UUID.randomUUID()}', 'bad', 's', '{\"specversion\":\"1.0\"}')",
             )
             val kit = harness.submission
             val consumer =

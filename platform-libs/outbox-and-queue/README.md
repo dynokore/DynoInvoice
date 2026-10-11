@@ -44,6 +44,10 @@ Per-lane rate limits are shared by all replicas of a service from 1.7.0 (INV-Q-2
 lane's window count in `lane_rate_window` (worker role only, no tenant data, no RLS). Existing schemas run
 `QueueSchema.upgradeTo170` in the service's migration.
 
+From 1.8.0 the event-log topic tables carry `tenant_id NOT NULL` under forced row-level security too (INV-Q-3251):
+the relay inserts under the bound tenant, and each consumer has a claim role (claim columns only) and a separate
+reader role (envelopes of the bound tenant only); see `EventLogSchema.topicDdl` and `PostgresEventLogReader`.
+
 Not in 1.1.0: delivery retry with backoff, inbox retention (added in 1.3.0: `Retention`, `JdbcRetentionPurge`,
 `OutboxSchema.upgradeTo130`; existing schemas run `upgradeTo130` in the service's migration), rate limits shared across worker processes
 (added in 1.7.0, see below), exporting the staleness metric and raising the incident (the composition root's sink), and scheduling of the

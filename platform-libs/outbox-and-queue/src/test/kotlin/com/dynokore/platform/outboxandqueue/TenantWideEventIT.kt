@@ -95,8 +95,8 @@ class TenantWideEventIT {
             val doc = UUID.randomUUID()
             val record = tenantRecordWithoutEntity(doc, tenant)
             harness.fixture.runAsAdmin(
-                "insert into eventlog.gst_payload_payload_ready_v1 (event_id, subject, envelope) " +
-                    "values ('d', '$doc', '${harness.mapper.writeValueAsString(record)}')",
+                "insert into eventlog.gst_payload_payload_ready_v1 (tenant_id, event_id, subject, envelope) " +
+                    "values ('$tenant', 'd', '$doc', '${harness.mapper.writeValueAsString(record)}')",
             )
             val kit = harness.submission
             val consumer = harness.consumer(

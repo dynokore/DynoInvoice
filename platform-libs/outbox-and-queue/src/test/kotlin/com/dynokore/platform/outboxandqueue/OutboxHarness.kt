@@ -12,7 +12,7 @@ class OutboxHarness(image: String) : AutoCloseable {
     val fixture = OutboxPostgresFixture(image)
     val catalogue: EventCatalogue = TestCatalogue.load()
     val eventLogForRelay = FlakyDataSource(fixture.relayDataSource())
-    val reader = PostgresEventLogReader(fixture.readerDataSource())
+    val reader = PostgresEventLogReader(fixture.workerDataSource(), fixture.readerDataSource())
     val mapper = ObjectMapper()
     private val json = EnvelopeJson()
 

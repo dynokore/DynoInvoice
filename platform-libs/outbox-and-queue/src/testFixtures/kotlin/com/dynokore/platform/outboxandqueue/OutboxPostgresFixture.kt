@@ -37,7 +37,7 @@ class OutboxPostgresFixture(image: String) : AutoCloseable {
     /** The relay's event-log role: INSERT on topics only. */
     fun relayDataSource(): DataSource = dataSourceFor(RELAY, "outbox_relay_pw")
 
-    /** The consumers' event-log role: SELECT on topics only. */
+    /** The consumers' event-log reader role: SELECT on topics under the tenant policy only (envelopes of the bound tenant). */
     fun readerDataSource(): DataSource = dataSourceFor(READER, "outbox_reader_pw")
 
     /** Creates the outbox/inbox tables in [schema] and grants [APP] on [extraTables] (state tables the test adds). */
@@ -48,9 +48,13 @@ class OutboxPostgresFixture(image: String) : AutoCloseable {
         run(OutboxSchema.ddl(schema, APP, WORKER) + "\n" + extraDdl)
     }
 
-    /** Creates one event-log table per topic of [catalogue]. */
+    /**
+     * Creates one event-log table per topic of [catalogue]: the consumers claim through [WORKER] (claim columns only)
+     * and read envelopes through [READER] (tenant policy only), two roles of one family (ARC 4.3 step 1a, INV-Q-3247).
+     */
     fun createTopics(catalogue: EventCatalogue) {
-        catalogue.entries().forEach { run(EventLogSchema.topicDdl(it.topic, RELAY, listOf(READER))) }
+        val consumers = listOf(EventLogSchema.ConsumerRoles(claimRole = WORKER, readerRole = READER))
+        catalogue.entries().forEach { run(EventLogSchema.topicDdl(it.topic, RELAY, consumers)) }
     }
 
     /** Runs [sql] as the superuser. */
