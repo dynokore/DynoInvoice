@@ -24,6 +24,17 @@ class ReplicaAutoConfigurationTest {
             .withPropertyValues("service-runtime.workload-identity.audience=canonical-svc")
 
     @Test
+    fun `the policy replica waits for every configured policy topic`() {
+        contextRunner.withPropertyValues("service-runtime.replica.policy-topics=t.one,t.two").run { context ->
+            val replica = context.getBean(PolicyReplica::class.java)
+            replica.onSnapshotComplete("t.one", 0)
+            replica.lag() shouldBe Lag.Unknown
+            replica.onSnapshotComplete("t.two", 0)
+            replica.lag() shouldBe Lag.Measured(Duration.ZERO)
+        }
+    }
+
+    @Test
     fun `wires the three replicas with the one second authority bound and the section 36-6 edge policies`() {
         contextRunner.run { context ->
             context.getBean(PolicyReplica::class.java)

@@ -70,8 +70,7 @@ interface PolicyFeedSink {
  * Scopes are config-resolver's (INV-REQ-1242): a read takes the [PolicyScope.chain] of the
  * caller (client entity, Access Point connection, feed, entity, group, tenant, installation),
  * so a value set per AP connection is found. Each scope level and variation point keeps a
- * schedule of values by effective date; a read at a date takes the latest value effective on
- * or before it, from the most specific level that has one. Scope ids are taken as unique
+ * schedule of values by effective date per source; [valueAt] states the order. Scope ids are taken as unique
  * within their tenant.
  *
  * Ordering is by event-log offset: per scope level, variation point and effective date a
@@ -85,7 +84,12 @@ class PolicyReplica(
     private val clock: Clock,
     topics: Set<String> = emptySet(),
 ) : PolicyFeedSink {
-    private data class Slot(val tenant: TenantId?, val ref: ScopeRef, val variationPointId: String)
+    private data class Slot(
+        val tenant: TenantId?,
+        val ref: ScopeRef,
+        val source: PolicySource,
+        val variationPointId: String,
+    )
 
     private data class Versioned(val value: PolicyValue, val topic: String, val offset: Long)
 
@@ -102,12 +106,14 @@ class PolicyReplica(
     private fun slot(
         scope: PolicyScope,
         ref: ScopeRef,
+        source: PolicySource,
         variationPointId: String,
-    ) = Slot(if (ref.level == ScopeLevel.INSTALLATION) null else scope.tenant, ref, variationPointId)
+    ) = Slot(if (ref.level == ScopeLevel.INSTALLATION) null else scope.tenant, ref, source, variationPointId)
 
     override fun accept(event: PolicyChanged) {
         val own = event.scope.chain().first()
-        val schedule = schedules.computeIfAbsent(slot(event.scope, own, event.variationPointId)) { TreeMap() }
+        val key = slot(event.scope, own, event.source, event.variationPointId)
+        val schedule = schedules.computeIfAbsent(key) { TreeMap() }
         synchronized(schedule) {
             val held = schedule[event.effectiveDate]
             if (held == null || held.topic != event.topic || event.offset > held.offset) {
@@ -122,14 +128,23 @@ class PolicyReplica(
         tracker(event.topic).onApplied(event.offset)
     }
 
-    /** The value in force for [variationPointId] at [date] in [scope], or null if none is known. */
+    /**
+     * The value in force for [variationPointId] at [date] in [scope], or null if none is known. Resolves
+     * like config-resolver's `PrecedenceResolver` (INV-REQ-1242 behaviour #2, INV-Q-2979): an override at
+     * any level of the chain beats every profile value, a profile value beats the default, and within a
+     * source the most specific level wins. At one level and source the latest effective date on or before
+     * [date] wins, then the latest recorded (the later event-log offset).
+     */
     fun valueAt(
         scope: PolicyScope,
         variationPointId: String,
         date: LocalDate,
-    ): PolicyValue? = scope.chain().firstNotNullOfOrNull { ref ->
-        val schedule = schedules[slot(scope, ref, variationPointId)] ?: return@firstNotNullOfOrNull null
-        synchronized(schedule) { schedule.floorEntry(date)?.value?.value }
+    ): PolicyValue? = PRECEDENCE.firstNotNullOfOrNull { source ->
+        scope.chain().firstNotNullOfOrNull { ref ->
+            schedules[slot(scope, ref, source, variationPointId)]?.let { schedule ->
+                synchronized(schedule) { schedule.floorEntry(date)?.value?.value }
+            }
+        }
     }
 
     override fun observeHead(
@@ -156,4 +171,9 @@ class PolicyReplica(
 
     /** The highest offset applied for [topic], or -1 before the first. */
     fun appliedOffset(topic: String): Long = trackers[topic]?.appliedVersion() ?: -1L
+
+    private companion object {
+        /** Highest first; config-resolver 1.0.0's order (the default is the lowest). */
+        val PRECEDENCE = listOf(PolicySource.OVERRIDE, PolicySource.PROFILE, PolicySource.DEFAULT)
+    }
 }

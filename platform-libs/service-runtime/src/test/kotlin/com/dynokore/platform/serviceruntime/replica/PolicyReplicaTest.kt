@@ -82,6 +82,41 @@ class PolicyReplicaTest {
     }
 
     @Test
+    fun `an override at any level beats a profile value at a more specific level`() {
+        val vp = "VP-2"
+        feed.publish(changed(PolicyScope.tenant(TENANT_A), "tenant-override", d1, 1, vp = vp))
+        feed.publish(changed(ent("e1"), "entity-profile", d1, 2, PolicySource.PROFILE, vp = vp))
+        feed.publish(changed(platform, "default", d1, 3, PolicySource.DEFAULT, vp = vp))
+        replica.valueAt(ent("e1"), vp, d1) shouldBe PolicyValue("tenant-override", d1, PolicySource.OVERRIDE, null)
+        feed.publish(changed(ent("e2"), "entity-profile-2", d1, 4, PolicySource.PROFILE, vp = vp))
+        at(ent("e2"), vp) shouldBe "tenant-override"
+        at(ent("e1", tenant = TENANT_B), vp) shouldBe "default"
+    }
+
+    @Test
+    fun `at one level and date an override beats a profile value whatever the offset order`() {
+        val vp = "VP-3"
+        feed.publish(changed(ent("e1"), "override", d1, 1, vp = vp))
+        feed.publish(changed(ent("e1"), "profile", d1, 2, PolicySource.PROFILE, vp = vp))
+        at(ent("e1"), vp) shouldBe "override"
+        feed.publish(changed(ent("e2"), "profile", d1, 3, PolicySource.PROFILE, vp = vp))
+        feed.publish(changed(ent("e2"), "override", d1, 4, vp = vp))
+        at(ent("e2"), vp) shouldBe "override"
+    }
+
+    @Test
+    fun `within a source the profile ranks by level, and the later effective date and offset win`() {
+        val vp = "VP-4"
+        feed.publish(changed(PolicyScope.tenant(TENANT_A), "tenant-profile", d1, 1, PolicySource.PROFILE, vp = vp))
+        feed.publish(changed(ent("e1"), "entity-profile", d1, 2, PolicySource.PROFILE, vp = vp))
+        feed.publish(changed(ent("e1"), "entity-profile-later", d2, 3, PolicySource.PROFILE, vp = vp))
+        at(ent("e1"), vp) shouldBe "entity-profile"
+        replica.valueAt(ent("e1"), vp, d2)?.value shouldBe "entity-profile-later"
+        feed.publish(changed(ent("e1"), "entity-profile-rerecorded", d1, 9, PolicySource.PROFILE, vp = vp))
+        at(ent("e1"), vp) shouldBe "entity-profile-rerecorded"
+    }
+
+    @Test
     fun `redelivery and reordering within a topic are decided by the event-log offset`() {
         feed.publish(changed(platform, "new", d1, 5))
         feed.publish(changed(platform, "old", d1, 3))

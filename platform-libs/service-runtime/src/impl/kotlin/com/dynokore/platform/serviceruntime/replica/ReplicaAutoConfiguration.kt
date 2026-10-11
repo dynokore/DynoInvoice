@@ -19,6 +19,11 @@ import java.time.Duration
 @ConfigurationProperties(prefix = "service-runtime.replica")
 data class ReplicaProperties(
     val authorityLagBound: Duration = AuthorityReplica.DEFAULT_LAG_BOUND,
+    /**
+     * The producer topics `PolicyChanged` arrives on (one per owning service, INV-REQ-1241). The policy
+     * replica's lag stays unknown until every one has reported its snapshot (INV-REQ-1200 sync gate).
+     */
+    val policyTopics: Set<String> = emptySet(),
 )
 
 const val TENANCY_EDGE = "tenancy-svc"
@@ -36,7 +41,10 @@ const val ACCESS_EDGE = "access-svc"
 class ReplicaAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
-    fun policyReplica(clock: Clock): PolicyReplica = PolicyReplica(clock)
+    fun policyReplica(
+        clock: Clock,
+        properties: ReplicaProperties,
+    ): PolicyReplica = PolicyReplica(clock, properties.policyTopics)
 
     @Bean
     @ConditionalOnMissingBean

@@ -18,6 +18,12 @@ train is its own (README.md: "own version and changelog").
   `PolicyFeedSink` (every position given per topic) instead of `ReplicaFeedSink`; `lag()` is the
   worst over the topics known, `lag(topic)` and `appliedOffset(topic)` are new, and the public
   `tracker` is gone. Offsets of different topics are not compared.
+- The replica resolves exactly like config-resolver 1.0.0's `PrecedenceResolver` (the resolver sits in config-resolver's
+  impl half and needs a catalogue, so it cannot be reused here): an override at any level beats every profile
+  value, a profile value beats the default, and within a source the most specific level wins; at one
+  level the latest effective date on or before the date, then the later offset.
+- New `service-runtime.replica.policy-topics`: the policy replica's lag stays unknown until every listed topic
+  has synced.
 - service-runtime-api now depends on `config-resolver-api` (INV-MOD-2371: the composition root may
   use the other L1 modules).
 
