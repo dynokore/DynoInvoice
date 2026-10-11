@@ -80,7 +80,7 @@ paths:
         When the gateway's circuit breaker for this service is open, or
         the call times out, the gateway answers `503` with the API-20
         envelope; the `503` is retryable, and the client retries with
-        the same Idempotency-Key (API-15).
+        the same Idempotency-Key (API-15, INV-Q-3571).
       tags: [certification]
       x-principal: certification
       x-timeout: 3000

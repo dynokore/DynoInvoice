@@ -1188,6 +1188,11 @@ paths:
         x-timeout 5000 is the per-attempt cap of control-plane-svc's background retries
         (INV-REQ-1204 b7, INV-Q-3476 (d)); the inline attempt inside provisionTenant is
         bounded by the propagated deadline (INV-REQ-1203).
+
+
+        control-plane-svc always sends the tenantRef it minted when it recorded the
+        provisioning request (CreateTenantRequest.tenantRef), and tenancy-svc records the
+        tenant under it; a call without it mints one, as in 1.0.0 (INV-Q-3573).
       tags:
       - tenants
       x-principal: filing-workflow
@@ -1894,6 +1899,12 @@ components:
         planRef:
           type: string
           maxLength: 64
+        tenantRef:
+          type: string
+          maxLength: 64
+          description: Optional. The tenantRef control-plane-svc minted for the provisioning request;
+            tenancy-svc records the tenant under it, and mints one when it is absent, as in 1.0.0
+            (INV-Q-3573).
     TenantResponse:
       type: object
       required:

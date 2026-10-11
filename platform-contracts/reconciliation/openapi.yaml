@@ -71,7 +71,9 @@ paths:
         other service's public /v1 operation`, 3 s (x-timeout 3000).
         When the gateway's circuit breaker for this service is open, or
         the call times out, the gateway answers `503` with the API-20
-        envelope; the `503` is retryable.
+        envelope; the `503` is retryable, and the client retries the
+        same PUT of the same version, the operation's repeatKey
+        (INV-REQ-1204 b7, INV-Q-3571).
       tags: [returns]
       x-principal: filing-workflow
       x-timeout: 3000
@@ -160,7 +162,8 @@ paths:
         other service's public /v1 operation`, 3 s (x-timeout 3000).
         When the gateway's circuit breaker for this service is open, or
         the call times out, the gateway answers `503` with the API-20
-        envelope; the `503` is retryable.
+        envelope; the `503` is retryable, and the client retries by a
+        re-read (a safe GET; INV-REQ-1204 b7, INV-Q-3571).
       tags: [reconciliation]
       x-principal: reporting
       x-timeout: 3000

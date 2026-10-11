@@ -514,6 +514,14 @@ paths:
         still running under background retry, each attempt capped at 5 s, until the
         request reads CREATED with exactly one tenant (INV-AC-3485). It never reports
         a created tenant it has not created. PROVISIONED is kept in the enum (API-03).
+
+
+        control-plane-svc mints tenantRef when it records the request, one per
+        contractReference and unchanged on every repeat, so a PENDING response carries it
+        too; it sends it to createTenant as CreateTenantRequest.tenantRef (INV-Q-3573). The
+        201's Location points at getTenantProvisioningRequest, the request's status read, in
+        which it reads PENDING and then CREATED. A replay of provisionTenant returns its
+        original body (API-15), so it is not the status read.
       tags:
       - commercial
       x-principal: filing-workflow
@@ -547,6 +555,12 @@ paths:
       responses:
         "201":
           description: Tenant provisioning request recorded
+          headers:
+            Location:
+              schema:
+                type: string
+              description: '`/internal/v1/control-plane/tenant-provisioning-requests/{contractReference}`,
+                the request''s status read, getTenantProvisioningRequest (INV-Q-3573).'
           content:
             application/json:
               schema:
@@ -566,6 +580,58 @@ paths:
         "404":
           $ref: '#/components/responses/Error'
         "409":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/control-plane/tenant-provisioning-requests/{contractReference}:
+    get:
+      operationId: getTenantProvisioningRequest
+      summary: Read a tenant provisioning request's current status (SCR-38.1)
+      description: >-
+        The status read of provisionTenant (INV-Q-3573, INV-AC-3485): returns the request's
+        current TenantProvisioningResponse, PENDING while createTenant runs under background
+        retry and CREATED once the tenant is created, with the tenantRef control-plane-svc
+        minted when it recorded the request. The request itself is the status resource, as a
+        batch is under API-17. Readable by commercial.admin in platform scope, as
+        provisionTenant, re-checked by control-plane-svc. An unknown contractReference is 404.
+        A replay of provisionTenant returns its original body (API-15), so this is the read
+        in which the request reads CREATED.
+      tags:
+      - commercial
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->control-plane-svc
+      x-timeout: 2000
+      x-requirements:
+      - FR-AC.1
+      - INV-REQ-1204
+      x-error-codes: []
+      parameters:
+      - name: contractReference
+        in: path
+        required: true
+        description: The contract reference the provisioning request was recorded under.
+        schema:
+          type: string
+          maxLength: 64
+        example: CTR-2026-0091
+      responses:
+        "200":
+          description: The provisioning request's current status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantProvisioningResponse'
+              examples:
+                default:
+                  value:
+                    contractReference: CTR-2026-0091
+                    tenantRef: TEN-7B1004
+                    status: PENDING
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'

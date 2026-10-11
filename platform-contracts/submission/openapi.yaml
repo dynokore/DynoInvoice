@@ -43,7 +43,8 @@ paths:
         other service's public /v1 operation`, 3 s (x-timeout 3000).
         When the gateway's circuit breaker for this service is open, or
         the call times out, the gateway answers `503` with the API-20
-        envelope; the `503` is retryable.
+        envelope; the `503` is retryable, and the client retries by a
+        re-read (a safe GET; INV-REQ-1204 b7, INV-Q-3571).
       tags: [readiness]
       x-principal: filing-workflow
       x-timeout: 3000
@@ -96,7 +97,13 @@ paths:
         other service's public /v1 operation`, 3 s (x-timeout 3000).
         When the gateway's circuit breaker for this service is open, or
         the call times out, the gateway answers `503` with the API-20
-        envelope; the `503` is retryable.
+        envelope; the `503` is retryable, and the client retries the
+        same request on the same (entityRef, periodRef), the operation's
+        repeatKey, with no Idempotency-Key header (INV-REQ-1204 b7,
+        INV-Q-3571). This departs from API-15, which requires the header
+        on every other POST: 1.0.0 declares no key, and requiring one
+        would break 1.0.0 callers (API-03), as INV-Q-3551 ruled for
+        deleteAtRetentionEnd.
       tags: [readiness]
       x-principal: filing-workflow
       x-timeout: 3000
@@ -152,7 +159,13 @@ paths:
         other service's public /v1 operation`, 3 s (x-timeout 3000).
         When the gateway's circuit breaker for this service is open, or
         the call times out, the gateway answers `503` with the API-20
-        envelope; the `503` is retryable.
+        envelope; the `503` is retryable, and the client retries the
+        same request on the same (entityRef, periodRef), the operation's
+        repeatKey, with no Idempotency-Key header (INV-REQ-1204 b7,
+        INV-Q-3571). This departs from API-15, which requires the header
+        on every other POST: 1.0.0 declares no key, and requiring one
+        would break 1.0.0 callers (API-03), as INV-Q-3551 ruled for
+        deleteAtRetentionEnd.
       tags: [readiness]
       x-principal: filing-workflow
       x-timeout: 3000
@@ -215,7 +228,8 @@ paths:
         other service's public /v1 operation`, 3 s (x-timeout 3000).
         When the gateway's circuit breaker for this service is open, or
         the call times out, the gateway answers `503` with the API-20
-        envelope; the `503` is retryable.
+        envelope; the `503` is retryable, and the client retries by a
+        re-read (a safe GET; INV-REQ-1204 b7, INV-Q-3571).
       tags: [transactions]
       x-principal: reporting
       x-timeout: 3000
@@ -291,7 +305,8 @@ paths:
         other service's public /v1 operation`, 3 s (x-timeout 3000).
         When the gateway's circuit breaker for this service is open, or
         the call times out, the gateway answers `503` with the API-20
-        envelope; the `503` is retryable.
+        envelope; the `503` is retryable, and the client retries by a
+        re-read (a safe GET; INV-REQ-1204 b7, INV-Q-3571).
       tags: [transactions]
       x-principal: reporting
       x-timeout: 3000
