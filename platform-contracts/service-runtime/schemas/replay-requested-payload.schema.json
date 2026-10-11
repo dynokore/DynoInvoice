@@ -90,7 +90,8 @@
         "tenantId": {
           "type": "string",
           "minLength": 1,
-          "description": "The tenant; required for TENANT and ENTITY, optional for PERIOD (narrows it to one tenant)."
+          "description": "The tenant; required for TENANT and ENTITY, optional for PERIOD (narrows it to one tenant).",
+          "maxLength": 40
         },
         "entityRef": {
           "type": "string",

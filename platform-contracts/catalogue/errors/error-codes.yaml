@@ -1,8 +1,7 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
-# pinned at commit 90b64d7a1b98565b90806b0d5fd2cc95029114e2 (2026-10-11), the
-# head of invoice-docs branch t/inv-t-3634 adding EVL-001..EVL-004 (INV-T-3634,
-# owner ruling INV-Q-3667; re-pinned to its merge commit once the owner merges
-# it; previously pinned at 6c367e5c6f7c05bc9bac7c256b82ddf91450e9f0, INV-T-3457).
+# pinned at commit d6026e5f13c0e12048d27d054d0287941f901de9 (2026-10-11), the
+# merge of invoice-docs!7 adding EVL-001..EVL-004 (INV-T-3634, owner ruling
+# INV-Q-3667; previously pinned at 6c367e5c6f7c05bc9bac7c256b82ddf91450e9f0, INV-T-3457).
 #
 # This copy is the generator's (catalogue/generator/) sole input for the
 # gst-catalogue ErrorCode catalogue (STK-61, CS-13). It is never hand-edited:
