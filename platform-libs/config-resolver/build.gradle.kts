@@ -1,8 +1,6 @@
 // config-resolver/build.gradle.kts — STK-60 L1 module (ARC-16, FR-L.6; INV-T-2860 / T16).
 //
-// Scaffolding only (repository README.md: "design only; no code yet") — this
-// train's job is the module's build shape, not its interfaces: those land with
-// the Wave 1 service or module task that specifies them (TPL-14). One Gradle
+// INV-T-2869 / T25: precedence resolution and resolved-value recording. One Gradle
 // project, one version, one changelog for both halves of its api/impl split:
 //   - `src/main` (published as `config-resolver-api`) — ports and value types only,
 //     framework-free (ARC-16); the only half another module or a service may
@@ -16,6 +14,7 @@ import gst.build.Layer
 
 plugins {
     id("gst.library")
+    id("java-library") // `api(...)`: tenancy-kernel's TenantId is in this module's public signatures
     `maven-publish`
 }
 
@@ -32,16 +31,47 @@ sourceSets {
     }
 }
 
+// Project evaluation order is alphabetical, so tenancy-kernel's `implJar` task would not exist yet.
+evaluationDependsOn(":tenancy-kernel")
+val tenancyKernelImplJar = project(":tenancy-kernel").tasks.named("implJar")
+
 dependencies {
+    api(project(":tenancy-kernel"))
+    add("implImplementation", project(":tenancy-kernel"))
+    add("implImplementation", files(tenancyKernelImplJar))
+
+    // STK-08: Jackson 3 (`tools.jackson`) — the typed option values (jsonb).
+    add("implImplementation", libs.jackson.databind)
+
+    // Tests run against real PostgreSQL 17 and 18 (STK-14, STK-15; H2 is banned).
+    testImplementation(sourceSets["impl"].output)
+    testImplementation(files(tenancyKernelImplJar))
+    testImplementation(libs.jackson.databind)
+    testImplementation(libs.postgresql)
+    testImplementation(libs.testcontainers.postgresql)
+    testImplementation(platform(libs.junit.bom))
+    testImplementation(libs.junit.jupiter)
+    testImplementation(libs.junit.params)
+    testRuntimeOnly(libs.junit.platformLauncher)
+    testRuntimeOnly(libs.slf4j.simple)
+
     // The impl half compiles and runs against the api half's output, in this
     // same project (Gradle's own idiom for a second source set that extends
     // `main`, e.g. `testImplementation(sourceSets.main.get().output)`).
     add("implImplementation", sourceSets["main"].output)
 }
 
+tasks.test {
+    useJUnitPlatform()
+    jvmArgs("-Duser.timezone=UTC") // CS-41 baseline, as outbox-and-queue
+    systemProperty("user.language", "de")
+    systemProperty("user.country", "DE")
+}
+
 val implJar =
     tasks.register<Jar>("implJar") {
         archiveBaseName.set(project.name)
+        destinationDirectory.set(layout.buildDirectory.dir("libs-impl")) // as outbox-and-queue: no clash with `jar`
         from(sourceSets["impl"].output)
     }
 
