@@ -95,4 +95,4 @@ an option key, row or row option that does not exist. The library exposes them a
 `crossOption` keep the records' rule text for 1.x readers, in the library and in the
 JSON artefact alike; the artefact lists every record under a new `constraints` field,
 each with its `placement` (`constraints`, `cross_row` or `cross_option`). VP-64 is untyped by
-design (INV-Q-3616); VP-01 stays untyped while INV-Q-3612 is open.
+design (INV-Q-3616); VP-01 is typed since gst-catalogue 1.10.0 (INV-Q-3612).

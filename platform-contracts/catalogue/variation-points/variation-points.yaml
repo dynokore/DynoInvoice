@@ -40,6 +40,8 @@
 # Re-extracted 2026-10-11 (INV-T-3528; Keel INV-CS-3604, INV-CS-3619): typed constraint records
 # in constraints, cross_row and cross_option (INV-Q-3526, INV-Q-3610, INV-Q-3614, INV-Q-3618); VP-64's
 # note (INV-Q-3616); VP-08's cross_scope text (INV-Q-3548).
+# Re-extracted 2026-10-11 (INV-T-3636; Keel INV-CS-3635): VP-01's typed FACT record
+# VP-01.DIRECTORY_CONNECTED and bounds text (owner ruling INV-Q-3612 A).
 #
 # Keel has no single repository-wide commit the way invoice-docs does, so each row
 # below pins to its own published entity_revision id (`revision`), not a shared SHA.
@@ -61,7 +63,7 @@
 variation_points:
 - id: VP-01
   requirement: INV-REQ-1262
-  revision: 80412502-ae9e-4e18-a81b-5b816141ba6c
+  revision: 3593bd97-1745-493c-96e8-aedfa7eca1b1
   title: "Identities come from the platform or bundled provider by default, or from the customer's OIDC directory, or both, and the break-glass account always remains"
   class: POLICY
   class_modifiers: []
@@ -76,7 +78,7 @@ variation_points:
     - "Platform identity with MFA (SaaS) or the bundled provider (private)"
     - "customer OIDC directory"
     - "both"
-  bounds: "The break-glass account always exists (INV-REQ-896)"
+  bounds: "The break-glass account always exists (INV-REQ-896); customer OIDC directory or both only once a customer OIDC directory is connected and validated (owner ruling INV-Q-3612)"
   status: available
   status_note: "ruling INV-Q-2219; the register row still says planned"
   governs:
@@ -92,7 +94,19 @@ variation_points:
         strictness: "NEUTRAL"
       - key: "BOTH"
         strictness: "NEUTRAL"
-    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1262; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
+    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1262; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; constraints: owner ruling INV-Q-3612 (A), 2026-10-11"
+    constraints:
+      - id: "VP-01.DIRECTORY_CONNECTED"
+        fact:
+          name: "customer_oidc_directory_connected"
+          holder: "TENANT"
+        kind: "FACT"
+        rule: "Customer OIDC directory or both needs a customer OIDC directory connected and its configuration validated (INV-FLOW-229 step 1); applying PRF-2 without one leaves VP-01 at its default (INV-AC-2238)"
+        source: "INV-REQ-1262 b4, io_contract.bounds, must_not_happen; INV-FLOW-229 step 1; INV-REQ-1253; INV-AC-2238; INV-Q-3612"
+        options:
+          - "CUSTOMER_OIDC"
+          - "BOTH"
+        refused: "electing CUSTOMER_OIDC or BOTH for a tenant with no connected and validated customer OIDC directory (access-svc)"
 - id: VP-02
   requirement: INV-REQ-1263
   revision: c7a793b0-78d2-452b-84c7-8883bd6b7761
