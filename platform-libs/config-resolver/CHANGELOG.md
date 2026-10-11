@@ -15,6 +15,7 @@ train is its own (README.md: "own version and changelog").
   strictness, multi-select, by-form default (INV-Q-2934, INV-Q-2936).
 - `ResolutionRecorder` (insert-only, first write wins) and `ConfigPurge` (`purgeSubject`, `purgeTenant`)
   (INV-Q-2938).
+- `BusinessDate.today(clock)`: the Asia/Singapore business date for as-of views (INV-Q-2940).
 - `ConfigSchema`: `config_setting` (source `OVERRIDE`/`PROFILE`, profile id and version, INV-Q-2979),
   `config_installation_setting`, `config_resolved_value`; RLS enabled and forced on the tenant tables.
 

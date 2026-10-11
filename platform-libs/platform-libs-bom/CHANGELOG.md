@@ -5,6 +5,10 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-11
+### Added
+- `config-resolver-api` and `config-resolver` 1.0.0 (INV-T-2869 / T25).
+
 ## [0.6.0] - 2026-10-11
 ### Changed
 - `audit-log`'s pair now resolves to its `2.1.0` (INV-T-3001 / FU-A4: `LocalAuditWriter`).

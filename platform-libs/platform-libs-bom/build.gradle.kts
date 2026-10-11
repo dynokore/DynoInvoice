@@ -43,6 +43,8 @@ dependencies {
         api("com.dynokore.platform:evidence-store:${project(":evidence-store").version}") // INV-T-2863 / T19
         api("com.dynokore.platform:adapter-runtime-api:${project(":adapter-runtime").version}") // INV-T-2862 / T18
         api("com.dynokore.platform:adapter-runtime:${project(":adapter-runtime").version}") // INV-T-2862 / T18
+        api("com.dynokore.platform:config-resolver-api:${project(":config-resolver").version}") // INV-T-2869 / T25
+        api("com.dynokore.platform:config-resolver:${project(":config-resolver").version}") // INV-T-2869 / T25
         api("com.dynokore.platform:audit-log-api:${project(":audit-log").version}") // INV-T-2868 / T24, INV-T-2999, INV-T-3001
         api("com.dynokore.platform:audit-log:${project(":audit-log").version}") // INV-T-2868 / T24, INV-T-2999, INV-T-3001
 
