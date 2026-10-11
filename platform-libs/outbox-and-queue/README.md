@@ -32,6 +32,7 @@ one table per topic), `JdbcInboxConsumer` (inbox, `docsequence` rule, offsets, d
 `ReplayDelivery`/`JdbcReplayDelivery`, `StalenessMonitor`/`JdbcStalenessMonitor`, `EventLogLag`. Existing 1.0.0 schemas:
 run `OutboxSchema.upgradeTo110` and `QueueSchema.ddl` in the service's migration.
 
-Not in 1.1.0: delivery retry with backoff, inbox retention, rate limits shared across worker processes (each worker
+Not in 1.1.0: delivery retry with backoff, inbox retention (added in 1.3.0: `Retention`, `JdbcRetentionPurge`,
+`OutboxSchema.upgradeTo130`; existing schemas run `upgradeTo130` in the service's migration), rate limits shared across worker processes (each worker
 counts its own), exporting the staleness metric and raising the incident (the composition root's sink), and scheduling of the
 loops (service-runtime).

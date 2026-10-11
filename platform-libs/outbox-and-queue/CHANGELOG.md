@@ -6,6 +6,21 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-11
+### Added
+- Retention purge (INV-T-2998, Keel INV-Q-2954 A2, INV-Q-3091, INV-ADR-2772): `Retention` (content window and
+  event-log retention, each default 30 days, refused below 7 days), `RetentionPurge` and `JdbcRetentionPurge`.
+  It deletes published outbox rows whose `published_at` is older than the content window (an unpublished row is
+  never deleted) and inbox rows whose `received_at` is older than the event-log retention plus 1 day, across
+  tenants on the worker role, in batches. One retention serves all topics; the inbox has no topic column.
+- `OutboxSchema.ddl` gives the worker role the purge access (a `DELETE` policy on published outbox rows, `SELECT`
+  of `inbox.received_at` and `DELETE` on the inbox); `OutboxSchema.upgradeTo130` does the same for a 1.2.0
+  schema (idempotent; run once in the service's migration).
+### Not included
+- The `eventlog` topic tables are created by the event-log component's migration (`EventLogSchema`), not this
+  module's service schema, and this module holds INSERT and SELECT on them only; purging them past the
+  event-log retention belongs to that component.
+
 ## [1.2.0] - 2026-10-11
 ### Added
 - Tenantless platform events (Keel INV-Q-2927 option D, INV-Q-3014, INV-Q-3018): a platform event

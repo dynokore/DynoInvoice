@@ -114,8 +114,29 @@ object OutboxSchema {
             grant select, insert, update on $s.$OUTBOX, $s.$OUTBOX_SEQUENCE, $s.$CONSUMER_SEQUENCE,
                 $s.$CONSUMER_OFFSET to $role;
             grant select, insert on $s.$INBOX to $role;
+            ${purgeAccess(s, worker)}
         """.trimIndent()
     }
+
+    /**
+     * The worker's retention purge access (INV-T-2998): `DELETE` on published outbox rows and on inbox rows, each
+     * through its own policy, and the column `SELECT` the `WHERE` needs. The outbox policy cannot reach an unpublished
+     * row, and the worker still cannot read `data` or any other outbox column beyond the claim grant.
+     */
+    private fun purgeAccess(
+        s: String,
+        worker: String,
+    ): String = """
+        drop policy if exists ${OUTBOX}_purge on $s.$OUTBOX;
+        create policy ${OUTBOX}_purge on $s.$OUTBOX for delete to $worker using (published_at is not null);
+        grant delete on $s.$OUTBOX to $worker;
+        drop policy if exists ${INBOX}_purge on $s.$INBOX;
+        drop policy if exists ${INBOX}_purge_select on $s.$INBOX;
+        create policy ${INBOX}_purge_select on $s.$INBOX for select to $worker using (true);
+        create policy ${INBOX}_purge on $s.$INBOX for delete to $worker using (true);
+        grant select (consumer, event_id, received_at) on $s.$INBOX to $worker;
+        grant delete on $s.$INBOX to $worker;
+    """.trimIndent()
 
     /**
      * Brings a schema created by 1.0.0 to 1.1.0: the triage columns of [DEAD_LETTER] and the worker's column
@@ -153,4 +174,13 @@ object OutboxSchema {
                 add primary key (consumer, tenant_id, source, subject);
         """.trimIndent()
     }
+
+    /**
+     * Brings a 1.2.0 schema to 1.3.0: the worker's retention purge access ([JdbcRetentionPurge]). Run once by the
+     * service's migration (TPL-12); not needed for a schema created by [ddl].
+     */
+    fun upgradeTo130(
+        schema: String,
+        workerRole: String,
+    ): String = purgeAccess(SqlIdentifier.require(schema, "schema"), SqlIdentifier.require(workerRole, "worker role"))
 }
