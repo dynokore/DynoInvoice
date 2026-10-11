@@ -519,7 +519,7 @@ class JdbcPolicyWriter(
         return mapper.writeValueAsString(node)
     }
 
-    /** The `PolicyChanged` payload (platform-contracts policy-changed-payload.schema.json). */
+    /** The `PolicyChanged` payload (platform-contracts policy-changed-payload.schema.json, INV-API-3306). */
     private fun policyChanged(version: SettingVersion): String {
         val node = mapper.createObjectNode()
         node.put("scope", version.target.scopeText)
@@ -528,9 +528,8 @@ class JdbcPolicyWriter(
         node.put("effectiveDate", version.effectiveFrom.toString())
         node.put("source", version.source.name)
         version.relaxation?.let { node.put("relaxationAcknowledgementReference", it.toString()) }
-        node.put("settingId", version.id.toString())
-        version.profileId?.let { node.put("profileId", it) }
-        version.profileVersion?.let { node.put("profileVersion", it) }
+        // Exactly the INV-API-3306 data model: the setting id, profile id and profile version stay on the
+        // setting record, where INV-AC-2092 reads them, not on the wire (owner ruling INV-Q-2979, INV-Q-3714).
         return mapper.writeValueAsString(node)
     }
 

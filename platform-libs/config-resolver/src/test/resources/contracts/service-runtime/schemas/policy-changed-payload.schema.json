@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/service-runtime/schemas/policy-changed-payload.schema.json",
+  "title": "PolicyChangedPayload",
+  "description": "Payload of the PolicyChanged platform event (catalogued in model/architecture/events.yaml, INV-NOTE-3 §19.8, §28.18, §37; class: platform; FR-AH.15). Feeds runtime replicas directly (feeds_runtime_replicas: true) rather than through a consumer inbox. Authored by INV-T-2855 (T11). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "scope": {
+      "type": "string",
+      "description": "The scope the changed value applies to (tenant, entity or global, per the variation point's own reach)."
+    },
+    "vpId": {
+      "type": "string",
+      "description": "The variation point identifier, e.g. 'VP-72' (catalogued as VariationPoint, STK-61)."
+    },
+    "value": {
+      "description": "The new value (opaque here; typed per variation point by its own reader, PolicyReader)."
+    },
+    "effectiveDate": {
+      "type": "string",
+      "format": "date",
+      "description": "The date this value takes effect."
+    },
+    "source": {
+      "type": "string",
+      "description": "Where the value came from (API-09 casing).",
+      "enum": [
+        "DEFAULT",
+        "PROFILE",
+        "OVERRIDE"
+      ]
+    },
+    "relaxationAcknowledgementReference": {
+      "type": "string",
+      "description": "Reference to the relaxation acknowledgement this change required, present only when the change relaxes a control (controls tighten-only otherwise)."
+    }
+  },
+  "required": [
+    "scope",
+    "vpId",
+    "effectiveDate",
+    "source"
+  ],
+  "additionalProperties": true
+}

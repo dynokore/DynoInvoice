@@ -6,6 +6,14 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-12
+### Changed
+- The `PolicyChanged` payload is exactly the INV-API-3306 data model (scope, vpId, value, effectiveDate, source
+  and, when present, relaxationAcknowledgementReference): it no longer carries `settingId`, `profileId` or
+  `profileVersion`, which stay on the setting record where INV-AC-2092 reads them (owner ruling INV-Q-2979,
+  coordinator ruling INV-Q-3714, INV-T-3722). The audit entry's prior state and the setting record are unchanged.
+  The three fields were never in the contract, so no contract version changes.
+
 ## [1.3.0] - 2026-10-11
 ### Added
 - `TypedValueSpec.default` (gst-catalogue 1.6.0 `TypedValue.default`) and `TypedValueSpec.absentAs`: an option
