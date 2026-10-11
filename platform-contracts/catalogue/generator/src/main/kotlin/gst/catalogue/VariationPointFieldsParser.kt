@@ -68,26 +68,6 @@ object VariationPointFieldsParser {
 
     private val optionKeys = setOf("key", "strictness", "typed_value", "acknowledged_by")
 
-    /**
-     * INV-T-3528, only so the re-vendored file loads: cross_row / cross_option are now lists of typed
-     * records (Keel INV-CS-3604); 1.x keeps them as text, the records' rules joined. gst-catalogue
-     * 1.9.0 parses and checks the records themselves.
-     */
-    private fun ruleText(
-        value: Any?,
-        name: String,
-        fail: (String) -> Nothing,
-    ): String? =
-        when (value) {
-            null -> null
-            is String -> value
-            is List<*> ->
-                value.joinToString(" ") { r ->
-                    (r as? Map<*, *>)?.get("rule") as? String ?: fail("$name record has no 'rule' text")
-                }
-            else -> fail("'$name' must be text or a list of records, got ${value::class.simpleName}")
-        }
-
     fun parse(
         id: String,
         cat: Map<String, Any?>,
@@ -98,10 +78,8 @@ object VariationPointFieldsParser {
         val known =
             setOf(
                 "scope_levels", "options", "must_be_elected", "multi_select", "exclusive_keys",
-                "cross_scope", "cross_option", "cross_row", "note", "basis", "default_by_form", "installation_parameter",
+                "cross_scope", "cross_option", "cross_row", "constraints", "note", "basis", "default_by_form", "installation_parameter",
                 "second_approver",
-                // INV-T-3528: accepted only so the re-vendored file loads; gst-catalogue 1.9.0 parses and checks the records.
-                "constraints",
             )
         val unknownKeys = cat.keys - known
         if (unknownKeys.isNotEmpty()) fail("unknown field(s) ${unknownKeys.sorted().joinToString()}; extend the generator")
@@ -139,8 +117,9 @@ object VariationPointFieldsParser {
             multiSelect = top.boolean("multi_select") ?: false,
             exclusiveKeys = top.stringList("exclusive_keys") ?: emptyList(),
             crossScope = top.string("cross_scope"),
-            crossOption = ruleText(cat["cross_option"], "cross_option", ::fail),
-            crossRow = ruleText(cat["cross_row"], "cross_row", ::fail),
+            crossOption = constraints(top.list("cross_option"), ConstraintPlacement.CROSS_OPTION, ::fail),
+            crossRow = constraints(top.list("cross_row"), ConstraintPlacement.CROSS_ROW, ::fail),
+            constraints = constraints(top.list("constraints"), ConstraintPlacement.CONSTRAINTS, ::fail),
             note = top.string("note"),
             basis = top.string("basis"),
             defaultByForm =
@@ -154,6 +133,87 @@ object VariationPointFieldsParser {
             secondApprover = top.string("second_approver"),
         )
     }
+
+    private val constraintKeys =
+        setOf(
+            "id", "kind", "options", "selection", "forms", "fact", "row", "row_options", "at", "rows", "scope_level",
+            "check", "inputs", "rule", "refused", "source",
+        )
+
+    private inline fun <reified E : Enum<E>> enumOf(
+        text: String,
+        where: String,
+        fail: (String) -> Nothing,
+    ): E = enumValues<E>().find { it.name == text } ?: fail("$where '$text' is not one of ${enumValues<E>().joinToString()}")
+
+    /**
+     * The typed constraint records of `constraints`, `cross_row` or `cross_option` (INV-CS-3604): only the
+     * record shape is narrowed here (an unknown field, kind, form or scope level fails); whether the options
+     * and rows exist is [VariationPointFieldsChecker]'s.
+     */
+    private fun constraints(
+        raw: List<*>?,
+        placement: ConstraintPlacement,
+        fail: (String) -> Nothing,
+    ): List<VpConstraint> =
+        raw.orEmpty().mapIndexed { index, item ->
+            val map = asMap(item, "${placement.keelName} #${index + 1}", fail)
+            val id = (map["id"] as? String)?.trim() ?: fail("${placement.keelName} #${index + 1} has no 'id'")
+            val where = "${placement.keelName} $id"
+            val unknown = map.keys - constraintKeys
+            if (unknown.isNotEmpty()) fail("$where has unknown field(s) ${unknown.sorted().joinToString()}; extend the generator")
+            val f = Fields(map, where, fail)
+
+            fun fact(raw: Map<String, Any?>?, at: String): ConstraintFact? =
+                raw?.let {
+                    if (it.keys != setOf("holder", "name")) fail("$at must be exactly {holder, name}, got ${it.keys.sorted()}")
+                    val ff = Fields(it, at, fail)
+                    ConstraintFact(
+                        holder = enumOf(ff.string("holder") ?: fail("$at has no holder"), "$at holder", fail),
+                        name = ff.string("name")?.trim()?.takeIf { n -> n.isNotEmpty() } ?: fail("$at has no name"),
+                    )
+                }
+            VpConstraint(
+                id = id,
+                kind = enumOf(f.string("kind") ?: fail("$where has no 'kind'"), "$where kind", fail),
+                placement = placement,
+                options = f.stringList("options")?.map { it.trim() } ?: emptyList(),
+                selection = f.string("selection")?.let { enumOf<ConstraintSelection>(it, "$where selection", fail) },
+                forms = f.stringList("forms")?.map { enumOf<DeploymentForm>(it, "$where form", fail) } ?: emptyList(),
+                fact = fact(f.map("fact"), "$where's fact"),
+                row = f.string("row")?.trim()?.also { if (!rowPattern.matches(it)) fail("$where's row '$it' is not a VP-nn id") },
+                rowOptions = f.stringList("row_options")?.map { it.trim() } ?: emptyList(),
+                at = f.string("at")?.let { enumOf<ScopeLevel>(it, "$where at", fail) },
+                rows =
+                    f.stringList("rows")?.map { r ->
+                        r.trim().also { if (!rowPattern.matches(it)) fail("$where's rows entry '$it' is not a VP-nn id") }
+                    } ?: emptyList(),
+                scopeLevel = f.string("scope_level")?.let { enumOf<ScopeLevel>(it, "$where scope_level", fail) },
+                check = f.string("check")?.trim(),
+                inputs =
+                    f.list("inputs")?.mapIndexed { i, rawInput ->
+                        val at = "$where input #${i + 1}"
+                        val input = asMap(rawInput, at, fail)
+                        val extra = input.keys - setOf("row", "fact", "value", "min")
+                        if (extra.isNotEmpty()) fail("$at has unknown field(s) ${extra.sorted().joinToString()}; extend the generator")
+                        val fi = Fields(input, at, fail)
+                        val parsed =
+                            ConstraintInput(
+                                row = fi.string("row")?.trim()?.also { if (!rowPattern.matches(it)) fail("$at's row '$it' is not a VP-nn id") },
+                                fact = fact(fi.map("fact"), "$at's fact"),
+                                value = fi.string("value")?.trim(),
+                                min = bound(input["min"]),
+                            )
+                        if (listOfNotNull(parsed.row, parsed.fact, parsed.value).size != 1) {
+                            fail("$at must name exactly one of row, fact or value")
+                        }
+                        parsed
+                    } ?: emptyList(),
+                rule = f.string("rule") ?: fail("$where has no 'rule'"),
+                refused = f.string("refused") ?: fail("$where has no 'refused'"),
+                source = f.string("source") ?: fail("$where has no 'source'"),
+            )
+        }
 
     private val parameterRefKeys = setOf("row", "requirement", "name", "note", "rule")
 

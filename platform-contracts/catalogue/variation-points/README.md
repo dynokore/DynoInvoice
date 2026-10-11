@@ -80,3 +80,19 @@ the `ErrorCode` and `VariationPoint` catalogues, STK-61's "one catalogue"):
   §26.3 — is not checked: that table lives only in an archived document CODER-BRIEF
   forbids this repository's coding agents from reading. See
   `NonWaivableFloorChecker`'s own KDoc.
+
+## Typed constraints (INV-T-3528)
+
+Since gst-catalogue 1.9.0 (1.8.0 only loads them) a row's `catalogue` block may carry typed constraint records
+(Keel INV-CS-3604; INV-Q-3526, INV-Q-3610, INV-Q-3614, INV-Q-3618): `constraints` for
+the row's own options, `cross_row` for records naming another row, `cross_option` for
+the whole multi-select selection. Each record is `{id, kind: FORM | FACT | REQUIRES |
+EXCLUDES | CHECK, options | selection, forms, fact {holder, name}, row / row_options /
+at, rows / scope_level, check / inputs, rule, refused, source}`. The generator fails
+on an unknown field, kind, form or scope level, and `check` fails on a record naming
+an option key, row or row option that does not exist. The library exposes them as
+`VariationPoint.constraints` (and `VariationPoint.allConstraints()`); `crossRow` and
+`crossOption` keep the records' rule text for 1.x readers, in the library and in the
+JSON artefact alike; the artefact lists every record under a new `constraints` field,
+each with its `placement` (`constraints`, `cross_row` or `cross_option`). VP-64 is untyped by
+design (INV-Q-3616); VP-01 stays untyped while INV-Q-3612 is open.

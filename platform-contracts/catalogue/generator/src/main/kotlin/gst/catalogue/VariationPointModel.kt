@@ -230,8 +230,12 @@ data class VpCatalogueFields(
     val multiSelect: Boolean = false,
     val exclusiveKeys: List<String> = emptyList(),
     val crossScope: String? = null,
-    val crossOption: String? = null,
-    val crossRow: String? = null,
+    /** The whole-selection records of `cross_option` (INV-CS-3604; VP-46). */
+    val crossOption: List<VpConstraint> = emptyList(),
+    /** The records of `cross_row`: each names another row (INV-CS-3604; VP-20, VP-25, VP-35, VP-74). */
+    val crossRow: List<VpConstraint> = emptyList(),
+    /** The records of `constraints`: they concern this row's own options only (INV-CS-3604). */
+    val constraints: List<VpConstraint> = emptyList(),
     val note: String? = null,
     val basis: String? = null,
     /** A default that depends on the deployment form (e.g. VP-74: SAAS → ON, PRIVATE → OFF); then no option is DEFAULT. */
@@ -242,4 +246,75 @@ data class VpCatalogueFields(
     val installationParameterRef: InstallationParameterRef? = null,
     /** Who the second approver is, where the row names one (VP-32). */
     val secondApprover: String? = null,
+)
+
+/** The kind of a typed constraint record (INV-CS-3604, INV-Q-3526). */
+enum class ConstraintKind {
+    /** The options are offered only in [VpConstraint.forms]. */
+    FORM,
+
+    /** The options need [VpConstraint.fact] (only in [VpConstraint.forms] where those are named). */
+    FACT,
+
+    /** The options need one of [VpConstraint.rowOptions] of [VpConstraint.row], elected at [VpConstraint.at]. */
+    REQUIRES,
+
+    /** With the options, [VpConstraint.rows] hold no value at [VpConstraint.scopeLevel]. */
+    EXCLUDES,
+
+    /** The options pass the named [VpConstraint.check] over [VpConstraint.inputs]. */
+    CHECK,
+}
+
+/** Where a record sits in Keel's io_contract.catalogue (INV-CS-3604). */
+enum class ConstraintPlacement(
+    val keelName: String,
+) {
+    CONSTRAINTS("constraints"),
+    CROSS_ROW("cross_row"),
+    CROSS_OPTION("cross_option"),
+}
+
+/** What a record judges when it names no options: the whole multi-select selection (VP-46). */
+enum class ConstraintSelection {
+    WHOLE,
+}
+
+/** A fact a constraint needs, held at [holder] (an installation, a connection, an entity). */
+data class ConstraintFact(
+    val holder: ScopeLevel,
+    val name: String,
+)
+
+/** One input of a named check: a row's value, a fact, or a named value with a minimum (VP-46: resulting_recipients >= 2). */
+data class ConstraintInput(
+    val row: String? = null,
+    val fact: ConstraintFact? = null,
+    val value: String? = null,
+    val min: BoundValue? = null,
+)
+
+/**
+ * One typed constraint record as Keel publishes it (INV-CS-3604, INV-Q-3610, INV-Q-3614,
+ * INV-Q-3618): [refused] names the step a negative case asserts, the election unless the
+ * record says otherwise (VP-71: the connection's activation). [rule] and [source] are Keel's words.
+ */
+data class VpConstraint(
+    val id: String,
+    val kind: ConstraintKind,
+    val placement: ConstraintPlacement,
+    val options: List<String> = emptyList(),
+    val selection: ConstraintSelection? = null,
+    val forms: List<DeploymentForm> = emptyList(),
+    val fact: ConstraintFact? = null,
+    val row: String? = null,
+    val rowOptions: List<String> = emptyList(),
+    val at: ScopeLevel? = null,
+    val rows: List<String> = emptyList(),
+    val scopeLevel: ScopeLevel? = null,
+    val check: String? = null,
+    val inputs: List<ConstraintInput> = emptyList(),
+    val rule: String,
+    val refused: String,
+    val source: String,
 )

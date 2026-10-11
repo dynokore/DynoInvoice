@@ -59,6 +59,10 @@ object VariationPointKotlinEmitter {
             appendLine(" * [scopeLevels], [optionSpecs], [multiSelect] and [exclusiveKeys] are Keel's")
             appendLine(" * machine-readable catalogue fields (INV-T-3000; INV-Q-2934, INV-Q-2936): null/empty")
             appendLine(" * only on a retired row or while [pendingQuestions] names the open question.")
+            appendLine(" *")
+            appendLine(" * [constraints] are Keel's typed constraint records (INV-CS-3604, INV-Q-3526): the row's own")
+            appendLine(" * `constraints`, then `cross_row`, then `cross_option`, each with its [VpConstraint.placement].")
+            appendLine(" * [crossRow] and [crossOption] keep the rule text of those records, joined, for 1.x readers.")
             appendLine(" */")
             appendLine("enum class VariationPoint(")
             appendLine("    val id: String,")
@@ -84,6 +88,7 @@ object VariationPointKotlinEmitter {
             appendLine("    val crossScope: String?,")
             appendLine("    val crossOption: String?,")
             appendLine("    val crossRow: String?,")
+            appendLine("    val constraints: List<VpConstraint>,")
             appendLine("    val defaultByForm: Map<String, String>,")
             appendLine("    val installationParameter: TypedValue?,")
             appendLine("    val installationParameterRef: InstallationParameterRef?,")
@@ -95,6 +100,9 @@ object VariationPointKotlinEmitter {
             appendLine()
             appendLine("    companion object {")
             appendLine("        fun fromId(id: String): VariationPoint? = entries.find { it.id == id }")
+            appendLine()
+            appendLine("        /** Every typed constraint record of the catalogue with the row it sits on (INV-CS-3604). */")
+            appendLine("        fun allConstraints(): List<Pair<VariationPoint, VpConstraint>> = entries.flatMap { vp -> vp.constraints.map { vp to it } }")
             appendLine("    }")
             appendLine("}")
             appendLine()
@@ -198,6 +206,54 @@ object VariationPointKotlinEmitter {
         appendLine("    val condition: AckCondition,")
         appendLine("    val distinctFromSetter: Boolean,")
         appendLine("    val rolesByForm: Map<DeploymentForm, List<String>> = emptyMap(),")
+        appendLine(")")
+        appendLine()
+        enumBlock("The kind of a typed constraint record (INV-CS-3604).", "ConstraintKind", ConstraintKind.entries.map { it.name })
+        enumBlock(
+            "Where a record sits in Keel's io_contract.catalogue: constraints (own options), cross_row, cross_option (INV-CS-3604).",
+            "ConstraintPlacement",
+            ConstraintPlacement.entries.map { it.name },
+        )
+        enumBlock("What a record judges when it names no options: the whole multi-select selection.", "ConstraintSelection", ConstraintSelection.entries.map { it.name })
+        appendLine("/** A fact a constraint needs, held at [holder] (an installation, a connection, an entity). */")
+        appendLine("data class ConstraintFact(")
+        appendLine("    val holder: ScopeLevel,")
+        appendLine("    val name: String,")
+        appendLine(")")
+        appendLine()
+        appendLine("/** One input of a named check: a row's value ([row], a VP id), a [fact], or a named [value] with a [min]. */")
+        appendLine("data class ConstraintInput(")
+        appendLine("    val row: String? = null,")
+        appendLine("    val fact: ConstraintFact? = null,")
+        appendLine("    val value: String? = null,")
+        appendLine("    val min: BoundValue? = null,")
+        appendLine(")")
+        appendLine()
+        appendLine("/**")
+        appendLine(" * One typed constraint record (INV-CS-3604; INV-Q-3610, INV-Q-3614, INV-Q-3618). FORM: [options] are offered only in")
+        appendLine(" * [forms]. FACT: [options] need [fact] (only in [forms] where named). REQUIRES: [options] need one of [rowOptions]")
+        appendLine(" * of [row] elected at [at]. EXCLUDES: with [options], [rows] hold no value at [scopeLevel]. CHECK: [options] (or the")
+        appendLine(" * whole [selection]) pass [check] over [inputs]. [refused] names the step a negative case asserts: the election")
+        appendLine(" * unless it says otherwise (VP-71: the connection's activation). [rule] and [source] are Keel's words.")
+        appendLine(" */")
+        appendLine("data class VpConstraint(")
+        appendLine("    val id: String,")
+        appendLine("    val kind: ConstraintKind,")
+        appendLine("    val placement: ConstraintPlacement,")
+        appendLine("    val options: List<String> = emptyList(),")
+        appendLine("    val selection: ConstraintSelection? = null,")
+        appendLine("    val forms: List<DeploymentForm> = emptyList(),")
+        appendLine("    val fact: ConstraintFact? = null,")
+        appendLine("    val row: String? = null,")
+        appendLine("    val rowOptions: List<String> = emptyList(),")
+        appendLine("    val at: ScopeLevel? = null,")
+        appendLine("    val rows: List<String> = emptyList(),")
+        appendLine("    val scopeLevel: ScopeLevel? = null,")
+        appendLine("    val check: String? = null,")
+        appendLine("    val inputs: List<ConstraintInput> = emptyList(),")
+        appendLine("    val rule: String,")
+        appendLine("    val refused: String,")
+        appendLine("    val source: String,")
         appendLine(")")
         appendLine()
         appendLine("/** One option at its catalogue position: [key] is the owning enum's constant (TPL-10). */")
@@ -307,14 +363,59 @@ object VariationPointKotlinEmitter {
             "${row.fields?.multiSelect ?: false}, " +
             "${(row.fields?.exclusiveKeys ?: emptyList()).kotlinListLiteral()}, " +
             "${row.fields?.crossScope.kotlinNullableStringLiteral()}, " +
-            "${row.fields?.crossOption.kotlinNullableStringLiteral()}, " +
-            "${row.fields?.crossRow.kotlinNullableStringLiteral()}, " +
+            "${row.fields?.crossOption?.joinedRules().kotlinNullableStringLiteral()}, " +
+            "${row.fields?.crossRow?.joinedRules().kotlinNullableStringLiteral()}, " +
+            "${constraintsLiteral(row.fields)}, " +
             "${row.fields?.defaultByForm.orEmpty().let { m -> if (m.isEmpty()) "emptyMap()" else "mapOf(" + m.entries.joinToString(", ") { (k, v) -> "${k.kotlinStringLiteralBody()} to ${v.kotlinStringLiteralBody()}" } + ")" }}, " +
             "${row.fields?.installationParameter?.let { typedLiteral(it) } ?: "null"}, " +
             "${row.fields?.installationParameterRef?.let { parameterRefLiteral(it) } ?: "null"}, " +
             "${row.fields?.secondApprover.kotlinNullableStringLiteral()}, " +
             row.pendingQuestions.kotlinListLiteral() +
             ")"
+    }
+
+    private fun List<VpConstraint>.joinedRules(): String? = takeIf { it.isNotEmpty() }?.joinToString(" ") { it.rule }
+
+    private fun constraintsLiteral(fields: VpCatalogueFields?): String {
+        val all = fields?.let { it.constraints + it.crossRow + it.crossOption }.orEmpty()
+        if (all.isEmpty()) return "emptyList()"
+        return "listOf(" + all.joinToString(", ") { constraintLiteral(it) } + ")"
+    }
+
+    private fun factLiteral(f: ConstraintFact): String = "ConstraintFact(ScopeLevel.${f.holder}, ${f.name.kotlinStringLiteralBody()})"
+
+    private fun constraintLiteral(c: VpConstraint): String {
+        val args =
+            mutableListOf(
+                c.id.kotlinStringLiteralBody(),
+                "ConstraintKind.${c.kind}",
+                "ConstraintPlacement.${c.placement}",
+            )
+        if (c.options.isNotEmpty()) args += "options = ${c.options.kotlinListLiteral()}"
+        c.selection?.let { args += "selection = ConstraintSelection.$it" }
+        if (c.forms.isNotEmpty()) args += "forms = listOf(" + c.forms.joinToString(", ") { "DeploymentForm.$it" } + ")"
+        c.fact?.let { args += "fact = ${factLiteral(it)}" }
+        c.row?.let { args += "row = ${it.kotlinStringLiteralBody()}" }
+        if (c.rowOptions.isNotEmpty()) args += "rowOptions = ${c.rowOptions.kotlinListLiteral()}"
+        c.at?.let { args += "at = ScopeLevel.$it" }
+        if (c.rows.isNotEmpty()) args += "rows = ${c.rows.kotlinListLiteral()}"
+        c.scopeLevel?.let { args += "scopeLevel = ScopeLevel.$it" }
+        c.check?.let { args += "check = ${it.kotlinStringLiteralBody()}" }
+        if (c.inputs.isNotEmpty()) {
+            args += "inputs = listOf(" +
+                c.inputs.joinToString(", ") { i ->
+                    val a = mutableListOf<String>()
+                    i.row?.let { a += "row = ${it.kotlinStringLiteralBody()}" }
+                    i.fact?.let { a += "fact = ${factLiteral(it)}" }
+                    i.value?.let { a += "value = ${it.kotlinStringLiteralBody()}" }
+                    i.min?.let { a += "min = ${boundLiteral(it)}" }
+                    "ConstraintInput(" + a.joinToString(", ") + ")"
+                } + ")"
+        }
+        args += "rule = ${c.rule.kotlinStringLiteralBody()}"
+        args += "refused = ${c.refused.kotlinStringLiteralBody()}"
+        args += "source = ${c.source.kotlinStringLiteralBody()}"
+        return "VpConstraint(" + args.joinToString(", ") + ")"
     }
 
     private fun List<String>.kotlinListLiteral(): String =

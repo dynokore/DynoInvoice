@@ -22,7 +22,11 @@ package gst.catalogue
  * - typed values (INV-Q-2934): an int, decimal, amount, money, rate or duration states its direction
  *   (a list item or map key/value takes its container's direction, so a list or map of numeric items states one); numeric min <= max (an
  *   exclusive min below max), a numeric default lies within them, min_items <= max_items;
- * - a per-form default (VP-74) replaces the single DEFAULT and names option keys.
+ * - a per-form default (VP-74) replaces the single DEFAULT and names option keys;
+ * - typed constraint records (INV-CS-3604, INV-Q-3526; [checkConstraints]) name only option keys, rows,
+ *   row options and scope levels that exist, carry the fields their kind needs, and sit where Keel
+ *   places them: `constraints` for the row's own options, `cross_row` naming another row,
+ *   `cross_option` for the whole selection.
  */
 object VariationPointFieldsChecker {
     data class Violation(
@@ -36,7 +40,7 @@ object VariationPointFieldsChecker {
     private val noLooserModifiers =
         setOf(VpClassModifier.NON_WAIVABLE, VpClassModifier.NON_WAIVABLE_IN_PART, VpClassModifier.TIGHTEN_ONLY)
 
-    fun check(rows: List<ParsedVariationPoint>): List<Violation> = rows.flatMap { check(it) } + checkRowReferences(rows)
+    fun check(rows: List<ParsedVariationPoint>): List<Violation> = rows.flatMap { check(it) } + checkRowReferences(rows) + checkConstraints(rows)
 
     /**
      * INV-Q-3202: a bound `{row: VP-nn}` and an installation parameter made its own row must
@@ -64,6 +68,79 @@ object VariationPointFieldsChecker {
                     target == null -> out += Violation(row.id, "installation_parameter row ${p.row} is not a variation point of this catalogue")
                     target.requirement != p.requirement ->
                         out += Violation(row.id, "installation_parameter row ${p.row} is ${target.requirement}, not ${p.requirement}")
+                }
+            }
+        }
+        return out
+    }
+
+    /** Every typed constraint record of every row (INV-CS-3604), checked against the whole catalogue. */
+    fun checkConstraints(rows: List<ParsedVariationPoint>): List<Violation> {
+        val byId = rows.associateBy { it.id }
+        val out = mutableListOf<Violation>()
+        val seen = mutableMapOf<String, String>()
+        rows.forEach { row ->
+            val fields = row.fields ?: return@forEach
+            val own = fields.options.map { it.key }.toSet()
+            (fields.constraints + fields.crossRow + fields.crossOption).forEach { c ->
+                fun v(reason: String) = out.add(Violation(row.id, "${c.placement.keelName} ${c.id}: $reason"))
+                seen.put(c.id, row.id)?.let { v("id is also used on $it") }
+                if (!c.id.startsWith("${row.id}.")) v("id does not start with the row's own id ${row.id}.")
+                (c.options - own).forEach { v("option '$it' is not an option key of ${row.id}") }
+                if (c.options.toSet().size != c.options.size) v("an option is repeated")
+                if (c.options.isEmpty() == (c.selection == null)) v("names options or selection WHOLE, exactly one")
+                if (c.selection != null && !fields.multiSelect) v("selection WHOLE on a row that is not multi_select")
+                if (c.forms.toSet().size != c.forms.size) v("a form is repeated")
+                if (c.rule.isBlank() || c.refused.isBlank() || c.source.isBlank()) v("rule, refused and source must not be blank")
+
+                fun otherRow(
+                    id: String,
+                    what: String,
+                ): ParsedVariationPoint? =
+                    byId[id] ?: run {
+                        v("$what $id is not a variation point of this catalogue")
+                        null
+                    }
+                c.row?.let { r ->
+                    otherRow(r, "row")?.let { target ->
+                        val keys = target.fields?.options?.map { it.key }?.toSet()
+                        if (keys == null) {
+                            v("row $r has no option keys")
+                        } else {
+                            (c.rowOptions - keys).forEach { v("row option '$it' is not an option key of $r") }
+                        }
+                        if (c.at != null && target.fields?.scopeLevels?.contains(c.at) == false) v("row $r is never set at ${c.at}")
+                    }
+                }
+                c.rows.forEach { r ->
+                    otherRow(r, "rows entry")?.let { target ->
+                        if (c.scopeLevel != null && target.fields?.scopeLevels?.contains(c.scopeLevel) == false) {
+                            v("rows entry $r is never set at ${c.scopeLevel}")
+                        }
+                    }
+                }
+                c.inputs.forEach { input -> input.row?.let { otherRow(it, "input row") } }
+                when (c.kind) {
+                    ConstraintKind.FORM -> if (c.forms.isEmpty()) v("a FORM record names no form")
+                    ConstraintKind.FACT -> if (c.fact == null) v("a FACT record names no fact")
+                    ConstraintKind.REQUIRES ->
+                        if (c.row == null || c.rowOptions.isEmpty()) v("a REQUIRES record names no row and row_options")
+                    ConstraintKind.EXCLUDES ->
+                        if (c.rows.isEmpty() && (c.row == null || c.rowOptions.isEmpty())) {
+                            v("an EXCLUDES record names neither rows nor a row with row_options")
+                        }
+                    ConstraintKind.CHECK -> if (c.check.isNullOrBlank() || c.inputs.isEmpty()) v("a CHECK record names no check and inputs")
+                }
+                if (c.kind != ConstraintKind.CHECK && (c.check != null || c.inputs.isNotEmpty())) v("check and inputs belong to a CHECK record")
+                if (c.kind != ConstraintKind.FACT && c.fact != null) v("fact belongs to a FACT record")
+                if (c.kind == ConstraintKind.FORM && c.forms.size == DeploymentForm.entries.size) v("a FORM record naming every form constrains nothing")
+                val namesOtherRow =
+                    (listOfNotNull(c.row) + c.rows + c.inputs.mapNotNull { it.row }).any { it != row.id }
+                when (c.placement) {
+                    ConstraintPlacement.CONSTRAINTS ->
+                        if (c.row != null || c.rows.isNotEmpty() || c.selection != null) v("a constraints record names another row or the selection")
+                    ConstraintPlacement.CROSS_ROW -> if (!namesOtherRow) v("a cross_row record names no other row")
+                    ConstraintPlacement.CROSS_OPTION -> if (c.selection == null) v("a cross_option record does not judge the whole selection")
                 }
             }
         }

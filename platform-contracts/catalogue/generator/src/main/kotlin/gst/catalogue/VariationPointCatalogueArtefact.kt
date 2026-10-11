@@ -70,8 +70,12 @@ object VariationPointCatalogueArtefact {
                 "\"exclusiveKeys\": [${f.exclusiveKeys.joinToString(", ") { it.jsonString() }}]",
             )
         f.crossScope?.let { parts += "\"crossScope\": ${it.jsonString()}" }
-        f.crossOption?.let { parts += "\"crossOption\": ${it.jsonString()}" }
-        f.crossRow?.let { parts += "\"crossRow\": ${it.jsonString()}" }
+        // crossOption and crossRow stay text, as in 1.x: the records' rules, joined (as the Kotlin library keeps them).
+        f.crossOption.joinedRules()?.let { parts += "\"crossOption\": ${it.jsonString()}" }
+        f.crossRow.joinedRules()?.let { parts += "\"crossRow\": ${it.jsonString()}" }
+        // Every typed record, own row first, then cross-row, then cross-option, each with its placement (INV-CS-3604).
+        val all = f.constraints + f.crossRow + f.crossOption
+        if (all.isNotEmpty()) parts += "\"constraints\": [${all.joinToString(", ") { constraintJson(it) }}]"
         f.note?.let { parts += "\"note\": ${it.jsonString()}" }
         f.basis?.let { parts += "\"basis\": ${it.jsonString()}" }
         if (f.defaultByForm.isNotEmpty()) {
@@ -81,6 +85,45 @@ object VariationPointCatalogueArtefact {
         f.installationParameter?.let { parts += "\"installationParameter\": ${typedJson(it)}" }
         f.installationParameterRef?.let { parts += "\"installationParameterRef\": ${parameterRefJson(it)}" }
         f.secondApprover?.let { parts += "\"secondApprover\": ${it.jsonString()}" }
+        return "{ " + parts.joinToString(", ") + " }"
+    }
+
+    private fun List<VpConstraint>.joinedRules(): String? = takeIf { it.isNotEmpty() }?.joinToString(" ") { it.rule }
+
+    private fun factJson(f: ConstraintFact): String = "{ \"holder\": \"${f.holder}\", \"name\": ${f.name.jsonString()} }"
+
+    /** One typed constraint record (INV-CS-3604), in the vendored YAML's shape with camelCase names. */
+    private fun constraintJson(c: VpConstraint): String {
+        val parts =
+            mutableListOf(
+                "\"id\": ${c.id.jsonString()}",
+                "\"placement\": \"${c.placement.keelName}\"",
+                "\"kind\": \"${c.kind}\"",
+            )
+        if (c.options.isNotEmpty()) parts += "\"options\": [${c.options.joinToString(", ") { it.jsonString() }}]"
+        c.selection?.let { parts += "\"selection\": \"$it\"" }
+        if (c.forms.isNotEmpty()) parts += "\"forms\": [${c.forms.joinToString(", ") { "\"$it\"" }}]"
+        c.fact?.let { parts += "\"fact\": ${factJson(it)}" }
+        c.row?.let { parts += "\"row\": ${it.jsonString()}" }
+        if (c.rowOptions.isNotEmpty()) parts += "\"rowOptions\": [${c.rowOptions.joinToString(", ") { it.jsonString() }}]"
+        c.at?.let { parts += "\"at\": \"$it\"" }
+        if (c.rows.isNotEmpty()) parts += "\"rows\": [${c.rows.joinToString(", ") { it.jsonString() }}]"
+        c.scopeLevel?.let { parts += "\"scopeLevel\": \"$it\"" }
+        c.check?.let { parts += "\"check\": ${it.jsonString()}" }
+        if (c.inputs.isNotEmpty()) {
+            parts += "\"inputs\": [" +
+                c.inputs.joinToString(", ") { i ->
+                    val a = mutableListOf<String>()
+                    i.row?.let { a += "\"row\": ${it.jsonString()}" }
+                    i.fact?.let { a += "\"fact\": ${factJson(it)}" }
+                    i.value?.let { a += "\"value\": ${it.jsonString()}" }
+                    i.min?.let { a += "\"min\": ${boundJson(it)}" }
+                    "{ " + a.joinToString(", ") + " }"
+                } + "]"
+        }
+        parts += "\"rule\": ${c.rule.jsonString()}"
+        parts += "\"refused\": ${c.refused.jsonString()}"
+        parts += "\"source\": ${c.source.jsonString()}"
         return "{ " + parts.joinToString(", ") + " }"
     }
 

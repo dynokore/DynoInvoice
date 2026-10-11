@@ -46,3 +46,47 @@ class CatalogueOptionKeysTest {
         assertThrows(IllegalArgumentException::class.java) { Catalogue.optionKeys("VP-00") }
     }
 }
+
+/** INV-T-3528: the typed constraint records of INV-CS-3604 are exposed beside the other catalogue fields. */
+class CatalogueConstraintsTest {
+    @Test
+    fun `the typed constraints of INV-CS-3604 and its fix are exposed`() {
+        val byId = VariationPoint.allConstraints().associate { (vp, c) -> c.id to (vp to c) }
+        val off = byId.getValue("VP-74.OFF_NO_CLIENT_ENTITY_SCOPE").second
+        assertEquals(ConstraintKind.EXCLUDES, off.kind)
+        assertEquals(ConstraintPlacement.CROSS_ROW, off.placement)
+        assertEquals(ScopeLevel.CLIENT_ENTITY, off.scopeLevel)
+        assertEquals(listOf("VP-04", "VP-10", "VP-11", "VP-12", "VP-13", "VP-62"), off.rows)
+        assertEquals(listOf(DeploymentForm.SAAS), byId.getValue("VP-45.FORM").second.forms)
+        assertEquals(listOf(DeploymentForm.PRIVATE), byId.getValue("VP-52.FORM").second.forms)
+        assertEquals("VP-49", byId.getValue("VP-25.OBSERVE_ROUTE").second.row)
+        assertEquals(ConstraintSelection.WHOLE, byId.getValue("VP-46.RECIPIENTS").second.selection)
+        assertEquals("weekly_window_fits", byId.getValue("VP-20.WEEKLY_WINDOW_FITS").second.check)
+        assertEquals(
+            ConstraintFact(ScopeLevel.ENTITY, "filing_workflow_principal_named"),
+            byId.getValue("VP-14.FILING_WORKFLOW_PRINCIPAL").second.fact,
+        )
+        assertTrue(
+            byId
+                .getValue("VP-71.CONNECTION_TEST")
+                .second.refused
+                .startsWith("activating the connection"),
+        )
+        // VP-64 is deliberately untyped (INV-Q-3616)
+        assertTrue(VariationPoint.VP_64.constraints.isEmpty())
+        // the rule text stays readable for 1.x readers of crossRow / crossOption
+        assertTrue(
+            VariationPoint.VP_20.crossRow
+                .orEmpty()
+                .contains("VP-35"),
+        )
+        assertTrue(
+            VariationPoint.VP_46.crossOption
+                .orEmpty()
+                .contains("sole-operator"),
+        )
+        // row-referenced bounds, exclusive keys and per-form defaults are unchanged beside them
+        assertEquals(mapOf("SAAS" to "ON", "PRIVATE" to "OFF"), VariationPoint.VP_74.defaultByForm)
+        assertEquals(listOf("NONE"), VariationPoint.VP_10.exclusiveKeys)
+    }
+}
