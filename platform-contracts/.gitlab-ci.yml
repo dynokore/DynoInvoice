@@ -347,6 +347,8 @@ event-log-topics-drift-check:
     - apk add --no-cache python3
   script:
     - python3 event-log/generate-topics.py . --check event-log/topics.yaml
+    # INV-T-3386: the generator's own unittests (content_topic marker copied; a topic lacking it fails).
+    - python3 -m unittest discover -s event-log -p 'test_*.py' -v
 
 oasdiff-breaking-gate:
   stage: verify

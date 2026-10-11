@@ -39,7 +39,7 @@ topics:
       - notification-svc
   - topic: gst.aggregation.aggregate-ready.v1
     event_type: com.dynokore.gst.aggregation.AggregateReady.v1
-    content_topic: false
+    content_topic: true
     producers:
       - aggregation-svc
     subscribers:
@@ -65,7 +65,7 @@ topics:
       - submission-svc
   - topic: gst.canonical.decision-trace-recorded.v1
     event_type: com.dynokore.gst.canonical.DecisionTraceRecorded.v1
-    content_topic: false
+    content_topic: true
     producers:
       - canonical-svc
     subscribers:
@@ -152,7 +152,7 @@ topics:
       - submission-svc
   - topic: gst.payload.payload-rejected.v1
     event_type: com.dynokore.gst.payload.PayloadRejected.v1
-    content_topic: false
+    content_topic: true
     producers:
       - payload-svc
     subscribers:

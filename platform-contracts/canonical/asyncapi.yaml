@@ -166,6 +166,10 @@ components:
         INV-REQ-815; class: domain). Emitted by: canonical-svc. Consumed by: console-bff, evidence-svc.
         Delivery: At-least-once. Payload (catalogue text): docUuid, version, trace reference, the decision
         trace. Authored by INV-T-2854 (T10).
+      # INV-T-3386 (owner ruling INV-Q-3249, coordinator decision on review of !24): this event
+      # carries invoice content, so its topic keeps the content window (INV-ADR-2772), not the
+      # event-log retention. Copied into event-log/topics.yaml as content_topic by generate-topics.py.
+      x-invoice-content: true
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/decision-trace-recorded-payload.schema.json'
