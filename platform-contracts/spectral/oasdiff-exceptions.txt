@@ -7,3 +7,8 @@
 # within v1 because no train is published and no consumer deployed; after the first train, a
 # new or lower request bound is breaking (API-03).
 POST /internal/v1/masterdata/counterparties/bulk-resolution the `docUuids` request property's maxItems was set to `5000`
+#
+# INV-Q-3590 (INV-T-3592): ProvisionTenantRequest.dataRegion, a new required request property, is
+# permitted within v1 on INV-Q-3569's reasoning: it refuses only requests INV-REQ-1306 forbids (no
+# region elected), before any train is published and with no consumer deployed.
+POST /internal/v1/control-plane/tenant-provisioning-requests added the new required request property `dataRegion`
