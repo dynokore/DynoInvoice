@@ -90,9 +90,9 @@ class EventLogTenantIsolationIT {
     fun `one role cannot both claim and read envelopes, or claim and insert`() {
         assertThrows(IllegalArgumentException::class.java) { EventLogSchema.ConsumerRoles("r", "r") }
         val crossed = listOf(EventLogSchema.ConsumerRoles("c1", "r1"), EventLogSchema.ConsumerRoles("r1", "c2"))
-        assertThrows(IllegalArgumentException::class.java) { EventLogSchema.topicDdl(topic, "relay", crossed) }
+        assertThrows(IllegalArgumentException::class.java) { EventLogSchema.topicDdl(topic, "relay", crossed, "purge") }
         assertThrows(IllegalArgumentException::class.java) {
-            EventLogSchema.topicDdl(topic, "relay", listOf(EventLogSchema.ConsumerRoles("relay", "r1")))
+            EventLogSchema.topicDdl(topic, "relay", listOf(EventLogSchema.ConsumerRoles("relay", "r1")), "purge")
         }
     }
 

@@ -6,6 +6,37 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-10-11
+### Added
+- Event-log purge by age per topic with a purge watermark (INV-T-3384; owner ruling INV-Q-3249; INV-REQ-1205 b3, b4,
+  b6; INV-AC-2175). `EventLogSchema.watermarkDdl(purgeRole)` creates `eventlog.purge_watermark` (`topic`,
+  `watermark` = highest purged `log_offset`, `updated_at`): no tenant data and no `tenant_id`, like `consumer_offset`
+  (INV-Q-2954); written only by the purge role, and each topic's consumer roles read that topic's row only (a
+  row-level policy per topic). `topicDdl` gives the purge role `DELETE` on the topic table and column `SELECT` on
+  `log_offset` and `inserted_at` only, through its own policies beside the tenant policy of 1.8.0 (it never reads
+  `envelope` or `tenant_id`), and refuses a purge role that is also a relay or consumer role.
+- `EventLogPurge` / `JdbcEventLogPurge`: deletes each topic's rows older than its period in batches; the period is the
+  content window (INV-ADR-2772) for a topic whose `content_topic` marker is true and the event-log retention for every
+  other topic (`Retention`: default 30 days, below 7 days refused). Each batch is one statement that deletes and raises
+  the topic's watermark (never lowers it), so both commit together. It never reads consumer positions or waits for a
+  lagging consumer. Each run logs through SLF4J (STK-35; constant message, per-topic values as key-value pairs) and returns per-topic rows, period, cut-off and watermark. A topic
+  without a `content_topic` marker is refused at construction rather than given a guessed period.
+- Build: `slf4j-api` added to the version catalog (same release as `slf4j-simple`) and to this module's impl half.
+- `TopicsYamlCatalogue` reads `content_topic: true|false` (INV-T-3386) into `CatalogueEntry.contentTopic` (`null`
+  when absent; any other value is refused).
+- `PostgresEventLogReader.read` reads the topic's watermark in the same statement as the claim; when the caller's next
+  position (offset plus one) is at or below it, it throws `RebuildRequired` and returns nothing, so no consumer skips
+  silently to the next surviving record. `JdbcInboxConsumer` then applies nothing and moves nothing for that topic,
+  returns `PollResult.rebuildRequired = true`, and raises one `RebuildRequiredIncident` (consumer, topic, next offset,
+  watermark) through its `RebuildRequiredSink` until it resumes; its other topics continue. It resumes by itself once
+  the recovery path (producers' replay by scope or full sync, not in this module) has moved its offset past the
+  watermark.
+### Changed
+- **API change:** `EventLogSchema.topicDdl(topic, relayRole, consumers, purgeRole)` (new required `purgeRole`; run
+  `watermarkDdl` first); `JdbcInboxConsumer(subscription, reader, claimSource, scope, handler, rebuildRequired, …)`
+  (new required `RebuildRequiredSink` before `clock`). No topic table exists in any installation yet (INV-T-2890 is
+  not built), so there is no upgrade script.
+
 ## [1.8.0] - 2026-10-11
 ### Changed
 - Event-log topic tables are tenant data under row-level security (INV-T-3300, Keel INV-Q-3251 option D, INV-REQ-854,

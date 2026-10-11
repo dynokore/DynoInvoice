@@ -14,8 +14,12 @@ train is its own (README.md: "own version and changelog").
 ### Changed
 - VP-08's DEFAULT_PAIR_4H window is no longer treated as fixed at 4 h (INV-Q-3204, superseded by owner ruling
   INV-Q-3320 A′): it is checked against the catalogue's typed bounds (1 to 8 hours, default 4, DOWN_STRICTER),
-  a value without a window counts as 4 h in the cross-scope check and the cap, and tighten-only across scopes
-  is unchanged (INV-REQ-1269, INV-REQ-896 b2, INV-Q-3206).
+  where nothing is set at a scope the catalogue default resolves with its default window (`{"window":4}`) and
+  counts as 4 h in the cross-scope check and the cap; a write without a value or without the window is still
+  refused (INV-Q-3167, INV-Q-3548); tighten-only across scopes is unchanged (INV-REQ-1269, INV-REQ-896 b2,
+  INV-Q-3206).
+- A typed catalogue-default option resolves with the value built from its typed defaults (a number with a
+  numeric `default`, or a record whose every field has one); otherwise without a value, as before.
 
 ## [1.2.0] - 2026-10-11
 ### Added

@@ -40,6 +40,9 @@ class OutboxPostgresFixture(image: String) : AutoCloseable {
     /** The consumers' event-log reader role: SELECT on topics under the tenant policy only (envelopes of the bound tenant). */
     fun readerDataSource(): DataSource = dataSourceFor(READER, "outbox_reader_pw")
 
+    /** The event-log component's purge role: DELETE and SELECT (log_offset, inserted_at) on topics, watermark write. */
+    fun purgeDataSource(): DataSource = dataSourceFor(PURGE, "eventlog_purge_pw")
+
     /** Creates the outbox/inbox tables in [schema] and grants [APP] on [extraTables] (state tables the test adds). */
     fun createService(
         schema: String,
@@ -49,12 +52,16 @@ class OutboxPostgresFixture(image: String) : AutoCloseable {
     }
 
     /**
-     * Creates one event-log table per topic of [catalogue]: the consumers claim through [WORKER] (claim columns only)
-     * and read envelopes through [READER] (tenant policy only), two roles of one family (ARC 4.3 step 1a, INV-Q-3247).
+     * Creates the purge-watermark table and one event-log table per topic of [catalogue]: the consumers claim through
+     * [WORKER] (claim columns only) and read envelopes through [READER] (tenant policy only), two roles of one family
+     * (ARC 4.3 step 1a, INV-Q-3247); [PURGE] deletes and writes the watermark (INV-Q-3249).
      */
     fun createTopics(catalogue: EventCatalogue) {
         val consumers = listOf(EventLogSchema.ConsumerRoles(claimRole = WORKER, readerRole = READER))
-        catalogue.entries().forEach { run(EventLogSchema.topicDdl(it.topic, RELAY, consumers)) }
+        run(EventLogSchema.watermarkDdl(PURGE))
+        catalogue.entries().map { it.topic }.distinct().forEach {
+            run(EventLogSchema.topicDdl(it, RELAY, consumers, PURGE))
+        }
     }
 
     /** Runs [sql] as the superuser. */
@@ -89,5 +96,6 @@ class OutboxPostgresFixture(image: String) : AutoCloseable {
         const val WORKER = "outbox_worker"
         const val RELAY = "outbox_relay"
         const val READER = "outbox_reader"
+        const val PURGE = "eventlog_purge"
     }
 }

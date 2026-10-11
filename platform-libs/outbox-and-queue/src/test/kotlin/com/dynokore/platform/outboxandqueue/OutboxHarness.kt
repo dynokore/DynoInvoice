@@ -16,6 +16,10 @@ class OutboxHarness(image: String) : AutoCloseable {
     val mapper = ObjectMapper()
     private val json = EnvelopeJson()
 
+    /** Every 'rebuild required' incident raised by a consumer built here (INV-REQ-1205 b6). */
+    val rebuildIncidents: MutableList<RebuildRequiredIncident> = java.util.Collections.synchronizedList(mutableListOf())
+    val rebuildSink = RebuildRequiredSink { rebuildIncidents += it }
+
     init {
         fixture.createService("submission", SUBMISSION_STATE + QueueSchema.ddl("submission", APP, WORKER))
         fixture.createService("reconciliation", RECONCILIATION_STATE)
@@ -46,6 +50,7 @@ class OutboxHarness(image: String) : AutoCloseable {
         fixture.workerDataSource(),
         TenantScope(tx.tenants, tx, tx),
         handler,
+        rebuildSink,
         clock,
     )
 

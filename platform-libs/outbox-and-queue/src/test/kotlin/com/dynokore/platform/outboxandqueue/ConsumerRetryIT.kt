@@ -51,6 +51,7 @@ class ConsumerRetryIT {
                 harness.fixture.workerDataSource(),
                 TenantScope(kit.tenants, kit.boundary, kit.boundary),
                 handler,
+                harness.rebuildSink,
                 clock,
                 { 0.0 }, // no shortening: the waits are the full 10 s, 20 s
             )

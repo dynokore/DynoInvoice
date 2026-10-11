@@ -6,6 +6,8 @@
 --   outbox_relay  — INSERT on the producer's own event-log topics, and nothing else.
 --   outbox_reader — SELECT on the event-log topics a consumer subscribes to, under the tenant policy only.
 --   outbox_worker — also the consumers' event-log claim role: claim policy and SELECT on the claim columns only.
+--   eventlog_purge — the event-log component's purge role (INV-Q-3249): DELETE on the topic tables, SELECT on
+--                    log_offset and inserted_at, write on eventlog.purge_watermark; not a service role.
 -- One schema per fixture service (submission, reconciliation, payload, canonical), and `eventlog`.
 
 CREATE ROLE outbox_owner  LOGIN PASSWORD 'outbox_owner_pw';
@@ -26,3 +28,7 @@ GRANT USAGE ON SCHEMA eventlog TO outbox_relay, outbox_reader;
 -- outbox claim policy and column grant that OutboxSchema.ddl creates; it also holds the offset and dead-letter tables.
 CREATE ROLE outbox_worker LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD 'outbox_worker_pw';
 GRANT USAGE ON SCHEMA eventlog TO outbox_worker;
+
+-- The event-log component's dedicated purge role (INV-REQ-1205 b3, INV-Q-3249): no SUPERUSER, BYPASSRLS or CREATEROLE.
+CREATE ROLE eventlog_purge LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEROLE PASSWORD 'eventlog_purge_pw';
+GRANT USAGE ON SCHEMA eventlog TO eventlog_purge;

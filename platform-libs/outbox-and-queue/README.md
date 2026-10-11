@@ -48,6 +48,12 @@ From 1.8.0 the event-log topic tables carry `tenant_id NOT NULL` under forced ro
 the relay inserts under the bound tenant, and each consumer has a claim role (claim columns only) and a separate
 reader role (envelopes of the bound tenant only); see `EventLogSchema.topicDdl` and `PostgresEventLogReader`.
 
+From 1.9.0 the event log is purged by age per topic (INV-Q-3249): `JdbcEventLogPurge` runs under the event-log
+component's purge role and keeps the content window for topics marked `content_topic: true` in topics.yaml and the
+event-log retention for the others; each delete batch raises the topic's `eventlog.purge_watermark` row in the same
+transaction (`EventLogSchema.watermarkDdl`). A consumer whose next offset is at or below the watermark stops that topic
+and raises a 'rebuild required' incident (`RebuildRequiredSink`) instead of skipping purged events.
+
 Not in 1.1.0: delivery retry with backoff, inbox retention (added in 1.3.0: `Retention`, `JdbcRetentionPurge`,
 `OutboxSchema.upgradeTo130`; existing schemas run `upgradeTo130` in the service's migration), rate limits shared across worker processes
 (added in 1.7.0, see below), exporting the staleness metric and raising the incident (the composition root's sink), and scheduling of the

@@ -28,6 +28,11 @@ import javax.sql.DataSource
  * [claimSource] is the worker-role connection of ARC 4.3 step 1a: it only reads the offset to know
  * where to poll, and records dead letters; the inbox and sequence tables (row-level security) are
  * reached only inside a tenant transaction.
+ *
+ * When the reader reports that this consumer's next position is at or below the topic's purge watermark
+ * ([RebuildRequired], INV-REQ-1205 b6), the poll applies nothing and moves nothing: the consumer stops this topic
+ * (its instances for other topics carry on) and raises a 'rebuild required' incident through [rebuildRequired],
+ * once until it resumes. It resumes by itself once the recovery path has moved its offset past the watermark.
  */
 class JdbcInboxConsumer
 @JvmOverloads
@@ -37,6 +42,7 @@ constructor(
     private val claimSource: DataSource,
     private val scope: TenantScope,
     private val handler: EventHandler,
+    private val rebuildRequired: RebuildRequiredSink,
     private val clock: Clock = Clock.systemUTC(),
     private val randomUnit: () -> Double = { ThreadLocalRandom.current().nextDouble() },
 ) : InboxConsumer {
@@ -45,13 +51,27 @@ constructor(
     private val topic = subscription.topic
     private val s = SqlIdentifier.require(subscription.schema, "schema")
     private val offsets = "$s.${OutboxSchema.CONSUMER_OFFSET}"
+    private var stopped = false
 
     @Synchronized
     override fun pollOnce(): PollResult {
         val (next, notBefore) = claimSource.connection.use { position(it) }
         if (notBefore != null && clock.instant().isBefore(notBefore)) return PollResult(0, 0, 0, 0, 0)
+        val records =
+            try {
+                reader.read(topic, next - 1, BATCH)
+            } catch (behind: RebuildRequired) {
+                if (!stopped) {
+                    rebuildRequired.raise(
+                        RebuildRequiredIncident(consumer, topic, behind.nextOffset, behind.watermark, clock.instant()),
+                    )
+                    stopped = true
+                }
+                return PollResult(0, 0, 0, 0, 0, rebuildRequired = true)
+            }
+        stopped = false
         val counts = IntArray(Step.entries.size)
-        for (record in reader.read(topic, next - 1, BATCH)) {
+        for (record in records) {
             counts[processRecord(record).ordinal]++
         }
         return PollResult(

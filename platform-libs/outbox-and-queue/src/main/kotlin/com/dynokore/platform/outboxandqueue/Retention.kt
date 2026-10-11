@@ -11,9 +11,10 @@ import java.time.Duration
  *   than this. An unpublished row is never deleted.
  * - triaged dead letters (replayed or discarded; `raw` is content) are deleted once `resolved_at` is older than
  *   [contentWindow] too (INV-T-2997). An open dead letter is never deleted, so no event is lost silently.
- * - [eventLogRetention]: how long the event log keeps events. An inbox row can only matter while its event could
- *   still be redelivered, so it is deleted once `received_at` is older than this plus [INBOX_MARGIN]. One value
- *   serves every topic; the inbox has no topic column.
+ * - [eventLogRetention]: how long the event log keeps the events of a topic not marked as a content topic; a content
+ *   topic keeps [contentWindow] ([EventLogPurge], INV-Q-3249). An inbox row can only matter while its event could
+ *   still be redelivered, so it is deleted once `received_at` is older than this plus [INBOX_MARGIN]; the inbox has
+ *   no topic column, so this one value serves every topic.
  */
 data class Retention(
     val contentWindow: Duration = DEFAULT,

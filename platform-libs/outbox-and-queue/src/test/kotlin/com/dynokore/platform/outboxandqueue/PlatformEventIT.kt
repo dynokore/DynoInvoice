@@ -117,6 +117,7 @@ class PlatformEventIT {
                     harness.fixture.workerDataSource(),
                     TenantScope(kit.tenants, kit.boundary, kit.boundary),
                     RecordingHandler(),
+                    harness.rebuildSink,
                     clock,
                 )
 

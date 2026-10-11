@@ -76,7 +76,7 @@ class BoundsPostgresIT : WritePathBase() {
         val atInstallation = { selected: List<SelectedOption>, from: LocalDate ->
             set(CROSS_SCOPE, r.tenantScope, ScopeLevel.INSTALLATION, selected, operator, from)
         }
-        // Nothing set at installation: the default DEFAULT_PAIR_4H, without a window, counts as 4 h (INV-Q-3320).
+        // Nothing set at installation: the default DEFAULT_PAIR_4H resolves with its default 4 h window (INV-Q-3320).
         assertEquals(PolicyRefusal.LOOSER_THAN_BROADER, r.refusedPut(tenant(pair(6), today), w))
         assertEquals(0L, r.settings())
         r.put(tenant(pair(3, "[\"tenant.admin\",\"tax.approver\"]"), today), w) // the pair is never compared
@@ -126,10 +126,18 @@ class BoundsPostgresIT : WritePathBase() {
         val atInstallation = { selected: List<SelectedOption>, from: LocalDate ->
             set(DEFAULT_PAIR, r.tenantScope, ScopeLevel.INSTALLATION, selected, operator, from)
         }
-        // Nothing set: the catalogue default DEFAULT_PAIR_4H without a window counts as 4 h (INV-Q-3320).
-        assertEquals(SelectedOption("DEFAULT_PAIR_4H"), r.resolve(DEFAULT_PAIR, r.tenantScope).selected.single())
+        // Nothing set: the catalogue default DEFAULT_PAIR_4H resolves with its default 4 h window (INV-Q-3320) ...
+        val nothingSet = r.resolve(DEFAULT_PAIR, r.tenantScope)
+        assertEquals(SelectedOption("DEFAULT_PAIR_4H", "{\"window\":4}"), nothingSet.selected.single())
+        assertEquals(PolicySource.CatalogueDefault, nothingSet.source)
+        // ... and counts as 4 h in the cross-scope check.
         assertEquals(PolicyRefusal.LOOSER_THAN_BROADER, r.refusedPut(tenant(defaultPair(5)), w))
-        // Outside 1 to 8 hours is refused and nothing is stored (INV-REQ-1269, INV-REQ-896 b2).
+        // A write without a value or without its window is refused (INV-Q-3167, INV-Q-3548) ...
+        val noValue = listOf(SelectedOption("DEFAULT_PAIR_4H"))
+        val noWindow = listOf(SelectedOption("DEFAULT_PAIR_4H", "{}"))
+        assertEquals(PolicyRefusal.OUT_OF_BOUNDS, r.refusedPut(tenant(noValue), w))
+        assertEquals(PolicyRefusal.OUT_OF_BOUNDS, r.refusedPut(tenant(noWindow), w))
+        // ... as is a window outside 1 to 8 hours; nothing is stored (INV-REQ-1269, INV-REQ-896 b2).
         assertEquals(PolicyRefusal.OUT_OF_BOUNDS, r.refusedPut(tenant(defaultPair(9)), w))
         assertEquals(PolicyRefusal.OUT_OF_BOUNDS, r.refusedPut(tenant(defaultPair(0)), w))
         assertEquals(0L, r.settings())
@@ -151,10 +159,6 @@ class BoundsPostgresIT : WritePathBase() {
         val capped = r.resolve(DEFAULT_PAIR, r.tenantScope, nextMonth)
         assertEquals(SelectedOption("DEFAULT_PAIR_4H", "{\"window\":2}"), capped.selected.single())
         assertEquals(cap("DEFAULT_PAIR_4H", "window", 6, 2, DEFAULT_PAIR), capped.caps)
-        // A default pair without a window counts as 4 h, so it too is capped at 2 h.
-        val bare = r.capped(DEFAULT_PAIR, listOf(SelectedOption("DEFAULT_PAIR_4H")), nextMonth)
-        assertEquals(SelectedOption("DEFAULT_PAIR_4H", "{\"window\":2}"), bare.selected.single())
-        assertEquals(cap("DEFAULT_PAIR_4H", "window", 4, 2, DEFAULT_PAIR), bare.caps)
         // The default pair at 2 h is within the installation value.
         r.put(tenant(defaultPair(2)), w)
         assertEquals(BigDecimal(2), window(r.resolve(DEFAULT_PAIR, r.tenantScope, nextMonth)))

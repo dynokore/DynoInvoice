@@ -21,6 +21,11 @@ import javax.sql.DataSource
  * Records come back in `log_offset` order. If a claimed record is no longer readable when its envelope is read (a
  * retention purge removed it in between), the batch ends just before it, so no record after it is returned ahead
  * of it; the next read starts there again.
+ *
+ * Each read first reads the topic's purge watermark (INV-REQ-1205 b6, INV-Q-3249) in the same statement, so the same
+ * snapshot, as the claim: when the caller's next position (`afterOffset + 1`) is at or below it, records the caller
+ * has not consumed were purged, and [read] throws [RebuildRequired] instead of returning the next surviving record.
+ * A topic never purged has no watermark row and reads as watermark 0.
  */
 class PostgresEventLogReader(
     private val claimSource: DataSource,
@@ -34,7 +39,8 @@ class PostgresEventLogReader(
     ): List<LogRecord> {
         val table = "${EventLogSchema.SCHEMA}.${EventLogSchema.tableName(topic)}"
         try {
-            val claimed = claimSource.connection.use { claim(it, table, afterOffset, limit) }
+            val (watermark, claimed) = claimSource.connection.use { claim(it, topic, table, afterOffset, limit) }
+            if (afterOffset + 1 <= watermark) throw RebuildRequired(topic, afterOffset + 1, watermark)
             val envelopes = HashMap<Long, String>()
             claimed.groupBy({ it.second }, { it.first }).forEach { (tenant, offsets) ->
                 envelopeSource.connection.use { envelopes.putAll(readBound(it, table, tenant, offsets)) }
@@ -73,20 +79,38 @@ class PostgresEventLogReader(
         }
     }
 
+    /** The topic's watermark and the claimed (offset, tenant) pairs after [afterOffset], read in one snapshot. */
     private fun claim(
         connection: Connection,
+        topic: String,
         table: String,
         afterOffset: Long,
         limit: Int,
-    ): List<Pair<Long, TenantId>> = connection
-        .prepareStatement("select log_offset, tenant_id from $table where log_offset > ? order by log_offset limit ?")
-        .use { statement ->
-            statement.setLong(1, afterOffset)
-            statement.setInt(2, limit)
+    ): Pair<Long, List<Pair<Long, TenantId>>> = connection
+        .prepareStatement(
+            """
+            select w.watermark, t.log_offset, t.tenant_id
+            from (select coalesce(max(watermark), 0) as watermark from $WATERMARK where topic = ?) w
+            left join lateral (
+                select log_offset, tenant_id from $table where log_offset > ? order by log_offset limit ?
+            ) t on true
+            order by t.log_offset
+            """.trimIndent(),
+        ).use { statement ->
+            statement.setString(1, topic)
+            statement.setLong(2, afterOffset)
+            statement.setInt(3, limit)
             statement.executeQuery().use { rows ->
-                buildList {
-                    while (rows.next()) add(rows.getLong(1) to TenantId(rows.getObject(2, UUID::class.java)))
-                }
+                var watermark = 0L
+                val claimed =
+                    buildList {
+                        while (rows.next()) {
+                            watermark = rows.getLong(1)
+                            val offset = rows.getLong(2)
+                            if (!rows.wasNull()) add(offset to TenantId(rows.getObject(3, UUID::class.java)))
+                        }
+                    }
+                watermark to claimed
             }
         }
 
@@ -117,5 +141,9 @@ class PostgresEventLogReader(
             connection.rollback()
             throw failure
         }
+    }
+
+    private companion object {
+        const val WATERMARK = "${EventLogSchema.SCHEMA}.${EventLogSchema.PURGE_WATERMARK}"
     }
 }

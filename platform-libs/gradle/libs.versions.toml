@@ -93,6 +93,8 @@ postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" 
 testcontainers-postgresql = { module = "org.testcontainers:postgresql", version.ref = "testcontainers" }
 testcontainers-minio = { module = "org.testcontainers:minio", version.ref = "testcontainers" }
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4jSimple" }
+# STK-35 logging facade for L1 impl halves (INV-T-3384); same SLF4J release as slf4j-simple.
+slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4jSimple" }
 resilience4j-bom = { module = "io.github.resilience4j:resilience4j-bom", version.ref = "resilience4j" }
 resilience4j-circuitbreaker = { module = "io.github.resilience4j:resilience4j-circuitbreaker" }
 resilience4j-retry = { module = "io.github.resilience4j:resilience4j-retry" }
