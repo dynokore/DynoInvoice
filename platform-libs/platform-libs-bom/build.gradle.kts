@@ -32,6 +32,12 @@ plugins {
 
 version = providers.gradleProperty("bomVersion").getOrElse("0.0.0-local")
 
+// Needed only for the `platform(libs.jackson.bom)` import below (published as a Maven
+// `<scope>import</scope>` entry); this BOM still declares no plain dependency of its own.
+javaPlatform {
+    allowDependencies()
+}
+
 // Every constraint below reads `project(":<module>").version`, which is `unspecified` until that
 // module's own build file has been evaluated. Evaluate each constrained module first.
 listOf(
@@ -80,6 +86,15 @@ dependencies {
         api(libs.tomcatEmbed.el)
         api(libs.tomcatEmbed.websocket)
     }
+
+    // CVE-2026-89407, CVE-2026-89425, CVE-2026-68497, CVE-2026-91776, CVE-2026-91777
+    // (HIGH, INV-REQ-1382; INV-T-4230): Spring Boot 4.1.1 imports tools.jackson:jackson-bom
+    // 3.1.5, whose jackson-core/-databind carry all five. Importing Jackson's own BOM at the
+    // catalogue's `jackson` version (3.2.3) constrains every `tools.jackson` artefact the
+    // Spring Boot BOM manages (jackson-core, jackson-databind and every module), not a
+    // hand-kept subset, the same way the Tomcat constraint above patches Spring Boot's
+    // Tomcat. A consumer importing both BOMs resolves the higher version, 3.2.3.
+    api(platform(libs.jackson.bom))
 }
 
 publishing {

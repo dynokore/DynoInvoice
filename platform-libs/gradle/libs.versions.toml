@@ -35,6 +35,10 @@ kotlinxCoroutinesTest = "1.11.0"
 # BC 1.8x latest patch (catalogue) at the time of writing.
 bouncycastle = "1.86"
 # STK-08: Jackson 3 (`tools.jackson`), one JSON library platform-wide.
+# CVE-2026-89407, CVE-2026-89425, CVE-2026-68497, CVE-2026-91776, CVE-2026-91777
+# (HIGH, INV-REQ-1382): Spring Boot 4.1.1 manages tools.jackson:jackson-bom 3.1.5,
+# which carries all five; `platform-libs-bom` imports `jackson-bom` at this version
+# (INV-T-4230) so every consumer resolves 3.2.3 or a later 3.2.x patch.
 jackson = "3.2.3"
 # evidence-store (INV-T-2863 / T19): kotest-property for the chain-integrity
 # property tests (STK-38), the AWS SDK v2 S3 client for the ObjectStore port
@@ -140,6 +144,9 @@ kotlinx-coroutinesCore = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-co
 bouncycastle-bcprov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
 bouncycastle-bcpkix = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "bouncycastle" }
 jackson-databind = { module = "tools.jackson.core:jackson-databind", version.ref = "jackson" }
+# Jackson 3's own BOM: every `tools.jackson` artefact at one version, imported by
+# `platform-libs-bom` over the Spring Boot BOM's older `jackson-bom` (INV-T-4230).
+jackson-bom = { module = "tools.jackson:jackson-bom", version.ref = "jackson" }
 awssdk-s3 = { module = "software.amazon.awssdk:s3", version.ref = "awssdk" }
 tomcatEmbed-core = { module = "org.apache.tomcat.embed:tomcat-embed-core", version.ref = "tomcatEmbed" }
 tomcatEmbed-el = { module = "org.apache.tomcat.embed:tomcat-embed-el", version.ref = "tomcatEmbed" }
