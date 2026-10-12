@@ -1,6 +1,7 @@
 package com.dynokore.platform.evidencestore
 
 import com.dynokore.platform.tenancykernel.CurrentConnection
+import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantId
 import java.sql.Timestamp
 
@@ -16,27 +17,24 @@ import java.sql.Timestamp
  */
 class JdbcLegalHoldRegistry(
     private val connections: CurrentConnection,
-    private val schema: String,
-    private val table: String,
+    schema: String,
+    table: String,
 ) : LegalHoldRegistry {
-    init {
-        require(IDENTIFIER.matches(schema)) { "schema must be a plain lower-case identifier, was '$schema'" }
-        require(IDENTIFIER.matches(table)) { "table must be a plain lower-case identifier, was '$table'" }
-    }
-
-    private val qualified = "$schema.$table"
+    // INV-REQ-854 b5 (coordinator ruling INV-Q-4036): the names enter SQL text only through SqlIdentifier.require.
+    private val schemaName = SqlIdentifier.require(schema, "schema")
+    private val tableName = SqlIdentifier.require(table, "table")
 
     private val upsertSql =
         """
-        insert into $qualified (tenant_id, entity_ref, period_ref, reason, placed_at)
+        insert into $schemaName.$tableName (tenant_id, entity_ref, period_ref, reason, placed_at)
         values (?, ?, ?, ?, ?)
         on conflict (tenant_id, entity_ref, period_ref)
         do update set reason = excluded.reason, placed_at = excluded.placed_at
         """.trimIndent()
 
-    private val deleteSql = "delete from $qualified where tenant_id = ? and entity_ref = ? and period_ref = ?"
+    private val deleteSql = "delete from $schemaName.$tableName where tenant_id = ? and entity_ref = ? and period_ref = ?"
 
-    private val existsSql = "select 1 from $qualified where tenant_id = ? and entity_ref = ? and period_ref = ?"
+    private val existsSql = "select 1 from $schemaName.$tableName where tenant_id = ? and entity_ref = ? and period_ref = ?"
 
     override fun place(
         tenant: TenantId,
@@ -81,8 +79,6 @@ class JdbcLegalHoldRegistry(
     }
 
     companion object {
-        private val IDENTIFIER = Regex("^[a-z_][a-z0-9_]*$")
-
         /**
          * The columns a service's own `CREATE TABLE` must declare, in order,
          * for this repository to work against it (TPL-12).

@@ -6,6 +6,19 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-12
+### Added
+- `SqlIdentifier` (`com.dynokore.platform.tenancykernel.SqlIdentifier`, api): `require(name, what)` returns the
+  name only when it matches `^[a-z][a-z0-9_]{0,62}$` and throws `IllegalArgumentException` otherwise. It is the
+  one validated identifier type of the platform: an identifier enters SQL text only through it, and
+  platform-build 0.9.0's `SqlGuards` accepts no other validator (INV-REQ-854 b5, INV-ADR-3968 item 11;
+  coordinator rulings INV-Q-4036, INV-Q-4040; INV-T-4043).
+### Changed
+- `TenantRlsMigration.ddl` interpolates the schema, table and policy names only through `SqlIdentifier.require`.
+  Its own regex validator (`^[a-z_][a-z0-9_]*$`) is removed, so a name with a leading underscore or longer than
+  63 characters is now refused instead of being silently truncated by PostgreSQL; the DDL for a valid name is
+  unchanged (INV-Q-4036).
+
 ## [1.2.0] - 2026-10-12
 ### Added
 - The tenant binding carries the actor: `TenantContext.bind(tenant, actor, block)`,

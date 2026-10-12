@@ -1,5 +1,7 @@
 package com.dynokore.platform.rulepackkernel
 
+import com.dynokore.platform.tenancykernel.SqlIdentifier
+
 /**
  * The DDL for a pack holder's own persisted [PackRegistry] table (INV-REQ-1195:
  * "each pack holder … holds it locally, in its own schema or memory"; T22's
@@ -81,8 +83,6 @@ package com.dynokore.platform.rulepackkernel
  * its own half" and the service's own migration for the rest.
  */
 object PackRegistryMigration {
-    private val IDENTIFIER = Regex("^[a-z_][a-z0-9_]*$")
-
     /**
      * The forward-only migration for a holder whose registry table already exists
      * from the earlier [ddl] (UNIQUE without NULLS NOT DISTINCT, so a platform pack
@@ -96,11 +96,11 @@ object PackRegistryMigration {
         schema: String,
         table: String,
     ): String {
-        require(IDENTIFIER.matches(schema)) { "schema must be a plain lower-case identifier, was '$schema'" }
-        require(IDENTIFIER.matches(table)) { "table must be a plain lower-case identifier, was '$table'" }
-        val uniqueConstraint = "${table}_lineage_key"
+        val schemaName = SqlIdentifier.require(schema, "schema")
+        val tableName = SqlIdentifier.require(table, "table")
+        val uniqueConstraint = SqlIdentifier.require("${tableName}_lineage_key", "lineage constraint")
         return """
-            |ALTER TABLE $schema.$table DROP CONSTRAINT $uniqueConstraint,
+            |ALTER TABLE $schemaName.$tableName DROP CONSTRAINT $uniqueConstraint,
             |    ADD CONSTRAINT $uniqueConstraint UNIQUE NULLS NOT DISTINCT (pack_type, tenant_id, version);
         """.trimMargin()
     }
@@ -113,19 +113,21 @@ object PackRegistryMigration {
      * (STK-13, INV-REQ-770, INV-REQ-1343, CS-19). Appended into a service's
      * own Flyway migration (CS-19 naming, forward-only).
      *
-     * @throws IllegalArgumentException if [schema] or [table] is not a plain
-     *   lower-case SQL identifier — spliced directly into DDL text.
+     * @throws IllegalArgumentException if [schema], [table] or a name derived
+     *   from [table] (`<table>_resolution_idx`, `<table>_lineage_key`,
+     *   `<table>_tenant_isolation`) is not a plain lower-case SQL identifier of
+     *   at most 63 characters — spliced directly into DDL text, so every name
+     *   goes through [SqlIdentifier.require] (INV-REQ-854 b5, INV-Q-4036).
      */
     fun ddl(
         schema: String,
         table: String,
     ): String {
-        require(IDENTIFIER.matches(schema)) { "schema must be a plain lower-case identifier, was '$schema'" }
-        require(IDENTIFIER.matches(table)) { "table must be a plain lower-case identifier, was '$table'" }
-        val qualified = "$schema.$table"
-        val index = "${table}_resolution_idx"
-        val uniqueConstraint = "${table}_lineage_key"
-        val policyName = "${table}_tenant_isolation"
+        val schemaName = SqlIdentifier.require(schema, "schema")
+        val tableName = SqlIdentifier.require(table, "table")
+        val index = SqlIdentifier.require("${tableName}_resolution_idx", "resolution index")
+        val uniqueConstraint = SqlIdentifier.require("${tableName}_lineage_key", "lineage constraint")
+        val policyName = SqlIdentifier.require("${tableName}_tenant_isolation", "policy")
         // Always absent, blank, or a real tenant UUID — never a sentinel (see class doc).
         val boundTenant = "nullif(current_setting('app.tenant_id', true), '')"
         // The platform operator's own identity (INV-REQ-1343): a second GUC, not a
@@ -139,7 +141,7 @@ object PackRegistryMigration {
         // merely "no tenant bound" (the review escalation this fixes) — see class doc.
         val writePredicate = "(tenant_id IS NULL AND $isPlatformOperator) OR tenant_id = $boundTenant::uuid"
         return """
-            |CREATE TABLE $qualified (
+            |CREATE TABLE $schemaName.$tableName (
             |    id                 uuid PRIMARY KEY,
             |    pack_id            text NOT NULL,
             |    pack_type          text NOT NULL,
@@ -156,10 +158,10 @@ object PackRegistryMigration {
             |    created_at         timestamptz NOT NULL DEFAULT clock_timestamp(),
             |    CONSTRAINT $uniqueConstraint UNIQUE NULLS NOT DISTINCT (pack_type, tenant_id, version)
             |);
-            |CREATE INDEX $index ON $qualified (pack_type, tenant_id, effective_from);
-            |ALTER TABLE $qualified ENABLE ROW LEVEL SECURITY;
-            |ALTER TABLE $qualified FORCE ROW LEVEL SECURITY;
-            |CREATE POLICY $policyName ON $qualified
+            |CREATE INDEX $index ON $schemaName.$tableName (pack_type, tenant_id, effective_from);
+            |ALTER TABLE $schemaName.$tableName ENABLE ROW LEVEL SECURITY;
+            |ALTER TABLE $schemaName.$tableName FORCE ROW LEVEL SECURITY;
+            |CREATE POLICY $policyName ON $schemaName.$tableName
             |    USING      ($readPredicate)
             |    WITH CHECK ($writePredicate);
         """.trimMargin()

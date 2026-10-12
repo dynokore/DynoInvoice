@@ -13,7 +13,8 @@ import java.nio.file.Path
  * .ready.include` names it alongside `readinessState`, `db` and `eventLog`
  * (TPL-16). `DomainDependencyHealthIndicator` is not registered here: a service's
  * own bootstrap constructs one per edge it actually calls, with its own probe.
- * [ManagementPortGuard] keeps health, metrics and diagnostics off the application port (API-33, INV-Q-4103).
+ * [ManagementPortGuard] keeps health, metrics and diagnostics off the application port (API-33, INV-Q-4103);
+ * [HealthGroupKeyGuard] refuses the former `liveness` and `readiness` group keys (INV-Q-4192).
  */
 @AutoConfiguration
 class HealthAutoConfiguration {
@@ -23,4 +24,7 @@ class HealthAutoConfiguration {
 
     @Bean
     fun managementPortGuard(environment: Environment): ManagementPortGuard = ManagementPortGuard(environment)
+
+    @Bean
+    fun healthGroupKeyGuard(environment: Environment): HealthGroupKeyGuard = HealthGroupKeyGuard(environment)
 }

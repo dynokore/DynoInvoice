@@ -6,6 +6,17 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-10-12
+### Changed
+- `JdbcEvidenceLedger`, `JdbcLegalHoldRegistry` and `EvidenceLedgerSchema` interpolate identifiers only through
+  tenancy-kernel's `SqlIdentifier.require` (tenancy-kernel 1.3.0); their own regex validators are removed. A
+  name with a leading underscore, longer than 63 characters, or whose derived trigger names
+  (`<table>_immutable`, `<table>_no_mutation`) exceed 63 characters is now refused instead of being silently
+  truncated by PostgreSQL. The SQL for a valid name is unchanged; `EvidenceLedgerSchema.trailerDdl` joins the
+  RLS trailer to its own statements instead of splicing it into them. The module has zero platform-build 0.9.0
+  SQL guard findings (INV-REQ-854 b5, INV-ADR-3968 item 11; coordinator rulings INV-Q-4036, INV-Q-4040;
+  INV-T-4043).
+
 ## [1.0.1] - 2026-10-11
 ### Changed
 - `ContentHash.of` hashes through the platform `crypto` module (`Hashing`, `HashAlgorithm.SHA_256`;

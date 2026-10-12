@@ -26,6 +26,7 @@ import org.springframework.context.ConfigurableApplicationContext
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Import
+import org.springframework.core.env.SystemEnvironmentPropertySource
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RestController
 import java.net.URI
@@ -41,7 +42,8 @@ import java.nio.file.Path
  * auto-configuration, Tomcat on both ports) and with service-runtime's defaults alone serves /health/live,
  * /health/ready, /metrics and /diagnostics on the management port 8081 without a token. On the application port
  * WorkloadTokenAuthenticationFilter still covers every path: the same paths answer 401 without a token and 404
- * with a valid one, and a business endpoint answers 401 without a token.
+ * with a valid one, and a business endpoint answers 401 without a token. The former `liveness` and `readiness`
+ * group keys fail start-up (coordinator ruling INV-Q-4192).
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class ManagementPortIT {
@@ -174,6 +176,52 @@ class ManagementPortIT {
                 }
             }
     }
+
+    @ParameterizedTest
+    @ValueSource(
+        strings = [
+            "management.endpoint.health.group.readiness.include=readinessState,db,eventLog",
+            "management.endpoint.health.group.liveness.include=livenessState",
+            "management.endpoint.health.group.readiness.show-details=always",
+        ],
+    )
+    fun `start-up fails when a property source sets a former liveness or readiness group key`(property: String) {
+        guardRunner().withPropertyValues(property).run { context ->
+            val failure = context.startupFailure.shouldBeInstanceOf<BeanCreationException>()
+            failure.mostSpecificCause.message!! shouldContain "Health groups are named live and ready"
+            failure.mostSpecificCause.message!! shouldContain property.substringBefore('=')
+        }
+    }
+
+    @Test
+    fun `start-up fails on a former group key set as an environment variable`() {
+        guardRunner()
+            .withInitializer { context ->
+                context.environment.propertySources.addFirst(
+                    SystemEnvironmentPropertySource(
+                        "systemEnvironment",
+                        mapOf<String, Any>("MANAGEMENT_ENDPOINT_HEALTH_GROUP_READINESS_INCLUDE" to "readinessState,db"),
+                    ),
+                )
+            }.run { context ->
+                context.startupFailure.shouldBeInstanceOf<BeanCreationException>()
+                    .mostSpecificCause.message!! shouldContain "group.ready.*"
+            }
+    }
+
+    @Test
+    fun `the new live and ready group keys start`() {
+        guardRunner()
+            .withPropertyValues(
+                "management.endpoint.health.group.ready.include=readinessState,db,eventLog,vault",
+                "management.endpoint.health.group.live.include=livenessState",
+            ).run { it.startupFailure shouldBe null }
+    }
+
+    private fun guardRunner() = ApplicationContextRunner()
+        .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
+        .withUserConfiguration(ServiceRuntimeConfiguration::class.java)
+        .withPropertyValues("service-runtime.workload-identity.audience=submission-svc")
 
     private companion object {
         const val MANAGEMENT_PORT = 8081

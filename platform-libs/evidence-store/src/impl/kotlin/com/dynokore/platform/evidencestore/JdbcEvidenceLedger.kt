@@ -1,6 +1,7 @@
 package com.dynokore.platform.evidencestore
 
 import com.dynokore.platform.tenancykernel.CurrentConnection
+import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantId
 import java.sql.Connection
 import java.sql.ResultSet
@@ -24,15 +25,12 @@ import java.util.UUID
  */
 class JdbcEvidenceLedger(
     private val connections: CurrentConnection,
-    private val schema: String,
-    private val table: String,
+    schema: String,
+    table: String,
 ) : EvidenceLedger {
-    init {
-        require(IDENTIFIER.matches(schema)) { "schema must be a plain lower-case identifier, was '$schema'" }
-        require(IDENTIFIER.matches(table)) { "table must be a plain lower-case identifier, was '$table'" }
-    }
-
-    private val qualified = "$schema.$table"
+    // INV-REQ-854 b5 (coordinator ruling INV-Q-4036): the names enter SQL text only through SqlIdentifier.require.
+    private val schemaName = SqlIdentifier.require(schema, "schema")
+    private val tableName = SqlIdentifier.require(table, "table")
 
     // No `for update`: CS-22 revokes UPDATE from the application role
     // altogether (EvidenceLedgerSchema), and PostgreSQL's row-locking clauses
@@ -46,7 +44,7 @@ class JdbcEvidenceLedger(
     // table privilege of its own.
     private val tailSql =
         """
-        select seq, content_hash from $qualified
+        select seq, content_hash from $schemaName.$tableName
         where tenant_id = ? and entity_ref = ? and period_ref = ?
         order by seq desc limit 1
         """.trimIndent()
@@ -55,7 +53,7 @@ class JdbcEvidenceLedger(
 
     private val insertSql =
         """
-        insert into $qualified
+        insert into $schemaName.$tableName
             (id, tenant_id, entity_ref, period_ref, seq, evidence_type, content, content_hash, previous_hash,
              recorded_at, doc_uuid, invoice_number, counterparty_uen, category_code)
         values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -65,7 +63,7 @@ class JdbcEvidenceLedger(
         """
         select seq, evidence_type, content, content_hash, previous_hash, recorded_at,
                doc_uuid, invoice_number, counterparty_uen, category_code
-        from $qualified
+        from $schemaName.$tableName
         where tenant_id = ? and entity_ref = ? and period_ref = ?
         order by seq asc
         """.trimIndent()
@@ -206,8 +204,6 @@ class JdbcEvidenceLedger(
     )
 
     companion object {
-        private val IDENTIFIER = Regex("^[a-z_][a-z0-9_]*$")
-
         /**
          * The columns a service's own `CREATE TABLE` must declare, in order,
          * for this repository to work against it (TPL-12).

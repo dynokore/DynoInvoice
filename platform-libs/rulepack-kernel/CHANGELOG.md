@@ -6,6 +6,16 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-10-12
+### Changed
+- `PackRegistryMigration.ddl` and `lineageKeyUpgradeDdl` interpolate identifiers only through tenancy-kernel's
+  `SqlIdentifier.require` (tenancy-kernel 1.3.0), including the names derived from the table
+  (`<table>_resolution_idx`, `<table>_lineage_key`, `<table>_tenant_isolation`); the module's own regex
+  validator is removed. A name with a leading underscore, or a table whose derived names exceed 63 characters,
+  is now refused instead of being silently truncated by PostgreSQL. The DDL for a valid name is unchanged. The
+  module has zero platform-build 0.9.0 SQL guard findings (INV-REQ-854 b5, INV-ADR-3968 item 11; coordinator
+  rulings INV-Q-4036, INV-Q-4040; INV-T-4043).
+
 ## [1.3.1] - 2026-10-12
 ### Fixed
 - The published `rulepack-kernel-api` jars 1.2.0 and 1.3.0 held no api classes (INV-T-3937; coordinator ruling

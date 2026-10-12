@@ -1,5 +1,6 @@
 package com.dynokore.platform.evidencestore
 
+import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantRlsMigration
 
 /**
@@ -24,17 +25,16 @@ import com.dynokore.platform.tenancykernel.TenantRlsMigration
  *     here to mutability instead).
  */
 object EvidenceLedgerSchema {
-    private val IDENTIFIER = Regex("^[a-z_][a-z0-9_]*$")
-
     /**
      * The `ENABLE`/`FORCE ROW LEVEL SECURITY` and tenant-isolation policy DDL
      * (reused from [TenantRlsMigration]), plus the `REVOKE` and the
      * append-only trigger, for `"schema"."table"`.
      *
-     * @throws IllegalArgumentException if [schema], [table] or [appRole] is
-     *   not a plain lower-case SQL identifier — this text is spliced directly
-     *   into DDL, so it is validated the same way a bind parameter never
-     *   needs to be.
+     * @throws IllegalArgumentException if [schema], [table], [appRole] or a
+     *   name derived from [table] (`<table>_immutable`, `<table>_no_mutation`)
+     *   is not a plain lower-case SQL identifier of at most 63 characters —
+     *   this text is spliced directly into DDL, so every name goes through
+     *   [SqlIdentifier.require] (INV-REQ-854 b5, coordinator ruling INV-Q-4036).
      */
     fun trailerDdl(
         schema: String,
@@ -42,23 +42,24 @@ object EvidenceLedgerSchema {
         appRole: String,
         policyName: String = "tenant_isolation",
     ): String {
-        require(IDENTIFIER.matches(schema)) { "schema must be a plain lower-case identifier, was '$schema'" }
-        require(IDENTIFIER.matches(table)) { "table must be a plain lower-case identifier, was '$table'" }
-        require(IDENTIFIER.matches(appRole)) { "appRole must be a plain lower-case identifier, was '$appRole'" }
-        val qualified = "$schema.$table"
-        val guardFunction = "${table}_immutable"
-        val rls = TenantRlsMigration.ddl(schema, table, policyName)
-        return """
-            |$rls
-            |REVOKE UPDATE, DELETE, TRUNCATE ON $qualified FROM $appRole;
-            |CREATE OR REPLACE FUNCTION $schema.$guardFunction() RETURNS trigger AS $$
+        val schemaName = SqlIdentifier.require(schema, "schema")
+        val tableName = SqlIdentifier.require(table, "table")
+        val role = SqlIdentifier.require(appRole, "appRole")
+        val guardFunction = SqlIdentifier.require("${tableName}_immutable", "guard function")
+        val trigger = SqlIdentifier.require("${tableName}_no_mutation", "trigger")
+        val immutability =
+            """
+            |REVOKE UPDATE, DELETE, TRUNCATE ON $schemaName.$tableName FROM $role;
+            |CREATE OR REPLACE FUNCTION $schemaName.$guardFunction() RETURNS trigger AS $$
             |BEGIN
             |    RAISE EXCEPTION 'CS-22: % is append-only; % is refused', TG_TABLE_NAME, TG_OP;
             |END;
             |$$ LANGUAGE plpgsql;
-            |CREATE TRIGGER ${table}_no_mutation
-            |    BEFORE UPDATE OR DELETE ON $qualified
-            |    FOR EACH ROW EXECUTE FUNCTION $schema.$guardFunction();
-        """.trimMargin()
+            |CREATE TRIGGER $trigger
+            |    BEFORE UPDATE OR DELETE ON $schemaName.$tableName
+            |    FOR EACH ROW EXECUTE FUNCTION $schemaName.$guardFunction();
+            """.trimMargin()
+        // Two separate statement groups, joined: tenancy-kernel's RLS trailer is not spliced into this module's SQL.
+        return listOf(TenantRlsMigration.ddl(schema, table, policyName), immutability).joinToString("\n")
     }
 }

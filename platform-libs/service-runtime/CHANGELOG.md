@@ -19,7 +19,10 @@ train is its own (README.md: "own version and changelog").
 - The health groups are named `live` and `ready` (formerly `liveness` and `readiness`; same members, status order and
   DEGRADED mapping): Spring Boot serves a group only at `/health/<group>`. A service that sets
   `management.endpoint.health.group.readiness.include` (TPL-16 before this release) renames the key to
-  `group.ready.include`.
+  `group.ready.include`, and `group.liveness.*` to `group.live.*` (coordinator ruling INV-Q-4192).
+- Start-up fails, with a message naming `live` and `ready`, when any property source (properties, YAML, environment
+  variables) sets `management.endpoint.health.group.liveness.*` or `management.endpoint.health.group.readiness.*`, so a
+  service cannot silently leave its db or eventLog out of `/health/ready`: `HealthGroupKeyGuard` (INV-Q-4192).
 - A service may change the management port number in its own configuration, but start-up fails when the management
   server would share the application port (`management.server.port` equal to `server.port`, or 8080 while `server.port`
   is unset): `ManagementPortGuard`.
@@ -31,7 +34,8 @@ train is its own (README.md: "own version and changelog").
 - `ManagementPortIT`: a running service composed as TPL-18 (Tomcat on both ports) answers `/health/live`,
   `/health/ready`, `/metrics` and `/diagnostics` on 8081 without a token, 503 DOWN on `/health/ready` with the vault
   down; on the application port the same paths answer 401 without a token and 404 with a valid one, and a business
-  endpoint 401 without a token; a changed management port works; equal ports fail start-up.
+  endpoint 401 without a token; a changed management port works; equal ports fail start-up; a former `liveness` or
+  `readiness` group key fails start-up (property or environment variable), the new `live` and `ready` keys start.
 
 ## [3.4.0] - 2026-10-12
 ### Added

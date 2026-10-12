@@ -23,34 +23,33 @@ package com.dynokore.platform.tenancykernel
  * `db/migration` lives in `<svc>-adapters`).
  */
 object TenantRlsMigration {
-    private val IDENTIFIER = Regex("^[a-z_][a-z0-9_]*$")
-
     /**
      * The `ENABLE`/`FORCE ROW LEVEL SECURITY` and `CREATE POLICY` statements
      * for `"schema"."table"` (CS-19). Appended after a service's own
      * `CREATE TABLE` in the same migration file (TPL-12).
      *
-     * @throws IllegalArgumentException if [schema] or [table] is not a plain
-     *   lower-case SQL identifier — this text is spliced directly into DDL, so
-     *   it is validated the same way a bind parameter never needs to be
-     *   (there is no bind parameter for an identifier).
+     * @throws IllegalArgumentException if [schema], [table] or [policyName] is
+     *   not a plain lower-case SQL identifier of at most 63 characters — this
+     *   text is spliced directly into DDL, so each name goes through
+     *   [SqlIdentifier.require] (there is no bind parameter for an identifier;
+     *   INV-REQ-854 b5, coordinator ruling INV-Q-4036).
      */
     fun ddl(
         schema: String,
         table: String,
         policyName: String = "tenant_isolation",
     ): String {
-        require(IDENTIFIER.matches(schema)) { "schema must be a plain lower-case identifier, was '$schema'" }
-        require(IDENTIFIER.matches(table)) { "table must be a plain lower-case identifier, was '$table'" }
-        require(IDENTIFIER.matches(policyName)) { "policyName must be a plain lower-case identifier, was '$policyName'" }
-        val qualified = "$schema.$table"
-        val predicate = "tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid"
+        val schemaName = SqlIdentifier.require(schema, "schema")
+        val tableName = SqlIdentifier.require(table, "table")
+        val policy = SqlIdentifier.require(policyName, "policyName")
         return """
-            |ALTER TABLE $qualified ENABLE ROW LEVEL SECURITY;
-            |ALTER TABLE $qualified FORCE ROW LEVEL SECURITY;
-            |CREATE POLICY $policyName ON $qualified
-            |    USING      ($predicate)
-            |    WITH CHECK ($predicate);
+            |ALTER TABLE $schemaName.$tableName ENABLE ROW LEVEL SECURITY;
+            |ALTER TABLE $schemaName.$tableName FORCE ROW LEVEL SECURITY;
+            |CREATE POLICY $policy ON $schemaName.$tableName
+            |    USING      ($TENANT_PREDICATE)
+            |    WITH CHECK ($TENANT_PREDICATE);
         """.trimMargin()
     }
+
+    private const val TENANT_PREDICATE = "tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid"
 }
