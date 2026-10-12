@@ -5,6 +5,7 @@ import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.EventId
 import com.dynokore.platform.outboxandqueue.UuidV7
 import com.dynokore.platform.tenancykernel.CurrentConnection
+import com.dynokore.platform.tenancykernel.SqlIdentifier
 import tools.jackson.databind.ObjectMapper
 import java.sql.Timestamp
 import java.sql.Types
@@ -22,6 +23,10 @@ import java.time.temporal.ChronoUnit
  * `PlatformTenantBinding` with `EntityRef.PLATFORM` (INV-Q-2927 option D). The returned [Envelope] is the one
  * the outbox writer would have stamped (type `AuditEntryRecorded`, no `docsequence`); nothing is published.
  * Any failure of the insert surfaces as [AuditWriteFailed].
+ *
+ * It is also the [AuditStager] of such a service (coordinator ruling INV-Q-4277): [stage] builds the same row and
+ * writes nothing, for a SECURITY DEFINER function that writes its own entry (`purge_audit_entries`,
+ * [AuditSchema.purgeDdl]); [record] is [stage] followed by the insert.
  */
 class LocalAuditWriter(
     private val connections: CurrentConnection,
@@ -30,8 +35,10 @@ class LocalAuditWriter(
     private val instanceId: String,
     private val clock: Clock,
     private val mapper: ObjectMapper = ObjectMapper(),
-) : AuditWriter {
-    private val table = "${AuditSchema.identifier(schema, "schema")}.${AuditSchema.AUDIT_ENTRY}"
+) : AuditWriter,
+    AuditStager {
+    // INV-REQ-854 b5 (coordinator ruling INV-Q-4036): the schema enters SQL text only through SqlIdentifier.require.
+    private val schemaName = SqlIdentifier.require(schema, "schema")
     private val ids = UuidV7()
 
     init {
@@ -44,6 +51,19 @@ class LocalAuditWriter(
         entry: AuditEntry,
         context: EventContext,
     ): Envelope {
+        val staged = stage(entry, context)
+        try {
+            insert(staged)
+        } catch (failure: Exception) { // includes the checked SQLException of a refused insert
+            throw AuditWriteFailed(failure)
+        }
+        return staged.envelope
+    }
+
+    override fun stage(
+        entry: AuditEntry,
+        context: EventContext,
+    ): StagedAuditEntry {
         val data = AuditPayload.json(entry, mapper)
         val priorState = AuditPayload.priorState(entry, mapper)
         val now = clock.instant().truncatedTo(ChronoUnit.MICROS)
@@ -64,24 +84,17 @@ class LocalAuditWriter(
                 causation = context.causation,
                 dataJson = data,
             )
-        try {
-            insert(entry, priorState, envelope)
-        } catch (failure: Exception) { // includes the checked SQLException of a refused insert
-            throw AuditWriteFailed(failure)
-        }
-        return envelope
+        return StagedAuditEntry(envelope, entry, priorState)
     }
 
-    private fun insert(
-        entry: AuditEntry,
-        priorState: String?,
-        envelope: Envelope,
-    ) {
+    private fun insert(staged: StagedAuditEntry) {
+        val envelope = staged.envelope
+        val entry = staged.entry
         connections
             .require()
             .prepareStatement(
                 """
-                insert into $table
+                insert into $schemaName.${AuditSchema.AUDIT_ENTRY}
                     (id, tenant_id, entity_ref, recorded_at, source, subject, doc_uuid, transaction_date,
                      instance_id, correlation_id, causation_id, actor, action, scope, reason, prior_state)
                 values (?::uuid, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb)
@@ -104,7 +117,7 @@ class LocalAuditWriter(
                 statement.setString(next(), entry.action)
                 statement.setString(next(), entry.scope)
                 statement.setString(next(), entry.reason)
-                statement.setString(next(), priorState)
+                statement.setString(next(), staged.priorStateJson)
                 statement.executeUpdate()
             }
     }

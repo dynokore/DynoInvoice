@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Tag
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import java.sql.SQLException
+import java.sql.Timestamp
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
@@ -194,6 +195,30 @@ class LocalAuditWriterIT {
         }
     }
 
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `stage builds the row that record writes and inserts nothing`(image: String) {
+        ControlPlane(image).use { cp ->
+            val tenant = TenantId(UUID.randomUUID())
+            val context = cp.context(tenant, EntityRef("entity-1"))
+            val staged =
+                cp.tenants.bind(tenant, "operator-3") {
+                    cp.boundary.inTransaction { cp.audit.stage(cp.entry("grantRole"), context) }
+                }
+            assertEquals(0, cp.count("select count(*) from controlplane.audit_entry"), "stage inserts nothing")
+            val recorded =
+                cp.tenants.bind(tenant, "operator-3") {
+                    cp.boundary.inTransaction { cp.audit.record(cp.entry("grantRole"), context) }
+                }
+            // Every field but the fresh UUIDv7 id is what record wrote (fixed clock).
+            assertEquals(recorded, staged.envelope.copy(id = recorded.id))
+            assertEquals(7, UUID.fromString(staged.envelope.id.value).version())
+            assertEquals(7, UUID.fromString(recorded.id.value).version())
+            assertEquals(cp.entry("grantRole"), staged.entry)
+            assertEquals(1, cp.rowsLike(recorded.id.value, staged), "record wrote the staged row")
+        }
+    }
+
     /** The fixture `control-plane-svc`: its `controlplane` schema holds the audit table and one state table. */
     private class ControlPlane(image: String) : AutoCloseable {
         val fixture = OutboxPostgresFixture(image)
@@ -256,6 +281,32 @@ class LocalAuditWriterIT {
                 }
             }
         }
+
+        /** Rows with id [id] whose every other column is [staged]'s. */
+        fun rowsLike(
+            id: String,
+            staged: StagedAuditEntry,
+        ): Long = count(
+            "select count(*) from controlplane.audit_entry where id = ?::uuid and tenant_id = ? " +
+                "and entity_ref = ? and recorded_at = ? and source = ? and subject = ? and doc_uuid is null " +
+                "and transaction_date is null and instance_id = ? and correlation_id = ? " +
+                "and causation_id = ? and actor = ? and action = ? and scope = ? and reason = ? " +
+                "and prior_state = ?::jsonb",
+            id,
+            staged.envelope.tenant.value,
+            staged.envelope.entity.value,
+            Timestamp.from(staged.envelope.time),
+            staged.envelope.source,
+            staged.envelope.subject,
+            staged.envelope.instanceId,
+            staged.envelope.correlation.value,
+            staged.envelope.causation.value,
+            staged.entry.actor,
+            staged.entry.action,
+            staged.entry.scope,
+            checkNotNull(staged.entry.reason),
+            checkNotNull(staged.priorStateJson),
+        )
 
         fun count(
             sql: String,

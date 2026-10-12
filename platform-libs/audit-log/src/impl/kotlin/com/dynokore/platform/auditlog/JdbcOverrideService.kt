@@ -3,6 +3,7 @@ package com.dynokore.platform.auditlog
 import com.dynokore.platform.outboxandqueue.DocUuid
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.tenancykernel.CurrentConnection
+import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import java.sql.Timestamp
 import java.time.Clock
@@ -25,7 +26,8 @@ class JdbcOverrideService(
     private val policy: OverridePolicy = OverridePolicy(),
 ) : OverrideService,
     OverrideRegister {
-    private val table = "${requireSchema(schema)}.${AuditSchema.OVERRIDE_GRANT}"
+    // INV-REQ-854 b5 (coordinator ruling INV-Q-4036): the schema enters SQL text only through SqlIdentifier.require.
+    private val schemaName = SqlIdentifier.require(schema, "schema")
 
     override fun override(command: OverrideCommand): OverrideGrant {
         refuseIfNotAllowed(command)
@@ -74,7 +76,7 @@ class JdbcOverrideService(
     ): Boolean = connections
         .require()
         .prepareStatement(
-            "select 1 from $table where doc_uuid = ? and document_version = ? and error_code = ?",
+            "select 1 from $schemaName.${AuditSchema.OVERRIDE_GRANT} where doc_uuid = ? and document_version = ? and error_code = ?",
         ).use { statement ->
             statement.setObject(1, docUuid.value)
             statement.setLong(2, documentVersion)
@@ -102,7 +104,7 @@ class JdbcOverrideService(
         .require()
         .prepareStatement(
             """
-            insert into $table (id, tenant_id, doc_uuid, document_version, error_code, actor, reason, granted_at, audit_event_id)
+            insert into $schemaName.${AuditSchema.OVERRIDE_GRANT} (id, tenant_id, doc_uuid, document_version, error_code, actor, reason, granted_at, audit_event_id)
             values (?, ?, ?, ?, ?, ?, ?, ?, ?)
             on conflict (tenant_id, doc_uuid, document_version, error_code) do nothing
             """.trimIndent(),
@@ -123,10 +125,5 @@ class JdbcOverrideService(
         const val ACTION = "override"
 
         fun scopeOf(command: OverrideCommand) = "document:${command.docUuid}/version:${command.documentVersion}/code:${command.code}"
-
-        fun requireSchema(schema: String): String {
-            require(Regex("^[a-z][a-z0-9_]{0,62}$").matches(schema)) { "schema must be a plain lower-case identifier, was '$schema'" }
-            return schema
-        }
     }
 }
