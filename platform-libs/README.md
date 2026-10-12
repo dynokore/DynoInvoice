@@ -55,9 +55,11 @@ export GST_REGISTRY_TOKEN=<your token>
 
 STK-72 applies (INV-T-4297, coordinator ruling INV-Q-4367). Every resolvable configuration of every project, `platform-libs-bom` included, is locked in strict mode:
 
-- the settings classpath in `settings-gradle.lockfile`;
+- the settings classpath in `gradle/settings-gradle.lockfile` (INV-Q-4375). Gradle writes the version catalogue's own lock state to the default `settings-gradle.lockfile` and would drop the classpath entries there, so the root `settings-gradle.lockfile` holds only `empty=incomingCatalogForLibs0`, and `settings.gradle.kts` fails the build when that file is missing or holds anything else;
 - each build script's plugin classpath in `buildscript-gradle.lockfile`, at the root and next to each module's `build.gradle.kts`;
 - each module's configurations in its `gradle.lockfile`.
+
+The staged same-commit `platform-contracts:*` coordinates (unpacked by product-runtime from the locked and SHA-256-verified `platform-contracts-bundle` zip into `product-runtime/build/contracts-repo`) resolve only from that staging repository (`exclusiveContent`), are resolved by no locked configuration, and are trusted in the verification metadata for that group only (INV-Q-4377, as INV-Q-4322 (3)).
 
 A configuration without lock state, a resolution outside the lock files, or a deleted lock file of any of the three kinds fails the build.
 

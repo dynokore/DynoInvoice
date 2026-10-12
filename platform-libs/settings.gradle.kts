@@ -61,6 +61,19 @@ plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }
 
+// STK-72 (INV-T-4297, coordinator ruling INV-Q-4375): the root settings-gradle.lockfile holds only the version
+// catalogue's lock state, which Gradle does not check strictly; this makes a deleted or changed file fail the
+// build. Skipped under --write-locks, which rewrites the file.
+if (!gradle.startParameter.isWriteDependencyLocks) {
+    val catalogueLock = settingsDir.resolve("settings-gradle.lockfile")
+    val lockLines =
+        catalogueLock.takeIf { it.isFile }?.readLines()?.map { it.trim() }?.filter { it.isNotEmpty() && !it.startsWith("#") }
+    check(lockLines == listOf("empty=incomingCatalogForLibs0")) {
+        "STK-72: settings-gradle.lockfile must exist and hold exactly 'empty=incomingCatalogForLibs0' " +
+            "(found ${lockLines ?: "no file"}); regenerate it as README.md, \"Dependency locking and verification\" says"
+    }
+}
+
 dependencyResolutionManagement {
     repositories {
         maven {
