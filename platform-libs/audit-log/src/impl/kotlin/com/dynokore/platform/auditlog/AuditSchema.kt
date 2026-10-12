@@ -22,8 +22,7 @@ object AuditSchema {
     const val AUDIT_ENTRY = "audit_entry"
 
     /**
-     * `purge_audit_entries(cut_off, reason, entry_id, recorded_at, source, subject, instance_id, correlation_id,
-     * causation_id)`: the audited purge of [AUDIT_ENTRY] ([purgeDdl]); returns the number of entries deleted.
+     * `purge_audit_entries(cut_off, reason, entry_id, source, subject, instance_id, correlation_id, causation_id)`: the audited purge of [AUDIT_ENTRY] ([purgeDdl]); returns the number of entries deleted.
      */
     const val PURGE_AUDIT_ENTRIES = "purge_audit_entries"
 
@@ -37,7 +36,7 @@ object AuditSchema {
     internal const val PLATFORM = "ffffffff-ffff-ffff-ffff-ffffffffffff"
 
     /** The argument types of [PURGE_AUDIT_ENTRIES], for its hand-over and grants. */
-    private const val PURGE_ARGUMENTS = "timestamptz, text, uuid, timestamptz, text, text, text, text, text"
+    private const val PURGE_ARGUMENTS = "timestamptz, text, uuid, text, text, text, text, text"
 
     fun ddl(
         schema: String,
@@ -135,9 +134,10 @@ object AuditSchema {
      * (coordinator ruling INV-Q-4277, the pattern of INV-Q-4254 A). In one transaction the function then:
      * 1. refuses (SQLSTATE 42501) when `app.actor` is unset or the bound tenant is not the platform tenant;
      * 2. refuses (SQLSTATE 22023) a cut-off later than now minus [LEGAL_FLOOR], a blank reason, subject, instance,
-     *    correlation or causation, a source other than `/gst/<service>`, an entry id that is not a version-7 UUID or
-     *    is already present, and a recorded time that is missing or not later than the cut-off;
-     * 3. writes the purge's own entry first, under the platform tenant and entity, with the actor from `app.actor`,
+     *    correlation or causation, a source other than `/gst/<service>`, and an entry id that is not a version-7 UUID
+     *    or is already present;
+     * 3. writes the purge's own entry first, under the platform tenant and entity, recorded at the database's
+     *    `clock_timestamp()` (no caller passes a time, coordinator ruling INV-Q-4316), with the actor from `app.actor`,
      *    action [PURGE_ACTION], scope `platform (<service> audit_entry)`, the caller's reason, and as prior state
      *    the cut-off, the row count and the oldest and newest `recorded_at` of the rows to be deleted (no prior
      *    state when there are none, INV-REQ-2588 b6);
@@ -171,8 +171,8 @@ object AuditSchema {
             create policy ${AUDIT_ENTRY}_sys_purge_floor on $s.$AUDIT_ENTRY as restrictive for delete to $sys
                 using (recorded_at < now() - interval '$LEGAL_FLOOR');
             create function $s.$PURGE_AUDIT_ENTRIES(p_cut_off timestamptz, p_reason text, p_entry_id uuid,
-                p_recorded_at timestamptz, p_source text, p_subject text, p_instance_id text, p_correlation_id text,
-                p_causation_id text) returns bigint
+                p_source text, p_subject text, p_instance_id text, p_correlation_id text, p_causation_id text)
+                returns bigint
             language plpgsql security definer set search_path = pg_catalog, $s, pg_temp as $$
             declare
                 v_service constant text := replace('$svc', '_', '-');
@@ -211,16 +211,12 @@ object AuditSchema {
                 if exists (select 1 from $s.$AUDIT_ENTRY where tenant_id = '$PLATFORM'::uuid and id = p_entry_id) then
                     raise exception 'entry id % is already present', p_entry_id using errcode = '22023';
                 end if;
-                if p_recorded_at is null or p_recorded_at <= p_cut_off then
-                    raise exception 'recorded time % is not later than the cut-off', p_recorded_at
-                        using errcode = '22023';
-                end if;
                 select count(*), min(recorded_at), max(recorded_at) into v_rows, v_oldest, v_newest
                 from $s.$AUDIT_ENTRY where recorded_at < p_cut_off;
                 insert into $s.$AUDIT_ENTRY
                     (id, tenant_id, entity_ref, recorded_at, source, subject, doc_uuid, transaction_date,
                      instance_id, correlation_id, causation_id, actor, action, scope, reason, prior_state)
-                values (p_entry_id, '$PLATFORM'::uuid, '$PLATFORM', p_recorded_at, p_source, p_subject, null, null,
+                values (p_entry_id, '$PLATFORM'::uuid, '$PLATFORM', clock_timestamp(), p_source, p_subject, null, null,
                     p_instance_id, p_correlation_id, p_causation_id, v_actor, '$PURGE_ACTION',
                     'platform (' || v_service || ' audit_entry)', p_reason,
                     case when v_rows = 0 then null else jsonb_build_object('cutOff', p_cut_off, 'rowCount', v_rows,

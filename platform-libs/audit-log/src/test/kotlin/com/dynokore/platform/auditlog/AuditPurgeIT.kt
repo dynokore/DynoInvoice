@@ -114,6 +114,25 @@ class AuditPurgeIT {
         assertEquals(1L, p.count("select count(*) from controlplane.audit_entry"))
     }
 
+    /**
+     * The function stamps its own entry with `clock_timestamp()` (coordinator ruling INV-Q-4316): an entry staged
+     * with a time older than the floor is stored at the database's time, so a later purge cannot erase it.
+     */
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `a backdated purge entry is stored at the database time and a later purge keeps it`(image: String) {
+        val p = purge(image)
+        p.seed(PLATFORM, p.yearsAgo(7))
+        val first = p.stage(clock = Clock.fixed(p.yearsAgo(6), ZoneOffset.UTC))
+        assertTrue(first.envelope.time < p.yearsAgo(5), "staged older than the floor")
+        assertEquals(1L, p.call(PurgeCall.of(first, p.yearsAgo(6).minusSeconds(DAY))))
+        p.call(PurgeCall.of(p.stage(), p.yearsAgo(5).minusSeconds(DAY)))
+        val kept = "select count(*) from controlplane.audit_entry where id = ?::uuid and recorded_at > ?"
+        val stays = p.count(kept, first.envelope.id.value, Timestamp.from(p.now))
+        assertEquals(1L, stays, "the first purge's entry carries the database time and stays")
+        assertEquals(2L, p.count("select count(*) from controlplane.audit_entry"))
+    }
+
     /** One test per check of the function (INV-T-3984, INV-Q-4277): each refuses, and nothing is written or deleted. */
     @ParameterizedTest(name = "{1} [{0}]")
     @MethodSource("refusals")
@@ -127,7 +146,16 @@ class AuditPurgeIT {
         val staged = p.stage()
         val good = PurgeCall.of(staged, p.yearsAgo(6))
         if (check == ALREADY_PRESENT) p.seed(PLATFORM, p.now, id = staged.envelope.id.value)
-        val failure = assertThrows(SQLException::class.java) { checkNotNull(REFUSALS[check])(p, good) }
+        // The tenant check is the function's own: an extra sys policy lets RLS admit the platform-tenant entry, so
+        // only the check can refuse the call.
+        if (check == WRONG_TENANT) p.fixture.runAsAdmin(OPEN_SYS_INSERT)
+        val failure =
+            try {
+                assertThrows(SQLException::class.java) { checkNotNull(REFUSALS[check])(p, good) }
+            } finally {
+                if (check == WRONG_TENANT) p.fixture.runAsAdmin(DROP_OPEN_SYS_INSERT)
+            }
+        if (check == WRONG_TENANT) assertTrue("platform tenant only" in failure.message.orEmpty(), failure.message)
         val expected = if (check in PRIVILEGE_CHECKS) "42501" else "22023"
         assertEquals(expected, failure.sqlState, failure.message)
         val seeded = if (check == ALREADY_PRESENT) 3L else 2L
@@ -166,7 +194,7 @@ class AuditPurgeIT {
             assertThrows(SQLException::class.java) {
                 p.raw(
                     "select controlplane.purge_audit_entries(now() - interval '4 years', 'raw', " +
-                        "'${p.stage().envelope.id.value}'::uuid, now(), '/gst/control-plane-svc', 's', 'i', 'c', 'c')",
+                        "'${p.stage().envelope.id.value}'::uuid, '/gst/control-plane-svc', 's', 'i', 'c', 'c')",
                 )
             }
         assertEquals("22023", young.sqlState)
@@ -182,7 +210,6 @@ class AuditPurgeIT {
         val cutOff: Instant,
         val reason: String,
         val entryId: String,
-        val recordedAt: Instant,
         val source: String,
         val subject: String,
         val instanceId: String,
@@ -197,7 +224,6 @@ class AuditPurgeIT {
                 cutOff = cutOff,
                 reason = checkNotNull(staged.entry.reason),
                 entryId = staged.envelope.id.value,
-                recordedAt = staged.envelope.time,
                 source = staged.envelope.source,
                 subject = staged.envelope.subject,
                 instanceId = staged.envelope.instanceId,
@@ -212,7 +238,6 @@ class AuditPurgeIT {
         val fixture = OutboxPostgresFixture(image)
         val tenants = TenantContextImpl()
         val tx = TransactionRunnerImpl(fixture.appDataSource(), tenants)
-        val writer = LocalAuditWriter(tx, SCHEMA, "control-plane-svc", "control-plane-svc-1", Clock.systemUTC())
 
         /** The time the rows are aged against, a minute behind the database's `now()`. */
         val now: Instant = Instant.now().minusSeconds(60).truncatedTo(ChronoUnit.MICROS)
@@ -232,7 +257,13 @@ class AuditPurgeIT {
         fun yearsAgo(years: Long): Instant = ZonedDateTime.ofInstant(now, ZoneOffset.UTC).minusYears(years).toInstant()
 
         /** The purge's own entry, staged as control-plane-svc would stage it. */
-        fun stage(): StagedAuditEntry = writer.stage(
+        fun stage(clock: Clock = Clock.systemUTC()): StagedAuditEntry = LocalAuditWriter(
+            tx,
+            SCHEMA,
+            "control-plane-svc",
+            "control-plane-svc-1",
+            clock,
+        ).stage(
             AuditEntry("operator-9", AuditSchema.PURGE_ACTION, SCOPE, "idem-key-1"),
             EventContext(
                 tenant = TenantId.PLATFORM,
@@ -271,16 +302,15 @@ class AuditPurgeIT {
             actor: String? = "operator-9",
             tenant: UUID? = null,
         ): Long = bound(actor, tenant) {
-            tx.require().prepareStatement("select $SCHEMA.purge_audit_entries(?, ?, ?::uuid, ?, ?, ?, ?, ?, ?)").use {
+            tx.require().prepareStatement("select $SCHEMA.purge_audit_entries(?, ?, ?::uuid, ?, ?, ?, ?, ?)").use {
                 it.setTimestamp(1, Timestamp.from(call.cutOff))
                 it.setString(2, call.reason)
                 it.setString(3, call.entryId)
-                it.setTimestamp(4, Timestamp.from(call.recordedAt))
-                it.setString(5, call.source)
-                it.setString(6, call.subject)
-                it.setString(7, call.instanceId)
-                it.setString(8, call.correlationId)
-                it.setString(9, call.causationId)
+                it.setString(4, call.source)
+                it.setString(5, call.subject)
+                it.setString(6, call.instanceId)
+                it.setString(7, call.correlationId)
+                it.setString(8, call.causationId)
                 it.executeQuery().use { rs ->
                     rs.next()
                     rs.getLong(1)
@@ -329,14 +359,18 @@ class AuditPurgeIT {
         const val DAY = 86_400L
         val PLATFORM: UUID = TenantId.PLATFORM.value
         val IMAGES = listOf("postgres:17", "postgres:18")
-        val PRIVILEGE_CHECKS = setOf("actor unset", "tenant not the platform tenant")
+        val PRIVILEGE_CHECKS = setOf("actor unset", WRONG_TENANT)
         const val ALREADY_PRESENT = "entry id already present"
+        const val WRONG_TENANT = "tenant not the platform tenant"
+        const val OPEN_SYS_INSERT =
+            "create policy audit_entry_test_open on $SCHEMA.audit_entry for insert to $SYS with check (true)"
+        const val DROP_OPEN_SYS_INSERT = "drop policy audit_entry_test_open on $SCHEMA.audit_entry"
 
         /** Each check of the function, and the call that fails only that check. */
         val REFUSALS: Map<String, (Purge, PurgeCall) -> Long> =
             mapOf(
                 "actor unset" to { p, call -> p.call(call, actor = null) },
-                "tenant not the platform tenant" to { p, call -> p.call(call, tenant = UUID.randomUUID()) },
+                WRONG_TENANT to { p, call -> p.call(call, tenant = UUID.randomUUID()) },
                 "cut-off younger than the legal floor" to
                     { p, call -> p.call(call.copy(cutOff = p.yearsAgo(5).plusSeconds(DAY))) },
                 "blank reason" to { p, call -> p.call(call.copy(reason = " ")) },
@@ -348,7 +382,6 @@ class AuditPurgeIT {
                 "entry id not a version-7 UUID" to
                     { p, call -> p.call(call.copy(entryId = UUID.randomUUID().toString())) },
                 ALREADY_PRESENT to { p, call -> p.call(call) },
-                "recorded time not after the cut-off" to { p, call -> p.call(call.copy(recordedAt = p.yearsAgo(6))) },
             )
     }
 }

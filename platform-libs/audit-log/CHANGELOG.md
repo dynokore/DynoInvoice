@@ -13,13 +13,14 @@ train is its own (README.md: "own version and changelog").
   causation, payload) and inserts nothing. `LocalAuditWriter` implements it; `record` is `stage` plus the insert
   (coordinator rulings INV-Q-4277 B and INV-Q-4254 A; `OutboxAuditWriter` gains it with INV-T-3983).
 - `AuditSchema.purgeDdl(schema, runtimeRole, sysRole, service)`: the audited purge of `audit_entry`,
-  `purge_audit_entries(cut_off, reason, entry_id, recorded_at, source, subject, instance_id, correlation_id,
-  causation_id)`, a SECURITY DEFINER function owned by the NOLOGIN `<svc>_sys`, static SQL,
+  `purge_audit_entries(cut_off, reason, entry_id, source, subject, instance_id, correlation_id, causation_id)`,
+  a SECURITY DEFINER function owned by the NOLOGIN `<svc>_sys`, static SQL,
   `SET search_path = pg_catalog, <schema>, pg_temp`, EXECUTE only for the runtime login (owner ruling INV-Q-3953,
   INV-Q-3097 as revised, coordinator ruling INV-Q-4038). It refuses an unset `app.actor` (INV-Q-3997), a tenant
   other than the platform tenant, a cut-off younger than the 5-year legal floor (INV-REQ-2588, INV-REQ-1378), and
   staged fields that are blank, a source other than `/gst/<service>`, or an entry id that is not a new UUIDv7;
-  then writes its own entry (actor from `app.actor`, platform tenant and entity, action `purgeAuditEntries`,
+  then writes its own entry (recorded at the database's `clock_timestamp()`, never a caller's time, coordinator
+  ruling INV-Q-4316; actor from `app.actor`; platform tenant and entity; action `purgeAuditEntries`,
   scope, reason, prior state) before deleting, in the caller's transaction (INV-API-3822). `<svc>_sys` gets
   `SELECT`, `INSERT` and `DELETE` with policies admitting only rows older than the floor; the runtime login keeps
   `SELECT` and `INSERT` only.
