@@ -1,0 +1,16 @@
+# Fixture for self-test-workload-rule.sh (accepted: an API-23 scope; INV-T-4075, API-02).
+openapi: 3.1.0
+info: {title: fixture, version: 1.0.0}
+paths:
+  /v1/fixture/op:
+    post:
+      operationId: fixtureCommand
+      x-principal: ingest
+      responses: {"200": {description: ok}}
+  # Control operation (refused: no x-principal): proves the rule ran on this
+  # document, so the accepted operation above passing is not a missing or
+  # renamed rule.
+  /v1/fixture/control:
+    get:
+      operationId: controlQuery
+      responses: {"200": {description: ok}}

@@ -1,0 +1,8 @@
+# Fixture for self-test-workload-rule.sh (refused: no x-principal; INV-T-4075, API-02).
+openapi: 3.1.0
+info: {title: fixture, version: 1.0.0}
+paths:
+  /v1/fixture/op:
+    post:
+      operationId: fixtureCommand
+      responses: {"200": {description: ok}}

@@ -49,16 +49,20 @@ rules:
       API-02, API-23 — every operation declares exactly one principal scope, or
       `workload` on an installer-only operation or on a gateway key-material query
       on access-svc (API-23/API-25 workload note; owner rulings INV-Q-3826 A,
-      INV-Q-4006 A; INV-T-3836, INV-T-4030).
-    message: "x-principal must be one of the API-23 scopes, or `workload` on an installer-only operation or an api-gateway->access-svc operation (API-02, API-23/API-25 workload note)"
+      INV-Q-4006 A; INV-T-3836, INV-T-4030). An operation without x-principal is
+      refused as well (INV-T-4075: `enumeration` alone does not fire on an absent
+      field, so `defined` runs first). Self-test: self-test-workload-rule.sh.
+    message: "x-principal must be present and one of the API-23 scopes, or `workload` on an installer-only operation or an api-gateway->access-svc operation (API-02, API-23/API-25 workload note)"
     given: "$.paths[*][get,post,put,delete,patch]"
     severity: error
     formats: ["oas3_1"]
     then:
-      field: x-principal
-      function: enumeration
-      functionOptions:
-        values: ["ingest", "filing-workflow", "ap-callback", "reporting", "monitoring", "certification", "workload"]
+      - field: x-principal
+        function: defined
+      - field: x-principal
+        function: enumeration
+        functionOptions:
+          values: ["ingest", "filing-workflow", "ap-callback", "reporting", "monitoring", "certification", "workload"]
 
   inv-api-02-x-principal-workload-restricted:
     description: >-

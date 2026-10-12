@@ -1,0 +1,10 @@
+# Fixture for self-test-workload-rule.sh (refused: x-principal outside the API-23
+# scopes and `workload`; INV-T-4075, API-02).
+openapi: 3.1.0
+info: {title: fixture, version: 1.0.0}
+paths:
+  /v1/fixture/op:
+    get:
+      operationId: fixtureQuery
+      x-principal: admin
+      responses: {"200": {description: ok}}
