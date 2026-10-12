@@ -14,7 +14,7 @@ train is its own (README.md: "own version and changelog").
   `PlatformEventCatalogue` (the nine platform events of INV-REQ-1226 b1) and `TrainFence` (rules-svc arms, the
   pack holders present in the train acknowledge; INV-REQ-1166 b2).
 - `product-runtime`: `ProductRuntimeConfiguration` (TPL-18), imported after `ServiceRuntimeConfiguration` or
-  auto-configured, relying on no ordering (needs service-runtime 3.2.1, INV-T-3881, INV-Q-3877), wiring:
+  auto-configured, relying on no ordering (service-runtime 3.2.1 or later, INV-T-3881, INV-Q-3877), wiring:
   - `GstVariationPointCatalogue`, config-resolver's `VariationPointCatalogue` over gst-catalogue 1.14.0's
     `VariationPoint`: every row mapped unchanged, typed values and bounds, acknowledgers one per role,
     constraint records as `crossOption`, the cross-scope and installation flags, `keys()` from the owner
