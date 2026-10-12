@@ -1600,6 +1600,9 @@ components:
                 type: string
                 maxLength: 8192
                 format: byte
+                description: The key's DER X.509 SubjectPublicKeyInfo (RFC 5280 section 4.1.2.7), standard base64
+                  (RFC 4648 section 4), whatever the alg; the gateway decodes it with X509EncodedKeySpec (coordinator
+                  ruling INV-Q-4079).
     RevocationListResponse:
       type: object
       required:
