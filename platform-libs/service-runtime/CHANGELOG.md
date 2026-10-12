@@ -6,6 +6,21 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-10-12
+### Added
+- Database credentials through SecretStore, rotated without restart (INV-T-3913; STK-29, INV-REQ-1231; coordinator
+  ruling INV-Q-3909, gap G10): `SecretStoreCredentialsProvider`, a HikariCP `HikariCredentialsProvider` from a
+  `SecretStore`, a username and a password `SecretRef`. `getCredentials()` reads the SecretRef on every call and never
+  caches, so each new physical connection logs in with the password mounted at that moment; open connections keep
+  theirs until the pool retires them. A role pool sets it as its `credentialsProvider` (TPL-18).
+- `service-runtime.datasource.credential`: Spring Boot's application HikariDataSource takes the provider, with
+  `spring.datasource.username`, before its pool starts. `service-runtime.flyway.credential`: Flyway's owner-role
+  connection (`spring.flyway.user`) reads its password through SecretStore when the migration runs. Start-up fails if
+  `spring.datasource.password` / `spring.datasource.hikari.password` or `spring.flyway.password` is set as well.
+  Without the properties nothing changes. No password reaches a log, an exception message or `toString` (CS-24).
+- Tests: rotation on PostgreSQL 17 and 18 in one TPL-18 context (application pool and role pool; the revoked password
+  is refused, the new one used after `softEvictConnections`), Flyway's migration through SecretStore, and the wiring.
+
 ## [3.2.1] - 2026-10-12
 ### Fixed
 - The L1 composition depended on registration order under TPL-18. This is a defect in INV-T-2875 against INV-Q-3710,

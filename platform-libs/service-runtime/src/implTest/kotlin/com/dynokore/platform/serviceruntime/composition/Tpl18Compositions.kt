@@ -71,9 +71,9 @@ class WithoutJdbc : DeferredImportSelector {
 }
 
 /** The platform-libs auto-configurations listed in `AutoConfiguration.imports` on the classpath. */
-private fun platform(): List<Class<*>> = ImportCandidates.load(AutoConfiguration::class.java, Composition::class.java.classLoader)
+internal fun platform(): List<Class<*>> = ImportCandidates.load(AutoConfiguration::class.java, Composition::class.java.classLoader)
     .filter { it.startsWith("com.dynokore.platform.") }
     .map { Class.forName(it) }
 
 /** In Spring Boot's auto-configuration order (@AutoConfiguration before/after). */
-private fun sorted(classes: List<Class<*>>): Array<String> = Configurations.getClasses(AutoConfigurations.of(*classes.toTypedArray())).map { it.name }.toTypedArray()
+internal fun sorted(classes: List<Class<*>>): Array<String> = Configurations.getClasses(AutoConfigurations.of(*classes.toTypedArray())).map { it.name }.toTypedArray()

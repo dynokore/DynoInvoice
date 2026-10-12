@@ -79,6 +79,26 @@ INV-REQ-1079), the base `LicenceCheck` (tenancy-svc, INV-REQ-1076), `MessageDeli
 and `EndUserPrincipalResolver`; and the per-edge or per-adapter `ResilientExecutor`, `VersionedAdapterRouter` and
 `SigningKey`. No other L1 module depends on service-runtime (`CompositionRootDirectionTest`).
 
+## Database credentials (INV-T-3913; STK-29, INV-REQ-1231, ruling INV-Q-3909)
+
+Every database password is read through `SecretStore` (STK-29: mounted files only, never a property or an environment
+variable) by `SecretStoreCredentialsProvider`, a HikariCP credentials provider. HikariCP calls it for each new physical
+connection, and it reads the mounted file each time, with no cache.
+
+| Pool | How | Username |
+| --- | --- | --- |
+| Spring Boot's application pool | `service-runtime.datasource.credential: <SecretRef>` | `spring.datasource.username` |
+| Flyway's owner role (STK-16) | `service-runtime.flyway.credential: <SecretRef>` | `spring.flyway.user` |
+| A role pool (TPL-18 `RolePool`) | HikariConfig `credentialsProvider = SecretStoreCredentialsProvider(secrets, role, ref)`; never `password` | the role |
+
+With the property set, start-up fails if `spring.datasource.password` (or `spring.datasource.hikari.password`), or
+`spring.flyway.password`, is set as well. Without it nothing changes.
+
+**Rotating a database role's password:** change the role's password (`ALTER ROLE ... PASSWORD`) and the mounted secret.
+Connections already open keep working until the pool retires them (`maxLifetime`). Each new connection logs in with
+the value mounted at that moment, so no restart is needed. Role pools: see
+TPL-18.
+
 ## Consumer staleness (INV-T-3005; INV-REQ-1165, INV-AC-2150, INV-Q-3030 (a))
 
 A service lists one rule per consumer and event type it consumes:

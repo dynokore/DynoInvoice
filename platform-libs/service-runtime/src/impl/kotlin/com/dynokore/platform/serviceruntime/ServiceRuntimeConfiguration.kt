@@ -4,6 +4,7 @@ import com.dynokore.platform.serviceruntime.binding.BindingAutoConfiguration
 import com.dynokore.platform.serviceruntime.client.InternalRestClientAutoConfiguration
 import com.dynokore.platform.serviceruntime.composition.L1CompositionAutoConfiguration
 import com.dynokore.platform.serviceruntime.composition.ModuleProperties
+import com.dynokore.platform.serviceruntime.datasource.DatabaseCredentialsConfiguration
 import com.dynokore.platform.serviceruntime.diagnostics.DiagnosticsAutoConfiguration
 import com.dynokore.platform.serviceruntime.health.HealthAutoConfiguration
 import com.dynokore.platform.serviceruntime.identity.EndUserIdentityAutoConfiguration
@@ -56,6 +57,7 @@ import org.springframework.context.annotation.PropertySource
 @EnableConfigurationProperties(ModuleProperties::class)
 @Import(
     BindingAutoConfiguration::class,
+    DatabaseCredentialsConfiguration::class,
     HealthAutoConfiguration::class,
     DiagnosticsAutoConfiguration::class,
     LoggingAutoConfiguration::class,

@@ -121,6 +121,14 @@ dependencies {
     // INV-T-3881 (INV-Q-3889): a TPL-16 service's application DataSource comes from `spring.datasource.*` through
     // Spring Boot's DataSourceAutoConfiguration (HikariCP, STK-17); the composition tests build it that way.
     add("implTestImplementation", libs.springBoot.starterJdbc)
+    // INV-T-3913 (STK-29, ruling INV-Q-3909): `SecretStoreCredentialsProvider` is a HikariCP credentials provider
+    // (STK-17), and the application pool and Flyway (STK-16) take their database password through it. compileOnly in
+    // the impl half, gated by @ConditionalOnClass: a service brings its own spring-boot-starter-jdbc and Flyway. Versions
+    // from the Spring Boot BOM.
+    add("implCompileOnly", libs.springBoot.starterJdbc)
+    add("implCompileOnly", "org.springframework.boot:spring-boot-flyway")
+    add("implTestImplementation", "org.springframework.boot:spring-boot-flyway")
+    add("implTestImplementation", "org.flywaydb:flyway-database-postgresql")
 
     // INV-T-2874 / T30: the job and connection contracts. The api half names outbox-and-queue's `EntityRef`
     // (the entity of a job target); the impl half writes JobRegistered, JobRunRecorded and
