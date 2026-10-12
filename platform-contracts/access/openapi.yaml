@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: access API
-  version: 1.1.0
+  version: 1.2.0
   description: 'Contract-first source of truth for access (API-01, STK-44), replacing the INV-T-2849 scaffold
     (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): who may do what, on whose authority.
     `authorise`, `getVerificationKeys` and `getRevocationList` are queries, not FR-AC.1 operations (no persistent state change),
@@ -27,7 +27,8 @@ tags:
 - name: separation-of-duty
   description: Sole-operator acknowledgement (FR-P.2).
 - name: elevation
-  description: Elevation requests and diagnostic invitations (FR-AF.12, FR-AF.10).
+  description: Elevation requests, diagnostic invitations and operator sessions (FR-AF.12, FR-AF.10,
+    FR-P.4).
 - name: signed-links
   description: Signed links for external actors (§34.8, §34.9).
 - name: break-glass
@@ -883,6 +884,98 @@ paths:
       responses:
         "204":
           description: Withdrawn
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/operator-sessions:
+    post:
+      operationId: openOperatorSession
+      summary: Open a tenant-scoped operator session for one tenant and one case (SCR-39, INV-REQ-862
+        b4, owner ruling INV-Q-4119)
+      description: |-
+        A platform operator acts in one tenant only through a tenant-scoped operator session
+        (INV-REQ-862 b4, INV-REQ-1202 b4, INV-ADR-3968 item 4a, owner ruling INV-Q-4119). In the
+        support console (SCR-39) the operator picks the tenant and states a case reference;
+        access-svc checks the operator's platform grant (platform.support or platform.engineer in
+        SaaS, deployment.operator in a private installation) and issues an end-user token for that
+        tenant.
+
+        Token claims: `sub` is the operator; `tenant_id` is the chosen tenant; `act` is an object
+        {`role`, `case`}, the operator's platform role and the case reference (RFC 8693 actor
+        claim); `iat` is the issue time and `exp` is at most 15 minutes after `iat` (API-23). The
+        token is signed with an access-svc key published through getVerificationKeys;
+        service-runtime accepts that issuer only for tokens carrying `act`, and binds the token
+        like any tenant principal, so the framework tenant predicate, RLS and the guards apply
+        unchanged. A platform-tenant binding never reads tenant rows.
+
+        Permissions under the session come from the authority replica as for any principal: the
+        operator's metadata permissions with content masked (INV-REQ-862 b1, b2), and invoice
+        content and the evidence store only while an approved, unexpired elevation for that tenant
+        exists (INV-REQ-862 b3). `contentMode` reports which applies when the session opens.
+
+        Audit: issuing the session writes an audit entry under that tenant (actor, scope, reason =
+        the case reference), visible to the tenant's security.officer (SCR-25), and raises the
+        security event of NFR-S.11 (INV-REQ-1384); every read and action under the session is
+        audited under that tenant the same way.
+
+        Refusals: no platform grant gets 403 SRT-004; an unknown tenant gets 404 SRT-005; a missing
+        or blank case reference is a contract violation, 400 SRT-001. Closed service-runtime cases
+        carry their SRT catalogue code, mapped once in ProblemMapper and not listed in
+        x-error-codes (ARC-19, INV-REQ-827 b3, owner ruling INV-Q-3720).
+      tags:
+      - elevation
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->access-svc
+      x-timeout: 2000
+      x-requirements:
+      - FR-AC.1
+      - FR-P.4
+      - INV-REQ-862
+      - INV-REQ-1202
+      - INV-REQ-1384
+      x-error-codes: []
+      x-operation:
+        role: platform.support or platform.engineer (SaaS), deployment.operator (private installation)
+        scope: tenant
+        precondition: The operator holds a platform grant; the tenant exists; a case reference is
+          stated
+        reversibility: IRREVERSIBLE
+        repeatKey: Idempotency-Key — a replay returns the same session; a new key opens a new
+          session; the token expires within 15 minutes
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorSessionRequest'
+            examples:
+              default:
+                value:
+                  tenantRef: TEN-7B1004
+                  caseId: CASE-5521
+                  reason: Investigate SUB-014 on behalf of the customer
+      responses:
+        "201":
+          description: Operator session opened
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSessionResponse'
+              examples:
+                default:
+                  value:
+                    token: eyJhbGciOiJSUzI1NiIsImtpZCI6IjIwMjYtMDkifQ.e30.c2lnbmF0dXJl
+                    expiresAt: '2026-10-12T09:15:00Z'
+                    contentMode: MASKED
         "400":
           $ref: '#/components/responses/Error'
         "401":
@@ -1913,6 +2006,52 @@ components:
           type: integer
           minimum: 1
           maximum: 1440
+    OperatorSessionRequest:
+      type: object
+      required:
+      - tenantRef
+      - caseId
+      properties:
+        tenantRef:
+          type: string
+          maxLength: 64
+          description: The tenant the operator acts in; becomes the token's `tenant_id`.
+        caseId:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: \S
+          description: The support case reference; required and non-blank. Carried in the token's
+            `act.case` and as the reason of the audit entry.
+        reason:
+          type: string
+          maxLength: 1000
+    OperatorSessionResponse:
+      type: object
+      required:
+      - token
+      - expiresAt
+      - contentMode
+      properties:
+        token:
+          type: string
+          maxLength: 8192
+          description: 'The signed end-user token (JWT) for the session. Claims: `sub` the operator,
+            `tenant_id` the tenant, `act` = {`role`, `case`}, `iat`, and `exp` at most 15 minutes
+            after `iat`; signed with an access-svc key published through getVerificationKeys.'
+        expiresAt:
+          type: string
+          format: date-time
+          description: The token's `exp`, at most 15 minutes after issue.
+        contentMode:
+          type: string
+          description: MASKED, metadata with content masked (INV-REQ-862 b1, b2); ELEVATED, an
+            approved, unexpired elevation for the tenant exists, so content is visible while it
+            lasts (INV-REQ-862 b3).
+          enum:
+          - MASKED
+          - ELEVATED
+          x-extensible-enum: true
     DiagnosticInvitationRequest:
       type: object
       required:
