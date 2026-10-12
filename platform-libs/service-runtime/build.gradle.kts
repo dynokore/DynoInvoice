@@ -118,6 +118,13 @@ dependencies {
         add(config, libs.springSecurity.oauth2Jose)
     }
     add("implTestImplementation", libs.springBoot.test)
+    // INV-T-4125 (API-33, INV-Q-4103 A): a running service on its application and management ports. Tomcat at the
+    // patched version platform-libs-bom pins (libs.versions.toml tomcatEmbed), Prometheus for /metrics.
+    add("implTestImplementation", "org.springframework.boot:spring-boot-starter-web")
+    add("implTestImplementation", libs.tomcatEmbed.core)
+    add("implTestImplementation", libs.tomcatEmbed.el)
+    add("implTestImplementation", libs.tomcatEmbed.websocket)
+    add("implTestImplementation", "io.micrometer:micrometer-registry-prometheus")
     // INV-T-3881 (INV-Q-3889): a TPL-16 service's application DataSource comes from `spring.datasource.*` through
     // Spring Boot's DataSourceAutoConfiguration (HikariCP, STK-17); the composition tests build it that way.
     add("implTestImplementation", libs.springBoot.starterJdbc)

@@ -23,7 +23,10 @@ import java.nio.file.Path
  * (SDS §18.14), so the ordinary case needs no override; a service that also
  * serves public, end-user traffic on the same port narrows its own
  * `FilterRegistrationBean` (ARC-11: differences are configuration, replacing
- * this bean, not a code branch here).
+ * this bean, not a code branch here). It is registered on the application port
+ * only: health, metrics and diagnostics are served on the separate management
+ * port, which carries no token (API-33, owner ruling INV-Q-4103 A), so the
+ * filter needs no exemption path.
  */
 @AutoConfiguration
 @EnableConfigurationProperties(WorkloadIdentityProperties::class)

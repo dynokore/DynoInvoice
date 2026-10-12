@@ -6,6 +6,37 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-10-12
+### Changed (breaking: 3.x -> 4.0.0; probes, scrapes and health-group keys move)
+- Health, metrics and diagnostics move to the management port 8081 (INV-T-4125; owner ruling INV-Q-4103 A; API-33,
+  INV-REQ-1228 b5, INV-REQ-1123 b4). `service-runtime-defaults.properties` sets `management.server.port=8081` and
+  `management.endpoints.web.base-path=/`, so Spring Boot's separate management server serves API-33's `/health/live`,
+  `/health/ready` (UP, DEGRADED or DOWN, FR-AH.17), `/metrics` (Prometheus format, `path-mapping.prometheus=metrics`)
+  and the FR-AE.82 `/diagnostics`, with no token. `WorkloadTokenAuthenticationFilter` stays on `/*` of the application
+  port with no exemption path; the application port serves none of these endpoints (401 without a token, 404 with one).
+  The `/actuator/...` paths on the application port are gone: probes and scrapes use the management port
+  (platform-release service-template, INV-T-4126).
+- The health groups are named `live` and `ready` (formerly `liveness` and `readiness`; same members, status order and
+  DEGRADED mapping): Spring Boot serves a group only at `/health/<group>`. A service that sets
+  `management.endpoint.health.group.readiness.include` (TPL-16 before this release) renames the key to
+  `group.ready.include`, and `group.liveness.*` to `group.live.*` (coordinator ruling INV-Q-4192).
+- Start-up fails, with a message naming `live` and `ready`, when any property source (properties, YAML, environment
+  variables) sets `management.endpoint.health.group.liveness.*` or `management.endpoint.health.group.readiness.*`, so a
+  service cannot silently leave its db or eventLog out of `/health/ready`: `HealthGroupKeyGuard` (INV-Q-4192).
+- A service may change the management port number in its own configuration, but start-up fails when the management
+  server would share the application port (`management.server.port` equal to `server.port`, or 8080 while `server.port`
+  is unset): `ManagementPortGuard`.
+### Fixed
+- A DOWN readiness answered 200: the configured `status.http-mapping.DEGRADED=200` replaced Spring Boot's own
+  mappings, so the readiness probe never failed. The defaults restate `DOWN` and `OUT_OF_SERVICE` as 503 (FR-AH.17 b4:
+  a cold start with the vault down fails visibly).
+### Tests
+- `ManagementPortIT`: a running service composed as TPL-18 (Tomcat on both ports) answers `/health/live`,
+  `/health/ready`, `/metrics` and `/diagnostics` on 8081 without a token, 503 DOWN on `/health/ready` with the vault
+  down; on the application port the same paths answer 401 without a token and 404 with a valid one, and a business
+  endpoint 401 without a token; a changed management port works; equal ports fail start-up; a former `liveness` or
+  `readiness` group key fails start-up (property or environment variable), the new `live` and `ready` keys start.
+
 ## [3.4.0] - 2026-10-12
 ### Added
 - `ClosedErrorCode.RATE_LIMITED`, SRT-012 (HTTP 429, "Protective rate limit exceeded"; severity BLOCK, disposition
