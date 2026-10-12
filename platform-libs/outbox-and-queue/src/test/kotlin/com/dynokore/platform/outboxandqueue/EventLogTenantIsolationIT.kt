@@ -38,6 +38,8 @@ class EventLogTenantIsolationIT {
         }
     }
 
+    // INV-T-3999 removes this call
+    @Suppress("DEPRECATION")
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
     fun `tenant and platform events round-trip in offset order, each read only under its own tenant`(image: String) {

@@ -291,6 +291,8 @@ class JobCommandHttpIT {
         val entered = CountDownLatch(1)
         val release = CountDownLatch(1)
 
+        // INV-T-3999 removes this call
+        @Suppress("DEPRECATION")
         fun command(hold: Boolean): IdempotencyOutcome = s.replica.tenants.bind(TENANT_A) {
             s.replica.tx.inTransaction {
                 s.idempotency.once(TENANT_A, "tpl04-actor", key, "fp") {

@@ -88,10 +88,10 @@ class TenancyKernelPostgresIT {
         ) = tx.inTransaction { ProbeTable.insert(tx.require(), ProbeRow(UUID.randomUUID(), tenant, value)) }
 
         fun values() = tx.inTransaction { ProbeTable.selectAll(tx.require()).map { it.value } }
-        tenants.bindPlatform { insert(TenantId.PLATFORM, "belongs-to-platform") }
-        tenants.bind(tenantA) { insert(tenantA, "belongs-to-a-too") }
-        val seenByA = tenants.bind(tenantA) { values() }
-        val seenByPlatform = tenants.bindPlatform { values() }
+        tenants.bindPlatform("svc:test/job:probe") { insert(TenantId.PLATFORM, "belongs-to-platform") }
+        tenants.bind(tenantA, "test-actor") { insert(tenantA, "belongs-to-a-too") }
+        val seenByA = tenants.bind(tenantA, "test-actor") { values() }
+        val seenByPlatform = tenants.bindPlatform("svc:test/job:probe") { values() }
         assertFalse("belongs-to-platform" in seenByA, "tenant A must never see a platform row, saw $seenByA")
         assertEquals(listOf("belongs-to-platform"), seenByPlatform)
     }
@@ -105,14 +105,14 @@ class TenancyKernelPostgresIT {
         val tenants = TenantContextImpl()
         val tx = TransactionRunnerImpl(fixture.appDataSource(), tenants)
 
-        tenants.bind(tenantB) {
+        tenants.bind(tenantB, "test-actor") {
             tx.inTransaction {
                 ProbeTable.insert(tx.require(), ProbeRow(UUID.randomUUID(), tenantB, "belongs-to-b"))
             }
         }
 
         val visibleToA =
-            tenants.bind(tenantA) {
+            tenants.bind(tenantA, "test-actor") {
                 tx.inTransaction { ProbeTable.selectAll(tx.require()).filter { it.value == "belongs-to-b" } }
             }
         assertTrue(visibleToA.isEmpty(), "tenant A must never see tenant B's row, saw $visibleToA")
@@ -131,7 +131,7 @@ class TenancyKernelPostgresIT {
         val tx = TransactionRunnerImpl(fixture.appDataSource(), tenants)
 
         assertThrows(SQLException::class.java) {
-            tenants.bind(tenantA) {
+            tenants.bind(tenantA, "test-actor") {
                 tx.inTransaction {
                     // Tenant A's session, but the row claims to be tenant B's: WITH CHECK must refuse it.
                     ProbeTable.insert(tx.require(), ProbeRow(UUID.randomUUID(), tenantB, "smuggled"))
@@ -160,10 +160,10 @@ class TenancyKernelPostgresIT {
             val tenants = TenantContextImpl()
             val tx = TransactionRunnerImpl(pooled, tenants)
 
-            tenants.bind(tenantA) { tx.inTransaction { currentSetting(tx.require()) } }
+            tenants.bind(tenantA, "test-actor") { tx.inTransaction { currentSetting(tx.require()) } }
 
             val settingSeenByB =
-                tenants.bind(tenantB) {
+                tenants.bind(tenantB, "test-actor") {
                     tx.inTransaction { currentSetting(tx.require()) }
                 }
 

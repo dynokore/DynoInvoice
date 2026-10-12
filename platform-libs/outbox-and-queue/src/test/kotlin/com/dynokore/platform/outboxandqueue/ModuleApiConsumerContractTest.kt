@@ -30,6 +30,8 @@ class ModuleApiConsumerContractTest {
         private val outbox: OutboxWriter,
         private val saveState: (UUID) -> Unit,
     ) {
+        // INV-T-3999 removes this call
+        @Suppress("DEPRECATION")
         fun despatch(
             context: EventContext,
             failAfterEmit: Boolean,

@@ -41,6 +41,10 @@ class TenantContextImpl :
         return bound(Binding(tenant, requireActor(actor)), block)
     }
 
+    @Deprecated(
+        message = "Binds no actor; use bind(tenant, actor, block) (INV-Q-3997; INV-T-3999 removes this form).",
+        replaceWith = ReplaceWith("bind(tenant, actor, block)"),
+    )
     override fun <T> bind(
         tenant: TenantId,
         block: () -> T,
@@ -54,6 +58,10 @@ class TenantContextImpl :
         block: () -> T,
     ): T = bound(Binding(TenantId.PLATFORM, requireActor(actor)), block)
 
+    @Deprecated(
+        message = "Binds no actor; use bindPlatform(actor, block) (INV-Q-3997; INV-T-3999 removes this form).",
+        replaceWith = ReplaceWith("bindPlatform(actor, block)"),
+    )
     override fun <T> bindPlatform(block: () -> T): T = bound(Binding(TenantId.PLATFORM, null), block)
 
     private fun bindingOrThrow(): Binding = current.get()

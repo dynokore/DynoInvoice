@@ -29,6 +29,8 @@ import java.util.UUID
  */
 @Tag("integration")
 class LocalAuditWriterIT {
+    // INV-T-3999 removes this call
+    @Suppress("DEPRECATION")
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
     fun `an entry commits with its change and a rolled-back change leaves no entry`(image: String) {
@@ -62,6 +64,8 @@ class LocalAuditWriterIT {
         }
     }
 
+    // INV-T-3999 removes this call
+    @Suppress("DEPRECATION")
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
     fun `an operator action with no tenant is recorded under the reserved platform tenant`(image: String) {
@@ -101,6 +105,8 @@ class LocalAuditWriterIT {
         }
     }
 
+    // INV-T-3999 removes this call
+    @Suppress("DEPRECATION")
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
     fun `the trail is tenant-isolated, insert-only and refuses a row for another tenant`(image: String) {
@@ -111,6 +117,8 @@ class LocalAuditWriterIT {
             }
             assertEquals(1, cp.visible(owner))
             assertEquals(0, cp.visible(TenantId(UUID.randomUUID())))
+            // INV-T-3999 removes this call
+            @Suppress("DEPRECATION")
             fun run(sql: String) = cp.tenants.bind(owner) {
                 cp.boundary.inTransaction { cp.boundary.require().createStatement().use { it.executeUpdate(sql) } }
             }
@@ -159,6 +167,8 @@ class LocalAuditWriterIT {
         }
     }
 
+    // INV-T-3999 removes this call
+    @Suppress("DEPRECATION")
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
     fun `a failed entry commits no change and a bad prior state writes nothing`(image: String) {
@@ -234,6 +244,8 @@ class LocalAuditWriterIT {
             }
         }
 
+        // INV-T-3999 removes this call
+        @Suppress("DEPRECATION")
         fun visible(tenant: TenantId): Long = tenants.bind(tenant) {
             boundary.inTransaction {
                 boundary.require().createStatement().use { s ->

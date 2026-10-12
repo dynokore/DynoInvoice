@@ -18,14 +18,14 @@ class TenantContextImplTest {
     @Test
     fun `bind makes current available for the duration of the block`() {
         val ctx = TenantContextImpl()
-        val seen = ctx.bind(tenantA) { ctx.current() }
+        val seen = ctx.bind(tenantA, "test-actor") { ctx.current() }
         assertEquals(tenantA, seen)
     }
 
     @Test
     fun `bind restores nothing bound after it returns`() {
         val ctx = TenantContextImpl()
-        ctx.bind(tenantA) { }
+        ctx.bind(tenantA, "test-actor") { }
         assertThrows(IllegalStateException::class.java) { ctx.current() }
     }
 
@@ -33,8 +33,8 @@ class TenantContextImplTest {
     fun `nested bind restores the enclosing tenant, not nothing`() {
         val ctx = TenantContextImpl()
         val seenAfterNested =
-            ctx.bind(tenantA) {
-                ctx.bind(tenantB) { ctx.current() }
+            ctx.bind(tenantA, "test-actor") {
+                ctx.bind(tenantB, "test-actor") { ctx.current() }
                 ctx.current()
             }
         assertEquals(tenantA, seenAfterNested)
@@ -43,8 +43,8 @@ class TenantContextImplTest {
     @Test
     fun `bind restores the enclosing tenant even when the block throws`() {
         val ctx = TenantContextImpl()
-        ctx.bind(tenantA) {
-            runCatching { ctx.bind(tenantB) { error("boom") } }
+        ctx.bind(tenantA, "test-actor") {
+            runCatching { ctx.bind(tenantB, "test-actor") { error("boom") } }
             assertEquals(tenantA, ctx.current())
         }
     }
@@ -52,7 +52,7 @@ class TenantContextImplTest {
     @Test
     fun `a fresh thread sees nothing bound by another thread`() {
         val ctx = TenantContextImpl()
-        ctx.bind(tenantA) {
+        ctx.bind(tenantA, "test-actor") {
             var otherThreadSaw: Throwable? = null
             val thread =
                 Thread {
@@ -76,6 +76,8 @@ class TenantContextImplTest {
         assertThrows(IllegalStateException::class.java) { ctx.currentActor() }
     }
 
+    // INV-T-3999 removes this call
+    @Suppress("DEPRECATION")
     @Test
     fun `the actor-less bind leaves the actor unset, even inside an actor-bound one`() {
         val ctx = TenantContextImpl()

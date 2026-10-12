@@ -312,6 +312,8 @@ class ProducerReplayIT {
         }
     }
 
+    // INV-T-3999 removes this call
+    @Suppress("DEPRECATION")
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
     fun `INV-Q-3805 an 'every service' full sync deletes no docsequence rows`(image: String) {
@@ -334,6 +336,8 @@ class ProducerReplayIT {
         }
     }
 
+    // INV-T-3999 removes this call
+    @Suppress("DEPRECATION")
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
     fun `a full sync failing before its commit leaves read model, sequences and position as they were`(image: String) {
@@ -467,6 +471,8 @@ class ProducerReplayIT {
         fun offset() = harness.nextOffsetOrNull("reconciliation", consumer, live)
 
         /** rebuildConsumer's full sync: clear, docsequence delete, head move, request; one worker transaction. */
+        // INV-T-3999 removes this call
+        @Suppress("DEPRECATION")
         fun fullSync(): UUID {
             val request = ReplayRequest(UUID.randomUUID(), "canonical-svc", ReplayMode.FULL_SYNC, null)
             val clear = readModelClear()

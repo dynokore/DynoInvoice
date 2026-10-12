@@ -132,11 +132,15 @@ class WriteHarness(
 
     fun purge() = JdbcConfigPurge(purgeTx, SCHEMA)
 
+    // INV-T-3999 removes this call
+    @Suppress("DEPRECATION")
     fun <T> inTenant(
         tenant: TenantId,
         block: () -> T,
     ): T = tenants.bind(tenant) { app.inTransaction(block) }
 
+    // INV-T-3999 removes this call
+    @Suppress("DEPRECATION")
     fun <T> inPlatform(block: () -> T): T = tenants.bindPlatform { platformTx.inTransaction(block) }
 
     fun count(sql: String): Long = admin.connection.use { c ->

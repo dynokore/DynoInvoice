@@ -45,6 +45,8 @@ class AuditHarness(image: String) : AutoCloseable {
     }
 
     /** Runs [block] with [tenant] bound, as an inbound adapter would after verifying the token (ARC-21). */
+    // INV-T-3999 removes this call
+    @Suppress("DEPRECATION")
     fun <T> asTenant(
         tenant: UUID,
         block: () -> T,

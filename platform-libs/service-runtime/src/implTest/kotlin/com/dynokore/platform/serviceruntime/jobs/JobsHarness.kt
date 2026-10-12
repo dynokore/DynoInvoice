@@ -98,6 +98,8 @@ class JobsHarness(image: String) : AutoCloseable {
                 deadlines, clock, executor, retention,
             )
 
+        // INV-T-3999 removes this call
+        @Suppress("DEPRECATION")
         fun <T> asTenant(
             tenant: TenantId,
             block: () -> T,

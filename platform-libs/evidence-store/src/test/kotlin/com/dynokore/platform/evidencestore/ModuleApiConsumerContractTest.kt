@@ -63,6 +63,8 @@ class ModuleApiConsumerContractTest {
         }
     }
 
+    // INV-T-3999 removes this call
+    @Suppress("DEPRECATION")
     @Test
     fun `records chain and export together, and a legal hold overrides an otherwise-elapsed retention period`() {
         val schema = EvidenceStorePostgresFixture.SCHEMA

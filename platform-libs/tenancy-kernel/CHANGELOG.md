@@ -21,8 +21,11 @@ train is its own (README.md: "own version and changelog").
   actor) equals the open transaction's; otherwise it throws `IllegalStateException` before any
   statement, instead of running silently under the outer tenant (INV-Q-3997).
 ### Deprecated
-- The actor-less `TenantContext.bind(tenant, block)` and `PlatformTenantBinding.bindPlatform(block)`:
-  they still work and leave `app.actor` unset. Callers move to the actor-bound forms in INV-T-3979
+- The actor-less `TenantContext.bind(tenant, block)` and `PlatformTenantBinding.bindPlatform(block)`,
+  marked `@Deprecated` with a `ReplaceWith` naming the actor-bound form: they still work and leave
+  `app.actor` unset. Existing call sites in this repository carry a narrow `@Suppress("DEPRECATION")`
+  under the line `// INV-T-3999 removes this call` (coordinator ruling, option 1);
+  `ActorlessBindingSuppressionsTest` counts them so INV-T-3999 can assert zero. Callers move to the actor-bound forms in INV-T-3979
   (outbox-and-queue), INV-T-3981 (service-runtime) and INV-T-3983 (config-resolver); INV-T-3999
   removes them in a MAJOR release (INV-Q-3997).
 

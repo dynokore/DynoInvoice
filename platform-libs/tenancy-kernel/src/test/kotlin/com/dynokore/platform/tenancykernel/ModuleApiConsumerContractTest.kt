@@ -70,10 +70,10 @@ class ModuleApiConsumerContractTest {
             val useCase = FakeConsumerUseCase(tenants, tx, alwaysOk, tx)
             val tenant = TenantId(UUID.randomUUID())
 
-            val seenTenant = tenants.bind(tenant) { useCase.currentTenant() }
+            val seenTenant = tenants.bind(tenant, "test-actor") { useCase.currentTenant() }
             assertEquals(tenant, seenTenant)
 
-            tenants.bind(tenant) {
+            tenants.bind(tenant, "test-actor") {
                 useCase.recordTwoProbeRowsInOneTransaction(
                     ProbeRow(UUID.randomUUID(), tenant, "nested-first"),
                     ProbeRow(UUID.randomUUID(), tenant, "nested-second"),
@@ -81,7 +81,7 @@ class ModuleApiConsumerContractTest {
             }
 
             val rows =
-                tenants.bind(tenant) { tx.inTransaction { ProbeTable.selectAll(tx.require()) } }
+                tenants.bind(tenant, "test-actor") { tx.inTransaction { ProbeTable.selectAll(tx.require()) } }
                     .map { it.value }
             val expected = listOf("nested-first", "nested-second")
             assertTrue(rows.containsAll(expected), "both nested writes must be visible: $rows")
@@ -99,7 +99,7 @@ class ModuleApiConsumerContractTest {
             val tenant = TenantId(UUID.randomUUID())
 
             assertThrows(IllegalStateException::class.java) {
-                tenants.bind(tenant) {
+                tenants.bind(tenant, "test-actor") {
                     useCase.recordThenFailMidway(
                         ProbeRow(UUID.randomUUID(), tenant, "rolled-back-first"),
                         ProbeRow(UUID.randomUUID(), tenant, "rolled-back-second"),
@@ -108,7 +108,7 @@ class ModuleApiConsumerContractTest {
             }
 
             val rows =
-                tenants.bind(tenant) { tx.inTransaction { ProbeTable.selectAll(tx.require()) } }
+                tenants.bind(tenant, "test-actor") { tx.inTransaction { ProbeTable.selectAll(tx.require()) } }
                     .map { it.value }
             assertTrue(rows.none { it.startsWith("rolled-back") }, "neither write must survive the rollback: $rows")
         }
@@ -133,7 +133,7 @@ class ModuleApiConsumerContractTest {
             val tenant = TenantId(UUID.randomUUID())
 
             assertTimeoutPreemptively(Duration.ofSeconds(2)) {
-                val status = tenants.bind(tenant) { useCase.licenceStatusNeverBlocks() }
+                val status = tenants.bind(tenant, "test-actor") { useCase.licenceStatusNeverBlocks() }
                 assertEquals(LicenceStatus.UNKNOWN, status)
             }
         }

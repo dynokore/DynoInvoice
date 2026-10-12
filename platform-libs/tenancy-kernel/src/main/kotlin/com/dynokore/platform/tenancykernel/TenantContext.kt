@@ -66,6 +66,10 @@ interface TenantContext {
      * @throws IllegalArgumentException if [tenant] is [TenantId.PLATFORM]: the reserved
      *   platform tenant is bound only through [PlatformTenantBinding] (INV-Q-2927).
      */
+    @Deprecated(
+        message = "Binds no actor; use bind(tenant, actor, block) (INV-Q-3997; INV-T-3999 removes this form).",
+        replaceWith = ReplaceWith("bind(tenant, actor, block)"),
+    )
     fun <T> bind(
         tenant: TenantId,
         block: () -> T,

@@ -297,6 +297,8 @@ class WritePathPostgresIT : WritePathBase() {
         assertEquals(0, seen)
         assertThrows(SQLException::class.java) { h.inTenant(r.t) { update("update $table set role = 'x'") } }
         assertThrows(SQLException::class.java) { h.inTenant(r.t) { update("delete from $table") } }
+        // INV-T-3999 removes this call
+        @Suppress("DEPRECATION")
         val purged = h.tenants.bind(r.t) { h.purgeTx.inTransaction { h.purge().purgeTenant(r.t) } }
         assertEquals(1, purged.relaxationAcknowledgements)
         assertEquals(0L, r.acknowledgements())

@@ -210,6 +210,8 @@ class EvidenceLedgerPostgresIT {
         assertEquals(1L, (result as ChainVerificationResult.Broken).atSequence)
     }
 
+    // INV-T-3999 removes this call
+    @Suppress("DEPRECATION")
     private fun assertLegalHoldPlaceAndRelease(fixture: EvidenceStorePostgresFixture) {
         val tenant = TenantId(UUID.randomUUID())
         val entity = EntityRef("hold-entity")
@@ -234,6 +236,8 @@ class EvidenceLedgerPostgresIT {
         return "$schema.$table"
     }
 
+    // INV-T-3999 removes this call
+    @Suppress("DEPRECATION")
     private fun <T> runInTransaction(
         fixture: EvidenceStorePostgresFixture,
         tenant: TenantId,

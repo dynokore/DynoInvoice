@@ -27,6 +27,8 @@ constructor(
      *
      * @throws IllegalStateException when [tenant] is the platform tenant and no [platform] binding was given.
      */
+    // INV-T-3999 removes this call
+    @Suppress("DEPRECATION")
     fun <T> bind(
         tenant: TenantId,
         block: () -> T,

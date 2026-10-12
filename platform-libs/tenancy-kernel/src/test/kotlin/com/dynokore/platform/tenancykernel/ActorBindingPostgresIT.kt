@@ -51,6 +51,8 @@ class ActorBindingPostgresIT {
         assertEquals(Settings(TenantId.PLATFORM.toString(), "svc:test/job:probe"), platform)
     }
 
+    // INV-T-3999 removes this call
+    @Suppress("DEPRECATION")
     private fun assertNothingSurvivesCommitOrRollback(pool: DataSource) {
         val tenants = TenantContextImpl()
         val tx = TransactionRunnerImpl(pool, tenants)
@@ -69,6 +71,8 @@ class ActorBindingPostgresIT {
         assertEquals(Settings(tenantB.toString(), null), next)
     }
 
+    // INV-T-3999 removes this call
+    @Suppress("DEPRECATION")
     private fun assertNestedMismatchIsRefusedBeforeAnyStatement(pool: DataSource) {
         val tenants = TenantContextImpl()
         val tx = TransactionRunnerImpl(pool, tenants)
@@ -103,6 +107,8 @@ class ActorBindingPostgresIT {
         assertTrue(marker in committed, "the outer transaction commits after the refusals, saw $committed")
     }
 
+    // INV-T-3999 removes this call
+    @Suppress("DEPRECATION")
     private fun assertDeprecatedActorlessPathStillWorks(pool: DataSource) {
         val tenants = TenantContextImpl()
         val tx = TransactionRunnerImpl(pool, tenants)

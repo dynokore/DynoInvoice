@@ -52,6 +52,8 @@ class ConfigHarness(
     val recorder = JdbcResolutionRecorder(app, SCHEMA, CLOCK)
     val purge = JdbcConfigPurge(purgeTx, SCHEMA)
 
+    // INV-T-3999 removes this call
+    @Suppress("DEPRECATION")
     fun <T> asTenant(
         tenant: TenantId,
         block: () -> T,

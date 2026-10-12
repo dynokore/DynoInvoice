@@ -229,6 +229,8 @@ class JobCommandServlet(
     }
 
     /** Binds the caller's tenant for the command (ARC-21); a caller without a tenant binds none. */
+    // INV-T-3999 removes this call
+    @Suppress("DEPRECATION")
     private fun <T> bound(
         principal: EndUserPrincipal,
         block: () -> T,

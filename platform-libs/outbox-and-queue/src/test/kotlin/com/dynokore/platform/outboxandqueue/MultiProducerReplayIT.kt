@@ -90,6 +90,8 @@ class MultiProducerReplayIT {
     }
 
     /** evidence-svc's full sync addressed to every one of [producers], on its worker role bound to the platform. */
+    // INV-T-3999 removes this call
+    @Suppress("DEPRECATION")
     private fun fullSync(
         harness: OutboxHarness,
         replayId: UUID,
