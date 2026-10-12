@@ -73,3 +73,102 @@ tasks.register("listPublications") {
         }
     }
 }
+
+// INV-T-3937 (coordinator ruling INV-Q-3929): every module that publishes an `api` and an `impl` publication is
+// checked by `verifySplitJars`, which `check` runs. service-runtime's `implJar` once wrote the same build/libs file as
+// its api `jar`, so every published service-runtime-api from 1.2.0 to 3.3.0 held only the impl classes (rulepack-kernel
+// 1.2.0/1.3.0 and adapter-runtime 2.0.0 likewise). The check reads the two jars the publications upload:
+//   - the api jar holds exactly the class files of the `main` source set, and at least one;
+//   - the impl jar holds exactly the class files of the `impl` source set, plus those the `implJar` task itself
+//     copies in from other projects (product-runtime's generated contract clients, INV-Q-3852);
+//   - no class file is in both.
+// `-PsplitJarsFault=<module>` points that module's `implJar` back at build/libs: the negative test the CI job
+// `split-jars` runs, which must fail with "verifySplitJars:". Never set it anywhere else.
+val splitJarsFault: String? = providers.gradleProperty("splitJarsFault").orNull
+
+subprojects {
+    plugins.withId("maven-publish") {
+        afterEvaluate {
+            val publications = extensions.getByType<PublishingExtension>().publications.withType<MavenPublication>()
+            val apiPublication = publications.findByName("api") ?: return@afterEvaluate
+            val implPublication = publications.findByName("impl") ?: return@afterEvaluate
+            val sourceSets = the<SourceSetContainer>()
+            val implSourceSet =
+                sourceSets.findByName("impl")
+                    ?: throw GradleException("$path publishes an api and an impl publication but has no `impl` source set")
+            val implJarTask = tasks.withType<Jar>().findByName("implJar")
+            if (splitJarsFault == name) {
+                implJarTask?.destinationDirectory?.set(layout.buildDirectory.dir("libs"))
+            }
+
+            fun jarOf(publication: MavenPublication) =
+                publication.artifacts.singleOrNull { it.extension == "jar" && it.classifier.isNullOrEmpty() }
+                    ?: throw GradleException("$path's `${publication.name}` publication has no single unclassified jar")
+            val apiArtifact = jarOf(apiPublication)
+            val implArtifact = jarOf(implPublication)
+            val mainClasses = sourceSets["main"].output.classesDirs.asFileTree.matching { include("**/*.class") }
+            val implSources: FileTree = implJarTask?.source?.asFileTree ?: implSourceSet.output.classesDirs.asFileTree
+            val implClasses = implSources.matching { include("**/*.class") }
+            val modulePath = path
+
+            val verify =
+                tasks.register("verifySplitJars") {
+                    group = "verification"
+                    description = "Fails unless the api jar holds exactly the main classes and the impl jar the impl classes."
+                    dependsOn(apiArtifact, implArtifact)
+                    inputs.files(mainClasses, implClasses)
+                    doLast {
+                        fun FileTree.classPaths(): Set<String> {
+                            val paths = sortedSetOf<String>()
+                            visit { if (!isDirectory) paths += relativePath.pathString }
+                            return paths
+                        }
+
+                        fun classesIn(jar: File): Set<String> =
+                            java.util.zip.ZipFile(jar).use { zip ->
+                                zip.entries().asSequence().map { it.name }.filter { it.endsWith(".class") }.toSortedSet()
+                            }
+
+                        fun sample(paths: Collection<String>) = paths.take(5).joinToString(", ") + if (paths.size > 5) ", ..." else ""
+
+                        val expectedApi = mainClasses.classPaths()
+                        val expectedImpl = implClasses.classPaths() +
+                                implSourceSet.output.classesDirs.asFileTree.matching { include("**/*.class") }.classPaths()
+                        val apiJar = apiArtifact.file
+                        val implJar = implArtifact.file
+                        val inApi = classesIn(apiJar)
+                        val inImpl = classesIn(implJar)
+                        val problems = mutableListOf<String>()
+                        if (apiJar.canonicalFile == implJar.canonicalFile) {
+                            problems += "the api and impl publications upload the same file $apiJar"
+                        }
+                        if (inApi.isEmpty()) problems += "the api jar $apiJar holds no class"
+                        (inApi - expectedApi).takeIf { it.isNotEmpty() }?.let {
+                            problems += "the api jar holds ${it.size} class(es) not of the main source set: ${sample(it)}"
+                        }
+                        (expectedApi - inApi).takeIf { it.isNotEmpty() }?.let {
+                            problems += "the api jar lacks ${it.size} class(es) of the main source set: ${sample(it)}"
+                        }
+                        (inImpl - expectedImpl).takeIf { it.isNotEmpty() }?.let {
+                            problems += "the impl jar holds ${it.size} class(es) not of the impl source set: ${sample(it)}"
+                        }
+                        (expectedImpl - inImpl).takeIf { it.isNotEmpty() }?.let {
+                            problems += "the impl jar lacks ${it.size} class(es) of the impl source set: ${sample(it)}"
+                        }
+                        (inApi intersect inImpl).takeIf { it.isNotEmpty() }?.let {
+                            problems += "${it.size} class(es) are in both jars: ${sample(it)}"
+                        }
+                        if (problems.isNotEmpty()) {
+                            throw GradleException(
+                                "verifySplitJars: $modulePath (INV-T-3937):\n" + problems.joinToString("\n") { "  - $it" },
+                            )
+                        }
+                        logger.lifecycle(
+                            "verifySplitJars: $modulePath api ${apiJar.name} ${inApi.size} classes, impl ${implJar.name} ${inImpl.size} classes",
+                        )
+                    }
+                }
+            tasks.named("check") { dependsOn(verify) }
+        }
+    }
+}

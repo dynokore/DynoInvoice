@@ -220,6 +220,31 @@ contract-tests:
         - "contract-tests/build/test-results/*/TEST-*.xml"
     expire_in: 1 week
 
+# INV-T-3937 (coordinator ruling INV-Q-3929): every module that publishes an api and an impl publication must publish
+# two different jars, the api one holding exactly its `main` classes (root build.gradle.kts, `verifySplitJars`, which
+# `check` runs too). A required job on every merge-request and main pipeline, over every split module, whatever changed.
+# Its negative test points service-runtime's `implJar` back at build/libs (the defect of service-runtime 1.2.0-3.3.0)
+# and must see the check fail with its own message; a pass, or a failure for any other reason, fails this job.
+split-jars:
+  extends: [.gradle-job, .gst-changed-modules]
+  stage: test
+  script:
+    - ./gradlew -p "$GRADLE_PROJECT_DIR" verifySplitJars --continue --stacktrace
+    - |
+      mkdir -p build
+      if ./gradlew -p "$GRADLE_PROJECT_DIR" :service-runtime:verifySplitJars -PsplitJarsFault=service-runtime \
+          > build/split-jars-negative.log 2>&1; then
+        echo "gst-ci: negative test: verifySplitJars passed with service-runtime's implJar writing to build/libs"
+        exit 1
+      fi
+      if ! grep -q "verifySplitJars: :service-runtime (INV-T-3937)" build/split-jars-negative.log; then
+        tail -40 build/split-jars-negative.log
+        echo "gst-ci: negative test: the build failed, but not on verifySplitJars"
+        exit 1
+      fi
+      grep -E "^ +- " build/split-jars-negative.log | cut -c1-200
+      echo "gst-ci: negative test: verifySplitJars fails when an implJar writes to build/libs, as it must"
+
 # The shared template's pact-publish runs `pactPublish` in a job of its own, where no pact file exists (the pacts are
 # written by the contract-tests job above, which publishes them itself, before verifying from the broker).
 pact-publish:
@@ -283,7 +308,45 @@ maven-publish:
           missing=1
         fi
       done < build/publications.txt
-      exit $missing
+      [ "$missing" = 0 ] || exit 1
+    - |
+      # INV-T-3937 (INV-Q-3929): each api and impl pair published above is read back from the registry. The two jars
+      # must differ and the api jar must hold classes; an identical pair or an api jar without classes fails the job,
+      # and a jar that cannot be downloaded fails it too: never skipped (P20/P28).
+      registry="${CI_API_V4_URL}/projects/${MAVEN_REGISTRY_PROJECT_ID}/packages/maven/com/dynokore/platform"
+      mkdir -p build/registry-jars
+      fetch_jar() {
+        out="build/registry-jars/$1-$2.jar"
+        code=$(curl -s -o "$out" -w '%{http_code}' --header "JOB-TOKEN: ${CI_JOB_TOKEN}" "${registry}/$1/$2/$1-$2.jar")
+        [ "$code" = "200" ] || { echo "gst-ci: cannot download $1-$2.jar from the registry (HTTP ${code})" >&2; return 1; }
+        echo "$out"
+      }
+      pairs=0; bad=0
+      for path in $(awk '$2 == "api" { print $1 }' build/publications.txt); do
+        api_line=$(awk -v p="$path" '$1 == p && $2 == "api"' build/publications.txt)
+        impl_line=$(awk -v p="$path" '$1 == p && $2 == "impl"' build/publications.txt)
+        [ -n "$impl_line" ] || continue
+        set -- $api_line; api_artifact=$3; api_version=$4
+        set -- $impl_line; impl_artifact=$3; impl_version=$4
+        pairs=$((pairs + 1))
+        api_jar=$(fetch_jar "$api_artifact" "$api_version") || { bad=1; continue; }
+        impl_jar=$(fetch_jar "$impl_artifact" "$impl_version") || { bad=1; continue; }
+        api_sha=$(sha256sum "$api_jar" | cut -d' ' -f1)
+        impl_sha=$(sha256sum "$impl_jar" | cut -d' ' -f1)
+        api_classes=$(unzip -Z1 "$api_jar" | grep -c '\.class$' || true)
+        impl_classes=$(unzip -Z1 "$impl_jar" | grep -c '\.class$' || true)
+        if [ "$api_sha" = "$impl_sha" ]; then
+          echo "gst-ci: ${api_artifact}:${api_version} and ${impl_artifact}:${impl_version} are the same jar in the registry (sha256 ${api_sha})"
+          bad=1
+        elif [ "$api_classes" -eq 0 ]; then
+          echo "gst-ci: ${api_artifact}:${api_version} in the registry holds no class"
+          bad=1
+        else
+          echo "gst-ci: registry pair ok: ${api_artifact}:${api_version} (${api_classes} classes) differs from ${impl_artifact}:${impl_version} (${impl_classes} classes)"
+        fi
+      done
+      [ "$pairs" -gt 0 ] || { echo "gst-ci: no api and impl pair listed (P20/P28)"; exit 1; }
+      exit $bad
   artifacts:
     when: always
     paths:

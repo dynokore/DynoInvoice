@@ -75,8 +75,8 @@ evaluationDependsOn(":rulepack-kernel")
 evaluationDependsOn(":evidence-store")
 evaluationDependsOn(":adapter-runtime")
 val optionalL1Modules = listOf(":crypto", ":rulepack-kernel", ":evidence-store", ":adapter-runtime")
-// The impl halves' class output, not their `implJar`: rulepack-kernel's and adapter-runtime's `implJar` write to the
-// same build/libs file as their api `jar`, so whichever runs last wins.
+// The impl halves' class output, not their `implJar` (rulepack-kernel's and adapter-runtime's `implJar` wrote to the
+// same build/libs file as their api `jar` up to rulepack-kernel 1.3.0 and adapter-runtime 2.0.0, INV-T-3937).
 val optionalImplOutputs =
     (optionalL1Modules + listOf(":config-resolver", ":audit-log")).map {
         project(it).the<SourceSetContainer>()["impl"].output
@@ -236,6 +236,10 @@ tasks.named("check") {
 val implJar =
     tasks.register<Jar>("implJar") {
         archiveBaseName.set(project.name)
+        // A separate local output directory, as every other split module's `implJar` (INV-T-3937, ruling INV-Q-3929):
+        // the api `jar` writes the same file name under build/libs/, and without this the impl jar overwrote it, so
+        // every published service-runtime-api from 1.2.0 to 3.3.0 held only the impl classes.
+        destinationDirectory.set(layout.buildDirectory.dir("libs-impl"))
         from(sourceSets["impl"].output)
     }
 

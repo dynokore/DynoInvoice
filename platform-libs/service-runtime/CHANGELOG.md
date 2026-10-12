@@ -6,6 +6,14 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [3.3.1] - 2026-10-12
+### Fixed
+- The published `service-runtime-api` jar held no api classes (INV-T-3937; coordinator ruling INV-Q-3929, defect in
+  INV-T-2860's per-module publishing, STK-60, FR-L.6). `implJar` had no output directory of its own, so it wrote the
+  same build/libs file as the api `jar` and the impl classes overwrote it: every published `service-runtime-api` from
+  1.2.0 to 3.3.0 is byte-identical to `service-runtime` and holds only the impl classes. `implJar` now writes to
+  build/libs-impl, as every other split module. No source or API change; consumers of a `-api` artefact need 3.3.1.
+
 ## [3.3.0] - 2026-10-12
 ### Added
 - Database credentials through SecretStore, rotated without restart (INV-T-3913; STK-29, INV-REQ-1231; coordinator

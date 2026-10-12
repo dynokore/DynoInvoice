@@ -6,6 +6,13 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-10-12
+### Fixed
+- The published `rulepack-kernel-api` jars 1.2.0 and 1.3.0 held no api classes (INV-T-3937; coordinator ruling
+  INV-Q-3929, defect in INV-T-2860's per-module publishing, STK-60, FR-L.6): `implJar` wrote the same build/libs file
+  as the api `jar`, so each `-api` jar is byte-identical to `rulepack-kernel` and holds only the impl classes. Fixed on
+  main by df85a19 (`implJar` writes to build/libs-impl) and released here. No source or API change.
+
 ## [1.3.0] - 2026-10-11
 ### Changed
 - `BouncyCastlePackVerifier`'s detached CMS check and SHA-256 checksums now run on the platform
