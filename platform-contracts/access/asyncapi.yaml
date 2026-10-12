@@ -29,9 +29,12 @@ channels:
     messages:
       AuthorityChanged:
         $ref: '#/components/messages/AuthorityChanged'
+
+  accessOperatorSessionKeysChanged:
+    address: 'gst.access.operator-session-keys-changed.v1'
+    messages:
       OperatorSessionKeysChanged:
         $ref: '#/components/messages/OperatorSessionKeysChanged'
-
   accessAccessAlertRaised:
     address: 'gst.access.access-alert-raised.v1'
     messages:
@@ -61,9 +64,9 @@ operations:
     action: send
     description: OperatorSessionKeysChanged — catalogued in model/architecture/events.yaml (§19.8).
     channel:
-      $ref: '#/channels/accessAuthorityChanged'
+      $ref: '#/channels/accessOperatorSessionKeysChanged'
     messages:
-      - $ref: '#/channels/accessAuthorityChanged/messages/OperatorSessionKeysChanged'
+      - $ref: '#/channels/accessOperatorSessionKeysChanged/messages/OperatorSessionKeysChanged'
 
   publishAccessAlertRaised:
     action: send
@@ -114,14 +117,19 @@ components:
       summary: OperatorSessionKeysChanged — catalogued in model/architecture/events.yaml (§19.8).
       description: >-
         Catalogued event OperatorSessionKeysChanged (model/architecture/events.yaml; class: domain;
-        feeds runtime replicas). Emitted by: access-svc. Consumed by: none. Delivery: At-least-once.
-        Payload (catalogue text): operator-session signing keys on the authority topic: key id,
-        algorithm, public key, valid-from, valid-until; the current and the next key during rotation.
-        Published on the authority topic, ordered with AuthorityChanged; every service's authority
-        replica (service-runtime) applies it in order and verifies an operator-session token (one
-        with act, issued by openOperatorSession) only against these replicated keys, refusing it
-        (401) while none is valid. getVerificationKeys and getRevocationList stay gateway-only
-        (owner ruling INV-Q-4006 A; coordinator ruling INV-Q-4162; owner ruling INV-Q-4119).
+        feeds runtime replicas). Emitted by: access-svc. Consumed by: access-svc, aggregation-svc,
+        canonical-svc, console-bff, control-plane-svc, evidence-svc, ingestion-svc, masterdata-svc,
+        notification-svc, payload-svc, reconciliation-svc, rules-svc, submission-svc, tenancy-svc,
+        transport-svc. Delivery: At-least-once. Payload (catalogue text): operator-session signing
+        keys: key id, algorithm, public key, valid-from, valid-until; the current and the next key
+        during rotation. On its own topic (one channel, one message; API standard 'Topics per event
+        type'; coordinator ruling INV-Q-4171), subscribed by every service: each service's authority
+        replica (service-runtime) consumes it beside AuthorityChanged, with no ordering between the
+        two, keeps the keys in the replica, and verifies an operator-session token (one with act,
+        issued by openOperatorSession) only against them, refusing it (401) while none is valid.
+        access-svc publishes a key before signing with it and keeps the old key until every token it
+        signed has expired. getVerificationKeys and getRevocationList stay gateway-only (owner ruling
+        INV-Q-4006 A; coordinator ruling INV-Q-4162; owner ruling INV-Q-4119).
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/operator-session-keys-changed-payload.schema.json'

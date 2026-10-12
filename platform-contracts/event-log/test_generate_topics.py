@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""event-log/test_generate_topics.py — INV-T-3386, INV-T-3542, INV-T-3606
+"""event-log/test_generate_topics.py — INV-T-3386, INV-T-3542, INV-T-3606, INV-T-4152
 
 Tests generate-topics.py's content-topic marker (owner ruling INV-Q-3249,
 INV-REQ-1205 b4): x-invoice-content is copied into topics.yaml as
@@ -7,6 +7,7 @@ content_topic on every topic, and the check fails when a topic lacks it.
 INV-T-3606 (rulings INV-Q-3601, INV-Q-3625, INV-Q-3644, INV-Q-3599,
 INV-Q-3627): one replay topic per (producer, subscriber) pair with the
 completion type, one request topic per consumer, record_topic from the marker.
+INV-T-4152 (coordinator ruling INV-Q-4171): one message per channel.
 Stdlib only. Run: python3 -m unittest discover -s event-log -p 'test_*.py'
 """
 from __future__ import annotations
@@ -91,6 +92,57 @@ class ProducerCheckTest(unittest.TestCase):
 
     def test_committed_catalogue_producers_pass(self):
         self.assertEqual(gen.validate_producers(gen.collect_topics(_HERE.parent)), [])
+
+
+class OneMessagePerChannelTest(unittest.TestCase):
+    """Coordinator ruling INV-Q-4171: a channel declaring more than one message
+    fails both modes, naming the channel, instead of being skipped silently."""
+
+    def _repo(self, second_message: bool) -> Path:
+        tmp = Path(tempfile.mkdtemp())
+        (tmp / "svc").mkdir()
+        text = _asyncapi({"Ev": None, "Other": None})
+        if second_message:
+            text = text.replace(
+                "        $ref: '#/components/messages/Ev'\n",
+                "        $ref: '#/components/messages/Ev'\n"
+                "      Other:\n"
+                "        $ref: '#/components/messages/Other'\n",
+                1,
+            )
+        (tmp / "svc" / "asyncapi.yaml").write_text(text)
+        return tmp
+
+    def _run(self, *argv: str) -> tuple[int, str]:
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = gen.main(["generate-topics.py", *argv])
+        return rc, buf.getvalue()
+
+    def test_one_message_per_channel_passes(self):
+        repo = self._repo(second_message=False)
+        out = repo / "topics.yaml"
+        self.assertEqual(gen.validate_channels(repo), [])
+        self.assertEqual(self._run(str(repo), "--write", str(out))[0], 0)
+        self.assertEqual(self._run(str(repo), "--check", str(out))[0], 0)
+
+    def test_second_message_on_a_channel_fails_both_modes(self):
+        good = self._repo(second_message=False)
+        out = good / "topics.yaml"
+        self.assertEqual(self._run(str(good), "--write", str(out))[0], 0)
+        bad = self._repo(second_message=True)
+        (bad / "topics.yaml").write_text(out.read_text())
+        errors = gen.validate_channels(bad)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("'chEv'", errors[0])
+        for mode in ("--write", "--check"):
+            rc, text = self._run(str(bad), mode, str(bad / "topics.yaml"))
+            self.assertEqual(rc, 1, mode)
+            self.assertIn("'chEv'", text, mode)
+        self.assertEqual((bad / "topics.yaml").read_text(), out.read_text())
+
+    def test_committed_contracts_have_one_message_per_channel(self):
+        self.assertEqual(gen.validate_channels(_HERE.parent), [])
 
 
 class ContentTopicTest(unittest.TestCase):

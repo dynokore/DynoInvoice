@@ -59,6 +59,11 @@ Derived families render under their own keys (`replay_topics:`,
 `replay_request_topics:`) so the event topics keep their shape; they are
 listed in DERIVED_FAMILIES as (key, derive function, validate function).
 
+One message per channel (coordinator ruling INV-Q-4171, API standard 'Topics
+per event type'): a channel that declares more than one message fails both
+modes, naming the file and the channel, instead of its extra messages being
+skipped silently.
+
 Two modes:
     generate-topics.py <repo-root> --write <out.yaml>
         Regenerates topics.yaml from every */asyncapi.yaml under repo-root.
@@ -165,6 +170,47 @@ def parse_asyncapi_file(path: Path) -> list[dict]:
             }
         )
     return topics
+
+
+# A channel's own key (2-space indent) under the top-level `channels:` key,
+# and a message key (6-space indent) under its `messages:`.
+_CHANNEL_KEY_RE = re.compile(r"^  (?P<key>[^\s#][^:]*):[ \t]*$")
+_CHANNEL_MSG_KEY_RE = re.compile(r"^      (?P<key>[^\s#][^:]*):[ \t]*$")
+
+
+def validate_channels(repo_root: Path) -> list[str]:
+    """One message per channel (coordinator ruling INV-Q-4171): every channel of
+    every */asyncapi.yaml that declares more than one message, by file and
+    channel. The topic parser reads one message per channel, so a second one
+    would otherwise be skipped silently."""
+    errors = []
+    for path in sorted(repo_root.glob("*/asyncapi.yaml")):
+        channel, in_channels, in_messages, count = None, False, False, {}
+        for line in path.read_text().splitlines():
+            if line and not line[0].isspace():
+                in_channels, channel, in_messages = line.rstrip() == "channels:", None, False
+                continue
+            if not in_channels:
+                continue
+            m = _CHANNEL_KEY_RE.match(line)
+            if m:
+                channel, in_messages = m.group("key"), False
+                count[channel] = 0
+                continue
+            if channel is None:
+                continue
+            if line.startswith("    ") and not line.startswith("     "):
+                in_messages = line.strip() == "messages:"
+                continue
+            if in_messages and _CHANNEL_MSG_KEY_RE.match(line):
+                count[channel] += 1
+        for ch, n in count.items():
+            if n > 1:
+                errors.append(
+                    f"{path.parent.name}/{path.name}: channel '{ch}' declares {n} messages;"
+                    " one message per channel (topics per event type, INV-Q-4171)"
+                )
+    return errors
 
 
 def collect_topics(repo_root: Path) -> list[dict]:
@@ -501,6 +547,12 @@ def main(argv: list[str]) -> int:
     repo_root = Path(argv[1])
     mode, target = argv[2], Path(argv[3])
 
+    channel_errors = validate_channels(repo_root)
+    if channel_errors:
+        print("gst-ci: */asyncapi.yaml fails the one-message-per-channel check (INV-Q-4171):")
+        for e in channel_errors:
+            print(f"  {e}")
+        return 1
     topics = collect_topics(repo_root)
     producer_errors = validate_producers(topics)
     if producer_errors:

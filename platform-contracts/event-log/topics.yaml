@@ -55,6 +55,28 @@ topics:
       - access-svc
     subscribers:
       - notification-svc
+  - topic: gst.access.operator-session-keys-changed.v1
+    event_type: com.dynokore.gst.access.OperatorSessionKeysChanged.v1
+    content_topic: false
+    record_topic: false
+    producers:
+      - access-svc
+    subscribers:
+      - access-svc
+      - aggregation-svc
+      - canonical-svc
+      - console-bff
+      - control-plane-svc
+      - evidence-svc
+      - ingestion-svc
+      - masterdata-svc
+      - notification-svc
+      - payload-svc
+      - reconciliation-svc
+      - rules-svc
+      - submission-svc
+      - tenancy-svc
+      - transport-svc
   - topic: gst.aggregation.aggregate-ready.v1
     event_type: com.dynokore.gst.aggregation.AggregateReady.v1
     content_topic: true
@@ -427,9 +449,40 @@ topics:
     subscribers:
       - ingestion-svc
 replay_topics:
+  - topic: gst.access.replay-access.v1
+    event_types:
+      - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: false
+    record_topic: false
+    producers:
+      - access-svc
+    subscribers:
+      - access-svc
+  - topic: gst.access.replay-aggregation.v1
+    event_types:
+      - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: false
+    record_topic: false
+    producers:
+      - access-svc
+    subscribers:
+      - aggregation-svc
+  - topic: gst.access.replay-canonical.v1
+    event_types:
+      - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: false
+    record_topic: false
+    producers:
+      - access-svc
+    subscribers:
+      - canonical-svc
   - topic: gst.access.replay-console-bff.v1
     event_types:
       - com.dynokore.gst.access.AuthorityChanged.v1
+      - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.ConnectionStatusChanged.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
@@ -438,8 +491,19 @@ replay_topics:
       - access-svc
     subscribers:
       - console-bff
+  - topic: gst.access.replay-control-plane.v1
+    event_types:
+      - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: false
+    record_topic: false
+    producers:
+      - access-svc
+    subscribers:
+      - control-plane-svc
   - topic: gst.access.replay-evidence.v1
     event_types:
+      - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.EvidenceArtefactRecorded.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
@@ -448,11 +512,32 @@ replay_topics:
       - access-svc
     subscribers:
       - evidence-svc
+  - topic: gst.access.replay-ingestion.v1
+    event_types:
+      - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: false
+    record_topic: false
+    producers:
+      - access-svc
+    subscribers:
+      - ingestion-svc
+  - topic: gst.access.replay-masterdata.v1
+    event_types:
+      - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: false
+    record_topic: false
+    producers:
+      - access-svc
+    subscribers:
+      - masterdata-svc
   - topic: gst.access.replay-notification.v1
     event_types:
       - com.dynokore.gst.access.AccessAlertRaised.v1
       - com.dynokore.gst.access.AuthorityChanged.v1
       - com.dynokore.gst.access.MessageRequested.v1
+      - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.ConnectionStatusChanged.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
@@ -461,6 +546,66 @@ replay_topics:
       - access-svc
     subscribers:
       - notification-svc
+  - topic: gst.access.replay-payload.v1
+    event_types:
+      - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: false
+    record_topic: false
+    producers:
+      - access-svc
+    subscribers:
+      - payload-svc
+  - topic: gst.access.replay-reconciliation.v1
+    event_types:
+      - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: false
+    record_topic: false
+    producers:
+      - access-svc
+    subscribers:
+      - reconciliation-svc
+  - topic: gst.access.replay-rules.v1
+    event_types:
+      - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: false
+    record_topic: false
+    producers:
+      - access-svc
+    subscribers:
+      - rules-svc
+  - topic: gst.access.replay-submission.v1
+    event_types:
+      - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: false
+    record_topic: false
+    producers:
+      - access-svc
+    subscribers:
+      - submission-svc
+  - topic: gst.access.replay-tenancy.v1
+    event_types:
+      - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: false
+    record_topic: false
+    producers:
+      - access-svc
+    subscribers:
+      - tenancy-svc
+  - topic: gst.access.replay-transport.v1
+    event_types:
+      - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: false
+    record_topic: false
+    producers:
+      - access-svc
+    subscribers:
+      - transport-svc
   - topic: gst.aggregation.replay-canonical.v1
     event_types:
       - com.dynokore.gst.aggregation.AggregateReady.v1
@@ -1111,6 +1256,7 @@ replay_request_topics:
     producers:
       - access-svc
     subscribers:
+      - access-svc
       - masterdata-svc
       - tenancy-svc
   - topic: gst.aggregation.replay-requested.v1
@@ -1121,6 +1267,7 @@ replay_request_topics:
     producers:
       - aggregation-svc
     subscribers:
+      - access-svc
       - submission-svc
   - topic: gst.canonical.replay-requested.v1
     event_types:
@@ -1130,6 +1277,7 @@ replay_request_topics:
     producers:
       - canonical-svc
     subscribers:
+      - access-svc
       - aggregation-svc
       - masterdata-svc
       - submission-svc
@@ -1156,6 +1304,15 @@ replay_request_topics:
       - submission-svc
       - tenancy-svc
       - transport-svc
+  - topic: gst.control-plane.replay-requested.v1
+    event_types:
+      - com.dynokore.gst.platform.ReplayRequested.v1
+    content_topic: false
+    record_topic: false
+    producers:
+      - control-plane-svc
+    subscribers:
+      - access-svc
   - topic: gst.evidence.replay-requested.v1
     event_types:
       - com.dynokore.gst.platform.ReplayRequested.v1
@@ -1179,6 +1336,7 @@ replay_request_topics:
     producers:
       - ingestion-svc
     subscribers:
+      - access-svc
       - canonical-svc
       - transport-svc
   - topic: gst.masterdata.replay-requested.v1
@@ -1189,6 +1347,7 @@ replay_request_topics:
     producers:
       - masterdata-svc
     subscribers:
+      - access-svc
       - tenancy-svc
   - topic: gst.notification.replay-requested.v1
     event_types:
@@ -1219,6 +1378,7 @@ replay_request_topics:
     producers:
       - payload-svc
     subscribers:
+      - access-svc
       - canonical-svc
       - masterdata-svc
       - rules-svc
@@ -1230,6 +1390,7 @@ replay_request_topics:
     producers:
       - reconciliation-svc
     subscribers:
+      - access-svc
       - canonical-svc
       - rules-svc
       - submission-svc
@@ -1241,6 +1402,7 @@ replay_request_topics:
     producers:
       - rules-svc
     subscribers:
+      - access-svc
       - notification-svc
       - payload-svc
       - reconciliation-svc
@@ -1253,6 +1415,7 @@ replay_request_topics:
     producers:
       - submission-svc
     subscribers:
+      - access-svc
       - aggregation-svc
       - canonical-svc
       - ingestion-svc
@@ -1268,5 +1431,15 @@ replay_request_topics:
     producers:
       - tenancy-svc
     subscribers:
+      - access-svc
       - rules-svc
       - submission-svc
+  - topic: gst.transport.replay-requested.v1
+    event_types:
+      - com.dynokore.gst.platform.ReplayRequested.v1
+    content_topic: false
+    record_topic: false
+    producers:
+      - transport-svc
+    subscribers:
+      - access-svc
