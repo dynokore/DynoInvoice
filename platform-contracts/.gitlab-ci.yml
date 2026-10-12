@@ -304,12 +304,14 @@ contract-check-self-tests:
 
 sync-edge-rule-self-test:
   # INV-T-2850 follow-up (lesson P20): proves Spectral rule inv-api-08-x-sync-edge fires.
+  # INV-T-4030: also proves inv-api-02-x-principal-workload-restricted (API-23/API-25).
   stage: verify
   image:
     name: "$SPECTRAL_IMAGE"
     entrypoint: [""]
   script:
     - sh spectral/self-test-sync-edge-rule.sh
+    - sh spectral/self-test-workload-rule.sh   # INV-T-4030: x-principal workload accepted/refused
 
 lifecycle-states-drift-check:
   # INV-T-2859 (T15) — "generated from model/architecture/lifecycle-states.yaml;

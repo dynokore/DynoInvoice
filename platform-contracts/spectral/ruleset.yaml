@@ -47,9 +47,10 @@ rules:
   inv-api-02-x-principal:
     description: >-
       API-02, API-23 — every operation declares exactly one principal scope, or
-      `workload` on an installer-only operation (API-23/API-25 note; owner ruling
-      INV-Q-3826 A, INV-T-3836).
-    message: "x-principal must be one of the API-23 scopes, or `workload` on an installer-only operation (API-02, API-23/API-25 workload note)"
+      `workload` on an installer-only operation or on a gateway key-material query
+      on access-svc (API-23/API-25 workload note; owner rulings INV-Q-3826 A,
+      INV-Q-4006 A; INV-T-3836, INV-T-4030).
+    message: "x-principal must be one of the API-23 scopes, or `workload` on an installer-only operation or an api-gateway->access-svc operation (API-02, API-23/API-25 workload note)"
     given: "$.paths[*][get,post,put,delete,patch]"
     severity: error
     formats: ["oas3_1"]
@@ -59,13 +60,16 @@ rules:
       functionOptions:
         values: ["ingest", "filing-workflow", "ap-callback", "reporting", "monitoring", "certification", "workload"]
 
-  inv-api-02-x-principal-workload-installer-only:
+  inv-api-02-x-principal-workload-restricted:
     description: >-
       API-23/API-25 workload note — no other operation may use `workload`: an
       operation declaring x-principal `workload` must be an internal operation
-      served on an installer edge (x-sync-edge 'installer-><callee>'; owner ruling
-      INV-Q-3826 A, INV-T-3836).
-    message: "x-principal `workload` is only for installer-only operations: x-sync-edge must be installer-><callee> (API-23/API-25 workload note)"
+      served on an installer edge (x-sync-edge 'installer-><callee>', today
+      recordInstallationAction; owner ruling INV-Q-3826 A, INV-T-3836) or an
+      access-svc operation on the API gateway's edge (x-sync-edge
+      'api-gateway->access-svc': getVerificationKeys, getRevocationList; owner
+      ruling INV-Q-4006 A, INV-T-4030). Self-test: self-test-workload-rule.sh.
+    message: "x-principal `workload` is only for installer-only operations (x-sync-edge installer-><callee>) and the gateway's access-svc key-material queries (x-sync-edge api-gateway->access-svc) (API-23/API-25 workload note)"
     given: "$.paths[*][?(@property.match(/^(get|post|put|delete|patch)$/) && @['x-principal'] === 'workload')]"
     severity: error
     formats: ["oas3_1"]
@@ -75,7 +79,7 @@ rules:
       - field: x-sync-edge
         function: pattern
         functionOptions:
-          match: "^installer->[a-z0-9-]+$"
+          match: "^(installer->[a-z0-9-]+|api-gateway->access-svc)$"
 
   inv-api-02-x-error-codes:
     description: API-02 — every operation declares x-error-codes (every catalogue code it can return).

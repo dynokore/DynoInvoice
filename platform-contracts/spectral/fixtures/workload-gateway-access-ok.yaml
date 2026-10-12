@@ -8,3 +8,11 @@ paths:
       x-principal: workload
       x-sync-edge: api-gateway->access-svc
       responses: {"200": {description: ok}}
+  # Control operation (refused): proves the rule ran on this document, so the
+  # accepted operation above passing is not a missing or renamed rule.
+  /internal/v1/fixture/control:
+    get:
+      operationId: controlQuery
+      x-principal: workload
+      x-sync-edge: console-bff->access-svc
+      responses: {"200": {description: ok}}

@@ -104,7 +104,7 @@ paths:
       description: Token verification material for the gateway to verify tokens offline (SDS §28.16, §2.5).
       tags:
       - authorise
-      x-principal: filing-workflow
+      x-principal: workload
       x-sync-edge: api-gateway->access-svc
       x-timeout: 2000
       x-requirements:
