@@ -1,5 +1,6 @@
 package com.dynokore.platform.configresolver
 
+import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantId
 import java.sql.Connection
 import java.sql.ResultSet

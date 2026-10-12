@@ -58,7 +58,7 @@ class ConfigResolverPostgresIT {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `RLS is enabled and forced on the tenant tables`(image: String) {
         ConfigHarness(image).use { h ->
             listOf("config_setting", "config_resolved_value").forEach { table ->
@@ -75,7 +75,7 @@ class ConfigResolverPostgresIT {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-AC-2091 the entity value is applied and recorded with the entity as its source`(image: String) {
         ConfigHarness(image).use { h ->
             h.tenantProfile(a, "FOUR_EYES_PLUS", march.minusMonths(6))
@@ -90,7 +90,7 @@ class ConfigResolverPostgresIT {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-AC-2092 the profile value is applied and recorded with the profile and version`(image: String) {
         ConfigHarness(image).use { h ->
             val profile = h.tenantProfile(a, "FOUR_EYES_PLUS", march.minusMonths(6))
@@ -106,7 +106,7 @@ class ConfigResolverPostgresIT {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-AC-2093 a value changed after the transaction date does not change the document`(image: String) {
         ConfigHarness(image).use { h ->
             val scope = PolicyScope.entity(a, "E1")
@@ -127,7 +127,7 @@ class ConfigResolverPostgresIT {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `an installation value is read by every tenant, and a by-form default applies`(image: String) {
         ConfigHarness(image, DeploymentForm.PRIVATE).use { h ->
             val typed = listOf(SelectedOption("OPERATOR_MAXIMUM", """{"hours":720}"""))
@@ -144,7 +144,7 @@ class ConfigResolverPostgresIT {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `typed and multi-option values round-trip through settings and records`(image: String) {
         ConfigHarness(image).use { h ->
             val multi = listOf(SelectedOption("SMS"), SelectedOption("WEBHOOK"))
@@ -158,7 +158,7 @@ class ConfigResolverPostgresIT {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `another tenant's settings and records are invisible`(image: String) {
         ConfigHarness(image).use { h ->
             h.entityOverride(a, "SOLE_OPERATOR", march.minusDays(1))
@@ -184,7 +184,7 @@ class ConfigResolverPostgresIT {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `the application role can neither change nor delete a setting or a record`(image: String) {
         ConfigHarness(image).use { h ->
             h.entityOverride(a, "SOLE_OPERATOR", march.minusDays(1))
@@ -203,7 +203,7 @@ class ConfigResolverPostgresIT {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `the subject type is constrained in the table too`(image: String) {
         ConfigHarness(image).use { h ->
             val error =
@@ -221,7 +221,7 @@ class ConfigResolverPostgresIT {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-Q-2938 records are purged with their subject, and everything with its tenant`(image: String) {
         ConfigHarness(image).use { h ->
             listOf(a, b).forEach { tenant ->
@@ -231,18 +231,23 @@ class ConfigResolverPostgresIT {
                 h.resolveAndRecord(tenant, scope, ENTITY_POLICY, march, ResolutionSubject("submission", "doc-2/v1"))
             }
 
-            assertEquals(1, h.asTenant(a) { h.purgeTx.inTransaction { h.purge.purgeSubject(submission) } })
+            assertEquals(1, h.asTenant(a) { h.app.inTransaction { h.purge.purgeSubject(submission) } })
             assertEquals(3L, h.count("select count(*) from svc.config_resolved_value"))
 
-            val purged = h.asTenant(a) { h.purgeTx.inTransaction { h.purge.purgeTenant(a) } }
+            val purged = h.asTenant(a) { h.app.inTransaction { h.purge.purgeTenant(a) } }
             assertEquals(PurgedTenant(resolvedValues = 1, settings = 1), purged)
             assertEquals(0L, h.count("select count(*) from svc.config_resolved_value where tenant_id = '$a'"))
             assertEquals(0L, h.count("select count(*) from svc.config_setting where tenant_id = '$a'"))
             assertEquals(2L, h.count("select count(*) from svc.config_resolved_value where tenant_id = '$b'"))
             assertEquals(1L, h.count("select count(*) from svc.config_setting where tenant_id = '$b'"))
 
-            // Bound to A, a purge of B reaches nothing: RLS stays forced on the purge role.
-            assertEquals(PurgedTenant(0, 0), h.asTenant(a) { h.purgeTx.inTransaction { h.purge.purgeTenant(b) } })
+            // Bound to A, a purge of B is refused (INV-T-3983): a tenant is purged only in its own transaction.
+            val other =
+                assertThrows(SQLException::class.java) {
+                    h.asTenant(a) { h.app.inTransaction { h.purge.purgeTenant(b) } }
+                }
+            assertEquals("42501", other.sqlState)
+            assertEquals(2L, h.count("select count(*) from svc.config_resolved_value where tenant_id = '$b'"))
         }
     }
 }

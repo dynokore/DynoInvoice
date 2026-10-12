@@ -6,6 +6,49 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-12
+### Changed (breaking)
+- One runtime login per service (INV-REQ-1189 b2, INV-ADR-3968; owner rulings INV-Q-3931, INV-Q-3953, INV-T-3983):
+  `ConfigSchema.ddl(schema, runtimeRole, sysRole, mode)` replaces `ddl(schema, appRole, platformRole, purgeRole)`.
+  The runtime login gets SELECT and INSERT on the tenant tables, SELECT only on `config_installation_setting`, no
+  UPDATE or DELETE anywhere, and EXECUTE on the functions below; the NOLOGIN `<svc>_sys` owns them. `mode`
+  (`EventMode.OUTBOX`, the default, or `NO_OUTBOX`) fixes in the schema where an installation value's events go,
+  never an argument (INV-Q-3142, coordinator ruling INV-Q-4254 A).
+- `write_installation_setting(...)`, SECURITY DEFINER: the only way to store an installation value. It takes the
+  value and the audit entry and `PolicyChanged` rows staged in Kotlin by their owning modules (audit-log's
+  `AuditStager`, coordinator ruling INV-Q-4277; outbox-and-queue's `OutboxWriter.stage`), checks before any insert
+  that the actor is `app.actor` (refused unset) and the audit entry's actor, the bound tenant and every row are the
+  platform's, types and topics are fixed (`AuditEntryRecorded` on gst.platform.audit-entry-recorded.v1,
+  `PolicyChanged` on gst.platform.policy-changed.v1), and the audit action and scope and the `PolicyChanged`
+  scope, vpId, value and effectiveDate equal the value; a mismatch refuses with nothing written (INV-Q-4254 A).
+  It then inserts the value, the audit entry (outbox row, or local `audit_entry` row) and `PolicyChanged` (outbox
+  mode) together, every row at one `clock_timestamp()`; a staged time is never taken (coordinator ruling
+  INV-Q-4316). `JdbcPolicyWriter` writes an installation value only through it and needs its `AuditWriter` to be
+  an `AuditStager` (fail closed); the version it returns carries the stored id and time.
+- `config_purge_subject` and `config_purge_tenant`, SECURITY DEFINER: `JdbcConfigPurge` calls them on the runtime
+  login in the tenant's transaction; they refuse an unset `app.actor`, an unbound or platform tenant and a purge of
+  another tenant than the bound one, and delete under the tenant policy (INV-Q-2938, INV-Q-3997). Purging another
+  tenant from a tenant's transaction is now refused rather than a no-op.
+- Every function has static SQL, `SET search_path = pg_catalog, <schema>, pg_temp`, EXECUTE revoked from PUBLIC and
+  granted to the runtime login only (coordinator ruling INV-Q-4038).
+- Main code binds no tenant (coordinator ruling INV-Q-4256): the caller binds the tenant and the actor it holds
+  (`TenantContext.bind(tenant, actor)`, `bindPlatform(actor)`; INV-Q-3997, coordinator ruling INV-Q-4268).
+
+### Removed
+- `ConfigSchema.upgradeTo110` and `upgradeTo120`, which took the former roles: there is no upgrade path from 1.x;
+  a service creates the 2.0.0 schema afresh (coordinator ruling INV-Q-4068).
+- The internal `SqlIdentifier` copy: identifiers enter SQL text only through tenancy-kernel's
+  `SqlIdentifier.require`, generated statement groups are joined outside SQL text, and `JdbcResolutionRecorder`
+  uses one static statement (INV-REQ-854 b5; coordinator rulings INV-Q-4036, INV-Q-4040). Zero findings from
+  platform-build 0.9.0's SqlGuards and MigrationLint.
+
+### Tests
+- On PostgreSQL 16, 17 and 18 (owner ruling INV-Q-3965), in config-resolver's `test` source set (INV-Q-4256), in
+  outbox and no-outbox mode: the write is all or none, the runtime login's direct INSERT is refused (and the
+  catalogue shows no such privilege), one planted fault per check of the function, a backdated staged time is
+  stored as database time, and a purge removes only the subject's or the tenant's rows. Jdbc statements stay
+  static and parameterised; the jOOQ conversion is INV-T-4202 / INV-T-4203 (owner ruling INV-Q-4196).
+
 ## [1.4.0] - 2026-10-12
 ### Changed
 - The `PolicyChanged` payload is exactly the INV-API-3306 data model (scope, vpId, value, effectiveDate, source

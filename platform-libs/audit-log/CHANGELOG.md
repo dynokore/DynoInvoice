@@ -6,6 +6,15 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-10-12
+### Added (INV-T-3983)
+- `OutboxAuditWriter` implements `AuditStager` (coordinator rulings INV-Q-4254 A and INV-Q-4277): `stage(entry,
+  context)` returns the `AuditEntryRecorded` outbox row `record` would write, built over outbox-and-queue 2.1.0's
+  `OutboxWriter.stage` (envelope under EmissionGuard, no `docsequence`), and inserts nothing; a staged row equals the
+  row `record` writes (test). Only an unsequenced entry is staged (no Doc UUID, no aggregate version). It serves
+  config-resolver's `write_installation_setting` in a service with an outbox (INV-ADR-3968 item 6, owner ruling
+  INV-Q-3931), as `LocalAuditWriter` does in a service without one.
+
 ## [2.2.0] - 2026-10-12
 ### Added
 - `AuditStager.stage(entry, context)` and `StagedAuditEntry` (api): the build-only half of an audit writer; it

@@ -36,7 +36,7 @@ class PolicyChangedPayloadPostgresIT : WritePathBase() {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-API-3306 an OVERRIDE payload is the data model only`(image: String) {
         val r = Run(image)
         r.put(set(EVERY_LEVEL, r.e1, ScopeLevel.ENTITY, one("B"), admin))
@@ -44,7 +44,7 @@ class PolicyChangedPayloadPostgresIT : WritePathBase() {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-API-3306 a PROFILE payload leaves the profile id and version on the setting record`(image: String) {
         val r = Run(image)
         val profile = "PRF-1" to "3"
@@ -56,7 +56,7 @@ class PolicyChangedPayloadPostgresIT : WritePathBase() {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-API-3306 a relaxing payload carries its acknowledgement reference`(image: String) {
         val r = Run(image)
         val move = one("NEXT_WORKING_DAY")

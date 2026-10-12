@@ -1,5 +1,6 @@
 package com.dynokore.platform.configresolver
 
+import com.dynokore.platform.outboxandqueue.OutboxSchema
 import com.dynokore.platform.tenancykernel.TenantAwareDataSource
 import com.dynokore.platform.tenancykernel.TenantContextImpl
 import com.dynokore.platform.tenancykernel.TenantId
@@ -24,10 +25,10 @@ private class Postgres(
 ) : PostgreSQLContainer<Postgres>(image)
 
 /**
- * One PostgreSQL container (17 or 18) holding this module's tables in a fixture service schema `svc`,
- * created by [ConfigSchema.ddl] as a real migration would. Settings are written by [setTenant] and
- * [setInstallation] as the application and platform roles would insert them (the setting operation itself
- * is INV-T-2870's).
+ * One PostgreSQL container (16, 17 or 18) holding this module's tables in a fixture service schema `svc`,
+ * created by [ConfigSchema.ddl] after the outbox it writes into, as the service's migration login would. Settings are
+ * written by [setTenant] as the runtime login inserts them and by [setInstallation] as a row the installation write
+ * function would store (the setting operation itself is [JdbcPolicyWriter]'s, tested by the write-path tests).
  */
 class ConfigHarness(
     image: String,
@@ -38,26 +39,26 @@ class ConfigHarness(
     init {
         container.start()
         dataSource("config_owner", "config_owner_pw").connection.use { c ->
-            val ddl = ConfigSchema.ddl(SCHEMA, "config_app", "config_platform", "config_purge")
-            c.createStatement().use { it.execute(ddl) }
+            c.createStatement().use {
+                it.execute(OutboxSchema.ddl(SCHEMA, "config_app", "config_sys"))
+                it.execute(ConfigSchema.ddl(SCHEMA, "config_app", "config_sys"))
+            }
         }
     }
 
     val tenants = TenantContextImpl()
     val app = TransactionRunnerImpl(TenantAwareDataSource(dataSource("config_app", "config_app_pw")), tenants)
-    val purgeTx = TransactionRunnerImpl(TenantAwareDataSource(dataSource("config_purge", "config_purge_pw")), tenants)
-    val platform: DataSource = dataSource("config_platform", "config_platform_pw")
     val admin: DataSource = dataSource(container.username, container.password)
     val reader = JdbcPolicyReader(app, TestCatalogue.catalogue, form, SCHEMA)
     val recorder = JdbcResolutionRecorder(app, SCHEMA, CLOCK)
-    val purge = JdbcConfigPurge(purgeTx, SCHEMA)
+    val purge = JdbcConfigPurge(app, SCHEMA)
 
-    // INV-T-3999 removes this call
-    @Suppress("DEPRECATION")
+    /** Binds [tenant] with [actor] (INV-Q-3997, INV-Q-4268). */
     fun <T> asTenant(
         tenant: TenantId,
+        actor: String = "user-1",
         block: () -> T,
-    ): T = tenants.bind(tenant, block)
+    ): T = tenants.bind(tenant, actor, block)
 
     /** Inserts a tenant-and-below setting as the application role, inside the tenant's transaction. */
     fun setTenant(
@@ -96,12 +97,15 @@ class ConfigHarness(
         }
     }
 
-    /** Inserts an installation setting as the platform role. */
+    /**
+     * Inserts an installation setting as the superuser: the runtime login cannot, and the write function also writes
+     * the value's audit entry and PolicyChanged, which resolution does not read.
+     */
     fun setInstallation(
         key: VariationPointKey,
         selected: List<SelectedOption>,
         from: LocalDate,
-    ): UUID = platform.connection.use { c ->
+    ): UUID = admin.connection.use { c ->
         val id = UUID.randomUUID()
         c.prepareStatement(
             "insert into $SCHEMA.config_installation_setting (id, vp_key, option_keys, option_values, " +

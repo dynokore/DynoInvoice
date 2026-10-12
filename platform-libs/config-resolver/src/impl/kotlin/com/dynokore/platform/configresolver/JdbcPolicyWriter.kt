@@ -1,6 +1,7 @@
 package com.dynokore.platform.configresolver
 
 import com.dynokore.platform.auditlog.AuditEntry
+import com.dynokore.platform.auditlog.AuditStager
 import com.dynokore.platform.auditlog.AuditWriter
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.CorrelationId
@@ -14,6 +15,7 @@ import tools.jackson.databind.DeserializationFeature
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import tools.jackson.databind.node.ObjectNode
+import java.sql.Connection
 import java.time.Clock
 import java.time.LocalDate
 import java.util.UUID
@@ -29,8 +31,10 @@ import java.util.UUID
  * Then it stores the version, writes the audit entry with the prior value and, where the service has an
  * outbox, `PolicyChanged` (INV-Q-3142), all in the caller's transaction (INV-REQ-1226).
  *
- * An installation value is written by an instance whose [connections] run on the platform role with the
- * platform tenant bound; its events are tenantless platform events (INV-Q-2927 option D). A tenant or group
+ * An installation value is written on the runtime login with the platform tenant and the setting actor bound, only
+ * through the sys-owned [ConfigSchema.WRITE_INSTALLATION_SETTING] with its staged audit entry and `PolicyChanged`;
+ * [audit] must then also be an [AuditStager] (fail closed otherwise). Its events are tenantless platform events
+ * (INV-Q-2927 option D). A tenant or group
  * value's events carry the real tenant and `EntityRef.TENANT_WIDE` (INV-Q-3165).
  *
  * @param outbox `null` for a service without an outbox (control-plane-svc): the audit entry only.
@@ -60,6 +64,7 @@ class JdbcPolicyWriter(
             store.find(connections.require(), key, ref, tenant, source, at)
         }
     private val bounds = ScopeBounds(catalogue, resolver::resolve)
+    private val stagedRows = StagedRows(mapper)
 
     override fun setPolicy(command: SetPolicyCommand): PolicyChange {
         val definition = settable(command.key)
@@ -111,21 +116,57 @@ class JdbcPolicyWriter(
                 recordedAt = clock.instant(),
                 relaxation = relaxation,
             )
-        writes.insert(connection, version)
         val context = contextOf(key, target, command.correlation, command.causation)
-        val auditEnvelope =
-            audit.record(
-                AuditEntry(
-                    actor = command.actor.principal,
-                    action = SET_POLICY,
-                    scope = target.scopeText,
-                    reason = reason,
-                    priorStateJson = priorState(key, target, command.effectiveFrom, prior),
-                ),
-                context,
+        val entry =
+            AuditEntry(
+                actor = command.actor.principal,
+                action = SET_POLICY,
+                scope = target.scopeText,
+                reason = reason,
+                priorStateJson = priorState(key, target, command.effectiveFrom, prior),
             )
-        val changed = outbox?.append(listOf(OutboundEvent(POLICY_CHANGED, policyChanged(version))), context)?.single()
+        val event = OutboundEvent(POLICY_CHANGED, policyChanged(version))
+        if (target.level == ScopeLevel.INSTALLATION) {
+            return writeInstallation(connection, version, prior, entry, event, context)
+        }
+        writes.insert(connection, version)
+        val auditEnvelope = audit.record(entry, context)
+        val changed = outbox?.append(listOf(event), context)?.single()
         return PolicyChange(version, prior, auditEnvelope.id.toString(), changed?.id?.toString())
+    }
+
+    /**
+     * An installation value is written only by [ConfigSchema.WRITE_INSTALLATION_SETTING] (INV-ADR-3968 item 6, owner
+     * ruling INV-Q-3931): its audit entry and, where the service has an outbox, its `PolicyChanged` are staged
+     * through their owning modules ([AuditStager], [OutboxWriter.stage]) and passed to the function, which checks
+     * them against the value and `app.actor` and writes all three or none, stamping the id, actor and database time
+     * itself (coordinator rulings INV-Q-4254 A, INV-Q-4316). The caller binds the platform tenant with the setting
+     * actor (`PlatformTenantBinding.bindPlatform(actor)`, INV-Q-3997).
+     */
+    private fun writeInstallation(
+        connection: Connection,
+        version: SettingVersion,
+        prior: ResolvedSetting?,
+        entry: AuditEntry,
+        event: OutboundEvent,
+        context: EventContext,
+    ): PolicyChange {
+        val stager =
+            checkNotNull(audit as? AuditStager) {
+                "an installation value needs an AuditStager to stage its audit entry (INV-Q-4254), " +
+                    "was ${audit.javaClass.name}"
+            }
+        val staged = stager.stage(entry, context)
+        val changed = outbox?.stage(listOf(event), context)?.single()
+        val stored =
+            writes.writeInstallation(
+                connection,
+                version,
+                stagedRows.json(staged.envelope),
+                changed?.let { stagedRows.json(it.envelope, it.topic) },
+            )
+        val written = version.copy(id = stored.id, recordedAt = stored.recordedAt)
+        return PolicyChange(written, prior, staged.envelope.id.toString(), changed?.envelope?.id?.toString())
     }
 
     override fun acknowledgeControlRelaxation(command: AcknowledgeRelaxationCommand): RelaxationStatus {
@@ -541,8 +582,8 @@ class JdbcPolicyWriter(
 
     companion object {
         /** The platform event type (API-40), schema owned by `service-runtime`. */
-        const val POLICY_CHANGED = "com.dynokore.gst.platform.PolicyChanged.v1"
-        const val SET_POLICY = "setPolicy"
+        const val POLICY_CHANGED = ConfigSchema.POLICY_CHANGED
+        const val SET_POLICY = ConfigSchema.SET_POLICY
         const val ACKNOWLEDGE_CONTROL_RELAXATION = "acknowledgeControlRelaxation"
     }
 }

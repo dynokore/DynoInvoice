@@ -32,9 +32,13 @@ sourceSets {
     }
 }
 
-// Project evaluation order is alphabetical, so tenancy-kernel's `implJar` task would not exist yet.
+// Project evaluation order is alphabetical, so these modules' `implJar` tasks would not exist yet.
 evaluationDependsOn(":tenancy-kernel")
+evaluationDependsOn(":audit-log")
+evaluationDependsOn(":outbox-and-queue")
 val tenancyKernelImplJar = project(":tenancy-kernel").tasks.named("implJar")
+val auditLogImplJar = project(":audit-log").tasks.named("implJar")
+val outboxImplJar = project(":outbox-and-queue").tasks.named("implJar")
 
 dependencies {
     api(project(":tenancy-kernel"))
@@ -51,9 +55,13 @@ dependencies {
     // STK-08: Jackson 3 (`tools.jackson`) — the typed option values (jsonb).
     add("implImplementation", libs.jackson.databind)
 
-    // Tests run against real PostgreSQL 17 and 18 (STK-14, STK-15; H2 is banned).
+    // Tests run against real PostgreSQL 16, 17 and 18 (STK-14, STK-15, INV-Q-3965; H2 is banned).
     testImplementation(sourceSets["impl"].output)
     testImplementation(files(tenancyKernelImplJar))
+    // INV-T-3983: the installation write's staged rows come from the real stage calls (AuditStager over the outbox,
+    // or the local audit_entry; OutboxWriter.stage), into the real outbox and audit_entry tables of the test schema.
+    testImplementation(files(auditLogImplJar))
+    testImplementation(files(outboxImplJar))
     testImplementation(libs.jackson.databind)
     testImplementation(libs.postgresql)
     testImplementation(libs.testcontainers.postgresql)

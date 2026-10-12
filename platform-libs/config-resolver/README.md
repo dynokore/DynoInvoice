@@ -12,6 +12,18 @@ Precedence-ordered configuration resolution with effective dates and resolved-va
 
 Released on its own version with its own changelog. Services consume it only as a published artefact (FR-L.6).
 
+## What 2.0.0 changes (INV-T-3983)
+
+- One runtime login per service and a NOLOGIN `<svc>_sys` (INV-REQ-1189 b2, INV-ADR-3968; INV-Q-3931,
+  INV-Q-3953): `ConfigSchema.ddl(schema, runtimeRole, sysRole, mode)`; the 1.x upgrade entry points are gone and
+  there is no upgrade path from 1.x (INV-Q-4068).
+- An installation value is stored only by `write_installation_setting`, with its audit entry and, in a service with
+  an outbox (`EventMode.OUTBOX`), its `PolicyChanged`, staged in Kotlin by audit-log's `AuditStager` and
+  outbox-and-queue's `OutboxWriter.stage` and checked in the database before anything is written; every row is
+  stamped with database time (INV-Q-4254 A, INV-Q-4316). Bind the platform tenant with the setting actor
+  (`bindPlatform(actor)`).
+- `config_purge_subject` and `config_purge_tenant` delete in the tenant's own transaction with an actor bound.
+
 ## What 1.2.0 offers (INV-T-3176)
 
 - **Cross-scope tighten-only** (VP-08; INV-REQ-780 b1, INV-Q-2936, INV-Q-3204): for a row with
@@ -34,7 +46,8 @@ Released on its own version with its own changelog. Services consume it only as 
 - A bound that cannot be evaluated (no installation parameter row, a bounding row that resolves to an option
   with no number, a cross-scope row whose options do not carry the same directed fields) is refused
   (`NOT_SUPPORTED`, `BOUND_UNAVAILABLE`) or throws `BoundUnavailable` at resolution: fail closed.
-- `ConfigSchema.upgradeTo120`: `config_resolved_value.capped_by`, so a recorded resolution keeps its caps.
+- `ConfigSchema.upgradeTo120` (removed in 2.0.0): `config_resolved_value.capped_by`, so a recorded resolution keeps
+  its caps.
 
 ## What 1.1.0 offers (INV-T-2870)
 
@@ -58,7 +71,8 @@ Released on its own version with its own changelog. Services consume it only as 
 - `PolicyHistory`: every version of a scope's value, the as-of view (in force on the date, and what changed
   since: recorded or effective after it; keys from `VariationPointCatalogue.keys()`) and compare
   (INV-AC-1146).
-- `ConfigSchema.upgradeTo110` for a 1.0.0 schema (expand-only); `ddl` now creates the 1.1.0 tables.
+- `ConfigSchema.upgradeTo110` (removed in 2.0.0) for a 1.0.0 schema (expand-only); `ddl` now creates the 1.1.0
+  tables.
 
 ## What 1.0.0 offers (INV-T-2869)
 
@@ -73,7 +87,7 @@ Released on its own version with its own changelog. Services consume it only as 
   multi-select, by-form default, form dependence.
 - `ResolutionRecorder`: records the value and its source on one document version's record, insert-only,
   first write wins (INV-REQ-1068 b2, INV-AC-2093, INV-Q-2938).
-- `ConfigPurge`: `purgeSubject` and `purgeTenant`, on a purge role, for the owning service's retention
-  (VP-43) and tenant offboarding (INV-Q-2938).
-- `ConfigSchema.ddl(schema, appRole, platformRole, purgeRole)`: the three tables, for the service's own
-  Flyway migration (TPL-12).
+- `ConfigPurge`: `purgeSubject` and `purgeTenant` for the owning service's retention (VP-43) and tenant
+  offboarding (INV-Q-2938); from 2.0.0 through sys-owned functions on the runtime login.
+- `ConfigSchema.ddl(schema, appRole, platformRole, purgeRole)` (2.0.0: `ddl(schema, runtimeRole, sysRole, mode)`):
+  the three tables, for the service's own Flyway migration (TPL-12).

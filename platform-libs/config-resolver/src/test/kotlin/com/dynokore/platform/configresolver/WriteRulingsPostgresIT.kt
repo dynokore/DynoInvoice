@@ -22,7 +22,7 @@ import java.time.LocalDate
 @Tag("integration")
 class WriteRulingsPostgresIT : WritePathBase() {
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-Q-3165 tenant and group changes carry the real tenant and the bare scope in both payloads`(image: String) {
         val r = Run(image)
         val scope = PolicyScope.entity(r.t, "E1", group = "G1")
@@ -39,14 +39,14 @@ class WriteRulingsPostgresIT : WritePathBase() {
         assertEquals(before, r.h.events(TenantId.PLATFORM).size)
         val operator = actor("op", "platform.engineer")
         val installation = set(EVERY_LEVEL, scope, ScopeLevel.INSTALLATION, one("B"), operator)
-        r.h.inPlatform { r.h.writer(platform = true).setPolicy(installation) }
+        r.h.putInstallation(r.h.writer(platform = true), installation)
         val platform = r.h.events(TenantId.PLATFORM).drop(before)
         assertTrue(platform.all { it.dataJson.contains("\"scope\": \"INSTALLATION\"") }, platform.toString())
         assertEquals(2, platform.size)
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-Q-3136 an unbound or failing delegation probe requires the delegation acknowledger`(image: String) {
         val r = Run(image)
         val cmd = ackCmd(DUE_DATE, r.e1, ScopeLevel.ENTITY, one("NEXT_WORKING_DAY"), approver, "tax.approver")
@@ -59,7 +59,7 @@ class WriteRulingsPostgresIT : WritePathBase() {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-Q-3134 a looser option nobody is accountable for is refused`(image: String) {
         val r = Run(image)
         val both = actor("ta", "tax.approver", "client.signatory")
@@ -74,7 +74,7 @@ class WriteRulingsPostgresIT : WritePathBase() {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-Q-3134 acknowledgers only under delegation, and no delegation applies - refused`(image: String) {
         val r = Run(image)
         val both = actor("ta", "tax.approver", "client.signatory")
@@ -93,7 +93,7 @@ class WriteRulingsPostgresIT : WritePathBase() {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-Q-3134 an acknowledger naming no role for this deployment form - refused`(image: String) {
         val r = Run(image)
         val elsewhere = one("ELSEWHERE")
@@ -106,7 +106,7 @@ class WriteRulingsPostgresIT : WritePathBase() {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-Q-3142 a tenant-scope relaxation has no entity, without an outbox only audit is written`(
         image: String,
     ) {
@@ -122,7 +122,7 @@ class WriteRulingsPostgresIT : WritePathBase() {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-Q-3138 an acknowledgement effective after the setting does not back it`(image: String) {
         val r = Run(image)
         val move = one("NEXT_WORKING_DAY")
@@ -135,7 +135,7 @@ class WriteRulingsPostgresIT : WritePathBase() {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-Q-3140 installation has no floor, and a group's first value goes back to its floor`(image: String) {
         val r = Run(image)
         val floor = LocalDate.of(2026, 4, 1)
@@ -145,7 +145,7 @@ class WriteRulingsPostgresIT : WritePathBase() {
         val operator = actor("op", "platform.engineer")
         val installation = PolicyScope.installation()
         val back = set(EVERY_LEVEL, installation, ScopeLevel.INSTALLATION, one("B"), operator, floor)
-        assertEquals(PolicyRefusal.BACKDATING_REFUSED, refusal { r.h.inPlatform { platform.setPolicy(back) } })
+        assertEquals(PolicyRefusal.BACKDATING_REFUSED, refusal { r.h.putInstallation(platform, back) })
         val group = PolicyScope.entity(r.t, "E1", group = "G1")
         val beforeFloor = set(EVERY_LEVEL, group, ScopeLevel.GROUP, one("B"), admin, floor.minusDays(1))
         assertEquals(PolicyRefusal.BACKDATING_REFUSED, r.refusedPut(beforeFloor, floored))
@@ -155,7 +155,7 @@ class WriteRulingsPostgresIT : WritePathBase() {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-Q-3171 a version recorded after the date but effective before it is in force and listed as changed`(
         image: String,
     ) {
@@ -170,7 +170,7 @@ class WriteRulingsPostgresIT : WritePathBase() {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-Q-3136 an under-delegation role cannot acknowledge where no delegation applies`(image: String) {
         val r = Run(image)
         val signatory = actor("cs", "client.signatory")
@@ -181,7 +181,7 @@ class WriteRulingsPostgresIT : WritePathBase() {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-Q-2979 a profile value at installation is refused, never stored as an override`(image: String) {
         val r = Run(image)
         val operator = actor("op", "platform.engineer")
@@ -198,7 +198,7 @@ class WriteRulingsPostgresIT : WritePathBase() {
         val w = r.h.writer(platform = true)
         val stored = "select count(*) from svc.config_installation_setting"
         val before = r.h.count(stored)
-        assertEquals(PolicyRefusal.PROFILE_AT_INSTALLATION, refusal { r.h.inPlatform { w.setPolicy(cmd) } })
+        assertEquals(PolicyRefusal.PROFILE_AT_INSTALLATION, refusal { r.h.putInstallation(w, cmd) })
         assertEquals(before, r.h.count(stored))
     }
 }

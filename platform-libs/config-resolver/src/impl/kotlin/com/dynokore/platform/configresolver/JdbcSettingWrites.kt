@@ -1,9 +1,11 @@
 package com.dynokore.platform.configresolver
 
+import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantId
 import java.sql.Connection
 import java.sql.ResultSet
 import java.sql.Timestamp
+import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
 
@@ -19,48 +21,64 @@ internal class JdbcSettingWrites(
     private val settings = "$s.${ConfigSchema.SETTING}"
     private val installation = "$s.${ConfigSchema.INSTALLATION_SETTING}"
     private val acknowledgements = "$s.${ConfigSchema.RELAXATION_ACKNOWLEDGEMENT}"
+    private val writeInstallation = "$s.${ConfigSchema.WRITE_INSTALLATION_SETTING}"
 
+    /** Stores a tenant-and-below value; an installation value goes through [writeInstallation]. */
     fun insert(
         connection: Connection,
         version: SettingVersion,
     ) {
         val target = version.target
-        if (target.level == ScopeLevel.INSTALLATION) {
-            connection.prepareStatement(
-                "insert into $installation (id, vp_key, option_keys, option_values, effective_from, set_by, " +
-                    "reason, recorded_at) values (?, ?, ?, ?, ?, ?, ?, ?)",
-            ).use {
-                it.setObject(1, version.id)
-                it.setString(2, version.key.value)
-                columns.bind(it, connection, 3, 4, version.selected)
-                it.setObject(5, version.effectiveFrom)
-                it.setString(6, version.setBy)
-                it.setString(7, version.reason)
-                it.setTimestamp(8, Timestamp.from(version.recordedAt))
-                it.executeUpdate()
-            }
-        } else {
-            connection.prepareStatement(
-                "insert into $settings (id, tenant_id, entity_id, vp_key, scope_level, scope_id, option_keys, " +
-                    "option_values, source, profile_id, profile_version, effective_from, set_by, reason, " +
-                    "recorded_at, relaxation_ref) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            ).use {
-                it.setObject(1, version.id)
-                it.setObject(2, checkNotNull(target.tenant).value)
-                it.setString(3, target.entity)
-                it.setString(4, version.key.value)
-                it.setString(5, target.level.name)
-                it.setString(6, target.ref.id)
-                columns.bind(it, connection, 7, 8, version.selected)
-                it.setString(9, version.source.name)
-                it.setString(10, version.profileId)
-                it.setString(11, version.profileVersion)
-                it.setObject(12, version.effectiveFrom)
-                it.setString(13, version.setBy)
-                it.setString(14, version.reason)
-                it.setTimestamp(15, Timestamp.from(version.recordedAt))
-                it.setObject(16, version.relaxation?.value)
-                it.executeUpdate()
+        require(target.level != ScopeLevel.INSTALLATION) { "an installation value is written by $writeInstallation" }
+        connection.prepareStatement(
+            "insert into $settings (id, tenant_id, entity_id, vp_key, scope_level, scope_id, option_keys, " +
+                "option_values, source, profile_id, profile_version, effective_from, set_by, reason, " +
+                "recorded_at, relaxation_ref) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        ).use {
+            it.setObject(1, version.id)
+            it.setObject(2, checkNotNull(target.tenant).value)
+            it.setString(3, target.entity)
+            it.setString(4, version.key.value)
+            it.setString(5, target.level.name)
+            it.setString(6, target.ref.id)
+            columns.bind(it, connection, 7, 8, version.selected)
+            it.setString(9, version.source.name)
+            it.setString(10, version.profileId)
+            it.setString(11, version.profileVersion)
+            it.setObject(12, version.effectiveFrom)
+            it.setString(13, version.setBy)
+            it.setString(14, version.reason)
+            it.setTimestamp(15, Timestamp.from(version.recordedAt))
+            it.setObject(16, version.relaxation?.value)
+            it.executeUpdate()
+        }
+    }
+
+    /**
+     * Stores an installation value through [ConfigSchema.WRITE_INSTALLATION_SETTING] with its staged audit row and,
+     * in a service with an outbox, its staged `PolicyChanged` row (JSON objects of their outbox columns,
+     * [StagedRows]); the function checks them, sets the id, actor and time itself and writes all of them or none
+     * (coordinator rulings INV-Q-4254 A, INV-Q-4316).
+     */
+    fun writeInstallation(
+        connection: Connection,
+        version: SettingVersion,
+        audit: String,
+        policyChanged: String?,
+    ): StoredInstallation {
+        require(version.target.level == ScopeLevel.INSTALLATION) { "not an installation value" }
+        return connection.prepareStatement(
+            "select setting_id, stored_at from $writeInstallation(?, ?, ?, ?, ?, ?::jsonb, ?::jsonb)",
+        ).use {
+            it.setString(1, version.key.value)
+            columns.bind(it, connection, 2, 3, version.selected)
+            it.setObject(4, version.effectiveFrom)
+            it.setString(5, version.reason)
+            it.setString(6, audit)
+            it.setString(7, policyChanged)
+            it.executeQuery().use { rows ->
+                check(rows.next()) { "the installation write returned no row" }
+                StoredInstallation(rows.getObject(1, UUID::class.java), rows.getTimestamp(2).toInstant())
             }
         }
     }
@@ -200,6 +218,12 @@ internal class JdbcSettingWrites(
         relaxation = rows.getObject("relaxation_ref", UUID::class.java)?.let { RelaxationId(it) },
     )
 }
+
+/** The id and database time [JdbcSettingWrites.writeInstallation] gave an installation value. */
+internal data class StoredInstallation(
+    val id: UUID,
+    val recordedAt: Instant,
+)
 
 /** One stored acknowledgement with what it acknowledged. */
 internal data class AcknowledgementRow(

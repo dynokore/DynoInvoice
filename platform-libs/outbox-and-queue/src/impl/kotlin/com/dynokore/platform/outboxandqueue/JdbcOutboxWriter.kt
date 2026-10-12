@@ -24,6 +24,9 @@ import java.time.temporal.ChronoUnit
  * `TenantId.PLATFORM` and [EntityRef.PLATFORM] (INV-Q-2927 option D), so `tenant_id` stays NOT NULL with
  * forced RLS (CS-19); only platform types may be written so (INV-Q-3018). The relay therefore
  * preserves order per key by reading in outbox order (INV-REQ-1221).
+ *
+ * [stage] builds the row [append] would write for an unsequenced platform event and writes nothing, for a SECURITY
+ * DEFINER function that inserts it with the change it records (coordinator ruling INV-Q-4254 A).
  */
 class JdbcOutboxWriter(
     private val connections: CurrentConnection,
@@ -47,6 +50,44 @@ class JdbcOutboxWriter(
         context: EventContext,
     ): List<Envelope> {
         if (events.isEmpty()) return emptyList()
+        val entries = permitted(events, context)
+        val connection = connections.require()
+        val stamped = context.docUuid != null || context.aggregateVersion != null
+        val first = if (stamped) reserveSequence(connection, context, events.size) else null
+        val now = clock.instant().truncatedTo(ChronoUnit.MICROS)
+        return events.mapIndexed { index, event ->
+            val envelope = envelope(event, context, now, first?.plus(index))
+            insert(connection, entries[index].topic, envelope)
+            envelope
+        }
+    }
+
+    /**
+     * The rows [append] would write for unsequenced platform events, built and not written (coordinator ruling
+     * INV-Q-4254 A): the same emission checks, the same envelope, the catalogued topic. It never touches the
+     * connection, so it reserves no `docsequence`.
+     */
+    override fun stage(
+        events: List<OutboundEvent>,
+        context: EventContext,
+    ): List<StagedOutboxRow> {
+        require(context.docUuid == null && context.aggregateVersion == null) {
+            "only unsequenced events are staged: no Doc UUID and no aggregate version"
+        }
+        events.firstOrNull { !Envelope.isPlatformType(it.type) }?.let {
+            throw IllegalArgumentException("only platform events are staged, was '${it.type}'")
+        }
+        if (events.isEmpty()) return emptyList()
+        val entries = permitted(events, context)
+        val now = clock.instant().truncatedTo(ChronoUnit.MICROS)
+        return events.mapIndexed { index, event -> StagedOutboxRow(entries[index].topic, envelope(event, context, now, null)) }
+    }
+
+    /** The catalogue entry of every event, checked for the whole batch before anything is built or written. */
+    private fun permitted(
+        events: List<OutboundEvent>,
+        context: EventContext,
+    ): List<CatalogueEntry> {
         // INV-AC-1869: refuse before anything is written, so one bad type leaves no partial batch.
         val entries = events.map { guard.require(it.type) }
         // INV-Q-3018: under the reserved platform tenant only platform event types are written; a domain
@@ -62,15 +103,7 @@ class JdbcOutboxWriter(
                 throw EmissionNotPermitted(service, it.type, "a domain event cannot carry the tenant-wide entity")
             }
         }
-        val connection = connections.require()
-        val stamped = context.docUuid != null || context.aggregateVersion != null
-        val first = if (stamped) reserveSequence(connection, context, events.size) else null
-        val now = clock.instant().truncatedTo(ChronoUnit.MICROS)
-        return events.mapIndexed { index, event ->
-            val envelope = envelope(event, context, now, first?.plus(index))
-            insert(connection, entries[index].topic, envelope)
-            envelope
-        }
+        return entries
     }
 
     /**

@@ -192,6 +192,11 @@ object OutboxSchema {
      * and functions the sys role owns (INV-Q-3953, INV-REQ-1205 b3): `SELECT` and `DELETE` policies `TO <sys>` with
      * column grants limited to what the views and functions read, and restrictive policies that keep an unpublished
      * outbox row and an open dead letter out of every delete.
+     *
+     * `INSERT` on [OUTBOX] (coordinator ruling INV-Q-4254 A) is for a sys-owned definer that writes a platform event
+     * with the change it records (config-resolver's `write_installation_setting`). No sys policy covers it: the
+     * table's tenant policy alone admits the row, so the sys role inserts only under the bound tenant, the platform
+     * tenant for a platform event.
      */
     private fun sysAccess(
         schema: String,
@@ -207,6 +212,7 @@ object OutboxSchema {
                 using (published_at is not null);
             grant select (seq, tenant_id, published_at) on $s.$OUTBOX to $sys;
             grant delete on $s.$OUTBOX to $sys;
+            grant insert on $s.$OUTBOX to $sys;
             create policy ${INBOX}_sys_select on $s.$INBOX for select to $sys using (true);
             create policy ${INBOX}_sys_purge on $s.$INBOX for delete to $sys using (true);
             grant select (consumer, event_id, received_at) on $s.$INBOX to $sys;

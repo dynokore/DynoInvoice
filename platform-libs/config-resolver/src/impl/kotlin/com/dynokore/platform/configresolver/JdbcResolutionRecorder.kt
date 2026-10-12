@@ -1,6 +1,7 @@
 package com.dynokore.platform.configresolver
 
 import com.dynokore.platform.tenancykernel.CurrentConnection
+import com.dynokore.platform.tenancykernel.SqlIdentifier
 import tools.jackson.databind.DeserializationFeature
 import tools.jackson.databind.json.JsonMapper
 import java.sql.ResultSet
@@ -73,15 +74,16 @@ class JdbcResolutionRecorder(
         subject: ResolutionSubject,
         key: VariationPointKey?,
     ): List<RecordedResolution> {
-        val sql =
+        // One static statement: a null key selects every variation point of the subject.
+        return connections.require().prepareStatement(
             "select vp_key, transaction_date, option_keys, option_values, source, source_level, source_scope_id, " +
                 "source_setting_id, profile_id, profile_version, capped_by from $table " +
-                "where tenant_id = $BOUND_TENANT and subject_type = ? and subject_ref = ?" +
-                (if (key != null) " and vp_key = ?" else "") + " order by vp_key"
-        return connections.require().prepareStatement(sql).use {
+                "where tenant_id = $BOUND_TENANT and subject_type = ? and subject_ref = ? " +
+                "and vp_key = coalesce(?, vp_key) order by vp_key",
+        ).use {
             it.setString(1, subject.type)
             it.setString(2, subject.ref)
-            key?.let { k -> it.setString(3, k.value) }
+            it.setString(3, key?.value)
             it.executeQuery().use { rows -> buildList { while (rows.next()) add(recorded(rows, subject)) } }
         }
     }

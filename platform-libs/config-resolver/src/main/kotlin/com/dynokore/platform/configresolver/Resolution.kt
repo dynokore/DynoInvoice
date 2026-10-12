@@ -214,8 +214,9 @@ interface ResolutionRecorder {
 
 /**
  * Deletes records with their subject, for the owning service's retention (VP-43) and tenant offboarding
- * (ruling INV-Q-2938). Runs in a transaction of the tenant concerned, on the purge role: the application
- * role can never delete.
+ * (ruling INV-Q-2938). Runs in a transaction of the tenant concerned with the caller's actor bound, after the
+ * application has checked the operation and the actor: the runtime login can never delete, and the database deletes
+ * only the bound tenant's rows, through functions that refuse an unset actor (2.0.0; INV-Q-3953, INV-Q-3997).
  */
 interface ConfigPurge {
     /** Deletes every resolved-value record of [subject]; returns how many. */

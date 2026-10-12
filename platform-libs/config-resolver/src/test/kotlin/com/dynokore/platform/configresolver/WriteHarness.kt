@@ -1,14 +1,24 @@
 package com.dynokore.platform.configresolver
 
 import com.dynokore.platform.auditlog.AuditEntry
+import com.dynokore.platform.auditlog.AuditSchema
+import com.dynokore.platform.auditlog.AuditStager
 import com.dynokore.platform.auditlog.AuditWriteFailed
 import com.dynokore.platform.auditlog.AuditWriter
+import com.dynokore.platform.auditlog.LocalAuditWriter
+import com.dynokore.platform.auditlog.OutboxAuditWriter
+import com.dynokore.platform.auditlog.StagedAuditEntry
+import com.dynokore.platform.configresolver.ConfigSchema.EventMode
+import com.dynokore.platform.outboxandqueue.CatalogueEntry
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.outboxandqueue.Envelope
+import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.EventId
+import com.dynokore.platform.outboxandqueue.JdbcOutboxWriter
 import com.dynokore.platform.outboxandqueue.OutboundEvent
+import com.dynokore.platform.outboxandqueue.OutboxSchema
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.tenancykernel.CurrentConnection
 import com.dynokore.platform.tenancykernel.TenantAwareDataSource
@@ -39,12 +49,19 @@ data class StoredEvent(
 )
 
 /**
- * A PostgreSQL container (17 or 18) with this module's tables in `svc`, created by [ConfigSchema.ddl], and
- * a `test_event` table the fake [AuditWriter] and [OutboxWriter] insert into on the caller's connection, so
- * an event commits or rolls back with the change exactly as the real outbox would.
+ * A PostgreSQL container (16, 17 or 18) with this module's tables and functions in `svc`, created by
+ * [ConfigSchema.ddl] in [mode] as the service's migration login would, after the tables that mode writes into
+ * (outbox-and-queue's outbox, or audit-log's local `audit_entry`). The runtime login `config_app` is the only login a
+ * writer uses; `config_sys` owns the functions.
+ *
+ * A tenant-and-below change goes to a `test_event` table through the fake [AuditWriter] and [OutboxWriter] on the
+ * caller's connection, so an event commits or rolls back with the change exactly as the real outbox would. An
+ * installation value is written by [ConfigSchema.WRITE_INSTALLATION_SETTING] with rows staged by the real stage calls
+ * ([installationAudit], [installationOutbox]) into the real outbox or `audit_entry`.
  */
 class WriteHarness(
     image: String,
+    val mode: EventMode = EventMode.OUTBOX,
 ) : AutoCloseable {
     private val container =
         WritePostgres(DockerImageName.parse(image)).withInitScript("db/config-resolver-test-roles.sql")
@@ -53,14 +70,22 @@ class WriteHarness(
         container.start()
         ds("config_owner", "config_owner_pw").connection.use { c ->
             c.createStatement().use {
-                it.execute(ConfigSchema.ddl(SCHEMA, "config_app", "config_platform", "config_purge"))
+                when (mode) {
+                    EventMode.OUTBOX -> it.execute(OutboxSchema.ddl(SCHEMA, RUNTIME, SYS))
+
+                    EventMode.NO_OUTBOX -> {
+                        it.execute(AuditSchema.auditEntryDdl(SCHEMA, RUNTIME))
+                        it.execute(AuditSchema.purgeDdl(SCHEMA, RUNTIME, SYS, SERVICE))
+                    }
+                }
+                it.execute(ConfigSchema.ddl(SCHEMA, RUNTIME, SYS, mode))
                 it.execute(
                     """
                     create table $SCHEMA.test_event (
                         seq bigint generated always as identity primary key,
                         kind text not null, type text not null, tenant_id uuid not null, entity_ref text not null,
                         data jsonb not null);
-                    grant select, insert on $SCHEMA.test_event to config_app, config_platform;
+                    grant select, insert on $SCHEMA.test_event to $RUNTIME;
                     """.trimIndent(),
                 )
             }
@@ -68,12 +93,22 @@ class WriteHarness(
     }
 
     val tenants = TenantContextImpl()
-    val app = TransactionRunnerImpl(TenantAwareDataSource(ds("config_app", "config_app_pw")), tenants)
-    val platformTx = TransactionRunnerImpl(TenantAwareDataSource(ds("config_platform", "config_platform_pw")), tenants)
-    val purgeTx = TransactionRunnerImpl(TenantAwareDataSource(ds("config_purge", "config_purge_pw")), tenants)
+    val app = TransactionRunnerImpl(TenantAwareDataSource(ds(RUNTIME, "config_app_pw")), tenants)
     val admin: DataSource = ds(container.username, container.password)
+    private val runtimeLogin: DataSource = ds(RUNTIME, "config_app_pw")
 
-    /** Fails the next audit write when set. */
+    /** [block] on a raw runtime-login connection in one transaction, committed when it returns, with nothing bound. */
+    fun <T> runtime(block: (java.sql.Connection) -> T): T = runtimeLogin.connection.use { c ->
+        c.autoCommit = false
+        try {
+            block(c).also { c.commit() }
+        } catch (failure: Exception) {
+            c.rollback()
+            throw failure
+        }
+    }
+
+    /** Fails the next audit write or stage when set. */
     @Volatile var failAudit = false
 
     fun audit(connections: CurrentConnection): AuditWriter = object : AuditWriter {
@@ -93,6 +128,44 @@ class WriteHarness(
         ): List<Envelope> = events.map { insert(connections, "event", it.type, context, it.dataJson) }
     }
 
+    /** The service's real outbox writer (outbox mode), staging on [clock]. */
+    fun installationOutbox(
+        connections: CurrentConnection,
+        clock: Clock = CLOCK,
+    ): OutboxWriter = JdbcOutboxWriter(connections, SCHEMA, SERVICE, INSTANCE, CATALOGUE, clock)
+
+    /**
+     * The service's real audit writer and stager: [OutboxAuditWriter] over [installationOutbox] in outbox mode,
+     * [LocalAuditWriter] otherwise; fails when [failAudit] is set.
+     */
+    fun installationAudit(
+        connections: CurrentConnection,
+        clock: Clock = CLOCK,
+    ): AuditWriter {
+        val real =
+            when (mode) {
+                EventMode.OUTBOX -> OutboxAuditWriter(installationOutbox(connections, clock))
+                EventMode.NO_OUTBOX -> LocalAuditWriter(connections, SCHEMA, SERVICE, INSTANCE, clock)
+            }
+        return object : AuditWriter, AuditStager {
+            override fun record(
+                entry: AuditEntry,
+                context: EventContext,
+            ): Envelope {
+                if (failAudit) throw AuditWriteFailed(IllegalStateException("test"))
+                return real.record(entry, context)
+            }
+
+            override fun stage(
+                entry: AuditEntry,
+                context: EventContext,
+            ): StagedAuditEntry {
+                if (failAudit) throw AuditWriteFailed(IllegalStateException("test"))
+                return (real as AuditStager).stage(entry, context)
+            }
+        }
+    }
+
     fun writer(
         form: DeploymentForm = DeploymentForm.SAAS,
         clock: Clock = CLOCK,
@@ -103,14 +176,20 @@ class WriteHarness(
         platform: Boolean = false,
         catalogue: VariationPointCatalogue = WriteCatalogue.catalogue,
     ): JdbcPolicyWriter {
-        val runner = if (platform) platformTx else app
+        val installation = platform && mode == EventMode.OUTBOX
         return JdbcPolicyWriter(
-            connections = runner,
+            connections = app,
             catalogue = catalogue,
             form = form,
             schema = SCHEMA,
-            audit = audit(runner),
-            outbox = if (withOutbox) outbox(runner) else null,
+            audit = if (platform) installationAudit(app, clock) else audit(app),
+            outbox =
+            when {
+                !withOutbox -> null
+                installation -> installationOutbox(app, clock)
+                platform -> null
+                else -> outbox(app)
+            },
             clock = clock,
             delegation = delegation,
             backdating = backdating,
@@ -130,18 +209,26 @@ class WriteHarness(
         return JdbcPolicyHistory(app, catalogue, form, SCHEMA)
     }
 
-    fun purge() = JdbcConfigPurge(purgeTx, SCHEMA)
+    fun purge() = JdbcConfigPurge(app, SCHEMA)
 
-    // INV-T-3999 removes this call
-    @Suppress("DEPRECATION")
+    /** A transaction of [tenant] on the runtime login with [actor] bound (INV-Q-3997, INV-Q-4268). */
     fun <T> inTenant(
         tenant: TenantId,
+        actor: String = ACTOR,
         block: () -> T,
-    ): T = tenants.bind(tenant) { app.inTransaction(block) }
+    ): T = tenants.bind(tenant, actor) { app.inTransaction(block) }
 
-    // INV-T-3999 removes this call
-    @Suppress("DEPRECATION")
-    fun <T> inPlatform(block: () -> T): T = tenants.bindPlatform { platformTx.inTransaction(block) }
+    /** A platform transaction on the runtime login with [actor], the setting actor, bound (INV-Q-3997). */
+    fun <T> inPlatform(
+        actor: String,
+        block: () -> T,
+    ): T = tenants.bindPlatform(actor) { app.inTransaction(block) }
+
+    /** [writer] sets an installation value in a platform transaction bound to the command's actor. */
+    fun putInstallation(
+        writer: PolicyWriter,
+        cmd: SetPolicyCommand,
+    ): PolicyChange = inPlatform(cmd.actor.principal) { writer.setPolicy(cmd) }
 
     fun count(sql: String): Long = admin.connection.use { c ->
         c.createStatement().use { s ->
@@ -152,29 +239,35 @@ class WriteHarness(
         }
     }
 
+    /**
+     * The events stored for [tenant], in order: a tenant's from `test_event`; the platform tenant's (an installation
+     * value's) from the real outbox, or in no-outbox mode from `audit_entry` as the audit payload.
+     */
     fun events(tenant: TenantId): List<StoredEvent> = admin.connection.use { c ->
-        c.prepareStatement(
-            "select kind, type, tenant_id, entity_ref, data::text from $SCHEMA.test_event " +
-                "where tenant_id = ? order by seq",
-        )
-            .use { st ->
-                st.setObject(1, tenant.value)
-                st.executeQuery().use { rows ->
-                    generateSequence {
-                        if (rows.next()) {
-                            StoredEvent(
-                                rows.getString(1),
-                                rows.getString(2),
-                                rows.getObject(3, UUID::class.java),
-                                rows.getString(4),
-                                rows.getString(5),
-                            )
-                        } else {
-                            null
-                        }
-                    }.toList()
-                }
+        val sql =
+            when {
+                !tenant.isPlatform -> TEST_EVENTS
+                mode == EventMode.OUTBOX -> OUTBOX_EVENTS
+                else -> AUDIT_ENTRIES
             }
+        c.prepareStatement(sql).use { st ->
+            st.setObject(1, tenant.value)
+            st.executeQuery().use { rows ->
+                generateSequence {
+                    if (rows.next()) {
+                        StoredEvent(
+                            rows.getString(1),
+                            rows.getString(2),
+                            rows.getObject(3, UUID::class.java),
+                            rows.getString(4),
+                            rows.getString(5),
+                        )
+                    } else {
+                        null
+                    }
+                }.toList()
+            }
+        }
     }
 
     private fun insert(
@@ -233,7 +326,40 @@ class WriteHarness(
 
     companion object {
         const val SCHEMA = "svc"
+        const val RUNTIME = "config_app"
+        const val SYS = "config_sys"
+        const val SERVICE = "config-test-svc"
+        const val INSTANCE = "config-test-1"
+
+        /** The actor a tenant transaction binds when a test names none. */
+        const val ACTOR = "user-1"
         const val AUDIT = "com.dynokore.gst.platform.AuditEntryRecorded.v1"
+        const val AUDIT_TOPIC = "gst.platform.audit-entry-recorded.v1"
+        const val POLICY_CHANGED_TOPIC = "gst.platform.policy-changed.v1"
+
+        /** The two platform events an installation value writes, produced by every service (INV-REQ-815 b4). */
+        val CATALOGUE =
+            EventCatalogue(
+                listOf(
+                    CatalogueEntry(AUDIT, AUDIT_TOPIC, setOf(CatalogueEntry.EVERY_SERVICE), false, true),
+                    CatalogueEntry(
+                        JdbcPolicyWriter.POLICY_CHANGED,
+                        POLICY_CHANGED_TOPIC,
+                        setOf(CatalogueEntry.EVERY_SERVICE),
+                        false,
+                    ),
+                ),
+            )
+
+        private const val TEST_EVENTS =
+            "select kind, type, tenant_id, entity_ref, data::text from svc.test_event where tenant_id = ? order by seq"
+        private const val OUTBOX_EVENTS =
+            "select case when type = '$AUDIT' then 'audit' else 'event' end, type, tenant_id, entity_ref, data::text " +
+                "from svc.outbox where tenant_id = ? order by seq"
+        private const val AUDIT_ENTRIES =
+            "select 'audit', '$AUDIT', tenant_id, entity_ref, jsonb_strip_nulls(jsonb_build_object('actor', actor, " +
+                "'action', action, 'scope', scope, 'reason', reason, 'priorState', prior_state))::text " +
+                "from svc.audit_entry where tenant_id = ? order by recorded_at, id"
 
         /** 2026-10-01 08:00 in Singapore. */
         val CLOCK: Clock = Clock.fixed(Instant.parse("2026-10-01T00:00:00Z"), ZoneOffset.UTC)

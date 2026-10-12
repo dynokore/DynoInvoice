@@ -1,41 +1,49 @@
 package com.dynokore.platform.configresolver
 
 import com.dynokore.platform.tenancykernel.CurrentConnection
+import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantId
 
 /**
- * [ConfigPurge] on the purge role's own transaction of the tenant concerned (a [CurrentConnection] over
- * the purge role's data source): RLS stays forced, so a purge reaches only the bound tenant's rows, and
- * the explicit `tenant_id` predicate is defence in depth (TPL-11). The application role has no DELETE.
+ * [ConfigPurge] through the sys-owned functions [ConfigSchema.PURGE_SUBJECT] and [ConfigSchema.PURGE_TENANT], on the
+ * runtime login's transaction of the tenant concerned with the caller's actor bound (INV-ADR-3968 item 6, owner
+ * ruling INV-Q-3953; INV-Q-3997). The runtime login has no DELETE: the functions delete, under the tenant policy, only
+ * the bound tenant's rows, and refuse an unset `app.actor`, an unbound or platform tenant, and a purge of a tenant
+ * other than the bound one. The application checks the operation before it calls them.
  */
 class JdbcConfigPurge(
     private val connections: CurrentConnection,
     schema: String,
 ) : ConfigPurge {
-    private val resolved = "${SqlIdentifier.require(schema, "schema")}.${ConfigSchema.RESOLVED_VALUE}"
-    private val settings = "${SqlIdentifier.require(schema, "schema")}.${ConfigSchema.SETTING}"
-    private val acknowledgements = "${SqlIdentifier.require(schema, "schema")}.${ConfigSchema.RELAXATION_ACKNOWLEDGEMENT}"
+    // INV-REQ-854 b5 (coordinator ruling INV-Q-4036): the schema enters SQL text only through SqlIdentifier.require.
+    private val purgeSubject = "${SqlIdentifier.require(schema, "schema")}.${ConfigSchema.PURGE_SUBJECT}"
+    private val purgeTenant = "${SqlIdentifier.require(schema, "schema")}.${ConfigSchema.PURGE_TENANT}"
 
     override fun purgeSubject(subject: ResolutionSubject): Int = connections.require().prepareStatement(
-        "delete from $resolved where tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid " +
-            "and subject_type = ? and subject_ref = ?",
+        "select $purgeSubject(?, ?)",
     ).use {
         it.setString(1, subject.type)
         it.setString(2, subject.ref)
-        it.executeUpdate()
+        it.executeQuery().use { rows ->
+            check(rows.next()) { "the purge returned no count" }
+            Math.toIntExact(rows.getLong(1))
+        }
     }
 
     override fun purgeTenant(tenant: TenantId): PurgedTenant {
         require(!tenant.isPlatform) { "the platform tenant holds no configuration rows" }
-        val connection = connections.require()
-        fun delete(table: String): Int = connection.prepareStatement("delete from $table where tenant_id = ?").use {
+        return connections.require().prepareStatement(
+            "select resolved_values, settings, relaxation_acknowledgements from $purgeTenant(?)",
+        ).use {
             it.setObject(1, tenant.value)
-            it.executeUpdate()
+            it.executeQuery().use { rows ->
+                check(rows.next()) { "the purge returned no counts" }
+                PurgedTenant(
+                    resolvedValues = Math.toIntExact(rows.getLong(1)),
+                    settings = Math.toIntExact(rows.getLong(2)),
+                    relaxationAcknowledgements = Math.toIntExact(rows.getLong(3)),
+                )
+            }
         }
-        return PurgedTenant(
-            resolvedValues = delete(resolved),
-            settings = delete(settings),
-            relaxationAcknowledgements = delete(acknowledgements),
-        )
     }
 }

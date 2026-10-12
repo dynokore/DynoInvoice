@@ -4,6 +4,19 @@ All notable changes to `outbox-and-queue` are recorded here (FR-L.6). Format fol
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this module's release
 train is its own (README.md: "own version and changelog").
 
+## [2.1.0] - 2026-10-12
+### Added (INV-T-3983)
+- `OutboxWriter.stage(events, context)` and `StagedOutboxRow` (api): the build-only half of `append` (coordinator
+  ruling INV-Q-4254 A). It returns each event's envelope (UUIDv7 id, source, time, instance, correlation, causation)
+  and catalogued topic under the same EmissionGuard checks (INV-AC-1869) and writes nothing. Unsequenced platform
+  events only: a domain type, a Doc UUID or an aggregate version is refused, so no `docsequence` is reserved. The
+  interface's default refuses (`UnsupportedOperationException`), so existing implementations compile unchanged;
+  `JdbcOutboxWriter` implements it, and a staged row equals the row `append` writes (test).
+- `OutboxSchema.ddl` grants `<svc>_sys` `INSERT` on `outbox`, for a sys-owned definer that writes a platform event
+  together with the change it records (config-resolver's `write_installation_setting`, INV-ADR-3968 item 6, owner
+  ruling INV-Q-3931). No sys policy is added: the tenant policy alone admits the row, so the sys role inserts only
+  under the bound tenant (the platform tenant for a platform event; test).
+
 ## [2.0.0] - 2026-10-12
 ### Changed (breaking; the event log's cross-tenant rights move to eventlog_sys functions, INV-T-3979)
 - The event log on one runtime login per service (owner ruling INV-Q-3953; coordinator rulings INV-Q-4262,

@@ -43,7 +43,7 @@ class BoundsPostgresIT : WritePathBase() {
 
     private fun Run.installation(cmd: SetPolicyCommand): PolicyChange {
         val writer = h.writer(platform = true, constraints = accept)
-        return h.inPlatform { writer.setPolicy(cmd) }
+        return h.putInstallation(writer, cmd)
     }
 
     private fun Run.capped(
@@ -66,7 +66,7 @@ class BoundsPostgresIT : WritePathBase() {
     ) = listOf(PolicyCap(option, field, BigDecimal(stored), BigDecimal(capped), by, ScopeLevel.INSTALLATION))
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-REQ-780 VP-08 a tenant window may not exceed the installation value, capped when lowered`(image: String) {
         val r = Run(image)
         val w = r.h.writer(constraints = accept)
@@ -115,7 +115,7 @@ class BoundsPostgresIT : WritePathBase() {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-Q-3320 VP-08 the default pair's window is 1 to 8 hours, default 4, tighten-only`(image: String) {
         val r = Run(image)
         val w = r.h.writer(constraints = accept)
@@ -166,7 +166,7 @@ class BoundsPostgresIT : WritePathBase() {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-REQ-780 a later operating-profile version of the broader scope also bounds a write`(image: String) {
         val r = Run(image)
         val profile = { hours: Int, version: String, from: LocalDate ->
@@ -185,7 +185,7 @@ class BoundsPostgresIT : WritePathBase() {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-REQ-1248 VP-67 a window beyond the installation maximum is refused, capped when lowered`(image: String) {
         val r = Run(image)
         val tenant = { hours: Int ->
@@ -216,7 +216,7 @@ class BoundsPostgresIT : WritePathBase() {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-Q-3223 VP-57 the default maximum of 14 days bounds a shorter window, capped when lowered`(image: String) {
         val r = Run(image)
         val shorter = { days: Int ->
@@ -235,7 +235,7 @@ class BoundsPostgresIT : WritePathBase() {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-Q-3202 a bounding row whose value is not a number refuses, until the operator sets one`(image: String) {
         val r = Run(image)
         val shorter = { days: Int ->

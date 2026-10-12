@@ -23,7 +23,7 @@ import java.util.UUID
 @Tag("integration")
 class WritePathPostgresIT : WritePathBase() {
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-AC-2227 a setting at a scope the row does not allow is refused and nothing is stored`(image: String) {
         val r = Run(image)
         val cmd = set(DESPATCH, r.tenantScope, ScopeLevel.TENANT, one("DAILY_WINDOW"))
@@ -33,7 +33,7 @@ class WritePathPostgresIT : WritePathBase() {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-REQ-1242 a value is set at every level the row allows and the most specific wins`(image: String) {
         val r = Run(image)
         val scope = PolicyScope.entity(r.t, "E1", group = "G1", feed = "F1", apConnection = "AP1", clientEntity = "C1")
@@ -46,7 +46,7 @@ class WritePathPostgresIT : WritePathBase() {
             ScopeLevel.CLIENT_ENTITY,
         ).forEach { r.put(set(EVERY_LEVEL, scope, it, one("B"), admin)) }
         val installation = set(EVERY_LEVEL, scope, ScopeLevel.INSTALLATION, one("B"), actor("op", "platform.engineer"))
-        r.h.inPlatform { r.h.writer(platform = true).setPolicy(installation) }
+        r.h.putInstallation(r.h.writer(platform = true), installation)
         assertEquals(6L, r.settings())
         assertEquals(ScopeLevel.CLIENT_ENTITY, (r.resolve(EVERY_LEVEL, scope).source as PolicySource.Override).level)
         // Tenant and group changes carry the real tenant with the tenant-wide entity (INV-Q-3165).
@@ -56,7 +56,7 @@ class WritePathPostgresIT : WritePathBase() {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-AC-2224 out of bounds and the wrong role are refused, a valid value shows its source`(image: String) {
         val r = Run(image)
         val officer = actor("so", "security.officer")
@@ -73,7 +73,7 @@ class WritePathPostgresIT : WritePathBase() {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-AC-2229 a change needs a reason, records the prior value, leaves earlier dates alone`(image: String) {
         val r = Run(image)
         val e1 = r.e1
@@ -94,7 +94,7 @@ class WritePathPostgresIT : WritePathBase() {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-Q-2940 INV-Q-3140 never retroactive, except a first value back to its floor`(image: String) {
         val r = Run(image)
         val june = LocalDate.of(2026, 6, 1)
@@ -122,7 +122,7 @@ class WritePathPostgresIT : WritePathBase() {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-AC-205 where an agent operates the looser VP-62 option also needs the client signatory`(image: String) {
         val r = Run(image)
         val move = one("NEXT_WORKING_DAY")
@@ -150,7 +150,7 @@ class WritePathPostgresIT : WritePathBase() {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-AC-205 without acknowledgement refused, with the approver alone accepted where no agent operates`(
         image: String,
     ) {
@@ -170,7 +170,7 @@ class WritePathPostgresIT : WritePathBase() {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `an acknowledger must hold a named role, and a distinct-from-setter role cannot be the setter`(image: String) {
         val r = Run(image)
         val single = one("SINGLE_ATTESTATION")
@@ -186,7 +186,7 @@ class WritePathPostgresIT : WritePathBase() {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-AC-2234 the deployment operator sets a platform maximum in the private form`(image: String) {
         val r = Run(image)
         val h = r.h
@@ -196,9 +196,9 @@ class WritePathPostgresIT : WritePathBase() {
         val operator = actor("op", "deployment.operator")
         val before = h.events(TenantId.PLATFORM).size
         val wrongRole = set(PLATFORM_MAXIMUM, installation, ScopeLevel.INSTALLATION, smaller, admin)
-        assertEquals(PolicyRefusal.ROLE_NOT_ALLOWED, refusal { h.inPlatform { w.setPolicy(wrongRole) } })
+        assertEquals(PolicyRefusal.ROLE_NOT_ALLOWED, refusal { h.putInstallation(w, wrongRole) })
         val apply = set(PLATFORM_MAXIMUM, installation, ScopeLevel.INSTALLATION, smaller, operator)
-        val change = h.inPlatform { w.setPolicy(apply) }
+        val change = h.putInstallation(w, apply)
         val id = change.version.id
         assertEquals(1L, h.count("select count(*) from svc.config_installation_setting where id = '$id'"))
         val events = h.events(TenantId.PLATFORM).drop(before)
@@ -206,11 +206,11 @@ class WritePathPostgresIT : WritePathBase() {
         assertTrue(events.all { it.entityRef == EntityRef.PLATFORM.value })
         // A looser option at installation is refused in 1.1.0.
         val larger = set(PLATFORM_MAXIMUM, installation, ScopeLevel.INSTALLATION, one("LARGER"), operator)
-        assertEquals(PolicyRefusal.LOOSER_AT_INSTALLATION, refusal { h.inPlatform { w.setPolicy(larger) } })
+        assertEquals(PolicyRefusal.LOOSER_AT_INSTALLATION, refusal { h.putInstallation(w, larger) })
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-Q-3169 the setting role is checked for profile values too, which keep their profile`(image: String) {
         val r = Run(image)
         val window = one("DAILY_WINDOW")
@@ -226,7 +226,7 @@ class WritePathPostgresIT : WritePathBase() {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-REQ-1226 a failed audit entry leaves nothing stored`(image: String) {
         val r = Run(image)
         r.h.failAudit = true
@@ -241,7 +241,7 @@ class WritePathPostgresIT : WritePathBase() {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-AC-1146 the as-of view returns the state in force and later changes, scheduled included`(
         image: String,
     ) {
@@ -277,7 +277,7 @@ class WritePathPostgresIT : WritePathBase() {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `the acknowledgement table is RLS-forced and insert-only, and purged with its tenant`(image: String) {
         val r = Run(image)
         val h = r.h
@@ -297,9 +297,7 @@ class WritePathPostgresIT : WritePathBase() {
         assertEquals(0, seen)
         assertThrows(SQLException::class.java) { h.inTenant(r.t) { update("update $table set role = 'x'") } }
         assertThrows(SQLException::class.java) { h.inTenant(r.t) { update("delete from $table") } }
-        // INV-T-3999 removes this call
-        @Suppress("DEPRECATION")
-        val purged = h.tenants.bind(r.t) { h.purgeTx.inTransaction { h.purge().purgeTenant(r.t) } }
+        val purged = h.inTenant(r.t) { h.purge().purgeTenant(r.t) }
         assertEquals(1, purged.relaxationAcknowledgements)
         assertEquals(0L, r.acknowledgements())
     }
