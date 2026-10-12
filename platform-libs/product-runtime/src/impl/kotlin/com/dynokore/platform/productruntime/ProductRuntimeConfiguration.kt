@@ -43,11 +43,11 @@ data class ProductRuntimeProperties(
  * DelegationProbe config-resolver resolves through (INV-Q-3119, INV-Q-3136), the tenancy-svc and access-svc
  * fallbacks service-runtime guards with each edge's policy (AD-26), and the structure, authority and policy feeds.
  *
- * Ordered before service-runtime's composition root, whose config-resolver wiring needs the catalogue bean to be
- * registered already; a service gets it from the auto-configuration listing. The feeds take the replicas
- * service-runtime defines.
+ * A service imports it after `ServiceRuntimeConfiguration` as TPL-18 writes it, or gets it from the auto-configuration
+ * listing; it relies on no ordering. service-runtime takes the catalogue whatever the order (INV-T-3881, coordinator
+ * ruling INV-Q-3877). The feeds take the replicas service-runtime defines.
  */
-@AutoConfiguration(beforeName = ["com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration"])
+@AutoConfiguration
 @EnableConfigurationProperties(ProductRuntimeProperties::class)
 class ProductRuntimeConfiguration {
     @Bean

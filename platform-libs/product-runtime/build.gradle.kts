@@ -130,11 +130,14 @@ val generatedContracts =
 evaluationDependsOn(":service-runtime")
 evaluationDependsOn(":outbox-and-queue")
 evaluationDependsOn(":tenancy-kernel")
+evaluationDependsOn(":config-resolver")
 generatedContracts.forEach { evaluationDependsOn(it) }
 
 val serviceRuntimeImpl = project(":service-runtime").the<SourceSetContainer>()["impl"].output
 val outboxImplJar = project(":outbox-and-queue").tasks.named("implJar")
 val tenancyKernelImplJar = project(":tenancy-kernel").tasks.named("implJar")
+// config-resolver's impl, so the TPL-18 WiringTest builds config-resolver's ports over the catalogue.
+val configResolverImplJar = project(":config-resolver").tasks.named("implJar")
 
 dependencies {
     add("implImplementation", sourceSets["main"].output)
@@ -157,6 +160,10 @@ dependencies {
     }
     add("implTestImplementation", files(outboxImplJar))
     add("implTestImplementation", files(tenancyKernelImplJar))
+    add("implTestImplementation", files(configResolverImplJar))
+    // service-runtime impl's own dependencies, which a service gets from its POM (the TPL-18 WiringTest).
+    add("implTestRuntimeOnly", libs.jakarta.servletApi)
+    add("implTestRuntimeOnly", libs.springSecurity.oauth2Jose)
     add("implTestImplementation", libs.springBoot.test)
     add("implTestImplementation", libs.assertj.core)
 
@@ -196,15 +203,57 @@ tasks.named("check") {
     dependsOn(implTestTask)
 }
 
+// gst.contract-client generates the openapi-generator runtime into `org.openapitools.client.infrastructure` for every
+// client project (platform-build sets only the api and model packages), so the tenancy and access clients each
+// compile the same classes. The impl artefact ships exactly one copy, the first client's, after
+// `verifyClientInfrastructure` has proved the generated sources of every copy identical (their class files differ
+// only in the Kotlin module name each records, as the classes are compiled in two projects).
+val clientProjects = generatedContracts.filter { it.endsWith("-client") }
+val clientInfrastructure = "org/openapitools/client/infrastructure"
+val generatedClientSources = "generated/contract-client/src/main/kotlin"
+
+val verifyClientInfrastructure =
+    tasks.register("verifyClientInfrastructure") {
+        group = "verification"
+        description = "Fails unless every generated client's openapi-generator infrastructure source is identical."
+        val dirs = clientProjects.map { project(it).layout.buildDirectory.dir("$generatedClientSources/$clientInfrastructure") }
+        clientProjects.forEach { dependsOn("$it:compileKotlin") }
+        dirs.forEach { inputs.dir(it) }
+        doLast {
+            fun contents(dir: File): Map<String, String> = dir.walkTopDown().filter { it.isFile }.associate { it.relativeTo(dir).invariantSeparatorsPath to it.readText() }
+            val copies = dirs.map { contents(it.get().asFile) }
+            check(copies.first().isNotEmpty()) { "no generated $clientInfrastructure sources in ${clientProjects.first()}" }
+            copies.drop(1).forEachIndexed { i, copy ->
+                check(copy == copies.first()) {
+                    "${clientProjects[i + 1]}'s generated $clientInfrastructure differs from ${clientProjects.first()}'s; " +
+                        "the impl artefact can ship only one copy"
+                }
+            }
+        }
+    }
+
 val implJar =
     tasks.register<Jar>("implJar") {
         archiveBaseName.set(project.name)
         // A separate local output directory, as tenancy-kernel's `implJar`: the api `jar` writes the same file name.
         destinationDirectory.set(layout.buildDirectory.dir("libs-impl"))
+        dependsOn(verifyClientInfrastructure)
         from(sourceSets["impl"].output)
-        // The generated contract types and clients live only in this artefact (INV-Q-3852).
-        generatedContracts.forEach { from(project(it).the<SourceSetContainer>()["main"].output) }
+        // The generated contract types and clients live only in this artefact (INV-Q-3852), with one copy of the
+        // shared client infrastructure (above).
+        generatedContracts.forEach { path ->
+            from(project(path).the<SourceSetContainer>()["main"].output) {
+                if (path in clientProjects.drop(1)) exclude("$clientInfrastructure/**")
+            }
+        }
     }
+
+// The merge-request pipeline runs `test` and `implTest`, not `check` or `publish`: implTest also builds both
+// published artefacts and their POMs, so a jar that cannot be assembled fails the merge request, not the main publish.
+implTestTask.configure {
+    dependsOn(implJar, tasks.named("jar"))
+    dependsOn(tasks.matching { it.name.startsWith("generatePomFileFor") })
+}
 
 publishing {
     publications {

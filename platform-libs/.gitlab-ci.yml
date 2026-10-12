@@ -177,6 +177,43 @@ lint:
       - "**/build/reports/detekt/"
     expire_in: 1 week
 
+# The consumer-driven contract suite of every Wave 1 module (INV-T-2877; FR-AH.14, INV-REQ-1225; coordinator ruling
+# INV-Q-3925): a required job on every merge-request and main pipeline, whatever changed (not limited to changed
+# modules). `:contract-tests:check` runs the Pact consumer tests (HTTP: product-runtime's tenancy-svc and access-svc
+# fallback clients; message: OrganisationStructureChanged, EntityProfileChanged, AuthorityChanged, PolicyChanged, each
+# payload validated against its pinned schema), config-resolver's provider verification of the PolicyChanged pact
+# against its real policy writer (with the broken-writer fixture that must fail it), and the L1 modules' module-API
+# consumer contract tests. It then publishes the pacts to the Pact Broker (gst.pact; INV-Q-3305, INV-T-3373: consumer
+# version = commit SHA, branch = ref) and verifies config-resolver's pacts from the broker, publishing the result.
+# maven-publish (stage publish) runs only after this job passed, so the BOM a main pipeline publishes is the set this
+# suite tested (STK-60, INV-Q-3261).
+contract-tests:
+  extends: [.gradle-job, .gst-changed-modules]
+  stage: test
+  script:
+    - ./gradlew -p "$GRADLE_PROJECT_DIR" :contract-tests:check --stacktrace
+    - |
+      if [ -z "${PACT_BROKER_BASE_URL:-}" ]; then
+        echo "gst-ci: PACT_BROKER_BASE_URL is not set: the pacts cannot be published (INV-REQ-1225 b1, INV-Q-3305)"
+        exit 1
+      fi
+    - ./gradlew -p "$GRADLE_PROJECT_DIR" :contract-tests:pactPublish -Dpact.broker.url="$PACT_BROKER_BASE_URL" --stacktrace
+    - ./gradlew -p "$GRADLE_PROJECT_DIR" :contract-tests:pactBrokerVerify --stacktrace
+  artifacts:
+    when: always
+    paths:
+      - contract-tests/build/pacts/
+    reports:
+      junit:
+        - "contract-tests/build/test-results/*/TEST-*.xml"
+    expire_in: 1 week
+
+# The shared template's pact-publish runs `pactPublish` in a job of its own, where no pact file exists (the pacts are
+# written by the contract-tests job above, which publishes them itself, before verifying from the broker).
+pact-publish:
+  rules:
+    - when: never
+
 # Publishes every module and platform-libs-bom to this project's own package registry
 # (not platform-build's, which the shared template defaults to), then fails the job
 # unless every module's artifact with its version is actually in the registry. The

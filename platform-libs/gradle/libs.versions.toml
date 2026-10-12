@@ -12,7 +12,7 @@
 # together as one train (konsist-rules/build.gradle.kts); pinned to match the
 # sibling checkout's current version until STK-71's registry takes cross-project
 # publish/consume (settings.gradle.kts, ci/README.md's "package registry" note).
-platformBuild = "0.6.1"
+platformBuild = "0.8.0"
 junit = "6.1.3"
 # tenancy-kernel (INV-T-2861 / T17): RLS proved against real PostgreSQL
 # (STK-14, STK-15) via Testcontainers, never H2 (banned-dependencies.yaml).
@@ -65,8 +65,20 @@ gstCatalogue = "1.14.0"
 # product-runtime (INV-T-2876, INV-Q-3852): the published platform-contracts bundle its event types and fallback
 # clients are generated from; a main build including INV-T-3298 (fadead4). Bumped deliberately, like gstCatalogue.
 platformContractsBundle = "0.0.0-dev+fadead44"
+# contract-tests (INV-T-2877; STK-40): Pact JVM 4.6.x, the version platform-build's gst.pact applies (4.6.21).
+pact = "4.6.21"
+# contract-tests (INV-T-2877; CS-38): JSON Schema 2020-12 validation of message payloads against the pinned
+# platform-contracts schemas; 3.x is on Jackson 3 (STK-08).
+jsonSchemaValidator = "3.0.8"
 
 [libraries]
+pact-consumerJunit5 = { module = "au.com.dius.pact.consumer:junit5", version.ref = "pact" }
+pact-providerJunit5 = { module = "au.com.dius.pact.provider:junit5", version.ref = "pact" }
+# contract-tests: Testcontainers' core held to the 1.21 line under Spring Boot's BOM (2.x), and SnakeYAML for
+# service-runtime's ContractValidator (the OpenAPI documents); SnakeYAML's version from the Spring Boot BOM.
+testcontainers-core = { module = "org.testcontainers:testcontainers", version.ref = "testcontainers" }
+snakeyaml = { module = "org.yaml:snakeyaml" }
+jsonSchemaValidator = { module = "com.networknt:json-schema-validator", version.ref = "jsonSchemaValidator" }
 gstCatalogue = { module = "com.dynokore.gst:gst-catalogue", version.ref = "gstCatalogue" }
 platformContracts-bundle = { module = "platform-contracts-bundle:platform-contracts", version.ref = "platformContractsBundle" }
 # Generated contract code's Kotlin (de)serialisation (gst.event-types / gst.contract-client, `serializationLibrary

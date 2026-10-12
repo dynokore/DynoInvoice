@@ -18,6 +18,12 @@
 // `MAVEN_PUBLISH: "true"`) proves the release plumbing works in that state. A
 // module adds its own `api`/impl constraint pair here in the same merge request
 // that gives it a real interface, in STK-60's canonical order.
+//
+// The tested set (STK-60 "fixes a tested set"; INV-T-2877, INV-Q-3261): every constraint below is a module the
+// required CI `contract-tests` job (contract-tests/, the consumer-driven contract suite of every Wave 1 module;
+// INV-Q-3925) ran against in the same main pipeline, before maven-publish versions and publishes this BOM; gst-catalogue,
+// which is not a platform-libs module, is pinned by gradle/libs.versions.toml and recorded with the BOM version in the
+// task's done evidence.
 
 plugins {
     id("java-platform")
