@@ -54,6 +54,14 @@ dependencies {
     testImplementation(implJar("tenancy-kernel"))
     testImplementation(implJar("outbox-and-queue"))
     testImplementation(libs.gstCatalogue)
+    testImplementation(project(":adapter-runtime"))
+    testImplementation(implJar("adapter-runtime"))
+    // Resilience4j for the impl halves of adapter-runtime and service-runtime (their output carries no dependencies).
+    testImplementation(platform(libs.resilience4j.bom))
+    testImplementation(libs.resilience4j.circuitbreaker)
+    testImplementation(libs.resilience4j.retry)
+    testImplementation(libs.resilience4j.bulkhead)
+    testImplementation(libs.resilience4j.timelimiter)
     // config-resolver's write harness (a real JdbcPolicyWriter on PostgreSQL) for the PolicyChanged provider side,
     // and service-runtime's contract validator (JSON Schema 2020-12 over the pinned platform-contracts files).
     testImplementation(sourceSet("config-resolver", "test").output)
@@ -71,6 +79,7 @@ dependencies {
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.junit.params)
+    testImplementation(libs.junit.platformTestkit) // runs the broken module-API fixture and requires it to fail
     testImplementation(libs.kotest.assertionsCore)
     testRuntimeOnly(libs.junit.platformLauncher)
     testRuntimeOnly(libs.slf4j.simple)
@@ -107,8 +116,12 @@ fun Test.suiteDefaults() {
 }
 
 // Consumer pacts first: they write build/pacts, which the provider verification reads.
+// The module-API consumer contract tests of the boundaries that had none (config-resolver, gst-catalogue,
+// service-runtime, adapter-runtime) run here too. A deliberately broken module-API fixture is tagged
+// `broken-fixture` and excluded: BrokenModuleApiFixtureTest runs it and requires it to fail.
 tasks.test {
     suiteDefaults()
+    (options as JUnitPlatformOptions).excludeTags("broken-fixture")
     filter { excludeTestsMatching("com.dynokore.platform.contracttests.provider.*") }
 }
 

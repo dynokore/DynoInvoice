@@ -67,6 +67,18 @@ variables:
       # It still gets its own `check`/`publish` from the generic templates
       # (ci/build.gitlab-ci.yml, ci/publish.gitlab-ci.yml), unaffected by this
       # job's module-scoped compile/test tasks.
+      # The tested set a BOM version stands for (STK-60, INV-T-2877, INV-Q-3261): this pipeline reached the
+      # job only after the required contract-tests job passed (stage test), so the BOM version ci/bom-version.sh
+      # decided, the gst-catalogue version the suite ran against, the pipeline and the commit are printed and
+      # kept as a dotenv report (build/tested-set.env) for the done evidence.
+      gst_tested_set() {
+        gst_catalogue="$(sed -n 's/^gstCatalogue *= *"\(.*\)"/\1/p' gradle/libs.versions.toml)"
+        printf 'BOM_VERSION=%s\nBOM_ACTION=%s\nGST_CATALOGUE_VERSION=%s\nTESTED_PIPELINE=%s\nTESTED_COMMIT=%s\n' \
+          "$BOM_VERSION" "$BOM_ACTION" "$gst_catalogue" "${CI_PIPELINE_ID:-local}" "${CI_COMMIT_SHA:-local}" \
+          > build/tested-set.env
+        echo "gst-ci: tested set: platform-libs-bom ${BOM_VERSION} (${BOM_ACTION}), gst-catalogue ${gst_catalogue}," \
+          "contract-tests green in pipeline ${CI_PIPELINE_ID:-local}, commit ${CI_COMMIT_SHA:-local}"
+      }
       gst_all_modules() {
         for f in */build.gradle.kts; do
           m=$(dirname "$f")
@@ -236,6 +248,7 @@ maven-publish:
       # platform-libs-bom is versioned here, not by a file: BOM_VERSION is the latest published
       # one (constraint set unchanged: its upload is skipped below) or latest minor + 1.
       . build/bom.env
+      gst_tested_set
       bom_args="-PbomVersion=${BOM_VERSION}"
       if [ "$BOM_ACTION" = "publish" ]; then bom_args="$bom_args -PbomChangelog=$PWD/build/bom-changelog.txt"; fi
     - >
@@ -271,6 +284,13 @@ maven-publish:
         fi
       done < build/publications.txt
       exit $missing
+  artifacts:
+    when: always
+    paths:
+      - build/tested-set.env
+    reports:
+      dotenv: build/tested-set.env
+    expire_in: 1 year
 
 # Merge requests verify that the BOM resolves and report what the main pipeline would do,
 # but never publish (a merge request never publishes, ci/publish.gitlab-ci.yml). A module
@@ -286,3 +306,11 @@ bom-verify:
     - |
       . build/bom.env
       echo "gst-ci: on main this change would ${BOM_ACTION} platform-libs-bom ${BOM_VERSION}"
+      gst_tested_set
+  artifacts:
+    when: always
+    paths:
+      - build/tested-set.env
+    reports:
+      dotenv: build/tested-set.env
+    expire_in: 1 week
