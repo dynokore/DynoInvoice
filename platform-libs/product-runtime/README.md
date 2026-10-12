@@ -16,7 +16,7 @@ Released on its own version with its own changelog. Services consume it only as 
 
 A service puts `com.dynokore.platform:product-runtime` on its classpath and imports `ProductRuntimeConfiguration`
 after `ServiceRuntimeConfiguration` as TPL-18 writes it (it is also an auto-configuration and relies on no ordering;
-config-resolver takes its catalogue in either order from service-runtime 3.1.1, INV-T-3881). It wires:
+config-resolver takes its catalogue in either order from service-runtime 3.2.1, INV-T-3881). It wires:
 
 - the `VariationPointCatalogue` over gst-catalogue (`gst.service` names the rows `keys()` lists) and the
   `DelegationProbe` over the authority replica, which config-resolver resolves through;

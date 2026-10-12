@@ -92,11 +92,11 @@ class WiringTest {
      * finds nothing more here). config-resolver's PolicyReader must then exist and resolve through
      * [GstVariationPointCatalogue].
      *
-     * DEPENDS ON service-runtime 3.1.1 (INV-T-3881): the order-independent config-resolver wiring. On service-runtime
-     * 3.1.0 and earlier this test fails, because ConfigResolverWiring's registration-time
+     * DEPENDS ON service-runtime 3.2.1 (INV-T-3881): the order-independent config-resolver wiring. On service-runtime
+     * 3.2.0 and earlier this test fails, because ConfigResolverWiring's registration-time
      * `@ConditionalOnBean(VariationPointCatalogue)` is evaluated before product-runtime's catalogue is registered. It is
      * not worked around here: no ordering of ProductRuntimeConfiguration is relied on. (With the imports reversed the
-     * same test passes on 3.1.0, which shows the composition and the resolution are otherwise complete.)
+     * same test passes on 3.2.0, which shows the composition and the resolution are otherwise complete.)
      */
     @Test
     fun `under TPL-18's two imports, config-resolver's PolicyReader resolves through the gst-catalogue adapter`() {
