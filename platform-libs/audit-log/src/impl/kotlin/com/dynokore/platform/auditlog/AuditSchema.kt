@@ -22,7 +22,8 @@ object AuditSchema {
     const val AUDIT_ENTRY = "audit_entry"
 
     /**
-     * `purge_audit_entries(cut_off, reason, entry_id, source, subject, instance_id, correlation_id, causation_id)`: the audited purge of [AUDIT_ENTRY] ([purgeDdl]); returns the number of entries deleted.
+     * `purge_audit_entries(cut_off, reason, entry_id, source, subject, instance_id, correlation_id, causation_id)`:
+     * the audited purge of [AUDIT_ENTRY] ([purgeDdl]); returns the number of entries deleted.
      */
     const val PURGE_AUDIT_ENTRIES = "purge_audit_entries"
 
