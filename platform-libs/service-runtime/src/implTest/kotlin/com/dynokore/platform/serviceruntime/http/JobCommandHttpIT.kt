@@ -29,10 +29,14 @@ import com.dynokore.platform.serviceruntime.jobs.JobsHarness.Companion.TENANT_A
 import com.dynokore.platform.serviceruntime.jobs.JobsHarness.Companion.job
 import com.dynokore.platform.serviceruntime.jobs.MovableDeadlines
 import com.dynokore.platform.serviceruntime.jobs.MutableClock
+import com.dynokore.platform.serviceruntime.jobs.TransactionalJobCommandJournal
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.AuthorityVerdict
 import com.dynokore.platform.serviceruntime.replica.AuthorizationRequest
 import com.dynokore.platform.serviceruntime.replica.FallbackResult
+import com.dynokore.platform.tenancykernel.TenantAwareDataSource
+import com.zaxxer.hikari.HikariConfig
+import com.zaxxer.hikari.HikariDataSource
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
@@ -53,6 +57,7 @@ import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.CyclicBarrier
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import javax.sql.DataSource
@@ -103,13 +108,14 @@ class JobCommandHttpIT {
     private inner class Service(
         image: String,
         authority: AuthorityReplica? = null,
+        app: DataSource? = null,
         commands: ((JobCommands) -> JobCommands)? = null,
     ) {
         val h = harness(image)
         val clock = MutableClock(START)
         val deadlines = MovableDeadlines()
-        val replica = h.replica("svc-1", clock, authorizer, deadlines)
-        val idempotency = IdempotencyStore(replica.scope, h.fixture.appDataSource(), h.fixture.workerDataSource(), SCHEMA, clock)
+        val replica = h.replica("svc-1", clock, authorizer, deadlines, app = app ?: h.fixture.appDataSource())
+        val idempotency = IdempotencyStore(replica.scope, h.fixture.workerDataSource(), SCHEMA, clock)
         val servlet =
             JobCommandServlet(commands?.invoke(replica.runtime) ?: replica.runtime, principals, replica.tenants, idempotency, authority, clock)
 
@@ -228,16 +234,26 @@ class JobCommandHttpIT {
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
-    fun `a replay while the original is in flight is 409`(image: String) {
+    fun `two concurrent requests with one key give one effect and one 409 at once`(image: String) {
         val entered = CountDownLatch(1)
         val release = CountDownLatch(1)
         val s =
             Service(image) { inner ->
                 object : JobCommands by inner {
                     override fun runNow(request: JobCommandRequest): JobCommandOutcome<JobRunState> {
-                        entered.countDown()
-                        release.await(10, TimeUnit.SECONDS)
-                        return inner.runNow(request)
+                        val journal = request.journal as TransactionalJobCommandJournal
+                        // the original holds its guard in its command transaction, its effect done, not yet committed
+                        val holding =
+                            object : TransactionalJobCommandJournal {
+                                override fun begin() = journal.begin()
+
+                                override fun withinTransaction(outcome: JobCommandOutcome.Done<*>) {
+                                    entered.countDown()
+                                    release.await(10, TimeUnit.SECONDS)
+                                    journal.withinTransaction(outcome)
+                                }
+                            }
+                        return inner.runNow(request.copy(journal = holding))
                     }
                 }
             }
@@ -247,6 +263,7 @@ class JobCommandHttpIT {
         try {
             val first = pool.submit<Answer> { s.post(runPath("http-flight"), """{"entityRef":"E-001"}""", key) }
             entered.await(10, TimeUnit.SECONDS) shouldBe true
+            // answered while the original still holds its guard: no wait for the lock
             s.post(runPath("http-flight"), """{"entityRef":"E-001"}""", key).closed(ClosedErrorCode.IN_FLIGHT)
             release.countDown()
             first.get(10, TimeUnit.SECONDS).status shouldBe 202
@@ -254,6 +271,66 @@ class JobCommandHttpIT {
             release.countDown()
             pool.shutdownNow()
         }
+        s.h.runs("http-flight").filter { it["trigger"] == "MANUAL" } shouldHaveSize 1
+        s.h.events(JobsHarness.AUDIT, "submission-svc/http-flight") shouldHaveSize 1
+        s.h.rows("select status from $SCHEMA.idempotency_key where idempotency_key = ?::uuid", key).map { it["status"] } shouldBe listOf(202)
+    }
+
+    /**
+     * INV-T-3947 (coordinator ruling INV-Q-3945): an idempotent command holds at most one app-pool connection, so
+     * M and 2M concurrent commands on an app pool of maximum M, started together, all finish with their 2xx and
+     * no connection timeout. Before the fix each command held a guard connection while it waited for a second.
+     */
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `M and 2M concurrent commands on an app pool of maximum M all finish`(image: String) {
+        val h = harness(image)
+        val pool =
+            HikariDataSource(
+                HikariConfig().apply {
+                    dataSource = h.fixture.roleDataSource(OutboxPostgresFixture.APP)
+                    maximumPoolSize = POOL_MAX
+                    connectionTimeout = Duration.ofSeconds(2).toMillis()
+                },
+            )
+        try {
+            for (commands in listOf(POOL_MAX, 2 * POOL_MAX)) {
+                val s = Service(image, app = TenantAwareDataSource(pool))
+                val jobs = (1..commands).map { "http-pool-$commands-$it" }
+                jobs.forEach { s.replica.runtime.register(job(it), entities) { } }
+                val start = CyclicBarrier(commands)
+                val threads = Executors.newFixedThreadPool(commands)
+                try {
+                    val answers =
+                        jobs.map { name ->
+                            threads.submit<Int> {
+                                start.await(10, TimeUnit.SECONDS)
+                                s.post(runPath(name), """{"entityRef":"E-001"}""").status
+                            }
+                        }
+                    answers.map { it.get(60, TimeUnit.SECONDS) } shouldBe List(commands) { 202 }
+                } finally {
+                    threads.shutdownNow()
+                }
+                jobs.forEach { s.h.runs(it).filter { run -> run["trigger"] == "MANUAL" } shouldHaveSize 1 }
+            }
+        } finally {
+            pool.close()
+        }
+    }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `a no-state refusal is recorded in its own one transaction and replayed`(image: String) {
+        val s = Service(image)
+        val key = UUID.randomUUID().toString()
+        s.post(runPath("http-late"), """{"entityRef":"E-001"}""", key).coded("JOB-001", 404)
+        s.h.rows("select status from $SCHEMA.idempotency_key where idempotency_key = ?::uuid", key).map { it["status"] } shouldBe listOf(404)
+        // the job exists now, but the key's stored refusal is replayed: nothing runs
+        s.replica.runtime.register(job("http-late"), entities) { }
+        s.post(runPath("http-late"), """{"entityRef":"E-001"}""", key).coded("JOB-001", 404)
+        s.h.runs("http-late") shouldHaveSize 0
+        s.post(runPath("http-late"), """{"entityRef":"E-001","reason":"other"}""", key).closed(ClosedErrorCode.DIFFERENT_REQUEST)
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
@@ -435,5 +512,10 @@ class JobCommandHttpIT {
                 // a second poll in the same tick runs nothing
                 (s.replica.runtime.fire(IdempotencyKeyPurgeJob.NAME, s.clock.instant().plusSeconds(60)).getValue(JobTarget.Whole) == FireResult.RAN) shouldBe false
             }
+    }
+
+    private companion object {
+        /** The app pool's maximum in the pool test (INV-T-3947). */
+        const val POOL_MAX = 4
     }
 }

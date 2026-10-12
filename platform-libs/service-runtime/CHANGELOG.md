@@ -6,6 +6,21 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [3.3.2] - 2026-10-12
+### Fixed
+- An idempotent command held two app-pool connections at once (INV-T-3947; coordinator ruling INV-Q-3945, defect in
+  INV-T-2875's API-15 store against INV-REQ-957, ARC-05 and TPL-04). `IdempotencyStore.once` held a session advisory
+  lock on its own app-pool connection for the whole command while the key lookup, the command and a no-state
+  response's record each took another, so M concurrent commands on an app pool of maximum M deadlocked until
+  HikariCP's `connectionTimeout`, and at most M/2 ran at once. The in-flight guard is now a transaction advisory lock
+  (`pg_try_advisory_xact_lock`) taken, with the key lookup, as the first step of the command's own transaction
+  (`TransactionalJobCommandJournal.begin`, called by `JobRuntime`'s run-now, pause and resume transactions); the
+  effect and the API-15 record commit or roll back with it. A response that wrote no state has its guard, lookup and
+  record in one transaction of the key's tenant. No connection is held outside the command's transaction, and the
+  guard is safe behind a transaction-mode pooler. API-15 behaviour (replay, 422, 409 at once, retention, purge) and
+  the job-command responses are unchanged; `IdempotencyStore` no longer takes the application DataSource. No change
+  to the api half, pool sizes or pool settings.
+
 ## [3.3.1] - 2026-10-12
 ### Fixed
 - The published `service-runtime-api` jar held no api classes (INV-T-3937; coordinator ruling INV-Q-3929, defect in

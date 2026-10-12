@@ -50,7 +50,6 @@ class JobCommandHttpAutoConfiguration {
     @ConditionalOnMissingBean
     fun idempotencyStore(
         scope: TenantScope,
-        dataSource: DataSource,
         @Qualifier(ServiceDataSources.WORKER) worker: ObjectProvider<DataSource>,
         clock: Clock,
         properties: IdempotencyProperties,
@@ -59,7 +58,7 @@ class JobCommandHttpAutoConfiguration {
             checkNotNull(properties.schema?.takeIf { it.isNotBlank() }) {
                 "service-runtime.idempotency.schema must name the service's schema (API-15 store)"
             }
-        return IdempotencyStore(scope, dataSource, worker.getIfAvailable(), schema, clock, properties.retention)
+        return IdempotencyStore(scope, worker.getIfAvailable(), schema, clock, properties.retention)
     }
 
     /** The key purge, a platform job of the service's [JobRuntime] on its worker role (INV-Q-3798). */

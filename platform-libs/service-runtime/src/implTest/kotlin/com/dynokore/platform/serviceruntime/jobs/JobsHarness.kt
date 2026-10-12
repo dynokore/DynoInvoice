@@ -19,6 +19,7 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.UUID
 import java.util.concurrent.Executor
+import javax.sql.DataSource
 
 /** A settable clock shared by the replicas of a test. */
 class MutableClock(var now: Instant) : Clock() {
@@ -85,9 +86,10 @@ class JobsHarness(image: String) : AutoCloseable {
         deadlines: DeadlineSource,
         executor: Executor,
         retention: Duration,
+        app: DataSource,
     ) {
         val tenants = TenantContextImpl()
-        val tx = TransactionRunnerImpl(fixture.appDataSource(), tenants)
+        val tx = TransactionRunnerImpl(app, tenants)
         val scope = TenantScope(tenants, tx, tx)
         val outbox = JdbcOutboxWriter(tx, SCHEMA, SERVICE, instance, CATALOGUE, clock)
         val runtime =
@@ -109,7 +111,8 @@ class JobsHarness(image: String) : AutoCloseable {
         deadlines: DeadlineSource = FixedDeadlineSource(),
         executor: Executor = Executor { it.run() },
         retention: Duration = JobRuntime.DEFAULT_RETENTION,
-    ) = Replica(instance, clock, authorizer, deadlines, executor, retention)
+        app: DataSource = fixture.appDataSource(),
+    ) = Replica(instance, clock, authorizer, deadlines, executor, retention, app)
 
     /** Rows of [sql] as the superuser (every tenant). */
     fun rows(

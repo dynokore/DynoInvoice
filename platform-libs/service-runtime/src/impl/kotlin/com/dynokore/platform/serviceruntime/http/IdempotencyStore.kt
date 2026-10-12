@@ -3,6 +3,7 @@ package com.dynokore.platform.serviceruntime.http
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TenantRlsMigration
+import java.sql.Connection
 import java.sql.Timestamp
 import java.time.Clock
 import java.time.Duration
@@ -75,11 +76,15 @@ object IdempotencySchema {
 }
 
 /**
- * Writes the request's API-15 record in the caller's open transaction, the command's own; the record then commits
- * or rolls back with the command's effect. Called at most once, inside the transaction.
+ * The API-15 side of one idempotent command, used inside the command's own transaction (ARC-05, TPL-04, API-15
+ * S2 T1). [begin] takes the in-flight guard and looks the key up; the command calls it first in its transaction,
+ * before any effect. [record] writes the request's API-15 record in that transaction, so it commits or rolls back
+ * with the command's effect; called at most once, it begins first if the command has not.
  */
 fun interface IdempotencyRecorder {
     fun record(response: StoredResponse)
+
+    fun begin() {}
 }
 
 /**
@@ -89,15 +94,17 @@ fun interface IdempotencyRecorder {
  * body, the same key with another fingerprint is [IdempotencyOutcome.DifferentRequest] (422), and a replay while
  * the original is still running is [IdempotencyOutcome.InFlight] (409).
  *
- * In flight is a PostgreSQL session advisory lock on (tenant, principal, key), held on its own connection of [app]
- * while the request runs, so a crashed instance releases it with its connection. The record is written through
- * the [IdempotencyRecorder] inside the command's own transaction (ARC-05, TPL-04, API-15 S2 T1: the job commands
- * call it through `JobCommandJournal`), so the stored response commits or rolls back with the effect. A response
- * that wrote no state (a refusal, a contract violation) is stored on its own afterwards.
+ * One app-pool connection per command (coordinator ruling INV-Q-3945, INV-T-3947): the store opens no
+ * connection of its own while the command runs. In flight is a PostgreSQL transaction advisory lock
+ * (`pg_try_advisory_xact_lock`) on (tenant, principal, key), taken through the [IdempotencyRecorder] as the first
+ * step of the command's own transaction, followed there by the key lookup; it is released at commit or rollback,
+ * by a crashed instance's lost connection, and also behind a transaction-mode pooler. The command's effect and
+ * the record (the job commands write it through `JobCommandJournal`) then commit or roll back together. A
+ * response that wrote no state (a refusal, a contract violation) comes back without a transaction: its guard,
+ * lookup and record are one transaction of their own under the key's tenant, the command's one transaction.
  */
 class IdempotencyStore(
     private val scope: TenantScope,
-    private val app: DataSource,
     private val worker: DataSource?,
     schema: String,
     private val clock: Clock,
@@ -111,7 +118,8 @@ class IdempotencyStore(
 
     /**
      * Runs [block] once per ([tenant] or the platform tenant, [principal], [key]) and [fingerprint]. A response
-     * with a 5xx status is not stored: the request did not complete, so a retry runs it again.
+     * with a 5xx status, or a thrown failure, is not stored: the request did not complete, so a retry runs it
+     * again.
      */
     fun once(
         tenant: TenantId?,
@@ -120,45 +128,66 @@ class IdempotencyStore(
         fingerprint: String,
         block: (IdempotencyRecorder) -> StoredResponse,
     ): IdempotencyOutcome {
-        val owner = tenant ?: TenantId.PLATFORM
-        val lockName = "$table/$owner/$principal/$key"
-        return app.connection.use { lock ->
-            val held =
-                lock.prepareStatement("select pg_try_advisory_lock(hashtextextended(?, 0))").use { statement ->
-                    statement.setString(1, lockName)
-                    statement.executeQuery().use { it.next() && it.getBoolean(1) }
-                }
-            if (!held) return@use IdempotencyOutcome.InFlight
-            try {
-                val stored = find(owner, principal, key)
-                when {
-                    stored == null -> {
-                        var recorded = false
-                        val recorder =
-                            IdempotencyRecorder { response ->
-                                check(scope.tenants.current() == owner) { "the command transaction is not the key's tenant" }
-                                insert(owner, principal, key, fingerprint, response)
-                                recorded = true
-                            }
-                        val response = block(recorder)
-                        if (!recorded && response.status < SERVER_ERROR) {
-                            inTenant(owner) { insert(owner, principal, key, fingerprint, response) }
-                        }
-                        IdempotencyOutcome.Fresh(response)
-                    }
-
-                    stored.first == fingerprint -> IdempotencyOutcome.Replay(stored.second)
-
-                    else -> IdempotencyOutcome.DifferentRequest
-                }
-            } finally {
-                lock.prepareStatement("select pg_advisory_unlock(hashtextextended(?, 0))").use { statement ->
-                    statement.setString(1, lockName)
-                    statement.execute()
-                }
+        val command = Command(tenant ?: TenantId.PLATFORM, principal, key, fingerprint)
+        return try {
+            val response = block(command)
+            if (!command.recorded && response.status < SERVER_ERROR) {
+                // a response that wrote no state: guard, lookup and record in one transaction of the key's tenant
+                inTenant(command.owner) { command.record(response) }
             }
+            IdempotencyOutcome.Fresh(response)
+        } catch (settled: Settled) {
+            if (settled.command !== command) throw settled
+            settled.outcome
         }
     }
+
+    /** One request's guard, lookup and record, each in the transaction open on the calling thread. */
+    private inner class Command(
+        val owner: TenantId,
+        private val principal: String,
+        private val key: UUID,
+        private val fingerprint: String,
+    ) : IdempotencyRecorder {
+        var recorded = false
+            private set
+
+        /** The transaction connection [begin] ran on; another one means a new transaction that must begin again. */
+        private var begunOn: Connection? = null
+
+        override fun begin() {
+            val connection = scope.connections.require()
+            if (begunOn === connection) return
+            check(scope.tenants.current() == owner) { "the command transaction is not the key's tenant" }
+            val held =
+                connection.prepareStatement("select pg_try_advisory_xact_lock(hashtextextended(?, 0))").use { statement ->
+                    statement.setString(1, "$table/$owner/$principal/$key")
+                    statement.executeQuery().use { it.next() && it.getBoolean(1) }
+                }
+            if (!held) throw Settled(this, IdempotencyOutcome.InFlight)
+            val stored = find(owner, principal, key)
+            if (stored != null) {
+                val outcome = if (stored.first == fingerprint) IdempotencyOutcome.Replay(stored.second) else IdempotencyOutcome.DifferentRequest
+                throw Settled(this, outcome)
+            }
+            begunOn = connection
+        }
+
+        override fun record(response: StoredResponse) {
+            begin()
+            insert(owner, principal, key, fingerprint, response)
+            recorded = true
+        }
+    }
+
+    /**
+     * The key is in flight or already stored: thrown from the command's transaction before any effect, so the
+     * transaction rolls back, and [once] answers [outcome].
+     */
+    private class Settled(
+        val command: IdempotencyRecorder,
+        val outcome: IdempotencyOutcome,
+    ) : RuntimeException(null, null, false, false)
 
     /**
      * Deletes keys stored more than [retention] ago, across tenants, through the worker role (ARC 4.3 step 1a),
@@ -186,20 +215,19 @@ class IdempotencyStore(
         return total
     }
 
+    /** Looks the key up in the open transaction of the current thread. */
     private fun find(
         tenant: TenantId,
         principal: String,
         key: UUID,
-    ): Pair<String, StoredResponse>? = inTenant(tenant) {
-        scope.connections.require().prepareStatement(
-            "select fingerprint, status, body from $table where tenant_id = ? and principal = ? and idempotency_key = ?",
-        ).use { statement ->
-            statement.setObject(1, tenant.value)
-            statement.setString(2, principal)
-            statement.setObject(3, key)
-            statement.executeQuery().use { rows ->
-                if (rows.next()) rows.getString(1) to StoredResponse(rows.getInt(2), rows.getString(3)) else null
-            }
+    ): Pair<String, StoredResponse>? = scope.connections.require().prepareStatement(
+        "select fingerprint, status, body from $table where tenant_id = ? and principal = ? and idempotency_key = ?",
+    ).use { statement ->
+        statement.setObject(1, tenant.value)
+        statement.setString(2, principal)
+        statement.setObject(3, key)
+        statement.executeQuery().use { rows ->
+            if (rows.next()) rows.getString(1) to StoredResponse(rows.getInt(2), rows.getString(3)) else null
         }
     }
 

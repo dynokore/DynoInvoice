@@ -6,13 +6,13 @@ import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.identity.TokenIssuerUnavailableException
-import com.dynokore.platform.serviceruntime.jobs.JobCommandJournal
 import com.dynokore.platform.serviceruntime.jobs.JobCommandOutcome
 import com.dynokore.platform.serviceruntime.jobs.JobCommandRequest
 import com.dynokore.platform.serviceruntime.jobs.JobCommands
 import com.dynokore.platform.serviceruntime.jobs.JobPauseState
 import com.dynokore.platform.serviceruntime.jobs.JobRunState
 import com.dynokore.platform.serviceruntime.jobs.JobTarget
+import com.dynokore.platform.serviceruntime.jobs.TransactionalJobCommandJournal
 import com.dynokore.platform.serviceruntime.logging.CorrelationContext
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.AuthorizationRequest
@@ -181,8 +181,13 @@ class JobCommandServlet(
         correlation: String,
         recorder: IdempotencyRecorder,
     ): StoredResponse {
-        // the API-15 record is written inside the command's own transaction (ARC-05, TPL-04)
-        val journal = JobCommandJournal { done -> recorder.record(render(action, done, correlation)) }
+        // the API-15 guard, lookup and record are inside the command's own transaction (ARC-05, TPL-04)
+        val journal =
+            object : TransactionalJobCommandJournal {
+                override fun begin() = recorder.begin()
+
+                override fun withinTransaction(outcome: JobCommandOutcome.Done<*>) = recorder.record(render(action, outcome, correlation))
+            }
         val command =
             try {
                 JobCommandRequest(

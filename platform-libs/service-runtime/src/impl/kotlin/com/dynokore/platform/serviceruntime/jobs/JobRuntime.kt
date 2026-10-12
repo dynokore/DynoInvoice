@@ -20,6 +20,16 @@ import java.util.concurrent.Executor
 import javax.sql.DataSource
 
 /**
+ * A [JobCommandJournal] that also opens the command's transaction: [JobRuntime] calls [begin] as the first step
+ * of a run-now, pause or resume transaction, before any effect, and [withinTransaction] at its end. The API-15
+ * store takes its in-flight guard and looks the key up there, in the command's one transaction on one
+ * connection (ARC-05, TPL-04; coordinator ruling INV-Q-3945).
+ */
+interface TransactionalJobCommandJournal : JobCommandJournal {
+    fun begin()
+}
+
+/**
  * The job contract of a service (INV-REQ-1136, INV-REQ-1138, INV-REQ-2405): registration with
  * `JobRegistered`, scheduled firings under ShedLock leader election with one `job_run` row and one
  * `JobRunRecorded` per run, run now / pause / resume, the abandoned-run sweeper and the retention purge.
@@ -178,6 +188,7 @@ class JobRuntime(
         val tick = registered.ticks.tickContaining(now)
         val started: Pair<JobRunState, Boolean> =
             inTenant(target) {
+                begin(request)
                 var outcome: Pair<JobRunState, Boolean>? = null
                 while (outcome == null) {
                     val latest = state.latest(registered.job, target, tick, JobTrigger.MANUAL)
@@ -223,6 +234,7 @@ class JobRuntime(
         val bound = deadlineBound(job, target)
         if (bound != null && until.isAfter(bound)) return JobCommandOutcome.Refused(JobErrorCode.PAUSE_PAST_DEADLINE)
         return inTenant(target) {
+            begin(request)
             var outcome: JobCommandOutcome<JobPauseState>? = null
             while (outcome == null) {
                 val open = livePause(job, target, now, bound)
@@ -259,6 +271,7 @@ class JobRuntime(
         val now = clock.instant()
         val bound = deadlineBound(job, target)
         return inTenant(target) {
+            begin(request)
             val open = livePause(job, target, now, bound)
             val outcome =
                 if (open == null) {
@@ -270,6 +283,11 @@ class JobRuntime(
                 }
             journal(request, outcome)
         }
+    }
+
+    /** The first step of a command transaction, before any effect: the journal's [TransactionalJobCommandJournal.begin]. */
+    private fun begin(request: JobCommandRequest) {
+        (request.journal as? TransactionalJobCommandJournal)?.begin()
     }
 
     /** Hands a done outcome to the request's journal inside the command transaction (ARC-05, TPL-04). */
