@@ -6,6 +6,20 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [3.4.0] - 2026-10-12
+### Added
+- `ClosedErrorCode.RATE_LIMITED`, SRT-012 (HTTP 429, "Protective rate limit exceeded"; severity BLOCK, disposition
+  TERMINAL, remediation owner Platform, like SRT-011), matching its row in platform-contracts gst-catalogue 1.15.0
+  (INV-T-4092; INV-T-4055, coordinator ruling INV-Q-4059; INV-REQ-827 b3, INV-REQ-825 b6). The client retries after
+  `Retry-After`; the API gateway's gateway-authz container emits it.
+- `Problems.render(code, correlationId, detail, retryAfterSeconds)`, a public entry point that renders any closed
+  code outside the servlet path as a `ProblemResponse` (status, headers, body): the API-20 envelope of
+  `Problems.closed` with `Content-Type: application/problem+json`, and for a 429 `Retry-After` in delta-seconds, which
+  is then required and not negative; any other code refuses a Retry-After. gateway-authz's extAuth denials (401
+  SRT-003, 503 SRT-011, 429 SRT-012) carry the same envelope as service responses (ARC-19, CS-14; INV-T-4056).
+- Tests: the vendored platform-contracts copy moves to commit 81ab6f4 (gst-catalogue 1.15.0); `ProblemsTest` checks
+  SRT-012 against its catalogue row and the rendered denials against the error-envelope schema.
+
 ## [3.3.2] - 2026-10-12
 ### Fixed
 - An idempotent command held two app-pool connections at once (INV-T-3947; coordinator ruling INV-Q-3945, defect in

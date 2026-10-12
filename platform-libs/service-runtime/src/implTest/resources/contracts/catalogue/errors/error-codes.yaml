@@ -1,7 +1,7 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
-# pinned at commit 2d253dde6bf19e9455dbccfd2880a8bfed1c61f9 (2026-10-12), the
-# merge of invoice-docs!11 adding MDM-009 (INV-T-3751, coordinator ruling INV-Q-3749;
-# previously pinned at 672ae1a8422ba94caa682e3b02336bd8eb23b78a, INV-T-3762).
+# pinned at commit 1231ff2186f1b77906b97125212c0ff298268f40 (2026-10-12), the
+# invoice-docs!19 commit adding SRT-012 (INV-T-4055, coordinator ruling INV-Q-4059;
+# previously pinned at 2d253dde6bf19e9455dbccfd2880a8bfed1c61f9, INV-T-3751).
 #
 # This copy is the generator's (catalogue/generator/) sole input for the
 # gst-catalogue ErrorCode catalogue (STK-61, CS-13). It is never hand-edited:
@@ -632,6 +632,12 @@ error_codes:
 - code: SRT-011
   condition: 'The token issuer is unavailable, so the token cannot be verified now; retry later (cached issuer keys are
     used first; HTTP 503; INV-Q-3773, INV-REQ-827 b3)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: SRT-012
+  condition: 'Protective rate limit exceeded; retry after Retry-After (HTTP 429; FR-AG.39, API-30; INV-REQ-825 b6; owner ruling
+    INV-Q-4048 A)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform

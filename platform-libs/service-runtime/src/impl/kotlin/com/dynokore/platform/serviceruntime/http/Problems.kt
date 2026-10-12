@@ -5,9 +5,9 @@ import tools.jackson.databind.ObjectMapper
 
 /**
  * The closed service-runtime cases (ARC-19) with their SRT catalogue codes (owner ruling INV-Q-3720, INV-REQ-827
- * b3; the catalogue rows of INV-T-3742, gst-catalogue 1.12.0): owner Platform, severity BLOCK, disposition
- * TERMINAL for all ten (SRT-007 and SRT-008 by coordinator ruling INV-Q-3754), each at its single HTTP status
- * (API-21).
+ * b3; the catalogue rows of INV-T-3742, gst-catalogue 1.12.0, SRT-011 in 1.13.0 and SRT-012 in 1.15.0): owner
+ * Platform, severity BLOCK, disposition TERMINAL for all twelve (SRT-007 and SRT-008 by coordinator ruling
+ * INV-Q-3754, SRT-012 by coordinator ruling INV-Q-4059), each at its single HTTP status (API-21).
  */
 enum class ClosedErrorCode(
     val code: String,
@@ -28,10 +28,17 @@ enum class ClosedErrorCode(
 
     /**
      * The token issuer is unreachable and no cached key verifies the token: retryable, never 401 or 500 (coordinator
-     * ruling INV-Q-3773). Its catalogue row lands with INV-T-3762; until the pinned catalogue carries it, the code
-     * string is used here and `ProblemsTest` lists it as pending.
+     * ruling INV-Q-3773; catalogue row of INV-T-3762, gst-catalogue 1.13.0).
      */
     ISSUER_UNAVAILABLE("SRT-011", 503, "Token issuer unavailable", "TERMINAL"),
+
+    /**
+     * A protective rate limit is exceeded: the client retries after `Retry-After` (FR-AG.39, API-30; INV-REQ-825 b1
+     * and b6, owner ruling INV-Q-4048 A). Emitted by the API gateway's gateway-authz container (INV-REQ-827 b3);
+     * render it with [Problems.render] and its Retry-After (catalogue row of INV-T-4055, gst-catalogue 1.15.0;
+     * coordinator ruling INV-Q-4059).
+     */
+    RATE_LIMITED("SRT-012", 429, "Protective rate limit exceeded", "TERMINAL"),
     ;
 
     /** Every SRT code is remediated by the platform (error-codes.yaml `owner`). */
@@ -50,6 +57,10 @@ enum class ClosedErrorCode(
  */
 object Problems {
     const val CONTENT_TYPE = "application/problem+json"
+
+    /** The response header names [render] sets. */
+    const val CONTENT_TYPE_HEADER = "Content-Type"
+    const val RETRY_AFTER_HEADER = "Retry-After"
 
     /**
      * The product-wide host of the error-documentation URIs (API-20): one constant, not configuration
@@ -97,6 +108,36 @@ object Problems {
         code.disposition,
         code.remediationOwner,
     )
+
+    /**
+     * The closed case [code] as a complete response for a caller outside service-runtime's servlet path, such as the
+     * API gateway's gateway-authz extAuth denials (401 SRT-003, 503 SRT-011, 429 SRT-012), so they carry the same
+     * API-20 envelope as service responses (ARC-19, CS-14; INV-T-4056): the status, the envelope body of [closed],
+     * and the headers `Content-Type: application/problem+json` and, for the 429 only, `Retry-After` in delta-seconds
+     * (RFC 9110 section 10.2.3; INV-REQ-825 b1). [retryAfterSeconds] is required, and not negative, for a 429 and
+     * refused for every other code.
+     */
+    fun render(
+        code: ClosedErrorCode,
+        correlationId: String,
+        detail: String? = null,
+        retryAfterSeconds: Long? = null,
+    ): ProblemResponse {
+        if (code.httpStatus == HTTP_TOO_MANY_REQUESTS) {
+            require(retryAfterSeconds != null && retryAfterSeconds >= 0) {
+                "${code.code} (HTTP 429) needs Retry-After in non-negative seconds (INV-REQ-825 b1)"
+            }
+        } else {
+            require(retryAfterSeconds == null) { "Retry-After is only for HTTP 429, not ${code.code}" }
+        }
+        val response = closed(code, correlationId, detail)
+        val headers =
+            buildMap {
+                put(CONTENT_TYPE_HEADER, CONTENT_TYPE)
+                retryAfterSeconds?.let { put(RETRY_AFTER_HEADER, it.toString()) }
+            }
+        return ProblemResponse(response.status, headers, response.body)
+    }
 
     fun contractViolation(
         detail: String,
@@ -148,4 +189,8 @@ object Problems {
     }
 
     private const val HTTP_SERVER_ERROR = 500
+    private const val HTTP_TOO_MANY_REQUESTS = 429
 }
+
+/** An error response rendered by [Problems.render]: its status, its response headers and its API-20 envelope body. */
+data class ProblemResponse(val status: Int, val headers: Map<String, String>, val body: String)

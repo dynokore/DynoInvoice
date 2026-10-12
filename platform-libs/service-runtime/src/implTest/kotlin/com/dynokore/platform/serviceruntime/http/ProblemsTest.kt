@@ -2,6 +2,7 @@ package com.dynokore.platform.serviceruntime.http
 
 import com.dynokore.platform.serviceruntime.contract.ContractValidator
 import com.dynokore.platform.serviceruntime.jobs.JobErrorCode
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
@@ -41,6 +42,7 @@ class ProblemsTest {
                 "SRT-009" to 422,
                 "SRT-010" to 500,
                 "SRT-011" to 503,
+                "SRT-012" to 429,
             )
         ClosedErrorCode.entries.forEach { code ->
             val row = catalogue.getValue(code.code)
@@ -48,7 +50,59 @@ class ProblemsTest {
             row["severity"] shouldBe "BLOCK"
             row["owner"] shouldBe code.remediationOwner
             row["disposition"] shouldBe code.disposition
-            code.disposition shouldBe "TERMINAL" // INV-Q-3754 for SRT-007 and SRT-008
+            code.disposition shouldBe "TERMINAL" // INV-Q-3754 for SRT-007 and SRT-008, INV-Q-4059 for SRT-012
+        }
+    }
+
+    @Test
+    fun `SRT-012 matches its gst-catalogue 1_15_0 row, BLOCK and TERMINAL like SRT-011, retried after Retry-After`() {
+        val row = catalogue.getValue("SRT-012")
+        val code = ClosedErrorCode.RATE_LIMITED
+        code.code shouldBe "SRT-012"
+        code.httpStatus shouldBe 429
+        code.title shouldBe "Protective rate limit exceeded"
+        (row["condition"] as String).startsWith("Protective rate limit exceeded; retry after Retry-After") shouldBe true
+        row["severity"] shouldBe "BLOCK"
+        row["disposition"] shouldBe "TERMINAL"
+        row["owner"] shouldBe "Platform"
+        code.disposition shouldBe ClosedErrorCode.ISSUER_UNAVAILABLE.disposition
+    }
+
+    @Test
+    fun `render gives the gateway's denials the service envelope, and a 429 carries Retry-After (INV-T-4056)`() {
+        val denials =
+            listOf(
+                Problems.render(ClosedErrorCode.UNAUTHENTICATED, "corr-401"),
+                Problems.render(ClosedErrorCode.ISSUER_UNAVAILABLE, "corr-503"),
+                Problems.render(ClosedErrorCode.RATE_LIMITED, "corr-429", retryAfterSeconds = 30),
+            )
+        denials.map { it.status } shouldBe listOf(401, 503, 429)
+        denials.zip(listOf("SRT-003", "SRT-011", "SRT-012")).forEach { (response, code) ->
+            val body = mapper.readTree(response.body)
+            contracts.schemaErrors("service-runtime/schemas/error-envelope.schema.json", body).shouldBeEmpty()
+            body.get("code").asString() shouldBe code
+            body.get("type").asString() shouldBe "https://errors.invoice.internal/$code"
+            body.get("severity").asString() shouldBe "BLOCK"
+            body.get("disposition").asString() shouldBe "TERMINAL"
+            body.get("correlationId").asString() shouldBe "corr-${response.status}"
+            response.headers["Content-Type"] shouldBe "application/problem+json"
+        }
+        denials.map { it.headers["Retry-After"] } shouldBe listOf(null, null, "30")
+        ClosedErrorCode.entries.filter { it.httpStatus != 429 }.forEach { code ->
+            val rendered = Problems.render(code, "corr-1", "what went wrong")
+            val closed = Problems.closed(code, "corr-1", "what went wrong")
+            (rendered.status to rendered.body) shouldBe (closed.status to closed.body)
+        }
+    }
+
+    @Test
+    fun `render refuses a 429 without Retry-After and Retry-After on any other code`() {
+        shouldThrow<IllegalArgumentException> { Problems.render(ClosedErrorCode.RATE_LIMITED, "corr-1") }
+        shouldThrow<IllegalArgumentException> {
+            Problems.render(ClosedErrorCode.RATE_LIMITED, "corr-1", retryAfterSeconds = -1)
+        }
+        shouldThrow<IllegalArgumentException> {
+            Problems.render(ClosedErrorCode.ISSUER_UNAVAILABLE, "corr-1", retryAfterSeconds = 5)
         }
     }
 
