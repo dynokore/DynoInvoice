@@ -4,6 +4,7 @@ import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration
 import com.dynokore.platform.serviceruntime.binding.IdentityProvider
 import com.dynokore.platform.serviceruntime.binding.OidcIssuer
+import com.dynokore.platform.serviceruntime.composition.L1CompositionAutoConfiguration
 import com.dynokore.platform.serviceruntime.replica.AuthorityChanged
 import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
@@ -155,7 +156,7 @@ class JwtEndUserPrincipalResolverTest {
         val runner =
             ApplicationContextRunner()
                 .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
-                .withConfiguration(AutoConfigurations.of(ServiceRuntimeConfiguration::class.java))
+                .withConfiguration(AutoConfigurations.of(ServiceRuntimeConfiguration::class.java, L1CompositionAutoConfiguration::class.java))
                 .withPropertyValues(
                     "service-runtime.workload-identity.audience=svc",
                     "service-runtime.end-user-identity.audience=svc",

@@ -19,9 +19,16 @@ impl half is on the service's classpath (@ConditionalOnClass). Every bean below 
 port, so a service overrides one by declaring its own. The service declares its inputs in its own `bootstrap`
 configuration; an implementation is created only when all of its inputs are present.
 
+The composition is order-independent (INV-T-3881; rulings INV-Q-3877, INV-Q-3889). The module wiring is not in
+ServiceRuntimeConfiguration's `@Import`. It is its own auto-configuration, `L1CompositionAutoConfiguration`, ordered
+after ServiceRuntimeConfiguration, Spring Boot's DataSourceAutoConfiguration and ProductRuntimeConfiguration. So its
+conditions see the application DataSource from `spring.datasource.*` (TPL-16) and product-runtime's
+VariationPointCatalogue whichever way the two roots are registered: TPL-18's `@Import` order, the reverse order, or
+auto-configuration only.
+
 Service inputs:
 - **Role DataSources**, by bean name (`ServiceDataSources`): the application role is the service's `DataSource`
-  (`dataSource`, or the `@Primary` one); `workerDataSource`; `eventLogRelayDataSource`; `eventLogClaimDataSource`;
+  (`dataSource` from `spring.datasource.*`, or the `@Primary` one); `workerDataSource`; `eventLogRelayDataSource`; `eventLogClaimDataSource`;
   `eventLogReaderDataSource`; `eventLogPurgeDataSource`.
 - **Properties:** `gst.service` (TPL-16), `gst.instance-id` (default `HOSTNAME`), `service-runtime.modules.schema`
   (the service's own schema), `service-runtime.modules.evidence.ledger-table`, `.legal-hold-table` and `.bucket`.
@@ -49,7 +56,7 @@ Service inputs:
 | audit-log | `AuditWriter` | `OutboxAuditWriter`, or `LocalAuditWriter` without an outbox (INV-Q-2958) | (an `OutboxWriter`), else `gst.service`, schema |
 | audit-log | `AuditedOperations` | `TransactionalAuditedOperations` | (a `TransactionRunner`, an `AuditWriter`) |
 | audit-log | `OverrideService`, `OverrideRegister` | `JdbcOverrideService` | `ErrorCatalogue` (an `OverridePolicy` if it has one), schema |
-| config-resolver | `PolicyReader`, `PolicyHistory`, `ConfigPurge`, `ResolutionRecorder` | `Jdbc*` | `VariationPointCatalogue` (product-runtime's), schema; form from `gst.form`. Wired by its own auto-configuration `ConfigResolverWiring`, ordered after ServiceRuntimeConfiguration and ProductRuntimeConfiguration, so it is order-independent: TPL-18's `@Import` in either order, or auto-configuration only (INV-T-3881, INV-Q-3877) |
+| config-resolver | `PolicyReader`, `PolicyHistory`, `ConfigPurge`, `ResolutionRecorder` | `Jdbc*` | `VariationPointCatalogue` (product-runtime's), schema; form from `gst.form`. The wiring is order-independent: TPL-18's `@Import` in either order, or auto-configuration only (`L1CompositionAutoConfiguration`, INV-T-3881, INV-Q-3877) |
 | config-resolver | `PolicyWriter` | `JdbcPolicyWriter` | as above, plus `DelegationProbe`, `BackdatingFloor`, `ValueConstraints` if it has them |
 | evidence-store | `EvidenceLedger`, `LegalHoldRegistry` | `JdbcEvidenceLedger`, `JdbcLegalHoldRegistry` | schema and the table names |
 | evidence-store | `ObjectStore` (§12.1) | `S3ObjectStore` | `S3Client` (AWS SDK on its classpath), bucket |

@@ -2,18 +2,10 @@ package com.dynokore.platform.serviceruntime
 
 import com.dynokore.platform.serviceruntime.binding.BindingAutoConfiguration
 import com.dynokore.platform.serviceruntime.client.InternalRestClientAutoConfiguration
-import com.dynokore.platform.serviceruntime.composition.AdapterRuntimeWiring
-import com.dynokore.platform.serviceruntime.composition.AuditLogWiring
-import com.dynokore.platform.serviceruntime.composition.CryptoWiring
-import com.dynokore.platform.serviceruntime.composition.EvidenceStoreWiring
+import com.dynokore.platform.serviceruntime.composition.L1CompositionAutoConfiguration
 import com.dynokore.platform.serviceruntime.composition.ModuleProperties
-import com.dynokore.platform.serviceruntime.composition.OutboxAndQueueWiring
-import com.dynokore.platform.serviceruntime.composition.RulepackKernelWiring
-import com.dynokore.platform.serviceruntime.composition.ServiceRuntimeWiring
-import com.dynokore.platform.serviceruntime.composition.TenancyKernelWiring
 import com.dynokore.platform.serviceruntime.diagnostics.DiagnosticsAutoConfiguration
 import com.dynokore.platform.serviceruntime.health.HealthAutoConfiguration
-import com.dynokore.platform.serviceruntime.http.JobCommandHttpAutoConfiguration
 import com.dynokore.platform.serviceruntime.identity.EndUserIdentityAutoConfiguration
 import com.dynokore.platform.serviceruntime.identity.IdentityAutoConfiguration
 import com.dynokore.platform.serviceruntime.logging.LoggingAutoConfiguration
@@ -47,11 +39,13 @@ import org.springframework.context.annotation.PropertySource
  * platform-libs implementation becoming a bean the service can override (@ConditionalOnMissingBean). An
  * implementation that needs inputs only the service has (its role DataSources, topics catalogue, retention, lane
  * limits, staleness rules, an S3Client) is created only when the service declares them; the README lists each
- * port and its inputs. The service declares those beans in its own `bootstrap` configuration, which Spring
- * registers before this one. The modules are wired in dependency order, so each wiring sees the beans of the
- * modules below it. config-resolver's wiring is the exception: it needs product-runtime's VariationPointCatalogue,
- * so it is its own auto-configuration ordered after this one and ProductRuntimeConfiguration (ConfigResolverWiring,
- * INV-T-3881), which makes it independent of the order in which a service imports the two roots.
+ * port and its inputs. The modules are wired in dependency order, so each wiring sees the beans of the modules
+ * below it. That wiring is not imported here but by its own auto-configuration, [L1CompositionAutoConfiguration],
+ * ordered after this one, Spring Boot's DataSourceAutoConfiguration and product-runtime's ProductRuntimeConfiguration
+ * (INV-T-3881, rulings INV-Q-3877, INV-Q-3889): its conditions are on the application DataSource (from
+ * `spring.datasource.*`, TPL-16) and the VariationPointCatalogue, which under TPL-18's `@Import` are registered
+ * only after this configuration. Auto-configurations are registered after all user configuration, so the
+ * composition sees them whichever order a service imports the two roots in, or when both are auto-configured.
  */
 @AutoConfiguration(
     afterName = [
@@ -68,17 +62,8 @@ import org.springframework.context.annotation.PropertySource
     ResilienceAutoConfiguration::class,
     IdentityAutoConfiguration::class,
     InternalRestClientAutoConfiguration::class,
-    TenancyKernelWiring::class,
-    OutboxAndQueueWiring::class,
-    AuditLogWiring::class,
-    EvidenceStoreWiring::class,
-    AdapterRuntimeWiring::class,
-    CryptoWiring::class,
-    RulepackKernelWiring::class,
-    ServiceRuntimeWiring::class,
     ReplicaAutoConfiguration::class,
     EndUserIdentityAutoConfiguration::class,
-    JobCommandHttpAutoConfiguration::class,
 )
 @PropertySource("classpath:service-runtime-defaults.properties")
 class ServiceRuntimeConfiguration

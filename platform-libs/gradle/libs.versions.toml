@@ -81,6 +81,7 @@ jakarta-servletApi = { module = "jakarta.servlet:jakarta.servlet-api" }
 # (Spring Security 7, STK-27).
 springSecurity-oauth2Jose = { module = "org.springframework.security:spring-security-oauth2-jose" }
 # `ApplicationContextRunner`, for the auto-configuration wiring test (implTest only).
+springBoot-starterJdbc = { module = "org.springframework.boot:spring-boot-starter-jdbc" }
 springBoot-test = { module = "org.springframework.boot:spring-boot-test" }
 # `ApplicationContextRunner`'s own `AssertableApplicationContext` extends AssertJ's
 # `AssertProvider`; version managed by the Spring Boot BOM (implTest only, STK-37

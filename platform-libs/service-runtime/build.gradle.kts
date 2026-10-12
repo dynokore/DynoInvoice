@@ -118,6 +118,9 @@ dependencies {
         add(config, libs.springSecurity.oauth2Jose)
     }
     add("implTestImplementation", libs.springBoot.test)
+    // INV-T-3881 (INV-Q-3889): a TPL-16 service's application DataSource comes from `spring.datasource.*` through
+    // Spring Boot's DataSourceAutoConfiguration (HikariCP, STK-17); the composition tests build it that way.
+    add("implTestImplementation", libs.springBoot.starterJdbc)
 
     // INV-T-2874 / T30: the job and connection contracts. The api half names outbox-and-queue's `EntityRef`
     // (the entity of a job target); the impl half writes JobRegistered, JobRunRecorded and

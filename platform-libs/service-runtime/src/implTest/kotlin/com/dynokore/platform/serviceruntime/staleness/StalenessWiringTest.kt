@@ -4,6 +4,7 @@ import com.dynokore.platform.outboxandqueue.CatalogueEntry
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.StalenessMonitor
 import com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration
+import com.dynokore.platform.serviceruntime.composition.L1CompositionAutoConfiguration
 import com.dynokore.platform.serviceruntime.composition.ServiceDataSources
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -22,7 +23,7 @@ class StalenessWiringTest {
     private val runner =
         ApplicationContextRunner()
             .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
-            .withConfiguration(AutoConfigurations.of(ServiceRuntimeConfiguration::class.java))
+            .withConfiguration(AutoConfigurations.of(ServiceRuntimeConfiguration::class.java, L1CompositionAutoConfiguration::class.java))
             .withPropertyValues(
                 "service-runtime.workload-identity.audience=submission-svc",
                 "service-runtime.modules.schema=submission",

@@ -2,6 +2,7 @@ package com.dynokore.platform.serviceruntime
 
 import com.dynokore.platform.serviceruntime.binding.SecretRef
 import com.dynokore.platform.serviceruntime.binding.SecretStore
+import com.dynokore.platform.serviceruntime.composition.L1CompositionAutoConfiguration
 import com.dynokore.platform.serviceruntime.diagnostics.DiagnosticsEndpoint
 import com.dynokore.platform.serviceruntime.diagnostics.ErrorCodeMetrics
 import com.dynokore.platform.serviceruntime.health.VaultHealthIndicator
@@ -36,7 +37,7 @@ class ServiceRuntimeConfigurationTest {
     private val contextRunner =
         ApplicationContextRunner()
             .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
-            .withConfiguration(AutoConfigurations.of(ServiceRuntimeConfiguration::class.java))
+            .withConfiguration(AutoConfigurations.of(ServiceRuntimeConfiguration::class.java, L1CompositionAutoConfiguration::class.java))
             // INV-AC-2200: every service names its own workload-token audience;
             // this fixture stands in for that service's own configuration.
             .withPropertyValues("service-runtime.workload-identity.audience=canonical-svc")
