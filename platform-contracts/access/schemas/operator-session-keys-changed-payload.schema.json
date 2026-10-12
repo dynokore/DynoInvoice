@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/access/schemas/operator-session-keys-changed-payload.schema.json",
+  "title": "OperatorSessionKeysChangedPayload",
+  "description": "Payload of the OperatorSessionKeysChanged event (catalogued in model/architecture/events.yaml; class: domain; feeds runtime replicas). access-svc publishes its operator-session signing keys on its authority topic, ordered with AuthorityChanged; every service's authority replica (service-runtime) applies them in order and verifies an operator-session token (a token carrying `act`) only against these replicated keys, refusing it (401) while the replica holds no valid key (fail closed). getVerificationKeys and getRevocationList stay gateway-only (owner ruling INV-Q-4006 A; coordinator ruling INV-Q-4162; owner ruling INV-Q-4119). Each event carries the current key and, during rotation, the next key. Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "keys": {
+      "type": "array",
+      "description": "The operator-session signing keys: the current key and, during rotation, the next key.",
+      "minItems": 1,
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "properties": {
+          "kid": {
+            "type": "string",
+            "description": "Key id, matched against the token header's kid.",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "alg": {
+            "type": "string",
+            "description": "The JWS signing algorithm (RFC 7518), for example RS256.",
+            "minLength": 1,
+            "maxLength": 16
+          },
+          "publicKey": {
+            "type": "string",
+            "description": "The key's DER X.509 SubjectPublicKeyInfo (RFC 5280 section 4.1.2.7), standard base64 (RFC 4648 section 4), whatever the alg; the same encoding as getVerificationKeys (coordinator ruling INV-Q-4079).",
+            "minLength": 1,
+            "maxLength": 8192,
+            "contentEncoding": "base64"
+          },
+          "validFrom": {
+            "type": "string",
+            "description": "Start of the key's validity.",
+            "format": "date-time"
+          },
+          "validUntil": {
+            "type": "string",
+            "description": "End of the key's validity.",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "kid",
+          "alg",
+          "publicKey",
+          "validFrom",
+          "validUntil"
+        ],
+        "additionalProperties": true
+      }
+    }
+  },
+  "required": [
+    "keys"
+  ],
+  "additionalProperties": true,
+  "examples": [
+    {
+      "keys": [
+        {
+          "kid": "ops-2026-10",
+          "alg": "RS256",
+          "publicKey": "U0lHTkVELVBMQUNFSE9MREVSCg==",
+          "validFrom": "2026-10-01T00:00:00Z",
+          "validUntil": "2026-11-15T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "keys": [
+        {
+          "kid": "ops-2026-10",
+          "alg": "RS256",
+          "publicKey": "U0lHTkVELVBMQUNFSE9MREVSCg==",
+          "validFrom": "2026-10-01T00:00:00Z",
+          "validUntil": "2026-11-15T00:00:00Z"
+        },
+        {
+          "kid": "ops-2026-11",
+          "alg": "RS256",
+          "publicKey": "TkVYVC1QTEFDRUhPTERFUgo=",
+          "validFrom": "2026-11-01T00:00:00Z",
+          "validUntil": "2026-12-15T00:00:00Z"
+        }
+      ]
+    }
+  ]
+}

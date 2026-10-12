@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: access events
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     Every event access produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -29,6 +29,8 @@ channels:
     messages:
       AuthorityChanged:
         $ref: '#/components/messages/AuthorityChanged'
+      OperatorSessionKeysChanged:
+        $ref: '#/components/messages/OperatorSessionKeysChanged'
 
   accessAccessAlertRaised:
     address: 'gst.access.access-alert-raised.v1'
@@ -54,6 +56,14 @@ operations:
       $ref: '#/channels/accessAuthorityChanged'
     messages:
       - $ref: '#/channels/accessAuthorityChanged/messages/AuthorityChanged'
+
+  publishOperatorSessionKeysChanged:
+    action: send
+    description: OperatorSessionKeysChanged — catalogued in model/architecture/events.yaml (§19.8).
+    channel:
+      $ref: '#/channels/accessAuthorityChanged'
+    messages:
+      - $ref: '#/channels/accessAuthorityChanged/messages/OperatorSessionKeysChanged'
 
   publishAccessAlertRaised:
     action: send
@@ -98,6 +108,47 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/authority-changed-payload.schema.json'
+    OperatorSessionKeysChanged:
+      name: com.dynokore.gst.access.OperatorSessionKeysChanged.v1
+      title: OperatorSessionKeysChanged
+      summary: OperatorSessionKeysChanged — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event OperatorSessionKeysChanged (model/architecture/events.yaml; class: domain;
+        feeds runtime replicas). Emitted by: access-svc. Consumed by: none. Delivery: At-least-once.
+        Payload (catalogue text): operator-session signing keys on the authority topic: key id,
+        algorithm, public key, valid-from, valid-until; the current and the next key during rotation.
+        Published on the authority topic, ordered with AuthorityChanged; every service's authority
+        replica (service-runtime) applies it in order and verifies an operator-session token (one
+        with act, issued by openOperatorSession) only against these replicated keys, refusing it
+        (401) while none is valid. getVerificationKeys and getRevocationList stay gateway-only
+        (owner ruling INV-Q-4006 A; coordinator ruling INV-Q-4162; owner ruling INV-Q-4119).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/operator-session-keys-changed-payload.schema.json'
+      examples:
+      - name: currentKey
+        summary: The current key only
+        payload:
+          keys:
+          - kid: ops-2026-10
+            alg: RS256
+            publicKey: U0lHTkVELVBMQUNFSE9MREVSCg==
+            validFrom: '2026-10-01T00:00:00Z'
+            validUntil: '2026-11-15T00:00:00Z'
+      - name: rotation
+        summary: The current and the next key during rotation
+        payload:
+          keys:
+          - kid: ops-2026-10
+            alg: RS256
+            publicKey: U0lHTkVELVBMQUNFSE9MREVSCg==
+            validFrom: '2026-10-01T00:00:00Z'
+            validUntil: '2026-11-15T00:00:00Z'
+          - kid: ops-2026-11
+            alg: RS256
+            publicKey: TkVYVC1QTEFDRUhPTERFUgo=
+            validFrom: '2026-11-01T00:00:00Z'
+            validUntil: '2026-12-15T00:00:00Z'
 
     AccessAlertRaised:
       name: com.dynokore.gst.access.AccessAlertRaised.v1

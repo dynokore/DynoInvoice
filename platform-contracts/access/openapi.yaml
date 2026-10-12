@@ -910,9 +910,12 @@ paths:
         Token claims: `sub` is the operator; `tenant_id` is the chosen tenant; `act` is an object
         {`role`, `case`}, the operator's platform role and the case reference (RFC 8693 actor
         claim); `iat` is the issue time and `exp` is at most 15 minutes after `iat` (API-23). The
-        token is signed with an access-svc key published through getVerificationKeys;
-        service-runtime accepts that issuer only for tokens carrying `act`, and binds the token
-        like any tenant principal, so the framework tenant predicate, RLS and the guards apply
+        token is signed with an access-svc operator-session key. access-svc publishes the public
+        keys as the OperatorSessionKeysChanged event on its authority topic (access/asyncapi.yaml),
+        ordered with AuthorityChanged; service-runtime verifies a token carrying `act` only against
+        those replicated keys and refuses it (401) while its replica holds no valid key.
+        getVerificationKeys and getRevocationList stay gateway-only (owner ruling INV-Q-4006 A;
+        coordinator ruling INV-Q-4162). service-runtime binds the token like any tenant principal, so the framework tenant predicate, RLS and the guards apply
         unchanged. A platform-tenant binding never reads tenant rows.
 
         Permissions under the session come from the authority replica as for any principal: the
@@ -925,8 +928,10 @@ paths:
         security event of NFR-S.11 (INV-REQ-1384); every read and action under the session is
         audited under that tenant the same way.
 
-        Refusals: no platform grant gets 403 SRT-004; an unknown tenant gets 404 SRT-005; a missing
-        or blank case reference is a contract violation, 400 SRT-001. Closed service-runtime cases
+        Refusals: no platform grant gets 403 SRT-004; a tenant that does not exist or is retired
+        gets 404 SRT-005, the same response for both. There is no suspended tenant state, and an
+        entity's suspension (suspendEntity) does not affect the session (coordinator ruling
+        INV-Q-4167). A missing or blank case reference is a contract violation, 400 SRT-001. Closed service-runtime cases
         carry their SRT catalogue code, mapped once in ProblemMapper and not listed in
         x-error-codes (ARC-19, INV-REQ-827 b3, owner ruling INV-Q-3720).
       tags:
@@ -944,8 +949,8 @@ paths:
       x-operation:
         role: platform.support or platform.engineer (SaaS), deployment.operator (private installation)
         scope: tenant
-        precondition: The operator holds a platform grant; the tenant exists; a case reference is
-          stated
+        precondition: The operator holds a platform grant; the tenant exists and is not retired; a
+          case reference is stated
         reversibility: IRREVERSIBLE
         repeatKey: Idempotency-Key — a replay returns the same session; a new key opens a new
           session; the token expires within 15 minutes
@@ -2038,7 +2043,8 @@ components:
           maxLength: 8192
           description: 'The signed end-user token (JWT) for the session. Claims: `sub` the operator,
             `tenant_id` the tenant, `act` = {`role`, `case`}, `iat`, and `exp` at most 15 minutes
-            after `iat`; signed with an access-svc key published through getVerificationKeys.'
+            after `iat`; signed with an access-svc operator-session key, whose public keys are
+            published as the OperatorSessionKeysChanged event (coordinator ruling INV-Q-4162).'
         expiresAt:
           type: string
           format: date-time
