@@ -20,12 +20,12 @@ import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.serviceruntime.binding.GstProperties
 import com.dynokore.platform.tenancykernel.CurrentConnection
 import org.springframework.beans.factory.ObjectProvider
+import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
-import org.springframework.context.annotation.Configuration
 import java.time.Clock
 
 /**
@@ -33,8 +33,18 @@ import java.time.Clock
  * schema and its [VariationPointCatalogue], for the deployment form `gst.form`. The policy writer uses the
  * service's [DelegationProbe], [BackdatingFloor] and [ValueConstraints] when it declares them, and its outbox
  * when it has one.
+ *
+ * Its own auto-configuration, ordered after `ServiceRuntimeConfiguration` and product-runtime's
+ * `ProductRuntimeConfiguration` (INV-T-3881, ruling INV-Q-3877): the catalogue is product-runtime's bean, and
+ * `@ConditionalOnBean` is evaluated when a configuration is registered. Under TPL-18's
+ * `@Import(ServiceRuntimeConfiguration::class, ProductRuntimeConfiguration::class)` both roots are user configuration,
+ * registered in import order, so a wiring imported by service-runtime would decide before the catalogue exists.
+ * Auto-configurations are registered after all user configuration, so this one sees the catalogue whichever order
+ * the two roots are imported in, or when both are auto-configured. It is listed in
+ * `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`, not in
+ * ServiceRuntimeConfiguration's `@Import`.
  */
-@Configuration(proxyBeanMethods = false)
+@AutoConfiguration(afterName = [SERVICE_RUNTIME, PRODUCT_RUNTIME])
 @ConditionalOnClass(name = ["com.dynokore.platform.configresolver.JdbcPolicyReader"])
 @ConditionalOnBean(CurrentConnection::class, VariationPointCatalogue::class)
 @ConditionalOnProperty(name = [Props.SCHEMA])
@@ -102,3 +112,8 @@ class ConfigResolverWiring {
 
     private fun GstProperties.configForm(): DeploymentForm = DeploymentForm.valueOf(form.name)
 }
+
+private const val SERVICE_RUNTIME = "com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration"
+
+/** product-runtime's composition root (L3), named only: service-runtime does not depend on it. */
+private const val PRODUCT_RUNTIME = "com.dynokore.platform.productruntime.ProductRuntimeConfiguration"

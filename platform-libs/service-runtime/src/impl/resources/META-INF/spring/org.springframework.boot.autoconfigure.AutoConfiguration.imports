@@ -1,1 +1,2 @@
 com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration
+com.dynokore.platform.serviceruntime.composition.ConfigResolverWiring

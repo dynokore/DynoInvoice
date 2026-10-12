@@ -4,7 +4,6 @@ import com.dynokore.platform.serviceruntime.binding.BindingAutoConfiguration
 import com.dynokore.platform.serviceruntime.client.InternalRestClientAutoConfiguration
 import com.dynokore.platform.serviceruntime.composition.AdapterRuntimeWiring
 import com.dynokore.platform.serviceruntime.composition.AuditLogWiring
-import com.dynokore.platform.serviceruntime.composition.ConfigResolverWiring
 import com.dynokore.platform.serviceruntime.composition.CryptoWiring
 import com.dynokore.platform.serviceruntime.composition.EvidenceStoreWiring
 import com.dynokore.platform.serviceruntime.composition.ModuleProperties
@@ -50,7 +49,9 @@ import org.springframework.context.annotation.PropertySource
  * limits, staleness rules, an S3Client) is created only when the service declares them; the README lists each
  * port and its inputs. The service declares those beans in its own `bootstrap` configuration, which Spring
  * registers before this one. The modules are wired in dependency order, so each wiring sees the beans of the
- * modules below it.
+ * modules below it. config-resolver's wiring is the exception: it needs product-runtime's VariationPointCatalogue,
+ * so it is its own auto-configuration ordered after this one and ProductRuntimeConfiguration (ConfigResolverWiring,
+ * INV-T-3881), which makes it independent of the order in which a service imports the two roots.
  */
 @AutoConfiguration(
     afterName = [
@@ -70,7 +71,6 @@ import org.springframework.context.annotation.PropertySource
     TenancyKernelWiring::class,
     OutboxAndQueueWiring::class,
     AuditLogWiring::class,
-    ConfigResolverWiring::class,
     EvidenceStoreWiring::class,
     AdapterRuntimeWiring::class,
     CryptoWiring::class,

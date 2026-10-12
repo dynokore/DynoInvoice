@@ -108,7 +108,7 @@ class CompositionRootTest {
     private val base =
         ApplicationContextRunner()
             .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
-            .withConfiguration(AutoConfigurations.of(ServiceRuntimeConfiguration::class.java))
+            .withConfiguration(AutoConfigurations.of(ServiceRuntimeConfiguration::class.java, ConfigResolverWiring::class.java))
             .withPropertyValues("service-runtime.workload-identity.audience=submission-svc")
 
     /**
