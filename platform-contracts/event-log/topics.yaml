@@ -62,7 +62,6 @@ topics:
     producers:
       - access-svc
     subscribers:
-      - access-svc
       - aggregation-svc
       - canonical-svc
       - console-bff
@@ -449,16 +448,6 @@ topics:
     subscribers:
       - ingestion-svc
 replay_topics:
-  - topic: gst.access.replay-access.v1
-    event_types:
-      - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
-      - com.dynokore.gst.platform.ReplayCompleted.v1
-    content_topic: false
-    record_topic: false
-    producers:
-      - access-svc
-    subscribers:
-      - access-svc
   - topic: gst.access.replay-aggregation.v1
     event_types:
       - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
@@ -1256,7 +1245,6 @@ replay_request_topics:
     producers:
       - access-svc
     subscribers:
-      - access-svc
       - masterdata-svc
       - tenancy-svc
   - topic: gst.aggregation.replay-requested.v1

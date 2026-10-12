@@ -913,7 +913,8 @@ paths:
         token is signed with an access-svc operator-session key. access-svc publishes the public
         keys as the OperatorSessionKeysChanged event on its own topic
         gst.access.operator-session-keys-changed.v1 (access/asyncapi.yaml), subscribed by every
-        service (coordinator ruling INV-Q-4171); service-runtime verifies a token carrying `act` only against
+        service except access-svc, which uses its own key store (coordinator ruling INV-Q-4171);
+        service-runtime verifies a token carrying `act` only against
         those replicated keys and refuses it (401) while its replica holds no valid key.
         getVerificationKeys and getRevocationList stay gateway-only (owner ruling INV-Q-4006 A;
         coordinator ruling INV-Q-4162). service-runtime binds the token like any tenant principal, so the framework tenant predicate, RLS and the guards apply

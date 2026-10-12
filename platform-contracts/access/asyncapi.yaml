@@ -117,13 +117,15 @@ components:
       summary: OperatorSessionKeysChanged — catalogued in model/architecture/events.yaml (§19.8).
       description: >-
         Catalogued event OperatorSessionKeysChanged (model/architecture/events.yaml; class: domain;
-        feeds runtime replicas). Emitted by: access-svc. Consumed by: access-svc, aggregation-svc,
+        feeds runtime replicas). Emitted by: access-svc. Consumed by: aggregation-svc,
         canonical-svc, console-bff, control-plane-svc, evidence-svc, ingestion-svc, masterdata-svc,
         notification-svc, payload-svc, reconciliation-svc, rules-svc, submission-svc, tenancy-svc,
         transport-svc. Delivery: At-least-once. Payload (catalogue text): operator-session signing
         keys: key id, algorithm, public key, valid-from, valid-until; the current and the next key
         during rotation. On its own topic (one channel, one message; API standard 'Topics per event
-        type'; coordinator ruling INV-Q-4171), subscribed by every service: each service's authority
+        type'; coordinator ruling INV-Q-4171), subscribed by every service that lacks the keys (every
+        service except access-svc, which signs with them and verifies operator tokens from its own
+        key store; a reading of INV-Q-4171): each subscribing service's authority
         replica (service-runtime) consumes it beside AuthorityChanged, with no ordering between the
         two, keeps the keys in the replica, and verifies an operator-session token (one with act,
         issued by openOperatorSession) only against them, refusing it (401) while none is valid.
