@@ -59,8 +59,19 @@ springBoot = "4.1.1"
 # reaches the first module, or first consuming service's `bootstrap`, that adds
 # spring-boot-starter-web through this same BOM.
 tomcatEmbed = "11.0.25"
+# product-runtime (INV-T-2876): the generated VariationPoint catalogue (STK-61; acknowledged_by since 1.3.0,
+# typed constraint records since 1.9.0), from platform-contracts' registry (226).
+gstCatalogue = "1.14.0"
+# product-runtime (INV-T-2876, INV-Q-3852): the published platform-contracts bundle its event types and fallback
+# clients are generated from; a main build including INV-T-3298 (fadead4). Bumped deliberately, like gstCatalogue.
+platformContractsBundle = "0.0.0-dev+fadead44"
 
 [libraries]
+gstCatalogue = { module = "com.dynokore.gst:gst-catalogue", version.ref = "gstCatalogue" }
+platformContracts-bundle = { module = "platform-contracts-bundle:platform-contracts", version.ref = "platformContractsBundle" }
+# Generated contract code's Kotlin (de)serialisation (gst.event-types / gst.contract-client, `serializationLibrary
+# jackson`); version managed by the Spring Boot BOM, as codegen-self-test pins it (Jackson 3).
+jackson-moduleKotlin = { module = "tools.jackson.module:jackson-module-kotlin" }
 springBoot-dependencies = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "springBoot" }
 springBoot-starterActuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }
 # STK-23 (service-runtime, INV-T-2872 / T28): the generated ARC-08 client's own

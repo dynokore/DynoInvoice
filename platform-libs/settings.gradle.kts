@@ -32,6 +32,9 @@ pluginManagement {
     }
     plugins {
         id("gst.library") version platformBuildVersion
+        // product-runtime's generated contract types and fallback clients (INV-T-2876, INV-Q-3852; STK-23, STK-74).
+        id("gst.event-types") version platformBuildVersion
+        id("gst.contract-client") version platformBuildVersion
     }
 }
 
@@ -52,6 +55,42 @@ dependencyResolutionManagement {
             }
             authentication { create<HttpHeaderAuthentication>("header") }
             content { includeGroup("com.dynokore.gst.build") } // konsist-rules only
+        }
+        // platform-contracts' registry (project 226; INV-T-2876, coordinator ruling G3): the gst-catalogue artefact
+        // (STK-61) and the published platform-contracts bundle product-runtime generates its contract types from
+        // (INV-Q-3852). Its inbound job-token allowlist includes the `invoice` group, as platform-build's does.
+        maven {
+            name = "platformContractsRegistry"
+            url = uri("http://registry.example.internal/api/v4/projects/226/packages/maven")
+            isAllowInsecureProtocol = url.scheme == "http" && url.host == "registry.example.internal"
+            val jobToken = System.getenv("CI_JOB_TOKEN")
+            credentials(HttpHeaderCredentials::class) {
+                name = if (jobToken != null) "Job-Token" else "Private-Token"
+                value = jobToken ?: System.getenv("GST_REGISTRY_TOKEN") ?: ""
+            }
+            authentication { create<HttpHeaderAuthentication>("header") }
+            content { includeModule("com.dynokore.gst", "gst-catalogue") }
+        }
+        ivy {
+            name = "platformContractsBundle"
+            url = uri("http://registry.example.internal/api/v4/projects/226/packages/generic")
+            isAllowInsecureProtocol = url.scheme == "http" && url.host == "registry.example.internal"
+            patternLayout { artifact("[module]/[revision]/[artifact]-[revision].[ext]") }
+            metadataSources { artifact() }
+            val jobToken = System.getenv("CI_JOB_TOKEN")
+            credentials(HttpHeaderCredentials::class) {
+                name = if (jobToken != null) "Job-Token" else "Private-Token"
+                value = jobToken ?: System.getenv("GST_REGISTRY_TOKEN") ?: ""
+            }
+            authentication { create<HttpHeaderAuthentication>("header") }
+            content { includeGroup("platform-contracts-bundle") }
+        }
+        // The build-local Maven layout product-runtime stages from that bundle (`stageContracts`), which
+        // gst.event-types and gst.contract-client resolve `platform-contracts:<service>:+` from (ContractSource.kt).
+        maven {
+            name = "stagedPlatformContracts"
+            url = uri(settingsDir.resolve("product-runtime/build/contracts-repo"))
+            content { includeGroup("platform-contracts") }
         }
         mavenCentral()
     }
@@ -77,3 +116,23 @@ include(
     "crypto", // CS-53, INV-Q-3356 M-A (INV-T-3358): the lowest L1 module
     "product-runtime",
 )
+
+// product-runtime's generated contract code (INV-T-2876, INV-Q-3852): one project per generator source, as
+// gst.event-types and gst.contract-client take exactly one; each project's name becomes the package segment of its
+// event, api and model types (com.dynokore.gst.productRuntime...), so those never clash with a service's own generated
+// tenancy or access types. The openapi-generator infrastructure package (org.openapitools.client.infrastructure) is
+// not segmented by platform-build 0.6.1: every gst.contract-client project, product-runtime's and a service's own,
+// generates it under the same names, so a service that embeds product-runtime and generates a client of its own has
+// two copies on its classpath (platform-build follow-up: a per-project infrastructure package). Their classes ship
+// inside product-runtime's impl artefact, with one copy of that package (product-runtime/build.gradle.kts).
+listOf(
+    "product-runtime-tenancy-client" to "tenancy-client",
+    "product-runtime-access-client" to "access-client",
+    "product-runtime-structure-events" to "structure-events",
+    "product-runtime-profile-events" to "profile-events",
+    "product-runtime-authority-events" to "authority-events",
+    "product-runtime-policy-events" to "policy-events",
+).forEach { (name, dir) ->
+    include(name)
+    project(":$name").projectDir = settingsDir.resolve("product-runtime/contracts/$dir")
+}

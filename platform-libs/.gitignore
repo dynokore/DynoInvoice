@@ -7,3 +7,6 @@
 # module), plus the root and the BOM.
 /build/
 /*/build/
+
+# product-runtime generates its contract types in nested projects (INV-Q-3852).
+/product-runtime/contracts/*/build/
