@@ -1,0 +1,10 @@
+# Fixture for self-test-workload-rule.sh (accepted: api-gateway->access-svc).
+openapi: 3.1.0
+info: {title: fixture, version: 1.0.0}
+paths:
+  /internal/v1/fixture/op:
+    get:
+      operationId: getVerificationKeys
+      x-principal: workload
+      x-sync-edge: api-gateway->access-svc
+      responses: {"200": {description: ok}}
