@@ -25,14 +25,17 @@ class EventLogTenantIsolationIT {
     private val mapper = tools.jackson.databind.ObjectMapper()
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `topic tables carry a mandatory tenant under forced RLS and no role bypasses it`(image: String) {
         OutboxHarness(image).use { harness ->
             assertEquals(listOf(true, true), harness.flags("eventlog", "gst_platform_audit_entry_recorded_v1"))
             assertEquals(listOf("NO"), harness.nullable("eventlog", "gst_platform_audit_entry_recorded_v1"))
             assertEquals(
                 0,
-                harness.count("select count(*) from pg_roles where rolname like 'outbox_%' and rolbypassrls"),
+                harness.count(
+                    "select count(*) from pg_roles " +
+                        "where (rolname like 'outbox_%' or rolname like 'eventlog_%') and rolbypassrls",
+                ),
                 "no role has BYPASSRLS",
             )
         }
@@ -41,7 +44,7 @@ class EventLogTenantIsolationIT {
     // INV-T-3999 removes this call
     @Suppress("DEPRECATION")
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `tenant and platform events round-trip in offset order, each read only under its own tenant`(image: String) {
         OutboxHarness(image).use { harness ->
             val a = UUID.randomUUID()
@@ -73,12 +76,12 @@ class EventLogTenantIsolationIT {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `a relay insert with an unbound, mismatched or missing tenant is refused`(image: String) {
         OutboxHarness(image).use { harness ->
             val a = UUID.randomUUID()
             val b = UUID.randomUUID()
-            harness.fixture.relayDataSource().connection.use { relay ->
+            harness.fixture.eventLogDataSource().connection.use { relay ->
                 assertThrows(SQLException::class.java, { insert(relay, bound = null, row = a) }, "unbound")
                 assertThrows(SQLException::class.java, { insert(relay, bound = a, row = b) }, "mismatched")
                 assertThrows(SQLException::class.java, { insert(relay, bound = a, row = null) }, "no tenant")
@@ -88,14 +91,50 @@ class EventLogTenantIsolationIT {
         }
     }
 
-    @Test
-    fun `one role cannot both claim and read envelopes, or claim and insert`() {
-        assertThrows(IllegalArgumentException::class.java) { EventLogSchema.ConsumerRoles("r", "r") }
-        val crossed = listOf(EventLogSchema.ConsumerRoles("c1", "r1"), EventLogSchema.ConsumerRoles("r1", "c2"))
-        assertThrows(IllegalArgumentException::class.java) { EventLogSchema.topicDdl(topic, "relay", crossed, "purge") }
-        assertThrows(IllegalArgumentException::class.java) {
-            EventLogSchema.topicDdl(topic, "relay", listOf(EventLogSchema.ConsumerRoles("relay", "r1")), "purge")
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
+    fun `a runtime login reads only its subscribed topics and a non-subscriber's claim returns nothing`(image: String) {
+        OutboxHarness(image).use { harness ->
+            val a = UUID.randomUUID()
+            harness.fixture.eventLogDataSource().connection.use { insert(it, bound = a, row = a) }
+            val replayTable = "eventlog.gst_canonical_replay_reconciliation_v1"
+            // recon_runtime subscribes only to its replay topics: no SELECT on the audit topic, and its claim is empty
+            harness.fixture.roleDataSource("recon_runtime").connection.use { other ->
+                assertThrows(SQLException::class.java) { count(other, "select count(*) from $table") }
+                assertEquals(0, claimed(other, topic), "a non-subscriber's claim returns nothing")
+                val own = count(other, "select count(*) from $replayTable")
+                assertEquals(0, own, "its own replay topic: no tenant bound")
+            }
+            harness.fixture.eventLogDataSource().connection.use { app ->
+                assertThrows(SQLException::class.java) { count(app, "select count(*) from $replayTable") }
+                assertEquals(0, claimed(app, "gst.canonical.replay-reconciliation.v1"), "not its replay topic")
+                assertEquals(1, claimed(app, topic), "its own topic")
+            }
         }
+    }
+
+    @Test
+    fun `the generated key is injective and every login a plain identifier`() {
+        val sys = OutboxPostgresFixture.EVENTLOG_SYS
+        fun topic(name: String) = EventLogSchema.Topic(name, setOf("a_runtime"), setOf("b_runtime"), false)
+        assertThrows(IllegalArgumentException::class.java, {
+            EventLogSchema.functionsDdl(listOf(topic("gst.a.b-c.v1"), topic("gst.a.b.c.v1")), sys, "purge")
+        }, "two topics on one table name")
+        assertThrows(IllegalArgumentException::class.java, {
+            EventLogSchema.functionsDdl(listOf(topic("gst.a.b.v1"), topic("gst.a.b.v1")), sys, "purge")
+        }, "a topic twice")
+        assertThrows(IllegalArgumentException::class.java, {
+            EventLogSchema.functionsDdl(listOf(topic("gst.a.b.v1")), "b_runtime", "purge")
+        }, "the sys role as a subscriber")
+        assertThrows(IllegalArgumentException::class.java, {
+            EventLogSchema.Topic("gst.a.b.v1", setOf("a_runtime"), setOf("b; drop role x"), false)
+        }, "a login that is no identifier")
+        assertThrows(IllegalArgumentException::class.java, {
+            EventLogSchema.Topic("gst.a.b.v1", setOf("a_runtime"), setOf("b_runtime"), false, keeper = "c_runtime")
+        }, "a keeper that does not subscribe")
+        assertThrows(IllegalArgumentException::class.java, {
+            EventLogSchema.topicDdl(topic("gst.a.b.v1"), "a_runtime")
+        }, "the sys role as a producer")
     }
 
     private fun assertEnvelopesBoundToTenant(
@@ -103,7 +142,7 @@ class EventLogTenantIsolationIT {
         a: UUID,
         b: UUID,
     ) {
-        harness.fixture.readerDataSource().connection.use { reader ->
+        harness.fixture.eventLogDataSource().connection.use { reader ->
             assertEquals(0, envelopes(reader, null), "no tenant bound: nothing")
             assertEquals(0, envelopes(reader, UUID.randomUUID()), "another tenant: nothing")
             assertEquals(2, envelopes(reader, a), "tenant a: its own two")
@@ -113,15 +152,31 @@ class EventLogTenantIsolationIT {
     }
 
     private fun assertClaimColumnsOnly(harness: OutboxHarness) {
-        harness.fixture.workerDataSource().connection.use { claim ->
-            claim.createStatement().use { statement ->
-                statement.executeQuery("select count(*) from $table where log_offset > 0").use {
-                    it.next()
-                    assertEquals(4, it.getInt(1), "the claim role sees every tenant's claim columns")
-                }
-                assertThrows(SQLException::class.java) { statement.executeQuery("select envelope from $table") }
-                assertThrows(SQLException::class.java) { statement.executeQuery("select event_id from $table") }
-            }
+        harness.fixture.eventLogDataSource().connection.use { claim ->
+            val all = claimed(claim, topic)
+            assertEquals(4, all, "the subscriber claims every tenant's offsets through eventlog.claim")
+            assertEquals(0, count(claim, "select count(*) from $table"), "but reads no row of its own without a tenant")
+        }
+    }
+
+    private fun claimed(
+        connection: Connection,
+        topic: String,
+    ): Int = connection.prepareStatement("select count(*) from eventlog.claim(?, 0, 100)").use {
+        it.setString(1, topic)
+        it.executeQuery().use { rows ->
+            rows.next()
+            rows.getInt(1)
+        }
+    }
+
+    private fun count(
+        connection: Connection,
+        sql: String,
+    ): Int = connection.createStatement().use { statement ->
+        statement.executeQuery(sql).use {
+            it.next()
+            it.getInt(1)
         }
     }
 

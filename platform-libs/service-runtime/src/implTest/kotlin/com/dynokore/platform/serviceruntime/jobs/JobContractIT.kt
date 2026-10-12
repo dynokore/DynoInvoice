@@ -1,6 +1,7 @@
 package com.dynokore.platform.serviceruntime.jobs
 
 import com.dynokore.platform.outboxandqueue.EntityRef
+import com.dynokore.platform.outboxandqueue.OutboxPostgresFixture
 import com.dynokore.platform.serviceruntime.jobs.JobsHarness.Companion.AUDIT
 import com.dynokore.platform.serviceruntime.jobs.JobsHarness.Companion.E1
 import com.dynokore.platform.serviceruntime.jobs.JobsHarness.Companion.E2
@@ -52,15 +53,19 @@ class JobContractIT {
     private val authorizer = FakeAuthorizer(mapOf(engineer to setOf(E1), "eng-e2" to setOf(E2)), setOf(operator))
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-AC-2126 a declared job is registered with its contract and records each run`(image: String) {
         val h = harness(image)
         val replica = h.replica("svc-1", MutableClock(START))
         val def = job("ac2126-check", criticality = JobCriticality.DEADLINE_CRITICAL)
         replica.runtime.register(def, entities) { }
+        h.fixture.captureActors("submission.outbox")
 
         replica.runtime.announce()
+        // start-up and the scheduled firing are background work: the service's workload principal (INV-Q-4268)
+        h.fixture.capturedActors("submission.outbox").toSet() shouldBe setOf(OutboxPostgresFixture.WORKLOAD)
         replica.runtime.fire(def.name) shouldBe mapOf(e1 to FireResult.RAN, e2 to FireResult.RAN)
+        h.fixture.capturedActors("submission.outbox").toSet() shouldBe setOf(OutboxPostgresFixture.WORKLOAD)
 
         val registered =
             h.rows(

@@ -1,5 +1,6 @@
 package com.dynokore.platform.outboxandqueue
 
+import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantId
 import java.sql.Connection
 import java.time.Clock
@@ -114,7 +115,7 @@ constructor(
                 return ReplayOutcome.REJECTED
             }
         val step =
-            scope.bind(envelope.tenant) {
+            scope.bindWorkload(envelope.tenant) {
                 scope.transactions.inTransaction { apply(scope.connections.require(), envelope) }
             }
         return when (step) {
@@ -141,7 +142,7 @@ constructor(
             return Step.DEAD_LETTER
         }
         return try {
-            scope.bind(envelope.tenant) {
+            scope.bindWorkload(envelope.tenant) {
                 scope.transactions.inTransaction { applyInTransaction(record, envelope) }
             }
         } catch (violation: ContractViolation) {

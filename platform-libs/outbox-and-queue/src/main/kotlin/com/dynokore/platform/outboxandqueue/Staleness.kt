@@ -17,7 +17,11 @@ data class StalenessRule(
     }
 }
 
-/** The measured staleness of one consumer of one event type: the metric. [lag] is zero with nothing unconsumed. */
+/**
+ * The measured staleness of one consumer of one event type: the metric. [lag] is zero with nothing unconsumed.
+ * [backlog] is the offset lag (the topic's head minus the consumer's position, coordinator ruling INV-Q-4264): an upper
+ * bound of the records unconsumed, since offsets of rolled-back inserts and of purged rows count.
+ */
 data class ConsumerStaleness(
     val consumer: String,
     val eventType: String,
@@ -49,9 +53,12 @@ interface StalenessMonitor {
     fun check(): List<ConsumerStaleness>
 }
 
-/** The event log's view of what is unconsumed on a topic (the same SELECT grant as [EventLogReader]). */
+/** The event log's view of what is unconsumed on a topic, through `eventlog.claim` (INV-Q-4264). */
 interface EventLogLag {
-    /** The backlog of records after [afterOffset] and the insertion time of the oldest. */
+    /**
+     * The offset lag after [afterOffset] (an upper bound of the records unconsumed) and the insertion time of the
+     * oldest.
+     */
     fun backlog(
         topic: String,
         afterOffset: Long,

@@ -143,15 +143,13 @@ class ProducerReplayIT {
             val type = TestCatalogue.CANONICAL_VERSION_CREATED
             val replayed = "select count(*) from $submissionReplay where envelope->>'type' = '$type'"
             assertEquals(1L, s.harness.count(replayed))
-            for (role in listOf("recon_el_claim", "recon_el_reader")) {
-                s.harness.fixture.roleDataSource(role).connection.use { connection ->
-                    assertThrows(SQLException::class.java, {
-                        connection.createStatement().executeQuery("select log_offset from $submissionReplay")
-                    }, role)
+            s.harness.fixture.roleDataSource("recon_runtime").connection.use { connection ->
+                assertThrows(SQLException::class.java) {
+                    connection.createStatement().executeQuery("select log_offset from $submissionReplay")
                 }
             }
-            // ...while submission-svc's own roles can.
-            s.harness.fixture.roleDataSource("sub_el_claim").connection.use { connection ->
+            // ...while submission-svc's own login can.
+            s.harness.fixture.roleDataSource("sub_runtime").connection.use { connection ->
                 connection.createStatement().executeQuery("select count(log_offset) from $submissionReplay").use {
                     assertTrue(it.next())
                 }
@@ -493,9 +491,9 @@ class ProducerReplayIT {
             ConsumerSubscription(consumer, replayTopic, "reconciliation"),
             harness.catalogue,
             "canonical-svc",
-            replayReader(harness, harness.fixture.replayRoles(consumer)),
+            harness.readerFor(harness.fixture.replayLogin(consumer)),
             harness.fixture.runtimeDataSource(),
-            TenantScope(recon.tenants, recon.boundary, recon.boundary),
+            recon.scope,
             ViewHandler(consumer),
             harness.rebuildSink,
         )
@@ -535,9 +533,9 @@ class ProducerReplayIT {
                 publishCanonical()
             }
             harness.fixture.runAsAdmin(
-                "insert into eventlog.purge_watermark (topic, watermark) " +
-                    "select '$live', max(log_offset) from $liveTable " +
-                    "on conflict (topic) do update set watermark = excluded.watermark; delete from $liveTable",
+                "insert into eventlog.purge_watermark (topic_key, watermark) " +
+                    "select '${EventLogSchema.tableName(live)}', max(log_offset) from $liveTable " +
+                    "on conflict (topic_key) do update set watermark = excluded.watermark; delete from $liveTable",
             )
         }
 
@@ -554,7 +552,7 @@ class ProducerReplayIT {
             failAfterPages: Int? = null,
         ) = JdbcReplayResponder(
             "canonical-svc", "canonical", harness.catalogue, harness.reader, harness.fixture.runtimeDataSource(),
-            TenantScope(canonical.tenants, canonical.boundary, canonical.boundary), canonical.writer,
+            canonical.scope, canonical.writer,
             listOf(CanonicalStates(failAfterPages)), harness.rebuildSink, clock, pageSize,
         )
 
@@ -678,7 +676,7 @@ private fun evidenceConsumer(
     harness.catalogue,
     harness.reader,
     harness.fixture.runtimeDataSource(),
-    TenantScope(harness.evidence.tenants, harness.evidence.boundary, harness.evidence.boundary),
+    harness.evidence.scope,
     countingHandler(),
     harness.rebuildSink,
 )
@@ -687,9 +685,9 @@ private fun evidenceIntake(harness: OutboxHarness) = JdbcReplayIntake(
     ConsumerSubscription("evidence-svc", "gst.platform.replay-evidence.v1", "evidence"),
     harness.catalogue,
     CatalogueEntry.EVERY_SERVICE,
-    replayReader(harness, harness.fixture.replayRoles("evidence-svc")),
+    harness.readerFor(harness.fixture.replayLogin("evidence-svc")),
     harness.fixture.runtimeDataSource(),
-    TenantScope(harness.evidence.tenants, harness.evidence.boundary, harness.evidence.boundary),
+    harness.evidence.scope,
     countingHandler(),
     harness.rebuildSink,
 )
@@ -702,7 +700,7 @@ private fun answerEmpty(
 ) {
     val responder = JdbcReplayResponder(
         kit.service, schema, harness.catalogue, harness.reader, harness.fixture.runtimeDataSource(),
-        TenantScope(kit.tenants, kit.boundary, kit.boundary), kit.writer, emptyList(), harness.rebuildSink,
+        kit.scope, kit.writer, emptyList(), harness.rebuildSink,
     )
     assertEquals(listOf(0L), responder.runOnce().map { it.eventsReplayed })
     harness.drain(kit.relay)
@@ -711,12 +709,3 @@ private fun answerEmpty(
 private fun countingHandler() = object : EventHandler {
     override fun handle(event: Envelope) = HandleOutcome.APPLIED
 }
-
-/** A reader on a fixture consumer's own replay-topic roles. */
-private fun replayReader(
-    harness: OutboxHarness,
-    roles: EventLogSchema.ConsumerRoles,
-) = PostgresEventLogReader(
-    harness.fixture.roleDataSource(roles.claimRole),
-    harness.fixture.roleDataSource(roles.readerRole),
-)

@@ -4,66 +4,74 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.sql.Connection
 import java.sql.SQLException
-import java.sql.Timestamp
-import java.time.Clock
 import java.time.Duration
-import java.time.Instant
 import javax.sql.DataSource
 
 /**
  * [EventLogPurge] over the PostgreSQL event log, run by the event-log component (INV-MOD-2748) on [purgeSource], its
- * dedicated purge role ([EventLogSchema.topicDdl]: `DELETE`, `SELECT` on `log_offset` and `inserted_at`, write on the
- * purge-watermark table; never BYPASSRLS).
+ * runtime login, which holds EXECUTE on `eventlog.purge_batch()` and no right on the topic tables (owner ruling
+ * INV-Q-3953, INV-REQ-1205 b3).
  *
- * The period of each topic of [catalogue] comes from its `content_topic` marker only (INV-REQ-1205 b4): the content
- * window for a content topic, the event-log retention for any other. [Retention] refuses either below 7 days. A topic
- * whose catalogue entry carries no marker is refused at construction rather than given a guessed period. The replay
- * topics (INV-T-3606) are purged by their own `content_topic` marker and the request topics as non-content topics, like
- * every topic (INV-REQ-1205 b4).
+ * `purge_batch()` ([EventLogSchema.PURGE_BATCH], owned by `eventlog_sys`) does the work: per topic, by age only, the
+ * content window for a content topic and the event-log retention for any other, both read from the event-log retention
+ * row (coordinator ruling INV-Q-4262), never above a record topic's recorded position, and the watermark raised in the
+ * same transaction. Each call is its own transaction; this class calls it until no topic has a full batch left, sums
+ * the rows per topic and logs, per topic, the rows deleted, the cut-off and the watermark. When the retention row is
+ * missing or below 7 days the function deletes nothing and returns no row: the run logs an error and is empty.
  *
- * Each batch is one statement, so one transaction: it deletes up to [batchSize] rows with `inserted_at` before the
- * cut-off, lowest offsets first, and raises the topic's watermark to the highest offset it deleted (never lowers it).
- * Consumer positions are never read. Each run logs, per topic, the rows deleted, the cut-off and the watermark.
+ * [catalogue] names the topics in the result: a topic's key ([EventLogSchema.tableName]) is mapped back to its name.
  */
-class JdbcEventLogPurge
-@JvmOverloads
-constructor(
+class JdbcEventLogPurge(
     private val purgeSource: DataSource,
     catalogue: EventCatalogue,
-    private val retention: Retention,
-    private val clock: Clock,
-    private val batchSize: Int = BATCH,
 ) : EventLogPurge {
-    private class Topic(
-        val topic: String,
-        val table: String,
-        val content: Boolean,
-    )
-
-    private val topics: List<Topic> =
-        catalogue.entries().groupBy { it.topic }.toSortedMap().map { (topic, entries) ->
-            val markers = entries.map { it.contentTopic }.toSet()
-            val content =
-                requireNotNull(markers.singleOrNull()) {
-                    "topic $topic carries no single content_topic marker in topics.yaml, was $markers (INV-REQ-1205 b4)"
-                }
-            Topic(topic, "${EventLogSchema.SCHEMA}.${EventLogSchema.tableName(topic)}", content)
-        } + catalogue.replayTopics().map { Topic(it.topic, "${EventLogSchema.SCHEMA}.${EventLogSchema.tableName(it.topic)}", it.contentTopic) } +
-            catalogue.requestTopics().map { Topic(it.topic, "${EventLogSchema.SCHEMA}.${EventLogSchema.tableName(it.topic)}", false) }
+    private val names: Map<String, String> =
+        (
+            catalogue.entries().map { it.topic } +
+                catalogue.replayTopics().map { it.topic } +
+                catalogue.requestTopics().map { it.topic }
+            ).distinct()
+            .associateBy { EventLogSchema.tableName(it) }
 
     init {
-        require(batchSize > 0) { "batch size must be positive" }
+        // The migration that generated purge_batch() needed one marker per topic; a catalogue without it is refused here.
+        catalogue.entries().groupBy { it.topic }.forEach { (topic, entries) ->
+            val markers = entries.map { it.contentTopic }.toSet()
+            requireNotNull(markers.singleOrNull()) {
+                "topic $topic carries no single content_topic marker in topics.yaml, was $markers (INV-REQ-1205 b4)"
+            }
+        }
     }
 
     override fun purge(): EventLogPurgeRun {
-        val now = clock.instant()
-        val run =
-            EventLogPurgeRun(
-                topics.map { topic ->
-                    val period = if (topic.content) retention.contentWindow else retention.eventLogRetention
-                    purgeTopic(topic, period, now - period)
-                },
-            )
+        val totals = LinkedHashMap<String, TopicPurge>()
+        try {
+            purgeSource.connection.use { connection ->
+                // Each call is its own transaction whatever the pool defaults to; the deletes and the watermarks of one
+                // call commit together.
+                val wasAutoCommit = connection.autoCommit
+                connection.autoCommit = true
+                try {
+                    do {
+                        val batch = batch(connection)
+                        batch.forEach { purged ->
+                            totals.merge(purged.topic, purged) { first, later ->
+                                later.copy(rows = first.rows + later.rows, period = first.period, cutoff = first.cutoff)
+                            }
+                        }
+                    } while (batch.any { it.rows >= EventLogSchema.PURGE_BATCH_SIZE })
+                } finally {
+                    connection.autoCommit = wasAutoCommit
+                }
+            }
+        } catch (failure: SQLException) {
+            LOG.atError().setMessage("event-log purge failed").addKeyValue("sql_state", failure.sqlState).log()
+            throw EventBindingUnavailable("event log not purgeable: ${failure.sqlState}", failure)
+        }
+        if (totals.isEmpty()) {
+            LOG.atError().setMessage("event-log retention is missing or below 7 days: nothing purged (INV-Q-4262)").log()
+        }
+        val run = EventLogPurgeRun(totals.values.toList())
         run.topics.forEach {
             LOG
                 .atInfo()
@@ -79,70 +87,35 @@ constructor(
         return run
     }
 
-    private fun purgeTopic(
-        topic: Topic,
-        period: Duration,
-        cutoff: Instant,
-    ): TopicPurge {
-        var rows = 0L
-        var watermark = 0L
-        try {
-            purgeSource.connection.use { connection ->
-                // Each batch is its own transaction whatever the pool defaults to; the delete and the watermark are
-                // one statement, so they commit together.
-                val wasAutoCommit = connection.autoCommit
-                connection.autoCommit = true
-                try {
-                    connection.prepareStatement(batchSql(topic.table)).use { statement ->
-                        do {
-                            statement.setTimestamp(1, Timestamp.from(cutoff))
-                            statement.setInt(2, batchSize)
-                            statement.setString(3, topic.topic)
-                            val deleted =
-                                statement.executeQuery().use {
-                                    it.next()
-                                    it.getLong(1)
-                                }
-                            rows += deleted
-                        } while (deleted == batchSize.toLong())
+    /** One `purge_batch()` call: one row per topic. */
+    private fun batch(connection: Connection): List<TopicPurge> = connection
+        .prepareStatement(
+            """
+            select purged_topic, purged_content, extract(epoch from purged_period)::bigint, purged_cutoff, purged_rows,
+                purged_watermark
+            from ${EventLogSchema.SCHEMA}.${EventLogSchema.PURGE_BATCH}()
+            """.trimIndent(),
+        ).use { statement ->
+            statement.executeQuery().use { rows ->
+                buildList {
+                    while (rows.next()) {
+                        val key = rows.getString(1)
+                        add(
+                            TopicPurge(
+                                topic = names[key] ?: key,
+                                contentTopic = rows.getBoolean(2),
+                                period = Duration.ofSeconds(rows.getLong(3)),
+                                cutoff = rows.getTimestamp(4).toInstant(),
+                                rows = rows.getLong(5),
+                                watermark = rows.getLong(6),
+                            ),
+                        )
                     }
-                    watermark = watermarkOf(connection, topic.topic)
-                } finally {
-                    connection.autoCommit = wasAutoCommit
                 }
             }
-        } catch (failure: SQLException) {
-            throw EventBindingUnavailable("event log not purgeable for ${topic.topic}: ${failure.sqlState}", failure)
         }
-        return TopicPurge(topic.topic, topic.content, period, cutoff, rows, watermark)
-    }
-
-    private fun watermarkOf(
-        connection: Connection,
-        topic: String,
-    ): Long = connection.prepareStatement("select watermark from $WATERMARK where topic = ?").use {
-        it.setString(1, topic)
-        it.executeQuery().use { rows -> if (rows.next()) rows.getLong(1) else 0L }
-    }
-
-    private fun batchSql(table: String): String = """
-        with gone as (
-            delete from $table where log_offset in (
-                select log_offset from $table where inserted_at < ? order by log_offset limit ?
-            ) returning log_offset
-        ), marked as (
-            insert into $WATERMARK as w (topic, watermark, updated_at)
-            select ?, max(log_offset), now() from gone having count(*) > 0
-            on conflict (topic) do update
-                set watermark = greatest(w.watermark, excluded.watermark), updated_at = excluded.updated_at
-            returning watermark
-        )
-        select (select count(*) from gone), (select count(*) from marked)
-    """.trimIndent()
 
     private companion object {
-        const val BATCH = 1000
-        const val WATERMARK = "${EventLogSchema.SCHEMA}.${EventLogSchema.PURGE_WATERMARK}"
         val LOG: Logger = LoggerFactory.getLogger(JdbcEventLogPurge::class.java)
     }
 }

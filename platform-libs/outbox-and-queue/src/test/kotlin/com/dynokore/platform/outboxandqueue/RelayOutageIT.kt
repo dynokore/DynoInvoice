@@ -144,21 +144,27 @@ class RelayOutageIT {
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
-    fun `the event log grants are relay insert and consumer select only`(image: String) {
+    fun `the event log grants are producer insert and subscriber select only`(image: String) {
         OutboxHarness(image).use { harness ->
             val table = "eventlog.gst_payload_payload_ready_v1"
-            harness.fixture.relayDataSource().connection.use { connection ->
+            // a login that neither produces nor subscribes to the topic reaches nothing of it
+            harness.fixture.roleDataSource("recon_runtime").connection.use { connection ->
                 assertThrows(SQLException::class.java) {
                     connection.createStatement().use { it.executeQuery("select * from $table") }
                 }
-            }
-            harness.fixture.readerDataSource().connection.use { connection ->
                 assertThrows(SQLException::class.java) {
                     connection.createStatement().use {
-                        it.executeUpdate(
-                            "insert into $table (event_id, subject, envelope) values ('x', 'y', '{}')",
-                        )
+                        it.executeUpdate("insert into $table (event_id, subject, envelope) values ('x', 'y', '{}')")
                     }
+                }
+            }
+            // the producer and subscriber login: no update or delete, and no row without a bound tenant
+            harness.fixture.eventLogDataSource().connection.use { connection ->
+                assertThrows(SQLException::class.java) {
+                    connection.createStatement().use { it.executeUpdate("delete from $table") }
+                }
+                assertThrows(SQLException::class.java) {
+                    connection.createStatement().use { it.executeUpdate("update $table set subject = 'z'") }
                 }
                 assertFalse(connection.createStatement().use { it.executeQuery("select * from $table").next() })
             }

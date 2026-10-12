@@ -25,7 +25,7 @@ class RecordTopicIT {
             val kit = harness.payload
             val doc = UUID.randomUUID()
             val evidence = harness.evidence
-            val scope = TenantScope(evidence.tenants, evidence.boundary, evidence.boundary)
+            val scope = evidence.scope
             val types = harness.catalogue.recordTypes()
             assertEquals(setOf(TestCatalogue.AUDIT_ENTRY_RECORDED), types, "from record_topic in topics.yaml")
             // No recordTypes wiring: the consumer takes the record topics from the catalogue (fail-safe).
@@ -62,7 +62,7 @@ class RecordTopicIT {
     fun `a declared record-type set that differs from the catalogue fails startup`(image: String) {
         OutboxHarness(image).use { harness ->
             val evidence = harness.evidence
-            val scope = TenantScope(evidence.tenants, evidence.boundary, evidence.boundary)
+            val scope = evidence.scope
             val types = harness.catalogue.recordTypes()
             consumer(harness, scope, "evidence-svc", harness.catalogue, types)
             for (declared in listOf(emptySet(), types + "OtherRecorded")) {

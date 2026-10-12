@@ -1,5 +1,6 @@
 package com.dynokore.platform.outboxandqueue
 
+import com.dynokore.platform.tenancykernel.TenantContextImpl
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 
@@ -17,9 +18,22 @@ class OutboxHarness(image: String) : AutoCloseable {
         catalogue.entries().map { it.copy(recordTopic = false) }.let {
             EventCatalogue(it, catalogue.replayTopics(), catalogue.requestTopics())
         }
-    val eventLogForRelay = FlakyDataSource(fixture.relayDataSource())
-    val reader = PostgresEventLogReader(fixture.workerDataSource(), fixture.readerDataSource())
+    val eventLogForRelay = FlakyDataSource(fixture.eventLogDataSource())
+    val reader = PostgresEventLogReader(fixture.eventLogDataSource(), fixture.eventLogScope(TenantContextImpl()))
     val mapper = ObjectMapper()
+
+    /** A reader on a fixture consumer's own runtime login [login] (its replay topics, INV-Q-3601). */
+    fun readerFor(login: String): PostgresEventLogReader = PostgresEventLogReader(
+        fixture.roleDataSource(login),
+        fixture.eventLogScope(TenantContextImpl(), fixture.roleDataSource(login)),
+    )
+
+    /** An event binding over [eventLogForRelay], bound with its own tenant context and the workload principal. */
+    fun binding(): PostgresEventBinding {
+        val scope = fixture.eventLogScope(TenantContextImpl(), eventLogForRelay)
+        return PostgresEventBinding(scope)
+    }
+
     private val json = EnvelopeJson()
 
     /** Every 'rebuild required' incident raised by a consumer built here (INV-REQ-1205 b6). */
@@ -70,7 +84,7 @@ class OutboxHarness(image: String) : AutoCloseable {
         catalogue,
         reader,
         fixture.runtimeDataSource(),
-        TenantScope(tx.tenants, tx, tx),
+        TenantScope(tx.tenants, tx, tx, OutboxPostgresFixture.WORKLOAD),
         handler,
         rebuildSink,
         clock,

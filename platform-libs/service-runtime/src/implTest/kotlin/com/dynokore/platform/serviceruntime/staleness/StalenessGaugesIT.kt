@@ -8,6 +8,7 @@ import com.dynokore.platform.outboxandqueue.OutboxPostgresFixture
 import com.dynokore.platform.outboxandqueue.PostgresEventLogReader
 import com.dynokore.platform.outboxandqueue.StalenessBreach
 import com.dynokore.platform.serviceruntime.jobs.MutableClock
+import com.dynokore.platform.tenancykernel.TenantContextImpl
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
 import io.micrometer.core.instrument.Gauge
@@ -38,7 +39,7 @@ class StalenessGaugesIT {
             val monitor =
                 JdbcStalenessMonitor(
                     fixture.runtimeDataSource(),
-                    PostgresEventLogReader(fixture.workerDataSource(), fixture.readerDataSource()),
+                    PostgresEventLogReader(fixture.eventLogDataSource(), fixture.eventLogScope(TenantContextImpl())),
                     CATALOGUE,
                     SCHEMA,
                     rules,

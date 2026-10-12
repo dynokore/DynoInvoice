@@ -36,6 +36,7 @@ import com.dynokore.platform.outboxandqueue.LaneRateLimiter
 import com.dynokore.platform.outboxandqueue.OutboxRelay
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.PostgresEventBinding
+import com.dynokore.platform.outboxandqueue.PostgresEventLogReader
 import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
 import com.dynokore.platform.outboxandqueue.ReplayDelivery
 import com.dynokore.platform.outboxandqueue.Retention
@@ -79,6 +80,7 @@ import io.kotest.matchers.types.shouldBeSameInstanceAs
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.junit.jupiter.params.ParameterizedTest
@@ -137,10 +139,9 @@ class CompositionRootTest {
                 StalenessMonitor::class, InboxConsumer::class, ReplayDelivery::class, JobCommands::class, IdempotencyStore::class, IdempotencyKeyPurgeJob::class,
             ),
         ),
-        EVENT_LOG_RELAY_DATA_SOURCE(dataSource(ServiceDataSources.EVENT_LOG_RELAY), setOf(EventBinding::class, OutboxRelay::class)),
-        EVENT_LOG_CLAIM_DATA_SOURCE(dataSource(ServiceDataSources.EVENT_LOG_CLAIM), EVENT_LOG_READING),
-        EVENT_LOG_READER_DATA_SOURCE(dataSource(ServiceDataSources.EVENT_LOG_READER), EVENT_LOG_READING),
-        EVENT_LOG_PURGE_DATA_SOURCE(dataSource(ServiceDataSources.EVENT_LOG_PURGE), setOf(EventLogPurge::class)),
+
+        // INV-Q-4268: optional, the application DataSource serves the event log without it
+        EVENT_LOG_DATA_SOURCE(dataSource(ServiceDataSources.EVENT_LOG), emptySet()),
         EVENT_CATALOGUE(
             { it.withBean(EventCatalogue::class.java, { EventCatalogue(listOf(CatalogueEntry("SubmissionFailed", "submission", setOf("submission-svc"), contentTopic = false))) }) },
             // without an outbox the service gets the local audit writer instead
@@ -194,12 +195,14 @@ class CompositionRootTest {
         ),
         SERVICE_NAME(
             { it.withPropertyValues("gst.service=submission-svc") },
-            // no outbox writer and no local audit writer: nothing that audits
+            // no outbox writer and no local audit writer: nothing that audits; and no workload principal
+            // (`svc:<gst.service>`, INV-Q-4268): no TenantScope, so nothing that binds a tenant in the background
             setOf(
                 OutboxWriter::class, AuditWriter::class, AuditedOperations::class, OverrideService::class, PolicyWriter::class,
                 OperationRunner::class, ConnectionStatusReporter::class, EvidenceArtefactRecorder::class, JobCommands::class,
-                IdempotencyStore::class, IdempotencyKeyPurgeJob::class,
-            ),
+                IdempotencyStore::class, IdempotencyKeyPurgeJob::class, TenantScope::class, EventBinding::class, OutboxRelay::class,
+                EventLogReader::class, WorkQueue::class, DeadLetterTriage::class, StalenessMonitor::class,
+            ) + INBOX,
         ),
         SCHEMA(
             { it.withPropertyValues("service-runtime.modules.schema=submission") },
@@ -345,6 +348,25 @@ class CompositionRootTest {
     }
 
     @Test
+    fun `the event log runs on the eventLogDataSource, or on the application DataSource when it is absent`(
+        @TempDir mountRoot: Path,
+    ) {
+        val eventLog = mockk<DataSource>(relaxed = true)
+        val declared = base.withServiceInputs(mountRoot, without = ServiceInput.EVENT_LOG_DATA_SOURCE)
+        declared.withBean(ServiceDataSources.EVENT_LOG, DataSource::class.java, { eventLog }).run { context ->
+            context.startupFailure shouldBe null
+            context.getBean(EventLogReader::class.java).shouldBeInstanceOf<PostgresEventLogReader>().backlog("gst.canonical.canonical-version-created.v1", 0)
+            verify { eventLog.connection }
+            verify(exactly = 0) { context.getBean("dataSource", DataSource::class.java).connection }
+        }
+        base.withServiceInputs(mountRoot, without = ServiceInput.EVENT_LOG_DATA_SOURCE).run { context ->
+            context.startupFailure shouldBe null
+            context.getBean(EventLogReader::class.java).shouldBeInstanceOf<PostgresEventLogReader>().backlog("gst.canonical.canonical-version-created.v1", 0)
+            verify { context.getBean("dataSource", DataSource::class.java).connection }
+        }
+    }
+
+    @Test
     fun `a service without an outbox gets the local audit writer`() {
         base
             .withBean("dataSource", DataSource::class.java, { mockk<DataSource>(relaxed = true) })
@@ -378,13 +400,11 @@ class CompositionRootTest {
     }
 
     private companion object {
-        val EVENT_LOG_READING: Set<KClass<*>> = setOf(EventLogReader::class, StalenessMonitor::class, InboxConsumer::class, ReplayDelivery::class)
-
         val INBOX: Set<KClass<*>> = setOf(InboxConsumer::class, ReplayDelivery::class)
 
         /** Every port whose presence depends on a service-only input, and the ports that depend on none. */
         val SERVICE_INPUT_PORTS: Set<KClass<*>> by lazy {
-            ServiceInput.entries.flatMap { it.dependents }.toSet() + setOf(TransactionRunner::class, TenantScope::class, SecretStore::class, PackRegistry::class)
+            ServiceInput.entries.flatMap { it.dependents }.toSet() + setOf(TransactionRunner::class, SecretStore::class, PackRegistry::class)
         }
 
         fun dataSource(name: String): (ApplicationContextRunner) -> ApplicationContextRunner = { it.withBean(name, DataSource::class.java, { mockk<DataSource>(relaxed = true) }) }

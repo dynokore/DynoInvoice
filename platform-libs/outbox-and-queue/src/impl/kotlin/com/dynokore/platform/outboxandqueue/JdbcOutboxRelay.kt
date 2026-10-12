@@ -1,5 +1,6 @@
 package com.dynokore.platform.outboxandqueue
 
+import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantId
 import java.sql.Connection
 import java.sql.ResultSet
@@ -76,7 +77,7 @@ class JdbcOutboxRelay(
         return RelayOutcome(published, pending(claim), stalled)
     }
 
-    private fun publishOne(item: Claimed): Boolean = scope.bind(item.tenant) {
+    private fun publishOne(item: Claimed): Boolean = scope.bindWorkload(item.tenant) {
         scope.transactions.inTransaction {
             val row = read(item.seq) ?: return@inTransaction false
             binding.publish(row.topic, row.envelope)

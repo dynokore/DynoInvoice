@@ -1,5 +1,6 @@
 package com.dynokore.platform.outboxandqueue
 
+import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantId
 import tools.jackson.core.JacksonException
 import tools.jackson.databind.ObjectMapper
@@ -57,21 +58,52 @@ class JdbcDeadLetterTriage(
 
     override fun get(id: Long): DeadLetter? = metadata(DeadLetterScope(ids = setOf(id)), null, 0, 1).let { withRaw(it, DeadLetterScope()) }.singleOrNull()
 
-    /** The letters from the non-content columns, through the triage view, in id order after [after]. */
+    /**
+     * The letters from the non-content columns, through the triage view, in id order after [after]. One static
+     * statement: each filter is a bound parameter, and a null parameter leaves its filter out (INV-Q-4036).
+     */
     private fun metadata(
         scope: DeadLetterScope,
         status: DeadLetterStatus?,
         after: Long,
         limit: Int,
-    ): List<DeadLetter> {
-        val (where, args) = where(scope, status, after)
-        return runtimeSource.connection.use { connection ->
-            connection.prepareStatement("select $COLUMNS from $triageView where $where order by id limit ?").use {
-                args.forEachIndexed { index, value -> it.setObject(index + 1, value) }
-                it.setInt(args.size + 1, limit)
+    ): List<DeadLetter> = runtimeSource.connection.use { connection ->
+        connection
+            .prepareStatement(
+                """
+                with p as (
+                    select ?::bigint as p_after, ?::text as p_status, ?::bigint[] as p_ids, ?::uuid as p_tenant,
+                        ?::text as p_consumer, ?::text as p_topic, ?::text as p_failure, ?::timestamptz as p_from,
+                        ?::timestamptz as p_before, ?::boolean as p_with_tenant
+                )
+                select $COLUMNS from $triageView, p
+                where id > p_after
+                  and (p_status is null or status = p_status)
+                  and (p_ids is null or id = any(p_ids))
+                  and (p_tenant is null or tenant_id = p_tenant)
+                  and (p_consumer is null or consumer = p_consumer)
+                  and (p_topic is null or topic = p_topic)
+                  and (p_failure is null or starts_with(reason, p_failure))
+                  and (p_from is null or recorded_at >= p_from)
+                  and (p_before is null or recorded_at < p_before)
+                  and (not p_with_tenant or tenant_id is not null)
+                order by id limit ?
+                """.trimIndent(),
+            ).use {
+                it.setLong(1, after)
+                it.setString(2, status?.name)
+                val ids = scope.ids.takeIf { ids -> ids.isNotEmpty() }
+                it.setArray(3, ids?.let { connection.createArrayOf("bigint", ids.toTypedArray()) })
+                it.setObject(4, scope.tenant?.value)
+                it.setString(5, scope.consumer)
+                it.setString(6, scope.topic)
+                it.setString(7, scope.failureClass)
+                it.setTimestamp(8, scope.recordedFrom?.let { from -> Timestamp.from(from) })
+                it.setTimestamp(9, scope.recordedBefore?.let { before -> Timestamp.from(before) })
+                it.setBoolean(10, scope.subject != null || scope.entity != null)
+                it.setInt(11, limit)
                 it.executeQuery().use { rows -> buildList { while (rows.next()) add(letter(rows)) } }
             }
-        }
     }
 
     /**
@@ -105,23 +137,26 @@ class JdbcDeadLetterTriage(
         tenant: TenantId,
         ids: List<Long>,
         filter: DeadLetterScope,
-    ): Map<Long, String> = this.scope.bind(tenant) {
+    ): Map<Long, String> = this.scope.bindWorkload(tenant) {
         this.scope.transactions.inTransaction {
             val connection = this.scope.connections.require()
-            val clauses = mutableListOf("id = any(?)")
-            val args = mutableListOf<Any?>(connection.createArrayOf("bigint", ids.toTypedArray()))
-            filter.subject?.let {
-                clauses += "${field("subject")} = ?"
-                args += it
-            }
-            filter.entity?.let {
-                clauses += "${field("entityref")} = ?"
-                args += it
-            }
-            connection.prepareStatement("select id, raw from $letters where ${clauses.joinToString(" and ")}").use {
-                args.forEachIndexed { index, value -> it.setObject(index + 1, value) }
-                it.executeQuery().use { rows -> buildMap { while (rows.next()) put(rows.getLong(1), rows.getString(2)) } }
-            }
+            connection
+                .prepareStatement(
+                    """
+                    with p as (select ?::bigint[] as p_ids, ?::text as p_subject, ?::text as p_entity)
+                    select id, raw from $letters, p
+                    where id = any(p_ids)
+                      and (p_subject is null or $SUBJECT_FIELD = p_subject)
+                      and (p_entity is null or $ENTITY_FIELD = p_entity)
+                    """.trimIndent(),
+                ).use {
+                    it.setArray(1, connection.createArrayOf("bigint", ids.toTypedArray()))
+                    it.setString(2, filter.subject)
+                    it.setString(3, filter.entity)
+                    it.executeQuery().use { rows ->
+                        buildMap { while (rows.next()) put(rows.getLong(1), rows.getString(2)) }
+                    }
+                }
         }
     }
 
@@ -158,7 +193,7 @@ class JdbcDeadLetterTriage(
         tenant: TenantId,
         letter: DeadLetter,
         consumer: String,
-    ): Boolean = this.scope.bind(tenant) {
+    ): Boolean = this.scope.bindWorkload(tenant) {
         this.scope.transactions.inTransaction {
             this.scope.connections
                 .require()
@@ -212,40 +247,6 @@ class JdbcDeadLetterTriage(
         }
     }
 
-    private fun where(
-        scope: DeadLetterScope,
-        status: DeadLetterStatus?,
-        after: Long,
-    ): Pair<String, List<Any>> {
-        val clauses = mutableListOf("id > ?")
-        val args = mutableListOf<Any>(after)
-
-        fun add(
-            clause: String,
-            value: Any?,
-        ) {
-            if (value == null) return
-            clauses += clause
-            args += value
-        }
-        add("status = ?", status?.name)
-        if (scope.ids.isNotEmpty()) {
-            clauses += "id = any(?)"
-            args += runtimeSource.connection.use { it.createArrayOf("bigint", scope.ids.toTypedArray()) }
-        }
-        add("tenant_id = ?", scope.tenant?.value)
-        add("consumer = ?", scope.consumer)
-        add("topic = ?", scope.topic)
-        add("starts_with(reason, ?)", scope.failureClass)
-        add("recorded_at >= ?", scope.recordedFrom?.let { Timestamp.from(it) })
-        add("recorded_at < ?", scope.recordedBefore?.let { Timestamp.from(it) })
-        if (scope.subject != null || scope.entity != null) clauses += "tenant_id is not null"
-        return clauses.joinToString(" and ") to args
-    }
-
-    /** A field of the raw envelope, `null` when the raw text is not JSON (that is why it was dead-lettered). */
-    private fun field(name: String) = "(case when pg_input_is_valid(raw, 'jsonb') then raw::jsonb ->> '$name' end)"
-
     private fun letter(rows: ResultSet) = DeadLetter(
         id = rows.getLong("id"),
         consumer = rows.getString("consumer"),
@@ -265,5 +266,9 @@ class JdbcDeadLetterTriage(
         const val MAX_LIMIT = 1000
         const val COLUMNS = "id, consumer, topic, log_offset, tenant_id, reason, status, recorded_at, " +
             "resolved_at, note, replayed_to"
+
+        /** A field of the raw envelope, `null` when the raw text is not JSON (that is why it was dead-lettered). */
+        const val SUBJECT_FIELD = "(case when pg_input_is_valid(raw, 'jsonb') then raw::jsonb ->> 'subject' end)"
+        const val ENTITY_FIELD = "(case when pg_input_is_valid(raw, 'jsonb') then raw::jsonb ->> 'entityref' end)"
     }
 }

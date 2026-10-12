@@ -176,7 +176,7 @@ class MultiProducerReplayIT {
     ): List<ReplayAnswer> {
         val responder = JdbcReplayResponder(
             kit.service, kit.schema, harness.catalogue, harness.reader, harness.fixture.runtimeDataSource(),
-            TenantScope(kit.tenants, kit.boundary, kit.boundary), kit.writer, sources, harness.rebuildSink,
+            kit.scope, kit.writer, sources, harness.rebuildSink,
         )
         val answers = responder.runOnce()
         harness.drain(kit.relay)
@@ -190,18 +190,14 @@ class MultiProducerReplayIT {
         producer: String,
         seen: (Envelope) -> Unit = {},
     ): JdbcReplayIntake {
-        val roles = harness.fixture.replayRoles("evidence-svc")
         val evidence = harness.evidence
         return JdbcReplayIntake(
             ConsumerSubscription("evidence-svc", "gst.$prefix.replay-evidence.v1", "evidence"),
             harness.catalogue,
             producer,
-            PostgresEventLogReader(
-                harness.fixture.roleDataSource(roles.claimRole),
-                harness.fixture.roleDataSource(roles.readerRole),
-            ),
+            harness.readerFor(harness.fixture.replayLogin("evidence-svc")),
             harness.fixture.runtimeDataSource(),
-            TenantScope(evidence.tenants, evidence.boundary, evidence.boundary),
+            evidence.scope,
             object : EventHandler {
                 override fun handle(event: Envelope): HandleOutcome {
                     seen(event)

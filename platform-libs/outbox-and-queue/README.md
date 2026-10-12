@@ -49,7 +49,7 @@ reader role (envelopes of the bound tenant only); see `EventLogSchema.topicDdl` 
 From 1.9.0 the event log is purged by age per topic (INV-Q-3249): `JdbcEventLogPurge` runs under the event-log
 component's purge role and keeps the content window for topics marked `content_topic: true` in topics.yaml and the
 event-log retention for the others; each delete batch raises the topic's `eventlog.purge_watermark` row in the same
-transaction (`EventLogSchema.watermarkDdl`). A consumer whose next offset is at or below the watermark stops that topic
+transaction (`eventlog.purge_watermark`). A consumer whose next offset is at or below the watermark stops that topic
 and raises a 'rebuild required' incident (`RebuildRequiredSink`) instead of skipping purged events.
 
 From 1.10.0 such a consumer is rebuilt by the producer's replay (INV-T-3385, INV-Q-3599): service-runtime's
@@ -64,11 +64,20 @@ rows across tenants through `full_sync_delete` (the inbox is kept), the head mov
 The service's migration creates each read-model table's sys-owned clear function with
 `OutboxSchema.readModelClearFunction(schema, table, runtime, sys, filterColumn?)`.
 
-From the next MAJOR (INV-T-3978, unreleased) a service has one runtime login and a NOLOGIN `<svc>_sys`:
+From 2.0.0 (INV-T-3978) a service has one runtime login and a NOLOGIN `<svc>_sys`:
 `OutboxSchema.ddl(schema, runtime, sys)` and `QueueSchema.ddl(schema, runtime, sys)`; every cross-tenant read or
 delete goes through the sys-owned views and SECURITY DEFINER functions (see the CHANGELOG). The 1.x upgrades
 (`OutboxSchema.upgradeTo110` to `upgradeTo1100`, `QueueSchema.upgradeTo170`) are removed: there is no upgrade path
 from a 1.x schema (coordinator ruling INV-Q-4068).
+
+From 2.0.0 the event log's cross-tenant rights are three SECURITY DEFINER functions owned by the NOLOGIN
+`eventlog_sys` (INV-T-3979; INV-Q-3953, INV-Q-4262, INV-Q-4264, INV-Q-4266, INV-Q-4268): each runtime login produces
+and subscribes to its own topics, claims through `eventlog.claim` (nothing for a topic it does not subscribe to), and
+reads envelopes under the tenant policy; the purge login executes `eventlog.purge_batch()` only, by the retention row
+and never above a record topic's recorded position (`eventlog.record_position`, called by the topic's keeper through
+`JdbcEventLogPositions`). A topic's key is its table name (`EventLogSchema.tableName`, column `topic_key`), checked
+injective when `EventLogSchema.functionsDdl` generates the functions. Head and backlog come from `claim` only: the
+backlog is the head less the position, an upper bound.
 
 Not in 1.1.0: delivery retry with backoff, inbox retention (added in 1.3.0: `Retention`, `JdbcRetentionPurge`,
 see `JdbcRetentionPurge`), rate limits shared across worker processes

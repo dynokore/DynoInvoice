@@ -1,5 +1,8 @@
 package com.dynokore.platform.outboxandqueue
 
+import com.dynokore.platform.tenancykernel.SqlIdentifier
+import java.sql.Connection
+import java.sql.PreparedStatement
 import java.sql.Timestamp
 import java.time.Clock
 import javax.sql.DataSource
@@ -26,16 +29,22 @@ class JdbcRetentionPurge(
 
     override fun purge(): PurgeResult {
         val now = clock.instant()
-        val outbox = deleteBatches(OutboxSchema.OUTBOX_PURGE_EXPIRED, Timestamp.from(now - retention.contentWindow))
-        val inbox = deleteBatches(OutboxSchema.INBOX_PURGE_EXPIRED, Timestamp.from(now - retention.inboxRetention))
-        val deadLetters =
-            deleteBatches(OutboxSchema.DEAD_LETTER_PURGE_EXPIRED, Timestamp.from(now - retention.contentWindow))
+        val outbox = deleteBatches(Timestamp.from(now - retention.contentWindow)) {
+            it.prepareStatement("select $s.${OutboxSchema.OUTBOX_PURGE_EXPIRED}(?, ?)")
+        }
+        val inbox = deleteBatches(Timestamp.from(now - retention.inboxRetention)) {
+            it.prepareStatement("select $s.${OutboxSchema.INBOX_PURGE_EXPIRED}(?, ?)")
+        }
+        val deadLetters = deleteBatches(Timestamp.from(now - retention.contentWindow)) {
+            it.prepareStatement("select $s.${OutboxSchema.DEAD_LETTER_PURGE_EXPIRED}(?, ?)")
+        }
         return PurgeResult(outbox, inbox, deadLetters)
     }
 
+    /** Runs one purge function, [prepare]d as a static call, in batches until a batch deletes fewer than the size. */
     private fun deleteBatches(
-        function: String,
         cutoff: Timestamp,
+        prepare: (Connection) -> PreparedStatement,
     ): Long {
         var total = 0L
         runtimeSource.connection.use { connection ->
@@ -44,12 +53,12 @@ class JdbcRetentionPurge(
             val wasAutoCommit = connection.autoCommit
             connection.autoCommit = true
             try {
-                connection.prepareStatement("select $s.$function(?, ?)").use { statement ->
+                prepare(connection).use { statement ->
                     do {
                         statement.setTimestamp(1, cutoff)
                         statement.setInt(2, batchSize)
                         val deleted = statement.executeQuery().use { rows ->
-                            check(rows.next()) { "$function returned no row" }
+                            check(rows.next()) { "a purge function returned no row" }
                             rows.getLong(1)
                         }
                         total += deleted

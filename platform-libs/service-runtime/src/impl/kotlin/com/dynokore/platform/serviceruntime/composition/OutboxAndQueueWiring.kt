@@ -41,8 +41,10 @@ import com.dynokore.platform.serviceruntime.staleness.StalenessGauges
 import com.dynokore.platform.serviceruntime.staleness.StalenessProperties
 import com.dynokore.platform.serviceruntime.staleness.StalenessRules
 import com.dynokore.platform.tenancykernel.CurrentConnection
+import com.dynokore.platform.tenancykernel.TenantAwareDataSource
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
+import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
 import io.micrometer.core.instrument.MeterRegistry
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Qualifier
@@ -69,14 +71,21 @@ import javax.sql.DataSource
 @ConditionalOnClass(name = ["com.dynokore.platform.outboxandqueue.JdbcOutboxWriter"])
 @EnableConfigurationProperties(StalenessProperties::class)
 class OutboxAndQueueWiring {
+    /**
+     * The service's [TenantScope] over its application transactions, with the service's workload principal for
+     * background work (INV-REQ-854 b1, coordinator ruling INV-Q-4268): `svc:<gst.service>` until INV-T-3981 passes the
+     * real one.
+     */
     @Bean
     @ConditionalOnBean(TransactionRunner::class, CurrentConnection::class)
+    @ConditionalOnProperty(name = [Props.SERVICE])
     @ConditionalOnMissingBean(TenantScope::class)
     fun tenantScope(
         tenants: TenantContext,
         transactions: TransactionRunner,
         connections: CurrentConnection,
-    ): TenantScope = TenantScope(tenants, transactions, connections)
+        gst: GstProperties,
+    ): TenantScope = TenantScope(tenants, transactions, connections, workloadPrincipal(gst))
 
     @Bean
     @ConditionalOnBean(CurrentConnection::class, EventCatalogue::class)
@@ -92,11 +101,13 @@ class OutboxAndQueueWiring {
 
     @Bean
     @ConditionalOnProperty(name = [Props.EVENT_BINDING], havingValue = "postgres", matchIfMissing = true)
-    @ConditionalOnBean(name = [ServiceDataSources.EVENT_LOG_RELAY])
+    @ConditionalOnBean(TenantScope::class, DataSource::class)
     @ConditionalOnMissingBean(EventBinding::class)
     fun eventBinding(
-        @Qualifier(ServiceDataSources.EVENT_LOG_RELAY) relay: DataSource,
-    ): PostgresEventBinding = PostgresEventBinding(relay)
+        @Qualifier(ServiceDataSources.EVENT_LOG) eventLog: ObjectProvider<DataSource>,
+        dataSource: DataSource,
+        scope: TenantScope,
+    ): PostgresEventBinding = PostgresEventBinding(eventLogScope(eventLog.getIfAvailable { dataSource }, scope))
 
     @Bean
     @ConditionalOnBean(value = [TenantScope::class, EventBinding::class], name = [ServiceDataSources.WORKER])
@@ -111,12 +122,16 @@ class OutboxAndQueueWiring {
     ): JdbcOutboxRelay = JdbcOutboxRelay(worker, scope, modules.requireSchema(), binding, clock)
 
     @Bean
-    @ConditionalOnBean(name = [ServiceDataSources.EVENT_LOG_CLAIM, ServiceDataSources.EVENT_LOG_READER])
+    @ConditionalOnBean(TenantScope::class, DataSource::class)
     @ConditionalOnMissingBean(EventLogReader::class)
     fun eventLogReader(
-        @Qualifier(ServiceDataSources.EVENT_LOG_CLAIM) claim: DataSource,
-        @Qualifier(ServiceDataSources.EVENT_LOG_READER) reader: DataSource,
-    ): PostgresEventLogReader = PostgresEventLogReader(claim, reader)
+        @Qualifier(ServiceDataSources.EVENT_LOG) eventLog: ObjectProvider<DataSource>,
+        dataSource: DataSource,
+        scope: TenantScope,
+    ): PostgresEventLogReader {
+        val source = eventLog.getIfAvailable { dataSource }
+        return PostgresEventLogReader(source, eventLogScope(source, scope))
+    }
 
     @Bean
     @ConditionalOnBean(value = [LaneLimits::class], name = [ServiceDataSources.WORKER])
@@ -161,15 +176,15 @@ class OutboxAndQueueWiring {
         clock: Clock,
     ): JdbcRetentionPurge = JdbcRetentionPurge(worker, modules.requireSchema(), retention, clock)
 
+    /** The event-log component's purge (INV-MOD-2748); its retention is the event log's own row (INV-Q-4262). */
     @Bean
-    @ConditionalOnBean(value = [Retention::class, EventCatalogue::class], name = [ServiceDataSources.EVENT_LOG_PURGE])
+    @ConditionalOnBean(Retention::class, EventCatalogue::class, DataSource::class)
     @ConditionalOnMissingBean(EventLogPurge::class)
     fun eventLogPurge(
-        @Qualifier(ServiceDataSources.EVENT_LOG_PURGE) purge: DataSource,
+        @Qualifier(ServiceDataSources.EVENT_LOG) eventLog: ObjectProvider<DataSource>,
+        dataSource: DataSource,
         catalogue: EventCatalogue,
-        retention: Retention,
-        clock: Clock,
-    ): JdbcEventLogPurge = JdbcEventLogPurge(purge, catalogue, retention, clock)
+    ): JdbcEventLogPurge = JdbcEventLogPurge(eventLog.getIfAvailable { dataSource }, catalogue)
 
     /**
      * The service's staleness rules (INV-REQ-1165): `service-runtime.staleness.rules` and any [StalenessRule] beans,
@@ -250,4 +265,21 @@ class OutboxAndQueueWiring {
         scope: TenantScope,
         inbox: JdbcInboxConsumer,
     ): JdbcReplayDelivery = JdbcReplayDelivery(queue, scope, inbox)
+
+    private companion object {
+        /** The workload principal of background work until INV-T-3981 passes the real one (INV-Q-4268). */
+        fun workloadPrincipal(gst: GstProperties): String = "svc:${gst.requireService()}"
+
+        /**
+         * A [TenantScope] over the event log's own transactions (its own [TransactionRunnerImpl], so an event-log
+         * transaction never joins an application one), with the service's [TenantScope.workloadPrincipal].
+         */
+        fun eventLogScope(
+            eventLog: DataSource,
+            scope: TenantScope,
+        ): TenantScope {
+            val transactions = TransactionRunnerImpl(TenantAwareDataSource(eventLog), scope.tenants)
+            return TenantScope(scope.tenants, transactions, transactions, scope.workloadPrincipal, scope.platform)
+        }
+    }
 }

@@ -33,7 +33,8 @@ class OutboxConnectionStatusReporter(
         synchronized(states) {
             if ((states[key] ?: ConnectionState.UP) == state) return false
             val correlation = CorrelationId("connection-status:${UUID.randomUUID()}")
-            scope.bind(connection.tenant) {
+            // background work: the service's workload principal (INV-REQ-854 b1, INV-Q-4268)
+            scope.bindWorkload(connection.tenant) {
                 scope.transactions.inTransaction {
                     outbox.append(
                         listOf(

@@ -33,7 +33,7 @@ class StalenessIT {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `a stopped consumer raises one breach naming consumer, event type and lag past its threshold`(image: String) {
         OutboxHarness(image).use { harness ->
             val clock = MutableClock(t0)
@@ -78,6 +78,47 @@ class StalenessIT {
             clock.advance(threshold.plusSeconds(1))
             monitor.check()
             assertEquals(2, raised.size)
+        }
+    }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
+    fun `the galloping head equals the last inserted offset and the backlog is head less position`(image: String) {
+        OutboxHarness(image).use { harness ->
+            assertEquals(TopicHead(0, 0), harness.reader.head(topic, 0), "an empty topic")
+            val canonical = harness.canonical
+            canonical.inTx(ServiceKit.TENANT) {
+                canonical.writer.append(
+                    List(37) { OutboundEvent(TestCatalogue.CANONICAL_VERSION_CREATED, """{"version":$it}""") },
+                    canonical.docContext(ServiceKit.TENANT, UUID.randomUUID()),
+                )
+            }
+            harness.drain(canonical.relay)
+            val last = harness.count("select max(log_offset) from $table")
+            assertEquals(37L, last)
+            for (from in listOf(0L, 1L, 5L, 36L, 37L)) {
+                assertEquals(last, harness.reader.head(topic, from).head, "from $from")
+            }
+            assertEquals(LogBacklog(37 - 10, oldest(harness, 11)), harness.reader.backlog(topic, 10))
+            assertEquals(LogBacklog(0, null), harness.reader.backlog(topic, 37), "nothing unconsumed")
+
+            // After a purge the offsets below the watermark are gone: the backlog stays head less position, an
+            // upper bound.
+            harness.fixture.runAsAdmin("delete from $table where log_offset between 11 and 20")
+            assertEquals(LogBacklog(37 - 10, oldest(harness, 21)), harness.reader.backlog(topic, 10))
+        }
+    }
+
+    private fun oldest(
+        harness: OutboxHarness,
+        offset: Long,
+    ): Instant = harness.fixture.adminDataSource().connection.use { connection ->
+        connection.prepareStatement("select inserted_at from $table where log_offset = ?").use {
+            it.setLong(1, offset)
+            it.executeQuery().use { rows ->
+                rows.next()
+                rows.getTimestamp(1).toInstant()
+            }
         }
     }
 

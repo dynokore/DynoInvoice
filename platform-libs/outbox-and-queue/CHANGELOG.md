@@ -4,8 +4,38 @@ All notable changes to `outbox-and-queue` are recorded here (FR-L.6). Format fol
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this module's release
 train is its own (README.md: "own version and changelog").
 
-## [Unreleased]
-### Changed (breaking; released as the MAJOR of the eventlog_sys task, INV-T-3979)
+## [2.0.0] - 2026-10-12
+### Changed (breaking; the event log's cross-tenant rights move to eventlog_sys functions, INV-T-3979)
+- The event log on one runtime login per service (owner ruling INV-Q-3953; coordinator rulings INV-Q-4262,
+  INV-Q-4264, INV-Q-4266, INV-Q-4268; INV-REQ-854, INV-REQ-1205 b3, b4, b6). `EventLogSchema` works on (runtime, sys):
+  `schemaDdl(sys)` creates `eventlog.subscription`, `purge_watermark`, `record_position` and the one-row `retention`
+  table (platform-scoped, owned by the event log's migration role, SELECT for `eventlog_sys` only, CHECK of at least
+  7 days on each value); `topicDdl(Topic, sys)` grants INSERT to the topic's producer logins and SELECT under the tenant
+  policy to its subscriber logins, and the cross-tenant claim and purge policies to `eventlog_sys` only;
+  `functionsDdl(topics, sys, purgeLogin)` regenerates the subscriptions, the record-topic keepers, each subscriber's
+  SELECT on its topics' watermark rows and the three SECURITY DEFINER functions owned by the NOLOGIN `eventlog_sys`,
+  with static per-topic branches over `SqlIdentifier`-checked names, `SET search_path = pg_catalog, eventlog,
+  pg_temp`, and on every re-creation the owner, the search path, EXECUTE revoked from PUBLIC and the grants again:
+  `claim(topic, after, limit)` (offsets, tenants and insertion times of a topic the calling login subscribes to; nothing
+  for any other login), `purge_batch()` (EXECUTE for the purge login only) and `record_position(topic, offset)` (the
+  topic's keeper only, compared with `session_user`). A topic's key is its table name (`EventLogSchema.tableName`,
+  column `topic_key`), checked injective when the functions are generated.
+- Retention is the event log's own row (coordinator ruling INV-Q-4262): `EventLogSchema.writeRetention` writes it with
+  bound parameters (default 30 days) at every install and upgrade; with the row missing or below 7 days `purge_batch()`
+  deletes nothing and `JdbcEventLogPurge` logs an error. `JdbcEventLogPurge(purgeSource, catalogue)` calls
+  `purge_batch()` until no topic has a full batch left (`EventLogSchema.PURGE_BATCH_SIZE`); a record topic is never
+  purged above its keeper's recorded position.
+- Head and backlog through `claim` only (coordinator ruling INV-Q-4264): `EventLogHead.head(topic, from)` gallops from
+  the consumer's committed position; `EventLogLag.backlog` is the head less the position, an upper bound of the records
+  unconsumed (offsets the purge removed or that were never committed are counted), and its lag is the age of the oldest
+  unconsumed row.
+- `PostgresEventBinding(eventLog: TenantScope)` and `PostgresEventLogReader(eventLogSource, eventLog: TenantScope)`: one
+  event-log DataSource on the service's runtime login (INV-Q-4268), transactions opened by tenancy-kernel bound to the
+  tenant and the workload principal; no event-log code sets a session setting itself.
+- `TenantScope(tenants, transactions, connections, workloadPrincipal)`: `bind(tenant, actor, block)` binds an actor
+  always, `bindWorkload(tenant, block)` the service's workload principal for background work (relay, work queue, inbox
+  consumers, dead-letter triage, replay); the actor-less `bind(tenant, block)` is removed (INV-REQ-854 b1).
+- Every generated SQL identifier is checked by tenancy-kernel's `SqlIdentifier`; this module's own copy is removed.
 - One runtime login per service (INV-T-3978; owner rulings INV-Q-3951, INV-Q-3953, INV-Q-3965;
   INV-ADR-3968; INV-REQ-854, INV-REQ-1189 b2, INV-REQ-1205). `OutboxSchema.ddl(schema, runtime, sys)` and
   `QueueSchema.ddl(schema, runtime, sys)` replace the (app, worker) forms. The runtime login works on the tenant tables
@@ -27,9 +57,15 @@ train is its own (README.md: "own version and changelog").
   the runtime login bound to the platform tenant and calls those functions and `full_sync_delete` with bound
   parameters.
 
+### Added
+- `EventLogPositions` and `JdbcEventLogPositions`: the keeper's thin call of `eventlog.record_position` (INV-Q-4266);
+  nothing calls it automatically.
+
 ### Removed (breaking)
 - `OutboxSchema.fullSyncWorkerAccess` and `OutboxSchema.readModelClearAccess`: no `OutboxSchema` or `QueueSchema` entry
   point takes a worker role.
+- `EventLogSchema.ConsumerRoles`, `EventLogSchema.watermarkDdl` and the relay, claim, reader and purge roles of the
+  event log; the event-log purge's `Retention`, clock and batch-size parameters.
 - The 1.x upgrades `OutboxSchema.upgradeTo110`, `upgradeTo120`, `upgradeTo130`, `upgradeTo140`, `upgradeTo150`,
   `upgradeTo1100` and `QueueSchema.upgradeTo170` (coordinator ruling INV-Q-4068): there is no upgrade path from a 1.x
   schema; a service creates its schema with the new `ddl`.

@@ -1,5 +1,6 @@
 package com.dynokore.platform.outboxandqueue
 
+import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantRlsMigration
 
 /**
@@ -31,6 +32,18 @@ object QueueSchema {
      */
     const val CLAIM_DUE = "claim_due"
 
+    /**
+     * The lane names the `lane` checks and [CLAIM_DUE] accept, as SQL string literals: a constant, so no lane name is
+     * interpolated into SQL text (INV-Q-4036); [Lane] and this list must agree, checked on first use.
+     */
+    private const val LANE_VALUES = "'DEADLINE_NEAR', 'LIVE', 'REPROCESSING', 'BACKFILL', 'REPLAY'"
+
+    init {
+        check(LANE_VALUES == Lane.entries.joinToString(", ") { "'${it.name}'" }) {
+            "QueueSchema.LANE_VALUES must list every Lane in order"
+        }
+    }
+
     fun ddl(
         schema: String,
         runtimeRole: String,
@@ -40,14 +53,12 @@ object QueueSchema {
         val runtime = SqlIdentifier.require(runtimeRole, "runtime role")
         val sys = SqlIdentifier.require(sysRole, "sys role")
         require(runtime != sys) { "the runtime login and the sys role must differ, both were '$runtime'" }
-        val lanes = Lane.entries.joinToString(", ") { "'${it.name}'" }
-        val rls = TenantRlsMigration.ddl(s, WORK_QUEUE, policyName = "${WORK_QUEUE}_tenant_isolation")
-        return """
+        val table = """
             create table $s.$WORK_QUEUE (
                 seq bigint generated always as identity primary key,
                 tenant_id uuid not null,
                 partition_key text not null,
-                lane text not null check (lane in ($lanes)),
+                lane text not null check (lane in ($LANE_VALUES)),
                 consumer text,
                 payload jsonb not null,
                 state text not null default 'PENDING' check (state in ('PENDING', 'CLAIMED')),
@@ -61,7 +72,8 @@ object QueueSchema {
             create unique index ${WORK_QUEUE}_replay_once on $s.$WORK_QUEUE (source_dead_letter_id)
                 where source_dead_letter_id is not null;
             comment on column $s.$WORK_QUEUE.payload is 'class: content';
-            $rls
+        """.trimIndent()
+        val grants = """
             grant usage on schema $s to $runtime;
             grant select, insert, update, delete on $s.$WORK_QUEUE to $runtime;
             grant usage on schema $s to $sys;
@@ -70,27 +82,30 @@ object QueueSchema {
             grant select (seq, tenant_id, partition_key, lane, consumer, state, attempts, claimed_at)
                 on $s.$WORK_QUEUE to $sys;
             grant update (state, attempts, claimed_at) on $s.$WORK_QUEUE to $sys;
-            ${claimDue(s, lanes)}
-            ${OutboxSchema.handOver(s, runtime, sys, views = emptyList(), functions = listOf(CLAIM_DUE_SIGNATURE))}
-        """.trimIndent() + "\n" + laneRateWindow(s, runtime)
+        """.trimIndent()
+        // Statement groups joined outside SQL text: tenancy-kernel's RLS DDL is not spliced into this module's SQL.
+        return listOf(
+            table,
+            TenantRlsMigration.ddl(s, WORK_QUEUE, policyName = "${WORK_QUEUE}_tenant_isolation"),
+            grants,
+            claimDue(schema, runtimeRole, sysRole),
+            laneRateWindow(schema, runtimeRole),
+        ).joinToString("\n")
     }
 
     /**
      * The claim, as [JdbcWorkQueue] ran it on the former worker connection: candidates `FOR UPDATE SKIP LOCKED`, a
-     * transaction advisory lock on the candidate's partition, a re-check under it, then the claim.
+     * transaction advisory lock on the candidate's partition, a re-check under it, then the claim. Handed to the sys
+     * role, EXECUTE for the runtime login only.
      */
     private fun claimDue(
-        s: String,
-        lanes: String,
+        schema: String,
+        runtimeRole: String,
+        sysRole: String,
     ): String {
-        val q = "$s.$WORK_QUEUE"
-        val eligible = """
-            (q.state = 'PENDING' or (q.state = 'CLAIMED' and q.claimed_at < p_reclaim_before))
-            and not exists (
-                select 1 from $q p
-                where p.tenant_id = q.tenant_id and p.partition_key = q.partition_key and p.lane = q.lane
-                  and p.consumer is not distinct from q.consumer and p.seq < q.seq)
-        """.trimIndent()
+        val s = SqlIdentifier.require(schema, "schema")
+        val runtime = SqlIdentifier.require(runtimeRole, "runtime role")
+        val sys = SqlIdentifier.require(sysRole, "sys role")
         return """
             create function $s.$CLAIM_DUE(p_lane text, p_consumer text, p_claimed_at timestamptz,
                 p_reclaim_before timestamptz)
@@ -99,19 +114,33 @@ object QueueSchema {
             declare
                 c record;
             begin
-                if p_lane is null or p_lane not in ($lanes) or p_claimed_at is null or p_reclaim_before is null then
+                if p_lane is null or p_lane not in ($LANE_VALUES) or p_claimed_at is null or p_reclaim_before is null then
                     raise exception 'a claim names a lane, its time and the reclaim time' using errcode = '22023';
                 end if;
                 for c in
-                    select q.seq, q.tenant_id, q.partition_key from $q q
-                    where q.lane = p_lane and q.consumer is not distinct from p_consumer and $eligible
+                    select q.seq, q.tenant_id, q.partition_key from $s.$WORK_QUEUE q
+                    where q.lane = p_lane and q.consumer is not distinct from p_consumer
+                      and (q.state = 'PENDING' or (q.state = 'CLAIMED' and q.claimed_at < p_reclaim_before))
+                      and not exists (
+                          select 1 from $s.$WORK_QUEUE p
+                          where p.tenant_id = q.tenant_id and p.partition_key = q.partition_key and p.lane = q.lane
+                            and p.consumer is not distinct from q.consumer and p.seq < q.seq)
                     order by q.seq limit $CANDIDATES for update of q skip locked
                 loop
                     continue when not pg_try_advisory_xact_lock(hashtextextended(
-                        '$q|' || c.tenant_id || '|' || c.partition_key || '|' || p_lane || '|' || coalesce(p_consumer, ''), 0));
-                    perform 1 from $q q where q.seq = c.seq and $eligible for update of q skip locked;
+                        '$s.$WORK_QUEUE|' || c.tenant_id || '|' || c.partition_key || '|' || p_lane || '|' ||
+                        coalesce(p_consumer, ''), 0));
+                    perform 1 from $s.$WORK_QUEUE q
+                    where q.seq = c.seq
+                      and (q.state = 'PENDING' or (q.state = 'CLAIMED' and q.claimed_at < p_reclaim_before))
+                      and not exists (
+                          select 1 from $s.$WORK_QUEUE p
+                          where p.tenant_id = q.tenant_id and p.partition_key = q.partition_key and p.lane = q.lane
+                            and p.consumer is not distinct from q.consumer and p.seq < q.seq)
+                    for update of q skip locked;
                     continue when not found;
-                    update $q set state = 'CLAIMED', claimed_at = p_claimed_at, attempts = attempts + 1 where seq = c.seq;
+                    update $s.$WORK_QUEUE set state = 'CLAIMED', claimed_at = p_claimed_at, attempts = attempts + 1
+                    where seq = c.seq;
                     claimed_seq := c.seq;
                     claimed_tenant := c.tenant_id;
                     claimed_partition := c.partition_key;
@@ -120,28 +149,33 @@ object QueueSchema {
                 end loop;
             end
             $$;
+            grant create on schema $s to $sys;
+            alter function $s.$CLAIM_DUE(text, text, timestamptz, timestamptz) owner to $sys;
+            revoke all on function $s.$CLAIM_DUE(text, text, timestamptz, timestamptz) from public;
+            grant execute on function $s.$CLAIM_DUE(text, text, timestamptz, timestamptz) to $runtime;
+            revoke create on schema $s from $sys;
         """.trimIndent()
     }
 
-    private const val CLAIM_DUE_SIGNATURE = "$CLAIM_DUE(text, text, timestamptz, timestamptz)"
     private const val CANDIDATES = 20
 
     private fun laneRateWindow(
-        s: String,
-        role: String,
+        schema: String,
+        runtimeRole: String,
     ): String {
-        val lanes = Lane.entries.joinToString(", ") { "'${it.name}'" }
+        val s = SqlIdentifier.require(schema, "schema")
+        val runtime = SqlIdentifier.require(runtimeRole, "runtime role")
         return """
             create table if not exists $s.$LANE_RATE_WINDOW (
-                lane text not null check (lane in ($lanes)),
+                lane text not null check (lane in ($LANE_VALUES)),
                 window_start timestamptz not null,
                 used int not null check (used >= 0),
                 primary key (lane)
             );
             comment on table $s.$LANE_RATE_WINDOW is
                 'Shared per-lane rate-limit windows (no tenant data; CS-19 exception, as consumer_offset)';
-            grant usage on schema $s to $role;
-            grant select, insert, update, delete on $s.$LANE_RATE_WINDOW to $role;
+            grant usage on schema $s to $runtime;
+            grant select, insert, update, delete on $s.$LANE_RATE_WINDOW to $runtime;
         """.trimIndent()
     }
 }

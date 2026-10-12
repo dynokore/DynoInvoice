@@ -16,8 +16,10 @@ interface EventLogReader {
 }
 
 /**
- * A topic's head and purge watermark as a consumer's claim role sees them (INV-REQ-1205 b6, INV-T-3385): [head] is the
- * highest `log_offset` present (0 when the topic is empty), [watermark] the highest purged (0 when never purged).
+ * A topic's head and purge watermark as a consumer's runtime login sees them through `eventlog.claim`
+ * (INV-REQ-1205 b6, coordinator ruling INV-Q-4264): [head] is the highest `log_offset` present at or after the
+ * search's start (the start itself when nothing is present after it, 0 for an empty topic searched from 0),
+ * [watermark] the highest purged (0 when never purged).
  */
 data class TopicHead(
     val head: Long,
@@ -27,7 +29,16 @@ data class TopicHead(
     val nextAfterHead: Long get() = maxOf(head, watermark) + 1
 }
 
-/** Reads a topic's [TopicHead] through the consumer's claim role (`log_offset` only). */
+/**
+ * Reads a topic's [TopicHead] through `eventlog.claim` only: a galloping search of single-row claims from [head]'s
+ * `from`, the consumer's committed position (coordinator ruling INV-Q-4264).
+ */
 fun interface EventLogHead {
-    fun head(topic: String): TopicHead
+    fun head(
+        topic: String,
+        from: Long,
+    ): TopicHead
+
+    /** [head] searched from the topic's start (or its purge watermark). */
+    fun head(topic: String): TopicHead = head(topic, 0)
 }

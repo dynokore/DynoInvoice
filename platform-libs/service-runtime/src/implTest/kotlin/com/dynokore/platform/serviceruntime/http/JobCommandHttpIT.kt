@@ -366,12 +366,15 @@ class JobCommandHttpIT {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `a no-state refusal is recorded in its own one transaction and replayed`(image: String) {
         val s = Service(image)
+        s.h.fixture.captureActors("$SCHEMA.idempotency_key")
         val key = UUID.randomUUID().toString()
         s.post(runPath("http-late"), """{"entityRef":"E-001"}""", key).coded("JOB-001", 404)
         s.h.rows("select status from $SCHEMA.idempotency_key where idempotency_key = ?::uuid", key).map { it["status"] } shouldBe listOf(404)
+        // recorded in a transaction bound to the command's principal, never the service (INV-Q-4268)
+        s.h.fixture.capturedActors("$SCHEMA.idempotency_key") shouldBe listOf(engineer)
         // the job exists now, but the key's stored refusal is replayed: nothing runs
         s.replica.runtime.register(job("http-late"), entities) { }
         s.post(runPath("http-late"), """{"entityRef":"E-001"}""", key).coded("JOB-001", 404)
@@ -380,7 +383,7 @@ class JobCommandHttpIT {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `the idempotency record commits with the command, and a rollback leaves neither`(image: String) {
         var crash = true
         val s =
@@ -410,8 +413,11 @@ class JobCommandHttpIT {
         s.h.events(JobsHarness.AUDIT, "submission-svc/http-tx") shouldHaveSize 0
 
         crash = false
+        s.h.fixture.captureActors("$SCHEMA.idempotency_key")
         s.post(runPath("http-tx"), """{"entityRef":"E-001"}""", key).conforms().status shouldBe 202
         records().map { it["status"] } shouldBe listOf(202)
+        // recorded in the command's own transaction, bound to the operator's principal (INV-Q-4268)
+        s.h.fixture.capturedActors("$SCHEMA.idempotency_key") shouldBe listOf(engineer)
         s.h.runs("http-tx").filter { it["trigger"] == "MANUAL" } shouldHaveSize 1
     }
 

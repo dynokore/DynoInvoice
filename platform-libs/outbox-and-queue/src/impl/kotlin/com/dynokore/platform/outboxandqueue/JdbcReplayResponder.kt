@@ -1,5 +1,6 @@
 package com.dynokore.platform.outboxandqueue
 
+import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantId
 import java.sql.Connection
 import java.time.Clock
@@ -171,7 +172,7 @@ constructor(
     private fun <T> inTenant(
         tenant: TenantId,
         block: () -> T,
-    ): T = scope.bind(tenant) { scope.transactions.inTransaction(block) }
+    ): T = scope.bindWorkload(tenant) { scope.transactions.inTransaction(block) }
 
     private fun claimInbox(
         connection: Connection,

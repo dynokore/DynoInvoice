@@ -1,6 +1,7 @@
 package com.dynokore.platform.outboxandqueue
 
 import com.dynokore.platform.tenancykernel.CurrentConnection
+import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantId
 import java.sql.Connection
 import java.sql.Timestamp
@@ -35,7 +36,7 @@ class JdbcOutboxWriter(
     private val guard = EmissionGuard(catalogue, service)
     private val ids = UuidV7()
     private val outbox = "${SqlIdentifier.require(schema, "schema")}.${OutboxSchema.OUTBOX}"
-    private val counter = "$schema.${OutboxSchema.OUTBOX_SEQUENCE}"
+    private val counter = "${SqlIdentifier.require(schema, "schema")}.${OutboxSchema.OUTBOX_SEQUENCE}"
 
     init {
         require(SERVICE.matches(service)) { "service must be a lower-case name like 'submission-svc', was '$service'" }

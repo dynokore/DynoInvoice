@@ -27,12 +27,12 @@ class StalenessWiringTest {
             .withPropertyValues(
                 "service-runtime.workload-identity.audience=submission-svc",
                 "service-runtime.modules.schema=submission",
+                "gst.service=submission-svc",
                 "service-runtime.staleness.check-interval=1h",
             ).withBean(EventCatalogue::class.java, { EventCatalogue(listOf(CatalogueEntry(CANONICAL, "gst.canonical.canonical-version-created.v1", setOf("canonical-svc")))) })
             .withBean("dataSource", DataSource::class.java, { mockk<DataSource>(relaxed = true) }, { it.isPrimary = true })
             .withBean(ServiceDataSources.WORKER, DataSource::class.java, { mockk<DataSource>(relaxed = true) })
-            .withBean(ServiceDataSources.EVENT_LOG_CLAIM, DataSource::class.java, { mockk<DataSource>(relaxed = true) })
-            .withBean(ServiceDataSources.EVENT_LOG_READER, DataSource::class.java, { mockk<DataSource>(relaxed = true) })
+            .withBean(ServiceDataSources.EVENT_LOG, DataSource::class.java, { mockk<DataSource>(relaxed = true) })
 
     @Test
     fun `configured rules take their provisional thresholds and are exported as gauges`() {

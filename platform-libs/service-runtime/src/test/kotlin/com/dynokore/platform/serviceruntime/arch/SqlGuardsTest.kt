@@ -147,7 +147,6 @@ class SqlGuardsTest {
          */
         val PENDING: Map<String, String> =
             mapOf(
-                "outbox-and-queue" to "INV-T-3979",
                 "service-runtime" to "INV-T-3981",
                 "config-resolver" to "INV-T-3983",
             )

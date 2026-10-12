@@ -134,11 +134,18 @@ class IdempotencyStore(
         return try {
             // TPL-04: called inside the command's open transaction, the guard and the lookup are its first step,
             // before any effect of [block]; otherwise the command's own transaction begins them (or [record] does)
-            if (transactionOpen()) command.begin()
+            val open = transactionOpen()
+            if (open) command.begin()
             val response = block(command)
             if (!command.recorded && response.status < SERVER_ERROR) {
-                // a response that wrote no state: guard, lookup and record in one transaction of the key's tenant
-                inTenant(command.owner) { command.record(response) }
+                if (open) {
+                    // the command's own transaction is still open: record in it, without binding again (INV-Q-4268)
+                    command.record(response)
+                } else {
+                    // a response that wrote no state: guard, lookup and record in one transaction of the key's tenant,
+                    // bound to the request's principal (its `sub`, INV-REQ-854 b1)
+                    inTenant(command.owner, principal) { command.record(response) }
+                }
             }
             IdempotencyOutcome.Fresh(response)
         } catch (settled: Settled) {
@@ -271,8 +278,9 @@ class IdempotencyStore(
 
     private fun <T> inTenant(
         tenant: TenantId,
+        actor: String,
         block: () -> T,
-    ): T = scope.bind(tenant) { scope.transactions.inTransaction(block) }
+    ): T = scope.bind(tenant, actor) { scope.transactions.inTransaction(block) }
 
     companion object {
         val DEFAULT_RETENTION: Duration = Duration.ofHours(24)

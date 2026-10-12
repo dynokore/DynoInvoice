@@ -30,7 +30,7 @@ class QueueKit(
 ) {
     val kit = harness.submission
     val limiter = LaneRateLimiter(harness.fixture.runtimeDataSource(), "submission", limits)
-    val scope = TenantScope(kit.tenants, kit.boundary, kit.boundary)
+    val scope = kit.scope
     val queue = JdbcWorkQueue(harness.fixture.runtimeDataSource(), scope, "submission", limiter, clock, consumer)
 
     fun enqueue(

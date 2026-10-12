@@ -1,5 +1,6 @@
 package com.dynokore.platform.outboxandqueue
 
+import com.dynokore.platform.tenancykernel.SqlIdentifier
 import java.sql.Connection
 import java.time.Clock
 import java.time.Duration
@@ -8,7 +9,8 @@ import javax.sql.DataSource
 /**
  * [StalenessMonitor] for the consumers of one service schema (INV-REQ-1165, INV-AC-2150). For each rule it reads
  * the consumer's offset (the runtime-login connection [offsetSource]; the offset table holds no tenant data)
- * and asks the event log for the oldest record the consumer has not consumed. The lag is `now - inserted_at` of that
+ * and asks the event log ([EventLogLag], through `eventlog.claim` only, coordinator ruling INV-Q-4264) for the oldest
+ * record the consumer has not consumed and the offset lag. The lag is `now - inserted_at` of that
  * record, measured by the injected [Clock]; it is breached only when strictly greater than the threshold. A breach
  * is raised once and again only after the consumer has recovered, so a stopped consumer does not raise an incident
  * on every check.

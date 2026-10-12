@@ -30,7 +30,7 @@ class InboxConsumerIT {
             harness.drain(producer.relay)
             val envelope = harness.logOf(PAYLOAD_READY_TOPIC).single()
             // The relay redelivers the same event after a simulated crash: same id, a new log record.
-            PostgresEventBinding(harness.eventLogForRelay).publish(PAYLOAD_READY_TOPIC, envelope)
+            harness.binding().publish(PAYLOAD_READY_TOPIC, envelope)
 
             val kit = harness.submission
             val transport = TransportStub()

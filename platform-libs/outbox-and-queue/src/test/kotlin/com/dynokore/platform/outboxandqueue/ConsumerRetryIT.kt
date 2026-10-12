@@ -50,7 +50,7 @@ class ConsumerRetryIT {
                 harness.catalogue,
                 harness.reader,
                 harness.fixture.runtimeDataSource(),
-                TenantScope(kit.tenants, kit.boundary, kit.boundary),
+                kit.scope,
                 handler,
                 harness.rebuildSink,
                 clock,

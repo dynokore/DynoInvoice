@@ -1,6 +1,7 @@
 package com.dynokore.platform.outboxandqueue
 
 import com.dynokore.platform.tenancykernel.CurrentConnection
+import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantId
 import java.sql.Connection
 import java.sql.ResultSet
@@ -21,7 +22,7 @@ import java.util.UUID
  * - [pending] and [isBehind] answer the operation's repeat rule (INV-Q-3665) and its precondition (EVL-003).
  *
  * [connections] is the app role's current connection (the caller's transaction); [head] reads topic heads and
- * watermarks through the consumer's event-log claim role.
+ * watermarks through `eventlog.claim` and the watermark rows on the service's runtime login (INV-Q-4264).
  */
 class JdbcConsumerReplay(
     schema: String,
@@ -57,7 +58,10 @@ class JdbcConsumerReplay(
     fun isBehind(
         consumer: String,
         topic: String,
-    ): Boolean = nextOffset(connections.require(), consumer, topic, lock = false) <= head.head(topic).watermark
+    ): Boolean {
+        val next = nextOffset(connections.require(), consumer, topic, lock = false)
+        return next <= head.head(topic, maxOf(next - 1, 0)).watermark
+    }
 
     /** The addressees of [consumer]'s replay [replayId], completed or not: one per producer it was requested from. */
     fun addressees(
@@ -105,7 +109,8 @@ class JdbcConsumerReplay(
         val moved =
             topics.distinct().sorted().map { topic ->
                 val before = nextOffset(connection, consumer, topic, lock = true)
-                val after = maxOf(before, head.head(topic).nextAfterHead)
+                // the head is searched from the consumer's committed position (INV-Q-4264)
+                val after = maxOf(before, head.head(topic, maxOf(before - 1, 0)).nextAfterHead)
                 moveTo(connection, consumer, topic, after)
                 MovedPosition(topic, before, after)
             }

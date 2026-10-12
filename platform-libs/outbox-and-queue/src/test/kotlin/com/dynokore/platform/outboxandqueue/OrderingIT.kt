@@ -51,7 +51,7 @@ class OrderingIT {
             val low = unrelayed(harness, tenant, doc, 1)
             val high = unrelayed(harness, tenant, doc, 2)
             // The log delivers the newer event first (a re-ordered log): publish high, then low.
-            val binding = PostgresEventBinding(harness.eventLogForRelay)
+            val binding = harness.binding()
             binding.publish("gst.payload.payload-ready.v1", high)
             binding.publish("gst.payload.payload-ready.v1", low)
 

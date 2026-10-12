@@ -1,5 +1,6 @@
 package com.dynokore.platform.outboxandqueue
 
+import com.dynokore.platform.tenancykernel.SqlIdentifier
 import java.sql.Connection
 import java.sql.Timestamp
 import java.time.Clock

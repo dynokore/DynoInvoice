@@ -73,7 +73,7 @@ class DeadLetterReplayIT {
         val clock: MutableClock = MutableClock(),
     ) {
         val kit = harness.submission
-        val scope = TenantScope(kit.tenants, kit.boundary, kit.boundary)
+        val scope = kit.scope
         val triage = JdbcDeadLetterTriage(harness.fixture.runtimeDataSource(), scope, "submission", clock)
 
         fun delivery(

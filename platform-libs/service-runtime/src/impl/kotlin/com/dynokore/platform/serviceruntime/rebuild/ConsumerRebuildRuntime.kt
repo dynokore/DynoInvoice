@@ -71,7 +71,11 @@ constructor(
     ) {
         val replay = JdbcConsumerReplay(schema, scope.connections, head, outbox, clock)
 
-        fun <T> platformTransaction(block: () -> T): T = scope.bind(TenantId.PLATFORM) { scope.transactions.inTransaction(block) }
+        /** The operator's command under the platform tenant, bound to the operator's `sub` (INV-Q-4268, INV-T-3981 line 7). */
+        fun <T> platformTransaction(
+            actor: String,
+            block: () -> T,
+        ): T = scope.bind(TenantId.PLATFORM, actor) { scope.transactions.inTransaction(block) }
     }
 
     private val appSide = Side(scope, outbox, audit)
@@ -99,7 +103,7 @@ constructor(
             }
         repeat(ATTEMPTS) {
             try {
-                return side.platformTransaction { decide(side, request, consumer, producers) }
+                return side.platformTransaction(request.actor) { decide(side, request, consumer, producers) }
             } catch (race: SQLException) {
                 // A concurrent call for the pair committed its pending replay first (unique index): read it again.
                 if (race.sqlState != UNIQUE_VIOLATION) throw race

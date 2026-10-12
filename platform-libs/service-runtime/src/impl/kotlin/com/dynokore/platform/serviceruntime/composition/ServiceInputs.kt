@@ -21,17 +21,13 @@ object ServiceDataSources {
      */
     const val WORKER = "workerDataSource"
 
-    /** The relay role on the event log (INSERT only): the outbox-and-queue `EventBinding` publishes through it. */
-    const val EVENT_LOG_RELAY = "eventLogRelayDataSource"
-
-    /** A consumer's event-log claim role: finds records after an offset across tenants. */
-    const val EVENT_LOG_CLAIM = "eventLogClaimDataSource"
-
-    /** A consumer's event-log reader role: envelopes of the bound tenant only. */
-    const val EVENT_LOG_READER = "eventLogReaderDataSource"
-
-    /** The event-log component's purge role (INV-MOD-2748). */
-    const val EVENT_LOG_PURGE = "eventLogPurgeDataSource"
+    /**
+     * The event log on the service's runtime login (owner ruling INV-Q-3953, coordinator ruling INV-Q-4268): the
+     * outbox-and-queue `EventBinding` publishes, and the event-log reader claims and reads, through it; the event-log
+     * component's purge calls `eventlog.purge_batch()` through it. Optional: without it the application `DataSource`
+     * serves the event log (INV-T-3981 adds its pool maximum and the collapse rule).
+     */
+    const val EVENT_LOG = "eventLogDataSource"
 }
 
 /**

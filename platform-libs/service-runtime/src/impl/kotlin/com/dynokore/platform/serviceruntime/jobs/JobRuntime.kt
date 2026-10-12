@@ -93,7 +93,8 @@ class JobRuntime(
     /** Emits `JobRegistered` once per registered job; called when the service starts (INV-REQ-1226 b6, INV-Q-2981). */
     fun announce() {
         val correlation = CorrelationId("job-registration:${UUID.randomUUID()}")
-        scope.bind(TenantId.PLATFORM) {
+        // start-up is background work: the service's workload principal (INV-REQ-854 b1, INV-Q-4268)
+        scope.bindWorkload(TenantId.PLATFORM) {
             scope.transactions.inTransaction {
                 outbox.append(
                     jobs.values.sortedBy { it.job.name }.map {
@@ -187,7 +188,7 @@ class JobRuntime(
         val paused = runNowOnPausedScope(registered, target, request.actor, now) ?: return REFUSED_SCOPE
         val tick = registered.ticks.tickContaining(now)
         val started: Pair<JobRunState, Boolean> =
-            inTenant(target) {
+            inTenant(target, request.actor) {
                 begin(request)
                 var outcome: Pair<JobRunState, Boolean>? = null
                 while (outcome == null) {
@@ -233,7 +234,7 @@ class JobRuntime(
         if (!until.isAfter(now)) return JobCommandOutcome.Refused(JobErrorCode.PAUSE_END_NOT_FUTURE)
         val bound = deadlineBound(job, target)
         if (bound != null && until.isAfter(bound)) return JobCommandOutcome.Refused(JobErrorCode.PAUSE_PAST_DEADLINE)
-        return inTenant(target) {
+        return inTenant(target, request.actor) {
             begin(request)
             var outcome: JobCommandOutcome<JobPauseState>? = null
             while (outcome == null) {
@@ -270,7 +271,7 @@ class JobRuntime(
         val target = authorise(job, request, JobCommand.RESUME) ?: return REFUSED_SCOPE
         val now = clock.instant()
         val bound = deadlineBound(job, target)
-        return inTenant(target) {
+        return inTenant(target, request.actor) {
             begin(request)
             val open = livePause(job, target, now, bound)
             val outcome =
@@ -325,7 +326,7 @@ class JobRuntime(
     ): PausedScope? {
         val job = registered.job
         val pauses = mutableListOf<Pair<TenantId, PauseInForce>>()
-        val wide = inTenant(JobTarget.Whole) { peekPause(job, JobTarget.Whole, now, deadlineBound(job, JobTarget.Whole)) }
+        val wide = inTenant(JobTarget.Whole, actor) { peekPause(job, JobTarget.Whole, now, deadlineBound(job, JobTarget.Whole)) }
         if (wide != null) {
             if (!authorizer.isPlatformOperator(actor, JobCommand.RESUME)) return null
             pauses += TenantId.PLATFORM to PauseInForce(null, wide.until, wide.pausedAt, skipped = false)
@@ -336,7 +337,7 @@ class JobRuntime(
                 JobTarget.Whole -> registered.entities?.entities(job).orEmpty()
             }
         for (share in shares) {
-            val own = inTenant(share) { peekPause(job, share, now, deadlineBound(job, share)) } ?: continue
+            val own = inTenant(share, actor) { peekPause(job, share, now, deadlineBound(job, share)) } ?: continue
             val liftable = authorizer.mayCommandEntity(actor, share.tenant, share.entity, JobCommand.RESUME)
             if (!liftable && target is JobTarget.Entity) return null
             pauses += share.tenant to PauseInForce(share.entity, own.until, own.pausedAt, skipped = !liftable)
@@ -593,10 +594,18 @@ class JobRuntime(
         causation = causation,
     )
 
+    /** Background work (a scheduled firing, a run's body and completion): the service's workload principal (INV-Q-4268). */
     private fun <T> inTenant(
         target: JobTarget,
         block: () -> T,
-    ): T = scope.bind(target.tenant) { scope.transactions.inTransaction(block) }
+    ): T = scope.bindWorkload(target.tenant) { scope.transactions.inTransaction(block) }
+
+    /** An operator's command: bound to the operator's `sub` (INV-REQ-854 b1, INV-Q-4268); never the service's actor. */
+    private fun <T> inTenant(
+        target: JobTarget,
+        actor: String,
+        block: () -> T,
+    ): T = scope.bind(target.tenant, actor) { scope.transactions.inTransaction(block) }
 
     private fun newCorrelation() = CorrelationId("job-run:${UUID.randomUUID()}")
 

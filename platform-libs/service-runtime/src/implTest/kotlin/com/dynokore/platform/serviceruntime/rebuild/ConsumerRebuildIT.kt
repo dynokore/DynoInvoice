@@ -10,6 +10,7 @@ import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.EventContext
+import com.dynokore.platform.outboxandqueue.EventLogSchema
 import com.dynokore.platform.outboxandqueue.JdbcOutboxWriter
 import com.dynokore.platform.outboxandqueue.OutboxPostgresFixture
 import com.dynokore.platform.outboxandqueue.OutboxSchema
@@ -63,10 +64,11 @@ class ConsumerRebuildIT {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-AC-3657 the head move, the request and the audit entry commit together, a repeat writes nothing`(image: String) {
         Harness(image).use { h ->
             h.behind(watermark = 5)
+            h.fixture.captureActors("$SCHEMA.outbox")
             val request = h.request()
             val done = h.runtime().rebuildConsumer(request) as RebuildOutcome.Done
             assertTrue(done.created)
@@ -74,6 +76,11 @@ class ConsumerRebuildIT {
             assertEquals(listOf(LIVE, PRODUCER, ReplayMode.SCOPE), listOf(done.state.topic, done.state.producer, done.state.mode))
             assertEquals(listOf(PRODUCER), done.state.producers)
             assertEquals(6L, h.nextOffset(), "moved past max(head, watermark)")
+            assertEquals(
+                setOf("platform.engineer"),
+                h.fixture.capturedActors("$SCHEMA.outbox").toSet(),
+                "the operator's transaction is bound to the operator, never the service (INV-Q-4268)",
+            )
 
             val requested = h.data(ReplayProtocol.REPLAY_REQUESTED).single()
             assertEquals(done.state.replayId.toString(), requested.get("replayId").asString())
@@ -349,12 +356,12 @@ class ConsumerRebuildIT {
         ) = ConsumerRebuildRuntime(
             CONSUMER, SCHEMA, CATALOGUE,
             (listOf(LIVE, MULTI) + extra).map { ConsumerSubscription(CONSUMER, it, SCHEMA) },
-            TenantScope(tenants, tx, tx), outbox, audit,
-            PostgresEventLogReader(fixture.workerDataSource(), fixture.readerDataSource()),
+            TenantScope(tenants, tx, tx, OutboxPostgresFixture.WORKLOAD), outbox, audit,
+            PostgresEventLogReader(fixture.eventLogDataSource(), fixture.eventLogScope(TenantContextImpl())),
             { it == "platform.engineer" }, Clock.systemUTC(),
             if (fullSync) {
                 FullSyncWiring(
-                    TenantScope(syncTenants, syncTx, syncTx),
+                    TenantScope(syncTenants, syncTx, syncTx, OutboxPostgresFixture.WORKLOAD),
                     syncOutbox,
                     syncAudit,
                     clears,
@@ -387,7 +394,9 @@ class ConsumerRebuildIT {
         fun behind(
             watermark: Long,
             topic: String = LIVE,
-        ) = fixture.runAsAdmin("insert into eventlog.purge_watermark values ('$topic', $watermark, now())")
+        ) = fixture.runAsAdmin(
+            "insert into eventlog.purge_watermark values ('${EventLogSchema.tableName(topic)}', $watermark, now())",
+        )
 
         fun nextOffsetOrNull(topic: String = LIVE): Long? = fixture.adminDataSource().connection.use { connection ->
             connection.prepareStatement("select next_offset from $SCHEMA.consumer_offset where consumer = ? and topic = ?").use {

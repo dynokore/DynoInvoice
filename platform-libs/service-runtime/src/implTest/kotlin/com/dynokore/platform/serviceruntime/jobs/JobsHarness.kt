@@ -90,7 +90,7 @@ class JobsHarness(image: String) : AutoCloseable {
     ) {
         val tenants = TenantContextImpl()
         val tx = TransactionRunnerImpl(app, tenants)
-        val scope = TenantScope(tenants, tx, tx)
+        val scope = TenantScope(tenants, tx, tx, OutboxPostgresFixture.WORKLOAD)
         val outbox = JdbcOutboxWriter(tx, SCHEMA, SERVICE, instance, CATALOGUE, clock)
         val runtime =
             JobRuntime(
