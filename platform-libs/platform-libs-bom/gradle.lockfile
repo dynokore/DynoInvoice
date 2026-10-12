@@ -1,0 +1,6 @@
+# This is a Gradle generated file for dependency locking.
+# Manual edits can break the build and are not advised.
+# This file is expected to be part of source control.
+# To regenerate this file, run: ./gradlew :platform-libs-bom:dependencies --write-locks
+tools.jackson:jackson-bom:3.2.3=classpath
+empty=

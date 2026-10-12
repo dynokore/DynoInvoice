@@ -50,3 +50,30 @@ token. Locally, export a personal access token with `read_api` before running `.
 ```sh
 export GST_REGISTRY_TOKEN=<your token>
 ```
+
+## Dependency locking and verification
+
+STK-72 applies (INV-T-4297, coordinator ruling INV-Q-4367). Every resolvable configuration of every project, `platform-libs-bom` included, is locked in strict mode:
+
+- the settings classpath in `settings-gradle.lockfile`;
+- each build script's plugin classpath in `buildscript-gradle.lockfile`, at the root and next to each module's `build.gradle.kts`;
+- each module's configurations in its `gradle.lockfile`.
+
+A configuration without lock state, a resolution outside the lock files, or a deleted lock file of any of the three kinds fails the build.
+
+Every artefact the build downloads, plugins, POMs and module metadata included, is verified against `gradle/verification-metadata.xml` in strict mode, so an artefact without a matching entry fails the build. Signatures are checked against the committed `gradle/verification-keyring.keys` and `.gpg`. Key servers are off, as in platform-build: CI has no key-server egress, and a key-server fetch must never block a build. A key that is not in the keyring is an `ignored-key`, and its artefact is checked by its SHA-256 checksum, as are unsigned artefacts. No build script or CI job disables verification.
+
+When a dependency or plugin changes:
+
+1. Use an empty Gradle user home (for example `GRADLE_USER_HOME=$(mktemp -d)`). With a warm cache, artefacts that are already cached get no entry, and CI fails.
+2. Leave key servers off. To check a new artefact's signature, first add its signer's key to `gradle/verification-keyring.keys` (for example from platform-build's keyring). Otherwise the new key becomes an `ignored-key`.
+3. Run the pipeline's task set, naming only tasks that exist in this build (a missing task name fails task selection and leaves only configuration-time resolution), and write the locks, the metadata and the keys in one pass:
+
+   ```sh
+   ./gradlew resolveAndLockAll compileKotlin compileTestKotlin spotlessCheck detekt \
+     checkDependencyCatalogUsage verifyBannedDependencies verifySplitJars listPublications \
+     publishToMavenLocal assemble -x test -x implTest --continue \
+     --write-locks --write-verification-metadata sha256,pgp --export-keys --no-configuration-cache
+   ```
+
+4. Keep the comment in the metadata's `configuration` block, and check every SHA-256-only entry against the artefact's published checksum (`.sha256`/`.sha512`, else `.sha1`) before you commit. Plugin marker POMs differ between the Gradle Plugin Portal and Maven Central: keep both checksums (`also-trust`), each one checked against its own repository.

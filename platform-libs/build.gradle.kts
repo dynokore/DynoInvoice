@@ -5,18 +5,47 @@
 // what every module shares, so a module's own build.gradle.kts stays a plain
 // declaration of its layer, its api/impl split and its dependencies.
 
-allprojects {
-    group = "com.dynokore.platform" // layering standard §2.3
+// STK-72 (INV-T-4297, coordinator ruling INV-Q-4367, the same as INV-Q-4322 and INV-Q-4327):
+// every resolvable configuration of every project (the java-platform platform-libs-bom
+// included) is locked, the plugin classpath of the root and of each module too
+// (buildscript-gradle.lockfile), and the settings classpath (settings-gradle.lockfile,
+// settings.gradle.kts). All of it runs in strict lock mode, so a configuration without lock
+// state, a resolution outside the lock files or a deleted lock file fails the build. Every
+// downloaded artefact is verified against gradle/verification-metadata.xml in strict mode.
+// Refresh after a dependency change: README.md, "Dependency locking and verification".
+buildscript {
+    configurations.classpath {
+        resolutionStrategy.activateDependencyLocking()
+    }
+    dependencyLocking {
+        lockMode.set(LockMode.STRICT)
+    }
 }
 
-subprojects {
-    // STK-72: dependency locking is active on every resolvable configuration, the
-    // same as every platform-build module. Lock files live per module, refreshed
-    // with `./gradlew :<module>:dependencies --write-locks` when a dependency
-    // changes; never hand-edited.
-    plugins.withId("org.jetbrains.kotlin.jvm") {
-        dependencyLocking {
-            lockAllConfigurations()
+allprojects {
+    group = "com.dynokore.platform" // layering standard §2.3
+
+    buildscript.configurations.named("classpath") {
+        resolutionStrategy.activateDependencyLocking()
+    }
+    if (this != rootProject) {
+        // The root's own buildscript lock mode is set (and already final) in its buildscript block above.
+        buildscript.dependencyLocking.lockMode.set(LockMode.STRICT)
+    }
+    dependencyLocking {
+        lockAllConfigurations()
+        lockMode.set(LockMode.STRICT)
+    }
+}
+
+// Resolves every resolvable configuration of every project, so one
+// `./gradlew resolveAndLockAll --write-locks` writes every gradle.lockfile; the build script and
+// settings classpaths are resolved while the build is configured and are written in the same run.
+allprojects {
+    tasks.register("resolveAndLockAll") {
+        notCompatibleWithConfigurationCache("resolves configurations at execution time")
+        doLast {
+            project.configurations.filter { it.isCanBeResolved }.forEach { it.resolve() }
         }
     }
 }

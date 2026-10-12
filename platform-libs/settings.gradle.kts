@@ -42,6 +42,21 @@ pluginManagement {
     }
 }
 
+// STK-72 (INV-T-4297, coordinator ruling INV-Q-4367): the settings classpath (the plugin below) is
+// locked in strict mode; a deleted lock file or a missing entry fails the build. Its lock state lives in
+// gradle/settings-gradle.lockfile, because Gradle writes the version catalogue's own settings lock state
+// (incomingCatalogForLibs0) to the default settings-gradle.lockfile and the last writer would drop the
+// classpath entries (the same split as platform-contracts' codegen-self-test/gradle/settings-gradle.lockfile).
+buildscript {
+    configurations.classpath {
+        resolutionStrategy.activateDependencyLocking()
+    }
+    dependencyLocking {
+        lockMode.set(LockMode.STRICT)
+        lockFile.set(file("gradle/settings-gradle.lockfile"))
+    }
+}
+
 plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }
@@ -91,10 +106,18 @@ dependencyResolutionManagement {
         }
         // The build-local Maven layout product-runtime stages from that bundle (`stageContracts`), which
         // gst.event-types and gst.contract-client resolve `platform-contracts:<service>:+` from (ContractSource.kt).
-        maven {
-            name = "stagedPlatformContracts"
-            url = uri(settingsDir.resolve("product-runtime/build/contracts-repo"))
-            content { includeGroup("platform-contracts") }
+        // STK-72 (INV-T-4297): the group resolves from this staging repository only (exclusiveContent), so no
+        // remote artefact of it can ever resolve. Its files are unpacked from the bundle above, which is
+        // checksum-verified, so gradle/verification-metadata.xml trusts this one group (trusted-artifacts) rather
+        // than pinning per-version copies that change with every bundle.
+        exclusiveContent {
+            forRepository {
+                maven {
+                    name = "stagedPlatformContracts"
+                    url = uri(settingsDir.resolve("product-runtime/build/contracts-repo"))
+                }
+            }
+            filter { includeGroup("platform-contracts") }
         }
         mavenCentral()
     }
