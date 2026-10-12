@@ -409,7 +409,8 @@ consumer-check:
       when: never
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
   script:
-    - test -n "${BOM_VERSION:-}" || { echo "gst-ci: maven-publish passed no BOM_VERSION (P20/P28)"; exit 1; }
+    - |
+      test -n "${BOM_VERSION:-}" || { echo "gst-ci: maven-publish passed no BOM_VERSION (P20/P28)"; exit 1; }
     - sh ci/consumer-check/run.sh "$BOM_VERSION" "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/maven"
 
 # Merge requests verify that the BOM resolves and report what the main pipeline would do,
