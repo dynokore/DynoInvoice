@@ -1,10 +1,10 @@
 openapi: 3.1.0
 info:
   title: access API
-  version: 1.0.0
+  version: 1.1.0
   description: 'Contract-first source of truth for access (API-01, STK-44), replacing the INV-T-2849 scaffold
     (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): who may do what, on whose authority.
-    `authorise` and `getVerificationKeys` are queries, not FR-AC.1 operations (no persistent state change),
+    `authorise`, `getVerificationKeys` and `getRevocationList` are queries, not FR-AC.1 operations (no persistent state change),
     called by every service and the gateway respectively; every other operation is a console command reached
     through console-bff. Several SDS §7 catalogue rows sharing one shape are consolidated onto one resource
     (noted per operation) to keep the surface small. The `access-contract` module generates its server
@@ -131,6 +131,109 @@ paths:
         "403":
           $ref: '#/components/responses/Error'
         "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/revocations:
+    get:
+      operationId: getRevocationList
+      summary: The revocation list the API gateway refreshes every second (INV-API-4001, INV-Q-3973 A)
+      description: 'Every service principal revoked by revokePrincipal and every user subject or token
+        id that access-svc has revoked, each with its revocation time, and a monotonic list version.
+        Grant revocations are not on it: they stay with the services'' authority replicas (INV-REQ-1214,
+        INV-AC-2186). Called only by the API gateway, in the background, at least once a second with one
+        request in flight; the gateway refuses a listed token on the request itself (INV-AC-936,
+        INV-REQ-1202, INV-FLOW-248 step 2). Without sinceVersion the response is the full list of live
+        entries (snapshot true). With sinceVersion it is every live entry whose version is above it
+        (snapshot false), ordered by version, then entryId (API-18 total order). If sinceVersion is above
+        the current version (for example after a restore), the response is a full snapshot (snapshot true)
+        that replaces the caller''s list. A multi-page response is pinned by its cursor to the listVersion
+        of its first page; the caller takes the listVersion of the last page as its next sinceVersion. An
+        unchanged list returns 200 with no items and the same listVersion. An entry''s expiresAt is its
+        revokedAt plus the longest access-token lifetime, 15 minutes (API-23); after expiresAt it is no
+        longer returned and the caller drops it at the same instant, so deltas never carry removals. A
+        PRINCIPAL or SUBJECT entry refuses tokens of that principal or subject with iat at or before
+        revokedAt; a TOKEN entry refuses its jti (INV-Q-4008 A). The caller authenticates with its
+        workload token only (x-principal workload; owner ruling INV-Q-4006 A); any identity other than
+        the gateway service account named by the api-gateway->access-svc edge gets 403 SRT-004.
+        Responses carry a strong ETag equal to the quoted listVersion and Cache-Control no-store; there
+        is no conditional request and no 304. The caller treats every non-200 and every timeout as
+        access-svc unreachable and keeps its cached list (INV-Q-3973 A, INV-Q-4021 A).'
+      tags:
+      - authorise
+      x-principal: workload
+      x-sync-edge: api-gateway->access-svc
+      x-timeout: 2000
+      x-requirements:
+      - FR-AC.1
+      - FR-P.10
+      - FR-AH.6
+      x-error-codes: []
+      parameters:
+      - name: sinceVersion
+        in: query
+        required: false
+        description: Return only entries added after this list version; absent returns a full snapshot.
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 100
+          minimum: 1
+          maximum: 500
+      - name: cursor
+        in: query
+        required: false
+        description: Opaque, integrity-protected cursor (API-18), pinned to the listVersion of the first page.
+        schema:
+          type: string
+          maxLength: 512
+      responses:
+        "200":
+          description: One page of the revocation list (snapshot or delta)
+          headers:
+            ETag:
+              description: Strong ETag equal to the quoted listVersion.
+              schema:
+                type: string
+                maxLength: 24
+            Cache-Control:
+              description: Always no-store, so no intermediary keeps security state.
+              schema:
+                type: string
+                maxLength: 16
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RevocationListResponse'
+              examples:
+                default:
+                  value:
+                    listVersion: 42
+                    snapshot: true
+                    items:
+                    - entryId: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+                      version: 41
+                      kind: PRINCIPAL
+                      principalRef: erp-ingest-01
+                      revokedAt: '2026-10-12T08:00:00Z'
+                      expiresAt: '2026-10-12T08:15:00Z'
+                    - entryId: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+                      version: 42
+                      kind: TOKEN
+                      tokenId: 9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d
+                      revokedAt: '2026-10-12T08:01:00Z'
+                      expiresAt: '2026-10-12T08:16:00Z'
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
@@ -1497,6 +1600,94 @@ components:
                 type: string
                 maxLength: 8192
                 format: byte
+    RevocationListResponse:
+      type: object
+      required:
+      - listVersion
+      - snapshot
+      - items
+      properties:
+        listVersion:
+          type: integer
+          format: int64
+          minimum: 0
+          description: The list version this response is complete up to.
+        snapshot:
+          type: boolean
+          description: True when the response is a full list that replaces the caller's list.
+        items:
+          type: array
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/RevocationEntry'
+        nextCursor:
+          type: string
+          maxLength: 512
+          description: Omitted on the last page (API-14, API-18).
+        warnings:
+          type: array
+          maxItems: 50
+          description: API-10 warnings.
+          items:
+            type: object
+            required:
+            - code
+            - message
+            properties:
+              code:
+                type: string
+                maxLength: 32
+              field:
+                type: string
+                maxLength: 128
+              message:
+                type: string
+                maxLength: 512
+    RevocationEntry:
+      type: object
+      required:
+      - entryId
+      - version
+      - kind
+      - revokedAt
+      - expiresAt
+      properties:
+        entryId:
+          type: string
+          format: uuid
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+          description: The list version at which the entry was added.
+        kind:
+          type: string
+          enum:
+          - PRINCIPAL
+          - SUBJECT
+          - TOKEN
+          x-extensible-enum: true
+          description: An unknown kind maps to UNKNOWN; the caller keeps the entry but matches nothing on it (API-09).
+        principalRef:
+          type: string
+          maxLength: 64
+          description: Kind PRINCIPAL; the revoked service principal, as in revokePrincipal.
+        subject:
+          type: string
+          maxLength: 255
+          description: Kind SUBJECT; the token's sub.
+        tokenId:
+          type: string
+          maxLength: 128
+          description: Kind TOKEN; the token's jti.
+        revokedAt:
+          type: string
+          format: date-time
+          description: RFC 3339 with Z (API-11).
+        expiresAt:
+          type: string
+          format: date-time
+          description: revokedAt plus the longest access-token lifetime, 15 minutes (API-23); RFC 3339 with Z.
     GrantRequest:
       type: object
       required:
