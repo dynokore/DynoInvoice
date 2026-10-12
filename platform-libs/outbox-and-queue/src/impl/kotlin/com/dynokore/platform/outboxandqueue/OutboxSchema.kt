@@ -38,6 +38,9 @@ object OutboxSchema {
     const val CONSUMER_REPLAY_MARKER = "consumer_replay_marker"
     const val CONSUMER_SOURCE_SEEN = "consumer_source_seen"
 
+    /** BEFORE UPDATE trigger (and its function) on [OUTBOX]: `published_at` is set once, to database time (INV-Q-4334). */
+    const val OUTBOX_PUBLISH_ONCE = "outbox_publish_once"
+
     /** Sys-owned view: the outbox claim columns (`seq`, `tenant_id`, `published_at`) of every tenant's rows. */
     const val OUTBOX_CLAIM_VIEW = "outbox_claim_v"
 
@@ -82,6 +85,7 @@ object OutboxSchema {
                 TenantRlsMigration.ddl(s, it, policyName = "${it}_tenant_isolation")
             },
             replayTables(schema),
+            publishOnce(schema),
             runtimeGrants(schema, runtimeRole),
             sysAccess(schema, sysRole),
             views(schema, runtimeRole, sysRole),
@@ -170,6 +174,42 @@ object OutboxSchema {
         """.trimIndent()
     }
 
+    /**
+     * Outbox UPDATE hardening (owner ruling INV-Q-4334 B): the runtime login holds UPDATE on `published_at` only (no
+     * DELETE; purging stays with [OUTBOX_PURGE_EXPIRED]), and [OUTBOX_PUBLISH_ONCE], a BEFORE UPDATE trigger, lets
+     * `published_at` change only from NULL, storing `clock_timestamp()` whatever value was passed. Re-setting,
+     * clearing or backdating a published row and changing any other column are refused (SQLSTATE 42501), so a written
+     * row's content and actor stay as written and no unpublished row is brought into the purge's range. The relay's
+     * statement is unchanged. Marking an unrelayed row published at the current time stays possible: the residual
+     * risk of INV-ADR-3968's consequences, detected by the ruling's follow-up task.
+     */
+    private fun publishOnce(schema: String): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        return """
+            create function $s.$OUTBOX_PUBLISH_ONCE() returns trigger
+            language plpgsql set search_path = pg_catalog, $s, pg_temp as $$
+            begin
+                if (to_jsonb(new) - 'published_at') is distinct from (to_jsonb(old) - 'published_at') then
+                    raise exception 'an outbox row is never rewritten: only published_at is set, once'
+                        using errcode = '42501';
+                end if;
+                if old.published_at is not null then
+                    raise exception 'outbox row % is published: published_at is never re-set, cleared or backdated',
+                        old.seq using errcode = '42501';
+                end if;
+                if new.published_at is null then
+                    raise exception 'published_at changes only from NULL to the database time' using errcode = '42501';
+                end if;
+                new.published_at := clock_timestamp();
+                return new;
+            end
+            $$;
+            revoke all on function $s.$OUTBOX_PUBLISH_ONCE() from public;
+            create trigger $OUTBOX_PUBLISH_ONCE before update on $s.$OUTBOX
+                for each row execute function $s.$OUTBOX_PUBLISH_ONCE();
+        """.trimIndent()
+    }
+
     private fun runtimeGrants(
         schema: String,
         runtimeRole: String,
@@ -178,8 +218,8 @@ object OutboxSchema {
         val runtime = SqlIdentifier.require(runtimeRole, "runtime role")
         return """
             grant usage on schema $s to $runtime;
-            grant select, insert, update on $s.$OUTBOX, $s.$OUTBOX_SEQUENCE, $s.$CONSUMER_SEQUENCE,
-                $s.$CONSUMER_OFFSET to $runtime;
+            grant select, insert, update (published_at) on $s.$OUTBOX to $runtime;
+            grant select, insert, update on $s.$OUTBOX_SEQUENCE, $s.$CONSUMER_SEQUENCE, $s.$CONSUMER_OFFSET to $runtime;
             grant select, insert on $s.$INBOX to $runtime;
             grant select on $s.$DEAD_LETTER to $runtime;
             grant select, insert, update on $s.$CONSUMER_REPLAY, $s.$CONSUMER_REPLAY_MARKER, $s.$CONSUMER_SOURCE_SEEN

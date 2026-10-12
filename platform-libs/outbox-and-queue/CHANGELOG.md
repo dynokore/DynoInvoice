@@ -17,6 +17,16 @@ train is its own (README.md: "own version and changelog").
   ruling INV-Q-3931). No sys policy is added: the tenant policy alone admits the row, so the sys role inserts only
   under the bound tenant (the platform tenant for a platform event; test).
 
+### Changed (INV-T-3983, owner ruling INV-Q-4334 B: outbox UPDATE hardening)
+- The runtime login keeps `SELECT` and `INSERT` on `outbox` and holds `UPDATE` on `published_at` only: the
+  table-wide `UPDATE` is removed, and there is still no `DELETE` (purging stays with `outbox_purge_expired`).
+- A `BEFORE UPDATE` trigger on `outbox` (`outbox_publish_once`) lets `published_at` change only from NULL. It stores
+  `clock_timestamp()` and ignores the value passed. Re-setting, clearing or backdating a published row is refused
+  (SQLSTATE 42501), and so is a change to any other column. A written row's content and actor stay as written, and
+  no unpublished row can be brought into the purge's range. The relay's statement is unchanged.
+- Residual risk (INV-ADR-3968 consequences): marking an unrelayed row published at the current time stays
+  possible. Detecting it is the ruling's follow-up task.
+
 ## [2.0.0] - 2026-10-12
 ### Changed (breaking; the event log's cross-tenant rights move to eventlog_sys functions, INV-T-3979)
 - The event log on one runtime login per service (owner ruling INV-Q-3953; coordinator rulings INV-Q-4262,

@@ -80,7 +80,12 @@ class RelayOutageIT {
             }
             harness.drain(producer.relay)
             // Crash between publish and the published_at commit: the row is still unpublished, so it goes out again.
-            harness.fixture.runAsAdmin("update payload.outbox set published_at = null")
+            // The publish-once trigger (INV-Q-4334) refuses clearing even for the administrator, so the test simulates
+            // the lost commit with triggers off for its own session only.
+            harness.fixture.runAsAdmin(
+                "set session_replication_role = replica; update payload.outbox set published_at = null; " +
+                    "reset session_replication_role",
+            )
             harness.drain(producer.relay)
 
             val log = harness.logOf(PAYLOAD_READY_TOPIC)

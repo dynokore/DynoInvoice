@@ -268,8 +268,18 @@ class SharedPoolIsolationIT {
             // The owner's own entry and the runtime login; never PUBLIC (an entry without a grantee name).
             assertEquals(setOf(APP, SYS), row[3].split(';').map { it.substringBefore('=') }.toSet(), row.toString())
         }
-        val others = "select count(*) from pg_proc where pronamespace = '$SCHEMA'::regnamespace and not prosecdef"
-        assertEquals(0L, count(fixture, others), "no other function")
+        // The only other function is the publish-once trigger's (INV-Q-4334): invoker rights, fixed search_path, no
+        // EXECUTE for PUBLIC.
+        val others =
+            fixture.adminDataSource().connection.use { c ->
+                c.strings(
+                    "select p.proname || '|' || p.prorettype::regtype || '|' || array_to_string(p.proconfig, ';') || " +
+                        "'|' || (p.proacl is not null and not exists (select 1 from aclexplode(p.proacl) a " +
+                        "where a.grantee = 0)) from pg_proc p " +
+                        "where p.pronamespace = '$SCHEMA'::regnamespace and not p.prosecdef",
+                )
+            }
+        assertEquals(listOf("outbox_publish_once|trigger|search_path=pg_catalog, $SCHEMA, pg_temp|true"), others)
     }
 
     /** Sys-owned, non-security_invoker views; a runtime login that owns nothing; a sys role without login or CREATE. */

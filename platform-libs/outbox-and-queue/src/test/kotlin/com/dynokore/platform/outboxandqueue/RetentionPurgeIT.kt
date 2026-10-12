@@ -93,7 +93,13 @@ class RetentionPurgeIT {
             outbox(harness, "old-b", tenantB, 40)
             outbox(harness, "recent", tenantA, 29)
             outbox(harness, "unpublished-ancient", tenantA, null)
-            harness.fixture.runAsAdmin("update payload.outbox set event_time = now() - interval '400 days'")
+            // Rows are never rewritten (publish-once trigger, INV-Q-4334): the administrator ages them with
+            // triggers off for its own session only.
+            harness.fixture.runAsAdmin(
+                "set session_replication_role = replica; " +
+                    "update payload.outbox set event_time = now() - interval '400 days'; " +
+                    "reset session_replication_role",
+            )
             val purge = purger(harness, Retention(), 1)
             assertEquals(PurgeResult(outboxRows = 2, inboxRows = 0), purge.purge())
             assertEquals(setOf("recent", "unpublished-ancient"), ids(harness, "outbox", "id"))
