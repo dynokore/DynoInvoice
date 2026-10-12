@@ -279,7 +279,7 @@ impl-poms:
         echo "gst-ci: negative test: the build failed, but not on verifyImplPoms"
         exit 1
       fi
-      grep -E "^ +- " build/impl-poms-negative.log | head -5 | cut -c1-200
+      grep -m5 -E "^ +- " build/impl-poms-negative.log | cut -c1-200
       echo "gst-ci: negative test: verifyImplPoms fails when an impl POM declares no dependency, as it must"
 
 # The shared template's pact-publish runs `pactPublish` in a job of its own, where no pact file exists (the pacts are
