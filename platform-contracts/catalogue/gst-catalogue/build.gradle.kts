@@ -74,12 +74,13 @@ publishing {
                 // The company licence, the same values as platform-build's shared publishing
                 // convention (owner ruling INV-Q-4286 C, INV-T-4311). This module does not apply
                 // the platform-build conventions, so it stamps them here. The SPDX ref goes in
-                // <comments> for the licence check. No <url>: the owner has not supplied the
+                // <comments> for the licence check, distribution repo (INV-T-4309). No <url>: the owner has not supplied the
                 // licence URL yet (open item), and no placeholder is written.
                 licenses {
                     license {
                         name.set("Dynokore Proprietary Licence")
                         comments.set("LicenseRef-Dynokore-Proprietary")
+                        distribution.set("repo")
                     }
                 }
             }
