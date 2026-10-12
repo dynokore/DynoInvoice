@@ -22,9 +22,11 @@ import javax.sql.DataSource
  * - **SKIP LOCKED.** Candidates are selected `FOR UPDATE SKIP LOCKED`, so workers never queue behind each other.
  *   A candidate row lock alone cannot keep a later item of a partition from being claimed while the head's
  *   claim is still uncommitted, so each claim also takes a transaction advisory lock on its partition and
- *   re-checks eligibility under it.
- * - **Cross-tenant claim (ARC 4.3 step 1a).** The claim runs on [claimSource], a worker-role connection that
- *   sees only the claim columns; the payload is read later in the item's own tenant transaction.
+ *   re-checks eligibility under it. All of this runs inside the `<svc>_sys`-owned definer function
+ *   [QueueSchema.CLAIM_DUE], in one short transaction.
+ * - **Cross-tenant claim (ARC 4.3 step 1a; INV-Q-3953).** The claim runs on [claimSource], a connection of the
+ *   service's runtime login, which calls [QueueSchema.CLAIM_DUE] and gets the claim columns only; the payload is
+ *   read later in the item's own tenant transaction.
  * - **Crash.** A claim not completed within [claimTimeout] is claimed again (at-least-once; the handler is
  *   idempotent, INV-REQ-1164).
  */
@@ -38,16 +40,7 @@ class JdbcWorkQueue(
     private val claimTimeout: Duration = Duration.ofMinutes(5),
 ) : WorkQueue {
     private val queue = "${SqlIdentifier.require(schema, "schema")}.${QueueSchema.WORK_QUEUE}"
-
-    /** Unclaimed (or abandoned) and the oldest of its partition in its lane; its one `?` is the reclaim time. */
-    private val eligible =
-        """
-        (state = 'PENDING' or (state = 'CLAIMED' and claimed_at < ?))
-        and not exists (
-            select 1 from $queue p
-            where p.tenant_id = q.tenant_id and p.partition_key = q.partition_key and p.lane = q.lane
-              and p.consumer is not distinct from q.consumer and p.seq < q.seq)
-        """.trimIndent()
+    private val claimDue = "${SqlIdentifier.require(schema, "schema")}.${QueueSchema.CLAIM_DUE}"
 
     override fun enqueue(entry: QueueEntry): Long {
         val tenant = scope.tenants.current()
@@ -111,84 +104,38 @@ class JdbcWorkQueue(
     }
 
     private fun claimInLane(lane: Lane): ClaimedItem? = claimSource.connection.use { connection ->
+        val wasAutoCommit = connection.autoCommit
         connection.autoCommit = false
         try {
-            val claimed = candidates(connection, lane).firstNotNullOfOrNull { claim(connection, it) }
-            connection.commit()
+            val claimed = claimDue(connection, lane)
+            connection.commit() // ends the claim transaction and with it the partition lock
             claimed
         } catch (failure: Exception) {
             connection.rollback()
             throw failure
+        } finally {
+            connection.autoCommit = wasAutoCommit
         }
     }
 
-    private fun candidates(
+    private fun claimDue(
         connection: Connection,
         lane: Lane,
-    ): List<Candidate> = connection
-        .prepareStatement(
-            """
-            select seq, tenant_id, partition_key from $queue q
-            where lane = ? and consumer is not distinct from ? and $eligible
-            order by seq limit ? for update of q skip locked
-            """.trimIndent(),
-        ).use { statement ->
+    ): ClaimedItem? = connection
+        .prepareStatement("select claimed_seq, claimed_tenant, claimed_partition from $claimDue(?, ?, ?, ?)")
+        .use { statement ->
             statement.setString(1, lane.name)
             statement.setString(2, consumer)
-            statement.setTimestamp(3, reclaimBefore())
-            statement.setInt(4, CANDIDATES)
+            statement.setTimestamp(3, Timestamp.from(clock.instant()))
+            statement.setTimestamp(4, reclaimBefore())
             statement.executeQuery().use { rows ->
-                buildList {
-                    while (rows.next()) {
-                        add(Candidate(rows.getLong(1), TenantId(rows.getObject(2, UUID::class.java)), rows.getString(3), lane))
-                    }
+                if (rows.next()) {
+                    ClaimedItem(rows.getLong(1), TenantId(rows.getObject(2, UUID::class.java)), rows.getString(3), lane)
+                } else {
+                    null
                 }
             }
         }
 
-    /** Locks the candidate's partition, re-checks it is still the head and unclaimed, and claims it. */
-    private fun claim(
-        connection: Connection,
-        candidate: Candidate,
-    ): ClaimedItem? {
-        if (!lockPartition(connection, candidate)) return null
-        val stillEligible =
-            connection
-                .prepareStatement("select 1 from $queue q where seq = ? and $eligible for update of q skip locked")
-                .use { statement ->
-                    statement.setLong(1, candidate.seq)
-                    statement.setTimestamp(2, reclaimBefore())
-                    statement.executeQuery().use { it.next() }
-                }
-        if (!stillEligible) return null
-        connection
-            .prepareStatement("update $queue set state = 'CLAIMED', claimed_at = ?, attempts = attempts + 1 where seq = ?")
-            .use {
-                it.setTimestamp(1, Timestamp.from(clock.instant()))
-                it.setLong(2, candidate.seq)
-                it.executeUpdate()
-            }
-        return ClaimedItem(candidate.seq, candidate.tenant, candidate.partitionKey, candidate.lane)
-    }
-
-    private fun lockPartition(
-        connection: Connection,
-        candidate: Candidate,
-    ): Boolean = connection.prepareStatement("select pg_try_advisory_xact_lock(hashtextextended(?, 0))").use {
-        it.setString(1, "$queue|${candidate.tenant}|${candidate.partitionKey}|${candidate.lane}|$consumer")
-        it.executeQuery().use { rows -> rows.next() && rows.getBoolean(1) }
-    }
-
     private fun reclaimBefore(): Timestamp = Timestamp.from(clock.instant().minus(claimTimeout))
-
-    private class Candidate(
-        val seq: Long,
-        val tenant: TenantId,
-        val partitionKey: String,
-        val lane: Lane,
-    )
-
-    private companion object {
-        const val CANDIDATES = 20
-    }
 }

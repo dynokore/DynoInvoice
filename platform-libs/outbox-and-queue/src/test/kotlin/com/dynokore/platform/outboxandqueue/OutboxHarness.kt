@@ -37,7 +37,10 @@ class OutboxHarness(image: String) : AutoCloseable {
         }
 
     init {
-        fixture.createService("submission", SUBMISSION_STATE + QueueSchema.ddl("submission", APP, WORKER))
+        fixture.createService(
+            "submission",
+            SUBMISSION_STATE + QueueSchema.ddl("submission", APP, OutboxPostgresFixture.SYS),
+        )
         fixture.createService("reconciliation", RECONCILIATION_STATE)
         fixture.createService("payload")
         fixture.createService("canonical")
@@ -66,7 +69,7 @@ class OutboxHarness(image: String) : AutoCloseable {
         ConsumerSubscription(name, topic, schema),
         catalogue,
         reader,
-        fixture.workerDataSource(),
+        fixture.runtimeDataSource(),
         TenantScope(tx.tenants, tx, tx),
         handler,
         rebuildSink,
@@ -170,7 +173,6 @@ class OutboxHarness(image: String) : AutoCloseable {
         val IMAGES = listOf("postgres:17", "postgres:18")
 
         private const val APP = OutboxPostgresFixture.APP
-        private const val WORKER = OutboxPostgresFixture.WORKER
         private const val SUBMISSION_STATE = """
             create table submission.submission_state (doc_uuid uuid primary key, status text not null);
             create table submission.obligation_register (

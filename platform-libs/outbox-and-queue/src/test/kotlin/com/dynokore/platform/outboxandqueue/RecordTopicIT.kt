@@ -83,7 +83,7 @@ class RecordTopicIT {
         ConsumerSubscription(name, audit, "evidence", recordTypes = recordTypes),
         catalogue,
         harness.reader,
-        harness.fixture.workerDataSource(),
+        harness.fixture.runtimeDataSource(),
         scope,
         object : EventHandler {
             override fun handle(event: Envelope) = HandleOutcome.APPLIED

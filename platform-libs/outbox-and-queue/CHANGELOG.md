@@ -5,6 +5,22 @@ All notable changes to `outbox-and-queue` are recorded here (FR-L.6). Format fol
 train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
+### Changed (breaking; released as the MAJOR of the eventlog_sys task, INV-T-3979)
+- One runtime login per service (INV-T-3978, stage 1; owner rulings INV-Q-3951, INV-Q-3953, INV-Q-3965;
+  INV-ADR-3968; INV-REQ-854, INV-REQ-1189 b2, INV-REQ-1205). `OutboxSchema.ddl(schema, runtime, sys)` and
+  `QueueSchema.ddl(schema, runtime, sys)` replace the (app, worker) forms. The runtime login works on the tenant tables
+  under the forced tenant policy only; every cross-tenant policy targets the NOLOGIN `<svc>_sys` and is reached only
+  through objects it owns: the column-limited views `outbox_claim_v` and `event_dead_letter_triage_v`, and SECURITY
+  DEFINER functions with static SQL, `SET search_path = pg_catalog, <schema>, pg_temp`, EXECUTE revoked from PUBLIC and
+  granted to the runtime login only: `claim_due` (work queue), `full_sync_delete(consumer, source)`,
+  `outbox_purge_expired`, `inbox_purge_expired` and `event_dead_letter_purge_expired` (each with its age predicate and
+  the retention floor in SQL), `event_dead_letter_record` and `event_dead_letter_resolve`.
+- `JdbcOutboxRelay`, `JdbcWorkQueue`, `JdbcInboxConsumer`, `JdbcDeadLetterTriage`, `JdbcRetentionPurge` and
+  `JdbcReplayResponder` take a runtime-login DataSource and use those views and functions; the relay's and the replay
+  responder's session advisory locks are transaction-scoped (`pg_try_advisory_xact_lock`), so no pooled connection
+  keeps a lock outside its transaction (transaction-mode pooler, INV-ADR-3968 item 9).
+- Transitional until stage 2: `OutboxSchema.fullSyncWorkerAccess` and `readModelClearAccess` keep the full sync on the
+  former worker role pending the owner's ruling on the read-model clear.
 
 ## [1.10.0] - 2026-10-11
 ### Added

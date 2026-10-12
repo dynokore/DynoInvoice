@@ -48,7 +48,7 @@ class SharedRateLimitIT {
     @ValueSource(strings = ["postgres:17", "postgres:18"])
     fun `three replicas together take at most each lane's own limit per window`(image: String) {
         OutboxHarness(image).use { harness ->
-            val replicas = List(REPLICAS) { LaneRateLimiter(harness.fixture.workerDataSource(), "submission", limits) }
+            val replicas = List(REPLICAS) { LaneRateLimiter(harness.fixture.runtimeDataSource(), "submission", limits) }
 
             fun burst(): Map<Lane, Int> {
                 val granted = ConcurrentLinkedQueue<Lane>()

@@ -19,7 +19,7 @@ import javax.sql.DataSource
  *   any replica serialise on the lane's row, so the limit holds exactly.
  * - **Retention.** Opening a window replaces the lane's row of the ended window in the same statement, so at most one
  *   row per lane exists and nothing accumulates.
- * - **Access.** [dataSource] connects as the worker role (`SELECT, INSERT, UPDATE, DELETE` on the table; no RLS, as
+ * - **Access.** [dataSource] connects as the runtime login (`SELECT, INSERT, UPDATE, DELETE` on the table; no RLS, as
  *   the rows hold no tenant data: CS-19 exception, as for `consumer_offset`).
  * - Every replica of a service is given the same [LaneLimits].
  */

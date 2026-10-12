@@ -39,7 +39,9 @@ class TenantIsolationIT {
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
-    fun `dead letters carry the tenant, tenants read only their own raw, the worker none`(image: String) {
+    fun `dead letters carry the tenant, tenants read only their own raw, the runtime login none directly`(
+        image: String,
+    ) {
         OutboxHarness(image).use { harness ->
             val tenant = UUID.randomUUID()
             val topic = "eventlog.gst_payload_payload_ready_v1"
@@ -67,20 +69,29 @@ class TenantIsolationIT {
             assertEquals(0, kit.inTx(other) { visible(kit, "event_dead_letter") }, "a cross-tenant read is refused")
             assertEquals(0, kit.inTx(other) { rawCount(kit) }, "another tenant reads no raw")
             assertEquals(1, kit.inTx(tenant) { rawCount(kit) }, "a tenant reads its own letter only")
-            workerReadsMetadataOnly(harness)
+            runtimeReadsMetadataOnly(harness)
         }
     }
 
-    private fun workerReadsMetadataOnly(harness: OutboxHarness) {
-        harness.fixture.workerDataSource().connection.use { connection ->
+    /**
+     * The runtime login reads no letter directly outside a tenant transaction (forced RLS, no tenant bound), and the
+     * sys-owned triage view gives every letter's metadata and never `raw` (INV-Q-3953).
+     */
+    private fun runtimeReadsMetadataOnly(harness: OutboxHarness) {
+        harness.fixture.runtimeDataSource().connection.use { connection ->
             connection.createStatement().use { statement ->
                 val table = "submission.event_dead_letter"
+                val view = "submission.${OutboxSchema.DEAD_LETTER_TRIAGE_VIEW}"
                 statement.executeQuery("select count(*) from $table").use {
+                    it.next()
+                    assertEquals(0, it.getInt(1), "no letter directly")
+                }
+                statement.executeQuery("select count(*) from $view").use {
                     it.next()
                     assertEquals(2, it.getInt(1))
                 }
-                statement.executeQuery("select id, reason from $table").close()
-                listOf("select raw from $table", "select * from $table", "select id from $table where raw like '%'")
+                statement.executeQuery("select id, reason from $view").close()
+                listOf("select raw from $view", "select id from $view where raw like '%'")
                     .forEach { sql -> assertThrows(SQLException::class.java, { statement.executeQuery(sql) }, sql) }
             }
         }

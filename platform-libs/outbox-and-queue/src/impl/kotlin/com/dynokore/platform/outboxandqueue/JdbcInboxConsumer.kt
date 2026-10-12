@@ -12,7 +12,7 @@ import javax.sql.DataSource
  * one tenant transaction in the consumer's own schema (INV-REQ-1222, ARC 4.2 / TPL-06):
  *
  * 1. the envelope is validated; a violation goes to `event_dead_letter` and the consumer moves
- *    on (no tenant is known yet, so this uses the worker connection, never tenant data);
+ *    on (no tenant is known yet, so this uses the claim connection, never tenant data);
  * 2. the record's `tenantid` is bound (ARC-21) and the offset row is locked, so two instances of
  *    one consumer never apply a record twice;
  * 3. the event id is inserted into the inbox; an id already there means the event was applied:
@@ -28,8 +28,9 @@ import javax.sql.DataSource
  * [catalogue] gives the record-topic event types (INV-Q-3809); a [ConsumerSubscription.recordTypes] declaration that
  * differs from them fails construction, so a service cannot run with record events under the sequence check.
  *
- * [claimSource] is the worker-role connection of ARC 4.3 step 1a: it only reads the offset to know
- * where to poll, and records dead letters; the inbox and sequence tables (row-level security) are
+ * [claimSource] is a connection of the service's runtime login outside any tenant transaction: it only reads
+ * and writes the offset (no tenant data) to know where to poll, and records dead letters through the
+ * `<svc>_sys`-owned [OutboxSchema.DEAD_LETTER_RECORD]; the inbox and sequence tables (row-level security) are
  * reached only inside a tenant transaction.
  *
  * When the reader reports that this consumer's next position is at or below the topic's purge watermark
@@ -368,24 +369,24 @@ constructor(
         }
     }
 
-    /** Records the dead letter and moves the offset past it in one worker-role transaction. */
+    /**
+     * Records the dead letter and moves the offset past it in one runtime-login transaction, the letter through the
+     * `<svc>_sys`-owned [OutboxSchema.DEAD_LETTER_RECORD] (a letter may have no tenant, so no tenant policy admits it).
+     */
     private fun deadLetter(
         record: LogRecord,
         reason: String,
     ) {
         claimSource.connection.use { connection ->
             connection.autoCommit = false
-            connection.prepareStatement(
-                "insert into $s.${OutboxSchema.DEAD_LETTER} (consumer, topic, log_offset, tenant_id, reason, raw) " +
-                    "values (?, ?, ?, ?, ?, ?)",
-            ).use {
+            connection.prepareStatement("select $s.${OutboxSchema.DEAD_LETTER_RECORD}(?, ?, ?, ?, ?, ?)").use {
                 it.setString(1, consumer)
                 it.setString(2, topic)
                 it.setLong(3, record.offset)
                 it.setObject(4, json.tenantOf(record.envelopeJson)?.value, java.sql.Types.OTHER)
                 it.setString(5, reason)
                 it.setString(6, record.envelopeJson)
-                it.executeUpdate()
+                it.executeQuery().close()
             }
             connection.prepareStatement(
                 "insert into $offsets (consumer, topic, next_offset) values (?, ?, ?) " +

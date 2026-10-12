@@ -10,7 +10,7 @@ import javax.sql.DataSource
 private class Postgres(image: DockerImageName) : PostgreSQLContainer<Postgres>(image)
 
 /**
- * A fresh PostgreSQL container (STK-14, STK-15; the PG 17 and 18 matrix, TPL-14) with the
+ * A fresh PostgreSQL container (STK-14, STK-15; the PG 16, 17 and 18 matrix, TPL-14, owner ruling INV-Q-3965) with the
  * roles of `outbox-and-queue-test-roles.sql`, and the service and event-log tables created
  * by the same generators a real migration would use ([OutboxSchema.ddl], [EventLogSchema.topicDdl]).
  */
@@ -28,6 +28,12 @@ class OutboxPostgresFixture(image: String) : AutoCloseable {
     /** A service's runtime role (outbox, inbox, state tables), wrapped in tenancy-kernel's [TenantAwareDataSource]. */
     fun appDataSource(): DataSource = TenantAwareDataSource(dataSourceFor(APP, "outbox_app_pw"))
 
+    /**
+     * The same runtime login, unwrapped: the connections the relay, work queue, consumers, triage and purge use
+     * outside any tenant transaction, reaching across tenants only through the [SYS]-owned views and functions.
+     */
+    fun runtimeDataSource(): DataSource = dataSourceFor(APP, "outbox_app_pw")
+
     /** The cross-tenant worker role (ARC 4.3 step 1a): claim policy and column grant only, never BYPASSRLS. */
     fun workerDataSource(): DataSource = dataSourceFor(WORKER, "outbox_worker_pw")
 
@@ -43,12 +49,15 @@ class OutboxPostgresFixture(image: String) : AutoCloseable {
     /** The event-log component's purge role: DELETE and SELECT (log_offset, inserted_at) on topics, watermark write. */
     fun purgeDataSource(): DataSource = dataSourceFor(PURGE, "eventlog_purge_pw")
 
-    /** Creates the outbox/inbox tables in [schema] and grants [APP] on [extraTables] (state tables the test adds). */
+    /**
+     * Creates the outbox/inbox tables in [schema] for the runtime login [APP] and the sys role [SYS], the transitional
+     * full-sync access of [WORKER], and runs [extraDdl] (state tables the test adds).
+     */
     fun createService(
         schema: String,
         extraDdl: String = "",
     ) {
-        run(OutboxSchema.ddl(schema, APP, WORKER) + "\n" + extraDdl)
+        run(OutboxSchema.ddl(schema, APP, SYS) + "\n" + OutboxSchema.fullSyncWorkerAccess(schema, WORKER) + "\n" + extraDdl)
     }
 
     /**
@@ -108,6 +117,7 @@ class OutboxPostgresFixture(image: String) : AutoCloseable {
 
     companion object {
         const val APP = "outbox_app"
+        const val SYS = "outbox_sys"
         const val WORKER = "outbox_worker"
         const val RELAY = "outbox_relay"
         const val READER = "outbox_reader"

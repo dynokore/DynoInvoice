@@ -13,17 +13,19 @@ import javax.sql.DataSource
  * publishes each row to the [EventBinding], copying the stored envelope unchanged, so a
  * re-published row carries the same id (TPL-05, S2-01).
  *
- * - **Cross-tenant claim (ARC 4.3 step 1a).** The outbox is under tenancy-kernel's row-level
- *   security. The relay finds work through [claimSource], a connection of the worker role whose
- *   only access is the claim policy and the `seq`, `tenant_id`, `published_at` columns
- *   ([OutboxSchema]); never `BYPASSRLS`. For each claimed row it binds that row's tenant
+ * - **Cross-tenant claim (ARC 4.3 step 1a; INV-Q-3953).** The outbox is under tenancy-kernel's forced
+ *   row-level security. The relay finds work on [claimSource], a connection of the service's runtime login,
+ *   through the `<svc>_sys`-owned view [OutboxSchema.OUTBOX_CLAIM_VIEW], which exposes the `seq`, `tenant_id`
+ *   and `published_at` columns only; never `BYPASSRLS`. For each claimed row it binds that row's tenant
  *   ([TenantContext.bind], ARC-21) and reads, publishes and marks it in a normal tenant transaction.
  * - **Order per key.** `seq` is assigned after the writer has locked the key's counter row
  *   ([JdbcOutboxWriter]), so for one aggregate key `seq` order is commit order. The relay
  *   publishes strictly in `seq` order and stops at the first row the binding refuses, so no
  *   later row of any key overtakes it (INV-REQ-1221).
- * - **One relay at a time.** A session advisory lock on the claim connection makes a second
- *   instance a no-op rather than a source of interleaved publishing.
+ * - **One relay at a time.** A transaction advisory lock (`pg_try_advisory_xact_lock`) taken in the claim
+ *   connection's transaction, which spans the run, makes a second instance a no-op rather than a source of
+ *   interleaved publishing. The lock ends with that transaction, so no pooled connection keeps it and the relay
+ *   works behind a transaction-mode pooler (INV-ADR-3968 item 9).
  * - **Outage.** Producers only write the outbox, never call the binding, so they keep
  *   committing while it is down (INV-AC-2185); rows stay unpublished and the next run catches up.
  * - **At-least-once.** A crash after publish and before the `published_at` commit publishes
@@ -42,17 +44,20 @@ class JdbcOutboxRelay(
     private val batchSize: Int = DEFAULT_BATCH,
 ) : OutboxRelay {
     private val outbox = "${SqlIdentifier.require(schema, "schema")}.${OutboxSchema.OUTBOX}"
+    private val claimView = "${SqlIdentifier.require(schema, "schema")}.${OutboxSchema.OUTBOX_CLAIM_VIEW}"
 
     init {
         require(batchSize in 1..MAX_BATCH) { "batch size must be 1..$MAX_BATCH, was $batchSize" }
     }
 
     override fun runOnce(): RelayOutcome = claimSource.connection.use { claim ->
-        if (!tryLock(claim)) return RelayOutcome(published = 0, pending = pending(claim), stalled = false)
+        val wasAutoCommit = claim.autoCommit
+        claim.autoCommit = false
         try {
-            publishBatch(claim)
+            if (tryLock(claim)) publishBatch(claim) else RelayOutcome(published = 0, pending = pending(claim), stalled = false)
         } finally {
-            unlock(claim) // a pooled connection must not keep the session lock
+            claim.rollback() // ends the claim transaction and with it the lock; it wrote nothing
+            claim.autoCommit = wasAutoCommit
         }
     }
 
@@ -80,19 +85,12 @@ class JdbcOutboxRelay(
         }
     }
 
-    private fun tryLock(claim: Connection): Boolean = claim.prepareStatement("select pg_try_advisory_lock(hashtext(?))").use { statement ->
+    private fun tryLock(claim: Connection): Boolean = claim.prepareStatement("select pg_try_advisory_xact_lock(hashtext(?))").use { statement ->
         statement.setString(1, outbox)
         statement.executeQuery().use { rows -> rows.next() && rows.getBoolean(1) }
     }
 
-    private fun unlock(claim: Connection) {
-        claim.prepareStatement("select pg_advisory_unlock(hashtext(?))").use {
-            it.setString(1, outbox)
-            it.execute()
-        }
-    }
-
-    private fun claimBatch(claim: Connection): List<Claimed> = claim.prepareStatement("select seq, tenant_id from $outbox where published_at is null order by seq limit ?").use {
+    private fun claimBatch(claim: Connection): List<Claimed> = claim.prepareStatement("select seq, tenant_id from $claimView where published_at is null order by seq limit ?").use {
         it.setInt(1, batchSize)
         it.executeQuery().use { rows ->
             buildList { while (rows.next()) add(Claimed(rows.getLong(1), TenantId(rows.getObject(2, UUID::class.java)))) }
@@ -141,7 +139,7 @@ class JdbcOutboxRelay(
         }
     }
 
-    private fun pending(claim: Connection): Long = claim.prepareStatement("select count(*) from $outbox where published_at is null").use { statement ->
+    private fun pending(claim: Connection): Long = claim.prepareStatement("select count(*) from $claimView where published_at is null").use { statement ->
         statement.executeQuery().use { rows ->
             check(rows.next()) { "count returned no row" }
             rows.getLong(1)

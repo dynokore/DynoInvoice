@@ -86,7 +86,7 @@ class StalenessIT {
         clock: MutableClock,
         raised: MutableList<StalenessBreach>,
     ) = JdbcStalenessMonitor(
-        harness.fixture.workerDataSource(),
+        harness.fixture.runtimeDataSource(),
         harness.reader,
         harness.catalogue,
         "submission",

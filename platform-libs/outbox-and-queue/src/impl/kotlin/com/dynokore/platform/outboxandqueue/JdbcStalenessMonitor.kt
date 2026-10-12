@@ -7,7 +7,7 @@ import javax.sql.DataSource
 
 /**
  * [StalenessMonitor] for the consumers of one service schema (INV-REQ-1165, INV-AC-2150). For each rule it reads
- * the consumer's offset (the worker-role connection [offsetSource]; the offset table holds no tenant data)
+ * the consumer's offset (the runtime-login connection [offsetSource]; the offset table holds no tenant data)
  * and asks the event log for the oldest record the consumer has not consumed. The lag is `now - inserted_at` of that
  * record, measured by the injected [Clock]; it is breached only when strictly greater than the threshold. A breach
  * is raised once and again only after the consumer has recovered, so a stopped consumer does not raise an incident

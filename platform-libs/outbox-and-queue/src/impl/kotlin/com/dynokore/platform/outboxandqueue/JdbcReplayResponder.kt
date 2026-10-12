@@ -24,7 +24,9 @@ import javax.sql.DataSource
  * A request the service cannot answer (not a valid ReplayRequested, from another service than the topic's consumer, or
  * for a pair without a replay topic) is dead-lettered as a consumer's invalid record is, and the run moves on.
  *
- * @param claimSource the worker role: positions, dead letters, the per-topic advisory lock.
+ * @param claimSource the service's runtime login outside any tenant transaction: positions, dead letters (through
+ *   [OutboxSchema.DEAD_LETTER_RECORD]) and the per-topic transaction advisory lock, held by a transaction that spans
+ *   the topic's run (INV-ADR-3968 item 9).
  */
 class JdbcReplayResponder
 @JvmOverloads
@@ -57,11 +59,13 @@ constructor(
     @Synchronized
     fun runOnce(): List<ReplayAnswer> = catalogue.requestTopicsReadBy(service).flatMap { topic ->
         claimSource.connection.use { lock ->
-            if (!tryLock(lock, topic.topic)) return@use emptyList()
+            val wasAutoCommit = lock.autoCommit
+            lock.autoCommit = false
             try {
-                drain(topic)
+                if (tryLock(lock, topic.topic)) drain(topic) else emptyList()
             } finally {
-                unlock(lock, topic.topic)
+                lock.rollback() // ends the lock transaction and with it the lock; it wrote nothing
+                lock.autoCommit = wasAutoCommit
             }
         }
     }
@@ -224,7 +228,10 @@ constructor(
         }
     }
 
-    /** Records the dead letter and moves the position past it in one worker-role transaction. */
+    /**
+     * Records the dead letter and moves the position past it in one runtime-login transaction, the letter through the
+     * `<svc>_sys`-owned [OutboxSchema.DEAD_LETTER_RECORD] (a letter may have no tenant, so no tenant policy admits it).
+     */
     private fun deadLetter(
         topic: String,
         record: LogRecord,
@@ -232,17 +239,14 @@ constructor(
     ) {
         claimSource.connection.use { connection ->
             connection.autoCommit = false
-            connection.prepareStatement(
-                "insert into $s.${OutboxSchema.DEAD_LETTER} (consumer, topic, log_offset, tenant_id, reason, raw) " +
-                    "values (?, ?, ?, ?, ?, ?)",
-            ).use {
+            connection.prepareStatement("select $s.${OutboxSchema.DEAD_LETTER_RECORD}(?, ?, ?, ?, ?, ?)").use {
                 it.setString(1, service)
                 it.setString(2, topic)
                 it.setLong(3, record.offset)
                 it.setObject(4, envelopes.tenantOf(record.envelopeJson)?.value, java.sql.Types.OTHER)
                 it.setString(5, reason)
                 it.setString(6, record.envelopeJson)
-                it.executeUpdate()
+                it.executeQuery().close()
             }
             connection.prepareStatement(
                 "insert into $offsets (consumer, topic, next_offset) values (?, ?, ?) " +
@@ -260,19 +264,9 @@ constructor(
     private fun tryLock(
         connection: Connection,
         topic: String,
-    ): Boolean = connection.prepareStatement("select pg_try_advisory_lock(hashtext(?))").use {
+    ): Boolean = connection.prepareStatement("select pg_try_advisory_xact_lock(hashtext(?))").use {
         it.setString(1, "$s/replay-responder/$topic")
         it.executeQuery().use { rows -> rows.next() && rows.getBoolean(1) }
-    }
-
-    private fun unlock(
-        connection: Connection,
-        topic: String,
-    ) {
-        connection.prepareStatement("select pg_advisory_unlock(hashtext(?))").use {
-            it.setString(1, "$s/replay-responder/$topic")
-            it.execute()
-        }
     }
 
     private companion object {

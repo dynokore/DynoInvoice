@@ -49,7 +49,7 @@ class ConsumerRetryIT {
                 ConsumerSubscription("reconciliation-svc", ACK_TOPIC, "reconciliation", retry, classifier),
                 harness.catalogue,
                 harness.reader,
-                harness.fixture.workerDataSource(),
+                harness.fixture.runtimeDataSource(),
                 TenantScope(kit.tenants, kit.boundary, kit.boundary),
                 handler,
                 harness.rebuildSink,

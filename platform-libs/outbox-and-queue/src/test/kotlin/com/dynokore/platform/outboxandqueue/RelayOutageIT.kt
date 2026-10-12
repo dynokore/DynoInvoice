@@ -167,7 +167,9 @@ class RelayOutageIT {
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
-    fun `outbox rows are tenant-isolated and the worker role sees only the claim columns`(image: String) {
+    fun `outbox rows are tenant-isolated and the runtime login sees only claim columns across tenants`(
+        image: String,
+    ) {
         OutboxHarness(image).use { harness ->
             val kit = harness.payload
             val doc = UUID.randomUUID()
@@ -178,10 +180,15 @@ class RelayOutageIT {
             val seen = { tenant: UUID -> kit.inTx(tenant) { rowsVisible(kit) } }
             assertEquals(1, seen(owner))
             assertEquals(0, seen(UUID.randomUUID()))
-            harness.fixture.workerDataSource().connection.use { connection ->
+            // The runtime login sees no outbox row outside a tenant transaction; the sys-owned claim view gives the
+            // claim columns of every tenant's rows and nothing else (INV-Q-3953).
+            harness.fixture.runtimeDataSource().connection.use { connection ->
                 connection.createStatement().use {
-                    assertTrue(it.executeQuery("select seq, tenant_id from payload.outbox").next())
-                    assertThrows(SQLException::class.java) { it.executeQuery("select data from payload.outbox") }
+                    assertFalse(it.executeQuery("select seq from payload.outbox").next())
+                    assertTrue(it.executeQuery("select seq, tenant_id from payload.outbox_claim_v").next())
+                    assertThrows(SQLException::class.java) {
+                        it.executeQuery("select data from payload.outbox_claim_v")
+                    }
                 }
             }
         }

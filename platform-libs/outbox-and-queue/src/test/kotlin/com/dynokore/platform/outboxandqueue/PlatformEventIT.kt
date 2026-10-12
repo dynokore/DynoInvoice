@@ -115,7 +115,7 @@ class PlatformEventIT {
                     ConsumerSubscription("evidence-svc", auditTopic, "reconciliation"),
                     harness.sequencedCatalogue, // the sequence rule under test
                     harness.reader,
-                    harness.fixture.workerDataSource(),
+                    harness.fixture.runtimeDataSource(),
                     TenantScope(kit.tenants, kit.boundary, kit.boundary),
                     RecordingHandler(),
                     harness.rebuildSink,

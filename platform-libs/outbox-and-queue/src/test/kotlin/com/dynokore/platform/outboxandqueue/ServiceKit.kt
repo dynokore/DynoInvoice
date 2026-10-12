@@ -23,7 +23,7 @@ class ServiceKit(
     val boundary = KillableTransactionRunner(harness.fixture.appDataSource(), tenants)
     val writer = JdbcOutboxWriter(boundary, schema, service, "$service-1", catalogue, CLOCK)
     val relay = JdbcOutboxRelay(
-        harness.fixture.workerDataSource(),
+        harness.fixture.runtimeDataSource(),
         TenantScope(tenants, boundary, boundary),
         schema,
         PostgresEventBinding(harness.eventLogForRelay),

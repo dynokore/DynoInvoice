@@ -11,17 +11,19 @@ import javax.sql.DataSource
 
 /**
  * [DeadLetterTriage] over the `event_dead_letter` table ([OutboxSchema]). Dead letters keep whole rejected envelopes
- * (content) under forced row-level security. [workerSource], a worker-role connection, lists and resolves them from
- * the non-content columns only (ARC 4.3 step 1a); `raw` is read, and filtered by subject or entity, in the letter's
- * tenant session under the tenant policy (INV-T-2997). A letter without a tenant is triaged from metadata alone.
+ * (content) under forced row-level security. [runtimeSource], a connection of the service's runtime login, lists them
+ * through the `<svc>_sys`-owned view [OutboxSchema.DEAD_LETTER_TRIAGE_VIEW] (the non-content columns only, ARC 4.3
+ * step 1a) and resolves them through the definer function [OutboxSchema.DEAD_LETTER_RESOLVE] (INV-Q-3953); `raw` is
+ * read, and filtered by subject or entity, in the letter's tenant session under the tenant policy (INV-T-2997). A
+ * letter without a tenant is triaged from metadata alone.
  *
  * Replay writes into a tenant's queue, which only a tenant session may do: for each dead letter it binds the
  * dead letter's tenant ([TenantScope], ARC-21), inserts one replay-lane item addressed to the named consumer in a
- * tenant transaction, then marks the dead letter on the worker connection. The queue item is unique per dead
+ * tenant transaction, then marks the dead letter through [OutboxSchema.DEAD_LETTER_RESOLVE]. The queue item is unique per dead
  * letter, so a crash between the two steps is repaired by running the replay again.
  */
 class JdbcDeadLetterTriage(
-    private val workerSource: DataSource,
+    private val runtimeSource: DataSource,
     private val scope: TenantScope,
     schema: String,
     private val clock: Clock,
@@ -29,6 +31,7 @@ class JdbcDeadLetterTriage(
 ) : DeadLetterTriage {
     private val s = SqlIdentifier.require(schema, "schema")
     private val letters = "$s.${OutboxSchema.DEAD_LETTER}"
+    private val triageView = "$s.${OutboxSchema.DEAD_LETTER_TRIAGE_VIEW}"
     private val queue = "$s.${QueueSchema.WORK_QUEUE}"
 
     override fun list(
@@ -54,7 +57,7 @@ class JdbcDeadLetterTriage(
 
     override fun get(id: Long): DeadLetter? = metadata(DeadLetterScope(ids = setOf(id)), null, 0, 1).let { withRaw(it, DeadLetterScope()) }.singleOrNull()
 
-    /** The letters from the non-content columns, on the worker connection, in id order after [after]. */
+    /** The letters from the non-content columns, through the triage view, in id order after [after]. */
     private fun metadata(
         scope: DeadLetterScope,
         status: DeadLetterStatus?,
@@ -62,8 +65,8 @@ class JdbcDeadLetterTriage(
         limit: Int,
     ): List<DeadLetter> {
         val (where, args) = where(scope, status, after)
-        return workerSource.connection.use { connection ->
-            connection.prepareStatement("select $COLUMNS from $letters where $where order by id limit ?").use {
+        return runtimeSource.connection.use { connection ->
+            connection.prepareStatement("select $COLUMNS from $triageView where $where order by id limit ?").use {
                 args.forEachIndexed { index, value -> it.setObject(index + 1, value) }
                 it.setInt(args.size + 1, limit)
                 it.executeQuery().use { rows -> buildList { while (rows.next()) add(letter(rows)) } }
@@ -73,7 +76,7 @@ class JdbcDeadLetterTriage(
 
     /**
      * Fills `raw` of each letter with a tenant by reading it in that tenant's session, where the tenant policy applies
-     * (the worker cannot select it). A letter without a tenant keeps `raw = null`. When [filter] gives a subject or
+     * (the triage view never exposes it). A letter without a tenant keeps `raw = null`. When [filter] gives a subject or
      * entity, only the letters whose raw envelope matches are returned, and a letter without a tenant never does.
      */
     private fun withRaw(
@@ -198,19 +201,15 @@ class JdbcDeadLetterTriage(
         status: DeadLetterStatus,
         note: String?,
         replayedTo: String?,
-    ): Boolean = workerSource.connection.use { connection ->
-        connection
-            .prepareStatement(
-                "update $letters set status = ?, resolved_at = ?, note = ?, replayed_to = ? " +
-                    "where id = ? and status = 'OPEN'",
-            ).use {
-                it.setString(1, status.name)
-                it.setTimestamp(2, Timestamp.from(clock.instant()))
-                it.setString(3, note)
-                it.setString(4, replayedTo)
-                it.setLong(5, id)
-                it.executeUpdate() == 1
-            }
+    ): Boolean = runtimeSource.connection.use { connection ->
+        connection.prepareStatement("select $s.${OutboxSchema.DEAD_LETTER_RESOLVE}(?, ?, ?, ?, ?)").use {
+            it.setLong(1, id)
+            it.setString(2, status.name)
+            it.setTimestamp(3, Timestamp.from(clock.instant()))
+            it.setString(4, note)
+            it.setString(5, replayedTo)
+            it.executeQuery().use { rows -> rows.next() && rows.getBoolean(1) }
+        }
     }
 
     private fun where(
@@ -232,7 +231,7 @@ class JdbcDeadLetterTriage(
         add("status = ?", status?.name)
         if (scope.ids.isNotEmpty()) {
             clauses += "id = any(?)"
-            args += workerSource.connection.use { it.createArrayOf("bigint", scope.ids.toTypedArray()) }
+            args += runtimeSource.connection.use { it.createArrayOf("bigint", scope.ids.toTypedArray()) }
         }
         add("tenant_id = ?", scope.tenant?.value)
         add("consumer = ?", scope.consumer)

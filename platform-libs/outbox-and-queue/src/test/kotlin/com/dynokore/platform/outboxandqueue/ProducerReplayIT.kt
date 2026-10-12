@@ -492,7 +492,7 @@ class ProducerReplayIT {
             harness.catalogue,
             "canonical-svc",
             replayReader(harness, harness.fixture.replayRoles(consumer)),
-            harness.fixture.workerDataSource(),
+            harness.fixture.runtimeDataSource(),
             TenantScope(recon.tenants, recon.boundary, recon.boundary),
             ViewHandler(consumer),
             harness.rebuildSink,
@@ -551,7 +551,7 @@ class ProducerReplayIT {
             pageSize: Int = 200,
             failAfterPages: Int? = null,
         ) = JdbcReplayResponder(
-            "canonical-svc", "canonical", harness.catalogue, harness.reader, harness.fixture.workerDataSource(),
+            "canonical-svc", "canonical", harness.catalogue, harness.reader, harness.fixture.runtimeDataSource(),
             TenantScope(canonical.tenants, canonical.boundary, canonical.boundary), canonical.writer,
             listOf(CanonicalStates(failAfterPages)), harness.rebuildSink, clock, pageSize,
         )
@@ -675,7 +675,7 @@ private fun evidenceConsumer(
     subscription,
     harness.catalogue,
     harness.reader,
-    harness.fixture.workerDataSource(),
+    harness.fixture.runtimeDataSource(),
     TenantScope(harness.evidence.tenants, harness.evidence.boundary, harness.evidence.boundary),
     countingHandler(),
     harness.rebuildSink,
@@ -686,7 +686,7 @@ private fun evidenceIntake(harness: OutboxHarness) = JdbcReplayIntake(
     harness.catalogue,
     CatalogueEntry.EVERY_SERVICE,
     replayReader(harness, harness.fixture.replayRoles("evidence-svc")),
-    harness.fixture.workerDataSource(),
+    harness.fixture.runtimeDataSource(),
     TenantScope(harness.evidence.tenants, harness.evidence.boundary, harness.evidence.boundary),
     countingHandler(),
     harness.rebuildSink,
@@ -699,7 +699,7 @@ private fun answerEmpty(
     schema: String,
 ) {
     val responder = JdbcReplayResponder(
-        kit.service, schema, harness.catalogue, harness.reader, harness.fixture.workerDataSource(),
+        kit.service, schema, harness.catalogue, harness.reader, harness.fixture.runtimeDataSource(),
         TenantScope(kit.tenants, kit.boundary, kit.boundary), kit.writer, emptyList(), harness.rebuildSink,
     )
     assertEquals(listOf(0L), responder.runOnce().map { it.eventsReplayed })

@@ -11,7 +11,14 @@ import org.springframework.boot.context.properties.ConfigurationProperties
  * the `@Primary` one when the service declares several).
  */
 object ServiceDataSources {
-    /** The service's worker role: cross-tenant claims, offsets, dead letters, retention purges, job runs. */
+    /**
+     * The connection the outbox-and-queue implementations use outside any tenant transaction: relay and work-queue
+     * claims, offsets, dead letters, retention purges. From outbox-and-queue's (runtime, sys) DDL (INV-T-3978,
+     * INV-Q-3953) these reach across tenants only through `<svc>_sys`-owned views and definer functions, granted to the
+     * runtime login alone, so this bean must connect as the service's runtime login for them; the job runs and the
+     * idempotency purge still use the worker grants until their (runtime, sys) DDL, and this bean goes with the role
+     * DataSources in the service-runtime single-DataSource task.
+     */
     const val WORKER = "workerDataSource"
 
     /** The relay role on the event log (INSERT only): the outbox-and-queue `EventBinding` publishes through it. */

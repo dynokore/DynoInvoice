@@ -175,7 +175,7 @@ class MultiProducerReplayIT {
         sources: List<ReplayStateSource> = emptyList(),
     ): List<ReplayAnswer> {
         val responder = JdbcReplayResponder(
-            kit.service, kit.schema, harness.catalogue, harness.reader, harness.fixture.workerDataSource(),
+            kit.service, kit.schema, harness.catalogue, harness.reader, harness.fixture.runtimeDataSource(),
             TenantScope(kit.tenants, kit.boundary, kit.boundary), kit.writer, sources, harness.rebuildSink,
         )
         val answers = responder.runOnce()
@@ -200,7 +200,7 @@ class MultiProducerReplayIT {
                 harness.fixture.roleDataSource(roles.claimRole),
                 harness.fixture.roleDataSource(roles.readerRole),
             ),
-            harness.fixture.workerDataSource(),
+            harness.fixture.runtimeDataSource(),
             TenantScope(evidence.tenants, evidence.boundary, evidence.boundary),
             object : EventHandler {
                 override fun handle(event: Envelope): HandleOutcome {

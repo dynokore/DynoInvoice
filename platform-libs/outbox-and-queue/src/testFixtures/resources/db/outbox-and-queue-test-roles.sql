@@ -2,7 +2,9 @@
 --
 -- Run once by Testcontainers' default superuser as the init script. Roles:
 --   outbox_owner  — runs migrations (DDL only).
---   outbox_app    — a service's runtime role: LOGIN, NOSUPERUSER, NOBYPASSRLS, owns no table.
+--   outbox_app    — a service's one runtime login: LOGIN, NOSUPERUSER, NOBYPASSRLS, owns nothing, member of no role.
+--   outbox_sys    — a service's NOLOGIN capability role (INV-Q-3953): owns the claim views and SECURITY DEFINER
+--                   functions; outbox_owner (the migration role) is its member so it can hand them over.
 --   outbox_relay  — INSERT on the producer's own event-log topics, and nothing else.
 --   outbox_reader — SELECT on the event-log topics a consumer subscribes to, under the tenant policy only.
 --   outbox_worker — also the consumers' event-log claim role: claim policy and SELECT on the claim columns only.
@@ -12,6 +14,8 @@
 
 CREATE ROLE outbox_owner  LOGIN PASSWORD 'outbox_owner_pw';
 CREATE ROLE outbox_app    LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD 'outbox_app_pw';
+CREATE ROLE outbox_sys    NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEROLE;
+GRANT outbox_sys TO outbox_owner;
 CREATE ROLE outbox_relay  LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD 'outbox_relay_pw';
 CREATE ROLE outbox_reader LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD 'outbox_reader_pw';
 
@@ -24,8 +28,9 @@ CREATE SCHEMA eventlog AUTHORIZATION outbox_owner;
 GRANT USAGE ON SCHEMA submission, reconciliation, payload, canonical TO outbox_app;
 GRANT USAGE ON SCHEMA eventlog TO outbox_relay, outbox_reader;
 
--- The cross-tenant worker role of ARC 4.3 step 1a: no BYPASSRLS. Its only reach into tenant data is the
--- outbox claim policy and column grant that OutboxSchema.ddl creates; it also holds the offset and dead-letter tables.
+-- The former cross-tenant worker role: no BYPASSRLS. It is still the consumers' event-log claim role (until the
+-- eventlog_sys task), the full sync's role while that stays transitional (OutboxSchema.fullSyncWorkerAccess), and the
+-- role of service-runtime's job and idempotency tables; OutboxSchema.ddl and QueueSchema.ddl grant it nothing.
 CREATE ROLE outbox_worker LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD 'outbox_worker_pw';
 GRANT USAGE ON SCHEMA eventlog TO outbox_worker;
 

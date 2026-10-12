@@ -74,7 +74,7 @@ class DeadLetterReplayIT {
     ) {
         val kit = harness.submission
         val scope = TenantScope(kit.tenants, kit.boundary, kit.boundary)
-        val triage = JdbcDeadLetterTriage(harness.fixture.workerDataSource(), scope, "submission", clock)
+        val triage = JdbcDeadLetterTriage(harness.fixture.runtimeDataSource(), scope, "submission", clock)
 
         fun delivery(
             harness: OutboxHarness,
@@ -86,13 +86,14 @@ class DeadLetterReplayIT {
                     ConsumerSubscription(consumer, "gst.canonical.canonical-version-created.v1", "submission"),
                     harness.catalogue,
                     harness.reader,
-                    harness.fixture.workerDataSource(),
+                    harness.fixture.runtimeDataSource(),
                     scope,
                     SubmissionFixtureHandler(kit.boundary, transport),
                     harness.rebuildSink,
                 )
-            val limiter = LaneRateLimiter(harness.fixture.workerDataSource(), "submission", LaneLimits())
-            val queue = JdbcWorkQueue(harness.fixture.workerDataSource(), scope, "submission", limiter, clock, consumer)
+            val limiter = LaneRateLimiter(harness.fixture.runtimeDataSource(), "submission", LaneLimits())
+            val runtime = harness.fixture.runtimeDataSource()
+            val queue = JdbcWorkQueue(runtime, scope, "submission", limiter, clock, consumer)
             return JdbcReplayDelivery(queue, scope, inbox)
         }
     }
@@ -211,15 +212,13 @@ class DeadLetterReplayIT {
             // A tenant session reads its own dead letters under the tenant policy and no other tenant's.
             assertEquals(1, count(tenantA, "event_dead_letter"))
             assertEquals(0, count(tenantB, "event_dead_letter"), "a cross-tenant raw read is refused")
-            harness.fixture.workerDataSource().connection.use { c ->
+            harness.fixture.runtimeDataSource().connection.use { c ->
                 c.createStatement().use { s ->
-                    // The worker claims across tenants but sees no payload and cannot insert queue items.
+                    // Outside a tenant transaction the runtime login sees no queue item, cannot insert one and
+                    // updates none; only claim_due reaches across tenants (INV-Q-3953).
                     s.executeQuery("select count(*) from submission.work_queue").use {
                         it.next()
-                        assertEquals(1, it.getInt(1))
-                    }
-                    assertThrows(SQLException::class.java) {
-                        s.executeQuery("select payload from submission.work_queue")
+                        assertEquals(0, it.getInt(1))
                     }
                     assertThrows(SQLException::class.java) {
                         s.executeUpdate(
@@ -227,9 +226,7 @@ class DeadLetterReplayIT {
                                 "values ('$tenantA', 'k', 'LIVE', '{}')",
                         )
                     }
-                    assertThrows(SQLException::class.java) {
-                        s.executeUpdate("update submission.work_queue set partition_key = 'x'")
-                    }
+                    assertEquals(0, s.executeUpdate("update submission.work_queue set partition_key = 'x'"))
                 }
             }
         }
@@ -237,7 +234,7 @@ class DeadLetterReplayIT {
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
-    fun `the worker cannot select raw, a tenantless letter is triaged from metadata, and raw filters read per tenant`(
+    fun `the runtime login reads no raw, a tenantless letter is triaged from metadata, raw filters read per tenant`(
         image: String,
     ) {
         OutboxHarness(image).use { harness ->
@@ -246,13 +243,13 @@ class DeadLetterReplayIT {
             val b = letter(harness, tenantB, json.write(envelope(tenantB, doc)))
             val none = letter(harness, null, "{not json", reason = "record is not JSON")
             val t = Triage(harness)
-            harness.fixture.workerDataSource().connection.use { c ->
+            harness.fixture.runtimeDataSource().connection.use { c ->
                 c.createStatement().use { s ->
-                    val table = "submission.event_dead_letter"
-                    assertThrows(SQLException::class.java) { s.executeQuery("select raw from $table") }
-                    assertThrows(SQLException::class.java) { s.executeQuery("select * from $table") }
+                    val view = "submission.${OutboxSchema.DEAD_LETTER_TRIAGE_VIEW}"
+                    assertEquals(false, s.executeQuery("select raw from submission.event_dead_letter").next())
+                    assertThrows(SQLException::class.java) { s.executeQuery("select raw from $view") }
                     assertThrows(SQLException::class.java) {
-                        s.executeQuery("select id from submission.event_dead_letter where raw is not null")
+                        s.executeQuery("select id from $view where raw is not null")
                     }
                 }
             }

@@ -42,7 +42,33 @@ class RetentionPurgeIT {
         harness: OutboxHarness,
         retention: Retention,
         batchSize: Int = 1000,
-    ) = JdbcRetentionPurge(harness.fixture.workerDataSource(), "payload", retention, clock, batchSize)
+    ) = JdbcRetentionPurge(harness.fixture.runtimeDataSource(), "payload", retention, clock, batchSize)
+
+    /**
+     * The pre-2.0 worker purge (the statements 1.10.0's JdbcRetentionPurge ran), for the legacy upgrade tests: they
+     * prove what an `upgradeTo…` grants the former worker role, which the 2.0 purge no longer uses.
+     */
+    private fun legacyWorkerPurge(
+        fixture: OutboxPostgresFixture,
+        schema: String,
+    ): PurgeResult = fixture.workerDataSource().connection.use { c ->
+        fun delete(sql: String, cutoff: Duration): Long = c.prepareStatement(sql).use {
+            it.setTimestamp(1, java.sql.Timestamp.from(now - cutoff))
+            it.executeUpdate().toLong()
+        }
+        PurgeResult(
+            delete(
+                "delete from $schema.outbox where published_at is not null and published_at < ?",
+                Retention().contentWindow,
+            ),
+            delete("delete from $schema.inbox where received_at < ?", Retention().inboxRetention),
+            delete(
+                "delete from $schema.event_dead_letter " +
+                    "where status <> 'OPEN' and resolved_at is not null and resolved_at < ?",
+                Retention().contentWindow,
+            ),
+        )
+    }
 
     /** A pool that hands out connections with autocommit off, as Hikari can be configured to. */
     private fun manualCommit(source: DataSource): DataSource = object : DataSource by source {
@@ -140,34 +166,42 @@ class RetentionPurgeIT {
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
-    fun `the worker can delete nothing else and the app role cannot purge`(image: String) {
+    fun `the runtime login deletes nothing directly and a purge function deletes only expired rows`(image: String) {
         OutboxHarness(image).use { harness ->
             outbox(harness, "unpublished", tenantA, null)
             outbox(harness, "published", tenantA, 1)
-            harness.fixture.workerDataSource().connection.use { c ->
+            outbox(harness, "expired", tenantB, 40)
+            harness.fixture.runtimeDataSource().connection.use { c ->
                 c.createStatement().use {
-                    assertEquals(1, it.executeUpdate("delete from payload.outbox"), "only the published row")
+                    assertThrows(SQLException::class.java) { it.executeUpdate("delete from payload.outbox") }
                 }
-                assertThrows(SQLException::class.java) {
-                    c.createStatement().use { it.executeUpdate("delete from payload.outbox_sequence") }
-                }
-                assertThrows(SQLException::class.java) {
-                    c.createStatement().use { it.executeQuery("select data from payload.outbox") }
-                }
-            }
-            assertEquals(setOf("unpublished"), ids(harness, "outbox", "id"))
-            harness.fixture.workerDataSource().connection.use { c ->
                 c.createStatement().use {
                     it.execute("select set_config('app.tenant_id', '$tenantA', false)")
-                    assertEquals(0, it.executeUpdate("delete from payload.outbox"), "a tenant-bound worker too")
+                    assertThrows(SQLException::class.java) { it.executeUpdate("delete from payload.outbox") }
+                    assertThrows(SQLException::class.java) { it.executeUpdate("delete from payload.inbox") }
+                    assertThrows(SQLException::class.java) { it.executeUpdate("delete from payload.event_dead_letter") }
                 }
-            }
-            assertEquals(setOf("unpublished"), ids(harness, "outbox", "id"))
-            harness.fixture.appDataSource().connection.use { c ->
+                // The floor is in SQL: a cut-off later than now - 7 days (8 for the inbox) is refused.
+                listOf("outbox_purge_expired", "event_dead_letter_purge_expired").forEach { function ->
+                    assertThrows(SQLException::class.java, {
+                        c.createStatement().use {
+                            it.executeQuery("select payload.$function(now() - interval '6 days', 10)")
+                        }
+                    }, function)
+                }
                 assertThrows(SQLException::class.java) {
-                    c.createStatement().use { it.executeUpdate("delete from payload.inbox") }
+                    c.createStatement().use {
+                        it.executeQuery("select payload.inbox_purge_expired(now() - interval '7 days', 10)")
+                    }
+                }
+                c.createStatement().use {
+                    it.executeQuery("select payload.outbox_purge_expired(now() - interval '7 days', 10)").use { rows ->
+                        rows.next()
+                        assertEquals(1, rows.getLong(1), "only the expired published row, of any tenant")
+                    }
                 }
             }
+            assertEquals(setOf("unpublished", "published"), ids(harness, "outbox", "id"))
         }
     }
 
@@ -179,7 +213,7 @@ class RetentionPurgeIT {
             outbox(harness, "old-b", tenantB, 40)
             outbox(harness, "old-c", tenantA, 40)
             inbox(harness, "old", tenantA, 40 * 24)
-            val pool = manualCommit(harness.fixture.workerDataSource())
+            val pool = manualCommit(harness.fixture.runtimeDataSource())
             val purge = JdbcRetentionPurge(pool, "payload", Retention(), clock, 2)
             assertEquals(PurgeResult(3, 1), purge.purge())
             assertEquals(emptySet<String>(), ids(harness, "outbox", "id"))
@@ -197,8 +231,7 @@ class RetentionPurgeIT {
                 "insert into legacy.inbox (consumer, event_id, tenant_id, received_at) values " +
                     "('c', 'old', '$tenantA', timestamptz '$now' - interval '40 days')",
             )
-            val purge = JdbcRetentionPurge(fixture.workerDataSource(), "legacy", Retention(), clock)
-            assertThrows(SQLException::class.java) { purge.purge() }
+            assertThrows(SQLException::class.java) { legacyWorkerPurge(fixture, "legacy") }
 
             val upgrade = OutboxSchema.upgradeTo130("legacy", OutboxPostgresFixture.WORKER)
             fixture.run(upgrade)
@@ -206,7 +239,7 @@ class RetentionPurgeIT {
             // The 1.5.0 purge also deletes triaged dead letters, so it needs the 1.5.0 access as well.
             fixture.run(OutboxSchema.upgradeTo140("legacy"))
             fixture.run(OutboxSchema.upgradeTo150("legacy", OutboxPostgresFixture.APP, OutboxPostgresFixture.WORKER))
-            assertEquals(PurgeResult(0, 1), purge.purge())
+            assertEquals(PurgeResult(0, 1), legacyWorkerPurge(fixture, "legacy"))
         }
     }
 
@@ -246,13 +279,22 @@ class RetentionPurgeIT {
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
-    fun `the worker cannot delete an open dead letter even with a tenant bound`(image: String) {
+    fun `an open dead letter is never purged, and the runtime login cannot delete one even with a tenant bound`(
+        image: String,
+    ) {
         OutboxHarness(image).use { harness ->
             deadLetter(harness, tenantA, "OPEN", null)
-            harness.fixture.workerDataSource().connection.use { c ->
+            harness.fixture.runtimeDataSource().connection.use { c ->
                 c.createStatement().use { s ->
                     s.execute("select set_config('app.tenant_id', '$tenantA', false)")
-                    assertEquals(0, s.executeUpdate("delete from payload.event_dead_letter"))
+                    assertThrows(SQLException::class.java) { s.executeUpdate("delete from payload.event_dead_letter") }
+                }
+                c.createStatement().use { s ->
+                    val purge = "select payload.event_dead_letter_purge_expired(now() - interval '7 days', 10)"
+                    s.executeQuery(purge).use {
+                        it.next()
+                        assertEquals(0, it.getLong(1))
+                    }
                 }
             }
             assertEquals(1L, harness.count("select count(*) from payload.event_dead_letter"))
@@ -275,13 +317,12 @@ class RetentionPurgeIT {
                 c.createStatement().use { it.executeQuery("select raw from legacy.event_dead_letter").close() }
             }
             workerReadsRaw() // 1.3.0: the worker can read raw
-            val purge = JdbcRetentionPurge(fixture.workerDataSource(), "legacy", Retention(), clock)
-            assertThrows(SQLException::class.java) { purge.purge() }
+            assertThrows(SQLException::class.java) { legacyWorkerPurge(fixture, "legacy") }
             val upgrade = OutboxSchema.upgradeTo150("legacy", OutboxPostgresFixture.APP, OutboxPostgresFixture.WORKER)
             fixture.run(upgrade)
             fixture.run(upgrade)
             assertThrows(SQLException::class.java) { workerReadsRaw() }
-            assertEquals(PurgeResult(0, 0, 1), purge.purge())
+            assertEquals(PurgeResult(0, 0, 1), legacyWorkerPurge(fixture, "legacy"))
         }
     }
 }
