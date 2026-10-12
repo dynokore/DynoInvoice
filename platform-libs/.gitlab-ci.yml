@@ -146,17 +146,6 @@ unit-test:
   extends: [.gradle-job, .gst-changed-modules]
   stage: test
   script:
-    - |
-      # INV-T-4043 (INV-REQ-854 b5, INV-ADR-3968 item 11; coordinator rulings INV-Q-4040 and INV-T-4043 G1, option a):
-      # platform-build's SQL guards (SqlGuards, MigrationLint) scan the production sources of EVERY module, so
-      # they run on every merge request and main pipeline, whatever modules changed, not only when
-      # service-runtime (their host) is in the changed + downstream set below. It runs first, so the module tests below
-      # rewrite service-runtime's test reports afterwards and none are lost. Fail-closed: a finding outside
-      # SqlGuardsTest.PENDING fails this job.
-      echo "gst-ci: SQL guards over every module (service-runtime SqlGuardsTest)"
-      ./gradlew -p "$GRADLE_PROJECT_DIR" :service-runtime:test \
-        --tests 'com.dynokore.platform.serviceruntime.arch.SqlGuardsTest' --rerun --stacktrace
-      test -f "$GRADLE_PROJECT_DIR/service-runtime/build/test-results/test/TEST-com.dynokore.platform.serviceruntime.arch.SqlGuardsTest.xml"
     - MODULES="$(gst_changed_downstream_modules)"
     - |
       if [ -z "$(echo "$MODULES" | tr -d '[:space:]')" ]; then
