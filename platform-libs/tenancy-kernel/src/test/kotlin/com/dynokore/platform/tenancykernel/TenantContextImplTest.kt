@@ -1,6 +1,7 @@
 package com.dynokore.platform.tenancykernel
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import java.util.UUID
@@ -61,5 +62,39 @@ class TenantContextImplTest {
             thread.join()
             assertEquals(IllegalStateException::class.java, otherThreadSaw?.javaClass)
         }
+    }
+
+    @Test
+    fun `bind with an actor exposes the actor with the tenant and restores the enclosing binding`() {
+        val ctx = TenantContextImpl()
+        val seen =
+            ctx.bind(tenantA, "user-a") {
+                val inner = ctx.bind(tenantB, "user-b") { ctx.current() to ctx.currentActor() }
+                Triple(inner, ctx.current(), ctx.currentActor())
+            }
+        assertEquals(Triple(tenantB to "user-b", tenantA, "user-a"), seen)
+        assertThrows(IllegalStateException::class.java) { ctx.currentActor() }
+    }
+
+    @Test
+    fun `the actor-less bind leaves the actor unset, even inside an actor-bound one`() {
+        val ctx = TenantContextImpl()
+        assertNull(ctx.bind(tenantA) { ctx.currentActor() })
+        assertNull(ctx.bind(tenantA, "user-a") { ctx.bind(tenantB) { ctx.currentActor() } })
+    }
+
+    @Test
+    fun `a blank actor is refused`() {
+        val ctx = TenantContextImpl()
+        assertThrows(IllegalArgumentException::class.java) { ctx.bind(tenantA, " ") { } }
+        assertThrows(IllegalArgumentException::class.java) { ctx.bindPlatform("") { } }
+    }
+
+    @Test
+    fun `the actor-bound bind refuses the platform tenant, bindPlatform with an actor binds it`() {
+        val ctx = TenantContextImpl()
+        assertThrows(IllegalArgumentException::class.java) { ctx.bind(TenantId.PLATFORM, "svc:x/job:y") { } }
+        val seen = ctx.bindPlatform("svc:x/job:y") { ctx.current() to ctx.currentActor() }
+        assertEquals(TenantId.PLATFORM to "svc:x/job:y", seen)
     }
 }

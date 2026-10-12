@@ -6,6 +6,26 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-12
+### Added
+- The tenant binding carries the actor: `TenantContext.bind(tenant, actor, block)`,
+  `PlatformTenantBinding.bindPlatform(actor, block)` and `TenantContext.currentActor()`. The actor is
+  the end user's `sub`, or the service's workload principal for background work; a blank actor is
+  refused (INV-REQ-854 b1; coordinator ruling INV-Q-3997).
+- `TransactionRunnerImpl` sets `app.actor` with `set_config('app.actor', :actor, true)` in the same
+  first statement as `app.tenant_id`, both transaction-local (ARC-21 as revised; owner rulings
+  INV-Q-3951, INV-Q-3953; INV-ADR-3968 item 4; INV-REQ-854 b1, b3, b5). Session-level SET stays
+  forbidden. `TenantAwareDataSource` also runs `RESET app.actor` on handback.
+### Changed
+- A nested `inTransaction` joins the open transaction only when the current binding (tenant and
+  actor) equals the open transaction's; otherwise it throws `IllegalStateException` before any
+  statement, instead of running silently under the outer tenant (INV-Q-3997).
+### Deprecated
+- The actor-less `TenantContext.bind(tenant, block)` and `PlatformTenantBinding.bindPlatform(block)`:
+  they still work and leave `app.actor` unset. Callers move to the actor-bound forms in INV-T-3979
+  (outbox-and-queue), INV-T-3981 (service-runtime) and INV-T-3983 (config-resolver); INV-T-3999
+  removes them in a MAJOR release (INV-Q-3997).
+
 ## [1.1.0] - 2026-10-11
 ### Added
 - `TenantId.PLATFORM`, the reserved platform tenant (the max UUID

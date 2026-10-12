@@ -22,6 +22,35 @@ interface TenantContext {
     fun current(): TenantId
 
     /**
+     * The actor bound together with [current] by [bind] with an actor or
+     * [PlatformTenantBinding.bindPlatform] with an actor: the end user's `sub`, or the
+     * service's workload principal for background work (INV-REQ-854 b1). Null when the
+     * binding was made through the actor-less form, which leaves `app.actor` unset
+     * (coordinator ruling INV-Q-3997).
+     *
+     * @throws IllegalStateException if nothing is bound on this thread, as [current].
+     */
+    fun currentActor(): String?
+
+    /**
+     * Runs [block] with [tenant] and [actor] bound as [current] and [currentActor] for its
+     * duration, restoring whatever was bound before (or nothing) when it returns or throws.
+     *
+     * Called only by the inbound adapter that holds the principal (the verified token's
+     * tenant claim and `sub`) or the claimed item (its tenant, with the service's workload
+     * principal as the actor), so the tenant [TransactionRunner] binds always comes from
+     * one of them (ARC-21; owner rulings INV-Q-3951, INV-Q-3953; INV-Q-3997).
+     *
+     * @throws IllegalArgumentException if [actor] is blank, or if [tenant] is
+     *   [TenantId.PLATFORM] (bound only through [PlatformTenantBinding], INV-Q-2927).
+     */
+    fun <T> bind(
+        tenant: TenantId,
+        actor: String,
+        block: () -> T,
+    ): T
+
+    /**
      * Runs [block] with [tenant] bound as [current] for its duration, restoring
      * whatever was bound before (or nothing) when it returns or throws.
      *
@@ -29,6 +58,10 @@ interface TenantContext {
      * claimed item, not a general-purpose override. Nesting restores the
      * enclosing tenant, so a worker may safely call other tenant-scoped code
      * without corrupting its caller's binding.
+     *
+     * Binds no actor ([currentActor] is null, `app.actor` stays unset). Deprecated in favour
+     * of the actor-bound `bind(tenant, actor, block)`; the removal task deletes this form
+     * (coordinator ruling INV-Q-3997).
      *
      * @throws IllegalArgumentException if [tenant] is [TenantId.PLATFORM]: the reserved
      *   platform tenant is bound only through [PlatformTenantBinding] (INV-Q-2927).

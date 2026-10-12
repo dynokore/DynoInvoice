@@ -7,7 +7,7 @@ import java.sql.Connection
 import javax.sql.DataSource
 
 /**
- * Wraps a pooled [DataSource] so the session tenant is cleared the moment a
+ * Wraps a pooled [DataSource] so the session tenant (and `app.actor`, INV-Q-3997) is cleared the moment a
  * connection returns to the pool (INV-REQ-854 behaviour 3), independent of and
  * in addition to [TransactionRunnerImpl]'s own `set_config(…, true)` (CS-19):
  * that setting is already transaction-local and so already gone once the
@@ -19,7 +19,7 @@ import javax.sql.DataSource
  *
  * `close()` on the connection the pool hands out does not close the physical
  * connection (the pool intercepts that itself) — it returns it to the pool.
- * This wrapper runs `RESET app.tenant_id` immediately before that handback, on
+ * This wrapper runs `RESET app.tenant_id` and `RESET app.actor` immediately before that handback, on
  * the pool's own physical connection, using a JDK dynamic proxy: `Connection`
  * has no `by`-delegation-friendly single seam for "run one statement, then
  * delegate everything else, including `close`, unchanged" the way a hand
@@ -54,7 +54,10 @@ class TenantAwareDataSource(private val delegate: DataSource) : DataSource by de
     private fun resetTenantThenClose(physical: Connection) {
         try {
             if (!physical.isClosed) {
-                physical.createStatement().use { it.execute("RESET app.tenant_id") }
+                physical.createStatement().use {
+                    it.execute("RESET app.tenant_id")
+                    it.execute("RESET app.actor")
+                }
             }
         } finally {
             physical.close()

@@ -12,6 +12,23 @@ package com.dynokore.platform.tenancykernel
  * Framework-free (ARC-16): this is the `-api` half of the module.
  */
 interface PlatformTenantBinding {
-    /** Runs [block] with [TenantId.PLATFORM] bound as [TenantContext.current], restoring the prior binding after. */
+    /**
+     * Runs [block] with [TenantId.PLATFORM] and [actor] (the service's workload principal, for
+     * example `svc:submission-svc/job:scheduled-despatch`) bound as [TenantContext.current] and
+     * [TenantContext.currentActor], restoring the prior binding after (INV-ADR-3968 item 6,
+     * INV-Q-3997).
+     *
+     * @throws IllegalArgumentException if [actor] is blank.
+     */
+    fun <T> bindPlatform(
+        actor: String,
+        block: () -> T,
+    ): T
+
+    /**
+     * Runs [block] with [TenantId.PLATFORM] bound as [TenantContext.current] and no actor,
+     * restoring the prior binding after. Deprecated in favour of `bindPlatform(actor, block)`;
+     * the removal task deletes this form (coordinator ruling INV-Q-3997).
+     */
     fun <T> bindPlatform(block: () -> T): T
 }
