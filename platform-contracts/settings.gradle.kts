@@ -7,7 +7,15 @@
 // `bundleContracts` task zips every directory's contracts into the versioned
 // per-train bundle the last done-when item asks for. No wrapper is
 // committed; CI invokes the pinned `gradle` binary directly from
-// platform-build's `$GRADLE_IMAGE` (ci/stages.gitlab-ci.yml) — there is no
-// dependency resolution here for a wrapper's verification-metadata.xml to
-// protect.
+// platform-build's `$GRADLE_IMAGE` (ci/stages.gitlab-ci.yml).
+//
+// STK-72 (INV-T-4299, coordinator ruling INV-Q-4322): the settings classpath is locked
+// (settings-gradle.lockfile, as in platform-libs) and gradle/verification-metadata.xml
+// verifies any artefact this build downloads, in strict mode.
+buildscript {
+    configurations.classpath {
+        resolutionStrategy.activateDependencyLocking()
+    }
+}
+
 rootProject.name = "platform-contracts"

@@ -15,6 +15,35 @@
 // MR, not built here (AGT-04: the provisional default is a bundle CI can
 // publish now, not a shape only a not-yet-existing consumer would use).
 
+// STK-72 (INV-T-4299, coordinator rulings INV-Q-4322 and INV-Q-4327): every configuration,
+// the build script classpath included (buildscript-gradle.lockfile), is locked in strict
+// mode, and every downloaded artefact is verified against gradle/verification-metadata.xml.
+// This packaging build resolves no dependency today, so its lock files hold only `empty=`
+// lines; a dependency added later fails until its lock state and metadata entry are committed.
+buildscript {
+    configurations.classpath {
+        resolutionStrategy.activateDependencyLocking()
+    }
+}
+
+dependencyLocking {
+    lockAllConfigurations()
+    lockMode.set(LockMode.STRICT)
+}
+
+// Resolves every resolvable configuration (build script classpath included), so one
+// `gradle resolveAndLockAll --write-locks` writes every lock file of this build.
+tasks.register("resolveAndLockAll") {
+    notCompatibleWithConfigurationCache("resolves configurations at execution time")
+    doFirst {
+        require(gradle.startParameter.isWriteDependencyLocks) { "run with --write-locks" }
+    }
+    doLast {
+        configurations.filter { it.isCanBeResolved }.forEach { it.resolve() }
+        buildscript.configurations.filter { it.isCanBeResolved }.forEach { it.resolve() }
+    }
+}
+
 val contractDirs =
     layout.projectDirectory.asFileTree.matching {
         include("*/openapi.yaml", "*/asyncapi.yaml", "*/schemas/**", "*/CODEOWNERS")

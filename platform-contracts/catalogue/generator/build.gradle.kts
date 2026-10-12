@@ -10,9 +10,38 @@
 // Kotlin version embedded in this Gradle distribution (STK-04) — declaring a separate
 // `org.jetbrains.kotlin.jvm` version alongside `kotlin-dsl` is unsupported and unneeded.
 
+// STK-72 (INV-T-4299, coordinator rulings INV-Q-4322 and INV-Q-4327): this included
+// build locks its build script classpath (buildscript-gradle.lockfile) and every
+// configuration (gradle.lockfile) in strict mode; its artefacts are verified by the
+// including build's catalogue/gradle/verification-metadata.xml.
+buildscript {
+    configurations.classpath {
+        resolutionStrategy.activateDependencyLocking()
+    }
+}
+
 plugins {
     `kotlin-dsl`
 }
+
+dependencyLocking {
+    lockAllConfigurations()
+    lockMode.set(LockMode.STRICT)
+}
+
+// Resolves every resolvable configuration (build script classpath included), so one
+// `gradle resolveAndLockAll --write-locks` writes every lock file of this build.
+tasks.register("resolveAndLockAll") {
+    notCompatibleWithConfigurationCache("resolves configurations at execution time")
+    doFirst {
+        require(gradle.startParameter.isWriteDependencyLocks) { "run with --write-locks" }
+    }
+    doLast {
+        configurations.filter { it.isCanBeResolved }.forEach { it.resolve() }
+        buildscript.configurations.filter { it.isCanBeResolved }.forEach { it.resolve() }
+    }
+}
+
 
 repositories {
     gradlePluginPortal()

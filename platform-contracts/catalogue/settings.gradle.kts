@@ -20,9 +20,24 @@ pluginManagement {
     }
 }
 
-plugins {
-    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
+// STK-72 (INV-T-4299, coordinator ruling INV-Q-4322): the settings classpath is locked,
+// with its state in the committed settings-gradle.lockfile, as in platform-libs. The foojay
+// toolchain resolver is put on that classpath here, not through a settings `plugins {}`
+// block: Gradle resolves settings plugin requests outside the locked `classpath`
+// configuration, so the plugin would go unlocked.
+buildscript {
+    repositories {
+        gradlePluginPortal()
+    }
+    dependencies {
+        classpath("org.gradle.toolchains:foojay-resolver:1.0.0")
+    }
+    configurations.classpath {
+        resolutionStrategy.activateDependencyLocking()
+    }
 }
+
+apply(plugin = "org.gradle.toolchains.foojay-resolver-convention")
 
 dependencyResolutionManagement {
     repositories {

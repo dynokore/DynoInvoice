@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<verification-metadata xmlns="https://schema.gradle.org/dependency-verification" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://schema.gradle.org/dependency-verification https://schema.gradle.org/dependency-verification/dependency-verification-1.4.xsd">
+   <configuration>
+      <verify-metadata>true</verify-metadata>
+      <verify-signatures>true</verify-signatures>
+      <!-- STK-72 (INV-T-4299, coordinator ruling INV-Q-4322), as platform-build's metadata:
+           CI (inv-runner) has no key-server egress, so key servers are off and the keys come
+           only from the committed verification-keyring.keys next to this file. A key that could
+           not be downloaded is an ignored-key, and that artefact is checked by its SHA-256
+           checksum; unsigned artefacts are checked by SHA-256. Strict: an artefact without an
+           entry here fails the build. Plugin marker POMs differ between the Gradle Plugin Portal
+           and Maven Central; both checksums are kept (also-trust), each checked against its
+           repository's published .sha1. Regenerate: README.md, "Dependency locking and
+           verification" (root build). -->
+      <key-servers enabled="false"/>
+   </configuration>
+   <components/>
+</verification-metadata>

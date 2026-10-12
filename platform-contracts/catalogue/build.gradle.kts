@@ -19,8 +19,47 @@
 // tasks are not run just because the outer build's same-named task is, so `check`
 // here explicitly depends on `generator`'s `test` task instead of silently skipping it.
 
+// STK-72 (INV-T-4299, coordinator rulings INV-Q-4322 and INV-Q-4327): dependency locking
+// covers the plugin classpath too. This root's and each module's build script classpath
+// (the plugins its `plugins {}` block resolves) are locked in buildscript-gradle.lockfile
+// next to that build script, and every configuration of every project is locked in strict
+// mode (gradle.lockfile per module), so a resolution outside the lock files fails the
+// build. generator/ is an included build and locks itself (generator/build.gradle.kts).
+// Every downloaded artefact, generator/'s included, is verified against
+// gradle/verification-metadata.xml (strict). Refresh: see README.md.
+buildscript {
+    configurations.classpath {
+        resolutionStrategy.activateDependencyLocking()
+    }
+}
+
 plugins {
     base
+}
+
+allprojects {
+    buildscript.configurations.named("classpath") {
+        resolutionStrategy.activateDependencyLocking()
+    }
+    dependencyLocking {
+        lockAllConfigurations()
+        lockMode.set(LockMode.STRICT)
+    }
+}
+
+allprojects {
+    // Resolves every resolvable configuration (build script classpath included), so one
+    // `gradle resolveAndLockAll --write-locks` writes every lock file of this build.
+    tasks.register("resolveAndLockAll") {
+        notCompatibleWithConfigurationCache("resolves configurations at execution time")
+        doFirst {
+            require(gradle.startParameter.isWriteDependencyLocks) { "run with --write-locks" }
+        }
+        doLast {
+            configurations.filter { it.isCanBeResolved }.forEach { it.resolve() }
+            buildscript.configurations.filter { it.isCanBeResolved }.forEach { it.resolve() }
+        }
+    }
 }
 
 tasks.named("check") {

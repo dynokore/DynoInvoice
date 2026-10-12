@@ -82,11 +82,27 @@ pluginManagement {
     }
 }
 
+// STK-72 (INV-T-4299, coordinator ruling INV-Q-4322): the settings classpath is locked,
+// with its state in the committed settings-gradle.lockfile, as in platform-libs.
+buildscript {
+    configurations.classpath {
+        resolutionStrategy.activateDependencyLocking()
+    }
+}
+
 rootProject.name = "contracts-codegen-compile"
 
 val contractsRoot = rootDir.parentFile!! // platform-contracts checkout root (this directory's parent)
 val stagingRoot = file("build/contracts-repo")
 val modulesRoot = file("build/modules")
+
+// STK-72 (INV-T-4299, coordinator ruling INV-Q-4322 (2)): the generated modules live under
+// the git-ignored build/, so each one's lock state is kept in one committed file,
+// gradle/locks/<module>.lockfile. A module without one (a new contract artefact) fails here,
+// and so does a lock file whose module no longer exists. Refresh: see README.md.
+val locksRoot = file("gradle/locks")
+val writingLocks = gradle.startParameter.isWriteDependencyLocks
+val declaredModules = mutableSetOf<String>()
 val version = "1.0.0"
 
 fun classifierFor(relFile: String) = relFile.substringBeforeLast('.', relFile).replace('/', '-')
@@ -218,6 +234,27 @@ val dependenciesBlock =
 // self-test's sanitization settles.
 fun projectSafe(s: String) = s.replace('-', '_').replace('.', '_')
 
+// Appended to every generated module's build script. Strict locking of every configuration
+// into the module's committed lock file. The same-commit platform-contracts:* coordinates
+// (staged into build/contracts-repo with version '+', never downloaded) are left out: there
+// is no remote artefact to pin (INV-Q-4322 (3)); every external artefact stays locked. The
+// module's plugin classpath must stay empty: gst.contract-server/-client/-event-types come
+// from the root build script's classpath (codegen-self-test/buildscript-gradle.lockfile),
+// so a module that resolves a plugin classpath of its own fails instead of going unlocked.
+fun lockingBlock(lockFile: File) =
+    """
+
+    dependencyLocking {
+        lockAllConfigurations()
+        lockMode.set(LockMode.STRICT)
+        lockFile.set(file("${lockFile.absolutePath}"))
+        ignoredDependencies.add("platform-contracts:*")
+    }
+    check(buildscript.configurations.getByName("classpath").dependencies.isEmpty()) {
+        "STK-72: a generated module's plugin classpath must come from codegen-self-test/build.gradle.kts (locked there)"
+    }
+    """.trimIndent() + "\n"
+
 fun declareModule(
     name: String,
     body: String,
@@ -225,7 +262,17 @@ fun declareModule(
     val safeName = projectSafe(name)
     val dir = File(modulesRoot, safeName)
     dir.mkdirs()
-    File(dir, "build.gradle.kts").writeText(body)
+    val lockFile = File(locksRoot, "$safeName.lockfile")
+    if (!lockFile.isFile && !writingLocks) {
+        throw GradleException(
+            "codegen-self-test: no committed lock file ${lockFile.relativeTo(rootDir)} for generated module " +
+                "'$safeName' (a new contract artefact?). Write it with " +
+                "`gradle -p codegen-self-test resolveAndLockAll compileAllContracts --write-locks`, " +
+                "add its artefacts to gradle/verification-metadata.xml (README.md) and commit both (STK-72).",
+        )
+    }
+    declaredModules += lockFile.name
+    File(dir, "build.gradle.kts").writeText(body + lockingBlock(lockFile))
     include(":$safeName")
     project(":$safeName").projectDir = dir
 }
@@ -288,4 +335,18 @@ for ((svc, rel) in eventModules) {
         tasks.named("generateEventTypes") { dependsOn(stageSiblingSchemas) }
         """.trimIndent() + "\n",
     )
+}
+
+// A lock file left behind by a module that no longer exists is stale state: fail, so the
+// committed gradle/locks/ always matches the generated modules exactly.
+val staleLocks =
+    (locksRoot.listFiles { f -> f.isFile && f.name.endsWith(".lockfile") }?.map { it.name } ?: emptyList())
+        .filterNot { it in declaredModules }
+        .sorted()
+if (staleLocks.isNotEmpty()) {
+    if (writingLocks) {
+        staleLocks.forEach { File(locksRoot, it).delete() }
+    } else {
+        throw GradleException("codegen-self-test: lock files without a generated module in gradle/locks/: $staleLocks (STK-72); delete them or rerun with --write-locks")
+    }
 }

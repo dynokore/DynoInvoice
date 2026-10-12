@@ -141,3 +141,28 @@ and every job above is this repository's own.
 Per-service Maven modules (`generatorSource("platform-contracts:<service>:openapi.yaml")`,
 TPL-01) are a follow-up: the `gst.contract-server`/`gst.contract-client`
 Gradle plugins that would resolve them are not built yet.
+
+## Dependency locking and verification (INV-T-4299)
+
+STK-72 applies (coordinator rulings INV-Q-4322 and INV-Q-4327). This repository has three Gradle builds: the root packaging build, `catalogue/` (with its included build `catalogue/generator/`) and `codegen-self-test/`. In each one, every resolvable configuration is locked in strict mode:
+
+- the settings classpath in `settings-gradle.lockfile` (`catalogue/generator/` names its own, because Gradle would otherwise write it over `catalogue/settings-gradle.lockfile`);
+- each build script's plugin classpath in `buildscript-gradle.lockfile` next to it;
+- each real module's configurations in its `gradle.lockfile`;
+- each generated `codegen-self-test` module in `codegen-self-test/gradle/locks/<module>.lockfile`, because the modules live under the ignored `build/`. A new contract artefact without a lock file fails the build with a hint, and so does a lock file without a module. The generated modules get their plugins from `codegen-self-test/build.gradle.kts` and may not resolve a plugin classpath of their own.
+
+A resolution outside the lock files fails the build. The staged same-commit `platform-contracts:*` coordinates are left out of locking and verification: they are built from this commit's files into `codegen-self-test/build/contracts-repo` with version `+` and never downloaded, so there is no remote artefact to pin or verify. Every external artefact stays locked and verified.
+
+Every artefact a build downloads, plugins, POMs and module metadata included, is verified against that build's `gradle/verification-metadata.xml` (`gradle/`, `catalogue/gradle/`, `codegen-self-test/gradle/`) in strict mode, so an artefact without an entry fails the build. Signatures are checked against the committed `verification-keyring.keys` and `.gpg` next to the metadata (the root build resolves nothing, so it has no keyring). Key servers are off because CI has no key-server egress. A key that could not be downloaded is an `ignored-key`, and its artefact is checked by SHA-256, as are unsigned artefacts.
+
+When a dependency or plugin changes:
+
+1. Use an empty Gradle user home (for example `GRADLE_USER_HOME=$(mktemp -d)`). With a warm cache, artefacts already cached get no entry and CI fails.
+2. Set `<key-servers enabled="false"/>` to `true` in the build's metadata, so Gradle can download new keys.
+3. Run the build's CI tasks together with `resolveAndLockAll`, writing locks, metadata and keys in one pass:
+   - root: `gradle resolveAndLockAll printTrainVersion bundleContracts --write-locks --write-verification-metadata sha256,pgp --export-keys --no-configuration-cache`
+   - catalogue: `gradle -p catalogue resolveAndLockAll compileKotlin compileTestKotlin check generatePomFileForMavenPublication generateMetadataFileForMavenPublication --write-locks --write-verification-metadata sha256,pgp --export-keys --no-configuration-cache --rerun-tasks`
+   - codegen-self-test (with `PLATFORM_BUILD_DIR` at the CI job's `PLATFORM_BUILD_REF`): `gradle -p codegen-self-test resolveAndLockAll compileAllContracts --write-locks --write-verification-metadata sha256,pgp --export-keys --no-configuration-cache --rerun-tasks`
+4. Set key servers back to `enabled="false"` and keep the comments in the `configuration` block.
+5. Plugin marker POMs differ between the Gradle Plugin Portal and Maven Central. Keep both checksums (`also-trust`), each checked against the published `.sha1` of its repository.
+6. Check every SHA-256-only entry against the artefact's published checksum before committing.
