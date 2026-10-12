@@ -60,6 +60,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.CyclicBarrier
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import javax.sql.DataSource
 
 /**
@@ -274,6 +275,49 @@ class JobCommandHttpIT {
         s.h.runs("http-flight").filter { it["trigger"] == "MANUAL" } shouldHaveSize 1
         s.h.events(JobsHarness.AUDIT, "submission-svc/http-flight") shouldHaveSize 1
         s.h.rows("select status from $SCHEMA.idempotency_key where idempotency_key = ?::uuid", key).map { it["status"] } shouldBe listOf(202)
+    }
+
+    /**
+     * TPL-04's call shape, `tx.inTransaction { idempotency.once { ... } }`: the guard and the lookup are the first
+     * step of the open transaction, before the block, so a sequential or concurrent repeat of the key never runs
+     * the effect again.
+     */
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `inside an open transaction a repeat of the key runs no second effect`(image: String) {
+        val s = Service(image)
+        val key = UUID.randomUUID()
+        val effects = AtomicInteger()
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+
+        fun command(hold: Boolean): IdempotencyOutcome = s.replica.tenants.bind(TENANT_A) {
+            s.replica.tx.inTransaction {
+                s.idempotency.once(TENANT_A, "tpl04-actor", key, "fp") {
+                    effects.incrementAndGet()
+                    if (hold) {
+                        entered.countDown()
+                        release.await(10, TimeUnit.SECONDS)
+                    }
+                    StoredResponse(201, "{}")
+                }
+            }
+        }
+        val pool = Executors.newSingleThreadExecutor()
+        try {
+            val first = pool.submit<IdempotencyOutcome> { command(hold = true) }
+            entered.await(10, TimeUnit.SECONDS) shouldBe true
+            // concurrent: answered while the original holds its guard, without running the block
+            command(hold = false) shouldBe IdempotencyOutcome.InFlight
+            release.countDown()
+            first.get(10, TimeUnit.SECONDS) shouldBe IdempotencyOutcome.Fresh(StoredResponse(201, "{}"))
+        } finally {
+            release.countDown()
+            pool.shutdownNow()
+        }
+        // sequential: the stored response, the block not run
+        command(hold = false) shouldBe IdempotencyOutcome.Replay(StoredResponse(201, "{}"))
+        effects.get() shouldBe 1
     }
 
     /**

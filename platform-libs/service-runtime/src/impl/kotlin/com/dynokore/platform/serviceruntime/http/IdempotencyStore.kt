@@ -102,6 +102,8 @@ fun interface IdempotencyRecorder {
  * the record (the job commands write it through `JobCommandJournal`) then commit or roll back together. A
  * response that wrote no state (a refusal, a contract violation) comes back without a transaction: its guard,
  * lookup and record are one transaction of their own under the key's tenant, the command's one transaction.
+ * Called inside an open transaction (TPL-04: `tx.inTransaction { idempotency.once { ... } }`), [once] takes the
+ * guard and does the lookup in it before it runs the block.
  */
 class IdempotencyStore(
     private val scope: TenantScope,
@@ -130,6 +132,9 @@ class IdempotencyStore(
     ): IdempotencyOutcome {
         val command = Command(tenant ?: TenantId.PLATFORM, principal, key, fingerprint)
         return try {
+            // TPL-04: called inside the command's open transaction, the guard and the lookup are its first step,
+            // before any effect of [block]; otherwise the command's own transaction begins them (or [record] does)
+            if (transactionOpen()) command.begin()
             val response = block(command)
             if (!command.recorded && response.status < SERVER_ERROR) {
                 // a response that wrote no state: guard, lookup and record in one transaction of the key's tenant
@@ -140,6 +145,14 @@ class IdempotencyStore(
             if (settled.command !== command) throw settled
             settled.outcome
         }
+    }
+
+    /** Whether a transaction is open on the calling thread (the enclosing command transaction of TPL-04). */
+    private fun transactionOpen(): Boolean = try {
+        scope.connections.require()
+        true
+    } catch (_: IllegalStateException) {
+        false
     }
 
     /** One request's guard, lookup and record, each in the transaction open on the calling thread. */
