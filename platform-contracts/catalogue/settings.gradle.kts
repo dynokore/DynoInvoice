@@ -26,6 +26,9 @@ pluginManagement {
 // block: Gradle resolves settings plugin requests outside the locked `classpath`
 // configuration, so the plugin would go unlocked.
 buildscript {
+    dependencyLocking {
+        lockMode.set(LockMode.STRICT)
+    }
     repositories {
         gradlePluginPortal()
     }

@@ -8,15 +8,15 @@
            only from the committed verification-keyring.keys next to this file. A key that could
            not be downloaded is an ignored-key, and that artefact is checked by its SHA-256
            checksum; unsigned artefacts are checked by SHA-256. Strict: an artefact without an
-           entry here fails the build. Plugin marker POMs differ between the Gradle Plugin Portal
-           and Maven Central; both checksums are kept (also-trust), each checked against its
-           repository's published .sha1. Regenerate: README.md, "Dependency locking and
+           entry here fails the build. Regenerate: README.md, "Dependency locking and
            verification" (codegen-self-test). -->
       <key-servers enabled="false"/>
       <!-- The same commit's contract files, staged by settings.gradle.kts into
            build/contracts-repo as platform-contracts:<service>:+ and never downloaded: there is
-           no remote artefact to verify (coordinator ruling INV-Q-4322 (3)). This group only;
-           every external artefact stays verified. -->
+           no remote artefact to verify (coordinator ruling INV-Q-4322 (3)). Each generated module
+           routes this group to the staging repository only (exclusiveContent), so no remote
+           artefact of the group can resolve. This group only; every external artefact stays
+           verified. -->
       <trusted-artifacts>
          <trust group="platform-contracts"/>
       </trusted-artifacts>

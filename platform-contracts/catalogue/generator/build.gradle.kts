@@ -15,6 +15,9 @@
 // configuration (gradle.lockfile) in strict mode; its artefacts are verified by the
 // including build's catalogue/gradle/verification-metadata.xml.
 buildscript {
+    dependencyLocking {
+        lockMode.set(LockMode.STRICT)
+    }
     configurations.classpath {
         resolutionStrategy.activateDependencyLocking()
     }
@@ -41,7 +44,6 @@ tasks.register("resolveAndLockAll") {
         buildscript.configurations.filter { it.isCanBeResolved }.forEach { it.resolve() }
     }
 }
-
 
 repositories {
     gradlePluginPortal()

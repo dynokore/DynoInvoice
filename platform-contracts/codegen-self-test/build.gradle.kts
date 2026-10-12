@@ -13,6 +13,9 @@
 // module locks its own configurations into gradle/locks/<module>.lockfile (settings.gradle.kts).
 // Every downloaded artefact is verified against gradle/verification-metadata.xml (strict).
 buildscript {
+    dependencyLocking {
+        lockMode.set(LockMode.STRICT)
+    }
     configurations.classpath {
         resolutionStrategy.activateDependencyLocking()
     }

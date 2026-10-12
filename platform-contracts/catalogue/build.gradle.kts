@@ -28,6 +28,9 @@
 // Every downloaded artefact, generator/'s included, is verified against
 // gradle/verification-metadata.xml (strict). Refresh: see README.md.
 buildscript {
+    dependencyLocking {
+        lockMode.set(LockMode.STRICT)
+    }
     configurations.classpath {
         resolutionStrategy.activateDependencyLocking()
     }
@@ -35,6 +38,11 @@ buildscript {
 
 plugins {
     base
+}
+
+subprojects {
+    // The root's own build script handler is set in its buildscript {} block above.
+    buildscript.dependencyLocking.lockMode.set(LockMode.STRICT)
 }
 
 allprojects {

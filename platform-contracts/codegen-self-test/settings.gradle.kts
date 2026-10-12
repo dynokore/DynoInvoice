@@ -82,9 +82,16 @@ pluginManagement {
     }
 }
 
-// STK-72 (INV-T-4299, coordinator ruling INV-Q-4322): the settings classpath is locked,
-// with its state in the committed settings-gradle.lockfile, as in platform-libs.
+// STK-72 (INV-T-4299, coordinator ruling INV-Q-4322): the settings classpath is locked in
+// strict mode, as in platform-libs. Its state is kept in gradle/settings-gradle.lockfile:
+// Gradle writes the included build-logic's settings lock state to this build's default
+// settings-gradle.lockfile, which would overwrite this build's own state (the same Gradle
+// behaviour catalogue/generator/settings.gradle.kts works around).
 buildscript {
+    dependencyLocking {
+        lockFile.set(file("gradle/settings-gradle.lockfile"))
+        lockMode.set(LockMode.STRICT)
+    }
     configurations.classpath {
         resolutionStrategy.activateDependencyLocking()
     }
@@ -198,10 +205,16 @@ for (svcDir in serviceDirs) {
     schemaFiles.filterNot { it in envelopeFiles }.forEach { rel -> eventModules += svc to rel }
 }
 
+// The platform-contracts group resolves only from the staging repository (exclusiveContent),
+// never from a remote one: that is what makes its exclusion from locking and verification
+// safe (STK-72, coordinator ruling INV-Q-4322 (3)). Every other group comes from Maven Central.
 val repositoriesBlock =
     """
     repositories {
-        maven { url = uri("${stagingRoot.absolutePath}") }
+        exclusiveContent {
+            forRepository { maven { url = uri("${stagingRoot.absolutePath}") } }
+            filter { includeGroup("platform-contracts") }
+        }
         mavenCentral()
     }
     """.trimIndent()

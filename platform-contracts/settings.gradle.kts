@@ -13,6 +13,9 @@
 // (settings-gradle.lockfile, as in platform-libs) and gradle/verification-metadata.xml
 // verifies any artefact this build downloads, in strict mode.
 buildscript {
+    dependencyLocking {
+        lockMode.set(LockMode.STRICT)
+    }
     configurations.classpath {
         resolutionStrategy.activateDependencyLocking()
     }

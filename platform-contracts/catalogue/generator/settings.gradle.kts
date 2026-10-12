@@ -12,6 +12,7 @@
 buildscript {
     dependencyLocking {
         lockFile.set(file("settings-gradle.lockfile"))
+        lockMode.set(LockMode.STRICT)
     }
     configurations.classpath {
         resolutionStrategy.activateDependencyLocking()

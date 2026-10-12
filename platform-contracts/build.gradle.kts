@@ -21,6 +21,9 @@
 // This packaging build resolves no dependency today, so its lock files hold only `empty=`
 // lines; a dependency added later fails until its lock state and metadata entry are committed.
 buildscript {
+    dependencyLocking {
+        lockMode.set(LockMode.STRICT)
+    }
     configurations.classpath {
         resolutionStrategy.activateDependencyLocking()
     }
