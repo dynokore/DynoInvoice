@@ -20,7 +20,8 @@ train is its own (README.md: "own version and changelog").
   that the actor is `app.actor` (refused unset) and the audit entry's actor, the bound tenant and every row are the
   platform's, types and topics are fixed (`AuditEntryRecorded` on gst.platform.audit-entry-recorded.v1,
   `PolicyChanged` on gst.platform.policy-changed.v1), and the audit action and scope and the `PolicyChanged`
-  scope, vpId, value and effectiveDate equal the value; a mismatch refuses with nothing written (INV-Q-4254 A).
+  scope, vpId, value and effectiveDate equal the value, and the audit entry carries its prior state as an object
+  (INV-REQ-2588 b2, INV-AC-2229); a mismatch refuses with nothing written (INV-Q-4254 A).
   It then inserts the value, the audit entry (outbox row, or local `audit_entry` row) and `PolicyChanged` (outbox
   mode) together, every row at one `clock_timestamp()`; a staged time is never taken (coordinator ruling
   INV-Q-4316). `JdbcPolicyWriter` writes an installation value only through it and needs its `AuditWriter` to be

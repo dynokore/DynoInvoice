@@ -119,7 +119,8 @@ object ConfigSchema {
      *   a tenant or entity other than the platform's; a type or topic other than `AuditEntryRecorded` and
      *   `PolicyChanged` on their topics; an id that is not a version-7 UUID; a source not `/gst/<service>`; a subject
      *   other than `config:<vpId>:INSTALLATION`; a blank instance, correlation or causation, or rows that disagree on
-     *   them; an audit action other than `setPolicy`, scope other than `INSTALLATION`, or reason other than the value's;
+     *   them; an audit entry without a prior state object (INV-REQ-2588 b2, INV-AC-2229), an audit action other than
+     *   `setPolicy`, scope other than `INSTALLATION`, or reason other than the value's;
      *   a `PolicyChanged` payload whose scope, vpId, value, effectiveDate or source differ from the value, or that has
      *   other fields; a `PolicyChanged` row missing in [EventMode.OUTBOX] or given in [EventMode.NO_OUTBOX].
      * Then it inserts the value (id `gen_random_uuid()`, `set_by` the actor), the audit entry and the `PolicyChanged`,
@@ -422,8 +423,11 @@ object ConfigSchema {
                 if jsonb_typeof(v_data -> 'actor') is distinct from 'string' or v_data ->> 'actor' is distinct from v_actor then
                     raise exception 'the audit entry actor is not app.actor' using errcode = '42501';
                 end if;
-                if (v_data - array['actor', 'action', 'scope', 'reason', 'priorState']) <> '{}'::jsonb
-                    or (v_data ? 'priorState' and jsonb_typeof(v_data -> 'priorState') is distinct from 'object') then
+                if jsonb_typeof(v_data -> 'priorState') is distinct from 'object' then
+                    raise exception 'the audit entry has no prior state object (INV-REQ-2588 b2, INV-AC-2229)'
+                        using errcode = '22023';
+                end if;
+                if (v_data - array['actor', 'action', 'scope', 'reason', 'priorState']) <> '{}'::jsonb then
                     raise exception 'the audit entry payload has another shape' using errcode = '22023';
                 end if;
                 if v_data ->> 'action' is distinct from '$SET_POLICY' then

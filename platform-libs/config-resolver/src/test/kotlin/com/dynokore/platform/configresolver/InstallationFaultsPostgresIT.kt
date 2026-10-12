@@ -107,6 +107,7 @@ class InstallationFaultsPostgresIT {
                 "audit reason" to audited("data.reason", "\"another reason\""),
                 "audit extra field" to audited("data.extra", "1"),
                 "audit prior state not an object" to audited("data.priorState", "[]"),
+                "audit prior state missing" to audited("data.priorState", null),
                 "option value of an unselected option" to { a -> FaultCall(a.copy(optionValues = "{\"LARGER\":1}")) },
                 "blank reason" to { a -> FaultCall(a.copy(reason = " ").auditWith("data.reason", "\" \"")) },
             )
@@ -172,7 +173,8 @@ class InstallationFaultsPostgresIT {
                 "audit scope" to "audit entry scope is",
                 "audit reason" to "audit entry reason is not",
                 "audit extra field" to "audit entry payload has another shape",
-                "audit prior state not an object" to "audit entry payload has another shape",
+                "audit prior state not an object" to "audit entry has no prior state object",
+                "audit prior state missing" to "audit entry has no prior state object",
                 "option value of an unselected option" to "not selected",
                 "blank reason" to "are required",
                 "a PolicyChanged without an outbox" to "no PolicyChanged row is written",
