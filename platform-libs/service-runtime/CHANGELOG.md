@@ -6,6 +6,19 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [3.2.1] - 2026-10-12
+### Fixed
+- config-resolver's wiring depended on the import order of the two composition roots (defect in INV-T-2875 against
+  INV-Q-3710, found in the review of INV-T-2876; coordinator ruling INV-Q-3877, INV-T-3881). `ConfigResolverWiring`
+  was imported by ServiceRuntimeConfiguration with a registration-time `@ConditionalOnBean` on product-runtime's
+  `VariationPointCatalogue`, so under TPL-18's `@Import(ServiceRuntimeConfiguration::class,
+  ProductRuntimeConfiguration::class)` the catalogue was not yet registered and no `PolicyReader`, `PolicyHistory`,
+  `ConfigPurge`, `ResolutionRecorder` or `PolicyWriter` was wired. It is now its own auto-configuration, ordered after
+  ServiceRuntimeConfiguration and ProductRuntimeConfiguration (by name) and listed in `AutoConfiguration.imports`, so
+  it is wired with TPL-18's import order, the reverse order or auto-configuration only. No API change; without a
+  catalogue, the impl, the schema or a `CurrentConnection` still no config-resolver bean, and a service's own port
+  beans still replace the defaults. `ConfigResolverImportOrderTest` composes a stand-in product-runtime as TPL-18 does.
+
 ## [3.2.0] - 2026-10-12
 ### Added
 - rebuildConsumer (INV-T-3385; INV-API-3656; INV-REQ-1205 b4, b6; rulings INV-Q-3599, INV-Q-3663, INV-Q-3665,

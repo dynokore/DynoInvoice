@@ -49,7 +49,7 @@ Service inputs:
 | audit-log | `AuditWriter` | `OutboxAuditWriter`, or `LocalAuditWriter` without an outbox (INV-Q-2958) | (an `OutboxWriter`), else `gst.service`, schema |
 | audit-log | `AuditedOperations` | `TransactionalAuditedOperations` | (a `TransactionRunner`, an `AuditWriter`) |
 | audit-log | `OverrideService`, `OverrideRegister` | `JdbcOverrideService` | `ErrorCatalogue` (an `OverridePolicy` if it has one), schema |
-| config-resolver | `PolicyReader`, `PolicyHistory`, `ConfigPurge`, `ResolutionRecorder` | `Jdbc*` | `VariationPointCatalogue`, schema; form from `gst.form` |
+| config-resolver | `PolicyReader`, `PolicyHistory`, `ConfigPurge`, `ResolutionRecorder` | `Jdbc*` | `VariationPointCatalogue` (product-runtime's), schema; form from `gst.form`. Wired by its own auto-configuration `ConfigResolverWiring`, ordered after ServiceRuntimeConfiguration and ProductRuntimeConfiguration, so it is order-independent: TPL-18's `@Import` in either order, or auto-configuration only (INV-T-3881, INV-Q-3877) |
 | config-resolver | `PolicyWriter` | `JdbcPolicyWriter` | as above, plus `DelegationProbe`, `BackdatingFloor`, `ValueConstraints` if it has them |
 | evidence-store | `EvidenceLedger`, `LegalHoldRegistry` | `JdbcEvidenceLedger`, `JdbcLegalHoldRegistry` | schema and the table names |
 | evidence-store | `ObjectStore` (§12.1) | `S3ObjectStore` | `S3Client` (AWS SDK on its classpath), bucket |
