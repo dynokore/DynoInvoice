@@ -256,6 +256,32 @@ split-jars:
       grep -E "^ +- " build/split-jars-negative.log | cut -c1-200
       echo "gst-ci: negative test: verifySplitJars fails when an implJar writes to build/libs, as it must"
 
+# INV-T-4356: every module that publishes an api and an impl publication must publish the impl's dependency metadata
+# (root build.gradle.kts, `verifyImplPoms`, which `check` runs too): the impl POM declares the module's own -api at the
+# same version and the impl runtime classpath. A required job on every merge-request and main pipeline, over every split
+# module, whatever changed. Its negative test reverts service-runtime's impl POM to the bare `artifact(implJar)` one
+# (the defect of every impl POM published up to 2026-10-13) and must see the check fail with its own message; a pass,
+# or a failure for any other reason, fails this job.
+impl-poms:
+  extends: [.gradle-job, .gst-changed-modules]
+  stage: test
+  script:
+    - ./gradlew -p "$GRADLE_PROJECT_DIR" verifyImplPoms --continue --stacktrace
+    - |
+      mkdir -p build
+      if ./gradlew -p "$GRADLE_PROJECT_DIR" :service-runtime:verifyImplPoms -PimplPomFault=service-runtime \
+          > build/impl-poms-negative.log 2>&1; then
+        echo "gst-ci: negative test: verifyImplPoms passed with service-runtime's impl POM left bare"
+        exit 1
+      fi
+      if ! grep -q "verifyImplPoms: :service-runtime (INV-T-4356)" build/impl-poms-negative.log; then
+        tail -40 build/impl-poms-negative.log
+        echo "gst-ci: negative test: the build failed, but not on verifyImplPoms"
+        exit 1
+      fi
+      grep -E "^ +- " build/impl-poms-negative.log | head -5 | cut -c1-200
+      echo "gst-ci: negative test: verifyImplPoms fails when an impl POM declares no dependency, as it must"
+
 # The shared template's pact-publish runs `pactPublish` in a job of its own, where no pact file exists (the pacts are
 # written by the contract-tests job above, which publishes them itself, before verifying from the broker).
 pact-publish:
@@ -365,6 +391,26 @@ maven-publish:
     reports:
       dotenv: build/tested-set.env
     expire_in: 1 year
+
+# INV-T-4356: the outside-consumer check. A Gradle build outside the platform-libs build (ci/consumer-check/) that
+# declares only platform-libs-bom at the version maven-publish just decided (its dotenv BOM_VERSION) and the impl
+# artefacts of service-runtime, outbox-and-queue, audit-log, config-resolver and tenancy-kernel resolves the graph
+# transitively from this project's package registry, under strict dependency verification (run.sh), prints it,
+# compiles against a type of each module's -api and loads an impl class of each. Main only, after maven-publish, and
+# blocking: a failure fails the pipeline and is never skipped (P20/P28).
+consumer-check:
+  extends: [.gradle-job]
+  stage: publish
+  needs:
+    - job: maven-publish
+      artifacts: true
+  rules:
+    - if: '$MAVEN_PUBLISH != "true"'
+      when: never
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+  script:
+    - test -n "${BOM_VERSION:-}" || { echo "gst-ci: maven-publish passed no BOM_VERSION (P20/P28)"; exit 1; }
+    - sh ci/consumer-check/run.sh "$BOM_VERSION" "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/maven"
 
 # Merge requests verify that the BOM resolves and report what the main pipeline would do,
 # but never publish (a merge request never publishes, ci/publish.gitlab-ci.yml). A module

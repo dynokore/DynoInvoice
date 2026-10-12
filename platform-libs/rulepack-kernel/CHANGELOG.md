@@ -6,6 +6,18 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.3.3] - 2026-10-13
+### Fixed
+- The published impl POM (`rulepack-kernel`) declared no dependency (INV-T-4356; defect in INV-T-2860's and
+  INV-T-3937's per-module publishing, STK-60, STK-01 rule (a), TPL-01): the `impl` publication was built with
+  `artifact(implJar)` and no software component, so a consumer declaring platform-libs-bom and this impl artefact had
+  to list `rulepack-kernel-api` and the other modules itself. The impl POM now declares `rulepack-kernel-api` at the
+  same version and the first-level dependencies of the impl runtime classpath, generated and checked by the root
+  build.gradle.kts (`verifyImplPoms`): crypto:1.0.1 (runtime), crypto-api:1.0.1 (compile), rulepack-kernel-api:1.3.3
+  (compile), tenancy-kernel-api:1.3.1 (runtime), org.bouncycastle:bcpkix-jdk18on:1.86 (runtime),
+  org.bouncycastle:bcprov-jdk18on:1.86 (runtime), org.jetbrains.kotlin:kotlin-stdlib:2.4.20 (runtime),
+  tools.jackson.core:jackson-databind:3.2.3 (compile). The classes are unchanged.
+
 ## [1.3.2] - 2026-10-12
 ### Changed
 - `PackRegistryMigration.ddl` and `lineageKeyUpgradeDdl` interpolate identifiers only through tenancy-kernel's

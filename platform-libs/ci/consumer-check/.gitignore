@@ -1,0 +1,4 @@
+# Written by run.sh at every run (the copied and dry-run verification metadata), never committed.
+/gradle/
+/build/
+/.gradle/

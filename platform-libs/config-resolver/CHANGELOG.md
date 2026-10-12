@@ -6,6 +6,18 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-10-13
+### Fixed
+- The published impl POM (`config-resolver`) declared no dependency (INV-T-4356; defect in INV-T-2860's and
+  INV-T-3937's per-module publishing, STK-60, STK-01 rule (a), TPL-01): the `impl` publication was built with
+  `artifact(implJar)` and no software component, so a consumer declaring platform-libs-bom and this impl artefact had
+  to list `config-resolver-api` and the other modules itself. The impl POM now declares `config-resolver-api` at the
+  same version and the first-level dependencies of the impl runtime classpath, generated and checked by the root
+  build.gradle.kts (`verifyImplPoms`): audit-log-api:2.3.1 (compile), config-resolver-api:2.0.1 (compile),
+  outbox-and-queue-api:2.1.1 (compile), tenancy-kernel:1.3.1 (compile), tenancy-kernel-api:1.3.1 (runtime),
+  org.jetbrains.kotlin:kotlin-stdlib:2.4.20 (compile), tools.jackson.core:jackson-databind:3.2.3 (compile). The
+  classes are unchanged.
+
 ## [2.0.0] - 2026-10-12
 ### Changed (breaking)
 - One runtime login per service (INV-REQ-1189 b2, INV-ADR-3968; owner rulings INV-Q-3931, INV-Q-3953, INV-T-3983):

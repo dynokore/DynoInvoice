@@ -6,6 +6,26 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [4.0.1] - 2026-10-13
+### Fixed
+- The published impl POM (`service-runtime`) declared no dependency (INV-T-4356; defect in INV-T-2860's and
+  INV-T-3937's per-module publishing, STK-60, STK-01 rule (a), TPL-01): the `impl` publication was built with
+  `artifact(implJar)` and no software component, so a consumer declaring platform-libs-bom and this impl artefact had
+  to list `service-runtime-api` and the other modules itself. The impl POM now declares `service-runtime-api` at the
+  same version and the first-level dependencies of the impl runtime classpath, generated and checked by the root
+  build.gradle.kts (`verifyImplPoms`): audit-log-api:2.3.1 (compile), config-resolver-api:2.0.1 (compile),
+  outbox-and-queue:2.1.1 (compile), outbox-and-queue-api:2.1.1 (compile), service-runtime-api:4.0.1 (compile),
+  tenancy-kernel:1.3.1 (compile), tenancy-kernel-api:1.3.1 (compile),
+  io.github.resilience4j:resilience4j-bulkhead:2.4.0 (compile),
+  io.github.resilience4j:resilience4j-circuitbreaker:2.4.0 (compile), io.github.resilience4j:resilience4j-retry:2.4.0
+  (compile), io.github.resilience4j:resilience4j-timelimiter:2.4.0 (compile),
+  jakarta.servlet:jakarta.servlet-api:6.1.0 (compile), net.javacrumbs.shedlock:shedlock-core:6.10.0 (compile),
+  net.javacrumbs.shedlock:shedlock-provider-jdbc-template:6.10.0 (compile), org.jetbrains.kotlin:kotlin-stdlib:2.4.20
+  (compile), org.springframework.boot:spring-boot-starter-actuator:4.1.1 (compile),
+  org.springframework.security:spring-security-oauth2-jose:7.1.1 (compile), org.springframework:spring-jdbc:7.0.9
+  (compile), org.springframework:spring-web:7.0.9 (compile), tools.jackson.core:jackson-databind:3.2.3 (compile). The
+  classes are unchanged.
+
 ## [4.0.0] - 2026-10-12
 ### Changed (breaking: 3.x -> 4.0.0; probes, scrapes and health-group keys move)
 - Health, metrics and diagnostics move to the management port 8081 (INV-T-4125; owner ruling INV-Q-4103 A; API-33,

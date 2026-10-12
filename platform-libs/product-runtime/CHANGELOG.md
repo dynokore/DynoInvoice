@@ -6,6 +6,20 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-13
+### Fixed
+- The published impl POM (`product-runtime`) declared no dependency (INV-T-4356; defect in INV-T-2860's and
+  INV-T-3937's per-module publishing, STK-60, STK-01 rule (a), TPL-01): the `impl` publication was built with
+  `artifact(implJar)` and no software component, so a consumer declaring platform-libs-bom and this impl artefact had
+  to list `product-runtime-api` and the other modules itself. The impl POM now declares `product-runtime-api` at the
+  same version and the first-level dependencies of the impl runtime classpath, generated and checked by the root
+  build.gradle.kts (`verifyImplPoms`): com.dynokore.gst:gst-catalogue:1.14.0 (compile), config-resolver-api:2.0.1
+  (compile), outbox-and-queue-api:2.1.1 (compile), product-runtime-api:1.0.1 (runtime), service-runtime:4.0.1
+  (compile), service-runtime-api:4.0.1 (compile), tenancy-kernel-api:1.3.1 (runtime),
+  org.jetbrains.kotlin:kotlin-stdlib:2.4.20 (compile), org.springframework.boot:spring-boot-starter-actuator:4.1.1
+  (compile), org.springframework:spring-web:7.0.9 (compile), tools.jackson.core:jackson-databind:3.2.3 (compile),
+  tools.jackson.module:jackson-module-kotlin:3.2.3 (runtime). The classes are unchanged.
+
 ## [1.0.0] - 2026-10-12
 ### Added
 - `product-runtime-api`: the product's configuration values (INV-T-2876, INV-MOD-2745) — `ReplicaFeeds`

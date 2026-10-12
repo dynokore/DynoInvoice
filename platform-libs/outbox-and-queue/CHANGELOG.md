@@ -4,6 +4,17 @@ All notable changes to `outbox-and-queue` are recorded here (FR-L.6). Format fol
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this module's release
 train is its own (README.md: "own version and changelog").
 
+## [2.1.1] - 2026-10-13
+### Fixed
+- The published impl POM (`outbox-and-queue`) declared no dependency (INV-T-4356; defect in INV-T-2860's and
+  INV-T-3937's per-module publishing, STK-60, STK-01 rule (a), TPL-01): the `impl` publication was built with
+  `artifact(implJar)` and no software component, so a consumer declaring platform-libs-bom and this impl artefact had
+  to list `outbox-and-queue-api` and the other modules itself. The impl POM now declares `outbox-and-queue-api` at the
+  same version and the first-level dependencies of the impl runtime classpath, generated and checked by the root
+  build.gradle.kts (`verifyImplPoms`): outbox-and-queue-api:2.1.1 (compile), tenancy-kernel:1.3.1 (compile),
+  tenancy-kernel-api:1.3.1 (compile), org.jetbrains.kotlin:kotlin-stdlib:2.4.20 (compile), org.slf4j:slf4j-api:2.0.16
+  (runtime), tools.jackson.core:jackson-databind:3.2.3 (compile). The classes are unchanged.
+
 ## [2.1.0] - 2026-10-12
 ### Added (INV-T-3983)
 - `OutboxWriter.stage(events, context)` and `StagedOutboxRow` (api): the build-only half of `append` (coordinator
