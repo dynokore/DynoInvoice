@@ -1,10 +1,12 @@
 package com.dynokore.platform.outboxandqueue
 
+import com.dynokore.platform.tenancykernel.TenantRlsMigration
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Tag
+import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import java.sql.Connection
@@ -23,9 +25,20 @@ class SharedPoolIsolationIT {
     private val tenantB = UUID.fromString("00000000-0000-0000-0000-00000000000b")
 
     private fun fixture(image: String): OutboxPostgresFixture = OutboxPostgresFixture(image).also {
-        it.createService(SCHEMA, QueueSchema.ddl(SCHEMA, OutboxPostgresFixture.APP, OutboxPostgresFixture.SYS))
+        it.createService(SCHEMA, QueueSchema.ddl(SCHEMA, APP, SYS) + "\n" + readModels())
         listOf(tenantA, tenantB).forEach { tenant -> seed(it, tenant) }
     }
+
+    /** Two read-model tables of a consuming service and their full-sync clear functions (INV-Q-4064). */
+    private fun readModels(): String = """
+        create table $SCHEMA.rm_view (consumer text not null, tenant_id uuid not null, note text not null);
+        create table $SCHEMA.rm_cache (tenant_id uuid not null, note text not null);
+        ${TenantRlsMigration.ddl(SCHEMA, "rm_view", policyName = "rm_view_tenant_isolation")}
+        ${TenantRlsMigration.ddl(SCHEMA, "rm_cache", policyName = "rm_cache_tenant_isolation")}
+        grant select, insert, update, delete on $SCHEMA.rm_view, $SCHEMA.rm_cache to $APP;
+        ${OutboxSchema.readModelClearFunction(SCHEMA, "rm_view", APP, SYS, "consumer")}
+        ${OutboxSchema.readModelClearFunction(SCHEMA, "rm_cache", APP, SYS)}
+    """.trimIndent()
 
     private fun seed(
         fixture: OutboxPostgresFixture,
@@ -46,6 +59,8 @@ class SharedPoolIsolationIT {
             values ('c', 't', 1, '$tenant', 'r', '{"secret": 2}');
             insert into $SCHEMA.work_queue (tenant_id, partition_key, lane, payload)
             values ('$tenant', 'k', 'LIVE', '{"secret": 3}');
+            insert into $SCHEMA.rm_view values ('c', '$tenant', 'n'), ('d', '$tenant', 'n');
+            insert into $SCHEMA.rm_cache values ('$tenant', 'n');
             """.trimIndent(),
         )
     }
@@ -171,6 +186,43 @@ class SharedPoolIsolationIT {
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
+    fun `a read-model clear function deletes only its table's rows with the given filter value, across tenants`(
+        image: String,
+    ) {
+        fixture(image).use { fixture ->
+            runtime(fixture) { c ->
+                assertEquals(0, c.update("delete from $SCHEMA.rm_view"), "no direct delete across tenants")
+                assertThrows(SQLException::class.java) { c.longs("select $SCHEMA.rm_view_full_sync_clear('')") }
+                assertThrows(SQLException::class.java) { c.longs("select $SCHEMA.rm_view_full_sync_clear(null)") }
+                assertEquals(listOf(2L), c.longs("select $SCHEMA.rm_view_full_sync_clear('c')"))
+            }
+            assertEquals(0L, count(fixture, "select count(*) from $SCHEMA.rm_view where consumer = 'c'"))
+            assertEquals(2L, count(fixture, "select count(*) from $SCHEMA.rm_view where consumer = 'd'"), "other value")
+            assertEquals(2L, count(fixture, "select count(*) from $SCHEMA.rm_cache"), "other table")
+            runtime(fixture) { c -> assertEquals(listOf(2L), c.longs("select $SCHEMA.rm_cache_full_sync_clear()")) }
+            assertEquals(0L, count(fixture, "select count(*) from $SCHEMA.rm_cache"))
+            fixture.run(OutboxSchema.readModelClearFunction(SCHEMA, "rm_view", APP, SYS, "consumer"))
+            runtime(fixture) { c -> assertEquals(listOf(2L), c.longs("select $SCHEMA.rm_view_full_sync_clear('d')")) }
+        }
+    }
+
+    @Test
+    fun `a read-model clear function is refused for an evidence ledger and for a name that is not an identifier`() {
+        fun refused(
+            table: String,
+            filterColumn: String? = null,
+            sys: String = SYS,
+        ) = assertThrows(IllegalArgumentException::class.java, {
+            OutboxSchema.readModelClearFunction(SCHEMA, table, APP, sys, filterColumn)
+        }, table)
+        OutboxSchema.PROTECTED_LEDGERS.forEach { refused(it) }
+        refused("t".repeat(50))
+        refused("rm_view", "consumer; drop table x")
+        refused("rm_view", sys = APP)
+    }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `the catalogue holds no permissive policy for the runtime login and every definer function is fixed`(
         image: String,
     ) {
@@ -189,8 +241,8 @@ class SharedPoolIsolationIT {
         assertTrue(count(fixture, "$policies and qual = 'true'") > 0)
         assertEquals(
             0L,
-            count(fixture, "$policies and qual = 'true' and not ('$SYS' = any(roles) or '$WORKER' = any(roles))"),
-            "a USING (true) policy targets the sys role (or, in this stage, the transitional full-sync worker)",
+            count(fixture, "$policies and qual = 'true' and roles <> array['$SYS']::name[]"),
+            "a USING (true) policy targets the sys role only",
         )
         TENANT_TABLES.forEach {
             val forced = "select count(*) from pg_class where oid = '$SCHEMA.$it'::regclass " +
@@ -248,9 +300,17 @@ class SharedPoolIsolationIT {
         const val SCHEMA = "payload"
         const val APP = OutboxPostgresFixture.APP
         const val SYS = OutboxPostgresFixture.SYS
-        const val WORKER = OutboxPostgresFixture.WORKER
         val TENANT_TABLES =
-            listOf("outbox", "outbox_sequence", "inbox", "consumer_sequence", "event_dead_letter", "work_queue")
+            listOf(
+                "outbox",
+                "outbox_sequence",
+                "inbox",
+                "consumer_sequence",
+                "event_dead_letter",
+                "work_queue",
+                "rm_view",
+                "rm_cache",
+            )
         val DEFINERS = listOf(
             "claim_due",
             "event_dead_letter_purge_expired",
@@ -259,6 +319,8 @@ class SharedPoolIsolationIT {
             "full_sync_delete",
             "inbox_purge_expired",
             "outbox_purge_expired",
+            "rm_cache_full_sync_clear",
+            "rm_view_full_sync_clear",
         )
     }
 }

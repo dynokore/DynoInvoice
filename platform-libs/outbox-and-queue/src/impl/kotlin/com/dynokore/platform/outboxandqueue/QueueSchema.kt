@@ -126,16 +126,6 @@ object QueueSchema {
     private const val CLAIM_DUE_SIGNATURE = "$CLAIM_DUE(text, text, timestamptz, timestamptz)"
     private const val CANDIDATES = 20
 
-    /**
-     * Brings a schema of 1.6.0 or earlier to 1.7.0: the shared per-lane rate-limit table [LANE_RATE_WINDOW] and the
-     * worker's grants on it (additive; harmless to run again). Run once by the service's migration (TPL-12) before the
-     * 1.7.0 [LaneRateLimiter] starts; not needed for a schema created by [ddl].
-     */
-    fun upgradeTo170(
-        schema: String,
-        workerRole: String,
-    ): String = laneRateWindow(SqlIdentifier.require(schema, "schema"), SqlIdentifier.require(workerRole, "worker role"))
-
     private fun laneRateWindow(
         s: String,
         role: String,

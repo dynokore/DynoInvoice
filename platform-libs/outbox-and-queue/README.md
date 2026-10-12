@@ -29,11 +29,10 @@ one table per topic), `JdbcInboxConsumer` (inbox, `docsequence` rule, offsets, d
 ## What 1.1.0 adds (INV-T-2865)
 
 `WorkQueue`/`JdbcWorkQueue` (`QueueSchema.ddl`), `Lane`, `LaneLimits`, `LaneRateLimiter`, `DeadLetterTriage`/`JdbcDeadLetterTriage`,
-`ReplayDelivery`/`JdbcReplayDelivery`, `StalenessMonitor`/`JdbcStalenessMonitor`, `EventLogLag`. Existing 1.0.0 schemas:
-run `OutboxSchema.upgradeTo110` and `QueueSchema.ddl` in the service's migration.
+`ReplayDelivery`/`JdbcReplayDelivery`, `StalenessMonitor`/`JdbcStalenessMonitor`, `EventLogLag`.
 
-Consumer retry with bounded, jittered backoff is in 1.4.0 (`ConsumerRetryPolicy`). Run `OutboxSchema.upgradeTo140` first
-(it adds the attempt-state columns to `consumer_offset`). Defaults: 8 attempts; the wait after failed attempt n is 1 s
+Consumer retry with bounded, jittered backoff is in 1.4.0 (`ConsumerRetryPolicy`); the attempt state lives on
+`consumer_offset`. Defaults: 8 attempts; the wait after failed attempt n is 1 s
 doubled each time (1, 2, 4 ... s), capped at 5 min, then shortened by a random share of up to 50 %; after the 8th failure
 the record goes to `event_dead_letter`. The attempt count is stored, so it holds across restarts, kills and replicas.
 Infrastructure failures (`FailureClassifier.DEFAULT`: lost connection, timeout, SQLState 08/57P/40001, an unavailable
@@ -41,8 +40,7 @@ dependency) back off to the 5 min cap without using the 8 attempts and are dead-
 (`infrastructureGiveUp`). Override the policy and the classifier per consumer on `ConsumerSubscription`.
 
 Per-lane rate limits are shared by all replicas of a service from 1.7.0 (INV-Q-2966): `LaneRateLimiter` keeps each
-lane's window count in `lane_rate_window` (worker role only, no tenant data, no RLS). Existing schemas run
-`QueueSchema.upgradeTo170` in the service's migration.
+lane's window count in `lane_rate_window` (runtime login only, no tenant data, no RLS).
 
 From 1.8.0 the event-log topic tables carry `tenant_id NOT NULL` under forced row-level security too (INV-Q-3251):
 the relay inserts under the bound tenant, and each consumer has a claim role (claim columns only) and a separate
@@ -59,13 +57,20 @@ rebuildConsumer moves its positions past the head and writes ReplayRequested on 
 in one transaction (`JdbcConsumerReplay`); each producer runs `JdbcReplayResponder` over the request topics it reads and
 answers on the pair's replay topic from its `ReplayStateSource`s, ending with ReplayCompleted; the consumer runs
 `JdbcReplayIntake` on its replay topic under the same consumer name as its live subscription (so the docsequence STALE
-check spans both), and the incident closes on the marker (`RebuildRequiredSink.close`). Existing schemas run
-`OutboxSchema.upgradeTo1100`. A full sync (INV-Q-3603, INV-Q-3786) runs `JdbcConsumerReplay.fullSync` on the consumer's
-worker-role connection bound to the platform tenant: the service's `ReadModelClear`, the delete of the producer's
-docsequence rows across tenants (the inbox is kept), the head move and the request in one transaction; each read-model
-table gets its worker access from `OutboxSchema.readModelClearAccess`.
+check spans both), and the incident closes on the marker (`RebuildRequiredSink.close`). A full sync (INV-Q-3603,
+INV-Q-3786, INV-Q-4064) runs `JdbcConsumerReplay.fullSync` on the runtime login bound to the platform tenant: the
+service's `ReadModelClear` (the read-model tables and their filter values), the delete of the producer's docsequence
+rows across tenants through `full_sync_delete` (the inbox is kept), the head move and the request in one transaction.
+The service's migration creates each read-model table's sys-owned clear function with
+`OutboxSchema.readModelClearFunction(schema, table, runtime, sys, filterColumn?)`.
+
+From the next MAJOR (INV-T-3978, unreleased) a service has one runtime login and a NOLOGIN `<svc>_sys`:
+`OutboxSchema.ddl(schema, runtime, sys)` and `QueueSchema.ddl(schema, runtime, sys)`; every cross-tenant read or
+delete goes through the sys-owned views and SECURITY DEFINER functions (see the CHANGELOG). The 1.x upgrades
+(`OutboxSchema.upgradeTo110` to `upgradeTo1100`, `QueueSchema.upgradeTo170`) are removed: there is no upgrade path
+from a 1.x schema (coordinator ruling INV-Q-4068).
 
 Not in 1.1.0: delivery retry with backoff, inbox retention (added in 1.3.0: `Retention`, `JdbcRetentionPurge`,
-`OutboxSchema.upgradeTo130`; existing schemas run `upgradeTo130` in the service's migration), rate limits shared across worker processes
+see `JdbcRetentionPurge`), rate limits shared across worker processes
 (added in 1.7.0, see below), exporting the staleness metric and raising the incident (the composition root's sink), and scheduling of the
 loops (service-runtime).

@@ -170,20 +170,32 @@ data class MovedPosition(
 )
 
 /**
- * The read-model clear of a full sync (coordinator ruling INV-Q-3786): the statements that delete what the consumer
- * built from [producer]'s topics. They run in the full-sync transaction on the consumer's worker-role connection
- * bound to the platform tenant, across every tenant. Each is a plain `DELETE` without parameters on a table whose
- * worker access the service's migration grants with `OutboxSchema.readModelClearAccess` (DELETE, and column SELECT
- * on the filter columns only). [producer] is a service name or 'every service'.
+ * The read-model clear of a full sync (coordinator rulings INV-Q-3786, INV-Q-4064): the read-model [tables] the
+ * consumer built from [producer]'s topics. The full sync calls each table's sys-owned clear function, which the
+ * service's migration creates with `OutboxSchema.readModelClearFunction`, in its one transaction on the runtime login
+ * bound to the platform tenant; the function deletes across every tenant. [producer] is a service name or
+ * 'every service'.
  */
 data class ReadModelClear(
     val producer: String,
-    val statements: List<String>,
+    val tables: List<ReadModelTable>,
 ) {
     init {
         require(producer.isNotBlank()) { "producer must not be blank" }
-        require(statements.all { it.trimStart().startsWith("delete ", ignoreCase = true) }) {
-            "a read-model clear is DELETE statements only"
-        }
+        require(tables.map { it.table }.toSet().size == tables.size) { "each table once per clear" }
+    }
+}
+
+/**
+ * One read-model [table] of a [ReadModelClear]: [filterValue] is the value its clear function deletes by (the function
+ * was created with a filter column), or `null` when that function clears the whole table (created without one).
+ */
+data class ReadModelTable(
+    val table: String,
+    val filterValue: String? = null,
+) {
+    init {
+        require(table.isNotBlank()) { "table must not be blank" }
+        require(filterValue == null || filterValue.isNotBlank()) { "a filter value must not be blank" }
     }
 }

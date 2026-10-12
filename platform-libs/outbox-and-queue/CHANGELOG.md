@@ -6,7 +6,7 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 ### Changed (breaking; released as the MAJOR of the eventlog_sys task, INV-T-3979)
-- One runtime login per service (INV-T-3978, stage 1; owner rulings INV-Q-3951, INV-Q-3953, INV-Q-3965;
+- One runtime login per service (INV-T-3978; owner rulings INV-Q-3951, INV-Q-3953, INV-Q-3965;
   INV-ADR-3968; INV-REQ-854, INV-REQ-1189 b2, INV-REQ-1205). `OutboxSchema.ddl(schema, runtime, sys)` and
   `QueueSchema.ddl(schema, runtime, sys)` replace the (app, worker) forms. The runtime login works on the tenant tables
   under the forced tenant policy only; every cross-tenant policy targets the NOLOGIN `<svc>_sys` and is reached only
@@ -19,8 +19,20 @@ train is its own (README.md: "own version and changelog").
   `JdbcReplayResponder` take a runtime-login DataSource and use those views and functions; the relay's and the replay
   responder's session advisory locks are transaction-scoped (`pg_try_advisory_xact_lock`), so no pooled connection
   keeps a lock outside its transaction (transaction-mode pooler, INV-ADR-3968 item 9).
-- Transitional until stage 2: `OutboxSchema.fullSyncWorkerAccess` and `readModelClearAccess` keep the full sync on the
-  former worker role pending the owner's ruling on the read-model clear.
+- Full sync on the runtime login (coordinator ruling INV-Q-4064): `OutboxSchema.readModelClearFunction(schema, table,
+  runtime, sys, filterColumn?)` creates, from a static template, the sys-owned SECURITY DEFINER function
+  `<schema>.<table>_full_sync_clear` of one read-model table (rows whose filter column equals its non-blank argument,
+  or every row; a protected evidence ledger, coordinator ruling INV-Q-4034, is refused). `ReadModelClear` names the
+  tables and their filter values (`ReadModelTable`) instead of SQL statements. `JdbcConsumerReplay.fullSync` runs on
+  the runtime login bound to the platform tenant and calls those functions and `full_sync_delete` with bound
+  parameters.
+
+### Removed (breaking)
+- `OutboxSchema.fullSyncWorkerAccess` and `OutboxSchema.readModelClearAccess`: no `OutboxSchema` or `QueueSchema` entry
+  point takes a worker role.
+- The 1.x upgrades `OutboxSchema.upgradeTo110`, `upgradeTo120`, `upgradeTo130`, `upgradeTo140`, `upgradeTo150`,
+  `upgradeTo1100` and `QueueSchema.upgradeTo170` (coordinator ruling INV-Q-4068): there is no upgrade path from a 1.x
+  schema; a service creates its schema with the new `ddl`.
 
 ## [1.10.0] - 2026-10-11
 ### Added

@@ -15,6 +15,7 @@ import com.dynokore.platform.outboxandqueue.OutboxPostgresFixture
 import com.dynokore.platform.outboxandqueue.OutboxSchema
 import com.dynokore.platform.outboxandqueue.PostgresEventLogReader
 import com.dynokore.platform.outboxandqueue.ReadModelClear
+import com.dynokore.platform.outboxandqueue.ReadModelTable
 import com.dynokore.platform.outboxandqueue.ReplayJson
 import com.dynokore.platform.outboxandqueue.ReplayMode
 import com.dynokore.platform.outboxandqueue.ReplayProtocol
@@ -119,7 +120,7 @@ class ConsumerRebuildIT {
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
-    fun `INV-Q-3786 a full sync clears both tenants' rows of the producer on the worker role in one transaction`(image: String) {
+    fun `INV-Q-3786 a full sync clears both tenants' rows of the producer on the runtime login in one transaction`(image: String) {
         Harness(image).use { h ->
             h.behind(watermark = 5)
             h.matchView()
@@ -168,7 +169,7 @@ class ConsumerRebuildIT {
                     ): Envelope = error("audit store down")
                 }
             val full = h.request(mode = ReplayMode.FULL_SYNC, scope = null)
-            assertThrows(IllegalStateException::class.java) { h.runtime(fullSync = true, workerAudit = failing).rebuildConsumer(full) }
+            assertThrows(IllegalStateException::class.java) { h.runtime(fullSync = true, syncAudit = failing).rebuildConsumer(full) }
             assertEquals(1L, h.count("select count(*) from $SCHEMA.consumer_sequence"))
             assertEquals(1L, h.count("select count(*) from $SCHEMA.match_view"))
             assertNull(h.nextOffsetOrNull())
@@ -335,14 +336,14 @@ class ConsumerRebuildIT {
             fixture.createTopics(CATALOGUE)
         }
 
-        private val workerTenants = TenantContextImpl()
-        private val workerTx = TransactionRunnerImpl(fixture.workerDataSource(), workerTenants)
-        private val workerOutbox = JdbcOutboxWriter(workerTx, SCHEMA, CONSUMER, "$CONSUMER-w", CATALOGUE, Clock.systemUTC())
+        private val syncTenants = TenantContextImpl()
+        private val syncTx = TransactionRunnerImpl(fixture.runtimeDataSource(), syncTenants)
+        private val syncOutbox = JdbcOutboxWriter(syncTx, SCHEMA, CONSUMER, "$CONSUMER-w", CATALOGUE, Clock.systemUTC())
 
         fun runtime(
             audit: AuditWriter = OutboxAuditWriter(outbox),
             fullSync: Boolean = false,
-            workerAudit: AuditWriter = OutboxAuditWriter(workerOutbox),
+            syncAudit: AuditWriter = OutboxAuditWriter(syncOutbox),
             clears: List<ReadModelClear> = listOf(ReadModelClear(PRODUCER, listOf(CLEAR))),
             extra: List<String> = emptyList(),
         ) = ConsumerRebuildRuntime(
@@ -353,9 +354,9 @@ class ConsumerRebuildIT {
             { it == "platform.engineer" }, Clock.systemUTC(),
             if (fullSync) {
                 FullSyncWiring(
-                    TenantScope(workerTenants, workerTx, workerTx),
-                    workerOutbox,
-                    workerAudit,
+                    TenantScope(syncTenants, syncTx, syncTx),
+                    syncOutbox,
+                    syncAudit,
                     clears,
                 )
             } else {
@@ -363,12 +364,12 @@ class ConsumerRebuildIT {
             },
         )
 
-        /** A tenant read-model table cleared by the full sync, with the worker access of INV-Q-3786. */
+        /** A tenant read-model table cleared by the full sync, through its sys-owned clear function (INV-Q-4064). */
         fun matchView() = fixture.run(
             """
             create table $SCHEMA.match_view (consumer text not null, tenant_id uuid not null, note text not null);
             ${TenantRlsMigration.ddl(SCHEMA, "match_view", policyName = "match_view_tenant_isolation")}
-            ${OutboxSchema.readModelClearAccess(SCHEMA, "match_view", OutboxPostgresFixture.WORKER, listOf("consumer"))}
+            ${OutboxSchema.readModelClearFunction(SCHEMA, "match_view", OutboxPostgresFixture.APP, OutboxPostgresFixture.SYS, "consumer")}
             """.trimIndent(),
         )
 
@@ -423,7 +424,7 @@ class ConsumerRebuildIT {
         const val MULTI = "gst.platform.connection-status-changed.v1"
         const val SHARED = "gst.platform.evidence-artefact-recorded.v1"
         const val A_ONLY = "gst.a.thing-recorded.v1"
-        const val CLEAR = "delete from $SCHEMA.match_view where consumer = '$CONSUMER'"
+        val CLEAR = ReadModelTable("match_view", CONSUMER)
         val TENANT = TenantId(UUID.fromString("0a000000-0000-0000-0000-00000000000a"))
         val CATALOGUE =
             EventCatalogue(

@@ -64,9 +64,9 @@ data class ReplayResult(
 )
 
 /**
- * Triage and replay of the dead letters of a service's schema. The worker role lists and resolves them from the
- * non-content columns only; `raw` is read in the letter's tenant session under the tenant policy, and a letter
- * without a tenant is triaged from metadata alone (RLS, `OutboxSchema`).
+ * Triage and replay of the dead letters of a service's schema. The runtime login lists and resolves them through the
+ * sys-owned triage view and resolve function, from the non-content columns only; `raw` is read in the letter's tenant
+ * session under the tenant policy, and a letter without a tenant is triaged from metadata alone (RLS, `OutboxSchema`).
  */
 interface DeadLetterTriage {
     /** The dead letters in [status] matching [scope], oldest first, at most [limit]. */

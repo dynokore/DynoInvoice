@@ -28,7 +28,7 @@ data class ClaimedItem(
 /**
  * The partition-ordered, lane-prioritised queue of a service's own schema (INV-REQ-540, INV-REQ-1072).
  * Enqueue and complete join the caller's tenant transaction (ARC-21); claiming is cross-tenant through the
- * worker role (ARC 4.3 step 1a), with `FOR UPDATE SKIP LOCKED`.
+ * sys-owned `claim_due` function on the runtime login (ARC 4.3 step 1a), with `FOR UPDATE SKIP LOCKED`.
  */
 interface WorkQueue {
     /** Queues [entry] for the tenant bound in the caller's open transaction and returns its position. */

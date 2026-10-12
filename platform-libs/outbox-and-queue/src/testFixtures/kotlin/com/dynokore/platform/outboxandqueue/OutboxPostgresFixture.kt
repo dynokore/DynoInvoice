@@ -50,14 +50,14 @@ class OutboxPostgresFixture(image: String) : AutoCloseable {
     fun purgeDataSource(): DataSource = dataSourceFor(PURGE, "eventlog_purge_pw")
 
     /**
-     * Creates the outbox/inbox tables in [schema] for the runtime login [APP] and the sys role [SYS], the transitional
-     * full-sync access of [WORKER], and runs [extraDdl] (state tables the test adds).
+     * Creates the outbox/inbox tables in [schema] for the runtime login [APP] and the sys role [SYS], and runs
+     * [extraDdl] (state tables the test adds).
      */
     fun createService(
         schema: String,
         extraDdl: String = "",
     ) {
-        run(OutboxSchema.ddl(schema, APP, SYS) + "\n" + OutboxSchema.fullSyncWorkerAccess(schema, WORKER) + "\n" + extraDdl)
+        run(OutboxSchema.ddl(schema, APP, SYS) + "\n" + extraDdl)
     }
 
     /**

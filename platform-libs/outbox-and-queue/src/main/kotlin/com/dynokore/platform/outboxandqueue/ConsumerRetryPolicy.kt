@@ -14,7 +14,7 @@ import java.time.Duration
  * [infrastructureGiveUp] since the first one.
  *
  * The values are library settings, set per consumer through [ConsumerSubscription.retry]; they are not variation
- * points (ARC-12). The attempt count lives on the consumer's offset row (INV-Q-3108, `OutboxSchema.upgradeTo140`),
+ * points (ARC-12). The attempt count lives on the consumer's offset row (INV-Q-3108, `consumer_offset`),
  * so it survives a restart, a kill during the handler and is shared by replicas.
  */
 data class ConsumerRetryPolicy(

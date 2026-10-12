@@ -37,7 +37,7 @@ class StalenessGaugesIT {
                 ).rules
             val monitor =
                 JdbcStalenessMonitor(
-                    fixture.workerDataSource(),
+                    fixture.runtimeDataSource(),
                     PostgresEventLogReader(fixture.workerDataSource(), fixture.readerDataSource()),
                     CATALOGUE,
                     SCHEMA,

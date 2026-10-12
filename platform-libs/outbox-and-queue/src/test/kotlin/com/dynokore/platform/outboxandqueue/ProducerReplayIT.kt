@@ -273,8 +273,10 @@ class ProducerReplayIT {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
-    fun `a full sync clears two tenants' rows in one worker transaction and rebuilds the read model`(image: String) {
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
+    fun `a full sync clears two tenants' rows in one runtime-login transaction and rebuilds the read model`(
+        image: String,
+    ) {
         Scenario(image).use { s ->
             val a1 = UUID.randomUUID()
             val b1 = UUID.randomUUID()
@@ -315,7 +317,7 @@ class ProducerReplayIT {
     // INV-T-3999 removes this call
     @Suppress("DEPRECATION")
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-Q-3805 an 'every service' full sync deletes no docsequence rows`(image: String) {
         Scenario(image).use { s ->
             s.change(tenantA, UUID.randomUUID(), 1)
@@ -325,9 +327,9 @@ class ProducerReplayIT {
             val sequences = "select count(*) from reconciliation.consumer_sequence where consumer = '$consumer'"
             assertEquals(2L, s.harness.count(sequences))
             val request = ReplayRequest(UUID.randomUUID(), CatalogueEntry.EVERY_SERVICE, ReplayMode.FULL_SYNC, null)
-            s.workerTenants.bindPlatform {
-                s.workerTx.inTransaction {
-                    JdbcConsumerReplay("reconciliation", s.workerTx, s.harness.reader, s.workerWriter, clock)
+            s.syncTenants.bindPlatform {
+                s.syncTx.inTransaction {
+                    JdbcConsumerReplay("reconciliation", s.syncTx, s.harness.reader, s.syncWriter, clock)
                         .fullSync(consumer, listOf(live), request, null, corr(), cause())
                 }
             }
@@ -339,7 +341,7 @@ class ProducerReplayIT {
     // INV-T-3999 removes this call
     @Suppress("DEPRECATION")
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `a full sync failing before its commit leaves read model, sequences and position as they were`(image: String) {
         Scenario(image).use { s ->
             s.change(tenantA, UUID.randomUUID(), 1)
@@ -349,15 +351,15 @@ class ProducerReplayIT {
             s.purgeLive(alreadyBehind = false)
             val before = s.view(consumer)
             assertEquals(2, before.size)
-            // A worker writer without the service's request topic fails after the clear, the delete and the head move.
+            // A writer without the service's request topic fails after the clear, the delete and the head move.
             val withoutRequests = EventCatalogue(s.harness.catalogue.entries())
             val noRequestTopic =
-                JdbcOutboxWriter(s.workerTx, "reconciliation", consumer, "$consumer-w", withoutRequests, clock)
+                JdbcOutboxWriter(s.syncTx, "reconciliation", consumer, "$consumer-w", withoutRequests, clock)
             val clear = s.readModelClear()
             assertThrows(EmissionNotPermitted::class.java) {
-                s.workerTenants.bindPlatform {
-                    s.workerTx.inTransaction {
-                        JdbcConsumerReplay("reconciliation", s.workerTx, s.harness.reader, noRequestTopic, clock)
+                s.syncTenants.bindPlatform {
+                    s.syncTx.inTransaction {
+                        JdbcConsumerReplay("reconciliation", s.syncTx, s.harness.reader, noRequestTopic, clock)
                             .fullSync(
                                 consumer,
                                 listOf(live),
@@ -376,7 +378,7 @@ class ProducerReplayIT {
         }
     }
 
-    /** The app role cannot delete docsequence rows or see another tenant's; the worker reads granted columns only. */
+    /** The runtime login cannot delete docsequence rows or see another tenant's, bound or not. */
     private fun assertRolesStayInTheirTenant(s: Scenario) {
         val b = tenantB.value
         // The app role cannot delete docsequence rows at all, and bound to one tenant it sees no other tenant's.
@@ -399,15 +401,14 @@ class ProducerReplayIT {
                 }
             assertEquals(0L, seen)
         }
-        // The worker reads only its granted columns.
-        s.harness.fixture.workerDataSource().connection.use { connection ->
-            assertThrows(SQLException::class.java) {
-                connection.createStatement().executeQuery("select last_value from reconciliation.consumer_sequence")
-            }
-        }
-        s.harness.fixture.workerDataSource().connection.use { connection ->
-            assertThrows(SQLException::class.java) {
-                connection.createStatement().executeQuery("select version from reconciliation.version_view")
+        // The runtime login, bound to no tenant, sees and deletes no tenant's read-model or docsequence rows directly.
+        s.harness.fixture.runtimeDataSource().connection.use { connection ->
+            connection.createStatement().use {
+                assertEquals(0, it.executeUpdate("delete from reconciliation.version_view"))
+                it.executeQuery("select count(*) from reconciliation.consumer_sequence").use { rows ->
+                    rows.next()
+                    assertEquals(0L, rows.getLong(1))
+                }
             }
         }
     }
@@ -448,37 +449,38 @@ class ProducerReplayIT {
                 """.trimIndent(),
             )
             harness.fixture.run(
-                OutboxSchema.readModelClearAccess(
+                OutboxSchema.readModelClearFunction(
                     "reconciliation",
                     "version_view",
-                    OutboxPostgresFixture.WORKER,
-                    listOf("consumer"),
+                    OutboxPostgresFixture.APP,
+                    OutboxPostgresFixture.SYS,
+                    "consumer",
                 ),
             )
         }
 
-        /** reconciliation-svc's worker-role side: its full sync runs here, bound to the platform tenant. */
-        val workerTenants = TenantContextImpl()
-        val workerTx = TransactionRunnerImpl(harness.fixture.workerDataSource(), workerTenants)
-        val workerWriter =
-            JdbcOutboxWriter(workerTx, "reconciliation", consumer, "$consumer-w", harness.catalogue, clock)
+        /** reconciliation-svc's runtime login: its full sync runs here, bound to the platform tenant. */
+        val syncTenants = TenantContextImpl()
+        val syncTx = TransactionRunnerImpl(harness.fixture.runtimeDataSource(), syncTenants)
+        val syncWriter =
+            JdbcOutboxWriter(syncTx, "reconciliation", consumer, "$consumer-w", harness.catalogue, clock)
 
         fun readModelClear(): ReadModelClear {
-            val sql = "delete from reconciliation.version_view where consumer = '$consumer'"
-            return ReadModelClear("canonical-svc", listOf(sql))
+            val table = ReadModelTable("version_view", consumer)
+            return ReadModelClear("canonical-svc", listOf(table))
         }
 
         fun offset() = harness.nextOffsetOrNull("reconciliation", consumer, live)
 
-        /** rebuildConsumer's full sync: clear, docsequence delete, head move, request; one worker transaction. */
+        /** rebuildConsumer's full sync: clear, docsequence delete, head move, request; one runtime transaction. */
         // INV-T-3999 removes this call
         @Suppress("DEPRECATION")
         fun fullSync(): UUID {
             val request = ReplayRequest(UUID.randomUUID(), "canonical-svc", ReplayMode.FULL_SYNC, null)
             val clear = readModelClear()
-            workerTenants.bindPlatform {
-                workerTx.inTransaction {
-                    JdbcConsumerReplay("reconciliation", workerTx, harness.reader, workerWriter, clock)
+            syncTenants.bindPlatform {
+                syncTx.inTransaction {
+                    JdbcConsumerReplay("reconciliation", syncTx, harness.reader, syncWriter, clock)
                         .fullSync(consumer, listOf(live), request, clear, corr(), cause())
                 }
             }

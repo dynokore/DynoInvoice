@@ -89,7 +89,7 @@ class MultiProducerReplayIT {
         }
     }
 
-    /** evidence-svc's full sync addressed to every one of [producers], on its worker role bound to the platform. */
+    /** evidence-svc's full sync addressed to every one of [producers], on its runtime login bound to the platform. */
     // INV-T-3999 removes this call
     @Suppress("DEPRECATION")
     private fun fullSync(
@@ -97,14 +97,14 @@ class MultiProducerReplayIT {
         replayId: UUID,
         producers: List<String>,
     ) {
-        val workerTenants = TenantContextImpl()
-        val workerTx = TransactionRunnerImpl(harness.fixture.workerDataSource(), workerTenants)
+        val syncTenants = TenantContextImpl()
+        val syncTx = TransactionRunnerImpl(harness.fixture.runtimeDataSource(), syncTenants)
         val clock = Clock.systemUTC()
         val catalogue = harness.catalogue
-        val writer = JdbcOutboxWriter(workerTx, "evidence", "evidence-svc", "evidence-svc-w", catalogue, clock)
-        workerTenants.bindPlatform {
-            workerTx.inTransaction {
-                JdbcConsumerReplay("evidence", workerTx, harness.reader, writer, clock).fullSync(
+        val writer = JdbcOutboxWriter(syncTx, "evidence", "evidence-svc", "evidence-svc-w", catalogue, clock)
+        syncTenants.bindPlatform {
+            syncTx.inTransaction {
+                JdbcConsumerReplay("evidence", syncTx, harness.reader, writer, clock).fullSync(
                     "evidence-svc",
                     listOf(topic, "gst.payload.payload-ready.v1"),
                     producers.map { ReplayRequest(replayId, it, ReplayMode.FULL_SYNC, null) },

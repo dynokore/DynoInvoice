@@ -29,8 +29,7 @@ GRANT USAGE ON SCHEMA submission, reconciliation, payload, canonical TO outbox_a
 GRANT USAGE ON SCHEMA eventlog TO outbox_relay, outbox_reader;
 
 -- The former cross-tenant worker role: no BYPASSRLS. It is still the consumers' event-log claim role (until the
--- eventlog_sys task), the full sync's role while that stays transitional (OutboxSchema.fullSyncWorkerAccess), and the
--- role of service-runtime's job and idempotency tables; OutboxSchema.ddl and QueueSchema.ddl grant it nothing.
+-- eventlog_sys task) and the role of service-runtime's job and idempotency tables; OutboxSchema.ddl and QueueSchema.ddl grant it nothing.
 CREATE ROLE outbox_worker LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD 'outbox_worker_pw';
 GRANT USAGE ON SCHEMA eventlog TO outbox_worker;
 

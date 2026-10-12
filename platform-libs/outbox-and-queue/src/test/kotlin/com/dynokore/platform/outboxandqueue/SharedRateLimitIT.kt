@@ -134,33 +134,6 @@ class SharedRateLimitIT {
         }
     }
 
-    @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
-    fun `the upgrade adds the table for the worker only, without tenant data or RLS, and can run again`(image: String) {
-        OutboxHarness(image).use { harness ->
-            val upgrade = QueueSchema.upgradeTo170("payload", OutboxPostgresFixture.WORKER)
-            harness.fixture.run(upgrade)
-            harness.fixture.run(upgrade)
-            assertEquals(listOf(false, false), harness.flags("payload", QueueSchema.LANE_RATE_WINDOW))
-            assertEquals(
-                0,
-                harness.count(
-                    "select count(*) from information_schema.columns " +
-                        "where table_schema = 'payload' and table_name = 'lane_rate_window' " +
-                        "and column_name = 'tenant_id'",
-                ),
-            )
-            val limiter = LaneRateLimiter(harness.fixture.workerDataSource(), "payload", limits)
-            assertNotNull(limiter.acquire(Lane.BACKFILL))
-            assertEquals(1, limiter.used(Lane.BACKFILL))
-            assertThrows(SQLException::class.java) {
-                harness.fixture.appDataSource().connection.use { c ->
-                    c.createStatement().use { it.executeQuery("select * from payload.lane_rate_window") }
-                }
-            }
-        }
-    }
-
     private fun endWindows(harness: OutboxHarness) {
         harness.fixture.runAsAdmin(
             "update submission.lane_rate_window set window_start = window_start - interval '1 day'",

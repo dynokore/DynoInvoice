@@ -5,6 +5,7 @@ import com.dynokore.platform.tenancykernel.TenantId
 import java.sql.Connection
 import java.sql.ResultSet
 import java.sql.Timestamp
+import java.sql.Types
 import java.time.Clock
 import java.util.UUID
 
@@ -126,11 +127,11 @@ class JdbcConsumerReplay(
     }
 
     /**
-     * The full sync of [consumer] from [request]'s producer (coordinator rulings INV-Q-3603, INV-Q-3786), in the
-     * caller's one transaction on the consumer's worker-role connection bound to the platform tenant: runs [clear] (the
-     * read model built from the producer's topics, every tenant), deletes the consumer's docsequence rows for that
-     * producer (every tenant; none for 'every service', INV-Q-3805), keeps the inbox, then moves [topics] to the head and
-     * writes the request as [request] does. A crash before the commit leaves none of it.
+     * The full sync of [consumer] from [request]'s producer (coordinator rulings INV-Q-3603, INV-Q-3786, INV-Q-4064), in
+     * the caller's one transaction on the runtime login bound to the platform tenant: runs [clear] through the read-model
+     * tables' sys-owned clear functions (every tenant), deletes the consumer's docsequence rows for that producer through
+     * `full_sync_delete` (every tenant; none for 'every service', INV-Q-3805), keeps the inbox, then moves [topics] to the
+     * head and writes the request as [request] does. A crash before the commit leaves none of it.
      */
     fun fullSync(
         consumer: String,
@@ -160,20 +161,38 @@ class JdbcConsumerReplay(
         val producers = requests.map { it.producer }.toSet()
         require(clears.all { it.producer in producers }) { "the clear of a producer not addressed" }
         val connection = connections.require()
-        clears.flatMap { it.statements }.forEach { sql -> connection.createStatement().use { it.executeUpdate(sql) } }
+        clears.flatMap { it.tables }.forEach { clearTable(connection, it) }
         // Each addressee's docsequence rows are deleted, as INV-Q-3603 does per pair (coordinator ruling INV-Q-3843), so
         // its replayed states are applied, not STALE. An 'every service' full sync deletes none (INV-Q-3805): the events
         // on those topics write none, and deleting by source would strip other producers' guards.
         producers.filter { it != CatalogueEntry.EVERY_SERVICE }.forEach { producer ->
-            connection.prepareStatement(
-                "delete from $s.${OutboxSchema.CONSUMER_SEQUENCE} where consumer = ? and source = ?",
-            ).use {
+            connection.prepareStatement("select $s.${OutboxSchema.FULL_SYNC_DELETE}(?, ?)").use {
                 it.setString(1, consumer)
                 it.setString(2, "/gst/$producer")
-                it.executeUpdate()
+                it.executeQuery().close()
             }
         }
         return request(consumer, topics, requests, correlation, causation)
+    }
+
+    /**
+     * Calls [table]'s sys-owned clear function (`OutboxSchema.readModelClearFunction`) with its filter value as a bound
+     * parameter of unspecified type, so the server takes the type of the function's filter column.
+     */
+    private fun clearTable(
+        connection: Connection,
+        table: ReadModelTable,
+    ) {
+        val function = "$s.${OutboxSchema.readModelClearFunctionName(table.table)}"
+        val filter = table.filterValue
+        if (filter == null) {
+            connection.prepareStatement("select $function()").use { it.executeQuery().close() }
+        } else {
+            connection.prepareStatement("select $function(?)").use {
+                it.setObject(1, filter, Types.OTHER)
+                it.executeQuery().close()
+            }
+        }
     }
 
     private fun requireOneReplay(requests: List<ReplayRequest>) {

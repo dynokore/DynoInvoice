@@ -44,32 +44,6 @@ class RetentionPurgeIT {
         batchSize: Int = 1000,
     ) = JdbcRetentionPurge(harness.fixture.runtimeDataSource(), "payload", retention, clock, batchSize)
 
-    /**
-     * The pre-2.0 worker purge (the statements 1.10.0's JdbcRetentionPurge ran), for the legacy upgrade tests: they
-     * prove what an `upgradeTo…` grants the former worker role, which the 2.0 purge no longer uses.
-     */
-    private fun legacyWorkerPurge(
-        fixture: OutboxPostgresFixture,
-        schema: String,
-    ): PurgeResult = fixture.workerDataSource().connection.use { c ->
-        fun delete(sql: String, cutoff: Duration): Long = c.prepareStatement(sql).use {
-            it.setTimestamp(1, java.sql.Timestamp.from(now - cutoff))
-            it.executeUpdate().toLong()
-        }
-        PurgeResult(
-            delete(
-                "delete from $schema.outbox where published_at is not null and published_at < ?",
-                Retention().contentWindow,
-            ),
-            delete("delete from $schema.inbox where received_at < ?", Retention().inboxRetention),
-            delete(
-                "delete from $schema.event_dead_letter " +
-                    "where status <> 'OPEN' and resolved_at is not null and resolved_at < ?",
-                Retention().contentWindow,
-            ),
-        )
-    }
-
     /** A pool that hands out connections with autocommit off, as Hikari can be configured to. */
     private fun manualCommit(source: DataSource): DataSource = object : DataSource by source {
         override fun getConnection(): Connection = source.connection.also { it.autoCommit = false }
@@ -221,28 +195,6 @@ class RetentionPurgeIT {
         }
     }
 
-    @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
-    fun `upgradeTo130 takes a real 1_2_0 schema from no purge access to purge access, twice over`(image: String) {
-        OutboxPostgresFixture(image).use { fixture ->
-            fixture.runAsAdmin("create schema legacy authorization outbox_owner")
-            fixture.run(OutboxSchema120.ddl("legacy", OutboxPostgresFixture.APP, OutboxPostgresFixture.WORKER))
-            fixture.runAsAdmin(
-                "insert into legacy.inbox (consumer, event_id, tenant_id, received_at) values " +
-                    "('c', 'old', '$tenantA', timestamptz '$now' - interval '40 days')",
-            )
-            assertThrows(SQLException::class.java) { legacyWorkerPurge(fixture, "legacy") }
-
-            val upgrade = OutboxSchema.upgradeTo130("legacy", OutboxPostgresFixture.WORKER)
-            fixture.run(upgrade)
-            fixture.run(upgrade)
-            // The 1.5.0 purge also deletes triaged dead letters, so it needs the 1.5.0 access as well.
-            fixture.run(OutboxSchema.upgradeTo140("legacy"))
-            fixture.run(OutboxSchema.upgradeTo150("legacy", OutboxPostgresFixture.APP, OutboxPostgresFixture.WORKER))
-            assertEquals(PurgeResult(0, 1), legacyWorkerPurge(fixture, "legacy"))
-        }
-    }
-
     private fun deadLetter(
         harness: OutboxHarness,
         tenant: UUID?,
@@ -298,31 +250,6 @@ class RetentionPurgeIT {
                 }
             }
             assertEquals(1L, harness.count("select count(*) from payload.event_dead_letter"))
-        }
-    }
-
-    @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
-    fun `upgradeTo150 takes a 1_3_0 schema to no worker raw and a tenant read, twice over`(image: String) {
-        OutboxPostgresFixture(image).use { fixture ->
-            fixture.runAsAdmin("create schema legacy authorization outbox_owner")
-            fixture.run(OutboxSchema120.ddl("legacy", OutboxPostgresFixture.APP, OutboxPostgresFixture.WORKER))
-            fixture.run(OutboxSchema.upgradeTo130("legacy", OutboxPostgresFixture.WORKER))
-            fixture.runAsAdmin(
-                "insert into legacy.event_dead_letter " +
-                    "(consumer, topic, log_offset, tenant_id, reason, raw, status, resolved_at) " +
-                    "values ('c', 't', 1, '$tenantA', 'r', '{}', 'DISCARDED', timestamptz '$now' - interval '40 days')",
-            )
-            fun workerReadsRaw() = fixture.workerDataSource().connection.use { c ->
-                c.createStatement().use { it.executeQuery("select raw from legacy.event_dead_letter").close() }
-            }
-            workerReadsRaw() // 1.3.0: the worker can read raw
-            assertThrows(SQLException::class.java) { legacyWorkerPurge(fixture, "legacy") }
-            val upgrade = OutboxSchema.upgradeTo150("legacy", OutboxPostgresFixture.APP, OutboxPostgresFixture.WORKER)
-            fixture.run(upgrade)
-            fixture.run(upgrade)
-            assertThrows(SQLException::class.java) { workerReadsRaw() }
-            assertEquals(PurgeResult(0, 0, 1), legacyWorkerPurge(fixture, "legacy"))
         }
     }
 }

@@ -270,22 +270,6 @@ class ConsumerRetryIT {
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
-    fun `upgradeTo140 adds the attempt columns to a 1_3_0 offset table and is repeatable`(image: String) {
-        OutboxHarness(image).use { harness ->
-            harness.fixture.runAsAdmin(
-                "alter table reconciliation.consumer_offset drop column attempts, drop column infra_failures, " +
-                    "drop column first_infra_failure_at, drop column retry_not_before",
-            )
-            harness.fixture.runAsAdmin(OutboxSchema.upgradeTo140("reconciliation"))
-            harness.fixture.runAsAdmin(OutboxSchema.upgradeTo140("reconciliation"))
-            acknowledge(harness, UUID.randomUUID())
-            val (consumer, _) = consumerOf(harness, MutableClock()) { null }
-            assertEquals(1, consumer.pollOnce().applied)
-        }
-    }
-
-    @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
     fun `a StackOverflowError is a record failure that backs off and is dead-lettered at the bound`(image: String) {
         OutboxHarness(image).use { harness ->
             acknowledge(harness, UUID.randomUUID())
