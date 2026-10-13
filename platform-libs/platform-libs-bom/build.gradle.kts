@@ -42,7 +42,7 @@ javaPlatform {
 // module's own build file has been evaluated. Evaluate each constrained module first.
 listOf(
     "service-runtime", "outbox-and-queue", "rulepack-kernel", "tenancy-kernel",
-    "evidence-store", "adapter-runtime", "config-resolver", "audit-log", "crypto", "product-runtime",
+    "evidence-store", "adapter-runtime", "config-resolver", "audit-log", "crypto", "tenancy-jooq", "product-runtime",
 ).forEach { evaluationDependsOn(":$it") }
 
 dependencies {
@@ -70,6 +70,9 @@ dependencies {
         // crypto (CS-53; INV-Q-3356 M-A): not yet in STK-60's L1 list, so after audit-log for now.
         api("com.dynokore.platform:crypto-api:${project(":crypto").version}") // INV-T-3358 / FU-E2
         api("com.dynokore.platform:crypto:${project(":crypto").version}") // INV-T-3358 / FU-E2
+        // tenancy-jooq (INV-T-4133): not yet in STK-60's L1 list, so after crypto for now.
+        api("com.dynokore.platform:tenancy-jooq-api:${project(":tenancy-jooq").version}") // INV-T-4133
+        api("com.dynokore.platform:tenancy-jooq:${project(":tenancy-jooq").version}") // INV-T-4133
         api("com.dynokore.platform:product-runtime-api:${project(":product-runtime").version}") // INV-T-2876 / T32
         api("com.dynokore.platform:product-runtime:${project(":product-runtime").version}") // INV-T-2876 / T32
 

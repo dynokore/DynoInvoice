@@ -36,8 +36,6 @@ import tools.jackson.module.kotlin.KotlinModule
 import java.io.File
 import java.time.LocalDate
 import java.time.OffsetDateTime
-import kotlin.reflect.full.memberProperties
-import kotlin.reflect.full.primaryConstructor
 
 /**
  * Contract tests against the generated event types (INV-T-2876 done-when; INV-Q-3852): each payload built from its
@@ -49,29 +47,10 @@ class ContractTest {
     private val mapper = JsonMapper.builder().addModule(KotlinModule.Builder().build()).build()
 
     /**
-     * The JSON of a generated payload, property by property. A type of a schema with `additionalProperties: true`
-     * extends `HashMap`, which Jackson writes as a map, so as `{}`; product-runtime only reads these types.
+     * The JSON of a generated payload as Jackson's own introspection writes it: the generated `@get:JsonProperty`
+     * names and the generated `NON_NULL` inclusion, with no reflection in this test (INV-T-4188).
      */
-    private fun tree(value: Any?): JsonNode = when {
-        value == null -> mapper.nullNode()
-
-        value::class.isData -> {
-            val node = mapper.createObjectNode()
-            val properties = value::class.memberProperties.associateBy { it.name }
-            requireNotNull(value::class.primaryConstructor).parameters.forEach { parameter ->
-                // Each generated property is named as its schema property (@param:JsonProperty).
-                val name = requireNotNull(parameter.name)
-                properties.getValue(name).getter.call(value)?.let { node.set(name, tree(it)) }
-            }
-            node
-        }
-
-        value is Collection<*> -> mapper.createArrayNode().apply { value.forEach { add(tree(it)) } }
-
-        value is Map<*, *> -> mapper.createObjectNode().apply { value.forEach { (k, v) -> set(k.toString(), tree(v)) } }
-
-        else -> mapper.valueToTree(value)
-    }
+    private fun tree(value: Any?): JsonNode = mapper.valueToTree(value)
 
     private fun schema(
         svc: String,

@@ -9,6 +9,7 @@ The shared modules of the INV platform: the L1 modules, the L2 modules and the L
 | [`service-runtime`](service-runtime/) | L1 | Wave 1: Contracts, harness and platform (SDS §25.1) |
 | [`outbox-and-queue`](outbox-and-queue/) | L1 | Wave 1: Contracts, harness and platform (SDS §25.1) |
 | [`tenancy-kernel`](tenancy-kernel/) | L1 | Wave 1: Contracts, harness and platform (SDS §25.1) |
+| [`tenancy-jooq`](tenancy-jooq/) | L1 | Wave 1: Contracts, harness and platform (SDS §25.1) |
 | [`config-resolver`](config-resolver/) | L1 | Wave 1: Contracts, harness and platform (SDS §25.1) |
 | [`audit-log`](audit-log/) | L1 | Wave 1: Contracts, harness and platform (SDS §25.1) |
 | [`rulepack-kernel`](rulepack-kernel/) | L1 | Wave 1: Contracts, harness and platform (SDS §25.1) |

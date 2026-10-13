@@ -12,13 +12,18 @@
 # together as one train (konsist-rules/build.gradle.kts); pinned to match the
 # sibling checkout's current version until STK-71's registry takes cross-project
 # publish/consume (settings.gradle.kts, ci/README.md's "package registry" note).
-platformBuild = "0.9.0"
+platformBuild = "0.10.0"
 junit = "6.1.3"
 # tenancy-kernel (INV-T-2861 / T17): RLS proved against real PostgreSQL
 # (STK-14, STK-15) via Testcontainers, never H2 (banned-dependencies.yaml).
-postgresql = "42.7.4"
+postgresql = "42.7.14"
 testcontainers = "1.21.4"
 slf4jSimple = "2.0.16"
+# tenancy-jooq (INV-T-4133): jOOQ OSS, the 3.21 line platform-build pins (STK-15).
+jooq = "3.21.9"
+# tenancy-jooq's test fixtures and rulepack-kernel's migration test (INV-T-4188): Flyway, the release Spring Boot's
+# BOM manages (service-runtime's lock).
+flyway = "12.4.0"
 # STK-25 (service-runtime, INV-T-2874 / T30): ShedLock 6.x on PostgreSQL
 shedlock = "6.10.0"
 # STK-24 (adapter-runtime, INV-T-2862 / T18): Resilience4j core, 2.4.x
@@ -127,6 +132,14 @@ shedlock-core = { module = "net.javacrumbs.shedlock:shedlock-core", version.ref 
 shedlock-providerJdbcTemplate = { module = "net.javacrumbs.shedlock:shedlock-provider-jdbc-template", version.ref = "shedlock" }
 spring-jdbc = { module = "org.springframework:spring-jdbc" }
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4jSimple" }
+# tenancy-jooq (INV-T-4133): the jOOQ DSL and listeners; Flyway for the fixture migrations (test fixtures, tests);
+# Spring Boot's auto-configuration annotations for TenancyProbe's test auto-configuration (compile only, versions from
+# the Spring Boot BOM).
+jooq = { module = "org.jooq:jooq", version.ref = "jooq" }
+flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
+flyway-databasePostgresql = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway" }
+springBoot-autoconfigure = { module = "org.springframework.boot:spring-boot-autoconfigure" }
+spring-context = { module = "org.springframework:spring-context" }
 # STK-35 logging facade for L1 impl halves (INV-T-3384); same SLF4J release as slf4j-simple.
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4jSimple" }
 resilience4j-bom = { module = "io.github.resilience4j:resilience4j-bom", version.ref = "resilience4j" }
