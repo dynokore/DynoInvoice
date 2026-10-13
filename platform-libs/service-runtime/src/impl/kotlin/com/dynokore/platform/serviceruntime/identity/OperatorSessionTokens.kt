@@ -26,11 +26,7 @@ import java.util.Base64
  *  - the signature verifies with that key;
  *  - it carries `iat` and `exp`, `exp` at most [MAX_LIFETIME] after `iat` (API-23), and is not expired or
  *    issued in the future (both beyond [CLOCK_SKEW], the same tolerance as the identity provider's tokens);
- *  - its `act` is an object with a `role` and a `case` as openOperatorSession's `caseId` allows (coordinator ruling
- *    INV-Q-4529): 1 to 64 code points, no ':' and no ISO control character (U+0000-U+001F, U+007F-U+009F), and
- *    at least one outside the caseId whitespace set (coordinator ruling INV-Q-4534); the rule is
- *    [OperatorSession.isValidCase], and a token whose case breaks it is refused (null, 401). A ':' would make `case <case>` and `case <case>: <own reason>` ambiguous, and a
- *    control character would forge structure in an audit reason. The `role` may not hold a control character either.
+ *  - its `act` is an object with a non-blank `role` and `case`.
  * The caller checks `sub` and `tenant_id`. Anything else is refused (null, 401).
  */
 internal class OperatorSessionTokens(
@@ -100,8 +96,8 @@ internal class OperatorSessionTokens(
             } catch (notAnObject: ParseException) {
                 null
             }
-        val role = (act?.get(ROLE) as? String)?.takeIf(OperatorSession::isValidRole)
-        val case = (act?.get(CASE) as? String)?.takeIf(OperatorSession::isValidCase)
+        val role = (act?.get(ROLE) as? String)?.takeIf { it.isNotBlank() }
+        val case = (act?.get(CASE) as? String)?.takeIf { it.isNotBlank() }
         return if (role != null && case != null) OperatorSession(role, case) else null
     }
 

@@ -26,19 +26,11 @@ import java.time.Clock
  * audit-log's ports (INV-T-2875, INV-Q-3710), when the service embeds its impl half. The [AuditWriter] is
  * [OutboxAuditWriter] in a service with an outbox, else [LocalAuditWriter] in the service's schema (a service
  * without an outbox, `control-plane-svc`, INV-Q-2958). [JdbcOverrideService] needs the service's [ErrorCatalogue]
- * (an [OverridePolicy] bean is used when declared). Every [AuditWriter] bean, a service's own included, is decorated
- * by [OperatorSessionAuditWriter], so an entry recorded under an operator session carries its case (INV-Q-4521).
+ * (an [OverridePolicy] bean is used when declared).
  */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnClass(name = ["com.dynokore.platform.auditlog.OutboxAuditWriter"])
 class AuditLogWiring {
-    companion object {
-        /** Static, so it is registered before any [AuditWriter] bean is created. */
-        @JvmStatic
-        @Bean
-        fun operatorSessionAuditWriterPostProcessor(): OperatorSessionAuditWriterPostProcessor = OperatorSessionAuditWriterPostProcessor()
-    }
-
     @Bean
     @ConditionalOnBean(OutboxWriter::class)
     @ConditionalOnMissingBean(AuditWriter::class)
