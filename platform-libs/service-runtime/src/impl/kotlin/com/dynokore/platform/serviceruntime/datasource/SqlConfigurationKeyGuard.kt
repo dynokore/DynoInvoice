@@ -24,7 +24,9 @@ import java.nio.charset.StandardCharsets
  * configuration is loaded. It reads every property source through [ConfigurationPropertySources] (properties, YAML,
  * environment variables, command-line arguments, Helm values, installation-profile values), compares names in their
  * relaxed (uniform) form, and fails start-up naming every offending key and the ruling. It is deny-by-default (lessons
- * P140): under `spring.datasource` and `spring.flyway` only the allowlisted keys pass. Values are never printed.
+ * P140): under `spring.datasource` and `spring.flyway` only the allowlisted keys pass. Values are never printed. The
+ * password properties are refused with or without a credential property, as is a URL `password` parameter (STK-29,
+ * coordinator ruling INV-Q-4548).
  *
  * A key is added to an allowlist only through a Keel ruling.
  */
@@ -125,11 +127,15 @@ class SqlConfigurationKeyGuard :
 
         private fun urlRefusal(url: String?): String? {
             val query = url?.substringAfter('?', "") ?: return null
-            val options =
-                query.split('&').any { parameter ->
-                    URLDecoder.decode(parameter.substringBefore('='), StandardCharsets.UTF_8).trim().equals("options", ignoreCase = true)
-                }
-            return if (options) "the pgjdbc options parameter sets server settings" else null
+            val parameters = query.split('&').map { URLDecoder.decode(it.substringBefore('='), StandardCharsets.UTF_8).trim() }
+            return when {
+                parameters.any { it.equals("options", ignoreCase = true) } -> "the pgjdbc options parameter sets server settings"
+
+                // STK-29: credentials never in configuration (coordinator ruling INV-Q-4548)
+                parameters.any { it.equals("password", ignoreCase = true) } -> "a password in the URL (STK-29, INV-Q-4548)"
+
+                else -> null
+            }
         }
 
         private fun only(

@@ -2,6 +2,7 @@ package com.dynokore.platform.serviceruntime.datasource
 
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
 import org.junit.jupiter.api.Test
@@ -44,6 +45,9 @@ class SqlConfigurationKeyGuardTest {
             "spring.datasource.url|jdbc:postgresql://db:5432/app?options=-c%20search_path%3Dx",
             "spring.flyway.url|jdbc:postgresql://db:5432/app?sslmode=require&OPTIONS=-c%20x%3Dy",
             "gst.db.event-log-url|jdbc:postgresql://log:5432/app?Options=-c%20x%3Dy",
+            "spring.datasource.url|jdbc:postgresql://db:5432/app?password=x",
+            "spring.flyway.url|jdbc:postgresql://db:5432/app?user=a&PASSWORD=pw-in-url",
+            "gst.db.event-log-url|jdbc:postgresql://log:5432/app?Password=pw-in-url",
             "spring.datasource.password|secret-value",
             "spring.datasource.hikari.password|secret-value",
             "spring.flyway.password|secret-value",
@@ -106,6 +110,25 @@ class SqlConfigurationKeyGuardTest {
         val failure = shouldThrow<IllegalStateException> { guard(environmentVariables(variable to "false")) }
         failure.message.orEmpty() shouldContain "INV-Q-4542"
         flat(failure.message.orEmpty()) shouldContain flat(variable)
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = ["spring.datasource.password", "spring.datasource.hikari.password", "spring.flyway.password"])
+    fun `a password property is refused with no service-runtime credential property set (STK-29, INV-Q-4548)`(key: String) {
+        val environment = properties(key to "pw-value")
+        environment.getProperty("service-runtime.datasource.credential") shouldBe null
+        environment.getProperty("service-runtime.flyway.credential") shouldBe null
+        val failure = shouldThrow<IllegalStateException> { guard(environment) }
+        failure.message.orEmpty() shouldContain key
+        failure.message.orEmpty() shouldNotContain "pw-value"
+    }
+
+    @Test
+    fun `a password in a JDBC URL is refused, and the URL is not printed (STK-29, INV-Q-4548)`() {
+        val failure = shouldThrow<IllegalStateException> { guard(properties("spring.datasource.url" to "jdbc:postgresql://db/app?password=x")) }
+        failure.message.orEmpty() shouldContain "spring.datasource.url"
+        failure.message.orEmpty() shouldContain "INV-Q-4548"
+        failure.message.orEmpty() shouldNotContain "password=x"
     }
 
     @Test

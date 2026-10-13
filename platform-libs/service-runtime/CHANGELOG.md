@@ -5,8 +5,6 @@ All notable changes to `service-runtime` are recorded here (FR-L.6). Format foll
 train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
-
-## [5.0.0] - 2026-10-13
 ### Changed (breaking)
 - Spring configuration keys that run SQL or set session state fail start-up (INV-T-4544; coordinator ruling
   INV-Q-4542; INV-ADR-3968 item 4c, INV-REQ-1230, INV-REQ-854 b8). `SqlConfigurationKeyGuard`, an
@@ -28,8 +26,10 @@ train is its own (README.md: "own version and changelog").
   `validate-on-migrate`, `out-of-order`, `clean-disabled` (`true` only), `connect-retries`, `connect-retries-interval`,
   `lock-retry-count`, `fail-on-missing-locations`, `postgresql.transactional-lock`, `placeholder-replacement`,
   `placeholders.*` (plain identifiers only, `SqlIdentifier`) (so `init-sqls`, `callback-locations`,
-  `sql-migration-prefix` and `password`); and the pgjdbc `options` URL parameter in `spring.datasource.url`,
-  `spring.flyway.url` or `gst.db.event-log-url`.
+  `sql-migration-prefix` and `password`); and the pgjdbc `options` or `password` URL parameter in `spring.datasource.url`,
+  `spring.flyway.url` or `gst.db.event-log-url`. `spring.datasource.password`, `spring.datasource.hikari.password` and
+  `spring.flyway.password` are now refused with or without `service-runtime.datasource.credential` or
+  `service-runtime.flyway.credential` (formerly only beside it; STK-29, coordinator ruling INV-Q-4548).
 - The HA event-log pool no longer copies the application pool's `connectionInitSql`: it sets no connection-init SQL
   and no schema (INV-Q-4542, INV-REQ-1230, INV-T-3982).
 - One application DataSource per service (INV-T-3981; owner ruling INV-Q-3955, INV-REQ-1230): the role DataSources

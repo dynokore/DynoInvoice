@@ -101,8 +101,9 @@ connection, and it reads the mounted file each time, with no cache.
 | Flyway's owner role (STK-16) | `service-runtime.flyway.credential: <SecretRef>` | `spring.flyway.user` |
 | The HA event-log pool (`eventLogDataSource`) | the application pool's credentials provider, reused | `spring.datasource.username` |
 
-With the property set, start-up fails if `spring.datasource.password` (or `spring.datasource.hikari.password`), or
-`spring.flyway.password`, is set as well. Without it nothing changes.
+Start-up fails if `spring.datasource.password`, `spring.datasource.hikari.password` or `spring.flyway.password` is set,
+with or without the credential property, and if a JDBC URL carries a `password` parameter (`SqlConfigurationKeyGuard`,
+coordinator rulings INV-Q-4542, INV-Q-4548).
 
 **Rotating a database role's password:** change the role's password (`ALTER ROLE ... PASSWORD`) and the mounted secret.
 Connections already open keep working until the pool retires them (`maxLifetime`). Each new connection logs in with
@@ -122,7 +123,7 @@ fails start-up, naming each offending key and the ruling (never a value), on:
    `com.zaxxer.hikari.HikariDataSource`, and the Hikari pool sizes, timeouts, `pool-name` and `register-mbeans`);
 4. any `spring.flyway` key outside its allowlist; `locations` only `classpath:`, `clean-disabled` only `true`, and
    `placeholders.*` values only plain identifiers (`SqlIdentifier`);
-5. the pgjdbc `options` parameter in `spring.datasource.url`, `spring.flyway.url` or `gst.db.event-log-url`.
+5. the pgjdbc `options` or `password` parameter in `spring.datasource.url`, `spring.flyway.url` or `gst.db.event-log-url`.
 
 The allowlists live only in `SqlConfigurationKeyGuard`; a key is added only through a Keel ruling.
 `sql-configuration-keys.txt` (implTest) pins the classification of every `spring.datasource` and `spring.flyway` key in
