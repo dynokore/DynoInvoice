@@ -357,12 +357,8 @@ object EventLogSchema {
         sysRole: String,
     ): List<String> {
         val sys = SqlIdentifier.require(sysRole, "sys role")
-        val subscriberLogins =
-            topics
-                .flatMap { it.subscribers }
-                .distinct()
-                .sorted()
-                .map { SqlIdentifier.require(it, "subscriber login") }
+        val subscriberNames = topics.flatMap { it.subscribers }.distinct().sorted()
+        val subscriberLogins = subscriberNames.map { SqlIdentifier.require(it, "subscriber login") }
         val head =
             """
             drop function if exists $SCHEMA.$CLAIM(text, bigint, integer);
@@ -583,12 +579,8 @@ object EventLogSchema {
         sysRole: String,
     ): List<String> {
         val sys = SqlIdentifier.require(sysRole, "sys role")
-        val producerLogins =
-            topics
-                .flatMap { it.producers }
-                .distinct()
-                .sorted()
-                .map { SqlIdentifier.require(it, "producer login") }
+        val producerNames = topics.flatMap { it.producers }.distinct().sorted()
+        val producerLogins = producerNames.map { SqlIdentifier.require(it, "producer login") }
         val head =
             """
             drop function if exists $SCHEMA.$EVENTS_MISSING(text, text[]);
