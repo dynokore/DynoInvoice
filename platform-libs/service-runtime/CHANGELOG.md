@@ -24,13 +24,15 @@ train is its own (README.md: "own version and changelog").
   so a service clock skewed against the database neither fails the purge nor deletes a key early.
 - `UnrelayedEventCheck` (INV-T-4337) reads the outbox on the application DataSource.
 - The application pool is split into lanes (INV-T-3982; INV-REQ-1230 b1, INV-REQ-1072 b5, INV-ADR-3968 item 1, owner
-  ruling INV-Q-4023): the `dataSource` bean is a `LanedDataSource` over Spring Boot's HikariDataSource (unwrap to reach
-  the pool). Request, background and reprocessing permits per `service-runtime.pool.profile` (`minimal`, `ha`, `saas`)
-  with per-lane overrides `service-runtime.pool.lanes.*`; the pool maximum is their sum. Start-up fails when neither
-  the profile nor the lanes are set, or when `spring.datasource.hikari.maximum-pool-size` differs from the sum. A
-  thread is in the request lane unless it runs in `PoolLanes.inLane(...)`; job firings and service-runtime's own
-  schedules run in the background lane. Each lane's connections carry `application_name` `<gst.service>:<lane>`; the
-  HA event-log pool's carry the background one.
+  ruling INV-Q-4023, coordinator rulings INV-Q-4485, INV-Q-4487): the `dataSource` bean is a `LanedDataSource` over
+  Spring Boot's HikariDataSource (unwrap to reach the pool). Request, background and reprocessing permits per
+  `service-runtime.pool.profile` (`minimal`, `ha`, `saas`) and `service-runtime.pool.runs-reprocessing` (default
+  false), with per-lane overrides `service-runtime.pool.lanes.*`; the pool maximum is their sum. Start-up fails when
+  neither the profile nor the lanes are set, when `spring.datasource.hikari.maximum-pool-size` differs from the sum,
+  and when the reprocessing declaration and budget disagree. A thread is in the request lane unless it runs in
+  `PoolLanes.inLane(...)`; job firings and service-runtime's own schedules run in the background lane. The pool's
+  `application_name` is `<gst.service>`; each transaction names its lane, `<gst.service>:<lane>`, transaction-locally
+  through tenancy-kernel 1.4.0's `ConnectionLabel`.
 - `FullSyncWiring` takes only the read-model clears; a full sync runs on the application DataSource (INV-Q-4064).
 ### Added
 - `MigrationRunner`, the migration entry point (INV-Q-3959): runs Flyway as `<svc>_migrate` and writes

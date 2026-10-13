@@ -82,7 +82,7 @@ class Tpl16ServiceCompositionTest {
                 // one pool: a second application pool bean, or any role DataSource, fails here (INV-Q-3955)
                 context.getBeanNamesForType(DataSource::class.java).toList() shouldBe listOf("dataSource")
                 // the pool under its lanes (INV-REQ-1230 b1): one HikariCP pool, no second one
-                context.getBean(DataSource::class.java).shouldBeInstanceOf<LanedDataSource>().unwrap(HikariDataSource::class.java).maximumPoolSize shouldBe 7
+                context.getBean(DataSource::class.java).shouldBeInstanceOf<LanedDataSource>().unwrap(HikariDataSource::class.java).maximumPoolSize shouldBe 6
                 context.getBean(TenantScope::class.java).workloadPrincipal shouldBe "svc:submission-svc"
             }
         }

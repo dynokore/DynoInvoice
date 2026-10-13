@@ -1,5 +1,8 @@
 package com.dynokore.platform.serviceruntime.composition
 
+import com.dynokore.platform.serviceruntime.pool.LaneConnection
+import com.dynokore.platform.serviceruntime.pool.LanedDataSource
+import com.dynokore.platform.tenancykernel.ConnectionLabel
 import com.dynokore.platform.tenancykernel.LicenceCheck
 import com.dynokore.platform.tenancykernel.NonBlockingLicenceCheck
 import com.dynokore.platform.tenancykernel.TenantAwareDataSource
@@ -13,6 +16,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.core.env.Environment
 import javax.sql.DataSource
 
 /**
@@ -35,9 +39,28 @@ class TenancyKernelWiring {
     fun transactionRunner(
         dataSource: DataSource,
         tenants: TenantContext,
-    ): TransactionRunnerImpl = TransactionRunnerImpl(TenantAwareDataSource(dataSource), tenants)
+        environment: Environment,
+    ): TransactionRunnerImpl = TransactionRunnerImpl(
+        TenantAwareDataSource(dataSource),
+        tenants,
+        // each transaction names its pool lane, transaction-locally (INV-T-3982, coordinator ruling INV-Q-4487)
+        environment.getProperty("gst.service")?.takeIf { it.isNotBlank() }?.let { laneLabel(it) },
+    )
 
     companion object {
+        /**
+         * The transaction runner's label (coordinator ruling INV-Q-4487): `<service>:<lane>` for a connection taken from
+         * the laned application pool ([LanedDataSource]), set transaction-locally in tenancy-kernel's binding statement;
+         * `null` (statement unchanged) for any other connection.
+         */
+        fun laneLabel(service: String): ConnectionLabel = ConnectionLabel { connection ->
+            if (connection.isWrapperFor(LaneConnection::class.java)) {
+                "$service:${connection.unwrap(LaneConnection::class.java).lane.name.lowercase()}"
+            } else {
+                null
+            }
+        }
+
         /** Wraps the service's base [LicenceCheck] (never one already wrapped) in [NonBlockingLicenceCheck]. */
         @Bean
         @JvmStatic

@@ -2,6 +2,7 @@ package com.dynokore.platform.serviceruntime.pool
 
 import com.dynokore.platform.serviceruntime.composition.ServiceDataSources
 import com.dynokore.platform.serviceruntime.datasource.Tpl18JdbcApplication
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.micrometer.core.instrument.MeterRegistry
@@ -16,37 +17,48 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner
  * INV-T-3977 capacity model publishes them, and their configuration.
  */
 class LaneBudgetsTest {
-    @ParameterizedTest(name = "{0} {1}: {2} / {3} / {4}")
+    @ParameterizedTest(name = "{0} runs-reprocessing={1}: {2} / {3} / {4}")
     @CsvSource(
-        "MINIMAL, ingestion-svc, 4, 2, 1", "MINIMAL, canonical-svc, 4, 2, 1", "MINIMAL, rules-svc, 4, 2, 1",
-        "MINIMAL, masterdata-svc, 4, 2, 1", "MINIMAL, payload-svc, 4, 2, 1", "MINIMAL, submission-svc, 4, 2, 1",
-        "MINIMAL, transport-svc, 4, 2, 1", "MINIMAL, access-svc, 4, 2, 0", "MINIMAL, evidence-svc, 4, 2, 0",
-        "HA, submission-svc, 7, 3, 1", "HA, tenancy-svc, 7, 3, 0", "SAAS, rules-svc, 7, 3, 1", "SAAS, control-plane-svc, 7, 3, 0",
+        "MINIMAL, true, 4, 2, 1",
+        "MINIMAL, false, 4, 2, 0",
+        "HA, true, 7, 3, 1",
+        "HA, false, 7, 3, 0",
+        "SAAS, true, 7, 3, 1",
+        "SAAS, false, 7, 3, 0",
     )
     fun `the defaults match the capacity model`(
         profile: InstallationProfile,
-        service: String,
+        runsReprocessing: Boolean,
         request: Int,
         background: Int,
         reprocessing: Int,
     ) {
-        val budgets = LaneBudgets.defaults(profile, service)
+        val budgets = LaneBudgets.defaults(profile, runsReprocessing)
         budgets shouldBe LaneBudgets(request, background, reprocessing)
         budgets.maximum shouldBe request + background + reprocessing
+        PoolLaneProperties(profile, runsReprocessing).budgets() shouldBe budgets
     }
 
     @Test
-    fun `the reprocessing permit is held by the seven submission-path services only, and the event-log pool is 0 3 0`() {
-        LaneBudgets.REPROCESSING_SERVICES shouldBe
-            setOf("ingestion-svc", "canonical-svc", "rules-svc", "masterdata-svc", "payload-svc", "submission-svc", "transport-svc")
+    fun `the event-log pool is 0 3 0`() {
         LaneBudgets.EVENT_LOG shouldBe LaneBudgets(0, 3, 0)
         LaneBudgets.EVENT_LOG.maximum shouldBe ServiceDataSources.EVENT_LOG_MAXIMUM
     }
 
     @Test
+    fun `a declaring service without reprocessing permits, and a non-declaring one with them, are refused`() {
+        shouldThrow<IllegalStateException> {
+            PoolLaneProperties(InstallationProfile.MINIMAL, true, LaneOverrides(reprocessing = 0)).budgets()
+        }.message shouldContain "runs-reprocessing is true, but the reprocessing budget is 0"
+        shouldThrow<IllegalStateException> {
+            PoolLaneProperties(InstallationProfile.HA, false, LaneOverrides(reprocessing = 1)).budgets()
+        }.message shouldContain "the reprocessing budget is 1, but service-runtime.pool.runs-reprocessing is false"
+    }
+
+    @Test
     fun `a lane override replaces the profile default, and the pool maximum is the sum`() {
-        PoolLaneProperties(InstallationProfile.HA, LaneOverrides(background = 5)).budgets("access-svc") shouldBe LaneBudgets(7, 5, 0)
-        PoolLaneProperties(null, LaneOverrides(2, 1, 0)).budgets(null) shouldBe LaneBudgets(2, 1, 0)
+        PoolLaneProperties(InstallationProfile.HA, lanes = LaneOverrides(background = 5)).budgets() shouldBe LaneBudgets(7, 5, 0)
+        PoolLaneProperties(null, lanes = LaneOverrides(2, 1, 0)).budgets() shouldBe LaneBudgets(2, 1, 0)
     }
 
     @Test
@@ -66,9 +78,16 @@ class LaneBudgetsTest {
         service.withPropertyValues("service-runtime.pool.profile=minimal", "spring.datasource.hikari.maximum-pool-size=10").run {
             it.startupFailure!!.rootMessage() shouldContain "maximum-pool-size is 10, but the application pool's maximum is the sum"
         }
-        service.withPropertyValues("service-runtime.pool.profile=saas").run { context ->
+        service.withPropertyValues("service-runtime.pool.profile=saas", "service-runtime.pool.runs-reprocessing=true").run { context ->
             context.startupFailure shouldBe null
             (context.getBean("dataSource") as LanedDataSource).budgets shouldBe LaneBudgets(7, 3, 1)
+        }
+        // INV-Q-4485: the declaration and the reprocessing budget disagree, at start-up
+        service.withPropertyValues("service-runtime.pool.profile=saas", "service-runtime.pool.runs-reprocessing=true", "service-runtime.pool.lanes.reprocessing=0").run {
+            it.startupFailure!!.rootMessage() shouldContain "runs-reprocessing is true, but the reprocessing budget is 0"
+        }
+        service.withPropertyValues("service-runtime.pool.profile=minimal", "service-runtime.pool.lanes.reprocessing=1").run {
+            it.startupFailure!!.rootMessage() shouldContain "but service-runtime.pool.runs-reprocessing is false"
         }
     }
 

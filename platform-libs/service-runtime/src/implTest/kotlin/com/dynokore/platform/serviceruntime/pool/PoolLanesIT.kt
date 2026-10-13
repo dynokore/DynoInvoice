@@ -2,8 +2,12 @@ package com.dynokore.platform.serviceruntime.pool
 
 import com.dynokore.platform.serviceruntime.composition.ServiceDataSources
 import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Companion.postgres
+import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Companion.query
 import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Companion.sql
 import com.dynokore.platform.serviceruntime.datasource.tpl18Service
+import com.dynokore.platform.tenancykernel.TenantContext
+import com.dynokore.platform.tenancykernel.TenantId
+import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
 import com.zaxxer.hikari.HikariDataSource
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -14,6 +18,7 @@ import org.junit.jupiter.api.TestInstance
 import org.testcontainers.containers.PostgreSQLContainer
 import java.sql.Connection
 import java.sql.SQLTransientConnectionException
+import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -22,8 +27,9 @@ import javax.sql.DataSource
 /**
  * The application pool's lanes against PostgreSQL (INV-REQ-1230 b1, INV-REQ-1072 b5, INV-ADR-3968 item 1; owner
  * ruling INV-Q-4023), composed as TPL-18 writes a service (P109): with the background and reprocessing lanes
- * saturated, every request permit is still served at once; each lane's connections carry its own `application_name`
- * in pg_stat_activity; a lane with a budget of 0 is refused, never served from another lane.
+ * saturated, every request permit is still served at once; a lane's transaction shows `<gst.service>:<lane>` in
+ * pg_stat_activity and the connection shows `<gst.service>` again after commit and after rollback (coordinator ruling
+ * INV-Q-4487); a lane with a budget of 0 is refused, never served from another lane.
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class PoolLanesIT {
@@ -45,8 +51,8 @@ class PoolLanesIT {
     )
 
     @Test
-    fun `a saturated background and reprocessing lane never blocks a request, and each lane has its application_name`() {
-        service("submission-svc", "service-runtime.pool.profile=minimal").run { context ->
+    fun `a saturated background and reprocessing lane never blocks a request`() {
+        service("submission-svc", "service-runtime.pool.profile=minimal", "service-runtime.pool.runs-reprocessing=true").run { context ->
             context.startupFailure shouldBe null
             val dataSource = context.getBean(DataSource::class.java).shouldBeInstanceOf<LanedDataSource>()
             dataSource.budgets shouldBe LaneBudgets(4, 2, 1)
@@ -63,8 +69,6 @@ class PoolLanesIT {
                 val started = System.nanoTime()
                 val requests = (1..4).map { dataSource.connection }
                 (TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started) < TIMEOUT_MS) shouldBe true
-                requests.first().lanes() shouldBe
-                    mapOf("submission-svc:request" to 4, "submission-svc:background" to 2, "submission-svc:reprocessing" to 1)
                 // the request lane is bounded by its own budget too
                 shouldThrow<SQLTransientConnectionException> { dataSource.connection.close() }
 
@@ -90,15 +94,52 @@ class PoolLanesIT {
     }
 
     @Test
-    fun `the HA event-log pool's connections carry the background lane's application_name`() {
+    fun `a lane's transaction shows its application_name, which ends at commit and at rollback`() {
+        service(
+            "submission-svc",
+            "service-runtime.pool.runs-reprocessing=true",
+            "service-runtime.pool.lanes.request=1",
+            "service-runtime.pool.lanes.background=1",
+            "service-runtime.pool.lanes.reprocessing=1",
+        ).run { context ->
+            context.startupFailure shouldBe null
+            val tx = context.getBean(TransactionRunnerImpl::class.java)
+            val tenants = context.getBean(TenantContext::class.java)
+            val tenant = TenantId(UUID.randomUUID())
+            PoolLane.entries.forEach { lane ->
+                // commit: the lane's name during the transaction, the pool's own name on the same connection after it
+                val (pid, during) = PoolLanes.inLane(lane) { tenants.bind(tenant, "user-a") { tx.inTransaction { tx.require().backend() } } }
+                during shouldBe "submission-svc:${lane.name.lowercase()}"
+                postgres.applicationNameOf(pid) shouldBe "submission-svc"
+                // rollback: likewise
+                var rolledBack = 0
+                shouldThrow<IllegalStateException> {
+                    PoolLanes.inLane(lane) {
+                        tenants.bind(tenant, "user-a") {
+                            tx.inTransaction {
+                                val (p, name) = tx.require().backend()
+                                name shouldBe "submission-svc:${lane.name.lowercase()}"
+                                rolledBack = p
+                                error("rolled back")
+                            }
+                        }
+                    }
+                }
+                postgres.applicationNameOf(rolledBack) shouldBe "submission-svc"
+            }
+        }
+    }
+
+    @Test
+    fun `the HA event-log pool's connections carry the pool's own name`() {
         postgres(IMAGE).use { eventLog ->
             eventLog.sql("create role $RUNTIME login password '$PASSWORD'")
             service("submission-svc", "service-runtime.pool.profile=ha", "gst.db.event-log-url=${eventLog.jdbcUrl}").run { context ->
                 context.startupFailure shouldBe null
-                context.getBean(DataSource::class.java).shouldBeInstanceOf<LanedDataSource>().budgets shouldBe LaneBudgets(7, 3, 1)
+                context.getBean(DataSource::class.java).shouldBeInstanceOf<LanedDataSource>().budgets shouldBe LaneBudgets(7, 3, 0)
                 val pool = context.getBean(ServiceDataSources.EVENT_LOG, HikariDataSource::class.java)
                 pool.maximumPoolSize shouldBe LaneBudgets.EVENT_LOG.maximum
-                pool.connection.use { it.lanes().keys shouldBe setOf("submission-svc:background") }
+                pool.connection.use { it.backend().second shouldBe "submission-svc" }
             }
         }
     }
@@ -109,15 +150,16 @@ class PoolLanesIT {
         lane: PoolLane,
     ): CompletableFuture<Connection> = CompletableFuture.supplyAsync({ PoolLanes.inLane(lane) { dataSource.connection } }, this)
 
-    /** The runtime login's connections in pg_stat_activity, by application_name. */
-    private fun Connection.lanes(): Map<String, Int> = prepareStatement(
-        "select application_name, count(*) from pg_stat_activity where usename = ? group by application_name",
-    ).use { statement ->
-        statement.setString(1, RUNTIME)
-        statement.executeQuery().use { rows ->
-            buildMap { while (rows.next()) put(rows.getString(1), rows.getInt(2)) }
+    /** This backend's pid and its application_name as pg_stat_activity shows it. */
+    private fun Connection.backend(): Pair<Int, String> = createStatement().use { statement ->
+        statement.executeQuery("select pid, application_name from pg_stat_activity where pid = pg_backend_pid()").use {
+            it.next()
+            it.getInt(1) to it.getString(2)
         }
     }
+
+    /** [pid]'s application_name, seen from another session. */
+    private fun PostgreSQLContainer<*>.applicationNameOf(pid: Int): String = query("select application_name from pg_stat_activity where pid = $pid")
 
     private companion object {
         const val IMAGE = "postgres:17"

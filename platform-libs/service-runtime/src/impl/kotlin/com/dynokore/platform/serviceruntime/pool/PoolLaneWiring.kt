@@ -22,12 +22,6 @@ class PoolLaneWiring {
         @JvmStatic
         @Bean
         fun serviceRuntimePoolLanes(environment: Environment): BeanPostProcessor = PoolLanePostProcessor(environment)
-
-        /** The `application_name` of [lane]'s connections: `<gst.service>:<lane>` (or `service-runtime:<lane>`). */
-        fun applicationName(
-            service: String?,
-            lane: PoolLane,
-        ): String = "${service?.takeIf { it.isNotBlank() } ?: "service-runtime"}:${lane.name.lowercase()}"
     }
 }
 
@@ -40,8 +34,7 @@ internal class PoolLanePostProcessor(
     ): Any {
         if (beanName != APPLICATION_DATA_SOURCE || bean !is HikariDataSource) return bean
         val properties = Binder.get(environment).bindOrCreate(PoolLaneProperties.PREFIX, PoolLaneProperties::class.java)
-        val service = environment.getProperty(SERVICE)
-        val budgets = properties.budgets(service)
+        val budgets = properties.budgets()
         environment.getProperty(MAXIMUM_POOL_SIZE, Int::class.java)?.let { configured ->
             check(configured == budgets.maximum) {
                 "$MAXIMUM_POOL_SIZE is $configured, but the application pool's maximum is the sum of its lane budgets " +
@@ -50,12 +43,15 @@ internal class PoolLanePostProcessor(
         }
         check(!bean.isRunning) { "the application pool '$beanName' started before its lanes were set" }
         bean.maximumPoolSize = budgets.maximum
-        return LanedDataSource(bean, budgets, PoolLane.entries.associateWith { PoolLaneWiring.applicationName(service, it) })
+        // the pool's own name, set once at construction; a transaction names its lane on top (INV-Q-4487)
+        environment.getProperty(SERVICE)?.takeIf { it.isNotBlank() }?.let { bean.addDataSourceProperty(APPLICATION_NAME, it) }
+        return LanedDataSource(bean, budgets)
     }
 
     private companion object {
         const val APPLICATION_DATA_SOURCE = "dataSource"
         const val SERVICE = "gst.service"
+        const val APPLICATION_NAME = "ApplicationName"
         const val MAXIMUM_POOL_SIZE = "spring.datasource.hikari.maximum-pool-size"
     }
 }

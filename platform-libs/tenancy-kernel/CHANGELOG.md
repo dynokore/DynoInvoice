@@ -6,6 +6,14 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-13
+### Added
+- `ConnectionLabel` and an optional third `TransactionRunnerImpl` argument (INV-T-3982; coordinator ruling INV-Q-4487,
+  INV-REQ-854 b3): when the label gives a name for the transaction's connection, the binding statement also runs
+  `set_config('application_name', ?, true)`, so pg_stat_activity shows it while the transaction runs and it ends at
+  commit or rollback like the tenant and actor settings. Without a label, or when it gives `null`, the statement is
+  unchanged; the two-argument constructor keeps working.
+
 ## [1.3.1] - 2026-10-13
 ### Fixed
 - The published impl POM (`tenancy-kernel`) declared no dependency (INV-T-4356; defect in INV-T-2860's and

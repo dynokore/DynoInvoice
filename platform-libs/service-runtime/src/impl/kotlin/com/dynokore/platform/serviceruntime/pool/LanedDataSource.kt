@@ -18,14 +18,13 @@ import javax.sql.DataSource
  * a connection another lane is owed: a saturated background or reprocessing lane never blocks a request. A lane with a
  * budget of 0 is refused, never served from another lane.
  *
- * Each connection carries its lane's `application_name` ([applicationNames]), set through pgJDBC's `ApplicationName`
- * client info when the connection is taken (pgJDBC sends it only when it changes), so pg_stat_activity shows a
- * connection's lane.
+ * No statement is issued here: a connection only records its lane ([LaneConnection.lane]), and tenancy-kernel's
+ * transaction runner names the lane transaction-locally in its binding statement (TenancyKernelWiring.laneLabel; coordinator
+ * ruling INV-Q-4487).
  */
 class LanedDataSource(
     private val pool: HikariDataSource,
     val budgets: LaneBudgets,
-    private val applicationNames: Map<PoolLane, String>,
 ) : DataSource,
     AutoCloseable {
     private val permits: Map<PoolLane, Semaphore> = PoolLane.entries.associateWith { Semaphore(budgets.of(it), true) }
@@ -52,14 +51,7 @@ class LanedDataSource(
             throw SQLTransientConnectionException("the $lane lane's $budget permits stayed in use for ${pool.connectionTimeout} ms")
         }
         try {
-            val connection = pool.connection
-            try {
-                connection.setClientInfo(APPLICATION_NAME, applicationNames.getValue(lane))
-            } catch (failure: SQLException) {
-                connection.close()
-                throw failure
-            }
-            return LaneConnection(connection, semaphore)
+            return LaneConnection(pool.connection, lane, semaphore)
         } catch (failure: Throwable) {
             semaphore.release()
             throw failure
@@ -104,16 +96,12 @@ class LanedDataSource(
     override fun close() = pool.close()
 
     override fun toString(): String = "LanedDataSource(${pool.poolName}, request / background / reprocessing $budgets)"
-
-    private companion object {
-        /** pgJDBC's client-info name for `application_name`. */
-        const val APPLICATION_NAME = "ApplicationName"
-    }
 }
 
-/** A pooled connection that gives its lane permit back once, when it is closed. */
-internal class LaneConnection(
+/** A pooled connection taken in [lane]; it gives its lane permit back once, when it is closed. */
+class LaneConnection internal constructor(
     private val delegate: Connection,
+    val lane: PoolLane,
     private val permit: Semaphore,
 ) : Connection by delegate {
     private val released = AtomicBoolean(false)

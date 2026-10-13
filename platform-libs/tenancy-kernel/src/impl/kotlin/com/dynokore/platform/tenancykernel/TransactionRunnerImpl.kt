@@ -19,9 +19,12 @@ import javax.sql.DataSource
  * opening a second one, and is refused with `IllegalStateException` before any
  * statement when its binding (tenant, actor) differs from the outer one's.
  */
-class TransactionRunnerImpl(
+class TransactionRunnerImpl
+@JvmOverloads
+constructor(
     private val dataSource: DataSource,
     private val tenants: TenantContext,
+    private val label: ConnectionLabel? = null,
 ) : TransactionRunner,
     CurrentConnection {
     /** The open transaction on this thread and the binding (tenant, actor) it was opened under. */
@@ -65,21 +68,27 @@ class TransactionRunnerImpl(
         }
     }
 
-    /** The first statement of the transaction: one `select`, both settings transaction-local (`true`). */
+    /**
+     * The first statement of the transaction: one `select`, every setting transaction-local (`true`), so each ends at
+     * commit or rollback: the tenant, the actor, and the [label]'s `application_name` when it gives one (INV-Q-4487).
+     */
     private fun bindSettings(
         connection: Connection,
         tenant: TenantId,
         actor: String?,
     ) {
+        val name = label?.of(connection)
         val sql =
-            if (actor == null) {
-                "select set_config('app.tenant_id', ?, true)"
-            } else {
-                "select set_config('app.tenant_id', ?, true), set_config('app.actor', ?, true)"
+            buildString {
+                append("select set_config('app.tenant_id', ?, true)")
+                if (actor != null) append(", set_config('app.actor', ?, true)")
+                if (name != null) append(", set_config('application_name', ?, true)")
             }
         connection.prepareStatement(sql).use { statement ->
-            statement.setString(1, tenant.toString())
-            if (actor != null) statement.setString(2, actor)
+            var index = 1
+            statement.setString(index++, tenant.toString())
+            if (actor != null) statement.setString(index++, actor)
+            if (name != null) statement.setString(index, name)
             statement.execute()
         }
     }
@@ -89,4 +98,13 @@ class TransactionRunnerImpl(
             "No transaction is open on this thread (ARC-21): repository calls must run inside " +
                 "TransactionRunner.inTransaction.",
         )
+}
+
+/**
+ * The transaction-local `application_name` of a transaction on [connection] (coordinator ruling INV-Q-4487): set in the
+ * binding statement with `set_config('application_name', ?, true)`, so it ends at commit or rollback; `null` leaves the
+ * statement unchanged. service-runtime passes one that names the pool lane the connection holds a permit of.
+ */
+fun interface ConnectionLabel {
+    fun of(connection: Connection): String?
 }

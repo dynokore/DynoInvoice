@@ -119,18 +119,27 @@ reprocessing lane never takes a connection a request is owed. A lane with a budg
 another lane (INV-REQ-1072 b5). Job firings (`JobRuntime.fire`) and service-runtime's own schedules (staleness and
 unrelayed-event checks, idempotency-key purge) run in the background lane.
 
-Each lane's connections carry `application_name` `<gst.service>:request`, `:background` or `:reprocessing` (set through
-pgJDBC's `ApplicationName` client info when the connection is taken), so pg_stat_activity shows each lane. The HA
-event-log pool (`eventLogDataSource`) is the background lane only: its connections carry `<gst.service>:background`.
+Each lane's work is visible in pg_stat_activity as `application_name` `<gst.service>:<lane>`, set transaction-locally:
+tenancy-kernel's `TransactionRunnerImpl` adds `set_config('application_name', ?, true)` to its binding statement, with
+the lane the transaction's connection holds a permit of (`TenancyKernelWiring.laneLabel`); it ends at commit or
+rollback. The pool's own name `<gst.service>` is set once through HikariCP's `ApplicationName` data-source property
+(also on the HA event-log pool). service-runtime issues no statement on a connection (coordinator ruling INV-Q-4487).
 
 Defaults (request / background / reprocessing), the INV-T-3977 capacity model:
 
-| `service-runtime.pool.profile` | ingestion-svc, canonical-svc, rules-svc, masterdata-svc, payload-svc, submission-svc, transport-svc | every other service |
+| `service-runtime.pool.profile` | `service-runtime.pool.runs-reprocessing=true` | `false` (the default) |
 |---|---|---|
 | `minimal` | 4 / 2 / 1 (pool 7) | 4 / 2 / 0 (pool 6) |
 | `ha` | 7 / 3 / 1 (pool 11) | 7 / 3 / 0 (pool 10) |
 | `saas` (per pod) | 7 / 3 / 1 (pool 11) | 7 / 3 / 0 (pool 10) |
 | HA event-log pool | 0 / 3 / 0 (pool 3) | 0 / 3 / 0 (pool 3) |
+
+Whether a service runs pack-activation reprocessing or backfill is its own declaration,
+`service-runtime.pool.runs-reprocessing`, set in its packaged configuration (coordinator ruling INV-Q-4485);
+service-runtime holds no list of services. The seven submission-path services declare it: ingestion-svc,
+canonical-svc, rules-svc, masterdata-svc, payload-svc, submission-svc and transport-svc (owner ruling INV-Q-4023).
+Start-up fails when a declaring service's reprocessing budget is 0 (its work would otherwise run on a live lane) and
+when a non-declaring service's is above 0.
 
 `service-runtime.pool.lanes.request`, `.background` and `.reprocessing` override a lane's default. Start-up fails when
 neither the profile nor the lane is set, and when `spring.datasource.hikari.maximum-pool-size` is set to anything but
