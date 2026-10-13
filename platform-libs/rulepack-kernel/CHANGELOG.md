@@ -25,7 +25,9 @@ train is its own (README.md: "own version and changelog").
     member of the sys role: it needs SET ROLE on it for `ALTER FUNCTION ... OWNER TO`.
   - Every row carries `registered_by text NOT NULL`, the registering principal (owner ruling INV-Q-4580 (B)): a
     BEFORE INSERT trigger refuses a row whose `registered_by` is blank or not the transaction's `app.actor`, and a
-    BEFORE UPDATE trigger refuses any change to it, so it is fixed at insert. A holder's own tenant insert sets
+    BEFORE UPDATE trigger refuses any change to it, so it is fixed at insert. Blank means empty or only ISO control
+    characters and the caseId whitespace set of coordinator ruling INV-Q-4534 (tab, newline, CR, NBSP, U+2000-U+200A,
+    U+3000, U+FEFF and the rest of that list), not `btrim`'s spaces only (review of !66). A holder's own tenant insert sets
     `registered_by` to its `app.actor`.
   - `referenceTable(schema, table)`: the name a holder **must** declare as a tenancy-jooq `REFERENCE` table. A test
     shows tenancy-jooq's `TableClasses.verify` classifies the migrated table `REFERENCE` with it declared, fails on a

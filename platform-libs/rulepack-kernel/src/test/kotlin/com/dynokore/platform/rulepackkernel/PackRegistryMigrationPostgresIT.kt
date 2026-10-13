@@ -92,6 +92,7 @@ class PackRegistryMigrationPostgresIT {
             assertNoTenantBoundSeesAndWritesNothing(app, tenantA)
             assertRegisteredByIsTheActorAtInsert(app, tenantA)
             assertRegisteredByCannotBeUpdated(app, tenantA)
+            assertAWhitespaceOnlyActorIsRefused(app, tenantA)
             assertTheLineageKeyIsAPlainUnique(app, tenantA, tenantB)
         } finally {
             container.stop()
@@ -372,6 +373,47 @@ class PackRegistryMigrationPostgresIT {
     }
 
     /**
+     * An actor made only of whitespace or control characters is blank (review of !66; the caseId whitespace set of
+     * coordinator ruling INV-Q-4534 plus ISO controls): the function and a direct tenant insert both refuse it and
+     * write nothing, so no blank registered_by is ever stored.
+     */
+    private fun assertAWhitespaceOnlyActorIsRefused(
+        app: TenancyProbe,
+        tenantA: TenantId,
+    ) {
+        val accepted =
+            BLANK_ACTORS.flatMapIndexed { i, (name, actor) ->
+                val viaFunction =
+                    refusedForActor {
+                        app.inTenant(TenantId.PLATFORM, actor = actor) {
+                            register(packId = "blank-fn-$i", version = "5.0.$i")
+                        }
+                    }
+                val viaInsert =
+                    refusedForActor {
+                        app.inTenant(tenantA, actor = actor) {
+                            insertRow(tenantA, "blank-row-$i", version = "6.0.$i", registeredBy = actor)
+                        }
+                    }
+                listOfNotNull("function $name".takeUnless { viaFunction }, "insert $name".takeUnless { viaInsert })
+            }
+        assertEquals(emptyList<String>(), accepted, "whitespace-only actors not refused as unset")
+        val stored =
+            app.inTenant(tenantA) {
+                fetchValue("select count(*) from rulepack_test.rule_pack_version where pack_id like 'blank-%'")
+            }
+        assertEquals(0L, stored)
+    }
+
+    /** True when [block] is refused because `app.actor` is unset or blank. */
+    private fun refusedForActor(block: () -> Unit): Boolean = try {
+        block()
+        false
+    } catch (refused: DataAccessException) {
+        "app.actor is not set" in refused.message.orEmpty()
+    }
+
+    /**
      * An UPDATE of registered_by is refused on a tenant row by the trigger and finds no platform row under the policy
      * (owner ruling INV-Q-4580 (B)); only the rows inserted with registered_by = `app.actor` exist.
      */
@@ -429,6 +471,25 @@ class PackRegistryMigrationPostgresIT {
     }
 
     private companion object {
+        /** Whitespace-only actors: ISO controls and the caseId whitespace set (INV-Q-4534), alone and mixed. */
+        val BLANK_ACTORS =
+            listOf(
+                "tab" to "\t",
+                "newline" to "\n",
+                "CR" to "\r",
+                "space-tab-newline" to " \t\n",
+                "NEL U+0085" to "\u0085",
+                "NBSP U+00A0" to "\u00A0",
+                "ogham U+1680" to "\u1680",
+                "em space U+2003" to "\u2003",
+                "hair space U+200A" to "\u200A",
+                "line separator U+2028" to "\u2028",
+                "narrow NBSP U+202F" to "\u202F",
+                "ideographic U+3000" to "\u3000",
+                "BOM U+FEFF" to "\uFEFF",
+                "mixed" to " \u00A0\t\u3000\r\n",
+            )
+
         const val MIGRATE = "rulepack_kernel_migrate"
         const val MIGRATE_PASSWORD = "rulepack_kernel_migrate_pw"
     }

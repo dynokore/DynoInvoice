@@ -51,6 +51,16 @@ object PackRegistryMigration {
     /** [TenantId.PLATFORM], as SQL text (INV-Q-2927 D, INV-Q-3012). */
     internal const val PLATFORM = "ffffffff-ffff-ffff-ffff-ffffffffffff"
 
+    /**
+     * A PostgreSQL regular expression matching a blank actor: empty, or only ISO control characters (U+0000-U+001F,
+     * U+007F-U+009F: tab, newline, CR, NEL) and the caseId whitespace set of coordinator ruling INV-Q-4534 (U+0020,
+     * U+00A0, U+1680, U+2000-U+200A, U+2028, U+2029, U+202F, U+205F, U+3000, U+FEFF), the same explicit code-point
+     * list as service-runtime's caseId rule rather than `btrim` (spaces only) or a locale-dependent class (review
+     * of !66).
+     */
+    internal const val BLANK_ACTOR =
+        """^[\u0001-\u001F\u007F-\u009F\u0020\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000\uFEFF]*$"""
+
     init {
         check(PLATFORM == TenantId.PLATFORM.toString()) { "PackRegistryMigration.PLATFORM must be TenantId.PLATFORM" }
     }
@@ -113,7 +123,7 @@ object PackRegistryMigration {
             |    signature          bytea NOT NULL,
             |    contents           jsonb NOT NULL,
             |    trusted_anchor     text NOT NULL,
-            |    registered_by      text NOT NULL CHECK (btrim(registered_by) <> ''),
+            |    registered_by      text NOT NULL CHECK (registered_by !~ '$BLANK_ACTOR'),
             |    created_at         timestamptz NOT NULL DEFAULT clock_timestamp(),
             |    CONSTRAINT $lineageKey UNIQUE (pack_type, tenant_id, version)
             |);
@@ -134,7 +144,7 @@ object PackRegistryMigration {
 
     /**
      * `registered_by` is the registering principal (owner ruling INV-Q-4580 (B)): a BEFORE INSERT trigger refuses a row
-     * whose `registered_by` is not the transaction's `app.actor` (trimmed; unset or blank refuses every insert), and a
+     * whose `registered_by` is not the transaction's `app.actor` (unset or [BLANK_ACTOR] refuses every insert), and a
      * BEFORE UPDATE trigger refuses any change to it, so it is fixed at insert as the actor of
      * `write_installation_setting`'s audit entry is (INV-T-3983). Static SQL, fixed search_path, EXECUTE revoked from
      * PUBLIC (a trigger function's EXECUTE is checked when the trigger is created, never when it fires).
@@ -151,9 +161,9 @@ object PackRegistryMigration {
         |CREATE FUNCTION $s.$stampFunction() RETURNS trigger
         |LANGUAGE plpgsql SET search_path = pg_catalog, $s, pg_temp AS $$
         |DECLARE
-        |    v_actor text := nullif(btrim(current_setting('app.actor', true)), '');
+        |    v_actor text := current_setting('app.actor', true);
         |BEGIN
-        |    IF v_actor IS NULL THEN
+        |    IF v_actor IS NULL OR v_actor ~ '$BLANK_ACTOR' THEN
         |        RAISE EXCEPTION 'app.actor is not set: a pack row records its registering principal'
         |            USING ERRCODE = '42501';
         |    END IF;
@@ -199,13 +209,13 @@ object PackRegistryMigration {
             |    RETURNS uuid
             |LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, $s, pg_temp AS $$
             |DECLARE
-            |    v_actor text := nullif(btrim(current_setting('app.actor', true)), '');
+            |    v_actor text := current_setting('app.actor', true);
             |BEGIN
             |    IF current_setting('app.tenant_id', true) IS DISTINCT FROM '$PLATFORM' THEN
             |        RAISE EXCEPTION 'a platform pack is registered under the platform tenant only'
             |            USING ERRCODE = '42501';
             |    END IF;
-            |    IF v_actor IS NULL THEN
+            |    IF v_actor IS NULL OR v_actor ~ '$BLANK_ACTOR' THEN
             |        RAISE EXCEPTION 'app.actor is not set: a platform pack records its actor' USING ERRCODE = '42501';
             |    END IF;
             |    IF p_id IS NULL OR p_effective_from IS NULL OR p_manifest IS NULL OR p_checksums IS NULL

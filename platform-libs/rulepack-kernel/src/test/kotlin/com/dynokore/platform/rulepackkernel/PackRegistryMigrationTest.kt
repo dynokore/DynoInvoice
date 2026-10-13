@@ -57,7 +57,12 @@ class PackRegistryMigrationTest {
 
     @Test
     fun `registered_by is app actor at insert and fixed afterwards`() {
-        assertTrue(ddl.contains("registered_by      text NOT NULL CHECK (btrim(registered_by) <> ''),"))
+        // ISO controls plus the caseId whitespace set (INV-Q-4534), code point for code point.
+        val blank =
+            """^[\u0001-\u001F\u007F-\u009F\u0020\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000\uFEFF]*$"""
+        assertTrue(ddl.contains("registered_by      text NOT NULL CHECK (registered_by !~ '$blank'),"))
+        assertEquals(2, Regex("""v_actor IS NULL OR v_actor ~ '\^\[""").findAll(ddl).count())
+        assertFalse(ddl.contains("btrim(current_setting('app.actor'"))
         assertTrue(ddl.contains("IF NEW.registered_by IS DISTINCT FROM v_actor THEN"))
         assertTrue(ddl.contains("IF NEW.registered_by IS DISTINCT FROM OLD.registered_by THEN"))
         assertTrue(ddl.contains("BEFORE INSERT ON rules.rule_pack_version"))
