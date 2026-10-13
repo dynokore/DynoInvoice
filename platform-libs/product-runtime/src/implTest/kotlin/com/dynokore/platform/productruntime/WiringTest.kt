@@ -138,6 +138,8 @@ class WiringTest {
             "spring.datasource.url=jdbc:postgresql://localhost:1/submission",
             "spring.datasource.username=submission_svc_runtime",
             "spring.datasource.password=unused",
+            // service-runtime sets the application pool's lanes per installation profile, with no default (INV-Q-4496).
+            "service-runtime.pool.profile=minimal",
         )
 
     @Test

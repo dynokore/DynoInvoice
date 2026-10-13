@@ -71,6 +71,9 @@ dependencies {
     testRuntimeOnly(libs.slf4j.simple) // the probes' INFO log and Testcontainers' own logs
 
     add("springTestImplementation", testFixtures(project(":tenancy-jooq")))
+    // FatJarTest's probe, which runs TenancyJooq inside a Spring Boot executable jar (review of !61)
+    add("springTestImplementation", sourceSets["impl"].output)
+    add("springTestImplementation", files(tenancyKernelImplJar))
     add("springTestImplementation", platform(libs.springBoot.dependencies))
     add("springTestImplementation", libs.springBoot.test)
     add("springTestImplementation", libs.assertj.core) // ApplicationContextRunner's context type extends AssertJ's
@@ -87,6 +90,16 @@ dependencies {
     }
 }
 
+// Spring Boot's launcher and the probe's runtime jars, from which FatJarTest builds a real Spring Boot executable jar.
+val bootLoader by configurations.creating {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+}
+dependencies {
+    bootLoader(platform(libs.springBoot.dependencies))
+    bootLoader(libs.springBoot.loader)
+}
+
 val springTestTask =
     tasks.register<Test>("springTest") {
         group = "verification"
@@ -98,6 +111,23 @@ val springTestTask =
         systemProperty("user.language", "de")
         systemProperty("user.country", "DE")
         testLogging { events("passed", "skipped", "failed") }
+        val probeLibs =
+            files(
+                tasks.named("jar"),
+                tasks.named("implJar"),
+                tenancyKernelImplJar,
+                configurations["implRuntimeClasspath"],
+            ).filter { it.name.endsWith(".jar") }
+        val probeClasses = sourceSets["springTest"].output.classesDirs
+        dependsOn(probeLibs, bootLoader)
+        jvmArgumentProviders +=
+            CommandLineArgumentProvider {
+                listOf(
+                    "-DfatJar.libs=${probeLibs.asPath}",
+                    "-DfatJar.classes=${probeClasses.asPath}",
+                    "-DfatJar.loader=${bootLoader.asPath}",
+                )
+            }
     }
 
 tasks.named("check") {
