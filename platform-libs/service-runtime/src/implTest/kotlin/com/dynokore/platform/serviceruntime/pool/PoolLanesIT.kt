@@ -6,6 +6,7 @@ import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Comp
 import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Companion.sql
 import com.dynokore.platform.serviceruntime.datasource.tpl18Service
 import com.dynokore.platform.serviceruntime.datasource.withApplicationPool
+import com.dynokore.platform.serviceruntime.datasource.withPool
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
@@ -134,13 +135,16 @@ class PoolLanesIT {
     fun `the HA event-log pool's connections carry the pool's own name`() {
         postgres(IMAGE).use { eventLog ->
             eventLog.sql("create role $RUNTIME login password '$PASSWORD'")
-            service("submission-svc", "service-runtime.pool.profile=ha", "gst.db.event-log-url=${eventLog.jdbcUrl}").run { context ->
-                context.startupFailure shouldBe null
-                context.getBean(DataSource::class.java).shouldBeInstanceOf<LanedDataSource>().budgets shouldBe LaneBudgets(7, 3, 0)
-                val pool = context.getBean(ServiceDataSources.EVENT_LOG, HikariDataSource::class.java)
-                pool.maximumPoolSize shouldBe LaneBudgets.EVENT_LOG.maximum
-                pool.connection.use { it.backend().second shouldBe "submission-svc" }
-            }
+            service("submission-svc", "service-runtime.pool.profile=ha", "gst.db.event-log-url=${eventLog.jdbcUrl}")
+                // the event-log pool copies no password (INV-Q-4570): the test login, set after the checks
+                .withPool(ServiceDataSources.EVENT_LOG) { it.password = PASSWORD }
+                .run { context ->
+                    context.startupFailure shouldBe null
+                    context.getBean(DataSource::class.java).shouldBeInstanceOf<LanedDataSource>().budgets shouldBe LaneBudgets(7, 3, 0)
+                    val pool = context.getBean(ServiceDataSources.EVENT_LOG, HikariDataSource::class.java)
+                    pool.maximumPoolSize shouldBe LaneBudgets.EVENT_LOG.maximum
+                    pool.connection.use { it.backend().second shouldBe "submission-svc" }
+                }
         }
     }
 

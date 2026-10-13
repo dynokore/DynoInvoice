@@ -57,7 +57,7 @@ class SqlConfigurationKeyGuard :
             environment: ConfigurableEnvironment,
             classLoader: ClassLoader?,
         ) {
-            val offending = findOffendingKeys(environment) + findExternalConfiguration(listOfNotNull(classLoader))
+            val offending = findOffendingKeys(environment) + findPasswordProperties(environment) + findExternalConfiguration(listOfNotNull(classLoader))
             check(offending.isEmpty()) {
                 "Spring configuration keys that run SQL or set session state are refused (coordinator rulings INV-Q-4542, " +
                     "INV-Q-4559; INV-ADR-3968 item 4c, INV-REQ-1230): remove $offending"
@@ -80,9 +80,20 @@ class SqlConfigurationKeyGuard :
                 ?.let { "class-path resource $DRIVER_CONFIGURATION (pgjdbc default connection properties)" },
         )
 
+        /**
+         * The password keys, read by exact name through [Environment.getProperty], which also consults property
+         * sources that cannot be enumerated (coordinator ruling INV-Q-4570; STK-29, INV-Q-4548). A value that cannot be
+         * resolved counts as set.
+         */
+        fun findPasswordProperties(environment: Environment): List<String> = PASSWORD_KEYS
+            .filter { key -> runCatching { environment.getProperty(key) != null }.getOrDefault(true) }
+            .map { "$it (a password: the login comes only through SecretStore (STK-29, INV-Q-4570))" }
+
         /** Every refused key, sorted, with the reason; each as its property source names it. */
         fun findOffendingKeys(environment: ConfigurableEnvironment): List<String> = ConfigurationPropertySources
             .get(environment)
+            // a source that cannot be enumerated (a stub, a servlet-context source before the web server) is not listed here;
+            // PoolConfigurationGuard checks what such a source binds into a pool
             .filterIsInstance<IterableConfigurationPropertySource>()
             .flatMap { source ->
                 val env = source.underlyingSource is SystemEnvironmentPropertySource
@@ -225,6 +236,7 @@ class SqlConfigurationKeyGuard :
             }
         }
 
+        private val PASSWORD_KEYS = listOf("spring.datasource.password", "spring.datasource.hikari.password", "spring.flyway.password")
         private const val PLACEHOLDERS = "placeholders"
         private const val HIKARI_CONFIGURATION_FILE = "hikaricp.configurationFile"
         private const val HIKARI_CONFIGURATION_FILE_FLAT = "hikaricpconfigurationfile"
@@ -281,7 +293,6 @@ class SqlConfigurationKeyGuard :
                 "hikari.leakdetectionthreshold" to ANY,
                 "hikari.initializationfailtimeout" to ANY,
                 "hikari.poolname" to ANY,
-                "hikari.registermbeans" to ANY,
             )
 
         /** (4) The keys allowed under `spring.flyway` (uniform form), with their value check. */
