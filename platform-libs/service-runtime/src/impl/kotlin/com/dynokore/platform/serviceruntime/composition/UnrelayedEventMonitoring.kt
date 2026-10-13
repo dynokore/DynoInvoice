@@ -1,5 +1,6 @@
 package com.dynokore.platform.serviceruntime.composition
 
+import com.dynokore.platform.outboxandqueue.Retention
 import com.dynokore.platform.outboxandqueue.UnrelayedEvent
 import com.dynokore.platform.outboxandqueue.UnrelayedEventCheck
 import com.dynokore.platform.outboxandqueue.UnrelayedEventSettings
@@ -21,30 +22,36 @@ import java.util.concurrent.atomic.AtomicReference
  *
  * @property checkInterval how often the check runs; default 5 minutes.
  * @property margin how long after the event log's retention cut-off a row must have been published to be reported
- *   ([UnrelayedEventSettings.margin]). No default: the value awaits INV-Q-4403, and the check is not created without it.
+ *   ([UnrelayedEventSettings.margin], coordinator ruling INV-Q-4403 (A)); default 1 hour. Validated at start-up against
+ *   the installation's [Retention] (or, without one, the 7-day floor any retention keeps): not positive or not below the
+ *   shortest topic retention stops start-up.
  */
 @ConfigurationProperties(prefix = UnrelayedEventProperties.PREFIX)
 data class UnrelayedEventProperties(
     val checkInterval: Duration = DEFAULT_CHECK_INTERVAL,
-    val margin: Duration? = null,
+    val margin: Duration = UnrelayedEventSettings.DEFAULT_MARGIN,
 ) {
     init {
         require(!checkInterval.isZero && !checkInterval.isNegative) { "$PREFIX.check-interval must be positive" }
     }
 
-    /** The check's settings; requires [margin]. */
-    fun settings(): UnrelayedEventSettings = UnrelayedEventSettings(checkNotNull(margin) { "$PREFIX.margin must be set" })
+    /** The check's settings for [retention], or the 7-day floor without one; refuses an invalid [margin]. */
+    fun settings(retention: Retention?): UnrelayedEventSettings = if (retention != null) {
+        UnrelayedEventSettings.forRetention(retention, margin)
+    } else {
+        UnrelayedEventSettings(Retention.FLOOR, margin)
+    }
 
     companion object {
         const val PREFIX = "service-runtime.unrelayed-events"
-        const val MARGIN = "$PREFIX.margin"
         val DEFAULT_CHECK_INTERVAL: Duration = Duration.ofMinutes(5)
     }
 }
 
 /**
  * The default [UnrelayedEventSink]: an ERROR log line naming the service, topic, event id, outbox seq and
- * `published_at`, once per finding. A service's own sink replaces it.
+ * `published_at`, once per row across instances and restarts (the check records each raised row durably). A service's
+ * own sink replaces it.
  */
 class LoggingUnrelayedEventSink : UnrelayedEventSink {
     override fun raise(finding: UnrelayedEvent) {

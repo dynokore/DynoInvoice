@@ -16,11 +16,16 @@ train is its own (README.md: "own version and changelog").
   ruling INV-Q-4264's "no fourth eventlog_sys function" is superseded for this purpose only.
 - `UnrelayedEventCheck` (api) and `JdbcUnrelayedEventCheck` (impl): finds every outbox row whose `published_at` is
   set but whose event id is not in its topic, the residual risk of INV-ADR-3968's consequences (owner ruling
-  INV-Q-4334). Published rows are found through the sys-owned claim view and read per tenant, their ids are sent per
-  topic in batches through `EventLogPresence` (`PostgresEventLogPresence`), and a row is reported only when it was
-  published more than `UnrelayedEventSettings.margin` after the returned cut-off, so an event purged by the event
-  log is never reported. Each finding (`UnrelayedEvent`: service, topic, event id, outbox seq, `published_at`) is
-  raised once to the `UnrelayedEventSink` and stays open until it resolves. The margin has no default yet (INV-Q-4403).
+  INV-Q-4334). Every run reads all published rows through the sys-owned claim view (no position is skipped, so a row
+  written or marked by a transaction open across a run is read by the next) and their topic and id per tenant; ids
+  not yet verified are sent per topic in batches through `EventLogPresence` (`PostgresEventLogPresence`). A row is
+  reported only when published more than `UnrelayedEventSettings.margin` after the returned cut-off (coordinator
+  ruling INV-Q-4403 (A): default 1 hour, refused when not positive or not below the shortest topic retention), so an
+  event purged by the event log is never reported. Each finding (`UnrelayedEvent`: service, topic, event id, outbox
+  seq, `published_at`) is raised to the `UnrelayedEventSink` once per row across instances and restarts: the run that
+  first records it in the service's `inbox` under the consumer `outbox-unrelayed-event-check` (existing INSERT grant,
+  `on conflict do nothing`) raises it.
+
 ## [2.1.1] - 2026-10-13
 ### Fixed
 - The published impl POM (`outbox-and-queue`) declared no dependency (INV-T-4356; defect in INV-T-2860's and

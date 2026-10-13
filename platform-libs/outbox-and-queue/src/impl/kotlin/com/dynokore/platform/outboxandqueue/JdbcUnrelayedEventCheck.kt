@@ -4,28 +4,31 @@ import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantId
 import java.sql.Connection
 import java.time.Instant
+import java.util.BitSet
 import java.util.UUID
 import javax.sql.DataSource
 
 /**
- * [UnrelayedEventCheck] for one service schema (owner rulings INV-Q-4334 (B) and INV-Q-4350 (A)). It finds every
- * outbox row whose `published_at` is set but whose event id is not in its topic in the event log.
+ * [UnrelayedEventCheck] for one service schema (owner rulings INV-Q-4334 (B) and INV-Q-4350 (A); coordinator ruling
+ * INV-Q-4403 (A)). It finds every outbox row whose `published_at` is set but whose event id is not in its topic in the
+ * event log.
  *
- * - **Outbox side.** The published rows are found across tenants on [claimSource], a connection of the service's
+ * - **Outbox side.** Every run reads the whole outbox across tenants on [claimSource], a connection of the service's
  *   runtime login, through the `<svc>_sys`-owned [OutboxSchema.OUTBOX_CLAIM_VIEW] (`seq`, `tenant_id`, `published_at`
- *   only); each row's topic and event id are then read in a transaction bound to its tenant ([TenantScope.bindWorkload]).
+ *   only); the topic and event id of each published row not yet verified are read in a transaction bound to its tenant
+ *   ([TenantScope.bindWorkload]). No row is skipped by position: a row written or marked by a transaction still open
+ *   during one run is invisible or unpublished then, so it is not verified and the next run reads it again.
  * - **Event-log side.** The ids are sent per topic, at most [UnrelayedEventSettings.batchSize] at a time, to
  *   [EventLogPresence] (`eventlog.events_missing`), which returns the missing ones and the topic's retention cut-off.
+ *   A row whose event was found is remembered as verified (in memory, per instance) and not sent again: no login can
+ *   delete an event-log row except the age-only purge, which removes it only before the cut-off.
  * - **Never a normal row.** The relay commits the event-log insert before it sets `published_at` ([JdbcOutboxRelay],
- *   [PostgresEventBinding]), so a relayed row is in the log until the event-log purge removes it. A missing id is
- *   reported only when the row was published more than [UnrelayedEventSettings.margin] after the cut-off, so an event
- *   purged by the event log is never reported (the margin covers the relay lag and the clock skew between instances).
- * - **Once per row.** A finding is raised to [sink] when first seen and stays open, counted in
- *   [UnrelayedEventCheckResult.open], until its row is purged from the outbox, its event appears or it leaves the
- *   window; it is not raised again while open.
- * - **Incremental.** A row checked and found in the log is not checked again: the check remembers the highest `seq`
- *   below which every row was published and checked. An open finding is checked again on every run. The memory is per
- *   instance, so a restart checks the whole outbox once more.
+ *   [PostgresEventBinding]). A missing id is reported only when the row was published more than
+ *   [UnrelayedEventSettings.margin] after the cut-off, so an event purged by the event log is never reported.
+ * - **Once per row, durably.** A finding is raised to [sink] only by the run that first records it in the service's
+ *   own `inbox` under the consumer name [RAISED_CONSUMER] (`insert ... on conflict do nothing`, the runtime login's
+ *   existing INSERT, in the row's tenant transaction): one alert per row across instances and restarts. The record
+ *   ages out with the inbox retention, which is longer than the outbox's content window, so it outlives the row.
  */
 class JdbcUnrelayedEventCheck(
     private val claimSource: DataSource,
@@ -37,9 +40,9 @@ class JdbcUnrelayedEventCheck(
     private val sink: UnrelayedEventSink,
 ) : UnrelayedEventCheck {
     private val outbox = "${SqlIdentifier.require(schema, "schema")}.${OutboxSchema.OUTBOX}"
+    private val inbox = "${SqlIdentifier.require(schema, "schema")}.${OutboxSchema.INBOX}"
     private val claimView = "${SqlIdentifier.require(schema, "schema")}.${OutboxSchema.OUTBOX_CLAIM_VIEW}"
-    private var checkedThrough = 0L
-    private val open = LinkedHashMap<Long, UnrelayedEvent>()
+    private var verified = SeqSet(0)
 
     init {
         require(service.isNotBlank()) { "service must not be blank" }
@@ -47,49 +50,42 @@ class JdbcUnrelayedEventCheck(
 
     @Synchronized
     override fun check(): UnrelayedEventCheckResult {
-        val (candidates, prefix) = claimSource.connection.use { candidates(it) }
-        val rows = describe(candidates)
-        val found = LinkedHashMap<Long, UnrelayedEvent>()
-        rows.groupBy { it.topic }.forEach { (topic, ofTopic) ->
+        val published = claimSource.connection.use { published(it) }
+        val stillVerified = SeqSet(published.firstOrNull()?.seq ?: 0)
+        val unverified = published.filter { row ->
+            val known = row.seq in verified
+            if (known) stillVerified += row.seq
+            !known
+        }
+        val found = ArrayList<Published>()
+        describe(unverified).groupBy { it.topic }.forEach { (topic, ofTopic) ->
             ofTopic.chunked(settings.batchSize).forEach { batch ->
                 val answer = presence.missing(topic, batch.map { it.eventId })
                 val reportFrom = answer.cutoff.plus(settings.margin)
-                batch
-                    .filter { it.eventId in answer.missing && it.publishedAt.isAfter(reportFrom) }
-                    .forEach { found[it.seq] = UnrelayedEvent(service, topic, it.eventId, it.seq, it.publishedAt) }
-            }
-        }
-        found.values.filter { it.outboxSeq !in open }.forEach(sink::raise)
-        open.clear()
-        open.putAll(found)
-        checkedThrough = prefix
-        return UnrelayedEventCheckResult(open.values.toList())
-    }
-
-    /**
-     * The published rows to check: every row after [checkedThrough] and every open finding; and the new prefix, the
-     * highest `seq` up to which every row after [checkedThrough] is published.
-     */
-    private fun candidates(claim: Connection): Pair<List<Claimed>, Long> {
-        val published = ArrayList<Claimed>()
-        var prefix = checkedThrough
-        var contiguous = true
-        var after = checkedThrough
-        while (true) {
-            val page = page(claim, after)
-            for (row in page) {
-                if (row.publishedAt == null) {
-                    contiguous = false
-                } else {
-                    published += row
-                    if (contiguous) prefix = row.seq
+                batch.forEach {
+                    when {
+                        it.eventId !in answer.missing -> stillVerified += it.seq
+                        it.publishedAt.isAfter(reportFrom) -> found += it
+                    }
                 }
             }
-            if (page.size < PAGE) break
+        }
+        verified = stillVerified
+        val open = found.map { UnrelayedEvent(service, it.topic, it.eventId, it.seq, it.publishedAt) }
+        found.zip(open).filter { (row, _) -> recordRaised(row) }.forEach { (_, finding) -> sink.raise(finding) }
+        return UnrelayedEventCheckResult(open)
+    }
+
+    /** Every published row of the outbox, across tenants, in `seq` order. */
+    private fun published(claim: Connection): List<Claimed> {
+        val rows = ArrayList<Claimed>()
+        var after = 0L
+        while (true) {
+            val page = page(claim, after)
+            page.filterTo(rows) { it.publishedAt != null }
+            if (page.size < PAGE) return rows
             after = page.last().seq
         }
-        val reopened = if (open.isEmpty()) emptyList() else reread(claim, open.keys.filter { it <= checkedThrough })
-        return (reopened + published) to prefix
     }
 
     private fun page(
@@ -107,20 +103,15 @@ class JdbcUnrelayedEventCheck(
         }
     }
 
-    private fun reread(
-        claim: Connection,
-        seqs: List<Long>,
-    ): List<Claimed> = if (seqs.isEmpty()) {
-        emptyList()
-    } else {
-        claim.prepareStatement("select seq, tenant_id, published_at from $claimView where seq = any(?) and published_at is not null").use {
-            it.setArray(1, claim.createArrayOf("bigint", seqs.toTypedArray()))
-            it.executeQuery().use { rows ->
-                buildList {
-                    while (rows.next()) {
-                        add(Claimed(rows.getLong(1), TenantId(rows.getObject(2, UUID::class.java)), rows.getTimestamp(3).toInstant()))
-                    }
-                }
+    /** Records [row] as raised in the inbox, in its tenant's transaction; true only for the run that records it first. */
+    private fun recordRaised(row: Published): Boolean = scope.bindWorkload(row.tenant) {
+        scope.transactions.inTransaction {
+            val connection = scope.connections.require()
+            connection.prepareStatement("insert into $inbox (consumer, event_id, tenant_id) values (?, ?, ?) on conflict do nothing").use {
+                it.setString(1, RAISED_CONSUMER)
+                it.setString(2, row.eventId)
+                it.setObject(3, row.tenant.value)
+                it.executeUpdate() == 1
             }
         }
     }
@@ -140,7 +131,7 @@ class JdbcUnrelayedEventCheck(
                                 buildList {
                                     while (rows.next()) {
                                         val seq = rows.getLong(1)
-                                        add(Published(seq, rows.getString(2), rows.getString(3), publishedAt.getValue(seq)))
+                                        add(Published(seq, tenant, rows.getString(2), rows.getString(3), publishedAt.getValue(seq)))
                                     }
                                 }
                             }
@@ -150,6 +141,17 @@ class JdbcUnrelayedEventCheck(
             }
         }
 
+    /** A set of outbox seqs from [base] on (a run's published rows span less than 2^31 seqs). */
+    private class SeqSet(
+        private val base: Long,
+    ) {
+        private val bits = BitSet()
+
+        operator fun contains(seq: Long): Boolean = seq >= base && bits.get(Math.toIntExact(seq - base))
+
+        operator fun plusAssign(seq: Long) = bits.set(Math.toIntExact(seq - base))
+    }
+
     private class Claimed(
         val seq: Long,
         val tenant: TenantId,
@@ -158,12 +160,15 @@ class JdbcUnrelayedEventCheck(
 
     private class Published(
         val seq: Long,
+        val tenant: TenantId,
         val topic: String,
         val eventId: String,
         val publishedAt: Instant,
     )
 
-    private companion object {
-        const val PAGE = 1_000
+    companion object {
+        /** The inbox consumer name under which a raised finding is recorded (no consumer has this name). */
+        const val RAISED_CONSUMER = "outbox-unrelayed-event-check"
+        private const val PAGE = 1_000
     }
 }

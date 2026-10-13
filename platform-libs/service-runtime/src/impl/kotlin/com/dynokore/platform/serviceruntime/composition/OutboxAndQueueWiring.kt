@@ -251,13 +251,13 @@ class OutboxAndQueueWiring {
 
     /**
      * The check of outbox rows marked published whose event never reached the event log (owner rulings INV-Q-4334 (B),
-     * INV-Q-4350 (A)), on the same background connection as the staleness monitor. Created only with
-     * `service-runtime.unrelayed-events.margin` set (INV-Q-4403). A service's own [UnrelayedEventSink] replaces the
-     * logging default.
+     * INV-Q-4350 (A)), on the same background connection as the staleness monitor. On by default with the 1-hour margin
+     * (coordinator ruling INV-Q-4403 (A)); an invalid margin stops start-up. A service's own [UnrelayedEventSink]
+     * replaces the logging default.
      */
     @Bean
     @ConditionalOnBean(value = [TenantScope::class, EventLogPresence::class], name = [ServiceDataSources.WORKER])
-    @ConditionalOnProperty(name = [Props.SCHEMA, Props.SERVICE, UnrelayedEventProperties.MARGIN])
+    @ConditionalOnProperty(name = [Props.SCHEMA, Props.SERVICE])
     @ConditionalOnMissingBean(UnrelayedEventCheck::class)
     @Suppress("LongParameterList")
     fun unrelayedEventCheck(
@@ -265,6 +265,7 @@ class OutboxAndQueueWiring {
         scope: TenantScope,
         presence: EventLogPresence,
         properties: UnrelayedEventProperties,
+        retention: ObjectProvider<Retention>,
         sink: ObjectProvider<UnrelayedEventSink>,
         modules: ModuleProperties,
         gst: GstProperties,
@@ -274,7 +275,7 @@ class OutboxAndQueueWiring {
         modules.requireSchema(),
         gst.requireService(),
         presence,
-        properties.settings(),
+        properties.settings(retention.ifAvailable),
         sink.getIfAvailable { LoggingUnrelayedEventSink() },
     )
 

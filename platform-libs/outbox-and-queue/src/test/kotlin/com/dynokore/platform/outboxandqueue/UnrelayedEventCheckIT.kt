@@ -16,7 +16,9 @@ import java.sql.SQLException
 import java.time.Clock
 import java.time.Duration
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
 import java.util.stream.Stream
+import kotlin.concurrent.thread
 
 /**
  * The check of outbox rows marked published whose event never reached the event log (owner rulings INV-Q-4334 (B),
@@ -50,16 +52,18 @@ class UnrelayedEventCheckIT {
                 Clock.systemUTC(),
             )
         val raised = mutableListOf<UnrelayedEvent>()
-        val check =
-            JdbcUnrelayedEventCheck(
-                service.runtimeDataSource(),
-                scope,
-                SCHEMA,
-                "canonical-svc",
-                PostgresEventLogPresence(eventLog.eventLogDataSource()),
-                UnrelayedEventSettings(margin, batchSize = 2),
-                UnrelayedEventSink { raised += it },
-            )
+        val check = newCheck()
+
+        /** A check as another instance, or this one after a restart, would build it: no memory of earlier runs. */
+        fun newCheck() = JdbcUnrelayedEventCheck(
+            service.runtimeDataSource(),
+            scope,
+            SCHEMA,
+            "canonical-svc",
+            PostgresEventLogPresence(eventLog.eventLogDataSource()),
+            UnrelayedEventSettings(Duration.ofDays(30), margin, batchSize = 2),
+            UnrelayedEventSink { raised += it },
+        )
 
         init {
             service.createService(SCHEMA)
@@ -68,24 +72,7 @@ class UnrelayedEventCheckIT {
 
         /** Writes one event in [TENANT]'s transaction; returns its outbox seq. */
         fun write(): Long {
-            val doc = UUID.randomUUID()
-            scope.bindWorkload(TenantId(TENANT)) {
-                boundary.inTransaction {
-                    writer.append(
-                        listOf(OutboundEvent(TestCatalogue.CANONICAL_VERSION_CREATED, """{"version":1}""")),
-                        EventContext(
-                            tenant = TenantId(TENANT),
-                            entity = EntityRef("entity-1"),
-                            docUuid = DocUuid(doc),
-                            transactionDate = java.time.LocalDate.of(2026, 9, 30),
-                            aggregateKey = doc.toString(),
-                            aggregateVersion = null,
-                            correlation = CorrelationId("corr"),
-                            causation = CausationId("cmd"),
-                        ),
-                    )
-                }
-            }
+            scope.bindWorkload(TenantId(TENANT)) { boundary.inTransaction { append() } }
             return service.adminDataSource().connection.use { c ->
                 c.createStatement().use { s ->
                     s.executeQuery("select max(seq) from $SCHEMA.outbox").use {
@@ -96,14 +83,41 @@ class UnrelayedEventCheckIT {
             }
         }
 
+        /** Appends one event in the current transaction. */
+        fun append() {
+            val doc = UUID.randomUUID()
+            writer.append(
+                listOf(OutboundEvent(TestCatalogue.CANONICAL_VERSION_CREATED, """{"version":1}""")),
+                EventContext(
+                    tenant = TenantId(TENANT),
+                    entity = EntityRef("entity-1"),
+                    docUuid = DocUuid(doc),
+                    transactionDate = java.time.LocalDate.of(2026, 9, 30),
+                    aggregateKey = doc.toString(),
+                    aggregateVersion = null,
+                    correlation = CorrelationId("corr"),
+                    causation = CausationId("cmd"),
+                ),
+            )
+        }
+
         /** As the runtime login, in the row's tenant transaction: marks an unrelayed row published (planted fault). */
-        fun markPublished(seq: Long) = scope.bindWorkload(TenantId(TENANT)) {
-            boundary.inTransaction {
-                val sql = "update $SCHEMA.outbox set published_at = now() where seq = ?"
-                scope.connections.require().prepareStatement(sql).use {
-                    it.setLong(1, seq)
-                    assertEquals(1, it.executeUpdate())
-                }
+        fun markPublished(seq: Long) = scope.bindWorkload(TenantId(TENANT)) { boundary.inTransaction { mark(seq) } }
+
+        /** Marks [seq] published in the current transaction. */
+        fun mark(seq: Long) {
+            val sql = "update $SCHEMA.outbox set published_at = now() where seq = ?"
+            scope.connections.require().prepareStatement(sql).use {
+                it.setLong(1, seq)
+                assertEquals(1, it.executeUpdate())
+            }
+        }
+
+        /** The seq of the current transaction's last appended row. */
+        fun lastSeq(): Long = scope.connections.require().prepareStatement("select max(seq) from $SCHEMA.outbox").use {
+            it.executeQuery().use { rows ->
+                rows.next()
+                rows.getLong(1)
             }
         }
 
@@ -191,12 +205,48 @@ class UnrelayedEventCheckIT {
             assertEquals(listOf(fault), first.open.map { it.outboxSeq }, "only the planted row is open")
             val second = s.check.check()
             assertEquals(listOf(fault), second.open.map { it.outboxSeq })
+            s.newCheck().check() // another instance, or a restart: the row is still open but not raised again
             val finding = s.raised.single()
             assertEquals("canonical-svc", finding.service)
             assertEquals(topic, finding.topic)
             assertEquals(s.idOf(fault), finding.eventId)
             assertEquals(fault, finding.outboxSeq)
             assertTrue(relayed != fault)
+        } finally {
+            s.close()
+        }
+    }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
+    fun `a row written and marked published by a transaction open across a check is reported by the next`(
+        image: String,
+    ) {
+        val s = setup(image, secondInstance = false)
+        try {
+            val written = CountDownLatch(1)
+            val checked = CountDownLatch(1)
+            var planted = 0L
+            val open =
+                thread {
+                    s.scope.bindWorkload(TenantId(TENANT)) {
+                        s.boundary.inTransaction {
+                            s.append()
+                            planted = s.lastSeq()
+                            written.countDown()
+                            checked.await()
+                            s.mark(planted)
+                        }
+                    }
+                }
+            written.await()
+            s.write() // a later seq, committed and relayed while the planted row's transaction is open
+            s.drain()
+            assertTrue(s.check.check().open.isEmpty(), "the planted row is invisible to this run")
+            checked.countDown()
+            open.join()
+            assertEquals(listOf(planted), s.check.check().open.map { it.outboxSeq }, "the next run reports it")
+            assertEquals(listOf(planted), s.raised.map { it.outboxSeq })
         } finally {
             s.close()
         }

@@ -167,11 +167,6 @@ class CompositionRootTest {
         ),
 
         // INV-T-3005: optional, the monitor falls back to a logging sink (the incident is the alert rule's, INV-Q-3030)
-        // INV-Q-4403 pending: the unrelayed-event check exists only with its margin set
-        UNRELAYED_EVENT_MARGIN(
-            { it.withPropertyValues("${UnrelayedEventProperties.MARGIN}=PT1H") },
-            setOf(UnrelayedEventCheck::class),
-        ),
         STALENESS_BREACH_SINK({ it.withBean(StalenessBreachSink::class.java, { StalenessBreachSink { } }) }, emptySet()),
         CONSUMER_SUBSCRIPTION(
             { it.withBean(ConsumerSubscription::class.java, { ConsumerSubscription("submission-svc", "canonical", "submission") }) },
@@ -309,19 +304,26 @@ class CompositionRootTest {
     }
 
     @Test
-    fun `the unrelayed-event check interval is a per-profile setting, and a missing or non-positive margin creates no check or stops start-up`(
+    fun `the unrelayed-event check is on by default, interval and margin are per-profile settings, and an invalid margin stops start-up`(
         @TempDir mountRoot: Path,
     ) {
-        base.withServiceInputs(mountRoot).withPropertyValues("${UnrelayedEventProperties.PREFIX}.check-interval=PT2M").run { context ->
-            context.getBean(UnrelayedEventProperties::class.java).checkInterval shouldBe Duration.ofMinutes(2)
+        base.withServiceInputs(mountRoot).run { context ->
+            context.getBean(UnrelayedEventProperties::class.java).margin shouldBe Duration.ofHours(1)
         }
-        base.withServiceInputs(mountRoot, without = ServiceInput.UNRELAYED_EVENT_MARGIN).run { context ->
-            context.getBeansOfType(UnrelayedEventCheck::class.java).size shouldBe 0
-            context.getBeansOfType(UnrelayedEventGauge::class.java).size shouldBe 0
-        }
-        base.withServiceInputs(mountRoot).withPropertyValues("${UnrelayedEventProperties.MARGIN}=PT0S").run { context ->
-            val failure = context.startupFailure.shouldNotBeNull()
-            generateSequence<Throwable>(failure) { it.cause }.any { it.message?.contains("margin must be positive") == true } shouldBe true
+        base
+            .withServiceInputs(mountRoot)
+            .withPropertyValues("$UNRELAYED.check-interval=PT2M", "$UNRELAYED.margin=PT2H")
+            .run { context ->
+                context.startupFailure shouldBe null
+                context.getBean(UnrelayedEventProperties::class.java).checkInterval shouldBe Duration.ofMinutes(2)
+                context.getBean(UnrelayedEventProperties::class.java).margin shouldBe Duration.ofHours(2)
+            }
+        // not positive; not below the shortest topic retention (the Retention bean: 30 days)
+        listOf("PT0S" to "margin must be positive", "P30D" to "below the shortest topic retention").forEach { (margin, message) ->
+            base.withServiceInputs(mountRoot).withPropertyValues("$UNRELAYED.margin=$margin").run { context ->
+                val failure = context.startupFailure.shouldNotBeNull()
+                generateSequence<Throwable>(failure) { it.cause }.any { it.message?.contains(message) == true } shouldBe true
+            }
         }
     }
 
@@ -431,6 +433,7 @@ class CompositionRootTest {
     }
 
     private companion object {
+        const val UNRELAYED = UnrelayedEventProperties.PREFIX
         val INBOX: Set<KClass<*>> = setOf(InboxConsumer::class, ReplayDelivery::class)
 
         /** Every port whose presence depends on a service-only input, and the ports that depend on none. */

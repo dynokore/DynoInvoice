@@ -31,9 +31,10 @@ one table per topic), `JdbcInboxConsumer` (inbox, `docsequence` rule, offsets, d
 `UnrelayedEventCheck`/`JdbcUnrelayedEventCheck`, `UnrelayedEvent`, `UnrelayedEventSink`, `UnrelayedEventSettings`,
 `EventLogPresence`/`PostgresEventLogPresence`: detection of outbox rows marked published whose event never reached
 the event log, through `eventlog.events_missing` (producers only; ids not present plus the retention cut-off). A row
-is reported only when published more than the settings' margin after the cut-off; the margin has no default until
-INV-Q-4403 is answered. service-runtime's composition runs it with `service-runtime.unrelayed-events.margin` set,
-every `service-runtime.unrelayed-events.check-interval` (default 5 minutes), and exports the open findings as the
+is reported only when published more than the settings' margin after the cut-off (INV-Q-4403 (A), default 1 hour), and
+raised once per row across instances and restarts (recorded in the service's `inbox`). service-runtime's composition
+runs it by default every `service-runtime.unrelayed-events.check-interval` (default 5 minutes; margin
+`service-runtime.unrelayed-events.margin`), and exports the open findings as the
 gauge `gst.platform.outbox.unrelayed.events.open`.
 
 ## What 1.1.0 adds (INV-T-2865)

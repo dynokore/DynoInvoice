@@ -57,23 +57,38 @@ data class MissingEvents(
 )
 
 /**
- * The settings of the check. [margin]: only rows published more than [margin] after the event log's cut-off are
- * reported, so an event purged at the cut-off is never reported although its row was marked published a little after
- * its insert (relay lag, and clock skew when the event log is on another instance). No default: the value awaits
- * INV-Q-4403.
+ * The settings of the check (coordinator ruling INV-Q-4403 (A)). [margin]: only rows published more than [margin] after
+ * the event log's cut-off are reported, so an event purged at the cut-off is never reported although its row was
+ * marked published a little after its insert (relay lag, and clock skew when the event log is on another instance).
+ * Per profile, default 1 hour; refused when not positive or not below [shortestRetention], the shortest topic retention
+ * of the installation (the shorter of the content window and the event-log retention).
  */
 data class UnrelayedEventSettings(
-    val margin: Duration,
+    val shortestRetention: Duration,
+    val margin: Duration = DEFAULT_MARGIN,
     val batchSize: Int = DEFAULT_BATCH,
 ) {
     init {
-        require(!margin.isZero && !margin.isNegative) { "margin must be positive" }
+        require(!margin.isZero && !margin.isNegative) { "margin must be positive, was $margin" }
+        require(margin < shortestRetention) {
+            "margin must be below the shortest topic retention $shortestRetention, was $margin"
+        }
         require(batchSize in 1..EventLogPresence.MAX_IDS) {
             "batch size must be 1..${EventLogPresence.MAX_IDS}, was $batchSize"
         }
     }
 
     companion object {
+        val DEFAULT_MARGIN: Duration = Duration.ofHours(1)
         const val DEFAULT_BATCH = 500
+
+        /** The settings for [retention]'s shortest topic retention. */
+        fun forRetention(
+            retention: Retention,
+            margin: Duration = DEFAULT_MARGIN,
+        ): UnrelayedEventSettings {
+            val shortest = minOf(retention.contentWindow, retention.eventLogRetention)
+            return UnrelayedEventSettings(shortest, margin)
+        }
     }
 }
