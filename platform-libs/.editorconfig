@@ -1,0 +1,8 @@
+# Temporary (coordinator ruling INV-Q-4608 (C)): platform-build 0.11.0's shipped ktlint override has no
+# max_line_length, so ktlint_official defaults to 140 while the shipped detekt.yml's MaxLineLength is 120.
+# This file only tightens ktlint to 120. INV-T-4203 deletes it when platform-libs adopts the platform-build
+# release that ships the key (INV-T-4611).
+root = true
+
+[*.{kt,kts}]
+max_line_length = 120
