@@ -10,6 +10,7 @@ import org.jooq.impl.CustomCondition
 import org.jooq.impl.CustomField
 import org.jooq.impl.CustomQueryPart
 import org.jooq.impl.CustomTable
+import org.jooq.impl.DSL
 import org.jooq.impl.QOM
 
 /**
@@ -73,24 +74,34 @@ internal object StatementGuard {
 
     /**
      * jOOQ renders the OVER clause of its window functions through its own `CustomQueryPart.of`. Such a part is let
-     * through only when its class and its parent's class are loaded from jOOQ's own jar (by code source, so no
-     * consumer class can pose as jOOQ's by its name or package) and the parent is a window function, where the typed
-     * API places no consumer part.
+     * through only when its class is exactly that class and its parent's class is exactly one of jOOQ's window or
+     * aggregate function classes, both taken from instances jOOQ itself creates and compared by identity, never by
+     * name, package or jar: a consumer class is never one of them, and a consumer's own `CustomQueryPart.of` part,
+     * which shares the class, is not a field, so the typed API cannot place it as a window function's argument.
      */
     private fun isJooqWindowPart(context: VisitContext): Boolean {
         val parts = context.queryParts()
-        val parent = parts.getOrNull(parts.size - 2)
-        return parent is QOM.WindowFunction<*, *> && FROM_JOOQ.get(parent.javaClass) && FROM_JOOQ.get(context.queryPart().javaClass)
+        val parent = parts.getOrNull(parts.size - 2) ?: return false
+        return context.queryPart().javaClass === JOOQ_OVER_PART && parent.javaClass in JOOQ_WINDOW_FUNCTIONS
     }
 
-    private fun codeSource(type: Class<*>): String? = type.getResource("/" + type.name.replace('.', '/') + ".class")?.toString()?.substringBefore("!/")
+    private val JOOQ_OVER_PART: Class<*> = CustomQueryPart.of { }.javaClass
 
-    private val JOOQ_JAR: String? = codeSource(CustomQueryPart::class.java)
+    private val JOOQ_WINDOW_FUNCTIONS: Set<Class<*>> = jooqWindowFunctions()
 
-    private val FROM_JOOQ =
-        object : ClassValue<Boolean>() {
-            override fun computeValue(type: Class<*>): Boolean = JOOQ_JAR != null && codeSource(type) == JOOQ_JAR
-        }
+    private fun jooqWindowFunctions(): Set<Class<*>> {
+        val value = DSL.inline(0)
+        val functions: List<Any> =
+            listOf(
+                DSL.rowNumber(), DSL.rank(), DSL.denseRank(), DSL.percentRank(), DSL.cumeDist(), DSL.ntile(1),
+                DSL.lag(value), DSL.lead(value), DSL.firstValue(value), DSL.lastValue(value), DSL.nthValue(value, 1),
+                DSL.count(), DSL.count(value), DSL.countDistinct(value), DSL.sum(value), DSL.avg(value),
+                DSL.max(value), DSL.min(value), DSL.every(DSL.noCondition()), DSL.boolAnd(DSL.noCondition()),
+                DSL.boolOr(DSL.noCondition()), DSL.arrayAgg(value), DSL.stddevPop(value), DSL.stddevSamp(value),
+                DSL.varPop(value), DSL.varSamp(value),
+            )
+        return functions.filter { it is QOM.WindowFunction<*, *> }.map { it.javaClass }.toSet()
+    }
 
     private fun isCustom(part: QueryPart): Boolean = part is CustomQueryPart || part is CustomCondition || part is CustomField<*> || part is CustomTable<*>
 

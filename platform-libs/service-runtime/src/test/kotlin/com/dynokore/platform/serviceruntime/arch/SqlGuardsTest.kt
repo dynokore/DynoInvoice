@@ -275,7 +275,6 @@ class SqlGuardsTest {
         val PENDING_0_10: Map<Pair<String, String>, String> =
             mapOf(
                 ("outbox-and-queue" to "tenant-column") to "INV-T-4134",
-                ("service-runtime" to "tenant-column") to "INV-T-4134",
                 ("config-resolver" to "tenant-column") to "INV-T-4134",
                 ("rulepack-kernel" to "tenant-column") to "INV-T-4137",
             )
