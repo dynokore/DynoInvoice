@@ -18,7 +18,11 @@ train is its own (README.md: "own version and changelog").
   functions (`job_state_purge_expired`, `idempotency_key_purge_expired`); the runtime role has no DELETE on job or
   idempotency rows. `JobSchema.ddl` and `IdempotencySchema.ddl` take the sys role.
 - `JobCommandServlet` binds the token's actor for every command (the actor-less fallback is gone); a tenantless token
-  gets 403 unless the target is a platform job (INV-Q-4115). `JobCommands.registered()` lists the registered jobs.
+  gets 403 SRT-004 unless the target is platform-level (INV-Q-4115), and an entityRef on a PLATFORM-scoped job from it
+  is the 400 contract violation of INV-Q-3537. `JobCommands.registered()` lists the registered jobs.
+- `IdempotencyStore` takes no `Clock`: a key's `created_at` and the purge cut-off are both read on the database clock,
+  so a service clock skewed against the database neither fails the purge nor deletes a key early.
+- `UnrelayedEventCheck` (INV-T-4337) reads the outbox on the application DataSource.
 - `FullSyncWiring` takes only the read-model clears; a full sync runs on the application DataSource (INV-Q-4064).
 ### Added
 - `MigrationRunner`, the migration entry point (INV-Q-3959): runs Flyway as `<svc>_migrate` and writes

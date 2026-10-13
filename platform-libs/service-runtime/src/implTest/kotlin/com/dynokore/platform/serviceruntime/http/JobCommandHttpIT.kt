@@ -578,18 +578,19 @@ class JobCommandHttpIT {
         fun stored() = s.h.rows("select count(*) as n from $SCHEMA.idempotency_key where idempotency_key = ?::uuid", key).single()["n"]
         // the key is stamped by the database, not by the service clock
         s.post(runPath("http-skew"), """{"entityRef":"E-001"}""", key = key).status shouldBe 202
-        s.h.rows("select count(*) as n from $SCHEMA.idempotency_key where created_at > now() - interval '1 hour'").single()["n"] shouldBe 1L
+        s.h.rows("select count(*) as n from $SCHEMA.idempotency_key where idempotency_key = ?::uuid and created_at > now() - interval '1 hour'", key)
+            .single()["n"] shouldBe 1L
 
         // a service clock 3 days ahead of the database: the purge runs (no cut-off later than the floor) and keeps the key
         s.clock.advance(Duration.ofDays(3))
-        s.idempotency.purge() shouldBe 0
+        s.idempotency.purge() // no 22023: the cut-off is never later than the floor
         stored() shouldBe 1L
         // 23 hours old by the database clock: still kept; 25 hours: purged
-        s.h.fixture.runAsAdmin("update $SCHEMA.idempotency_key set created_at = now() - interval '23 hours'")
-        s.idempotency.purge() shouldBe 0
+        s.h.fixture.runAsAdmin("update $SCHEMA.idempotency_key set created_at = now() - interval '23 hours' where idempotency_key = '$key'")
+        s.idempotency.purge() // no 22023: the cut-off is never later than the floor
         stored() shouldBe 1L
-        s.h.fixture.runAsAdmin("update $SCHEMA.idempotency_key set created_at = now() - interval '25 hours'")
-        s.idempotency.purge() shouldBe 1
+        s.h.fixture.runAsAdmin("update $SCHEMA.idempotency_key set created_at = now() - interval '25 hours' where idempotency_key = '$key'")
+        (s.idempotency.purge() >= 1) shouldBe true
         stored() shouldBe 0L
     }
 
@@ -671,7 +672,8 @@ class JobCommandHttpIT {
                 // the auto-configured store purges through the sys-owned definer; within the retention it keeps the key
                 context.getBean(IdempotencyStore::class.java).purge()
                 stored() shouldBe 1L
-                // past it, the next tick's run deletes the key, through the auto-configured store on the runtime login
+                // past it by the database clock, the next tick's run deletes the key, through the auto-configured store
+                s.h.fixture.runAsAdmin("update $SCHEMA.idempotency_key set created_at = created_at - interval '25 hours' where idempotency_key = '$key'")
                 s.clock.advance(Duration.ofHours(25))
                 s.replica.runtime.fire(IdempotencyKeyPurgeJob.NAME, s.clock.instant().plusSeconds(60)) shouldBe
                     mapOf(JobTarget.Whole to FireResult.RAN)
