@@ -65,31 +65,7 @@ class JdbcReplayIntake
 
         /** Closes the incidents of completed replays not yet closed (at least once). Returns the number of replays. */
         fun closeCompleted(): Int {
-            val done =
-                claimSource.connection.use { connection ->
-                    connection
-                        .prepareStatement(
-                            // A replay addressed to several producers closes once every addressee has completed (INV-Q-3788 A).
-                            "select replay_id, topics from $replays r where consumer = ? and producer = ? " +
-                                "and completed_at is not null and closed_at is null and not exists (select 1 from " +
-                                "$replays o " +
-                                "where o.replay_id = r.replay_id and o.consumer = r.consumer and o.completed_at is null)",
-                        ).use {
-                            it.setString(1, consumer)
-                            it.setString(2, producer)
-                            it.executeQuery().use { rows ->
-                                buildList {
-                                    while (rows.next()) {
-                                        @Suppress("UNCHECKED_CAST")
-                                        add(
-                                            rows.getObject(1, UUID::class.java) to
-                                                (rows.getArray(2).array as Array<String>).toList(),
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                }
+            val done = completedReplays()
             for ((replayId, topics) in done) {
                 val now = clock.instant()
                 topics.forEach { sink.close(RebuildRequiredClosed(consumer, it, replayId, now)) }
@@ -107,6 +83,33 @@ class JdbcReplayIntake
             }
             return done.size
         }
+
+        /** The completed replays whose incidents are not yet closed: id and topics. */
+        private fun completedReplays(): List<Pair<UUID, List<String>>> =
+            claimSource.connection.use { connection ->
+                connection
+                    .prepareStatement(
+                        // A replay addressed to several producers closes once every addressee has completed (INV-Q-3788 A).
+                        "select replay_id, topics from $replays r where consumer = ? and producer = ? " +
+                            "and completed_at is not null and closed_at is null and not exists (select 1 from " +
+                            "$replays o " +
+                            "where o.replay_id = r.replay_id and o.consumer = r.consumer and o.completed_at is null)",
+                    ).use {
+                        it.setString(1, consumer)
+                        it.setString(2, producer)
+                        it.executeQuery().use { rows ->
+                            buildList {
+                                while (rows.next()) {
+                                    @Suppress("UNCHECKED_CAST")
+                                    add(
+                                        rows.getObject(1, UUID::class.java) to
+                                            (rows.getArray(2).array as Array<String>).toList(),
+                                    )
+                                }
+                            }
+                        }
+                    }
+            }
 
         private inner class MarkerAwareHandler(
             private val delegate: EventHandler,

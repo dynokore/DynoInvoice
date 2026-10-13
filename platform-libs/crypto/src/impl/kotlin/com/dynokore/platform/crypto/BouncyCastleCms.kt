@@ -93,6 +93,14 @@ class BouncyCastleCms(
             return invalid("CMS signature does not verify against its own signer certificate")
         }
 
+        return trustedSigner(signerCertificate, trustedCertificatesDer)
+    }
+
+    /** The last verification step: the signer certificate's position among the trusted certificates, if any. */
+    private fun trustedSigner(
+        signerCertificate: X509CertificateHolder,
+        trustedCertificatesDer: List<ByteArray>,
+    ): DetachedVerification {
         val signerCertificateDer =
             try {
                 signerCertificate.encoded
@@ -100,9 +108,7 @@ class BouncyCastleCms(
                 return invalid("signer certificate could not be re-encoded: ${failure.message}")
             }
         val trustedIndex = trustedCertificatesDer.indexOfFirst { it.contentEquals(signerCertificateDer) }
-        return if (trustedIndex <
-            0
-        ) {
+        return if (trustedIndex < 0) {
             DetachedVerification.UntrustedSigner
         } else {
             DetachedVerification.Verified(trustedIndex)

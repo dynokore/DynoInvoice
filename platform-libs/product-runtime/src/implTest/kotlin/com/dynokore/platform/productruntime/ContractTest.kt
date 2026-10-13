@@ -169,37 +169,8 @@ class ContractTest {
 
     @Test
     fun `AuthorityChanged built from its generated types meets the schema and feeds the replica`() {
-        val grant =
-            AuthorityChangedPayload(
-                changeKind = AuthorityChangedPayload.ChangeKind.GRANT,
-                principalRef = "P-1",
-                authorityVersion = 4,
-                grantRecord =
-                    AuthorityChangedPayloadGrantRecord(
-                        "E-001",
-                        listOf(
-                            AuthorityChangedPayloadGrantRecordGrantsInner(
-                                action = "document.read",
-                                scopeLevel = AuthorityChangedPayloadGrantRecordGrantsInner.ScopeLevel.ENTITY,
-                                scopeRef = "E-001",
-                                validFrom = OffsetDateTime.parse("2026-10-01T00:00:00Z"),
-                            ),
-                        ),
-                    ),
-            )
-        val consent =
-            AuthorityChangedPayload(
-                changeKind = AuthorityChangedPayload.ChangeKind.CONSENT,
-                principalRef = "agent-1",
-                authorityVersion = 5,
-                consentRecord =
-                    AuthorityChangedPayloadConsentRecord(
-                        clientEntityRef = "E-001",
-                        state = AuthorityChangedPayloadConsentRecord.State.LIVE,
-                        scopeItems = AuthorityChangedPayloadConsentRecord.ScopeItems.entries.toSet(),
-                        validFrom = OffsetDateTime.parse("2026-10-01T00:00:00Z"),
-                    ),
-            )
+        val grant = grantPayload()
+        val consent = consentPayload()
         val schema = schema("access", "authority-changed-payload.schema.json")
         val handler = AuthorityFeedHandler(AuthorityReplica(CLOCK))
         listOf(grant, consent).forEach { payload ->
@@ -212,6 +183,39 @@ class ContractTest {
                 .shouldBeInstanceOf<AuthorityRecord>()
         }
     }
+
+    private fun grantPayload() =
+        AuthorityChangedPayload(
+            changeKind = AuthorityChangedPayload.ChangeKind.GRANT,
+            principalRef = "P-1",
+            authorityVersion = 4,
+            grantRecord =
+                AuthorityChangedPayloadGrantRecord(
+                    "E-001",
+                    listOf(
+                        AuthorityChangedPayloadGrantRecordGrantsInner(
+                            action = "document.read",
+                            scopeLevel = AuthorityChangedPayloadGrantRecordGrantsInner.ScopeLevel.ENTITY,
+                            scopeRef = "E-001",
+                            validFrom = OffsetDateTime.parse("2026-10-01T00:00:00Z"),
+                        ),
+                    ),
+                ),
+        )
+
+    private fun consentPayload() =
+        AuthorityChangedPayload(
+            changeKind = AuthorityChangedPayload.ChangeKind.CONSENT,
+            principalRef = "agent-1",
+            authorityVersion = 5,
+            consentRecord =
+                AuthorityChangedPayloadConsentRecord(
+                    clientEntityRef = "E-001",
+                    state = AuthorityChangedPayloadConsentRecord.State.LIVE,
+                    scopeItems = AuthorityChangedPayloadConsentRecord.ScopeItems.entries.toSet(),
+                    validFrom = OffsetDateTime.parse("2026-10-01T00:00:00Z"),
+                ),
+        )
 
     @Test
     fun `PolicyChanged built from its generated type is read by service-runtime's reader into the policy replica`() {

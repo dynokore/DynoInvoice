@@ -181,8 +181,7 @@ internal class JdbcSettingWrites(
         connection
             .prepareStatement(
                 "select id, relaxation_id, entity_id, vp_key, scope_level, scope_id, option_keys, option_values, " +
-                    "role, " +
-                    "principal, effective_from, reason, acknowledged_at from $acknowledgements " +
+                    "role, principal, effective_from, reason, acknowledged_at from $acknowledgements " +
                     "where tenant_id = ? and relaxation_id = ? order by seq",
             ).use {
                 it.setObject(1, tenant.value)

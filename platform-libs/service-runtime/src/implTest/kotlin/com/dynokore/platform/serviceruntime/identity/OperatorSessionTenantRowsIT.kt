@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Tag
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.security.oauth2.jwt.JwtDecoder
+import java.security.KeyPair
 import java.security.KeyPairGenerator
 import java.time.Clock
 import java.time.Instant
@@ -63,19 +64,7 @@ class OperatorSessionTenantRowsIT {
             val idpNeverAsked = JwtDecoder { error("an operator session is never verified by the identity provider") }
             val resolver = JwtEndUserPrincipalResolver(idpNeverAsked, replica, Clock.systemUTC())
 
-            val claims =
-                JWTClaimsSet
-                    .Builder()
-                    .subject("op-1")
-                    .claim(JwtEndUserPrincipalResolver.TENANT_CLAIM, tenantA.toString())
-                    .claim("act", mapOf("role" to "platform.support", "case" to "CASE-5521"))
-                    .issueTime(Date.from(now))
-                    .expirationTime(Date.from(now.plusSeconds(600)))
-                    .build()
-            val jwt =
-                SignedJWT(JWSHeader.Builder(JWSAlgorithm.RS256).keyID("k1").build(), claims).apply {
-                    sign(RSASSASigner(keys.private))
-                }
+            val jwt = operatorSessionJwt(keys, now)
             val principal = checkNotNull(resolver.resolve("Bearer " + jwt.serialize()))
 
             val read =
@@ -84,6 +73,25 @@ class OperatorSessionTenantRowsIT {
                 }
             read.map { it.value } shouldBe listOf("a-row")
             read.map { it.tenantId }.toSet() shouldBe setOf(tenantA)
+        }
+    }
+
+    /** An operator session for op-1 on tenant A, signed with key k1 and issued at [now]. */
+    private fun operatorSessionJwt(
+        keys: KeyPair,
+        now: Instant,
+    ): SignedJWT {
+        val claims =
+            JWTClaimsSet
+                .Builder()
+                .subject("op-1")
+                .claim(JwtEndUserPrincipalResolver.TENANT_CLAIM, tenantA.toString())
+                .claim("act", mapOf("role" to "platform.support", "case" to "CASE-5521"))
+                .issueTime(Date.from(now))
+                .expirationTime(Date.from(now.plusSeconds(600)))
+                .build()
+        return SignedJWT(JWSHeader.Builder(JWSAlgorithm.RS256).keyID("k1").build(), claims).apply {
+            sign(RSASSASigner(keys.private))
         }
     }
 }

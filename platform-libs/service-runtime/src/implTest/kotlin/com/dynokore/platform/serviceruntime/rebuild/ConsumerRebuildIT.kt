@@ -97,34 +97,9 @@ class ConsumerRebuildIT {
                 "the operator's transaction is bound to the operator, never the service (INV-Q-4268)",
             )
 
-            val requested = h.data(ReplayProtocol.REPLAY_REQUESTED).single()
-            assertEquals(done.state.replayId.toString(), requested.get("replayId").asString())
-            assertEquals(PRODUCER, requested.get("producer").asString())
-            val audit = h.data(OutboxAuditWriter.EVENT_TYPE).single()
-            assertEquals("platform.engineer", audit.get("actor").asString())
-            assertEquals("rebuildConsumer", audit.get("action").asString())
-            assertEquals("Idempotency-Key ${request.idempotencyKey}", audit.get("reason").asString())
-            assertEquals(
-                1L,
-                audit
-                    .get("priorState")
-                    .get("positions")
-                    .get(0)
-                    .get("nextOffset")
-                    .asLong(),
-            )
-            assertEquals(LIVE, mapper.readTree(audit.get("scope").asString()).get("topic").asString())
+            Checks(h).assertRequestedAndAudited(done, request)
 
-            // A repeat for the pair with the same mode and scope: the pending replay, nothing written (INV-Q-3665).
-            val repeat = h.runtime().rebuildConsumer(h.request()) as RebuildOutcome.Done
-            assertFalse(repeat.created)
-            assertTrue(repeat.state.repeat)
-            assertEquals(done.state.replayId, repeat.state.replayId)
-            assertEquals(2L, h.count("select count(*) from $SCHEMA.outbox"))
-            // ...another scope while it is pending: EVL-004.
-            val other = h.request(scope = ReplayScope.Tenant(TenantId(UUID.randomUUID())))
-            assertEquals(refused(RebuildErrorCode.OTHER_REPLAY_PENDING), h.runtime().rebuildConsumer(other))
-            assertEquals(2L, h.count("select count(*) from $SCHEMA.outbox"))
+            Checks(h).assertRepeatWritesNothing(done)
         }
     }
 
@@ -157,16 +132,7 @@ class ConsumerRebuildIT {
             h.behind(watermark = 5)
             h.matchView()
             val other = TenantId(UUID.randomUUID())
-            for (tenant in listOf(TENANT, other)) {
-                h.fixture.runAsAdmin(
-                    "insert into $SCHEMA.match_view values ('$CONSUMER', '${tenant.value}', 'n');" +
-                        "insert into $SCHEMA.consumer_sequence values ('$CONSUMER', '/gst/$PRODUCER', 's', " +
-                        "'${tenant.value}', 4);" +
-                        "insert into $SCHEMA.consumer_sequence values ('$CONSUMER', '/gst/other-svc', 's', " +
-                        "'${tenant.value}', 4);" +
-                        "insert into $SCHEMA.inbox (consumer, event_id, tenant_id) values ('$CONSUMER', 'e-${tenant.value}', '${tenant.value}')",
-                )
-            }
+            Checks(h).seedRows(listOf(TENANT, other))
             val full = h.request(mode = ReplayMode.FULL_SYNC, scope = null)
             val done = h.runtime(fullSync = true).rebuildConsumer(full) as RebuildOutcome.Done
             assertTrue(done.created)
@@ -251,34 +217,10 @@ class ConsumerRebuildIT {
                 "one per producer",
             )
             assertEquals(setOf(done.state.replayId.toString()), requested.map { it.get("replayId").asString() }.toSet())
-            val scope =
-                mapper.readTree(
-                    h
-                        .data(OutboxAuditWriter.EVENT_TYPE)
-                        .single()
-                        .get("scope")
-                        .asString(),
-                )
-            assertEquals(
-                listOf("a-svc", "b-svc"),
-                scope.get("producers").let { a ->
-                    (0 until a.size()).map { a.get(it).asString() }
-                },
-                "the audit names every addressee",
-            )
+            Checks(h).assertAuditNamesEveryAddressee()
             assertEquals(3L, h.count("select count(*) from $SCHEMA.outbox"))
 
-            // The repeat rule over the set of pairs: the pending replay, nothing written; also once one pair completed,
-            // since the replay stays pending until its incident closes (coordinator ruling INV-Q-3845).
-            for (step in listOf("both pending", "a-svc completed")) {
-                val repeat = h.runtime().rebuildConsumer(h.request(topic = MULTI)) as RebuildOutcome.Done
-                assertEquals(listOf(false, true), listOf(repeat.created, repeat.state.repeat), step)
-                assertEquals(done.state.replayId, repeat.state.replayId, step)
-                assertEquals(done.state.producers, repeat.state.producers, step)
-                h.fixture.runAsAdmin("update $SCHEMA.consumer_replay set completed_at = now() where producer = 'a-svc'")
-            }
-            val other = h.request(topic = MULTI, scope = ReplayScope.Tenant(TenantId(UUID.randomUUID())))
-            assertEquals(refused(RebuildErrorCode.OTHER_REPLAY_PENDING), h.runtime().rebuildConsumer(other))
+            Checks(h).repeatOverPairs(done)
             // Another replay (same mode and scope) pending on one of the pairs only is EVL-004 too.
             val scopeJson = ReplayJson().writeScope(ReplayScope.Tenant(TENANT))
             h.fixture.runAsAdmin(
@@ -373,20 +315,7 @@ class ConsumerRebuildIT {
             )
             val full = h.request(mode = ReplayMode.FULL_SYNC, scope = null)
             // canonical-svc shares SHARED with b-svc, and b-svc shares MULTI with a-svc: all three are addressed.
-            val partial = listOf(ReadModelClear(PRODUCER, listOf(CLEAR)), ReadModelClear("b-svc", listOf(CLEAR)))
-            assertThrows(IllegalStateException::class.java) {
-                h.runtime(fullSync = true, clears = partial, extra = listOf(SHARED)).rebuildConsumer(full)
-            }
-            assertEquals(
-                3L,
-                h.count("select count(*) from $SCHEMA.consumer_sequence"),
-                "no clear for a-svc: nothing deleted",
-            )
-            assertEquals(
-                0L,
-                h.count("select count(*) from $SCHEMA.outbox"),
-                "no clear for a-svc: refused, nothing written",
-            )
+            Checks(h).assertPartialClearsRefused(full)
             val clears = listOf(PRODUCER, "a-svc", "b-svc").map { ReadModelClear(it, listOf(CLEAR)) }
             val done =
                 h
@@ -427,6 +356,115 @@ class ConsumerRebuildIT {
             assertEquals(1L, h.count("select count(*) from $SCHEMA.consumer_sequence"))
             assertNull(h.nextOffsetOrNull())
             assertEquals(0L, h.count("select count(*) from $SCHEMA.outbox"))
+        }
+    }
+
+    /** Assertions and seeding shared by the tests above, over one [Harness]. */
+    private inner class Checks(
+        private val h: Harness,
+    ) {
+        /** The request event and the audit entry of [done]: the operator, the action, the key and the prior position. */
+        fun assertRequestedAndAudited(
+            done: RebuildOutcome.Done,
+            request: RebuildConsumerRequest,
+        ) {
+            val requested = h.data(ReplayProtocol.REPLAY_REQUESTED).single()
+            assertEquals(done.state.replayId.toString(), requested.get("replayId").asString())
+            assertEquals(PRODUCER, requested.get("producer").asString())
+            val audit = h.data(OutboxAuditWriter.EVENT_TYPE).single()
+            assertEquals("platform.engineer", audit.get("actor").asString())
+            assertEquals("rebuildConsumer", audit.get("action").asString())
+            assertEquals("Idempotency-Key ${request.idempotencyKey}", audit.get("reason").asString())
+            assertEquals(
+                1L,
+                audit
+                    .get("priorState")
+                    .get("positions")
+                    .get(0)
+                    .get("nextOffset")
+                    .asLong(),
+            )
+            assertEquals(LIVE, mapper.readTree(audit.get("scope").asString()).get("topic").asString())
+        }
+
+        /** A repeat returns the pending replay [done] and writes nothing; another scope while it is pending is EVL-004. */
+        fun assertRepeatWritesNothing(done: RebuildOutcome.Done) {
+            // A repeat for the pair with the same mode and scope: the pending replay, nothing written (INV-Q-3665).
+            val repeat = h.runtime().rebuildConsumer(h.request()) as RebuildOutcome.Done
+            assertFalse(repeat.created)
+            assertTrue(repeat.state.repeat)
+            assertEquals(done.state.replayId, repeat.state.replayId)
+            assertEquals(2L, h.count("select count(*) from $SCHEMA.outbox"))
+            // ...another scope while it is pending: EVL-004.
+            val other = h.request(scope = ReplayScope.Tenant(TenantId(UUID.randomUUID())))
+            assertEquals(refused(RebuildErrorCode.OTHER_REPLAY_PENDING), h.runtime().rebuildConsumer(other))
+            assertEquals(2L, h.count("select count(*) from $SCHEMA.outbox"))
+        }
+
+        /** Per tenant: a read-model row, docsequence rows of the producer and another producer, and an inbox row. */
+        fun seedRows(tenants: List<TenantId>) {
+            for (tenant in tenants) {
+                h.fixture.runAsAdmin(
+                    "insert into $SCHEMA.match_view values ('$CONSUMER', '${tenant.value}', 'n');" +
+                        "insert into $SCHEMA.consumer_sequence values ('$CONSUMER', '/gst/$PRODUCER', 's', " +
+                        "'${tenant.value}', 4);" +
+                        "insert into $SCHEMA.consumer_sequence values ('$CONSUMER', '/gst/other-svc', 's', " +
+                        "'${tenant.value}', 4);" +
+                        "insert into $SCHEMA.inbox (consumer, event_id, tenant_id) values ('$CONSUMER', 'e-${tenant.value}', '${tenant.value}')",
+                )
+            }
+        }
+
+        /** The single audit entry's scope names a-svc and b-svc. */
+        fun assertAuditNamesEveryAddressee() {
+            val scope =
+                mapper.readTree(
+                    h
+                        .data(OutboxAuditWriter.EVENT_TYPE)
+                        .single()
+                        .get("scope")
+                        .asString(),
+                )
+            assertEquals(
+                listOf("a-svc", "b-svc"),
+                scope.get("producers").let { a ->
+                    (0 until a.size()).map { a.get(it).asString() }
+                },
+                "the audit names every addressee",
+            )
+        }
+
+        /** Without a clear for a-svc the full sync is refused: nothing deleted, nothing written. */
+        fun assertPartialClearsRefused(full: RebuildConsumerRequest) {
+            val partial = listOf(ReadModelClear(PRODUCER, listOf(CLEAR)), ReadModelClear("b-svc", listOf(CLEAR)))
+            assertThrows(IllegalStateException::class.java) {
+                h.runtime(fullSync = true, clears = partial, extra = listOf(SHARED)).rebuildConsumer(full)
+            }
+            assertEquals(
+                3L,
+                h.count("select count(*) from $SCHEMA.consumer_sequence"),
+                "no clear for a-svc: nothing deleted",
+            )
+            assertEquals(
+                0L,
+                h.count("select count(*) from $SCHEMA.outbox"),
+                "no clear for a-svc: refused, nothing written",
+            )
+        }
+
+        /** The repeat rule over a set of pairs, before and after one pair completed; another scope is EVL-004. */
+        fun repeatOverPairs(done: RebuildOutcome.Done) {
+            // The repeat rule over the set of pairs: the pending replay, nothing written; also once one pair completed,
+            // since the replay stays pending until its incident closes (coordinator ruling INV-Q-3845).
+            for (step in listOf("both pending", "a-svc completed")) {
+                val repeat = h.runtime().rebuildConsumer(h.request(topic = MULTI)) as RebuildOutcome.Done
+                assertEquals(listOf(false, true), listOf(repeat.created, repeat.state.repeat), step)
+                assertEquals(done.state.replayId, repeat.state.replayId, step)
+                assertEquals(done.state.producers, repeat.state.producers, step)
+                h.fixture.runAsAdmin("update $SCHEMA.consumer_replay set completed_at = now() where producer = 'a-svc'")
+            }
+            val other = h.request(topic = MULTI, scope = ReplayScope.Tenant(TenantId(UUID.randomUUID())))
+            assertEquals(refused(RebuildErrorCode.OTHER_REPLAY_PENDING), h.runtime().rebuildConsumer(other))
         }
     }
 

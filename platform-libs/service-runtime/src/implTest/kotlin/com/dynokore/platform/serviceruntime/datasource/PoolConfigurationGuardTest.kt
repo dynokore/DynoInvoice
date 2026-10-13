@@ -77,6 +77,18 @@ class PoolConfigurationGuardTest {
     )
     fun `a pool that runs SQL or sets session state is refused, and the value is not printed`(setting: String) {
         val pool = allowedPool()
+        set(pool, setting)
+        val offending = PoolConfigurationGuard.findOffendingProperties(pool, SERVICE)
+        offending.size shouldBe 1
+        offending.single() shouldNotContain "evil"
+        offending.single() shouldNotContain "postgres"
+    }
+
+    /** Sets the one offending [setting] on [pool]. */
+    private fun set(
+        pool: HikariConfig,
+        setting: String,
+    ) {
         when (setting) {
             "connectionInitSql" -> {
                 pool.connectionInitSql = "set role postgres"
@@ -114,6 +126,18 @@ class PoolConfigurationGuardTest {
                 pool.addDataSourceProperty("options", "-c search_path=evil")
             }
 
+            else -> {
+                setUrlOrLogin(pool, setting)
+            }
+        }
+    }
+
+    /** The URL, login and JMX settings of [set]. */
+    private fun setUrlOrLogin(
+        pool: HikariConfig,
+        setting: String,
+    ) {
+        when (setting) {
             "jdbcUrlOptions" -> {
                 pool.jdbcUrl = "jdbc:postgresql://db/app?options=-c%20search_path%3Devil"
             }
@@ -142,10 +166,6 @@ class PoolConfigurationGuardTest {
                     HikariCredentialsProvider { Credentials.of("evil", "evil") }
             }
         }
-        val offending = PoolConfigurationGuard.findOffendingProperties(pool, SERVICE)
-        offending.size shouldBe 1
-        offending.single() shouldNotContain "evil"
-        offending.single() shouldNotContain "postgres"
     }
 
     @Test

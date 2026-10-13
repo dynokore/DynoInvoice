@@ -73,8 +73,9 @@ class TransactionRunnerImpl
         }
 
         /**
-         * The first statement of the transaction: one `select`, every setting transaction-local (`true`), so each ends at
-         * commit or rollback: the tenant, the actor, and the [label]'s `application_name` when it gives one (INV-Q-4487).
+         * The first statement of the transaction: one `select`, every setting transaction-local (`true`), so each ends
+         * at commit or rollback: the tenant, the actor, and the [label]'s `application_name` when it gives one
+         * (INV-Q-4487).
          */
         private fun bindSettings(
             connection: Connection,

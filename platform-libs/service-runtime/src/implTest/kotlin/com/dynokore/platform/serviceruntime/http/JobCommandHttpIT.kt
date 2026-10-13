@@ -539,22 +539,7 @@ class JobCommandHttpIT {
         s.replica.runtime.register(job("http-pause", criticality = JobCriticality.DEADLINE_CRITICAL), entities) { }
         s.deadlines.due[e1] = START.plus(Duration.ofDays(2))
         val until = START.plus(Duration.ofHours(5))
-        s.post(pausePath("http-pause"), """{"entityRef":"E-001"}""").closed(ClosedErrorCode.CONTRACT_VIOLATION)
-        s
-            .post(
-                pausePath("http-pause"),
-                """{"entityRef":"E-001","until":"yesterday"}""",
-            ).closed(ClosedErrorCode.CONTRACT_VIOLATION)
-        s
-            .post(
-                pausePath("http-pause"),
-                """{"entityRef":"E-001","until":"${START.minusSeconds(1)}"}""",
-            ).coded("JOB-004", 422)
-        s
-            .post(
-                pausePath("http-pause"),
-                """{"entityRef":"E-001","until":"${START.plus(Duration.ofDays(3))}"}""",
-            ).coded("JOB-003", 422)
+        refusesInvalidPauses(s)
 
         val paused = s.post(pausePath("http-pause"), """{"entityRef":"E-001","until":"$until"}""").conforms()
         paused.status shouldBe 200
@@ -614,19 +599,7 @@ class JobCommandHttpIT {
                     key,
                 ).single()["n"]
 
-        // the runtime login's direct cross-tenant DELETE removes nothing: it holds no DELETE grant (INV-ADR-3968), and its
-        // SELECT with no tenant bound sees no row (forced RLS)
-        s.h.fixture.runtimeDataSource().connection.use { runtime ->
-            assertThrows<SQLException> {
-                runtime.prepareStatement("delete from $SCHEMA.idempotency_key").use { it.executeUpdate() }
-            }.sqlState shouldBe "42501"
-            runtime.prepareStatement("select count(*) from $SCHEMA.idempotency_key").use { q ->
-                q.executeQuery().use {
-                    it.next()
-                    it.getLong(1)
-                }
-            } shouldBe 0L
-        }
+        runtimeLoginPurgesNothing(s)
         stored(tenantKey) shouldBe 1L
         stored(platformKey) shouldBe 1L
 
@@ -779,14 +752,7 @@ class JobCommandHttpIT {
                     "select count(*) as n from $SCHEMA.idempotency_key where idempotency_key = ?::uuid",
                     key,
                 ).single()["n"]
-        ApplicationContextRunner()
-            .withConfiguration(AutoConfigurations.of(JobCommandHttpAutoConfiguration::class.java))
-            .withBean("dataSource", DataSource::class.java, { s.h.fixture.appDataSource() }, { it.isPrimary = true })
-            .withBean(JobRuntime::class.java, { s.replica.runtime })
-            .withBean(TenantScope::class.java, { s.replica.scope })
-            .withBean(EndUserPrincipalResolver::class.java, { principals })
-            .withBean(Clock::class.java, { s.clock })
-            .withPropertyValues("gst.service=$SERVICE", "service-runtime.idempotency.schema=$SCHEMA")
+        autoConfigured(s)
             .run { context ->
                 context.startupFailure shouldBe null
                 context.getBean(IdempotencyKeyPurgeJob::class.java).isRunning shouldBe true
@@ -821,6 +787,53 @@ class JobCommandHttpIT {
                     false
             }
     }
+
+    /** A pause without `until`, with a malformed one, one in the past and one beyond the deadline is refused. */
+    private fun refusesInvalidPauses(s: Service) {
+        s.post(pausePath("http-pause"), """{"entityRef":"E-001"}""").closed(ClosedErrorCode.CONTRACT_VIOLATION)
+        s
+            .post(
+                pausePath("http-pause"),
+                """{"entityRef":"E-001","until":"yesterday"}""",
+            ).closed(ClosedErrorCode.CONTRACT_VIOLATION)
+        s
+            .post(
+                pausePath("http-pause"),
+                """{"entityRef":"E-001","until":"${START.minusSeconds(1)}"}""",
+            ).coded("JOB-004", 422)
+        s
+            .post(
+                pausePath("http-pause"),
+                """{"entityRef":"E-001","until":"${START.plus(Duration.ofDays(3))}"}""",
+            ).coded("JOB-003", 422)
+    }
+
+    private fun runtimeLoginPurgesNothing(s: Service) {
+        // the runtime login's direct cross-tenant DELETE removes nothing: it holds no DELETE grant (INV-ADR-3968), and its
+        // SELECT with no tenant bound sees no row (forced RLS)
+        s.h.fixture.runtimeDataSource().connection.use { runtime ->
+            assertThrows<SQLException> {
+                runtime.prepareStatement("delete from $SCHEMA.idempotency_key").use { it.executeUpdate() }
+            }.sqlState shouldBe "42501"
+            runtime.prepareStatement("select count(*) from $SCHEMA.idempotency_key").use { q ->
+                q.executeQuery().use {
+                    it.next()
+                    it.getLong(1)
+                }
+            } shouldBe 0L
+        }
+    }
+
+    /** The job command auto-configuration over [s]'s data source, runtime, scope, principals and clock. */
+    private fun autoConfigured(s: Service): ApplicationContextRunner =
+        ApplicationContextRunner()
+            .withConfiguration(AutoConfigurations.of(JobCommandHttpAutoConfiguration::class.java))
+            .withBean("dataSource", DataSource::class.java, { s.h.fixture.appDataSource() }, { it.isPrimary = true })
+            .withBean(JobRuntime::class.java, { s.replica.runtime })
+            .withBean(TenantScope::class.java, { s.replica.scope })
+            .withBean(EndUserPrincipalResolver::class.java, { principals })
+            .withBean(Clock::class.java, { s.clock })
+            .withPropertyValues("gst.service=$SERVICE", "service-runtime.idempotency.schema=$SCHEMA")
 
     private companion object {
         /** The app pool's maximum in the pool test (INV-T-3947). */

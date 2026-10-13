@@ -337,14 +337,12 @@ class JdbcPolicyWriter(
         val limiting =
             bounds.broaderLevels(definition, scope, target.level).map { key to scope.target(it) } +
                 listOfNotNull(definition.installationParameter).map {
-                    it to
-                        PolicyScope.installation().target(ScopeLevel.INSTALLATION)
+                    it to PolicyScope.installation().target(ScopeLevel.INSTALLATION)
                 }
         val later =
-            limiting.flatMap { (row, at) -> writes.versions(connection, row, at).map { it.effectiveFrom } }.filter {
-                it >
-                    effectiveFrom
-            }
+            limiting
+                .flatMap { (row, at) -> writes.versions(connection, row, at).map { it.effectiveFrom } }
+                .filter { it > effectiveFrom }
         (listOf(effectiveFrom) + later.distinct().sorted()).forEach { date ->
             val limits =
                 try {
@@ -352,25 +350,32 @@ class JdbcPolicyWriter(
                 } catch (unavailable: BoundUnavailable) {
                     refuse(key, PolicyRefusal.BOUND_UNAVAILABLE, unavailable.message.orEmpty())
                 }
-            limits.firstOrNull { it.violatedBy(it.field.value) }?.let {
-                val side = if (it.ceiling) "above" else "below"
-                val where = "'${it.field.option}' ${it.field.path.ifEmpty {
-                    "value"
-                }} ${it.field.value?.toPlainString()} is $side"
-                if (it.crossScope) {
-                    refuse(
-                        key,
-                        PolicyRefusal.LOOSER_THAN_BROADER,
-                        "$where the ${it.level} value ${it.bound.toPlainString()} on $date",
-                    )
-                } else {
-                    refuse(
-                        key,
-                        PolicyRefusal.BEYOND_INSTALLATION_BOUND,
-                        "$where ${it.by} ${it.bound.toPlainString()} on $date",
-                    )
-                }
-            }
+            limits.firstOrNull { it.violatedBy(it.field.value) }?.let { refuseViolation(key, it, date) }
+        }
+    }
+
+    /** Refuses the selection for the [limit] it breaks on [date]. */
+    private fun refuseViolation(
+        key: VariationPointKey,
+        limit: ScopeBounds.Limit,
+        date: LocalDate,
+    ): Nothing {
+        val side = if (limit.ceiling) "above" else "below"
+        val where =
+            "'${limit.field.option}' ${limit.field.path.ifEmpty { "value" }} " +
+                "${limit.field.value?.toPlainString()} is $side"
+        if (limit.crossScope) {
+            refuse(
+                key,
+                PolicyRefusal.LOOSER_THAN_BROADER,
+                "$where the ${limit.level} value ${limit.bound.toPlainString()} on $date",
+            )
+        } else {
+            refuse(
+                key,
+                PolicyRefusal.BEYOND_INSTALLATION_BOUND,
+                "$where ${limit.by} ${limit.bound.toPlainString()} on $date",
+            )
         }
     }
 

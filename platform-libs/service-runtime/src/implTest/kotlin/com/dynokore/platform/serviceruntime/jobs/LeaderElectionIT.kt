@@ -45,12 +45,7 @@ class LeaderElectionIT {
             fun fireTogether(of: List<JobsHarness.Replica>) =
                 of
                     .map { r ->
-                        pool.submit<FireResult> {
-                            r.runtime
-                                .fire(def.name)
-                                .values
-                                .single()
-                        }
+                        pool.submit<FireResult> { fireOnce(r, def.name) }
                     }.map { it.get(30, TimeUnit.SECONDS) }
 
             // Hour 1: all three fire at once; exactly one runs.
@@ -62,12 +57,8 @@ class LeaderElectionIT {
             holding.await(30, TimeUnit.SECONDS) shouldBe true
             replicas
                 .drop(1)
-                .map {
-                    it.runtime
-                        .fire(def.name)
-                        .values
-                        .single()
-                }.count { it == FireResult.RAN } shouldBe 0
+                .map { fireOnce(it, def.name) }
+                .count { it == FireResult.RAN } shouldBe 0
 
             // Hour 3: the dead replica's lease lapses; the sweeper records its run, and one replica runs hour 3.
             Thread.sleep(lease.plusMillis(500).toMillis())
@@ -88,4 +79,14 @@ class LeaderElectionIT {
             h.events(JobPayloads.JOB_RUN_RECORDED, "$SERVICE/${def.name}") shouldHaveSize 3
         }
     }
+
+    /** One replica's fire of [name]: its single target's result. */
+    private fun fireOnce(
+        replica: JobsHarness.Replica,
+        name: String,
+    ): FireResult =
+        replica.runtime
+            .fire(name)
+            .values
+            .single()
 }

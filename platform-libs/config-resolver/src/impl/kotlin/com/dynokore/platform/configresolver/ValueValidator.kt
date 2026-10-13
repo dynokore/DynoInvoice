@@ -88,6 +88,16 @@ internal class ValueValidator(
         return spec.needsOwningService
     }
 
+    /** A numeric bound on a type that can take none (a counted type takes one), or `null`. */
+    private fun boundProblem(
+        spec: TypedValueSpec,
+        path: String,
+    ): String? {
+        val bounded =
+            !spec.type.numeric && listOfNotNull(spec.min, spec.max, spec.minExclusive).any { it.number != null }
+        return if (bounded && spec.type !in COUNTED) "$path has a numeric bound its type cannot take" else null
+    }
+
     /** The first reason [node] does not fit [spec], or `null`. */
     @Suppress("CyclomaticComplexMethod", "ReturnCount") // one branch per catalogue value type, first problem wins
     private fun problem(
@@ -96,9 +106,7 @@ internal class ValueValidator(
         path: String,
     ): String? {
         if (node.isNull) return "$path is null"
-        if (!spec.type.numeric && listOfNotNull(spec.min, spec.max, spec.minExclusive).any { it.number != null }) {
-            if (spec.type !in COUNTED) return "$path has a numeric bound its type cannot take"
-        }
+        boundProblem(spec, path)?.let { return it }
         return when (spec.type) {
             ValueType.INT -> {
                 if (!node.isIntegralNumber) "$path must be a whole number" else numberProblem(spec, node, path)
@@ -113,23 +121,11 @@ internal class ValueValidator(
             }
 
             ValueType.TEXT -> {
-                if (!node.isString ||
-                    node.stringValue().isBlank()
-                ) {
-                    "$path must be non-blank text"
-                } else {
-                    null
-                }
+                if (!node.isString || node.stringValue().isBlank()) "$path must be non-blank text" else null
             }
 
             ValueType.ENUM -> {
-                if (!node.isString ||
-                    node.stringValue() !in spec.values
-                ) {
-                    "$path must be one of ${spec.values}"
-                } else {
-                    null
-                }
+                enumProblem(spec, node, path)
             }
 
             ValueType.REF -> {
@@ -264,6 +260,13 @@ internal class ValueValidator(
         val COUNTED = setOf(ValueType.LIST, ValueType.SET, ValueType.MAP, ValueType.LIST_REF)
     }
 }
+
+/** [node] is not one of [spec]'s values, or `null`. */
+private fun enumProblem(
+    spec: TypedValueSpec,
+    node: JsonNode,
+    path: String,
+): String? = if (!node.isString || node.stringValue() !in spec.values) "$path must be one of ${spec.values}" else null
 
 internal fun refuse(
     key: VariationPointKey,
