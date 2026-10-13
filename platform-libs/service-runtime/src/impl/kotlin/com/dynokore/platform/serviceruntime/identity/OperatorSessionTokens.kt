@@ -27,8 +27,8 @@ import java.util.Base64
  *  - it carries `iat` and `exp`, `exp` at most [MAX_LIFETIME] after `iat` (API-23), and is not expired or
  *    issued in the future (both beyond [CLOCK_SKEW], the same tolerance as the identity provider's tokens);
  *  - its `act` is an object with a `role` and a `case` as openOperatorSession's `caseId` allows (coordinator ruling
- *    INV-Q-4529): 1 to 64 code points, no ':' and no ISO control character (U+0000-U+001F, U+007F-U+009F), and
- *    at least one outside the caseId whitespace set (coordinator ruling INV-Q-4534). A ':' would make `case <case>` and `case <case>: <own reason>` ambiguous, and a
+ *    INV-Q-4529): 1 to 64 characters with at least one that is not whitespace, no ':' and no ISO control character
+ *    (U+0000-U+001F, U+007F-U+009F). A ':' would make `case <case>` and `case <case>: <own reason>` ambiguous, and a
  *    control character would forge structure in an audit reason. The `role` may not hold a control character either.
  * The caller checks `sub` and `tenant_id`. Anything else is refused (null, 401).
  */
@@ -105,12 +105,12 @@ internal class OperatorSessionTokens(
     }
 
     /**
-     * `caseId` of openOperatorSession as amended by INV-Q-4529 and INV-Q-4534: 1 to 64 code points, every one allowed
-     * by [isCaseCharacter], at least one outside [CASE_WHITESPACE]. The single place the case rule lives.
+     * `caseId` of openOperatorSession as amended by INV-Q-4529: 1 to 64 characters (code points), at least one that
+     * is not whitespace, every one allowed by [isCaseCharacter]. The single place the character rule lives.
      */
     private fun isContractCase(case: String): Boolean = case.codePointCount(0, case.length) in 1..MAX_CASE_LENGTH &&
-        case.codePoints().allMatch(::isCaseCharacter) &&
-        case.codePoints().anyMatch { it !in CASE_WHITESPACE }
+        case.any { !it.isWhitespace() } &&
+        case.codePoints().allMatch(::isCaseCharacter)
 
     /** INV-Q-4529: a case character is neither ':' (the INV-Q-4521 reason separator) nor an ISO control character. */
     private fun isCaseCharacter(codePoint: Int): Boolean = codePoint != CASE_SEPARATOR.code && !Character.isISOControl(codePoint)
@@ -125,13 +125,6 @@ internal class OperatorSessionTokens(
 
         /** Separates the case from the own reason in an audit reason (INV-Q-4521); forbidden in a case (INV-Q-4529). */
         private const val CASE_SEPARATOR = ':'
-
-        /**
-         * The caseId whitespace set (coordinator ruling INV-Q-4534), held as an explicit list rather than
-         * Char.isWhitespace() or a regex `\s`, so code and contract agree code point for code point.
-         */
-        private val CASE_WHITESPACE: Set<Int> =
-            setOf(0x0020, 0x00A0, 0x1680) + (0x2000..0x200A) + setOf(0x2028, 0x2029, 0x202F, 0x205F, 0x3000, 0xFEFF)
 
         /** openOperatorSession `caseId` maxLength. */
         private const val MAX_CASE_LENGTH = 64

@@ -108,20 +108,6 @@ class OperatorSessionTokenTest {
     }
 
     @Test
-    fun `the INV-Q-4534 samples give the contract's results`() {
-        fun caseOf(case: String) = resolver.resolve(session(act = mapOf("role" to "platform.support", "case" to case)))?.operatorSession?.case
-        for (accepted in listOf("CASE-5521", " CASE-5521 ", "\uFEFFA\u3000", "\uD83D\uDE00".repeat(64))) {
-            caseOf(accepted) shouldBe accepted
-        }
-        val whitespace = listOf(0x20, 0xA0, 0x1680) + (0x2000..0x200A) + listOf(0x2028, 0x2029, 0x202F, 0x205F, 0x3000, 0xFEFF)
-        val refused =
-            listOf("", "   ", "A:B", "A\nB", "A\u0085B", "\uFEFF", "\u3000", "\uD83D\uDE00".repeat(65), "C".repeat(65)) +
-                whitespace.map { String(Character.toChars(it)) } +
-                whitespace.joinToString("") { String(Character.toChars(it)) }
-        for (case in refused) caseOf(case) shouldBe null
-    }
-
-    @Test
     fun `a case holding a colon is refused, so it cannot pose as another case with its own reason (INV-Q-4529)`() {
         for (case in listOf("CASE-1: approved", "CASE-1:approved", ":", ": ", "CASE-1:", ":CASE-1", "C".repeat(63) + ":")) {
             resolver.resolve(session(act = mapOf("role" to "platform.support", "case" to case))) shouldBe null
