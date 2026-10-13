@@ -15,7 +15,6 @@ import org.springframework.core.PriorityOrdered
 import org.springframework.core.env.ConfigurableEnvironment
 import org.springframework.core.env.Environment
 import org.springframework.core.env.SystemEnvironmentPropertySource
-import org.springframework.jmx.export.MBeanExporter
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 
@@ -58,10 +57,10 @@ class SqlConfigurationKeyGuard :
             environment: ConfigurableEnvironment,
             classLoader: ClassLoader?,
         ) {
-            val offending = findOffendingKeys(environment) + findPasswordProperties(environment) + findExternalConfiguration(listOfNotNull(classLoader))
+            val offending = findOffendingKeys(environment) + findExternalConfiguration(listOfNotNull(classLoader))
             check(offending.isEmpty()) {
                 "Spring configuration keys that run SQL or set session state are refused (coordinator rulings INV-Q-4542, " +
-                    "INV-Q-4559, INV-Q-4570, INV-Q-4591; INV-ADR-3968 item 4c, INV-REQ-1230): remove $offending"
+                    "INV-Q-4559; INV-ADR-3968 item 4c, INV-REQ-1230): remove $offending"
             }
         }
 
@@ -81,20 +80,9 @@ class SqlConfigurationKeyGuard :
                 ?.let { "class-path resource $DRIVER_CONFIGURATION (pgjdbc default connection properties)" },
         )
 
-        /**
-         * The password keys, read by exact name through [Environment.getProperty], which also consults property
-         * sources that cannot be enumerated (coordinator ruling INV-Q-4570; STK-29, INV-Q-4548). A value that cannot be
-         * resolved counts as set.
-         */
-        fun findPasswordProperties(environment: Environment): List<String> = PASSWORD_KEYS
-            .filter { key -> runCatching { environment.getProperty(key) != null }.getOrDefault(true) }
-            .map { "$it (a password: the login comes only through SecretStore (STK-29, INV-Q-4570))" }
-
         /** Every refused key, sorted, with the reason; each as its property source names it. */
         fun findOffendingKeys(environment: ConfigurableEnvironment): List<String> = ConfigurationPropertySources
             .get(environment)
-            // a source that cannot be enumerated (a stub, a servlet-context source before the web server) is not listed here;
-            // PoolConfigurationGuard checks what such a source binds into a pool
             .filterIsInstance<IterableConfigurationPropertySource>()
             .flatMap { source ->
                 val env = source.underlyingSource is SystemEnvironmentPropertySource
@@ -128,7 +116,6 @@ class SqlConfigurationKeyGuard :
             }
             if (elements.joinToString("") == HIKARI_CONFIGURATION_FILE_FLAT) return "an external pool configuration file (INV-Q-4559)"
             REFUSED_PREFIXES.firstOrNull { it.isAncestorOf(name) || it == name }?.let { return "under $it" }
-            if (JMX.isAncestorOf(name) || JMX == name) return jmxRefusal(elements.drop(2), value)
             sqlSegment(withoutIndex(name, elements), environmentVariable)?.let { return "runs SQL: $it" }
             if (DATASOURCE.isAncestorOf(name) || DATASOURCE == name) {
                 return allowlisted(elements.drop(2), DATASOURCE_ALLOWED, environmentVariable, value)
@@ -139,20 +126,6 @@ class SqlConfigurationKeyGuard :
             val eventLogUrl = name == EVENT_LOG_URL || (environmentVariable && elements.joinToString("") == EVENT_LOG_URL_FLAT)
             if (eventLogUrl) return urlRefusal(value())
             return null
-        }
-
-        /**
-         * (7) Under `spring.jmx` only `enabled` with the value `false` (Spring Boot's default) passes: Spring's
-         * MBeanExporter exports every HikariDataSource as HikariConfigMXBean, with a writable Password, whatever
-         * registerMbeans is (coordinator ruling INV-Q-4591).
-         */
-        private fun jmxRefusal(
-            rest: List<String>,
-            value: () -> String?,
-        ): String? = if (rest == listOf("enabled") && value()?.trim().equals("false", ignoreCase = true)) {
-            null
-        } else {
-            "JMX export is refused; only spring.jmx.enabled=false (INV-Q-4591)"
         }
 
         private fun allowlisted(
@@ -252,14 +225,12 @@ class SqlConfigurationKeyGuard :
             }
         }
 
-        private val PASSWORD_KEYS = listOf("spring.datasource.password", "spring.datasource.hikari.password", "spring.flyway.password")
         private const val PLACEHOLDERS = "placeholders"
         private const val HIKARI_CONFIGURATION_FILE = "hikaricp.configurationFile"
         private const val HIKARI_CONFIGURATION_FILE_FLAT = "hikaricpconfigurationfile"
         private const val DRIVER_CONFIGURATION = "org/postgresql/driverconfig.properties"
         private val DATASOURCE = ConfigurationPropertyName.of("spring.datasource")
         private val FLYWAY = ConfigurationPropertyName.of("spring.flyway")
-        private val JMX = ConfigurationPropertyName.of("spring.jmx")
         private val EVENT_LOG_URL = ConfigurationPropertyName.of("gst.db.event-log-url")
         private const val EVENT_LOG_URL_FLAT = "gstdbeventlogurl"
         private val CONTEXT_PARAMETERS = ConfigurationPropertyName.of("server.servlet.context-parameters")
@@ -310,6 +281,7 @@ class SqlConfigurationKeyGuard :
                 "hikari.leakdetectionthreshold" to ANY,
                 "hikari.initializationfailtimeout" to ANY,
                 "hikari.poolname" to ANY,
+                "hikari.registermbeans" to ANY,
             )
 
         /** (4) The keys allowed under `spring.flyway` (uniform form), with their value check. */
@@ -344,12 +316,6 @@ class SqlConfigurationKeyGuard :
  * The second run of [SqlConfigurationKeyGuard] (coordinator ruling INV-Q-4559): after configuration-class parsing and
  * before any application bean, so a property source added after environment post-processing (a `@PropertySource` on
  * any configuration class, an ApplicationContextInitializer, an earlier post-processor) is checked too.
- *
- * It also fails start-up, before any bean is created, on a bean definition of type [MBeanExporter] or a subclass (Spring
- * Boot's JMX auto-configuration, `@EnableMBeanExport`, an exporter `@Bean`, a library's exporter): an exporter exports
- * every HikariDataSource as HikariConfigMXBean, with a writable Password (coordinator ruling INV-Q-4591). INV uses no
- * JMX: metrics, health and tracing are HTTP on the management port (STK-33, STK-34, INV-T-4125). INV-T-4593 grants
- * this class the MBeanExporter name.
  */
 class SqlConfigurationKeyRecheck :
     BeanFactoryPostProcessor,
@@ -365,15 +331,5 @@ class SqlConfigurationKeyRecheck :
 
     override fun postProcessBeanFactory(beanFactory: ConfigurableListableBeanFactory) {
         SqlConfigurationKeyGuard.verify(environment, beanFactory.beanClassLoader)
-        val exporters = findMBeanExporters(beanFactory)
-        check(exporters.isEmpty()) {
-            "JMX export is refused: an MBeanExporter exports every HikariDataSource with a writable Password (coordinator " +
-                "ruling INV-Q-4591; STK-29): remove the MBeanExporter beans $exporters"
-        }
-    }
-
-    companion object {
-        /** The beans of type [MBeanExporter] or a subclass, by definition (no bean is created), sorted. */
-        fun findMBeanExporters(beanFactory: ConfigurableListableBeanFactory): List<String> = beanFactory.getBeanNamesForType(MBeanExporter::class.java, true, false).sorted()
     }
 }

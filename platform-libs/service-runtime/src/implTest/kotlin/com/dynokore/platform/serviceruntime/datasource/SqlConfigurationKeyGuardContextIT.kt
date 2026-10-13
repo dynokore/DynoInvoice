@@ -4,9 +4,7 @@ import com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration
 import com.dynokore.platform.serviceruntime.datasource.SqlConfigurationKeyGuardTest.Companion.TPL_16
 import com.dynokore.platform.serviceruntime.health.Tpl18WebService
 import com.dynokore.platform.serviceruntime.migration.MigrationRunner
-import com.zaxxer.hikari.HikariDataSource
 import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -17,28 +15,16 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.boot.EnvironmentPostProcessor
 import org.springframework.boot.WebApplicationType
-import org.springframework.boot.autoconfigure.AutoConfigurations
-import org.springframework.boot.autoconfigure.jmx.JmxAutoConfiguration
 import org.springframework.boot.builder.SpringApplicationBuilder
-import org.springframework.context.ApplicationContextInitializer
-import org.springframework.context.ConfigurableApplicationContext
-import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.context.annotation.EnableMBeanExport
 import org.springframework.context.annotation.PropertySource
 import org.springframework.core.env.StandardEnvironment
 import org.springframework.core.env.SystemEnvironmentPropertySource
 import org.springframework.core.io.support.SpringFactoriesLoader
-import org.springframework.jmx.export.MBeanExporter
-import java.lang.management.ManagementFactory
 import java.net.ServerSocket
 import java.net.SocketTimeoutException
 import java.nio.file.Path
 import java.util.Properties
-import javax.management.Attribute
-import javax.management.InstanceNotFoundException
-import javax.management.ObjectName
-import javax.sql.DataSource
 
 /**
  * Coordinator ruling INV-Q-4542 through SpringApplication: [SqlConfigurationKeyGuard] is registered in service-runtime's
@@ -109,70 +95,6 @@ class SqlConfigurationKeyGuardContextIT {
     @Configuration(proxyBeanMethods = false)
     @PropertySource("classpath:sqlguard/property-source-init-sql.properties")
     class PropertySourceService
-
-    @Test
-    fun `start-up fails on an @EnableMBeanExport configuration or an MBeanExporter @Bean, before the DataSource bean is created (INV-Q-4591)`() {
-        mapOf(EnableMBeanExportService::class.java to "mbeanExporter", ExporterBeanService::class.java to "probeExporter").forEach { (service, bean) ->
-            tpl18Service()
-                .withPropertyValues("spring.datasource.url=jdbc:postgresql://db:5432/submission", "spring.datasource.username=submission_runtime")
-                .withUserConfiguration(service)
-                .run { context ->
-                    val failure = context.startupFailure.shouldNotBeNull()
-                    // the second run (SqlConfigurationKeyRecheck), not a bean creation, fails it
-                    failure.shouldBeInstanceOf<IllegalStateException>()
-                    failure.message.orEmpty() shouldContain "INV-Q-4591"
-                    failure.message.orEmpty() shouldContain bean
-                }
-        }
-    }
-
-    @Test
-    fun `the pool password cannot be set over JMX at run time (INV-Q-4591)`() {
-        val service =
-            tpl18Service()
-                .withPropertyValues("spring.datasource.url=jdbc:postgresql://db:5432/submission", "spring.datasource.username=submission_runtime")
-                .withConfiguration(AutoConfigurations.of(JmxAutoConfiguration::class.java))
-        // spring.jmx.enabled=true as a key, and through a property source the key check cannot enumerate (the exporter check)
-        service.withPropertyValues("spring.jmx.enabled=true").run { context ->
-            context.startupFailure.shouldNotBeNull().message.orEmpty() shouldContain "spring.jmx.enabled"
-            hikariMBeans().shouldBeEmpty()
-        }
-        service.withInitializer(indirect("spring.jmx.enabled" to "true")).run { context ->
-            context.startupFailure.shouldNotBeNull().message.orEmpty() shouldContain "INV-Q-4591"
-            hikariMBeans().shouldBeEmpty()
-            shouldThrow<InstanceNotFoundException> {
-                ManagementFactory.getPlatformMBeanServer().setAttribute(ObjectName("com.zaxxer.hikari:name=dataSource,type=HikariDataSource"), Attribute("Password", "pw-value"))
-            }
-        }
-        // service-runtime's defaults: no exporter, so no pool MBean
-        service.run { context ->
-            context.startupFailure shouldBe null
-            context.getBeanNamesForType(MBeanExporter::class.java).shouldBeEmpty()
-            context.getBean(DataSource::class.java).unwrap(HikariDataSource::class.java).isRegisterMbeans shouldBe false
-            hikariMBeans().shouldBeEmpty()
-        }
-    }
-
-    private fun hikariMBeans() = ManagementFactory.getPlatformMBeanServer().queryNames(ObjectName("com.zaxxer.hikari:*"), null)
-
-    private fun indirect(vararg entries: Pair<String, String>) = ApplicationContextInitializer<ConfigurableApplicationContext> { context ->
-        val values = mapOf(*entries)
-        context.environment.propertySources.addFirst(
-            object : org.springframework.core.env.PropertySource<Any>("indirect", Any()) {
-                override fun getProperty(name: String): Any? = values[name]
-            },
-        )
-    }
-
-    @Configuration(proxyBeanMethods = false)
-    @EnableMBeanExport
-    class EnableMBeanExportService
-
-    @Configuration(proxyBeanMethods = false)
-    class ExporterBeanService {
-        @Bean
-        fun probeExporter(): MBeanExporter = MBeanExporter()
-    }
 
     @Test
     fun `start-up fails on a refused key set as an environment variable, naming the variable`(

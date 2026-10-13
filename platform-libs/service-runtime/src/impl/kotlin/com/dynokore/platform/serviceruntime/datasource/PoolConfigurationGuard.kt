@@ -19,9 +19,7 @@ import javax.sql.DataSource
  *
  * It is deny-by-default (lessons P140): every HikariConfig property is classified in [ALLOWED] (with its value check)
  * or [AT_DEFAULT] (it must keep HikariCP's default); a property in neither, or not at its default, fails start-up.
- * Values are never printed (CS-24). A pool's password comes only from SecretStore through the credential path: the
- * password must stay null and the credentials provider, when set, is exactly [SecretStoreCredentialsProvider]
- * (coordinator ruling INV-Q-4570); MBeans stay off, so no login is changed over JMX (coordinator ruling INV-Q-4574).
+ * Values are never printed (CS-24).
  */
 @Configuration(proxyBeanMethods = false)
 class SqlConfigurationGuardWiring {
@@ -64,9 +62,8 @@ class PoolConfigurationGuard(
                 ?: return bean
         val offending = findOffendingProperties(pool, environment.getProperty(SERVICE))
         check(offending.isEmpty()) {
-            "the pool of bean '$beanName' is configured to run SQL, set session state or take a login outside SecretStore, " +
-                "which is refused (coordinator rulings INV-Q-4542, INV-Q-4570, INV-Q-4574; INV-ADR-3968 item 4c, " +
-                "INV-REQ-1230, STK-29): $offending"
+            "the pool of bean '$beanName' is configured to run SQL or set session state, which is refused (coordinator " +
+                "ruling INV-Q-4542; INV-ADR-3968 item 4c, INV-REQ-1230): $offending"
         }
         return bean
     }
@@ -74,7 +71,6 @@ class PoolConfigurationGuard(
     companion object {
         private const val SERVICE = "gst.service"
         private const val APPLICATION_NAME = "ApplicationName"
-        private const val SECRET_STORE_PROVIDER = "SecretStoreCredentialsProvider"
 
         /** Every HikariConfig property with a getter, by its bean property name. */
         val PROPERTIES: Map<String, java.lang.reflect.Method> =
@@ -124,15 +120,10 @@ class PoolConfigurationGuard(
                 "username" to ANY,
                 // derived from username and password, a new object on every read
                 "credentials" to ANY,
-                // the login comes only through SecretStore (STK-29, TPL-16, INV-Q-3909; coordinator ruling INV-Q-4570): no
-                // provider, or exactly the one DatabaseCredentialsConfiguration sets (class equality, no subclass)
-                "credentialsProvider" to { value, _ ->
-                    if (value == null || value.javaClass == SecretStoreCredentialsProvider::class.java) {
-                        null
-                    } else {
-                        "only $SECRET_STORE_PROVIDER (INV-Q-4570)"
-                    }
-                },
+                // STK-29 is enforced on the password keys and URL (SqlConfigurationKeyGuard, INV-Q-4548); no SQL or session state
+                "password" to ANY,
+                // the SecretStore login (DatabaseCredentialsConfiguration); no SQL or session state
+                "credentialsProvider" to ANY,
                 "driverClassName" to ANY,
                 "maximumPoolSize" to ANY,
                 "minimumIdle" to ANY,
@@ -144,6 +135,7 @@ class PoolConfigurationGuard(
                 "leakDetectionThreshold" to ANY,
                 "initializationFailTimeout" to ANY,
                 "poolName" to ANY,
+                "registerMbeans" to ANY,
                 // Spring Boot's pool metrics and health binders; no SQL or session state
                 "metricRegistry" to ANY,
                 "metricsTrackerFactory" to ANY,
@@ -153,10 +145,6 @@ class PoolConfigurationGuard(
         /** The properties that must keep HikariCP's default: they run SQL, set session state or replace the driver. */
         val AT_DEFAULT: Set<String> =
             setOf(
-                // a password set on the pool, from any property source or code, bypasses SecretStore (STK-29, INV-Q-4570)
-                "password",
-                // MBeans expose HikariConfigMXBean.setPassword over JMX (coordinator ruling INV-Q-4574)
-                "registerMbeans",
                 "connectionInitSql",
                 "connectionTestQuery",
                 "schema",

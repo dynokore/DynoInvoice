@@ -47,24 +47,18 @@ fun tpl18Service(): ApplicationContextRunner = ApplicationContextRunner()
     )
 
 /**
- * Sets the application pool (bean `dataSource`) in a test after the start-up checks have run: a pool password is
- * refused (STK-29, coordinator rulings INV-Q-4548, INV-Q-4570), so a test login over a Testcontainers role is set here;
- * a test that bypasses the check sets a refused setting the same way. An unordered post-processor runs after
- * [PoolConfigurationGuard]. Test code only: no main class sets a pool password.
+ * Sets the application pool (bean `dataSource`) in a test after the start-up checks have run: the password properties
+ * are refused (STK-29, coordinator ruling INV-Q-4548), so a test login over a Testcontainers role is set here; a test
+ * that bypasses the check sets a refused setting the same way. An unordered post-processor runs after
+ * [PoolConfigurationGuard].
  */
-fun ApplicationContextRunner.withApplicationPool(setting: (HikariDataSource) -> Unit): ApplicationContextRunner = withPool("dataSource", setting)
-
-/** As [withApplicationPool], for the pool of bean [poolBean] (the HA event-log pool copies no password, INV-Q-4570). */
-fun ApplicationContextRunner.withPool(
-    poolBean: String,
-    setting: (HikariDataSource) -> Unit,
-): ApplicationContextRunner = withBean("testPoolSetting-$poolBean", BeanPostProcessor::class.java, {
+fun ApplicationContextRunner.withApplicationPool(setting: (HikariDataSource) -> Unit): ApplicationContextRunner = withBean("testApplicationPoolSetting", BeanPostProcessor::class.java, {
     object : BeanPostProcessor {
         override fun postProcessAfterInitialization(
             bean: Any,
             beanName: String,
         ): Any {
-            if (beanName == poolBean) setting((bean as DataSource).unwrap(HikariDataSource::class.java))
+            if (beanName == "dataSource") setting((bean as DataSource).unwrap(HikariDataSource::class.java))
             return bean
         }
     }

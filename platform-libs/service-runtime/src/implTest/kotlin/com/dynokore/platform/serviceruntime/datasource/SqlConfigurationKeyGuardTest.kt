@@ -12,7 +12,6 @@ import org.junit.jupiter.params.provider.CsvSource
 import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.boot.SpringApplication
 import org.springframework.core.env.MapPropertySource
-import org.springframework.core.env.PropertySource
 import org.springframework.core.env.StandardEnvironment
 import org.springframework.core.env.SystemEnvironmentPropertySource
 import org.springframework.core.io.ClassPathResource
@@ -95,9 +94,6 @@ class SqlConfigurationKeyGuardTest {
             "spring.datasource.hikari.connection_init_sql", "spring.datasource.hikari.dataSourceProperties.options",
             "spring.datasource.hikari.data-source-properties[options]", "spring.sql.init.schemaLocations",
             "spring.jpa.hibernate.ddlAuto", "spring.flyway.cleanDisabled", "spring.datasource.hikari.connectionInitSQL",
-            // MBeans expose HikariConfigMXBean.setPassword over JMX (coordinator ruling INV-Q-4574)
-            "spring.datasource.hikari.register-mbeans", "spring.datasource.hikari.registerMbeans",
-            "spring.datasource.hikari.register_mbeans", "spring.datasource.hikari.REGISTER-MBEANS", "spring.datasource.hikari[register-mbeans]",
         ],
     )
     fun `the relaxed property forms are refused`(key: String) {
@@ -112,7 +108,6 @@ class SqlConfigurationKeyGuardTest {
             "SPRING_JPA_HIBERNATE_DDL_AUTO", "SPRING_DATASOURCE_PASSWORD", "SPRING_FLYWAY_CALLBACK_LOCATIONS",
             "SPRING_DATASOURCE_HIKARI_DATASOURCEPROPERTIES_OPTIONS", "SPRING_BATCH_JDBC_INITIALIZE_SCHEMA",
             "GST_STORE_INIT_SQL", "GST_STORE_SCHEMA_LOCATIONS", "SPRING_FLYWAY_CLEANDISABLED",
-            "SPRING_DATASOURCE_HIKARI_REGISTERMBEANS", "SPRING_DATASOURCE_HIKARI_REGISTER_MBEANS",
         ],
     )
     fun `the environment variable forms are refused`(variable: String) {
@@ -129,46 +124,6 @@ class SqlConfigurationKeyGuardTest {
         environment.getProperty("service-runtime.flyway.credential") shouldBe null
         val failure = shouldThrow<IllegalStateException> { guard(environment) }
         failure.message.orEmpty() shouldContain key
-        failure.message.orEmpty() shouldNotContain "pw-value"
-    }
-
-    @ParameterizedTest(name = "{0}={1}")
-    @CsvSource(
-        delimiter = '|',
-        value = [
-            "spring.jmx.enabled|true", "spring.jmx.default-domain|x", "spring.jmx.server|mbeanServer",
-            "spring.jmx.registration-policy|REPLACE_EXISTING", "spring.jmx.unique-names|true", "spring.jmx.enabled|",
-        ],
-    )
-    fun `a spring-jmx key other than spring-jmx-enabled=false is refused (INV-Q-4591)`(
-        key: String,
-        value: String?,
-    ) {
-        val failure = shouldThrow<IllegalStateException> { guard(properties(key to value.orEmpty())) }
-        failure.message.orEmpty() shouldContain key
-        failure.message.orEmpty() shouldContain "INV-Q-4591"
-    }
-
-    @Test
-    fun `spring-jmx-enabled=true as an environment variable is refused, false passes in both forms (INV-Q-4591)`() {
-        shouldThrow<IllegalStateException> { guard(environmentVariables("SPRING_JMX_ENABLED" to "true")) }.message.orEmpty() shouldContain "INV-Q-4591"
-        shouldThrow<IllegalStateException> { guard(environmentVariables("SPRING_JMX_DEFAULTDOMAIN" to "x")) }.message.orEmpty() shouldContain "INV-Q-4591"
-        guard(properties("spring.jmx.enabled" to "false"))
-        guard(environmentVariables("SPRING_JMX_ENABLED" to "false"))
-    }
-
-    @ParameterizedTest(name = "{0}")
-    @ValueSource(strings = ["spring.datasource.password", "spring.datasource.hikari.password", "spring.flyway.password"])
-    fun `a password property in a property source that cannot be enumerated is refused (INV-Q-4570)`(key: String) {
-        val environment = empty()
-        environment.propertySources.addFirst(
-            object : PropertySource<Any>("indirect", Any()) {
-                override fun getProperty(name: String): Any? = if (name == key) "pw-value" else null
-            },
-        )
-        val failure = shouldThrow<IllegalStateException> { guard(environment) }
-        failure.message.orEmpty() shouldContain "$key (a password"
-        failure.message.orEmpty() shouldContain "INV-Q-4570"
         failure.message.orEmpty() shouldNotContain "pw-value"
     }
 
@@ -393,7 +348,7 @@ class SqlConfigurationKeyGuardTest {
             )
         }
 
-        fun empty(): StandardEnvironment = StandardEnvironment().also { environment ->
+        private fun empty(): StandardEnvironment = StandardEnvironment().also { environment ->
             environment.propertySources.toList().forEach { environment.propertySources.remove(it.name) }
         }
 

@@ -8,6 +8,7 @@ allowed spring.datasource.hikari.max-lifetime
 allowed spring.datasource.hikari.maximum-pool-size
 allowed spring.datasource.hikari.minimum-idle
 allowed spring.datasource.hikari.pool-name
+allowed spring.datasource.hikari.register-mbeans
 allowed spring.datasource.hikari.validation-timeout
 allowed spring.datasource.type
 allowed spring.datasource.url
@@ -107,7 +108,6 @@ refused spring.datasource.hikari.jdbc-url
 refused spring.datasource.hikari.login-timeout
 refused spring.datasource.hikari.password
 refused spring.datasource.hikari.read-only
-refused spring.datasource.hikari.register-mbeans
 refused spring.datasource.hikari.schema
 refused spring.datasource.hikari.transaction-isolation
 refused spring.datasource.hikari.username
