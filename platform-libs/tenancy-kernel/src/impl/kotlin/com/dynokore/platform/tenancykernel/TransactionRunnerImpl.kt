@@ -78,11 +78,16 @@ constructor(
         actor: String?,
     ) {
         val name = label?.of(connection)
+        // whole literals only, so the SQL guard traces each one (INV-Q-4036)
         val sql =
-            buildString {
-                append("select set_config('app.tenant_id', ?, true)")
-                if (actor != null) append(", set_config('app.actor', ?, true)")
-                if (name != null) append(", set_config('application_name', ?, true)")
+            if (actor == null && name == null) {
+                "select set_config('app.tenant_id', ?, true)"
+            } else if (actor == null) {
+                "select set_config('app.tenant_id', ?, true), set_config('application_name', ?, true)"
+            } else if (name == null) {
+                "select set_config('app.tenant_id', ?, true), set_config('app.actor', ?, true)"
+            } else {
+                "select set_config('app.tenant_id', ?, true), set_config('app.actor', ?, true), set_config('application_name', ?, true)"
             }
         connection.prepareStatement(sql).use { statement ->
             var index = 1
