@@ -15,6 +15,7 @@ import com.dynokore.platform.tenancykernel.TenantId
 import com.nimbusds.jose.PlainHeader
 import com.nimbusds.jwt.JWTClaimsSet
 import com.nimbusds.jwt.PlainJWT
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.micrometer.core.instrument.MeterRegistry
@@ -110,6 +111,21 @@ class OperatorSessionAuditWriterTest {
         resolved shouldBe 1
         verdict = null // the resolver refuses the act token
         reasonFor("Bearer " + jwt(act = true)) shouldBe null
+        CurrentOperatorSession.current() shouldBe null
+    }
+
+    @Test
+    fun `the audit wrapper never sees an unvalidated case - a service's own resolver cannot build one`() {
+        val tenant = TenantId(UUID.fromString("00000000-0000-0000-0000-00000000000a"))
+        val filter =
+            OperatorSessionBindingFilter(
+                providerOf { EndUserPrincipal("op-1", tenant, emptySet(), operatorSession = OperatorSession("platform.support", "A: B")) },
+            )
+        val request = MockHttpServletRequest().apply { addHeader("Authorization", "Bearer " + jwt(act = true)) }
+        shouldThrow<IllegalArgumentException> {
+            filter.doFilter(request, MockHttpServletResponse(), FilterChain { _, _ -> recordedReason(entry) })
+        }
+        recorded shouldBe emptyList()
         CurrentOperatorSession.current() shouldBe null
     }
 

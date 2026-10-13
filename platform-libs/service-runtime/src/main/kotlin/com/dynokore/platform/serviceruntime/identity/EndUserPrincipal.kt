@@ -39,15 +39,45 @@ data class EndUserPrincipal(
 
 /**
  * The `act` claim of a tenant-scoped operator session token (owner ruling INV-Q-4119; platform-contracts
- * access `openOperatorSession`): the operator's platform [role] and the support [case] reference.
+ * access `openOperatorSession`): the operator's platform [role] and the support [case] reference. The case is
+ * composed into audit reasons (INV-Q-4521), so an instance holds only a case meeting caseId ([isValidCase]) and a
+ * role meeting [isValidRole]: whoever builds one (the default resolver, a service's own resolver, a test) cannot
+ * put an unvalidated case into an audit reason.
  */
 data class OperatorSession(
     val role: String,
     val case: String,
 ) {
     init {
-        require(role.isNotBlank()) { "operator role must not be blank" }
-        require(case.isNotBlank()) { "case reference must not be blank" }
+        require(isValidRole(role)) { "operator role must be non-blank with no control character" }
+        require(isValidCase(case)) { "case reference must meet openOperatorSession caseId (INV-Q-4529, INV-Q-4534)" }
+    }
+
+    companion object {
+        /** openOperatorSession `caseId` maxLength, in code points. */
+        const val MAX_CASE_LENGTH = 64
+
+        /** Separates the case from the own reason in an audit reason (INV-Q-4521); forbidden in a case (INV-Q-4529). */
+        private const val CASE_SEPARATOR = ':'
+
+        /**
+         * The caseId whitespace set (coordinator ruling INV-Q-4534), held as an explicit list rather than
+         * Char.isWhitespace() or a regex `\s`, so code and contract agree code point for code point.
+         */
+        private val CASE_WHITESPACE: Set<Int> =
+            setOf(0x0020, 0x00A0, 0x1680) + (0x2000..0x200A) + setOf(0x2028, 0x2029, 0x202F, 0x205F, 0x3000, 0xFEFF)
+
+        /**
+         * `caseId` of openOperatorSession as amended by INV-Q-4529 and INV-Q-4534: 1 to 64 code points, no ':', no ISO
+         * control character (U+0000-U+001F, U+007F-U+009F), at least one outside [CASE_WHITESPACE]. The single place
+         * the case rule lives.
+         */
+        fun isValidCase(case: String): Boolean = case.codePointCount(0, case.length) in 1..MAX_CASE_LENGTH &&
+            case.codePoints().allMatch { it != CASE_SEPARATOR.code && !Character.isISOControl(it) } &&
+            case.codePoints().anyMatch { it !in CASE_WHITESPACE }
+
+        /** A role is non-blank and holds no ISO control character (review of !64). */
+        fun isValidRole(role: String): Boolean = role.isNotBlank() && role.codePoints().noneMatch(Character::isISOControl)
     }
 }
 

@@ -26,9 +26,11 @@ import java.util.Base64
  *  - the signature verifies with that key;
  *  - it carries `iat` and `exp`, `exp` at most [MAX_LIFETIME] after `iat` (API-23), and is not expired or
  *    issued in the future (both beyond [CLOCK_SKEW], the same tolerance as the identity provider's tokens);
- *  - its `act` is an object with a `role` and a `case` as openOperatorSession's `caseId` allows: 1 to 64 characters
- *    with at least one that is not whitespace; neither may hold an ISO control character (a line break or other
- *    control character would forge structure in an audit reason; review of !64, coordinator instruction).
+ *  - its `act` is an object with a `role` and a `case` as openOperatorSession's `caseId` allows (coordinator ruling
+ *    INV-Q-4529): 1 to 64 code points, no ':' and no ISO control character (U+0000-U+001F, U+007F-U+009F), and
+ *    at least one outside the caseId whitespace set (coordinator ruling INV-Q-4534); the rule is
+ *    [OperatorSession.isValidCase], and a token whose case breaks it is refused (null, 401). A ':' would make `case <case>` and `case <case>: <own reason>` ambiguous, and a
+ *    control character would forge structure in an audit reason. The `role` may not hold a control character either.
  * The caller checks `sub` and `tenant_id`. Anything else is refused (null, 401).
  */
 internal class OperatorSessionTokens(
@@ -98,26 +100,16 @@ internal class OperatorSessionTokens(
             } catch (notAnObject: ParseException) {
                 null
             }
-        val role = (act?.get(ROLE) as? String)?.takeIf { it.isNotBlank() && !it.hasControlCharacter() }
-        val case = (act?.get(CASE) as? String)?.takeIf(::isContractCase)
+        val role = (act?.get(ROLE) as? String)?.takeIf(OperatorSession::isValidRole)
+        val case = (act?.get(CASE) as? String)?.takeIf(OperatorSession::isValidCase)
         return if (role != null && case != null) OperatorSession(role, case) else null
     }
-
-    /** `caseId` of openOperatorSession: 1 to 64 characters (code points), pattern `\S`; no ISO control character. */
-    private fun isContractCase(case: String): Boolean = case.codePointCount(0, case.length) in 1..MAX_CASE_LENGTH &&
-        case.any { !it.isWhitespace() } &&
-        !case.hasControlCharacter()
-
-    private fun String.hasControlCharacter(): Boolean = codePoints().anyMatch(Character::isISOControl)
 
     companion object {
         /** The actor claim (RFC 8693) that marks an operator session token. */
         const val ACT_CLAIM = "act"
         private const val ROLE = "role"
         private const val CASE = "case"
-
-        /** openOperatorSession `caseId` maxLength. */
-        private const val MAX_CASE_LENGTH = 64
 
         /** API-23, owner ruling INV-Q-4119: an operator session lasts at most 15 minutes. */
         val MAX_LIFETIME: Duration = Duration.ofMinutes(15)
