@@ -1,9 +1,17 @@
 package com.dynokore.platform.rulepackkernel
 
+import com.dynokore.platform.tenancyjooq.TableClass
+import com.dynokore.platform.tenancyjooq.TableClasses
 import com.dynokore.platform.tenancyjooq.TenancyProbe
 import com.dynokore.platform.tenancykernel.TenantId
 import org.flywaydb.core.Flyway
+import org.jooq.Record
+import org.jooq.Table
 import org.jooq.exception.DataAccessException
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
+import org.jooq.impl.SchemaImpl
+import org.jooq.impl.TableImpl
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertThrows
@@ -16,6 +24,31 @@ import org.testcontainers.utility.DockerImageName
 import java.time.LocalDate
 import java.util.UUID
 
+/**
+ * The migrated schema in the shape jOOQ's code generator emits (a SchemaImpl and TableImpl subclasses, as
+ * tenancy-jooq's own TestSchema), built from the catalog's tables and columns as the migration left them, so
+ * [TableClasses.verify] judges the real migrated table. Column types are not read: the verification looks only at
+ * table names and the tenant column's presence.
+ */
+private class MigratedSchema(
+    name: String,
+    columnsByTable: Map<String, List<String>>,
+) : SchemaImpl(DSL.name(name), null) {
+    private val tables: List<Table<*>> = columnsByTable.map { (table, columns) -> MigratedTable(table, columns, this) }
+
+    override fun getTables(): List<Table<*>> = tables
+}
+
+private class MigratedTable(
+    name: String,
+    columns: List<String>,
+    schema: MigratedSchema,
+) : TableImpl<Record>(DSL.name(name), schema) {
+    init {
+        columns.forEach { createField(DSL.name(it), SQLDataType.OTHER, this) }
+    }
+}
+
 /** Testcontainers needs a concrete subclass for its fluent `self()` typing (Kotlin, unlike Java, has no raw types). */
 private class Postgres(image: DockerImageName) : PostgreSQLContainer<Postgres>(image)
 
@@ -23,21 +56,26 @@ private class Postgres(image: DockerImageName) : PostgreSQLContainer<Postgres>(i
  * Proves [PackRegistryMigration]'s row-level security and its `register_platform_pack` function against a real
  * PostgreSQL 16, 17 and 18 (CS-19, INV-ADR-3968 items 4a and 6; coordinator ruling INV-Q-4117; INV-T-4137).
  *
- * The schema, roles and generated DDL are applied by Flyway as the container's superuser (the migration owner's
- * position); every assertion runs through tenancy-jooq's [TenancyProbe] logged in as `rulepack_kernel_app`, a
- * `NOSUPERUSER`/`NOBYPASSRLS` runtime login owning no table (the probe itself refuses a superuser or BYPASSRLS
- * session), so every assertion is a real database decision, never an app-level check. Test code names no JDBC type
- * (owner ruling INV-Q-4196; coordinator ruling INV-Q-4140).
+ * The roles and schemas come from the superuser init script `db/rulepack-kernel-test-roles.sql`; the generated DDL is
+ * applied by Flyway as `rulepack_kernel_migrate`, the `NOSUPERUSER`/`NOBYPASSRLS` migration login that owns the table
+ * and is a member of `rulepack_kernel_sys` (it hands the function over), as every other module's IT migrates. The
+ * migrated schema verifies under tenancy-jooq's [TableClasses] with [PackRegistryMigration.referenceTable] declared
+ * REFERENCE (coordinator ruling INV-Q-4582). Every assertion runs through tenancy-jooq's [TenancyProbe] logged in as
+ * `rulepack_kernel_app`, a `NOSUPERUSER`/`NOBYPASSRLS` runtime login owning no table (the probe itself refuses a
+ * superuser or BYPASSRLS session), so every assertion is a real database decision, never an app-level check. Test
+ * code names no JDBC type (owner ruling INV-Q-4196; coordinator ruling INV-Q-4140).
  */
 @Tag("integration")
 class PackRegistryMigrationPostgresIT {
     @ParameterizedTest
     @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `platform rows are written only by register_platform_pack and read by every bound tenant`(image: String) {
-        val container = Postgres(DockerImageName.parse(image))
+        val container = Postgres(DockerImageName.parse(image)).withInitScript("db/rulepack-kernel-test-roles.sql")
         container.start()
         try {
             migrate(container)
+            assertTheMigrationRoleOwnsTheTableWithoutPrivilege(container)
+            assertTheMigratedSchemaVerifiesAsReference(container)
             val app = TenancyProbe.connect(container.jdbcUrl, "rulepack_kernel_app", "rulepack_kernel_app_pw")
             val privileged =
                 app.fetchValue("select rolsuper or rolbypassrls from pg_roles where rolname = current_user")
@@ -56,6 +94,48 @@ class PackRegistryMigrationPostgresIT {
         } finally {
             container.stop()
         }
+    }
+
+    /** The table is owned by the NOSUPERUSER, NOBYPASSRLS migration login, RLS enabled and forced (done-when 2). */
+    private fun assertTheMigrationRoleOwnsTheTableWithoutPrivilege(container: Postgres) {
+        val migrate = TenancyProbe.connect(container.jdbcUrl, MIGRATE, MIGRATE_PASSWORD)
+        val row =
+            migrate
+                .unbound {
+                    fetchRows(
+                        "select o.rolname as owner, o.rolsuper or o.rolbypassrls as privileged, " +
+                            "c.relrowsecurity as rls, c.relforcerowsecurity as forced " +
+                            "from pg_class c join pg_roles o on o.oid = c.relowner " +
+                            "where c.oid = 'rulepack_test.rule_pack_version'::regclass",
+                    )
+                }.single()
+        assertEquals(MIGRATE, row["owner"])
+        assertEquals(false, row["privileged"])
+        assertEquals(true, row["rls"])
+        assertEquals(true, row["forced"])
+    }
+
+    /**
+     * tenancy-jooq's table-class verification of the migrated schema (INV-ADR-3968 item 4a; coordinator ruling
+     * INV-Q-4582): with [PackRegistryMigration.referenceTable] declared REFERENCE it passes and classifies the table
+     * REFERENCE (a bound tenant's reads take its own rows plus the platform rows).
+     */
+    private fun assertTheMigratedSchemaVerifiesAsReference(container: Postgres) {
+        val columns =
+            TenancyProbe.connect(container.jdbcUrl, MIGRATE, MIGRATE_PASSWORD).unbound {
+                fetchRows(
+                    "select table_name, column_name from information_schema.columns " +
+                        "where table_schema = 'rulepack_test' order by table_name, ordinal_position",
+                )
+            }
+        val schema =
+            MigratedSchema(
+                "rulepack_test",
+                columns.groupBy({ it["table_name"] as String }, { it["column_name"] as String }),
+            )
+        val reference = PackRegistryMigration.referenceTable("rulepack_test", "rule_pack_version")
+        val tables = TableClasses.of(reference = listOf(reference)).verify(schema)
+        assertEquals(listOf(TableClass.REFERENCE), schema.tables.map { tables.classOf(it.qualifiedName) })
     }
 
     /** Owner `<svc>_sys` (NOLOGIN), SECURITY DEFINER, fixed search_path, EXECUTE for the runtime login only. */
@@ -324,7 +404,9 @@ class PackRegistryMigrationPostgresIT {
     private fun migrate(container: Postgres) {
         Flyway
             .configure()
-            .dataSource(container.jdbcUrl, container.username, container.password)
+            .dataSource(container.jdbcUrl, MIGRATE, MIGRATE_PASSWORD)
+            .schemas("rulepack_migrations")
+            .createSchemas(false)
             .locations("classpath:db/pack-registry-it/base")
             .placeholders(
                 mapOf(
@@ -338,5 +420,10 @@ class PackRegistryMigrationPostgresIT {
                 ),
             ).load()
             .migrate()
+    }
+
+    private companion object {
+        const val MIGRATE = "rulepack_kernel_migrate"
+        const val MIGRATE_PASSWORD = "rulepack_kernel_migrate_pw"
     }
 }

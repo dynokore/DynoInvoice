@@ -20,8 +20,10 @@ train is its own (README.md: "own version and changelog").
     (`REGISTER_PLATFORM_PACK`, `REGISTER_PLATFORM_PACK_ARGUMENTS`): SECURITY DEFINER, owned by the NOLOGIN sys
     role, static SQL, `SET search_path = pg_catalog, <schema>, pg_temp`, EXECUTE revoked from PUBLIC and granted to
     the runtime login only. It runs under the platform-tenant binding only, takes the actor from `app.actor`
-    (refused when blank) and validates every argument.
-  - `referenceTable(schema, table)`: the name a holder declares as a tenancy-jooq `REFERENCE` table.
+    (refused when blank) and validates every argument. The migrating role (`<svc>_migrate`, NOSUPERUSER) must be a
+    member of the sys role: it needs SET ROLE on it for `ALTER FUNCTION ... OWNER TO`.
+  - `referenceTable(schema, table)`: the name a holder declares as a tenancy-jooq `REFERENCE` table; a test shows
+    tenancy-jooq's `TableClasses.verify` classifies the migrated table `REFERENCE` with it declared (INV-Q-4582).
 ### Removed
 - The `app.platform_operator` session setting and its policy branch, every `tenant_id IS NULL` path, and
   `lineageKeyUpgradeDdl` (the 1.x lineage-key upgrade). There is no upgrade path from 1.x: no service consumes the

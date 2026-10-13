@@ -63,8 +63,9 @@ object PackRegistryMigration {
     /**
      * `CREATE TABLE "schema"."table"`, its lineage key, resolution index, row-level security and the
      * [REGISTER_PLATFORM_PACK] function, appended into the holder's own Flyway migration (CS-19 naming,
-     * forward-only), run as `<svc>_migrate`, which owns the table. [sysRole] (NOLOGIN) must exist and be grantable by
-     * the migrating role; [runtimeRole] is the service's runtime login.
+     * forward-only), run as `<svc>_migrate`, which owns the table. [sysRole] (NOLOGIN) must exist and the migrating
+     * role must be a member of it (it needs SET ROLE on it for `ALTER FUNCTION ... OWNER TO`, as every module's
+     * `<svc>_sys`-owned function); [runtimeRole] is the service's runtime login.
      *
      * @throws IllegalArgumentException if [schema], [table], a role or a name derived from [table] is not a plain
      *   lower-case SQL identifier of at most 63 characters (spliced into DDL text, so every name goes through
