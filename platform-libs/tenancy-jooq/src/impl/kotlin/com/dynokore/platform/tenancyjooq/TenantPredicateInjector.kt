@@ -18,9 +18,14 @@ internal class TenantPredicateInjector(
     private val tables: TenancyTables,
     private val tenants: TenantContext,
 ) : VisitListener {
+    override fun visitEnd(context: VisitContext) {
+        StatementGuard.visitEnd(context)
+    }
+
     override fun visitStart(context: VisitContext) {
+        StatementGuard.visitStart(context)
         val part = context.queryPart()
-        StatementGuard.refuseUnsupported(part)
+
         @Suppress("UNCHECKED_CAST")
         val replaced = context.data().getOrPut(REPLACED) { identitySet<QueryPart>() } as MutableSet<QueryPart>
         if (part in replaced) return

@@ -7,7 +7,7 @@ import java.util.UUID
  * The two-tenant data of the isolation tests, written and read through [TenancyProbe] with no tenant bound (row-level
  * security is off on these tables, so the probe sees every tenant's rows).
  */
-object Seed {
+internal object Seed {
     val CUSTOMER_A: UUID = id("customer-a")
     val CUSTOMER_B: UUID = id("customer-b")
 

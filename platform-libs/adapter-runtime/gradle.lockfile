@@ -2,7 +2,7 @@
 # Manual edits can break the build and are not advised.
 # This file is expected to be part of source control.
 # To regenerate this file, run: ./gradlew :adapter-runtime:dependencies --write-locks
-com.dynokore.gst.build:konsist-rules:0.9.0=testCompileClasspath,testRuntimeClasspath
+com.dynokore.gst.build:konsist-rules:0.10.0=testCompileClasspath,testRuntimeClasspath
 com.github.ben-manes.caffeine:caffeine:2.9.3=detekt
 com.github.curious-odd-man:rgxgen:2.0=implTestCompileClasspath,implTestRuntimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.google.errorprone:error_prone_annotations:2.10.0=detekt

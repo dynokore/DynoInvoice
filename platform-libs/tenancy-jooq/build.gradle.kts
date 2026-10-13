@@ -97,10 +97,29 @@ val springTestTask =
         jvmArgs("-Duser.timezone=UTC")
         systemProperty("user.language", "de")
         systemProperty("user.country", "DE")
+        testLogging { events("passed", "skipped", "failed") }
     }
 
 tasks.named("check") {
     dependsOn(springTestTask)
+}
+
+// CI's unit-test job runs `test` (and `implTest`), never `check`: `test` runs springTest too, so CI runs it on every
+// pipeline that tests this module (review of !61), and springTest logs each test so the CI log shows it.
+tasks.test {
+    dependsOn(springTestTask)
+}
+
+// tenancy-jooq's own harness (TenancyJooqFixture, MockExecution) stays in the test fixtures, whose classes the SQL
+// placement policy exempts (owner ruling INV-Q-4196), but it is internal and left out of the published test-fixtures
+// jar: consumers' tests get TenancyProbe and its Spring auto-configuration only (review of !61). This module's tests
+// read the harness from the test fixtures' class directories.
+val harnessClasses = listOf("**/TenancyJooqFixture*.class", "**/MockExecution*.class")
+tasks.named<Jar>("testFixturesJar") {
+    exclude(harnessClasses)
+}
+dependencies {
+    testRuntimeOnly(sourceSets["testFixtures"].output)
 }
 
 val implJar =
@@ -118,6 +137,12 @@ tasks.test {
     systemProperty("org.slf4j.simpleLogger.defaultLogLevel", "info")
     // TenancyProbeTest reads the main and impl jars the way `unzip -l` lists them (no TenancyProbe class in either).
     val jars = files(tasks.named("jar"), implJar)
+    val fixturesJar = tasks.named<Jar>("testFixturesJar")
+    dependsOn(fixturesJar)
+    jvmArgumentProviders +=
+        CommandLineArgumentProvider {
+            listOf("-DtenancyJooq.testFixturesJar=${fixturesJar.get().archiveFile.get().asFile}")
+        }
     dependsOn(jars)
     jvmArgumentProviders += CommandLineArgumentProvider { listOf("-DtenancyJooq.jars=${jars.asPath}") }
     testLogging { showStandardStreams = true }

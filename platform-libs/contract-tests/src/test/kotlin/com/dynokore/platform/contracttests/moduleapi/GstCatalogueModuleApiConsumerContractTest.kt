@@ -24,7 +24,6 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
-import java.io.File
 import java.time.LocalDate
 import java.util.UUID
 
@@ -70,7 +69,9 @@ class GstCatalogueModuleApiConsumerContractTest {
     @Test
     fun `the suite runs against the gst-catalogue version platform-libs pins`() {
         val pinned = System.getProperty("contracttests.gstCatalogueVersion")
-        val jar = File(VariationPoint::class.java.protectionDomain.codeSource.location.toURI()).name
+        // The class's own resource URL names the jar it was loaded from (jar:file:.../gst-catalogue-<v>.jar!/...).
+        val url = requireNotNull(VariationPoint::class.java.getResource("VariationPoint.class")).toString()
+        val jar = url.substringBefore("!/").substringAfterLast('/')
         jar shouldEndWith "gst-catalogue-$pinned.jar"
     }
 

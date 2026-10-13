@@ -164,6 +164,10 @@ dependencies {
     // service-runtime impl's own dependencies, which a service gets from its POM (the TPL-18 WiringTest).
     add("implTestRuntimeOnly", libs.jakarta.servletApi)
     add("implTestRuntimeOnly", libs.springSecurity.oauth2Jose)
+    // The TPL-18 WiringTest's DataSource from Spring Boot's DataSource auto-configuration on a lazy Hikari pool with
+    // no database (INV-Q-4196 (A), coordinator ruling INV-Q-4436): spring-boot-jdbc, HikariCP and the driver.
+    add("implTestRuntimeOnly", libs.springBoot.starterJdbc)
+    add("implTestRuntimeOnly", libs.postgresql)
     add("implTestImplementation", libs.springBoot.test)
     add("implTestImplementation", libs.assertj.core)
 
