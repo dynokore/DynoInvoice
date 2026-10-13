@@ -40,8 +40,7 @@ class ResiliencePolicyMappingPropertiesTest {
             )
         }
 
-    // RetryConfig.getIntervalFunction() is Resilience4j's only accessor for this; no replacement exists in 2.4.0
-    @Suppress("DEPRECATION")
+    @Suppress("DEPRECATION") // getIntervalFunction(): Resilience4j 2.4.0's only accessor, no replacement
     @Test
     fun `every attempt's backoff interval is within 0 and maxBackoff`() =
         runTest {
