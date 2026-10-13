@@ -185,7 +185,7 @@ class EventLogPurgeIT {
             )
             val sysNoLogin = "select count(*) from pg_roles where rolname = 'eventlog_sys' and not rolcanlogin"
             assertEquals(1, harness.count(sysNoLogin))
-            val definers = setOf("claim", "purge_batch", "record_position")
+            val definers = setOf("claim", "purge_batch", "record_position", "events_missing")
             assertEquals(definers, definers(harness), "each owned by eventlog_sys")
             assertSubscriberCannotWriteWatermarks(harness)
         }

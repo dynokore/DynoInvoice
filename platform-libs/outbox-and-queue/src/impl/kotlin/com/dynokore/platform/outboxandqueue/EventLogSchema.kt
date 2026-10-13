@@ -17,12 +17,12 @@ import java.sql.Connection
  *   ([TenantRlsMigration.ddl]). A producer's runtime login holds INSERT on its own topics, the tenant policy's WITH CHECK
  *   binding each row to the transaction's tenant; a subscriber's runtime login holds SELECT under the tenant policy and
  *   SELECT on its topics' purge-watermark rows. No runtime login reads across tenants.
- * - Every cross-tenant operation runs through the SECURITY DEFINER functions [CLAIM], [PURGE_BATCH] and
- *   [RECORD_POSITION_FUNCTION], owned by `eventlog_sys`, with static SQL (one branch per topic, generated here; no
+ * - Every cross-tenant operation runs through the SECURITY DEFINER functions [CLAIM], [PURGE_BATCH],
+ *   [RECORD_POSITION_FUNCTION] and [EVENTS_MISSING] (owner ruling INV-Q-4350 (A)), owned by `eventlog_sys`, with static SQL (one branch per topic, generated here; no
  *   `EXECUTE`), `SET search_path = pg_catalog, eventlog, pg_temp`, EXECUTE revoked from PUBLIC and granted only to the
  *   runtime logins that need each. `eventlog_sys` alone holds the cross-tenant policies and column grants they use.
  *
- * Rows of the [SUBSCRIPTION], [PURGE_WATERMARK] and [RECORD_POSITION] tables are keyed by one mapping, the topic's
+ * Rows of the [SUBSCRIPTION], [PRODUCER], [PURGE_WATERMARK] and [RECORD_POSITION] tables are keyed by one mapping, the topic's
  * [tableName] (the `topic_key` column), checked injective over the topic set at generation; the functions map a topic
  * argument to its key the same way (`translate(topic, '.-', '__')`). These tables and [RETENTION] hold no tenant data
  * (`platform-scoped: no tenant data`, INV-ADR-3968 item 4a) and are written only by the migration or the functions.
@@ -35,6 +35,9 @@ object EventLogSchema {
 
     /** One row per (topic, subscribing runtime login), generated from topics.yaml; read by [CLAIM] only. */
     const val SUBSCRIPTION = "subscription"
+
+    /** One row per (topic, producing runtime login), generated from topics.yaml; read by [EVENTS_MISSING] only. */
+    const val PRODUCER = "producer"
 
     /** One row per record topic: its keeper login and the keeper's committed position (INV-REQ-1205 b4). */
     const val RECORD_POSITION = "record_position"
@@ -50,6 +53,15 @@ object EventLogSchema {
 
     /** `record_position(topic, offset)`: the keeper's forward-only position write on a record topic. */
     const val RECORD_POSITION_FUNCTION = "record_position"
+
+    /**
+     * `events_missing(topic, event_ids)`: of up to [MAX_EVENTS_MISSING] event ids, those not in a topic the caller
+     * produces, and the topic's retention cut-off (owner ruling INV-Q-4350 (A)).
+     */
+    const val EVENTS_MISSING = "events_missing"
+
+    /** The most event ids [EVENTS_MISSING] accepts in one call. */
+    const val MAX_EVENTS_MISSING = 1_000
 
     /** The largest `limit` [CLAIM] accepts. */
     const val MAX_CLAIM = 10_000
@@ -92,7 +104,7 @@ object EventLogSchema {
 
     /**
      * The tables the functions keep their state in, with `eventlog_sys`'s grants and nothing for any runtime login:
-     * [SUBSCRIPTION], [PURGE_WATERMARK] (subscribers get SELECT on their topics' rows in [functionsDdl]),
+     * [SUBSCRIPTION], [PRODUCER], [PURGE_WATERMARK] (subscribers get SELECT on their topics' rows in [functionsDdl]),
      * [RECORD_POSITION] and [RETENTION] (CHECK of at least 7 days on each value). Run once, before [topicDdl].
      */
     fun schemaDdl(sysRole: String): String {
@@ -104,6 +116,12 @@ object EventLogSchema {
                 primary key (topic_key, login)
             );
             comment on table $SCHEMA.$SUBSCRIPTION is 'platform-scoped: no tenant data';
+            create table $SCHEMA.$PRODUCER (
+                topic_key text not null,
+                login text not null,
+                primary key (topic_key, login)
+            );
+            comment on table $SCHEMA.$PRODUCER is 'platform-scoped: no tenant data';
             create table $SCHEMA.$PURGE_WATERMARK (
                 topic_key text primary key,
                 watermark bigint not null check (watermark >= 0),
@@ -127,10 +145,11 @@ object EventLogSchema {
                 updated_at timestamptz not null default now()
             );
             comment on table $SCHEMA.$RETENTION is 'platform-scoped: no tenant data';
-            revoke all on $SCHEMA.$SUBSCRIPTION, $SCHEMA.$PURGE_WATERMARK, $SCHEMA.$RECORD_POSITION, $SCHEMA.$RETENTION
+            revoke all on $SCHEMA.$SUBSCRIPTION, $SCHEMA.$PRODUCER, $SCHEMA.$PURGE_WATERMARK, $SCHEMA.$RECORD_POSITION, $SCHEMA.$RETENTION
                 from public;
             grant usage on schema $SCHEMA to $sys;
             grant select on $SCHEMA.$SUBSCRIPTION to $sys;
+            grant select on $SCHEMA.$PRODUCER to $sys;
             grant select, insert, update on $SCHEMA.$PURGE_WATERMARK to $sys;
             grant select on $SCHEMA.$RECORD_POSITION to $sys;
             grant update (position, updated_at) on $SCHEMA.$RECORD_POSITION to $sys;
@@ -141,7 +160,8 @@ object EventLogSchema {
     /**
      * `CREATE TABLE` for [topic] with forced tenant row-level security; INSERT for each producer's runtime login and
      * SELECT under the tenant policy for each subscriber's; and for [sysRole] the cross-tenant `SELECT` of `log_offset`,
-     * `tenant_id` and `inserted_at` ([CLAIM], [PURGE_BATCH]) and `DELETE` ([PURGE_BATCH]). Run [schemaDdl] first.
+     * `tenant_id` and `inserted_at` ([CLAIM], [PURGE_BATCH]) and of `event_id` ([EVENTS_MISSING], over the topic's
+     * `event_id` index), and `DELETE` ([PURGE_BATCH]). Run [schemaDdl] first.
      */
     fun topicDdl(
         topic: Topic,
@@ -160,10 +180,11 @@ object EventLogSchema {
                 inserted_at timestamptz not null default now()
             );
             comment on column $SCHEMA.$topicKey.envelope is 'class: content';
+            create index ${eventIdIndex(topic)} on $SCHEMA.$topicKey (event_id);
             create policy sys_claim on $SCHEMA.$topicKey for select to $sys using (true);
             create policy sys_purge on $SCHEMA.$topicKey for delete to $sys using (true);
             grant usage on schema $SCHEMA to $sys;
-            grant select (log_offset, tenant_id, inserted_at) on $SCHEMA.$topicKey to $sys;
+            grant select (log_offset, tenant_id, inserted_at, event_id) on $SCHEMA.$topicKey to $sys;
             grant delete on $SCHEMA.$topicKey to $sys;
         """.trimIndent()
         return listOfNotNull(
@@ -193,11 +214,11 @@ object EventLogSchema {
     }
 
     /**
-     * Regenerates, for the whole topic set [topics], the [SUBSCRIPTION] rows, the [RECORD_POSITION] rows (keeper from
+     * Regenerates, for the whole topic set [topics], the [SUBSCRIPTION] and [PRODUCER] rows, the [RECORD_POSITION] rows (keeper from
      * [Topic.keeper]; an existing position is kept), each subscriber's `SELECT` on its topics' [PURGE_WATERMARK] rows,
-     * and the three functions, each dropped and created again, handed to [sysRole], with EXECUTE revoked from PUBLIC
-     * and granted to the subscribers ([CLAIM]), [purgeLogin] ([PURGE_BATCH]) and the keepers
-     * ([RECORD_POSITION_FUNCTION]) only. Run after [topicDdl] of every topic, in one migration transaction.
+     * and the four functions, each dropped and created again, handed to [sysRole], with EXECUTE revoked from PUBLIC
+     * and granted to the subscribers ([CLAIM]), [purgeLogin] ([PURGE_BATCH]), the keepers
+     * ([RECORD_POSITION_FUNCTION]) and the producers ([EVENTS_MISSING]) only. Run after [topicDdl] of every topic, in one migration transaction.
      *
      * @throws IllegalArgumentException when two topics share a name or a [tableName] (the key must be injective), or a
      *   login is not a plain identifier or is the sys role.
@@ -217,17 +238,23 @@ object EventLogSchema {
         val policies = ordered.groupBy { watermarkPolicy(it) }.filterValues { it.size > 1 }
         require(policies.isEmpty()) { "topics share a watermark policy name after truncation: $policies" }
         require(ordered.none { sys in it.producers + it.subscribers }) { "the sys role is no runtime login" }
+        val indexes = ordered.groupBy { eventIdIndex(it) }.filterValues { it.size > 1 }
+        require(indexes.isEmpty()) { "topics share an event_id index name after truncation: $indexes" }
         val subscribed = ordered.filter { it.subscribers.isNotEmpty() }
+        val produced = ordered.filter { it.producers.isNotEmpty() }
         val records = ordered.filter { it.record }
         return (
             listOf("delete from $SCHEMA.$SUBSCRIPTION;") +
                 subscribed.map { subscriptionRows(it) } +
+                listOf("delete from $SCHEMA.$PRODUCER;") +
+                produced.map { producerRows(it) } +
                 listOf(if (records.isEmpty()) "delete from $SCHEMA.$RECORD_POSITION;" else staleRecordPositions(records)) +
                 records.map { recordPositionRow(it) } +
                 ordered.map { watermarkReads(it) } +
                 claimFunction(ordered, sysRole) +
                 purgeFunction(ordered, sysRole, purgeLogin) +
-                recordPositionFunction(records, sysRole)
+                recordPositionFunction(records, sysRole) +
+                eventsMissingFunction(ordered, sysRole)
             ).joinToString("\n")
     }
 
@@ -264,6 +291,15 @@ object EventLogSchema {
         """.trimIndent()
     }
 
+    private fun producerRows(topic: Topic): String {
+        val topicKey = SqlIdentifier.require(tableName(topic.name), "topic table")
+        val producerLogins = topic.producers.sorted().map { SqlIdentifier.require(it, "producer login") }
+        return """
+            insert into $SCHEMA.$PRODUCER (topic_key, login)
+            select '$topicKey', unnest(array['${producerLogins.joinToString("', '")}']::text[]);
+        """.trimIndent()
+    }
+
     /** Removes the record-position rows of topics no longer marked as record topics. */
     private fun staleRecordPositions(records: List<Topic>): String {
         val recordKeys = records.map { SqlIdentifier.require(tableName(it.name), "topic table") }
@@ -296,6 +332,8 @@ object EventLogSchema {
             grant select on $SCHEMA.$PURGE_WATERMARK to ${subscriberLogins.joinToString(", ")};
         """.trimIndent()
     }
+
+    private fun eventIdIndex(topic: Topic): String = SqlIdentifier.require(tableName(topic.name).take(MAX_IDENTIFIER - EVENT_ID_SUFFIX.length) + EVENT_ID_SUFFIX, "event_id index")
 
     private fun watermarkPolicy(topic: Topic): String = SqlIdentifier.require("wm_${tableName(topic.name)}".take(MAX_IDENTIFIER), "watermark policy")
 
@@ -506,6 +544,88 @@ object EventLogSchema {
         return listOfNotNull(function, handOver, grant)
     }
 
+    /**
+     * [EVENTS_MISSING]: refuses a malformed topic, a null array or one of more than [MAX_EVENTS_MISSING] ids (`22023`);
+     * refuses (`42501`) unless `session_user` produces the topic ([PRODUCER]); refuses (`55000`) without a retention
+     * row of at least 7 days. Otherwise returns one row: the distinct given ids (nulls ignored) not present in the
+     * topic, and the topic's retention cut-off, `now()` less its period (the content window for a content topic, the
+     * event-log retention for any other), the same cut-off [PURGE_BATCH] deletes before. Nothing else of the topic.
+     */
+    private fun eventsMissingFunction(
+        topics: List<Topic>,
+        sysRole: String,
+    ): List<String> {
+        val sys = SqlIdentifier.require(sysRole, "sys role")
+        val producerLogins =
+            topics.flatMap { it.producers }.distinct().sorted().map { SqlIdentifier.require(it, "producer login") }
+        val head = """
+            drop function if exists $SCHEMA.$EVENTS_MISSING(text, text[]);
+            create function $SCHEMA.$EVENTS_MISSING(p_topic text, p_event_ids text[], out missing text[],
+                out cutoff timestamptz)
+            language plpgsql stable security definer set search_path = pg_catalog, $SCHEMA, pg_temp as $$
+            declare
+                v_key text;
+                v_content interval;
+                v_retention interval;
+            begin
+                if p_topic is null or p_topic !~ '^[a-z][a-z0-9.-]*$' or p_event_ids is null
+                    or coalesce(cardinality(p_event_ids), 0) > $MAX_EVENTS_MISSING then
+                    raise exception 'events_missing names a topic and at most $MAX_EVENTS_MISSING event ids'
+                        using errcode = '22023';
+                end if;
+                v_key := translate(p_topic, '.-', '__');
+                if not exists (
+                    select 1 from $SCHEMA.$PRODUCER p where p.topic_key = v_key and p.login = session_user
+                ) then
+                    raise exception 'events_missing is open to the producers of a topic only' using errcode = '42501';
+                end if;
+                select r.content_window, r.eventlog_retention into v_content, v_retention
+                from $SCHEMA.$RETENTION r where r.id;
+                if not found or v_content is null or v_retention is null
+                    or v_content < interval '7 days' or v_retention < interval '7 days' then
+                    raise exception 'event-log retention is missing or below 7 days (INV-Q-4262)' using errcode = '55000';
+                end if;
+                if false then
+                    return;
+        """.trimIndent()
+        val tail = """
+                end if;
+            end
+            $$;
+        """.trimIndent()
+        val handOver = """
+            grant create on schema $SCHEMA to $sys;
+            alter function $SCHEMA.$EVENTS_MISSING(text, text[]) owner to $sys;
+            revoke all on function $SCHEMA.$EVENTS_MISSING(text, text[]) from public;
+            revoke create on schema $SCHEMA from $sys;
+        """.trimIndent()
+        val grant =
+            if (producerLogins.isEmpty()) {
+                null
+            } else {
+                """
+                grant execute on function $SCHEMA.$EVENTS_MISSING(text, text[]) to ${producerLogins.joinToString(", ")};
+                """.trimIndent()
+            }
+        return listOf(head) + topics.map { eventsMissingBranch(it) } + listOfNotNull(tail, handOver, grant)
+    }
+
+    private fun eventsMissingBranch(topic: Topic): String {
+        val topicKey = SqlIdentifier.require(tableName(topic.name), "topic table")
+        val period = if (topic.contentTopic) "v_content" else "v_retention"
+        return """
+                elsif v_key = '$topicKey' then
+                    cutoff := now() - $period;
+                    missing := array(
+                        select distinct i.id from unnest(p_event_ids) as i(id)
+                        where i.id is not null
+                            and not exists (select 1 from $SCHEMA.$topicKey t where t.event_id = i.id)
+                        order by i.id
+                    );
+        """.trimIndent()
+    }
+
     private const val MAX_IDENTIFIER = 63
+    private const val EVENT_ID_SUFFIX = "_event_id"
     private val TOPIC = Regex("^[a-z][a-z0-9.-]*$")
 }

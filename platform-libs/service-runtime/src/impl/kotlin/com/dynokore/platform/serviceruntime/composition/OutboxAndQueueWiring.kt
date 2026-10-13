@@ -6,6 +6,7 @@ import com.dynokore.platform.outboxandqueue.EventBinding
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.EventLogLag
+import com.dynokore.platform.outboxandqueue.EventLogPresence
 import com.dynokore.platform.outboxandqueue.EventLogPurge
 import com.dynokore.platform.outboxandqueue.EventLogReader
 import com.dynokore.platform.outboxandqueue.InboxConsumer
@@ -17,12 +18,14 @@ import com.dynokore.platform.outboxandqueue.JdbcOutboxWriter
 import com.dynokore.platform.outboxandqueue.JdbcReplayDelivery
 import com.dynokore.platform.outboxandqueue.JdbcRetentionPurge
 import com.dynokore.platform.outboxandqueue.JdbcStalenessMonitor
+import com.dynokore.platform.outboxandqueue.JdbcUnrelayedEventCheck
 import com.dynokore.platform.outboxandqueue.JdbcWorkQueue
 import com.dynokore.platform.outboxandqueue.LaneLimits
 import com.dynokore.platform.outboxandqueue.LaneRateLimiter
 import com.dynokore.platform.outboxandqueue.OutboxRelay
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.PostgresEventBinding
+import com.dynokore.platform.outboxandqueue.PostgresEventLogPresence
 import com.dynokore.platform.outboxandqueue.PostgresEventLogReader
 import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
 import com.dynokore.platform.outboxandqueue.ReplayDelivery
@@ -32,6 +35,8 @@ import com.dynokore.platform.outboxandqueue.StalenessBreachSink
 import com.dynokore.platform.outboxandqueue.StalenessMonitor
 import com.dynokore.platform.outboxandqueue.StalenessRule
 import com.dynokore.platform.outboxandqueue.TenantScope
+import com.dynokore.platform.outboxandqueue.UnrelayedEventCheck
+import com.dynokore.platform.outboxandqueue.UnrelayedEventSink
 import com.dynokore.platform.outboxandqueue.WorkQueue
 import com.dynokore.platform.serviceruntime.binding.GstProperties
 import com.dynokore.platform.serviceruntime.staleness.LoggingStalenessBreachSink
@@ -69,7 +74,7 @@ import javax.sql.DataSource
  */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnClass(name = ["com.dynokore.platform.outboxandqueue.JdbcOutboxWriter"])
-@EnableConfigurationProperties(StalenessProperties::class)
+@EnableConfigurationProperties(StalenessProperties::class, UnrelayedEventProperties::class)
 class OutboxAndQueueWiring {
     /**
      * The service's [TenantScope] over its application transactions, with the service's workload principal for
@@ -234,6 +239,63 @@ class OutboxAndQueueWiring {
         gauges: StalenessGauges,
         properties: StalenessProperties,
     ): StalenessCheckSchedule = StalenessCheckSchedule(gauges, properties.checkInterval)
+
+    /** `eventlog.events_missing` on the event-log DataSource (owner ruling INV-Q-4350 (A)). */
+    @Bean
+    @ConditionalOnBean(DataSource::class)
+    @ConditionalOnMissingBean(EventLogPresence::class)
+    fun eventLogPresence(
+        @Qualifier(ServiceDataSources.EVENT_LOG) eventLog: ObjectProvider<DataSource>,
+        dataSource: DataSource,
+    ): PostgresEventLogPresence = PostgresEventLogPresence(eventLog.getIfAvailable { dataSource })
+
+    /**
+     * The check of outbox rows marked published whose event never reached the event log (owner rulings INV-Q-4334 (B),
+     * INV-Q-4350 (A)), on the same background connection as the staleness monitor. Created only with
+     * `service-runtime.unrelayed-events.margin` set (INV-Q-4403). A service's own [UnrelayedEventSink] replaces the
+     * logging default.
+     */
+    @Bean
+    @ConditionalOnBean(value = [TenantScope::class, EventLogPresence::class], name = [ServiceDataSources.WORKER])
+    @ConditionalOnProperty(name = [Props.SCHEMA, Props.SERVICE, UnrelayedEventProperties.MARGIN])
+    @ConditionalOnMissingBean(UnrelayedEventCheck::class)
+    @Suppress("LongParameterList")
+    fun unrelayedEventCheck(
+        @Qualifier(ServiceDataSources.WORKER) worker: DataSource,
+        scope: TenantScope,
+        presence: EventLogPresence,
+        properties: UnrelayedEventProperties,
+        sink: ObjectProvider<UnrelayedEventSink>,
+        modules: ModuleProperties,
+        gst: GstProperties,
+    ): JdbcUnrelayedEventCheck = JdbcUnrelayedEventCheck(
+        worker,
+        scope,
+        modules.requireSchema(),
+        gst.requireService(),
+        presence,
+        properties.settings(),
+        sink.getIfAvailable { LoggingUnrelayedEventSink() },
+    )
+
+    /** The open-findings gauge (as the staleness gauges, INV-REQ-1165). */
+    @Bean
+    @ConditionalOnBean(UnrelayedEventCheck::class)
+    @ConditionalOnProperty(name = [Props.SERVICE])
+    @ConditionalOnMissingBean(UnrelayedEventGauge::class)
+    fun unrelayedEventGauge(
+        check: UnrelayedEventCheck,
+        gst: GstProperties,
+        registry: MeterRegistry,
+    ): UnrelayedEventGauge = UnrelayedEventGauge(check, gst.requireService(), registry)
+
+    @Bean
+    @ConditionalOnBean(UnrelayedEventGauge::class)
+    @ConditionalOnMissingBean(UnrelayedEventCheckSchedule::class)
+    fun unrelayedEventCheckSchedule(
+        gauge: UnrelayedEventGauge,
+        properties: UnrelayedEventProperties,
+    ): UnrelayedEventCheckSchedule = UnrelayedEventCheckSchedule(gauge, properties.checkInterval)
 
     /** One consumer per service by default; a service with several declares its own [JdbcInboxConsumer]s. */
     @Bean

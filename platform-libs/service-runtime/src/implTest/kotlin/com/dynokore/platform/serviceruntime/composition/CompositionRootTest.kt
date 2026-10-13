@@ -31,6 +31,7 @@ import com.dynokore.platform.outboxandqueue.EventLogPurge
 import com.dynokore.platform.outboxandqueue.EventLogReader
 import com.dynokore.platform.outboxandqueue.InboxConsumer
 import com.dynokore.platform.outboxandqueue.JdbcOutboxWriter
+import com.dynokore.platform.outboxandqueue.JdbcUnrelayedEventCheck
 import com.dynokore.platform.outboxandqueue.LaneLimits
 import com.dynokore.platform.outboxandqueue.LaneRateLimiter
 import com.dynokore.platform.outboxandqueue.OutboxRelay
@@ -45,6 +46,7 @@ import com.dynokore.platform.outboxandqueue.StalenessBreachSink
 import com.dynokore.platform.outboxandqueue.StalenessMonitor
 import com.dynokore.platform.outboxandqueue.StalenessRule
 import com.dynokore.platform.outboxandqueue.TenantScope
+import com.dynokore.platform.outboxandqueue.UnrelayedEventCheck
 import com.dynokore.platform.outboxandqueue.WorkQueue
 import com.dynokore.platform.rulepackkernel.InMemoryPackRegistry
 import com.dynokore.platform.rulepackkernel.PackContentValidator
@@ -137,6 +139,7 @@ class CompositionRootTest {
             setOf(
                 OutboxRelay::class, LaneRateLimiter::class, WorkQueue::class, DeadLetterTriage::class, RetentionPurge::class,
                 StalenessMonitor::class, InboxConsumer::class, ReplayDelivery::class, JobCommands::class, IdempotencyStore::class, IdempotencyKeyPurgeJob::class,
+                UnrelayedEventCheck::class,
             ),
         ),
 
@@ -164,6 +167,11 @@ class CompositionRootTest {
         ),
 
         // INV-T-3005: optional, the monitor falls back to a logging sink (the incident is the alert rule's, INV-Q-3030)
+        // INV-Q-4403 pending: the unrelayed-event check exists only with its margin set
+        UNRELAYED_EVENT_MARGIN(
+            { it.withPropertyValues("${UnrelayedEventProperties.MARGIN}=PT1H") },
+            setOf(UnrelayedEventCheck::class),
+        ),
         STALENESS_BREACH_SINK({ it.withBean(StalenessBreachSink::class.java, { StalenessBreachSink { } }) }, emptySet()),
         CONSUMER_SUBSCRIPTION(
             { it.withBean(ConsumerSubscription::class.java, { ConsumerSubscription("submission-svc", "canonical", "submission") }) },
@@ -201,7 +209,7 @@ class CompositionRootTest {
                 OutboxWriter::class, AuditWriter::class, AuditedOperations::class, OverrideService::class, PolicyWriter::class,
                 OperationRunner::class, ConnectionStatusReporter::class, EvidenceArtefactRecorder::class, JobCommands::class,
                 IdempotencyStore::class, IdempotencyKeyPurgeJob::class, TenantScope::class, EventBinding::class, OutboxRelay::class,
-                EventLogReader::class, WorkQueue::class, DeadLetterTriage::class, StalenessMonitor::class,
+                EventLogReader::class, WorkQueue::class, DeadLetterTriage::class, StalenessMonitor::class, UnrelayedEventCheck::class,
             ) + INBOX,
         ),
         SCHEMA(
@@ -212,6 +220,7 @@ class CompositionRootTest {
                 ReplayDelivery::class, PolicyReader::class, PolicyHistory::class, ConfigPurge::class, ResolutionRecorder::class,
                 PolicyWriter::class, EvidenceLedger::class, LegalHoldRegistry::class, OperationRunner::class,
                 ConnectionStatusReporter::class, EvidenceArtefactRecorder::class, JobCommands::class, IdempotencyStore::class, IdempotencyKeyPurgeJob::class,
+                UnrelayedEventCheck::class,
             ),
         ),
         LEDGER_TABLE({ it.withPropertyValues("service-runtime.modules.evidence.ledger-table=evidence_ledger") }, setOf(EvidenceLedger::class)),
@@ -243,6 +252,11 @@ class CompositionRootTest {
                 OutboxRelay::class, EventLogReader::class, LaneRateLimiter::class, WorkQueue::class, DeadLetterTriage::class,
                 RetentionPurge::class, EventLogPurge::class, StalenessMonitor::class, InboxConsumer::class, ReplayDelivery::class,
             ).forEach { context.getBean(it.java) }
+            // the unrelayed-event check, its open-findings gauge and its schedule (INV-Q-4334, INV-Q-4350)
+            context.getBean(UnrelayedEventCheck::class.java).shouldBeInstanceOf<JdbcUnrelayedEventCheck>()
+            context.getBean(UnrelayedEventCheckSchedule::class.java)
+            context.getBean(MeterRegistry::class.java).find(UnrelayedEventGauge.OPEN).tag(UnrelayedEventGauge.SERVICE, "submission-svc").gauge().shouldNotBeNull()
+            context.getBean(UnrelayedEventProperties::class.java).checkInterval shouldBe Duration.ofMinutes(5)
             // audit-log: the outbox writer in a service with an outbox
             context.getBean(AuditWriter::class.java).shouldBeInstanceOf<OutboxAuditWriter>()
             context.getBean(AuditedOperations::class.java)
@@ -291,6 +305,23 @@ class CompositionRootTest {
         base.withServiceInputs(mountRoot).withPropertyValues("service-runtime.idempotency.retention=PT23H").run { context ->
             val failure = context.startupFailure.shouldNotBeNull()
             generateSequence<Throwable>(failure) { it.cause }.any { it.message?.contains("at least 24 hours") == true } shouldBe true
+        }
+    }
+
+    @Test
+    fun `the unrelayed-event check interval is a per-profile setting, and a missing or non-positive margin creates no check or stops start-up`(
+        @TempDir mountRoot: Path,
+    ) {
+        base.withServiceInputs(mountRoot).withPropertyValues("${UnrelayedEventProperties.PREFIX}.check-interval=PT2M").run { context ->
+            context.getBean(UnrelayedEventProperties::class.java).checkInterval shouldBe Duration.ofMinutes(2)
+        }
+        base.withServiceInputs(mountRoot, without = ServiceInput.UNRELAYED_EVENT_MARGIN).run { context ->
+            context.getBeansOfType(UnrelayedEventCheck::class.java).size shouldBe 0
+            context.getBeansOfType(UnrelayedEventGauge::class.java).size shouldBe 0
+        }
+        base.withServiceInputs(mountRoot).withPropertyValues("${UnrelayedEventProperties.MARGIN}=PT0S").run { context ->
+            val failure = context.startupFailure.shouldNotBeNull()
+            generateSequence<Throwable>(failure) { it.cause }.any { it.message?.contains("margin must be positive") == true } shouldBe true
         }
     }
 
