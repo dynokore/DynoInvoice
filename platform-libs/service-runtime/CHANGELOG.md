@@ -18,7 +18,7 @@ train is its own (README.md: "own version and changelog").
   outside the allowlist `url`, `username`, `driver-class-name`, `type` (HikariDataSource only),
   `hikari.maximum-pool-size`, `hikari.minimum-idle`, `hikari.connection-timeout`, `hikari.idle-timeout`,
   `hikari.max-lifetime`, `hikari.keepalive-time`, `hikari.validation-timeout`, `hikari.leak-detection-threshold`,
-  `hikari.initialization-fail-timeout`, `hikari.pool-name`, `hikari.register-mbeans` (so `hikari.data-source-properties.*`,
+  `hikari.initialization-fail-timeout`, `hikari.pool-name` (so `hikari.register-mbeans` (INV-Q-4574), `hikari.data-source-properties.*`,
   `hikari.schema`, `hikari.catalog`, `hikari.transaction-isolation`, `hikari.auto-commit`, `hikari.read-only`,
   `dbcp2.*`, `tomcat.*`, `oracleucp.*`, `schema`, `data`, `initialization-mode`, `password` and `hikari.password`); any
   `spring.flyway` key outside the allowlist `enabled`, `url`, `user`, `schemas`, `default-schema`, `create-schemas`,
@@ -36,7 +36,19 @@ train is its own (README.md: "own version and changelog").
   `@PropertySource` is checked too (INV-Q-4559). `PoolConfigurationGuard` checks what every HikariDataSource bean
   actually received, deny-by-default over every HikariConfig property, so an indirect path no key names is refused. `spring.datasource.password`, `spring.datasource.hikari.password` and
   `spring.flyway.password` are now refused with or without `service-runtime.datasource.credential` or
-  `service-runtime.flyway.credential` (formerly only beside it; STK-29, coordinator ruling INV-Q-4548).
+  `service-runtime.flyway.credential` (formerly only beside it; STK-29, coordinator ruling INV-Q-4548), and are also read
+  by exact name, so a property source that cannot be enumerated is seen (INV-Q-4570).
+- A pool's password comes only from SecretStore through the credential path (STK-29, TPL-16, INV-Q-3909; coordinator
+  ruling INV-Q-4570): `PoolConfigurationGuard` fails start-up when a HikariDataSource bean has a password, from any
+  property source or code, or a credentials provider other than exactly `SecretStoreCredentialsProvider`. MBeans are
+  refused: `registerMbeans` must stay `false`, since they expose `HikariConfigMXBean.setPassword` over JMX (coordinator
+  ruling INV-Q-4574). The HA event-log pool no longer copies the application pool's password, only its credentials
+  provider; a service that logged in with a password property must use `service-runtime.datasource.credential`.
+- No JMX export (coordinator ruling INV-Q-4591): every `spring.jmx` key other than `spring.jmx.enabled=false` fails
+  start-up in any relaxed form, and `SqlConfigurationKeyRecheck` fails start-up, before any bean is created, on any
+  bean definition of type `MBeanExporter` or a subclass (Spring Boot's JMX auto-configuration, `@EnableMBeanExport`, an
+  exporter `@Bean`, a library's exporter). An exporter exports every HikariDataSource as HikariConfigMXBean with a
+  writable Password, whatever `registerMbeans` is. Metrics, health and tracing stay HTTP on the management port.
 - The HA event-log pool no longer copies the application pool's `connectionInitSql`: it sets no connection-init SQL
   and no schema (INV-Q-4542, INV-REQ-1230, INV-T-3982).
 - One application DataSource per service (INV-T-3981; owner ruling INV-Q-3955, INV-REQ-1230): the role DataSources

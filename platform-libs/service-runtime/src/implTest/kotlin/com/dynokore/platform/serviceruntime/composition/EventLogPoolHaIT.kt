@@ -5,6 +5,7 @@ import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Comp
 import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Companion.user
 import com.dynokore.platform.serviceruntime.datasource.tpl18Service
 import com.dynokore.platform.serviceruntime.datasource.withApplicationPool
+import com.dynokore.platform.serviceruntime.datasource.withPool
 import com.zaxxer.hikari.HikariDataSource
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -38,7 +39,10 @@ class EventLogPoolHaIT {
                         it.password = PASSWORD
                         // refused at start-up (INV-Q-4542); set by a test post-processor that bypasses the check
                         it.connectionInitSql = INIT_SQL
-                    }.run { context ->
+                    }
+                    // the event-log pool copies no password (INV-Q-4570): the test login, set after the checks
+                    .withPool(ServiceDataSources.EVENT_LOG) { it.password = PASSWORD }
+                    .run { context ->
                         context.startupFailure shouldBe null
                         context.getBeanNamesForType(DataSource::class.java).toSet() shouldBe setOf("dataSource", ServiceDataSources.EVENT_LOG)
                         val app = context.getBean(DataSource::class.java)

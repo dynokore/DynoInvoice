@@ -1,8 +1,12 @@
 package com.dynokore.platform.serviceruntime.datasource
 
+import com.dynokore.platform.serviceruntime.binding.MountedFileSecretStore
+import com.dynokore.platform.serviceruntime.binding.SecretRef
 import com.dynokore.platform.serviceruntime.composition.ServiceDataSources
 import com.zaxxer.hikari.HikariConfig
+import com.zaxxer.hikari.HikariCredentialsProvider
 import com.zaxxer.hikari.HikariDataSource
+import com.zaxxer.hikari.util.Credentials
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -10,9 +14,12 @@ import io.kotest.matchers.string.shouldNotContain
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
+import org.springframework.beans.factory.config.BeanPostProcessor
 import org.springframework.context.ApplicationContextInitializer
 import org.springframework.context.ConfigurableApplicationContext
+import org.springframework.core.PriorityOrdered
 import org.springframework.core.env.PropertySource
+import java.nio.file.Path
 import javax.sql.DataSource
 
 /**
@@ -56,29 +63,116 @@ class PoolConfigurationGuardTest {
         strings = [
             "connectionInitSql", "connectionTestQuery", "schema", "catalog", "transactionIsolation", "autoCommit",
             "readOnly", "dataSourceClassName", "options", "jdbcUrlOptions", "jdbcUrlPassword", "applicationName",
+            "password", "registerMbeans", "credentialsProvider",
         ],
     )
     fun `a pool that runs SQL or sets session state is refused, and the value is not printed`(setting: String) {
         val pool = allowedPool()
         when (setting) {
             "connectionInitSql" -> pool.connectionInitSql = "set role postgres"
+
             "connectionTestQuery" -> pool.connectionTestQuery = "select 1"
+
             "schema" -> pool.schema = "evil"
+
             "catalog" -> pool.catalog = "evil"
+
             "transactionIsolation" -> pool.transactionIsolation = "TRANSACTION_SERIALIZABLE"
+
             "autoCommit" -> pool.isAutoCommit = false
+
             "readOnly" -> pool.isReadOnly = true
+
             "dataSourceClassName" -> pool.dataSourceClassName = "org.postgresql.ds.PGSimpleDataSource"
+
             "options" -> pool.addDataSourceProperty("options", "-c search_path=evil")
+
             "jdbcUrlOptions" -> pool.jdbcUrl = "jdbc:postgresql://db/app?options=-c%20search_path%3Devil"
+
             "jdbcUrlPassword" -> pool.jdbcUrl = "jdbc:postgresql://db/app?password=evil"
+
             "applicationName" -> pool.addDataSourceProperty("ApplicationName", "evil")
+
+            // a pool password bypasses SecretStore (STK-29, coordinator ruling INV-Q-4570)
+            "password" -> pool.password = "evil"
+
+            // MBeans expose HikariConfigMXBean.setPassword over JMX (coordinator ruling INV-Q-4574)
+            "registerMbeans" -> pool.isRegisterMbeans = true
+
+            // a login provider other than SecretStoreCredentialsProvider (INV-Q-4570)
+            "credentialsProvider" -> pool.credentialsProvider = HikariCredentialsProvider { Credentials.of("evil", "evil") }
         }
         val offending = PoolConfigurationGuard.findOffendingProperties(pool, SERVICE)
         offending.size shouldBe 1
         offending.single() shouldNotContain "evil"
         offending.single() shouldNotContain "postgres"
     }
+
+    @Test
+    fun `a SecretStoreCredentialsProvider passes, any other provider is refused (INV-Q-4570)`() {
+        val secretStore = allowedPool().apply { credentialsProvider = SecretStoreCredentialsProvider(MountedFileSecretStore(Path.of("/run/secrets")), "submission_runtime", SecretRef("db-app")) }
+        PoolConfigurationGuard.findOffendingProperties(secretStore, SERVICE).shouldBeEmpty()
+        val other = allowedPool().apply { credentialsProvider = HikariCredentialsProvider { Credentials.of("submission_runtime", "pw") } }
+        PoolConfigurationGuard.findOffendingProperties(other, SERVICE) shouldBe listOf("credentialsProvider (only SecretStoreCredentialsProvider (INV-Q-4570))")
+    }
+
+    @Test
+    fun `a pool password bound from a property source that cannot be enumerated fails start-up (INV-Q-4570)`() {
+        tpl18Service()
+            .withPropertyValues(
+                "spring.datasource.url=jdbc:postgresql://db:5432/submission",
+                "spring.datasource.username=submission_runtime",
+            ).withInitializer(indirect("spring.datasource.password" to "pw-value"))
+            .run { context ->
+                val failure = failure(context.startupFailure)
+                failure shouldContain "spring.datasource.password"
+                failure shouldContain "INV-Q-4570"
+                failure shouldNotContain "pw-value"
+            }
+    }
+
+    @Test
+    fun `a pool password, MBeans or another credentials provider set before the pool check fails start-up (INV-Q-4570, INV-Q-4574)`() {
+        val service =
+            tpl18Service().withPropertyValues(
+                "spring.datasource.url=jdbc:postgresql://db:5432/submission",
+                "spring.datasource.username=submission_runtime",
+            )
+        mapOf<String, (HikariDataSource) -> Unit>(
+            "password (set)" to { it.password = "pw-value" },
+            "registerMbeans (set)" to { it.isRegisterMbeans = true },
+            "credentialsProvider (only SecretStoreCredentialsProvider" to { it.credentialsProvider = HikariCredentialsProvider { Credentials.of("x", "pw-value") } },
+        ).forEach { (expected, setting) ->
+            service.withBean("codeBeforeCheck", BeforePoolCheck::class.java, { BeforePoolCheck(setting) }).run { context ->
+                val failure = failure(context.startupFailure)
+                failure shouldContain "INV-Q-4570"
+                failure shouldContain expected
+                failure shouldNotContain "pw-value"
+            }
+        }
+        // register-mbeans bound through a property source the key check cannot enumerate
+        service.withInitializer(indirect("spring.datasource.hikari.register-mbeans" to "true")).run { context ->
+            failure(context.startupFailure) shouldContain "registerMbeans (set)"
+        }
+    }
+
+    /** Code that sets the application pool before [PoolConfigurationGuard] runs (PriorityOrdered runs first). */
+    private class BeforePoolCheck(
+        private val setting: (HikariDataSource) -> Unit,
+    ) : BeanPostProcessor,
+        PriorityOrdered {
+        override fun getOrder(): Int = 0
+
+        override fun postProcessAfterInitialization(
+            bean: Any,
+            beanName: String,
+        ): Any {
+            if (beanName == "dataSource") setting((bean as DataSource).unwrap(HikariDataSource::class.java))
+            return bean
+        }
+    }
+
+    private fun failure(startupFailure: Throwable?): String = generateSequence(startupFailure) { it.cause }.joinToString(" | ") { it.message.orEmpty() }
 
     @Test
     fun `a TPL-18 service whose application pool is bound with a refused setting through an indirect path fails start-up`() {
