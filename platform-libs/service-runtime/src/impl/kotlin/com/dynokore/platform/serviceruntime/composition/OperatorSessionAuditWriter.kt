@@ -1,7 +1,9 @@
 package com.dynokore.platform.serviceruntime.composition
 
 import com.dynokore.platform.auditlog.AuditEntry
+import com.dynokore.platform.auditlog.AuditStager
 import com.dynokore.platform.auditlog.AuditWriter
+import com.dynokore.platform.auditlog.StagedAuditEntry
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.serviceruntime.identity.CurrentOperatorSession
@@ -14,15 +16,18 @@ import org.springframework.beans.factory.config.BeanPostProcessor
  * override's own reason is kept in full (INV-REQ-861 b2, INV-REQ-1180). Added once, before [delegate] records the
  * entry in the caller's transaction. Outside a session the entry is recorded unchanged.
  */
-class OperatorSessionAuditWriter(
+open class OperatorSessionAuditWriter(
     val delegate: AuditWriter,
 ) : AuditWriter {
     override fun record(
         entry: AuditEntry,
         context: EventContext,
-    ): Envelope {
-        val session = CurrentOperatorSession.current() ?: return delegate.record(entry, context)
-        return delegate.record(entry.copy(reason = reasonUnder(session, entry.reason)), context)
+    ): Envelope = delegate.record(underSession(entry), context)
+
+    /** [entry] with the current session's case prefixed to its reason; unchanged outside a session. */
+    protected fun underSession(entry: AuditEntry): AuditEntry {
+        val session = CurrentOperatorSession.current() ?: return entry
+        return entry.copy(reason = reasonUnder(session, entry.reason))
     }
 
     companion object {
@@ -34,10 +39,34 @@ class OperatorSessionAuditWriter(
     }
 }
 
-/** Decorates every [AuditWriter] bean, a service's own included, with [OperatorSessionAuditWriter] (INV-Q-4521). */
+/**
+ * [OperatorSessionAuditWriter] over a delegate that is also an [AuditStager] (OutboxAuditWriter, LocalAuditWriter;
+ * coordinator rulings INV-Q-4254 A, INV-Q-4277): it stays a stager, so an installation value's staged audit entry is
+ * built by the delegate, with the same case prefix under a session.
+ */
+class OperatorSessionAuditStager(
+    delegate: AuditWriter,
+) : OperatorSessionAuditWriter(delegate),
+    AuditStager {
+    private val stager: AuditStager = requireNotNull(delegate as? AuditStager) { "the delegate must be an AuditStager" }
+
+    override fun stage(
+        entry: AuditEntry,
+        context: EventContext,
+    ): StagedAuditEntry = stager.stage(underSession(entry), context)
+}
+
+/**
+ * Decorates every [AuditWriter] bean, a service's own included (INV-Q-4521): with [OperatorSessionAuditStager] when it
+ * is also an [AuditStager], so the decorated bean keeps every port the delegate offers, else [OperatorSessionAuditWriter].
+ */
 class OperatorSessionAuditWriterPostProcessor : BeanPostProcessor {
     override fun postProcessAfterInitialization(
         bean: Any,
         beanName: String,
-    ): Any = if (bean is AuditWriter && bean !is OperatorSessionAuditWriter) OperatorSessionAuditWriter(bean) else bean
+    ): Any = when {
+        bean !is AuditWriter || bean is OperatorSessionAuditWriter -> bean
+        bean is AuditStager -> OperatorSessionAuditStager(bean)
+        else -> OperatorSessionAuditWriter(bean)
+    }
 }

@@ -2,6 +2,8 @@ package com.dynokore.platform.serviceruntime.composition
 
 import com.dynokore.platform.adapterruntime.connection.InMemoryConnectionStatusReporter
 import com.dynokore.platform.adapterruntime.deadletter.InMemoryDeadLetterSink
+import com.dynokore.platform.auditlog.AuditEntry
+import com.dynokore.platform.auditlog.AuditStager
 import com.dynokore.platform.auditlog.AuditWriter
 import com.dynokore.platform.auditlog.AuditedOperations
 import com.dynokore.platform.auditlog.ErrorCatalogue
@@ -22,10 +24,14 @@ import com.dynokore.platform.evidencestore.LegalHoldRegistry
 import com.dynokore.platform.evidencestore.ObjectStore
 import com.dynokore.platform.evidencestore.S3ObjectStore
 import com.dynokore.platform.outboxandqueue.CatalogueEntry
+import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
+import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.outboxandqueue.DeadLetterTriage
+import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.EventBinding
 import com.dynokore.platform.outboxandqueue.EventCatalogue
+import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.EventLogPurge
 import com.dynokore.platform.outboxandqueue.EventLogReader
@@ -60,7 +66,9 @@ import com.dynokore.platform.serviceruntime.connection.OutboxConnectionStatusRep
 import com.dynokore.platform.serviceruntime.events.EvidenceArtefactRecorder
 import com.dynokore.platform.serviceruntime.http.IdempotencyKeyPurgeJob
 import com.dynokore.platform.serviceruntime.http.IdempotencyStore
+import com.dynokore.platform.serviceruntime.identity.CurrentOperatorSession
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
+import com.dynokore.platform.serviceruntime.identity.OperatorSession
 import com.dynokore.platform.serviceruntime.jobs.DeadlineSource
 import com.dynokore.platform.serviceruntime.jobs.JobCommandAuthorizer
 import com.dynokore.platform.serviceruntime.jobs.JobCommands
@@ -72,6 +80,7 @@ import com.dynokore.platform.tenancykernel.LicenceStatus
 import com.dynokore.platform.tenancykernel.NonBlockingLicenceCheck
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantContextImpl
+import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
 import io.kotest.assertions.withClue
@@ -138,7 +147,7 @@ class CompositionRootTest {
         // INV-Q-4268: optional, the application DataSource serves the event log without it
         EVENT_LOG_DATA_SOURCE(dataSource(ServiceDataSources.EVENT_LOG), emptySet()),
         EVENT_CATALOGUE(
-            { it.withBean(EventCatalogue::class.java, { EventCatalogue(listOf(CatalogueEntry("SubmissionFailed", "submission", setOf("submission-svc"), contentTopic = false))) }) },
+            { it.withBean(EventCatalogue::class.java, { EventCatalogue(listOf(CatalogueEntry("SubmissionFailed", "submission", setOf("submission-svc"), contentTopic = false), auditCatalogueEntry)) }) },
             // without an outbox the service gets the local audit writer instead
             setOf(
                 OutboxWriter::class,
@@ -394,6 +403,36 @@ class CompositionRootTest {
     }
 
     @Test
+    fun `an installation value's audit entry is staged through the decorated writer, outside and under an operator session`(
+        @TempDir mountRoot: Path,
+    ) {
+        val local =
+            base
+                .withBean("dataSource", DataSource::class.java, { mockk<DataSource>(relaxed = true) })
+                .withPropertyValues("gst.service=control-plane-svc", "gst.instance-id=cp-0", "service-runtime.modules.schema=control_plane")
+        // the local writer's context has no VariationPointCatalogue, so no PolicyWriter: only its stager is checked
+        val cases = listOf(Triple(base.withServiceInputs(mountRoot), OutboxAuditWriter::class, true), Triple(local, LocalAuditWriter::class, false))
+        for ((runner, delegate, withPolicyWriter) in cases) {
+            runner.run { context ->
+                val audit = context.getBean(AuditWriter::class.java)
+                audit.shouldBeInstanceOf<OperatorSessionAuditStager>().delegate::class shouldBe delegate
+                if (withPolicyWriter) {
+                    // the wired policy writer stages an installation value's audit entry through this bean (INV-Q-4254 A)
+                    val writer = context.getBean(PolicyWriter::class.java)
+                    val field = writer.javaClass.getDeclaredField("audit").apply { isAccessible = true }
+                    field.get(writer) shouldBeSameInstanceAs audit
+                }
+                val stager = audit as AuditStager
+                val entry = AuditEntry("op-1", "putInstallationSetting", "config:VP-78:INSTALLATION", "own")
+                stager.stage(entry, installationContext).entry.reason shouldBe "own"
+                val staged = CurrentOperatorSession.callWith(OperatorSession("platform.support", "CASE-5521")) { stager.stage(entry, installationContext) }
+                staged.entry.reason shouldBe "case CASE-5521: own"
+                staged.envelope.dataJson.contains("\"case CASE-5521: own\"") shouldBe true
+            }
+        }
+    }
+
+    @Test
     fun `a service without an outbox gets the local audit writer`() {
         base
             .withBean("dataSource", DataSource::class.java, { mockk<DataSource>(relaxed = true) })
@@ -460,3 +499,20 @@ class CompositionRootTest {
         fun otherL1Modules(name: String): Boolean = absentModules.any { name.startsWith(it) } || name in implClasses
     }
 }
+
+/** Every service's catalogue lists AuditEntryRecorded, which its outbox audit writer emits. */
+private val auditCatalogueEntry =
+    CatalogueEntry(OutboxAuditWriter.EVENT_TYPE, "gst.platform.audit-entry-recorded.v1", setOf(CatalogueEntry.EVERY_SERVICE), false)
+
+/** The context JdbcPolicyWriter builds for an installation value (config-resolver InstallationCalls). */
+private val installationContext =
+    EventContext(
+        tenant = TenantId.PLATFORM,
+        entity = EntityRef.PLATFORM,
+        docUuid = null,
+        transactionDate = null,
+        aggregateKey = "config:VP-78:INSTALLATION",
+        aggregateVersion = null,
+        correlation = CorrelationId("corr-1"),
+        causation = CausationId("cause-1"),
+    )
