@@ -4,6 +4,7 @@ import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Comp
 import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Companion.sql
 import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Companion.user
 import com.dynokore.platform.serviceruntime.datasource.tpl18Service
+import com.dynokore.platform.serviceruntime.datasource.withApplicationPool
 import com.zaxxer.hikari.HikariDataSource
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -16,7 +17,8 @@ import javax.sql.DataSource
 /**
  * The HA event-log instance (INV-REQ-1230 b2; owner ruling INV-Q-3955, coordinator ruling INV-Q-4348) with a second
  * PostgreSQL instance: the application pool connects to the application instance and the event-log pool, as the same
- * runtime login, to the event-log instance; it keeps one idle connection and holds at most three.
+ * runtime login, to the event-log instance; it keeps one idle connection and holds at most three. It sets no
+ * connection-init SQL and no schema, even when the application pool's is set (coordinator ruling INV-Q-4542).
  */
 class EventLogPoolHaIT {
     @ParameterizedTest(name = "{displayName}[{0}]")
@@ -30,14 +32,21 @@ class EventLogPoolHaIT {
                     .withPropertyValues(
                         "spring.datasource.url=${application.jdbcUrl}",
                         "spring.datasource.username=$RUNTIME",
-                        "spring.datasource.password=$PASSWORD",
                         "spring.datasource.hikari.connection-timeout=1000",
                         "gst.db.event-log-url=${eventLog.jdbcUrl}",
-                    ).run { context ->
+                    ).withApplicationPool {
+                        it.password = PASSWORD
+                        // refused at start-up (INV-Q-4542); set by a test post-processor that bypasses the check
+                        it.connectionInitSql = INIT_SQL
+                    }.run { context ->
                         context.startupFailure shouldBe null
                         context.getBeanNamesForType(DataSource::class.java).toSet() shouldBe setOf("dataSource", ServiceDataSources.EVENT_LOG)
                         val app = context.getBean(DataSource::class.java)
                         val pool = context.getBean(ServiceDataSources.EVENT_LOG, HikariDataSource::class.java)
+                        // the event-log pool does not copy the application pool's connection-init SQL (INV-Q-4542)
+                        app.unwrap(HikariDataSource::class.java).connectionInitSql shouldBe INIT_SQL
+                        pool.connectionInitSql shouldBe null
+                        pool.schema shouldBe null
                         app.connection.use { it.marker() shouldBe false }
                         pool.connection.use {
                             it.marker() shouldBe true
@@ -64,5 +73,6 @@ class EventLogPoolHaIT {
     private companion object {
         const val RUNTIME = "submission_runtime"
         const val PASSWORD = "runtime-pw"
+        const val INIT_SQL = "select 1"
     }
 }

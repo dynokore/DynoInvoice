@@ -4,8 +4,10 @@ import com.dynokore.platform.productruntime.ProductRuntimeConfiguration
 import com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration
 import com.dynokore.platform.serviceruntime.composition.platform
 import com.dynokore.platform.serviceruntime.composition.sorted
+import com.zaxxer.hikari.HikariDataSource
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import org.springframework.beans.factory.config.BeanPostProcessor
 import org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration
 import org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
@@ -13,6 +15,7 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.DeferredImportSelector
 import org.springframework.context.annotation.Import
 import org.springframework.core.type.AnnotationMetadata
+import javax.sql.DataSource
 
 /*
  * INV-T-3913 (P109): a service composed as TPL-18 writes it (`@Import(ServiceRuntimeConfiguration::class,
@@ -42,3 +45,21 @@ fun tpl18Service(): ApplicationContextRunner = ApplicationContextRunner()
         "service-runtime.pool.profile=minimal",
         "spring.flyway.enabled=false",
     )
+
+/**
+ * Sets the application pool (bean `dataSource`) in a test after the start-up checks have run: the password properties
+ * are refused (STK-29, coordinator ruling INV-Q-4548), so a test login over a Testcontainers role is set here; a test
+ * that bypasses the check sets a refused setting the same way. An unordered post-processor runs after
+ * [PoolConfigurationGuard].
+ */
+fun ApplicationContextRunner.withApplicationPool(setting: (HikariDataSource) -> Unit): ApplicationContextRunner = withBean("testApplicationPoolSetting", BeanPostProcessor::class.java, {
+    object : BeanPostProcessor {
+        override fun postProcessAfterInitialization(
+            bean: Any,
+            beanName: String,
+        ): Any {
+            if (beanName == "dataSource") setting((bean as DataSource).unwrap(HikariDataSource::class.java))
+            return bean
+        }
+    }
+})

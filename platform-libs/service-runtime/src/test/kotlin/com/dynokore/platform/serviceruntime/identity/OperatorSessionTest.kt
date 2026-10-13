@@ -12,10 +12,15 @@ import org.junit.jupiter.api.Test
 class OperatorSessionTest {
     private val whitespace =
         listOf(0x20, 0xA0, 0x1680) + (0x2000..0x200A) + listOf(0x2028, 0x2029, 0x202F, 0x205F, 0x3000, 0xFEFF)
+    private val controls = listOf("\u0000", "\u001B", "\u001F", "\n", "\r", "\t", "\u007F", "\u0085", "\u009F")
+
+    private fun text(codePoint: Int) = String(Character.toChars(codePoint))
 
     @Test
     fun `a valid case and role construct`() {
-        for (case in listOf("CASE-5521", " CASE-5521 ", "CASE 5521/a-b", "C".repeat(64), "\uD83D\uDE00".repeat(64), "\uFEFFA")) {
+        val longest = listOf("C", "\uD83D\uDE00").map { it.repeat(64) }
+        val valid = listOf("CASE-5521", " CASE-5521 ", "CASE 5521/a-b", "\uFEFFA") + longest
+        for (case in valid) {
             OperatorSession("platform.support", case).case shouldBe case
         }
     }
@@ -27,8 +32,8 @@ class OperatorSessionTest {
                 "empty" to listOf(""),
                 "too long" to listOf("C".repeat(65), "\uD83D\uDE00".repeat(65)),
                 "colon" to listOf(":", ": ", "A:B", "CASE-1: approved", "CASE-1:"),
-                "control" to listOf("\u0000", "\u001B", "\u001F", "\n", "\r", "\t", "\u007F", "\u0085", "\u009F").map { "A${it}B" },
-                "whitespace only" to whitespace.map { String(Character.toChars(it)) } + whitespace.joinToString("") { String(Character.toChars(it)) },
+                "control" to controls.map { "A${it}B" },
+                "whitespace only" to whitespace.map(::text) + whitespace.joinToString("", transform = ::text),
             )
         for ((kind, cases) in bad) {
             for (case in cases) {

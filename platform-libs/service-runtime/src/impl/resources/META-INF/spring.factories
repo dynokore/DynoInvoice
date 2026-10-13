@@ -1,0 +1,4 @@
+# Coordinator ruling INV-Q-4542: refuse Spring configuration keys that run SQL or set session state, before any bean
+# is created, in every service and in the migration runner.
+org.springframework.boot.EnvironmentPostProcessor=\
+com.dynokore.platform.serviceruntime.datasource.SqlConfigurationKeyGuard

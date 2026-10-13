@@ -6,6 +6,39 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 ### Changed (breaking)
+- Spring configuration keys that run SQL or set session state fail start-up (INV-T-4544; coordinator ruling
+  INV-Q-4542; INV-ADR-3968 item 4c, INV-REQ-1230, INV-REQ-854 b8). `SqlConfigurationKeyGuard`, an
+  `EnvironmentPostProcessor` in `META-INF/spring.factories`, runs before any bean in every service and in the migration
+  runner, reads every property source in any relaxed form (properties, YAML, environment variables, command line) and
+  names every offending key. Refused: every key under `spring.sql`, `spring.jpa`, `spring.r2dbc`, `spring.batch`,
+  `spring.quartz`, `spring.session.jdbc`, `spring.integration.jdbc` and `spring.modulith.events.jdbc`; any key whose
+  last segment contains `init-sql`, `init-sqls`, `init-s-q-l`, `initialize-schema`, `schema-initialization`,
+  `schema-locations` or `data-locations` (so `spring.flyway.init-sqls`, `spring.datasource.hikari.connection-init-sql`,
+  `spring.datasource.dbcp2.connection-init-sqls`, `spring.datasource.tomcat.init-s-q-l`); any `spring.datasource` key
+  outside the allowlist `url`, `username`, `driver-class-name`, `type` (HikariDataSource only),
+  `hikari.maximum-pool-size`, `hikari.minimum-idle`, `hikari.connection-timeout`, `hikari.idle-timeout`,
+  `hikari.max-lifetime`, `hikari.keepalive-time`, `hikari.validation-timeout`, `hikari.leak-detection-threshold`,
+  `hikari.initialization-fail-timeout`, `hikari.pool-name`, `hikari.register-mbeans` (so `hikari.data-source-properties.*`,
+  `hikari.schema`, `hikari.catalog`, `hikari.transaction-isolation`, `hikari.auto-commit`, `hikari.read-only`,
+  `dbcp2.*`, `tomcat.*`, `oracleucp.*`, `schema`, `data`, `initialization-mode`, `password` and `hikari.password`); any
+  `spring.flyway` key outside the allowlist `enabled`, `url`, `user`, `schemas`, `default-schema`, `create-schemas`,
+  `locations` (`classpath:` only), `table`, `baseline-on-migrate`, `baseline-version`, `baseline-description`,
+  `validate-on-migrate`, `out-of-order`, `clean-disabled` (`true` only), `connect-retries`, `connect-retries-interval`,
+  `lock-retry-count`, `fail-on-missing-locations`, `postgresql.transactional-lock`, `placeholder-replacement`,
+  `placeholders.*` (plain identifiers only, `SqlIdentifier`) (so `init-sqls`, `callback-locations`,
+  `sql-migration-prefix` and `password`); any JDBC URL parameter in `spring.datasource.url`, `spring.flyway.url` or
+  `gst.db.event-log-url` other than `loggerLevel` (`OFF` only), `sslmode` and `sslrootcert` (coordinator ruling
+  INV-Q-4559); `hikaricp.configuration-file` in any form, the `hikaricp.configurationFile` system property and a
+  class-path `org/postgresql/driverconfig.properties` (INV-Q-4559). Keys are matched in every relaxed form, including
+  the `gst.db.event-log-url` environment variables, indexed or map-keyed SQL keys (`my.store.init-sqls[0]`) and keys
+  passed as `server.servlet.context-parameters.*`. `SqlConfigurationKeyRecheck`, a `BeanFactoryPostProcessor`
+  registered by `ServiceRuntimeConfiguration`, runs the same check again after configuration-class parsing, so a
+  `@PropertySource` is checked too (INV-Q-4559). `PoolConfigurationGuard` checks what every HikariDataSource bean
+  actually received, deny-by-default over every HikariConfig property, so an indirect path no key names is refused. `spring.datasource.password`, `spring.datasource.hikari.password` and
+  `spring.flyway.password` are now refused with or without `service-runtime.datasource.credential` or
+  `service-runtime.flyway.credential` (formerly only beside it; STK-29, coordinator ruling INV-Q-4548).
+- The HA event-log pool no longer copies the application pool's `connectionInitSql`: it sets no connection-init SQL
+  and no schema (INV-Q-4542, INV-REQ-1230, INV-T-3982).
 - One application DataSource per service (INV-T-3981; owner ruling INV-Q-3955, INV-REQ-1230): the role DataSources
   (`workerDataSource`, `eventLogRelayDataSource`, `eventLogClaimDataSource`, `eventLogReaderDataSource`,
   `eventLogPurgeDataSource`) are removed and every adapter uses the service's `DataSource` (`<svc>_runtime`). A second

@@ -140,7 +140,9 @@ class CredentialRotationIT {
                 "service-runtime.flyway.credential=$OWNER_REF",
             ).run { context ->
                 val messages = generateSequence(context.startupFailure.shouldNotBeNull()) { it.cause }.joinToString(" | ") { it.message.orEmpty() }
-                messages shouldContain "so spring.flyway.password must not be set as well"
+                // the key check refuses it first, before any bean (coordinator rulings INV-Q-4548, INV-Q-4559)
+                messages shouldContain "spring.flyway.password"
+                messages shouldContain "INV-Q-4542"
                 messages shouldNotContain "property-password-2"
             }
     }
@@ -151,7 +153,8 @@ class CredentialRotationIT {
     ) = tpl18Service()
         .withPropertyValues(
             // the same instance under another URL, so the event-log pool is created (INV-REQ-1230 b2)
-            "gst.db.event-log-url=${pg.jdbcUrl}&ApplicationName=event-log",
+            // sslmode=prefer is pgjdbc's default; ApplicationName is refused (INV-Q-4559)
+            "gst.db.event-log-url=${pg.jdbcUrl}&sslmode=prefer",
             "service-runtime.event-log-pool.minimum-idle=0",
             "gst.bindings.secret-store.mount-root=$mountRoot",
             "spring.datasource.url=${pg.jdbcUrl}",
@@ -173,13 +176,12 @@ class CredentialRotationIT {
             "gst.bindings.secret-store.mount-root=$mountRoot",
             "spring.datasource.url=${pg.jdbcUrl}",
             "spring.datasource.username=${pg.username}",
-            "spring.datasource.password=${pg.password}",
             "spring.flyway.enabled=true",
             "spring.flyway.user=$OWNER",
             "spring.flyway.schemas=ledger",
             "spring.flyway.locations=classpath:db/credential-rotation",
             "service-runtime.flyway.credential=$OWNER_REF",
-        )
+        ).withApplicationPool { it.password = pg.password }
 
     internal companion object {
         const val APP = "submission_app"

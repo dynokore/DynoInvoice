@@ -24,6 +24,9 @@ import javax.sql.DataSource
  * coordinator ruling INV-Q-4348). An absent URL, or the application one, collapses into the application DataSource:
  * no bean is created and the event log runs on `dataSource`.
  *
+ * It sets no connection-init SQL and no schema and issues no statement on a connection: it does not copy the application
+ * pool's connectionInitSql (coordinator ruling INV-Q-4542; INV-REQ-1230: role timeouts are set by provisioning; INV-T-3982).
+ *
  * The bean is not a default autowire candidate, so the service's one application `DataSource` stays the only one an
  * unqualified `DataSource` resolves to.
  */
@@ -51,7 +54,6 @@ class EventLogDataSourceWiring {
         pool.username = application.username
         pool.password = application.password
         application.credentialsProvider?.let { pool.credentialsProvider = it }
-        pool.connectionInitSql = application.connectionInitSql
         pool.maximumPoolSize = ServiceDataSources.EVENT_LOG_MAXIMUM
         pool.minimumIdle = properties.minimumIdle
         pool.idleTimeout = IDLE_TIMEOUT.toMillis()

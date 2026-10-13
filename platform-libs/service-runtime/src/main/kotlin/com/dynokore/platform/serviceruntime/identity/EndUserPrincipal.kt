@@ -77,7 +77,7 @@ data class OperatorSession(
             case.codePoints().anyMatch { it !in CASE_WHITESPACE }
 
         /** A role is non-blank and holds no ISO control character (review of !64). */
-        fun isValidRole(role: String): Boolean = role.isNotBlank() && role.codePoints().noneMatch(Character::isISOControl)
+        fun isValidRole(role: String): Boolean = role.isNotBlank() && role.none(Char::isISOControl)
     }
 }
 

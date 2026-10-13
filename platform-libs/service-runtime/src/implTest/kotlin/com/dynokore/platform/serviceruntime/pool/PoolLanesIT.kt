@@ -5,6 +5,7 @@ import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Comp
 import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Companion.query
 import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Companion.sql
 import com.dynokore.platform.serviceruntime.datasource.tpl18Service
+import com.dynokore.platform.serviceruntime.datasource.withApplicationPool
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
@@ -44,11 +45,10 @@ class PoolLanesIT {
     ) = tpl18Service().withPropertyValues(
         "spring.datasource.url=${postgres.jdbcUrl}",
         "spring.datasource.username=$RUNTIME",
-        "spring.datasource.password=$PASSWORD",
         "spring.datasource.hikari.connection-timeout=$TIMEOUT_MS",
         "gst.service=$service",
         *properties,
-    )
+    ).withApplicationPool { it.password = PASSWORD }
 
     @Test
     fun `a saturated background and reprocessing lane never blocks a request`() {
