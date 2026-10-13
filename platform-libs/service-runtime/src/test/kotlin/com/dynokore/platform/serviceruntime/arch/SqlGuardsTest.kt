@@ -145,9 +145,6 @@ class SqlGuardsTest {
          * The modules still pending, each with the task that clears it. Remove a module in the merge request
          * that leaves it with zero findings; never add one (INV-Q-4040). INV-T-3999 requires this to be empty.
          */
-        val PENDING: Map<String, String> =
-            mapOf(
-                "service-runtime" to "INV-T-3981",
-            )
+        val PENDING: Map<String, String> = emptyMap()
     }
 }

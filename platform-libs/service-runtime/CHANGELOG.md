@@ -5,6 +5,27 @@ All notable changes to `service-runtime` are recorded here (FR-L.6). Format foll
 train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
+### Changed (breaking)
+- One application DataSource per service (INV-T-3981; owner ruling INV-Q-3955, INV-REQ-1230): the role DataSources
+  (`workerDataSource`, `eventLogRelayDataSource`, `eventLogClaimDataSource`, `eventLogReaderDataSource`,
+  `eventLogPurgeDataSource`) are removed and every adapter uses the service's `DataSource` (`<svc>_runtime`). A second
+  pool, `eventLogDataSource`, exists only when `gst.db.event-log-url` names a separate HA event-log instance: same login,
+  at most 3 connections, `service-runtime.event-log-pool.minimum-idle` default 1 (INV-Q-4348).
+- The workload principal is `svc:<gst.service>` (`WorkloadPrincipal`), passed to `TenantScope`; a scheduled run binds
+  `svc:<svc>/job:<job>` (owner ruling INV-Q-4344 (b)). A `gst.service` that is not a lower-case service name fails
+  start-up.
+- `JobRuntime` and `IdempotencyStore` take no worker DataSource. Purges run through `<svc>_sys`-owned security-definer
+  functions (`job_state_purge_expired`, `idempotency_key_purge_expired`); the runtime role has no DELETE on job or
+  idempotency rows. `JobSchema.ddl` and `IdempotencySchema.ddl` take the sys role.
+- `JobCommandServlet` binds the token's actor for every command (the actor-less fallback is gone); a tenantless token
+  gets 403 unless the target is a platform job (INV-Q-4115). `JobCommands.registered()` lists the registered jobs.
+- `FullSyncWiring` takes only the read-model clears; a full sync runs on the application DataSource (INV-Q-4064).
+### Added
+- `MigrationRunner`, the migration entry point (INV-Q-3959): runs Flyway as `<svc>_migrate` and writes
+  `service-runtime.jobs.retention` (default 30 days) into `job_retention`. The service no longer runs Flyway
+  (`spring.flyway.enabled=false`), and `JobRuntime` refuses to start when `job_retention` does not hold its retention.
+- Tests for local end-user token verification (keys fetched once, no network call per request) and for forged
+  identity headers (401).
 
 ## [4.0.1] - 2026-10-13
 ### Fixed

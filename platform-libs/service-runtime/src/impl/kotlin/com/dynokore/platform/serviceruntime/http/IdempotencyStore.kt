@@ -1,14 +1,12 @@
 package com.dynokore.platform.serviceruntime.http
 
 import com.dynokore.platform.outboxandqueue.TenantScope
+import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TenantRlsMigration
 import java.sql.Connection
-import java.sql.Timestamp
-import java.time.Clock
 import java.time.Duration
 import java.util.UUID
-import javax.sql.DataSource
 
 /** A response as stored for a replay (API-15: the original status and body). */
 data class StoredResponse(val status: Int, val body: String)
@@ -29,49 +27,108 @@ sealed interface IdempotencyOutcome {
 }
 
 /**
- * DDL for the Idempotency-Key store (API-15) in a service's own schema, embedded by its migration (TPL-12).
- * Additive: one new table. One row per (tenant, principal, key) with the request fingerprint and the response.
- * `tenant_id NOT NULL` with tenancy-kernel's forced tenant policy (CS-19); a caller without a tenant (a platform
- * operator) is stored under the reserved platform tenant (INV-REQ-1226 b7). The purge deletes across tenants
- * through [workerRole] with a policy scoped to the columns it needs, never BYPASSRLS (ARC 4.3 step 1a).
+ * DDL for the Idempotency-Key store (API-15) in a service's own schema, embedded by its migration (TPL-12), run as
+ * `<svc>_migrate`. Additive: one new table. One row per (tenant, principal, key) with the request fingerprint and the
+ * response. `tenant_id NOT NULL` with tenancy-kernel's forced tenant policy (CS-19); a caller without a tenant (a
+ * platform operator) is stored under the reserved platform tenant (INV-REQ-1226 b7).
+ *
+ * The purge (INV-ADR-3968 item 6, INV-Q-4070) is [PURGE_EXPIRED], a SECURITY DEFINER function owned by the NOLOGIN
+ * `<svc>_sys` role with the age predicate in its SQL: it refuses a cut-off later than the [RETENTION_FLOOR_HOURS]
+ * floor (API-15's minimum) and a batch outside 1..[MAX_PURGE_BATCH], has static SQL and `SET search_path =
+ * pg_catalog, <schema>, pg_temp`, and EXECUTE is revoked from PUBLIC and granted to the runtime login only. The
+ * `<svc>_sys` role reaches the table through a delete policy and column grants limited to what the purge reads.
  */
 object IdempotencySchema {
     const val TABLE = "idempotency_key"
-    private val IDENTIFIER = Regex("^[a-z_][a-z0-9_]*$")
+
+    /** `idempotency_key_purge_expired(cutoff timestamptz, batch_size integer)`: returns the number deleted. */
+    const val PURGE_EXPIRED = "idempotency_key_purge_expired"
+
+    /** The purge refuses a cut-off later than `now()` minus this many hours (API-15: a key is kept 24 hours). */
+    const val RETENTION_FLOOR_HOURS = 24
+
+    /** The upper bound [PURGE_EXPIRED] accepts for one batch. */
+    const val MAX_PURGE_BATCH = 10_000
 
     fun ddl(
         schema: String,
-        appRole: String,
-        workerRole: String,
+        runtimeRole: String,
+        sysRole: String,
     ): String {
-        val s = identifier(schema)
-        val app = identifier(appRole)
-        val worker = identifier(workerRole)
-        val rls = TenantRlsMigration.ddl(s, TABLE, policyName = "${TABLE}_tenant_isolation")
-        return """
-            |create table $s.$TABLE (
-            |    tenant_id uuid not null,
-            |    principal text not null,
-            |    idempotency_key uuid not null,
-            |    fingerprint text not null,
-            |    status integer not null check (status between 100 and 599),
-            |    body text not null,
-            |    created_at timestamptz not null,
-            |    primary key (tenant_id, principal, idempotency_key)
-            |);
-            |$rls
-            |create policy ${TABLE}_worker_select on $s.$TABLE for select to $worker using (true);
-            |create policy ${TABLE}_worker_delete on $s.$TABLE for delete to $worker using (true);
-            |grant usage on schema $s to $worker;
-            |grant select (tenant_id, principal, idempotency_key, created_at) on $s.$TABLE to $worker;
-            |grant delete on $s.$TABLE to $worker;
-            |grant select, insert on $s.$TABLE to $app;
-        """.trimMargin()
+        val s = SqlIdentifier.require(schema, "schema")
+        val runtime = SqlIdentifier.require(runtimeRole, "runtime role")
+        val sys = SqlIdentifier.require(sysRole, "sys role")
+        require(runtime != sys) { "the runtime login and the sys role must differ, both were '$runtime'" }
+        // Statement groups joined outside SQL text, so no generated SQL is spliced into a literal (INV-Q-4036).
+        return listOf(
+            table(schema, runtimeRole, sysRole),
+            TenantRlsMigration.ddl(s, TABLE, policyName = "${TABLE}_tenant_isolation"),
+            purgeFunction(schema, runtimeRole, sysRole),
+        ).joinToString("\n")
     }
 
-    internal fun identifier(text: String): String {
-        require(IDENTIFIER.matches(text)) { "not a plain lower-case SQL identifier" }
-        return text
+    private fun table(
+        schema: String,
+        runtimeRole: String,
+        sysRole: String,
+    ): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        val runtime = SqlIdentifier.require(runtimeRole, "runtime role")
+        val sys = SqlIdentifier.require(sysRole, "sys role")
+        return """
+            create table $s.$TABLE (
+                tenant_id uuid not null,
+                principal text not null,
+                idempotency_key uuid not null,
+                fingerprint text not null,
+                status integer not null check (status between 100 and 599),
+                body text not null,
+                created_at timestamptz not null,
+                primary key (tenant_id, principal, idempotency_key)
+            );
+            grant usage on schema $s to $runtime;
+            grant select, insert on $s.$TABLE to $runtime;
+            grant usage on schema $s to $sys;
+        """.trimIndent()
+    }
+
+    private fun purgeFunction(
+        schema: String,
+        runtimeRole: String,
+        sysRole: String,
+    ): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        val runtime = SqlIdentifier.require(runtimeRole, "runtime role")
+        val sys = SqlIdentifier.require(sysRole, "sys role")
+        return """
+            create policy ${TABLE}_sys_select on $s.$TABLE for select to $sys using (true);
+            create policy ${TABLE}_sys_purge on $s.$TABLE for delete to $sys using (true);
+            grant select (tenant_id, principal, idempotency_key, created_at) on $s.$TABLE to $sys;
+            grant delete on $s.$TABLE to $sys;
+            create function $s.$PURGE_EXPIRED(cutoff timestamptz, batch_size integer) returns bigint
+            language plpgsql security definer set search_path = pg_catalog, $s, pg_temp as $$
+            declare
+                deleted bigint;
+            begin
+                if cutoff is null or cutoff > now() - interval '$RETENTION_FLOOR_HOURS hours' then
+                    raise exception 'cut-off % is later than the retention floor', cutoff using errcode = '22023';
+                end if;
+                if batch_size is null or batch_size < 1 or batch_size > $MAX_PURGE_BATCH then
+                    raise exception 'batch size % is outside 1..$MAX_PURGE_BATCH', batch_size using errcode = '22023';
+                end if;
+                delete from $s.$TABLE where (tenant_id, principal, idempotency_key) in
+                    (select tenant_id, principal, idempotency_key from $s.$TABLE
+                     where created_at < cutoff limit batch_size);
+                get diagnostics deleted = row_count;
+                return deleted;
+            end
+            $$;
+            grant create on schema $s to $sys;
+            alter function $s.$PURGE_EXPIRED(timestamptz, integer) owner to $sys;
+            revoke all on function $s.$PURGE_EXPIRED(timestamptz, integer) from public;
+            grant execute on function $s.$PURGE_EXPIRED(timestamptz, integer) to $runtime;
+            revoke create on schema $s from $sys;
+        """.trimIndent()
     }
 }
 
@@ -90,7 +147,9 @@ fun interface IdempotencyRecorder {
 /**
  * The API-15 Idempotency-Key store of the internal operations service-runtime serves (INV-API-3023, INV-API-3025).
  * The key is stored per principal with a fingerprint of the method, path and body, for at least [retention]
- * (24 hours by default, API-15's minimum): a replay with the same fingerprint returns the original status and
+ * (24 hours by default, API-15's minimum; its age is read on the database clock, which stamps `created_at`
+ * and computes the purge cut-off, so a service clock skewed against the database neither fails the purge nor
+ * deletes a key early): a replay with the same fingerprint returns the original status and
  * body, the same key with another fingerprint is [IdempotencyOutcome.DifferentRequest] (422), and a replay while
  * the original is still running is [IdempotencyOutcome.InFlight] (409).
  *
@@ -107,12 +166,11 @@ fun interface IdempotencyRecorder {
  */
 class IdempotencyStore(
     private val scope: TenantScope,
-    private val worker: DataSource?,
     schema: String,
-    private val clock: Clock,
     val retention: Duration = DEFAULT_RETENTION,
 ) {
-    private val table = "${IdempotencySchema.identifier(schema)}.${IdempotencySchema.TABLE}"
+    private val table = "${SqlIdentifier.require(schema, "schema")}.${IdempotencySchema.TABLE}"
+    private val purgeExpired = "${SqlIdentifier.require(schema, "schema")}.${IdempotencySchema.PURGE_EXPIRED}"
 
     init {
         require(retention >= DEFAULT_RETENTION) { "API-15 keeps a key for at least 24 hours" }
@@ -210,28 +268,28 @@ class IdempotencyStore(
     ) : RuntimeException(null, null, false, false)
 
     /**
-     * Deletes keys stored more than [retention] ago, across tenants, through the worker role (ARC 4.3 step 1a),
-     * in batches of [PURGE_BATCH] so no statement holds many row locks; returns the count.
+     * Deletes keys stored more than [retention] ago by the database clock, across tenants, on the runtime login through the `<svc>_sys`
+     * purge function (INV-ADR-3968 item 6, INV-Q-4070), in batches of [PURGE_BATCH] so no statement holds many row
+     * locks, each batch its own transaction under the service's workload principal (INV-Q-4344); returns the count.
      */
     fun purge(): Int {
-        val purger = checkNotNull(worker) { "the purge needs the service's worker role" }
-        val cutoff = Timestamp.from(clock.instant().minus(retention))
+        // the cut-off is taken from the database clock, the same clock the function's floor check reads, so a service
+        // clock ahead of the database never makes it later than the floor
+        val seconds = retention.seconds
         var total = 0
-        purger.connection.use { connection ->
-            connection.prepareStatement(
-                """
-                delete from $table where (tenant_id, principal, idempotency_key) in (
-                    select tenant_id, principal, idempotency_key from $table where created_at < ? limit $PURGE_BATCH
-                )
-                """.trimIndent(),
-            ).use { statement ->
-                do {
-                    statement.setTimestamp(1, cutoff)
-                    val deleted = statement.executeUpdate()
-                    total += deleted
-                } while (deleted == PURGE_BATCH)
-            }
-        }
+        do {
+            val deleted =
+                scope.bindWorkload(TenantId.PLATFORM) {
+                    scope.transactions.inTransaction {
+                        scope.connections.require().prepareStatement("select $purgeExpired(now() - ? * interval '1 second', ?)").use { statement ->
+                            statement.setLong(1, seconds)
+                            statement.setInt(2, PURGE_BATCH)
+                            statement.executeQuery().use { rows -> if (rows.next()) rows.getLong(1).toInt() else 0 }
+                        }
+                    }
+                }
+            total += deleted
+        } while (deleted == PURGE_BATCH)
         return total
     }
 
@@ -262,7 +320,7 @@ class IdempotencyStore(
         scope.connections.require().prepareStatement(
             """
             insert into $table (tenant_id, principal, idempotency_key, fingerprint, status, body, created_at)
-            values (?, ?, ?, ?, ?, ?, ?) on conflict do nothing
+            values (?, ?, ?, ?, ?, ?, now()) on conflict do nothing
             """.trimIndent(),
         ).use { statement ->
             statement.setObject(1, tenant.value)
@@ -271,7 +329,6 @@ class IdempotencyStore(
             statement.setString(4, fingerprint)
             statement.setInt(5, response.status)
             statement.setString(6, response.body)
-            statement.setTimestamp(7, Timestamp.from(clock.instant()))
             statement.executeUpdate()
         }
     }

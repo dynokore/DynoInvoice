@@ -3,32 +3,54 @@ package com.dynokore.platform.serviceruntime.composition
 import org.springframework.boot.context.properties.ConfigurationProperties
 
 /**
- * The bean names under which a service declares its role DataSources (ARC-20, ARC 4.3 step 1a), the inputs only
- * the service has (INV-T-2875, INV-Q-3710). An implementation that needs one is created only when the service
- * declares it (@ConditionalOnBean by name); see the module README's port table.
- *
- * The application role's DataSource is the service's ordinary `DataSource` bean (Spring Boot's `dataSource`, or
- * the `@Primary` one when the service declares several).
+ * The service's DataSources (INV-REQ-1230 b1 and b2, INV-ADR-3968; owner ruling INV-Q-3955): one application
+ * DataSource, the runtime login (Spring Boot's `dataSource` from `spring.datasource.*`), which every implementation
+ * uses, and an optional [EVENT_LOG] pool for the HA event-log instance. There are no role DataSources: the work
+ * that reaches across tenants goes through `<svc>_sys`-owned views and definer functions granted to the runtime
+ * login only.
  */
 object ServiceDataSources {
     /**
-     * The connection the outbox-and-queue implementations use outside any tenant transaction: relay and work-queue
-     * claims, offsets, dead letters, retention purges. From outbox-and-queue's (runtime, sys) DDL (INV-T-3978,
-     * INV-Q-3953) these reach across tenants only through `<svc>_sys`-owned views and definer functions, granted to the
-     * runtime login alone, so this bean must connect as the service's runtime login for them; the job runs and the
-     * idempotency purge still use the worker grants until their (runtime, sys) DDL, and this bean goes with the role
-     * DataSources in the service-runtime single-DataSource task.
-     */
-    const val WORKER = "workerDataSource"
-
-    /**
-     * The event log on the service's runtime login (owner ruling INV-Q-3953, coordinator ruling INV-Q-4268): the
-     * outbox-and-queue `EventBinding` publishes, and the event-log reader claims and reads, through it; the event-log
-     * component's purge calls `eventlog.purge_batch()` through it. Optional: without it the application `DataSource`
-     * serves the event log (INV-T-3981 adds its pool maximum and the collapse rule).
+     * The event log on the HA event-log instance (owner ruling INV-Q-3953, coordinator ruling INV-Q-4268), on the
+     * runtime login: the outbox-and-queue `EventBinding` publishes, and the event-log reader claims and reads, through
+     * it; the event-log component's purge calls `eventlog.purge_batch()` through it. Created from
+     * `gst.db.event-log-url` only when it names another instance than `spring.datasource.url`; otherwise (absent or
+     * the same URL) it collapses into the application DataSource. Maximum [EVENT_LOG_MAXIMUM] connections and
+     * [EventLogPoolProperties.minimumIdle] idle (INV-T-3977 capacity model, coordinator ruling INV-Q-4348).
      */
     const val EVENT_LOG = "eventLogDataSource"
+
+    /** The event-log pool's maximum size (INV-T-3977). */
+    const val EVENT_LOG_MAXIMUM = 3
 }
+
+/**
+ * `service-runtime.event-log-pool.*`: the event-log pool's settings (coordinator ruling INV-Q-4348).
+ *
+ * @property minimumIdle idle connections kept, default 1; refused above [ServiceDataSources.EVENT_LOG_MAXIMUM].
+ */
+@ConfigurationProperties(prefix = "service-runtime.event-log-pool")
+data class EventLogPoolProperties(
+    val minimumIdle: Int = 1,
+) {
+    init {
+        require(minimumIdle in 0..ServiceDataSources.EVENT_LOG_MAXIMUM) {
+            "service-runtime.event-log-pool.minimum-idle must be 0..${ServiceDataSources.EVENT_LOG_MAXIMUM}"
+        }
+    }
+}
+
+/**
+ * `service-runtime.jobs.*`: the job runtime's settings.
+ *
+ * @property retention how long finished job runs and ended pauses are kept (T30 slot answer retention, default 30
+ *   days). The migration runner writes it to the job-retention row and the job runtime refuses to start when it
+ *   differs from the row (coordinator ruling INV-Q-4346 (A)), so both read the same configuration.
+ */
+@ConfigurationProperties(prefix = "service-runtime.jobs")
+data class JobProperties(
+    val retention: java.time.Duration = java.time.Duration.ofDays(30),
+)
 
 /**
  * `service-runtime.modules.*`: the service-only names the L1 implementations need.

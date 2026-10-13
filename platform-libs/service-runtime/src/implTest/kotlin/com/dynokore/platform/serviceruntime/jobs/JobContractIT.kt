@@ -1,7 +1,6 @@
 package com.dynokore.platform.serviceruntime.jobs
 
 import com.dynokore.platform.outboxandqueue.EntityRef
-import com.dynokore.platform.outboxandqueue.OutboxPostgresFixture
 import com.dynokore.platform.serviceruntime.jobs.JobsHarness.Companion.AUDIT
 import com.dynokore.platform.serviceruntime.jobs.JobsHarness.Companion.E1
 import com.dynokore.platform.serviceruntime.jobs.JobsHarness.Companion.E2
@@ -25,6 +24,7 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import java.time.Duration
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -62,10 +62,12 @@ class JobContractIT {
         h.fixture.captureActors("submission.outbox")
 
         replica.runtime.announce()
-        // start-up and the scheduled firing are background work: the service's workload principal (INV-Q-4268)
-        h.fixture.capturedActors("submission.outbox").toSet() shouldBe setOf(OutboxPostgresFixture.WORKLOAD)
+        // start-up is service-level background work: `svc:<svc>`; a scheduled run binds `svc:<svc>/job:<job>`
+        // (owner ruling INV-Q-4344 (b))
+        h.fixture.capturedActors("submission.outbox").toSet() shouldBe setOf("svc:submission-svc")
         replica.runtime.fire(def.name) shouldBe mapOf(e1 to FireResult.RAN, e2 to FireResult.RAN)
-        h.fixture.capturedActors("submission.outbox").toSet() shouldBe setOf(OutboxPostgresFixture.WORKLOAD)
+        h.fixture.capturedActors("submission.outbox").toSet() shouldBe
+            setOf("svc:submission-svc", "svc:submission-svc/job:ac2126-check")
 
         val registered =
             h.rows(
@@ -495,17 +497,24 @@ class JobContractIT {
             short.runtime.register(job("retention-hourly", scope = JobEntityScope.PLATFORM)) { }
         }
 
-        val replica = h.replica("svc-1", clock, retention = Duration.ofDays(2))
-        val def = job("retention-purge", scope = JobEntityScope.PLATFORM)
-        replica.runtime.register(def) { }
-        replica.runtime.fire(def.name)
-        clock.advance(Duration.ofDays(1))
-        replica.runtime.fire(def.name)
-        clock.advance(Duration.ofDays(2).minusHours(1))
+        // the purge's age predicate is in SQL against the database's now() (INV-Q-4346 (A)): runs 3 and 1 days old
+        val past = MutableClock(Instant.now().truncatedTo(ChronoUnit.HOURS).minus(Duration.ofDays(3)).plusSeconds(5))
+        val replica = h.replica("svc-1", past, retention = Duration.ofDays(2))
+        h.writeRetention(Duration.ofDays(2))
+        try {
+            replica.runtime.checkRetention()
+            val def = job("retention-purge", scope = JobEntityScope.PLATFORM)
+            replica.runtime.register(def) { }
+            replica.runtime.fire(def.name)
+            past.advance(Duration.ofDays(2))
+            replica.runtime.fire(def.name)
 
-        replica.runtime.purge()
+            replica.runtime.purge() shouldBe 1
 
-        h.runs(def.name).map { it["tick"].toString() } shouldHaveSize 1
+            h.runs(def.name).map { it["tick"].toString() } shouldHaveSize 1
+        } finally {
+            h.writeRetention(JobRuntime.DEFAULT_RETENTION)
+        }
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")

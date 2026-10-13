@@ -1,5 +1,6 @@
 package com.dynokore.platform.serviceruntime.jobs
 
+import com.dynokore.platform.tenancykernel.SqlIdentifier
 import net.javacrumbs.shedlock.core.LockConfiguration
 import net.javacrumbs.shedlock.core.LockProvider
 import net.javacrumbs.shedlock.provider.jdbctemplate.JdbcTemplateLockProvider
@@ -40,16 +41,19 @@ internal class ShedLockLeaderElection(private val provider: LockProvider, privat
             is JobTarget.Entity -> "${job.ownerService}.${job.name}/${target.tenant}/${target.entity}"
         }
 
-        /** ShedLock over the service's own `shedlock` table, reached through the worker role. */
+        /**
+         * ShedLock over the service's own `shedlock` table (no tenant data), on the service's one application
+         * DataSource, the runtime login (INV-REQ-1230 b1, coordinator ruling INV-Q-4346).
+         */
         fun postgres(
-            worker: DataSource,
+            runtime: DataSource,
             schema: String,
             clock: Clock,
         ) = ShedLockLeaderElection(
             JdbcTemplateLockProvider(
                 JdbcTemplateLockProvider.Configuration.builder()
-                    .withJdbcTemplate(JdbcTemplate(worker))
-                    .withTableName("${JobSchema.identifier(schema)}.${JobSchema.SHEDLOCK}")
+                    .withJdbcTemplate(JdbcTemplate(runtime))
+                    .withTableName("${SqlIdentifier.require(schema, "schema")}.${JobSchema.SHEDLOCK}")
                     .usingDbTime()
                     .build(),
             ),

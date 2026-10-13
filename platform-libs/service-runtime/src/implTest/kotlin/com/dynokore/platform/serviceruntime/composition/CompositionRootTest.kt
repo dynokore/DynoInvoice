@@ -81,6 +81,7 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import io.mockk.clearMocks
 import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Test
@@ -116,7 +117,7 @@ class CompositionRootTest {
             .withPropertyValues("service-runtime.workload-identity.audience=submission-svc")
 
     /**
-     * The inputs only a service has: its role DataSources, catalogues, limits, sinks, S3 client and ports, each
+     * The inputs only a service has: its event-log DataSource, catalogues, limits, sinks, S3 client and ports, each
      * under its key in [ServiceInput]; [without] withholds one of them.
      */
     private fun ApplicationContextRunner.withServiceInputs(
@@ -134,15 +135,6 @@ class CompositionRootTest {
         val declare: (ApplicationContextRunner) -> ApplicationContextRunner,
         val dependents: Set<KClass<*>>,
     ) {
-        WORKER_DATA_SOURCE(
-            dataSource(ServiceDataSources.WORKER),
-            setOf(
-                OutboxRelay::class, LaneRateLimiter::class, WorkQueue::class, DeadLetterTriage::class, RetentionPurge::class,
-                StalenessMonitor::class, InboxConsumer::class, ReplayDelivery::class, JobCommands::class, IdempotencyStore::class, IdempotencyKeyPurgeJob::class,
-                UnrelayedEventCheck::class,
-            ),
-        ),
-
         // INV-Q-4268: optional, the application DataSource serves the event log without it
         EVENT_LOG_DATA_SOURCE(dataSource(ServiceDataSources.EVENT_LOG), emptySet()),
         EVENT_CATALOGUE(
@@ -388,6 +380,8 @@ class CompositionRootTest {
         val declared = base.withServiceInputs(mountRoot, without = ServiceInput.EVENT_LOG_DATA_SOURCE)
         declared.withBean(ServiceDataSources.EVENT_LOG, DataSource::class.java, { eventLog }).run { context ->
             context.startupFailure shouldBe null
+            // background work that started with the context (the staleness check) runs on the application DataSource
+            clearMocks(context.getBean("dataSource", DataSource::class.java), answers = false, recordedCalls = true)
             context.getBean(EventLogReader::class.java).shouldBeInstanceOf<PostgresEventLogReader>().backlog("gst.canonical.canonical-version-created.v1", 0)
             verify { eventLog.connection }
             verify(exactly = 0) { context.getBean("dataSource", DataSource::class.java).connection }

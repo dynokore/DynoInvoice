@@ -142,4 +142,10 @@ interface JobCommands {
 
     /** Ends the key's active pause; a key that is not paused returns its state with no effect. */
     fun resume(request: JobCommandRequest): JobCommandOutcome<JobPauseState>
+
+    /**
+     * The registered jobs, by name: the HTTP side reads a job's entity scope to bind a tenantless caller only for a
+     * platform-level target (coordinator ruling INV-Q-4115). None by default, so such a caller is refused.
+     */
+    fun registered(): List<JobDefinition> = emptyList()
 }

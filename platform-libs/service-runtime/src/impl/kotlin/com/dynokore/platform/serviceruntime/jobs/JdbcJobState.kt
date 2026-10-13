@@ -1,6 +1,7 @@
 package com.dynokore.platform.serviceruntime.jobs
 
 import com.dynokore.platform.tenancykernel.CurrentConnection
+import com.dynokore.platform.tenancykernel.SqlIdentifier
 import java.sql.Connection
 import java.sql.PreparedStatement
 import java.sql.Timestamp
@@ -29,19 +30,19 @@ internal class JdbcJobState(
     schema: String,
     private val service: String,
 ) {
-    private val run = "${JobSchema.identifier(schema)}.${JobSchema.JOB_RUN}"
-    private val pause = "$schema.${JobSchema.JOB_PAUSE}"
+    private val run = "${SqlIdentifier.require(schema, "schema")}.${JobSchema.JOB_RUN}"
+    private val pause = "${SqlIdentifier.require(schema, "schema")}.${JobSchema.JOB_PAUSE}"
 
     /** Inserts the run IN_PROGRESS; false when the key already has a row (another replica or request has it). */
     fun begin(
         key: RunKey,
         startedAt: Instant,
-    ): Boolean = statement(
+    ): Boolean = connections.require().prepareStatement(
         """
         insert into $run (tenant_id, service, job, entity_ref, tick, trigger, attempt, status, started_at)
         values (?, ?, ?, ?, ?, ?, ?, 'IN_PROGRESS', ?) on conflict do nothing
-        """,
-    ) {
+        """.trimIndent(),
+    ).use {
         bindKey(it, key)
         it.setTimestamp(8, Timestamp.from(startedAt))
         it.executeUpdate() == 1
@@ -56,13 +57,13 @@ internal class JdbcJobState(
         failureReason: String?,
         finishedAt: Instant,
         durationMillis: Long,
-    ): Boolean = statement(
+    ): Boolean = connections.require().prepareStatement(
         """
         update $run set status = ?, reason = ?, finished_at = ?, duration_millis = ?
         where tenant_id = ? and service = ? and job = ? and entity_ref = ? and tick = ? and trigger = ? and attempt = ?
           and status = 'IN_PROGRESS'
-        """,
-    ) {
+        """.trimIndent(),
+    ).use {
         it.setString(1, if (failureReason == null) JobRunStatus.SUCCEEDED.name else JobRunStatus.FAILED.name)
         it.setString(2, failureReason)
         it.setTimestamp(3, Timestamp.from(finishedAt))
@@ -77,13 +78,13 @@ internal class JdbcJobState(
         target: JobTarget,
         tick: Instant,
         trigger: JobTrigger,
-    ): RunRow? = statement(
+    ): RunRow? = connections.require().prepareStatement(
         """
         select attempt, status, started_at from $run
         where tenant_id = ? and service = ? and job = ? and entity_ref = ? and tick = ? and trigger = ?
         order by attempt desc limit 1
-        """,
-    ) {
+        """.trimIndent(),
+    ).use {
         bindKey(it, RunKey(job, target, tick, trigger, 0), withAttempt = false)
         it.executeQuery().use { rows ->
             if (!rows.next()) {
@@ -98,12 +99,12 @@ internal class JdbcJobState(
     fun openPause(
         job: JobDefinition,
         target: JobTarget,
-    ): PauseRow? = statement(
+    ): PauseRow? = connections.require().prepareStatement(
         """
         select paused_at, paused_until from $pause
         where tenant_id = ? and service = ? and job = ? and entity_ref = ? and ended_at is null for update
-        """,
-    ) {
+        """.trimIndent(),
+    ).use {
         bindTarget(it, job, target)
         it.executeQuery().use { rows ->
             if (!rows.next()) null else PauseRow(rows.getTimestamp(1).toInstant(), rows.getTimestamp(2).toInstant())
@@ -116,12 +117,12 @@ internal class JdbcJobState(
         target: JobTarget,
         pausedAt: Instant,
         until: Instant,
-    ): Boolean = statement(
+    ): Boolean = connections.require().prepareStatement(
         """
         insert into $pause (tenant_id, service, job, entity_ref, paused_at, paused_until) values (?, ?, ?, ?, ?, ?)
         on conflict (tenant_id, service, job, entity_ref) where ended_at is null do nothing
-        """,
-    ) {
+        """.trimIndent(),
+    ).use {
         bindTarget(it, job, target)
         it.setTimestamp(5, Timestamp.from(pausedAt))
         it.setTimestamp(6, Timestamp.from(until))
@@ -132,14 +133,14 @@ internal class JdbcJobState(
         job: JobDefinition,
         target: JobTarget,
         until: Instant,
-    ) = updateOpen(job, target, "paused_until", until)
+    ) = updateOpen(job, target, PAUSED_UNTIL, until)
 
     /** Ends the open pause at [endedAt]: resumed, lapsed at the deadline bound, or past its end time. */
     fun endPause(
         job: JobDefinition,
         target: JobTarget,
         endedAt: Instant,
-    ) = updateOpen(job, target, "ended_at", endedAt)
+    ) = updateOpen(job, target, ENDED_AT, endedAt)
 
     private fun updateOpen(
         job: JobDefinition,
@@ -147,12 +148,11 @@ internal class JdbcJobState(
         column: String,
         value: Instant,
     ) {
-        statement(
-            """
-            update $pause set $column = ?
-            where tenant_id = ? and service = ? and job = ? and entity_ref = ? and ended_at is null
-            """,
-        ) {
+        val set = SqlIdentifier.require(column, "job_pause column")
+        val connection: Connection = connections.require()
+        connection.prepareStatement(
+            "update $pause set $set = ? where tenant_id = ? and service = ? and job = ? and entity_ref = ? and ended_at is null",
+        ).use {
             it.setTimestamp(1, Timestamp.from(value))
             bindTarget(it, job, target, offset = 1)
             it.executeUpdate()
@@ -183,11 +183,8 @@ internal class JdbcJobState(
         if (withAttempt) statement.setInt(offset + 7, key.attempt)
     }
 
-    private fun <T> statement(
-        sql: String,
-        block: (PreparedStatement) -> T,
-    ): T {
-        val connection: Connection = connections.require()
-        return connection.prepareStatement(sql.trimIndent()).use(block)
+    private companion object {
+        const val PAUSED_UNTIL = "paused_until"
+        const val ENDED_AT = "ended_at"
     }
 }

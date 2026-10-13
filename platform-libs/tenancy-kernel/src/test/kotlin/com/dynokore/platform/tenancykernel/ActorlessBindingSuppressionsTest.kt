@@ -50,6 +50,6 @@ class ActorlessBindingSuppressionsTest {
         const val SUPPRESSION = "@Suppress(\"DEPRECATION\")"
 
         /** Lowered by each caller-migration task; INV-T-3999 sets it to zero. */
-        const val EXPECTED = 26
+        const val EXPECTED = 23
     }
 }

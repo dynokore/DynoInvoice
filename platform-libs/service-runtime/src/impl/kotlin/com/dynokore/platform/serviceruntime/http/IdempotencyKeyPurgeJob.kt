@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit
  * The API-15 key purge as a platform job of the service (coordinator ruling INV-Q-3798): [NAME] is registered
  * in the service's [JobRuntime] as a PLATFORM-scoped job, so it is announced with `JobRegistered`, runs under
  * ShedLock leader election with one `job_run` per hourly tick, and its body is [IdempotencyStore.purge] on the
- * worker role. Every instance polls [JobRuntime.fire] every [pollEvery]; the lock and the tick's `job_run` key
+ * runtime login through the `<svc>_sys` purge function (INV-Q-4070). Every instance polls [JobRuntime.fire] every [pollEvery]; the lock and the tick's `job_run` key
  * make one run per tick across the instances.
  */
 class IdempotencyKeyPurgeJob(

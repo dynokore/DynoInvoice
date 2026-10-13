@@ -9,6 +9,7 @@ import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.JdbcOutboxWriter
 import com.dynokore.platform.outboxandqueue.OutboxPostgresFixture
 import com.dynokore.platform.outboxandqueue.TenantScope
+import com.dynokore.platform.serviceruntime.identity.WorkloadPrincipal
 import com.dynokore.platform.tenancykernel.TenantContextImpl
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
@@ -69,14 +70,21 @@ class MovableDeadlines(var margin: Duration = Duration.ofHours(1)) : DeadlineSou
 
 /**
  * One PostgreSQL container (17 or 18) holding the fixture service `submission-svc`: outbox-and-queue's outbox,
- * the job tables of [JobSchema], and outbox-and-queue's fixture roles (app, worker). Each [replica] is one
+ * the job tables of [JobSchema] and their job-retention row, and outbox-and-queue's fixture roles (the runtime
+ * login [OutboxPostgresFixture.APP] and the sys role [OutboxPostgresFixture.SYS]). Each [replica] is one
  * service instance with its own transaction runner, outbox writer (instance id) and [JobRuntime].
  */
 class JobsHarness(image: String) : AutoCloseable {
     val fixture = OutboxPostgresFixture(image)
 
     init {
-        fixture.createService(SCHEMA, JobSchema.ddl(SCHEMA, OutboxPostgresFixture.APP, OutboxPostgresFixture.WORKER))
+        fixture.createService(SCHEMA, JobSchema.ddl(SCHEMA, OutboxPostgresFixture.APP, OutboxPostgresFixture.SYS))
+        writeRetention(JobRuntime.DEFAULT_RETENTION)
+    }
+
+    /** The migration runner's job-retention row (INV-Q-4346), written as the owner with bound parameters. */
+    fun writeRetention(retention: Duration) {
+        fixture.ownerDataSource().connection.use { JobSchema.writeRetention(it, SCHEMA, retention) }
     }
 
     inner class Replica(
@@ -90,20 +98,19 @@ class JobsHarness(image: String) : AutoCloseable {
     ) {
         val tenants = TenantContextImpl()
         val tx = TransactionRunnerImpl(app, tenants)
-        val scope = TenantScope(tenants, tx, tx, OutboxPostgresFixture.WORKLOAD)
+        val scope = TenantScope(tenants, tx, tx, WorkloadPrincipal(SERVICE).value)
         val outbox = JdbcOutboxWriter(tx, SCHEMA, SERVICE, instance, CATALOGUE, clock)
         val runtime =
             JobRuntime(
-                SERVICE, SCHEMA, scope, outbox, OutboxAuditWriter(outbox), fixture.workerDataSource(), authorizer,
+                SERVICE, SCHEMA, scope, outbox, OutboxAuditWriter(outbox), fixture.runtimeDataSource(), authorizer,
                 deadlines, clock, executor, retention,
             )
 
-        // INV-T-3999 removes this call
-        @Suppress("DEPRECATION")
+        /** Binds [tenant] with a test operator's actor (INV-REQ-854 b1). */
         fun <T> asTenant(
             tenant: TenantId,
             block: () -> T,
-        ): T = tenants.bind(tenant, block)
+        ): T = tenants.bind(tenant, TEST_ACTOR, block)
     }
 
     fun replica(
@@ -147,6 +154,7 @@ class JobsHarness(image: String) : AutoCloseable {
     companion object {
         const val SCHEMA = "submission"
         const val SERVICE = "submission-svc"
+        const val TEST_ACTOR = "test-operator"
         const val AUDIT = "com.dynokore.gst.platform.AuditEntryRecorded.v1"
         private fun entry(
             type: String,

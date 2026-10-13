@@ -3,12 +3,14 @@ package com.dynokore.platform.serviceruntime.http
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.outboxandqueue.EntityRef
+import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.identity.TokenIssuerUnavailableException
 import com.dynokore.platform.serviceruntime.jobs.JobCommandOutcome
 import com.dynokore.platform.serviceruntime.jobs.JobCommandRequest
 import com.dynokore.platform.serviceruntime.jobs.JobCommands
+import com.dynokore.platform.serviceruntime.jobs.JobEntityScope
 import com.dynokore.platform.serviceruntime.jobs.JobPauseState
 import com.dynokore.platform.serviceruntime.jobs.JobRunState
 import com.dynokore.platform.serviceruntime.jobs.JobTarget
@@ -20,7 +22,6 @@ import com.dynokore.platform.serviceruntime.replica.Principal
 import com.dynokore.platform.serviceruntime.replica.PrincipalKind
 import com.dynokore.platform.serviceruntime.resilience.Deadline
 import com.dynokore.platform.serviceruntime.resilience.http.CurrentDeadline
-import com.dynokore.platform.tenancykernel.TenantContext
 import jakarta.servlet.http.HttpServlet
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
@@ -44,8 +45,12 @@ import java.util.UUID
  * - The actor (`sub`) and tenant (`tenant_id`) come from the propagated end-user token, and the entity set from
  *   the authority replica, through [principals] (CS-23, API-24; owner ruling INV-Q-3716 A), never from a field;
  *   an `entityRef` outside the principal's entity set is 403 before anything runs. The
- *   caller's tenant is bound for the command (ARC-21); the roles are checked by the service's
- *   `JobCommandAuthorizer` against its authority replica inside [JobCommands].
+ *   caller's tenant and `sub` are bound for the command (ARC-21, INV-REQ-854 b1, INV-Q-4268); the roles are checked
+ *   by the service's `JobCommandAuthorizer` against its authority replica inside [JobCommands].
+ * - A token without a tenant (coordinator ruling INV-Q-4115) binds the platform tenant with its `sub` only for a
+ *   platform-level target: a whole-job command or any command on a PLATFORM-scoped job. A tenant-scoped target (an
+ *   `entityRef` of an ENTITY-scoped or unknown job) is 403 SRT-004 before anything is bound; no request runs
+ *   unbound.
  * - `Idempotency-Key` (a UUID, the contract's `format: uuid`) is required and kept in [idempotency]
  *   with a fingerprint of the method, path and body (API-15).
  * - A refused command is its JOB catalogue code at the code's status (API-21); each closed case (ARC-19) is
@@ -56,7 +61,7 @@ import java.util.UUID
 class JobCommandServlet(
     private val commands: JobCommands,
     private val principals: EndUserPrincipalResolver,
-    private val tenants: TenantContext,
+    private val scope: TenantScope,
     private val idempotency: IdempotencyStore,
     private val authority: AuthorityReplica? = null,
     private val clock: Clock = Clock.systemUTC(),
@@ -130,7 +135,13 @@ class JobCommandServlet(
                 return Problems.closed(violation.code, correlation, violation.message.orEmpty())
             }
         val entity = parsed.entity
-        if (entity != null && !inScope(principal, entity)) return Problems.accessDenied(correlation)
+        if (principal.tenant == null) {
+            // a tenantless caller (a platform operator) reaches only a platform-level target, before anything is bound
+            // (coordinator ruling INV-Q-4115); it holds no entity set, so no per-entity scope applies
+            if (!platformTarget(parsed)) return Problems.accessDenied(correlation)
+        } else if (entity != null && !inScope(principal, entity)) {
+            return Problems.accessDenied(correlation)
+        }
         val fingerprint = fingerprint(request.method, path, body)
         val outcome =
             idempotency.once(principal.tenant, principal.actor, parsed.key, fingerprint) { recorder ->
@@ -228,13 +239,24 @@ class JobCommandServlet(
         Action.PAUSE, Action.RESUME -> pauseResponse(done as JobCommandOutcome.Done<JobPauseState>, correlation)
     }
 
-    /** Binds the caller's tenant for the command (ARC-21); a caller without a tenant binds none. */
-    // INV-T-3999 removes this call
-    @Suppress("DEPRECATION")
+    /**
+     * A tenantless caller's command has a platform-level target (coordinator ruling INV-Q-4115): a whole-job command
+     * (no `entityRef`) or any command on a PLATFORM-scoped job. An unknown job is not one.
+     */
+    private fun platformTarget(parsed: Parsed): Boolean = parsed.entity == null ||
+        commands.registered().any { it.name == parsed.job && it.entityScope == JobEntityScope.PLATFORM }
+
+    /**
+     * Binds the caller's tenant and `sub` for the command (ARC-21, INV-REQ-854 b1); a tenantless caller, already
+     * limited to a platform-level target by [handle], binds the platform tenant with its `sub` (INV-Q-4115).
+     */
     private fun <T> bound(
         principal: EndUserPrincipal,
         block: () -> T,
-    ): T = principal.tenant?.let { tenants.bind(it, block) } ?: block()
+    ): T {
+        val tenant = principal.tenant ?: return checkNotNull(scope.platform) { "a tenantless command needs the platform binding" }.bindPlatform(principal.actor, block)
+        return scope.tenants.bind(tenant, principal.actor, block)
+    }
 
     private fun runResponse(
         outcome: JobCommandOutcome<JobRunState>,

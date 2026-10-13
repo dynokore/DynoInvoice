@@ -39,6 +39,7 @@ import com.dynokore.platform.outboxandqueue.UnrelayedEventCheck
 import com.dynokore.platform.outboxandqueue.UnrelayedEventSink
 import com.dynokore.platform.outboxandqueue.WorkQueue
 import com.dynokore.platform.serviceruntime.binding.GstProperties
+import com.dynokore.platform.serviceruntime.identity.WorkloadPrincipal
 import com.dynokore.platform.serviceruntime.staleness.LoggingStalenessBreachSink
 import com.dynokore.platform.serviceruntime.staleness.OnStalenessRules
 import com.dynokore.platform.serviceruntime.staleness.StalenessCheckSchedule
@@ -66,7 +67,8 @@ import javax.sql.DataSource
 
 /**
  * outbox-and-queue's ports (INV-T-2875, INV-Q-3710), when the service embeds its impl half. Each implementation
- * is created only when the service declares the inputs only it has: its role DataSources ([ServiceDataSources]),
+ * is created only when the service declares the inputs only it has: its one application DataSource (and the
+ * optional event-log pool, [ServiceDataSources]),
  * the topics [EventCatalogue] (from platform-contracts `event-log/topics.yaml`, TPL-18's platform-event catalogue),
  * [Retention], [LaneLimits], its staleness rules ([StalenessProperties] or [StalenessRule]s), and a consumer's [ConsumerSubscription] and
  * [EventHandler]; plus `gst.service` and `service-runtime.modules.schema`. The §12.1 [EventBinding] is the one
@@ -77,9 +79,18 @@ import javax.sql.DataSource
 @EnableConfigurationProperties(StalenessProperties::class, UnrelayedEventProperties::class)
 class OutboxAndQueueWiring {
     /**
-     * The service's [TenantScope] over its application transactions, with the service's workload principal for
-     * background work (INV-REQ-854 b1, coordinator ruling INV-Q-4268): `svc:<gst.service>` until INV-T-3981 passes the
-     * real one.
+     * The service's typed workload principal (owner ruling INV-Q-4344 (b)): built from the required `gst.service` and
+     * format-checked at start-up, so a service name that is not a lower-case service name stops the context.
+     */
+    @Bean
+    @ConditionalOnProperty(name = [Props.SERVICE])
+    @ConditionalOnMissingBean(WorkloadPrincipal::class)
+    fun workloadPrincipal(gst: GstProperties): WorkloadPrincipal = WorkloadPrincipal(gst.requireService())
+
+    /**
+     * The service's [TenantScope] over its application transactions, with the service's workload principal
+     * `svc:<svc>` for its service-level background work (INV-REQ-854 b1; coordinator ruling INV-Q-4268, owner ruling
+     * INV-Q-4344 (b)): the relay, consumers, claims, announce, connection status and purges.
      */
     @Bean
     @ConditionalOnBean(TransactionRunner::class, CurrentConnection::class)
@@ -89,8 +100,8 @@ class OutboxAndQueueWiring {
         tenants: TenantContext,
         transactions: TransactionRunner,
         connections: CurrentConnection,
-        gst: GstProperties,
-    ): TenantScope = TenantScope(tenants, transactions, connections, workloadPrincipal(gst))
+        principal: WorkloadPrincipal,
+    ): TenantScope = TenantScope(tenants, transactions, connections, principal.value)
 
     @Bean
     @ConditionalOnBean(CurrentConnection::class, EventCatalogue::class)
@@ -115,16 +126,16 @@ class OutboxAndQueueWiring {
     ): PostgresEventBinding = PostgresEventBinding(eventLogScope(eventLog.getIfAvailable { dataSource }, scope))
 
     @Bean
-    @ConditionalOnBean(value = [TenantScope::class, EventBinding::class], name = [ServiceDataSources.WORKER])
+    @ConditionalOnBean(TenantScope::class, EventBinding::class, DataSource::class)
     @ConditionalOnProperty(name = [Props.SCHEMA])
     @ConditionalOnMissingBean(OutboxRelay::class)
     fun outboxRelay(
-        @Qualifier(ServiceDataSources.WORKER) worker: DataSource,
+        dataSource: DataSource,
         scope: TenantScope,
         binding: EventBinding,
         modules: ModuleProperties,
         clock: Clock,
-    ): JdbcOutboxRelay = JdbcOutboxRelay(worker, scope, modules.requireSchema(), binding, clock)
+    ): JdbcOutboxRelay = JdbcOutboxRelay(dataSource, scope, modules.requireSchema(), binding, clock)
 
     @Bean
     @ConditionalOnBean(TenantScope::class, DataSource::class)
@@ -139,47 +150,47 @@ class OutboxAndQueueWiring {
     }
 
     @Bean
-    @ConditionalOnBean(value = [LaneLimits::class], name = [ServiceDataSources.WORKER])
+    @ConditionalOnBean(LaneLimits::class, DataSource::class)
     @ConditionalOnProperty(name = [Props.SCHEMA])
     @ConditionalOnMissingBean(LaneRateLimiter::class)
     fun laneRateLimiter(
-        @Qualifier(ServiceDataSources.WORKER) worker: DataSource,
+        dataSource: DataSource,
         limits: LaneLimits,
         modules: ModuleProperties,
-    ): LaneRateLimiter = LaneRateLimiter(worker, modules.requireSchema(), limits)
+    ): LaneRateLimiter = LaneRateLimiter(dataSource, modules.requireSchema(), limits)
 
     @Bean
-    @ConditionalOnBean(value = [TenantScope::class, LaneRateLimiter::class], name = [ServiceDataSources.WORKER])
+    @ConditionalOnBean(TenantScope::class, LaneRateLimiter::class, DataSource::class)
     @ConditionalOnMissingBean(WorkQueue::class)
     fun workQueue(
-        @Qualifier(ServiceDataSources.WORKER) worker: DataSource,
+        dataSource: DataSource,
         scope: TenantScope,
         limiter: LaneRateLimiter,
         modules: ModuleProperties,
         clock: Clock,
-    ): JdbcWorkQueue = JdbcWorkQueue(worker, scope, modules.requireSchema(), limiter, clock)
+    ): JdbcWorkQueue = JdbcWorkQueue(dataSource, scope, modules.requireSchema(), limiter, clock)
 
     @Bean
-    @ConditionalOnBean(value = [TenantScope::class], name = [ServiceDataSources.WORKER])
+    @ConditionalOnBean(TenantScope::class, DataSource::class)
     @ConditionalOnProperty(name = [Props.SCHEMA])
     @ConditionalOnMissingBean(DeadLetterTriage::class)
     fun deadLetterTriage(
-        @Qualifier(ServiceDataSources.WORKER) worker: DataSource,
+        dataSource: DataSource,
         scope: TenantScope,
         modules: ModuleProperties,
         clock: Clock,
-    ): JdbcDeadLetterTriage = JdbcDeadLetterTriage(worker, scope, modules.requireSchema(), clock)
+    ): JdbcDeadLetterTriage = JdbcDeadLetterTriage(dataSource, scope, modules.requireSchema(), clock)
 
     @Bean
-    @ConditionalOnBean(value = [Retention::class], name = [ServiceDataSources.WORKER])
+    @ConditionalOnBean(Retention::class, DataSource::class)
     @ConditionalOnProperty(name = [Props.SCHEMA])
     @ConditionalOnMissingBean(RetentionPurge::class)
     fun retentionPurge(
-        @Qualifier(ServiceDataSources.WORKER) worker: DataSource,
+        dataSource: DataSource,
         retention: Retention,
         modules: ModuleProperties,
         clock: Clock,
-    ): JdbcRetentionPurge = JdbcRetentionPurge(worker, modules.requireSchema(), retention, clock)
+    ): JdbcRetentionPurge = JdbcRetentionPurge(dataSource, modules.requireSchema(), retention, clock)
 
     /** The event-log component's purge (INV-MOD-2748); its retention is the event log's own row (INV-Q-4262). */
     @Bean
@@ -206,21 +217,23 @@ class OutboxAndQueueWiring {
     /** A service's own [StalenessBreachSink] replaces the logging default (the incident is the alert rule's, INV-Q-3030). */
     @Bean
     @ConditionalOnBean(
-        value = [EventLogLag::class, EventCatalogue::class, StalenessRules::class],
-        name = [ServiceDataSources.WORKER],
+        EventLogLag::class,
+        EventCatalogue::class,
+        StalenessRules::class,
+        DataSource::class,
     )
     @ConditionalOnProperty(name = [Props.SCHEMA])
     @ConditionalOnMissingBean(StalenessMonitor::class)
     @Suppress("LongParameterList")
     fun stalenessMonitor(
-        @Qualifier(ServiceDataSources.WORKER) worker: DataSource,
+        dataSource: DataSource,
         lag: EventLogLag,
         catalogue: EventCatalogue,
         rules: StalenessRules,
         sink: ObjectProvider<StalenessBreachSink>,
         modules: ModuleProperties,
         clock: Clock,
-    ): JdbcStalenessMonitor = JdbcStalenessMonitor(worker, lag, catalogue, modules.requireSchema(), rules.rules, clock, sink.getIfAvailable { LoggingStalenessBreachSink() })
+    ): JdbcStalenessMonitor = JdbcStalenessMonitor(dataSource, lag, catalogue, modules.requireSchema(), rules.rules, clock, sink.getIfAvailable { LoggingStalenessBreachSink() })
 
     /** The lag and threshold gauges per (consumer, event type) (INV-T-3005, INV-Q-3030 (a)). */
     @Bean
@@ -251,17 +264,17 @@ class OutboxAndQueueWiring {
 
     /**
      * The check of outbox rows marked published whose event never reached the event log (owner rulings INV-Q-4334 (B),
-     * INV-Q-4350 (A)), on the same background connection as the staleness monitor. On by default with the 1-hour margin
-     * (coordinator ruling INV-Q-4403 (A)); an invalid margin stops start-up. A service's own [UnrelayedEventSink]
-     * replaces the logging default.
+     * INV-Q-4350 (A)), on the application DataSource (the runtime login), as the staleness monitor. On by default with
+     * the 1-hour margin (coordinator ruling INV-Q-4403 (A)); an invalid margin stops start-up. A service's own
+     * [UnrelayedEventSink] replaces the logging default.
      */
     @Bean
-    @ConditionalOnBean(value = [TenantScope::class, EventLogPresence::class], name = [ServiceDataSources.WORKER])
+    @ConditionalOnBean(TenantScope::class, EventLogPresence::class, DataSource::class)
     @ConditionalOnProperty(name = [Props.SCHEMA, Props.SERVICE])
     @ConditionalOnMissingBean(UnrelayedEventCheck::class)
     @Suppress("LongParameterList")
     fun unrelayedEventCheck(
-        @Qualifier(ServiceDataSources.WORKER) worker: DataSource,
+        dataSource: DataSource,
         scope: TenantScope,
         presence: EventLogPresence,
         properties: UnrelayedEventProperties,
@@ -270,7 +283,7 @@ class OutboxAndQueueWiring {
         modules: ModuleProperties,
         gst: GstProperties,
     ): JdbcUnrelayedEventCheck = JdbcUnrelayedEventCheck(
-        worker,
+        dataSource,
         scope,
         modules.requireSchema(),
         gst.requireService(),
@@ -303,9 +316,8 @@ class OutboxAndQueueWiring {
     @ConditionalOnBean(
         value = [
             ConsumerSubscription::class, EventCatalogue::class, EventHandler::class, RebuildRequiredSink::class,
-            EventLogReader::class, TenantScope::class,
+            EventLogReader::class, TenantScope::class, DataSource::class,
         ],
-        name = [ServiceDataSources.WORKER],
     )
     @ConditionalOnMissingBean(InboxConsumer::class)
     @Suppress("LongParameterList")
@@ -313,12 +325,12 @@ class OutboxAndQueueWiring {
         subscription: ConsumerSubscription,
         catalogue: EventCatalogue,
         reader: EventLogReader,
-        @Qualifier(ServiceDataSources.WORKER) worker: DataSource,
+        dataSource: DataSource,
         scope: TenantScope,
         handler: EventHandler,
         rebuildRequired: RebuildRequiredSink,
         clock: Clock,
-    ): JdbcInboxConsumer = JdbcInboxConsumer(subscription, catalogue, reader, worker, scope, handler, rebuildRequired, clock)
+    ): JdbcInboxConsumer = JdbcInboxConsumer(subscription, catalogue, reader, dataSource, scope, handler, rebuildRequired, clock)
 
     @Bean
     @ConditionalOnBean(WorkQueue::class, TenantScope::class, JdbcInboxConsumer::class)
@@ -330,9 +342,6 @@ class OutboxAndQueueWiring {
     ): JdbcReplayDelivery = JdbcReplayDelivery(queue, scope, inbox)
 
     private companion object {
-        /** The workload principal of background work until INV-T-3981 passes the real one (INV-Q-4268). */
-        fun workloadPrincipal(gst: GstProperties): String = "svc:${gst.requireService()}"
-
         /**
          * A [TenantScope] over the event log's own transactions (its own [TransactionRunnerImpl], so an event-log
          * transaction never joins an application one), with the service's [TenantScope.workloadPrincipal].

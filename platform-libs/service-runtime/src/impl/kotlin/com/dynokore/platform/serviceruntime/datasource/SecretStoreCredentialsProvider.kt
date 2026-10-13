@@ -15,12 +15,12 @@ import com.zaxxer.hikari.util.Credentials
  * restart. Connections already open keep their session until the pool retires them (`maxLifetime`, or
  * `softEvictConnections`).
  *
- * A role pool (TPL-18 `RolePool`) sets it as its HikariConfig `credentialsProvider`, with no `username` and never
- * reading the password into `password`:
+ A pool sets it as its HikariConfig `credentialsProvider`, with no `username` and never reading the password into
+ * `password`:
  * ```
  * HikariConfig().also {
  *     it.jdbcUrl = url
- *     it.credentialsProvider = SecretStoreCredentialsProvider(secrets, "submission_worker", SecretRef("db/submission_worker"))
+ *     it.credentialsProvider = SecretStoreCredentialsProvider(secrets, "submission_runtime", SecretRef("db/submission_runtime"))
  * }
  * ```
  * Spring Boot's application pool takes one from `service-runtime.datasource.credential`, and Flyway from

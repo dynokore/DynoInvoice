@@ -176,7 +176,7 @@ class ConsumerRebuildIT {
                     ): Envelope = error("audit store down")
                 }
             val full = h.request(mode = ReplayMode.FULL_SYNC, scope = null)
-            assertThrows(IllegalStateException::class.java) { h.runtime(fullSync = true, syncAudit = failing).rebuildConsumer(full) }
+            assertThrows(IllegalStateException::class.java) { h.runtime(fullSync = true, audit = failing).rebuildConsumer(full) }
             assertEquals(1L, h.count("select count(*) from $SCHEMA.consumer_sequence"))
             assertEquals(1L, h.count("select count(*) from $SCHEMA.match_view"))
             assertNull(h.nextOffsetOrNull())
@@ -343,14 +343,9 @@ class ConsumerRebuildIT {
             fixture.createTopics(CATALOGUE)
         }
 
-        private val syncTenants = TenantContextImpl()
-        private val syncTx = TransactionRunnerImpl(fixture.runtimeDataSource(), syncTenants)
-        private val syncOutbox = JdbcOutboxWriter(syncTx, SCHEMA, CONSUMER, "$CONSUMER-w", CATALOGUE, Clock.systemUTC())
-
         fun runtime(
             audit: AuditWriter = OutboxAuditWriter(outbox),
             fullSync: Boolean = false,
-            syncAudit: AuditWriter = OutboxAuditWriter(syncOutbox),
             clears: List<ReadModelClear> = listOf(ReadModelClear(PRODUCER, listOf(CLEAR))),
             extra: List<String> = emptyList(),
         ) = ConsumerRebuildRuntime(
@@ -360,12 +355,7 @@ class ConsumerRebuildIT {
             PostgresEventLogReader(fixture.eventLogDataSource(), fixture.eventLogScope(TenantContextImpl())),
             { it == "platform.engineer" }, Clock.systemUTC(),
             if (fullSync) {
-                FullSyncWiring(
-                    TenantScope(syncTenants, syncTx, syncTx, OutboxPostgresFixture.WORKLOAD),
-                    syncOutbox,
-                    syncAudit,
-                    clears,
-                )
+                FullSyncWiring(clears)
             } else {
                 null
             },

@@ -28,6 +28,7 @@ import org.springframework.context.annotation.Import
     ],
 )
 @Import(
+    EventLogDataSourceWiring::class,
     TenancyKernelWiring::class,
     OutboxAndQueueWiring::class,
     AuditLogWiring::class,

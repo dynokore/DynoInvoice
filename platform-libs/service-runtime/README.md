@@ -27,9 +27,19 @@ VariationPointCatalogue whichever way the two roots are registered: TPL-18's `@I
 auto-configuration only.
 
 Service inputs:
-- **Role DataSources**, by bean name (`ServiceDataSources`): the application role is the service's `DataSource`
-  (`dataSource` from `spring.datasource.*`, or the `@Primary` one); `workerDataSource`; `eventLogRelayDataSource`; `eventLogClaimDataSource`;
-  `eventLogReaderDataSource`; `eventLogPurgeDataSource`.
+- **One application DataSource** (INV-T-3981, owner ruling INV-Q-3955): the service's `DataSource` (`dataSource` from
+  `spring.datasource.*`, or the `@Primary` one) logs in as `<svc>_runtime` and serves every platform-libs adapter; there
+  is no role DataSource. Only when `gst.db.event-log-url` names a separate event-log instance (HA, different from
+  `spring.datasource.url`) is a second pool created, `eventLogDataSource` (`ServiceDataSources.EVENT_LOG`): the same
+  login and credential, at most 3 connections, `service-runtime.event-log-pool.minimum-idle` (default 1, 0..3;
+  INV-Q-4348). Otherwise the event-log adapters use the application DataSource.
+- **Workload principal:** `svc:<gst.service>` (`WorkloadPrincipal`) is the actor bound for the service's own work (the
+  outbox relay, inbox consumers, purges); a scheduled run binds `svc:<svc>/job:<job>` (owner ruling INV-Q-4344 (b)).
+  `gst.service` must be a lower-case service name such as `submission-svc`, or start-up fails.
+- **Migrations** run only through `MigrationRunner` (INV-Q-3959), a separate entry point (an init container or a
+  Job) that logs in as `<svc>_migrate` (`spring.flyway.user`, password from `service-runtime.flyway.credential`) and
+  then writes `service-runtime.jobs.retention` into `job_retention`. The service itself never runs Flyway
+  (`spring.flyway.enabled=false` by default).
 - **Properties:** `gst.service` (TPL-16), `gst.instance-id` (default `HOSTNAME`), `service-runtime.modules.schema`
   (the service's own schema), `service-runtime.modules.evidence.ledger-table`, `.legal-hold-table` and `.bucket`.
 - **§12.1 selection:** `gst.bindings.event-binding` (`postgres`), `gst.bindings.object-store` (`s3-compatible`),
@@ -43,15 +53,15 @@ Service inputs:
 | tenancy-kernel | `LicenceCheck` (§12.1) | the service's base check, wrapped in `NonBlockingLicenceCheck` | its base `LicenceCheck` (tenancy-svc, INV-REQ-1076) |
 | outbox-and-queue | `TenantScope` | `TenantScope` | (a `TransactionRunner`) |
 | outbox-and-queue | `OutboxWriter` | `JdbcOutboxWriter` | `EventCatalogue`, `gst.service`, schema |
-| outbox-and-queue | `EventBinding` (§12.1) | `PostgresEventBinding` | `eventLogRelayDataSource` |
-| outbox-and-queue | `OutboxRelay` | `JdbcOutboxRelay` | `workerDataSource`, schema |
-| outbox-and-queue | `EventLogReader`, `EventLogLag` | `PostgresEventLogReader` | `eventLogClaimDataSource`, `eventLogReaderDataSource` |
-| outbox-and-queue | `LaneRateLimiter`, `WorkQueue` | `LaneRateLimiter`, `JdbcWorkQueue` | `LaneLimits`, `workerDataSource`, schema |
-| outbox-and-queue | `DeadLetterTriage` | `JdbcDeadLetterTriage` | `workerDataSource`, schema |
-| outbox-and-queue | `RetentionPurge` | `JdbcRetentionPurge` | `Retention`, `workerDataSource`, schema |
-| outbox-and-queue | `EventLogPurge` | `JdbcEventLogPurge` | `Retention`, `EventCatalogue`, `eventLogPurgeDataSource` |
-| outbox-and-queue | `StalenessMonitor` | `JdbcStalenessMonitor`, with `StalenessGauges` (see "Consumer staleness") | `service-runtime.staleness.rules` or `StalenessRule`s, `EventCatalogue`, `workerDataSource`, schema (a `StalenessBreachSink` is optional) |
-| outbox-and-queue | `InboxConsumer` | `JdbcInboxConsumer` (one; a service with several declares its own) | `ConsumerSubscription`, `EventCatalogue`, `EventHandler`, `RebuildRequiredSink`, `workerDataSource` |
+| outbox-and-queue | `EventBinding` (§12.1) | `PostgresEventBinding` | `eventLogDataSource` if present, else the application `DataSource` |
+| outbox-and-queue | `OutboxRelay` | `JdbcOutboxRelay` | application `DataSource`, schema |
+| outbox-and-queue | `EventLogReader`, `EventLogLag` | `PostgresEventLogReader` | `eventLogDataSource` if present, else the application `DataSource` |
+| outbox-and-queue | `LaneRateLimiter`, `WorkQueue` | `LaneRateLimiter`, `JdbcWorkQueue` | `LaneLimits`, application `DataSource`, schema |
+| outbox-and-queue | `DeadLetterTriage` | `JdbcDeadLetterTriage` | application `DataSource`, schema |
+| outbox-and-queue | `RetentionPurge` | `JdbcRetentionPurge` | `Retention`, application `DataSource`, schema |
+| outbox-and-queue | `EventLogPurge` | `JdbcEventLogPurge` | `Retention`, `EventCatalogue`, `eventLogDataSource` if present, else the application `DataSource` |
+| outbox-and-queue | `StalenessMonitor` | `JdbcStalenessMonitor`, with `StalenessGauges` (see "Consumer staleness") | `service-runtime.staleness.rules` or `StalenessRule`s, `EventCatalogue`, application `DataSource`, schema (a `StalenessBreachSink` is optional) |
+| outbox-and-queue | `InboxConsumer` | `JdbcInboxConsumer` (one; a service with several declares its own) | `ConsumerSubscription`, `EventCatalogue`, `EventHandler`, `RebuildRequiredSink`, application `DataSource` |
 | outbox-and-queue | `ReplayDelivery` | `JdbcReplayDelivery` | (a `WorkQueue` and a `JdbcInboxConsumer`) |
 | audit-log | `AuditWriter` | `OutboxAuditWriter`, or `LocalAuditWriter` without an outbox (INV-Q-2958) | (an `OutboxWriter`), else `gst.service`, schema |
 | audit-log | `AuditedOperations` | `TransactionalAuditedOperations` | (a `TransactionRunner`, an `AuditWriter`) |
@@ -69,9 +79,9 @@ Service inputs:
 | service-runtime | `OperationRunner` | `TransactionalOperationRunner` | (a `TransactionRunner` with its `CurrentConnection`, an `AuditWriter`) |
 | service-runtime | `ConnectionStatusReporter`, the only `ConnectionStatusChanged` publisher (INV-REQ-836 b4) | `OutboxConnectionStatusReporter` | (an `OutboxWriter`) |
 | service-runtime | `EvidenceArtefactRecorder` | `OutboxEvidenceArtefactRecorder` | (an `OutboxWriter`) |
-| service-runtime | `JobCommands` | `JobRuntime` | `JobCommandAuthorizer`, `DeadlineSource`, `workerDataSource`, `gst.service`, schema; optional `jobRunNowExecutor` |
-| service-runtime | runJobNow / pauseJob / resumeJob servlet, `IdempotencyStore` | `JobCommandServlet` | `JobCommands`, `EndUserPrincipalResolver`, `service-runtime.idempotency.schema` |
-| service-runtime | API-15 key purge, a ShedLock-guarded platform job (INV-Q-3798) | `IdempotencyKeyPurgeJob` (`idempotency-key-purge`, hourly, batched on the worker role) | a `JobRuntime`, `workerDataSource`, `gst.service`; `service-runtime.idempotency.retention` (default 24 hours, below 24 hours refused at start-up) |
+| service-runtime | `JobCommands` | `JobRuntime` | `JobCommandAuthorizer`, `DeadlineSource`, application `DataSource`, `gst.service`, schema, `service-runtime.jobs.retention` (default 30 days; the runtime refuses to start when `job_retention` does not hold it); optional `jobRunNowExecutor` |
+| service-runtime | runJobNow / pauseJob / resumeJob servlet, `IdempotencyStore` | `JobCommandServlet` | `JobCommands`, `EndUserPrincipalResolver`, `TenantScope`, `service-runtime.idempotency.schema`; a tenantless token gets 403 unless the target is a platform job |
+| service-runtime | API-15 key purge, a ShedLock-guarded platform job (INV-Q-3798) | `IdempotencyKeyPurgeJob` (`idempotency-key-purge`, hourly, batched through the `idempotency_key_purge_expired` definer function) | a `JobRuntime`, `gst.service`; `service-runtime.idempotency.retention` (default 24 hours, below 24 hours refused at start-up) |
 
 Left for the service, with no platform-libs implementation: the §12.1 `PackSource` (rules-svc, INV-ADR-2773,
 INV-REQ-1079), the base `LicenceCheck` (tenancy-svc, INV-REQ-1076), `MessageDelivery` (INV-REQ-817),
@@ -89,15 +99,14 @@ connection, and it reads the mounted file each time, with no cache.
 | --- | --- | --- |
 | Spring Boot's application pool | `service-runtime.datasource.credential: <SecretRef>` | `spring.datasource.username` |
 | Flyway's owner role (STK-16) | `service-runtime.flyway.credential: <SecretRef>` | `spring.flyway.user` |
-| A role pool (TPL-18 `RolePool`) | HikariConfig `credentialsProvider = SecretStoreCredentialsProvider(secrets, role, ref)`; never `password` | the role |
+| The HA event-log pool (`eventLogDataSource`) | the application pool's credentials provider, reused | `spring.datasource.username` |
 
 With the property set, start-up fails if `spring.datasource.password` (or `spring.datasource.hikari.password`), or
 `spring.flyway.password`, is set as well. Without it nothing changes.
 
 **Rotating a database role's password:** change the role's password (`ALTER ROLE ... PASSWORD`) and the mounted secret.
 Connections already open keep working until the pool retires them (`maxLifetime`). Each new connection logs in with
-the value mounted at that moment, so no restart is needed. Role pools: see
-TPL-18.
+the value mounted at that moment, so no restart is needed.
 
 ## Consumer staleness (INV-T-3005; INV-REQ-1165, INV-AC-2150, INV-Q-3030 (a))
 

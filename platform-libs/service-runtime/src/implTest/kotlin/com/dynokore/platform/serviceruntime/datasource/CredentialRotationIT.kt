@@ -1,9 +1,6 @@
 package com.dynokore.platform.serviceruntime.datasource
 
-import com.dynokore.platform.serviceruntime.binding.SecretRef
-import com.dynokore.platform.serviceruntime.binding.SecretStore
 import com.dynokore.platform.serviceruntime.composition.ServiceDataSources
-import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldNotContain
@@ -17,12 +14,9 @@ import org.junit.jupiter.api.extension.ExtendWith
 import org.junit.jupiter.api.io.TempDir
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
-import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.test.context.assertj.AssertableApplicationContext
 import org.springframework.boot.test.system.CapturedOutput
 import org.springframework.boot.test.system.OutputCaptureExtension
-import org.springframework.context.annotation.Bean
-import org.springframework.context.annotation.Configuration
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.utility.DockerImageName
 import java.nio.file.Files
@@ -51,24 +45,24 @@ class CredentialRotationIT {
             val first = password()
             val second = password()
             val third = password()
-            pg.sql("create role $APP login password '$first'", "create role $WORKER login password '$first'")
+            pg.sql("create role $APP login password '$first'")
             mount(mountRoot, APP_REF, first)
-            mount(mountRoot, WORKER_REF, first)
 
             service(pg, mountRoot).run { context ->
                 context.startupFailure shouldBe null
                 val app = context.getBean(DataSource::class.java) as HikariDataSource
-                val worker = context.getBean(ServiceDataSources.WORKER, HikariDataSource::class.java)
+                // the event-log pool on its own URL takes the application pool's login and credentials provider
+                val eventLog = context.getBean(ServiceDataSources.EVENT_LOG, HikariDataSource::class.java)
                 app.password.shouldBeNull()
-                worker.password.shouldBeNull()
-                val pools = listOf(app to APP, worker to WORKER)
+                eventLog.password.shouldBeNull()
+                val pools = listOf(app to APP, eventLog to APP)
 
                 // each pool holds an open connection, logged in with the first password
                 val open = pools.map { (pool, role) -> pool.connection.also { it.user() shouldBe role } }
                 val openPids = open.map { it.pid() }
 
                 // the role passwords change; the mounted files are not rewritten yet
-                pg.sql("alter role $APP password '$second'", "alter role $WORKER password '$second'")
+                pg.sql("alter role $APP password '$second'")
                 open.forEach { it.user() } // open connections keep working
                 pools.forEach { (pool, _) -> pool.hikariPoolMXBean.softEvictConnections() }
                 // the first password is revoked: a new connection with the file left at it is refused (nothing cached)
@@ -82,7 +76,6 @@ class CredentialRotationIT {
 
                 // the mounted files now carry the new password: new connections log in, with no restart
                 mount(mountRoot, APP_REF, second)
-                mount(mountRoot, WORKER_REF, second)
                 pools.forEach { (pool, role) ->
                     pool.connection.use { fresh ->
                         fresh.user() shouldBe role
@@ -93,9 +86,8 @@ class CredentialRotationIT {
                 open.forEach { it.close() } // returned after the eviction: retired, not reused
 
                 // a second rotation, again in the same context
-                pg.sql("alter role $APP password '$third'", "alter role $WORKER password '$third'")
+                pg.sql("alter role $APP password '$third'")
                 mount(mountRoot, APP_REF, third)
-                mount(mountRoot, WORKER_REF, third)
                 pools.forEach { (pool, _) -> pool.hikariPoolMXBean.softEvictConnections() }
                 pools.forEach { (pool, role) -> pool.connection.use { it.user() shouldBe role } }
             }
@@ -157,8 +149,10 @@ class CredentialRotationIT {
         pg: PostgreSQLContainer<*>,
         mountRoot: Path,
     ) = tpl18Service()
-        .withUserConfiguration(RolePoolBootstrap::class.java)
         .withPropertyValues(
+            // the same instance under another URL, so the event-log pool is created (INV-REQ-1230 b2)
+            "gst.db.event-log-url=${pg.jdbcUrl}&ApplicationName=event-log",
+            "service-runtime.event-log-pool.minimum-idle=0",
             "gst.bindings.secret-store.mount-root=$mountRoot",
             "spring.datasource.url=${pg.jdbcUrl}",
             "spring.datasource.username=$APP",
@@ -184,31 +178,10 @@ class CredentialRotationIT {
             "service-runtime.flyway.credential=$OWNER_REF",
         )
 
-    /** The service's bootstrap (TPL-18 `RolePool`): a role pool whose password comes through SecretStore. */
-    @Configuration(proxyBeanMethods = false)
-    class RolePoolBootstrap {
-        @Bean(ServiceDataSources.WORKER, defaultCandidate = false)
-        fun workerPool(
-            secrets: SecretStore,
-            @Value("\${spring.datasource.url}") url: String,
-        ): HikariDataSource = HikariDataSource(
-            HikariConfig().also {
-                it.poolName = "worker"
-                it.jdbcUrl = url
-                it.credentialsProvider = SecretStoreCredentialsProvider(secrets, WORKER, SecretRef(WORKER_REF))
-                it.minimumIdle = 0
-                it.maximumPoolSize = 3
-                it.connectionTimeout = 1000
-            },
-        )
-    }
-
-    private companion object {
+    internal companion object {
         const val APP = "submission_app"
-        const val WORKER = "submission_worker"
         const val OWNER = "submission_owner"
         const val APP_REF = "db-submission-app"
-        const val WORKER_REF = "db-submission-worker"
         const val OWNER_REF = "db-submission-owner"
 
         fun password() = "pw-${UUID.randomUUID()}"

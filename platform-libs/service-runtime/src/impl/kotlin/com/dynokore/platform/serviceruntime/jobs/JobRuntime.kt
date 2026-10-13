@@ -9,8 +9,10 @@ import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.TenantScope
+import com.dynokore.platform.serviceruntime.identity.WorkloadPrincipal
+import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantId
-import java.sql.Timestamp
+import org.slf4j.LoggerFactory
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -36,9 +38,16 @@ interface TransactionalJobCommandJournal : JobCommandJournal {
  *
  * The service keeps its own scheduler (INV-REQ-1136 b2): its `@Scheduled` method calls [fire] at each
  * firing on every instance; the lock and the `job_run` key make one run per tick. Wiring:
- * - [scope]: the service's tenant binding, transactions and current connection (app role);
- * - [worker]: the service's narrow worker role (ShedLock, sweeper, purge; ARC 4.3 step 1a);
+ * - [scope]: the service's tenant binding, transactions and current connection, on the runtime login;
+ * - [runtime]: the service's one application DataSource, the runtime login, for ShedLock's table (no tenant data);
  * - [outbox] and [audit]: the service's outbox writer and audit writer (INV-REQ-1226, INV-REQ-2588).
+ *
+ * Actors (owner ruling INV-Q-4344 (b), coordinator ruling INV-Q-4268): a job's runs (the firing, the claim of its
+ * tick, its completion, the sweep of an abandoned run) bind `svc:<svc>/job:<job>` ([WorkloadPrincipal.job]); the
+ * announce, the sweeper's read and the purge bind the service's `svc:<svc>`; an operator's command binds the
+ * operator's `sub`. The sweeper and the purge reach across tenants only through the `<svc>_sys`-owned
+ * [JobSchema.IN_PROGRESS_VIEW] and [JobSchema.PURGE_EXPIRED] (coordinator ruling INV-Q-4346 (A)); [checkRetention]
+ * refuses a configured [retention] that differs from the migration-written retention row.
  */
 class JobRuntime(
     private val service: String,
@@ -46,7 +55,7 @@ class JobRuntime(
     private val scope: TenantScope,
     private val outbox: OutboxWriter,
     private val audit: AuditWriter,
-    private val worker: DataSource,
+    private val runtime: DataSource,
     private val authorizer: JobCommandAuthorizer,
     private val deadlines: DeadlineSource,
     private val clock: Clock,
@@ -54,9 +63,18 @@ class JobRuntime(
     /** job_run and ended job_pause rows are purged after this window (T30 slot answer retention: default 30 days). */
     val retention: Duration = DEFAULT_RETENTION,
 ) : JobCommands {
-    private val schemaName = JobSchema.identifier(schema)
-    private val state = JdbcJobState(scope.connections, schemaName, service)
-    private val election = ShedLockLeaderElection.postgres(worker, schemaName, clock)
+    private val principal = WorkloadPrincipal(service)
+    private val inProgress = "${SqlIdentifier.require(schema, "schema")}.${JobSchema.IN_PROGRESS_VIEW}"
+    private val purgeExpired = "${SqlIdentifier.require(schema, "schema")}.${JobSchema.PURGE_EXPIRED}"
+    private val retentionWindow = "${SqlIdentifier.require(schema, "schema")}.${JobSchema.RETENTION_WINDOW}"
+    private val state = JdbcJobState(scope.connections, schema, service)
+    private val election = ShedLockLeaderElection.postgres(runtime, schema, clock)
+
+    init {
+        require(scope.workloadPrincipal == principal.value) {
+            "the TenantScope's workload principal must be the service's own (${principal.value})"
+        }
+    }
     private val jobs = ConcurrentHashMap<String, Registered>()
 
     private class Registered(
@@ -88,10 +106,15 @@ class JobRuntime(
     }
 
     /** The registered jobs, by name. */
-    fun registered(): List<JobDefinition> = jobs.values.map { it.job }.sortedBy { it.name }
+    override fun registered(): List<JobDefinition> = jobs.values.map { it.job }.sortedBy { it.name }
 
-    /** Emits `JobRegistered` once per registered job; called when the service starts (INV-REQ-1226 b6, INV-Q-2981). */
+    /**
+     * The job runtime's start, called when the service starts: refuses to start ([checkRetention]) when the configured
+     * retention differs from the migration-written row (INV-Q-4346 (A)), then emits `JobRegistered` once per
+     * registered job (INV-REQ-1226 b6, INV-Q-2981).
+     */
     fun announce() {
+        checkRetention()
         val correlation = CorrelationId("job-registration:${UUID.randomUUID()}")
         // start-up is background work: the service's workload principal (INV-REQ-854 b1, INV-Q-4268)
         scope.bindWorkload(TenantId.PLATFORM) {
@@ -124,7 +147,7 @@ class JobRuntime(
             } else {
                 election.runIfLeader(registered.job, target) {
                     val key = RunKey(registered.job, target, tick, JobTrigger.SCHEDULED, 1)
-                    val claimed = inTenant(target) { state.begin(key, clock.instant()) }
+                    val claimed = inRun(registered.job, target) { state.begin(key, clock.instant()) }
                     if (claimed) {
                         execute(registered, key, newCorrelation(), null)
                         FireResult.RAN
@@ -151,32 +174,49 @@ class JobRuntime(
     }
 
     /**
-     * Deletes `job_run` rows that started, and `job_pause` rows that ended or ran out, more than [retention]
-     * ago (T30 slot answer retention). Returns the number of rows deleted.
+     * Refuses to start when [retention] differs from the job-retention row the migration runner wrote (coordinator
+     * ruling INV-Q-4346 (A)), or when the row is missing: the purge reads only the row.
+     */
+    fun checkRetention() {
+        val window =
+            scope.bindWorkload(TenantId.PLATFORM) {
+                scope.transactions.inTransaction {
+                    scope.connections.require().prepareStatement("select extract(epoch from $retentionWindow())::bigint").use {
+                        it.executeQuery().use { rows -> if (rows.next()) rows.getObject(1) as Long? else null }
+                    }
+                }
+            }
+        check(window != null) { "the job-retention row is missing: run the service's migration (INV-Q-4346)" }
+        check(Duration.ofSeconds(window) == retention) {
+            "the configured job retention $retention differs from the migration-written row (${Duration.ofSeconds(window)})"
+        }
+    }
+
+    /**
+     * Deletes `job_run` rows that started, and `job_pause` rows that ended or ran out, before the migration-written
+     * retention window (T30 slot answer retention), through the `<svc>_sys` purge function in batches, each its own
+     * transaction under the service's workload principal. Returns the number of rows deleted; with no retention row
+     * nothing is deleted and an error is logged.
      */
     fun purge(): Int {
-        val cutoff = Timestamp.from(clock.instant().minus(retention))
-        return worker.connection.use { connection ->
-            val runs =
-                connection.prepareStatement(
-                    "delete from $schemaName.${JobSchema.JOB_RUN} " +
-                        "where service = ? and status <> 'IN_PROGRESS' and started_at < ?",
-                ).use {
-                    it.setString(1, service)
-                    it.setTimestamp(2, cutoff)
-                    it.executeUpdate()
+        var total = 0
+        do {
+            val deleted =
+                scope.bindWorkload(TenantId.PLATFORM) {
+                    scope.transactions.inTransaction {
+                        scope.connections.require().prepareStatement("select $purgeExpired(?)").use {
+                            it.setInt(1, PURGE_BATCH)
+                            it.executeQuery().use { rows -> if (rows.next()) rows.getObject(1) as Long? else null }
+                        }
+                    }
                 }
-            val pauses =
-                connection.prepareStatement(
-                    "delete from $schemaName.${JobSchema.JOB_PAUSE} " +
-                        "where service = ? and coalesce(ended_at, paused_until) < ?",
-                ).use {
-                    it.setString(1, service)
-                    it.setTimestamp(2, cutoff)
-                    it.executeUpdate()
-                }
-            runs + pauses
-        }
+            if (deleted == null) {
+                log.error("job retention row is missing in the service's schema: nothing purged (INV-Q-4346)")
+                return total
+            }
+            total += deleted.toInt()
+        } while (deleted == PURGE_BATCH.toLong())
+        return total
     }
 
     // --- commands (INV-REQ-1138, INV-API-3023, INV-API-3025) ---
@@ -410,14 +450,14 @@ class JobRuntime(
     ): Boolean {
         val bound = deadlineBound(job, target)
         val own =
-            inTenant(target) {
+            inRun(job, target) {
                 if (endLapsed) livePause(job, target, at, bound) else peekPause(job, target, at, bound)
             }
         if (own != null) return true
         if (target is JobTarget.Entity) {
             val wideBound = deadlineBound(job, JobTarget.Whole)
             val wide =
-                inTenant(JobTarget.Whole) {
+                inRun(job, JobTarget.Whole) {
                     if (endLapsed) {
                         livePause(job, JobTarget.Whole, at, wideBound)
                     } else {
@@ -478,7 +518,7 @@ class JobRuntime(
         durationMillis: Long,
         correlation: CorrelationId,
         causation: CausationId? = null,
-    ): Boolean = inTenant(key.target) {
+    ): Boolean = inRun(registered.job, key.target) {
         val now = clock.instant()
         val finished = state.finish(key, failure, now, durationMillis)
         if (finished) {
@@ -506,30 +546,33 @@ class JobRuntime(
         val startedAt: Instant,
     )
 
-    private fun abandonedCandidates(): List<Candidate> = worker.connection.use { connection ->
-        connection.prepareStatement(
-            """
-            select tenant_id, job, entity_ref, tick, trigger, attempt, started_at from $schemaName.${JobSchema.JOB_RUN}
-            where service = ? and status = 'IN_PROGRESS' order by started_at limit $SWEEP_BATCH
-            """.trimIndent(),
-        ).use { statement ->
-            statement.setString(1, service)
-            statement.executeQuery().use { rows ->
-                buildList {
-                    while (rows.next()) {
-                        val tenant = TenantId(rows.getObject(1, UUID::class.java))
-                        val target =
-                            if (tenant.isPlatform) JobTarget.Whole else JobTarget.Entity(tenant, EntityRef(rows.getString(3)))
-                        add(
-                            Candidate(
-                                rows.getString(2),
-                                target,
-                                rows.getTimestamp(4).toInstant(),
-                                JobTrigger.valueOf(rows.getString(5)),
-                                rows.getInt(6),
-                                rows.getTimestamp(7).toInstant(),
-                            ),
-                        )
+    /** The IN_PROGRESS runs, oldest first, through the `<svc>_sys` view (INV-Q-4346), as the service's principal. */
+    private fun abandonedCandidates(): List<Candidate> = scope.bindWorkload(TenantId.PLATFORM) {
+        scope.transactions.inTransaction {
+            scope.connections.require().prepareStatement(
+                """
+                select tenant_id, job, entity_ref, tick, trigger, attempt, started_at from $inProgress
+                order by started_at limit ?
+                """.trimIndent(),
+            ).use { statement ->
+                statement.setInt(1, SWEEP_BATCH)
+                statement.executeQuery().use { rows ->
+                    buildList {
+                        while (rows.next()) {
+                            val tenant = TenantId(rows.getObject(1, UUID::class.java))
+                            val target =
+                                if (tenant.isPlatform) JobTarget.Whole else JobTarget.Entity(tenant, EntityRef(rows.getString(3)))
+                            add(
+                                Candidate(
+                                    rows.getString(2),
+                                    target,
+                                    rows.getTimestamp(4).toInstant(),
+                                    JobTrigger.valueOf(rows.getString(5)),
+                                    rows.getInt(6),
+                                    rows.getTimestamp(7).toInstant(),
+                                ),
+                            )
+                        }
                     }
                 }
             }
@@ -594,11 +637,12 @@ class JobRuntime(
         causation = causation,
     )
 
-    /** Background work (a scheduled firing, a run's body and completion): the service's workload principal (INV-Q-4268). */
-    private fun <T> inTenant(
+    /** A run of [job] (its firing, claim and completion): `svc:<svc>/job:<job>` (owner ruling INV-Q-4344 (b)). */
+    private fun <T> inRun(
+        job: JobDefinition,
         target: JobTarget,
         block: () -> T,
-    ): T = scope.bindWorkload(target.tenant) { scope.transactions.inTransaction(block) }
+    ): T = scope.bind(target.tenant, principal.job(job.name)) { scope.transactions.inTransaction(block) }
 
     /** An operator's command: bound to the operator's `sub` (INV-REQ-854 b1, INV-Q-4268); never the service's actor. */
     private fun <T> inTenant(
@@ -613,6 +657,8 @@ class JobRuntime(
         val DEFAULT_RETENTION: Duration = Duration.ofDays(30)
         const val ABANDONED = "abandoned"
         private const val SWEEP_BATCH = 500
+        private const val PURGE_BATCH = 1000
+        private val log = LoggerFactory.getLogger(JobRuntime::class.java)
         private val REFUSED_SCOPE = JobCommandOutcome.Refused(JobErrorCode.SCOPE_NOT_PERMITTED)
     }
 }

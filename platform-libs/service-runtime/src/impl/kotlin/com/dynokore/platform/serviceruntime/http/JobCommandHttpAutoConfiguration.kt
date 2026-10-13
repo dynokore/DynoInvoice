@@ -2,13 +2,11 @@ package com.dynokore.platform.serviceruntime.http
 
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.serviceruntime.binding.GstProperties
-import com.dynokore.platform.serviceruntime.composition.ServiceDataSources
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.jobs.JobCommands
 import com.dynokore.platform.serviceruntime.jobs.JobRuntime
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import org.springframework.beans.factory.ObjectProvider
-import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
@@ -37,9 +35,8 @@ data class IdempotencyProperties(
  * over its resource-server configuration, its [TenantScope] and its application [DataSource], this registers
  * the [JobCommandServlet] at [JobCommandServlet.MAPPING] with the API-15 [IdempotencyStore] in
  * `service-runtime.idempotency.schema`, keeping keys for `service-runtime.idempotency.retention` (per installation,
- * default 24 hours; a shorter one is refused at start-up, API-15). With the service's [JobRuntime] and worker
- * DataSource, the store gets the worker role and its purge runs as the [IdempotencyKeyPurgeJob] platform job
- * (coordinator ruling INV-Q-3798). A service without jobs gets none of it.
+ * default 24 hours; a shorter one is refused at start-up, API-15). With the service's [JobRuntime], the store's purge runs as the
+ * [IdempotencyKeyPurgeJob] platform job (coordinator ruling INV-Q-3798). A service without jobs gets none of it.
  */
 @AutoConfiguration
 @EnableConfigurationProperties(IdempotencyProperties::class, GstProperties::class)
@@ -50,20 +47,21 @@ class JobCommandHttpAutoConfiguration {
     @ConditionalOnMissingBean
     fun idempotencyStore(
         scope: TenantScope,
-        @Qualifier(ServiceDataSources.WORKER) worker: ObjectProvider<DataSource>,
-        clock: Clock,
         properties: IdempotencyProperties,
     ): IdempotencyStore {
         val schema =
             checkNotNull(properties.schema?.takeIf { it.isNotBlank() }) {
                 "service-runtime.idempotency.schema must name the service's schema (API-15 store)"
             }
-        return IdempotencyStore(scope, worker.getIfAvailable(), schema, clock, properties.retention)
+        return IdempotencyStore(scope, schema, properties.retention)
     }
 
-    /** The key purge, a platform job of the service's [JobRuntime] on its worker role (INV-Q-3798). */
+    /**
+     * The key purge, a platform job of the service's [JobRuntime] (INV-Q-3798), on the runtime login through the
+     * `<svc>_sys` purge function (INV-ADR-3968 item 6, INV-Q-4070).
+     */
     @Bean
-    @ConditionalOnBean(value = [JobRuntime::class], name = [ServiceDataSources.WORKER])
+    @ConditionalOnBean(JobRuntime::class)
     @ConditionalOnMissingBean
     fun idempotencyKeyPurgeJob(
         runtime: JobRuntime,
@@ -80,7 +78,7 @@ class JobCommandHttpAutoConfiguration {
         authority: ObjectProvider<AuthorityReplica>,
         clock: Clock,
     ): ServletRegistrationBean<JobCommandServlet> {
-        val servlet = JobCommandServlet(commands, principals, scope.tenants, idempotency, authority.ifAvailable, clock)
+        val servlet = JobCommandServlet(commands, principals, scope, idempotency, authority.ifAvailable, clock)
         return ServletRegistrationBean(servlet, JobCommandServlet.MAPPING)
     }
 }

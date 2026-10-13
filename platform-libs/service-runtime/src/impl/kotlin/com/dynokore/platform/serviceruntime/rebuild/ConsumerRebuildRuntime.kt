@@ -30,10 +30,12 @@ import java.util.UUID
  * otherwise (EVL-004); the consumer must hold the topic in 'rebuild required' (EVL-003); then the head move, the
  * `ReplayRequested` ([JdbcConsumerReplay]) and the `AuditEntryRecorded` are written and commit together.
  *
- * A full sync (coordinator rulings INV-Q-3603, INV-Q-3786) runs the same steps in one transaction on the consumer's
- * worker-role connection bound to the platform tenant ([FullSyncWiring]): the service's [ReadModelClear] for the
- * producer, the delete of its docsequence rows for that producer across every tenant (the inbox is kept), the move of
- * every topic of that producer the consumer reads, the request and the audit entry.
+ * A full sync (coordinator rulings INV-Q-3603, INV-Q-3786) runs the same steps in one transaction on the service's
+ * application DataSource, the runtime login, bound to the platform tenant and the operator's `sub` (INV-REQ-1230 b1,
+ * coordinator ruling INV-Q-4064): the service's [ReadModelClear] for the producer ([FullSyncWiring]) through
+ * INV-T-3978's `<svc>_sys`-owned read-model clear functions, the delete of its docsequence rows for that producer
+ * across every tenant through the sys-owned full-sync delete (the inbox is kept), the move of every topic of that
+ * producer the consumer reads, the request and the audit entry.
  *
  * A topic with several catalogue producers is addressed to all of them by one call (owner ruling INV-Q-3788 A): one
  * head move, one `ReplayRequested` per producer under one replay id; the repeat rule and EVL-004 hold over that set of
@@ -63,7 +65,7 @@ constructor(
     private val clock: Clock,
     private val fullSync: FullSyncWiring? = null,
 ) : ConsumerRebuildCommands {
-    /** The transaction a request runs in: the app role's for a replay by scope, the worker's for a full sync. */
+    /** The transaction a request runs in, on the runtime login, for a replay by scope and a full sync alike. */
     private inner class Side(
         val scope: TenantScope,
         outbox: OutboxWriter,
@@ -79,7 +81,6 @@ constructor(
     }
 
     private val appSide = Side(scope, outbox, audit)
-    private val fullSyncSide = fullSync?.let { Side(it.worker, it.outbox, it.audit) }
     private val json = ReplayJson()
     private val mapper = ObjectMapper()
 
@@ -97,7 +98,7 @@ constructor(
                 check(fullSync?.clears?.map { it.producer }?.containsAll(closed) == true) {
                     "a full sync from $closed needs the service's read-model clear for each (ReadModelClear)"
                 }
-                closed to checkNotNull(fullSyncSide) { "full sync needs the worker-role wiring (FullSyncWiring)" }
+                closed to appSide
             } else {
                 entry.producers.sorted() to appSide
             }
@@ -249,14 +250,10 @@ constructor(
 }
 
 /**
- * The worker-role side of a full sync (coordinator ruling INV-Q-3786): [worker] binds the platform tenant on the
- * consumer's worker-role connections (its `TransactionRunnerImpl` over the worker data source); [outbox] and [audit]
- * write through that same connection; [clears] holds the service's read-model clear per producer.
+ * A full sync's read-model clears (coordinator rulings INV-Q-3786, INV-Q-4064): [clears] holds the service's
+ * read-model clear per producer, run on the application DataSource through INV-T-3978's sys-owned clear functions.
  */
 class FullSyncWiring(
-    val worker: TenantScope,
-    val outbox: OutboxWriter,
-    val audit: AuditWriter,
     val clears: List<ReadModelClear>,
 ) {
     init {

@@ -22,6 +22,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
+import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import java.time.Clock
@@ -35,11 +36,14 @@ import javax.sql.DataSource
  * writers — [ConnectionStatusReporter], the only publisher of `ConnectionStatusChanged` (INV-REQ-836 b4,
  * INV-Q-3730), and [EvidenceArtefactRecorder]. The [JobCommands] ([JobRuntime]) are created when the service
  * declares its [JobCommandAuthorizer] and [DeadlineSource] (no platform-libs implementation; the service's,
- * against its authority replica, CS-23) and its worker DataSource; run-now bodies run on the service's
- * `jobRunNowExecutor` when it declares one, else on virtual threads.
+ * against its authority replica, CS-23), on its one application DataSource (INV-REQ-1230 b1) with the job retention
+ * of `service-runtime.jobs.retention` ([JobProperties]); run-now bodies run on the service's `jobRunNowExecutor` when
+ * it declares one, else on virtual threads. The job runtime refuses to start (`JobRuntime.announce`) when that
+ * retention differs from the migration-written job-retention row (coordinator ruling INV-Q-4346 (A)).
  */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnClass(name = ["com.dynokore.platform.outboxandqueue.TenantScope", "com.dynokore.platform.tenancykernel.TransactionRunnerImpl"])
+@EnableConfigurationProperties(JobProperties::class)
 class ServiceRuntimeWiring {
     @Bean
     @ConditionalOnBean(TransactionRunner::class, CurrentConnection::class, AuditWriter::class)
@@ -65,8 +69,12 @@ class ServiceRuntimeWiring {
 
     @Bean
     @ConditionalOnBean(
-        value = [TenantScope::class, OutboxWriter::class, AuditWriter::class, JobCommandAuthorizer::class, DeadlineSource::class],
-        name = [ServiceDataSources.WORKER],
+        TenantScope::class,
+        OutboxWriter::class,
+        AuditWriter::class,
+        JobCommandAuthorizer::class,
+        DeadlineSource::class,
+        DataSource::class,
     )
     @ConditionalOnProperty(name = [Props.SERVICE, Props.SCHEMA])
     @ConditionalOnMissingBean(JobCommands::class)
@@ -77,22 +85,24 @@ class ServiceRuntimeWiring {
         scope: TenantScope,
         outbox: OutboxWriter,
         audit: AuditWriter,
-        @Qualifier(ServiceDataSources.WORKER) worker: DataSource,
+        dataSource: DataSource,
         authorizer: JobCommandAuthorizer,
         deadlines: DeadlineSource,
         clock: Clock,
         @Qualifier(RUN_NOW_EXECUTOR) executor: ObjectProvider<Executor>,
+        jobs: JobProperties,
     ): JobRuntime = JobRuntime(
         gst.requireService(),
         modules.requireSchema(),
         scope,
         outbox,
         audit,
-        worker,
+        dataSource,
         authorizer,
         deadlines,
         clock,
         executor.getIfAvailable { Executors.newVirtualThreadPerTaskExecutor() },
+        jobs.retention,
     )
 
     companion object {
