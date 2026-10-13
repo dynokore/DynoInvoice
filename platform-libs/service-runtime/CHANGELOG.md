@@ -27,8 +27,9 @@ train is its own (README.md: "own version and changelog").
   ruling INV-Q-4023, coordinator rulings INV-Q-4485, INV-Q-4487): the `dataSource` bean is a `LanedDataSource` over
   Spring Boot's HikariDataSource (unwrap to reach the pool). Request, background and reprocessing permits per
   `service-runtime.pool.profile` (`minimal`, `ha`, `saas`) and `service-runtime.pool.runs-reprocessing` (default
-  false), with per-lane overrides `service-runtime.pool.lanes.*`; the pool maximum is their sum. Start-up fails when
-  neither the profile nor the lanes are set, when `spring.datasource.hikari.maximum-pool-size` differs from the sum,
+  false), with per-lane overrides `service-runtime.pool.lanes.*`; the pool maximum is their sum. There is no default profile
+  (INV-Q-4496): start-up fails, naming the missing settings, when the profile is unset and any lane is not set, or the
+  profile is unknown; when `spring.datasource.hikari.maximum-pool-size` differs from the sum,
   and when the reprocessing declaration and budget disagree. A thread is in the request lane unless it runs in
   `PoolLanes.inLane(...)`; job firings and service-runtime's own schedules run in the background lane. The pool's
   `application_name` is `<gst.service>`; each transaction names its lane, `<gst.service>:<lane>`, transaction-locally

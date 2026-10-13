@@ -141,8 +141,9 @@ canonical-svc, rules-svc, masterdata-svc, payload-svc, submission-svc and transp
 Start-up fails when a declaring service's reprocessing budget is 0 (its work would otherwise run on a live lane) and
 when a non-declaring service's is above 0.
 
-`service-runtime.pool.lanes.request`, `.background` and `.reprocessing` override a lane's default. Start-up fails when
-neither the profile nor the lane is set, and when `spring.datasource.hikari.maximum-pool-size` is set to anything but
+`service-runtime.pool.lanes.request`, `.background` and `.reprocessing` override a lane's default. There is no default
+profile (coordinator ruling INV-Q-4496): start-up fails, naming the missing settings, when the profile is not set and
+any lane is not set explicitly, and when the profile is not `minimal`, `ha` or `saas`; it also fails when `spring.datasource.hikari.maximum-pool-size` is set to anything but
 the sum (set the lanes instead).
 
 ## Consumer staleness (INV-T-3005; INV-REQ-1165, INV-AC-2150, INV-Q-3030 (a))

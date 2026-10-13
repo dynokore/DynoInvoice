@@ -71,16 +71,18 @@ data class PoolLaneProperties(
      */
     fun budgets(): LaneBudgets {
         val defaults = profile?.let { LaneBudgets.defaults(it, runsReprocessing) }
-        fun lane(
-            name: String,
-            override: Int?,
-            default: (LaneBudgets) -> Int,
-        ): Int = override ?: defaults?.let(default)
-            ?: error("the application pool's lanes are set per installation profile (INV-REQ-1230 b1): set $PREFIX.profile or $PREFIX.lanes.$name")
+        // no default profile (coordinator ruling INV-Q-4496): without a profile every lane is set explicitly
+        val missing = listOf("request" to lanes.request, "background" to lanes.background, "reprocessing" to lanes.reprocessing)
+            .filter { it.second == null }
+            .map { "$PREFIX.lanes.${it.first}" }
+        check(defaults != null || missing.isEmpty()) {
+            "the application pool's lanes are set per installation profile and there is no default profile (INV-REQ-1230 b1, " +
+                "INV-Q-4496): set $PREFIX.profile (minimal, ha or saas) or ${missing.joinToString()}"
+        }
         val budgets = LaneBudgets(
-            lane("request", lanes.request) { it.request },
-            lane("background", lanes.background) { it.background },
-            lane("reprocessing", lanes.reprocessing) { it.reprocessing },
+            lanes.request ?: defaults!!.request,
+            lanes.background ?: defaults!!.background,
+            lanes.reprocessing ?: defaults!!.reprocessing,
         )
         if (runsReprocessing) {
             check(budgets.reprocessing > 0) {
