@@ -57,7 +57,7 @@ class DatabaseCredentialsWiringTest {
     }
 
     @Test
-    fun `start-up fails when spring-datasource-password is set as well, naming the property only (CS-24)`(
+    fun `start-up fails when spring-datasource-password is set as well, naming the property only (CS-24, INV-Q-4548)`(
         @TempDir mountRoot: Path,
     ) {
         Files.writeString(mountRoot.resolve("db-app"), "app-password-1")
@@ -65,9 +65,9 @@ class DatabaseCredentialsWiringTest {
             .withPropertyValues("service-runtime.datasource.credential=db-app", "spring.datasource.password=property-password-1")
             .run { context ->
                 val messages = context.failureMessages()
-                messages shouldContain
-                    "service-runtime.datasource.credential takes the database password through SecretStore (STK-29), " +
-                    "so spring.datasource.password must not be set as well"
+                // the key check refuses it first, before any bean (coordinator rulings INV-Q-4548, INV-Q-4559)
+                messages shouldContain "spring.datasource.password"
+                messages shouldContain "INV-Q-4542"
                 messages shouldNotContain "property-password-1"
                 messages shouldNotContain "app-password-1"
             }

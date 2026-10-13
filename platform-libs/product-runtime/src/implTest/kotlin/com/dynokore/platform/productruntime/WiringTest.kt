@@ -134,10 +134,10 @@ class WiringTest {
             "service-runtime.workload-identity.audience=submission-svc",
             "service-runtime.modules.schema=submission",
             // The DataSource comes from Spring Boot's auto-configuration (INV-Q-4196 (A), INV-Q-4436): a lazy Hikari
-            // pool that opens no connection while the context starts, so no database is reached.
+            // pool that opens no connection while the context starts, so no database is reached. No pool password: it
+            // comes only from SecretStore and service-runtime refuses one (STK-29, INV-Q-4548, INV-Q-4570).
             "spring.datasource.url=jdbc:postgresql://localhost:1/submission",
             "spring.datasource.username=submission_svc_runtime",
-            "spring.datasource.password=unused",
             // service-runtime sets the application pool's lanes per installation profile, with no default (INV-Q-4496).
             "service-runtime.pool.profile=minimal",
         )

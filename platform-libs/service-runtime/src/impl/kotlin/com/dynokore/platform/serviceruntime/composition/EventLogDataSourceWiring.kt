@@ -18,7 +18,7 @@ import javax.sql.DataSource
 /**
  * The optional event-log pool (INV-REQ-1230 b2; owner ruling INV-Q-3955, INV-ADR-3968): when `gst.db.event-log-url`
  * names another PostgreSQL instance than `spring.datasource.url` (the HA profile, TPL-18), the [ServiceDataSources.
- * EVENT_LOG] pool connects to it as the same runtime login, with the application pool's username and password or
+ * EVENT_LOG] pool connects to it as the same runtime login, with the application pool's username and
  * SecretStore credentials provider. At most [ServiceDataSources.EVENT_LOG_MAXIMUM] connections, and
  * [EventLogPoolProperties.minimumIdle] idle (default 1, refused above the maximum; INV-T-3977 capacity model,
  * coordinator ruling INV-Q-4348). An absent URL, or the application one, collapses into the application DataSource:
@@ -26,6 +26,7 @@ import javax.sql.DataSource
  *
  * It sets no connection-init SQL and no schema and issues no statement on a connection: it does not copy the application
  * pool's connectionInitSql (coordinator ruling INV-Q-4542; INV-REQ-1230: role timeouts are set by provisioning; INV-T-3982).
+ * It copies no password, only the credentials provider: the login comes only from SecretStore (coordinator ruling INV-Q-4570).
  *
  * The bean is not a default autowire candidate, so the service's one application `DataSource` stays the only one an
  * unqualified `DataSource` resolves to.
@@ -52,7 +53,6 @@ class EventLogDataSourceWiring {
         pool.poolName = "event-log"
         pool.jdbcUrl = environment.getRequiredProperty(EVENT_LOG_URL)
         pool.username = application.username
-        pool.password = application.password
         application.credentialsProvider?.let { pool.credentialsProvider = it }
         pool.maximumPoolSize = ServiceDataSources.EVENT_LOG_MAXIMUM
         pool.minimumIdle = properties.minimumIdle
