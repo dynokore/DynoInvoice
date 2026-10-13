@@ -18,6 +18,9 @@ object TenancyJooq {
     /**
      * Returns [configuration] derived with the tenancy listeners and connection provider for [tables].
      *
+     * The configuration must keep jOOQ's default settings except execution limits and logging, run on the
+     * POSTGRES dialect and have no VisitListener: anything else throws [TenantPredicateViolation].
+     *
      * @param transactionRunner tenancy-kernel's runner; it must also be the [CurrentConnection] of the open
      *   transaction (tenancy-kernel's `TransactionRunnerImpl` is both).
      */
@@ -31,6 +34,12 @@ object TenancyJooq {
             requireNotNull(transactionRunner as? CurrentConnection) {
                 "the TransactionRunner must provide the current connection (tenancy-kernel's TransactionRunnerImpl)"
             }
+        // The settings and dialect tenancy-jooq owns, and no VisitListener of the consumer's (review of !61); the
+        // same checks run again on every statement.
+        OwnedSettings.require(configuration)
+        if (configuration.visitListenerProviders().isNotEmpty()) {
+            throw TenantPredicateViolation("tenancy-jooq owns the VisitListeners: the configuration already has one")
+        }
         return configuration
             .derive(TenantConnectionProvider(transactionRunner, currentConnection))
             .deriveAppending(TenantPredicateInjector(tables, tenants))
