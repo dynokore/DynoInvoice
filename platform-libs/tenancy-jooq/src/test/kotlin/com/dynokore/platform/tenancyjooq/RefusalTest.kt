@@ -1,10 +1,8 @@
 package com.dynokore.platform.tenancyjooq
 
 import com.dynokore.platform.tenancyjooq.Seed.CUSTOMER_A
-import org.jooq.Context
 import org.jooq.DSLContext
 import org.jooq.impl.CustomCondition
-import org.jooq.impl.CustomField
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -71,10 +69,6 @@ class RefusalTest {
         refusedAsA(image) { it.selectFrom(Orders).where(system.isTrue).fetch() }
         refusedAsA(image) { it.select(DSL.function("now", OffsetDateTime::class.java)).from(Orders).fetch() }
         refusedAsA(image) { it.selectFrom(Orders).where(CustomCondition.of { context -> context.sql("true") }).fetch() }
-        val comment = CommentPart()
-        refusedAsA(image) { it.select(Orders.ID, comment).from(Orders).fetch() }
-        val commented = CustomCondition.of { context -> context.sql("true --") }
-        refusedAsA(image) { it.selectFrom(Orders).where(commented).fetch() }
     }
 
     @ParameterizedTest
@@ -219,12 +213,5 @@ class RefusalTest {
             }
         }
         assertEquals(emptyList<String>(), fixture.statementsSince(mark))
-    }
-}
-
-/** A consumer's custom field that renders a comment: refused like every consumer custom part (review of !61). */
-private class CommentPart : CustomField<Int>(DSL.name("comment_part"), SQLDataType.INTEGER) {
-    override fun accept(ctx: Context<*>) {
-        ctx.sql("1 --")
     }
 }

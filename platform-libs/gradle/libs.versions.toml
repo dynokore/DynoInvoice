@@ -140,9 +140,6 @@ flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
 flyway-databasePostgresql = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway" }
 springBoot-autoconfigure = { module = "org.springframework.boot:spring-boot-autoconfigure" }
 spring-context = { module = "org.springframework:spring-context" }
-# Spring Boot's executable-jar launcher, for tenancy-jooq's fat-jar test of its guard (springTest only; version from
-# the Spring Boot BOM).
-springBoot-loader = { module = "org.springframework.boot:spring-boot-loader" }
 # STK-35 logging facade for L1 impl halves (INV-T-3384); same SLF4J release as slf4j-simple.
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4jSimple" }
 resilience4j-bom = { module = "io.github.resilience4j:resilience4j-bom", version.ref = "resilience4j" }
