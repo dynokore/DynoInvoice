@@ -220,16 +220,28 @@ val verifyClientInfrastructure =
     tasks.register("verifyClientInfrastructure") {
         group = "verification"
         description = "Fails unless every generated client's openapi-generator infrastructure source is identical."
-        val dirs = clientProjects.map { project(it).layout.buildDirectory.dir("$generatedClientSources/$clientInfrastructure") }
+        val dirs =
+            clientProjects.map {
+                project(
+                    it,
+                ).layout.buildDirectory.dir("$generatedClientSources/$clientInfrastructure")
+            }
         clientProjects.forEach { dependsOn("$it:compileKotlin") }
         dirs.forEach { inputs.dir(it) }
         doLast {
-            fun contents(dir: File): Map<String, String> = dir.walkTopDown().filter { it.isFile }.associate { it.relativeTo(dir).invariantSeparatorsPath to it.readText() }
+            fun contents(dir: File): Map<String, String> =
+                dir.walkTopDown().filter { it.isFile }.associate {
+                    it.relativeTo(dir).invariantSeparatorsPath to
+                        it.readText()
+                }
             val copies = dirs.map { contents(it.get().asFile) }
-            check(copies.first().isNotEmpty()) { "no generated $clientInfrastructure sources in ${clientProjects.first()}" }
+            check(
+                copies.first().isNotEmpty(),
+            ) { "no generated $clientInfrastructure sources in ${clientProjects.first()}" }
             copies.drop(1).forEachIndexed { i, copy ->
                 check(copy == copies.first()) {
-                    "${clientProjects[i + 1]}'s generated $clientInfrastructure differs from ${clientProjects.first()}'s; " +
+                    "${clientProjects[i + 1]}'s generated $clientInfrastructure differs from " +
+                        "${clientProjects.first()}'s; " +
                         "the impl artefact can ship only one copy"
                 }
             }

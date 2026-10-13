@@ -40,8 +40,12 @@ class ConfigResolverImportOrderTest {
     private val service =
         ApplicationContextRunner()
             .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
-            .withBean("dataSource", DataSource::class.java, { mockk<DataSource>(relaxed = true) }, { it.isPrimary = true })
-            .withPropertyValues(
+            .withBean(
+                "dataSource",
+                DataSource::class.java,
+                { mockk<DataSource>(relaxed = true) },
+                { it.isPrimary = true },
+            ).withPropertyValues(
                 "service-runtime.workload-identity.audience=submission-svc",
                 "gst.service=submission-svc",
                 "service-runtime.modules.schema=submission",
@@ -49,15 +53,28 @@ class ConfigResolverImportOrderTest {
 
     @ParameterizedTest
     @EnumSource(Composition::class)
-    fun `config-resolver's ports are beans and the PolicyReader resolves through product-runtime's catalogue`(composition: Composition) {
+    fun `config-resolver's ports are beans and the PolicyReader resolves through product-runtime's catalogue`(
+        composition: Composition,
+    ) {
         service.withUserConfiguration(composition.application).run { context ->
             context.startupFailure shouldBe null
-            listOf(PolicyReader::class, PolicyHistory::class, ConfigPurge::class, ResolutionRecorder::class, PolicyWriter::class)
-                .forEach { context.getBean(it.java) }
+            listOf(
+                PolicyReader::class,
+                PolicyHistory::class,
+                ConfigPurge::class,
+                ResolutionRecorder::class,
+                PolicyWriter::class,
+            ).forEach { context.getBean(it.java) }
             val catalogue = context.getBean(RecordingCatalogue::class.java)
             val reader = context.getBean(PolicyReader::class.java).shouldBeInstanceOf<JdbcPolicyReader>()
             val key = VariationPointKey("VP-20")
-            shouldThrow<UnknownVariationPoint> { reader.resolve(key, PolicyScope.installation(), LocalDate.of(2026, 10, 12)) }
+            shouldThrow<UnknownVariationPoint> {
+                reader.resolve(
+                    key,
+                    PolicyScope.installation(),
+                    LocalDate.of(2026, 10, 12),
+                )
+            }
             catalogue.asked shouldContainExactly listOf(key)
             // the optional DelegationProbe product-runtime provides reaches the PolicyWriter
             val writer = context.getBean(PolicyWriter::class.java).shouldBeInstanceOf<JdbcPolicyWriter>()
@@ -67,39 +84,58 @@ class ConfigResolverImportOrderTest {
 
     @ParameterizedTest
     @EnumSource(Composition::class)
-    fun `without product-runtime's optional DelegationProbe the PolicyWriter is still wired, without one`(composition: Composition) {
-        service.withUserConfiguration(composition.application)
+    fun `without product-runtime's optional DelegationProbe the PolicyWriter is still wired, without one`(
+        composition: Composition,
+    ) {
+        service
+            .withUserConfiguration(composition.application)
             .withPropertyValues("${ProductRuntimeConfiguration.DELEGATION_PROBE}=false")
             .run { context ->
                 context.startupFailure shouldBe null
                 context.getBeanNamesForType(DelegationProbe::class.java).size shouldBe 0
-                context.getBean(PolicyWriter::class.java).shouldBeInstanceOf<JdbcPolicyWriter>().delegation() shouldBe null
+                context.getBean(PolicyWriter::class.java).shouldBeInstanceOf<JdbcPolicyWriter>().delegation() shouldBe
+                    null
             }
     }
 
     @Test
     fun `without a VariationPointCatalogue no config-resolver port is a bean`() {
-        listOf(ServiceOnlyApplication::class.java, ServiceOnlyAutoConfiguredApplication::class.java).forEach { application ->
-            service.withUserConfiguration(application).run { context ->
-                context.startupFailure shouldBe null
-                context.getBean(CurrentConnection::class.java)
-                listOf(PolicyReader::class, PolicyHistory::class, ConfigPurge::class, ResolutionRecorder::class, PolicyWriter::class)
-                    .forEach { context.getBeanNamesForType(it.java).size shouldBe 0 }
+        listOf(ServiceOnlyApplication::class.java, ServiceOnlyAutoConfiguredApplication::class.java)
+            .forEach { application ->
+                service.withUserConfiguration(application).run { context ->
+                    context.startupFailure shouldBe null
+                    context.getBean(CurrentConnection::class.java)
+                    listOf(
+                        PolicyReader::class,
+                        PolicyHistory::class,
+                        ConfigPurge::class,
+                        ResolutionRecorder::class,
+                        PolicyWriter::class,
+                    ).forEach { context.getBeanNamesForType(it.java).size shouldBe 0 }
+                }
             }
-        }
     }
 
     @Test
     fun `a service's own PolicyReader still replaces the default under TPL-18`() {
         val own = mockk<PolicyReader>()
-        service.withBean(PolicyReader::class.java, { own }).withUserConfiguration(Tpl18Application::class.java).run { context ->
-            context.startupFailure shouldBe null
-            context.getBean(PolicyReader::class.java) shouldBeSameInstanceAs own
-            context.getBean(PolicyHistory::class.java).shouldBeInstanceOf<JdbcPolicyHistory>()
-        }
+        service
+            .withBean(PolicyReader::class.java, { own })
+            .withUserConfiguration(Tpl18Application::class.java)
+            .run { context ->
+                context.startupFailure shouldBe null
+                context.getBean(PolicyReader::class.java) shouldBeSameInstanceAs own
+                context.getBean(PolicyHistory::class.java).shouldBeInstanceOf<JdbcPolicyHistory>()
+            }
     }
 
     private companion object {
-        fun JdbcPolicyWriter.delegation(): Any? = JdbcPolicyWriter::class.java.getDeclaredField("delegation").apply { isAccessible = true }.get(this)
+        fun JdbcPolicyWriter.delegation(): Any? =
+            JdbcPolicyWriter::class.java
+                .getDeclaredField("delegation")
+                .apply {
+                    isAccessible =
+                        true
+                }.get(this)
     }
 }

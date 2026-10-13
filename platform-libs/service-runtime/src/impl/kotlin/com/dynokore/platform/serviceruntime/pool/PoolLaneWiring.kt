@@ -37,14 +37,19 @@ internal class PoolLanePostProcessor(
         val budgets = properties.budgets()
         environment.getProperty(MAXIMUM_POOL_SIZE, Int::class.java)?.let { configured ->
             check(configured == budgets.maximum) {
-                "$MAXIMUM_POOL_SIZE is $configured, but the application pool's maximum is the sum of its lane budgets " +
+                "$MAXIMUM_POOL_SIZE is $configured, but the application pool's maximum is the sum of its lane " +
+                    "budgets " +
                     "(request / background / reprocessing $budgets = ${budgets.maximum}): set ${PoolLaneProperties.PREFIX}.lanes.* instead"
             }
         }
         check(!bean.isRunning) { "the application pool '$beanName' started before its lanes were set" }
         bean.maximumPoolSize = budgets.maximum
         // the pool's own name, set once at construction; a transaction names its lane on top (INV-Q-4487)
-        environment.getProperty(SERVICE)?.takeIf { it.isNotBlank() }?.let { bean.addDataSourceProperty(APPLICATION_NAME, it) }
+        environment
+            .getProperty(
+                SERVICE,
+            )?.takeIf { it.isNotBlank() }
+            ?.let { bean.addDataSourceProperty(APPLICATION_NAME, it) }
         return LanedDataSource(bean, budgets)
     }
 

@@ -51,16 +51,24 @@ class JdbcOutboxRelay(
         require(batchSize in 1..MAX_BATCH) { "batch size must be 1..$MAX_BATCH, was $batchSize" }
     }
 
-    override fun runOnce(): RelayOutcome = claimSource.connection.use { claim ->
-        val wasAutoCommit = claim.autoCommit
-        claim.autoCommit = false
-        try {
-            if (tryLock(claim)) publishBatch(claim) else RelayOutcome(published = 0, pending = pending(claim), stalled = false)
-        } finally {
-            claim.rollback() // ends the claim transaction and with it the lock; it wrote nothing
-            claim.autoCommit = wasAutoCommit
+    override fun runOnce(): RelayOutcome =
+        claimSource.connection.use { claim ->
+            val wasAutoCommit = claim.autoCommit
+            claim.autoCommit = false
+            try {
+                if (tryLock(
+                        claim,
+                    )
+                ) {
+                    publishBatch(claim)
+                } else {
+                    RelayOutcome(published = 0, pending = pending(claim), stalled = false)
+                }
+            } finally {
+                claim.rollback() // ends the claim transaction and with it the lock; it wrote nothing
+                claim.autoCommit = wasAutoCommit
+            }
         }
-    }
 
     private fun publishBatch(claim: Connection): RelayOutcome {
         var published = 0
@@ -77,75 +85,93 @@ class JdbcOutboxRelay(
         return RelayOutcome(published, pending(claim), stalled)
     }
 
-    private fun publishOne(item: Claimed): Boolean = scope.bindWorkload(item.tenant) {
-        scope.transactions.inTransaction {
-            val row = read(item.seq) ?: return@inTransaction false
-            binding.publish(row.topic, row.envelope)
-            markPublished(item.seq)
-            true
+    private fun publishOne(item: Claimed): Boolean =
+        scope.bindWorkload(item.tenant) {
+            scope.transactions.inTransaction {
+                val row = read(item.seq) ?: return@inTransaction false
+                binding.publish(row.topic, row.envelope)
+                markPublished(item.seq)
+                true
+            }
         }
-    }
 
-    private fun tryLock(claim: Connection): Boolean = claim.prepareStatement("select pg_try_advisory_xact_lock(hashtext(?))").use { statement ->
-        statement.setString(1, outbox)
-        statement.executeQuery().use { rows -> rows.next() && rows.getBoolean(1) }
-    }
-
-    private fun claimBatch(claim: Connection): List<Claimed> = claim.prepareStatement("select seq, tenant_id from $claimView where published_at is null order by seq limit ?").use {
-        it.setInt(1, batchSize)
-        it.executeQuery().use { rows ->
-            buildList { while (rows.next()) add(Claimed(rows.getLong(1), TenantId(rows.getObject(2, UUID::class.java)))) }
+    private fun tryLock(claim: Connection): Boolean =
+        claim.prepareStatement("select pg_try_advisory_xact_lock(hashtext(?))").use { statement ->
+            statement.setString(1, outbox)
+            statement.executeQuery().use { rows -> rows.next() && rows.getBoolean(1) }
         }
-    }
 
-    private fun read(seq: Long): Row? = scope.connections
-        .require()
-        .prepareStatement(
-            """
+    private fun claimBatch(claim: Connection): List<Claimed> =
+        claim
+            .prepareStatement(
+                "select seq, tenant_id from $claimView where published_at is null order by seq limit ?",
+            ).use {
+                it.setInt(1, batchSize)
+                it.executeQuery().use { rows ->
+                    buildList {
+                        while (rows.next()) {
+                            add(
+                                Claimed(rows.getLong(1), TenantId(rows.getObject(2, UUID::class.java))),
+                            )
+                        }
+                    }
+                }
+            }
+
+    private fun read(seq: Long): Row? =
+        scope.connections
+            .require()
+            .prepareStatement(
+                """
                 select topic, id, type, source, subject, event_time, tenant_id, entity_ref, doc_uuid,
                        transaction_date, docsequence, instance_id, correlation_id, causation_id, data::text
                 from $outbox where seq = ? and published_at is null
-            """.trimIndent(),
-        ).use { statement ->
-            statement.setLong(1, seq)
-            statement.executeQuery().use { rows -> if (rows.next()) row(rows) else null }
-        }
+                """.trimIndent(),
+            ).use { statement ->
+                statement.setLong(1, seq)
+                statement.executeQuery().use { rows -> if (rows.next()) row(rows) else null }
+            }
 
-    private fun row(rows: ResultSet): Row = Row(
-        topic = rows.getString("topic"),
-        envelope =
-        Envelope(
-            id = EventId(rows.getString("id")),
-            source = rows.getString("source"),
-            type = rows.getString("type"),
-            subject = rows.getString("subject"),
-            time = rows.getTimestamp("event_time").toInstant(),
-            tenant = TenantId(rows.getObject("tenant_id", UUID::class.java)),
-            entity = EntityRef(rows.getString("entity_ref")),
-            docUuid = rows.getObject("doc_uuid", UUID::class.java)?.let { DocUuid(it) },
-            transactionDate = rows.getObject("transaction_date", java.time.LocalDate::class.java),
-            docSequence = rows.getObject("docsequence", Long::class.javaObjectType),
-            instanceId = rows.getString("instance_id"),
-            correlation = CorrelationId(rows.getString("correlation_id")),
-            causation = CausationId(rows.getString("causation_id")),
-            dataJson = rows.getString("data"),
-        ),
-    )
+    private fun row(rows: ResultSet): Row =
+        Row(
+            topic = rows.getString("topic"),
+            envelope =
+                Envelope(
+                    id = EventId(rows.getString("id")),
+                    source = rows.getString("source"),
+                    type = rows.getString("type"),
+                    subject = rows.getString("subject"),
+                    time = rows.getTimestamp("event_time").toInstant(),
+                    tenant = TenantId(rows.getObject("tenant_id", UUID::class.java)),
+                    entity = EntityRef(rows.getString("entity_ref")),
+                    docUuid = rows.getObject("doc_uuid", UUID::class.java)?.let { DocUuid(it) },
+                    transactionDate = rows.getObject("transaction_date", java.time.LocalDate::class.java),
+                    docSequence = rows.getObject("docsequence", Long::class.javaObjectType),
+                    instanceId = rows.getString("instance_id"),
+                    correlation = CorrelationId(rows.getString("correlation_id")),
+                    causation = CausationId(rows.getString("causation_id")),
+                    dataJson = rows.getString("data"),
+                ),
+        )
 
     private fun markPublished(seq: Long) {
-        scope.connections.require().prepareStatement("update $outbox set published_at = ? where seq = ?").use { statement ->
-            statement.setTimestamp(1, Timestamp.from(clock.instant()))
-            statement.setLong(2, seq)
-            statement.executeUpdate()
-        }
+        scope.connections
+            .require()
+            .prepareStatement("update $outbox set published_at = ? where seq = ?")
+            .use { statement ->
+                statement.setTimestamp(1, Timestamp.from(clock.instant()))
+                statement.setLong(2, seq)
+                statement.executeUpdate()
+            }
     }
 
-    private fun pending(claim: Connection): Long = claim.prepareStatement("select count(*) from $claimView where published_at is null").use { statement ->
-        statement.executeQuery().use { rows ->
-            check(rows.next()) { "count returned no row" }
-            rows.getLong(1)
+    private fun pending(claim: Connection): Long =
+        claim.prepareStatement("select count(*) from $claimView where published_at is null").use { statement ->
+            statement.executeQuery().use { rows ->
+                check(rows.next()) { "count returned no row" }
+                rows.getLong(1)
+            }
         }
-    }
 
     private class Claimed(
         val seq: Long,

@@ -27,7 +27,9 @@ import java.util.UUID
 class JobMaintenanceIT {
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
-    fun `the sweeper and the purge work across tenants as the runtime login, the direct access reaches nothing`(image: String) {
+    fun `the sweeper and the purge work across tenants as the runtime login, the direct access reaches nothing`(
+        image: String,
+    ) {
         JobsHarness(image).use { h ->
             val replica = h.replica("svc-1", MutableClock(Instant.now()))
             val sweep = job("maintenance-sweep")
@@ -62,7 +64,10 @@ class JobMaintenanceIT {
                 }
                 // and it cannot read the retention row: only the sys role can (INV-Q-4346)
                 assertThrows<SQLException> {
-                    runtime.prepareStatement("select job_window from $SCHEMA.${JobSchema.JOB_RETENTION}").use { it.executeQuery() }
+                    runtime
+                        .prepareStatement(
+                            "select job_window from $SCHEMA.${JobSchema.JOB_RETENTION}",
+                        ).use { it.executeQuery() }
                 }.sqlState shouldBe "42501"
             }
             count(h, "job_run", purge.name) shouldBe 3L
@@ -71,7 +76,8 @@ class JobMaintenanceIT {
             // the sweeper finishes each tenant's abandoned run under that tenant, as the job's own principal
             h.fixture.captureActors("$SCHEMA.outbox")
             replica.runtime.sweepAbandoned() shouldBe 2
-            h.runs(sweep.name).map { it["status"] to it["reason"] }.toSet() shouldBe setOf("FAILED" to JobRuntime.ABANDONED)
+            h.runs(sweep.name).map { it["status"] to it["reason"] }.toSet() shouldBe
+                setOf("FAILED" to JobRuntime.ABANDONED)
             h.runs(sweep.name).map { it["tenant_id"] }.toSet() shouldBe setOf(TENANT_A.value, TENANT_B.value)
             h.fixture.capturedActors("$SCHEMA.outbox").toSet() shouldBe setOf("svc:$SERVICE/job:${sweep.name}")
 
@@ -80,9 +86,16 @@ class JobMaintenanceIT {
 
             // the purge deletes, across tenants, only finished runs and ended pauses older than the row's window
             replica.runtime.purge() shouldBe 4
-            h.rows("select entity_ref, status from $SCHEMA.job_run where job = ? order by entity_ref", purge.name)
-                .map { it["entity_ref"] to it["status"] } shouldBe listOf("E-003" to "IN_PROGRESS", "E-004" to "SUCCEEDED")
-            h.rows("select entity_ref from $SCHEMA.job_pause where job = ?", purge.name).map { it["entity_ref"] } shouldBe listOf("E-005")
+            h
+                .rows("select entity_ref, status from $SCHEMA.job_run where job = ? order by entity_ref", purge.name)
+                .map { it["entity_ref"] to it["status"] } shouldBe
+                listOf("E-003" to "IN_PROGRESS", "E-004" to "SUCCEEDED")
+            h
+                .rows(
+                    "select entity_ref from $SCHEMA.job_pause where job = ?",
+                    purge.name,
+                ).map { it["entity_ref"] } shouldBe
+                listOf("E-005")
 
             // a retention that differs from the row stops the job runtime's start
             val longer = h.replica("svc-2", MutableClock(Instant.now()), retention = Duration.ofDays(40))
@@ -104,9 +117,11 @@ class JobMaintenanceIT {
             val functions =
                 h.rows(
                     "select p.proname as name, pg_get_userbyid(p.proowner) as owner, p.prosecdef as definer, " +
-                        "p.proconfig::text as config, has_function_privilege('public', p.oid, 'execute') as public_exec, " +
+                        "p.proconfig::text as config, has_function_privilege('public', p.oid, 'execute') as " +
+                        "public_exec, " +
                         "has_function_privilege(?, p.oid, 'execute') as runtime_exec " +
-                        "from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = ? and p.proname in (?, ?) " +
+                        "from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = ? and " +
+                        "p.proname in (?, ?) " +
                         "order by p.proname",
                     OutboxPostgresFixture.APP,
                     SCHEMA,
@@ -122,37 +137,54 @@ class JobMaintenanceIT {
                 it["runtime_exec"] shouldBe true
             }
             val view =
-                h.rows(
-                    "select pg_get_userbyid(c.relowner) as owner, has_table_privilege(?, c.oid, 'select') as runtime_select, " +
-                        "has_table_privilege('public', c.oid, 'select') as public_select " +
-                        "from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = ? and c.relname = ?",
-                    OutboxPostgresFixture.APP,
+                h
+                    .rows(
+                        "select pg_get_userbyid(c.relowner) as owner, has_table_privilege(?, c.oid, 'select') as " +
+                            "runtime_select, " +
+                            "has_table_privilege('public', c.oid, 'select') as public_select " +
+                            "from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = ? and c.relname = ?",
+                        OutboxPostgresFixture.APP,
+                        SCHEMA,
+                        JobSchema.IN_PROGRESS_VIEW,
+                    ).single()
+            view shouldBe
+                mapOf("owner" to OutboxPostgresFixture.SYS, "runtime_select" to true, "public_select" to false)
+            h
+                .rows(
+                    "select attname from pg_attribute a join pg_class c on c.oid = a.attrelid join pg_namespace n on " +
+                        "n.oid = c.relnamespace " +
+                        "where n.nspname = ? and c.relname = ? and a.attnum > 0 order by a.attnum",
                     SCHEMA,
                     JobSchema.IN_PROGRESS_VIEW,
-                ).single()
-            view shouldBe mapOf("owner" to OutboxPostgresFixture.SYS, "runtime_select" to true, "public_select" to false)
-            h.rows(
-                "select attname from pg_attribute a join pg_class c on c.oid = a.attrelid join pg_namespace n on n.oid = c.relnamespace " +
-                    "where n.nspname = ? and c.relname = ? and a.attnum > 0 order by a.attnum",
-                SCHEMA,
-                JobSchema.IN_PROGRESS_VIEW,
-            ).map { it["attname"] } shouldBe listOf("tenant_id", "job", "entity_ref", "tick", "trigger", "attempt", "started_at")
+                ).map { it["attname"] } shouldBe
+                listOf("tenant_id", "job", "entity_ref", "tick", "trigger", "attempt", "started_at")
             // the retention table: platform-scoped, SELECT to the sys role only, a positive window
-            h.rows("select obj_description(?::regclass, 'pg_class') as comment", "$SCHEMA.${JobSchema.JOB_RETENTION}")
-                .single()["comment"] shouldBe "platform-scoped: no tenant data"
-            h.rows(
-                "select has_table_privilege(?, ?, 'select') as runtime, has_table_privilege(?, ?, 'select') as sys",
-                OutboxPostgresFixture.APP,
-                "$SCHEMA.${JobSchema.JOB_RETENTION}",
-                OutboxPostgresFixture.SYS,
-                "$SCHEMA.${JobSchema.JOB_RETENTION}",
-            ).single() shouldBe mapOf("runtime" to false, "sys" to true)
-            assertThrows<SQLException> { h.fixture.run("update $SCHEMA.${JobSchema.JOB_RETENTION} set job_window = interval '0'") }
+            h
+                .rows(
+                    "select obj_description(?::regclass, 'pg_class') as comment",
+                    "$SCHEMA.${JobSchema.JOB_RETENTION}",
+                ).single()["comment"] shouldBe "platform-scoped: no tenant data"
+            h
+                .rows(
+                    "select has_table_privilege(?, ?, 'select') as runtime, has_table_privilege(?, ?, 'select') as sys",
+                    OutboxPostgresFixture.APP,
+                    "$SCHEMA.${JobSchema.JOB_RETENTION}",
+                    OutboxPostgresFixture.SYS,
+                    "$SCHEMA.${JobSchema.JOB_RETENTION}",
+                ).single() shouldBe mapOf("runtime" to false, "sys" to true)
+            assertThrows<SQLException> {
+                h.fixture.run(
+                    "update $SCHEMA.${JobSchema.JOB_RETENTION} set job_window = interval '0'",
+                )
+            }
             // the purge refuses a batch outside its bounds
             h.fixture.runtimeDataSource().connection.use { runtime ->
                 for (batch in listOf(0, JobSchema.MAX_PURGE_BATCH + 1)) {
                     assertThrows<SQLException> {
-                        runtime.prepareStatement("select $SCHEMA.${JobSchema.PURGE_EXPIRED}($batch)").use { it.executeQuery() }
+                        runtime
+                            .prepareStatement(
+                                "select $SCHEMA.${JobSchema.PURGE_EXPIRED}($batch)",
+                            ).use { it.executeQuery() }
                     }.sqlState shouldBe "22023"
                 }
             }
@@ -167,7 +199,8 @@ class JobMaintenanceIT {
         status: String,
         age: String,
     ) = h.fixture.runAsAdmin(
-        "insert into $SCHEMA.job_run (tenant_id, service, job, entity_ref, tick, trigger, attempt, status, started_at, finished_at) " +
+        "insert into $SCHEMA.job_run (tenant_id, service, job, entity_ref, tick, trigger, attempt, status, " +
+            "started_at, finished_at) " +
             "values ('$tenant', '$SERVICE', '$job', '$entity', now() - interval '$age', 'SCHEDULED', 1, '$status', " +
             "now() - interval '$age', case when '$status' = 'IN_PROGRESS' then null else now() - interval '$age' end)",
     )

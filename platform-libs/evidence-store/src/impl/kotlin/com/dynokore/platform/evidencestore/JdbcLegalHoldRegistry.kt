@@ -32,9 +32,11 @@ class JdbcLegalHoldRegistry(
         do update set reason = excluded.reason, placed_at = excluded.placed_at
         """.trimIndent()
 
-    private val deleteSql = "delete from $schemaName.$tableName where tenant_id = ? and entity_ref = ? and period_ref = ?"
+    private val deleteSql =
+        "delete from $schemaName.$tableName where tenant_id = ? and entity_ref = ? and period_ref = ?"
 
-    private val existsSql = "select 1 from $schemaName.$tableName where tenant_id = ? and entity_ref = ? and period_ref = ?"
+    private val existsSql =
+        "select 1 from $schemaName.$tableName where tenant_id = ? and entity_ref = ? and period_ref = ?"
 
     override fun place(
         tenant: TenantId,

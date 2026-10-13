@@ -163,10 +163,19 @@ class AuthorityReplicaTest {
     fun `INV-AC-1946 a consent-derived request needs the scope item it names on the live consent`() {
         grantTo(1, listOf(grant.copy(scopeLevel = ScopeLevel.CONSENT, scopeRef = "c1")))
         consent(2, ConsentState.LIVE) // lists only SUBMIT_INVOICE_DATA
-        fun asking(item: ConsentScopeItem?) = replica.decide(
-            AuthorizationRequest(TENANT_A, Principal("p1", PrincipalKind.CONSENT_AGENT), "e1", "approve", null, item),
-            deadline(clock),
-        )
+
+        fun asking(item: ConsentScopeItem?) =
+            replica.decide(
+                AuthorizationRequest(
+                    TENANT_A,
+                    Principal("p1", PrincipalKind.CONSENT_AGENT),
+                    "e1",
+                    "approve",
+                    null,
+                    item,
+                ),
+                deadline(clock),
+            )
         asking(ConsentScopeItem.FILE_GST_RETURN) shouldBe
             AuthorityDecision(false, DecisionSource.LOCAL, DecisionReason.CONSENT_SCOPE_MISSING)
         asking(ConsentScopeItem.SUBMIT_INVOICE_DATA).allowed shouldBe true
@@ -183,13 +192,14 @@ class AuthorityReplicaTest {
     @Test
     fun `a required scope item does not limit a direct grant`() {
         grantTo(1)
-        val request = AuthorizationRequest(
-            TENANT_A,
-            Principal("p1", PrincipalKind.HUMAN),
-            "e1",
-            "approve",
-            requiredScopeItem = ConsentScopeItem.FILE_GST_RETURN,
-        )
+        val request =
+            AuthorizationRequest(
+                TENANT_A,
+                Principal("p1", PrincipalKind.HUMAN),
+                "e1",
+                "approve",
+                requiredScopeItem = ConsentScopeItem.FILE_GST_RETURN,
+            )
         replica.decide(request, deadline(clock)).allowed shouldBe true
     }
 

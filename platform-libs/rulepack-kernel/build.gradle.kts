@@ -101,7 +101,8 @@ dependencies {
     // The REFERENCE verification (coordinator ruling INV-Q-4582): tenancy-jooq's TableClasses on the migrated schema.
     // Test source set only; main and impl stay on tenancy-kernel and crypto (INV-MOD-2373 order).
     testImplementation(project(":tenancy-jooq"))
-    testRuntimeOnly(libs.slf4j.simple) // Testcontainers' own container/strategy logs are otherwise silently dropped (NOP logger)
+    // Testcontainers' own container/strategy logs are otherwise silently dropped (NOP logger)
+    testRuntimeOnly(libs.slf4j.simple)
 }
 
 tasks.test {

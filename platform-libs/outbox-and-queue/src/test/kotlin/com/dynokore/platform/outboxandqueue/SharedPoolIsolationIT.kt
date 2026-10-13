@@ -295,7 +295,8 @@ class SharedPoolIsolationIT {
             fixture.adminDataSource().connection.use { c ->
                 c.strings(
                     "select relname || '|' || pg_get_userbyid(relowner) from pg_class where relkind = 'v' " +
-                        "and relnamespace = '$SCHEMA'::regnamespace and coalesce(reloptions, '{}') = '{}' order by relname",
+                        "and relnamespace = '$SCHEMA'::regnamespace and coalesce(reloptions, '{}') = '{}' " +
+                        "order by relname",
                 )
             }
         assertEquals(listOf("event_dead_letter_triage_v|$SYS", "outbox_claim_v|$SYS"), views)

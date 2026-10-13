@@ -50,10 +50,17 @@ class SqlConfigurationKeyGuardContextIT {
     @Test
     fun `the guard is registered as an EnvironmentPostProcessor`() {
         val registered =
-            javaClass.classLoader.getResources(SpringFactoriesLoader.FACTORIES_RESOURCE_LOCATION).toList().flatMap { url ->
-                val factories = Properties().apply { url.openStream().use(::load) }
-                factories.getProperty(EnvironmentPostProcessor::class.java.name).orEmpty().split(',').map(String::trim)
-            }
+            javaClass.classLoader
+                .getResources(SpringFactoriesLoader.FACTORIES_RESOURCE_LOCATION)
+                .toList()
+                .flatMap { url ->
+                    val factories = Properties().apply { url.openStream().use(::load) }
+                    factories
+                        .getProperty(EnvironmentPostProcessor::class.java.name)
+                        .orEmpty()
+                        .split(',')
+                        .map(String::trim)
+                }
         registered shouldContain SqlConfigurationKeyGuard::class.java.name
     }
 
@@ -85,7 +92,11 @@ class SqlConfigurationKeyGuardContextIT {
     ) {
         val failure =
             shouldThrow<IllegalStateException> {
-                service().run(*arguments(secrets), "--server.servlet.context-parameters.spring.datasource.hikari.schema=evil").close()
+                service()
+                    .run(
+                        *arguments(secrets),
+                        "--server.servlet.context-parameters.spring.datasource.hikari.schema=evil",
+                    ).close()
             }
         failure.message.orEmpty() shouldContain "server.servlet.context-parameters.spring.datasource.hikari.schema"
         failure.message.orEmpty() shouldContain "INV-Q-4542"
@@ -94,8 +105,10 @@ class SqlConfigurationKeyGuardContextIT {
     @Test
     fun `start-up fails on a refused key from a @PropertySource file, before the DataSource bean is created`() {
         tpl18Service()
-            .withPropertyValues("spring.datasource.url=jdbc:postgresql://db:5432/submission", "spring.datasource.username=submission_runtime")
-            .withUserConfiguration(PropertySourceService::class.java)
+            .withPropertyValues(
+                "spring.datasource.url=jdbc:postgresql://db:5432/submission",
+                "spring.datasource.username=submission_runtime",
+            ).withUserConfiguration(PropertySourceService::class.java)
             .run { context ->
                 val failure = context.startupFailure.shouldNotBeNull()
                 // the second run (SqlConfigurationKeyRecheck), not a bean creation, fails it (INV-Q-4559)
@@ -111,11 +124,16 @@ class SqlConfigurationKeyGuardContextIT {
     class PropertySourceService
 
     @Test
-    fun `start-up fails on an @EnableMBeanExport configuration or an MBeanExporter @Bean, before the DataSource bean is created (INV-Q-4591)`() {
-        mapOf(EnableMBeanExportService::class.java to "mbeanExporter", ExporterBeanService::class.java to "probeExporter").forEach { (service, bean) ->
+    fun `start-up fails on @EnableMBeanExport or an MBeanExporter @Bean before the DataSource exists (INV-Q-4591)`() {
+        mapOf(
+            EnableMBeanExportService::class.java to "mbeanExporter",
+            ExporterBeanService::class.java to "probeExporter",
+        ).forEach { (service, bean) ->
             tpl18Service()
-                .withPropertyValues("spring.datasource.url=jdbc:postgresql://db:5432/submission", "spring.datasource.username=submission_runtime")
-                .withUserConfiguration(service)
+                .withPropertyValues(
+                    "spring.datasource.url=jdbc:postgresql://db:5432/submission",
+                    "spring.datasource.username=submission_runtime",
+                ).withUserConfiguration(service)
                 .run { context ->
                     val failure = context.startupFailure.shouldNotBeNull()
                     // the second run (SqlConfigurationKeyRecheck), not a bean creation, fails it
@@ -130,18 +148,29 @@ class SqlConfigurationKeyGuardContextIT {
     fun `the pool password cannot be set over JMX at run time (INV-Q-4591)`() {
         val service =
             tpl18Service()
-                .withPropertyValues("spring.datasource.url=jdbc:postgresql://db:5432/submission", "spring.datasource.username=submission_runtime")
-                .withConfiguration(AutoConfigurations.of(JmxAutoConfiguration::class.java))
+                .withPropertyValues(
+                    "spring.datasource.url=jdbc:postgresql://db:5432/submission",
+                    "spring.datasource.username=submission_runtime",
+                ).withConfiguration(AutoConfigurations.of(JmxAutoConfiguration::class.java))
         // spring.jmx.enabled=true as a key, and through a property source the key check cannot enumerate (the exporter check)
         service.withPropertyValues("spring.jmx.enabled=true").run { context ->
-            context.startupFailure.shouldNotBeNull().message.orEmpty() shouldContain "spring.jmx.enabled"
+            context.startupFailure
+                .shouldNotBeNull()
+                .message
+                .orEmpty() shouldContain "spring.jmx.enabled"
             hikariMBeans().shouldBeEmpty()
         }
         service.withInitializer(indirect("spring.jmx.enabled" to "true")).run { context ->
-            context.startupFailure.shouldNotBeNull().message.orEmpty() shouldContain "INV-Q-4591"
+            context.startupFailure
+                .shouldNotBeNull()
+                .message
+                .orEmpty() shouldContain "INV-Q-4591"
             hikariMBeans().shouldBeEmpty()
             shouldThrow<InstanceNotFoundException> {
-                ManagementFactory.getPlatformMBeanServer().setAttribute(ObjectName("com.zaxxer.hikari:name=dataSource,type=HikariDataSource"), Attribute("Password", "pw-value"))
+                ManagementFactory.getPlatformMBeanServer().setAttribute(
+                    ObjectName("com.zaxxer.hikari:name=dataSource,type=HikariDataSource"),
+                    Attribute("Password", "pw-value"),
+                )
             }
         }
         // service-runtime's defaults: no exporter, so no pool MBean
@@ -153,16 +182,18 @@ class SqlConfigurationKeyGuardContextIT {
         }
     }
 
-    private fun hikariMBeans() = ManagementFactory.getPlatformMBeanServer().queryNames(ObjectName("com.zaxxer.hikari:*"), null)
+    private fun hikariMBeans() =
+        ManagementFactory.getPlatformMBeanServer().queryNames(ObjectName("com.zaxxer.hikari:*"), null)
 
-    private fun indirect(vararg entries: Pair<String, String>) = ApplicationContextInitializer<ConfigurableApplicationContext> { context ->
-        val values = mapOf(*entries)
-        context.environment.propertySources.addFirst(
-            object : org.springframework.core.env.PropertySource<Any>("indirect", Any()) {
-                override fun getProperty(name: String): Any? = values[name]
-            },
-        )
-    }
+    private fun indirect(vararg entries: Pair<String, String>) =
+        ApplicationContextInitializer<ConfigurableApplicationContext> { context ->
+            val values = mapOf(*entries)
+            context.environment.propertySources.addFirst(
+                object : org.springframework.core.env.PropertySource<Any>("indirect", Any()) {
+                    override fun getProperty(name: String): Any? = values[name]
+                },
+            )
+        }
 
     @Configuration(proxyBeanMethods = false)
     @EnableMBeanExport
@@ -216,16 +247,17 @@ class SqlConfigurationKeyGuardContextIT {
     private fun service() = SpringApplicationBuilder(Tpl18WebService::class.java).web(WebApplicationType.SERVLET)
 
     // As ManagementPortIT: command-line arguments, no database (the TPL-16 database keys are present and unused).
-    private fun arguments(secrets: Path): Array<String> = (
-        listOf(
-            "server.port=0",
-            "management.server.port=0",
-            "service-runtime.workload-identity.audience=submission-svc",
-            "gst.service=submission-svc",
-            "gst.bindings.secret-store.mount-root=$secrets",
-            "spring.autoconfigure.exclude=" +
-                "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration," +
-                "org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration",
-        ) + TPL_16.map { (key, value) -> "$key=$value" }
+    private fun arguments(secrets: Path): Array<String> =
+        (
+            listOf(
+                "server.port=0",
+                "management.server.port=0",
+                "service-runtime.workload-identity.audience=submission-svc",
+                "gst.service=submission-svc",
+                "gst.bindings.secret-store.mount-root=$secrets",
+                "spring.autoconfigure.exclude=" +
+                    "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration," +
+                    "org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration",
+            ) + TPL_16.map { (key, value) -> "$key=$value" }
         ).map { "--$it" }.toTypedArray()
 }

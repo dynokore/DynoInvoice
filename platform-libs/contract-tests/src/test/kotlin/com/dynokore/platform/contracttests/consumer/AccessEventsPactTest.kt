@@ -40,44 +40,49 @@ class AccessEventsPactTest {
     }
 
     @Pact(consumer = Contracts.PRODUCT_RUNTIME)
-    fun grantSet(builder: MessagePactBuilder): V4Pact = builder
-        .given("P-1 was granted approve on entity E-001")
-        .expectsToReceive("an AuthorityChanged carrying the principal's grant set for an entity")
-        .withContent(
-            Contracts.envelope(ProductEventTypes.AUTHORITY_CHANGED, SOURCE, entity = true, docSequence = true) {
-                stringMatcher("changeKind", "^GRANT$", "GRANT")
-                stringType("principalRef", "P-1")
-                integerType("authorityVersion", 4L)
-                `object`("grantRecord")
-                    .stringType("entityRef", "E-001")
-                    .minArrayLike("grants", 1)
-                    .stringType("action", "approve")
-                    .stringMatcher("scopeLevel", "^[A-Z_]+$", "ENTITY")
-                    .stringType("scopeRef", "E-001")
-                    .stringMatcher("validFrom", INSTANT, "2026-01-01T00:00:00Z")
-                    .closeObject()!!
-                    .closeArray()!!
-                    .closeObject()
-            },
-        ).toPact(V4Pact::class.java)
+    fun grantSet(builder: MessagePactBuilder): V4Pact =
+        builder
+            .given("P-1 was granted approve on entity E-001")
+            .expectsToReceive("an AuthorityChanged carrying the principal's grant set for an entity")
+            .withContent(
+                Contracts.envelope(ProductEventTypes.AUTHORITY_CHANGED, SOURCE, entity = true, docSequence = true) {
+                    stringMatcher("changeKind", "^GRANT$", "GRANT")
+                    stringType("principalRef", "P-1")
+                    integerType("authorityVersion", 4L)
+                    `object`("grantRecord")
+                        .stringType("entityRef", "E-001")
+                        .minArrayLike("grants", 1)
+                        .stringType("action", "approve")
+                        .stringMatcher("scopeLevel", "^[A-Z_]+$", "ENTITY")
+                        .stringType("scopeRef", "E-001")
+                        .stringMatcher("validFrom", INSTANT, "2026-01-01T00:00:00Z")
+                        .closeObject()!!
+                        .closeArray()!!
+                        .closeObject()
+                },
+            ).toPact(V4Pact::class.java)
 
     @Pact(consumer = Contracts.PRODUCT_RUNTIME)
-    fun consent(builder: MessagePactBuilder): V4Pact = builder
-        .given("agent P-9 holds a live consent for client entity C-7")
-        .expectsToReceive("an AuthorityChanged carrying an agent consent's coverage")
-        .withContent(
-            Contracts.envelope(ProductEventTypes.AUTHORITY_CHANGED, SOURCE, entity = true, docSequence = true) {
-                stringMatcher("changeKind", "^CONSENT$", "CONSENT")
-                stringType("principalRef", "P-9")
-                integerType("authorityVersion", 2L)
-                `object`("consentRecord")
-                    .stringType("clientEntityRef", "C-7")
-                    .stringMatcher("state", "^[A-Z_]+$", "LIVE")
-                    .eachLike("scopeItems", PactDslJsonRootValue.stringMatcher("^[A-Z_]+$", "SUBMIT_INVOICE_DATA"), 1)
-                    .stringMatcher("validFrom", INSTANT, "2026-01-01T00:00:00Z")
-                    .closeObject()
-            },
-        ).toPact(V4Pact::class.java)
+    fun consent(builder: MessagePactBuilder): V4Pact =
+        builder
+            .given("agent P-9 holds a live consent for client entity C-7")
+            .expectsToReceive("an AuthorityChanged carrying an agent consent's coverage")
+            .withContent(
+                Contracts.envelope(ProductEventTypes.AUTHORITY_CHANGED, SOURCE, entity = true, docSequence = true) {
+                    stringMatcher("changeKind", "^CONSENT$", "CONSENT")
+                    stringType("principalRef", "P-9")
+                    integerType("authorityVersion", 2L)
+                    `object`("consentRecord")
+                        .stringType("clientEntityRef", "C-7")
+                        .stringMatcher("state", "^[A-Z_]+$", "LIVE")
+                        .eachLike(
+                            "scopeItems",
+                            PactDslJsonRootValue.stringMatcher("^[A-Z_]+$", "SUBMIT_INVOICE_DATA"),
+                            1,
+                        ).stringMatcher("validFrom", INSTANT, "2026-01-01T00:00:00Z")
+                        .closeObject()
+                },
+            ).toPact(V4Pact::class.java)
 
     @Test
     @PactTestFor(pactMethod = "grantSet")

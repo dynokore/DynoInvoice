@@ -23,16 +23,17 @@ class ServiceKit(
     val boundary = KillableTransactionRunner(harness.fixture.appDataSource(), tenants)
     val scope = TenantScope(tenants, boundary, boundary, OutboxPostgresFixture.WORKLOAD)
     val writer = JdbcOutboxWriter(boundary, schema, service, "$service-1", catalogue, CLOCK)
-    val relay = JdbcOutboxRelay(
-        harness.fixture.runtimeDataSource(),
-        TenantScope(tenants, boundary, boundary, OutboxPostgresFixture.WORKLOAD),
-        schema,
-        PostgresEventBinding(harness.fixture.eventLogScope(tenants, harness.eventLogForRelay)),
-        CLOCK,
-        batchSize = 50,
-    )
+    val relay =
+        JdbcOutboxRelay(
+            harness.fixture.runtimeDataSource(),
+            TenantScope(tenants, boundary, boundary, OutboxPostgresFixture.WORKLOAD),
+            schema,
+            PostgresEventBinding(harness.fixture.eventLogScope(tenants, harness.eventLogForRelay)),
+            CLOCK,
+            batchSize = 50,
+        )
 
-    /** Runs [block] in a transaction of [tenant], as an inbound adapter would after binding it (ARC-21). */
+    // Runs [block] in a transaction of [tenant], as an inbound adapter would after binding it (ARC-21).
     // INV-T-3999 removes this call
     @Suppress("DEPRECATION")
     fun <T> inTx(
@@ -40,7 +41,7 @@ class ServiceKit(
         block: () -> T,
     ): T = tenants.bind(TenantId(tenant)) { boundary.inTransaction(block) }
 
-    /** Runs [block] in a transaction under the reserved platform tenant (INV-Q-2927). */
+    // Runs [block] in a transaction under the reserved platform tenant (INV-Q-2927).
     // INV-T-3999 removes this call
     @Suppress("DEPRECATION")
     fun <T> inPlatformTx(block: () -> T): T = tenants.bindPlatform { boundary.inTransaction(block) }

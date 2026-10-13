@@ -76,16 +76,17 @@ class JdbcWorkQueue(
         return null
     }
 
-    override fun payloadOf(item: ClaimedItem): String = scope.connections
-        .require()
-        .prepareStatement("select payload::text from $queue where seq = ?")
-        .use { statement ->
-            statement.setLong(1, item.seq)
-            statement.executeQuery().use {
-                check(it.next()) { "queue item ${item.seq} is not visible to this tenant" }
-                it.getString(1)
+    override fun payloadOf(item: ClaimedItem): String =
+        scope.connections
+            .require()
+            .prepareStatement("select payload::text from $queue where seq = ?")
+            .use { statement ->
+                statement.setLong(1, item.seq)
+                statement.executeQuery().use {
+                    check(it.next()) { "queue item ${item.seq} is not visible to this tenant" }
+                    it.getString(1)
+                }
             }
-        }
 
     override fun complete(item: ClaimedItem) {
         scope.connections.require().prepareStatement("delete from $queue where seq = ?").use {
@@ -104,39 +105,46 @@ class JdbcWorkQueue(
             }
     }
 
-    private fun claimInLane(lane: Lane): ClaimedItem? = claimSource.connection.use { connection ->
-        val wasAutoCommit = connection.autoCommit
-        connection.autoCommit = false
-        try {
-            val claimed = claimDue(connection, lane)
-            connection.commit() // ends the claim transaction and with it the partition lock
-            claimed
-        } catch (failure: Exception) {
-            connection.rollback()
-            throw failure
-        } finally {
-            connection.autoCommit = wasAutoCommit
+    private fun claimInLane(lane: Lane): ClaimedItem? =
+        claimSource.connection.use { connection ->
+            val wasAutoCommit = connection.autoCommit
+            connection.autoCommit = false
+            try {
+                val claimed = claimDue(connection, lane)
+                connection.commit() // ends the claim transaction and with it the partition lock
+                claimed
+            } catch (failure: Exception) {
+                connection.rollback()
+                throw failure
+            } finally {
+                connection.autoCommit = wasAutoCommit
+            }
         }
-    }
 
     private fun claimDue(
         connection: Connection,
         lane: Lane,
-    ): ClaimedItem? = connection
-        .prepareStatement("select claimed_seq, claimed_tenant, claimed_partition from $claimDue(?, ?, ?, ?)")
-        .use { statement ->
-            statement.setString(1, lane.name)
-            statement.setString(2, consumer)
-            statement.setTimestamp(3, Timestamp.from(clock.instant()))
-            statement.setTimestamp(4, reclaimBefore())
-            statement.executeQuery().use { rows ->
-                if (rows.next()) {
-                    ClaimedItem(rows.getLong(1), TenantId(rows.getObject(2, UUID::class.java)), rows.getString(3), lane)
-                } else {
-                    null
+    ): ClaimedItem? =
+        connection
+            .prepareStatement("select claimed_seq, claimed_tenant, claimed_partition from $claimDue(?, ?, ?, ?)")
+            .use { statement ->
+                statement.setString(1, lane.name)
+                statement.setString(2, consumer)
+                statement.setTimestamp(3, Timestamp.from(clock.instant()))
+                statement.setTimestamp(4, reclaimBefore())
+                statement.executeQuery().use { rows ->
+                    if (rows.next()) {
+                        ClaimedItem(
+                            rows.getLong(1),
+                            TenantId(rows.getObject(2, UUID::class.java)),
+                            rows.getString(3),
+                            lane,
+                        )
+                    } else {
+                        null
+                    }
                 }
             }
-        }
 
     private fun reclaimBefore(): Timestamp = Timestamp.from(clock.instant().minus(claimTimeout))
 }

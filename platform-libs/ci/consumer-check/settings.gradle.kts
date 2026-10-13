@@ -15,10 +15,12 @@ dependencyResolutionManagement {
             forRepository {
                 maven {
                     name = "platformLibsRegistry"
-                    url = uri(
-                        providers.gradleProperty("platformLibsRegistry")
-                            .getOrElse("http://registry.example.internal/api/v4/projects/227/packages/maven"),
-                    )
+                    url =
+                        uri(
+                            providers
+                                .gradleProperty("platformLibsRegistry")
+                                .getOrElse("http://registry.example.internal/api/v4/projects/227/packages/maven"),
+                        )
                     // The LAN registry has no TLS (a Wave 5 item): http is opted into for that one host only.
                     isAllowInsecureProtocol = url.scheme == "http" && url.host == "registry.example.internal"
                     if (url.scheme == "http") {

@@ -82,9 +82,12 @@ class JobCommandHttpIT {
     private val envelope = "service-runtime/schemas/error-envelope.schema.json"
     private val keyInvalid = ClosedErrorCode.IDEMPOTENCY_KEY_INVALID
 
-    private fun harness(image: String) = harnesses.computeIfAbsent(image) {
-        JobsHarness(it).also { h -> h.fixture.run(IdempotencySchema.ddl(SCHEMA, OutboxPostgresFixture.APP, OutboxPostgresFixture.SYS)) }
-    }
+    private fun harness(image: String) =
+        harnesses.computeIfAbsent(image) {
+            JobsHarness(it).also { h ->
+                h.fixture.run(IdempotencySchema.ddl(SCHEMA, OutboxPostgresFixture.APP, OutboxPostgresFixture.SYS))
+            }
+        }
 
     @AfterAll
     fun close() = harnesses.values.forEach { it.close() }
@@ -120,7 +123,14 @@ class JobCommandHttpIT {
         val replica = h.replica("svc-1", clock, authorizer, deadlines, app = app ?: h.fixture.appDataSource())
         val idempotency = IdempotencyStore(replica.scope, SCHEMA)
         val servlet =
-            JobCommandServlet(commands?.invoke(replica.runtime) ?: replica.runtime, principals, replica.scope, idempotency, authority, clock)
+            JobCommandServlet(
+                commands?.invoke(replica.runtime) ?: replica.runtime,
+                principals,
+                replica.scope,
+                idempotency,
+                authority,
+                clock,
+            )
 
         fun post(
             path: String,
@@ -138,7 +148,14 @@ class JobCommandHttpIT {
             }
             val response = MockHttpServletResponse()
             servlet.service(request, response)
-            return Answer(path, response.status, response.contentType.orEmpty(), mapper.readTree(response.contentAsString), body, key)
+            return Answer(
+                path,
+                response.status,
+                response.contentType.orEmpty(),
+                mapper.readTree(response.contentAsString),
+                body,
+                key,
+            )
         }
     }
 
@@ -201,7 +218,9 @@ class JobCommandHttpIT {
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
-    fun `runJobNow starts a run with 202, a repeat in the window is 200, and a same-key replay returns the stored response`(image: String) {
+    fun `runJobNow starts a run with 202, a repeat in the window is 200, a same-key replay returns the stored response`(
+        image: String,
+    ) {
         val s = Service(image)
         s.replica.runtime.register(job("http-run"), entities) { }
         val key = UUID.randomUUID().toString()
@@ -232,7 +251,12 @@ class JobCommandHttpIT {
         val key = UUID.randomUUID().toString()
         s.post(runPath("http-key"), """{"entityRef":"E-001"}""", "\"$key\"").closed(keyInvalid)
         s.post(runPath("http-key"), """{"entityRef":"E-001"}""", key).conforms().status shouldBe 202
-        s.post(runPath("http-key"), """{"entityRef":"E-001","reason":"other"}""", key).closed(ClosedErrorCode.DIFFERENT_REQUEST)
+        s
+            .post(
+                runPath("http-key"),
+                """{"entityRef":"E-001","reason":"other"}""",
+                key,
+            ).closed(ClosedErrorCode.DIFFERENT_REQUEST)
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
@@ -276,7 +300,10 @@ class JobCommandHttpIT {
         }
         s.h.runs("http-flight").filter { it["trigger"] == "MANUAL" } shouldHaveSize 1
         s.h.events(JobsHarness.AUDIT, "submission-svc/http-flight") shouldHaveSize 1
-        s.h.rows("select status from $SCHEMA.idempotency_key where idempotency_key = ?::uuid", key).map { it["status"] } shouldBe listOf(202)
+        s.h.rows("select status from $SCHEMA.idempotency_key where idempotency_key = ?::uuid", key).map {
+            it["status"]
+        } shouldBe
+            listOf(202)
     }
 
     /**
@@ -293,18 +320,19 @@ class JobCommandHttpIT {
         val entered = CountDownLatch(1)
         val release = CountDownLatch(1)
 
-        fun command(hold: Boolean): IdempotencyOutcome = s.replica.tenants.bind(TENANT_A, "tpl04-actor") {
-            s.replica.tx.inTransaction {
-                s.idempotency.once(TENANT_A, "tpl04-actor", key, "fp") {
-                    effects.incrementAndGet()
-                    if (hold) {
-                        entered.countDown()
-                        release.await(10, TimeUnit.SECONDS)
+        fun command(hold: Boolean): IdempotencyOutcome =
+            s.replica.tenants.bind(TENANT_A, "tpl04-actor") {
+                s.replica.tx.inTransaction {
+                    s.idempotency.once(TENANT_A, "tpl04-actor", key, "fp") {
+                        effects.incrementAndGet()
+                        if (hold) {
+                            entered.countDown()
+                            release.await(10, TimeUnit.SECONDS)
+                        }
+                        StoredResponse(201, "{}")
                     }
-                    StoredResponse(201, "{}")
                 }
             }
-        }
         val pool = Executors.newSingleThreadExecutor()
         try {
             val first = pool.submit<IdempotencyOutcome> { command(hold = true) }
@@ -372,14 +400,22 @@ class JobCommandHttpIT {
         s.h.fixture.captureActors("$SCHEMA.idempotency_key")
         val key = UUID.randomUUID().toString()
         s.post(runPath("http-late"), """{"entityRef":"E-001"}""", key).coded("JOB-001", 404)
-        s.h.rows("select status from $SCHEMA.idempotency_key where idempotency_key = ?::uuid", key).map { it["status"] } shouldBe listOf(404)
+        s.h.rows("select status from $SCHEMA.idempotency_key where idempotency_key = ?::uuid", key).map {
+            it["status"]
+        } shouldBe
+            listOf(404)
         // recorded in a transaction bound to the command's principal, never the service (INV-Q-4268)
         s.h.fixture.capturedActors("$SCHEMA.idempotency_key") shouldBe listOf(engineer)
         // the job exists now, but the key's stored refusal is replayed: nothing runs
         s.replica.runtime.register(job("http-late"), entities) { }
         s.post(runPath("http-late"), """{"entityRef":"E-001"}""", key).coded("JOB-001", 404)
         s.h.runs("http-late") shouldHaveSize 0
-        s.post(runPath("http-late"), """{"entityRef":"E-001","reason":"other"}""", key).closed(ClosedErrorCode.DIFFERENT_REQUEST)
+        s
+            .post(
+                runPath("http-late"),
+                """{"entityRef":"E-001","reason":"other"}""",
+                key,
+            ).closed(ClosedErrorCode.DIFFERENT_REQUEST)
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
@@ -405,6 +441,7 @@ class JobCommandHttpIT {
             }
         s.replica.runtime.register(job("http-tx"), entities) { }
         val key = UUID.randomUUID().toString()
+
         fun records() = s.h.rows("select status from $SCHEMA.idempotency_key where idempotency_key = ?::uuid", key)
 
         s.post(runPath("http-tx"), """{"entityRef":"E-001"}""", key).closed(ClosedErrorCode.INTERNAL_ERROR)
@@ -433,10 +470,25 @@ class JobCommandHttpIT {
         s.post(runPath("http-refuse"), """{"entityRef":"E-002"}""").coded("JOB-002", 403)
         // an entityRef outside the principal's entity set (API-24), whether or not it exists
         s.post(runPath("http-refuse"), """{"entityRef":"E-404"}""").closed(ClosedErrorCode.ACCESS_DENIED)
-        s.post(runPath("http-refuse"), """{"entityRef":"E-001"}""", token = null).closed(ClosedErrorCode.UNAUTHENTICATED)
-        s.post(runPath("http-refuse"), """{"entityRef":"E-001"}""", token = "Bearer forged").closed(ClosedErrorCode.UNAUTHENTICATED)
+        s
+            .post(
+                runPath("http-refuse"),
+                """{"entityRef":"E-001"}""",
+                token = null,
+            ).closed(ClosedErrorCode.UNAUTHENTICATED)
+        s
+            .post(
+                runPath("http-refuse"),
+                """{"entityRef":"E-001"}""",
+                token = "Bearer forged",
+            ).closed(ClosedErrorCode.UNAUTHENTICATED)
         // the platform operator naming an entity of a PLATFORM-scoped job: 400, no per-entity share (INV-Q-3537)
-        s.post(runPath("http-platform"), """{"entityRef":"E-001"}""", token = "Bearer op").closed(ClosedErrorCode.CONTRACT_VIOLATION)
+        s
+            .post(
+                runPath("http-platform"),
+                """{"entityRef":"E-001"}""",
+                token = "Bearer op",
+            ).closed(ClosedErrorCode.CONTRACT_VIOLATION)
         s.post(runPath("http-platform"), "{}", token = "Bearer op").conforms().status shouldBe 202
         s.post(runPath("http-refuse"), """{"entityRef":42}""").closed(ClosedErrorCode.CONTRACT_VIOLATION)
         s.post(runPath("http-refuse"), "not json").closed(ClosedErrorCode.CONTRACT_VIOLATION)
@@ -450,27 +502,32 @@ class JobCommandHttpIT {
         val asked = mutableListOf<AuthorizationRequest>()
         var answer: (AuthorizationRequest) -> FallbackResult<AuthorityVerdict> =
             { FallbackResult.Found(AuthorityVerdict(it.entityRef == "E-001")) }
-        val cold = AuthorityReplica(Clock.systemUTC(), fallback = { request, _ ->
-            asked += request
-            answer(request)
-        })
+        val cold =
+            AuthorityReplica(Clock.systemUTC(), fallback = { request, _ ->
+                asked += request
+                answer(request)
+            })
         val s = Service(image, authority = cold)
         s.replica.runtime.register(job("http-catchup"), entities) { }
         val until = START.plus(Duration.ofHours(1))
 
         // grant present: allowed through the fallback, never refused for the empty set
-        s.post(pausePath("http-catchup"), """{"entityRef":"E-001","until":"$until"}""", token = "Bearer eng-catchup")
-            .conforms().status shouldBe 200
+        s
+            .post(pausePath("http-catchup"), """{"entityRef":"E-001","until":"$until"}""", token = "Bearer eng-catchup")
+            .conforms()
+            .status shouldBe 200
         asked.last().action shouldBe JobCommandServlet.JOB_OPERATE
         asked.last().entityRef shouldBe "E-001"
         asked.last().tenant shouldBe TENANT_A
         // grant absent: refused by the fallback
-        s.post(pausePath("http-catchup"), """{"entityRef":"E-002","until":"$until"}""", token = "Bearer eng-catchup")
+        s
+            .post(pausePath("http-catchup"), """{"entityRef":"E-002","until":"$until"}""", token = "Bearer eng-catchup")
             .closed(ClosedErrorCode.ACCESS_DENIED)
         asked.last().entityRef shouldBe "E-002"
         // the fallback fails too: a human action is denied
         answer = { FallbackResult.Unavailable }
-        s.post(pausePath("http-catchup"), """{"entityRef":"E-001","until":"$until"}""", token = "Bearer eng-catchup")
+        s
+            .post(pausePath("http-catchup"), """{"entityRef":"E-001","until":"$until"}""", token = "Bearer eng-catchup")
             .closed(ClosedErrorCode.ACCESS_DENIED)
         asked.size shouldBe 3
     }
@@ -483,9 +540,21 @@ class JobCommandHttpIT {
         s.deadlines.due[e1] = START.plus(Duration.ofDays(2))
         val until = START.plus(Duration.ofHours(5))
         s.post(pausePath("http-pause"), """{"entityRef":"E-001"}""").closed(ClosedErrorCode.CONTRACT_VIOLATION)
-        s.post(pausePath("http-pause"), """{"entityRef":"E-001","until":"yesterday"}""").closed(ClosedErrorCode.CONTRACT_VIOLATION)
-        s.post(pausePath("http-pause"), """{"entityRef":"E-001","until":"${START.minusSeconds(1)}"}""").coded("JOB-004", 422)
-        s.post(pausePath("http-pause"), """{"entityRef":"E-001","until":"${START.plus(Duration.ofDays(3))}"}""").coded("JOB-003", 422)
+        s
+            .post(
+                pausePath("http-pause"),
+                """{"entityRef":"E-001","until":"yesterday"}""",
+            ).closed(ClosedErrorCode.CONTRACT_VIOLATION)
+        s
+            .post(
+                pausePath("http-pause"),
+                """{"entityRef":"E-001","until":"${START.minusSeconds(1)}"}""",
+            ).coded("JOB-004", 422)
+        s
+            .post(
+                pausePath("http-pause"),
+                """{"entityRef":"E-001","until":"${START.plus(Duration.ofDays(3))}"}""",
+            ).coded("JOB-003", 422)
 
         val paused = s.post(pausePath("http-pause"), """{"entityRef":"E-001","until":"$until"}""").conforms()
         paused.status shouldBe 200
@@ -498,7 +567,13 @@ class JobCommandHttpIT {
         Instant.parse(replaced.body.get("previousUntil").asString()) shouldBe until
         replaced.body.get("pausedAt") shouldBe paused.body.get("pausedAt")
 
-        s.post(resumePath("http-pause"), """{"entityRef":"E-001"}""").conforms().body.get("state").asString() shouldBe "ACTIVE"
+        s
+            .post(resumePath("http-pause"), """{"entityRef":"E-001"}""")
+            .conforms()
+            .body
+            .get("state")
+            .asString() shouldBe
+            "ACTIVE"
         val again = s.post(resumePath("http-pause"), """{"entityRef":"E-001"}""").conforms()
         again.status shouldBe 200
         again.body.get("state").asString() shouldBe "ACTIVE"
@@ -509,11 +584,12 @@ class JobCommandHttpIT {
     @ValueSource(strings = ["postgres:17"])
     fun `the contract's x-operation reversibility is the one service-runtime declares per job command`(image: String) {
         JobCommand.entries.forEach { command ->
-            val path = when (command) {
-                JobCommand.RUN_NOW -> runPath("j")
-                JobCommand.PAUSE -> pausePath("j")
-                JobCommand.RESUME -> resumePath("j")
-            }
+            val path =
+                when (command) {
+                    JobCommand.RUN_NOW -> runPath("j")
+                    JobCommand.PAUSE -> pausePath("j")
+                    JobCommand.RESUME -> resumePath("j")
+                }
             val operation = contracts.operation(openapi, "POST", path)
             operation.operationId shouldBe command.operationId
             operation.reversibility shouldBe command.reversibility.name
@@ -530,7 +606,13 @@ class JobCommandHttpIT {
         val platformKey = UUID.randomUUID().toString()
         s.post(runPath("http-purge"), """{"entityRef":"E-001"}""", key = tenantKey).status shouldBe 202
         s.post(runPath("http-purge-platform"), "{}", key = platformKey, token = "Bearer op").status shouldBe 202
-        fun stored(key: String) = s.h.rows("select count(*) as n from $SCHEMA.idempotency_key where idempotency_key = ?::uuid", key).single()["n"]
+
+        fun stored(key: String) =
+            s.h
+                .rows(
+                    "select count(*) as n from $SCHEMA.idempotency_key where idempotency_key = ?::uuid",
+                    key,
+                ).single()["n"]
 
         // the runtime login's direct cross-tenant DELETE removes nothing: it holds no DELETE grant (INV-ADR-3968), and its
         // SELECT with no tenant bound sees no row (forced RLS)
@@ -550,14 +632,20 @@ class JobCommandHttpIT {
 
         // the definer purge refuses a cut-off later than the floor and a batch outside its bounds (INV-Q-4070)
         s.h.fixture.runtimeDataSource().connection.use { runtime ->
-            listOf("now() - interval '23 hours'" to 10, "now() - interval '25 hours'" to 0, "now() - interval '25 hours'" to 10_001)
-                .forEach { (cutoff, batch) ->
-                    val refused =
-                        assertThrows<SQLException> {
-                            runtime.prepareStatement("select $SCHEMA.${IdempotencySchema.PURGE_EXPIRED}($cutoff, $batch)").use { it.executeQuery() }
-                        }
-                    refused.sqlState shouldBe "22023"
-                }
+            listOf(
+                "now() - interval '23 hours'" to 10,
+                "now() - interval '25 hours'" to 0,
+                "now() - interval '25 hours'" to 10_001,
+            ).forEach { (cutoff, batch) ->
+                val refused =
+                    assertThrows<SQLException> {
+                        runtime
+                            .prepareStatement(
+                                "select $SCHEMA.${IdempotencySchema.PURGE_EXPIRED}($cutoff, $batch)",
+                            ).use { it.executeQuery() }
+                    }
+                refused.sqlState shouldBe "22023"
+            }
         }
 
         // within the retention the purge keeps both; past it, it deletes the expired keys of every tenant
@@ -575,21 +663,34 @@ class JobCommandHttpIT {
         val s = Service(image)
         s.replica.runtime.register(job("http-skew"), entities) { }
         val key = UUID.randomUUID().toString()
-        fun stored() = s.h.rows("select count(*) as n from $SCHEMA.idempotency_key where idempotency_key = ?::uuid", key).single()["n"]
+
+        fun stored() =
+            s.h
+                .rows(
+                    "select count(*) as n from $SCHEMA.idempotency_key where idempotency_key = ?::uuid",
+                    key,
+                ).single()["n"]
         // the key is stamped by the database, not by the service clock
         s.post(runPath("http-skew"), """{"entityRef":"E-001"}""", key = key).status shouldBe 202
-        s.h.rows("select count(*) as n from $SCHEMA.idempotency_key where idempotency_key = ?::uuid and created_at > now() - interval '1 hour'", key)
-            .single()["n"] shouldBe 1L
+        s.h
+            .rows(
+                "select count(*) as n from $SCHEMA.idempotency_key where idempotency_key = ?::uuid and created_at > now() - interval '1 hour'",
+                key,
+            ).single()["n"] shouldBe 1L
 
         // a service clock 3 days ahead of the database: the purge runs (no cut-off later than the floor) and keeps the key
         s.clock.advance(Duration.ofDays(3))
         s.idempotency.purge() // no 22023: the cut-off is never later than the floor
         stored() shouldBe 1L
         // 23 hours old by the database clock: still kept; 25 hours: purged
-        s.h.fixture.runAsAdmin("update $SCHEMA.idempotency_key set created_at = now() - interval '23 hours' where idempotency_key = '$key'")
+        s.h.fixture.runAsAdmin(
+            "update $SCHEMA.idempotency_key set created_at = now() - interval '23 hours' where idempotency_key = '$key'",
+        )
         s.idempotency.purge() // no 22023: the cut-off is never later than the floor
         stored() shouldBe 1L
-        s.h.fixture.runAsAdmin("update $SCHEMA.idempotency_key set created_at = now() - interval '25 hours' where idempotency_key = '$key'")
+        s.h.fixture.runAsAdmin(
+            "update $SCHEMA.idempotency_key set created_at = now() - interval '25 hours' where idempotency_key = '$key'",
+        )
         (s.idempotency.purge() >= 1) shouldBe true
         stored() shouldBe 0L
     }
@@ -599,15 +700,17 @@ class JobCommandHttpIT {
     fun `the purge function is the sys role's definer, executable by the runtime login only`(image: String) {
         val s = Service(image)
         val function =
-            s.h.rows(
-                "select pg_get_userbyid(p.proowner) as owner, p.prosecdef as definer, p.proconfig::text as config, " +
-                    "has_function_privilege('public', p.oid, 'execute') as public_exec, " +
-                    "has_function_privilege(?, p.oid, 'execute') as runtime_exec " +
-                    "from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = ? and p.proname = ?",
-                OutboxPostgresFixture.APP,
-                SCHEMA,
-                IdempotencySchema.PURGE_EXPIRED,
-            ).single()
+            s.h
+                .rows(
+                    "select pg_get_userbyid(p.proowner) as owner, p.prosecdef as definer, p.proconfig::text as " +
+                        "config, " +
+                        "has_function_privilege('public', p.oid, 'execute') as public_exec, " +
+                        "has_function_privilege(?, p.oid, 'execute') as runtime_exec " +
+                        "from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = ? and p.proname = ?",
+                    OutboxPostgresFixture.APP,
+                    SCHEMA,
+                    IdempotencySchema.PURGE_EXPIRED,
+                ).single()
         function["owner"] shouldBe OutboxPostgresFixture.SYS
         function["definer"] shouldBe true
         function["config"] shouldBe "{\"search_path=pg_catalog, $SCHEMA, pg_temp\"}"
@@ -617,7 +720,9 @@ class JobCommandHttpIT {
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
-    fun `a request binds the token's sub, and a tenantless token only a platform-level target (INV-Q-4115)`(image: String) {
+    fun `a request binds the token's sub, and a tenantless token only a platform-level target (INV-Q-4115)`(
+        image: String,
+    ) {
         val s = Service(image)
         s.replica.runtime.register(job("http-actor"), entities) { }
         s.replica.runtime.register(job("http-actor-platform", scope = JobEntityScope.PLATFORM), body = { })
@@ -631,20 +736,32 @@ class JobCommandHttpIT {
 
         // a tenantless token naming an entity of an ENTITY-scoped job: 403 SRT-004 before anything is bound or stored
         val refusedKey = UUID.randomUUID().toString()
-        s.post(runPath("http-actor"), """{"entityRef":"E-001"}""", key = refusedKey, token = "Bearer op")
+        s
+            .post(runPath("http-actor"), """{"entityRef":"E-001"}""", key = refusedKey, token = "Bearer op")
             .closed(ClosedErrorCode.ACCESS_DENIED)
-        s.post(pausePath("http-actor"), """{"entityRef":"E-001","until":"2026-10-12T05:00:00Z"}""", token = "Bearer op")
-            .closed(ClosedErrorCode.ACCESS_DENIED)
-        s.h.rows("select count(*) as n from $SCHEMA.idempotency_key where idempotency_key = ?::uuid", refusedKey).single()["n"] shouldBe 0L
+        s
+            .post(
+                pausePath("http-actor"),
+                """{"entityRef":"E-001","until":"2026-10-12T05:00:00Z"}""",
+                token = "Bearer op",
+            ).closed(ClosedErrorCode.ACCESS_DENIED)
+        s.h
+            .rows(
+                "select count(*) as n from $SCHEMA.idempotency_key where idempotency_key = ?::uuid",
+                refusedKey,
+            ).single()["n"] shouldBe
+            0L
         s.h.fixture.capturedActors("$SCHEMA.idempotency_key") shouldBe listOf(engineer)
 
         // a tenantless token on a PLATFORM-scoped job, and a whole-job command: the platform tenant with its sub
         s.post(runPath("http-actor-platform"), "{}", token = "Bearer op").status shouldBe 202
         // past the INV-Q-4115 gate, an entityRef on a PLATFORM-scoped job is JobRuntime's contract violation (INV-Q-3537)
-        s.post(runPath("http-actor-platform"), """{"entityRef":"E-001"}""", token = "Bearer op")
+        s
+            .post(runPath("http-actor-platform"), """{"entityRef":"E-001"}""", token = "Bearer op")
             .closed(ClosedErrorCode.CONTRACT_VIOLATION)
         s.h.fixture.capturedActors("$SCHEMA.idempotency_key") shouldBe listOf(engineer, operator, operator)
-        s.h.rows("select distinct tenant_id from $SCHEMA.idempotency_key where principal = ?", operator)
+        s.h
+            .rows("select distinct tenant_id from $SCHEMA.idempotency_key where principal = ?", operator)
             .map { it["tenant_id"] } shouldBe listOf(TenantId.PLATFORM.value)
     }
 
@@ -655,7 +772,13 @@ class JobCommandHttpIT {
         s.replica.runtime.register(job("http-auto-purge"), entities) { }
         val key = UUID.randomUUID().toString()
         s.post(runPath("http-auto-purge"), """{"entityRef":"E-001"}""", key = key).status shouldBe 202
-        fun stored() = s.h.rows("select count(*) as n from $SCHEMA.idempotency_key where idempotency_key = ?::uuid", key).single()["n"]
+
+        fun stored() =
+            s.h
+                .rows(
+                    "select count(*) as n from $SCHEMA.idempotency_key where idempotency_key = ?::uuid",
+                    key,
+                ).single()["n"]
         ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(JobCommandHttpAutoConfiguration::class.java))
             .withBean("dataSource", DataSource::class.java, { s.h.fixture.appDataSource() }, { it.isPrimary = true })
@@ -667,20 +790,35 @@ class JobCommandHttpIT {
             .run { context ->
                 context.startupFailure shouldBe null
                 context.getBean(IdempotencyKeyPurgeJob::class.java).isRunning shouldBe true
-                s.replica.runtime.registered().map { it.name } shouldContain IdempotencyKeyPurgeJob.NAME
+                s.replica.runtime
+                    .registered()
+                    .map { it.name } shouldContain IdempotencyKeyPurgeJob.NAME
                 stored() shouldBe 1L
                 // the auto-configured store purges through the sys-owned definer; within the retention it keeps the key
                 context.getBean(IdempotencyStore::class.java).purge()
                 stored() shouldBe 1L
                 // past it by the database clock, the next tick's run deletes the key, through the auto-configured store
-                s.h.fixture.runAsAdmin("update $SCHEMA.idempotency_key set created_at = created_at - interval '25 hours' where idempotency_key = '$key'")
+                s.h.fixture.runAsAdmin(
+                    "update $SCHEMA.idempotency_key set created_at = created_at - interval '25 hours' where idempotency_key = '$key'",
+                )
                 s.clock.advance(Duration.ofHours(25))
                 s.replica.runtime.fire(IdempotencyKeyPurgeJob.NAME, s.clock.instant().plusSeconds(60)) shouldBe
                     mapOf(JobTarget.Whole to FireResult.RAN)
                 stored() shouldBe 0L
-                s.h.runs(IdempotencyKeyPurgeJob.NAME).map { it["status"] }.toSet() shouldBe setOf("SUCCEEDED")
+                s.h
+                    .runs(IdempotencyKeyPurgeJob.NAME)
+                    .map { it["status"] }
+                    .toSet() shouldBe setOf("SUCCEEDED")
                 // a second poll in the same tick runs nothing
-                (s.replica.runtime.fire(IdempotencyKeyPurgeJob.NAME, s.clock.instant().plusSeconds(60)).getValue(JobTarget.Whole) == FireResult.RAN) shouldBe false
+                (
+                    s.replica.runtime
+                        .fire(
+                            IdempotencyKeyPurgeJob.NAME,
+                            s.clock.instant().plusSeconds(60),
+                        ).getValue(JobTarget.Whole) ==
+                        FireResult.RAN
+                ) shouldBe
+                    false
             }
     }
 

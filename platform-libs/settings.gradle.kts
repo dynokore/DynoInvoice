@@ -67,7 +67,10 @@ plugins {
 if (!gradle.startParameter.isWriteDependencyLocks) {
     val catalogueLock = settingsDir.resolve("settings-gradle.lockfile")
     val lockLines =
-        catalogueLock.takeIf { it.isFile }?.readLines()?.map { it.trim() }?.filter { it.isNotEmpty() && !it.startsWith("#") }
+        catalogueLock.takeIf { it.isFile }?.readLines()?.map { it.trim() }?.filter {
+            it.isNotEmpty() &&
+                !it.startsWith("#")
+        }
     check(lockLines == listOf("empty=incomingCatalogForLibs0")) {
         "STK-72: settings-gradle.lockfile must exist and hold exactly 'empty=incomingCatalogForLibs0' " +
             "(found ${lockLines ?: "no file"}); regenerate it as README.md, \"Dependency locking and verification\" says"

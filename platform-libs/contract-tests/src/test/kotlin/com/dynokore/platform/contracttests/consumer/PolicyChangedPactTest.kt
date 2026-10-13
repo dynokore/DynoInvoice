@@ -34,21 +34,27 @@ import java.time.LocalDate
 )
 class PolicyChangedPactTest {
     @Pact(consumer = Contracts.SERVICE_RUNTIME)
-    fun entityOverride(builder: MessagePactBuilder): V4Pact = builder
-        .given(STATE)
-        .expectsToReceive(DESCRIPTION)
-        .withContent(
-            Contracts.envelope(PlatformEventTypes.POLICY_CHANGED, source = null, entity = true, docSequence = false) {
-                stringMatcher("scope", "^ENTITY:.+$", "ENTITY:E-001")
-                stringMatcher("vpId", "^VP-\\d+$", "VP-12")
-                minArrayLike("value", 1)
-                    .stringType("key", "B")
-                    .closeObject()!!
-                    .closeArray()
-                stringMatcher("effectiveDate", Contracts.DATE, "2026-10-01")
-                stringMatcher("source", "^(DEFAULT|PROFILE|OVERRIDE)$", "OVERRIDE")
-            },
-        ).toPact(V4Pact::class.java)
+    fun entityOverride(builder: MessagePactBuilder): V4Pact =
+        builder
+            .given(STATE)
+            .expectsToReceive(DESCRIPTION)
+            .withContent(
+                Contracts.envelope(
+                    PlatformEventTypes.POLICY_CHANGED,
+                    source = null,
+                    entity = true,
+                    docSequence = false,
+                ) {
+                    stringMatcher("scope", "^ENTITY:.+$", "ENTITY:E-001")
+                    stringMatcher("vpId", "^VP-\\d+$", "VP-12")
+                    minArrayLike("value", 1)
+                        .stringType("key", "B")
+                        .closeObject()!!
+                        .closeArray()
+                    stringMatcher("effectiveDate", Contracts.DATE, "2026-10-01")
+                    stringMatcher("source", "^(DEFAULT|PROFILE|OVERRIDE)$", "OVERRIDE")
+                },
+            ).toPact(V4Pact::class.java)
 
     @Test
     @PactTestFor(pactMethod = "entityOverride")

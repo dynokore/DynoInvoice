@@ -42,7 +42,12 @@ import javax.sql.DataSource
  * retention differs from the migration-written job-retention row (coordinator ruling INV-Q-4346 (A)).
  */
 @Configuration(proxyBeanMethods = false)
-@ConditionalOnClass(name = ["com.dynokore.platform.outboxandqueue.TenantScope", "com.dynokore.platform.tenancykernel.TransactionRunnerImpl"])
+@ConditionalOnClass(
+    name = [
+        "com.dynokore.platform.outboxandqueue.TenantScope",
+        "com.dynokore.platform.tenancykernel.TransactionRunnerImpl",
+    ],
+)
 @EnableConfigurationProperties(JobProperties::class)
 class ServiceRuntimeWiring {
     @Bean
@@ -65,7 +70,8 @@ class ServiceRuntimeWiring {
     @Bean
     @ConditionalOnBean(OutboxWriter::class)
     @ConditionalOnMissingBean(EvidenceArtefactRecorder::class)
-    fun evidenceArtefactRecorder(outbox: OutboxWriter): OutboxEvidenceArtefactRecorder = OutboxEvidenceArtefactRecorder(outbox)
+    fun evidenceArtefactRecorder(outbox: OutboxWriter): OutboxEvidenceArtefactRecorder =
+        OutboxEvidenceArtefactRecorder(outbox)
 
     @Bean
     @ConditionalOnBean(
@@ -91,19 +97,20 @@ class ServiceRuntimeWiring {
         clock: Clock,
         @Qualifier(RUN_NOW_EXECUTOR) executor: ObjectProvider<Executor>,
         jobs: JobProperties,
-    ): JobRuntime = JobRuntime(
-        gst.requireService(),
-        modules.requireSchema(),
-        scope,
-        outbox,
-        audit,
-        dataSource,
-        authorizer,
-        deadlines,
-        clock,
-        executor.getIfAvailable { Executors.newVirtualThreadPerTaskExecutor() },
-        jobs.retention,
-    )
+    ): JobRuntime =
+        JobRuntime(
+            gst.requireService(),
+            modules.requireSchema(),
+            scope,
+            outbox,
+            audit,
+            dataSource,
+            authorizer,
+            deadlines,
+            clock,
+            executor.getIfAvailable { Executors.newVirtualThreadPerTaskExecutor() },
+            jobs.retention,
+        )
 
     companion object {
         /** The bean name of the service's executor for run-now bodies (optional). */

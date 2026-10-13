@@ -61,7 +61,8 @@ class DatabaseCredentialsConfiguration {
         const val DATASOURCE_CREDENTIAL = "service-runtime.datasource.credential"
         const val FLYWAY_CREDENTIAL = "service-runtime.flyway.credential"
         private const val HIKARI_DATA_SOURCE = "com.zaxxer.hikari.HikariDataSource"
-        private const val FLYWAY_CUSTOMIZER = "org.springframework.boot.flyway.autoconfigure.FlywayConfigurationCustomizer"
+        private const val FLYWAY_CUSTOMIZER =
+            "org.springframework.boot.flyway.autoconfigure.FlywayConfigurationCustomizer"
     }
 }
 
@@ -80,7 +81,8 @@ private fun Environment.refuseAlongside(
 private fun Environment.required(
     name: String,
     credential: String,
-): String = getProperty(name)?.takeIf { it.isNotBlank() } ?: error("$credential is set, so $name must name the database role")
+): String =
+    getProperty(name)?.takeIf { it.isNotBlank() } ?: error("$credential is set, so $name must name the database role")
 
 /** Sets the provider on Boot's application HikariDataSource before its pool starts (it starts on first use). */
 internal class ApplicationPoolCredentials(
@@ -96,19 +98,29 @@ internal class ApplicationPoolCredentials(
         // the pool itself, or the pool under its lanes (PoolLaneWiring), whichever post-processor runs first
         val pool =
             (bean as? HikariDataSource)
-                ?: (bean as? DataSource)?.takeIf { it.isWrapperFor(HikariDataSource::class.java) }?.unwrap(HikariDataSource::class.java)
+                ?: (bean as? DataSource)
+                    ?.takeIf {
+                        it.isWrapperFor(
+                            HikariDataSource::class.java,
+                        )
+                    }?.unwrap(HikariDataSource::class.java)
         check(pool != null) {
             "$credential needs Spring Boot's application DataSource to be a HikariDataSource (STK-17), " +
                 "but bean '$beanName' is a ${bean.javaClass.name}"
         }
-        environment.refuseAlongside(credential, listOf("spring.datasource.password", "spring.datasource.hikari.password"))
+        environment.refuseAlongside(
+            credential,
+            listOf("spring.datasource.password", "spring.datasource.hikari.password"),
+        )
         val provider =
             SecretStoreCredentialsProvider(
                 secrets.getObject(),
                 environment.required("spring.datasource.username", credential),
                 SecretRef(environment.getRequiredProperty(credential)),
             )
-        check(!pool.isRunning) { "$credential: the application pool '$beanName' started before its credentials were set" }
+        check(
+            !pool.isRunning,
+        ) { "$credential: the application pool '$beanName' started before its credentials were set" }
         pool.credentialsProvider = provider
         return bean
     }
@@ -158,7 +170,8 @@ internal class SecretStoreDriverDataSource(
     override fun getConnection(
         username: String?,
         password: String?,
-    ): Connection = throw UnsupportedOperationException("credentials come from SecretStore (${credentials.passwordRef})")
+    ): Connection =
+        throw UnsupportedOperationException("credentials come from SecretStore (${credentials.passwordRef})")
 
     override fun toString(): String = "SecretStoreDriverDataSource($credentials)"
 }

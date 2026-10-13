@@ -122,8 +122,12 @@ class CompositionRootTest {
     private val base =
         ApplicationContextRunner()
             .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
-            .withConfiguration(AutoConfigurations.of(ServiceRuntimeConfiguration::class.java, L1CompositionAutoConfiguration::class.java))
-            .withPropertyValues("service-runtime.workload-identity.audience=submission-svc")
+            .withConfiguration(
+                AutoConfigurations.of(
+                    ServiceRuntimeConfiguration::class.java,
+                    L1CompositionAutoConfiguration::class.java,
+                ),
+            ).withPropertyValues("service-runtime.workload-identity.audience=submission-svc")
 
     /**
      * The inputs only a service has: its event-log DataSource, catalogues, limits, sinks, S3 client and ports, each
@@ -133,8 +137,16 @@ class CompositionRootTest {
         mountRoot: Path,
         without: ServiceInput? = null,
     ): ApplicationContextRunner {
-        var runner = withBean("dataSource", DataSource::class.java, { mockk<DataSource>(relaxed = true) }, { it.isPrimary = true })
-            .withPropertyValues("gst.instance-id=submission-svc-0", "service-runtime.idempotency.schema=submission", "gst.bindings.secret-store.mount-root=$mountRoot")
+        var runner =
+            withBean("dataSource", DataSource::class.java, { mockk<DataSource>(relaxed = true) }, {
+                it.isPrimary =
+                    true
+            })
+                .withPropertyValues(
+                    "gst.instance-id=submission-svc-0",
+                    "service-runtime.idempotency.schema=submission",
+                    "gst.bindings.secret-store.mount-root=$mountRoot",
+                )
         ServiceInput.entries.filter { it != without }.forEach { runner = it.declare(runner) }
         return runner
     }
@@ -147,7 +159,21 @@ class CompositionRootTest {
         // INV-Q-4268: optional, the application DataSource serves the event log without it
         EVENT_LOG_DATA_SOURCE(dataSource(ServiceDataSources.EVENT_LOG), emptySet()),
         EVENT_CATALOGUE(
-            { it.withBean(EventCatalogue::class.java, { EventCatalogue(listOf(CatalogueEntry("SubmissionFailed", "submission", setOf("submission-svc"), contentTopic = false), auditCatalogueEntry)) }) },
+            {
+                it.withBean(EventCatalogue::class.java, {
+                    EventCatalogue(
+                        listOf(
+                            CatalogueEntry(
+                                "SubmissionFailed",
+                                "submission",
+                                setOf("submission-svc"),
+                                contentTopic = false,
+                            ),
+                            auditCatalogueEntry,
+                        ),
+                    )
+                })
+            },
             // without an outbox the service gets the local audit writer instead
             setOf(
                 OutboxWriter::class,
@@ -160,27 +186,57 @@ class CompositionRootTest {
                 IdempotencyKeyPurgeJob::class,
             ) + INBOX, // the inbox consumer takes its record topics from the catalogue (INV-Q-3809)
         ),
-        RETENTION({ it.withBean(Retention::class.java, { Retention() }) }, setOf(RetentionPurge::class, EventLogPurge::class)),
-        LANE_LIMITS({ it.withBean(LaneLimits::class.java, { LaneLimits() }) }, setOf(LaneRateLimiter::class, WorkQueue::class, ReplayDelivery::class)),
+        RETENTION(
+            { it.withBean(Retention::class.java, { Retention() }) },
+            setOf(RetentionPurge::class, EventLogPurge::class),
+        ),
+        LANE_LIMITS({
+            it.withBean(LaneLimits::class.java, {
+                LaneLimits()
+            })
+        }, setOf(LaneRateLimiter::class, WorkQueue::class, ReplayDelivery::class)),
         STALENESS_RULE(
-            { it.withBean(StalenessRule::class.java, { StalenessRule("submission-svc", "SubmissionFailed", Duration.ofMinutes(5)) }) },
+            {
+                it.withBean(StalenessRule::class.java, {
+                    StalenessRule("submission-svc", "SubmissionFailed", Duration.ofMinutes(5))
+                })
+            },
             setOf(StalenessMonitor::class),
         ),
 
         // INV-T-3005: optional, the monitor falls back to a logging sink (the incident is the alert rule's, INV-Q-3030)
-        STALENESS_BREACH_SINK({ it.withBean(StalenessBreachSink::class.java, { StalenessBreachSink { } }) }, emptySet()),
+        STALENESS_BREACH_SINK(
+            { it.withBean(StalenessBreachSink::class.java, { StalenessBreachSink { } }) },
+            emptySet(),
+        ),
         CONSUMER_SUBSCRIPTION(
-            { it.withBean(ConsumerSubscription::class.java, { ConsumerSubscription("submission-svc", "canonical", "submission") }) },
+            {
+                it.withBean(
+                    ConsumerSubscription::class.java,
+                    { ConsumerSubscription("submission-svc", "canonical", "submission") },
+                )
+            },
             INBOX,
         ),
         EVENT_HANDLER({ it.withBean(EventHandler::class.java, { mockk<EventHandler>(relaxed = true) }) }, INBOX),
         REBUILD_REQUIRED_SINK({ it.withBean(RebuildRequiredSink::class.java, { RebuildRequiredSink { } }) }, INBOX),
-        ERROR_CATALOGUE({ it.withBean(ErrorCatalogue::class.java, { ErrorCatalogue { null } }) }, setOf(OverrideService::class)),
+        ERROR_CATALOGUE({
+            it.withBean(ErrorCatalogue::class.java, { ErrorCatalogue { null } })
+        }, setOf(OverrideService::class)),
         VARIATION_POINT_CATALOGUE(
             { it.withBean(VariationPointCatalogue::class.java, { mockk<VariationPointCatalogue>(relaxed = true) }) },
-            setOf(PolicyReader::class, PolicyHistory::class, ConfigPurge::class, ResolutionRecorder::class, PolicyWriter::class),
+            setOf(
+                PolicyReader::class,
+                PolicyHistory::class,
+                ConfigPurge::class,
+                ResolutionRecorder::class,
+                PolicyWriter::class,
+            ),
         ),
-        S3_CLIENT({ it.withBean(S3Client::class.java, { mockk<S3Client>(relaxed = true) }) }, setOf(ObjectStore::class)),
+        S3_CLIENT(
+            { it.withBean(S3Client::class.java, { mockk<S3Client>(relaxed = true) }) },
+            setOf(ObjectStore::class),
+        ),
         JOB_COMMAND_AUTHORIZER(
             { it.withBean(JobCommandAuthorizer::class.java, { mockk<JobCommandAuthorizer>(relaxed = true) }) },
             setOf(JobCommands::class, IdempotencyStore::class, IdempotencyKeyPurgeJob::class),
@@ -194,7 +250,13 @@ class CompositionRootTest {
             setOf(IdempotencyStore::class, IdempotencyKeyPurgeJob::class),
         ),
         BASE_LICENCE_CHECK(
-            { it.withBean("baseLicenceCheck", LicenceCheck::class.java, { LicenceCheck { LicenceStatus.entries.first() } }) },
+            {
+                it.withBean(
+                    "baseLicenceCheck",
+                    LicenceCheck::class.java,
+                    { LicenceCheck { LicenceStatus.entries.first() } },
+                )
+            },
             setOf(LicenceCheck::class),
         ),
         SERVICE_NAME(
@@ -202,29 +264,68 @@ class CompositionRootTest {
             // no outbox writer and no local audit writer: nothing that audits; and no workload principal
             // (`svc:<gst.service>`, INV-Q-4268): no TenantScope, so nothing that binds a tenant in the background
             setOf(
-                OutboxWriter::class, AuditWriter::class, AuditedOperations::class, OverrideService::class, PolicyWriter::class,
-                OperationRunner::class, ConnectionStatusReporter::class, EvidenceArtefactRecorder::class, JobCommands::class,
-                IdempotencyStore::class, IdempotencyKeyPurgeJob::class, TenantScope::class, EventBinding::class, OutboxRelay::class,
-                EventLogReader::class, WorkQueue::class, DeadLetterTriage::class, StalenessMonitor::class, UnrelayedEventCheck::class,
+                OutboxWriter::class,
+                AuditWriter::class,
+                AuditedOperations::class,
+                OverrideService::class,
+                PolicyWriter::class,
+                OperationRunner::class,
+                ConnectionStatusReporter::class,
+                EvidenceArtefactRecorder::class,
+                JobCommands::class,
+                IdempotencyStore::class,
+                IdempotencyKeyPurgeJob::class,
+                TenantScope::class,
+                EventBinding::class,
+                OutboxRelay::class,
+                EventLogReader::class,
+                WorkQueue::class,
+                DeadLetterTriage::class,
+                StalenessMonitor::class,
+                UnrelayedEventCheck::class,
             ) + INBOX,
         ),
         SCHEMA(
             { it.withPropertyValues("service-runtime.modules.schema=submission") },
             setOf(
-                OutboxWriter::class, AuditWriter::class, AuditedOperations::class, OverrideService::class, OutboxRelay::class,
-                LaneRateLimiter::class, WorkQueue::class, DeadLetterTriage::class, RetentionPurge::class, StalenessMonitor::class,
-                ReplayDelivery::class, PolicyReader::class, PolicyHistory::class, ConfigPurge::class, ResolutionRecorder::class,
-                PolicyWriter::class, EvidenceLedger::class, LegalHoldRegistry::class, OperationRunner::class,
-                ConnectionStatusReporter::class, EvidenceArtefactRecorder::class, JobCommands::class, IdempotencyStore::class, IdempotencyKeyPurgeJob::class,
+                OutboxWriter::class,
+                AuditWriter::class,
+                AuditedOperations::class,
+                OverrideService::class,
+                OutboxRelay::class,
+                LaneRateLimiter::class,
+                WorkQueue::class,
+                DeadLetterTriage::class,
+                RetentionPurge::class,
+                StalenessMonitor::class,
+                ReplayDelivery::class,
+                PolicyReader::class,
+                PolicyHistory::class,
+                ConfigPurge::class,
+                ResolutionRecorder::class,
+                PolicyWriter::class,
+                EvidenceLedger::class,
+                LegalHoldRegistry::class,
+                OperationRunner::class,
+                ConnectionStatusReporter::class,
+                EvidenceArtefactRecorder::class,
+                JobCommands::class,
+                IdempotencyStore::class,
+                IdempotencyKeyPurgeJob::class,
                 UnrelayedEventCheck::class,
             ),
         ),
-        LEDGER_TABLE({ it.withPropertyValues("service-runtime.modules.evidence.ledger-table=evidence_ledger") }, setOf(EvidenceLedger::class)),
+        LEDGER_TABLE({
+            it.withPropertyValues("service-runtime.modules.evidence.ledger-table=evidence_ledger")
+        }, setOf(EvidenceLedger::class)),
         LEGAL_HOLD_TABLE(
             { it.withPropertyValues("service-runtime.modules.evidence.legal-hold-table=legal_hold") },
             setOf(LegalHoldRegistry::class),
         ),
-        BUCKET({ it.withPropertyValues("service-runtime.modules.evidence.bucket=evidence") }, setOf(ObjectStore::class)),
+        BUCKET(
+            { it.withPropertyValues("service-runtime.modules.evidence.bucket=evidence") },
+            setOf(ObjectStore::class),
+        ),
     }
 
     @Test
@@ -245,45 +346,79 @@ class CompositionRootTest {
             context.getBean(OutboxWriter::class.java).shouldBeInstanceOf<JdbcOutboxWriter>()
             context.getBean(EventBinding::class.java).shouldBeInstanceOf<PostgresEventBinding>()
             listOf(
-                OutboxRelay::class, EventLogReader::class, LaneRateLimiter::class, WorkQueue::class, DeadLetterTriage::class,
-                RetentionPurge::class, EventLogPurge::class, StalenessMonitor::class, InboxConsumer::class, ReplayDelivery::class,
+                OutboxRelay::class,
+                EventLogReader::class,
+                LaneRateLimiter::class,
+                WorkQueue::class,
+                DeadLetterTriage::class,
+                RetentionPurge::class,
+                EventLogPurge::class,
+                StalenessMonitor::class,
+                InboxConsumer::class,
+                ReplayDelivery::class,
             ).forEach { context.getBean(it.java) }
             // the unrelayed-event check, its open-findings gauge and its schedule (INV-Q-4334, INV-Q-4350)
             context.getBean(UnrelayedEventCheck::class.java).shouldBeInstanceOf<JdbcUnrelayedEventCheck>()
             context.getBean(UnrelayedEventCheckSchedule::class.java)
-            context.getBean(MeterRegistry::class.java).find(UnrelayedEventGauge.OPEN).tag(UnrelayedEventGauge.SERVICE, "submission-svc").gauge().shouldNotBeNull()
+            context
+                .getBean(
+                    MeterRegistry::class.java,
+                ).find(
+                    UnrelayedEventGauge.OPEN,
+                ).tag(UnrelayedEventGauge.SERVICE, "submission-svc")
+                .gauge()
+                .shouldNotBeNull()
             context.getBean(UnrelayedEventProperties::class.java).checkInterval shouldBe Duration.ofMinutes(5)
             // audit-log: the outbox writer in a service with an outbox
-            context.getBean(AuditWriter::class.java).shouldBeInstanceOf<OperatorSessionAuditWriter>().delegate.shouldBeInstanceOf<OutboxAuditWriter>()
+            context
+                .getBean(
+                    AuditWriter::class.java,
+                ).shouldBeInstanceOf<OperatorSessionAuditWriter>()
+                .delegate
+                .shouldBeInstanceOf<OutboxAuditWriter>()
             context.getBean(AuditedOperations::class.java)
             context.getBean(OverrideService::class.java)
             // config-resolver
-            listOf(PolicyReader::class, PolicyHistory::class, ConfigPurge::class, ResolutionRecorder::class, PolicyWriter::class)
-                .forEach { context.getBean(it.java) }
+            listOf(
+                PolicyReader::class,
+                PolicyHistory::class,
+                ConfigPurge::class,
+                ResolutionRecorder::class,
+                PolicyWriter::class,
+            ).forEach { context.getBean(it.java) }
             // evidence-store, with the ObjectStore binding selected by configuration
             context.getBean(EvidenceLedger::class.java)
             context.getBean(LegalHoldRegistry::class.java)
             context.getBean(ObjectStore::class.java).shouldBeInstanceOf<S3ObjectStore>()
             // adapter-runtime: its SecretStore reads the bound MountedFileSecretStore
             context.getBean(SecretStore::class.java).shouldBeInstanceOf<MountedFileSecretStore>()
-            context.getBean(AdapterSecretStore::class.java).read(AdapterSecretRef("ap-token")).reveal() shouldBe "s3cr3t"
+            context.getBean(AdapterSecretStore::class.java).read(AdapterSecretRef("ap-token")).reveal() shouldBe
+                "s3cr3t"
             context.getBean(SecretStore::class.java).read(BoundSecretRef("ap-token")).reveal() shouldBe "s3cr3t"
             context.getBean(AdapterDeadLetterSink::class.java).shouldBeInstanceOf<InMemoryDeadLetterSink>()
             // INV-Q-3730: adapter-runtime's version-keyed reporter is a local bean, not bridged; the only
             // ConnectionStatusChanged publisher is service-runtime's
-            context.getBean(AdapterConnectionStatusReporter::class.java).shouldBeInstanceOf<InMemoryConnectionStatusReporter>()
+            context
+                .getBean(
+                    AdapterConnectionStatusReporter::class.java,
+                ).shouldBeInstanceOf<InMemoryConnectionStatusReporter>()
             context.getBean(ConnectionStatusReporter::class.java).shouldBeInstanceOf<OutboxConnectionStatusReporter>()
             // crypto and rulepack-kernel
             val cms = context.getBean(DetachedSigner::class.java).shouldBeInstanceOf<BouncyCastleCms>()
             context.getBean(DetachedSignatureVerifier::class.java) shouldBeSameInstanceAs cms
-            listOf(PackVerifier::class, PackContentValidator::class, PackRegistry::class).forEach { context.getBean(it.java) }
+            listOf(
+                PackVerifier::class,
+                PackContentValidator::class,
+                PackRegistry::class,
+            ).forEach { context.getBean(it.java) }
             // service-runtime's own ports over them
             context.getBean(OperationRunner::class.java)
             context.getBean(EvidenceArtefactRecorder::class.java)
             context.getBean(JobCommands::class.java).shouldBeInstanceOf<JobRuntime>()
             context.getBean(IdempotencyStore::class.java)
             context.getBean(IdempotencyKeyPurgeJob::class.java).definition.name shouldBe "idempotency-key-purge"
-            context.getBean(JobRuntime::class.java).registered().map { it.name } shouldBe listOf("idempotency-key-purge")
+            context.getBean(JobRuntime::class.java).registered().map { it.name } shouldBe
+                listOf("idempotency-key-purge")
             context.getBeansOfType(ServletRegistrationBean::class.java).size shouldBe 1
         }
     }
@@ -295,17 +430,26 @@ class CompositionRootTest {
         base.withServiceInputs(mountRoot).run { context ->
             context.getBean(IdempotencyStore::class.java).retention shouldBe Duration.ofHours(24)
         }
-        base.withServiceInputs(mountRoot).withPropertyValues("service-runtime.idempotency.retention=P3D").run { context ->
-            context.getBean(IdempotencyStore::class.java).retention shouldBe Duration.ofDays(3)
-        }
-        base.withServiceInputs(mountRoot).withPropertyValues("service-runtime.idempotency.retention=PT23H").run { context ->
-            val failure = context.startupFailure.shouldNotBeNull()
-            generateSequence<Throwable>(failure) { it.cause }.any { it.message?.contains("at least 24 hours") == true } shouldBe true
-        }
+        base
+            .withServiceInputs(mountRoot)
+            .withPropertyValues("service-runtime.idempotency.retention=P3D")
+            .run { context ->
+                context.getBean(IdempotencyStore::class.java).retention shouldBe Duration.ofDays(3)
+            }
+        base
+            .withServiceInputs(mountRoot)
+            .withPropertyValues("service-runtime.idempotency.retention=PT23H")
+            .run { context ->
+                val failure = context.startupFailure.shouldNotBeNull()
+                generateSequence<Throwable>(
+                    failure,
+                ) { it.cause }.any { it.message?.contains("at least 24 hours") == true } shouldBe
+                    true
+            }
     }
 
     @Test
-    fun `the unrelayed-event check is on by default, interval and margin are per-profile settings, and an invalid margin stops start-up`(
+    fun `the unrelayed-event check is on by default, interval and margin per profile, an invalid margin stops start-up`(
         @TempDir mountRoot: Path,
     ) {
         base.withServiceInputs(mountRoot).run { context ->
@@ -320,12 +464,16 @@ class CompositionRootTest {
                 context.getBean(UnrelayedEventProperties::class.java).margin shouldBe Duration.ofHours(2)
             }
         // not positive; not below the shortest topic retention (the Retention bean: 30 days)
-        listOf("PT0S" to "margin must be positive", "P30D" to "below the shortest topic retention").forEach { (margin, message) ->
-            base.withServiceInputs(mountRoot).withPropertyValues("$UNRELAYED.margin=$margin").run { context ->
-                val failure = context.startupFailure.shouldNotBeNull()
-                generateSequence<Throwable>(failure) { it.cause }.any { it.message?.contains(message) == true } shouldBe true
+        listOf("PT0S" to "margin must be positive", "P30D" to "below the shortest topic retention")
+            .forEach { (margin, message) ->
+                base.withServiceInputs(mountRoot).withPropertyValues("$UNRELAYED.margin=$margin").run { context ->
+                    val failure = context.startupFailure.shouldNotBeNull()
+                    generateSequence<Throwable>(
+                        failure,
+                    ) { it.cause }.any { it.message?.contains(message) == true } shouldBe
+                        true
+                }
             }
-        }
     }
 
     @Test
@@ -348,9 +496,17 @@ class CompositionRootTest {
             context.getBean(AdapterConnectionStatusReporter::class.java)
             context.getBean(AdapterSecretStore::class.java)
             listOf(
-                TransactionRunner::class, OutboxWriter::class, EventBinding::class, AuditWriter::class, PolicyReader::class,
-                EvidenceLedger::class, ObjectStore::class, ConnectionStatusReporter::class, JobCommands::class,
-                LicenceCheck::class, IdempotencyStore::class,
+                TransactionRunner::class,
+                OutboxWriter::class,
+                EventBinding::class,
+                AuditWriter::class,
+                PolicyReader::class,
+                EvidenceLedger::class,
+                ObjectStore::class,
+                ConnectionStatusReporter::class,
+                JobCommands::class,
+                LicenceCheck::class,
+                IdempotencyStore::class,
             ).forEach { context.getBeansOfType(it.java).size shouldBe 0 }
         }
     }
@@ -377,7 +533,12 @@ class CompositionRootTest {
     ) {
         base.withServiceInputs(mountRoot).run { context ->
             context.startupFailure shouldBe null
-            SERVICE_INPUT_PORTS.forEach { port -> withClue(port.simpleName) { context.getBeansOfType(port.java).size shouldBe 1 } }
+            SERVICE_INPUT_PORTS.forEach { port ->
+                withClue(port.simpleName) {
+                    context.getBeansOfType(port.java).size shouldBe
+                        1
+                }
+            }
         }
     }
 
@@ -391,27 +552,43 @@ class CompositionRootTest {
             context.startupFailure shouldBe null
             // background work that started with the context (the staleness check) runs on the application DataSource
             clearMocks(context.getBean("dataSource", DataSource::class.java), answers = false, recordedCalls = true)
-            context.getBean(EventLogReader::class.java).shouldBeInstanceOf<PostgresEventLogReader>().backlog("gst.canonical.canonical-version-created.v1", 0)
+            context
+                .getBean(
+                    EventLogReader::class.java,
+                ).shouldBeInstanceOf<PostgresEventLogReader>()
+                .backlog("gst.canonical.canonical-version-created.v1", 0)
             verify { eventLog.connection }
             verify(exactly = 0) { context.getBean("dataSource", DataSource::class.java).connection }
         }
         base.withServiceInputs(mountRoot, without = ServiceInput.EVENT_LOG_DATA_SOURCE).run { context ->
             context.startupFailure shouldBe null
-            context.getBean(EventLogReader::class.java).shouldBeInstanceOf<PostgresEventLogReader>().backlog("gst.canonical.canonical-version-created.v1", 0)
+            context
+                .getBean(
+                    EventLogReader::class.java,
+                ).shouldBeInstanceOf<PostgresEventLogReader>()
+                .backlog("gst.canonical.canonical-version-created.v1", 0)
             verify { context.getBean("dataSource", DataSource::class.java).connection }
         }
     }
 
     @Test
-    fun `an installation value's audit entry is staged through the decorated writer, outside and under an operator session`(
+    fun `an installation value's audit entry is staged through the decorated writer, outside and under a session`(
         @TempDir mountRoot: Path,
     ) {
         val local =
             base
                 .withBean("dataSource", DataSource::class.java, { mockk<DataSource>(relaxed = true) })
-                .withPropertyValues("gst.service=control-plane-svc", "gst.instance-id=cp-0", "service-runtime.modules.schema=control_plane")
+                .withPropertyValues(
+                    "gst.service=control-plane-svc",
+                    "gst.instance-id=cp-0",
+                    "service-runtime.modules.schema=control_plane",
+                )
         // the local writer's context has no VariationPointCatalogue, so no PolicyWriter: only its stager is checked
-        val cases = listOf(Triple(base.withServiceInputs(mountRoot), OutboxAuditWriter::class, true), Triple(local, LocalAuditWriter::class, false))
+        val cases =
+            listOf(
+                Triple(base.withServiceInputs(mountRoot), OutboxAuditWriter::class, true),
+                Triple(local, LocalAuditWriter::class, false),
+            )
         for ((runner, delegate, withPolicyWriter) in cases) {
             runner.run { context ->
                 val audit = context.getBean(AuditWriter::class.java)
@@ -425,7 +602,10 @@ class CompositionRootTest {
                 val stager = audit as AuditStager
                 val entry = AuditEntry("op-1", "putInstallationSetting", "config:VP-78:INSTALLATION", "own")
                 stager.stage(entry, installationContext).entry.reason shouldBe "own"
-                val staged = CurrentOperatorSession.callWith(OperatorSession("platform.support", "CASE-5521")) { stager.stage(entry, installationContext) }
+                val staged =
+                    CurrentOperatorSession.callWith(OperatorSession("platform.support", "CASE-5521")) {
+                        stager.stage(entry, installationContext)
+                    }
                 staged.entry.reason shouldBe "case CASE-5521: own"
                 staged.envelope.dataJson.contains("\"case CASE-5521: own\"") shouldBe true
             }
@@ -436,10 +616,18 @@ class CompositionRootTest {
     fun `a service without an outbox gets the local audit writer`() {
         base
             .withBean("dataSource", DataSource::class.java, { mockk<DataSource>(relaxed = true) })
-            .withPropertyValues("gst.service=control-plane-svc", "gst.instance-id=cp-0", "service-runtime.modules.schema=control_plane")
-            .run { context ->
+            .withPropertyValues(
+                "gst.service=control-plane-svc",
+                "gst.instance-id=cp-0",
+                "service-runtime.modules.schema=control_plane",
+            ).run { context ->
                 context.getBeansOfType(OutboxWriter::class.java).size shouldBe 0
-                context.getBean(AuditWriter::class.java).shouldBeInstanceOf<OperatorSessionAuditWriter>().delegate.shouldBeInstanceOf<LocalAuditWriter>()
+                context
+                    .getBean(
+                        AuditWriter::class.java,
+                    ).shouldBeInstanceOf<OperatorSessionAuditWriter>()
+                    .delegate
+                    .shouldBeInstanceOf<LocalAuditWriter>()
             }
     }
 
@@ -454,10 +642,23 @@ class CompositionRootTest {
                 context.startupFailure shouldBe null
                 context.getBean(SecretStore::class.java)
                 listOf(
-                    TenantContext::class, TransactionRunner::class, TenantScope::class, OutboxWriter::class, EventBinding::class,
-                    AuditWriter::class, PolicyReader::class, EvidenceLedger::class, ObjectStore::class, AdapterSecretStore::class,
-                    AdapterConnectionStatusReporter::class, DetachedSigner::class, PackRegistry::class, OperationRunner::class,
-                    ConnectionStatusReporter::class, JobCommands::class, IdempotencyStore::class,
+                    TenantContext::class,
+                    TransactionRunner::class,
+                    TenantScope::class,
+                    OutboxWriter::class,
+                    EventBinding::class,
+                    AuditWriter::class,
+                    PolicyReader::class,
+                    EvidenceLedger::class,
+                    ObjectStore::class,
+                    AdapterSecretStore::class,
+                    AdapterConnectionStatusReporter::class,
+                    DetachedSigner::class,
+                    PackRegistry::class,
+                    OperationRunner::class,
+                    ConnectionStatusReporter::class,
+                    JobCommands::class,
+                    IdempotencyStore::class,
                 ).forEach { context.getBeansOfType(it.java).size shouldBe 0 }
                 // the service's own base LicenceCheck stays as it is: no tenancy-kernel impl half to wrap it
                 context.getBean(LicenceCheck::class.java).shouldBeInstanceOf<LicenceCheck>()
@@ -471,25 +672,44 @@ class CompositionRootTest {
 
         /** Every port whose presence depends on a service-only input, and the ports that depend on none. */
         val SERVICE_INPUT_PORTS: Set<KClass<*>> by lazy {
-            ServiceInput.entries.flatMap { it.dependents }.toSet() + setOf(TransactionRunner::class, SecretStore::class, PackRegistry::class)
+            ServiceInput.entries.flatMap { it.dependents }.toSet() +
+                setOf(TransactionRunner::class, SecretStore::class, PackRegistry::class)
         }
 
-        fun dataSource(name: String): (ApplicationContextRunner) -> ApplicationContextRunner = { it.withBean(name, DataSource::class.java, { mockk<DataSource>(relaxed = true) }) }
+        fun dataSource(name: String): (ApplicationContextRunner) -> ApplicationContextRunner =
+            {
+                it.withBean(name, DataSource::class.java, { mockk<DataSource>(relaxed = true) })
+            }
 
         /** Modules service-runtime does not depend on at all. */
-        val absentModules = listOf("evidencestore", "adapterruntime", "rulepackkernel", "crypto").map { "com.dynokore.platform.$it." }
+        val absentModules =
+            listOf("evidencestore", "adapterruntime", "rulepackkernel", "crypto").map {
+                "com.dynokore.platform.$it."
+            }
 
         /** The impl halves of the modules whose api half service-runtime does depend on. */
         val implClasses: Set<String> =
-            listOf(TransactionRunnerImpl::class.java, JdbcOutboxWriter::class.java, OutboxAuditWriter::class.java, com.dynokore.platform.configresolver.JdbcPolicyReader::class.java)
-                .flatMap { type -> classNames(Path.of(type.protectionDomain.codeSource.location.toURI())) }
-                .toSet()
+            listOf(
+                TransactionRunnerImpl::class.java,
+                JdbcOutboxWriter::class.java,
+                OutboxAuditWriter::class.java,
+                com.dynokore.platform.configresolver.JdbcPolicyReader::class.java,
+            ).flatMap { type ->
+                classNames(
+                    Path.of(
+                        type.protectionDomain.codeSource.location
+                            .toURI(),
+                    ),
+                )
+            }.toSet()
 
         /** The classes in [location], a jar or a class directory. */
         fun classNames(location: Path): List<String> {
             val entries =
                 if (Files.isDirectory(location)) {
-                    Files.walk(location).use { paths -> paths.map { location.relativize(it).toString().replace('\\', '/') }.toList() }
+                    Files.walk(location).use { paths ->
+                        paths.map { location.relativize(it).toString().replace('\\', '/') }.toList()
+                    }
                 } else {
                     JarFile(location.toFile()).use { jar -> jar.entries().toList().map { it.name } }
                 }
@@ -502,7 +722,12 @@ class CompositionRootTest {
 
 /** Every service's catalogue lists AuditEntryRecorded, which its outbox audit writer emits. */
 private val auditCatalogueEntry =
-    CatalogueEntry(OutboxAuditWriter.EVENT_TYPE, "gst.platform.audit-entry-recorded.v1", setOf(CatalogueEntry.EVERY_SERVICE), false)
+    CatalogueEntry(
+        OutboxAuditWriter.EVENT_TYPE,
+        "gst.platform.audit-entry-recorded.v1",
+        setOf(CatalogueEntry.EVERY_SERVICE),
+        false,
+    )
 
 /** The context JdbcPolicyWriter builds for an installation value (config-resolver InstallationCalls). */
 private val installationContext =

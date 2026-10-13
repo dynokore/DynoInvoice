@@ -58,7 +58,8 @@ class Resilience4jResilientExecutorTest {
         // breaker's *own* minimumNumberOfCalls must not be reachable from a single
         // execute() call's retries — otherwise this test would be exercising the
         // breaker tripping mid-retry, not the retry-then-succeed behavior it names.
-        val executor = Resilience4jResilientExecutor(policy(maxAttempts = 3, slidingWindowSize = 10), "edge-b", deadLetters, clock)
+        val executor =
+            Resilience4jResilientExecutor(policy(maxAttempts = 3, slidingWindowSize = 10), "edge-b", deadLetters, clock)
         var calls = 0
 
         val result =
@@ -80,7 +81,8 @@ class Resilience4jResilientExecutorTest {
         // attempt and the third attempt is refused by CallNotPermittedException
         // instead of retried, so the "every attempt fails" case never runs to its
         // bound and the wrong exception type is what actually gets rethrown.
-        val executor = Resilience4jResilientExecutor(policy(maxAttempts = 3, slidingWindowSize = 10), "edge-c", deadLetters, clock)
+        val executor =
+            Resilience4jResilientExecutor(policy(maxAttempts = 3, slidingWindowSize = 10), "edge-c", deadLetters, clock)
         var calls = 0
 
         shouldThrow<IllegalStateException> {
@@ -100,7 +102,12 @@ class Resilience4jResilientExecutorTest {
     fun `a call slower than the timeout is dead-lettered as a timeout, not run to completion`() {
         val deadLetters = InMemoryDeadLetterSink()
         val executor =
-            Resilience4jResilientExecutor(policy(maxAttempts = 1, timeout = Duration.ofMillis(50)), "edge-d", deadLetters, clock)
+            Resilience4jResilientExecutor(
+                policy(maxAttempts = 1, timeout = Duration.ofMillis(50)),
+                "edge-d",
+                deadLetters,
+                clock,
+            )
 
         shouldThrow<TimeoutException> {
             executor.execute {
@@ -115,20 +122,24 @@ class Resilience4jResilientExecutorTest {
     @Test
     fun `an open circuit breaker fails fast, without invoking the block or spending the retry budget`() {
         val deadLetters = InMemoryDeadLetterSink()
-        val executor = Resilience4jResilientExecutor(policy(maxAttempts = 1, slidingWindowSize = 2), "edge-e", deadLetters, clock)
+        val executor =
+            Resilience4jResilientExecutor(policy(maxAttempts = 1, slidingWindowSize = 2), "edge-e", deadLetters, clock)
         val invocations = AtomicInteger(0)
         val failingBlock: () -> String = {
             invocations.incrementAndGet()
             throw IllegalStateException("boom")
         }
 
-        repeat(2) { shouldThrow<IllegalStateException> { executor.execute(failingBlock) } } // fills the 2-call sliding window, all failing
+        repeat(2) {
+            shouldThrow<IllegalStateException> { executor.execute(failingBlock) }
+        } // fills the 2-call sliding window, all failing
         invocations.get() shouldBe 2
 
         shouldThrow<CallNotPermittedException> { executor.execute(failingBlock) }
         invocations.get() shouldBe 2 // the breaker refused the call before the block ever ran
 
-        deadLetters.entries.last().attempts shouldBe 1 // ignoreExceptions(CallNotPermittedException): no retry spent on an open breaker
+        // ignoreExceptions(CallNotPermittedException): no retry spent on an open breaker
+        deadLetters.entries.last().attempts shouldBe 1
         deadLetters.entries.last().failureType shouldContain "CallNotPermittedException"
     }
 
@@ -139,7 +150,8 @@ class Resilience4jResilientExecutorTest {
         // here slidingWindowSize (2) is smaller than maxAttempts (5) on purpose, so the
         // breaker's own window IS exhausted by this one call's retries and trips before
         // the retry budget does.
-        val executor = Resilience4jResilientExecutor(policy(maxAttempts = 5, slidingWindowSize = 2), "edge-g", deadLetters, clock)
+        val executor =
+            Resilience4jResilientExecutor(policy(maxAttempts = 5, slidingWindowSize = 2), "edge-g", deadLetters, clock)
         var calls = 0
 
         shouldThrow<CallNotPermittedException> {
@@ -149,7 +161,8 @@ class Resilience4jResilientExecutorTest {
             }
         }
 
-        calls shouldBe 2 // the block ran for attempts 1 and 2 only; both failures filled the 2-call window and tripped the breaker
+        // the block ran for attempts 1 and 2 only; both failures filled the 2-call window and tripped the breaker
+        calls shouldBe 2
         deadLetters.entries.single().attempts shouldBe 3 // 2 real attempts, then the 3rd was the breaker's own refusal
         deadLetters.entries.single().failureType shouldContain "CallNotPermittedException"
     }

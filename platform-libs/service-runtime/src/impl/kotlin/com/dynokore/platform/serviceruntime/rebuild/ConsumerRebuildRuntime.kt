@@ -51,203 +51,228 @@ import java.util.UUID
  * (`PostgresEventLogReader`).
  */
 class ConsumerRebuildRuntime
-@JvmOverloads
-constructor(
-    private val service: String,
-    private val schema: String,
-    private val catalogue: EventCatalogue,
-    private val subscriptions: List<ConsumerSubscription>,
-    scope: TenantScope,
-    outbox: OutboxWriter,
-    audit: AuditWriter,
-    private val head: EventLogHead,
-    private val authorizer: ConsumerRebuildAuthorizer,
-    private val clock: Clock,
-    private val fullSync: FullSyncWiring? = null,
-) : ConsumerRebuildCommands {
-    /** The transaction a request runs in, on the runtime login, for a replay by scope and a full sync alike. */
-    private inner class Side(
-        val scope: TenantScope,
+    @JvmOverloads
+    constructor(
+        private val service: String,
+        private val schema: String,
+        private val catalogue: EventCatalogue,
+        private val subscriptions: List<ConsumerSubscription>,
+        scope: TenantScope,
         outbox: OutboxWriter,
-        val audit: AuditWriter,
-    ) {
-        val replay = JdbcConsumerReplay(schema, scope.connections, head, outbox, clock)
+        audit: AuditWriter,
+        private val head: EventLogHead,
+        private val authorizer: ConsumerRebuildAuthorizer,
+        private val clock: Clock,
+        private val fullSync: FullSyncWiring? = null,
+    ) : ConsumerRebuildCommands {
+        /** The transaction a request runs in, on the runtime login, for a replay by scope and a full sync alike. */
+        private inner class Side(
+            val scope: TenantScope,
+            outbox: OutboxWriter,
+            val audit: AuditWriter,
+        ) {
+            val replay = JdbcConsumerReplay(schema, scope.connections, head, outbox, clock)
 
-        /** The operator's command under the platform tenant, bound to the operator's `sub` (INV-Q-4268, INV-T-3981 line 7). */
-        fun <T> platformTransaction(
-            actor: String,
-            block: () -> T,
-        ): T = scope.bind(TenantId.PLATFORM, actor) { scope.transactions.inTransaction(block) }
-    }
+            /** The operator's command under the platform tenant, bound to the operator's `sub` (INV-Q-4268, INV-T-3981 line 7). */
+            fun <T> platformTransaction(
+                actor: String,
+                block: () -> T,
+            ): T = scope.bind(TenantId.PLATFORM, actor) { scope.transactions.inTransaction(block) }
+        }
 
-    private val appSide = Side(scope, outbox, audit)
-    private val json = ReplayJson()
-    private val mapper = ObjectMapper()
+        private val appSide = Side(scope, outbox, audit)
+        private val json = ReplayJson()
+        private val mapper = ObjectMapper()
 
-    override fun rebuildConsumer(request: RebuildConsumerRequest): RebuildOutcome {
-        val subscription =
-            subscriptions.firstOrNull { it.topic == request.topic }
-                ?: return RebuildOutcome.Refused(RebuildErrorCode.TOPIC_NOT_CONSUMED)
-        val entry =
-            catalogue.topic(request.topic) ?: return RebuildOutcome.Refused(RebuildErrorCode.TOPIC_NOT_CONSUMED)
-        if (!authorizer.isPlatformOperator(request.actor)) return RebuildOutcome.Refused(RebuildErrorCode.ROLE_NOT_PERMITTED)
-        val consumer = subscription.consumer
-        val (producers, side) =
-            if (request.mode == ReplayMode.FULL_SYNC) {
-                val closed = fullSyncAddressees(consumer, entry.producers)
-                check(fullSync?.clears?.map { it.producer }?.containsAll(closed) == true) {
-                    "a full sync from $closed needs the service's read-model clear for each (ReadModelClear)"
+        override fun rebuildConsumer(request: RebuildConsumerRequest): RebuildOutcome {
+            val subscription =
+                subscriptions.firstOrNull { it.topic == request.topic }
+                    ?: return RebuildOutcome.Refused(RebuildErrorCode.TOPIC_NOT_CONSUMED)
+            val entry =
+                catalogue.topic(request.topic) ?: return RebuildOutcome.Refused(RebuildErrorCode.TOPIC_NOT_CONSUMED)
+            if (!authorizer.isPlatformOperator(
+                    request.actor,
+                )
+            ) {
+                return RebuildOutcome.Refused(RebuildErrorCode.ROLE_NOT_PERMITTED)
+            }
+            val consumer = subscription.consumer
+            val (producers, side) =
+                if (request.mode == ReplayMode.FULL_SYNC) {
+                    val closed = fullSyncAddressees(consumer, entry.producers)
+                    check(fullSync?.clears?.map { it.producer }?.containsAll(closed) == true) {
+                        "a full sync from $closed needs the service's read-model clear for each (ReadModelClear)"
+                    }
+                    closed to appSide
+                } else {
+                    entry.producers.sorted() to appSide
                 }
-                closed to appSide
+            repeat(ATTEMPTS) {
+                try {
+                    return side.platformTransaction(request.actor) { decide(side, request, consumer, producers) }
+                } catch (race: SQLException) {
+                    // A concurrent call for the pair committed its pending replay first (unique index): read it again.
+                    if (race.sqlState != UNIQUE_VIOLATION) throw race
+                }
+            }
+            error("rebuildConsumer kept racing on the pending replay")
+        }
+
+        /**
+         * The addressees of a full sync of a topic produced by [start]: a full sync moves every topic of its producers that
+         * [consumer] reads (INV-Q-3603), so each such topic's other producers are addressed too, until no moved topic has a
+         * producer outside the set (owner ruling INV-Q-3788 A). Without this, a moved topic's other producers' history
+         * would be skipped with no replay to fill it.
+         */
+        private fun fullSyncAddressees(
+            consumer: String,
+            start: Collection<String>,
+        ): List<String> {
+            val read = consumedEntries(consumer)
+            val addressees = start.toMutableSet()
+            do {
+                val added =
+                    read
+                        .filter { e ->
+                            e.producers.any { it in addressees }
+                        }.flatMap { it.producers }
+                        .filter(addressees::add)
+            } while (added.isNotEmpty())
+            return addressees.sorted()
+        }
+
+        private fun consumedEntries(consumer: String) =
+            subscriptions
+                .filter {
+                    it.consumer == consumer
+                }.mapNotNull { catalogue.topic(it.topic) }
+
+        private fun decide(
+            side: Side,
+            request: RebuildConsumerRequest,
+            consumer: String,
+            producers: List<String>,
+        ): RebuildOutcome {
+            repeatOrConflict(side, request, consumer, producers)?.let { return it }
+            if (!side.replay.isBehind(consumer, request.topic)) {
+                return RebuildOutcome.Refused(RebuildErrorCode.NOT_REBUILD_REQUIRED)
+            }
+            val replayId = UUID.randomUUID()
+            val requests = producers.map { ReplayRequest(replayId, it, request.mode, request.scope) }
+            val moved =
+                if (request.mode == ReplayMode.FULL_SYNC) {
+                    // Every topic of the addressees this consumer reads goes to the head (INV-Q-3603, INV-Q-3788 A).
+                    val topics =
+                        consumedEntries(consumer)
+                            .filter { e ->
+                                e.producers.any { it in producers }
+                            }.map { it.topic }
+                    val clears = fullSync?.clears.orEmpty().filter { it.producer in producers }
+                    side.replay.fullSync(consumer, topics, requests, clears, request.correlation, request.causation)
+                } else {
+                    side.replay.request(
+                        consumer,
+                        listOf(request.topic),
+                        requests,
+                        request.correlation,
+                        request.causation,
+                    )
+                }
+            side.audit.record(auditEntry(request, producers, moved), context(replayId, request))
+            val pending =
+                side.replay.pending(consumer, producers.first()) ?: error("the pending replay was just written")
+            return RebuildOutcome.Done(state(pending, request.topic, producers, repeat = false), created = true)
+        }
+
+        /**
+         * The repeat rule over the addressed pairs (owner rulings INV-Q-3665, INV-Q-3788 A): none pending, `null` (go on);
+         * the pending replay returned (200) when every pending pair holds one replay, of this mode and scope, addressed to
+         * exactly [producers] (pairs of it already completed stay part of it until its incident closes, INV-Q-3845);
+         * otherwise EVL-004. EVL-003 is reached only once the incident has closed.
+         */
+        private fun repeatOrConflict(
+            side: Side,
+            request: RebuildConsumerRequest,
+            consumer: String,
+            producers: List<String>,
+        ): RebuildOutcome? {
+            val pending = producers.mapNotNull { side.replay.pending(consumer, it) }
+            val first = pending.firstOrNull() ?: return null
+            val same =
+                pending.all { it.replayId == first.replayId && it.mode == request.mode && it.scope == request.scope } &&
+                    side.replay.addressees(consumer, first.replayId) == producers
+            return if (same) {
+                RebuildOutcome.Done(state(first, request.topic, producers, repeat = true), created = false)
             } else {
-                entry.producers.sorted() to appSide
-            }
-        repeat(ATTEMPTS) {
-            try {
-                return side.platformTransaction(request.actor) { decide(side, request, consumer, producers) }
-            } catch (race: SQLException) {
-                // A concurrent call for the pair committed its pending replay first (unique index): read it again.
-                if (race.sqlState != UNIQUE_VIOLATION) throw race
+                RebuildOutcome.Refused(RebuildErrorCode.OTHER_REPLAY_PENDING)
             }
         }
-        error("rebuildConsumer kept racing on the pending replay")
-    }
 
-    /**
-     * The addressees of a full sync of a topic produced by [start]: a full sync moves every topic of its producers that
-     * [consumer] reads (INV-Q-3603), so each such topic's other producers are addressed too, until no moved topic has a
-     * producer outside the set (owner ruling INV-Q-3788 A). Without this, a moved topic's other producers' history
-     * would be skipped with no replay to fill it.
-     */
-    private fun fullSyncAddressees(
-        consumer: String,
-        start: Collection<String>,
-    ): List<String> {
-        val read = consumedEntries(consumer)
-        val addressees = start.toMutableSet()
-        do {
-            val added = read.filter { e -> e.producers.any { it in addressees } }.flatMap { it.producers }.filter(addressees::add)
-        } while (added.isNotEmpty())
-        return addressees.sorted()
-    }
-
-    private fun consumedEntries(consumer: String) = subscriptions.filter { it.consumer == consumer }.mapNotNull { catalogue.topic(it.topic) }
-
-    private fun decide(
-        side: Side,
-        request: RebuildConsumerRequest,
-        consumer: String,
-        producers: List<String>,
-    ): RebuildOutcome {
-        repeatOrConflict(side, request, consumer, producers)?.let { return it }
-        if (!side.replay.isBehind(consumer, request.topic)) {
-            return RebuildOutcome.Refused(RebuildErrorCode.NOT_REBUILD_REQUIRED)
-        }
-        val replayId = UUID.randomUUID()
-        val requests = producers.map { ReplayRequest(replayId, it, request.mode, request.scope) }
-        val moved =
-            if (request.mode == ReplayMode.FULL_SYNC) {
-                // Every topic of the addressees this consumer reads goes to the head (INV-Q-3603, INV-Q-3788 A).
-                val topics = consumedEntries(consumer).filter { e -> e.producers.any { it in producers } }.map { it.topic }
-                val clears = fullSync?.clears.orEmpty().filter { it.producer in producers }
-                side.replay.fullSync(consumer, topics, requests, clears, request.correlation, request.causation)
-            } else {
-                side.replay.request(consumer, listOf(request.topic), requests, request.correlation, request.causation)
-            }
-        side.audit.record(auditEntry(request, producers, moved), context(replayId, request))
-        val pending = side.replay.pending(consumer, producers.first()) ?: error("the pending replay was just written")
-        return RebuildOutcome.Done(state(pending, request.topic, producers, repeat = false), created = true)
-    }
-
-    /**
-     * The repeat rule over the addressed pairs (owner rulings INV-Q-3665, INV-Q-3788 A): none pending, `null` (go on);
-     * the pending replay returned (200) when every pending pair holds one replay, of this mode and scope, addressed to
-     * exactly [producers] (pairs of it already completed stay part of it until its incident closes, INV-Q-3845);
-     * otherwise EVL-004. EVL-003 is reached only once the incident has closed.
-     */
-    private fun repeatOrConflict(
-        side: Side,
-        request: RebuildConsumerRequest,
-        consumer: String,
-        producers: List<String>,
-    ): RebuildOutcome? {
-        val pending = producers.mapNotNull { side.replay.pending(consumer, it) }
-        val first = pending.firstOrNull() ?: return null
-        val same =
-            pending.all { it.replayId == first.replayId && it.mode == request.mode && it.scope == request.scope } &&
-                side.replay.addressees(consumer, first.replayId) == producers
-        return if (same) {
-            RebuildOutcome.Done(state(first, request.topic, producers, repeat = true), created = false)
-        } else {
-            RebuildOutcome.Refused(RebuildErrorCode.OTHER_REPLAY_PENDING)
-        }
-    }
-
-    private fun state(
-        pending: PendingReplay,
-        topic: String,
-        producers: List<String>,
-        repeat: Boolean,
-    ) = ReplayState(
-        replayId = pending.replayId,
-        topic = if (topic in pending.topics) topic else pending.topics.first(),
-        producer = ReplayState.producerOf(producers),
-        producers = producers,
-        mode = pending.mode,
-        scope = pending.scope,
-        requestedAt = pending.requestedAt,
-        repeat = repeat,
-    )
-
-    /**
-     * The audit entry of INV-Q-3663 (INV-REQ-2588 b9): actor; action rebuildConsumer; scope = consumer service, topic,
-     * producer, every addressee (INV-Q-3788 A), mode and replay scope; reason = the caller's text, else the
-     * Idempotency-Key; prior state = the positions before the move.
-     */
-    private fun auditEntry(
-        request: RebuildConsumerRequest,
-        producers: List<String>,
-        moved: List<MovedPosition>,
-    ): AuditEntry {
-        val scopeNode = mapper.createObjectNode()
-        scopeNode.put("consumerService", service)
-        scopeNode.put("topic", request.topic)
-        scopeNode.put("producer", ReplayState.producerOf(producers))
-        producers.forEach(scopeNode.putArray("producers")::add)
-        scopeNode.put("mode", request.mode.name)
-        request.scope?.let { scopeNode.set("replayScope", mapper.readTree(json.writeScope(it))) }
-        val prior = mapper.createObjectNode()
-        val positions = prior.putArray("positions")
-        moved.forEach { positions.addObject().put("topic", it.topic).put("nextOffset", it.before) }
-        return AuditEntry(
-            actor = request.actor,
-            action = OPERATION,
-            scope = mapper.writeValueAsString(scopeNode),
-            reason = request.reason ?: "Idempotency-Key ${request.idempotencyKey}",
-            priorStateJson = mapper.writeValueAsString(prior),
+        private fun state(
+            pending: PendingReplay,
+            topic: String,
+            producers: List<String>,
+            repeat: Boolean,
+        ) = ReplayState(
+            replayId = pending.replayId,
+            topic = if (topic in pending.topics) topic else pending.topics.first(),
+            producer = ReplayState.producerOf(producers),
+            producers = producers,
+            mode = pending.mode,
+            scope = pending.scope,
+            requestedAt = pending.requestedAt,
+            repeat = repeat,
         )
-    }
 
-    private fun context(
-        replayId: UUID,
-        request: RebuildConsumerRequest,
-    ) = EventContext(
-        tenant = TenantId.PLATFORM,
-        entity = EntityRef.PLATFORM,
-        docUuid = null,
-        transactionDate = null,
-        aggregateKey = "$service/rebuild/$replayId",
-        aggregateVersion = null,
-        correlation = request.correlation,
-        causation = request.causation,
-    )
+        /**
+         * The audit entry of INV-Q-3663 (INV-REQ-2588 b9): actor; action rebuildConsumer; scope = consumer service, topic,
+         * producer, every addressee (INV-Q-3788 A), mode and replay scope; reason = the caller's text, else the
+         * Idempotency-Key; prior state = the positions before the move.
+         */
+        private fun auditEntry(
+            request: RebuildConsumerRequest,
+            producers: List<String>,
+            moved: List<MovedPosition>,
+        ): AuditEntry {
+            val scopeNode = mapper.createObjectNode()
+            scopeNode.put("consumerService", service)
+            scopeNode.put("topic", request.topic)
+            scopeNode.put("producer", ReplayState.producerOf(producers))
+            producers.forEach(scopeNode.putArray("producers")::add)
+            scopeNode.put("mode", request.mode.name)
+            request.scope?.let { scopeNode.set("replayScope", mapper.readTree(json.writeScope(it))) }
+            val prior = mapper.createObjectNode()
+            val positions = prior.putArray("positions")
+            moved.forEach { positions.addObject().put("topic", it.topic).put("nextOffset", it.before) }
+            return AuditEntry(
+                actor = request.actor,
+                action = OPERATION,
+                scope = mapper.writeValueAsString(scopeNode),
+                reason = request.reason ?: "Idempotency-Key ${request.idempotencyKey}",
+                priorStateJson = mapper.writeValueAsString(prior),
+            )
+        }
 
-    private companion object {
-        const val OPERATION = "rebuildConsumer"
-        const val UNIQUE_VIOLATION = "23505"
-        const val ATTEMPTS = 3
+        private fun context(
+            replayId: UUID,
+            request: RebuildConsumerRequest,
+        ) = EventContext(
+            tenant = TenantId.PLATFORM,
+            entity = EntityRef.PLATFORM,
+            docUuid = null,
+            transactionDate = null,
+            aggregateKey = "$service/rebuild/$replayId",
+            aggregateVersion = null,
+            correlation = request.correlation,
+            causation = request.causation,
+        )
+
+        private companion object {
+            const val OPERATION = "rebuildConsumer"
+            const val UNIQUE_VIOLATION = "23505"
+            const val ATTEMPTS = 3
+        }
     }
-}
 
 /**
  * A full sync's read-model clears (coordinator rulings INV-Q-3786, INV-Q-4064): [clears] holds the service's

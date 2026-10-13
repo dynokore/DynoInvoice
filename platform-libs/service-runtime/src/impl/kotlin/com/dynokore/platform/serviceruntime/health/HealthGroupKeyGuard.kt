@@ -26,7 +26,8 @@ class HealthGroupKeyGuard(
                 .distinct()
                 .sorted()
         check(former.isEmpty()) {
-            "Health groups are named live and ready (/health/live, /health/ready; service-runtime 4.0.0, INV-Q-4192): " +
+            "Health groups are named live and ready (/health/live, /health/ready; service-runtime 4.0.0, " +
+                "INV-Q-4192): " +
                 "rename management.endpoint.health.group.liveness.* to group.live.* and group.readiness.* to " +
                 "group.ready.*; found $former"
         }

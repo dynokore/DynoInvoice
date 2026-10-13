@@ -57,9 +57,7 @@ object TopicsYamlCatalogue {
                     list = null
                 }
 
-                entry == null -> {
-                    Unit
-                }
+                entry == null -> {}
 
                 line.startsWith("event_type:") -> {
                     entry.type = line.removePrefix("event_type:").trim()

@@ -1,5 +1,6 @@
 package com.dynokore.platform.productruntime
 
+import com.dynokore.gst.productRuntimeAuthorityEvents.adapters.events.model.AuthorityChangedPayloadConsentRecord
 import com.dynokore.platform.outboxandqueue.ContractViolation
 import com.dynokore.platform.outboxandqueue.HandleOutcome
 import com.dynokore.platform.productruntime.Fixtures.CLOCK
@@ -33,18 +34,22 @@ class FeedHandlersTest {
     ) = """{"kind":"ENTITY","parentRef":"G-1","retired":false,"name":"$name","code":"E1",
         |"profile":[{"attribute":"filingFrequency","value":"QUARTERLY","effectiveDate":"2026-01-01"}],
         |"structureVersion":$version}
-    """.trimMargin()
+        """.trimMargin()
 
-    private fun structureChanged(nodeJson: String?) = """{"nodeType":"ENTITY","nodeRef":"E-001","changeType":"UPDATED","parentRef":"G-1"""" +
-        (nodeJson?.let { ""","node":$it}""" } ?: "}")
+    private fun structureChanged(nodeJson: String?) =
+        """{"nodeType":"ENTITY","nodeRef":"E-001","changeType":"UPDATED","parentRef":"G-1"""" +
+            (nodeJson?.let { ""","node":$it}""" } ?: "}")
 
-    private fun held(replica: StructureReplica) = (replica.node(TENANT, "E-001", Deadline.after(Duration.ofSeconds(1), CLOCK)) as Lookup.Local).value
+    private fun held(replica: StructureReplica) =
+        (replica.node(TENANT, "E-001", Deadline.after(Duration.ofSeconds(1), CLOCK)) as Lookup.Local).value
 
     @Test
     fun `structure events replace the node whole and are ordered by the tenancy structure version`() {
         val replica = StructureReplica(CLOCK)
         val handler = StructureFeedHandler(replica)
-        handler.handle(envelope(ProductEventTypes.ORGANISATION_STRUCTURE_CHANGED, structureChanged(node(5, "Acme")))) shouldBe
+        handler.handle(
+            envelope(ProductEventTypes.ORGANISATION_STRUCTURE_CHANGED, structureChanged(node(5, "Acme"))),
+        ) shouldBe
             HandleOutcome.APPLIED
         val profile =
             """{"entityRef":"E-001","changedAttributes":[{"attribute":"filingFrequency","newValue":"MONTHLY"}],
@@ -117,13 +122,16 @@ class FeedHandlersTest {
             """{"changeKind":"PRINCIPAL","principalRef":"P-1","authorityVersion":9,
             |"principalRecord":{"state":"REVOKED"}}
             """.trimMargin()
-        handler.decode(envelope(ProductEventTypes.AUTHORITY_CHANGED, revoked)).record
+        handler
+            .decode(envelope(ProductEventTypes.AUTHORITY_CHANGED, revoked))
+            .record
             .shouldBeInstanceOf<AuthorityRecord.PrincipalRecord>()
     }
 
-    private fun firstScopeItem(): String = com.dynokore.gst.productRuntimeAuthorityEvents.adapters.events.model.AuthorityChangedPayloadConsentRecord.ScopeItems.entries
-        .first()
-        .value
+    private fun firstScopeItem(): String =
+        AuthorityChangedPayloadConsentRecord.ScopeItems.entries
+            .first()
+            .value
 
     @Test
     fun `an AuthorityChanged without a record passes no record, one with two records is a ContractViolation`() {

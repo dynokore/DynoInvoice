@@ -30,7 +30,14 @@ class MultiProducerReplayIT {
             val evidence = harness.evidence
             val kits = producerKits(harness)
             val producers = kits.values.map { it.service }.sorted()
-            assertEquals(producers, harness.catalogue.topic(topic)!!.producers.sorted(), "every catalogue producer")
+            assertEquals(
+                producers,
+                harness.catalogue
+                    .topic(topic)!!
+                    .producers
+                    .sorted(),
+                "every catalogue producer",
+            )
             val replayId = UUID.randomUUID()
             val moved = request(harness, replayId, producers)
             assertEquals(listOf(topic), moved.map { it.topic }, "the head moved once")
@@ -89,7 +96,7 @@ class MultiProducerReplayIT {
         }
     }
 
-    /** evidence-svc's full sync addressed to every one of [producers], on its runtime login bound to the platform. */
+    // evidence-svc's full sync addressed to every one of [producers], on its runtime login bound to the platform.
     // INV-T-3999 removes this call
     @Suppress("DEPRECATION")
     private fun fullSync(
@@ -138,15 +145,16 @@ class MultiProducerReplayIT {
             cursor: String?,
             limit: Int,
         ): ReplayPage {
-            val state = ReplayedState(
-                eventType,
-                """{"version":3}""",
-                EntityRef("entity-$doc"),
-                doc.toString(),
-                3L,
-                DocUuid(doc),
-                LocalDate.of(2026, 9, 30),
-            )
+            val state =
+                ReplayedState(
+                    eventType,
+                    """{"version":3}""",
+                    EntityRef("entity-$doc"),
+                    doc.toString(),
+                    3L,
+                    DocUuid(doc),
+                    LocalDate.of(2026, 9, 30),
+                )
             return ReplayPage(if (cursor == null) listOf(state) else emptyList(), null)
         }
     }
@@ -174,10 +182,18 @@ class MultiProducerReplayIT {
         kit: ServiceKit,
         sources: List<ReplayStateSource> = emptyList(),
     ): List<ReplayAnswer> {
-        val responder = JdbcReplayResponder(
-            kit.service, kit.schema, harness.catalogue, harness.reader, harness.fixture.runtimeDataSource(),
-            kit.scope, kit.writer, sources, harness.rebuildSink,
-        )
+        val responder =
+            JdbcReplayResponder(
+                kit.service,
+                kit.schema,
+                harness.catalogue,
+                harness.reader,
+                harness.fixture.runtimeDataSource(),
+                kit.scope,
+                kit.writer,
+                sources,
+                harness.rebuildSink,
+            )
         val answers = responder.runOnce()
         harness.drain(kit.relay)
         return answers

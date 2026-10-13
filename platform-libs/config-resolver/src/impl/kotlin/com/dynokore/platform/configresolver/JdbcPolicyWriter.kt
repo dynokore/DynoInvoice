@@ -393,9 +393,7 @@ class JdbcPolicyWriter(
                 )
             }
         when (verdict) {
-            ConstraintVerdict.Accept -> {
-                Unit
-            }
+            ConstraintVerdict.Accept -> {}
 
             is ConstraintVerdict.Refuse -> {
                 refuse(definition.key, PolicyRefusal.CONSTRAINT_REFUSED, verdict.reason)
@@ -645,9 +643,7 @@ class JdbcPolicyWriter(
                         .put("profileVersion", source.profileVersion)
                 }
 
-                PolicySource.CatalogueDefault -> {
-                    Unit
-                }
+                PolicySource.CatalogueDefault -> {}
             }
         }
         return mapper.writeValueAsString(node)

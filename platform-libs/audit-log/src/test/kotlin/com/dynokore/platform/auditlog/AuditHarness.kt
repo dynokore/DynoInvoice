@@ -22,7 +22,9 @@ import java.util.UUID
  * exist yet): its outbox from outbox-and-queue, the audit-log `override_grant` table, and two state tables
  * the fake operations of INV-AC-2593 change and read. The roles are outbox-and-queue's fixture roles.
  */
-class AuditHarness(image: String) : AutoCloseable {
+class AuditHarness(
+    image: String,
+) : AutoCloseable {
     val fixture = OutboxPostgresFixture(image)
     val tenants = TenantContextImpl()
     val boundary = KillableTransactionRunner(fixture.appDataSource(), tenants)
@@ -44,7 +46,7 @@ class AuditHarness(image: String) : AutoCloseable {
         )
     }
 
-    /** Runs [block] with [tenant] bound, as an inbound adapter would after verifying the token (ARC-21). */
+    // Runs [block] with [tenant] bound, as an inbound adapter would after verifying the token (ARC-21).
     // INV-T-3999 removes this call
     @Suppress("DEPRECATION")
     fun <T> asTenant(
@@ -93,21 +95,23 @@ class AuditHarness(image: String) : AutoCloseable {
     fun count(
         sql: String,
         vararg args: Any,
-    ): Long = fixture.adminDataSource().connection.use { connection ->
-        connection.prepareStatement(sql).use { statement ->
-            args.forEachIndexed { index, value -> statement.setObject(index + 1, value) }
-            statement.executeQuery().use {
-                it.next()
-                it.getLong(1)
+    ): Long =
+        fixture.adminDataSource().connection.use { connection ->
+            connection.prepareStatement(sql).use { statement ->
+                args.forEachIndexed { index, value -> statement.setObject(index + 1, value) }
+                statement.executeQuery().use {
+                    it.next()
+                    it.getLong(1)
+                }
             }
         }
-    }
 
-    fun auditEntries(subjectLike: String = "%"): Long = count(
-        "select count(*) from $SCHEMA.outbox where type = ? and subject like ?",
-        OutboxAuditWriter.EVENT_TYPE,
-        subjectLike,
-    )
+    fun auditEntries(subjectLike: String = "%"): Long =
+        count(
+            "select count(*) from $SCHEMA.outbox where type = ? and subject like ?",
+            OutboxAuditWriter.EVENT_TYPE,
+            subjectLike,
+        )
 
     /** Whether [code] is overridden for [version] of [doc], asked inside a transaction of [tenant]. */
     fun overridden(
@@ -115,9 +119,10 @@ class AuditHarness(image: String) : AutoCloseable {
         doc: UUID,
         version: Long,
         code: String = MDM_003,
-    ): Boolean = asTenant(tenant) {
-        boundary.inTransaction { overrides.isOverridden(DocUuid(doc), version, code) }
-    }
+    ): Boolean =
+        asTenant(tenant) {
+            boundary.inTransaction { overrides.isOverridden(DocUuid(doc), version, code) }
+        }
 
     override fun close() {
         fixture.close()

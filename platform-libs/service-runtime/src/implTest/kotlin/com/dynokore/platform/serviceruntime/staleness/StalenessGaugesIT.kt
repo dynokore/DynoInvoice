@@ -33,9 +33,13 @@ class StalenessGaugesIT {
             val clock = MutableClock(T0)
             val breaches = mutableListOf<StalenessBreach>()
             val rules =
-                StalenessRules.resolve(
-                    listOf(StalenessProperties.Rule(CONSUMER, CANONICAL), StalenessProperties.Rule(CONSUMER, POLICY)),
-                ).rules
+                StalenessRules
+                    .resolve(
+                        listOf(
+                            StalenessProperties.Rule(CONSUMER, CANONICAL),
+                            StalenessProperties.Rule(CONSUMER, POLICY),
+                        ),
+                    ).rules
             val monitor =
                 JdbcStalenessMonitor(
                     fixture.runtimeDataSource(),
@@ -105,7 +109,9 @@ class StalenessGaugesIT {
         topic: String,
         insertedAt: Instant,
     ) = fixture.runAsAdmin(
-        "insert into eventlog.${EventLogSchema.tableName(topic)} (tenant_id, event_id, subject, envelope, inserted_at) " +
+        "insert into eventlog.${EventLogSchema.tableName(
+            topic,
+        )} (tenant_id, event_id, subject, envelope, inserted_at) " +
             "values ('0a000000-0000-0000-0000-00000000000a', gen_random_uuid()::text, 'doc', '{}'::jsonb, timestamptz '$insertedAt')",
     )
 

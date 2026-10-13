@@ -30,250 +30,280 @@ import javax.sql.DataSource
  *   the topic's run (INV-ADR-3968 item 9).
  */
 class JdbcReplayResponder
-@JvmOverloads
-constructor(
-    private val service: String,
-    schema: String,
-    private val catalogue: EventCatalogue,
-    private val reader: EventLogReader,
-    private val claimSource: DataSource,
-    private val scope: TenantScope,
-    private val writer: JdbcOutboxWriter,
-    sources: Collection<ReplayStateSource>,
-    private val sink: RebuildRequiredSink,
-    private val clock: Clock = Clock.systemUTC(),
-    private val pageSize: Int = DEFAULT_PAGE,
-) {
-    private val s = SqlIdentifier.require(schema, "schema")
-    private val offsets = "$s.${OutboxSchema.CONSUMER_OFFSET}"
-    private val sourcesByType = sources.associateBy { it.eventType }
-    private val envelopes = EnvelopeJson()
-    private val json = ReplayJson()
-    private val stopped = mutableSetOf<String>()
+    @JvmOverloads
+    constructor(
+        private val service: String,
+        schema: String,
+        private val catalogue: EventCatalogue,
+        private val reader: EventLogReader,
+        private val claimSource: DataSource,
+        private val scope: TenantScope,
+        private val writer: JdbcOutboxWriter,
+        sources: Collection<ReplayStateSource>,
+        private val sink: RebuildRequiredSink,
+        private val clock: Clock = Clock.systemUTC(),
+        private val pageSize: Int = DEFAULT_PAGE,
+    ) {
+        private val s = SqlIdentifier.require(schema, "schema")
+        private val offsets = "$s.${OutboxSchema.CONSUMER_OFFSET}"
+        private val sourcesByType = sources.associateBy { it.eventType }
+        private val envelopes = EnvelopeJson()
+        private val json = ReplayJson()
+        private val stopped = mutableSetOf<String>()
 
-    init {
-        require(sourcesByType.size == sources.size) { "one state source per event type" }
-        require(pageSize in 1..MAX_PAGE) { "page size must be 1..$MAX_PAGE" }
-    }
-
-    /** Reads every request topic this service reads and answers what it finds there. Returns the replays answered. */
-    @Synchronized
-    fun runOnce(): List<ReplayAnswer> = catalogue.requestTopicsReadBy(service).flatMap { topic ->
-        claimSource.connection.use { lock ->
-            val wasAutoCommit = lock.autoCommit
-            lock.autoCommit = false
-            try {
-                if (tryLock(lock, topic.topic)) drain(topic) else emptyList()
-            } finally {
-                lock.rollback() // ends the lock transaction and with it the lock; it wrote nothing
-                lock.autoCommit = wasAutoCommit
-            }
+        init {
+            require(sourcesByType.size == sources.size) { "one state source per event type" }
+            require(pageSize in 1..MAX_PAGE) { "page size must be 1..$MAX_PAGE" }
         }
-    }
 
-    private fun drain(topic: ReplayRequestTopic): List<ReplayAnswer> {
-        val next = claimSource.connection.use { position(it, topic.topic) }
-        val records =
-            try {
-                reader.read(topic.topic, next - 1, BATCH)
-            } catch (behind: RebuildRequired) {
-                if (stopped.add(topic.topic)) {
-                    sink.raise(RebuildRequiredIncident(service, topic.topic, behind.nextOffset, behind.watermark, clock.instant()))
+        /** Reads every request topic this service reads and answers what it finds there. Returns the replays answered. */
+        @Synchronized
+        fun runOnce(): List<ReplayAnswer> =
+            catalogue.requestTopicsReadBy(service).flatMap { topic ->
+                claimSource.connection.use { lock ->
+                    val wasAutoCommit = lock.autoCommit
+                    lock.autoCommit = false
+                    try {
+                        if (tryLock(lock, topic.topic)) drain(topic) else emptyList()
+                    } finally {
+                        lock.rollback() // ends the lock transaction and with it the lock; it wrote nothing
+                        lock.autoCommit = wasAutoCommit
+                    }
                 }
-                return emptyList()
             }
-        stopped.remove(topic.topic)
-        return records.mapNotNull { answer(topic, it) }
-    }
 
-    private fun answer(
-        topic: ReplayRequestTopic,
-        record: LogRecord,
-    ): ReplayAnswer? {
-        val envelope: Envelope
-        val request: ReplayRequest
-        try {
-            envelope = envelopes.read(record.envelopeJson)
-            if (envelope.type != ReplayProtocol.REPLAY_REQUESTED) throw ContractViolation("not a ReplayRequested")
-            if (envelope.service != topic.consumer) throw ContractViolation("request not from the topic's consumer")
-            request = json.readRequest(envelope.dataJson)
-        } catch (violation: ContractViolation) {
-            deadLetter(topic.topic, record, violation.message ?: "contract violation")
-            return null
+        private fun drain(topic: ReplayRequestTopic): List<ReplayAnswer> {
+            val next = claimSource.connection.use { position(it, topic.topic) }
+            val records =
+                try {
+                    reader.read(topic.topic, next - 1, BATCH)
+                } catch (behind: RebuildRequired) {
+                    if (stopped.add(topic.topic)) {
+                        sink.raise(
+                            RebuildRequiredIncident(
+                                service,
+                                topic.topic,
+                                behind.nextOffset,
+                                behind.watermark,
+                                clock.instant(),
+                            ),
+                        )
+                    }
+                    return emptyList()
+                }
+            stopped.remove(topic.topic)
+            return records.mapNotNull { answer(topic, it) }
         }
-        val addressed =
-            request.producer == service ||
-                (request.producer == CatalogueEntry.EVERY_SERVICE && CatalogueEntry.EVERY_SERVICE in topic.producers)
-        if (!addressed) {
-            finish(topic.topic, record, envelope) {}
-            return null
-        }
-        val replay = catalogue.replayTopic(request.producer, topic.consumer)
-        if (replay == null) {
-            deadLetter(topic.topic, record, "no replay topic for (${request.producer}, ${topic.consumer})")
-            return null
-        }
-        if (isDuplicate(envelope)) {
-            finish(topic.topic, record, envelope) {}
-            return null
-        }
-        val correlation = CorrelationId("replay:${request.replayId}")
-        val causation = CausationId(envelope.id.value)
-        var count = 0L
-        for (source in replay.eventTypes.sorted().mapNotNull { sourcesByType[it] }) {
-            val tenants = request.scope?.onlyTenant?.let(::listOf) ?: source.tenants()
-            for (tenant in tenants) {
-                var cursor: String? = null
-                do {
-                    val page =
-                        inTenant(tenant) {
-                            val page = source.page(request.scope, cursor, pageSize)
-                            require(page.items.all { it.type == source.eventType }) { "a state source returns its own type" }
-                            writer.appendReplayed(replay.topic, page.items, tenant, correlation, causation)
-                            page
-                        }
-                    count += page.items.size
-                    cursor = page.next
-                } while (cursor != null)
+
+        private fun answer(
+            topic: ReplayRequestTopic,
+            record: LogRecord,
+        ): ReplayAnswer? {
+            val envelope: Envelope
+            val request: ReplayRequest
+            try {
+                envelope = envelopes.read(record.envelopeJson)
+                if (envelope.type != ReplayProtocol.REPLAY_REQUESTED) throw ContractViolation("not a ReplayRequested")
+                if (envelope.service != topic.consumer) throw ContractViolation("request not from the topic's consumer")
+                request = json.readRequest(envelope.dataJson)
+            } catch (violation: ContractViolation) {
+                deadLetter(topic.topic, record, violation.message ?: "contract violation")
+                return null
             }
-        }
-        val written = finish(topic.topic, record, envelope) { writer.appendCompleted(replay.topic, request.replayId, count, correlation, causation) }
-        return if (written) ReplayAnswer(request.replayId, topic.consumer, replay.topic, count) else null
-    }
-
-    /**
-     * Under the platform tenant: the request's inbox row and the position past it, and [complete] (the marker) only
-     * when this transaction is the one that takes the inbox row. False when another run had already handled it.
-     */
-    private fun finish(
-        topic: String,
-        record: LogRecord,
-        envelope: Envelope,
-        complete: () -> Unit,
-    ): Boolean = inTenant(TenantId.PLATFORM) {
-        val connection = scope.connections.require()
-        if (record.offset < lockOffset(connection, topic)) return@inTenant false
-        val claimed = claimInbox(connection, envelope)
-        if (claimed) complete()
-        advance(connection, topic, record.offset)
-        claimed
-    }
-
-    private fun isDuplicate(envelope: Envelope): Boolean = inTenant(TenantId.PLATFORM) {
-        scope.connections.require().prepareStatement(
-            "select 1 from $s.${OutboxSchema.INBOX} where consumer = ? and event_id = ?",
-        ).use {
-            it.setString(1, service)
-            it.setString(2, envelope.id.value)
-            it.executeQuery().use { rows -> rows.next() }
-        }
-    }
-
-    private fun <T> inTenant(
-        tenant: TenantId,
-        block: () -> T,
-    ): T = scope.bindWorkload(tenant) { scope.transactions.inTransaction(block) }
-
-    private fun claimInbox(
-        connection: Connection,
-        envelope: Envelope,
-    ): Boolean = connection.prepareStatement(
-        "insert into $s.${OutboxSchema.INBOX} (consumer, event_id, tenant_id) values (?, ?, ?) on conflict do nothing",
-    ).use {
-        it.setString(1, service)
-        it.setString(2, envelope.id.value)
-        it.setObject(3, envelope.tenant.value)
-        it.executeUpdate() == 1
-    }
-
-    private fun position(
-        connection: Connection,
-        topic: String,
-    ): Long = connection.prepareStatement("select next_offset from $offsets where consumer = ? and topic = ?").use {
-        it.setString(1, service)
-        it.setString(2, topic)
-        it.executeQuery().use { rows -> if (rows.next()) rows.getLong(1) else FIRST_OFFSET }
-    }
-
-    private fun lockOffset(
-        connection: Connection,
-        topic: String,
-    ): Long {
-        connection.prepareStatement(
-            "insert into $offsets (consumer, topic, next_offset) values (?, ?, $FIRST_OFFSET) on conflict do nothing",
-        ).use {
-            it.setString(1, service)
-            it.setString(2, topic)
-            it.executeUpdate()
-        }
-        return connection.prepareStatement("select next_offset from $offsets where consumer = ? and topic = ? for update").use {
-            it.setString(1, service)
-            it.setString(2, topic)
-            it.executeQuery().use { rows ->
-                check(rows.next()) { "offset row missing" }
-                rows.getLong(1)
+            val addressed =
+                request.producer == service ||
+                    (
+                        request.producer == CatalogueEntry.EVERY_SERVICE &&
+                            CatalogueEntry.EVERY_SERVICE in topic.producers
+                    )
+            if (!addressed) {
+                finish(topic.topic, record, envelope) {}
+                return null
             }
+            val replay = catalogue.replayTopic(request.producer, topic.consumer)
+            if (replay == null) {
+                deadLetter(topic.topic, record, "no replay topic for (${request.producer}, ${topic.consumer})")
+                return null
+            }
+            if (isDuplicate(envelope)) {
+                finish(topic.topic, record, envelope) {}
+                return null
+            }
+            val correlation = CorrelationId("replay:${request.replayId}")
+            val causation = CausationId(envelope.id.value)
+            var count = 0L
+            for (source in replay.eventTypes.sorted().mapNotNull { sourcesByType[it] }) {
+                val tenants = request.scope?.onlyTenant?.let(::listOf) ?: source.tenants()
+                for (tenant in tenants) {
+                    var cursor: String? = null
+                    do {
+                        val page =
+                            inTenant(tenant) {
+                                val page = source.page(request.scope, cursor, pageSize)
+                                require(
+                                    page.items.all { it.type == source.eventType },
+                                ) { "a state source returns its own type" }
+                                writer.appendReplayed(replay.topic, page.items, tenant, correlation, causation)
+                                page
+                            }
+                        count += page.items.size
+                        cursor = page.next
+                    } while (cursor != null)
+                }
+            }
+            val written =
+                finish(topic.topic, record, envelope) {
+                    writer.appendCompleted(replay.topic, request.replayId, count, correlation, causation)
+                }
+            return if (written) ReplayAnswer(request.replayId, topic.consumer, replay.topic, count) else null
         }
-    }
 
-    private fun advance(
-        connection: Connection,
-        topic: String,
-        offset: Long,
-    ) {
-        connection.prepareStatement("update $offsets set next_offset = ? where consumer = ? and topic = ?").use {
-            it.setLong(1, offset + 1)
-            it.setString(2, service)
-            it.setString(3, topic)
-            it.executeUpdate()
-        }
-    }
+        /**
+         * Under the platform tenant: the request's inbox row and the position past it, and [complete] (the marker) only
+         * when this transaction is the one that takes the inbox row. False when another run had already handled it.
+         */
+        private fun finish(
+            topic: String,
+            record: LogRecord,
+            envelope: Envelope,
+            complete: () -> Unit,
+        ): Boolean =
+            inTenant(TenantId.PLATFORM) {
+                val connection = scope.connections.require()
+                if (record.offset < lockOffset(connection, topic)) return@inTenant false
+                val claimed = claimInbox(connection, envelope)
+                if (claimed) complete()
+                advance(connection, topic, record.offset)
+                claimed
+            }
 
-    /**
-     * Records the dead letter and moves the position past it in one runtime-login transaction, the letter through the
-     * `<svc>_sys`-owned [OutboxSchema.DEAD_LETTER_RECORD] (a letter may have no tenant, so no tenant policy admits it).
-     */
-    private fun deadLetter(
-        topic: String,
-        record: LogRecord,
-        reason: String,
-    ) {
-        claimSource.connection.use { connection ->
-            connection.autoCommit = false
-            connection.prepareStatement("select $s.${OutboxSchema.DEAD_LETTER_RECORD}(?, ?, ?, ?, ?, ?)").use {
+        private fun isDuplicate(envelope: Envelope): Boolean =
+            inTenant(TenantId.PLATFORM) {
+                scope.connections
+                    .require()
+                    .prepareStatement(
+                        "select 1 from $s.${OutboxSchema.INBOX} where consumer = ? and event_id = ?",
+                    ).use {
+                        it.setString(1, service)
+                        it.setString(2, envelope.id.value)
+                        it.executeQuery().use { rows -> rows.next() }
+                    }
+            }
+
+        private fun <T> inTenant(
+            tenant: TenantId,
+            block: () -> T,
+        ): T = scope.bindWorkload(tenant) { scope.transactions.inTransaction(block) }
+
+        private fun claimInbox(
+            connection: Connection,
+            envelope: Envelope,
+        ): Boolean =
+            connection
+                .prepareStatement(
+                    "insert into $s.${OutboxSchema.INBOX} (consumer, event_id, tenant_id) values (?, ?, ?) on conflict do nothing",
+                ).use {
+                    it.setString(1, service)
+                    it.setString(2, envelope.id.value)
+                    it.setObject(3, envelope.tenant.value)
+                    it.executeUpdate() == 1
+                }
+
+        private fun position(
+            connection: Connection,
+            topic: String,
+        ): Long =
+            connection.prepareStatement("select next_offset from $offsets where consumer = ? and topic = ?").use {
                 it.setString(1, service)
                 it.setString(2, topic)
-                it.setLong(3, record.offset)
-                it.setObject(4, envelopes.tenantOf(record.envelopeJson)?.value, java.sql.Types.OTHER)
-                it.setString(5, reason)
-                it.setString(6, record.envelopeJson)
-                it.executeQuery().close()
+                it.executeQuery().use { rows -> if (rows.next()) rows.getLong(1) else FIRST_OFFSET }
             }
-            connection.prepareStatement(
-                "insert into $offsets (consumer, topic, next_offset) values (?, ?, ?) " +
-                    "on conflict (consumer, topic) do update set next_offset = greatest($offsets.next_offset, excluded.next_offset)",
-            ).use {
-                it.setString(1, service)
-                it.setString(2, topic)
-                it.setLong(3, record.offset + 1)
+
+        private fun lockOffset(
+            connection: Connection,
+            topic: String,
+        ): Long {
+            connection
+                .prepareStatement(
+                    "insert into $offsets (consumer, topic, next_offset) values (?, ?, $FIRST_OFFSET) on conflict do nothing",
+                ).use {
+                    it.setString(1, service)
+                    it.setString(2, topic)
+                    it.executeUpdate()
+                }
+            return connection
+                .prepareStatement(
+                    "select next_offset from $offsets where consumer = ? and topic = ? for update",
+                ).use {
+                    it.setString(1, service)
+                    it.setString(2, topic)
+                    it.executeQuery().use { rows ->
+                        check(rows.next()) { "offset row missing" }
+                        rows.getLong(1)
+                    }
+                }
+        }
+
+        private fun advance(
+            connection: Connection,
+            topic: String,
+            offset: Long,
+        ) {
+            connection.prepareStatement("update $offsets set next_offset = ? where consumer = ? and topic = ?").use {
+                it.setLong(1, offset + 1)
+                it.setString(2, service)
+                it.setString(3, topic)
                 it.executeUpdate()
             }
-            connection.commit()
+        }
+
+        /**
+         * Records the dead letter and moves the position past it in one runtime-login transaction, the letter through the
+         * `<svc>_sys`-owned [OutboxSchema.DEAD_LETTER_RECORD] (a letter may have no tenant, so no tenant policy admits it).
+         */
+        private fun deadLetter(
+            topic: String,
+            record: LogRecord,
+            reason: String,
+        ) {
+            claimSource.connection.use { connection ->
+                connection.autoCommit = false
+                connection.prepareStatement("select $s.${OutboxSchema.DEAD_LETTER_RECORD}(?, ?, ?, ?, ?, ?)").use {
+                    it.setString(1, service)
+                    it.setString(2, topic)
+                    it.setLong(3, record.offset)
+                    it.setObject(4, envelopes.tenantOf(record.envelopeJson)?.value, java.sql.Types.OTHER)
+                    it.setString(5, reason)
+                    it.setString(6, record.envelopeJson)
+                    it.executeQuery().close()
+                }
+                connection
+                    .prepareStatement(
+                        "insert into $offsets (consumer, topic, next_offset) values (?, ?, ?) " +
+                            "on conflict (consumer, topic) do update set next_offset = greatest($offsets.next_offset, excluded.next_offset)",
+                    ).use {
+                        it.setString(1, service)
+                        it.setString(2, topic)
+                        it.setLong(3, record.offset + 1)
+                        it.executeUpdate()
+                    }
+                connection.commit()
+            }
+        }
+
+        private fun tryLock(
+            connection: Connection,
+            topic: String,
+        ): Boolean =
+            connection.prepareStatement("select pg_try_advisory_xact_lock(hashtext(?))").use {
+                it.setString(1, "$s/replay-responder/$topic")
+                it.executeQuery().use { rows -> rows.next() && rows.getBoolean(1) }
+            }
+
+        private companion object {
+            const val FIRST_OFFSET = 1L
+            const val BATCH = 20
+            const val DEFAULT_PAGE = 200
+            const val MAX_PAGE = 5000
         }
     }
-
-    private fun tryLock(
-        connection: Connection,
-        topic: String,
-    ): Boolean = connection.prepareStatement("select pg_try_advisory_xact_lock(hashtext(?))").use {
-        it.setString(1, "$s/replay-responder/$topic")
-        it.executeQuery().use { rows -> rows.next() && rows.getBoolean(1) }
-    }
-
-    private companion object {
-        const val FIRST_OFFSET = 1L
-        const val BATCH = 20
-        const val DEFAULT_PAGE = 200
-        const val MAX_PAGE = 5000
-    }
-}

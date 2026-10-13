@@ -97,11 +97,13 @@ class SqlConfigurationKeyGuardTest {
             "spring.jpa.hibernate.ddlAuto", "spring.flyway.cleanDisabled", "spring.datasource.hikari.connectionInitSQL",
             // MBeans expose HikariConfigMXBean.setPassword over JMX (coordinator ruling INV-Q-4574)
             "spring.datasource.hikari.register-mbeans", "spring.datasource.hikari.registerMbeans",
-            "spring.datasource.hikari.register_mbeans", "spring.datasource.hikari.REGISTER-MBEANS", "spring.datasource.hikari[register-mbeans]",
+            "spring.datasource.hikari.register_mbeans", "spring.datasource.hikari.REGISTER-MBEANS",
+            "spring.datasource.hikari[register-mbeans]",
         ],
     )
     fun `the relaxed property forms are refused`(key: String) {
-        shouldThrow<IllegalStateException> { guard(properties(key to "false")) }.message.orEmpty() shouldContain "INV-Q-4542"
+        shouldThrow<IllegalStateException> { guard(properties(key to "false")) }.message.orEmpty() shouldContain
+            "INV-Q-4542"
     }
 
     @ParameterizedTest(name = "{0}")
@@ -122,8 +124,12 @@ class SqlConfigurationKeyGuardTest {
     }
 
     @ParameterizedTest(name = "{0}")
-    @ValueSource(strings = ["spring.datasource.password", "spring.datasource.hikari.password", "spring.flyway.password"])
-    fun `a password property is refused with no service-runtime credential property set (STK-29, INV-Q-4548)`(key: String) {
+    @ValueSource(
+        strings = ["spring.datasource.password", "spring.datasource.hikari.password", "spring.flyway.password"],
+    )
+    fun `a password property is refused with no service-runtime credential property set (STK-29, INV-Q-4548)`(
+        key: String,
+    ) {
         val environment = properties(key to "pw-value")
         environment.getProperty("service-runtime.datasource.credential") shouldBe null
         environment.getProperty("service-runtime.flyway.credential") shouldBe null
@@ -151,14 +157,22 @@ class SqlConfigurationKeyGuardTest {
 
     @Test
     fun `spring-jmx-enabled=true as an environment variable is refused, false passes in both forms (INV-Q-4591)`() {
-        shouldThrow<IllegalStateException> { guard(environmentVariables("SPRING_JMX_ENABLED" to "true")) }.message.orEmpty() shouldContain "INV-Q-4591"
-        shouldThrow<IllegalStateException> { guard(environmentVariables("SPRING_JMX_DEFAULTDOMAIN" to "x")) }.message.orEmpty() shouldContain "INV-Q-4591"
+        shouldThrow<IllegalStateException> {
+            guard(environmentVariables("SPRING_JMX_ENABLED" to "true"))
+        }.message.orEmpty() shouldContain
+            "INV-Q-4591"
+        shouldThrow<IllegalStateException> {
+            guard(environmentVariables("SPRING_JMX_DEFAULTDOMAIN" to "x"))
+        }.message.orEmpty() shouldContain
+            "INV-Q-4591"
         guard(properties("spring.jmx.enabled" to "false"))
         guard(environmentVariables("SPRING_JMX_ENABLED" to "false"))
     }
 
     @ParameterizedTest(name = "{0}")
-    @ValueSource(strings = ["spring.datasource.password", "spring.datasource.hikari.password", "spring.flyway.password"])
+    @ValueSource(
+        strings = ["spring.datasource.password", "spring.datasource.hikari.password", "spring.flyway.password"],
+    )
     fun `a password property in a property source that cannot be enumerated is refused (INV-Q-4570)`(key: String) {
         val environment = empty()
         environment.propertySources.addFirst(
@@ -174,7 +188,12 @@ class SqlConfigurationKeyGuardTest {
 
     @Test
     fun `a password in a JDBC URL is refused, and the URL is not printed (STK-29, INV-Q-4548)`() {
-        val failure = shouldThrow<IllegalStateException> { guard(properties("spring.datasource.url" to "jdbc:postgresql://db/app?password=x")) }
+        val failure =
+            shouldThrow<IllegalStateException> {
+                guard(
+                    properties("spring.datasource.url" to "jdbc:postgresql://db/app?password=x"),
+                )
+            }
         failure.message.orEmpty() shouldContain "spring.datasource.url"
         failure.message.orEmpty() shouldContain "INV-Q-4548"
         failure.message.orEmpty() shouldNotContain "password=x"
@@ -184,7 +203,12 @@ class SqlConfigurationKeyGuardTest {
     fun `every offending key is named in one failure`() {
         val failure =
             shouldThrow<IllegalStateException> {
-                guard(properties("spring.flyway.init-sqls" to "select 1", "spring.datasource.hikari.connection-init-sql" to "select 1"))
+                guard(
+                    properties(
+                        "spring.flyway.init-sqls" to "select 1",
+                        "spring.datasource.hikari.connection-init-sql" to "select 1",
+                    ),
+                )
             }
         failure.message.orEmpty() shouldContain "spring.flyway.init-sqls"
         failure.message.orEmpty() shouldContain "spring.datasource.hikari.connection-init-sql"
@@ -193,7 +217,9 @@ class SqlConfigurationKeyGuardTest {
     @Test
     fun `service-runtime's defaults plus a TPL-16 configuration pass, in properties and environment variable forms`() {
         val environment = properties(*TPL_16)
-        environment.propertySources.addLast(ResourcePropertySource(ClassPathResource("service-runtime-defaults.properties")))
+        environment.propertySources.addLast(
+            ResourcePropertySource(ClassPathResource("service-runtime-defaults.properties")),
+        )
         SqlConfigurationKeyGuard.findOffendingKeys(environment).shouldBeEmpty()
         guard(environment)
 
@@ -219,11 +245,16 @@ class SqlConfigurationKeyGuardTest {
                 "spring.flyway.locations[0]" to "classpath:db/migration",
                 "spring.flyway.locations[1]" to "classpath:db/callbacks",
                 "spring.flyway.placeholders.svc" to "submission",
-                "spring.datasource.url" to "jdbc:postgresql://db:5432/app?loggerLevel=OFF&sslmode=verify-full&sslrootcert=/etc/ssl/pg.crt",
+                "spring.datasource.url" to
+                    "jdbc:postgresql://db:5432/app?loggerLevel=OFF&sslmode=verify-full&sslrootcert=/etc/ssl/pg.crt",
             ),
         )
         shouldThrow<IllegalStateException> { guard(properties("spring.flyway.locations[1]" to "filesystem:/sql")) }
-        shouldThrow<IllegalStateException> { guard(properties("spring.flyway.locations" to "classpath:a, filesystem:/sql")) }
+        shouldThrow<IllegalStateException> {
+            guard(
+                properties("spring.flyway.locations" to "classpath:a, filesystem:/sql"),
+            )
+        }
         shouldThrow<IllegalStateException> { guard(properties("spring.flyway.placeholders.svc" to "Submission")) }
     }
 
@@ -285,26 +316,38 @@ class SqlConfigurationKeyGuardTest {
     }
 
     @ParameterizedTest(name = "{0}")
-    @ValueSource(strings = ["my.store.init-sqls[0]", "my.store.init-sql[a]", "my.store.initSqls[3]", "my.store.connection-init-sql[0]"])
+    @ValueSource(
+        strings = [
+            "my.store.init-sqls[0]", "my.store.init-sql[a]", "my.store.initSqls[3]", "my.store.connection-init-sql[0]",
+        ],
+    )
     fun `an indexed or map-keyed SQL key under any prefix is refused`(key: String) {
-        shouldThrow<IllegalStateException> { guard(properties(key to "select 1")) }.message.orEmpty() shouldContain "runs SQL"
+        shouldThrow<IllegalStateException> { guard(properties(key to "select 1")) }.message.orEmpty() shouldContain
+            "runs SQL"
     }
 
     @ParameterizedTest(name = "{0}")
     @ValueSource(strings = ["MY_STORE_INITSQLS_0", "MY_STORE_INIT_SQLS_0", "MY_STORE_CONNECTIONINITSQL_1"])
     fun `an indexed SQL environment variable under any prefix is refused`(variable: String) {
-        shouldThrow<IllegalStateException> { guard(environmentVariables(variable to "select 1")) }.message.orEmpty() shouldContain "runs SQL"
+        shouldThrow<IllegalStateException> {
+            guard(environmentVariables(variable to "select 1"))
+        }.message.orEmpty() shouldContain
+            "runs SQL"
     }
 
     @ParameterizedTest(name = "{0}?{1}")
     @CsvSource(
         delimiter = '|',
         value = [
-            "spring.datasource.url|currentSchema=x", "spring.datasource.url|service=x", "spring.datasource.url|ApplicationName=x",
-            "spring.datasource.url|readOnly=true", "spring.datasource.url|loggerLevel=TRACE", "spring.datasource.url|sslfactory=x",
+            "spring.datasource.url|currentSchema=x", "spring.datasource.url|service=x",
+            "spring.datasource.url|ApplicationName=x",
+            "spring.datasource.url|readOnly=true", "spring.datasource.url|loggerLevel=TRACE",
+            "spring.datasource.url|sslfactory=x",
             "spring.datasource.url|sslmode=require&readOnlyMode=always", "spring.datasource.url|SSLMODE=require",
-            "gst.db.event-log-url|currentSchema=x", "gst.db.event-log-url|service=x", "gst.db.event-log-url|ApplicationName=x",
-            "gst.db.event-log-url|readOnly=true", "gst.db.event-log-url|loggerLevel=TRACE", "gst.db.event-log-url|cur%72entSchema=x",
+            "gst.db.event-log-url|currentSchema=x", "gst.db.event-log-url|service=x",
+            "gst.db.event-log-url|ApplicationName=x",
+            "gst.db.event-log-url|readOnly=true", "gst.db.event-log-url|loggerLevel=TRACE",
+            "gst.db.event-log-url|cur%72entSchema=x",
             "spring.flyway.url|currentSchema=x", "spring.flyway.url|loggerLevel=off",
         ],
     )
@@ -312,7 +355,12 @@ class SqlConfigurationKeyGuardTest {
         key: String,
         query: String,
     ) {
-        val failure = shouldThrow<IllegalStateException> { guard(properties(key to "jdbc:postgresql://db:5432/app?$query")) }
+        val failure =
+            shouldThrow<IllegalStateException> {
+                guard(
+                    properties(key to "jdbc:postgresql://db:5432/app?$query"),
+                )
+            }
         failure.message.orEmpty() shouldContain key
         failure.message.orEmpty() shouldContain "INV-Q-4559"
         failure.message.orEmpty() shouldNotContain "=x"
@@ -326,23 +374,41 @@ class SqlConfigurationKeyGuardTest {
     }
 
     @ParameterizedTest(name = "{0}")
-    @ValueSource(strings = ["hikaricp.configurationFile", "hikaricp.configuration-file", "HIKARICP_CONFIGURATIONFILE", "HIKARICP_CONFIGURATION_FILE"])
+    @ValueSource(
+        strings = [
+            "hikaricp.configurationFile", "hikaricp.configuration-file",
+            "HIKARICP_CONFIGURATIONFILE", "HIKARICP_CONFIGURATION_FILE",
+        ],
+    )
     fun `the HikariCP configuration file property is refused in any form (INV-Q-4559)`(key: String) {
-        val environment = if (key.first().isUpperCase()) environmentVariables(key to "/tmp/pool.properties") else properties(key to "/tmp/pool.properties")
+        val environment =
+            if (key.first().isUpperCase()) {
+                environmentVariables(key to "/tmp/pool.properties")
+            } else {
+                properties(key to "/tmp/pool.properties")
+            }
         shouldThrow<IllegalStateException> { guard(environment) }.message.orEmpty() shouldContain "INV-Q-4559"
     }
 
     @Test
     fun `the HikariCP configuration file system property is refused (INV-Q-4559)`() {
         SqlConfigurationKeyGuard.findExternalConfiguration(emptyList()) { null }.shouldBeEmpty()
-        SqlConfigurationKeyGuard.findExternalConfiguration(emptyList()) { name ->
-            "/tmp/pool.properties".takeIf { name == "hikaricp.configurationFile" }
-        }.single() shouldContain "hikaricp.configurationFile"
+        SqlConfigurationKeyGuard
+            .findExternalConfiguration(emptyList()) { name ->
+                "/tmp/pool.properties".takeIf { name == "hikaricp.configurationFile" }
+            }.single() shouldContain "hikaricp.configurationFile"
         val previous = System.setProperty("hikaricp.configurationFile", "/tmp/pool.properties")
         try {
-            shouldThrow<IllegalStateException> { guard(properties()) }.message.orEmpty() shouldContain "hikaricp.configurationFile"
+            shouldThrow<IllegalStateException> { guard(properties()) }.message.orEmpty() shouldContain
+                "hikaricp.configurationFile"
         } finally {
-            if (previous == null) System.clearProperty("hikaricp.configurationFile") else System.setProperty("hikaricp.configurationFile", previous)
+            if (previous ==
+                null
+            ) {
+                System.clearProperty("hikaricp.configurationFile")
+            } else {
+                System.setProperty("hikaricp.configurationFile", previous)
+            }
         }
     }
 
@@ -379,23 +445,30 @@ class SqlConfigurationKeyGuardTest {
                 "service-runtime.datasource.credential" to "db/submission_runtime",
             )
 
-        fun guard(environment: StandardEnvironment) = SqlConfigurationKeyGuard().postProcessEnvironment(environment, SpringApplication())
+        fun guard(environment: StandardEnvironment) =
+            SqlConfigurationKeyGuard().postProcessEnvironment(environment, SpringApplication())
 
         /** An environment with only [entries], as a properties or YAML source (no real system properties or variables). */
-        fun properties(vararg entries: Pair<String, String>): StandardEnvironment = empty().also {
-            it.propertySources.addFirst(MapPropertySource("test", mapOf(*entries)))
-        }
+        fun properties(vararg entries: Pair<String, String>): StandardEnvironment =
+            empty().also {
+                it.propertySources.addFirst(MapPropertySource("test", mapOf(*entries)))
+            }
 
         /** An environment with only [entries], as environment variables. */
-        fun environmentVariables(vararg entries: Pair<String, String>): StandardEnvironment = empty().also {
-            it.propertySources.addFirst(
-                SystemEnvironmentPropertySource(StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME, mapOf(*entries)),
-            )
-        }
+        fun environmentVariables(vararg entries: Pair<String, String>): StandardEnvironment =
+            empty().also {
+                it.propertySources.addFirst(
+                    SystemEnvironmentPropertySource(
+                        StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+                        mapOf(*entries),
+                    ),
+                )
+            }
 
-        fun empty(): StandardEnvironment = StandardEnvironment().also { environment ->
-            environment.propertySources.toList().forEach { environment.propertySources.remove(it.name) }
-        }
+        fun empty(): StandardEnvironment =
+            StandardEnvironment().also { environment ->
+                environment.propertySources.toList().forEach { environment.propertySources.remove(it.name) }
+            }
 
         fun flat(text: String) = text.lowercase().filter(Char::isLetterOrDigit)
     }

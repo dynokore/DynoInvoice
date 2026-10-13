@@ -108,7 +108,8 @@ class RecordTopicIT {
             it
                 .createStatement()
                 .executeQuery(
-                    "select envelope::text from eventlog.gst_platform_audit_entry_recorded_v1 order by log_offset desc limit 1",
+                    "select envelope::text from eventlog.gst_platform_audit_entry_recorded_v1 " +
+                        "order by log_offset desc limit 1",
                 ).use { rows ->
                     rows.next()
                     rows.getString(1)

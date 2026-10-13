@@ -40,31 +40,33 @@ class JdbcResolutionRecorder(
                 is PolicySource.Profile -> Triple(source.level, source.scopeId, source.settingId)
                 PolicySource.CatalogueDefault -> Triple(null, null, null)
             }
-        connection.prepareStatement(
-            "insert into $table (id, tenant_id, entity_id, subject_type, subject_ref, vp_key, transaction_date, " +
-                "option_keys, option_values, source, source_level, source_scope_id, source_setting_id, profile_id, " +
-                "profile_version, resolved_at, capped_by) " +
-                "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, cast(? as jsonb)) " +
-                "on conflict (tenant_id, subject_type, subject_ref, vp_key) do nothing",
-        ).use {
-            it.setObject(1, UUID.randomUUID())
-            it.setObject(2, tenant.value)
-            it.setString(3, scope.entity)
-            it.setString(4, subject.type)
-            it.setString(5, subject.ref)
-            it.setString(6, resolved.key.value)
-            it.setObject(7, resolved.at)
-            columns.bind(it, connection, 8, 9, resolved.selected)
-            it.setString(10, sourceName(source))
-            it.setString(11, level?.name)
-            it.setString(12, scopeId)
-            it.setObject(13, settingId)
-            it.setString(14, (source as? PolicySource.Profile)?.profileId)
-            it.setString(15, (source as? PolicySource.Profile)?.profileVersion)
-            it.setTimestamp(16, Timestamp.from(clock.instant().truncatedTo(ChronoUnit.MICROS)))
-            it.setString(17, capsJson(resolved.caps))
-            it.executeUpdate()
-        }
+        connection
+            .prepareStatement(
+                "insert into $table (id, tenant_id, entity_id, subject_type, subject_ref, vp_key, transaction_date, " +
+                    "option_keys, option_values, source, source_level, source_scope_id, source_setting_id, " +
+                    "profile_id, " +
+                    "profile_version, resolved_at, capped_by) " +
+                    "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, cast(? as jsonb)) " +
+                    "on conflict (tenant_id, subject_type, subject_ref, vp_key) do nothing",
+            ).use {
+                it.setObject(1, UUID.randomUUID())
+                it.setObject(2, tenant.value)
+                it.setString(3, scope.entity)
+                it.setString(4, subject.type)
+                it.setString(5, subject.ref)
+                it.setString(6, resolved.key.value)
+                it.setObject(7, resolved.at)
+                columns.bind(it, connection, 8, 9, resolved.selected)
+                it.setString(10, sourceName(source))
+                it.setString(11, level?.name)
+                it.setString(12, scopeId)
+                it.setObject(13, settingId)
+                it.setString(14, (source as? PolicySource.Profile)?.profileId)
+                it.setString(15, (source as? PolicySource.Profile)?.profileVersion)
+                it.setTimestamp(16, Timestamp.from(clock.instant().truncatedTo(ChronoUnit.MICROS)))
+                it.setString(17, capsJson(resolved.caps))
+                it.executeUpdate()
+            }
         return select(subject, resolved.key).single()
     }
 
@@ -75,17 +77,19 @@ class JdbcResolutionRecorder(
         key: VariationPointKey?,
     ): List<RecordedResolution> {
         // One static statement: a null key selects every variation point of the subject.
-        return connections.require().prepareStatement(
-            "select vp_key, transaction_date, option_keys, option_values, source, source_level, source_scope_id, " +
-                "source_setting_id, profile_id, profile_version, capped_by from $table " +
-                "where tenant_id = $BOUND_TENANT and subject_type = ? and subject_ref = ? " +
-                "and vp_key = coalesce(?, vp_key) order by vp_key",
-        ).use {
-            it.setString(1, subject.type)
-            it.setString(2, subject.ref)
-            it.setString(3, key?.value)
-            it.executeQuery().use { rows -> buildList { while (rows.next()) add(recorded(rows, subject)) } }
-        }
+        return connections
+            .require()
+            .prepareStatement(
+                "select vp_key, transaction_date, option_keys, option_values, source, source_level, source_scope_id, " +
+                    "source_setting_id, profile_id, profile_version, capped_by from $table " +
+                    "where tenant_id = $BOUND_TENANT and subject_type = ? and subject_ref = ? " +
+                    "and vp_key = coalesce(?, vp_key) order by vp_key",
+            ).use {
+                it.setString(1, subject.type)
+                it.setString(2, subject.ref)
+                it.setString(3, key?.value)
+                it.executeQuery().use { rows -> buildList { while (rows.next()) add(recorded(rows, subject)) } }
+            }
     }
 
     private fun recorded(
@@ -95,14 +99,15 @@ class JdbcResolutionRecorder(
         val level = rows.getString("source_level")?.let { ScopeLevel.valueOf(it) }
         val source =
             when (rows.getString("source")) {
-                "OVERRIDE" ->
+                "OVERRIDE" -> {
                     PolicySource.Override(
                         checkNotNull(level),
                         rows.getString("source_scope_id"),
                         rows.getObject("source_setting_id", UUID::class.java),
                     )
+                }
 
-                "PROFILE" ->
+                "PROFILE" -> {
                     PolicySource.Profile(
                         rows.getString("profile_id"),
                         rows.getString("profile_version"),
@@ -110,8 +115,11 @@ class JdbcResolutionRecorder(
                         rows.getString("source_scope_id"),
                         rows.getObject("source_setting_id", UUID::class.java),
                     )
+                }
 
-                else -> PolicySource.CatalogueDefault
+                else -> {
+                    PolicySource.CatalogueDefault
+                }
             }
         return RecordedResolution(
             subject,
@@ -128,7 +136,8 @@ class JdbcResolutionRecorder(
         if (caps.isEmpty()) return null
         val array = mapper.createArrayNode()
         caps.forEach { cap ->
-            array.addObject()
+            array
+                .addObject()
                 .put("option", cap.option)
                 .put("field", cap.field)
                 .put("stored", cap.stored)
@@ -158,9 +167,10 @@ class JdbcResolutionRecorder(
         const val BOUND_TENANT = "nullif(current_setting('app.tenant_id', true), '')::uuid"
     }
 
-    private fun sourceName(source: PolicySource) = when (source) {
-        is PolicySource.Override -> "OVERRIDE"
-        is PolicySource.Profile -> "PROFILE"
-        PolicySource.CatalogueDefault -> "DEFAULT"
-    }
+    private fun sourceName(source: PolicySource) =
+        when (source) {
+            is PolicySource.Override -> "OVERRIDE"
+            is PolicySource.Profile -> "PROFILE"
+            PolicySource.CatalogueDefault -> "DEFAULT"
+        }
 }

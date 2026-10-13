@@ -248,16 +248,7 @@ class UnrelayedEventCheckIT {
                         }
                     }
                 }
-            written.await()
-            s.write() // a later seq, committed and relayed while the planted row's transaction is open
-            s.drain()
-            assertTrue(
-                s.check
-                    .check()
-                    .open
-                    .isEmpty(),
-                "the planted row is invisible to this run",
-            )
+            assertInvisibleToThisRun(s, written)
             checked.countDown()
             open.join()
             assertEquals(
@@ -272,6 +263,23 @@ class UnrelayedEventCheckIT {
         } finally {
             s.close()
         }
+    }
+
+    /** A later row is committed, relayed and checked while the planted row is invisible. */
+    private fun assertInvisibleToThisRun(
+        s: Setup,
+        written: CountDownLatch,
+    ) {
+        written.await()
+        s.write() // a later seq, committed and relayed while the planted row's transaction is open
+        s.drain()
+        assertTrue(
+            s.check
+                .check()
+                .open
+                .isEmpty(),
+            "the planted row is invisible to this run",
+        )
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")

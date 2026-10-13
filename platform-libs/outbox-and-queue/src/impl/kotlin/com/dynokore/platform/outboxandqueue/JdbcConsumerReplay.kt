@@ -42,14 +42,18 @@ class JdbcConsumerReplay(
     fun pending(
         consumer: String,
         producer: String,
-    ): PendingReplay? = connections.require().prepareStatement(
-        "select replay_id, consumer, producer, mode, scope, topics, requested_at from $s.${OutboxSchema.CONSUMER_REPLAY} " +
-            "where consumer = ? and producer = ? and closed_at is null",
-    ).use {
-        it.setString(1, consumer)
-        it.setString(2, producer)
-        it.executeQuery().use { rows -> if (rows.next()) pendingOf(rows) else null }
-    }
+    ): PendingReplay? =
+        connections
+            .require()
+            .prepareStatement(
+                "select replay_id, consumer, producer, mode, scope, topics, requested_at from " +
+                    "$s.${OutboxSchema.CONSUMER_REPLAY} " +
+                    "where consumer = ? and producer = ? and closed_at is null",
+            ).use {
+                it.setString(1, consumer)
+                it.setString(2, producer)
+                it.executeQuery().use { rows -> if (rows.next()) pendingOf(rows) else null }
+            }
 
     /**
      * True when [consumer]'s next position on [topic] (its committed offset plus one; 1 before any) is at or below the
@@ -67,13 +71,16 @@ class JdbcConsumerReplay(
     fun addressees(
         consumer: String,
         replayId: UUID,
-    ): List<String> = connections.require().prepareStatement(
-        "select producer from $s.${OutboxSchema.CONSUMER_REPLAY} where consumer = ? and replay_id = ? order by producer",
-    ).use {
-        it.setString(1, consumer)
-        it.setObject(2, replayId)
-        it.executeQuery().use { rows -> buildList { while (rows.next()) add(rows.getString(1)) } }
-    }
+    ): List<String> =
+        connections
+            .require()
+            .prepareStatement(
+                "select producer from $s.${OutboxSchema.CONSUMER_REPLAY} where consumer = ? and replay_id = ? order by producer",
+            ).use {
+                it.setString(1, consumer)
+                it.setObject(2, replayId)
+                it.executeQuery().use { rows -> buildList { while (rows.next()) add(rows.getString(1)) } }
+            }
 
     /**
      * Moves [consumer]'s position on each of [topics] past its head, records [request] as the pair's pending replay and
@@ -215,19 +222,21 @@ class JdbcConsumerReplay(
         request: ReplayRequest,
         topics: List<String>,
     ) {
-        connection.prepareStatement(
-            "insert into $s.${OutboxSchema.CONSUMER_REPLAY} (replay_id, consumer, producer, mode, scope, topics, requested_at) " +
-                "values (?, ?, ?, ?, ?, ?, ?)",
-        ).use {
-            it.setObject(1, request.replayId)
-            it.setString(2, consumer)
-            it.setString(3, request.producer)
-            it.setString(4, request.mode.name)
-            it.setString(5, request.scope?.let(json::writeScope))
-            it.setArray(6, connection.createArrayOf("text", topics.toTypedArray()))
-            it.setTimestamp(7, Timestamp.from(clock.instant()))
-            it.executeUpdate()
-        }
+        connection
+            .prepareStatement(
+                "insert into $s.${OutboxSchema.CONSUMER_REPLAY} (replay_id, consumer, producer, mode, scope, topics, " +
+                    "requested_at) " +
+                    "values (?, ?, ?, ?, ?, ?, ?)",
+            ).use {
+                it.setObject(1, request.replayId)
+                it.setString(2, consumer)
+                it.setString(3, request.producer)
+                it.setString(4, request.mode.name)
+                it.setString(5, request.scope?.let(json::writeScope))
+                it.setArray(6, connection.createArrayOf("text", topics.toTypedArray()))
+                it.setTimestamp(7, Timestamp.from(clock.instant()))
+                it.executeUpdate()
+            }
     }
 
     private fun nextOffset(
@@ -235,14 +244,16 @@ class JdbcConsumerReplay(
         consumer: String,
         topic: String,
         lock: Boolean,
-    ): Long = connection.prepareStatement(
-        "select next_offset from $s.${OutboxSchema.CONSUMER_OFFSET} where consumer = ? and topic = ?" +
-            if (lock) " for update" else "",
-    ).use {
-        it.setString(1, consumer)
-        it.setString(2, topic)
-        it.executeQuery().use { rows -> if (rows.next()) rows.getLong(1) else FIRST_OFFSET }
-    }
+    ): Long =
+        connection
+            .prepareStatement(
+                "select next_offset from $s.${OutboxSchema.CONSUMER_OFFSET} where consumer = ? and topic = ?" +
+                    if (lock) " for update" else "",
+            ).use {
+                it.setString(1, consumer)
+                it.setString(2, topic)
+                it.executeQuery().use { rows -> if (rows.next()) rows.getLong(1) else FIRST_OFFSET }
+            }
 
     private fun moveTo(
         connection: Connection,
@@ -250,16 +261,17 @@ class JdbcConsumerReplay(
         topic: String,
         next: Long,
     ) {
-        connection.prepareStatement(
-            "insert into $s.${OutboxSchema.CONSUMER_OFFSET} (consumer, topic, next_offset) values (?, ?, ?) " +
-                "on conflict (consumer, topic) do update set next_offset = excluded.next_offset, attempts = 0, " +
-                "infra_failures = 0, first_infra_failure_at = null, retry_not_before = null",
-        ).use {
-            it.setString(1, consumer)
-            it.setString(2, topic)
-            it.setLong(3, next)
-            it.executeUpdate()
-        }
+        connection
+            .prepareStatement(
+                "insert into $s.${OutboxSchema.CONSUMER_OFFSET} (consumer, topic, next_offset) values (?, ?, ?) " +
+                    "on conflict (consumer, topic) do update set next_offset = excluded.next_offset, attempts = 0, " +
+                    "infra_failures = 0, first_infra_failure_at = null, retry_not_before = null",
+            ).use {
+                it.setString(1, consumer)
+                it.setString(2, topic)
+                it.setLong(3, next)
+                it.executeUpdate()
+            }
     }
 
     private fun pendingOf(rows: ResultSet): PendingReplay {

@@ -69,33 +69,37 @@ class ConfigHarness(
         from: LocalDate,
         entity: String? = null,
         profile: Pair<String, String>? = null,
-    ): UUID = asTenant(tenant) {
-        app.inTransaction {
-            val id = UUID.randomUUID()
-            val c = app.require()
-            c.prepareStatement(
-                "insert into $SCHEMA.config_setting (id, tenant_id, entity_id, vp_key, scope_level, scope_id, " +
-                    "option_keys, option_values, source, profile_id, profile_version, effective_from, set_by, " +
-                    "reason, recorded_at) " +
-                    "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'user-1', 'test', ?)",
-            ).use {
-                it.setObject(1, id)
-                it.setObject(2, tenant.value)
-                it.setString(3, entity)
-                it.setString(4, key.value)
-                it.setString(5, ref.level.name)
-                it.setString(6, ref.id)
-                bindSelected(it, c, 7, selected)
-                it.setString(9, if (profile == null) "OVERRIDE" else "PROFILE")
-                it.setString(10, profile?.first)
-                it.setString(11, profile?.second)
-                it.setObject(12, from)
-                it.setTimestamp(13, Timestamp.from(CLOCK.instant()))
-                it.executeUpdate()
+    ): UUID =
+        asTenant(tenant) {
+            app.inTransaction {
+                val id = UUID.randomUUID()
+                val c = app.require()
+                c
+                    .prepareStatement(
+                        "insert into $SCHEMA.config_setting (id, tenant_id, entity_id, vp_key, scope_level, " +
+                            "scope_id, " +
+                            "option_keys, option_values, source, profile_id, profile_version, effective_from, " +
+                            "set_by, " +
+                            "reason, recorded_at) " +
+                            "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'user-1', 'test', ?)",
+                    ).use {
+                        it.setObject(1, id)
+                        it.setObject(2, tenant.value)
+                        it.setString(3, entity)
+                        it.setString(4, key.value)
+                        it.setString(5, ref.level.name)
+                        it.setString(6, ref.id)
+                        bindSelected(it, c, 7, selected)
+                        it.setString(9, if (profile == null) "OVERRIDE" else "PROFILE")
+                        it.setString(10, profile?.first)
+                        it.setString(11, profile?.second)
+                        it.setObject(12, from)
+                        it.setTimestamp(13, Timestamp.from(CLOCK.instant()))
+                        it.executeUpdate()
+                    }
+                id
             }
-            id
         }
-    }
 
     /**
      * Inserts an installation setting as the superuser: the runtime login cannot, and the write function also writes
@@ -105,40 +109,44 @@ class ConfigHarness(
         key: VariationPointKey,
         selected: List<SelectedOption>,
         from: LocalDate,
-    ): UUID = admin.connection.use { c ->
-        val id = UUID.randomUUID()
-        c.prepareStatement(
-            "insert into $SCHEMA.config_installation_setting (id, vp_key, option_keys, option_values, " +
-                "effective_from, set_by, reason, recorded_at) " +
-                "values (?, ?, ?, ?, ?, 'operator-1', 'test', ?)",
-        ).use {
-            it.setObject(1, id)
-            it.setString(2, key.value)
-            bindSelected(it, c, 3, selected)
-            it.setObject(5, from)
-            it.setTimestamp(6, Timestamp.from(CLOCK.instant()))
-            it.executeUpdate()
+    ): UUID =
+        admin.connection.use { c ->
+            val id = UUID.randomUUID()
+            c
+                .prepareStatement(
+                    "insert into $SCHEMA.config_installation_setting (id, vp_key, option_keys, option_values, " +
+                        "effective_from, set_by, reason, recorded_at) " +
+                        "values (?, ?, ?, ?, ?, 'operator-1', 'test', ?)",
+                ).use {
+                    it.setObject(1, id)
+                    it.setString(2, key.value)
+                    bindSelected(it, c, 3, selected)
+                    it.setObject(5, from)
+                    it.setTimestamp(6, Timestamp.from(CLOCK.instant()))
+                    it.executeUpdate()
+                }
+            id
         }
-        id
-    }
 
     /** Runs [sql] as [role]'s connection inside a transaction of [tenant]; returns the update count. */
     fun execAs(
         runner: TransactionRunnerImpl,
         tenant: TenantId,
         sql: String,
-    ): Int = asTenant(tenant) {
-        runner.inTransaction { runner.require().createStatement().use { it.executeUpdate(sql) } }
-    }
+    ): Int =
+        asTenant(tenant) {
+            runner.inTransaction { runner.require().createStatement().use { it.executeUpdate(sql) } }
+        }
 
-    fun count(sql: String): Long = admin.connection.use { c ->
-        c.createStatement().use { s ->
-            s.executeQuery(sql).use {
-                it.next()
-                it.getLong(1)
+    fun count(sql: String): Long =
+        admin.connection.use { c ->
+            c.createStatement().use { s ->
+                s.executeQuery(sql).use {
+                    it.next()
+                    it.getLong(1)
+                }
             }
         }
-    }
 
     /** `option_keys` at [index], `option_values` (an object of typed values, or null) at [index] + 1. */
     private fun bindSelected(
@@ -164,11 +172,12 @@ class ConfigHarness(
     private fun dataSource(
         user: String,
         password: String,
-    ): DataSource = PGSimpleDataSource().apply {
-        setUrl(container.jdbcUrl)
-        this.user = user
-        this.password = password
-    }
+    ): DataSource =
+        PGSimpleDataSource().apply {
+            setUrl(container.jdbcUrl)
+            this.user = user
+            this.password = password
+        }
 
     companion object {
         const val SCHEMA = "svc"

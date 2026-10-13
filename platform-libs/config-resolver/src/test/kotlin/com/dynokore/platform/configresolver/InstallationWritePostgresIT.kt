@@ -75,6 +75,17 @@ class InstallationWritePostgresIT {
         assertTrue(!stored.isAfter(now.plusSeconds(MINUTE)) && stored.isAfter(now.minusSeconds(HOUR)), "$stored")
         assertEquals("op", h.text("select set_by from svc.config_installation_setting where id = '$id'"))
 
+        assertStoredEvents(h, mode, before, change, stored)
+    }
+
+    /** The audit entry and PolicyChanged an installation write stored, per event mode, at the stored time. */
+    private fun assertStoredEvents(
+        h: WriteHarness,
+        mode: EventMode,
+        before: Int,
+        change: PolicyChange,
+        stored: Instant,
+    ) {
         val events = h.events(TenantId.PLATFORM).drop(before)
         assertTrue(events.all { it.entityRef == EntityRef.PLATFORM.value && it.tenant == TenantId.PLATFORM.value })
         when (mode) {

@@ -43,16 +43,17 @@ class WriteValidationTest {
             ): Envelope = error("validation writes nothing")
         }
 
-    private fun writer(constraints: ValueConstraints? = null) = JdbcPolicyWriter(
-        noDatabase,
-        WriteCatalogue.catalogue,
-        DeploymentForm.SAAS,
-        "svc",
-        noAudit,
-        null,
-        WriteHarness.CLOCK,
-        constraints = constraints,
-    )
+    private fun writer(constraints: ValueConstraints? = null) =
+        JdbcPolicyWriter(
+            noDatabase,
+            WriteCatalogue.catalogue,
+            DeploymentForm.SAAS,
+            "svc",
+            noAudit,
+            null,
+            WriteHarness.CLOCK,
+            constraints = constraints,
+        )
 
     private fun one(key: String) = listOf(SelectedOption(key))
 
@@ -174,17 +175,22 @@ class WriteValidationTest {
     fun `INV-Q-3202 a row bound names the row's installation parameter, and bounds only a number's min or max`() {
         val max = VariationPointKey("VP-80")
         val bounded = TypedValueSpec(ValueType.DURATION, "hours", max = Bound.row(max))
-        fun row(parameter: VariationPointKey?) = VariationPointDefinition(
-            key = VariationPointKey("VP-67"),
-            vpClass = VpClass.PARAMETER,
-            modifiers = emptySet(),
-            status = VpStatus.AVAILABLE,
-            scopeLevels = setOf(ScopeLevel.TENANT),
-            setBy = setOf("integration.engineer"),
-            options =
-            listOf(OptionSpec("H72", Strictness.DEFAULT), OptionSpec("CUSTOM", Strictness.NEUTRAL, true, bounded)),
-            installationParameter = parameter,
-        )
+
+        fun row(parameter: VariationPointKey?) =
+            VariationPointDefinition(
+                key = VariationPointKey("VP-67"),
+                vpClass = VpClass.PARAMETER,
+                modifiers = emptySet(),
+                status = VpStatus.AVAILABLE,
+                scopeLevels = setOf(ScopeLevel.TENANT),
+                setBy = setOf("integration.engineer"),
+                options =
+                    listOf(
+                        OptionSpec("H72", Strictness.DEFAULT),
+                        OptionSpec("CUSTOM", Strictness.NEUTRAL, true, bounded),
+                    ),
+                installationParameter = parameter,
+            )
         assertEquals(max, row(max).installationParameter)
         assertThrows(IllegalArgumentException::class.java) { row(null) }
         assertThrows(IllegalArgumentException::class.java) { row(VariationPointKey("VP-79")) }

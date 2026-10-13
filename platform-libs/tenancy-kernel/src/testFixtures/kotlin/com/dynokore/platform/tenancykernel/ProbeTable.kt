@@ -13,27 +13,33 @@ object ProbeTable {
         connection: Connection,
         row: ProbeRow,
     ) {
-        connection.prepareStatement("insert into tenancy_kernel_test.probe (id, tenant_id, value) values (?, ?, ?)").use { statement ->
-            statement.setObject(1, row.id)
-            statement.setObject(2, row.tenantId.value)
-            statement.setString(3, row.value)
-            statement.executeUpdate()
-        }
+        connection
+            .prepareStatement(
+                "insert into tenancy_kernel_test.probe (id, tenant_id, value) values (?, ?, ?)",
+            ).use { statement ->
+                statement.setObject(1, row.id)
+                statement.setObject(2, row.tenantId.value)
+                statement.setString(3, row.value)
+                statement.executeUpdate()
+            }
     }
 
-    fun selectAll(connection: Connection): List<ProbeRow> = connection.createStatement().use { statement ->
-        statement.executeQuery("select id, tenant_id, value from tenancy_kernel_test.probe order by value").use { rs ->
-            buildList {
-                while (rs.next()) {
-                    add(
-                        ProbeRow(
-                            id = rs.getObject("id", UUID::class.java),
-                            tenantId = TenantId(rs.getObject("tenant_id", UUID::class.java)),
-                            value = rs.getString("value"),
-                        ),
-                    )
+    fun selectAll(connection: Connection): List<ProbeRow> =
+        connection.createStatement().use { statement ->
+            statement
+                .executeQuery("select id, tenant_id, value from tenancy_kernel_test.probe order by value")
+                .use { rs ->
+                    buildList {
+                        while (rs.next()) {
+                            add(
+                                ProbeRow(
+                                    id = rs.getObject("id", UUID::class.java),
+                                    tenantId = TenantId(rs.getObject("tenant_id", UUID::class.java)),
+                                    value = rs.getString("value"),
+                                ),
+                            )
+                        }
+                    }
                 }
-            }
         }
-    }
 }

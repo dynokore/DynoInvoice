@@ -103,6 +103,15 @@ class BoundsPostgresIT : WritePathBase() {
                 .valueJson!!
                 .contains("deployment.operator"),
         ) // the stored pair is kept
+        assertCappedRecordedAndDefaultPair(r, r2, capped)
+    }
+
+    /** The second half of the VP-08 window test: the recorded resolution and the default pair, both capped. */
+    private fun assertCappedRecordedAndDefaultPair(
+        r: Run,
+        r2: Run,
+        capped: ResolvedSetting,
+    ) {
         // The recorded resolution keeps the capped value and its caps (INV-REQ-1068).
         val subject = ResolutionSubject("submission", "S1")
         val recorded = r.h.inTenant(r.t) { r.h.recorder().record(subject, capped, r.tenantScope) }

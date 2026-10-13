@@ -56,55 +56,84 @@ class Tpl16ServiceCompositionTest {
 
     @ParameterizedTest
     @EnumSource(Composition::class)
-    fun `every port the service injects is a bean, over the DataSource from spring-datasource`(composition: Composition) {
+    fun `every port the service injects is a bean, over the DataSource from spring-datasource`(
+        composition: Composition,
+    ) {
         service.withUserConfiguration(SubmissionBootstrap::class.java, composition.application).run { context ->
             context.startupFailure shouldBe null
             val application = context.getBean(DataSource::class.java).unwrap(HikariDataSource::class.java)
             application.jdbcUrl shouldBe "jdbc:postgresql://localhost:5432/submission"
             listOf(
-                TransactionRunner::class, CurrentConnection::class, TenantScope::class, OutboxWriter::class, AuditWriter::class,
-                OperationRunner::class, PolicyReader::class, JobCommands::class, IdempotencyStore::class,
+                TransactionRunner::class,
+                CurrentConnection::class,
+                TenantScope::class,
+                OutboxWriter::class,
+                AuditWriter::class,
+                OperationRunner::class,
+                PolicyReader::class,
+                JobCommands::class,
+                IdempotencyStore::class,
             ).forEach { context.getBean(it.java) }
             // the job command HTTP wiring
-            context.getBean("jobCommandServlet", ServletRegistrationBean::class.java).servlet.shouldBeInstanceOf<JobCommandServlet>()
+            context
+                .getBean(
+                    "jobCommandServlet",
+                    ServletRegistrationBean::class.java,
+                ).servlet
+                .shouldBeInstanceOf<JobCommandServlet>()
         }
     }
 
     @ParameterizedTest
     @EnumSource(Composition::class)
-    fun `one application pool per instance and no role DataSource, the event log collapses into it on the same instance`(
+    fun `one application pool per instance and no role DataSource, the event log collapses into it on one instance`(
         composition: Composition,
     ) {
         for (eventLogUrl in listOf(null, "jdbc:postgresql://localhost:5432/submission")) {
             val properties = listOfNotNull(eventLogUrl?.let { "gst.db.event-log-url=$it" }).toTypedArray()
-            service.withUserConfiguration(SubmissionBootstrap::class.java, composition.application).withPropertyValues(*properties).run { context ->
-                context.startupFailure shouldBe null
-                // one pool: a second application pool bean, or any role DataSource, fails here (INV-Q-3955)
-                context.getBeanNamesForType(DataSource::class.java).toList() shouldBe listOf("dataSource")
-                // the pool under its lanes (INV-REQ-1230 b1): one HikariCP pool, no second one
-                context.getBean(DataSource::class.java).shouldBeInstanceOf<LanedDataSource>().unwrap(HikariDataSource::class.java).maximumPoolSize shouldBe 6
-                context.getBean(TenantScope::class.java).workloadPrincipal shouldBe "svc:submission-svc"
-            }
+            service
+                .withUserConfiguration(
+                    SubmissionBootstrap::class.java,
+                    composition.application,
+                ).withPropertyValues(*properties)
+                .run { context ->
+                    context.startupFailure shouldBe null
+                    // one pool: a second application pool bean, or any role DataSource, fails here (INV-Q-3955)
+                    context.getBeanNamesForType(DataSource::class.java).toList() shouldBe listOf("dataSource")
+                    // the pool under its lanes (INV-REQ-1230 b1): one HikariCP pool, no second one
+                    context
+                        .getBean(
+                            DataSource::class.java,
+                        ).shouldBeInstanceOf<LanedDataSource>()
+                        .unwrap(HikariDataSource::class.java)
+                        .maximumPoolSize shouldBe
+                        6
+                    context.getBean(TenantScope::class.java).workloadPrincipal shouldBe "svc:submission-svc"
+                }
         }
     }
 
     @ParameterizedTest
     @EnumSource(Composition::class)
-    fun `a separate event-log instance gets its own pool of at most 3 with minimumIdle 1, the application one stays the only candidate`(
+    fun `a separate event-log instance gets its own pool of at most 3, minimumIdle 1, app pool stays sole candidate`(
         composition: Composition,
     ) {
-        val ha = service.withUserConfiguration(SubmissionBootstrap::class.java, composition.application)
-            .withPropertyValues("gst.db.event-log-url=jdbc:postgresql://event-log:5432/eventlog")
+        val ha =
+            service
+                .withUserConfiguration(SubmissionBootstrap::class.java, composition.application)
+                .withPropertyValues("gst.db.event-log-url=jdbc:postgresql://event-log:5432/eventlog")
         ha.run { context ->
             context.startupFailure shouldBe null
-            context.getBeanNamesForType(DataSource::class.java).toSet() shouldBe setOf("dataSource", ServiceDataSources.EVENT_LOG)
+            context.getBeanNamesForType(DataSource::class.java).toSet() shouldBe
+                setOf("dataSource", ServiceDataSources.EVENT_LOG)
             val eventLog = context.getBean(ServiceDataSources.EVENT_LOG, HikariDataSource::class.java)
             eventLog.jdbcUrl shouldBe "jdbc:postgresql://event-log:5432/eventlog"
             eventLog.username shouldBe "submission_app"
             eventLog.maximumPoolSize shouldBe 3
             eventLog.minimumIdle shouldBe 1
             // the application DataSource is still the one an unqualified injection gets
-            context.getBean(DataSource::class.java).unwrap(HikariDataSource::class.java).jdbcUrl shouldBe "jdbc:postgresql://localhost:5432/submission"
+            context.getBean(DataSource::class.java).unwrap(HikariDataSource::class.java).jdbcUrl shouldBe
+                "jdbc:postgresql://localhost:5432/submission"
         }
         ha.withPropertyValues("service-runtime.event-log-pool.minimum-idle=2").run { context ->
             context.getBean(ServiceDataSources.EVENT_LOG, HikariDataSource::class.java).minimumIdle shouldBe 2
@@ -118,7 +147,8 @@ class Tpl16ServiceCompositionTest {
 
     @Test
     fun `gst-service is format-checked at start-up for the workload principal`() {
-        service.withUserConfiguration(SubmissionBootstrap::class.java, Composition.entries.first().application)
+        service
+            .withUserConfiguration(SubmissionBootstrap::class.java, Composition.entries.first().application)
             .withPropertyValues("gst.service=Submission_Svc")
             .run { context ->
                 generateSequence(context.startupFailure.shouldNotBeNull()) { it.cause }.any {
@@ -129,20 +159,32 @@ class Tpl16ServiceCompositionTest {
 
     @Test
     fun `without a DataSource there is no TransactionRunner`() {
-        service.withUserConfiguration(SubmissionBootstrap::class.java, Tpl18WithoutDataSourceApplication::class.java).run { context ->
-            context.startupFailure shouldBe null
-            context.getBeanNamesForType(DataSource::class.java).toList() shouldBe emptyList()
-            listOf(TransactionRunner::class, CurrentConnection::class, TenantScope::class, OperationRunner::class, PolicyReader::class)
-                .forEach { context.getBeanNamesForType(it.java).size shouldBe 0 }
-            context.containsBean("jobCommandServlet") shouldBe false
-        }
+        service
+            .withUserConfiguration(
+                SubmissionBootstrap::class.java,
+                Tpl18WithoutDataSourceApplication::class.java,
+            ).run { context ->
+                context.startupFailure shouldBe null
+                context.getBeanNamesForType(DataSource::class.java).toList() shouldBe emptyList()
+                listOf(
+                    TransactionRunner::class,
+                    CurrentConnection::class,
+                    TenantScope::class,
+                    OperationRunner::class,
+                    PolicyReader::class,
+                ).forEach { context.getBeanNamesForType(it.java).size shouldBe 0 }
+                context.containsBean("jobCommandServlet") shouldBe false
+            }
     }
 
     /** The service's own `bootstrap` configuration (TPL-18): its inputs, no DataSource (INV-REQ-1230 b1). */
     @Configuration(proxyBeanMethods = false)
     class SubmissionBootstrap {
         @Bean
-        fun eventCatalogue(): EventCatalogue = EventCatalogue(listOf(CatalogueEntry("SubmissionFailed", "submission", setOf("submission-svc"), contentTopic = false)))
+        fun eventCatalogue(): EventCatalogue =
+            EventCatalogue(
+                listOf(CatalogueEntry("SubmissionFailed", "submission", setOf("submission-svc"), contentTopic = false)),
+            )
 
         @Bean
         fun jobCommandAuthorizer(): JobCommandAuthorizer = mockk(relaxed = true)

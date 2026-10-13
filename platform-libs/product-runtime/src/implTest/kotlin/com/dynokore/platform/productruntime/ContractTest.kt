@@ -77,10 +77,17 @@ class ContractTest {
             val sub = properties.get(name)
             val value = json.get(name)
             when {
-                value.isObject -> conforms(value, sub, "$path.$name")
+                value.isObject -> {
+                    conforms(value, sub, "$path.$name")
+                }
 
-                value.isArray && sub.get("items") != null ->
-                    (0 until value.size()).map(value::get).filter { it.isObject }.forEach { conforms(it, sub.get("items"), "$path.$name[]") }
+                value.isArray && sub.get("items") != null -> {
+                    (0 until value.size())
+                        .map(value::get)
+                        .filter {
+                            it.isObject
+                        }.forEach { conforms(it, sub.get("items"), "$path.$name[]") }
+                }
             }
         }
     }
@@ -100,18 +107,28 @@ class ContractTest {
                 parentRef = "G-2",
                 previousParentRef = "G-1",
                 node =
-                OrganisationStructureChangedPayloadNode(
-                    kind = OrganisationStructureChangedPayloadNode.Kind.ENTITY,
-                    retired = false,
-                    name = "Acme",
-                    profile = listOf(OrganisationStructureChangedPayloadNodeProfileInner("gstRegNo", "M9", LocalDate.parse("2026-01-01"))),
-                    structureVersion = 2,
-                    parentRef = "G-2",
-                ),
+                    OrganisationStructureChangedPayloadNode(
+                        kind = OrganisationStructureChangedPayloadNode.Kind.ENTITY,
+                        retired = false,
+                        name = "Acme",
+                        profile =
+                            listOf(
+                                OrganisationStructureChangedPayloadNodeProfileInner(
+                                    "gstRegNo",
+                                    "M9",
+                                    LocalDate.parse("2026-01-01"),
+                                ),
+                            ),
+                        structureVersion = 2,
+                        parentRef = "G-2",
+                    ),
             )
         val json = tree(payload)
         conforms(json, schema("tenancy", "organisation-structure-changed-payload.schema.json"))
-        val event = StructureFeedHandler(StructureReplica(CLOCK)).decode(envelope(ProductEventTypes.ORGANISATION_STRUCTURE_CHANGED, json.toString()))
+        val event =
+            StructureFeedHandler(
+                StructureReplica(CLOCK),
+            ).decode(envelope(ProductEventTypes.ORGANISATION_STRUCTURE_CHANGED, json.toString()))
         event.node.parentRef shouldBe "G-2"
         event.node.structureVersion shouldBe 2
     }
@@ -121,16 +138,26 @@ class ContractTest {
         val payload =
             EntityProfileChangedPayload(
                 entityRef = "E-001",
-                changedAttributes = listOf(EntityProfileChangedPayloadChangedAttributesInner(attribute = "gstRegNo", newValue = "M9")),
+                changedAttributes =
+                    listOf(
+                        EntityProfileChangedPayloadChangedAttributesInner(attribute = "gstRegNo", newValue = "M9"),
+                    ),
                 effectiveDate = LocalDate.parse("2026-07-01"),
                 node =
-                EntityProfileChangedPayloadNode(
-                    kind = EntityProfileChangedPayloadNode.Kind.ENTITY,
-                    retired = false,
-                    name = "Acme",
-                    profile = listOf(EntityProfileChangedPayloadNodeProfileInner("gstRegNo", "M9", LocalDate.parse("2026-07-01"))),
-                    structureVersion = 3,
-                ),
+                    EntityProfileChangedPayloadNode(
+                        kind = EntityProfileChangedPayloadNode.Kind.ENTITY,
+                        retired = false,
+                        name = "Acme",
+                        profile =
+                            listOf(
+                                EntityProfileChangedPayloadNodeProfileInner(
+                                    "gstRegNo",
+                                    "M9",
+                                    LocalDate.parse("2026-07-01"),
+                                ),
+                            ),
+                        structureVersion = 3,
+                    ),
             )
         val json = tree(payload)
         conforms(json, schema("tenancy", "entity-profile-changed-payload.schema.json"))
@@ -148,17 +175,17 @@ class ContractTest {
                 principalRef = "P-1",
                 authorityVersion = 4,
                 grantRecord =
-                AuthorityChangedPayloadGrantRecord(
-                    "E-001",
-                    listOf(
-                        AuthorityChangedPayloadGrantRecordGrantsInner(
-                            action = "document.read",
-                            scopeLevel = AuthorityChangedPayloadGrantRecordGrantsInner.ScopeLevel.ENTITY,
-                            scopeRef = "E-001",
-                            validFrom = OffsetDateTime.parse("2026-10-01T00:00:00Z"),
+                    AuthorityChangedPayloadGrantRecord(
+                        "E-001",
+                        listOf(
+                            AuthorityChangedPayloadGrantRecordGrantsInner(
+                                action = "document.read",
+                                scopeLevel = AuthorityChangedPayloadGrantRecordGrantsInner.ScopeLevel.ENTITY,
+                                scopeRef = "E-001",
+                                validFrom = OffsetDateTime.parse("2026-10-01T00:00:00Z"),
+                            ),
                         ),
                     ),
-                ),
             )
         val consent =
             AuthorityChangedPayload(
@@ -166,19 +193,23 @@ class ContractTest {
                 principalRef = "agent-1",
                 authorityVersion = 5,
                 consentRecord =
-                AuthorityChangedPayloadConsentRecord(
-                    clientEntityRef = "E-001",
-                    state = AuthorityChangedPayloadConsentRecord.State.LIVE,
-                    scopeItems = AuthorityChangedPayloadConsentRecord.ScopeItems.entries.toSet(),
-                    validFrom = OffsetDateTime.parse("2026-10-01T00:00:00Z"),
-                ),
+                    AuthorityChangedPayloadConsentRecord(
+                        clientEntityRef = "E-001",
+                        state = AuthorityChangedPayloadConsentRecord.State.LIVE,
+                        scopeItems = AuthorityChangedPayloadConsentRecord.ScopeItems.entries.toSet(),
+                        validFrom = OffsetDateTime.parse("2026-10-01T00:00:00Z"),
+                    ),
             )
         val schema = schema("access", "authority-changed-payload.schema.json")
         val handler = AuthorityFeedHandler(AuthorityReplica(CLOCK))
         listOf(grant, consent).forEach { payload ->
             val json = tree(payload)
             conforms(json, schema)
-            handler.decode(envelope(ProductEventTypes.AUTHORITY_CHANGED, json.toString())).record.shouldBeInstanceOf<AuthorityRecord>()
+            handler
+                .decode(
+                    envelope(ProductEventTypes.AUTHORITY_CHANGED, json.toString()),
+                ).record
+                .shouldBeInstanceOf<AuthorityRecord>()
         }
     }
 

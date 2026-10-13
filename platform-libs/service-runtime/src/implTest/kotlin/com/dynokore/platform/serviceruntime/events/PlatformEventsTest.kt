@@ -58,8 +58,20 @@ class PlatformEventsTest {
         if (minorIncrement) data.put("addedInV1_3", "a field this reader was not built with")
         val envelope =
             Envelope(
-                EventId(UUID.randomUUID().toString()), source, type, "agg-1", time, tenant, entity, null, null, null,
-                instance, CorrelationId("corr-1"), CausationId("cause-1"), mapper.writeValueAsString(data),
+                EventId(UUID.randomUUID().toString()),
+                source,
+                type,
+                "agg-1",
+                time,
+                tenant,
+                entity,
+                null,
+                null,
+                null,
+                instance,
+                CorrelationId("corr-1"),
+                CausationId("cause-1"),
+                mapper.writeValueAsString(data),
             )
         val node = mapper.readTree(json.write(envelope)) as ObjectNode
         if (minorIncrement) node.put("futureattribute", "an envelope extension this reader does not know")
@@ -84,7 +96,13 @@ class PlatformEventsTest {
         val data = policyData("STRICT")
         contracts.schemaErrors(POLICY_SCHEMA, data).shouldBeEmpty()
         val withUnknown = record(PlatformEventTypes.POLICY_CHANGED, data, source = "/gst/rules-svc")
-        val plain = record(PlatformEventTypes.POLICY_CHANGED, policyData("STRICT"), source = "/gst/rules-svc", minorIncrement = false)
+        val plain =
+            record(
+                PlatformEventTypes.POLICY_CHANGED,
+                policyData("STRICT"),
+                source = "/gst/rules-svc",
+                minorIncrement = false,
+            )
 
         val read = reader.policyChanged(topic, LogRecord(7, withUnknown))
         val asV1 = reader.policyChanged(topic, LogRecord(7, plain))
@@ -104,12 +122,20 @@ class PlatformEventsTest {
         val topic = PlatformEventTypes.POLICY_CHANGED_TOPIC
         val scope = PolicyScope.entity(tenant, "E-001")
         val on = LocalDate.parse("2026-10-05")
-        replica.accept(reader.policyChanged(topic, LogRecord(10, record(PlatformEventTypes.POLICY_CHANGED, policyData("LATER")))))
-        replica.accept(reader.policyChanged(topic, LogRecord(9, record(PlatformEventTypes.POLICY_CHANGED, policyData("EARLIER")))))
+        replica.accept(
+            reader.policyChanged(topic, LogRecord(10, record(PlatformEventTypes.POLICY_CHANGED, policyData("LATER")))),
+        )
+        replica.accept(
+            reader.policyChanged(topic, LogRecord(9, record(PlatformEventTypes.POLICY_CHANGED, policyData("EARLIER")))),
+        )
         replica.valueAt(scope, "VP-13", on)?.value shouldBe """[{"key":"LATER"}]"""
-        replica.accept(reader.policyChanged(topic, LogRecord(10, record(PlatformEventTypes.POLICY_CHANGED, policyData("LATER")))))
+        replica.accept(
+            reader.policyChanged(topic, LogRecord(10, record(PlatformEventTypes.POLICY_CHANGED, policyData("LATER")))),
+        )
         replica.valueAt(scope, "VP-13", on)?.value shouldBe """[{"key":"LATER"}]"""
-        replica.accept(reader.policyChanged(topic, LogRecord(11, record(PlatformEventTypes.POLICY_CHANGED, policyData("NEWEST")))))
+        replica.accept(
+            reader.policyChanged(topic, LogRecord(11, record(PlatformEventTypes.POLICY_CHANGED, policyData("NEWEST")))),
+        )
         replica.valueAt(scope, "VP-13", on)?.value shouldBe """[{"key":"NEWEST"}]"""
     }
 
@@ -117,15 +143,18 @@ class PlatformEventsTest {
     fun `an installation PolicyChanged arrives without tenantid and applies at the installation level`() {
         val replica = PolicyReplica(MutableClock(start))
         val data = policyData("STRICT", scope = "INSTALLATION")
-        val text = record(PlatformEventTypes.POLICY_CHANGED, data, tenant = TenantId.PLATFORM, entity = EntityRef.PLATFORM)
+        val text =
+            record(PlatformEventTypes.POLICY_CHANGED, data, tenant = TenantId.PLATFORM, entity = EntityRef.PLATFORM)
         mapper.readTree(text).has("tenantid") shouldBe false
         replica.accept(reader.policyChanged(PlatformEventTypes.POLICY_CHANGED_TOPIC, LogRecord(1, text)))
-        replica.valueAt(PolicyScope.entity(tenant, "E-009"), "VP-13", LocalDate.parse("2026-10-05"))?.value shouldBe """[{"key":"STRICT"}]"""
+        replica.valueAt(PolicyScope.entity(tenant, "E-009"), "VP-13", LocalDate.parse("2026-10-05"))?.value shouldBe
+            """[{"key":"STRICT"}]"""
     }
 
     @Test
-    fun `INV-TS-3309 a consumer applies a ConnectionStatusChanged with an unknown field and keeps the worst instance state`() {
+    fun `INV-TS-3309 a consumer applies a ConnectionStatusChanged with an unknown field, keeps the worst state`() {
         val board = ConnectionStatusBoard()
+
         fun report(
             instance: String,
             state: String,
@@ -135,11 +164,20 @@ class PlatformEventsTest {
             val data = mapper.createObjectNode().put("connection", "ap-primary").put("state", state)
             if (state != "up") data.putObject("lastFailure").put("at", at.toString()).put("reason", "TRN-004")
             contracts.schemaErrors(CONNECTION_SCHEMA, data).shouldBeEmpty()
-            val text = record(PlatformEventTypes.CONNECTION_STATUS_CHANGED, data, instance = instance, time = at, source = "/gst/transport-svc", minorIncrement = minorIncrement)
+            val text =
+                record(
+                    PlatformEventTypes.CONNECTION_STATUS_CHANGED,
+                    data,
+                    instance = instance,
+                    time = at,
+                    source = "/gst/transport-svc",
+                    minorIncrement = minorIncrement,
+                )
             return reader.connectionStatusChanged(text)
         }
 
-        fun apply(report: ConnectionStatusReport) = board.apply(ConnectionKey(report.service, report.connection), report.instance, report.state, report.time)
+        fun apply(report: ConnectionStatusReport) =
+            board.apply(ConnectionKey(report.service, report.connection), report.instance, report.state, report.time)
         val key = ConnectionKey("transport-svc", "ap-primary")
 
         val first = report("svc-1", "down", start)
@@ -158,7 +196,8 @@ class PlatformEventsTest {
         board.worst(key) shouldBe ReceivedConnectionState.DEGRADED
         apply(report("svc-1", "up", start.plusSeconds(20))) shouldBe true
         board.worst(key) shouldBe ReceivedConnectionState.UP
-        board.instances(key) shouldBe mapOf("svc-1" to ReceivedConnectionState.UP, "svc-2" to ReceivedConnectionState.UP)
+        board.instances(key) shouldBe
+            mapOf("svc-1" to ReceivedConnectionState.UP, "svc-2" to ReceivedConnectionState.UP)
     }
 
     @Test
@@ -185,8 +224,13 @@ class PlatformEventsTest {
     }
 
     @Test
-    fun `INV-TS-3311 an EvidenceArtefactRecorded with an unknown field and a minor increment is read as one artefact`() {
-        val artefact = EvidenceArtefact.of(EvidenceArtefactType.RENDITION, "rendition/doc-1/v2", "%PDF-1.7".toByteArray())
+    fun `INV-TS-3311 an EvidenceArtefactRecorded with an unknown field and minor increment is one artefact`() {
+        val artefact =
+            EvidenceArtefact.of(
+                EvidenceArtefactType.RENDITION,
+                "rendition/doc-1/v2",
+                "%PDF-1.7".toByteArray(),
+            )
         val written = mutableListOf<Pair<OutboundEvent, EventContext>>()
         val recorder =
             OutboxEvidenceArtefactRecorder(
@@ -206,8 +250,14 @@ class PlatformEventsTest {
         val data = mapper.readTree(written[0].first.dataJson) as ObjectNode
         contracts.schemaErrors(EVIDENCE_SCHEMA, data).shouldBeEmpty()
 
-        val first = reader.evidenceArtefactRecorded(record(PlatformEventTypes.EVIDENCE_ARTEFACT_RECORDED, data.deepCopy()))
-        val again = reader.evidenceArtefactRecorded(record(PlatformEventTypes.EVIDENCE_ARTEFACT_RECORDED, data.deepCopy(), minorIncrement = false))
+        val first =
+            reader.evidenceArtefactRecorded(
+                record(PlatformEventTypes.EVIDENCE_ARTEFACT_RECORDED, data.deepCopy()),
+            )
+        val again =
+            reader.evidenceArtefactRecorded(
+                record(PlatformEventTypes.EVIDENCE_ARTEFACT_RECORDED, data.deepCopy(), minorIncrement = false),
+            )
         first.artefact shouldBe artefact
         // the same artefact twice is one (artefactType, reference, hash): evidence-svc records it once
         setOf(first.artefact, again.artefact) shouldHaveSize 1
@@ -217,7 +267,8 @@ class PlatformEventsTest {
     @Test
     fun `an artefact type added in a later minor version is kept as received`() {
         val data =
-            mapper.createObjectNode()
+            mapper
+                .createObjectNode()
                 .put("artefactType", "SUPPLIER_STATEMENT")
                 .put("reference", "stmt-1")
                 .put("hash", EvidenceArtefact.sha256Hex("x".toByteArray()))
@@ -228,7 +279,8 @@ class PlatformEventsTest {
 
     @Test
     fun `the hash is the SHA-256 of the artefact bytes as 64 lowercase hex characters`() {
-        EvidenceArtefact.sha256Hex("abc".toByteArray()) shouldBe "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        EvidenceArtefact.sha256Hex("abc".toByteArray()) shouldBe
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
         assertThrows<IllegalArgumentException> { EvidenceArtefact(EvidenceArtefactType.IMPORT, "r", "AB".repeat(32)) }
         assertThrows<IllegalArgumentException> { EvidenceArtefactType("rendition") }
     }
@@ -238,22 +290,32 @@ class PlatformEventsTest {
         val data = policyData("STRICT")
         val text = record(PlatformEventTypes.POLICY_CHANGED, data)
         val v2 = text.replace("PolicyChanged.v1", "PolicyChanged.v2")
-        assertThrows<ContractViolation> { reader.policyChanged(PlatformEventTypes.POLICY_CHANGED_TOPIC, LogRecord(1, v2)) }
+        assertThrows<ContractViolation> {
+            reader.policyChanged(
+                PlatformEventTypes.POLICY_CHANGED_TOPIC,
+                LogRecord(1, v2),
+            )
+        }
         assertThrows<ContractViolation> { reader.connectionStatusChanged(text) }
-        val missing = record(PlatformEventTypes.EVIDENCE_ARTEFACT_RECORDED, mapper.createObjectNode().put("artefactType", "IMPORT").put("reference", "r"))
+        val missing =
+            record(
+                PlatformEventTypes.EVIDENCE_ARTEFACT_RECORDED,
+                mapper.createObjectNode().put("artefactType", "IMPORT").put("reference", "r"),
+            )
         assertThrows<ContractViolation> { reader.evidenceArtefactRecorded(missing) }
     }
 
-    private fun context() = EventContext(
-        tenant,
-        EntityRef("E-001"),
-        null,
-        null,
-        "rendition/doc-1",
-        null,
-        CorrelationId("corr-1"),
-        CausationId("cause-1"),
-    )
+    private fun context() =
+        EventContext(
+            tenant,
+            EntityRef("E-001"),
+            null,
+            null,
+            "rendition/doc-1",
+            null,
+            CorrelationId("corr-1"),
+            CausationId("cause-1"),
+        )
 
     companion object {
         private const val POLICY_SCHEMA = "service-runtime/schemas/policy-changed-payload.schema.json"

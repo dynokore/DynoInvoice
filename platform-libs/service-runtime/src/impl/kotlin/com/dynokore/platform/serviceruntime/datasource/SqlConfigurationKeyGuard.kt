@@ -58,9 +58,12 @@ class SqlConfigurationKeyGuard :
             environment: ConfigurableEnvironment,
             classLoader: ClassLoader?,
         ) {
-            val offending = findOffendingKeys(environment) + findPasswordProperties(environment) + findExternalConfiguration(listOfNotNull(classLoader))
+            val offending =
+                findOffendingKeys(environment) + findPasswordProperties(environment) +
+                    findExternalConfiguration(listOfNotNull(classLoader))
             check(offending.isEmpty()) {
-                "Spring configuration keys that run SQL or set session state are refused (coordinator rulings INV-Q-4542, " +
+                "Spring configuration keys that run SQL or set session state are refused (coordinator rulings " +
+                    "INV-Q-4542, " +
                     "INV-Q-4559, INV-Q-4570, INV-Q-4591; INV-ADR-3968 item 4c, INV-REQ-1230): remove $offending"
             }
         }
@@ -74,38 +77,53 @@ class SqlConfigurationKeyGuard :
         fun findExternalConfiguration(
             classLoaders: List<ClassLoader>,
             systemProperty: (String) -> String? = System::getProperty,
-        ): List<String> = listOfNotNull(
-            systemProperty(HIKARI_CONFIGURATION_FILE)?.let { "system property $HIKARI_CONFIGURATION_FILE (an external pool configuration file)" },
-            (classLoaders + listOfNotNull(Thread.currentThread().contextClassLoader, SqlConfigurationKeyGuard::class.java.classLoader))
-                .firstOrNull { it.getResource(DRIVER_CONFIGURATION) != null }
-                ?.let { "class-path resource $DRIVER_CONFIGURATION (pgjdbc default connection properties)" },
-        )
+        ): List<String> =
+            listOfNotNull(
+                systemProperty(HIKARI_CONFIGURATION_FILE)?.let {
+                    "system property $HIKARI_CONFIGURATION_FILE (an external pool configuration file)"
+                },
+                (
+                    classLoaders +
+                        listOfNotNull(
+                            Thread.currentThread().contextClassLoader,
+                            SqlConfigurationKeyGuard::class.java.classLoader,
+                        )
+                ).firstOrNull { it.getResource(DRIVER_CONFIGURATION) != null }
+                    ?.let { "class-path resource $DRIVER_CONFIGURATION (pgjdbc default connection properties)" },
+            )
 
         /**
          * The password keys, read by exact name through [Environment.getProperty], which also consults property
          * sources that cannot be enumerated (coordinator ruling INV-Q-4570; STK-29, INV-Q-4548). A value that cannot be
          * resolved counts as set.
          */
-        fun findPasswordProperties(environment: Environment): List<String> = PASSWORD_KEYS
-            .filter { key -> runCatching { environment.getProperty(key) != null }.getOrDefault(true) }
-            .map { "$it (a password: the login comes only through SecretStore (STK-29, INV-Q-4570))" }
+        fun findPasswordProperties(environment: Environment): List<String> =
+            PASSWORD_KEYS
+                .filter { key -> runCatching { environment.getProperty(key) != null }.getOrDefault(true) }
+                .map { "$it (a password: the login comes only through SecretStore (STK-29, INV-Q-4570))" }
 
         /** Every refused key, sorted, with the reason; each as its property source names it. */
-        fun findOffendingKeys(environment: ConfigurableEnvironment): List<String> = ConfigurationPropertySources
-            .get(environment)
-            // a source that cannot be enumerated (a stub, a servlet-context source before the web server) is not listed here;
-            // PoolConfigurationGuard checks what such a source binds into a pool
-            .filterIsInstance<IterableConfigurationPropertySource>()
-            .flatMap { source ->
-                val env = source.underlyingSource is SystemEnvironmentPropertySource
-                source.mapNotNull { name ->
-                    refusal(name, env) { valueOf(source, name, environment) }?.let { reason ->
-                        val origin = source.getConfigurationProperty(name)?.origin?.let { " from $it" }.orEmpty()
-                        "$name ($reason$origin)"
+        fun findOffendingKeys(environment: ConfigurableEnvironment): List<String> =
+            ConfigurationPropertySources
+                .get(environment)
+                // a source that cannot be enumerated (a stub, a servlet-context source before the web server) is not listed here;
+                // PoolConfigurationGuard checks what such a source binds into a pool
+                .filterIsInstance<IterableConfigurationPropertySource>()
+                .flatMap { source ->
+                    val env = source.underlyingSource is SystemEnvironmentPropertySource
+                    source.mapNotNull { name ->
+                        refusal(name, env) { valueOf(source, name, environment) }?.let { reason ->
+                            val origin =
+                                source
+                                    .getConfigurationProperty(name)
+                                    ?.origin
+                                    ?.let { " from $it" }
+                                    .orEmpty()
+                            "$name ($reason$origin)"
+                        }
                     }
-                }
-            }.distinct()
-            .sorted()
+                }.distinct()
+                .sorted()
 
         /**
          * The reason [name] is refused, or null when it is allowed. [environmentVariable] relaxes word boundaries as an
@@ -116,7 +134,13 @@ class SqlConfigurationKeyGuard :
             environmentVariable: Boolean = false,
             value: () -> String? = { null },
         ): String? {
-            val elements = (0 until name.numberOfElements).map { name.getElement(it, ConfigurationPropertyName.Form.UNIFORM) }
+            val elements =
+                (0 until name.numberOfElements).map {
+                    name.getElement(
+                        it,
+                        ConfigurationPropertyName.Form.UNIFORM,
+                    )
+                }
             // Tomcat hands a servlet-context init parameter to the environment once the web server exists, after this
             // guard ran: `server.servlet.context-parameters.<key>` is checked as `<key>`
             if (CONTEXT_PARAMETERS.isAncestorOf(name)) {
@@ -126,7 +150,11 @@ class SqlConfigurationKeyGuard :
                 return refusal(ConfigurationPropertyName.adapt(rest, '.'), environmentVariable, value)
                     ?.let { "a servlet-context parameter that $it" }
             }
-            if (elements.joinToString("") == HIKARI_CONFIGURATION_FILE_FLAT) return "an external pool configuration file (INV-Q-4559)"
+            if (elements.joinToString("") ==
+                HIKARI_CONFIGURATION_FILE_FLAT
+            ) {
+                return "an external pool configuration file (INV-Q-4559)"
+            }
             REFUSED_PREFIXES.firstOrNull { it.isAncestorOf(name) || it == name }?.let { return "under $it" }
             if (JMX.isAncestorOf(name) || JMX == name) return jmxRefusal(elements.drop(2), value)
             sqlSegment(withoutIndex(name, elements), environmentVariable)?.let { return "runs SQL: $it" }
@@ -136,7 +164,8 @@ class SqlConfigurationKeyGuard :
             if (FLYWAY.isAncestorOf(name) || FLYWAY == name) {
                 return allowlisted(elements.drop(2), FLYWAY_ALLOWED, environmentVariable, value)
             }
-            val eventLogUrl = name == EVENT_LOG_URL || (environmentVariable && elements.joinToString("") == EVENT_LOG_URL_FLAT)
+            val eventLogUrl =
+                name == EVENT_LOG_URL || (environmentVariable && elements.joinToString("") == EVENT_LOG_URL_FLAT)
             if (eventLogUrl) return urlRefusal(value())
             return null
         }
@@ -149,11 +178,12 @@ class SqlConfigurationKeyGuard :
         private fun jmxRefusal(
             rest: List<String>,
             value: () -> String?,
-        ): String? = if (rest == listOf("enabled") && value()?.trim().equals("false", ignoreCase = true)) {
-            null
-        } else {
-            "JMX export is refused; only spring.jmx.enabled=false (INV-Q-4591)"
-        }
+        ): String? =
+            if (rest == listOf("enabled") && value()?.trim().equals("false", ignoreCase = true)) {
+                null
+            } else {
+                "JMX export is refused; only spring.jmx.enabled=false (INV-Q-4591)"
+            }
 
         private fun allowlisted(
             rest: List<String>,
@@ -166,7 +196,17 @@ class SqlConfigurationKeyGuard :
             val joined = key.joinToString(".")
             val check =
                 allowed[joined]
-                    ?: (if (environmentVariable) allowed.entries.firstOrNull { it.key.replace(".", "") == key.joinToString("") }?.value else null)
+                    ?: (
+                        if (environmentVariable) {
+                            allowed.entries
+                                .firstOrNull {
+                                    it.key.replace(".", "") ==
+                                        key.joinToString("")
+                                }?.value
+                        } else {
+                            null
+                        }
+                    )
                     ?: (if (key.size >= 2 && key.first() == PLACEHOLDERS) allowed["$PLACEHOLDERS.*"] else null)
                     ?: return "not on the allowlist"
             return check(value())
@@ -203,7 +243,12 @@ class SqlConfigurationKeyGuard :
             source: ConfigurationPropertySource,
             name: ConfigurationPropertyName,
             environment: ConfigurableEnvironment,
-        ): String? = source.getConfigurationProperty(name)?.value?.toString()?.let(environment::resolvePlaceholders)
+        ): String? =
+            source
+                .getConfigurationProperty(name)
+                ?.value
+                ?.toString()
+                ?.let(environment::resolvePlaceholders)
 
         /**
          * (5) The parameters of a JDBC URL not on [URL_PARAMETERS_ALLOWED] (coordinator ruling INV-Q-4559), named
@@ -233,14 +278,20 @@ class SqlConfigurationKeyGuard :
         private fun only(
             expected: String,
             ignoreCase: Boolean = false,
-        ): (String?) -> String? = { value ->
-            if (value == null || value.trim().equals(expected, ignoreCase)) null else "only $expected"
-        }
+        ): (String?) -> String? =
+            { value ->
+                if (value == null || value.trim().equals(expected, ignoreCase)) null else "only $expected"
+            }
 
         private val ANY: (String?) -> String? = { null }
 
         private val CLASSPATH_LOCATIONS: (String?) -> String? = { value ->
-            val locations = value.orEmpty().split(',').map(String::trim).filter(String::isNotEmpty)
+            val locations =
+                value
+                    .orEmpty()
+                    .split(',')
+                    .map(String::trim)
+                    .filter(String::isNotEmpty)
             if (locations.all { it.startsWith("classpath:") }) null else "only classpath: locations (CS-19)"
         }
 
@@ -252,7 +303,8 @@ class SqlConfigurationKeyGuard :
             }
         }
 
-        private val PASSWORD_KEYS = listOf("spring.datasource.password", "spring.datasource.hikari.password", "spring.flyway.password")
+        private val PASSWORD_KEYS =
+            listOf("spring.datasource.password", "spring.datasource.hikari.password", "spring.flyway.password")
         private const val PLACEHOLDERS = "placeholders"
         private const val HIKARI_CONFIGURATION_FILE = "hikaricp.configurationFile"
         private const val HIKARI_CONFIGURATION_FILE_FLAT = "hikaricpconfigurationfile"
@@ -367,13 +419,15 @@ class SqlConfigurationKeyRecheck :
         SqlConfigurationKeyGuard.verify(environment, beanFactory.beanClassLoader)
         val exporters = findMBeanExporters(beanFactory)
         check(exporters.isEmpty()) {
-            "JMX export is refused: an MBeanExporter exports every HikariDataSource with a writable Password (coordinator " +
+            "JMX export is refused: an MBeanExporter exports every HikariDataSource with a writable Password " +
+                "(coordinator " +
                 "ruling INV-Q-4591; STK-29): remove the MBeanExporter beans $exporters"
         }
     }
 
     companion object {
         /** The beans of type [MBeanExporter] or a subclass, by definition (no bean is created), sorted. */
-        fun findMBeanExporters(beanFactory: ConfigurableListableBeanFactory): List<String> = beanFactory.getBeanNamesForType(MBeanExporter::class.java, true, false).sorted()
+        fun findMBeanExporters(beanFactory: ConfigurableListableBeanFactory): List<String> =
+            beanFactory.getBeanNamesForType(MBeanExporter::class.java, true, false).sorted()
     }
 }

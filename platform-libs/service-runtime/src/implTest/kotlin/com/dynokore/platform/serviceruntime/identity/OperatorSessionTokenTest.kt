@@ -54,7 +54,9 @@ class OperatorSessionTokenTest {
     private val replica = AuthorityReplica(Clock.systemUTC()).also { it.onSnapshotComplete(0) }
     private val decoder =
         NimbusJwtDecoder.withPublicKey(idp.public as RSAPublicKey).build().apply {
-            setJwtValidator(DelegatingOAuth2TokenValidator(endUserTokenValidators(issuer, EndUserIdentityProperties("svc"))))
+            setJwtValidator(
+                DelegatingOAuth2TokenValidator(endUserTokenValidators(issuer, EndUserIdentityProperties("svc"))),
+            )
         }
     private val resolver = JwtEndUserPrincipalResolver(decoder, replica, Clock.systemUTC())
     private val now = Instant.now()
@@ -65,11 +67,27 @@ class OperatorSessionTokenTest {
 
     @Test
     fun `a valid operator session resolves to a tenant principal with its role and case`() {
-        replica.accept(AuthorityChanged(tenant, "op-1", 1, AuthorityRecord.GrantRecord("e1", listOf(Grant("read", ScopeLevel.ENTITY, "e1", now.minusSeconds(60))))))
+        replica.accept(
+            AuthorityChanged(
+                tenant,
+                "op-1",
+                1,
+                AuthorityRecord.GrantRecord("e1", listOf(Grant("read", ScopeLevel.ENTITY, "e1", now.minusSeconds(60)))),
+            ),
+        )
         resolver.resolve(session()) shouldBe
-            EndUserPrincipal("op-1", tenant, setOf(EntityRef("e1")), operatorSession = OperatorSession("platform.support", "CASE-5521"))
+            EndUserPrincipal(
+                "op-1",
+                tenant,
+                setOf(EntityRef("e1")),
+                operatorSession = OperatorSession("platform.support", "CASE-5521"),
+            )
         // exactly 15 minutes is the bound itself
-        resolver.resolve(session(issuedAt = now.minusSeconds(60), expiresAt = now.minusSeconds(60).plus(Duration.ofMinutes(15))))?.actor shouldBe "op-1"
+        resolver
+            .resolve(
+                session(issuedAt = now.minusSeconds(60), expiresAt = now.minusSeconds(60).plus(Duration.ofMinutes(15))),
+            )?.actor shouldBe
+            "op-1"
     }
 
     @Test
@@ -92,7 +110,7 @@ class OperatorSessionTokenTest {
     }
 
     @Test
-    fun `the case is held to openOperatorSession's caseId - 1 to 64 characters, not blank, no colon, no control character`() {
+    fun `the case is held to openOperatorSession's caseId - 1 to 64 chars, not blank, no colon or control character`() {
         fun act(
             case: String,
             role: String = "platform.support",
@@ -109,13 +127,25 @@ class OperatorSessionTokenTest {
 
     @Test
     fun `the INV-Q-4534 samples give the contract's results`() {
-        fun caseOf(case: String) = resolver.resolve(session(act = mapOf("role" to "platform.support", "case" to case)))?.operatorSession?.case
+        fun caseOf(case: String) =
+            resolver.resolve(session(act = mapOf("role" to "platform.support", "case" to case)))?.operatorSession?.case
         for (accepted in listOf("CASE-5521", " CASE-5521 ", "\uFEFFA\u3000", "\uD83D\uDE00".repeat(64))) {
             caseOf(accepted) shouldBe accepted
         }
-        val whitespace = listOf(0x20, 0xA0, 0x1680) + (0x2000..0x200A) + listOf(0x2028, 0x2029, 0x202F, 0x205F, 0x3000, 0xFEFF)
+        val whitespace =
+            listOf(0x20, 0xA0, 0x1680) + (0x2000..0x200A) + listOf(0x2028, 0x2029, 0x202F, 0x205F, 0x3000, 0xFEFF)
         val refused =
-            listOf("", "   ", "A:B", "A\nB", "A\u0085B", "\uFEFF", "\u3000", "\uD83D\uDE00".repeat(65), "C".repeat(65)) +
+            listOf(
+                "",
+                "   ",
+                "A:B",
+                "A\nB",
+                "A\u0085B",
+                "\uFEFF",
+                "\u3000",
+                "\uD83D\uDE00".repeat(65),
+                "C".repeat(65),
+            ) +
                 whitespace.map { String(Character.toChars(it)) } +
                 whitespace.joinToString("") { String(Character.toChars(it)) }
         for (case in refused) caseOf(case) shouldBe null
@@ -123,7 +153,15 @@ class OperatorSessionTokenTest {
 
     @Test
     fun `a case holding a colon is refused, so it cannot pose as another case with its own reason (INV-Q-4529)`() {
-        for (case in listOf("CASE-1: approved", "CASE-1:approved", ":", ": ", "CASE-1:", ":CASE-1", "C".repeat(63) + ":")) {
+        for (case in listOf(
+            "CASE-1: approved",
+            "CASE-1:approved",
+            ":",
+            ": ",
+            "CASE-1:",
+            ":CASE-1",
+            "C".repeat(63) + ":",
+        )) {
             resolver.resolve(session(act = mapOf("role" to "platform.support", "case" to case))) shouldBe null
         }
     }
@@ -131,10 +169,15 @@ class OperatorSessionTokenTest {
     @Test
     fun `a valid case composes the INV-Q-4521 reasons - case CASE, then colon and the own reason`() {
         for (case in listOf("CASE-5521", "CASE 5521/a-b", "C".repeat(64))) {
-            val session = resolver.resolve(session(act = mapOf("role" to "platform.support", "case" to case)))?.operatorSession
+            val session =
+                resolver
+                    .resolve(
+                        session(act = mapOf("role" to "platform.support", "case" to case)),
+                    )?.operatorSession
             session shouldBe OperatorSession("platform.support", case)
             OperatorSessionAuditWriter.reasonUnder(session!!, null) shouldBe "case $case"
-            OperatorSessionAuditWriter.reasonUnder(session, "override approved") shouldBe "case $case: override approved"
+            OperatorSessionAuditWriter.reasonUnder(session, "override approved") shouldBe
+                "case $case: override approved"
         }
     }
 
@@ -152,8 +195,14 @@ class OperatorSessionTokenTest {
         resolver.resolve(session(kid = "other")) shouldBe null
         resolver.resolve(session(kid = null)) shouldBe null
         // an identity-provider token carrying act, otherwise valid for this service
-        resolver.resolve(session(signer = RSASSASigner(idp.private), kid = null, audience = "svc", iss = issuer)) shouldBe null
-        resolver.resolve(session(signer = RSASSASigner(idp.private), kid = "idp", audience = "svc", iss = issuer)) shouldBe null
+        resolver.resolve(
+            session(signer = RSASSASigner(idp.private), kid = null, audience = "svc", iss = issuer),
+        ) shouldBe
+            null
+        resolver.resolve(
+            session(signer = RSASSASigner(idp.private), kid = "idp", audience = "svc", iss = issuer),
+        ) shouldBe
+            null
     }
 
     @Test
@@ -162,8 +211,16 @@ class OperatorSessionTokenTest {
         resolver.resolve(session(act = null, audience = "svc", iss = issuer)) shouldBe null
         resolver.resolve(session(act = null)) shouldBe null
         // the same claims signed by the identity provider are accepted, so the refusal is the key's
-        resolver.resolve(session(act = null, audience = "svc", iss = issuer, signer = RSASSASigner(idp.private)))?.operatorSession shouldBe null
-        resolver.resolve(session(act = null, audience = "svc", iss = issuer, signer = RSASSASigner(idp.private)))?.actor shouldBe "op-1"
+        resolver
+            .resolve(
+                session(act = null, audience = "svc", iss = issuer, signer = RSASSASigner(idp.private)),
+            )?.operatorSession shouldBe
+            null
+        resolver
+            .resolve(
+                session(act = null, audience = "svc", iss = issuer, signer = RSASSASigner(idp.private)),
+            )?.actor shouldBe
+            "op-1"
     }
 
     @Test
@@ -178,13 +235,20 @@ class OperatorSessionTokenTest {
 
     @Test
     fun `with no valid key held every act token is refused`() {
-        val cold = JwtEndUserPrincipalResolver(decoder, AuthorityReplica(Clock.systemUTC()).also { it.onSnapshotComplete(0) })
+        val cold =
+            JwtEndUserPrincipalResolver(decoder, AuthorityReplica(Clock.systemUTC()).also { it.onSnapshotComplete(0) })
         cold.resolve(session()) shouldBe null
-        replica.operatorSessionKeys.accept(OperatorSessionKeysChanged(listOf(keyOf(operatorKey, KID).copy(validUntil = now.minusSeconds(1)))))
+        replica.operatorSessionKeys.accept(
+            OperatorSessionKeysChanged(listOf(keyOf(operatorKey, KID).copy(validUntil = now.minusSeconds(1)))),
+        )
         resolver.resolve(session()) shouldBe null
-        replica.operatorSessionKeys.accept(OperatorSessionKeysChanged(listOf(keyOf(operatorKey, KID).copy(validFrom = now.plusSeconds(60)))))
+        replica.operatorSessionKeys.accept(
+            OperatorSessionKeysChanged(listOf(keyOf(operatorKey, KID).copy(validFrom = now.plusSeconds(60)))),
+        )
         resolver.resolve(session()) shouldBe null
-        replica.operatorSessionKeys.accept(OperatorSessionKeysChanged(listOf(keyOf(operatorKey, KID).copy(publicKey = "bm90LWEta2V5"))))
+        replica.operatorSessionKeys.accept(
+            OperatorSessionKeysChanged(listOf(keyOf(operatorKey, KID).copy(publicKey = "bm90LWEta2V5"))),
+        )
         resolver.resolve(session()) shouldBe null
         replica.operatorSessionKeys.accept(OperatorSessionKeysChanged(emptyList()))
         resolver.resolve(session()) shouldBe null
@@ -194,7 +258,9 @@ class OperatorSessionTokenTest {
     fun `rotation - the next key verifies once published, a key left out of the next event no longer does`() {
         val next = rsa()
         resolver.resolve(session(signer = RSASSASigner(next.private), kid = "next")) shouldBe null
-        replica.operatorSessionKeys.accept(OperatorSessionKeysChanged(listOf(keyOf(operatorKey, KID), keyOf(next, "next"))))
+        replica.operatorSessionKeys.accept(
+            OperatorSessionKeysChanged(listOf(keyOf(operatorKey, KID), keyOf(next, "next"))),
+        )
         resolver.resolve(session(signer = RSASSASigner(next.private), kid = "next"))?.actor shouldBe "op-1"
         resolver.resolve(session())?.actor shouldBe "op-1"
         replica.operatorSessionKeys.accept(OperatorSessionKeysChanged(listOf(keyOf(next, "next"))))
@@ -205,7 +271,10 @@ class OperatorSessionTokenTest {
     fun `an EC operator-session key verifies its ES256 tokens`() {
         val ec = KeyPairGenerator.getInstance("EC").apply { initialize(256) }.generateKeyPair()
         replica.operatorSessionKeys.accept(OperatorSessionKeysChanged(listOf(keyOf(ec, "ec", "ES256"))))
-        resolver.resolve(session(alg = JWSAlgorithm.ES256, signer = ECDSASigner(ec.private as ECPrivateKey), kid = "ec"))?.operatorSession shouldBe
+        resolver
+            .resolve(
+                session(alg = JWSAlgorithm.ES256, signer = ECDSASigner(ec.private as ECPrivateKey), kid = "ec"),
+            )?.operatorSession shouldBe
             OperatorSession("platform.support", "CASE-5521")
     }
 
@@ -214,12 +283,22 @@ class OperatorSessionTokenTest {
         ApplicationContextRunner()
             .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
             .withBean(IdentityProvider::class.java, { IdentityProvider { OidcIssuer(issuer, "$issuer/jwks") } })
-            .withConfiguration(AutoConfigurations.of(ServiceRuntimeConfiguration::class.java, L1CompositionAutoConfiguration::class.java))
-            .withPropertyValues("service-runtime.workload-identity.audience=svc", "service-runtime.end-user-identity.audience=svc")
-            .run { context ->
+            .withConfiguration(
+                AutoConfigurations.of(
+                    ServiceRuntimeConfiguration::class.java,
+                    L1CompositionAutoConfiguration::class.java,
+                ),
+            ).withPropertyValues(
+                "service-runtime.workload-identity.audience=svc",
+                "service-runtime.end-user-identity.audience=svc",
+            ).run { context ->
                 val wired = context.getBean(EndUserPrincipalResolver::class.java)
                 wired.resolve(session()) shouldBe null // no key held yet
-                context.getBean(AuthorityReplica::class.java).operatorSessionKeys.accept(OperatorSessionKeysChanged(listOf(keyOf(operatorKey, KID))))
+                context
+                    .getBean(
+                        AuthorityReplica::class.java,
+                    ).operatorSessionKeys
+                    .accept(OperatorSessionKeysChanged(listOf(keyOf(operatorKey, KID))))
                 wired.resolve(session())?.operatorSession shouldBe OperatorSession("platform.support", "CASE-5521")
             }
     }
@@ -239,7 +318,8 @@ class OperatorSessionTokenTest {
         iss: String? = null,
     ): String {
         val claims =
-            JWTClaimsSet.Builder()
+            JWTClaimsSet
+                .Builder()
                 .subject(subject)
                 .issueTime(issuedAt?.let(Date::from))
                 .expirationTime(expiresAt?.let(Date::from))
@@ -258,7 +338,13 @@ class OperatorSessionTokenTest {
         pair: KeyPair,
         kid: String,
         alg: String = "RS256",
-    ) = OperatorSessionKey(kid, alg, Base64.getEncoder().encodeToString(pair.public.encoded), now.minusSeconds(3600), now.plusSeconds(3600))
+    ) = OperatorSessionKey(
+        kid,
+        alg,
+        Base64.getEncoder().encodeToString(pair.public.encoded),
+        now.minusSeconds(3600),
+        now.plusSeconds(3600),
+    )
 
     private companion object {
         const val KID = "ops-2026-10"

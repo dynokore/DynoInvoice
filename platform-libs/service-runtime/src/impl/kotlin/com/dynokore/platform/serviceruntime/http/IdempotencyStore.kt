@@ -9,15 +9,22 @@ import java.time.Duration
 import java.util.UUID
 
 /** A response as stored for a replay (API-15: the original status and body). */
-data class StoredResponse(val status: Int, val body: String)
+data class StoredResponse(
+    val status: Int,
+    val body: String,
+)
 
 /** What [IdempotencyStore.once] did. */
 sealed interface IdempotencyOutcome {
     /** [block] ran now; its response was stored unless it was a server error. */
-    data class Fresh(val response: StoredResponse) : IdempotencyOutcome
+    data class Fresh(
+        val response: StoredResponse,
+    ) : IdempotencyOutcome
 
     /** The same key and fingerprint completed before: the stored response, nothing run (API-15). */
-    data class Replay(val response: StoredResponse) : IdempotencyOutcome
+    data class Replay(
+        val response: StoredResponse,
+    ) : IdempotencyOutcome
 
     /** The same key is still in flight (API-15: 409). */
     data object InFlight : IdempotencyOutcome
@@ -89,7 +96,7 @@ object IdempotencySchema {
             grant usage on schema $s to $runtime;
             grant select, insert on $s.$TABLE to $runtime;
             grant usage on schema $s to $sys;
-        """.trimIndent()
+            """.trimIndent()
     }
 
     private fun purgeFunction(
@@ -128,7 +135,7 @@ object IdempotencySchema {
             revoke all on function $s.$PURGE_EXPIRED(timestamptz, integer) from public;
             grant execute on function $s.$PURGE_EXPIRED(timestamptz, integer) to $runtime;
             revoke create on schema $s from $sys;
-        """.trimIndent()
+            """.trimIndent()
     }
 }
 
@@ -213,12 +220,13 @@ class IdempotencyStore(
     }
 
     /** Whether a transaction is open on the calling thread (the enclosing command transaction of TPL-04). */
-    private fun transactionOpen(): Boolean = try {
-        scope.connections.require()
-        true
-    } catch (_: IllegalStateException) {
-        false
-    }
+    private fun transactionOpen(): Boolean =
+        try {
+            scope.connections.require()
+            true
+        } catch (_: IllegalStateException) {
+            false
+        }
 
     /** One request's guard, lookup and record, each in the transaction open on the calling thread. */
     private inner class Command(
@@ -238,14 +246,23 @@ class IdempotencyStore(
             if (begunOn === connection) return
             check(scope.tenants.current() == owner) { "the command transaction is not the key's tenant" }
             val held =
-                connection.prepareStatement("select pg_try_advisory_xact_lock(hashtextextended(?, 0))").use { statement ->
-                    statement.setString(1, "$table/$owner/$principal/$key")
-                    statement.executeQuery().use { it.next() && it.getBoolean(1) }
-                }
+                connection
+                    .prepareStatement("select pg_try_advisory_xact_lock(hashtextextended(?, 0))")
+                    .use { statement ->
+                        statement.setString(1, "$table/$owner/$principal/$key")
+                        statement.executeQuery().use { it.next() && it.getBoolean(1) }
+                    }
             if (!held) throw Settled(this, IdempotencyOutcome.InFlight)
             val stored = find(owner, principal, key)
             if (stored != null) {
-                val outcome = if (stored.first == fingerprint) IdempotencyOutcome.Replay(stored.second) else IdempotencyOutcome.DifferentRequest
+                val outcome =
+                    if (stored.first ==
+                        fingerprint
+                    ) {
+                        IdempotencyOutcome.Replay(stored.second)
+                    } else {
+                        IdempotencyOutcome.DifferentRequest
+                    }
                 throw Settled(this, outcome)
             }
             begunOn = connection
@@ -281,11 +298,15 @@ class IdempotencyStore(
             val deleted =
                 scope.bindWorkload(TenantId.PLATFORM) {
                     scope.transactions.inTransaction {
-                        scope.connections.require().prepareStatement("select $purgeExpired(now() - ? * interval '1 second', ?)").use { statement ->
-                            statement.setLong(1, seconds)
-                            statement.setInt(2, PURGE_BATCH)
-                            statement.executeQuery().use { rows -> if (rows.next()) rows.getLong(1).toInt() else 0 }
-                        }
+                        scope.connections
+                            .require()
+                            .prepareStatement(
+                                "select $purgeExpired(now() - ? * interval '1 second', ?)",
+                            ).use { statement ->
+                                statement.setLong(1, seconds)
+                                statement.setInt(2, PURGE_BATCH)
+                                statement.executeQuery().use { rows -> if (rows.next()) rows.getLong(1).toInt() else 0 }
+                            }
                     }
                 }
             total += deleted
@@ -298,16 +319,19 @@ class IdempotencyStore(
         tenant: TenantId,
         principal: String,
         key: UUID,
-    ): Pair<String, StoredResponse>? = scope.connections.require().prepareStatement(
-        "select fingerprint, status, body from $table where tenant_id = ? and principal = ? and idempotency_key = ?",
-    ).use { statement ->
-        statement.setObject(1, tenant.value)
-        statement.setString(2, principal)
-        statement.setObject(3, key)
-        statement.executeQuery().use { rows ->
-            if (rows.next()) rows.getString(1) to StoredResponse(rows.getInt(2), rows.getString(3)) else null
-        }
-    }
+    ): Pair<String, StoredResponse>? =
+        scope.connections
+            .require()
+            .prepareStatement(
+                "select fingerprint, status, body from $table where tenant_id = ? and principal = ? and idempotency_key = ?",
+            ).use { statement ->
+                statement.setObject(1, tenant.value)
+                statement.setString(2, principal)
+                statement.setObject(3, key)
+                statement.executeQuery().use { rows ->
+                    if (rows.next()) rows.getString(1) to StoredResponse(rows.getInt(2), rows.getString(3)) else null
+                }
+            }
 
     /** Inserts the record in the open transaction of the current thread. */
     private fun insert(
@@ -317,20 +341,22 @@ class IdempotencyStore(
         fingerprint: String,
         response: StoredResponse,
     ) {
-        scope.connections.require().prepareStatement(
-            """
-            insert into $table (tenant_id, principal, idempotency_key, fingerprint, status, body, created_at)
-            values (?, ?, ?, ?, ?, ?, now()) on conflict do nothing
-            """.trimIndent(),
-        ).use { statement ->
-            statement.setObject(1, tenant.value)
-            statement.setString(2, principal)
-            statement.setObject(3, key)
-            statement.setString(4, fingerprint)
-            statement.setInt(5, response.status)
-            statement.setString(6, response.body)
-            statement.executeUpdate()
-        }
+        scope.connections
+            .require()
+            .prepareStatement(
+                """
+                insert into $table (tenant_id, principal, idempotency_key, fingerprint, status, body, created_at)
+                values (?, ?, ?, ?, ?, ?, now()) on conflict do nothing
+                """.trimIndent(),
+            ).use { statement ->
+                statement.setObject(1, tenant.value)
+                statement.setString(2, principal)
+                statement.setObject(3, key)
+                statement.setString(4, fingerprint)
+                statement.setInt(5, response.status)
+                statement.setString(6, response.body)
+                statement.executeUpdate()
+            }
     }
 
     private fun <T> inTenant(

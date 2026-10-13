@@ -47,15 +47,24 @@ class PoolConfigurationGuardTest {
         // ApplicationName equal to gst.service: passes
         PoolConfigurationGuard.findOffendingProperties(allowedPool(), SERVICE).shouldBeEmpty()
         // no data-source property at all: passes
-        PoolConfigurationGuard.findOffendingProperties(allowedPool().apply { dataSourceProperties.clear() }, SERVICE).shouldBeEmpty()
+        PoolConfigurationGuard
+            .findOffendingProperties(
+                allowedPool().apply {
+                    dataSourceProperties.clear()
+                },
+                SERVICE,
+            ).shouldBeEmpty()
         // ApplicationName other than gst.service: refused, the value not printed
         val other = allowedPool().apply { addDataSourceProperty("ApplicationName", "other-svc") }
-        PoolConfigurationGuard.findOffendingProperties(other, SERVICE) shouldBe listOf("dataSourceProperties (ApplicationName other than gst.service)")
+        PoolConfigurationGuard.findOffendingProperties(other, SERVICE) shouldBe
+            listOf("dataSourceProperties (ApplicationName other than gst.service)")
         // ApplicationName with no gst.service set: refused
-        PoolConfigurationGuard.findOffendingProperties(allowedPool(), null) shouldBe listOf("dataSourceProperties (ApplicationName other than gst.service)")
+        PoolConfigurationGuard.findOffendingProperties(allowedPool(), null) shouldBe
+            listOf("dataSourceProperties (ApplicationName other than gst.service)")
         // another property beside a correct ApplicationName: refused, naming only the other property
         val extra = allowedPool().apply { addDataSourceProperty("currentSchema", "evil") }
-        PoolConfigurationGuard.findOffendingProperties(extra, SERVICE) shouldBe listOf("dataSourceProperties (refused data-source properties [currentSchema])")
+        PoolConfigurationGuard.findOffendingProperties(extra, SERVICE) shouldBe
+            listOf("dataSourceProperties (refused data-source properties [currentSchema])")
     }
 
     @ParameterizedTest(name = "{0}")
@@ -69,38 +78,69 @@ class PoolConfigurationGuardTest {
     fun `a pool that runs SQL or sets session state is refused, and the value is not printed`(setting: String) {
         val pool = allowedPool()
         when (setting) {
-            "connectionInitSql" -> pool.connectionInitSql = "set role postgres"
+            "connectionInitSql" -> {
+                pool.connectionInitSql = "set role postgres"
+            }
 
-            "connectionTestQuery" -> pool.connectionTestQuery = "select 1"
+            "connectionTestQuery" -> {
+                pool.connectionTestQuery = "select 1"
+            }
 
-            "schema" -> pool.schema = "evil"
+            "schema" -> {
+                pool.schema = "evil"
+            }
 
-            "catalog" -> pool.catalog = "evil"
+            "catalog" -> {
+                pool.catalog = "evil"
+            }
 
-            "transactionIsolation" -> pool.transactionIsolation = "TRANSACTION_SERIALIZABLE"
+            "transactionIsolation" -> {
+                pool.transactionIsolation = "TRANSACTION_SERIALIZABLE"
+            }
 
-            "autoCommit" -> pool.isAutoCommit = false
+            "autoCommit" -> {
+                pool.isAutoCommit = false
+            }
 
-            "readOnly" -> pool.isReadOnly = true
+            "readOnly" -> {
+                pool.isReadOnly = true
+            }
 
-            "dataSourceClassName" -> pool.dataSourceClassName = "org.postgresql.ds.PGSimpleDataSource"
+            "dataSourceClassName" -> {
+                pool.dataSourceClassName = "org.postgresql.ds.PGSimpleDataSource"
+            }
 
-            "options" -> pool.addDataSourceProperty("options", "-c search_path=evil")
+            "options" -> {
+                pool.addDataSourceProperty("options", "-c search_path=evil")
+            }
 
-            "jdbcUrlOptions" -> pool.jdbcUrl = "jdbc:postgresql://db/app?options=-c%20search_path%3Devil"
+            "jdbcUrlOptions" -> {
+                pool.jdbcUrl = "jdbc:postgresql://db/app?options=-c%20search_path%3Devil"
+            }
 
-            "jdbcUrlPassword" -> pool.jdbcUrl = "jdbc:postgresql://db/app?password=evil"
+            "jdbcUrlPassword" -> {
+                pool.jdbcUrl = "jdbc:postgresql://db/app?password=evil"
+            }
 
-            "applicationName" -> pool.addDataSourceProperty("ApplicationName", "evil")
+            "applicationName" -> {
+                pool.addDataSourceProperty("ApplicationName", "evil")
+            }
 
             // a pool password bypasses SecretStore (STK-29, coordinator ruling INV-Q-4570)
-            "password" -> pool.password = "evil"
+            "password" -> {
+                pool.password = "evil"
+            }
 
             // MBeans expose HikariConfigMXBean.setPassword over JMX (coordinator ruling INV-Q-4574)
-            "registerMbeans" -> pool.isRegisterMbeans = true
+            "registerMbeans" -> {
+                pool.isRegisterMbeans = true
+            }
 
             // a login provider other than SecretStoreCredentialsProvider (INV-Q-4570)
-            "credentialsProvider" -> pool.credentialsProvider = HikariCredentialsProvider { Credentials.of("evil", "evil") }
+            "credentialsProvider" -> {
+                pool.credentialsProvider =
+                    HikariCredentialsProvider { Credentials.of("evil", "evil") }
+            }
         }
         val offending = PoolConfigurationGuard.findOffendingProperties(pool, SERVICE)
         offending.size shouldBe 1
@@ -110,10 +150,23 @@ class PoolConfigurationGuardTest {
 
     @Test
     fun `a SecretStoreCredentialsProvider passes, any other provider is refused (INV-Q-4570)`() {
-        val secretStore = allowedPool().apply { credentialsProvider = SecretStoreCredentialsProvider(MountedFileSecretStore(Path.of("/run/secrets")), "submission_runtime", SecretRef("db-app")) }
+        val secretStore =
+            allowedPool().apply {
+                credentialsProvider =
+                    SecretStoreCredentialsProvider(
+                        MountedFileSecretStore(Path.of("/run/secrets")),
+                        "submission_runtime",
+                        SecretRef("db-app"),
+                    )
+            }
         PoolConfigurationGuard.findOffendingProperties(secretStore, SERVICE).shouldBeEmpty()
-        val other = allowedPool().apply { credentialsProvider = HikariCredentialsProvider { Credentials.of("submission_runtime", "pw") } }
-        PoolConfigurationGuard.findOffendingProperties(other, SERVICE) shouldBe listOf("credentialsProvider (only SecretStoreCredentialsProvider (INV-Q-4570))")
+        val other =
+            allowedPool().apply {
+                credentialsProvider =
+                    HikariCredentialsProvider { Credentials.of("submission_runtime", "pw") }
+            }
+        PoolConfigurationGuard.findOffendingProperties(other, SERVICE) shouldBe
+            listOf("credentialsProvider (only SecretStoreCredentialsProvider (INV-Q-4570))")
     }
 
     @Test
@@ -132,7 +185,7 @@ class PoolConfigurationGuardTest {
     }
 
     @Test
-    fun `a pool password, MBeans or another credentials provider set before the pool check fails start-up (INV-Q-4570, INV-Q-4574)`() {
+    fun `a pool password, MBeans or another credentials provider set early fails start-up (INV-Q-4570, INV-Q-4574)`() {
         val service =
             tpl18Service().withPropertyValues(
                 "spring.datasource.url=jdbc:postgresql://db:5432/submission",
@@ -141,14 +194,17 @@ class PoolConfigurationGuardTest {
         mapOf<String, (HikariDataSource) -> Unit>(
             "password (set)" to { it.password = "pw-value" },
             "registerMbeans (set)" to { it.isRegisterMbeans = true },
-            "credentialsProvider (only SecretStoreCredentialsProvider" to { it.credentialsProvider = HikariCredentialsProvider { Credentials.of("x", "pw-value") } },
+            "credentialsProvider (only SecretStoreCredentialsProvider" to
+                { it.credentialsProvider = HikariCredentialsProvider { Credentials.of("x", "pw-value") } },
         ).forEach { (expected, setting) ->
-            service.withBean("codeBeforeCheck", BeforePoolCheck::class.java, { BeforePoolCheck(setting) }).run { context ->
-                val failure = failure(context.startupFailure)
-                failure shouldContain "INV-Q-4570"
-                failure shouldContain expected
-                failure shouldNotContain "pw-value"
-            }
+            service
+                .withBean("codeBeforeCheck", BeforePoolCheck::class.java, { BeforePoolCheck(setting) })
+                .run { context ->
+                    val failure = failure(context.startupFailure)
+                    failure shouldContain "INV-Q-4570"
+                    failure shouldContain expected
+                    failure shouldNotContain "pw-value"
+                }
         }
         // register-mbeans bound through a property source the key check cannot enumerate
         service.withInitializer(indirect("spring.datasource.hikari.register-mbeans" to "true")).run { context ->
@@ -172,18 +228,27 @@ class PoolConfigurationGuardTest {
         }
     }
 
-    private fun failure(startupFailure: Throwable?): String = generateSequence(startupFailure) { it.cause }.joinToString(" | ") { it.message.orEmpty() }
+    private fun failure(startupFailure: Throwable?): String =
+        generateSequence(startupFailure) {
+            it.cause
+        }.joinToString(" | ") { it.message.orEmpty() }
 
     @Test
-    fun `a TPL-18 service whose application pool is bound with a refused setting through an indirect path fails start-up`() {
+    fun `a TPL-18 service whose application pool is bound with a refused setting indirectly fails start-up`() {
         tpl18Service()
             .withPropertyValues(
                 "spring.datasource.url=jdbc:postgresql://db:5432/submission",
                 "spring.datasource.username=submission_runtime",
             ).withInitializer(
-                indirect("spring.datasource.hikari.schema" to "evil", "spring.datasource.hikari.connection-test-query" to "select 1"),
+                indirect(
+                    "spring.datasource.hikari.schema" to "evil",
+                    "spring.datasource.hikari.connection-test-query" to "select 1",
+                ),
             ).run { context ->
-                val failure = generateSequence(context.startupFailure) { it.cause }.joinToString(" | ") { it.message.orEmpty() }
+                val failure =
+                    generateSequence(
+                        context.startupFailure,
+                    ) { it.cause }.joinToString(" | ") { it.message.orEmpty() }
                 failure shouldContain "INV-Q-4542"
                 failure shouldContain "schema (set)"
                 failure shouldContain "connectionTestQuery (set)"
@@ -197,42 +262,60 @@ class PoolConfigurationGuardTest {
                 "spring.datasource.url=jdbc:postgresql://db:5432/submission",
                 "spring.datasource.username=submission_runtime",
             )
-        service.withPropertyValues("gst.db.event-log-url=jdbc:postgresql://log:5432/submission?loggerLevel=OFF&sslmode=verify-full&sslrootcert=/etc/ssl/pg.crt").run { context ->
-            context.startupFailure shouldBe null
-            // the service-runtime pools with their ApplicationName <gst.service> pass (INV-Q-4566)
-            val eventLog = context.getBean(ServiceDataSources.EVENT_LOG, HikariDataSource::class.java)
-            eventLog.dataSourceProperties["ApplicationName"] shouldBe "submission-svc"
-            context.getBean(DataSource::class.java).unwrap(HikariDataSource::class.java).dataSourceProperties["ApplicationName"] shouldBe "submission-svc"
-        }
-        service.withInitializer(indirect("gst.db.event-log-url" to "jdbc:postgresql://log:5432/submission?options=-c%20search_path%3Dx")).run { context ->
-            val failure = generateSequence(context.startupFailure) { it.cause }.joinToString(" | ") { it.message.orEmpty() }
-            failure shouldContain ServiceDataSources.EVENT_LOG
-            failure shouldContain "jdbcUrl (URL parameters not on the allowlist (INV-Q-4559): [options])"
-            failure shouldNotContain "search_path"
-        }
+        service
+            .withPropertyValues(
+                "gst.db.event-log-url=jdbc:postgresql://log:5432/submission?loggerLevel=OFF&sslmode=verify-full&sslrootcert=/etc/ssl/pg.crt",
+            ).run { context ->
+                context.startupFailure shouldBe null
+                // the service-runtime pools with their ApplicationName <gst.service> pass (INV-Q-4566)
+                val eventLog = context.getBean(ServiceDataSources.EVENT_LOG, HikariDataSource::class.java)
+                eventLog.dataSourceProperties["ApplicationName"] shouldBe "submission-svc"
+                context
+                    .getBean(
+                        DataSource::class.java,
+                    ).unwrap(HikariDataSource::class.java)
+                    .dataSourceProperties["ApplicationName"] shouldBe
+                    "submission-svc"
+            }
+        service
+            .withInitializer(
+                indirect(
+                    "gst.db.event-log-url" to "jdbc:postgresql://log:5432/submission?options=-c%20search_path%3Dx",
+                ),
+            ).run { context ->
+                val failure =
+                    generateSequence(
+                        context.startupFailure,
+                    ) { it.cause }.joinToString(" | ") { it.message.orEmpty() }
+                failure shouldContain ServiceDataSources.EVENT_LOG
+                failure shouldContain "jdbcUrl (URL parameters not on the allowlist (INV-Q-4559): [options])"
+                failure shouldNotContain "search_path"
+            }
     }
 
     /**
      * A property source that cannot be enumerated, so the key check does not see it but Spring binds from it: the
      * shape of an indirect path (as Tomcat's servlet-context parameters before the web server exists).
      */
-    private fun indirect(vararg entries: Pair<String, String>) = ApplicationContextInitializer<ConfigurableApplicationContext> { context ->
-        val values = mapOf(*entries)
-        context.environment.propertySources.addFirst(
-            object : PropertySource<Any>("indirect", Any()) {
-                override fun getProperty(name: String): Any? = values[name]
-            },
-        )
-    }
+    private fun indirect(vararg entries: Pair<String, String>) =
+        ApplicationContextInitializer<ConfigurableApplicationContext> { context ->
+            val values = mapOf(*entries)
+            context.environment.propertySources.addFirst(
+                object : PropertySource<Any>("indirect", Any()) {
+                    override fun getProperty(name: String): Any? = values[name]
+                },
+            )
+        }
 
-    private fun allowedPool(): HikariConfig = HikariConfig().apply {
-        jdbcUrl = "jdbc:postgresql://db:5432/app?sslmode=require"
-        username = "submission_runtime"
-        maximumPoolSize = 7
-        minimumIdle = 1
-        poolName = "app"
-        addDataSourceProperty("ApplicationName", SERVICE)
-    }
+    private fun allowedPool(): HikariConfig =
+        HikariConfig().apply {
+            jdbcUrl = "jdbc:postgresql://db:5432/app?sslmode=require"
+            username = "submission_runtime"
+            maximumPoolSize = 7
+            minimumIdle = 1
+            poolName = "app"
+            addDataSourceProperty("ApplicationName", SERVICE)
+        }
 
     private companion object {
         const val SERVICE = "submission-svc"

@@ -38,7 +38,8 @@ class SqlConfigurationGuardWiring {
         companion object {
             @JvmStatic
             @Bean
-            fun serviceRuntimePoolConfigurationGuard(environment: Environment): PoolConfigurationGuard = PoolConfigurationGuard(environment)
+            fun serviceRuntimePoolConfigurationGuard(environment: Environment): PoolConfigurationGuard =
+                PoolConfigurationGuard(environment)
         }
     }
 }
@@ -59,12 +60,19 @@ class PoolConfigurationGuard(
     ): Any {
         val pool =
             (bean as? HikariConfig)
-                ?: (bean as? DataSource)?.takeIf { runCatching { it.isWrapperFor(HikariDataSource::class.java) }.getOrDefault(false) }
-                    ?.unwrap(HikariDataSource::class.java)
+                ?: (bean as? DataSource)
+                    ?.takeIf {
+                        runCatching {
+                            it.isWrapperFor(
+                                HikariDataSource::class.java,
+                            )
+                        }.getOrDefault(false)
+                    }?.unwrap(HikariDataSource::class.java)
                 ?: return bean
         val offending = findOffendingProperties(pool, environment.getProperty(SERVICE))
         check(offending.isEmpty()) {
-            "the pool of bean '$beanName' is configured to run SQL, set session state or take a login outside SecretStore, " +
+            "the pool of bean '$beanName' is configured to run SQL, set session state or take a login outside " +
+                "SecretStore, " +
                 "which is refused (coordinator rulings INV-Q-4542, INV-Q-4570, INV-Q-4574; INV-ADR-3968 item 4c, " +
                 "INV-REQ-1230, STK-29): $offending"
         }
@@ -117,7 +125,11 @@ class PoolConfigurationGuard(
                     val others = properties.keys.map(Any::toString).filter { it != APPLICATION_NAME }
                     when {
                         others.isNotEmpty() -> "refused data-source properties ${others.sorted()}"
-                        properties.containsKey(APPLICATION_NAME) && properties[APPLICATION_NAME] != service -> "$APPLICATION_NAME other than gst.service"
+
+                        properties.containsKey(
+                            APPLICATION_NAME,
+                        ) && properties[APPLICATION_NAME] != service -> "$APPLICATION_NAME other than gst.service"
+
                         else -> null
                     }
                 },

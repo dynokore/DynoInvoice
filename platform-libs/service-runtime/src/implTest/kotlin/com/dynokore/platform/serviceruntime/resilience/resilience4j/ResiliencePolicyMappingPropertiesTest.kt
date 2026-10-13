@@ -38,18 +38,20 @@ class ResiliencePolicyMappingPropertiesTest {
             )
         }
 
-    @Suppress("DEPRECATION") // RetryConfig.getIntervalFunction() is Resilience4j's only accessor for this; no replacement exists in 2.4.0
+    // RetryConfig.getIntervalFunction() is Resilience4j's only accessor for this; no replacement exists in 2.4.0
+    @Suppress("DEPRECATION")
     @Test
-    fun `every attempt's backoff interval is within 0 and maxBackoff`() = runTest {
-        checkAll(retryPolicyArb) { retryPolicy ->
-            val intervalFunction = retryPolicy.toResilience4j().intervalFunction!!
-            val maxBackoffMillis = retryPolicy.maxBackoff.toMillis()
+    fun `every attempt's backoff interval is within 0 and maxBackoff`() =
+        runTest {
+            checkAll(retryPolicyArb) { retryPolicy ->
+                val intervalFunction = retryPolicy.toResilience4j().intervalFunction!!
+                val maxBackoffMillis = retryPolicy.maxBackoff.toMillis()
 
-            (1..retryPolicy.maxAttempts).forEach { attempt ->
-                val intervalMillis = intervalFunction.apply(attempt)
-                intervalMillis shouldBeGreaterThanOrEqualTo 0L
-                intervalMillis shouldBeLessThanOrEqualTo maxBackoffMillis
+                (1..retryPolicy.maxAttempts).forEach { attempt ->
+                    val intervalMillis = intervalFunction.apply(attempt)
+                    intervalMillis shouldBeGreaterThanOrEqualTo 0L
+                    intervalMillis shouldBeLessThanOrEqualTo maxBackoffMillis
+                }
             }
         }
-    }
 }

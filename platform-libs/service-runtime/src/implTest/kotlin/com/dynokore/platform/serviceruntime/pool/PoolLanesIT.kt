@@ -35,7 +35,10 @@ import javax.sql.DataSource
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class PoolLanesIT {
-    private val postgres: PostgreSQLContainer<*> = postgres(IMAGE).also { it.sql("create role $RUNTIME login password '$PASSWORD'") }
+    private val postgres: PostgreSQLContainer<*> =
+        postgres(IMAGE).also {
+            it.sql("create role $RUNTIME login password '$PASSWORD'")
+        }
 
     @AfterAll
     fun stop() = postgres.stop()
@@ -43,17 +46,22 @@ class PoolLanesIT {
     private fun service(
         service: String,
         vararg properties: String,
-    ) = tpl18Service().withPropertyValues(
-        "spring.datasource.url=${postgres.jdbcUrl}",
-        "spring.datasource.username=$RUNTIME",
-        "spring.datasource.hikari.connection-timeout=$TIMEOUT_MS",
-        "gst.service=$service",
-        *properties,
-    ).withApplicationPool { it.password = PASSWORD }
+    ) = tpl18Service()
+        .withPropertyValues(
+            "spring.datasource.url=${postgres.jdbcUrl}",
+            "spring.datasource.username=$RUNTIME",
+            "spring.datasource.hikari.connection-timeout=$TIMEOUT_MS",
+            "gst.service=$service",
+            *properties,
+        ).withApplicationPool { it.password = PASSWORD }
 
     @Test
     fun `a saturated background and reprocessing lane never blocks a request`() {
-        service("submission-svc", "service-runtime.pool.profile=minimal", "service-runtime.pool.runs-reprocessing=true").run { context ->
+        service(
+            "submission-svc",
+            "service-runtime.pool.profile=minimal",
+            "service-runtime.pool.runs-reprocessing=true",
+        ).run { context ->
             context.startupFailure shouldBe null
             val dataSource = context.getBean(DataSource::class.java).shouldBeInstanceOf<LanedDataSource>()
             dataSource.budgets shouldBe LaneBudgets(4, 2, 1)
@@ -61,10 +69,16 @@ class PoolLanesIT {
             val background = Executors.newFixedThreadPool(3)
             try {
                 // the background lane saturated (2 of 2) and the reprocessing lane (1 of 1), held on other threads
-                val held = (1..2).map { background.take(dataSource, PoolLane.BACKGROUND) } + background.take(dataSource, PoolLane.REPROCESSING)
+                val held =
+                    (1..2).map { background.take(dataSource, PoolLane.BACKGROUND) } +
+                        background.take(dataSource, PoolLane.REPROCESSING)
                 val others = held.map { it.get(TIMEOUT_MS * 4, TimeUnit.MILLISECONDS) }
                 // a further background connection waits for its own permits and times out
-                shouldThrow<SQLTransientConnectionException> { PoolLanes.inLane(PoolLane.BACKGROUND) { dataSource.connection.close() } }
+                shouldThrow<SQLTransientConnectionException> {
+                    PoolLanes.inLane(
+                        PoolLane.BACKGROUND,
+                    ) { dataSource.connection.close() }
+                }
 
                 // every request permit is served at once, from the connections the other lanes are not owed
                 val started = System.nanoTime()
@@ -88,8 +102,12 @@ class PoolLanesIT {
             context.startupFailure shouldBe null
             val dataSource = context.getBean(DataSource::class.java).shouldBeInstanceOf<LanedDataSource>()
             dataSource.budgets shouldBe LaneBudgets(4, 2, 0)
-            val refused = shouldThrow<SQLTransientConnectionException> { PoolLanes.inLane(PoolLane.REPROCESSING) { dataSource.connection.close() } }
-            refused.message shouldBe "the REPROCESSING lane has no permits (budget 0) and never runs on another lane (INV-REQ-1072 b5)"
+            val refused =
+                shouldThrow<SQLTransientConnectionException> {
+                    PoolLanes.inLane(PoolLane.REPROCESSING) { dataSource.connection.close() }
+                }
+            refused.message shouldBe
+                "the REPROCESSING lane has no permits (budget 0) and never runs on another lane (INV-REQ-1072 b5)"
             PoolLane.entries.forEach { dataSource.availablePermits(it) shouldBe dataSource.budgets.of(it) }
         }
     }
@@ -109,7 +127,10 @@ class PoolLanesIT {
             val tenant = TenantId(UUID.randomUUID())
             PoolLane.entries.forEach { lane ->
                 // commit: the lane's name during the transaction, the pool's own name on the same connection after it
-                val (pid, during) = PoolLanes.inLane(lane) { tenants.bind(tenant, "user-a") { tx.inTransaction { tx.require().backend() } } }
+                val (pid, during) =
+                    PoolLanes.inLane(lane) {
+                        tenants.bind(tenant, "user-a") { tx.inTransaction { tx.require().backend() } }
+                    }
                 during shouldBe "submission-svc:${lane.name.lowercase()}"
                 postgres.applicationNameOf(pid) shouldBe "submission-svc"
                 // rollback: likewise
@@ -140,7 +161,8 @@ class PoolLanesIT {
                 .withPool(ServiceDataSources.EVENT_LOG) { it.password = PASSWORD }
                 .run { context ->
                     context.startupFailure shouldBe null
-                    context.getBean(DataSource::class.java).shouldBeInstanceOf<LanedDataSource>().budgets shouldBe LaneBudgets(7, 3, 0)
+                    context.getBean(DataSource::class.java).shouldBeInstanceOf<LanedDataSource>().budgets shouldBe
+                        LaneBudgets(7, 3, 0)
                     val pool = context.getBean(ServiceDataSources.EVENT_LOG, HikariDataSource::class.java)
                     pool.maximumPoolSize shouldBe LaneBudgets.EVENT_LOG.maximum
                     pool.connection.use { it.backend().second shouldBe "submission-svc" }
@@ -152,18 +174,26 @@ class PoolLanesIT {
     private fun java.util.concurrent.ExecutorService.take(
         dataSource: DataSource,
         lane: PoolLane,
-    ): CompletableFuture<Connection> = CompletableFuture.supplyAsync({ PoolLanes.inLane(lane) { dataSource.connection } }, this)
+    ): CompletableFuture<Connection> =
+        CompletableFuture.supplyAsync({
+            PoolLanes.inLane(lane) { dataSource.connection }
+        }, this)
 
     /** This backend's pid and its application_name as pg_stat_activity shows it. */
-    private fun Connection.backend(): Pair<Int, String> = createStatement().use { statement ->
-        statement.executeQuery("select pid, application_name from pg_stat_activity where pid = pg_backend_pid()").use {
-            it.next()
-            it.getInt(1) to it.getString(2)
+    private fun Connection.backend(): Pair<Int, String> =
+        createStatement().use { statement ->
+            statement
+                .executeQuery(
+                    "select pid, application_name from pg_stat_activity where pid = pg_backend_pid()",
+                ).use {
+                    it.next()
+                    it.getInt(1) to it.getString(2)
+                }
         }
-    }
 
     /** [pid]'s application_name, seen from another session. */
-    private fun PostgreSQLContainer<*>.applicationNameOf(pid: Int): String = query("select application_name from pg_stat_activity where pid = $pid")
+    private fun PostgreSQLContainer<*>.applicationNameOf(pid: Int): String =
+        query("select application_name from pg_stat_activity where pid = $pid")
 
     private companion object {
         const val IMAGE = "postgres:17"

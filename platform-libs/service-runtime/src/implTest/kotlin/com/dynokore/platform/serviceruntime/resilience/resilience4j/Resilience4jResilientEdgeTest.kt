@@ -44,7 +44,15 @@ class Resilience4jResilientEdgeTest {
         name,
         EdgePolicy(
             timeout = TimeoutPolicy(timeout),
-            retry = retryMaxAttempts?.let { RetryPolicy(it, Duration.ofMillis(5), Duration.ofMillis(20), jitter = 0.0) },
+            retry =
+                retryMaxAttempts?.let {
+                    RetryPolicy(
+                        it,
+                        Duration.ofMillis(5),
+                        Duration.ofMillis(20),
+                        jitter = 0.0,
+                    )
+                },
             circuitBreaker = CircuitBreakerPolicy(50F, slidingWindowSize, Duration.ofSeconds(10), 1),
             bulkhead = BulkheadPolicy(maxConcurrentCalls, maxWaitDuration),
         ),
@@ -54,13 +62,14 @@ class Resilience4jResilientEdgeTest {
     private fun Resilience4jResilientEdge.callWithFallbacks(
         deadline: Deadline = generousDeadline,
         block: () -> String,
-    ): String = execute(
-        deadline,
-        onCallNotPermitted = { "not-permitted" },
-        onConnectFailure = { "connect-failure" },
-        onTimeout = { "timed-out" },
-        block = block,
-    )
+    ): String =
+        execute(
+            deadline,
+            onCallNotPermitted = { "not-permitted" },
+            onConnectFailure = { "connect-failure" },
+            onTimeout = { "timed-out" },
+            block = block,
+        )
 
     @Test
     fun `a call that succeeds first time is returned as-is`() {
@@ -144,7 +153,9 @@ class Resilience4jResilientEdgeTest {
             throw IllegalStateException("boom")
         }
 
-        repeat(2) { shouldThrow<IllegalStateException> { e.callWithFallbacks(block = failingBlock) } } // fills the 2-call sliding window
+        repeat(2) {
+            shouldThrow<IllegalStateException> { e.callWithFallbacks(block = failingBlock) }
+        } // fills the 2-call sliding window
         invocations.get() shouldBe 2
 
         e.callWithFallbacks(block = failingBlock) shouldBe "not-permitted"
@@ -159,15 +170,16 @@ class Resilience4jResilientEdgeTest {
         val runner = Executors.newSingleThreadExecutor()
 
         try {
-            val holding = runner.submit(
-                Callable {
-                    e.callWithFallbacks {
-                        holdingCallStarted.countDown()
-                        releaseHoldingCall.await(5, TimeUnit.SECONDS)
-                        "done"
-                    }
-                },
-            )
+            val holding =
+                runner.submit(
+                    Callable {
+                        e.callWithFallbacks {
+                            holdingCallStarted.countDown()
+                            releaseHoldingCall.await(5, TimeUnit.SECONDS)
+                            "done"
+                        }
+                    },
+                )
             holdingCallStarted.await(5, TimeUnit.SECONDS)
 
             e.callWithFallbacks { "should never run" } shouldBe "not-permitted"
@@ -188,7 +200,8 @@ class Resilience4jResilientEdgeTest {
     @Test
     fun `a ResourceAccessException wrapping a refused connection also returns the connect-failure fallback`() {
         val e = edge()
-        e.callWithFallbacks { throw ResourceAccessException("I/O error", ConnectException("refused")) } shouldBe "connect-failure"
+        e.callWithFallbacks { throw ResourceAccessException("I/O error", ConnectException("refused")) } shouldBe
+            "connect-failure"
     }
 
     @Test
@@ -200,15 +213,16 @@ class Resilience4jResilientEdgeTest {
     }
 
     @Test
-    fun `binds the deadline, and the ambient end-user token when one is present, around the block even though it runs on its own thread`() {
+    fun `binds the deadline and the ambient end-user token when present around the block on its own thread`() {
         val captured = mutableListOf<Pair<Deadline?, String?>>()
 
-        val result = CurrentEndUserToken.callWith("Bearer end-user-token") {
-            edge().callWithFallbacks(deadline = generousDeadline) {
-                captured.add(CurrentDeadline.current() to CurrentEndUserToken.current())
-                "ok"
+        val result =
+            CurrentEndUserToken.callWith("Bearer end-user-token") {
+                edge().callWithFallbacks(deadline = generousDeadline) {
+                    captured.add(CurrentDeadline.current() to CurrentEndUserToken.current())
+                    "ok"
+                }
             }
-        }
 
         result shouldBe "ok"
         captured shouldBe listOf(generousDeadline to "Bearer end-user-token")

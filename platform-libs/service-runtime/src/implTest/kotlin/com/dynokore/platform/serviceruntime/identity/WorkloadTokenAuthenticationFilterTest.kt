@@ -17,11 +17,18 @@ import org.springframework.mock.web.MockHttpServletResponse
  * guidance: no `canonical-svc` code exists yet to run against).
  */
 class WorkloadTokenAuthenticationFilterTest {
-    private fun filter(verified: Boolean) = WorkloadTokenAuthenticationFilter(
-        WorkloadTokenVerifier { token ->
-            if (verified) WorkloadVerification.Verified(subject = "calling-svc") else WorkloadVerification.Refused("invalid")
-        },
-    )
+    private fun filter(verified: Boolean) =
+        WorkloadTokenAuthenticationFilter(
+            WorkloadTokenVerifier { token ->
+                if (verified) {
+                    WorkloadVerification.Verified(
+                        subject = "calling-svc",
+                    )
+                } else {
+                    WorkloadVerification.Refused("invalid")
+                }
+            },
+        )
 
     @Test
     fun `a call to the record API with a valid workload token is accepted`() {
@@ -32,7 +39,8 @@ class WorkloadTokenAuthenticationFilterTest {
         filter(verified = true).doFilter(request, response, FilterChain { _, _ -> chainReached = true })
 
         chainReached shouldBe true
-        response.status shouldBe HttpServletResponse.SC_OK // MockHttpServletResponse's own default: nothing was written against it
+        // MockHttpServletResponse's own default: nothing was written against it
+        response.status shouldBe HttpServletResponse.SC_OK
     }
 
     @Test

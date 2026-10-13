@@ -17,11 +17,12 @@ data class LaneBudgets(
     /** The pool maximum: the sum of the budgets. */
     val maximum: Int get() = request + background + reprocessing
 
-    fun of(lane: PoolLane): Int = when (lane) {
-        PoolLane.REQUEST -> request
-        PoolLane.BACKGROUND -> background
-        PoolLane.REPROCESSING -> reprocessing
-    }
+    fun of(lane: PoolLane): Int =
+        when (lane) {
+            PoolLane.REQUEST -> request
+            PoolLane.BACKGROUND -> background
+            PoolLane.REPROCESSING -> reprocessing
+        }
 
     override fun toString(): String = "$request / $background / $reprocessing"
 
@@ -72,26 +73,34 @@ data class PoolLaneProperties(
     fun budgets(): LaneBudgets {
         val defaults = profile?.let { LaneBudgets.defaults(it, runsReprocessing) }
         // no default profile (coordinator ruling INV-Q-4496): without a profile every lane is set explicitly
-        val missing = listOf("request" to lanes.request, "background" to lanes.background, "reprocessing" to lanes.reprocessing)
-            .filter { it.second == null }
-            .map { "$PREFIX.lanes.${it.first}" }
+        val missing =
+            listOf(
+                "request" to lanes.request,
+                "background" to lanes.background,
+                "reprocessing" to lanes.reprocessing,
+            ).filter { it.second == null }
+                .map { "$PREFIX.lanes.${it.first}" }
         check(defaults != null || missing.isEmpty()) {
-            "the application pool's lanes are set per installation profile and there is no default profile (INV-REQ-1230 b1, " +
+            "the application pool's lanes are set per installation profile and there is no default profile " +
+                "(INV-REQ-1230 b1, " +
                 "INV-Q-4496): set $PREFIX.profile (minimal, ha or saas) or ${missing.joinToString()}"
         }
-        val budgets = LaneBudgets(
-            lanes.request ?: defaults!!.request,
-            lanes.background ?: defaults!!.background,
-            lanes.reprocessing ?: defaults!!.reprocessing,
-        )
+        val budgets =
+            LaneBudgets(
+                lanes.request ?: defaults!!.request,
+                lanes.background ?: defaults!!.background,
+                lanes.reprocessing ?: defaults!!.reprocessing,
+            )
         if (runsReprocessing) {
             check(budgets.reprocessing > 0) {
-                "$PREFIX.runs-reprocessing is true, but the reprocessing budget is 0: reprocessing and backfill take only " +
+                "$PREFIX.runs-reprocessing is true, but the reprocessing budget is 0: reprocessing and backfill take " +
+                    "only " +
                     "reprocessing permits and never run on a live lane (INV-REQ-1072 b5, INV-Q-4023)"
             }
         } else {
             check(budgets.reprocessing == 0) {
-                "the reprocessing budget is ${budgets.reprocessing}, but $PREFIX.runs-reprocessing is false: only a service " +
+                "the reprocessing budget is ${budgets.reprocessing}, but $PREFIX.runs-reprocessing is false: only a " +
+                    "service " +
                     "that declares reprocessing holds reprocessing permits (INV-Q-4485)"
             }
         }

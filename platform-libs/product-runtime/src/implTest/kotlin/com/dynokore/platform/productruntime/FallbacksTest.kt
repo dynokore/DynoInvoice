@@ -36,7 +36,9 @@ class FallbacksTest {
 
     @Test
     fun `the tenancy fallback reads the node from the extended getEntityStructure`() {
-        server.expect(requestTo("http://svc/internal/v1/tenancy/entities/E-001")).andExpect(method(HttpMethod.GET))
+        server
+            .expect(requestTo("http://svc/internal/v1/tenancy/entities/E-001"))
+            .andExpect(method(HttpMethod.GET))
             .andRespond(
                 withSuccess(
                     """{"entityRef":"E-001","legalName":"Acme","lifecycleState":"LIVE","node":{"kind":"ENTITY",
@@ -45,7 +47,10 @@ class FallbacksTest {
                     MediaType.APPLICATION_JSON,
                 ),
             )
-        val result = TenancyStructureFallback(EntitiesApi(builder.build())).fetch(StructureKey(TENANT, "E-001"), deadline)
+        val result =
+            TenancyStructureFallback(
+                EntitiesApi(builder.build()),
+            ).fetch(StructureKey(TENANT, "E-001"), deadline)
         val node = result.shouldBeInstanceOf<FallbackResult.Found<StructureNode>>().value
         node.structureVersion shouldBe 9
         node.parentRef shouldBe "G-1"
@@ -54,10 +59,17 @@ class FallbacksTest {
 
     @Test
     fun `a 404 from tenancy-svc is NotFound, a response without node is Unavailable`() {
-        server.expect(requestTo("http://svc/internal/v1/tenancy/entities/E-404"))
+        server
+            .expect(requestTo("http://svc/internal/v1/tenancy/entities/E-404"))
             .andRespond(withStatus(HttpStatus.NOT_FOUND).contentType(MediaType.APPLICATION_JSON).body("{}"))
-        server.expect(requestTo("http://svc/internal/v1/tenancy/entities/E-002"))
-            .andRespond(withSuccess("""{"entityRef":"E-002","legalName":"B","lifecycleState":"LIVE"}""", MediaType.APPLICATION_JSON))
+        server
+            .expect(requestTo("http://svc/internal/v1/tenancy/entities/E-002"))
+            .andRespond(
+                withSuccess(
+                    """{"entityRef":"E-002","legalName":"B","lifecycleState":"LIVE"}""",
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
         val fallback = TenancyStructureFallback(EntitiesApi(builder.build()))
         fallback.fetch(StructureKey(TENANT, "E-404"), deadline) shouldBe FallbackResult.NotFound
         fallback.fetch(StructureKey(TENANT, "E-002"), deadline) shouldBe FallbackResult.Unavailable
@@ -65,10 +77,18 @@ class FallbacksTest {
 
     @Test
     fun `the access fallback asks authorise for the principal, the action and the entity`() {
-        server.expect(requestTo("http://svc/internal/v1/access/authorise?principalRef=P-1&permission=document.read&scope=E-001"))
-            .andRespond(withSuccess("""{"decision":"ALLOW","role":"tax.approver"}""", MediaType.APPLICATION_JSON))
-        server.expect(requestTo("http://svc/internal/v1/access/authorise?principalRef=P-1&permission=document.void&scope=E-001"))
-            .andRespond(withSuccess("""{"decision":"DENY"}""", MediaType.APPLICATION_JSON))
+        server
+            .expect(
+                requestTo(
+                    "http://svc/internal/v1/access/authorise?principalRef=P-1&permission=document.read&scope=E-001",
+                ),
+            ).andRespond(withSuccess("""{"decision":"ALLOW","role":"tax.approver"}""", MediaType.APPLICATION_JSON))
+        server
+            .expect(
+                requestTo(
+                    "http://svc/internal/v1/access/authorise?principalRef=P-1&permission=document.void&scope=E-001",
+                ),
+            ).andRespond(withSuccess("""{"decision":"DENY"}""", MediaType.APPLICATION_JSON))
         val fallback = AccessAuthorityFallback(AuthoriseApi(builder.build()))
         val principal = Principal("P-1", PrincipalKind.HUMAN)
         fallback.fetch(AuthorizationRequest(TENANT, principal, "E-001", "document.read"), deadline) shouldBe

@@ -66,7 +66,8 @@ dependencies {
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.junit.params)
     testRuntimeOnly(libs.junit.platformLauncher)
-    testRuntimeOnly(libs.slf4j.simple) // Testcontainers' own container/strategy logs are otherwise silently dropped (NOP logger)
+    // Testcontainers' own container/strategy logs are otherwise silently dropped (NOP logger)
+    testRuntimeOnly(libs.slf4j.simple)
 }
 
 tasks.test {
