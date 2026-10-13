@@ -724,7 +724,11 @@ paths:
     post:
       operationId: requestElevation
       summary: Request time-boxed elevation or a diagnostic invitation to a tenant (SDS §7, SCR-39.2)
-      description: Request time-boxed elevation or a diagnostic invitation to a tenant (SDS §7, SCR-39.2).
+      description: |-
+        Request time-boxed elevation or a diagnostic invitation to a tenant (SDS §7, SCR-39.2).
+
+        A caseId that is missing or blank, longer than 64 characters, or holds a ':' or an ISO
+        control character (the caseId rule, INV-Q-4529) is a contract violation, 400 SRT-001.
       tags:
       - elevation
       x-principal: filing-workflow
@@ -933,7 +937,8 @@ paths:
         Refusals: no platform grant gets 403 SRT-004; a tenant that does not exist or is retired
         gets 404 SRT-005, the same response for both. There is no suspended tenant state, and an
         entity's suspension (suspendEntity) does not affect the session (coordinator ruling
-        INV-Q-4167). A missing or blank case reference is a contract violation, 400 SRT-001. Closed service-runtime cases
+        INV-Q-4167). A case reference that is missing or blank, longer than 64 characters, or holds a ':' or an
+        ISO control character (the caseId rule, INV-Q-4529) is a contract violation, 400 SRT-001. Closed service-runtime cases
         carry their SRT catalogue code, mapped once in ProblemMapper and not listed in
         x-error-codes (ARC-19, INV-REQ-827 b3, owner ruling INV-Q-3720).
       tags:
@@ -1971,7 +1976,17 @@ components:
       properties:
         caseId:
           type: string
+          minLength: 1
           maxLength: 64
+          pattern: '^[^\S\x00-\x1F\x7F-\x9F]*[^\s:\x00-\x1F\x7F-\x9F][^:\x00-\x1F\x7F-\x9F]*$'
+          description: >-
+            The support case reference. 1 to 64 characters, at least one not whitespace, with no ':' and no ISO control character
+            (U+0000-U+001F, U+007F-U+009F). The pattern is linear: optional leading non-control
+            whitespace, one character that is not whitespace, then any characters that are neither
+            ':' nor control characters. The case is carried as the operator session token's
+            `act.case` and composed into the audit reason as `case <case>` or
+            `case <case>: <own reason>`, which a ':' would make ambiguous (coordinator rulings
+            INV-Q-4529, INV-Q-4521).
         tenantRef:
           type: string
           maxLength: 64
@@ -2027,9 +2042,15 @@ components:
           type: string
           minLength: 1
           maxLength: 64
-          pattern: \S
-          description: The support case reference; required and non-blank. Carried in the token's
-            `act.case` and as the reason of the audit entry.
+          pattern: '^[^\S\x00-\x1F\x7F-\x9F]*[^\s:\x00-\x1F\x7F-\x9F][^:\x00-\x1F\x7F-\x9F]*$'
+          description: >-
+            The support case reference; required. 1 to 64 characters, at least one not whitespace, with no ':' and no ISO control character
+            (U+0000-U+001F, U+007F-U+009F). The pattern is linear: optional leading non-control
+            whitespace, one character that is not whitespace, then any characters that are neither
+            ':' nor control characters. The case is carried as the operator session token's
+            `act.case` and composed into the audit reason as `case <case>` or
+            `case <case>: <own reason>`, which a ':' would make ambiguous (coordinator rulings
+            INV-Q-4529, INV-Q-4521).
         reason:
           type: string
           maxLength: 1000
