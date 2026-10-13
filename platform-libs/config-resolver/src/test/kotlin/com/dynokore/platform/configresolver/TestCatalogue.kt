@@ -69,10 +69,10 @@ object TestCatalogue {
                 INSTALLATION_ONLY,
                 setOf(ScopeLevel.INSTALLATION),
                 options =
-                listOf(
-                    OptionSpec("PLATFORM_DEFAULT", Strictness.DEFAULT),
-                    OptionSpec("OPERATOR_MAXIMUM", Strictness.NEUTRAL, typed = true),
-                ),
+                    listOf(
+                        OptionSpec("PLATFORM_DEFAULT", Strictness.DEFAULT),
+                        OptionSpec("OPERATOR_MAXIMUM", Strictness.NEUTRAL, typed = true),
+                    ),
                 vpClass = VpClass.PARAMETER,
                 setBy = setOf("platform.engineer", "deployment.operator"),
             ),
@@ -80,11 +80,11 @@ object TestCatalogue {
                 MULTI,
                 setOf(ScopeLevel.TENANT),
                 options =
-                listOf(
-                    OptionSpec("EMAIL_DEFAULT_ROLES", Strictness.DEFAULT),
-                    OptionSpec("SMS", Strictness.NEUTRAL),
-                    OptionSpec("WEBHOOK", Strictness.NEUTRAL),
-                ),
+                    listOf(
+                        OptionSpec("EMAIL_DEFAULT_ROLES", Strictness.DEFAULT),
+                        OptionSpec("SMS", Strictness.NEUTRAL),
+                        OptionSpec("WEBHOOK", Strictness.NEUTRAL),
+                    ),
                 vpClass = VpClass.POLICY,
                 multiSelect = true,
             ),
@@ -92,10 +92,10 @@ object TestCatalogue {
                 TYPED,
                 setOf(ScopeLevel.ENTITY),
                 options =
-                listOf(
-                    OptionSpec("DAYS_30", Strictness.DEFAULT),
-                    OptionSpec("OTHER_PERIOD", Strictness.NEUTRAL, typed = true),
-                ),
+                    listOf(
+                        OptionSpec("DAYS_30", Strictness.DEFAULT),
+                        OptionSpec("OTHER_PERIOD", Strictness.NEUTRAL, typed = true),
+                    ),
                 vpClass = VpClass.PARAMETER,
             ),
         ).associateBy { it.key }

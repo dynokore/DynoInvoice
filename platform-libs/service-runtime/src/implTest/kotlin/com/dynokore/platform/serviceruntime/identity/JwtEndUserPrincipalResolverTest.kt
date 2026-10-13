@@ -51,7 +51,9 @@ class JwtEndUserPrincipalResolverTest {
     private val replica = AuthorityReplica(Clock.systemUTC()).also { it.onSnapshotComplete(0) }
     private val decoder =
         NimbusJwtDecoder.withPublicKey(keys.public as RSAPublicKey).build().apply {
-            setJwtValidator(DelegatingOAuth2TokenValidator(endUserTokenValidators(issuer, EndUserIdentityProperties("svc"))))
+            setJwtValidator(
+                DelegatingOAuth2TokenValidator(endUserTokenValidators(issuer, EndUserIdentityProperties("svc"))),
+            )
         }
     private val resolver = JwtEndUserPrincipalResolver(decoder, replica)
     private val grant = Grant("approve", ScopeLevel.ENTITY, "e1", Instant.now().minusSeconds(60))
@@ -66,7 +68,8 @@ class JwtEndUserPrincipalResolverTest {
         kid: String? = null,
     ): String {
         val claims =
-            JWTClaimsSet.Builder()
+            JWTClaimsSet
+                .Builder()
                 .subject(subject)
                 .issuer(iss)
                 .audience(audience)
@@ -156,13 +159,21 @@ class JwtEndUserPrincipalResolverTest {
         val runner =
             ApplicationContextRunner()
                 .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
-                .withConfiguration(AutoConfigurations.of(ServiceRuntimeConfiguration::class.java, L1CompositionAutoConfiguration::class.java))
-                .withPropertyValues(
+                .withConfiguration(
+                    AutoConfigurations.of(
+                        ServiceRuntimeConfiguration::class.java,
+                        L1CompositionAutoConfiguration::class.java,
+                    ),
+                ).withPropertyValues(
                     "service-runtime.workload-identity.audience=svc",
                     "service-runtime.end-user-identity.audience=svc",
                 )
         runner.run { it.getBeansOfType(EndUserPrincipalResolver::class.java).size shouldBe 0 }
-        val bound = runner.withBean(IdentityProvider::class.java, { IdentityProvider { OidcIssuer(issuer, "$issuer/jwks") } })
+        val bound =
+            runner.withBean(
+                IdentityProvider::class.java,
+                { IdentityProvider { OidcIssuer(issuer, "$issuer/jwks") } },
+            )
         bound.run { it.getBean(EndUserPrincipalResolver::class.java).shouldBeInstanceOf<JwtEndUserPrincipalResolver>() }
         val own = EndUserPrincipalResolver { null }
         bound.withBean(EndUserPrincipalResolver::class.java, { own }).run {
@@ -180,7 +191,10 @@ class JwtEndUserPrincipalResolverTest {
                 selector.select(JWKSet(jwk))
             }
         val validators = endUserTokenValidators(issuer, EndUserIdentityProperties("svc"))
-        val decoder = endUserJwtDecoder(LastKnownKeySource(remote)).apply { setJwtValidator(DelegatingOAuth2TokenValidator(validators)) }
+        val decoder =
+            endUserJwtDecoder(LastKnownKeySource(remote)).apply {
+                setJwtValidator(DelegatingOAuth2TokenValidator(validators))
+            }
         val outage = JwtEndUserPrincipalResolver(decoder, replica)
         val other = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair()
 

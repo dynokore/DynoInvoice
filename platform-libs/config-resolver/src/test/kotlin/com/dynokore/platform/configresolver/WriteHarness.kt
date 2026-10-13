@@ -71,7 +71,9 @@ class WriteHarness(
         ds("config_owner", "config_owner_pw").connection.use { c ->
             c.createStatement().use {
                 when (mode) {
-                    EventMode.OUTBOX -> it.execute(OutboxSchema.ddl(SCHEMA, RUNTIME, SYS))
+                    EventMode.OUTBOX -> {
+                        it.execute(OutboxSchema.ddl(SCHEMA, RUNTIME, SYS))
+                    }
 
                     EventMode.NO_OUTBOX -> {
                         it.execute(AuditSchema.auditEntryDdl(SCHEMA, RUNTIME))
@@ -98,35 +100,38 @@ class WriteHarness(
     private val runtimeLogin: DataSource = ds(RUNTIME, "config_app_pw")
 
     /** [block] on a raw runtime-login connection in one transaction, committed when it returns, with nothing bound. */
-    fun <T> runtime(block: (java.sql.Connection) -> T): T = runtimeLogin.connection.use { c ->
-        c.autoCommit = false
-        try {
-            block(c).also { c.commit() }
-        } catch (failure: Exception) {
-            c.rollback()
-            throw failure
+    fun <T> runtime(block: (java.sql.Connection) -> T): T =
+        runtimeLogin.connection.use { c ->
+            c.autoCommit = false
+            try {
+                block(c).also { c.commit() }
+            } catch (failure: Exception) {
+                c.rollback()
+                throw failure
+            }
         }
-    }
 
     /** Fails the next audit write or stage when set. */
     @Volatile var failAudit = false
 
-    fun audit(connections: CurrentConnection): AuditWriter = object : AuditWriter {
-        override fun record(
-            entry: AuditEntry,
-            context: EventContext,
-        ): Envelope {
-            if (failAudit) throw AuditWriteFailed(IllegalStateException("test"))
-            return insert(connections, "audit", AUDIT, context, auditJson(entry))
+    fun audit(connections: CurrentConnection): AuditWriter =
+        object : AuditWriter {
+            override fun record(
+                entry: AuditEntry,
+                context: EventContext,
+            ): Envelope {
+                if (failAudit) throw AuditWriteFailed(IllegalStateException("test"))
+                return insert(connections, "audit", AUDIT, context, auditJson(entry))
+            }
         }
-    }
 
-    fun outbox(connections: CurrentConnection): OutboxWriter = object : OutboxWriter {
-        override fun append(
-            events: List<OutboundEvent>,
-            context: EventContext,
-        ): List<Envelope> = events.map { insert(connections, "event", it.type, context, it.dataJson) }
-    }
+    fun outbox(connections: CurrentConnection): OutboxWriter =
+        object : OutboxWriter {
+            override fun append(
+                events: List<OutboundEvent>,
+                context: EventContext,
+            ): List<Envelope> = events.map { insert(connections, "event", it.type, context, it.dataJson) }
+        }
 
     /** The service's real outbox writer (outbox mode), staging on [clock]. */
     fun installationOutbox(
@@ -184,12 +189,12 @@ class WriteHarness(
             schema = SCHEMA,
             audit = if (platform) installationAudit(app, clock) else audit(app),
             outbox =
-            when {
-                !withOutbox -> null
-                installation -> installationOutbox(app, clock)
-                platform -> null
-                else -> outbox(app)
-            },
+                when {
+                    !withOutbox -> null
+                    installation -> installationOutbox(app, clock)
+                    platform -> null
+                    else -> outbox(app)
+                },
             clock = clock,
             delegation = delegation,
             backdating = backdating,
@@ -230,45 +235,47 @@ class WriteHarness(
         cmd: SetPolicyCommand,
     ): PolicyChange = inPlatform(cmd.actor.principal) { writer.setPolicy(cmd) }
 
-    fun count(sql: String): Long = admin.connection.use { c ->
-        c.createStatement().use { s ->
-            s.executeQuery(sql).use {
-                it.next()
-                it.getLong(1)
+    fun count(sql: String): Long =
+        admin.connection.use { c ->
+            c.createStatement().use { s ->
+                s.executeQuery(sql).use {
+                    it.next()
+                    it.getLong(1)
+                }
             }
         }
-    }
 
     /**
      * The events stored for [tenant], in order: a tenant's from `test_event`; the platform tenant's (an installation
      * value's) from the real outbox, or in no-outbox mode from `audit_entry` as the audit payload.
      */
-    fun events(tenant: TenantId): List<StoredEvent> = admin.connection.use { c ->
-        val sql =
-            when {
-                !tenant.isPlatform -> TEST_EVENTS
-                mode == EventMode.OUTBOX -> OUTBOX_EVENTS
-                else -> AUDIT_ENTRIES
-            }
-        c.prepareStatement(sql).use { st ->
-            st.setObject(1, tenant.value)
-            st.executeQuery().use { rows ->
-                generateSequence {
-                    if (rows.next()) {
-                        StoredEvent(
-                            rows.getString(1),
-                            rows.getString(2),
-                            rows.getObject(3, UUID::class.java),
-                            rows.getString(4),
-                            rows.getString(5),
-                        )
-                    } else {
-                        null
-                    }
-                }.toList()
+    fun events(tenant: TenantId): List<StoredEvent> =
+        admin.connection.use { c ->
+            val sql =
+                when {
+                    !tenant.isPlatform -> TEST_EVENTS
+                    mode == EventMode.OUTBOX -> OUTBOX_EVENTS
+                    else -> AUDIT_ENTRIES
+                }
+            c.prepareStatement(sql).use { st ->
+                st.setObject(1, tenant.value)
+                st.executeQuery().use { rows ->
+                    generateSequence {
+                        if (rows.next()) {
+                            StoredEvent(
+                                rows.getString(1),
+                                rows.getString(2),
+                                rows.getObject(3, UUID::class.java),
+                                rows.getString(4),
+                                rows.getString(5),
+                            )
+                        } else {
+                            null
+                        }
+                    }.toList()
+                }
             }
         }
-    }
 
     private fun insert(
         connections: CurrentConnection,
@@ -277,16 +284,18 @@ class WriteHarness(
         context: EventContext,
         json: String,
     ): Envelope {
-        connections.require().prepareStatement(
-            "insert into $SCHEMA.test_event (kind, type, tenant_id, entity_ref, data) values (?, ?, ?, ?, ?)",
-        ).use {
-            it.setString(1, kind)
-            it.setString(2, type)
-            it.setObject(3, context.tenant.value)
-            it.setString(4, context.entity.value)
-            it.setObject(5, json, Types.OTHER)
-            it.executeUpdate()
-        }
+        connections
+            .require()
+            .prepareStatement(
+                "insert into $SCHEMA.test_event (kind, type, tenant_id, entity_ref, data) values (?, ?, ?, ?, ?)",
+            ).use {
+                it.setString(1, kind)
+                it.setString(2, type)
+                it.setObject(3, context.tenant.value)
+                it.setString(4, context.entity.value)
+                it.setObject(5, json, Types.OTHER)
+                it.executeUpdate()
+            }
         return Envelope(
             id = EventId(UUID.randomUUID().toString()),
             source = "/gst/test-svc",
@@ -318,11 +327,12 @@ class WriteHarness(
     private fun ds(
         user: String,
         password: String,
-    ): DataSource = PGSimpleDataSource().apply {
-        setUrl(container.jdbcUrl)
-        this.user = user
-        this.password = password
-    }
+    ): DataSource =
+        PGSimpleDataSource().apply {
+            setUrl(container.jdbcUrl)
+            this.user = user
+            this.password = password
+        }
 
     companion object {
         const val SCHEMA = "svc"

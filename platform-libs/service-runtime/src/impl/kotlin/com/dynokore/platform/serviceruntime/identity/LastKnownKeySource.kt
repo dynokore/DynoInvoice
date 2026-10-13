@@ -14,17 +14,20 @@ import java.util.concurrent.ConcurrentHashMap
  * remembered keys are offered instead, and only when none of them matches does the [KeySourceException] stand,
  * which the decoder reports as an unavailable issuer (503 SRT-011), never as a bad token.
  */
-class LastKnownKeySource(private val remote: JWKSource<SecurityContext>) : JWKSource<SecurityContext> {
+class LastKnownKeySource(
+    private val remote: JWKSource<SecurityContext>,
+) : JWKSource<SecurityContext> {
     private val known = ConcurrentHashMap<String, JWK>()
 
     override fun get(
         selector: JWKSelector,
         context: SecurityContext?,
-    ): List<JWK> = try {
-        remote.get(selector, context).also { keys -> keys.forEach { known[identity(it)] = it } }
-    } catch (unreachable: KeySourceException) {
-        selector.select(JWKSet(known.values.toList())).ifEmpty { throw unreachable }
-    }
+    ): List<JWK> =
+        try {
+            remote.get(selector, context).also { keys -> keys.forEach { known[identity(it)] = it } }
+        } catch (unreachable: KeySourceException) {
+            selector.select(JWKSet(known.values.toList())).ifEmpty { throw unreachable }
+        }
 
     private fun identity(key: JWK): String = key.keyID ?: key.computeThumbprint().toString()
 }

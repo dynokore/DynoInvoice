@@ -128,19 +128,23 @@ class ActorBindingPostgresIT {
         value: String,
     ) = ProbeTable.insert(connection, ProbeRow(UUID.randomUUID(), tenant, value))
 
-    private data class Settings(val tenant: String?, val actor: String?)
+    private data class Settings(
+        val tenant: String?,
+        val actor: String?,
+    )
 
     /** A plain borrow outside the runner: what the next user of the pooled connection would inherit. */
     private fun nextBorrowerSees(pool: DataSource): Settings = pool.connection.use { settings(it) }
 
-    private fun settings(connection: Connection): Settings = connection.createStatement().use { statement ->
-        statement
-            .executeQuery(
-                "select nullif(current_setting('app.tenant_id', true), '') as t, " +
-                    "nullif(current_setting('app.actor', true), '') as a",
-            ).use { rs ->
-                rs.next()
-                Settings(rs.getString("t"), rs.getString("a"))
-            }
-    }
+    private fun settings(connection: Connection): Settings =
+        connection.createStatement().use { statement ->
+            statement
+                .executeQuery(
+                    "select nullif(current_setting('app.tenant_id', true), '') as t, " +
+                        "nullif(current_setting('app.actor', true), '') as a",
+                ).use { rs ->
+                    rs.next()
+                    Settings(rs.getString("t"), rs.getString("a"))
+                }
+        }
 }

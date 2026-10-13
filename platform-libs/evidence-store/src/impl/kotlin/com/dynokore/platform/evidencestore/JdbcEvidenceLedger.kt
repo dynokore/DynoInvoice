@@ -128,7 +128,8 @@ class JdbcEvidenceLedger(
         tenant: TenantId,
         entity: EntityRef,
         period: PeriodRef,
-    ): Sequence<EvidenceRecord> = // A whole audit period's evidence is read once, inside the caller's own
+    ): Sequence<EvidenceRecord> =
+        // A whole audit period's evidence is read once, inside the caller's own
         // transaction, and handed back as a plain list wrapped in a Sequence: an
         // open, forward-only ResultSet cannot outlive this method (its Connection
         // and PreparedStatement are closed on return), so exporting a lazily
@@ -185,23 +186,25 @@ class JdbcEvidenceLedger(
         tenant: TenantId,
         entity: EntityRef,
         period: PeriodRef,
-    ): EvidenceRecord = EvidenceRecord(
-        tenantId = tenant,
-        entityRef = entity,
-        periodRef = period,
-        evidenceType = EvidenceType.valueOf(getString("evidence_type")),
-        sequence = getLong("seq"),
-        content = getBytes("content"),
-        contentHash = ContentHash(getString("content_hash")),
-        previousHash = getString("previous_hash")?.let(::ContentHash),
-        recordedAt = getTimestamp("recorded_at").toInstant(),
-        index = EvidenceIndex(
-            docUuid = getObject("doc_uuid", UUID::class.java),
-            invoiceNumber = getString("invoice_number"),
-            counterpartyUen = getString("counterparty_uen"),
-            categoryCode = getString("category_code"),
-        ),
-    )
+    ): EvidenceRecord =
+        EvidenceRecord(
+            tenantId = tenant,
+            entityRef = entity,
+            periodRef = period,
+            evidenceType = EvidenceType.valueOf(getString("evidence_type")),
+            sequence = getLong("seq"),
+            content = getBytes("content"),
+            contentHash = ContentHash(getString("content_hash")),
+            previousHash = getString("previous_hash")?.let(::ContentHash),
+            recordedAt = getTimestamp("recorded_at").toInstant(),
+            index =
+                EvidenceIndex(
+                    docUuid = getObject("doc_uuid", UUID::class.java),
+                    invoiceNumber = getString("invoice_number"),
+                    counterpartyUen = getString("counterparty_uen"),
+                    categoryCode = getString("category_code"),
+                ),
+        )
 
     companion object {
         /**

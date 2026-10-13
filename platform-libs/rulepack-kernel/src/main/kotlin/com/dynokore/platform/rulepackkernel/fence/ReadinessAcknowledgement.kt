@@ -22,7 +22,10 @@ sealed interface ReadinessOutcome {
     /** Verified, compiled and held, not in use. */
     data object Loaded : ReadinessOutcome
 
-    data class Failed(val reason: ReadinessFailure, val detail: String) : ReadinessOutcome
+    data class Failed(
+        val reason: ReadinessFailure,
+        val detail: String,
+    ) : ReadinessOutcome
 }
 
 /**

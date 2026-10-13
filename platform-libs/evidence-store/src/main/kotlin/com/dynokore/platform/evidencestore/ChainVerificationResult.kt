@@ -5,7 +5,9 @@ package com.dynokore.platform.evidencestore
  * verification is a routine job").
  */
 sealed interface ChainVerificationResult {
-    data class Valid(val recordCount: Int) : ChainVerificationResult
+    data class Valid(
+        val recordCount: Int,
+    ) : ChainVerificationResult
 
     /** The stored hash at [atSequence] does not match what the chain recomputes from its content and predecessor. */
     data class Broken(

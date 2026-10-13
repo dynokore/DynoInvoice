@@ -33,7 +33,8 @@ class WorkloadTokenValidatorsTest {
         subject: String = "calling-svc",
     ): String {
         val claims =
-            JWTClaimsSet.Builder()
+            JWTClaimsSet
+                .Builder()
                 .subject(subject)
                 .issuer("https://kubernetes.default.svc")
                 .expirationTime(Date.from(Instant.now().plusSeconds(300)))

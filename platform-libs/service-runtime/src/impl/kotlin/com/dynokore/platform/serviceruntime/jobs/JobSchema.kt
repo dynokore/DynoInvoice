@@ -63,8 +63,16 @@ object JobSchema {
         // Statement groups joined outside SQL text, so no generated SQL is spliced into a literal (INV-Q-4036).
         return listOf(
             tables(schema),
-            TenantRlsMigration.ddl(SqlIdentifier.require(schema, "schema"), JOB_RUN, policyName = "${JOB_RUN}_tenant_isolation"),
-            TenantRlsMigration.ddl(SqlIdentifier.require(schema, "schema"), JOB_PAUSE, policyName = "${JOB_PAUSE}_tenant_isolation"),
+            TenantRlsMigration.ddl(
+                SqlIdentifier.require(schema, "schema"),
+                JOB_RUN,
+                policyName = "${JOB_RUN}_tenant_isolation",
+            ),
+            TenantRlsMigration.ddl(
+                SqlIdentifier.require(schema, "schema"),
+                JOB_PAUSE,
+                policyName = "${JOB_PAUSE}_tenant_isolation",
+            ),
             runtimeGrants(schema, runtimeRole),
             sysAccess(schema, sysRole),
             inProgressView(schema, runtimeRole, sysRole),
@@ -141,7 +149,7 @@ object JobSchema {
             );
             comment on table $s.$JOB_RETENTION is 'platform-scoped: no tenant data';
             revoke all on $s.$JOB_RETENTION from public;
-        """.trimIndent()
+            """.trimIndent()
     }
 
     /** The runtime login: ShedLock's table, and the state tables under their tenant policy only; nothing on retention. */
@@ -156,7 +164,7 @@ object JobSchema {
             grant select, insert, update on $s.$SHEDLOCK to $runtime;
             grant select, insert, update on $s.$JOB_RUN to $runtime;
             grant select, insert, update on $s.$JOB_PAUSE to $runtime;
-        """.trimIndent()
+            """.trimIndent()
     }
 
     /**
@@ -184,7 +192,7 @@ object JobSchema {
             grant select (tenant_id, service, job, entity_ref, paused_at, paused_until, ended_at) on $s.$JOB_PAUSE to $sys;
             grant delete on $s.$JOB_PAUSE to $sys;
             grant select on $s.$JOB_RETENTION to $sys;
-        """.trimIndent()
+            """.trimIndent()
     }
 
     /** The sweeper's view, handed to the sys role, `SELECT` for the runtime login only. */
@@ -205,7 +213,7 @@ object JobSchema {
             revoke all on $s.$IN_PROGRESS_VIEW from public;
             grant select on $s.$IN_PROGRESS_VIEW to $runtime;
             revoke create on schema $s from $sys;
-        """.trimIndent()
+            """.trimIndent()
     }
 
     /**
@@ -260,7 +268,7 @@ object JobSchema {
             revoke all on function $s.$PURGE_EXPIRED(integer) from public;
             grant execute on function $s.$PURGE_EXPIRED(integer) to $runtime;
             revoke create on schema $s from $sys;
-        """.trimIndent()
+            """.trimIndent()
     }
 
     /** The window for the job runtime's start-up check; the table itself is not granted to the runtime login. */
@@ -282,6 +290,6 @@ object JobSchema {
             revoke all on function $s.$RETENTION_WINDOW() from public;
             grant execute on function $s.$RETENTION_WINDOW() to $runtime;
             revoke create on schema $s from $sys;
-        """.trimIndent()
+            """.trimIndent()
     }
 }

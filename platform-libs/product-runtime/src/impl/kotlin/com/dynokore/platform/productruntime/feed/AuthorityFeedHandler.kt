@@ -50,27 +50,29 @@ class AuthorityFeedHandler(
         return AuthorityChanged(event.tenant, payload.principalRef, payload.authorityVersion.toLong(), record)
     }
 
-    private fun grantRecord(record: AuthorityChangedPayloadGrantRecord) = AuthorityRecord.GrantRecord(
-        entityRef = record.entityRef,
-        grants =
-        record.grants.map {
-            Grant(
-                action = it.action,
-                scopeLevel = ScopeLevel.of(it.scopeLevel.value),
-                scopeRef = it.scopeRef,
-                validFrom = it.validFrom.toInstant(),
-                validUntil = it.validUntil?.toInstant(),
-                periodFrom = it.periodFrom,
-                periodTo = it.periodTo,
-            )
-        },
-    )
+    private fun grantRecord(record: AuthorityChangedPayloadGrantRecord) =
+        AuthorityRecord.GrantRecord(
+            entityRef = record.entityRef,
+            grants =
+                record.grants.map {
+                    Grant(
+                        action = it.action,
+                        scopeLevel = ScopeLevel.of(it.scopeLevel.value),
+                        scopeRef = it.scopeRef,
+                        validFrom = it.validFrom.toInstant(),
+                        validUntil = it.validUntil?.toInstant(),
+                        periodFrom = it.periodFrom,
+                        periodTo = it.periodTo,
+                    )
+                },
+        )
 
-    private fun consentRecord(record: AuthorityChangedPayloadConsentRecord) = AuthorityRecord.ConsentRecord(
-        clientEntityRef = record.clientEntityRef,
-        state = ConsentState.of(record.state.value),
-        scopeItems = record.scopeItems.mapTo(mutableSetOf()) { ConsentScopeItem.of(it.value) },
-        validFrom = record.validFrom.toInstant(),
-        validUntil = record.validUntil?.toInstant(),
-    )
+    private fun consentRecord(record: AuthorityChangedPayloadConsentRecord) =
+        AuthorityRecord.ConsentRecord(
+            clientEntityRef = record.clientEntityRef,
+            state = ConsentState.of(record.state.value),
+            scopeItems = record.scopeItems.mapTo(mutableSetOf()) { ConsentScopeItem.of(it.value) },
+            validFrom = record.validFrom.toInstant(),
+            validUntil = record.validUntil?.toInstant(),
+        )
 }

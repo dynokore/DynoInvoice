@@ -10,7 +10,9 @@ import com.dynokore.platform.crypto.Hashing
  * at a call site.
  */
 @JvmInline
-value class ContentHash(val hex: String) {
+value class ContentHash(
+    val hex: String,
+) {
     init {
         require(HEX_64.matches(hex)) { "ContentHash must be 64 lower-case hex characters (SHA-256), was '$hex'" }
     }

@@ -48,9 +48,10 @@ class AdapterRuntimeWiring {
 internal class BoundSecretStoreAdapter(
     private val bound: BoundSecretStore,
 ) : SecretStore {
-    override fun read(ref: SecretRef): Secret = try {
-        Secret(bound.read(BoundSecretRef(ref.value)).reveal())
-    } catch (_: BoundSecretNotFound) {
-        throw SecretNotFound(ref)
-    }
+    override fun read(ref: SecretRef): Secret =
+        try {
+            Secret(bound.read(BoundSecretRef(ref.value)).reveal())
+        } catch (_: BoundSecretNotFound) {
+            throw SecretNotFound(ref)
+        }
 }

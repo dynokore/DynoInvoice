@@ -125,7 +125,12 @@ class RefusalTest {
     fun `the ExecuteListener alone refuses a tenant table without the injected predicate`(image: String) {
         refusedAsA(image, { dslWithoutInjector(it) }) { it.selectFrom(Orders).fetch() }
         refusedAsA(image, { dslWithoutInjector(it) }) {
-            it.select(Orders.ID).from(Orders).leftJoin(Customers).on(Customers.ID.eq(Orders.CUSTOMER_ID)).fetch()
+            it
+                .select(Orders.ID)
+                .from(Orders)
+                .leftJoin(Customers)
+                .on(Customers.ID.eq(Orders.CUSTOMER_ID))
+                .fetch()
         }
         refusedAsA(image, { dslWithoutInjector(it) }) { it.update(Orders).set(Orders.AMOUNT, 1).execute() }
         refusedAsA(image, { dslWithoutInjector(it) }) { it.deleteFrom(Orders).execute() }
@@ -174,9 +179,20 @@ class RefusalTest {
     @ParameterizedTest
     @FieldSource("com.dynokore.platform.tenancyjooq.Images#ALL")
     fun `an outer join without ON whose nullable side reads a tenant table is refused`(image: String) {
-        refusedAsA(image) { it.select(Orders.ID).from(Orders).naturalLeftOuterJoin(Customers).fetch() }
         refusedAsA(image) {
-            it.select(Orders.ID).from(Orders).leftJoin(Customers).using(Orders.ID).fetch()
+            it
+                .select(Orders.ID)
+                .from(Orders)
+                .naturalLeftOuterJoin(Customers)
+                .fetch()
+        }
+        refusedAsA(image) {
+            it
+                .select(Orders.ID)
+                .from(Orders)
+                .leftJoin(Customers)
+                .using(Orders.ID)
+                .fetch()
         }
     }
 

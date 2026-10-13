@@ -10,7 +10,9 @@ import com.dynokore.platform.adapterruntime.SecretStore
  * fixtures to a mock"). Every fake and every real implementation of this port runs
  * the same `SecretStoreContractTest`.
  */
-class FakeSecretStore(seed: Map<String, String> = emptyMap()) : SecretStore {
+class FakeSecretStore(
+    seed: Map<String, String> = emptyMap(),
+) : SecretStore {
     private val values = seed.mapKeys { (name, _) -> SecretRef(name) }.toMutableMap()
 
     fun put(

@@ -39,13 +39,14 @@ class ServiceRuntimeModuleApiConsumerContractTest {
         fun evaluate(
             budget: Duration,
             call: () -> Outcome,
-        ): Outcome = edges.forEdge(EDGE).execute(
-            deadline = Deadline.after(budget, clock),
-            onCallNotPermitted = { Outcome.NOT_PERMITTED },
-            onConnectFailure = { Outcome.UNREACHABLE },
-            onTimeout = { Outcome.TIMED_OUT },
-            block = call,
-        )
+        ): Outcome =
+            edges.forEdge(EDGE).execute(
+                deadline = Deadline.after(budget, clock),
+                onCallNotPermitted = { Outcome.NOT_PERMITTED },
+                onConnectFailure = { Outcome.UNREACHABLE },
+                onTimeout = { Outcome.TIMED_OUT },
+                block = call,
+            )
     }
 
     private val clock = Clock.systemUTC()
@@ -53,13 +54,13 @@ class ServiceRuntimeModuleApiConsumerContractTest {
         Resilience4jResilienceRegistry(
             ResilienceProperties(
                 edges =
-                mapOf(
-                    EDGE to
-                        EdgeProperties(
-                            timeout = Duration.ofMillis(300),
-                            retry = RetryProperties(3, Duration.ofMillis(1), Duration.ofMillis(2)),
-                        ),
-                ),
+                    mapOf(
+                        EDGE to
+                            EdgeProperties(
+                                timeout = Duration.ofMillis(300),
+                                retry = RetryProperties(3, Duration.ofMillis(1), Duration.ofMillis(2)),
+                            ),
+                    ),
             ),
             clock,
         )

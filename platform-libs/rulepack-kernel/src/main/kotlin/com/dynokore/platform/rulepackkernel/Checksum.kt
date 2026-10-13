@@ -7,7 +7,9 @@ package com.dynokore.platform.rulepackkernel
  * contents").
  */
 @JvmInline
-value class Checksum(val hex: String) {
+value class Checksum(
+    val hex: String,
+) {
     init {
         require(HEX_SHA256.matches(hex)) { "Checksum must be 64 lower-case hex characters (SHA-256), was '$hex'" }
     }

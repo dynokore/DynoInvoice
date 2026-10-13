@@ -127,15 +127,20 @@ data class VariationPointDefinition(
         require(installationParameter != key) { "$key cannot bound itself" }
         if (status != VpStatus.RETIRED) {
             when {
-                mustBeElected ->
+                mustBeElected -> {
                     require(defaults.isEmpty() && defaultByForm.isEmpty()) { "$key must be elected and has a default" }
-
-                defaultByForm.isNotEmpty() -> require(defaultByForm.keys == DeploymentForm.entries.toSet()) {
-                    "$key by-form default must name every form"
                 }
 
-                else -> require(defaults.size == 1 || (multiSelect && defaults.isNotEmpty())) {
-                    "$key needs exactly one DEFAULT option, or must be elected"
+                defaultByForm.isNotEmpty() -> {
+                    require(defaultByForm.keys == DeploymentForm.entries.toSet()) {
+                        "$key by-form default must name every form"
+                    }
+                }
+
+                else -> {
+                    require(defaults.size == 1 || (multiSelect && defaults.isNotEmpty())) {
+                        "$key needs exactly one DEFAULT option, or must be elected"
+                    }
                 }
             }
         }
@@ -154,11 +159,12 @@ data class VariationPointDefinition(
      * The default value in [form]: the options marked [Strictness.DEFAULT] (never the first listed), or the
      * row's by-form default; `null` when the row must be elected.
      */
-    fun defaultKeys(form: DeploymentForm): List<String>? = when {
-        mustBeElected -> null
-        defaultByForm.isNotEmpty() -> listOf(defaultByForm.getValue(form))
-        else -> options.filter { it.strictness == Strictness.DEFAULT }.map { it.key }.ifEmpty { null }
-    }
+    fun defaultKeys(form: DeploymentForm): List<String>? =
+        when {
+            mustBeElected -> null
+            defaultByForm.isNotEmpty() -> listOf(defaultByForm.getValue(form))
+            else -> options.filter { it.strictness == Strictness.DEFAULT }.map { it.key }.ifEmpty { null }
+        }
 
     /**
      * The options offered (INV-REQ-1251): all when available, only the default when planned, none when
@@ -166,11 +172,12 @@ data class VariationPointDefinition(
      * [formDependence] states why one cannot be used in a form. A LOOSER option is never offered by a row
      * that cannot relax ([offersLooser], INV-AC-2230).
      */
-    fun offeredOptions(form: DeploymentForm): List<String> = when (status) {
-        VpStatus.AVAILABLE -> options.filter { it.strictness != Strictness.LOOSER || offersLooser }.map { it.key }
-        VpStatus.PLANNED -> defaultKeys(form).orEmpty()
-        VpStatus.RETIRED -> emptyList()
-    }
+    fun offeredOptions(form: DeploymentForm): List<String> =
+        when (status) {
+            VpStatus.AVAILABLE -> options.filter { it.strictness != Strictness.LOOSER || offersLooser }.map { it.key }
+            VpStatus.PLANNED -> defaultKeys(form).orEmpty()
+            VpStatus.RETIRED -> emptyList()
+        }
 }
 
 /** The registered variation points; product-runtime's adapter binds gst-catalogue (INV-Q-3119). */

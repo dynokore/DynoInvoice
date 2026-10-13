@@ -28,7 +28,8 @@ class PolicyChangedBrokenWriterTest {
     private val probe = PolicyWriterProbe()
     private val mapper = ObjectMapper()
     private val interaction =
-        DefaultPactReader.loadPact(File("build/pacts/${Contracts.SERVICE_RUNTIME}-${Contracts.CONFIG_RESOLVER}.json"))
+        DefaultPactReader
+            .loadPact(File("build/pacts/${Contracts.SERVICE_RUNTIME}-${Contracts.CONFIG_RESOLVER}.json"))
             .interactions
             .map { it as V4Interaction.AsynchronousMessage }
             .single { it.description == PolicyChangedPactTest.DESCRIPTION }
@@ -40,8 +41,15 @@ class PolicyChangedBrokenWriterTest {
         val body = OptionalBody.body(message.toByteArray(), ContentType.JSON)
         val comparison = ResponseComparison.compareMessage(interaction, body, emptyMap(), emptyMap())
         return when (val result = comparison.bodyMismatches) {
-            is Result.Ok -> result.value.mismatches.values.flatten().map { it.description() }
-            is Result.Err -> listOf(result.error.description())
+            is Result.Ok -> {
+                result.value.mismatches.values
+                    .flatten()
+                    .map { it.description() }
+            }
+
+            is Result.Err -> {
+                listOf(result.error.description())
+            }
         }
     }
 

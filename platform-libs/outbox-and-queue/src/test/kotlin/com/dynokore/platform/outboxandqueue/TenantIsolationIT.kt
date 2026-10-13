@@ -131,20 +131,22 @@ class TenantIsolationIT {
         )
     }
 
-    private fun rawCount(kit: ServiceKit): Int = kit.boundary.require().createStatement().use { statement ->
-        statement.executeQuery("select count(raw) from submission.event_dead_letter").use { rows ->
-            rows.next()
-            rows.getInt(1)
+    private fun rawCount(kit: ServiceKit): Int =
+        kit.boundary.require().createStatement().use { statement ->
+            statement.executeQuery("select count(raw) from submission.event_dead_letter").use { rows ->
+                rows.next()
+                rows.getInt(1)
+            }
         }
-    }
 
     private fun visible(
         kit: ServiceKit,
         table: String,
-    ): Int = kit.boundary.require().createStatement().use { statement ->
-        statement.executeQuery("select count(*) from submission.$table").use { rows ->
-            rows.next()
-            rows.getInt(1)
+    ): Int =
+        kit.boundary.require().createStatement().use { statement ->
+            statement.executeQuery("select count(*) from submission.$table").use { rows ->
+                rows.next()
+                rows.getInt(1)
+            }
         }
-    }
 }

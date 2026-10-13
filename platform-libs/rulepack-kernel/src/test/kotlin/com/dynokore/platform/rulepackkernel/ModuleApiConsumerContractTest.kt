@@ -60,17 +60,19 @@ class ModuleApiConsumerContractTest {
         val certificate = PackFixtures.selfSignedCertificate(keyPair, "2026-train-primary")
         val trustAnchors = TrustAnchors(listOf(TrustAnchor("primary", certificate.encoded)))
 
-        val useCase = FakeConsumerUseCase(
-            verifier = BouncyCastlePackVerifier(),
-            contentValidator = JacksonPackContentValidator(),
-            registry = InMemoryPackRegistry(),
-        )
+        val useCase =
+            FakeConsumerUseCase(
+                verifier = BouncyCastlePackVerifier(),
+                contentValidator = JacksonPackContentValidator(),
+                registry = InMemoryPackRegistry(),
+            )
 
-        val artefact = PackFixtures.artefact(
-            manifest = PackFixtures.manifestJson(effectiveFrom = "2026-10-01"),
-            keyPair = keyPair,
-            certificate = certificate,
-        )
+        val artefact =
+            PackFixtures.artefact(
+                manifest = PackFixtures.manifestJson(effectiveFrom = "2026-10-01"),
+                keyPair = keyPair,
+                certificate = certificate,
+            )
 
         val staged = useCase.stage(artefact, trustAnchors)
         assertEquals(PackType("code-catalogue"), staged.packType)
@@ -85,11 +87,12 @@ class ModuleApiConsumerContractTest {
         val certificate = PackFixtures.selfSignedCertificate(keyPair, "2026-train-primary")
         val trustAnchors = TrustAnchors(listOf(TrustAnchor("primary", certificate.encoded)))
 
-        val useCase = FakeConsumerUseCase(
-            verifier = BouncyCastlePackVerifier(),
-            contentValidator = JacksonPackContentValidator(),
-            registry = InMemoryPackRegistry(),
-        )
+        val useCase =
+            FakeConsumerUseCase(
+                verifier = BouncyCastlePackVerifier(),
+                contentValidator = JacksonPackContentValidator(),
+                registry = InMemoryPackRegistry(),
+            )
 
         val executableContents = """{"handlers":[{"name":"self-billing","script":"eval(payload)"}]}""".toByteArray()
         val artefact =

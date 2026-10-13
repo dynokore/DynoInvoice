@@ -33,11 +33,14 @@ class ConfigPurgePostgresIT {
         val a = TenantId(UUID.randomUUID())
         val b = TenantId(UUID.randomUUID())
         listOf(a, b).forEach { seed(h, it) }
+
         fun rows(
             table: String,
             tenant: TenantId,
         ) = h.count("select count(*) from svc.$table where tenant_id = '${tenant.value}'")
+
         fun resolved(tenant: TenantId) = rows("config_resolved_value", tenant)
+
         fun settings(tenant: TenantId) = rows("config_setting", tenant)
         val subject = ResolutionSubject("submission", "doc-1/v1")
 

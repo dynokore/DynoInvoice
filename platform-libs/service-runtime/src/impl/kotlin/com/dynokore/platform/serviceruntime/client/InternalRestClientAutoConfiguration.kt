@@ -30,5 +30,8 @@ class InternalRestClientAutoConfiguration {
     @Bean
     @Scope(BeanDefinition.SCOPE_PROTOTYPE)
     @ConditionalOnMissingBean(name = ["internalRestClientBuilder"])
-    fun internalRestClientBuilder(interceptors: ObjectProvider<List<ClientHttpRequestInterceptor>>): RestClient.Builder = RestClient.builder().requestInterceptors { it.addAll(interceptors.getIfAvailable(::emptyList)) }
+    fun internalRestClientBuilder(
+        interceptors: ObjectProvider<List<ClientHttpRequestInterceptor>>,
+    ): RestClient.Builder =
+        RestClient.builder().requestInterceptors { it.addAll(interceptors.getIfAvailable(::emptyList)) }
 }

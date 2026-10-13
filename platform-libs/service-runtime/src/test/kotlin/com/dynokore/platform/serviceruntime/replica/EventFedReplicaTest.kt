@@ -111,13 +111,14 @@ class EventFedReplicaTest {
         r.peek("k") shouldBe "event"
     }
 
-    private fun sinkOf(r: EventFedReplica<String, String>) = object : ReplicaFeedSink<ReplicaChange<String, String>> {
-        override fun accept(event: ReplicaChange<String, String>) = r.apply(event)
+    private fun sinkOf(r: EventFedReplica<String, String>) =
+        object : ReplicaFeedSink<ReplicaChange<String, String>> {
+            override fun accept(event: ReplicaChange<String, String>) = r.apply(event)
 
-        override fun observeHead(version: Long) = r.tracker.observeHead(version)
+            override fun observeHead(version: Long) = r.tracker.observeHead(version)
 
-        override fun onSnapshotComplete(version: Long) = r.tracker.onSnapshotComplete(version)
+            override fun onSnapshotComplete(version: Long) = r.tracker.onSnapshotComplete(version)
 
-        override fun onDisconnected() = r.tracker.onDisconnected()
-    }
+            override fun onDisconnected() = r.tracker.onDisconnected()
+        }
 }

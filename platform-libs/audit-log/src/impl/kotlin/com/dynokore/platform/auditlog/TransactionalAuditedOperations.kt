@@ -28,9 +28,10 @@ class TransactionalAuditedOperations(
         entry: AuditEntry,
         context: EventContext,
         block: () -> T,
-    ): T = tx.inTransaction {
-        val result = block()
-        audit.record(entry, context)
-        result
-    }
+    ): T =
+        tx.inTransaction {
+            val result = block()
+            audit.record(entry, context)
+            result
+        }
 }

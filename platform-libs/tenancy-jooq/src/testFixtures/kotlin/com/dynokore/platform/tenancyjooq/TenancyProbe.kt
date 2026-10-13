@@ -29,17 +29,23 @@ class TenancyProbe internal constructor(
     fun fetchValue(
         sql: String,
         vararg binds: Any?,
-    ): Any? = probe(sql, binds) { connection ->
-        DSL.using(connection, SQLDialect.POSTGRES).fetchOptional(sql, *binds).map { it.get(0) }.orElse(null)
-    }
+    ): Any? =
+        probe(sql, binds) { connection ->
+            DSL
+                .using(connection, SQLDialect.POSTGRES)
+                .fetchOptional(sql, *binds)
+                .map { it.get(0) }
+                .orElse(null)
+        }
 
     /** Every row of [sql] with [binds] as its bind values, each as column name to value, in result order. */
     fun fetchRows(
         sql: String,
         vararg binds: Any?,
-    ): List<Map<String, Any?>> = probe(sql, binds) { connection ->
-        DSL.using(connection, SQLDialect.POSTGRES).fetch(sql, *binds).intoMaps()
-    }
+    ): List<Map<String, Any?>> =
+        probe(sql, binds) { connection ->
+            DSL.using(connection, SQLDialect.POSTGRES).fetch(sql, *binds).intoMaps()
+        }
 
     /**
      * Runs [block] in one transaction bound to [tenant] and [actor] the way tenancy-kernel's transaction runner binds
@@ -50,17 +56,18 @@ class TenancyProbe internal constructor(
         tenant: TenantId,
         actor: String = "tenancy-probe",
         block: TenancyProbe.() -> T,
-    ): T = transaction { connection ->
-        DSL
-            .using(connection, SQLDialect.POSTGRES)
-            .fetch(
-                "select set_config('app.tenant_id', ?, true), set_config('app.actor', ?, true)",
-                tenant.toString(),
-                actor,
-            )
-        log.info("probe [{}] bound tenant {} and actor {}", caller(), tenant, actor)
-        block()
-    }
+    ): T =
+        transaction { connection ->
+            DSL
+                .using(connection, SQLDialect.POSTGRES)
+                .fetch(
+                    "select set_config('app.tenant_id', ?, true), set_config('app.actor', ?, true)",
+                    tenant.toString(),
+                    actor,
+                )
+            log.info("probe [{}] bound tenant {} and actor {}", caller(), tenant, actor)
+            block()
+        }
 
     /** Runs [block] in one transaction with no tenant and no actor bound; commits when it returns. */
     fun <T> unbound(block: TenancyProbe.() -> T): T = transaction { block() }
@@ -110,16 +117,17 @@ class TenancyProbe internal constructor(
         return connection
     }
 
-    private fun caller(): String = StackWalker.getInstance().walk { frames ->
-        frames
-            .filter { frame ->
-                !frame.className.startsWith(TenancyProbe::class.java.name) &&
-                    !frame.className.startsWith("kotlin.") &&
-                    !frame.className.startsWith("org.jooq.")
-            }.findFirst()
-            .map { "${it.className.substringAfterLast('.')}.${it.methodName}" }
-            .orElse("unknown")
-    }
+    private fun caller(): String =
+        StackWalker.getInstance().walk { frames ->
+            frames
+                .filter { frame ->
+                    !frame.className.startsWith(TenancyProbe::class.java.name) &&
+                        !frame.className.startsWith("kotlin.") &&
+                        !frame.className.startsWith("org.jooq.")
+                }.findFirst()
+                .map { "${it.className.substringAfterLast('.')}.${it.methodName}" }
+                .orElse("unknown")
+        }
 
     companion object {
         private val log = LoggerFactory.getLogger(TenancyProbe::class.java)
@@ -129,13 +137,14 @@ class TenancyProbe internal constructor(
             jdbcUrl: String,
             user: String,
             password: String,
-        ): TenancyProbe = TenancyProbe(
-            PGSimpleDataSource().apply {
-                setUrl(jdbcUrl)
-                this.user = user
-                this.password = password
-            },
-        )
+        ): TenancyProbe =
+            TenancyProbe(
+                PGSimpleDataSource().apply {
+                    setUrl(jdbcUrl)
+                    this.user = user
+                    this.password = password
+                },
+            )
 
         /** The probe over a service's application DataSource (the runtime login), for the test auto-configuration. */
         internal fun over(dataSource: DataSource): TenancyProbe = TenancyProbe(dataSource)

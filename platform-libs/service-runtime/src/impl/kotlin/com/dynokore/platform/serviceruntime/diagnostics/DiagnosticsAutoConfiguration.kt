@@ -43,12 +43,13 @@ class DiagnosticsAutoConfiguration {
         recorder: RecentErrorCodesRecorder,
         queueDepthSource: ObjectProvider<QueueDepthSource>,
         outboxDepthSource: ObjectProvider<OutboxDepthSource>,
-    ): DiagnosticsEndpoint = DiagnosticsEndpoint(
-        buildProperties,
-        vaultHealthIndicator,
-        domainDependencyHealthIndicators,
-        recorder,
-        queueDepthSource,
-        outboxDepthSource,
-    )
+    ): DiagnosticsEndpoint =
+        DiagnosticsEndpoint(
+            buildProperties,
+            vaultHealthIndicator,
+            domainDependencyHealthIndicators,
+            recorder,
+            queueDepthSource,
+            outboxDepthSource,
+        )
 }

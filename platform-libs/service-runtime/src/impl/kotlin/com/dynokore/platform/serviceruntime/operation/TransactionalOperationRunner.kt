@@ -34,16 +34,23 @@ class TransactionalOperationRunner(
             val prior = operation.priorResult(command, state)
             val unmet = if (prior == null) operation.unmetPrecondition(command, state) else null
             when {
-                prior != null -> OperationOutcome.Repeated(prior)
+                prior != null -> {
+                    OperationOutcome.Repeated(prior)
+                }
 
-                unmet != null -> OperationOutcome.PreconditionUnmet(unmet)
+                unmet != null -> {
+                    OperationOutcome.PreconditionUnmet(unmet)
+                }
 
                 else -> {
                     val result = operation.perform(command, state)
                     val entry = operation.audit(command, state, result)
                     if (operation.audited) {
                         checkNotNull(entry) { "${operation.operationId} is audited but recorded no audit entry" }
-                        audit.record(AuditEntry(actor, operation.operationId, entry.scope, entry.reason, entry.priorStateJson), entry.context)
+                        audit.record(
+                            AuditEntry(actor, operation.operationId, entry.scope, entry.reason, entry.priorStateJson),
+                            entry.context,
+                        )
                     } else {
                         check(entry == null) { "${operation.operationId} is not audited but returned an audit entry" }
                     }

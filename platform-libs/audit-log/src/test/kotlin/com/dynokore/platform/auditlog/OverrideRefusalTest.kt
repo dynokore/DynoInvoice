@@ -30,15 +30,16 @@ class OverrideRefusalTest {
         }
     private val tenant = UUID.randomUUID()
 
-    private fun service(policy: OverridePolicy = OverridePolicy()) = JdbcOverrideService(
-        noConnection,
-        untouchable,
-        noAudit,
-        AuditHarness.CATALOGUE,
-        "submission",
-        AuditHarness.CLOCK,
-        policy,
-    )
+    private fun service(policy: OverridePolicy = OverridePolicy()) =
+        JdbcOverrideService(
+            noConnection,
+            untouchable,
+            noAudit,
+            AuditHarness.CATALOGUE,
+            "submission",
+            AuditHarness.CLOCK,
+            policy,
+        )
 
     // The command builders live in the harness; its constructor needs Docker, so build commands here.
     private fun command(
@@ -46,12 +47,23 @@ class OverrideRefusalTest {
         reason: String? = "because",
         roles: Set<String> = setOf("tax.approver"),
     ) = OverrideCommand(
-        com.dynokore.platform.tenancykernel.TenantId(tenant),
-        com.dynokore.platform.outboxandqueue.EntityRef("e"),
-        com.dynokore.platform.outboxandqueue.DocUuid(UUID.randomUUID()),
-        1, null, code, reason, "u", roles, "{}",
-        com.dynokore.platform.outboxandqueue.CorrelationId("c"),
-        com.dynokore.platform.outboxandqueue.CausationId("k"),
+        com.dynokore.platform.tenancykernel
+            .TenantId(tenant),
+        com.dynokore.platform.outboxandqueue
+            .EntityRef("e"),
+        com.dynokore.platform.outboxandqueue
+            .DocUuid(UUID.randomUUID()),
+        1,
+        null,
+        code,
+        reason,
+        "u",
+        roles,
+        "{}",
+        com.dynokore.platform.outboxandqueue
+            .CorrelationId("c"),
+        com.dynokore.platform.outboxandqueue
+            .CausationId("k"),
     )
 
     @Test
@@ -71,9 +83,10 @@ class OverrideRefusalTest {
         val policy = OverridePolicy()
         assertEquals(true, policy.permits(setOf("tax.approver")))
         assertEquals(false, policy.permits(setOf("tenant.admin", "platform.engineer")))
-        val refused = assertThrows(OverrideRefused::class.java) {
-            service(policy).override(command(roles = setOf("tenant.admin")))
-        }
+        val refused =
+            assertThrows(OverrideRefused::class.java) {
+                service(policy).override(command(roles = setOf("tenant.admin")))
+            }
         assertEquals(RefusalReason.ROLE_NOT_AUTHORISED, refused.reason)
     }
 
@@ -118,14 +131,19 @@ class OverrideRefusalTest {
 }
 
 private object EventContextSample {
-    fun context(tenant: UUID) = EventContext(
-        com.dynokore.platform.tenancykernel.TenantId(tenant),
-        com.dynokore.platform.outboxandqueue.EntityRef("e"),
-        null,
-        null,
-        "k",
-        null,
-        com.dynokore.platform.outboxandqueue.CorrelationId("c"),
-        com.dynokore.platform.outboxandqueue.CausationId("k"),
-    )
+    fun context(tenant: UUID) =
+        EventContext(
+            com.dynokore.platform.tenancykernel
+                .TenantId(tenant),
+            com.dynokore.platform.outboxandqueue
+                .EntityRef("e"),
+            null,
+            null,
+            "k",
+            null,
+            com.dynokore.platform.outboxandqueue
+                .CorrelationId("c"),
+            com.dynokore.platform.outboxandqueue
+                .CausationId("k"),
+        )
 }

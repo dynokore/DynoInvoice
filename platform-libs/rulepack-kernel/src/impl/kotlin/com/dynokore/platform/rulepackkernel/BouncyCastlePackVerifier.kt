@@ -49,15 +49,18 @@ class BouncyCastlePackVerifier(
         artefact: PackArtefact,
         trustAnchors: TrustAnchors,
     ): PackVerificationOutcome {
-        val checksumsNode = parseJson(artefact.checksums)
-            ?: return rejected(PackRejectionReason.MANIFEST_MALFORMED, "checksums member is not valid JSON")
-        val declaredContentsDigest = checksumsNode.get(CONTENTS_CHECKSUM_FIELD)
-            ?.asString("")
-            ?.takeIf { it.isNotBlank() }
-            ?: return rejected(
-                PackRejectionReason.MANIFEST_MALFORMED,
-                "checksums member has no '$CONTENTS_CHECKSUM_FIELD' entry",
-            )
+        val checksumsNode =
+            parseJson(artefact.checksums)
+                ?: return rejected(PackRejectionReason.MANIFEST_MALFORMED, "checksums member is not valid JSON")
+        val declaredContentsDigest =
+            checksumsNode
+                .get(CONTENTS_CHECKSUM_FIELD)
+                ?.asString("")
+                ?.takeIf { it.isNotBlank() }
+                ?: return rejected(
+                    PackRejectionReason.MANIFEST_MALFORMED,
+                    "checksums member has no '$CONTENTS_CHECKSUM_FIELD' entry",
+                )
         val actualContentsDigest = sha256Hex(artefact.contents)
         if (!declaredContentsDigest.equals(actualContentsDigest, ignoreCase = true)) {
             return rejected(
@@ -68,42 +71,51 @@ class BouncyCastlePackVerifier(
 
         val signedContent = artefact.manifest + artefact.checksums
         val anchors = trustAnchors.anchors
-        val matchedAnchor = when (
-            val verification = signatureVerifier.verify(
-                content = signedContent,
-                signature = artefact.signature,
-                algorithm = signatureAlgorithm,
-                trustedCertificatesDer = anchors.map { it.certificateDer },
-            )
-        ) {
-            is DetachedVerification.SignatureInvalid ->
-                return rejected(PackRejectionReason.SIGNATURE_INVALID, verification.detail)
+        val matchedAnchor =
+            when (
+                val verification =
+                    signatureVerifier.verify(
+                        content = signedContent,
+                        signature = artefact.signature,
+                        algorithm = signatureAlgorithm,
+                        trustedCertificatesDer = anchors.map { it.certificateDer },
+                    )
+            ) {
+                is DetachedVerification.SignatureInvalid -> {
+                    return rejected(PackRejectionReason.SIGNATURE_INVALID, verification.detail)
+                }
 
-            DetachedVerification.UntrustedSigner ->
-                return rejected(
-                    PackRejectionReason.UNTRUSTED_SIGNER,
-                    "signature is mathematically valid but the signer certificate is not one of the given trust anchors",
+                DetachedVerification.UntrustedSigner -> {
+                    return rejected(
+                        PackRejectionReason.UNTRUSTED_SIGNER,
+                        "signature is mathematically valid but the signer certificate is not one of the given trust anchors",
+                    )
+                }
+
+                is DetachedVerification.Verified -> {
+                    anchors[verification.trustedIndex]
+                }
+            }
+
+        val manifestNode =
+            parseJson(artefact.manifest)
+                ?: return rejected(PackRejectionReason.MANIFEST_MALFORMED, "manifest member is not valid JSON")
+        val manifest =
+            parseManifest(manifestNode, checksumsNode)
+                ?: return rejected(
+                    PackRejectionReason.MANIFEST_MALFORMED,
+                    "manifest is missing or has malformed required fields",
                 )
-
-            is DetachedVerification.Verified -> anchors[verification.trustedIndex]
-        }
-
-        val manifestNode = parseJson(artefact.manifest)
-            ?: return rejected(PackRejectionReason.MANIFEST_MALFORMED, "manifest member is not valid JSON")
-        val manifest = parseManifest(manifestNode, checksumsNode)
-            ?: return rejected(
-                PackRejectionReason.MANIFEST_MALFORMED,
-                "manifest is missing or has malformed required fields",
-            )
 
         return PackVerificationOutcome.Verified(manifest, matchedAnchor.label)
     }
 
-    private fun parseJson(bytes: ByteArray): JsonNode? = try {
-        objectMapper.readTree(bytes)
-    } catch (_: RuntimeException) {
-        null
-    }
+    private fun parseJson(bytes: ByteArray): JsonNode? =
+        try {
+            objectMapper.readTree(bytes)
+        } catch (_: RuntimeException) {
+            null
+        }
 
     /**
      * Every failure mode here — a missing field, a malformed date, an invalid
@@ -112,45 +124,48 @@ class BouncyCastlePackVerifier(
     private fun parseManifest(
         manifestNode: JsonNode,
         checksumsNode: JsonNode,
-    ): PackManifest? = try {
-        val packId = manifestNode.get("packId").requiredText() ?: return null
-        val packType = manifestNode.get("packType").requiredText() ?: return null
-        val version = manifestNode.get("version").requiredText() ?: return null
-        val minEngineVersion = manifestNode.get("minEngineVersion").requiredText() ?: return null
-        val effectiveFrom = manifestNode.get("effectiveFrom").requiredText()?.let(::parseDateOrNull) ?: return null
-        val effectiveToNode = manifestNode.get("effectiveTo")
-        val effectiveTo = if (effectiveToNode == null || effectiveToNode.isNull) {
-            null
-        } else {
-            parseDateOrNull(effectiveToNode.asString("")) ?: return null
-        }
-        val contentChecksums =
-            checksumsNode.properties().associate { (name, value) -> name to Checksum(value.asString("")) }
+    ): PackManifest? =
+        try {
+            val packId = manifestNode.get("packId").requiredText() ?: return null
+            val packType = manifestNode.get("packType").requiredText() ?: return null
+            val version = manifestNode.get("version").requiredText() ?: return null
+            val minEngineVersion = manifestNode.get("minEngineVersion").requiredText() ?: return null
+            val effectiveFrom = manifestNode.get("effectiveFrom").requiredText()?.let(::parseDateOrNull) ?: return null
+            val effectiveToNode = manifestNode.get("effectiveTo")
+            val effectiveTo =
+                if (effectiveToNode == null || effectiveToNode.isNull) {
+                    null
+                } else {
+                    parseDateOrNull(effectiveToNode.asString("")) ?: return null
+                }
+            val contentChecksums =
+                checksumsNode.properties().associate { (name, value) -> name to Checksum(value.asString("")) }
 
-        PackManifest(
-            packId = PackId(packId),
-            packType = PackType(packType),
-            version = PackVersionLabel(version),
-            effectiveFrom = effectiveFrom,
-            effectiveTo = effectiveTo,
-            minEngineVersion = minEngineVersion,
-            contentChecksums = contentChecksums,
-        )
-    } catch (_: IllegalArgumentException) {
-        null
-    } catch (_: RuntimeException) {
-        // A Jackson JsonNodeException from a wrongly-typed field also means "malformed" (Jackson 3: unchecked).
-        null
-    }
+            PackManifest(
+                packId = PackId(packId),
+                packType = PackType(packType),
+                version = PackVersionLabel(version),
+                effectiveFrom = effectiveFrom,
+                effectiveTo = effectiveTo,
+                minEngineVersion = minEngineVersion,
+                contentChecksums = contentChecksums,
+            )
+        } catch (_: IllegalArgumentException) {
+            null
+        } catch (_: RuntimeException) {
+            // A Jackson JsonNodeException from a wrongly-typed field also means "malformed" (Jackson 3: unchecked).
+            null
+        }
 
     /** A required text field, absent/blank/wrongly-typed alike collapsing to `null`. */
     private fun JsonNode?.requiredText(): String? = this?.asString("").orEmpty().ifBlank { null }
 
-    private fun parseDateOrNull(text: String): LocalDate? = try {
-        LocalDate.parse(text)
-    } catch (_: DateTimeParseException) {
-        null
-    }
+    private fun parseDateOrNull(text: String): LocalDate? =
+        try {
+            LocalDate.parse(text)
+        } catch (_: DateTimeParseException) {
+            null
+        }
 
     private fun rejected(
         reason: PackRejectionReason,

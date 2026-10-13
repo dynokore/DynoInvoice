@@ -11,16 +11,29 @@ import java.time.LocalDate
 enum class PrincipalKind { HUMAN, CONSENT_AGENT, MACHINE }
 
 /** The acting principal. Its kind comes from the propagated token, never from `AuthorityChanged` (INV-Q-3259). */
-data class Principal(val id: String, val kind: PrincipalKind)
+data class Principal(
+    val id: String,
+    val kind: PrincipalKind,
+)
 
 /** One grant record's key: a principal's grant state on one entity (INV-Q-3322 (b)). */
-data class AuthorityKey(val tenant: TenantId, val principalId: String, val entityRef: String)
+data class AuthorityKey(
+    val tenant: TenantId,
+    val principalId: String,
+    val entityRef: String,
+)
 
 /** One consent record's key: the agent consent for one client entity (INV-REQ-853 b1). */
-data class ConsentKey(val tenant: TenantId, val clientEntityRef: String)
+data class ConsentKey(
+    val tenant: TenantId,
+    val clientEntityRef: String,
+)
 
 /** One principal record's key. */
-data class PrincipalKey(val tenant: TenantId, val principalId: String)
+data class PrincipalKey(
+    val tenant: TenantId,
+    val principalId: String,
+)
 
 /**
  * The scope level a grant comes from (INV-REQ-864 b1, INV-Q-3339). TENANT and GROUP grants arrive already
@@ -43,7 +56,10 @@ enum class ScopeLevel {
 }
 
 /** A span of days, both ends included: a GST accounting period or a granted period range. */
-data class DateSpan(val start: LocalDate, val end: LocalDate) {
+data class DateSpan(
+    val start: LocalDate,
+    val end: LocalDate,
+) {
     init {
         require(!end.isBefore(start)) { "a date span must not end before it starts, was $start..$end" }
     }
@@ -81,22 +97,30 @@ data class Grant(
     /** Inside its validity window at [at]. */
     fun isValidAt(at: Instant): Boolean = !at.isBefore(validFrom) && (validUntil == null || at.isBefore(validUntil))
 
-    private fun coversPeriod(resourcePeriod: DateSpan?): Boolean = when (scopeLevel) {
-        ScopeLevel.TENANT, ScopeLevel.GROUP, ScopeLevel.ENTITY, ScopeLevel.CONSENT -> true
+    private fun coversPeriod(resourcePeriod: DateSpan?): Boolean =
+        when (scopeLevel) {
+            ScopeLevel.TENANT, ScopeLevel.GROUP, ScopeLevel.ENTITY, ScopeLevel.CONSENT -> {
+                true
+            }
 
-        ScopeLevel.ENTITY_PERIOD -> {
-            val from = periodFrom
-            val to = periodTo
-            resourcePeriod != null && from != null && to != null && !to.isBefore(from) &&
-                DateSpan(from, to).encloses(resourcePeriod)
+            ScopeLevel.ENTITY_PERIOD -> {
+                val from = periodFrom
+                val to = periodTo
+                resourcePeriod != null && from != null && to != null && !to.isBefore(from) &&
+                    DateSpan(from, to).encloses(resourcePeriod)
+            }
+
+            ScopeLevel.UNKNOWN -> {
+                false
+            }
         }
-
-        ScopeLevel.UNKNOWN -> false
-    }
 }
 
 /** What the replica holds for one [AuthorityKey]: the record's grants, replaced whole, and its version. */
-data class GrantState(val grants: List<Grant>, val authorityVersion: Long)
+data class GrantState(
+    val grants: List<Grant>,
+    val authorityVersion: Long,
+)
 
 /** A consent record's state; [UNKNOWN] is any unrecognised wire value and is not live (fail closed). */
 enum class ConsentState {
@@ -141,7 +165,10 @@ enum class PrincipalState {
 /** The one record an `AuthorityChanged` carries (INV-Q-3322, INV-Q-3702). */
 sealed interface AuthorityRecord {
     /** The full grant state of (tenant, principal, [entityRef]); an empty [grants] is a removal. */
-    data class GrantRecord(val entityRef: String, val grants: List<Grant>) : AuthorityRecord
+    data class GrantRecord(
+        val entityRef: String,
+        val grants: List<Grant>,
+    ) : AuthorityRecord
 
     /** The full state of the agent consent for one client entity (INV-REQ-853 b1, INV-REQ-865). */
     data class ConsentRecord(
@@ -152,8 +179,9 @@ sealed interface AuthorityRecord {
         val validUntil: Instant? = null,
     ) : AuthorityRecord {
         /** LIVE and inside its validity window at [at]. */
-        fun isLiveAt(at: Instant): Boolean = state == ConsentState.LIVE && !at.isBefore(validFrom) &&
-            (validUntil == null || at.isBefore(validUntil))
+        fun isLiveAt(at: Instant): Boolean =
+            state == ConsentState.LIVE && !at.isBefore(validFrom) &&
+                (validUntil == null || at.isBefore(validUntil))
 
         /** Whether this consent lists [item]; no item asked is covered, an UNKNOWN one never (INV-Q-3734). */
         fun lists(item: ConsentScopeItem?): Boolean {
@@ -163,7 +191,9 @@ sealed interface AuthorityRecord {
     }
 
     /** A principal deleted or revoked: voids every grant record of the principal with a lower version. */
-    data class PrincipalRecord(val state: PrincipalState) : AuthorityRecord
+    data class PrincipalRecord(
+        val state: PrincipalState,
+    ) : AuthorityRecord
 }
 
 /**
@@ -214,7 +244,9 @@ data class AuthorityDecision(
 )
 
 /** access-svc's answer to a synchronous decision call (INV-REQ-1201 behaviour #3). */
-data class AuthorityVerdict(val allowed: Boolean)
+data class AuthorityVerdict(
+    val allowed: Boolean,
+)
 
 fun interface AuthorityFallback : ReplicaFallback<AuthorizationRequest, AuthorityVerdict>
 
@@ -237,13 +269,17 @@ data class OperatorSessionKey(
  * The platform event `OperatorSessionKeysChanged` on `gst.access.operator-session-keys-changed.v1` (coordinator
  * rulings INV-Q-4162 and INV-Q-4171): the current key and, during rotation, the next one.
  */
-data class OperatorSessionKeysChanged(val keys: List<OperatorSessionKey>)
+data class OperatorSessionKeysChanged(
+    val keys: List<OperatorSessionKey>,
+)
 
 /**
  * The operator-session signing keys the authority replica holds, from `OperatorSessionKeysChanged` (coordinator
  * rulings INV-Q-4162, INV-Q-4171). Each event carries the whole set and replaces the one held.
  */
-class OperatorSessionKeys(private val clock: Clock) {
+class OperatorSessionKeys(
+    private val clock: Clock,
+) {
     @Volatile private var held: List<OperatorSessionKey> = emptyList()
 
     fun accept(event: OperatorSessionKeysChanged) {
@@ -258,7 +294,10 @@ class OperatorSessionKeys(private val clock: Clock) {
 }
 
 /** A principal record as held: the voiding version, and the state (null: voided by an event without state). */
-data class PrincipalRevocation(val state: PrincipalState?, val revocationVersion: Long)
+data class PrincipalRevocation(
+    val state: PrincipalState?,
+    val revocationVersion: Long,
+)
 
 /**
  * The authority replica (INV-REQ-1201), fed by `AuthorityChanged` (INV-Q-3322 (b)). It holds three kinds of
@@ -314,16 +353,21 @@ class AuthorityReplica(
     ): AuthorityDecision {
         if (tracker.lag().isWithin(lagBound)) return decideLocally(request)
         return when (val answer = fallback?.fetch(request, deadline) ?: FallbackResult.Unavailable) {
-            is FallbackResult.Found ->
+            is FallbackResult.Found -> {
                 AuthorityDecision(
                     answer.value.allowed,
                     DecisionSource.FALLBACK,
                     if (answer.value.allowed) DecisionReason.GRANTED else DecisionReason.NO_GRANT,
                 )
+            }
 
-            FallbackResult.NotFound -> AuthorityDecision(false, DecisionSource.FALLBACK, DecisionReason.NO_GRANT)
+            FallbackResult.NotFound -> {
+                AuthorityDecision(false, DecisionSource.FALLBACK, DecisionReason.NO_GRANT)
+            }
 
-            FallbackResult.Unavailable -> degraded(request.principal)
+            FallbackResult.Unavailable -> {
+                degraded(request.principal)
+            }
         }
     }
 
@@ -333,22 +377,35 @@ class AuthorityReplica(
         val now = clock.instant()
         val covering = held?.grants.orEmpty().filter { it.covers(request.action, now, request.resourcePeriod) }
         return when {
-            held == null -> local(DecisionReason.NO_GRANT)
+            held == null -> {
+                local(DecisionReason.NO_GRANT)
+            }
 
-            voidBelow != null && held.authorityVersion < voidBelow -> local(DecisionReason.REVOKED)
+            voidBelow != null && held.authorityVersion < voidBelow -> {
+                local(DecisionReason.REVOKED)
+            }
 
-            covering.any { it.scopeLevel != ScopeLevel.CONSENT } -> local(DecisionReason.GRANTED)
-
-            covering.isEmpty() -> local(DecisionReason.NO_GRANT)
-
-            consents.peek(ConsentKey(request.tenant, request.entityRef))
-                ?.let { it.isLiveAt(now) && it.lists(request.requiredScopeItem) } == true ->
+            covering.any { it.scopeLevel != ScopeLevel.CONSENT } -> {
                 local(DecisionReason.GRANTED)
+            }
 
-            consents.peek(ConsentKey(request.tenant, request.entityRef))?.isLiveAt(now) == true ->
+            covering.isEmpty() -> {
+                local(DecisionReason.NO_GRANT)
+            }
+
+            consents
+                .peek(ConsentKey(request.tenant, request.entityRef))
+                ?.let { it.isLiveAt(now) && it.lists(request.requiredScopeItem) } == true -> {
+                local(DecisionReason.GRANTED)
+            }
+
+            consents.peek(ConsentKey(request.tenant, request.entityRef))?.isLiveAt(now) == true -> {
                 local(DecisionReason.CONSENT_SCOPE_MISSING)
+            }
 
-            else -> local(DecisionReason.NO_LIVE_CONSENT)
+            else -> {
+                local(DecisionReason.NO_LIVE_CONSENT)
+            }
         }
     }
 
@@ -373,8 +430,7 @@ class AuthorityReplica(
                         it.isValidAt(now) && it.scopeLevel != ScopeLevel.UNKNOWN &&
                             (it.scopeLevel != ScopeLevel.CONSENT || consentLive)
                     }
-            }
-            .keys
+            }.keys
             .mapTo(mutableSetOf()) { it.entityRef }
     }
 
@@ -383,11 +439,12 @@ class AuthorityReplica(
         return AuthorityDecision(allowed, DecisionSource.LOCAL, reason)
     }
 
-    private fun degraded(principal: Principal): AuthorityDecision = if (principal.kind == PrincipalKind.MACHINE) {
-        AuthorityDecision(true, DecisionSource.DEGRADED, DecisionReason.MACHINE_FLOW_CONTINUES)
-    } else {
-        AuthorityDecision(false, DecisionSource.DEGRADED, DecisionReason.AUTHORITY_UNAVAILABLE)
-    }
+    private fun degraded(principal: Principal): AuthorityDecision =
+        if (principal.kind == PrincipalKind.MACHINE) {
+            AuthorityDecision(true, DecisionSource.DEGRADED, DecisionReason.MACHINE_FLOW_CONTINUES)
+        } else {
+            AuthorityDecision(false, DecisionSource.DEGRADED, DecisionReason.AUTHORITY_UNAVAILABLE)
+        }
 
     override fun accept(event: AuthorityChanged) {
         val version = event.authorityVersion
@@ -401,10 +458,13 @@ class AuthorityReplica(
                 }
             }
 
-            is AuthorityRecord.ConsentRecord ->
+            is AuthorityRecord.ConsentRecord -> {
                 consents.apply(ReplicaChange.Upsert(ConsentKey(event.tenant, record.clientEntityRef), record, version))
+            }
 
-            is AuthorityRecord.PrincipalRecord -> revoke(event, record.state)
+            is AuthorityRecord.PrincipalRecord -> {
+                revoke(event, record.state)
+            }
 
             null -> {
                 revoke(event, null)

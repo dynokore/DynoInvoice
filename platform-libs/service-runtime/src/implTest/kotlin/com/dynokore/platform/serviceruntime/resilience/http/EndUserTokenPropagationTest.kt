@@ -19,7 +19,14 @@ class EndUserTokenPropagationTest {
         val response = MockHttpServletResponse()
         var seenDuringChain: String? = null
 
-        EndUserTokenCaptureFilter().doFilter(request, response, FilterChain { _, _ -> seenDuringChain = CurrentEndUserToken.current() })
+        EndUserTokenCaptureFilter().doFilter(
+            request,
+            response,
+            FilterChain { _, _ ->
+                seenDuringChain =
+                    CurrentEndUserToken.current()
+            },
+        )
 
         seenDuringChain shouldBe "Bearer end-user-token"
         CurrentEndUserToken.current().shouldBeNull() // not bound outside the chain
@@ -31,7 +38,14 @@ class EndUserTokenPropagationTest {
         val response = MockHttpServletResponse()
         var seenDuringChain: String? = "not yet observed"
 
-        EndUserTokenCaptureFilter().doFilter(request, response, FilterChain { _, _ -> seenDuringChain = CurrentEndUserToken.current() })
+        EndUserTokenCaptureFilter().doFilter(
+            request,
+            response,
+            FilterChain { _, _ ->
+                seenDuringChain =
+                    CurrentEndUserToken.current()
+            },
+        )
 
         seenDuringChain.shouldBeNull()
     }
@@ -49,7 +63,13 @@ class EndUserTokenPropagationTest {
 
     @Test
     fun `EndUserTokenPropagationInterceptor never overrides a call's own explicit Authorization`() {
-        val request = MockClientHttpRequest().apply { headers.set(HttpHeaders.AUTHORIZATION, "Bearer workload-own-call") }
+        val request =
+            MockClientHttpRequest().apply {
+                headers.set(
+                    HttpHeaders.AUTHORIZATION,
+                    "Bearer workload-own-call",
+                )
+            }
 
         CurrentEndUserToken.callWith("Bearer end-user-token") {
             EndUserTokenPropagationInterceptor().intercept(request, ByteArray(0)) { _, _ -> stubResponse }
@@ -58,15 +78,16 @@ class EndUserTokenPropagationTest {
         request.headers.getFirst(HttpHeaders.AUTHORIZATION) shouldBe "Bearer workload-own-call"
     }
 
-    private val stubResponse = object : ClientHttpResponse {
-        override fun getStatusCode() = HttpStatusCode.valueOf(200)
+    private val stubResponse =
+        object : ClientHttpResponse {
+            override fun getStatusCode() = HttpStatusCode.valueOf(200)
 
-        override fun getStatusText() = "OK"
+            override fun getStatusText() = "OK"
 
-        override fun close() = Unit
+            override fun close() = Unit
 
-        override fun getBody() = ByteArray(0).inputStream()
+            override fun getBody() = ByteArray(0).inputStream()
 
-        override fun getHeaders() = HttpHeaders.EMPTY
-    }
+            override fun getHeaders() = HttpHeaders.EMPTY
+        }
 }

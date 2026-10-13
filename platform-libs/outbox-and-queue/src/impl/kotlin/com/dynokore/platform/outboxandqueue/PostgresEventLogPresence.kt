@@ -14,18 +14,22 @@ class PostgresEventLogPresence(
         topic: String,
         eventIds: Collection<String>,
     ): MissingEvents {
-        require(eventIds.size <= EventLogPresence.MAX_IDS) { "at most ${EventLogPresence.MAX_IDS} ids per call, was ${eventIds.size}" }
+        require(eventIds.size <= EventLogPresence.MAX_IDS) {
+            "at most ${EventLogPresence.MAX_IDS} ids per call, was ${eventIds.size}"
+        }
         return eventLogSource.connection.use { connection ->
             val ids = connection.createArrayOf("text", eventIds.toTypedArray())
             try {
                 connection
-                    .prepareStatement("select missing, cutoff from ${EventLogSchema.SCHEMA}.${EventLogSchema.EVENTS_MISSING}(?, ?)")
-                    .use { statement ->
+                    .prepareStatement(
+                        "select missing, cutoff from ${EventLogSchema.SCHEMA}.${EventLogSchema.EVENTS_MISSING}(?, ?)",
+                    ).use { statement ->
                         statement.setString(1, topic)
                         statement.setArray(2, ids)
                         statement.executeQuery().use { rows ->
                             check(rows.next()) { "events_missing returned no row" }
-                            val cutoff = checkNotNull(rows.getTimestamp(2)) { "events_missing returned no cut-off for $topic" }
+                            val cutoff =
+                                checkNotNull(rows.getTimestamp(2)) { "events_missing returned no cut-off for $topic" }
 
                             @Suppress("UNCHECKED_CAST")
                             val missing = (rows.getArray(1)?.array as? Array<String>)?.toSet() ?: emptySet()

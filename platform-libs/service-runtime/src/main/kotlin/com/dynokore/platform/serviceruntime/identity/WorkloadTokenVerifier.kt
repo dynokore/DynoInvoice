@@ -14,9 +14,13 @@ fun interface WorkloadTokenVerifier {
 sealed interface WorkloadVerification {
     /** [subject] is the calling workload's own identity (its service account) —
      * an identifier, safe to log (CS-34). */
-    data class Verified(val subject: String) : WorkloadVerification
+    data class Verified(
+        val subject: String,
+    ) : WorkloadVerification
 
     /** [reason] is a diagnostic label, never the token or a claim value (CS-34)
      * — for example `"missing"`, `"invalid"`. */
-    data class Refused(val reason: String) : WorkloadVerification
+    data class Refused(
+        val reason: String,
+    ) : WorkloadVerification
 }

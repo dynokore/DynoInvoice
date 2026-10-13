@@ -6,7 +6,9 @@ import org.testcontainers.utility.DockerImageName
 import javax.sql.DataSource
 
 /** Testcontainers needs a concrete subclass for its fluent `self()` typing (Kotlin, unlike Java, has no raw types). */
-private class Postgres(image: DockerImageName) : PostgreSQLContainer<Postgres>(image)
+private class Postgres(
+    image: DockerImageName,
+) : PostgreSQLContainer<Postgres>(image)
 
 /**
  * Isolation-test fixtures (done-when, §9.2/§13.3): starts a real PostgreSQL
@@ -20,8 +22,13 @@ private class Postgres(image: DockerImageName) : PostgreSQLContainer<Postgres>(i
  * own matrix), so this is a value a test constructs itself rather than a
  * shared JUnit extension singleton.
  */
-class PostgresProbeFixture(image: String) : AutoCloseable {
-    private val container: Postgres = Postgres(DockerImageName.parse(image)).withInitScript("db/tenancy-kernel-test-roles.sql")
+class PostgresProbeFixture(
+    image: String,
+) : AutoCloseable {
+    private val container: Postgres =
+        Postgres(
+            DockerImageName.parse(image),
+        ).withInitScript("db/tenancy-kernel-test-roles.sql")
 
     init {
         container.start()
@@ -38,7 +45,8 @@ class PostgresProbeFixture(image: String) : AutoCloseable {
      * `NOBYPASSRLS`, owns no table (S2-05): every query through this DataSource is
      * subject to the same RLS a real service's connection would be.
      */
-    fun appDataSource(): DataSource = TenantAwareDataSource(dataSourceFor("tenancy_kernel_app", "tenancy_kernel_app_pw"))
+    fun appDataSource(): DataSource =
+        TenantAwareDataSource(dataSourceFor("tenancy_kernel_app", "tenancy_kernel_app_pw"))
 
     /** The one probe table this module's own tests exercise the RLS mechanism against. */
     fun createProbeTable(owner: DataSource) {
@@ -65,9 +73,10 @@ class PostgresProbeFixture(image: String) : AutoCloseable {
     private fun dataSourceFor(
         user: String,
         password: String,
-    ): DataSource = PGSimpleDataSource().apply {
-        setUrl(container.jdbcUrl)
-        this.user = user
-        this.password = password
-    }
+    ): DataSource =
+        PGSimpleDataSource().apply {
+            setUrl(container.jdbcUrl)
+            this.user = user
+            this.password = password
+        }
 }

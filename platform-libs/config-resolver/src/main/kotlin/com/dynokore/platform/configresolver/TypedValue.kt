@@ -108,9 +108,10 @@ data class TypedValueSpec(
 
     /** The rows bounding this value or any part of it (INV-Q-3202). */
     val boundingRows: Set<VariationPointKey>
-        get() = listOfNotNull(min?.row, max?.row).toSet() +
-            listOfNotNull(item, key, value).flatMap { it.boundingRows } +
-            fields.values.flatMap { it.boundingRows }
+        get() =
+            listOfNotNull(min?.row, max?.row).toSet() +
+                listOfNotNull(item, key, value).flatMap { it.boundingRows } +
+                fields.values.flatMap { it.boundingRows }
 
     /** The number this value is fixed at (`min` = `max`), e.g. VP-79's DAYS_14 (INV-Q-3223). */
     val fixed: BigDecimal?
@@ -129,12 +130,13 @@ data class TypedValueSpec(
 
     /** Whether any part of this spec needs the owning service's [ValueConstraints] (INV-Q-3167). */
     val needsOwningService: Boolean
-        get() = listOfNotNull(min, max, minExclusive, length).any { it.named != null } ||
-            rule != null ||
-            type in REFERENCES ||
-            (type == ValueType.SET && ref != null) ||
-            listOfNotNull(item, key, value).any { it.needsOwningService } ||
-            fields.values.any { it.needsOwningService }
+        get() =
+            listOfNotNull(min, max, minExclusive, length).any { it.named != null } ||
+                rule != null ||
+                type in REFERENCES ||
+                (type == ValueType.SET && ref != null) ||
+                listOfNotNull(item, key, value).any { it.needsOwningService } ||
+                fields.values.any { it.needsOwningService }
 
     private companion object {
         val REFERENCES = setOf(ValueType.LIST_REF, ValueType.REF)

@@ -45,9 +45,10 @@ class RetentionPurgeIT {
     ) = JdbcRetentionPurge(harness.fixture.runtimeDataSource(), "payload", retention, clock, batchSize)
 
     /** A pool that hands out connections with autocommit off, as Hikari can be configured to. */
-    private fun manualCommit(source: DataSource): DataSource = object : DataSource by source {
-        override fun getConnection(): Connection = source.connection.also { it.autoCommit = false }
-    }
+    private fun manualCommit(source: DataSource): DataSource =
+        object : DataSource by source {
+            override fun getConnection(): Connection = source.connection.also { it.autoCommit = false }
+        }
 
     private fun outbox(
         harness: OutboxHarness,
@@ -77,13 +78,14 @@ class RetentionPurgeIT {
         harness: OutboxHarness,
         table: String,
         column: String,
-    ): Set<String> = harness.fixture.adminDataSource().connection.use { c ->
-        c.createStatement().use { st ->
-            st.executeQuery("select $column from payload.$table").use { rs ->
-                buildSet { while (rs.next()) add(rs.getString(1)) }
+    ): Set<String> =
+        harness.fixture.adminDataSource().connection.use { c ->
+            c.createStatement().use { st ->
+                st.executeQuery("select $column from payload.$table").use { rs ->
+                    buildSet { while (rs.next()) add(rs.getString(1)) }
+                }
             }
         }
-    }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])

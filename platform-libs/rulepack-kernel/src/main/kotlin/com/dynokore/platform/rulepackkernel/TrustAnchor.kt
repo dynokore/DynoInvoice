@@ -25,8 +25,9 @@ class TrustAnchor(
         require(certificateDer.isNotEmpty()) { "TrustAnchor certificateDer must not be empty" }
     }
 
-    override fun equals(other: Any?): Boolean = this === other ||
-        (other is TrustAnchor && label == other.label && certificateDer.contentEquals(other.certificateDer))
+    override fun equals(other: Any?): Boolean =
+        this === other ||
+            (other is TrustAnchor && label == other.label && certificateDer.contentEquals(other.certificateDer))
 
     override fun hashCode(): Int = 31 * label.hashCode() + certificateDer.contentHashCode()
 

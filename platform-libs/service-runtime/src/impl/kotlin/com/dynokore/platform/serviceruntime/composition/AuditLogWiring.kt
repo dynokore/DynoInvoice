@@ -36,7 +36,8 @@ class AuditLogWiring {
         /** Static, so it is registered before any [AuditWriter] bean is created. */
         @JvmStatic
         @Bean
-        fun operatorSessionAuditWriterPostProcessor(): OperatorSessionAuditWriterPostProcessor = OperatorSessionAuditWriterPostProcessor()
+        fun operatorSessionAuditWriterPostProcessor(): OperatorSessionAuditWriterPostProcessor =
+            OperatorSessionAuditWriterPostProcessor()
     }
 
     @Bean
@@ -53,7 +54,8 @@ class AuditLogWiring {
         gst: GstProperties,
         modules: ModuleProperties,
         clock: Clock,
-    ): LocalAuditWriter = LocalAuditWriter(connections, modules.requireSchema(), gst.requireService(), gst.requireInstanceId(), clock)
+    ): LocalAuditWriter =
+        LocalAuditWriter(connections, modules.requireSchema(), gst.requireService(), gst.requireInstanceId(), clock)
 
     @Bean
     @ConditionalOnBean(TransactionRunner::class, AuditWriter::class)
@@ -76,5 +78,17 @@ class AuditLogWiring {
         policy: ObjectProvider<OverridePolicy>,
         modules: ModuleProperties,
         clock: Clock,
-    ): JdbcOverrideService = JdbcOverrideService(connections, transactions, audit, errors, modules.requireSchema(), clock, policy.getIfAvailable { OverridePolicy() })
+    ): JdbcOverrideService =
+        JdbcOverrideService(
+            connections,
+            transactions,
+            audit,
+            errors,
+            modules.requireSchema(),
+            clock,
+            policy
+                .getIfAvailable {
+                    OverridePolicy()
+                },
+        )
 }

@@ -6,7 +6,9 @@ package com.dynokore.platform.serviceruntime.logging
  * invoice content (CS-34).
  */
 @JvmInline
-value class CorrelationId(val value: String) {
+value class CorrelationId(
+    val value: String,
+) {
     init {
         require(value.isNotBlank()) { "CorrelationId must not be blank" }
     }
@@ -19,7 +21,9 @@ value class CorrelationId(val value: String) {
  * behaviour #3). Safe to log: an identifier, not invoice content (CS-34).
  */
 @JvmInline
-value class CausationId(val value: String) {
+value class CausationId(
+    val value: String,
+) {
     init {
         require(value.isNotBlank()) { "CausationId must not be blank" }
     }

@@ -21,13 +21,18 @@ import javax.sql.DataSource
  * anything the previous logical use left behind (a session-level `SET`, an
  * uncommitted transaction) survived the handback.
  */
-class SingleSlotDataSource(url: String, user: String, password: String) : AutoCloseable {
+class SingleSlotDataSource(
+    url: String,
+    user: String,
+    password: String,
+) : AutoCloseable {
     private val physical: Connection =
-        PGSimpleDataSource().apply {
-            setUrl(url)
-            this.user = user
-            this.password = password
-        }.connection
+        PGSimpleDataSource()
+            .apply {
+                setUrl(url)
+                this.user = user
+                this.password = password
+            }.connection
 
     @Volatile private var checkedOut = false
 

@@ -8,7 +8,9 @@ package com.dynokore.platform.evidencestore
  * accepted").
  */
 @JvmInline
-value class RetentionPeriod(val years: Int) {
+value class RetentionPeriod(
+    val years: Int,
+) {
     init {
         require(years >= DEFAULT_YEARS) { "retention must be at least $DEFAULT_YEARS years (FR-D.3), was $years" }
     }

@@ -11,7 +11,9 @@ package com.dynokore.platform.serviceruntime.logging
  * ([MdcAllowListTurboFilter][com.dynokore.platform.serviceruntime.logging.MdcAllowListTurboFilter])
  * additionally strips any other key a third-party library might set directly.
  */
-enum class MdcKey(val key: String) {
+enum class MdcKey(
+    val key: String,
+) {
     CORRELATION_ID("correlation_id"),
     CAUSATION_ID("causation_id"),
     TENANT_ID("tenant_id"),

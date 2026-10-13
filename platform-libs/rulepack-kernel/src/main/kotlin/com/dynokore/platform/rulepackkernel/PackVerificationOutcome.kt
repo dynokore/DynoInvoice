@@ -6,8 +6,14 @@ sealed interface PackVerificationOutcome {
      * The artefact's checksums and detached CMS signature both check out against
      * [trustedAnchorLabel] (STK-13, including a successor key).
      */
-    data class Verified(val manifest: PackManifest, val trustedAnchorLabel: String) : PackVerificationOutcome
+    data class Verified(
+        val manifest: PackManifest,
+        val trustedAnchorLabel: String,
+    ) : PackVerificationOutcome
 
     /** Refused; never partially trusted. */
-    data class Rejected(val reason: PackRejectionReason, val detail: String) : PackVerificationOutcome
+    data class Rejected(
+        val reason: PackRejectionReason,
+        val detail: String,
+    ) : PackVerificationOutcome
 }

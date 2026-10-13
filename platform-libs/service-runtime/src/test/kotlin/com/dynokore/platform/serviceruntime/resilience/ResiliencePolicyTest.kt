@@ -15,12 +15,13 @@ class ResiliencePolicyTest {
 
     @Test
     fun `RetryPolicy enforces its invariants`() {
-        val ok = RetryPolicy(
-            maxAttempts = 3,
-            initialBackoff = Duration.ofMillis(100),
-            maxBackoff = Duration.ofSeconds(1),
-            jitter = 0.5,
-        )
+        val ok =
+            RetryPolicy(
+                maxAttempts = 3,
+                initialBackoff = Duration.ofMillis(100),
+                maxBackoff = Duration.ofSeconds(1),
+                jitter = 0.5,
+            )
         ok.maxAttempts shouldBe 3
 
         shouldThrow<IllegalArgumentException> {
@@ -83,12 +84,13 @@ class ResiliencePolicyTest {
 
     @Test
     fun `EdgePolicy allows a null retry for a non-idempotent edge`() {
-        val edge = EdgePolicy(
-            timeout = TimeoutPolicy(Duration.ofSeconds(1)),
-            retry = null,
-            circuitBreaker = CircuitBreakerPolicy(50F, 10, Duration.ofSeconds(30), 2),
-            bulkhead = BulkheadPolicy(5, Duration.ZERO),
-        )
+        val edge =
+            EdgePolicy(
+                timeout = TimeoutPolicy(Duration.ofSeconds(1)),
+                retry = null,
+                circuitBreaker = CircuitBreakerPolicy(50F, 10, Duration.ofSeconds(30), 2),
+                bulkhead = BulkheadPolicy(5, Duration.ZERO),
+            )
         edge.retry shouldBe null
     }
 }

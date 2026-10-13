@@ -77,6 +77,7 @@ class JobRuntime(
             "the TenantScope's workload principal must be the service's own (${principal.value})"
         }
     }
+
     private val jobs = ConcurrentHashMap<String, Registered>()
 
     private class Registered(
@@ -189,14 +190,20 @@ class JobRuntime(
         val window =
             scope.bindWorkload(TenantId.PLATFORM) {
                 scope.transactions.inTransaction {
-                    scope.connections.require().prepareStatement("select extract(epoch from $retentionWindow())::bigint").use {
-                        it.executeQuery().use { rows -> if (rows.next()) rows.getObject(1) as Long? else null }
-                    }
+                    scope.connections
+                        .require()
+                        .prepareStatement(
+                            "select extract(epoch from $retentionWindow())::bigint",
+                        ).use {
+                            it.executeQuery().use { rows -> if (rows.next()) rows.getObject(1) as Long? else null }
+                        }
                 }
             }
         check(window != null) { "the job-retention row is missing: run the service's migration (INV-Q-4346)" }
         check(Duration.ofSeconds(window) == retention) {
-            "the configured job retention $retention differs from the migration-written row (${Duration.ofSeconds(window)})"
+            "the configured job retention $retention differs from the migration-written row (${Duration.ofSeconds(
+                window,
+            )})"
         }
     }
 
@@ -294,12 +301,18 @@ class JobRuntime(
                             JobCommandOutcome.Done(JobPauseState(job.name, target, true, until, now), created = true)
                         }
 
-                        open == null -> null
+                        open == null -> {
+                            null
+                        }
 
                         // a concurrent pause opened first: read it again
 
-                        open.until == until ->
-                            JobCommandOutcome.Done(JobPauseState(job.name, target, true, until, open.pausedAt), created = false)
+                        open.until == until -> {
+                            JobCommandOutcome.Done(
+                                JobPauseState(job.name, target, true, until, open.pausedAt),
+                                created = false,
+                            )
+                        }
 
                         else -> {
                             state.replaceUntil(job, target, until)
@@ -351,10 +364,21 @@ class JobRuntime(
     // --- internals ---
 
     /** The pauses in force on a run-now's scope, as the run handles them. */
-    private class PausedScope(val pauses: List<Pair<TenantId, PauseInForce>>) {
-        fun priorState(): String? = if (pauses.isEmpty()) null else JobPayloads.runNowPriorState(pauses.map { it.second })
+    private class PausedScope(
+        val pauses: List<Pair<TenantId, PauseInForce>>,
+    ) {
+        fun priorState(): String? =
+            if (pauses.isEmpty()) null else JobPayloads.runNowPriorState(pauses.map { it.second })
 
-        fun skipped(): Set<Pair<TenantId, EntityRef>> = pauses.filter { it.second.skipped }.mapNotNull { (tenant, pause) -> pause.entity?.let { tenant to it } }.toSet()
+        fun skipped(): Set<Pair<TenantId, EntityRef>> =
+            pauses
+                .filter { it.second.skipped }
+                .mapNotNull { (tenant, pause) ->
+                    pause.entity?.let {
+                        tenant to
+                            it
+                    }
+                }.toSet()
     }
 
     /**
@@ -374,7 +398,11 @@ class JobRuntime(
     ): PausedScope? {
         val job = registered.job
         val pauses = mutableListOf<Pair<TenantId, PauseInForce>>()
-        val wide = inTenant(JobTarget.Whole, actor) { peekPause(job, JobTarget.Whole, now, deadlineBound(job, JobTarget.Whole)) }
+        val wide =
+            inTenant(
+                JobTarget.Whole,
+                actor,
+            ) { peekPause(job, JobTarget.Whole, now, deadlineBound(job, JobTarget.Whole)) }
         if (wide != null) {
             if (!authorizer.isPlatformOperator(actor, JobCommand.RESUME)) return null
             pauses += TenantId.PLATFORM to PauseInForce(null, wide.until, wide.pausedAt, skipped = false)
@@ -482,9 +510,10 @@ class JobRuntime(
         target: JobTarget,
         at: Instant,
         bound: Instant?,
-    ): PauseRow? = state.openPause(job, target)?.takeIf {
-        at.isBefore(if (bound != null && bound.isBefore(it.until)) bound else it.until)
-    }
+    ): PauseRow? =
+        state.openPause(job, target)?.takeIf {
+            at.isBefore(if (bound != null && bound.isBefore(it.until)) bound else it.until)
+        }
 
     /**
      * Runs the body and records the run. A scheduled firing skips paused entities' items; a run-now passes
@@ -526,24 +555,33 @@ class JobRuntime(
         durationMillis: Long,
         correlation: CorrelationId,
         causation: CausationId? = null,
-    ): Boolean = inRun(registered.job, key.target) {
-        val now = clock.instant()
-        val finished = state.finish(key, failure, now, durationMillis)
-        if (finished) {
-            val nextRunAt = registered.ticks.next(now)
-            val payload = JobPayloads.jobRunRecorded(registered.job, key.target, failure, durationMillis, key.tick, nextRunAt)
-            outbox.append(
-                listOf(OutboundEvent(JobPayloads.JOB_RUN_RECORDED, payload)),
-                context(
-                    key.target,
-                    aggregateKey(registered.job),
-                    correlation,
-                    causation ?: CausationId(correlation.value),
-                ),
-            )
+    ): Boolean =
+        inRun(registered.job, key.target) {
+            val now = clock.instant()
+            val finished = state.finish(key, failure, now, durationMillis)
+            if (finished) {
+                val nextRunAt = registered.ticks.next(now)
+                val payload =
+                    JobPayloads.jobRunRecorded(
+                        registered.job,
+                        key.target,
+                        failure,
+                        durationMillis,
+                        key.tick,
+                        nextRunAt,
+                    )
+                outbox.append(
+                    listOf(OutboundEvent(JobPayloads.JOB_RUN_RECORDED, payload)),
+                    context(
+                        key.target,
+                        aggregateKey(registered.job),
+                        correlation,
+                        causation ?: CausationId(correlation.value),
+                    ),
+                )
+            }
+            finished
         }
-        finished
-    }
 
     private data class Candidate(
         val job: String,
@@ -555,37 +593,47 @@ class JobRuntime(
     )
 
     /** The IN_PROGRESS runs, oldest first, through the `<svc>_sys` view (INV-Q-4346), as the service's principal. */
-    private fun abandonedCandidates(): List<Candidate> = scope.bindWorkload(TenantId.PLATFORM) {
-        scope.transactions.inTransaction {
-            scope.connections.require().prepareStatement(
-                """
-                select tenant_id, job, entity_ref, tick, trigger, attempt, started_at from $inProgress
-                order by started_at limit ?
-                """.trimIndent(),
-            ).use { statement ->
-                statement.setInt(1, SWEEP_BATCH)
-                statement.executeQuery().use { rows ->
-                    buildList {
-                        while (rows.next()) {
-                            val tenant = TenantId(rows.getObject(1, UUID::class.java))
-                            val target =
-                                if (tenant.isPlatform) JobTarget.Whole else JobTarget.Entity(tenant, EntityRef(rows.getString(3)))
-                            add(
-                                Candidate(
-                                    rows.getString(2),
-                                    target,
-                                    rows.getTimestamp(4).toInstant(),
-                                    JobTrigger.valueOf(rows.getString(5)),
-                                    rows.getInt(6),
-                                    rows.getTimestamp(7).toInstant(),
-                                ),
-                            )
+    private fun abandonedCandidates(): List<Candidate> =
+        scope.bindWorkload(TenantId.PLATFORM) {
+            scope.transactions.inTransaction {
+                scope.connections
+                    .require()
+                    .prepareStatement(
+                        """
+                        select tenant_id, job, entity_ref, tick, trigger, attempt, started_at from $inProgress
+                        order by started_at limit ?
+                        """.trimIndent(),
+                    ).use { statement ->
+                        statement.setInt(1, SWEEP_BATCH)
+                        statement.executeQuery().use { rows ->
+                            buildList {
+                                while (rows.next()) {
+                                    val tenant = TenantId(rows.getObject(1, UUID::class.java))
+                                    val target =
+                                        if (tenant.isPlatform) {
+                                            JobTarget.Whole
+                                        } else {
+                                            JobTarget.Entity(
+                                                tenant,
+                                                EntityRef(rows.getString(3)),
+                                            )
+                                        }
+                                    add(
+                                        Candidate(
+                                            rows.getString(2),
+                                            target,
+                                            rows.getTimestamp(4).toInstant(),
+                                            JobTrigger.valueOf(rows.getString(5)),
+                                            rows.getInt(6),
+                                            rows.getTimestamp(7).toInstant(),
+                                        ),
+                                    )
+                                }
+                            }
                         }
                     }
-                }
             }
         }
-    }
 
     private fun recordAudit(
         request: JobCommandRequest,
@@ -609,15 +657,17 @@ class JobRuntime(
     ) = AuditEntry(
         actor = request.actor,
         action = command.operationId,
-        scope = when (target) {
-            JobTarget.Whole -> aggregateKey(job)
-            is JobTarget.Entity -> "${aggregateKey(job)}/${target.entity}"
-        },
+        scope =
+            when (target) {
+                JobTarget.Whole -> aggregateKey(job)
+                is JobTarget.Entity -> "${aggregateKey(job)}/${target.entity}"
+            },
         reason = "Idempotency-Key ${request.idempotencyKey}" + (request.reason?.let { ": $it" } ?: ""),
         priorStateJson = priorState,
     )
 
-    private fun pausedJson(open: PauseRow) = """{"state":"PAUSED","until":"${open.until}","pausedAt":"${open.pausedAt}"}"""
+    private fun pausedJson(open: PauseRow) =
+        """{"state":"PAUSED","until":"${open.until}","pausedAt":"${open.pausedAt}"}"""
 
     private fun runState(
         job: JobDefinition,

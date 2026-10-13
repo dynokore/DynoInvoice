@@ -4,7 +4,9 @@ import com.dynokore.platform.tenancykernel.TenantId
 
 /** The registered entity an event concerns (FR-K.3, CloudEvents attribute `entityref`). */
 @JvmInline
-value class EntityRef(val value: String) {
+value class EntityRef(
+    val value: String,
+) {
     init {
         require(value.isNotBlank()) { "entity reference must not be blank" }
     }
@@ -45,7 +47,10 @@ internal const val PLATFORM_PAIR =
         "(INV-Q-2927 option D, INV-Q-3014, INV-Q-3165)"
 
 /** The pairing rule: PLATFORM only with the platform tenant, TENANT_WIDE only with a real tenant. */
-internal fun pairingHolds(tenant: TenantId, entity: EntityRef): Boolean {
+internal fun pairingHolds(
+    tenant: TenantId,
+    entity: EntityRef,
+): Boolean {
     if (tenant.isPlatform) return entity.isPlatform
     return !entity.isPlatform
 }

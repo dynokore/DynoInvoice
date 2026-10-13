@@ -59,21 +59,31 @@ class ServiceOnlyAutoConfiguredApplication
 class Tpl18WithoutDataSourceApplication
 
 class WithProductRuntime : DeferredImportSelector {
-    override fun selectImports(importingClassMetadata: AnnotationMetadata): Array<String> = sorted(platform() + DataSourceAutoConfiguration::class.java + ProductRuntimeConfiguration::class.java)
+    override fun selectImports(importingClassMetadata: AnnotationMetadata): Array<String> =
+        sorted(platform() + DataSourceAutoConfiguration::class.java + ProductRuntimeConfiguration::class.java)
 }
 
 class WithoutProductRuntime : DeferredImportSelector {
-    override fun selectImports(importingClassMetadata: AnnotationMetadata): Array<String> = sorted(platform() + DataSourceAutoConfiguration::class.java)
+    override fun selectImports(importingClassMetadata: AnnotationMetadata): Array<String> =
+        sorted(platform() + DataSourceAutoConfiguration::class.java)
 }
 
 class WithoutJdbc : DeferredImportSelector {
-    override fun selectImports(importingClassMetadata: AnnotationMetadata): Array<String> = sorted(platform() + ProductRuntimeConfiguration::class.java)
+    override fun selectImports(importingClassMetadata: AnnotationMetadata): Array<String> =
+        sorted(platform() + ProductRuntimeConfiguration::class.java)
 }
 
 /** The platform-libs auto-configurations listed in `AutoConfiguration.imports` on the classpath. */
-internal fun platform(): List<Class<*>> = ImportCandidates.load(AutoConfiguration::class.java, Composition::class.java.classLoader)
-    .filter { it.startsWith("com.dynokore.platform.") }
-    .map { Class.forName(it) }
+internal fun platform(): List<Class<*>> =
+    ImportCandidates
+        .load(AutoConfiguration::class.java, Composition::class.java.classLoader)
+        .filter { it.startsWith("com.dynokore.platform.") }
+        .map { Class.forName(it) }
 
 /** In Spring Boot's auto-configuration order (@AutoConfiguration before/after). */
-internal fun sorted(classes: List<Class<*>>): Array<String> = Configurations.getClasses(AutoConfigurations.of(*classes.toTypedArray())).map { it.name }.toTypedArray()
+internal fun sorted(classes: List<Class<*>>): Array<String> =
+    Configurations
+        .getClasses(AutoConfigurations.of(*classes.toTypedArray()))
+        .map {
+            it.name
+        }.toTypedArray()

@@ -20,8 +20,15 @@ plugins {
 // Every module whose classes the suite runs, evaluated first so their source sets and impl jars can be read.
 val suiteModules =
     listOf(
-        "service-runtime", "outbox-and-queue", "rulepack-kernel", "tenancy-kernel", "evidence-store",
-        "adapter-runtime", "config-resolver", "audit-log", "product-runtime",
+        "service-runtime",
+        "outbox-and-queue",
+        "rulepack-kernel",
+        "tenancy-kernel",
+        "evidence-store",
+        "adapter-runtime",
+        "config-resolver",
+        "audit-log",
+        "product-runtime",
     )
 suiteModules.forEach { evaluationDependsOn(":$it") }
 
@@ -110,7 +117,13 @@ fun Test.suiteDefaults() {
     jvmArgs("-Duser.timezone=UTC") // CS-41 baseline
     systemProperty("user.language", "de")
     systemProperty("user.country", "DE")
-    systemProperty("pact.rootDir", layout.buildDirectory.dir("pacts").get().asFile.path)
+    systemProperty(
+        "pact.rootDir",
+        layout.buildDirectory
+            .dir("pacts")
+            .get()
+            .asFile.path,
+    )
     systemProperty("contracttests.bundleVersion", bundleVersion.get())
     systemProperty("contracttests.gstCatalogueVersion", libs.versions.gstCatalogue.get())
 }
@@ -148,6 +161,7 @@ tasks.register<Test>("pactBrokerVerify") {
     suiteDefaults()
     outputs.upToDateWhen { false }
     filter { includeTestsMatching("com.dynokore.platform.contracttests.provider.*BrokerTest") }
+
     // The broker URL and basic-auth pair are read by the test from the masked CI variables PACT_BROKER_BASE_URL,
     // PACT_BROKER_USERNAME and PACT_BROKER_PASSWORD (Pact's expression resolver falls back to the environment), so
     // no credential becomes a task input (P99).

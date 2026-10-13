@@ -50,7 +50,9 @@ private class MigratedTable(
 }
 
 /** Testcontainers needs a concrete subclass for its fluent `self()` typing (Kotlin, unlike Java, has no raw types). */
-private class Postgres(image: DockerImageName) : PostgreSQLContainer<Postgres>(image)
+private class Postgres(
+    image: DockerImageName,
+) : PostgreSQLContainer<Postgres>(image)
 
 /**
  * Proves [PackRegistryMigration]'s row-level security and its `register_platform_pack` function against a real
@@ -406,12 +408,13 @@ class PackRegistryMigrationPostgresIT {
     }
 
     /** True when [block] is refused because `app.actor` is unset or blank. */
-    private fun refusedForActor(block: () -> Unit): Boolean = try {
-        block()
-        false
-    } catch (refused: DataAccessException) {
-        "app.actor is not set" in refused.message.orEmpty()
-    }
+    private fun refusedForActor(block: () -> Unit): Boolean =
+        try {
+            block()
+            false
+        } catch (refused: DataAccessException) {
+            "app.actor is not set" in refused.message.orEmpty()
+        }
 
     /**
      * An UPDATE of registered_by is refused on a tenant row by the trigger and finds no platform row under the policy

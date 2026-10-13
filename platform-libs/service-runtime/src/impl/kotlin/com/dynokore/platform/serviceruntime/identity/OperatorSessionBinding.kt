@@ -55,7 +55,11 @@ class OperatorSessionBindingFilter(
         val token = parts?.getOrNull(1)?.trim()
         if (token.isNullOrEmpty() || !parts[0].equals("Bearer", ignoreCase = true)) return false
         return try {
-            JWTParser.parse(token).jwtClaimsSet?.claims?.containsKey(OperatorSessionTokens.ACT_CLAIM) == true
+            JWTParser
+                .parse(token)
+                .jwtClaimsSet
+                ?.claims
+                ?.containsKey(OperatorSessionTokens.ACT_CLAIM) == true
         } catch (malformed: ParseException) {
             false
         }

@@ -30,7 +30,9 @@ data class OutboundMessage(
 enum class MessageChannel { MAIL, WEBHOOK }
 
 /** What [MessageDelivery.send] hands back: not necessarily delivered yet, only accepted for delivery tracking. */
-data class DeliveryReceipt(val deliveryId: String) {
+data class DeliveryReceipt(
+    val deliveryId: String,
+) {
     init {
         require(deliveryId.isNotBlank()) { "deliveryId must not be blank" }
     }

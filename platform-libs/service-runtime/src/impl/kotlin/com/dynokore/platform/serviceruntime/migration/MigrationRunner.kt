@@ -41,10 +41,11 @@ object MigrationRunner {
     }
 
     /** Runs the migrations with [args] as command-line properties and returns the closed-to-be context. */
-    fun run(vararg args: String): ConfigurableApplicationContext = SpringApplicationBuilder(MigrationRunnerConfiguration::class.java)
-        .web(WebApplicationType.NONE)
-        .initializers(ForceMigration())
-        .run(*args)
+    fun run(vararg args: String): ConfigurableApplicationContext =
+        SpringApplicationBuilder(MigrationRunnerConfiguration::class.java)
+            .web(WebApplicationType.NONE)
+            .initializers(ForceMigration())
+            .run(*args)
 
     /** Flyway on, at the highest precedence: the runner exists to migrate (a service's own `false` is its start-up). */
     private class ForceMigration : ApplicationContextInitializer<ConfigurableApplicationContext> {
@@ -84,20 +85,21 @@ class MigrationRunnerConfiguration {
         flyway: Flyway,
         modules: ModuleProperties,
         jobs: JobProperties,
-    ): ApplicationRunner = ApplicationRunner {
-        val schema = modules.schema?.takeIf { it.isNotBlank() } ?: return@ApplicationRunner
-        flyway.configuration.dataSource.connection.use { connection ->
-            val present =
-                connection.prepareStatement("select to_regclass(?) is not null").use {
-                    it.setString(1, "${SqlIdentifier.require(schema, "schema")}.${JobSchema.JOB_RETENTION}")
-                    it.executeQuery().use { rows -> rows.next() && rows.getBoolean(1) }
+    ): ApplicationRunner =
+        ApplicationRunner {
+            val schema = modules.schema?.takeIf { it.isNotBlank() } ?: return@ApplicationRunner
+            flyway.configuration.dataSource.connection.use { connection ->
+                val present =
+                    connection.prepareStatement("select to_regclass(?) is not null").use {
+                        it.setString(1, "${SqlIdentifier.require(schema, "schema")}.${JobSchema.JOB_RETENTION}")
+                        it.executeQuery().use { rows -> rows.next() && rows.getBoolean(1) }
+                    }
+                if (present) {
+                    JobSchema.writeRetention(connection, schema, jobs.retention)
+                    log.info("job retention row written: {}", jobs.retention)
                 }
-            if (present) {
-                JobSchema.writeRetention(connection, schema, jobs.retention)
-                log.info("job retention row written: {}", jobs.retention)
             }
         }
-    }
 
     private companion object {
         val log = LoggerFactory.getLogger(MigrationRunnerConfiguration::class.java)

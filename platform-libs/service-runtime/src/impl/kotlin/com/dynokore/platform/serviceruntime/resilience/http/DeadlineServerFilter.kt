@@ -34,9 +34,10 @@ class DeadlineServerFilter(
         chain: FilterChain,
     ) {
         val remainingMillis = (request as HttpServletRequest).getHeader(Deadline.HEADER_NAME)?.toLongOrNull()
-        val deadline = remainingMillis
-            ?.let { Deadline.ofRemainingMillis(it, clock) }
-            ?: Deadline.after(defaultBudget, clock)
+        val deadline =
+            remainingMillis
+                ?.let { Deadline.ofRemainingMillis(it, clock) }
+                ?: Deadline.after(defaultBudget, clock)
         CurrentDeadline.callWith(deadline) { chain.doFilter(request, response) }
     }
 }

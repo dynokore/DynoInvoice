@@ -94,13 +94,14 @@ class RelayOutageIT {
 
             val consumer = harness.submission
             val transport = TransportStub()
-            val inbox = harness.consumer(
-                "submission-svc",
-                PAYLOAD_READY_TOPIC,
-                "submission",
-                consumer.boundary,
-                SubmissionFixtureHandler(consumer.boundary, transport),
-            )
+            val inbox =
+                harness.consumer(
+                    "submission-svc",
+                    PAYLOAD_READY_TOPIC,
+                    "submission",
+                    consumer.boundary,
+                    SubmissionFixtureHandler(consumer.boundary, transport),
+                )
             val result = inbox.pollOnce()
             assertEquals(1, result.applied)
             assertEquals(1, result.duplicates)
@@ -115,33 +116,37 @@ class RelayOutageIT {
             val kit = harness.payload
             val tenant = UUID.randomUUID()
             val doc = UUID.randomUUID()
-            val a = kit.inTx(tenant) {
-                kit.writer.append(
-                    listOf(OutboundEvent(TestCatalogue.PAYLOAD_READY, "{}")),
-                    kit.docContext(tenant, doc),
-                )
-            }
-            val b = kit.inTx(tenant) {
-                kit.writer.append(
-                    listOf(
-                        OutboundEvent(TestCatalogue.PAYLOAD_READY, "{}"),
-                        OutboundEvent(TestCatalogue.PAYLOAD_READY, "{}"),
-                    ),
-                    kit.docContext(tenant, doc),
-                )
-            }
-            val c = kit.inTx(tenant) {
-                kit.writer.append(
-                    listOf(OutboundEvent(TestCatalogue.PAYLOAD_READY, "{}")),
-                    kit.docContext(tenant, doc).copy(aggregateVersion = 10),
-                )
-            }
-            val d = kit.inTx(tenant) {
-                kit.writer.append(
-                    listOf(OutboundEvent(TestCatalogue.PAYLOAD_READY, "{}")),
-                    kit.docContext(tenant, doc).copy(aggregateVersion = 3),
-                )
-            }
+            val a =
+                kit.inTx(tenant) {
+                    kit.writer.append(
+                        listOf(OutboundEvent(TestCatalogue.PAYLOAD_READY, "{}")),
+                        kit.docContext(tenant, doc),
+                    )
+                }
+            val b =
+                kit.inTx(tenant) {
+                    kit.writer.append(
+                        listOf(
+                            OutboundEvent(TestCatalogue.PAYLOAD_READY, "{}"),
+                            OutboundEvent(TestCatalogue.PAYLOAD_READY, "{}"),
+                        ),
+                        kit.docContext(tenant, doc),
+                    )
+                }
+            val c =
+                kit.inTx(tenant) {
+                    kit.writer.append(
+                        listOf(OutboundEvent(TestCatalogue.PAYLOAD_READY, "{}")),
+                        kit.docContext(tenant, doc).copy(aggregateVersion = 10),
+                    )
+                }
+            val d =
+                kit.inTx(tenant) {
+                    kit.writer.append(
+                        listOf(OutboundEvent(TestCatalogue.PAYLOAD_READY, "{}")),
+                        kit.docContext(tenant, doc).copy(aggregateVersion = 3),
+                    )
+                }
 
             assertEquals(listOf(1L, 2L, 3L, 10L, 11L), (a + b + c + d).map { it.docSequence })
         }
@@ -178,9 +183,7 @@ class RelayOutageIT {
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
-    fun `outbox rows are tenant-isolated and the runtime login sees only claim columns across tenants`(
-        image: String,
-    ) {
+    fun `outbox rows are tenant-isolated and the runtime login sees only claim columns across tenants`(image: String) {
         OutboxHarness(image).use { harness ->
             val kit = harness.payload
             val doc = UUID.randomUUID()
@@ -220,17 +223,22 @@ class RelayOutageIT {
         assertEquals(0, consumer.pollOnce().total)
     }
 
-    private fun rowsVisible(kit: ServiceKit): Int = kit.boundary.require().createStatement().use { statement ->
-        statement.executeQuery("select count(*) from payload.outbox").use { rows ->
-            rows.next()
-            rows.getInt(1)
+    private fun rowsVisible(kit: ServiceKit): Int =
+        kit.boundary.require().createStatement().use { statement ->
+            statement.executeQuery("select count(*) from payload.outbox").use { rows ->
+                rows.next()
+                rows.getInt(1)
+            }
         }
-    }
 
     private fun versionOf(
         harness: OutboxHarness,
         event: Envelope,
-    ): Int = harness.mapper.readTree(event.dataJson).get("version").asInt()
+    ): Int =
+        harness.mapper
+            .readTree(event.dataJson)
+            .get("version")
+            .asInt()
 
     private companion object {
         const val DOCS = 6

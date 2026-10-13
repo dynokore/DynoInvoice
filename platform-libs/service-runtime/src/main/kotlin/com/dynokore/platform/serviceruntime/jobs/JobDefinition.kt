@@ -24,7 +24,10 @@ enum class JobEntityScope { PLATFORM, ENTITY }
  * schedule visible (`JobRegistered.schedule`) and defines the run window of a run-now (INV-Q-3034).
  * The expression is checked when the job registers.
  */
-data class JobSchedule(val cron: String, val zone: ZoneId = ZoneOffset.UTC) {
+data class JobSchedule(
+    val cron: String,
+    val zone: ZoneId = ZoneOffset.UTC,
+) {
     init {
         require(cron.isNotBlank()) { "schedule must not be blank" }
     }

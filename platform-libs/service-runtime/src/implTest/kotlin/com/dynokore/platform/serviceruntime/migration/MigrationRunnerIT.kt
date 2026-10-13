@@ -81,22 +81,29 @@ class MigrationRunnerIT {
             // the runner, with the service's own `spring.flyway.enabled=false` in its configuration
             val args =
                 (
-                    database + arrayOf(
-                        "spring.flyway.enabled=false",
-                        "spring.flyway.user=$MIGRATE",
-                        "service-runtime.flyway.credential=$MIGRATE_REF",
-                        "service-runtime.modules.schema=ledger",
-                        "service-runtime.jobs.retention=2d",
-                    )
-                    ).map { "--$it" }.toTypedArray()
+                    database +
+                        arrayOf(
+                            "spring.flyway.enabled=false",
+                            "spring.flyway.user=$MIGRATE",
+                            "service-runtime.flyway.credential=$MIGRATE_REF",
+                            "service-runtime.modules.schema=ledger",
+                            "service-runtime.jobs.retention=2d",
+                        )
+                ).map { "--$it" }.toTypedArray()
             MigrationRunner.run(*args).close()
-            pg.query("select string_agg(distinct installed_by, ',') from ledger.flyway_schema_history where success") shouldBe MIGRATE
-            pg.query("select tableowner from pg_tables where schemaname = 'ledger' and tablename = 'job_run'") shouldBe MIGRATE
-            pg.query("select extract(epoch from job_window)::bigint from ledger.job_retention") shouldBe "${2 * 24 * 3600}"
+            pg.query(
+                "select string_agg(distinct installed_by, ',') from ledger.flyway_schema_history where success",
+            ) shouldBe
+                MIGRATE
+            pg.query("select tableowner from pg_tables where schemaname = 'ledger' and tablename = 'job_run'") shouldBe
+                MIGRATE
+            pg.query("select extract(epoch from job_window)::bigint from ledger.job_retention") shouldBe
+                "${2 * 24 * 3600}"
 
             // a second run re-applies the configured retention with bound parameters
             MigrationRunner.run(*args.map { it.replace("retention=2d", "retention=3d") }.toTypedArray()).close()
-            pg.query("select extract(epoch from job_window)::bigint from ledger.job_retention") shouldBe "${3 * 24 * 3600}"
+            pg.query("select extract(epoch from job_window)::bigint from ledger.job_retention") shouldBe
+                "${3 * 24 * 3600}"
             output.all shouldNotContain migrate
         }
     }
@@ -105,12 +112,22 @@ class MigrationRunnerIT {
     fun `the runner refuses a login that is not svc_migrate and a run without the SecretStore credential`(
         @TempDir mountRoot: Path,
     ) {
-        val base = arrayOf("--spring.datasource.url=jdbc:postgresql://localhost:1/none", "--gst.bindings.secret-store.mount-root=$mountRoot")
-        val owner = shouldThrow<IllegalArgumentException> {
-            MigrationRunner.run(*base, "--spring.flyway.user=submission_owner", "--service-runtime.flyway.credential=$MIGRATE_REF")
-        }
+        val base =
+            arrayOf(
+                "--spring.datasource.url=jdbc:postgresql://localhost:1/none",
+                "--gst.bindings.secret-store.mount-root=$mountRoot",
+            )
+        val owner =
+            shouldThrow<IllegalArgumentException> {
+                MigrationRunner.run(
+                    *base,
+                    "--spring.flyway.user=submission_owner",
+                    "--service-runtime.flyway.credential=$MIGRATE_REF",
+                )
+            }
         owner.message.orEmpty() shouldContain "<svc>_migrate"
-        val noCredential = shouldThrow<IllegalArgumentException> { MigrationRunner.run(*base, "--spring.flyway.user=$MIGRATE") }
+        val noCredential =
+            shouldThrow<IllegalArgumentException> { MigrationRunner.run(*base, "--spring.flyway.user=$MIGRATE") }
         noCredential.message.orEmpty() shouldContain "service-runtime.flyway.credential"
     }
 

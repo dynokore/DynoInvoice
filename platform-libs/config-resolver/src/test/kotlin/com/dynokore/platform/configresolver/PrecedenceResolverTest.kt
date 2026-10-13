@@ -65,7 +65,11 @@ class PrecedenceResolverTest {
         scope: PolicyScope = e1,
         at: LocalDate = day,
         form: DeploymentForm = DeploymentForm.SAAS,
-    ) = resolver(form).resolve(key, scope, at).selected.single().key
+    ) = resolver(form)
+        .resolve(key, scope, at)
+        .selected
+        .single()
+        .key
 
     private fun resolver(form: DeploymentForm = DeploymentForm.SAAS): PrecedenceResolver {
         val lookup =
@@ -113,7 +117,14 @@ class PrecedenceResolverTest {
         put(ALL_LEVELS, ScopeLevel.ENTITY, "E1", "FOUR_EYES_PLUS", SettingSource.PROFILE, profile = "p" to "1")
         put(ALL_LEVELS, ScopeLevel.INSTALLATION, "installation", "SOLE_OPERATOR")
 
-        assertEquals("SOLE_OPERATOR", resolver().resolve(ALL_LEVELS, fullScope, day).selected.single().key)
+        assertEquals(
+            "SOLE_OPERATOR",
+            resolver()
+                .resolve(ALL_LEVELS, fullScope, day)
+                .selected
+                .single()
+                .key,
+        )
     }
 
     @Test

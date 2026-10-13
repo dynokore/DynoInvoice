@@ -23,7 +23,9 @@ import java.util.concurrent.Executor
 import javax.sql.DataSource
 
 /** A settable clock shared by the replicas of a test. */
-class MutableClock(var now: Instant) : Clock() {
+class MutableClock(
+    var now: Instant,
+) : Clock() {
     override fun instant(): Instant = now
 
     override fun getZone(): ZoneId = ZoneOffset.UTC
@@ -54,7 +56,9 @@ class FakeAuthorizer(
 }
 
 /** A deadline source whose due dates the test moves (INV-Q-2946: due dates can move earlier). */
-class MovableDeadlines(var margin: Duration = Duration.ofHours(1)) : DeadlineSource {
+class MovableDeadlines(
+    var margin: Duration = Duration.ofHours(1),
+) : DeadlineSource {
     val due = mutableMapOf<JobTarget, Instant>()
 
     override fun nearestDueDate(
@@ -74,7 +78,9 @@ class MovableDeadlines(var margin: Duration = Duration.ofHours(1)) : DeadlineSou
  * login [OutboxPostgresFixture.APP] and the sys role [OutboxPostgresFixture.SYS]). Each [replica] is one
  * service instance with its own transaction runner, outbox writer (instance id) and [JobRuntime].
  */
-class JobsHarness(image: String) : AutoCloseable {
+class JobsHarness(
+    image: String,
+) : AutoCloseable {
     val fixture = OutboxPostgresFixture(image)
 
     init {
@@ -102,8 +108,17 @@ class JobsHarness(image: String) : AutoCloseable {
         val outbox = JdbcOutboxWriter(tx, SCHEMA, SERVICE, instance, CATALOGUE, clock)
         val runtime =
             JobRuntime(
-                SERVICE, SCHEMA, scope, outbox, OutboxAuditWriter(outbox), fixture.runtimeDataSource(), authorizer,
-                deadlines, clock, executor, retention,
+                SERVICE,
+                SCHEMA,
+                scope,
+                outbox,
+                OutboxAuditWriter(outbox),
+                fixture.runtimeDataSource(),
+                authorizer,
+                deadlines,
+                clock,
+                executor,
+                retention,
             )
 
         /** Binds [tenant] with a test operator's actor (INV-REQ-854 b1). */
@@ -127,19 +142,20 @@ class JobsHarness(image: String) : AutoCloseable {
     fun rows(
         sql: String,
         vararg args: Any,
-    ): List<Map<String, Any?>> = fixture.adminDataSource().connection.use { connection ->
-        connection.prepareStatement(sql).use { statement ->
-            args.forEachIndexed { index, value -> statement.setObject(index + 1, value) }
-            statement.executeQuery().use { rows ->
-                val meta = rows.metaData
-                buildList {
-                    while (rows.next()) {
-                        add((1..meta.columnCount).associate { meta.getColumnLabel(it) to rows.getObject(it) })
+    ): List<Map<String, Any?>> =
+        fixture.adminDataSource().connection.use { connection ->
+            connection.prepareStatement(sql).use { statement ->
+                args.forEachIndexed { index, value -> statement.setObject(index + 1, value) }
+                statement.executeQuery().use { rows ->
+                    val meta = rows.metaData
+                    buildList {
+                        while (rows.next()) {
+                            add((1..meta.columnCount).associate { meta.getColumnLabel(it) to rows.getObject(it) })
+                        }
                     }
                 }
             }
         }
-    }
 
     /** Outbox rows of [type] for [job]'s aggregate. */
     fun events(
@@ -156,6 +172,7 @@ class JobsHarness(image: String) : AutoCloseable {
         const val SERVICE = "submission-svc"
         const val TEST_ACTOR = "test-operator"
         const val AUDIT = "com.dynokore.gst.platform.AuditEntryRecorded.v1"
+
         private fun entry(
             type: String,
             topic: String,

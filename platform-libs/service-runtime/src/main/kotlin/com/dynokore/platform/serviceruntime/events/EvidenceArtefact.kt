@@ -10,7 +10,9 @@ import java.util.Locale
  * received, never drops or rewrites it, so evidence-svc's uniqueness on (artefactType, reference, hash) holds.
  */
 @JvmInline
-value class EvidenceArtefactType(val value: String) {
+value class EvidenceArtefactType(
+    val value: String,
+) {
     init {
         require(PATTERN.matches(value)) { "artefact type is UPPER_SNAKE_CASE (API-09)" }
     }

@@ -17,7 +17,9 @@ import java.nio.file.Path
  * very next read, with no restart and no explicit file-watch machinery needed
  * here.
  */
-class MountedFileSecretStore(private val mountRoot: Path) : SecretStore {
+class MountedFileSecretStore(
+    private val mountRoot: Path,
+) : SecretStore {
     override fun read(ref: SecretRef): Secret {
         val path = mountRoot.resolve(ref.value).normalize()
         require(path.startsWith(mountRoot.normalize())) { "SecretRef escaped the mount root: '$ref'" }

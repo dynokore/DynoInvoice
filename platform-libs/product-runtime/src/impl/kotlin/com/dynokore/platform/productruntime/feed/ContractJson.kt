@@ -22,11 +22,12 @@ internal object ContractJson {
     fun <T : Any> read(
         json: String,
         type: Class<T>,
-    ): T = try {
-        mapper.readValue(json, type)
-    } catch (e: JacksonException) {
-        throw ContractViolation("payload does not match ${type.simpleName}: ${e.originalMessage}", e)
-    }
+    ): T =
+        try {
+            mapper.readValue(json, type)
+        } catch (e: JacksonException) {
+            throw ContractViolation("payload does not match ${type.simpleName}: ${e.originalMessage}", e)
+        }
 
     fun write(value: Any): String = mapper.writeValueAsString(value)
 }

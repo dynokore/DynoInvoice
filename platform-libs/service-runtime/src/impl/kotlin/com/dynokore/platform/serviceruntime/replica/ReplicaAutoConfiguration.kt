@@ -61,5 +61,10 @@ class ReplicaAutoConfiguration {
         properties: ReplicaProperties,
         registry: ResilienceRegistry,
         fallback: ObjectProvider<AuthorityFallback>,
-    ): AuthorityReplica = AuthorityReplica(clock, properties.authorityLagBound, fallback.ifAvailable?.guardedBy(registry.forEdge(ACCESS_EDGE)))
+    ): AuthorityReplica =
+        AuthorityReplica(
+            clock,
+            properties.authorityLagBound,
+            fallback.ifAvailable?.guardedBy(registry.forEdge(ACCESS_EDGE)),
+        )
 }

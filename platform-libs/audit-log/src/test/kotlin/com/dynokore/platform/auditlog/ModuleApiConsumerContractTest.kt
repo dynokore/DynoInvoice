@@ -129,16 +129,17 @@ class ModuleApiConsumerContractTest {
             }
         }
 
-        fun exportSupportBundle(tenant: UUID): UUID = h.asTenant(tenant) {
-            val entry = AuditEntry("operator-1", "exportSupportBundle", "tenant:$tenant")
-            h.operations.read(entry, h.context(tenant)) {
-                // The bundle is assembled from existing data; it reads the tenant's rows and returns an id.
-                h.boundary.require().prepareStatement("select count(*) from submission.support_bundle").use {
-                    it.executeQuery().close()
+        fun exportSupportBundle(tenant: UUID): UUID =
+            h.asTenant(tenant) {
+                val entry = AuditEntry("operator-1", "exportSupportBundle", "tenant:$tenant")
+                h.operations.read(entry, h.context(tenant)) {
+                    // The bundle is assembled from existing data; it reads the tenant's rows and returns an id.
+                    h.boundary.require().prepareStatement("select count(*) from submission.support_bundle").use {
+                        it.executeQuery().close()
+                    }
+                    UUID.randomUUID()
                 }
-                UUID.randomUUID()
             }
-        }
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")

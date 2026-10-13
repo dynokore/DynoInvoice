@@ -96,7 +96,10 @@ class EventLogTenantIsolationIT {
     fun `a runtime login reads only its subscribed topics and a non-subscriber's claim returns nothing`(image: String) {
         OutboxHarness(image).use { harness ->
             val a = UUID.randomUUID()
-            harness.fixture.eventLogDataSource().connection.use { insert(it, bound = a, row = a) }
+            harness.fixture
+                .eventLogDataSource()
+                .connection
+                .use { insert(it, bound = a, row = a) }
             val replayTable = "eventlog.gst_canonical_replay_reconciliation_v1"
             // recon_runtime subscribes only to its replay topics: no SELECT on the audit topic, and its claim is empty
             harness.fixture.roleDataSource("recon_runtime").connection.use { other ->
@@ -116,6 +119,7 @@ class EventLogTenantIsolationIT {
     @Test
     fun `the generated key is injective and every login a plain identifier`() {
         val sys = OutboxPostgresFixture.EVENTLOG_SYS
+
         fun topic(name: String) = EventLogSchema.Topic(name, setOf("a_runtime"), setOf("b_runtime"), false)
         assertThrows(IllegalArgumentException::class.java, {
             EventLogSchema.functionsDdl(listOf(topic("gst.a.b-c.v1"), topic("gst.a.b.c.v1")), sys, "purge")
@@ -162,23 +166,25 @@ class EventLogTenantIsolationIT {
     private fun claimed(
         connection: Connection,
         topic: String,
-    ): Int = connection.prepareStatement("select count(*) from eventlog.claim(?, 0, 100)").use {
-        it.setString(1, topic)
-        it.executeQuery().use { rows ->
-            rows.next()
-            rows.getInt(1)
+    ): Int =
+        connection.prepareStatement("select count(*) from eventlog.claim(?, 0, 100)").use {
+            it.setString(1, topic)
+            it.executeQuery().use { rows ->
+                rows.next()
+                rows.getInt(1)
+            }
         }
-    }
 
     private fun count(
         connection: Connection,
         sql: String,
-    ): Int = connection.createStatement().use { statement ->
-        statement.executeQuery(sql).use {
-            it.next()
-            it.getInt(1)
+    ): Int =
+        connection.createStatement().use { statement ->
+            statement.executeQuery(sql).use {
+                it.next()
+                it.getInt(1)
+            }
         }
-    }
 
     private fun envelopes(
         connection: Connection,
@@ -209,8 +215,7 @@ class EventLogTenantIsolationIT {
             connection
                 .prepareStatement(
                     "insert into $table (tenant_id, event_id, subject, envelope) values (?, 'e', 's', '{}')",
-                )
-                .use {
+                ).use {
                     it.setObject(1, row)
                     it.executeUpdate()
                 }

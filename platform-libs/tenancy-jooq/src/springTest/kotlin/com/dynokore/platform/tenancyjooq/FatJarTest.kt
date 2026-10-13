@@ -33,7 +33,14 @@ class FatJarTest {
         val jar = dir.resolve("service.jar").toFile()
         if (packaging == "flat") flat(jar) else build(jar, bundledJooqFirst = packaging != "boot")
         val lines = run(jar)
-        val loader = if (packaging == "flat") "jdk.internal.loader.ClassLoaders\$AppClassLoader" else "org.springframework.boot.loader.launch.LaunchedClassLoader"
+        val loader =
+            if (packaging ==
+                "flat"
+            ) {
+                "jdk.internal.loader.ClassLoaders\$AppClassLoader"
+            } else {
+                "org.springframework.boot.loader.launch.LaunchedClassLoader"
+            }
         assertEquals("loader: $loader", lines.first(), lines.toString())
         val outcomes = lines.drop(1).associate { it.substringBefore(": ") to it.substringAfter(": ") }
         val window = outcomes.getValue("window function")
@@ -44,17 +51,28 @@ class FatJarTest {
             "subclass of a jOOQ window function",
         )) {
             val outcome = outcomes.getValue(spoof)
-            assertTrue(outcome.startsWith("refused: ") && outcome.contains("custom query part is refused"), "$spoof: $outcome")
+            assertTrue(
+                outcome.startsWith("refused: ") && outcome.contains("custom query part is refused"),
+                "$spoof: $outcome",
+            )
         }
     }
 
     private fun run(jar: File): List<String> {
-        val java = ProcessHandle.current().info().command().orElseThrow()
+        val java =
+            ProcessHandle
+                .current()
+                .info()
+                .command()
+                .orElseThrow()
         val process = ProcessBuilder(java, "-jar", jar.path).redirectErrorStream(true).start()
         val output = process.inputStream.bufferedReader().readText()
         assertTrue(process.waitFor(2, TimeUnit.MINUTES), output)
         assertEquals(0, process.exitValue(), output)
-        return output.lines().filter { it.startsWith("loader: ") || it.contains(": accepted: ") || it.contains(": refused: ") }
+        return output.lines().filter {
+            it.startsWith("loader: ") || it.contains(": accepted: ") ||
+                it.contains(": refused: ")
+        }
     }
 
     private fun build(
@@ -63,7 +81,9 @@ class FatJarTest {
     ) {
         val libs = paths("fatJar.libs").distinct()
         val jooq = libs.single { it.name.startsWith("jooq-3.") }
-        val nested = (if (bundledJooqFirst) listOf("aaa-bundles-jooq.jar" to jooq) else emptyList()) + libs.mapIndexed { i, lib -> "$i-${lib.name}" to lib }
+        val nested =
+            (if (bundledJooqFirst) listOf("aaa-bundles-jooq.jar" to jooq) else emptyList()) +
+                libs.mapIndexed { i, lib -> "$i-${lib.name}" to lib }
         val manifest =
             Manifest().apply {
                 mainAttributes[Attributes.Name.MANIFEST_VERSION] = "1.0"
@@ -157,7 +177,18 @@ class FatJarTest {
     }
 
     /** The directory entries above [name], outermost first. */
-    private fun parents(name: String): List<String> = name.split('/').dropLast(1).runningReduce { path, part -> "$path/$part" }.map { "$it/" }
+    private fun parents(name: String): List<String> =
+        name
+            .split('/')
+            .dropLast(1)
+            .runningReduce { path, part -> "$path/$part" }
+            .map { "$it/" }
 
-    private fun paths(property: String): List<File> = System.getProperty(property).split(File.pathSeparator).filter { it.isNotBlank() }.map(::File)
+    private fun paths(property: String): List<File> =
+        System
+            .getProperty(property)
+            .split(File.pathSeparator)
+            .filter {
+                it.isNotBlank()
+            }.map(::File)
 }

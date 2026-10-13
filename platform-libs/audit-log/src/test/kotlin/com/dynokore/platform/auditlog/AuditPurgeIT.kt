@@ -201,9 +201,10 @@ class AuditPurgeIT {
         assertEquals(1L, p.count("select count(*) from controlplane.audit_entry"))
     }
 
-    fun refusals(): Stream<Arguments> = IMAGES
-        .flatMap { image -> REFUSALS.keys.map { Arguments.of(image, it) } }
-        .stream()
+    fun refusals(): Stream<Arguments> =
+        IMAGES
+            .flatMap { image -> REFUSALS.keys.map { Arguments.of(image, it) } }
+            .stream()
 
     /** The arguments of one `purge_audit_entries` call. */
     private data class PurgeCall(
@@ -234,7 +235,9 @@ class AuditPurgeIT {
     }
 
     /** The fixture `control-plane-svc` with the audit table and the purge function, on one container. */
-    private class Purge(image: String) : AutoCloseable {
+    private class Purge(
+        image: String,
+    ) : AutoCloseable {
         val fixture = OutboxPostgresFixture(image)
         val tenants = TenantContextImpl()
         val tx = TransactionRunnerImpl(fixture.appDataSource(), tenants)
@@ -257,25 +260,26 @@ class AuditPurgeIT {
         fun yearsAgo(years: Long): Instant = ZonedDateTime.ofInstant(now, ZoneOffset.UTC).minusYears(years).toInstant()
 
         /** The purge's own entry, staged as control-plane-svc would stage it. */
-        fun stage(clock: Clock = Clock.systemUTC()): StagedAuditEntry = LocalAuditWriter(
-            tx,
-            SCHEMA,
-            "control-plane-svc",
-            "control-plane-svc-1",
-            clock,
-        ).stage(
-            AuditEntry("operator-9", AuditSchema.PURGE_ACTION, SCOPE, "idem-key-1"),
-            EventContext(
-                tenant = TenantId.PLATFORM,
-                entity = EntityRef.PLATFORM,
-                docUuid = null,
-                transactionDate = null,
-                aggregateKey = "audit-purge",
-                aggregateVersion = null,
-                correlation = CorrelationId("corr-purge"),
-                causation = CausationId("cmd-purge"),
-            ),
-        )
+        fun stage(clock: Clock = Clock.systemUTC()): StagedAuditEntry =
+            LocalAuditWriter(
+                tx,
+                SCHEMA,
+                "control-plane-svc",
+                "control-plane-svc-1",
+                clock,
+            ).stage(
+                AuditEntry("operator-9", AuditSchema.PURGE_ACTION, SCOPE, "idem-key-1"),
+                EventContext(
+                    tenant = TenantId.PLATFORM,
+                    entity = EntityRef.PLATFORM,
+                    docUuid = null,
+                    transactionDate = null,
+                    aggregateKey = "audit-purge",
+                    aggregateVersion = null,
+                    correlation = CorrelationId("corr-purge"),
+                    causation = CausationId("cmd-purge"),
+                ),
+            )
 
         /** An existing entry of [tenant] recorded at [at], written as the superuser. */
         fun seed(
@@ -283,17 +287,18 @@ class AuditPurgeIT {
             at: Instant,
             id: String = UUID.randomUUID().toString(),
         ) = fixture.adminDataSource().connection.use { c ->
-            c.prepareStatement(
-                "insert into $SCHEMA.audit_entry (id, tenant_id, entity_ref, recorded_at, source, subject, " +
-                    "instance_id, correlation_id, causation_id, actor, action, scope) " +
-                    "values (?::uuid, ?, 'e', ?, '/gst/control-plane-svc', 's', 'i', 'c', 'c', " +
-                    "'operator-1', 'grantRole', 'x')",
-            ).use {
-                it.setString(1, id)
-                it.setObject(2, tenant)
-                it.setTimestamp(3, Timestamp.from(at))
-                it.executeUpdate()
-            }
+            c
+                .prepareStatement(
+                    "insert into $SCHEMA.audit_entry (id, tenant_id, entity_ref, recorded_at, source, subject, " +
+                        "instance_id, correlation_id, causation_id, actor, action, scope) " +
+                        "values (?::uuid, ?, 'e', ?, '/gst/control-plane-svc', 's', 'i', 'c', 'c', " +
+                        "'operator-1', 'grantRole', 'x')",
+                ).use {
+                    it.setString(1, id)
+                    it.setObject(2, tenant)
+                    it.setTimestamp(3, Timestamp.from(at))
+                    it.executeUpdate()
+                }
         }
 
         /** Calls the function as the runtime login, bound to the platform tenant (or [tenant]) and [actor]. */
@@ -301,22 +306,23 @@ class AuditPurgeIT {
             call: PurgeCall,
             actor: String? = "operator-9",
             tenant: UUID? = null,
-        ): Long = bound(actor, tenant) {
-            tx.require().prepareStatement("select $SCHEMA.purge_audit_entries(?, ?, ?::uuid, ?, ?, ?, ?, ?)").use {
-                it.setTimestamp(1, Timestamp.from(call.cutOff))
-                it.setString(2, call.reason)
-                it.setString(3, call.entryId)
-                it.setString(4, call.source)
-                it.setString(5, call.subject)
-                it.setString(6, call.instanceId)
-                it.setString(7, call.correlationId)
-                it.setString(8, call.causationId)
-                it.executeQuery().use { rs ->
-                    rs.next()
-                    rs.getLong(1)
+        ): Long =
+            bound(actor, tenant) {
+                tx.require().prepareStatement("select $SCHEMA.purge_audit_entries(?, ?, ?::uuid, ?, ?, ?, ?, ?)").use {
+                    it.setTimestamp(1, Timestamp.from(call.cutOff))
+                    it.setString(2, call.reason)
+                    it.setString(3, call.entryId)
+                    it.setString(4, call.source)
+                    it.setString(5, call.subject)
+                    it.setString(6, call.instanceId)
+                    it.setString(7, call.correlationId)
+                    it.setString(8, call.causationId)
+                    it.executeQuery().use { rs ->
+                        rs.next()
+                        rs.getLong(1)
+                    }
                 }
             }
-        }
 
         /** Runs [sql] as the runtime login under the platform tenant and an actor. */
         fun raw(sql: String) = bound("operator-9", null) { tx.require().createStatement().use { it.execute(sql) } }
@@ -327,11 +333,12 @@ class AuditPurgeIT {
             actor: String?,
             tenant: UUID?,
             block: () -> T,
-        ): T = when {
-            tenant != null -> tenants.bind(TenantId(tenant), checkNotNull(actor)) { tx.inTransaction(block) }
-            actor == null -> tenants.bindPlatform { tx.inTransaction(block) }
-            else -> tenants.bindPlatform(actor) { tx.inTransaction(block) }
-        }
+        ): T =
+            when {
+                tenant != null -> tenants.bind(TenantId(tenant), checkNotNull(actor)) { tx.inTransaction(block) }
+                actor == null -> tenants.bindPlatform { tx.inTransaction(block) }
+                else -> tenants.bindPlatform(actor) { tx.inTransaction(block) }
+            }
 
         fun count(
             sql: String,
@@ -341,14 +348,15 @@ class AuditPurgeIT {
         fun strings(
             sql: String,
             vararg args: Any,
-        ): List<String?> = fixture.adminDataSource().connection.use { c ->
-            c.prepareStatement(sql).use { statement ->
-                args.forEachIndexed { index, value -> statement.setObject(index + 1, value) }
-                statement.executeQuery().use { rs ->
-                    buildList { while (rs.next()) add(rs.getString(1)) }
+        ): List<String?> =
+            fixture.adminDataSource().connection.use { c ->
+                c.prepareStatement(sql).use { statement ->
+                    args.forEachIndexed { index, value -> statement.setObject(index + 1, value) }
+                    statement.executeQuery().use { rs ->
+                        buildList { while (rs.next()) add(rs.getString(1)) }
+                    }
                 }
             }
-        }
 
         override fun close() = fixture.close()
     }

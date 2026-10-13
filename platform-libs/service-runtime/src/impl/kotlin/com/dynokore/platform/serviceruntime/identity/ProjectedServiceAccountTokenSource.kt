@@ -9,7 +9,9 @@ import java.nio.file.Path
  * the projected file is visible on the very next call, with no restart, the
  * same discipline `MountedFileSecretStore` uses for STK-29.
  */
-class ProjectedServiceAccountTokenSource(private val tokenPath: Path) : WorkloadTokenSource {
+class ProjectedServiceAccountTokenSource(
+    private val tokenPath: Path,
+) : WorkloadTokenSource {
     override fun current(): WorkloadToken {
         if (!Files.isRegularFile(tokenPath)) throw WorkloadTokenUnavailable(tokenPath)
         return WorkloadToken(Files.readString(tokenPath).trim())
@@ -17,4 +19,6 @@ class ProjectedServiceAccountTokenSource(private val tokenPath: Path) : Workload
 }
 
 /** The projected token volume is not mounted, or was not yet written — an infrastructure failure, not a refused call (CS-14). */
-class WorkloadTokenUnavailable(path: Path) : RuntimeException("No projected service-account token at $path")
+class WorkloadTokenUnavailable(
+    path: Path,
+) : RuntimeException("No projected service-account token at $path")

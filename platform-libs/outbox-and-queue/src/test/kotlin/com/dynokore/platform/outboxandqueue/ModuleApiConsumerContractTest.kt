@@ -54,12 +54,14 @@ class ModuleApiConsumerContractTest {
             val kit = harness.submission
             val command =
                 FakeDespatchCommand(kit.tenants, kit.boundary, kit.writer) { doc ->
-                    kit.boundary.require().prepareStatement(
-                        "insert into submission.submission_state values (?, 'DESPATCHED')",
-                    ).use {
-                        it.setObject(1, doc)
-                        it.executeUpdate()
-                    }
+                    kit.boundary
+                        .require()
+                        .prepareStatement(
+                            "insert into submission.submission_state values (?, 'DESPATCHED')",
+                        ).use {
+                            it.setObject(1, doc)
+                            it.executeUpdate()
+                        }
                 }
             val tenant = UUID.randomUUID()
             val rolledBack = UUID.randomUUID()

@@ -16,9 +16,10 @@ class DomainDependencyHealthIndicator(
     private val dependencyName: String,
     private val probe: DomainDependencyProbe,
 ) : HealthIndicator {
-    override fun health(): Health = if (probe.healthy()) {
-        Health.up().withDetail("dependency", dependencyName).build()
-    } else {
-        Health.status(DegradedStatus.DEGRADED).withDetail("dependency", dependencyName).build()
-    }
+    override fun health(): Health =
+        if (probe.healthy()) {
+            Health.up().withDetail("dependency", dependencyName).build()
+        } else {
+            Health.status(DegradedStatus.DEGRADED).withDetail("dependency", dependencyName).build()
+        }
 }

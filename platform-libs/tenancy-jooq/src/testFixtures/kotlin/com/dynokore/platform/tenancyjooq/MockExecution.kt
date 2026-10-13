@@ -13,7 +13,8 @@ internal object MockExecution {
     fun configuration(
         configuration: Configuration,
         result: Result<*>? = null,
-    ): Configuration = configuration.derive(
-        MockConnection { arrayOf(if (result == null) MockResult(0) else MockResult(result.size, result)) },
-    )
+    ): Configuration =
+        configuration.derive(
+            MockConnection { arrayOf(if (result == null) MockResult(0) else MockResult(result.size, result)) },
+        )
 }

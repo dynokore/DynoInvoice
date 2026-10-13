@@ -24,20 +24,25 @@ class JdbcRetentionPurge(
     private val s = SqlIdentifier.require(schema, "schema")
 
     init {
-        require(batchSize in 1..OutboxSchema.MAX_PURGE_BATCH) { "batch size must be 1..${OutboxSchema.MAX_PURGE_BATCH}" }
+        require(
+            batchSize in 1..OutboxSchema.MAX_PURGE_BATCH,
+        ) { "batch size must be 1..${OutboxSchema.MAX_PURGE_BATCH}" }
     }
 
     override fun purge(): PurgeResult {
         val now = clock.instant()
-        val outbox = deleteBatches(Timestamp.from(now - retention.contentWindow)) {
-            it.prepareStatement("select $s.${OutboxSchema.OUTBOX_PURGE_EXPIRED}(?, ?)")
-        }
-        val inbox = deleteBatches(Timestamp.from(now - retention.inboxRetention)) {
-            it.prepareStatement("select $s.${OutboxSchema.INBOX_PURGE_EXPIRED}(?, ?)")
-        }
-        val deadLetters = deleteBatches(Timestamp.from(now - retention.contentWindow)) {
-            it.prepareStatement("select $s.${OutboxSchema.DEAD_LETTER_PURGE_EXPIRED}(?, ?)")
-        }
+        val outbox =
+            deleteBatches(Timestamp.from(now - retention.contentWindow)) {
+                it.prepareStatement("select $s.${OutboxSchema.OUTBOX_PURGE_EXPIRED}(?, ?)")
+            }
+        val inbox =
+            deleteBatches(Timestamp.from(now - retention.inboxRetention)) {
+                it.prepareStatement("select $s.${OutboxSchema.INBOX_PURGE_EXPIRED}(?, ?)")
+            }
+        val deadLetters =
+            deleteBatches(Timestamp.from(now - retention.contentWindow)) {
+                it.prepareStatement("select $s.${OutboxSchema.DEAD_LETTER_PURGE_EXPIRED}(?, ?)")
+            }
         return PurgeResult(outbox, inbox, deadLetters)
     }
 
@@ -57,10 +62,11 @@ class JdbcRetentionPurge(
                     do {
                         statement.setTimestamp(1, cutoff)
                         statement.setInt(2, batchSize)
-                        val deleted = statement.executeQuery().use { rows ->
-                            check(rows.next()) { "a purge function returned no row" }
-                            rows.getLong(1)
-                        }
+                        val deleted =
+                            statement.executeQuery().use { rows ->
+                                check(rows.next()) { "a purge function returned no row" }
+                                rows.getLong(1)
+                            }
                         total += deleted
                     } while (deleted == batchSize.toLong())
                 }

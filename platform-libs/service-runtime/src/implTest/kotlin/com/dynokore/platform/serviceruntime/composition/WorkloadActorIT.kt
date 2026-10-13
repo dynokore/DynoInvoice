@@ -54,7 +54,14 @@ class WorkloadActorIT {
                         published += topic
                     }
                 }
-            val relay = wiring.outboxRelay(h.fixture.runtimeDataSource(), scope, binding, ModuleProperties(schema = SCHEMA), Clock.systemUTC())
+            val relay =
+                wiring.outboxRelay(
+                    h.fixture.runtimeDataSource(),
+                    scope,
+                    binding,
+                    ModuleProperties(schema = SCHEMA),
+                    Clock.systemUTC(),
+                )
             relay.runOnce()
             published.shouldNotBeEmpty()
             h.fixture.capturedActors("$SCHEMA.outbox").toSet() shouldBe setOf("svc:$SERVICE")

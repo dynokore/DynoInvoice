@@ -44,7 +44,8 @@ class EventLogPoolHaIT {
                     .withPool(ServiceDataSources.EVENT_LOG) { it.password = PASSWORD }
                     .run { context ->
                         context.startupFailure shouldBe null
-                        context.getBeanNamesForType(DataSource::class.java).toSet() shouldBe setOf("dataSource", ServiceDataSources.EVENT_LOG)
+                        context.getBeanNamesForType(DataSource::class.java).toSet() shouldBe
+                            setOf("dataSource", ServiceDataSources.EVENT_LOG)
                         val app = context.getBean(DataSource::class.java)
                         val pool = context.getBean(ServiceDataSources.EVENT_LOG, HikariDataSource::class.java)
                         // the event-log pool does not copy the application pool's connection-init SQL (INV-Q-4542)
@@ -67,12 +68,13 @@ class EventLogPoolHaIT {
         }
     }
 
-    private fun Connection.marker(): Boolean = createStatement().use { s ->
-        s.executeQuery("select to_regclass('public.event_log_marker') is not null").use {
-            it.next()
-            it.getBoolean(1)
+    private fun Connection.marker(): Boolean =
+        createStatement().use { s ->
+            s.executeQuery("select to_regclass('public.event_log_marker') is not null").use {
+                it.next()
+                it.getBoolean(1)
+            }
         }
-    }
 
     private companion object {
         const val RUNTIME = "submission_runtime"

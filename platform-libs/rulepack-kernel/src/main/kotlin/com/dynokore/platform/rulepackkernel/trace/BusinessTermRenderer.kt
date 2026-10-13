@@ -28,7 +28,9 @@ data class RenderedTrace(
  * identifier. A rule the catalogue lacks is rendered with its id and inputs and reported in
  * [RenderedTrace.untranslatedRules]; rendering never fails, because a console row must always show something.
  */
-class BusinessTermRenderer(private val catalogue: BusinessTermCatalogue) {
+class BusinessTermRenderer(
+    private val catalogue: BusinessTermCatalogue,
+) {
     fun render(trace: DecisionTrace): RenderedTrace {
         val untranslated = mutableListOf<String>()
         val lines =
@@ -52,11 +54,12 @@ class BusinessTermRenderer(private val catalogue: BusinessTermCatalogue) {
         inputs: Map<String, String>,
     ): String = PLACEHOLDER.replace(template) { match -> inputs[match.groupValues[1]] ?: NOT_RECORDED }
 
-    private fun describeInputs(inputs: Map<String, String>): String = if (inputs.isEmpty()) {
-        NOT_RECORDED
-    } else {
-        inputs.entries.joinToString(", ") { (name, value) -> "${catalogue.inputLabels[name] ?: name} = $value" }
-    }
+    private fun describeInputs(inputs: Map<String, String>): String =
+        if (inputs.isEmpty()) {
+            NOT_RECORDED
+        } else {
+            inputs.entries.joinToString(", ") { (name, value) -> "${catalogue.inputLabels[name] ?: name} = $value" }
+        }
 
     private companion object {
         val PLACEHOLDER = Regex("\\{([^{}]+)}")

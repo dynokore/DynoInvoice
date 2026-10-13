@@ -15,7 +15,9 @@ import org.slf4j.LoggerFactory
  * verified. A [WorkloadVerification.Refused] reason is logged at this, the
  * refusing hop, as a label only — never the token itself (CS-34).
  */
-class WorkloadTokenAuthenticationFilter(private val verifier: WorkloadTokenVerifier) : Filter {
+class WorkloadTokenAuthenticationFilter(
+    private val verifier: WorkloadTokenVerifier,
+) : Filter {
     private val log = LoggerFactory.getLogger(WorkloadTokenAuthenticationFilter::class.java)
 
     override fun doFilter(
@@ -26,11 +28,16 @@ class WorkloadTokenAuthenticationFilter(private val verifier: WorkloadTokenVerif
         val http = request as HttpServletRequest
         val header = http.getHeader(WorkloadToken.HEADER_NAME)?.takeIf(String::isNotBlank)
         when (val verification = verifier.verify(header?.let(::WorkloadToken))) {
-            is WorkloadVerification.Verified -> chain.doFilter(request, response)
+            is WorkloadVerification.Verified -> {
+                chain.doFilter(request, response)
+            }
 
             is WorkloadVerification.Refused -> {
                 log.debug("workload token refused: {}", verification.reason)
-                (response as HttpServletResponse).sendError(HttpServletResponse.SC_UNAUTHORIZED, "workload token refused")
+                (response as HttpServletResponse).sendError(
+                    HttpServletResponse.SC_UNAUTHORIZED,
+                    "workload token refused",
+                )
             }
         }
     }

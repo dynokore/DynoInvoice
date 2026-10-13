@@ -46,7 +46,13 @@ internal class ValueValidator(
                     ?: refuse(key, PolicyRefusal.UNKNOWN_OPTION, "no option '${choice.key}'")
             if (choice.key !in offered) {
                 val refusal =
-                    if (option.strictness == Strictness.LOOSER) PolicyRefusal.LOOSER_NOT_OFFERED else PolicyRefusal.UNKNOWN_OPTION
+                    if (option.strictness ==
+                        Strictness.LOOSER
+                    ) {
+                        PolicyRefusal.LOOSER_NOT_OFFERED
+                    } else {
+                        PolicyRefusal.UNKNOWN_OPTION
+                    }
                 refuse(key, refusal, "option '${choice.key}' is not offered")
             }
             needsService = checkValue(key, option, choice) || needsService
@@ -60,7 +66,11 @@ internal class ValueValidator(
         choice: SelectedOption,
     ): Boolean {
         if (!option.typed) {
-            if (choice.valueJson != null) refuse(key, PolicyRefusal.OUT_OF_BOUNDS, "option '${option.key}' takes no value")
+            if (choice.valueJson !=
+                null
+            ) {
+                refuse(key, PolicyRefusal.OUT_OF_BOUNDS, "option '${option.key}' takes no value")
+            }
             return false
         }
         val json = choice.valueJson ?: refuse(key, PolicyRefusal.OUT_OF_BOUNDS, "option '${option.key}' needs a value")
@@ -90,31 +100,61 @@ internal class ValueValidator(
             if (spec.type !in COUNTED) return "$path has a numeric bound its type cannot take"
         }
         return when (spec.type) {
-            ValueType.INT -> if (!node.isIntegralNumber) "$path must be a whole number" else numberProblem(spec, node, path)
+            ValueType.INT -> {
+                if (!node.isIntegralNumber) "$path must be a whole number" else numberProblem(spec, node, path)
+            }
 
-            ValueType.DECIMAL, ValueType.AMOUNT, ValueType.MONEY, ValueType.RATE, ValueType.DURATION ->
+            ValueType.DECIMAL, ValueType.AMOUNT, ValueType.MONEY, ValueType.RATE, ValueType.DURATION -> {
                 if (!node.isNumber) "$path must be a number" else numberProblem(spec, node, path)
+            }
 
-            ValueType.DATE -> if (!node.isString || !isDate(node.stringValue())) "$path must be an ISO date" else null
+            ValueType.DATE -> {
+                if (!node.isString || !isDate(node.stringValue())) "$path must be an ISO date" else null
+            }
 
-            ValueType.TEXT -> if (!node.isString || node.stringValue().isBlank()) "$path must be non-blank text" else null
+            ValueType.TEXT -> {
+                if (!node.isString ||
+                    node.stringValue().isBlank()
+                ) {
+                    "$path must be non-blank text"
+                } else {
+                    null
+                }
+            }
 
-            ValueType.ENUM -> if (!node.isString || node.stringValue() !in spec.values) "$path must be one of ${spec.values}" else null
+            ValueType.ENUM -> {
+                if (!node.isString ||
+                    node.stringValue() !in spec.values
+                ) {
+                    "$path must be one of ${spec.values}"
+                } else {
+                    null
+                }
+            }
 
-            ValueType.REF -> if (!isReference(node)) "$path must be a reference" else null
+            ValueType.REF -> {
+                if (!isReference(node)) "$path must be a reference" else null
+            }
 
-            ValueType.LIST_REF ->
+            ValueType.LIST_REF -> {
                 if (isReference(node) || (node.isArray && node.size() > 0 && node.all { isReference(it) })) {
                     countProblem(spec, if (node.isArray) node.size() else 1, path)
                 } else {
                     "$path must be a reference or a list of references"
                 }
+            }
 
-            ValueType.LIST, ValueType.SET -> collectionProblem(spec, node, path)
+            ValueType.LIST, ValueType.SET -> {
+                collectionProblem(spec, node, path)
+            }
 
-            ValueType.MAP -> mapProblem(spec, node, path)
+            ValueType.MAP -> {
+                mapProblem(spec, node, path)
+            }
 
-            ValueType.RECORD -> recordProblem(spec, node, path)
+            ValueType.RECORD -> {
+                recordProblem(spec, node, path)
+            }
         }
     }
 
@@ -143,13 +183,19 @@ internal class ValueValidator(
         }
         val item = spec.item
         return when {
-            item != null -> items.withIndex().firstNotNullOfOrNull { (i, n) -> problem(item, n, "$path[$i]") }
-
-            spec.ref != null -> items.withIndex().firstNotNullOfOrNull { (i, n) ->
-                if (isReference(n)) null else "$path[$i] must be a reference"
+            item != null -> {
+                items.withIndex().firstNotNullOfOrNull { (i, n) -> problem(item, n, "$path[$i]") }
             }
 
-            else -> "$path has no item spec to check against"
+            spec.ref != null -> {
+                items.withIndex().firstNotNullOfOrNull { (i, n) ->
+                    if (isReference(n)) null else "$path[$i] must be a reference"
+                }
+            }
+
+            else -> {
+                "$path has no item spec to check against"
+            }
         }
     }
 
@@ -160,7 +206,13 @@ internal class ValueValidator(
     ): String? {
         spec.minItems?.let { if (count < it) return "$path has fewer than $it items" }
         spec.maxItems?.let { if (count > it) return "$path has more than $it items" }
-        spec.length?.number?.let { if (BigDecimal.valueOf(count.toLong()).compareTo(it) != 0) return "$path must hold $it items" }
+        spec.length?.number?.let {
+            if (BigDecimal.valueOf(count.toLong()).compareTo(it) !=
+                0
+            ) {
+                return "$path must hold $it items"
+            }
+        }
         spec.min?.number?.let { if (BigDecimal.valueOf(count.toLong()) < it) return "$path has fewer than $it items" }
         spec.max?.number?.let { if (BigDecimal.valueOf(count.toLong()) > it) return "$path has more than $it items" }
         return null
@@ -192,17 +244,20 @@ internal class ValueValidator(
         if (missing.isNotEmpty()) return "$path misses ${missing.sorted()}"
         val extra = names - spec.fields.keys
         if (extra.isNotEmpty()) return "$path has unknown ${extra.sorted()}"
-        return spec.fields.entries.firstNotNullOfOrNull { (name, field) -> problem(field, node.get(name), "$path.$name") }
+        return spec.fields.entries.firstNotNullOfOrNull { (name, field) ->
+            problem(field, node.get(name), "$path.$name")
+        }
     }
 
     private fun isReference(node: JsonNode) = node.isString && node.stringValue().isNotBlank()
 
-    private fun isDate(text: String) = try {
-        LocalDate.parse(text)
-        true
-    } catch (_: DateTimeParseException) {
-        false
-    }
+    private fun isDate(text: String) =
+        try {
+            LocalDate.parse(text)
+            true
+        } catch (_: DateTimeParseException) {
+            false
+        }
 
     private companion object {
         /** Types whose numeric min/max bound the number of items. */

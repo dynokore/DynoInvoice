@@ -41,8 +41,17 @@ class LeaderElectionIT {
                 }
             }
             val pool = Executors.newFixedThreadPool(3)
-            fun fireTogether(of: List<JobsHarness.Replica>) = of.map { r -> pool.submit<FireResult> { r.runtime.fire(def.name).values.single() } }
-                .map { it.get(30, TimeUnit.SECONDS) }
+
+            fun fireTogether(of: List<JobsHarness.Replica>) =
+                of
+                    .map { r ->
+                        pool.submit<FireResult> {
+                            r.runtime
+                                .fire(def.name)
+                                .values
+                                .single()
+                        }
+                    }.map { it.get(30, TimeUnit.SECONDS) }
 
             // Hour 1: all three fire at once; exactly one runs.
             fireTogether(replicas).count { it == FireResult.RAN } shouldBe 1
@@ -51,7 +60,14 @@ class LeaderElectionIT {
             clock.advance(Duration.ofHours(1))
             val dying = pool.submit { replicas[0].runtime.fire(def.name) }
             holding.await(30, TimeUnit.SECONDS) shouldBe true
-            replicas.drop(1).map { it.runtime.fire(def.name).values.single() }.count { it == FireResult.RAN } shouldBe 0
+            replicas
+                .drop(1)
+                .map {
+                    it.runtime
+                        .fire(def.name)
+                        .values
+                        .single()
+                }.count { it == FireResult.RAN } shouldBe 0
 
             // Hour 3: the dead replica's lease lapses; the sweeper records its run, and one replica runs hour 3.
             Thread.sleep(lease.plusMillis(500).toMillis())

@@ -44,12 +44,13 @@ class TenancyKernelPostgresIT {
     private fun assertConnectionIsNeitherSuperuserNorBypassRls(fixture: PostgresProbeFixture) {
         fixture.appDataSource().connection.use { connection ->
             connection.createStatement().use { statement ->
-                statement.executeQuery(
-                    "select (rolsuper or rolbypassrls) as escalated from pg_roles where rolname = current_user",
-                ).use { rs ->
-                    assertTrue(rs.next())
-                    assertFalse(rs.getBoolean("escalated"))
-                }
+                statement
+                    .executeQuery(
+                        "select (rolsuper or rolbypassrls) as escalated from pg_roles where rolname = current_user",
+                    ).use { rs ->
+                        assertTrue(rs.next())
+                        assertFalse(rs.getBoolean("escalated"))
+                    }
             }
         }
     }
@@ -82,6 +83,7 @@ class TenancyKernelPostgresIT {
     ) {
         val tenants = TenantContextImpl()
         val tx = TransactionRunnerImpl(fixture.appDataSource(), tenants)
+
         fun insert(
             tenant: TenantId,
             value: String,

@@ -13,7 +13,11 @@ import java.util.UUID
  */
 @Tag("integration")
 class OrderingIT {
-    private data class Register(val canonical: Boolean, val payload: Boolean, val state: String)
+    private data class Register(
+        val canonical: Boolean,
+        val payload: Boolean,
+        val state: String,
+    )
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
@@ -57,13 +61,14 @@ class OrderingIT {
 
             val kit = harness.submission
             val transport = TransportStub()
-            val consumer = harness.consumer(
-                "submission-svc",
-                "gst.payload.payload-ready.v1",
-                "submission",
-                kit.boundary,
-                SubmissionFixtureHandler(kit.boundary, transport),
-            )
+            val consumer =
+                harness.consumer(
+                    "submission-svc",
+                    "gst.payload.payload-ready.v1",
+                    "submission",
+                    kit.boundary,
+                    SubmissionFixtureHandler(kit.boundary, transport),
+                )
             val result = consumer.pollOnce()
 
             assertEquals(1, result.applied)
@@ -93,10 +98,11 @@ class OrderingIT {
     ): Envelope {
         val envelope =
             kit.inTx(tenant) {
-                kit.writer.append(
-                    listOf(OutboundEvent(type, """{"version":$version}""")),
-                    kit.docContext(tenant, doc),
-                ).single()
+                kit.writer
+                    .append(
+                        listOf(OutboundEvent(type, """{"version":$version}""")),
+                        kit.docContext(tenant, doc),
+                    ).single()
             }
         if (relay) harness.drain(kit.relay)
         return envelope
@@ -107,28 +113,31 @@ class OrderingIT {
         topic: String,
     ): PollResult {
         val kit = harness.submission
-        val consumer = harness.consumer(
-            "submission-svc",
-            topic,
-            "submission",
-            kit.boundary,
-            SubmissionFixtureHandler(kit.boundary, TransportStub()),
-        )
+        val consumer =
+            harness.consumer(
+                "submission-svc",
+                topic,
+                "submission",
+                kit.boundary,
+                SubmissionFixtureHandler(kit.boundary, TransportStub()),
+            )
         return consumer.pollOnce()
     }
 
     private fun register(
         harness: OutboxHarness,
         doc: UUID,
-    ): Register = harness.fixture.adminDataSource().connection.use { connection ->
-        connection.prepareStatement(
-            "select canonical_seen, payload_seen, state from submission.obligation_register where doc_uuid = ?",
-        ).use {
-            it.setObject(1, doc)
-            it.executeQuery().use { rows ->
-                check(rows.next()) { "no register entry for $doc" }
-                Register(rows.getBoolean(1), rows.getBoolean(2), rows.getString(3))
-            }
+    ): Register =
+        harness.fixture.adminDataSource().connection.use { connection ->
+            connection
+                .prepareStatement(
+                    "select canonical_seen, payload_seen, state from submission.obligation_register where doc_uuid = ?",
+                ).use {
+                    it.setObject(1, doc)
+                    it.executeQuery().use { rows ->
+                        check(rows.next()) { "no register entry for $doc" }
+                        Register(rows.getBoolean(1), rows.getBoolean(2), rows.getString(3))
+                    }
+                }
         }
-    }
 }

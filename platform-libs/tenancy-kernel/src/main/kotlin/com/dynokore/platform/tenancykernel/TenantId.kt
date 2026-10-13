@@ -12,7 +12,9 @@ import java.util.UUID
  * `::uuid` casts unchanged.
  */
 @JvmInline
-value class TenantId(val value: UUID) {
+value class TenantId(
+    val value: UUID,
+) {
     override fun toString(): String = value.toString()
 
     /** True for the reserved [PLATFORM] id only. */

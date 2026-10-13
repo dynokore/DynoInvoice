@@ -25,9 +25,13 @@ internal fun TenancyProbe.bindActorOnly() {
 
 /** Who the probe session is: a bound tenant, no tenant, or either with `app.platform_operator = 'true'` set. */
 internal sealed interface Identity {
-    data class Tenant(val tenant: TenantId) : Identity
+    data class Tenant(
+        val tenant: TenantId,
+    ) : Identity
 
-    data class Operator(val tenant: TenantId?) : Identity
+    data class Operator(
+        val tenant: TenantId?,
+    ) : Identity
 
     data object None : Identity
 }
@@ -35,23 +39,24 @@ internal sealed interface Identity {
 internal fun <T> TenancyProbe.bound(
     identity: Identity,
     block: TenancyProbe.() -> T,
-): T = when (identity) {
-    is Identity.Tenant -> {
-        inTenant(identity.tenant, block = block)
-    }
-
-    is Identity.Operator -> {
-        val withSetting: TenancyProbe.() -> T = {
-            fetchValue("select set_config(?, ?, true)", "app.platform_operator", "true")
-            block()
+): T =
+    when (identity) {
+        is Identity.Tenant -> {
+            inTenant(identity.tenant, block = block)
         }
-        identity.tenant?.let { inTenant(it, block = withSetting) } ?: unbound(withSetting)
-    }
 
-    Identity.None -> {
-        unbound(block)
+        is Identity.Operator -> {
+            val withSetting: TenancyProbe.() -> T = {
+                fetchValue("select set_config(?, ?, true)", "app.platform_operator", "true")
+                block()
+            }
+            identity.tenant?.let { inTenant(it, block = withSetting) } ?: unbound(withSetting)
+        }
+
+        Identity.None -> {
+            unbound(block)
+        }
     }
-}
 
 /** Calls `register_platform_pack` in the current probe transaction; returns the stored id. */
 internal fun TenancyProbe.register(
@@ -60,17 +65,18 @@ internal fun TenancyProbe.register(
     effectiveTo: LocalDate? = null,
     manifest: String = "{}",
     signature: ByteArray = byteArrayOf(1, 2, 3),
-): Any? = fetchValue(
-    "select rulepack_test.register_platform_pack(?::uuid, ?, 'Scope', ?, ?::date, ?::date, '1.0.0', " +
-        "?::jsonb, '{}'::jsonb, ?::bytea, '{}'::jsonb, 'test-anchor')",
-    UUID.randomUUID(),
-    packId,
-    version,
-    LocalDate.now(),
-    effectiveTo,
-    manifest,
-    signature,
-)
+): Any? =
+    fetchValue(
+        "select rulepack_test.register_platform_pack(?::uuid, ?, 'Scope', ?, ?::date, ?::date, '1.0.0', " +
+            "?::jsonb, '{}'::jsonb, ?::bytea, '{}'::jsonb, 'test-anchor')",
+        UUID.randomUUID(),
+        packId,
+        version,
+        LocalDate.now(),
+        effectiveTo,
+        manifest,
+        signature,
+    )
 
 /** Inserts one row directly in the current probe transaction, the row carrying [rowTenant]. */
 internal fun TenancyProbe.insertRow(
@@ -108,11 +114,12 @@ internal fun insert(
 internal fun packIds(
     app: TenancyProbe,
     identity: Identity,
-): Set<String> = app.bound(identity) {
-    fetchRows("select pack_id from rulepack_test.rule_pack_version where version = '1.0.0'")
-        .map { it.getValue("pack_id") as String }
-        .toSet()
-}
+): Set<String> =
+    app.bound(identity) {
+        fetchRows("select pack_id from rulepack_test.rule_pack_version where version = '1.0.0'")
+            .map { it.getValue("pack_id") as String }
+            .toSet()
+    }
 
 internal fun assertRefusedByPolicy(block: () -> Unit) = assertRefusedWith("row-level security policy", block)
 

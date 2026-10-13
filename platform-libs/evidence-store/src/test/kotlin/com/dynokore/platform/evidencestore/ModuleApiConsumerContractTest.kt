@@ -39,10 +39,11 @@ class ModuleApiConsumerContractTest {
             entity: EntityRef,
             period: PeriodRef,
             contents: List<ByteArray>,
-        ): List<EvidenceRecord> = tx.inTransaction {
-            contents.forEach { ledger.append(tenant, entity, period, EvidenceType.PAYLOAD, it) }
-            ledger.bulkExport(tenant, entity, period).toList()
-        }
+        ): List<EvidenceRecord> =
+            tx.inTransaction {
+                contents.forEach { ledger.append(tenant, entity, period, EvidenceType.PAYLOAD, it) }
+                ledger.bulkExport(tenant, entity, period).toList()
+            }
 
         fun verify(
             tenant: TenantId,
@@ -58,9 +59,10 @@ class ModuleApiConsumerContractTest {
             retention: RetentionPeriod,
             periodEnd: LocalDate,
             asOf: LocalDate,
-        ): Boolean = tx.inTransaction {
-            RetentionGate.canDelete(retention, periodEnd, asOf, held = holds.isHeld(tenant, entity, period))
-        }
+        ): Boolean =
+            tx.inTransaction {
+                RetentionGate.canDelete(retention, periodEnd, asOf, held = holds.isHeld(tenant, entity, period))
+            }
     }
 
     // INV-T-3999 removes this call

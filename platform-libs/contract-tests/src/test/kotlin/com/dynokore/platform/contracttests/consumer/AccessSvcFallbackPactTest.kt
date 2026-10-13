@@ -52,17 +52,18 @@ class AccessSvcFallbackPactTest {
         state: String,
         permission: String,
         body: PactDslJsonBody,
-    ): V4Pact = builder
-        .given(state)
-        .uponReceiving("authorise P-1 for $permission on E-001")
-        .path(PATH)
-        .method("GET")
-        .query("principalRef=P-1&permission=$permission&scope=E-001")
-        .willRespondWith()
-        .status(200)
-        .headers(mapOf("Content-Type" to "application/json"))
-        .body(body)
-        .toPact(V4Pact::class.java)
+    ): V4Pact =
+        builder
+            .given(state)
+            .uponReceiving("authorise P-1 for $permission on E-001")
+            .path(PATH)
+            .method("GET")
+            .query("principalRef=P-1&permission=$permission&scope=E-001")
+            .willRespondWith()
+            .status(200)
+            .headers(mapOf("Content-Type" to "application/json"))
+            .body(body)
+            .toPact(V4Pact::class.java)
 
     @Pact(consumer = Contracts.PRODUCT_RUNTIME)
     fun allowed(builder: PactDslWithProvider): V4Pact = decision(builder, "holds", "document.read", ALLOW)

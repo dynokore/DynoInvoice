@@ -91,13 +91,14 @@ class StructureReplicaTest {
     fun `an older fill never overwrites a newer node`() {
         val key = StructureKey(TENANT_A, "e1")
         // a replica that has never synced calls its fallback even for a held key
-        val bounded = EventFedReplica<StructureKey, StructureNode>(
-            "structure",
-            clock,
-            lagBound = Duration.ZERO,
-            fallback = { _, _ -> FallbackResult.Found(node("g-fill", 3)) },
-            versionOf = StructureNode::structureVersion,
-        )
+        val bounded =
+            EventFedReplica<StructureKey, StructureNode>(
+                "structure",
+                clock,
+                lagBound = Duration.ZERO,
+                fallback = { _, _ -> FallbackResult.Found(node("g-fill", 3)) },
+                versionOf = StructureNode::structureVersion,
+            )
         bounded.apply(ReplicaChange.Upsert(key, node("g-event", 4), 4))
         bounded.get(key, deadline(clock)) shouldBe Lookup.Filled(node("g-event", 4))
         bounded.peek(key) shouldBe node("g-event", 4)

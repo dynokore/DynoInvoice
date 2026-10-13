@@ -26,7 +26,9 @@ import javax.sql.DataSource
  * written wrapper would need one override method per interface (~40 methods)
  * to stay a transparent passthrough.
  */
-class TenantAwareDataSource(private val delegate: DataSource) : DataSource by delegate {
+class TenantAwareDataSource(
+    private val delegate: DataSource,
+) : DataSource by delegate {
     override fun getConnection(): Connection = wrap(delegate.connection)
 
     override fun getConnection(
@@ -68,9 +70,10 @@ class TenantAwareDataSource(private val delegate: DataSource) : DataSource by de
         target: Connection,
         method: Method,
         args: Array<out Any?>?,
-    ): Any? = try {
-        if (args == null) method.invoke(target) else method.invoke(target, *args)
-    } catch (e: java.lang.reflect.InvocationTargetException) {
-        throw e.targetException
-    }
+    ): Any? =
+        try {
+            if (args == null) method.invoke(target) else method.invoke(target, *args)
+        } catch (e: java.lang.reflect.InvocationTargetException) {
+            throw e.targetException
+        }
 }

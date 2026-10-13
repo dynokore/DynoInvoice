@@ -11,7 +11,9 @@ package com.dynokore.platform.rulepackkernel
  * `copy()`.
  */
 @ConsistentCopyVisibility
-data class TrustAnchors private constructor(val anchors: List<TrustAnchor>) {
+data class TrustAnchors private constructor(
+    val anchors: List<TrustAnchor>,
+) {
     companion object {
         operator fun invoke(anchors: List<TrustAnchor>): TrustAnchors {
             require(anchors.isNotEmpty()) { "TrustAnchors must carry at least one anchor" }

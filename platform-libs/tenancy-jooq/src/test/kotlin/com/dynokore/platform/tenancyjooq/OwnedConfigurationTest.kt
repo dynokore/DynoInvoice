@@ -43,12 +43,13 @@ class OwnedConfigurationTest {
     private fun configured(
         settings: Settings,
         dialect: SQLDialect = SQLDialect.POSTGRES,
-    ): Configuration = TenancyJooq.configure(
-        DefaultConfiguration().set(dialect).set(settings),
-        TEST_TABLES,
-        fixture.tenants,
-        fixture.transactions,
-    )
+    ): Configuration =
+        TenancyJooq.configure(
+            DefaultConfiguration().set(dialect).set(settings),
+            TEST_TABLES,
+            fixture.tenants,
+            fixture.transactions,
+        )
 
     private fun refusedOnRun(configuration: Configuration) {
         Seed.reset(fixture)
@@ -75,7 +76,12 @@ class OwnedConfigurationTest {
 
     @Test
     fun `execution limits and logging may be set`() {
-        val settings = Settings().withQueryTimeout(30).withFetchSize(100).withMaxRows(1000).withExecuteLogging(false)
+        val settings =
+            Settings()
+                .withQueryTimeout(30)
+                .withFetchSize(100)
+                .withMaxRows(1000)
+                .withExecuteLogging(false)
         val configuration = configured(settings)
         Seed.reset(fixture)
         val rows = fixture.asTenant(Tenants.A) { configuration.dsl().selectFrom(Orders).fetch() }

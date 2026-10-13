@@ -55,15 +55,16 @@ class UnrelayedEventCheckIT {
         val check = newCheck()
 
         /** A check as another instance, or this one after a restart, would build it: no memory of earlier runs. */
-        fun newCheck() = JdbcUnrelayedEventCheck(
-            service.runtimeDataSource(),
-            scope,
-            SCHEMA,
-            "canonical-svc",
-            PostgresEventLogPresence(eventLog.eventLogDataSource()),
-            UnrelayedEventSettings(Duration.ofDays(30), margin, batchSize = 2),
-            UnrelayedEventSink { raised += it },
-        )
+        fun newCheck() =
+            JdbcUnrelayedEventCheck(
+                service.runtimeDataSource(),
+                scope,
+                SCHEMA,
+                "canonical-svc",
+                PostgresEventLogPresence(eventLog.eventLogDataSource()),
+                UnrelayedEventSettings(Duration.ofDays(30), margin, batchSize = 2),
+                UnrelayedEventSink { raised += it },
+            )
 
         init {
             service.createService(SCHEMA)
@@ -114,26 +115,28 @@ class UnrelayedEventCheckIT {
         }
 
         /** The seq of the current transaction's last appended row. */
-        fun lastSeq(): Long = scope.connections.require().prepareStatement("select max(seq) from $SCHEMA.outbox").use {
-            it.executeQuery().use { rows ->
-                rows.next()
-                rows.getLong(1)
+        fun lastSeq(): Long =
+            scope.connections.require().prepareStatement("select max(seq) from $SCHEMA.outbox").use {
+                it.executeQuery().use { rows ->
+                    rows.next()
+                    rows.getLong(1)
+                }
             }
-        }
 
         fun drain() {
             repeat(OutboxHarness.MAX_RUNS) { if (relay.runOnce().pending == 0L) return }
         }
 
-        fun idOf(seq: Long): String = service.adminDataSource().connection.use { c ->
-            c.prepareStatement("select id from $SCHEMA.outbox where seq = ?").use {
-                it.setLong(1, seq)
-                it.executeQuery().use { r ->
-                    r.next()
-                    r.getString(1)
+        fun idOf(seq: Long): String =
+            service.adminDataSource().connection.use { c ->
+                c.prepareStatement("select id from $SCHEMA.outbox where seq = ?").use {
+                    it.setLong(1, seq)
+                    it.executeQuery().use { r ->
+                        r.next()
+                        r.getString(1)
+                    }
                 }
             }
-        }
 
         /** As the superuser with triggers off: moves a relayed row's times back. */
         fun age(
@@ -186,7 +189,13 @@ class UnrelayedEventCheckIT {
             val purged = s.write()
             val boundary = s.write()
             s.drain()
-            assertTrue(s.check.check().open.isEmpty(), "relayed rows are never reported")
+            assertTrue(
+                s.check
+                    .check()
+                    .open
+                    .isEmpty(),
+                "relayed rows are never reported",
+            )
 
             // Relayed long ago and purged by the event log: published 31 days ago, past the 30-day cut-off.
             s.age(purged, insertedAgo = Duration.ofDays(31), publishedAgo = Duration.ofDays(31))
@@ -242,10 +251,23 @@ class UnrelayedEventCheckIT {
             written.await()
             s.write() // a later seq, committed and relayed while the planted row's transaction is open
             s.drain()
-            assertTrue(s.check.check().open.isEmpty(), "the planted row is invisible to this run")
+            assertTrue(
+                s.check
+                    .check()
+                    .open
+                    .isEmpty(),
+                "the planted row is invisible to this run",
+            )
             checked.countDown()
             open.join()
-            assertEquals(listOf(planted), s.check.check().open.map { it.outboxSeq }, "the next run reports it")
+            assertEquals(
+                listOf(planted),
+                s.check
+                    .check()
+                    .open
+                    .map { it.outboxSeq },
+                "the next run reports it",
+            )
             assertEquals(listOf(planted), s.raised.map { it.outboxSeq })
         } finally {
             s.close()
@@ -307,7 +329,13 @@ class UnrelayedEventCheckIT {
             val presence = PostgresEventLogPresence(s.eventLog.eventLogDataSource())
             val answer = presence.missing(topic, listOf(id, "absent-1"))
             assertEquals(setOf("absent-1"), answer.missing)
-            assertTrue(answer.cutoff.isBefore(java.time.Instant.now().minus(Duration.ofDays(29))))
+            assertTrue(
+                answer.cutoff.isBefore(
+                    java.time.Instant
+                        .now()
+                        .minus(Duration.ofDays(29)),
+                ),
+            )
             // the id of this topic's event, asked on another topic the caller produces: missing there, nothing leaks
             assertEquals(setOf(id), presence.missing("gst.payload.payload-ready.v1", listOf(id)).missing)
             // a login producing no topic is refused
@@ -332,11 +360,13 @@ class UnrelayedEventCheckIT {
     /** INV-AC-2175 for `events_missing` and its producer table, read from the catalogue. */
     private fun assertCatalogue(fixture: OutboxPostgresFixture) {
         val index = topicTable.substringAfter('.') + "_event_id"
-        fun list(sql: String): List<String> = fixture.adminDataSource().connection.use { c ->
-            c.createStatement().use { st ->
-                st.executeQuery(sql).use { r -> buildList { while (r.next()) add(r.getString(1)) } }
+
+        fun list(sql: String): List<String> =
+            fixture.adminDataSource().connection.use { c ->
+                c.createStatement().use { st ->
+                    st.executeQuery(sql).use { r -> buildList { while (r.next()) add(r.getString(1)) } }
+                }
             }
-        }
         assertEquals(
             listOf("eventlog_sys|true|search_path=pg_catalog, eventlog, pg_temp"),
             list(
@@ -373,8 +403,9 @@ class UnrelayedEventCheckIT {
         private val TENANT: UUID = UUID.randomUUID()
 
         @JvmStatic
-        fun topologies(): Stream<Arguments> = listOf("postgres:16", "postgres:17", "postgres:18")
-            .flatMap { listOf(Arguments.of(it, false), Arguments.of(it, true)) }
-            .stream()
+        fun topologies(): Stream<Arguments> =
+            listOf("postgres:16", "postgres:17", "postgres:18")
+                .flatMap { listOf(Arguments.of(it, false), Arguments.of(it, true)) }
+                .stream()
     }
 }

@@ -73,13 +73,20 @@ class JdbcPolicyWriter(
         if (definition.setBy.none { it in command.actor.roles }) {
             refuse(key, PolicyRefusal.ROLE_NOT_ALLOWED, "setting needs one of ${definition.setBy.sorted()}")
         }
-        val reason = command.reason?.takeIf { it.isNotBlank() } ?: refuse(key, PolicyRefusal.REASON_REQUIRED, "no reason")
-        if (command.source == SettingSource.PROFILE && (command.profileId.isNullOrBlank() || command.profileVersion.isNullOrBlank())) {
+        val reason =
+            command.reason?.takeIf { it.isNotBlank() } ?: refuse(key, PolicyRefusal.REASON_REQUIRED, "no reason")
+        if (command.source == SettingSource.PROFILE &&
+            (command.profileId.isNullOrBlank() || command.profileVersion.isNullOrBlank())
+        ) {
             refuse(key, PolicyRefusal.PROFILE_INCOMPLETE, "a profile value names the profile and its version")
         }
         if (command.source == SettingSource.PROFILE && target.level == ScopeLevel.INSTALLATION) {
             // Profile values are tenant-and-below settings in config_setting (T26 slot scope, INV-Q-2979).
-            refuse(key, PolicyRefusal.PROFILE_AT_INSTALLATION, "an operating profile applies to a tenant, not the installation")
+            refuse(
+                key,
+                PolicyRefusal.PROFILE_AT_INSTALLATION,
+                "an operating profile applies to a tenant, not the installation",
+            )
         }
         unsupported(definition)
         checkSelection(definition, target, command.selected, command.effectiveFrom)
@@ -89,7 +96,13 @@ class JdbcPolicyWriter(
         val relaxation =
             if (looser.isEmpty()) {
                 // A relaxation backs exactly the looser value it acknowledges (INV-Q-3138).
-                command.relaxation?.let { refuse(key, PolicyRefusal.NOT_LOOSER, "relaxation $it given for a value that is not looser") }
+                command.relaxation?.let {
+                    refuse(
+                        key,
+                        PolicyRefusal.NOT_LOOSER,
+                        "relaxation $it given for a value that is not looser",
+                    )
+                }
             } else {
                 requireRelaxation(definition, target, command, looser)
             }
@@ -194,14 +207,30 @@ class JdbcPolicyWriter(
             } else {
                 val rows = writes.acknowledgements(connection, tenant, relaxation)
                 if (rows.isEmpty()) refuse(key, PolicyRefusal.RELAXATION_REQUIRED, "no relaxation $relaxation")
-                if (rows.any { !matches(it, key, target, command.selected) || it.acknowledgement.effectiveFrom != command.effectiveFrom }) {
-                    refuse(key, PolicyRefusal.RELAXATION_REQUIRED, "relaxation $relaxation is for another value or date")
+                if (rows.any {
+                        !matches(it, key, target, command.selected) ||
+                            it.acknowledgement.effectiveFrom != command.effectiveFrom
+                    }
+                ) {
+                    refuse(
+                        key,
+                        PolicyRefusal.RELAXATION_REQUIRED,
+                        "relaxation $relaxation is for another value or date",
+                    )
                 }
                 if (writes.consumed(connection, tenant, relaxation)) {
                     refuse(key, PolicyRefusal.RELAXATION_REQUIRED, "relaxation $relaxation is already used")
                 }
-                if (rows.any { it.acknowledgement.role == command.asRole || it.acknowledgement.principal == command.actor.principal }) {
-                    refuse(key, PolicyRefusal.ACKNOWLEDGER_DUPLICATE, "role or principal already acknowledged $relaxation")
+                if (rows.any {
+                        it.acknowledgement.role == command.asRole ||
+                            it.acknowledgement.principal == command.actor.principal
+                    }
+                ) {
+                    refuse(
+                        key,
+                        PolicyRefusal.ACKNOWLEDGER_DUPLICATE,
+                        "role or principal already acknowledged $relaxation",
+                    )
                 }
                 rows
             }
@@ -212,14 +241,14 @@ class JdbcPolicyWriter(
                 selected = command.selected,
                 reason = command.reason?.takeIf { it.isNotBlank() },
                 acknowledgement =
-                RelaxationAcknowledgement(
-                    id = UUID.randomUUID(),
-                    relaxation = relaxation,
-                    role = command.asRole,
-                    principal = command.actor.principal,
-                    effectiveFrom = command.effectiveFrom,
-                    acknowledgedAt = clock.instant(),
-                ),
+                    RelaxationAcknowledgement(
+                        id = UUID.randomUUID(),
+                        relaxation = relaxation,
+                        role = command.asRole,
+                        principal = command.actor.principal,
+                        effectiveFrom = command.effectiveFrom,
+                        acknowledgedAt = clock.instant(),
+                    ),
             )
         writes.insertAcknowledgement(connection, row)
         val prior = mapper.createObjectNode()
@@ -307,8 +336,15 @@ class JdbcPolicyWriter(
         val connection = connections.require()
         val limiting =
             bounds.broaderLevels(definition, scope, target.level).map { key to scope.target(it) } +
-                listOfNotNull(definition.installationParameter).map { it to PolicyScope.installation().target(ScopeLevel.INSTALLATION) }
-        val later = limiting.flatMap { (row, at) -> writes.versions(connection, row, at).map { it.effectiveFrom } }.filter { it > effectiveFrom }
+                listOfNotNull(definition.installationParameter).map {
+                    it to
+                        PolicyScope.installation().target(ScopeLevel.INSTALLATION)
+                }
+        val later =
+            limiting.flatMap { (row, at) -> writes.versions(connection, row, at).map { it.effectiveFrom } }.filter {
+                it >
+                    effectiveFrom
+            }
         (listOf(effectiveFrom) + later.distinct().sorted()).forEach { date ->
             val limits =
                 try {
@@ -318,11 +354,21 @@ class JdbcPolicyWriter(
                 }
             limits.firstOrNull { it.violatedBy(it.field.value) }?.let {
                 val side = if (it.ceiling) "above" else "below"
-                val where = "'${it.field.option}' ${it.field.path.ifEmpty { "value" }} ${it.field.value?.toPlainString()} is $side"
+                val where = "'${it.field.option}' ${it.field.path.ifEmpty {
+                    "value"
+                }} ${it.field.value?.toPlainString()} is $side"
                 if (it.crossScope) {
-                    refuse(key, PolicyRefusal.LOOSER_THAN_BROADER, "$where the ${it.level} value ${it.bound.toPlainString()} on $date")
+                    refuse(
+                        key,
+                        PolicyRefusal.LOOSER_THAN_BROADER,
+                        "$where the ${it.level} value ${it.bound.toPlainString()} on $date",
+                    )
                 } else {
-                    refuse(key, PolicyRefusal.BEYOND_INSTALLATION_BOUND, "$where ${it.by} ${it.bound.toPlainString()} on $date")
+                    refuse(
+                        key,
+                        PolicyRefusal.BEYOND_INSTALLATION_BOUND,
+                        "$where ${it.by} ${it.bound.toPlainString()} on $date",
+                    )
                 }
             }
         }
@@ -340,12 +386,28 @@ class JdbcPolicyWriter(
             try {
                 constraints?.check(target, definition.key, selected, onDate)
             } catch (failure: RuntimeException) {
-                refuse(definition.key, PolicyRefusal.CONSTRAINT_REFUSED, "the owning service's check failed: ${failure.javaClass.simpleName}")
+                refuse(
+                    definition.key,
+                    PolicyRefusal.CONSTRAINT_REFUSED,
+                    "the owning service's check failed: ${failure.javaClass.simpleName}",
+                )
             }
         when (verdict) {
-            ConstraintVerdict.Accept -> Unit
-            is ConstraintVerdict.Refuse -> refuse(definition.key, PolicyRefusal.CONSTRAINT_REFUSED, verdict.reason)
-            null -> refuse(definition.key, PolicyRefusal.CONSTRAINT_REFUSED, "the owning service did not check the value")
+            ConstraintVerdict.Accept -> {
+                Unit
+            }
+
+            is ConstraintVerdict.Refuse -> {
+                refuse(definition.key, PolicyRefusal.CONSTRAINT_REFUSED, verdict.reason)
+            }
+
+            null -> {
+                refuse(
+                    definition.key,
+                    PolicyRefusal.CONSTRAINT_REFUSED,
+                    "the owning service did not check the value",
+                )
+            }
         }
     }
 
@@ -353,7 +415,8 @@ class JdbcPolicyWriter(
     private fun looserOptions(
         definition: VariationPointDefinition,
         selected: List<SelectedOption>,
-    ): List<OptionSpec> = selected.mapNotNull { definition.option(it.key) }.filter { it.strictness == Strictness.LOOSER }
+    ): List<OptionSpec> =
+        selected.mapNotNull { definition.option(it.key) }.filter { it.strictness == Strictness.LOOSER }
 
     /**
      * The roles that must acknowledge, each with its distinct-from-setter flag (INV-Q-3134, INV-Q-3136). An
@@ -381,12 +444,20 @@ class JdbcPolicyWriter(
                     it.condition == AcknowledgerCondition.ALWAYS || delegated
                 }
             if (applying.isEmpty()) {
-                refuse(key, PolicyRefusal.NO_ACCOUNTABLE_ROLE, "option '${option.key}' has no acknowledger for this scope")
+                refuse(
+                    key,
+                    PolicyRefusal.NO_ACCOUNTABLE_ROLE,
+                    "option '${option.key}' has no acknowledger for this scope",
+                )
             }
             applying.forEach {
                 val role =
                     it.roleIn(form)
-                        ?: refuse(key, PolicyRefusal.NO_ACCOUNTABLE_ROLE, "option '${option.key}' names no acknowledger in $form")
+                        ?: refuse(
+                            key,
+                            PolicyRefusal.NO_ACCOUNTABLE_ROLE,
+                            "option '${option.key}' names no acknowledger in $form",
+                        )
                 required[role] = (required[role] ?: false) || it.distinctFromSetter
             }
         }
@@ -397,8 +468,9 @@ class JdbcPolicyWriter(
     private fun isDelegated(
         target: SettingTarget,
         onDate: LocalDate,
-    ): Boolean = target.level == ScopeLevel.CLIENT_ENTITY ||
-        (delegation?.let { probe -> runCatching { probe.isDelegated(target, onDate) }.getOrNull() } ?: true)
+    ): Boolean =
+        target.level == ScopeLevel.CLIENT_ENTITY ||
+            (delegation?.let { probe -> runCatching { probe.isDelegated(target, onDate) }.getOrNull() } ?: true)
 
     /** A complete, matching, unused relaxation, effective on or before the value (INV-AC-205, INV-Q-3138). */
     private fun requireRelaxation(
@@ -429,7 +501,11 @@ class JdbcPolicyWriter(
                 rows.firstOrNull { it.acknowledgement.role == role }
                     ?: refuse(key, PolicyRefusal.RELAXATION_REQUIRED, "relaxation $relaxation lacks $role")
             if (distinct && given.acknowledgement.principal == command.actor.principal) {
-                refuse(key, PolicyRefusal.RELAXATION_REQUIRED, "$role must be acknowledged by someone other than the setter")
+                refuse(
+                    key,
+                    PolicyRefusal.RELAXATION_REQUIRED,
+                    "$role must be acknowledged by someone other than the setter",
+                )
             }
         }
         return relaxation
@@ -484,17 +560,25 @@ class JdbcPolicyWriter(
     private fun sameJson(
         a: JsonNode,
         b: JsonNode,
-    ): Boolean = when {
-        a.isNumber && b.isNumber -> a.decimalValue().compareTo(b.decimalValue()) == 0
+    ): Boolean =
+        when {
+            a.isNumber && b.isNumber -> {
+                a.decimalValue().compareTo(b.decimalValue()) == 0
+            }
 
-        a.isObject && b.isObject ->
-            a.propertyNames().toSet() == b.propertyNames().toSet() &&
-                a.propertyNames().all { sameJson(a.get(it), b.get(it)) }
+            a.isObject && b.isObject -> {
+                a.propertyNames().toSet() == b.propertyNames().toSet() &&
+                    a.propertyNames().all { sameJson(a.get(it), b.get(it)) }
+            }
 
-        a.isArray && b.isArray -> a.size() == b.size() && (0 until a.size()).all { sameJson(a.get(it), b.get(it)) }
+            a.isArray && b.isArray -> {
+                a.size() == b.size() && (0 until a.size()).all { sameJson(a.get(it), b.get(it)) }
+            }
 
-        else -> a == b
-    }
+            else -> {
+                a == b
+            }
+        }
 
     private fun contextOf(
         key: VariationPointKey,
@@ -522,13 +606,14 @@ class JdbcPolicyWriter(
         )
     }
 
-    private fun valueNode(selected: List<SelectedOption>) = mapper.createArrayNode().apply {
-        selected.forEach { option ->
-            val node = addObject()
-            node.put("key", option.key)
-            option.valueJson?.let { node.set("value", mapper.readTree(it)) }
+    private fun valueNode(selected: List<SelectedOption>) =
+        mapper.createArrayNode().apply {
+            selected.forEach { option ->
+                val node = addObject()
+                node.put("key", option.key)
+                option.valueJson?.let { node.set("value", mapper.readTree(it)) }
+            }
         }
-    }
 
     /** The prior value at the target on the effective date, as the audit entry's prior state (INV-AC-2229). */
     private fun priorState(
@@ -548,13 +633,21 @@ class JdbcPolicyWriter(
             node.set("value", valueNode(prior.selected))
             node.put("source", sourceName(prior.source))
             when (val source = prior.source) {
-                is PolicySource.Override -> node.put("sourceScope", source.scopeId).put("settingId", source.settingId.toString())
-
-                is PolicySource.Profile ->
+                is PolicySource.Override -> {
                     node.put("sourceScope", source.scopeId).put("settingId", source.settingId.toString())
-                        .put("profileId", source.profileId).put("profileVersion", source.profileVersion)
+                }
 
-                PolicySource.CatalogueDefault -> Unit
+                is PolicySource.Profile -> {
+                    node
+                        .put("sourceScope", source.scopeId)
+                        .put("settingId", source.settingId.toString())
+                        .put("profileId", source.profileId)
+                        .put("profileVersion", source.profileVersion)
+                }
+
+                PolicySource.CatalogueDefault -> {
+                    Unit
+                }
             }
         }
         return mapper.writeValueAsString(node)
@@ -574,11 +667,12 @@ class JdbcPolicyWriter(
         return mapper.writeValueAsString(node)
     }
 
-    private fun sourceName(source: PolicySource) = when (source) {
-        is PolicySource.Override -> "OVERRIDE"
-        is PolicySource.Profile -> "PROFILE"
-        PolicySource.CatalogueDefault -> "DEFAULT"
-    }
+    private fun sourceName(source: PolicySource) =
+        when (source) {
+            is PolicySource.Override -> "OVERRIDE"
+            is PolicySource.Profile -> "PROFILE"
+            PolicySource.CatalogueDefault -> "DEFAULT"
+        }
 
     companion object {
         /** The platform event type (API-40), schema owned by `service-runtime`. */

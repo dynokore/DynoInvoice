@@ -91,7 +91,11 @@ class PolicyReplica(
         val variationPointId: String,
     )
 
-    private data class Versioned(val value: PolicyValue, val topic: String, val offset: Long)
+    private data class Versioned(
+        val value: PolicyValue,
+        val topic: String,
+        val offset: Long,
+    )
 
     private val schedules = ConcurrentHashMap<Slot, TreeMap<LocalDate, Versioned>>()
     private val trackers = ConcurrentHashMap<String, ReplicaLagTracker>()
@@ -139,13 +143,14 @@ class PolicyReplica(
         scope: PolicyScope,
         variationPointId: String,
         date: LocalDate,
-    ): PolicyValue? = PRECEDENCE.firstNotNullOfOrNull { source ->
-        scope.chain().firstNotNullOfOrNull { ref ->
-            schedules[slot(scope, ref, source, variationPointId)]?.let { schedule ->
-                synchronized(schedule) { schedule.floorEntry(date)?.value?.value }
+    ): PolicyValue? =
+        PRECEDENCE.firstNotNullOfOrNull { source ->
+            scope.chain().firstNotNullOfOrNull { ref ->
+                schedules[slot(scope, ref, source, variationPointId)]?.let { schedule ->
+                    synchronized(schedule) { schedule.floorEntry(date)?.value?.value }
+                }
             }
         }
-    }
 
     override fun observeHead(
         topic: String,

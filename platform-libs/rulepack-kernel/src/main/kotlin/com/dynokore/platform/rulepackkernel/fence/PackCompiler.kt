@@ -3,9 +3,13 @@ package com.dynokore.platform.rulepackkernel.fence
 import com.dynokore.platform.rulepackkernel.PackManifest
 
 sealed interface CompileOutcome<out C> {
-    data class Compiled<C>(val compiled: C) : CompileOutcome<C>
+    data class Compiled<C>(
+        val compiled: C,
+    ) : CompileOutcome<C>
 
-    data class Failed(val reason: String) : CompileOutcome<Nothing>
+    data class Failed(
+        val reason: String,
+    ) : CompileOutcome<Nothing>
 }
 
 /**

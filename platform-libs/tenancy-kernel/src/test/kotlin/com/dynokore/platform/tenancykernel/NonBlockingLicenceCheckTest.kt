@@ -31,10 +31,10 @@ class NonBlockingLicenceCheckTest {
         val check =
             NonBlockingLicenceCheck(
                 delegate =
-                LicenceCheck {
-                    Thread.sleep(5_000)
-                    LicenceStatus.EXPIRED
-                },
+                    LicenceCheck {
+                        Thread.sleep(5_000)
+                        LicenceStatus.EXPIRED
+                    },
                 timeout = Duration.ofMillis(100),
             )
         assertTimeoutPreemptively(Duration.ofSeconds(2)) {

@@ -118,11 +118,18 @@ class LocalAuditWriterIT {
             }
             assertEquals(1, cp.visible(owner))
             assertEquals(0, cp.visible(TenantId(UUID.randomUUID())))
+
             // INV-T-3999 removes this call
             @Suppress("DEPRECATION")
-            fun run(sql: String) = cp.tenants.bind(owner) {
-                cp.boundary.inTransaction { cp.boundary.require().createStatement().use { it.executeUpdate(sql) } }
-            }
+            fun run(sql: String) =
+                cp.tenants.bind(owner) {
+                    cp.boundary.inTransaction {
+                        cp.boundary
+                            .require()
+                            .createStatement()
+                            .use { it.executeUpdate(sql) }
+                    }
+                }
             assertThrows(SQLException::class.java) { run("update controlplane.audit_entry set reason = 'edited'") }
             assertThrows(SQLException::class.java) { run("delete from controlplane.audit_entry") }
             // The context names tenant B but the session is bound to A: the policy's WITH CHECK refuses the row.
@@ -220,7 +227,9 @@ class LocalAuditWriterIT {
     }
 
     /** The fixture `control-plane-svc`: its `controlplane` schema holds the audit table and one state table. */
-    private class ControlPlane(image: String) : AutoCloseable {
+    private class ControlPlane(
+        image: String,
+    ) : AutoCloseable {
         val fixture = OutboxPostgresFixture(image)
         val tenants = TenantContextImpl()
         val boundary = KillableTransactionRunner(fixture.appDataSource(), tenants)
@@ -271,55 +280,58 @@ class LocalAuditWriterIT {
 
         // INV-T-3999 removes this call
         @Suppress("DEPRECATION")
-        fun visible(tenant: TenantId): Long = tenants.bind(tenant) {
-            boundary.inTransaction {
-                boundary.require().createStatement().use { s ->
-                    s.executeQuery("select count(*) from $SCHEMA.audit_entry").use {
-                        it.next()
-                        it.getLong(1)
+        fun visible(tenant: TenantId): Long =
+            tenants.bind(tenant) {
+                boundary.inTransaction {
+                    boundary.require().createStatement().use { s ->
+                        s.executeQuery("select count(*) from $SCHEMA.audit_entry").use {
+                            it.next()
+                            it.getLong(1)
+                        }
                     }
                 }
             }
-        }
 
         /** Rows with id [id] whose every other column is [staged]'s. */
         fun rowsLike(
             id: String,
             staged: StagedAuditEntry,
-        ): Long = count(
-            "select count(*) from controlplane.audit_entry where id = ?::uuid and tenant_id = ? " +
-                "and entity_ref = ? and recorded_at = ? and source = ? and subject = ? and doc_uuid is null " +
-                "and transaction_date is null and instance_id = ? and correlation_id = ? " +
-                "and causation_id = ? and actor = ? and action = ? and scope = ? and reason = ? " +
-                "and prior_state = ?::jsonb",
-            id,
-            staged.envelope.tenant.value,
-            staged.envelope.entity.value,
-            Timestamp.from(staged.envelope.time),
-            staged.envelope.source,
-            staged.envelope.subject,
-            staged.envelope.instanceId,
-            staged.envelope.correlation.value,
-            staged.envelope.causation.value,
-            staged.entry.actor,
-            staged.entry.action,
-            staged.entry.scope,
-            checkNotNull(staged.entry.reason),
-            checkNotNull(staged.priorStateJson),
-        )
+        ): Long =
+            count(
+                "select count(*) from controlplane.audit_entry where id = ?::uuid and tenant_id = ? " +
+                    "and entity_ref = ? and recorded_at = ? and source = ? and subject = ? and doc_uuid is null " +
+                    "and transaction_date is null and instance_id = ? and correlation_id = ? " +
+                    "and causation_id = ? and actor = ? and action = ? and scope = ? and reason = ? " +
+                    "and prior_state = ?::jsonb",
+                id,
+                staged.envelope.tenant.value,
+                staged.envelope.entity.value,
+                Timestamp.from(staged.envelope.time),
+                staged.envelope.source,
+                staged.envelope.subject,
+                staged.envelope.instanceId,
+                staged.envelope.correlation.value,
+                staged.envelope.causation.value,
+                staged.entry.actor,
+                staged.entry.action,
+                staged.entry.scope,
+                checkNotNull(staged.entry.reason),
+                checkNotNull(staged.priorStateJson),
+            )
 
         fun count(
             sql: String,
             vararg args: Any,
-        ): Long = fixture.adminDataSource().connection.use { connection ->
-            connection.prepareStatement(sql).use { statement ->
-                args.forEachIndexed { index, value -> statement.setObject(index + 1, value) }
-                statement.executeQuery().use {
-                    it.next()
-                    it.getLong(1)
+        ): Long =
+            fixture.adminDataSource().connection.use { connection ->
+                connection.prepareStatement(sql).use { statement ->
+                    args.forEachIndexed { index, value -> statement.setObject(index + 1, value) }
+                    statement.executeQuery().use {
+                        it.next()
+                        it.getLong(1)
+                    }
                 }
             }
-        }
 
         override fun close() {
             fixture.close()

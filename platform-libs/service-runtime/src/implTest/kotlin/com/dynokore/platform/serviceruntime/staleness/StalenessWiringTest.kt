@@ -23,23 +23,44 @@ class StalenessWiringTest {
     private val runner =
         ApplicationContextRunner()
             .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
-            .withConfiguration(AutoConfigurations.of(ServiceRuntimeConfiguration::class.java, L1CompositionAutoConfiguration::class.java))
-            .withPropertyValues(
+            .withConfiguration(
+                AutoConfigurations.of(
+                    ServiceRuntimeConfiguration::class.java,
+                    L1CompositionAutoConfiguration::class.java,
+                ),
+            ).withPropertyValues(
                 "service-runtime.workload-identity.audience=submission-svc",
                 "service-runtime.modules.schema=submission",
                 "gst.service=submission-svc",
                 "service-runtime.staleness.check-interval=1h",
-            ).withBean(EventCatalogue::class.java, { EventCatalogue(listOf(CatalogueEntry(CANONICAL, "gst.canonical.canonical-version-created.v1", setOf("canonical-svc")))) })
-            .withBean("dataSource", DataSource::class.java, { mockk<DataSource>(relaxed = true) }, { it.isPrimary = true })
-            .withBean(ServiceDataSources.EVENT_LOG, DataSource::class.java, { mockk<DataSource>(relaxed = true) })
+            ).withBean(EventCatalogue::class.java, {
+                EventCatalogue(
+                    listOf(
+                        CatalogueEntry(CANONICAL, "gst.canonical.canonical-version-created.v1", setOf("canonical-svc")),
+                    ),
+                )
+            })
+            .withBean(
+                "dataSource",
+                DataSource::class.java,
+                { mockk<DataSource>(relaxed = true) },
+                { it.isPrimary = true },
+            ).withBean(ServiceDataSources.EVENT_LOG, DataSource::class.java, { mockk<DataSource>(relaxed = true) })
 
     @Test
     fun `configured rules take their provisional thresholds and are exported as gauges`() {
-        runner.withPropertyValues("service-runtime.staleness.rules[0].consumer=submission-svc", "service-runtime.staleness.rules[0].event-type=$CANONICAL")
-            .run { context ->
+        runner
+            .withPropertyValues(
+                "service-runtime.staleness.rules[0].consumer=submission-svc",
+                "service-runtime.staleness.rules[0].event-type=$CANONICAL",
+            ).run { context ->
                 context.startupFailure shouldBe null
                 context.getBean(StalenessMonitor::class.java).shouldNotBeNull()
-                context.getBean(StalenessRules::class.java).rules.single().threshold shouldBe Duration.ofMinutes(5)
+                context
+                    .getBean(StalenessRules::class.java)
+                    .rules
+                    .single()
+                    .threshold shouldBe Duration.ofMinutes(5)
                 context.getBean(StalenessCheckSchedule::class.java).isRunning shouldBe true
                 context
                     .getBean(MeterRegistry::class.java)
@@ -58,7 +79,9 @@ class StalenessWiringTest {
                 "service-runtime.staleness.rules[0].event-type=$CANONICAL",
                 "service-runtime.staleness.rules[0].threshold=10m",
             ).run { context ->
-                generateSequence(context.startupFailure) { it.cause }.joinToString { it.message.orEmpty() } shouldContain
+                generateSequence(
+                    context.startupFailure,
+                ) { it.cause }.joinToString { it.message.orEmpty() } shouldContain
                     "consumer submission-svc on $CANONICAL is longer than its provisional PT5M"
             }
     }

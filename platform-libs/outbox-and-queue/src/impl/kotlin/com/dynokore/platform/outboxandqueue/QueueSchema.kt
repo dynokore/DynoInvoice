@@ -53,7 +53,8 @@ object QueueSchema {
         val runtime = SqlIdentifier.require(runtimeRole, "runtime role")
         val sys = SqlIdentifier.require(sysRole, "sys role")
         require(runtime != sys) { "the runtime login and the sys role must differ, both were '$runtime'" }
-        val table = """
+        val table =
+            """
             create table $s.$WORK_QUEUE (
                 seq bigint generated always as identity primary key,
                 tenant_id uuid not null,
@@ -72,8 +73,9 @@ object QueueSchema {
             create unique index ${WORK_QUEUE}_replay_once on $s.$WORK_QUEUE (source_dead_letter_id)
                 where source_dead_letter_id is not null;
             comment on column $s.$WORK_QUEUE.payload is 'class: content';
-        """.trimIndent()
-        val grants = """
+            """.trimIndent()
+        val grants =
+            """
             grant usage on schema $s to $runtime;
             grant select, insert, update, delete on $s.$WORK_QUEUE to $runtime;
             grant usage on schema $s to $sys;
@@ -82,7 +84,7 @@ object QueueSchema {
             grant select (seq, tenant_id, partition_key, lane, consumer, state, attempts, claimed_at)
                 on $s.$WORK_QUEUE to $sys;
             grant update (state, attempts, claimed_at) on $s.$WORK_QUEUE to $sys;
-        """.trimIndent()
+            """.trimIndent()
         // Statement groups joined outside SQL text: tenancy-kernel's RLS DDL is not spliced into this module's SQL.
         return listOf(
             table,
@@ -154,7 +156,7 @@ object QueueSchema {
             revoke all on function $s.$CLAIM_DUE(text, text, timestamptz, timestamptz) from public;
             grant execute on function $s.$CLAIM_DUE(text, text, timestamptz, timestamptz) to $runtime;
             revoke create on schema $s from $sys;
-        """.trimIndent()
+            """.trimIndent()
     }
 
     private const val CANDIDATES = 20
@@ -176,6 +178,6 @@ object QueueSchema {
                 'Shared per-lane rate-limit windows (no tenant data; CS-19 exception, as consumer_offset)';
             grant usage on schema $s to $runtime;
             grant select, insert, update, delete on $s.$LANE_RATE_WINDOW to $runtime;
-        """.trimIndent()
+            """.trimIndent()
     }
 }

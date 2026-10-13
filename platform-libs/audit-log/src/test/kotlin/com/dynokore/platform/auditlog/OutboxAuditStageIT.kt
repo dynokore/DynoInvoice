@@ -65,14 +65,15 @@ class OutboxAuditStageIT {
         return tenants.bindPlatform(actor) { boundary.inTransaction(block) }
     }
 
-    private fun platformContext(key: String) = EventContext(
-        tenant = TenantId.PLATFORM,
-        entity = EntityRef.PLATFORM,
-        docUuid = null,
-        transactionDate = null,
-        aggregateKey = key,
-        aggregateVersion = null,
-        correlation = CorrelationId("corr-1"),
-        causation = CausationId("cause-1"),
-    )
+    private fun platformContext(key: String) =
+        EventContext(
+            tenant = TenantId.PLATFORM,
+            entity = EntityRef.PLATFORM,
+            docUuid = null,
+            transactionDate = null,
+            aggregateKey = key,
+            aggregateVersion = null,
+            correlation = CorrelationId("corr-1"),
+            causation = CausationId("cause-1"),
+        )
 }

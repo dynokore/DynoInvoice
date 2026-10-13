@@ -15,7 +15,10 @@ import javax.sql.DataSource
  * instance that dies holding the lock releases nothing, the lease lapses and another instance takes the
  * next firing (INV-AC-2406). Lease times come from the database clock so replicas agree.
  */
-internal class ShedLockLeaderElection(private val provider: LockProvider, private val clock: Clock) {
+internal class ShedLockLeaderElection(
+    private val provider: LockProvider,
+    private val clock: Clock,
+) {
     /** Runs [body] if this instance takes the lock; null when another instance holds it. */
     fun <T> runIfLeader(
         job: JobDefinition,
@@ -36,10 +39,11 @@ internal class ShedLockLeaderElection(private val provider: LockProvider, privat
         fun lockName(
             job: JobDefinition,
             target: JobTarget,
-        ): String = when (target) {
-            JobTarget.Whole -> "${job.ownerService}.${job.name}"
-            is JobTarget.Entity -> "${job.ownerService}.${job.name}/${target.tenant}/${target.entity}"
-        }
+        ): String =
+            when (target) {
+                JobTarget.Whole -> "${job.ownerService}.${job.name}"
+                is JobTarget.Entity -> "${job.ownerService}.${job.name}/${target.tenant}/${target.entity}"
+            }
 
         /**
          * ShedLock over the service's own `shedlock` table (no tenant data), on the service's one application
@@ -51,7 +55,8 @@ internal class ShedLockLeaderElection(private val provider: LockProvider, privat
             clock: Clock,
         ) = ShedLockLeaderElection(
             JdbcTemplateLockProvider(
-                JdbcTemplateLockProvider.Configuration.builder()
+                JdbcTemplateLockProvider.Configuration
+                    .builder()
                     .withJdbcTemplate(JdbcTemplate(runtime))
                     .withTableName("${SqlIdentifier.require(schema, "schema")}.${JobSchema.SHEDLOCK}")
                     .usingDbTime()

@@ -35,12 +35,13 @@ class BouncyCastlePackVerifierTest {
         val artefact = PackFixtures.artefact(keyPair = successorKeyPair, certificate = successorCertificate)
 
         val primaryCertificate = PackFixtures.selfSignedCertificate(PackFixtures.signingKeyPair(), "2026-train-primary")
-        val trustAnchors = TrustAnchors(
-            listOf(
-                TrustAnchor("primary", primaryCertificate.encoded),
-                TrustAnchor("successor", successorCertificate.encoded),
-            ),
-        )
+        val trustAnchors =
+            TrustAnchors(
+                listOf(
+                    TrustAnchor("primary", primaryCertificate.encoded),
+                    TrustAnchor("successor", successorCertificate.encoded),
+                ),
+            )
 
         val outcome = verifier.verify(artefact, trustAnchors)
 
@@ -108,12 +109,13 @@ class BouncyCastlePackVerifierTest {
         val malformedManifest = "not json".toByteArray()
         val checksums = PackFixtures.checksumsJson(contents)
         val signature = PackFixtures.detachedCmsSignature(malformedManifest + checksums, keyPair, certificate)
-        val artefact = PackArtefact(
-            manifest = malformedManifest,
-            checksums = checksums,
-            signature = signature,
-            contents = contents,
-        )
+        val artefact =
+            PackArtefact(
+                manifest = malformedManifest,
+                checksums = checksums,
+                signature = signature,
+                contents = contents,
+            )
         val trustAnchors = TrustAnchors(listOf(TrustAnchor("primary", certificate.encoded)))
 
         val outcome = verifier.verify(artefact, trustAnchors)

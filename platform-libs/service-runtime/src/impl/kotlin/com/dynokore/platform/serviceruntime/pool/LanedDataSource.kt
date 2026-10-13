@@ -30,14 +30,18 @@ class LanedDataSource(
     private val permits: Map<PoolLane, Semaphore> = PoolLane.entries.associateWith { Semaphore(budgets.of(it), true) }
 
     init {
-        check(pool.maximumPoolSize == budgets.maximum) { "the pool maximum ${pool.maximumPoolSize} must be the sum of the lane budgets $budgets" }
+        check(pool.maximumPoolSize == budgets.maximum) {
+            "the pool maximum ${pool.maximumPoolSize} must be the sum of the lane budgets $budgets"
+        }
     }
 
     override fun getConnection(): Connection {
         val lane = PoolLanes.current()
         val budget = budgets.of(lane)
         if (budget == 0) {
-            throw SQLTransientConnectionException("the $lane lane has no permits (budget 0) and never runs on another lane (INV-REQ-1072 b5)")
+            throw SQLTransientConnectionException(
+                "the $lane lane has no permits (budget 0) and never runs on another lane (INV-REQ-1072 b5)",
+            )
         }
         val semaphore = permits.getValue(lane)
         val acquired =
@@ -48,7 +52,9 @@ class LanedDataSource(
                 throw SQLException("interrupted while waiting for a $lane lane permit", interrupted)
             }
         if (!acquired) {
-            throw SQLTransientConnectionException("the $lane lane's $budget permits stayed in use for ${pool.connectionTimeout} ms")
+            throw SQLTransientConnectionException(
+                "the $lane lane's $budget permits stayed in use for ${pool.connectionTimeout} ms",
+            )
         }
         try {
             return LaneConnection(pool.connection, lane, semaphore)
@@ -61,7 +67,8 @@ class LanedDataSource(
     override fun getConnection(
         username: String?,
         password: String?,
-    ): Connection = throw UnsupportedOperationException("the application pool's lanes take connections as the runtime login only")
+    ): Connection =
+        throw UnsupportedOperationException("the application pool's lanes take connections as the runtime login only")
 
     /** The permits of [lane] not in use. */
     fun availablePermits(lane: PoolLane): Int = permits.getValue(lane).availablePermits()
@@ -84,13 +91,15 @@ class LanedDataSource(
      * The pool for any type it is (Spring Boot's DataSourceBuilder.derivedFrom and its pool metrics unwrap to it);
      * this lane view only for [LanedDataSource] itself.
      */
-    override fun <T : Any> unwrap(iface: Class<T>): T = when {
-        iface.isInstance(pool) -> iface.cast(pool)
-        iface.isInstance(this) -> iface.cast(this)
-        else -> pool.unwrap(iface)
-    }
+    override fun <T : Any> unwrap(iface: Class<T>): T =
+        when {
+            iface.isInstance(pool) -> iface.cast(pool)
+            iface.isInstance(this) -> iface.cast(this)
+            else -> pool.unwrap(iface)
+        }
 
-    override fun isWrapperFor(iface: Class<*>): Boolean = iface.isInstance(pool) || iface.isInstance(this) || pool.isWrapperFor(iface)
+    override fun isWrapperFor(iface: Class<*>): Boolean =
+        iface.isInstance(pool) || iface.isInstance(this) || pool.isWrapperFor(iface)
 
     /** Closes the pool (the bean's destroy method). */
     override fun close() = pool.close()
@@ -114,7 +123,8 @@ class LaneConnection internal constructor(
         }
     }
 
-    override fun <T : Any> unwrap(iface: Class<T>): T = if (iface.isInstance(this)) iface.cast(this) else delegate.unwrap(iface)
+    override fun <T : Any> unwrap(iface: Class<T>): T =
+        if (iface.isInstance(this)) iface.cast(this) else delegate.unwrap(iface)
 
     override fun isWrapperFor(iface: Class<*>): Boolean = iface.isInstance(this) || delegate.isWrapperFor(iface)
 }

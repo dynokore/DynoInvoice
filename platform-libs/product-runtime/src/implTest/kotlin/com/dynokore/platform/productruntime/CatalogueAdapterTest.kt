@@ -102,8 +102,10 @@ class CatalogueAdapterTest {
 
     @Test
     fun `every LOOSER option maps with its acknowledgers, one per role, and none is left empty`() {
-        val looser = VariationPoint.entries.flatMap { vp -> vp.optionSpecs.orEmpty().map { vp to it } }
-            .filter { (_, option) -> option.strictness.name == Strictness.LOOSER.name }
+        val looser =
+            VariationPoint.entries
+                .flatMap { vp -> vp.optionSpecs.orEmpty().map { vp to it } }
+                .filter { (_, option) -> option.strictness.name == Strictness.LOOSER.name }
         looser.shouldNotBeEmpty()
         looser.forEach { (vp, option) ->
             val mapped = requireNotNull(catalogue.find(VariationPointKey(vp.id))?.option(option.key))
@@ -126,7 +128,14 @@ class CatalogueAdapterTest {
                 "relaxed",
                 com.dynokore.gst.catalogue.Strictness.LOOSER,
                 null,
-                listOf(GstAcknowledger(listOf("tax.approver", "finance.controller"), AckCondition.UNDER_DELEGATION, true, emptyMap())),
+                listOf(
+                    GstAcknowledger(
+                        listOf("tax.approver", "finance.controller"),
+                        AckCondition.UNDER_DELEGATION,
+                        true,
+                        emptyMap(),
+                    ),
+                ),
             )
         GstVariationPointCatalogue.acknowledgers(option) shouldBe
             listOf(
@@ -148,8 +157,12 @@ class CatalogueAdapterTest {
             )
         GstVariationPointCatalogue.acknowledgers(option).shouldBeEmpty()
         val single = byForm + (GstForm.SAAS to listOf("a.role"))
-        GstVariationPointCatalogue.acknowledgers(option.copy(acknowledgedBy = listOf(GstAcknowledger(emptyList(), AckCondition.ALWAYS, false, single)))) shouldBe
-            listOf(Acknowledger(roleByForm = mapOf(DeploymentForm.SAAS to "a.role", DeploymentForm.PRIVATE to "c.role")))
+        GstVariationPointCatalogue.acknowledgers(
+            option.copy(acknowledgedBy = listOf(GstAcknowledger(emptyList(), AckCondition.ALWAYS, false, single))),
+        ) shouldBe
+            listOf(
+                Acknowledger(roleByForm = mapOf(DeploymentForm.SAAS to "a.role", DeploymentForm.PRIVATE to "c.role")),
+            )
     }
 
     @Test
@@ -159,7 +172,8 @@ class CatalogueAdapterTest {
             if (vp.constraints.isEmpty()) {
                 crossOption.shouldBeNull()
             } else {
-                crossOption?.lines() shouldBe vp.constraints.map { "${it.id} ${it.kind.name}: ${it.rule} (refused: ${it.refused})" }
+                crossOption?.lines() shouldBe
+                    vp.constraints.map { "${it.id} ${it.kind.name}: ${it.rule} (refused: ${it.refused})" }
             }
         }
     }
@@ -171,7 +185,8 @@ class CatalogueAdapterTest {
 
     @Test
     fun `keys lists the rows the embedding service owns, and cannot list without one`() {
-        catalogue.keys().map { it.value } shouldContainExactly VariationPoint.entries.filter { it.owner == "submission-svc" }.map { it.id }
+        catalogue.keys().map { it.value } shouldContainExactly
+            VariationPoint.entries.filter { it.owner == "submission-svc" }.map { it.id }
         assertThrows<CatalogueListingUnavailable> { GstVariationPointCatalogue().keys() }
     }
 }

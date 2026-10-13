@@ -3,7 +3,9 @@ package com.dynokore.platform.adapterruntime
 import java.time.Duration
 
 /** How long a single attempt is given before it is timed out (INV-REQ-1353). */
-data class TimeoutPolicy(val timeout: Duration) {
+data class TimeoutPolicy(
+    val timeout: Duration,
+) {
     init {
         require(!timeout.isNegative && !timeout.isZero) { "timeout must be positive, was $timeout" }
     }

@@ -26,7 +26,12 @@ internal class TenantStatementCheck(
         val rendered = context.sql() ?: throw TenantPredicateViolation("the statement rendered no SQL")
         RenderedSql.require(rendered)
         val check = TenantPredicateCheck(tables, Predicates(BoundTenant.require(tenants)))
-        val checked = context.configuration().deriveAppending(check).dsl().render(query)
+        val checked =
+            context
+                .configuration()
+                .deriveAppending(check)
+                .dsl()
+                .render(query)
         check.requireAllVerified()
         if (checked != rendered) {
             throw TenantPredicateViolation("the checked statement differs from the statement about to run")

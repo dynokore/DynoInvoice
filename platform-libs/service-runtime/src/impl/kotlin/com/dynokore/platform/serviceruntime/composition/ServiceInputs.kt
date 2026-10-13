@@ -65,7 +65,12 @@ data class ModuleProperties(
     val evidence: EvidenceProperties = EvidenceProperties(),
 ) {
     /** [schema], required once an implementation that needs it is created. */
-    fun requireSchema(): String = checkNotNull(schema?.takeIf { it.isNotBlank() }) { "service-runtime.modules.schema must name the service's schema" }
+    fun requireSchema(): String =
+        checkNotNull(
+            schema?.takeIf {
+                it.isNotBlank()
+            },
+        ) { "service-runtime.modules.schema must name the service's schema" }
 }
 
 /**

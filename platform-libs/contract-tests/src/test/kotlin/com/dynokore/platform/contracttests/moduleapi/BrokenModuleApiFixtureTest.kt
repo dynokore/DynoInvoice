@@ -39,7 +39,12 @@ class BrokenModuleApiFixtureTest {
         val failed = events.failed().list().map { it.testDescriptor.displayName }
         failed shouldBe listOf(DEAD_LETTER_TEST)
         events.succeeded().count() shouldBe 2L
-        events.failed().list().single().payload.toString() shouldContain "DeadLetterEntry"
+        events
+            .failed()
+            .list()
+            .single()
+            .payload
+            .toString() shouldContain "DeadLetterEntry"
     }
 
     private companion object {

@@ -43,14 +43,15 @@ fun interface FailureClassifier {
             return STATES.any(state::startsWith)
         }
 
-        private fun isInfrastructure(t: Throwable): Boolean = when (t) {
-            is DependencyUnavailable, is EventBindingUnavailable, is SQLTransientException,
-            is SQLRecoverableException, is SQLTimeoutException, is IOException, is TimeoutException,
-            -> true
+        private fun isInfrastructure(t: Throwable): Boolean =
+            when (t) {
+                is DependencyUnavailable, is EventBindingUnavailable, is SQLTransientException,
+                is SQLRecoverableException, is SQLTimeoutException, is IOException, is TimeoutException,
+                -> true
 
-            is SQLException -> hasTransientState(t)
+                is SQLException -> hasTransientState(t)
 
-            else -> false
-        }
+                else -> false
+            }
     }
 }

@@ -22,7 +22,9 @@ sealed interface FenceOutcome {
     data object Armed : FenceOutcome
 
     /** Acknowledgements are still missing and the window is open. Nothing is armed. */
-    data class Pending(val missing: Set<String>) : FenceOutcome
+    data class Pending(
+        val missing: Set<String>,
+    ) : FenceOutcome
 
     /**
      * The activation is abandoned and nothing is armed (INV-REQ-1166 behaviour #4): report [ERROR_CODE],
@@ -102,12 +104,13 @@ class ActivationFence(
         }
     }
 
-    private fun armNow(): FenceOutcome = try {
-        arming.arm(packId, version)
-        FenceOutcome.Armed
-    } catch (
-        @Suppress("TooGenericExceptionCaught") ignored: RuntimeException,
-    ) {
-        FenceOutcome.Aborted(emptyMap(), emptySet(), armingFailed = true)
-    }
+    private fun armNow(): FenceOutcome =
+        try {
+            arming.arm(packId, version)
+            FenceOutcome.Armed
+        } catch (
+            @Suppress("TooGenericExceptionCaught") ignored: RuntimeException,
+        ) {
+            FenceOutcome.Aborted(emptyMap(), emptySet(), armingFailed = true)
+        }
 }

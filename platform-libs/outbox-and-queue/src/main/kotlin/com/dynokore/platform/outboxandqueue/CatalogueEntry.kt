@@ -9,18 +9,18 @@ package com.dynokore.platform.outboxandqueue
  * `docsequence` check and no held-sequence row (coordinator ruling INV-Q-3809, INV-REQ-1221 b4).
  */
 data class CatalogueEntry
-@JvmOverloads
-constructor(
-    val eventType: String,
-    val topic: String,
-    val producers: Set<String>,
-    val contentTopic: Boolean? = null,
-    val recordTopic: Boolean = false,
-) {
-    /** Platform events are catalogued with the producer `every service` (INV-REQ-815 behaviour 4). */
-    fun isProducedBy(service: String): Boolean = EVERY_SERVICE in producers || service in producers
+    @JvmOverloads
+    constructor(
+        val eventType: String,
+        val topic: String,
+        val producers: Set<String>,
+        val contentTopic: Boolean? = null,
+        val recordTopic: Boolean = false,
+    ) {
+        /** Platform events are catalogued with the producer `every service` (INV-REQ-815 behaviour 4). */
+        fun isProducedBy(service: String): Boolean = EVERY_SERVICE in producers || service in producers
 
-    companion object {
-        const val EVERY_SERVICE = "every service"
+        companion object {
+            const val EVERY_SERVICE = "every service"
+        }
     }
-}

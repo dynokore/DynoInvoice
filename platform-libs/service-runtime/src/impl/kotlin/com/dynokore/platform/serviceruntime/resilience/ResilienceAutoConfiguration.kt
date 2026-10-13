@@ -37,7 +37,8 @@ class ResilienceAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    fun deadlinePropagationInterceptor(clock: Clock): ClientHttpRequestInterceptor = DeadlinePropagationInterceptor(clock)
+    fun deadlinePropagationInterceptor(clock: Clock): ClientHttpRequestInterceptor =
+        DeadlinePropagationInterceptor(clock)
 
     @Bean
     @ConditionalOnMissingBean
@@ -47,16 +48,18 @@ class ResilienceAutoConfiguration {
     fun deadlineServerFilter(
         properties: ResilienceProperties,
         clock: Clock,
-    ): FilterRegistrationBean<DeadlineServerFilter> = FilterRegistrationBean(DeadlineServerFilter(clock, properties.defaultDeadlineBudget)).apply {
-        order = ORDER_DEADLINE
-        urlPatterns = listOf("/*")
-    }
+    ): FilterRegistrationBean<DeadlineServerFilter> =
+        FilterRegistrationBean(DeadlineServerFilter(clock, properties.defaultDeadlineBudget)).apply {
+            order = ORDER_DEADLINE
+            urlPatterns = listOf("/*")
+        }
 
     @Bean
-    fun endUserTokenCaptureFilter(): FilterRegistrationBean<EndUserTokenCaptureFilter> = FilterRegistrationBean(EndUserTokenCaptureFilter()).apply {
-        order = ORDER_END_USER_TOKEN_CAPTURE
-        urlPatterns = listOf("/*")
-    }
+    fun endUserTokenCaptureFilter(): FilterRegistrationBean<EndUserTokenCaptureFilter> =
+        FilterRegistrationBean(EndUserTokenCaptureFilter()).apply {
+            order = ORDER_END_USER_TOKEN_CAPTURE
+            urlPatterns = listOf("/*")
+        }
 
     companion object {
         // Lower runs first (Spring's own FilterRegistrationBean ordering); the

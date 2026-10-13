@@ -65,10 +65,13 @@ class EndUserIdentityAutoConfiguration {
 
     /** Binds a verified operator session for the request (INV-Q-4521), after the workload-identity filter. */
     @Bean
-    fun operatorSessionBindingFilter(resolvers: ObjectProvider<EndUserPrincipalResolver>): FilterRegistrationBean<OperatorSessionBindingFilter> = FilterRegistrationBean(OperatorSessionBindingFilter(resolvers)).apply {
-        order = ORDER_OPERATOR_SESSION
-        urlPatterns = listOf("/*")
-    }
+    fun operatorSessionBindingFilter(
+        resolvers: ObjectProvider<EndUserPrincipalResolver>,
+    ): FilterRegistrationBean<OperatorSessionBindingFilter> =
+        FilterRegistrationBean(OperatorSessionBindingFilter(resolvers)).apply {
+            order = ORDER_OPERATOR_SESSION
+            urlPatterns = listOf("/*")
+        }
 
     private companion object {
         /** After the end-user token capture (-70), before any handler. */
@@ -84,13 +87,16 @@ fun endUserJwtDecoder(keys: JWKSource<SecurityContext>): NimbusJwtDecoder {
     return NimbusJwtDecoder(processor)
 }
 
-private fun remoteKeys(jwkSetUri: URI): JWKSource<SecurityContext> = JWKSourceBuilder.create<SecurityContext>(jwkSetUri.toURL()).build()
+private fun remoteKeys(jwkSetUri: URI): JWKSource<SecurityContext> =
+    JWKSourceBuilder.create<SecurityContext>(jwkSetUri.toURL()).build()
 
 /**
  * The issuer's keys at the `jwks_uri` of its OIDC discovery document, looked up at the first token rather than at
  * start-up, and again until it succeeds; a failed lookup is an unreachable issuer ([KeySourceException]).
  */
-private class DiscoveredKeySource(private val issuerUri: String) : JWKSource<SecurityContext> {
+private class DiscoveredKeySource(
+    private val issuerUri: String,
+) : JWKSource<SecurityContext> {
     @Volatile private var keys: JWKSource<SecurityContext>? = null
 
     override fun get(
@@ -98,15 +104,16 @@ private class DiscoveredKeySource(private val issuerUri: String) : JWKSource<Sec
         context: SecurityContext?,
     ): List<JWK> = (keys ?: discover().also { keys = it }).get(selector, context)
 
-    private fun discover(): JWKSource<SecurityContext> = try {
-        val document = URI(issuerUri.trimEnd('/') + "/.well-known/openid-configuration").toURL()
-        val body = DefaultResourceRetriever().retrieveResource(document).content
-        remoteKeys(URI(JSONObjectUtils.getString(JSONObjectUtils.parse(body), "jwks_uri")))
-    } catch (unreachable: IOException) {
-        throw KeySourceException("issuer discovery failed", unreachable)
-    } catch (malformed: ParseException) {
-        throw KeySourceException("issuer discovery document unreadable", malformed)
-    }
+    private fun discover(): JWKSource<SecurityContext> =
+        try {
+            val document = URI(issuerUri.trimEnd('/') + "/.well-known/openid-configuration").toURL()
+            val body = DefaultResourceRetriever().retrieveResource(document).content
+            remoteKeys(URI(JSONObjectUtils.getString(JSONObjectUtils.parse(body), "jwks_uri")))
+        } catch (unreachable: IOException) {
+            throw KeySourceException("issuer discovery failed", unreachable)
+        } catch (malformed: ParseException) {
+            throw KeySourceException("issuer discovery document unreadable", malformed)
+        }
 }
 
 /** Issuer, expiry and the mandatory audience (STK-27); a top-level function so it is testable without a JWK set. */

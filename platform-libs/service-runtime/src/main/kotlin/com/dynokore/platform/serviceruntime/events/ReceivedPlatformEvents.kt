@@ -47,11 +47,12 @@ enum class ReceivedConnectionState {
 
     companion object {
         /** The contract state [ConnectionState] maps to. */
-        fun of(state: ConnectionState): ReceivedConnectionState = when (state) {
-            ConnectionState.UP -> UP
-            ConnectionState.DEGRADED -> DEGRADED
-            ConnectionState.DOWN -> DOWN
-        }
+        fun of(state: ConnectionState): ReceivedConnectionState =
+            when (state) {
+                ConnectionState.UP -> UP
+                ConnectionState.DEGRADED -> DEGRADED
+                ConnectionState.DOWN -> DOWN
+            }
 
         /** The received payload `state`: a contract value, else [UNKNOWN]. */
         fun of(wire: String): ReceivedConnectionState {
@@ -83,9 +84,15 @@ data class ReceivedEvidenceArtefact(
  */
 class ConnectionStatusBoard {
     /** A connection as consumers show it: its producer service and name. */
-    data class ConnectionKey(val service: String, val connection: String)
+    data class ConnectionKey(
+        val service: String,
+        val connection: String,
+    )
 
-    private data class InstanceState(val state: ReceivedConnectionState, val time: Instant)
+    private data class InstanceState(
+        val state: ReceivedConnectionState,
+        val time: Instant,
+    )
 
     private val states = HashMap<ConnectionKey, HashMap<String, InstanceState>>()
 

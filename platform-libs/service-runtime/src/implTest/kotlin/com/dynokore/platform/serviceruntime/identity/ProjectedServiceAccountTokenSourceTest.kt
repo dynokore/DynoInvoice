@@ -27,6 +27,10 @@ class ProjectedServiceAccountTokenSourceTest {
     fun `no projected token file is an infrastructure failure, not a refused call`(
         @TempDir mountRoot: Path,
     ) {
-        shouldThrow<WorkloadTokenUnavailable> { ProjectedServiceAccountTokenSource(mountRoot.resolve("missing")).current() }
+        shouldThrow<WorkloadTokenUnavailable> {
+            ProjectedServiceAccountTokenSource(
+                mountRoot.resolve("missing"),
+            ).current()
+        }
     }
 }

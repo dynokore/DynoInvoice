@@ -6,5 +6,7 @@ sealed interface ContentValidationOutcome {
     data object Accepted : ContentValidationOutcome
 
     /** Refused — [reason] names the field or pattern that reads as executable content (INV-AC-2394, INV-REQ-2393). */
-    data class Rejected(val reason: String) : ContentValidationOutcome
+    data class Rejected(
+        val reason: String,
+    ) : ContentValidationOutcome
 }

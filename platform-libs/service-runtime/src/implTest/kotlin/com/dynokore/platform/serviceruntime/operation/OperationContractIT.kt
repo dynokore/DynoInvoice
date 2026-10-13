@@ -50,9 +50,16 @@ class OperationContractIT {
     @AfterAll
     fun close() = h.close()
 
-    data class Approve(val doc: String, val key: UUID, val tenantScoped: Boolean = true)
+    data class Approve(
+        val doc: String,
+        val key: UUID,
+        val tenantScoped: Boolean = true,
+    )
 
-    data class Doc(val state: String?, val approvedByKey: String?)
+    data class Doc(
+        val state: String?,
+        val approvedByKey: String?,
+    )
 
     /** A fixture operation: an approver approves a DRAFT document once per key; audited and undoable. */
     private inner class ApproveDoc(
@@ -77,10 +84,14 @@ class OperationContractIT {
             // runs inside the runner's transaction: read through its connection, locking the row
             val rows = mutableListOf<Doc>()
             val lock = if (lockRow) " for update" else ""
-            replica.tx.require().prepareStatement("select state, approved_by_key from $SCHEMA.fixture_doc where id = ?$lock").use { s ->
-                s.setString(1, command.doc)
-                s.executeQuery().use { r -> while (r.next()) rows += Doc(r.getString(1), r.getString(2)) }
-            }
+            replica.tx
+                .require()
+                .prepareStatement(
+                    "select state, approved_by_key from $SCHEMA.fixture_doc where id = ?$lock",
+                ).use { s ->
+                    s.setString(1, command.doc)
+                    s.executeQuery().use { r -> while (r.next()) rows += Doc(r.getString(1), r.getString(2)) }
+                }
             afterLoad()
             return rows.singleOrNull() ?: Doc(null, null)
         }
@@ -103,11 +114,15 @@ class OperationContractIT {
             command: Approve,
             state: Doc,
         ): String {
-            replica.tx.require().prepareStatement("update $SCHEMA.fixture_doc set state = 'APPROVED', approved_by_key = ? where id = ?").use {
-                it.setString(1, repeatKey(command))
-                it.setString(2, command.doc)
-                it.executeUpdate()
-            }
+            replica.tx
+                .require()
+                .prepareStatement(
+                    "update $SCHEMA.fixture_doc set state = 'APPROVED', approved_by_key = ? where id = ?",
+                ).use {
+                    it.setString(1, repeatKey(command))
+                    it.setString(2, command.doc)
+                    it.executeUpdate()
+                }
             return "APPROVED"
         }
 
@@ -122,19 +137,33 @@ class OperationContractIT {
                 "fixture/${command.doc}",
                 "approve",
                 """{"state":"${state.state}"}""",
-                EventContext(TENANT_A, EntityRef("E-001"), null, null, "fixture/${command.doc}", null, CorrelationId("c-${command.key}"), CausationId("k-${command.key}")),
+                EventContext(
+                    TENANT_A,
+                    EntityRef("E-001"),
+                    null,
+                    null,
+                    "fixture/${command.doc}",
+                    null,
+                    CorrelationId("c-${command.key}"),
+                    CausationId("k-${command.key}"),
+                ),
             )
         }
     }
 
-    private fun insert(doc: String) = replica.asTenant(TENANT_A) {
-        replica.tx.inTransaction {
-            replica.tx.require().prepareStatement("insert into $SCHEMA.fixture_doc (id, state) values (?, 'DRAFT')").use {
-                it.setString(1, doc)
-                it.executeUpdate()
+    private fun insert(doc: String) =
+        replica.asTenant(TENANT_A) {
+            replica.tx.inTransaction {
+                replica.tx
+                    .require()
+                    .prepareStatement(
+                        "insert into $SCHEMA.fixture_doc (id, state) values (?, 'DRAFT')",
+                    ).use {
+                        it.setString(1, doc)
+                        it.executeUpdate()
+                    }
             }
         }
-    }
 
     private fun state(doc: String) = h.rows("select state from $SCHEMA.fixture_doc where id = ?", doc).single()["state"]
 
@@ -144,7 +173,8 @@ class OperationContractIT {
     fun `an actor without the role is refused before any state is read`() {
         insert("d-role")
         val op = ApproveDoc()
-        replica.asTenant(TENANT_A) { runner.run(op, "viewer", Approve("d-role", UUID.randomUUID())) } shouldBe OperationOutcome.NotPermitted
+        replica.asTenant(TENANT_A) { runner.run(op, "viewer", Approve("d-role", UUID.randomUUID())) } shouldBe
+            OperationOutcome.NotPermitted
         op.loads shouldBe 0
         state("d-role") shouldBe "DRAFT"
     }
@@ -154,8 +184,10 @@ class OperationContractIT {
         insert("d-once")
         val op = ApproveDoc()
         val key = UUID.randomUUID()
-        replica.asTenant(TENANT_A) { runner.run(op, "approver", Approve("d-once", key)) } shouldBe OperationOutcome.Performed("APPROVED")
-        replica.asTenant(TENANT_A) { runner.run(op, "approver", Approve("d-once", key)) } shouldBe OperationOutcome.Repeated("APPROVED")
+        replica.asTenant(TENANT_A) { runner.run(op, "approver", Approve("d-once", key)) } shouldBe
+            OperationOutcome.Performed("APPROVED")
+        replica.asTenant(TENANT_A) { runner.run(op, "approver", Approve("d-once", key)) } shouldBe
+            OperationOutcome.Repeated("APPROVED")
         state("d-once") shouldBe "APPROVED"
         audits("d-once") shouldHaveSize 1
     }
@@ -196,8 +228,10 @@ class OperationContractIT {
         insert("d-pre")
         val op = ApproveDoc()
         replica.asTenant(TENANT_A) { runner.run(op, "approver", Approve("d-pre", UUID.randomUUID())) }
-        replica.asTenant(TENANT_A) { runner.run(op, "approver", Approve("d-pre", UUID.randomUUID())) } shouldBe OperationOutcome.PreconditionUnmet("DOC-STATE")
-        replica.asTenant(TENANT_A) { runner.run(op, "approver", Approve("d-none", UUID.randomUUID())) } shouldBe OperationOutcome.PreconditionUnmet("DOC-404")
+        replica.asTenant(TENANT_A) { runner.run(op, "approver", Approve("d-pre", UUID.randomUUID())) } shouldBe
+            OperationOutcome.PreconditionUnmet("DOC-STATE")
+        replica.asTenant(TENANT_A) { runner.run(op, "approver", Approve("d-none", UUID.randomUUID())) } shouldBe
+            OperationOutcome.PreconditionUnmet("DOC-404")
         audits("d-pre") shouldHaveSize 1
     }
 
@@ -233,7 +267,9 @@ class OperationContractIT {
                     result: String,
                 ): OperationAudit? = null
             }
-        assertThrows<IllegalStateException> { replica.asTenant(TENANT_A) { runner.run(op, "approver", Approve("d-noaudit", UUID.randomUUID())) } }
+        assertThrows<IllegalStateException> {
+            replica.asTenant(TENANT_A) { runner.run(op, "approver", Approve("d-noaudit", UUID.randomUUID())) }
+        }
         state("d-noaudit") shouldBe "DRAFT"
     }
 

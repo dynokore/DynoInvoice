@@ -16,7 +16,8 @@ class Resilience4jResilienceRegistryTest {
     fun `returns the same edge instance for the same name`() {
         val registry = Resilience4jResilienceRegistry(ResilienceProperties(), clock)
 
-        registry.forEdge("submission-svc->transport-svc") shouldBeSameInstanceAs registry.forEdge("submission-svc->transport-svc")
+        registry.forEdge("submission-svc->transport-svc") shouldBeSameInstanceAs
+            registry.forEdge("submission-svc->transport-svc")
     }
 
     @Test
@@ -30,10 +31,11 @@ class Resilience4jResilienceRegistryTest {
 
     @Test
     fun `a configured edge gets its own row, not the default`() {
-        val properties = ResilienceProperties(
-            default = EdgeProperties(timeout = Duration.ofSeconds(5)),
-            edges = mapOf("ingestion-svc->payload-svc" to EdgeProperties(timeout = Duration.ofMillis(150))),
-        )
+        val properties =
+            ResilienceProperties(
+                default = EdgeProperties(timeout = Duration.ofSeconds(5)),
+                edges = mapOf("ingestion-svc->payload-svc" to EdgeProperties(timeout = Duration.ofMillis(150))),
+            )
         val registry = Resilience4jResilienceRegistry(properties, clock)
 
         val edge = registry.forEdge("ingestion-svc->payload-svc") as Resilience4jResilientEdge

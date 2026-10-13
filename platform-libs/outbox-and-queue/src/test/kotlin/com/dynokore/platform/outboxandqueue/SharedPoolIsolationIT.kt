@@ -24,13 +24,15 @@ class SharedPoolIsolationIT {
     private val tenantA = UUID.fromString("00000000-0000-0000-0000-00000000000a")
     private val tenantB = UUID.fromString("00000000-0000-0000-0000-00000000000b")
 
-    private fun fixture(image: String): OutboxPostgresFixture = OutboxPostgresFixture(image).also {
-        it.createService(SCHEMA, QueueSchema.ddl(SCHEMA, APP, SYS) + "\n" + readModels())
-        listOf(tenantA, tenantB).forEach { tenant -> seed(it, tenant) }
-    }
+    private fun fixture(image: String): OutboxPostgresFixture =
+        OutboxPostgresFixture(image).also {
+            it.createService(SCHEMA, QueueSchema.ddl(SCHEMA, APP, SYS) + "\n" + readModels())
+            listOf(tenantA, tenantB).forEach { tenant -> seed(it, tenant) }
+        }
 
     /** Two read-model tables of a consuming service and their full-sync clear functions (INV-Q-4064). */
-    private fun readModels(): String = """
+    private fun readModels(): String =
+        """
         create table $SCHEMA.rm_view (consumer text not null, tenant_id uuid not null, note text not null);
         create table $SCHEMA.rm_cache (tenant_id uuid not null, note text not null);
         ${TenantRlsMigration.ddl(SCHEMA, "rm_view", policyName = "rm_view_tenant_isolation")}
@@ -38,7 +40,7 @@ class SharedPoolIsolationIT {
         grant select, insert, update, delete on $SCHEMA.rm_view, $SCHEMA.rm_cache to $APP;
         ${OutboxSchema.readModelClearFunction(SCHEMA, "rm_view", APP, SYS, "consumer")}
         ${OutboxSchema.readModelClearFunction(SCHEMA, "rm_cache", APP, SYS)}
-    """.trimIndent()
+        """.trimIndent()
 
     private fun seed(
         fixture: OutboxPostgresFixture,
@@ -69,20 +71,23 @@ class SharedPoolIsolationIT {
         fixture: OutboxPostgresFixture,
         tenant: UUID? = null,
         block: (Connection) -> T,
-    ): T = fixture.runtimeDataSource().connection.use { connection ->
-        if (tenant != null) {
-            connection.createStatement().use { it.execute("select set_config('app.tenant_id', '$tenant', false)") }
+    ): T =
+        fixture.runtimeDataSource().connection.use { connection ->
+            if (tenant != null) {
+                connection.createStatement().use { it.execute("select set_config('app.tenant_id', '$tenant', false)") }
+            }
+            block(connection)
         }
-        block(connection)
-    }
 
-    private fun Connection.longs(sql: String): List<Long> = createStatement().use { statement ->
-        statement.executeQuery(sql).use { rows -> buildList { while (rows.next()) add(rows.getLong(1)) } }
-    }
+    private fun Connection.longs(sql: String): List<Long> =
+        createStatement().use { statement ->
+            statement.executeQuery(sql).use { rows -> buildList { while (rows.next()) add(rows.getLong(1)) } }
+        }
 
-    private fun Connection.strings(sql: String): List<String> = createStatement().use { statement ->
-        statement.executeQuery(sql).use { rows -> buildList { while (rows.next()) add(rows.getString(1)) } }
-    }
+    private fun Connection.strings(sql: String): List<String> =
+        createStatement().use { statement ->
+            statement.executeQuery(sql).use { rows -> buildList { while (rows.next()) add(rows.getString(1)) } }
+        }
 
     private fun Connection.update(sql: String): Int = createStatement().use { it.executeUpdate(sql) }
 
@@ -245,22 +250,24 @@ class SharedPoolIsolationIT {
             "a USING (true) policy targets the sys role only",
         )
         TENANT_TABLES.forEach {
-            val forced = "select count(*) from pg_class where oid = '$SCHEMA.$it'::regclass " +
-                "and relrowsecurity and relforcerowsecurity"
+            val forced =
+                "select count(*) from pg_class where oid = '$SCHEMA.$it'::regclass " +
+                    "and relrowsecurity and relforcerowsecurity"
             assertEquals(1L, count(fixture, forced), it)
         }
     }
 
     /** Every SECURITY DEFINER function: owned by sys, fixed search_path, EXECUTE for the runtime login only. */
     private fun assertDefinerFunctions(fixture: OutboxPostgresFixture) {
-        val rows = fixture.adminDataSource().connection.use { c ->
-            c.strings(
-                "select p.proname || '|' || pg_get_userbyid(p.proowner) || '|' || " +
-                    "coalesce(array_to_string(p.proconfig, ';'), '') || '|' || " +
-                    "coalesce(array_to_string(p.proacl, ';'), '') from pg_proc p " +
-                    "where p.pronamespace = '$SCHEMA'::regnamespace and p.prosecdef order by p.proname",
-            )
-        }
+        val rows =
+            fixture.adminDataSource().connection.use { c ->
+                c.strings(
+                    "select p.proname || '|' || pg_get_userbyid(p.proowner) || '|' || " +
+                        "coalesce(array_to_string(p.proconfig, ';'), '') || '|' || " +
+                        "coalesce(array_to_string(p.proacl, ';'), '') from pg_proc p " +
+                        "where p.pronamespace = '$SCHEMA'::regnamespace and p.prosecdef order by p.proname",
+                )
+            }
         assertEquals(DEFINERS, rows.map { it.substringBefore('|') })
         rows.map { it.split('|') }.forEach { row ->
             assertEquals(SYS, row[1], row.toString())
@@ -284,20 +291,22 @@ class SharedPoolIsolationIT {
 
     /** Sys-owned, non-security_invoker views; a runtime login that owns nothing; a sys role without login or CREATE. */
     private fun assertViewsAndRoles(fixture: OutboxPostgresFixture) {
-        val views = fixture.adminDataSource().connection.use { c ->
-            c.strings(
-                "select relname || '|' || pg_get_userbyid(relowner) from pg_class where relkind = 'v' " +
-                    "and relnamespace = '$SCHEMA'::regnamespace and coalesce(reloptions, '{}') = '{}' order by relname",
-            )
-        }
+        val views =
+            fixture.adminDataSource().connection.use { c ->
+                c.strings(
+                    "select relname || '|' || pg_get_userbyid(relowner) from pg_class where relkind = 'v' " +
+                        "and relnamespace = '$SCHEMA'::regnamespace and coalesce(reloptions, '{}') = '{}' order by relname",
+                )
+            }
         assertEquals(listOf("event_dead_letter_triage_v|$SYS", "outbox_claim_v|$SYS"), views)
         assertEquals(0L, count(fixture, "select count(*) from pg_class where relowner = '$APP'::regrole"))
         assertEquals(0L, count(fixture, "select count(*) from pg_auth_members where member = '$APP'::regrole"))
         val sysRole = "select count(*) from pg_roles where rolname = '$SYS' and not rolcanlogin and not rolbypassrls"
         assertEquals(1L, count(fixture, sysRole))
-        val create = fixture.adminDataSource().connection.use { c ->
-            c.strings("select has_schema_privilege('$SYS', '$SCHEMA', 'CREATE')::text").single()
-        }
+        val create =
+            fixture.adminDataSource().connection.use { c ->
+                c.strings("select has_schema_privilege('$SYS', '$SCHEMA', 'CREATE')::text").single()
+            }
         assertFalse(create.toBoolean())
     }
 
@@ -321,16 +330,17 @@ class SharedPoolIsolationIT {
                 "rm_view",
                 "rm_cache",
             )
-        val DEFINERS = listOf(
-            "claim_due",
-            "event_dead_letter_purge_expired",
-            "event_dead_letter_record",
-            "event_dead_letter_resolve",
-            "full_sync_delete",
-            "inbox_purge_expired",
-            "outbox_purge_expired",
-            "rm_cache_full_sync_clear",
-            "rm_view_full_sync_clear",
-        )
+        val DEFINERS =
+            listOf(
+                "claim_due",
+                "event_dead_letter_purge_expired",
+                "event_dead_letter_record",
+                "event_dead_letter_resolve",
+                "full_sync_delete",
+                "inbox_purge_expired",
+                "outbox_purge_expired",
+                "rm_cache_full_sync_clear",
+                "rm_view_full_sync_clear",
+            )
     }
 }

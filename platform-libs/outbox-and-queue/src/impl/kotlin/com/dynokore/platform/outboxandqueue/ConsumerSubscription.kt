@@ -16,12 +16,14 @@ package com.dynokore.platform.outboxandqueue
  * wiring is needed; [recordTypes] is an optional declaration, and a set that differs from the catalogue's fails the
  * consumer's construction.
  */
-data class ConsumerSubscription @JvmOverloads constructor(
-    val consumer: String,
-    val topic: String,
-    val schema: String,
-    val retry: ConsumerRetryPolicy = ConsumerRetryPolicy.DEFAULT,
-    val classifier: FailureClassifier = FailureClassifier.DEFAULT,
-    val trackSources: Boolean = false,
-    val recordTypes: Set<String>? = null,
-)
+data class ConsumerSubscription
+    @JvmOverloads
+    constructor(
+        val consumer: String,
+        val topic: String,
+        val schema: String,
+        val retry: ConsumerRetryPolicy = ConsumerRetryPolicy.DEFAULT,
+        val classifier: FailureClassifier = FailureClassifier.DEFAULT,
+        val trackSources: Boolean = false,
+        val recordTypes: Set<String>? = null,
+    )

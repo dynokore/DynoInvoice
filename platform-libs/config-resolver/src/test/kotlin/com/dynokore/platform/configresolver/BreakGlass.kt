@@ -24,20 +24,20 @@ internal fun breakGlass(key: VariationPointKey): VariationPointDefinition {
         scopeLevels = setOf(ScopeLevel.INSTALLATION, ScopeLevel.TENANT),
         setBy = setOf("security.officer"),
         options =
-        listOf(
-            OptionSpec(
-                "DEFAULT_PAIR_4H",
-                Strictness.DEFAULT,
-                true,
-                TypedValueSpec(ValueType.RECORD, fields = mapOf("window" to window)),
+            listOf(
+                OptionSpec(
+                    "DEFAULT_PAIR_4H",
+                    Strictness.DEFAULT,
+                    true,
+                    TypedValueSpec(ValueType.RECORD, fields = mapOf("window" to window)),
+                ),
+                OptionSpec(
+                    "OTHER_NAMED_PAIR",
+                    Strictness.NEUTRAL,
+                    true,
+                    TypedValueSpec(ValueType.RECORD, fields = mapOf("pair" to pair, "window" to window)),
+                ),
             ),
-            OptionSpec(
-                "OTHER_NAMED_PAIR",
-                Strictness.NEUTRAL,
-                true,
-                TypedValueSpec(ValueType.RECORD, fields = mapOf("pair" to pair, "window" to window)),
-            ),
-        ),
         crossScope = "A tenant value may not exceed the installation value",
     )
 }

@@ -34,9 +34,10 @@ class OutboxUpdateHardeningIT {
                 "delete from payload.outbox where seq = $seq",
             ).forEach { sql -> assertEquals("42501", refusedAsRuntime(harness, sql), sql) }
             // The trigger holds even where a privilege would not: the administrator cannot rewrite a row either.
-            val admin = assertThrows(SQLException::class.java) {
-                harness.fixture.runAsAdmin("update payload.outbox set data = '{}' where seq = $seq")
-            }
+            val admin =
+                assertThrows(SQLException::class.java) {
+                    harness.fixture.runAsAdmin("update payload.outbox set data = '{}' where seq = $seq")
+                }
             assertEquals("42501", admin.sqlState)
             val unchanged = "select count(*) from payload.outbox where seq = $seq and data = '{\"version\":1}'"
             assertEquals(1, harness.count(unchanged))
@@ -98,19 +99,20 @@ class OutboxUpdateHardeningIT {
     private fun <T> asRuntime(
         harness: OutboxHarness,
         block: (java.sql.Statement) -> T,
-    ): T = harness.fixture.runtimeDataSource().connection.use { c: Connection ->
-        c.autoCommit = false
-        c.prepareStatement("select set_config('app.tenant_id', ?, true)").use {
-            it.setString(1, ServiceKit.TENANT.toString())
-            it.executeQuery().close()
+    ): T =
+        harness.fixture.runtimeDataSource().connection.use { c: Connection ->
+            c.autoCommit = false
+            c.prepareStatement("select set_config('app.tenant_id', ?, true)").use {
+                it.setString(1, ServiceKit.TENANT.toString())
+                it.executeQuery().close()
+            }
+            try {
+                c.createStatement().use(block).also { c.commit() }
+            } catch (failure: SQLException) {
+                c.rollback()
+                throw failure
+            }
         }
-        try {
-            c.createStatement().use(block).also { c.commit() }
-        } catch (failure: SQLException) {
-            c.rollback()
-            throw failure
-        }
-    }
 
     private fun refusedAsRuntime(
         harness: OutboxHarness,

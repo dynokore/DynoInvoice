@@ -39,7 +39,9 @@ class DeadlinePropagationInterceptorTest {
 }
 
 private object NotImplementedClientHttpResponse : ClientHttpResponse {
-    override fun getStatusCode() = org.springframework.http.HttpStatusCode.valueOf(200)
+    override fun getStatusCode() =
+        org.springframework.http.HttpStatusCode
+            .valueOf(200)
 
     override fun getStatusText() = "OK"
 

@@ -35,12 +35,13 @@ data class EdgeProperties(
     val circuitBreaker: CircuitBreakerProperties = CircuitBreakerProperties(),
     val bulkhead: BulkheadProperties = BulkheadProperties(),
 ) {
-    fun toPolicy(): EdgePolicy = EdgePolicy(
-        timeout = TimeoutPolicy(timeout),
-        retry = retry?.toPolicy(),
-        circuitBreaker = circuitBreaker.toPolicy(),
-        bulkhead = bulkhead.toPolicy(),
-    )
+    fun toPolicy(): EdgePolicy =
+        EdgePolicy(
+            timeout = TimeoutPolicy(timeout),
+            retry = retry?.toPolicy(),
+            circuitBreaker = circuitBreaker.toPolicy(),
+            bulkhead = bulkhead.toPolicy(),
+        )
 }
 
 data class RetryProperties(
@@ -58,12 +59,13 @@ data class CircuitBreakerProperties(
     val waitDurationInOpenState: Duration = Duration.ofSeconds(30),
     val permittedCallsInHalfOpenState: Int = 5,
 ) {
-    fun toPolicy(): CircuitBreakerPolicy = CircuitBreakerPolicy(
-        failureRateThreshold = failureRateThreshold,
-        slidingWindowSize = slidingWindowSize,
-        waitDurationInOpenState = waitDurationInOpenState,
-        permittedCallsInHalfOpenState = permittedCallsInHalfOpenState,
-    )
+    fun toPolicy(): CircuitBreakerPolicy =
+        CircuitBreakerPolicy(
+            failureRateThreshold = failureRateThreshold,
+            slidingWindowSize = slidingWindowSize,
+            waitDurationInOpenState = waitDurationInOpenState,
+            permittedCallsInHalfOpenState = permittedCallsInHalfOpenState,
+        )
 }
 
 data class BulkheadProperties(

@@ -67,7 +67,10 @@ class ManagementPortIT {
                     "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration," +
                     "org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration",
             ) + properties
-        val arguments = settings.associate { it.substringBefore('=') to it.substringAfter('=') }.map { (key, value) -> "--$key=$value" }
+        val arguments =
+            settings.associate { it.substringBefore('=') to it.substringAfter('=') }.map { (key, value) ->
+                "--$key=$value"
+            }
         return SpringApplicationBuilder(Tpl18WebService::class.java)
             .web(WebApplicationType.SERVLET)
             .run(*arguments.toTypedArray())
@@ -76,7 +79,8 @@ class ManagementPortIT {
 
     private val service by lazy { start() }
 
-    private fun applicationPort(context: ConfigurableApplicationContext) = checkNotNull((context as WebServerApplicationContext).webServer).port
+    private fun applicationPort(context: ConfigurableApplicationContext) =
+        checkNotNull((context as WebServerApplicationContext).webServer).port
 
     private fun get(
         port: Int,
@@ -164,7 +168,10 @@ class ManagementPortIT {
             .let { runner ->
                 // the defaults alone, and a service's own other port number, start
                 runner.run { it.startupFailure shouldBe null }
-                runner.withPropertyValues("management.server.port=9091", "server.port=9090").run { it.startupFailure shouldBe null }
+                runner.withPropertyValues("management.server.port=9091", "server.port=9090").run {
+                    it.startupFailure shouldBe
+                        null
+                }
                 listOf(
                     arrayOf("management.server.port=9090", "server.port=9090"),
                     arrayOf("management.server.port=8080"),
@@ -204,7 +211,8 @@ class ManagementPortIT {
                     ),
                 )
             }.run { context ->
-                context.startupFailure.shouldBeInstanceOf<BeanCreationException>()
+                context.startupFailure
+                    .shouldBeInstanceOf<BeanCreationException>()
                     .mostSpecificCause.message!! shouldContain "group.ready.*"
             }
     }
@@ -218,10 +226,11 @@ class ManagementPortIT {
             ).run { it.startupFailure shouldBe null }
     }
 
-    private fun guardRunner() = ApplicationContextRunner()
-        .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
-        .withUserConfiguration(ServiceRuntimeConfiguration::class.java)
-        .withPropertyValues("service-runtime.workload-identity.audience=submission-svc")
+    private fun guardRunner() =
+        ApplicationContextRunner()
+            .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
+            .withUserConfiguration(ServiceRuntimeConfiguration::class.java)
+            .withPropertyValues("service-runtime.workload-identity.audience=submission-svc")
 
     private companion object {
         const val MANAGEMENT_PORT = 8081
@@ -235,16 +244,28 @@ class ManagementPortIT {
  */
 @Configuration(proxyBeanMethods = false)
 @EnableAutoConfiguration
-@Import(OneValidToken::class, ServiceRuntimeConfiguration::class, ProductRuntimeConfiguration::class, BusinessController::class)
+@Import(
+    OneValidToken::class,
+    ServiceRuntimeConfiguration::class,
+    ProductRuntimeConfiguration::class,
+    BusinessController::class,
+)
 class Tpl18WebService
 
 /** Stands in for the JWK-backed verifier: one token is valid. */
 @Configuration(proxyBeanMethods = false)
 class OneValidToken {
     @Bean
-    fun workloadTokenVerifier(): WorkloadTokenVerifier = WorkloadTokenVerifier { token ->
-        if (token?.value == "valid-workload-token") WorkloadVerification.Verified("caller-svc") else WorkloadVerification.Refused("invalid")
-    }
+    fun workloadTokenVerifier(): WorkloadTokenVerifier =
+        WorkloadTokenVerifier { token ->
+            if (token?.value ==
+                "valid-workload-token"
+            ) {
+                WorkloadVerification.Verified("caller-svc")
+            } else {
+                WorkloadVerification.Refused("invalid")
+            }
+        }
 }
 
 @RestController

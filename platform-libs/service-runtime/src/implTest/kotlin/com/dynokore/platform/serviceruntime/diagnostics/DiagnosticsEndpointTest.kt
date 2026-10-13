@@ -17,9 +17,10 @@ import java.util.Properties
 
 /** FR-AE.82: "each service exposes the same diagnostic endpoint: version, health, recent error codes, queue and outbox lag". */
 class DiagnosticsEndpointTest {
-    private fun <T : Any> providerOf(value: T?): ObjectProvider<T> = object : ObjectProvider<T> {
-        override fun getIfAvailable(): T? = value
-    }
+    private fun <T : Any> providerOf(value: T?): ObjectProvider<T> =
+        object : ObjectProvider<T> {
+            override fun getIfAvailable(): T? = value
+        }
 
     @Test
     fun `reports version, health, recent error codes and both depths when bound`(
@@ -75,9 +76,10 @@ class DiagnosticsEndpointTest {
             DiagnosticsEndpoint(
                 buildProperties = providerOf(null),
                 vaultHealthIndicator = VaultHealthIndicator(mountRoot),
-                domainDependencyHealthIndicators = listOf(
-                    DomainDependencyHealthIndicator("canonicalSvc", DomainDependencyProbe { false }),
-                ),
+                domainDependencyHealthIndicators =
+                    listOf(
+                        DomainDependencyHealthIndicator("canonicalSvc", DomainDependencyProbe { false }),
+                    ),
                 recorder = RecentErrorCodesRecorder(Clock.systemUTC()),
                 queueDepthSource = providerOf(null),
                 outboxDepthSource = providerOf(null),
@@ -94,9 +96,10 @@ class DiagnosticsEndpointTest {
             DiagnosticsEndpoint(
                 buildProperties = providerOf(null),
                 vaultHealthIndicator = VaultHealthIndicator(Path.of("/does/not/exist")),
-                domainDependencyHealthIndicators = listOf(
-                    DomainDependencyHealthIndicator("canonicalSvc", DomainDependencyProbe { false }),
-                ),
+                domainDependencyHealthIndicators =
+                    listOf(
+                        DomainDependencyHealthIndicator("canonicalSvc", DomainDependencyProbe { false }),
+                    ),
                 recorder = RecentErrorCodesRecorder(Clock.systemUTC()),
                 queueDepthSource = providerOf(null),
                 outboxDepthSource = providerOf(null),

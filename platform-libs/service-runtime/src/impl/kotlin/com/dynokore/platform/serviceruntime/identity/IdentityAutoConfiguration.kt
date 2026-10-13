@@ -33,7 +33,8 @@ import java.nio.file.Path
 class IdentityAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(WorkloadTokenSource::class)
-    fun workloadTokenSource(properties: WorkloadIdentityProperties): WorkloadTokenSource = ProjectedServiceAccountTokenSource(Path.of(properties.tokenPath))
+    fun workloadTokenSource(properties: WorkloadIdentityProperties): WorkloadTokenSource =
+        ProjectedServiceAccountTokenSource(Path.of(properties.tokenPath))
 
     @Bean
     @ConditionalOnMissingBean(WorkloadTokenVerifier::class)
@@ -45,13 +46,17 @@ class IdentityAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    fun workloadTokenPropagationInterceptor(tokenSource: WorkloadTokenSource): ClientHttpRequestInterceptor = WorkloadTokenPropagationInterceptor(tokenSource)
+    fun workloadTokenPropagationInterceptor(tokenSource: WorkloadTokenSource): ClientHttpRequestInterceptor =
+        WorkloadTokenPropagationInterceptor(tokenSource)
 
     @Bean
-    fun workloadTokenAuthenticationFilter(verifier: WorkloadTokenVerifier): FilterRegistrationBean<WorkloadTokenAuthenticationFilter> = FilterRegistrationBean(WorkloadTokenAuthenticationFilter(verifier)).apply {
-        order = ORDER_WORKLOAD_AUTHENTICATION
-        urlPatterns = listOf("/*")
-    }
+    fun workloadTokenAuthenticationFilter(
+        verifier: WorkloadTokenVerifier,
+    ): FilterRegistrationBean<WorkloadTokenAuthenticationFilter> =
+        FilterRegistrationBean(WorkloadTokenAuthenticationFilter(verifier)).apply {
+            order = ORDER_WORKLOAD_AUTHENTICATION
+            urlPatterns = listOf("/*")
+        }
 
     companion object {
         // Runs first (Spring's own FilterRegistrationBean ordering, lower first):

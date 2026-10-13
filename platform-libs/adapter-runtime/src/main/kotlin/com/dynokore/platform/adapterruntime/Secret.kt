@@ -9,7 +9,9 @@ package com.dynokore.platform.adapterruntime
  * elsewhere.
  */
 @JvmInline
-value class Secret(private val value: String) {
+value class Secret(
+    private val value: String,
+) {
     /** The raw credential. Callers must not log, persist or otherwise surface this (CS-24). */
     fun reveal(): String = value
 

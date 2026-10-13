@@ -20,7 +20,8 @@ import java.nio.file.Path
 class HealthAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(name = ["vault"])
-    fun vault(properties: GstProperties): VaultHealthIndicator = VaultHealthIndicator(Path.of(properties.bindings.secretStore.mountRoot))
+    fun vault(properties: GstProperties): VaultHealthIndicator =
+        VaultHealthIndicator(Path.of(properties.bindings.secretStore.mountRoot))
 
     @Bean
     fun managementPortGuard(environment: Environment): ManagementPortGuard = ManagementPortGuard(environment)

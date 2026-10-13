@@ -72,10 +72,11 @@ class ApplicationNameLabelPostgresIT {
     }
 
     /** This backend's application_name as pg_stat_activity shows it. */
-    private fun Connection.applicationName(): String = createStatement().use { statement ->
-        statement.executeQuery("select application_name from pg_stat_activity where pid = pg_backend_pid()").use {
-            it.next()
-            it.getString(1)
+    private fun Connection.applicationName(): String =
+        createStatement().use { statement ->
+            statement.executeQuery("select application_name from pg_stat_activity where pid = pg_backend_pid()").use {
+                it.next()
+                it.getString(1)
+            }
         }
-    }
 }

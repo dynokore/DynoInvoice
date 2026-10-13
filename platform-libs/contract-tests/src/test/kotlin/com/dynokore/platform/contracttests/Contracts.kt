@@ -83,7 +83,11 @@ object Contracts {
     ) {
         val data: JsonNode = mapper.readTree(envelopeJson).get("data")
         val text = checkNotNull(javaClass.getResource("/contracts/$schema")) { "no pinned contract $schema" }.readText()
-        schemas.getSchema(text).validate(data).map { it.toString() }.shouldBeEmpty()
+        schemas
+            .getSchema(text)
+            .validate(data)
+            .map { it.toString() }
+            .shouldBeEmpty()
     }
 
     /** Fails unless [body] is a response [openapi]'s operation [path] declares for [status] (the HTTP pacts). */

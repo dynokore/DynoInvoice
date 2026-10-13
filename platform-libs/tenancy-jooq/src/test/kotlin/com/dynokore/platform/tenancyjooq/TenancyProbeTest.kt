@@ -38,7 +38,14 @@ class TenancyProbeTest {
         val jars = System.getProperty("tenancyJooq.jars").split(File.pathSeparator).map(::File)
         assertEquals(2, jars.size)
         jars.forEach { jar ->
-            val entries = ZipFile(jar).use { zip -> zip.entries().asSequence().map { it.name }.toList() }
+            val entries =
+                ZipFile(jar).use { zip ->
+                    zip
+                        .entries()
+                        .asSequence()
+                        .map { it.name }
+                        .toList()
+                }
             assertTrue(entries.any { it.endsWith("TableClasses.class") || it.endsWith("TenancyJooq.class") }, jar.name)
             assertEquals(emptyList<String>(), entries.filter { "TenancyProbe" in it }, jar.name)
         }

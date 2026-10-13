@@ -15,9 +15,10 @@ class EmissionGuardTest {
             "gst.payload.payload-ready.v1",
             EmissionGuard(catalogue, "payload-svc").require(TestCatalogue.PAYLOAD_READY).topic,
         )
-        val refused = assertThrows(
-            EmissionNotPermitted::class.java,
-        ) { EmissionGuard(catalogue, "submission-svc").require(TestCatalogue.PAYLOAD_READY) }
+        val refused =
+            assertThrows(
+                EmissionNotPermitted::class.java,
+            ) { EmissionGuard(catalogue, "submission-svc").require(TestCatalogue.PAYLOAD_READY) }
         assertEquals("submission-svc", refused.service)
         assertEquals(TestCatalogue.PAYLOAD_READY, refused.eventType)
     }
@@ -42,8 +43,9 @@ class EmissionGuardTest {
     @Test
     fun `the catalogue parser reads producers and rejects an entry without one`() {
         assertEquals(setOf("payload-svc"), checkNotNull(catalogue.find(TestCatalogue.PAYLOAD_READY)).producers)
-        val broken = "topics:\n  - topic: gst.a.b.v1\n    event_type: com.dynokore.gst.a.B.v1\n" +
-            "    subscribers:\n      - x-svc\n"
+        val broken =
+            "topics:\n  - topic: gst.a.b.v1\n    event_type: com.dynokore.gst.a.B.v1\n" +
+                "    subscribers:\n      - x-svc\n"
         assertThrows(IllegalArgumentException::class.java) { TopicsYamlCatalogue.parse(broken) }
     }
 

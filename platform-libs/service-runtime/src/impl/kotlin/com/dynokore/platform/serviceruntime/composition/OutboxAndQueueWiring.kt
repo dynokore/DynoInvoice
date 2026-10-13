@@ -113,7 +113,15 @@ class OutboxAndQueueWiring {
         gst: GstProperties,
         modules: ModuleProperties,
         clock: Clock,
-    ): JdbcOutboxWriter = JdbcOutboxWriter(connections, modules.requireSchema(), gst.requireService(), gst.requireInstanceId(), catalogue, clock)
+    ): JdbcOutboxWriter =
+        JdbcOutboxWriter(
+            connections,
+            modules.requireSchema(),
+            gst.requireService(),
+            gst.requireInstanceId(),
+            catalogue,
+            clock,
+        )
 
     @Bean
     @ConditionalOnProperty(name = [Props.EVENT_BINDING], havingValue = "postgres", matchIfMissing = true)
@@ -233,7 +241,19 @@ class OutboxAndQueueWiring {
         sink: ObjectProvider<StalenessBreachSink>,
         modules: ModuleProperties,
         clock: Clock,
-    ): JdbcStalenessMonitor = JdbcStalenessMonitor(dataSource, lag, catalogue, modules.requireSchema(), rules.rules, clock, sink.getIfAvailable { LoggingStalenessBreachSink() })
+    ): JdbcStalenessMonitor =
+        JdbcStalenessMonitor(
+            dataSource,
+            lag,
+            catalogue,
+            modules.requireSchema(),
+            rules.rules,
+            clock,
+            sink
+                .getIfAvailable {
+                    LoggingStalenessBreachSink()
+                },
+        )
 
     /** The lag and threshold gauges per (consumer, event type) (INV-T-3005, INV-Q-3030 (a)). */
     @Bean
@@ -282,15 +302,16 @@ class OutboxAndQueueWiring {
         sink: ObjectProvider<UnrelayedEventSink>,
         modules: ModuleProperties,
         gst: GstProperties,
-    ): JdbcUnrelayedEventCheck = JdbcUnrelayedEventCheck(
-        dataSource,
-        scope,
-        modules.requireSchema(),
-        gst.requireService(),
-        presence,
-        properties.settings(retention.ifAvailable),
-        sink.getIfAvailable { LoggingUnrelayedEventSink() },
-    )
+    ): JdbcUnrelayedEventCheck =
+        JdbcUnrelayedEventCheck(
+            dataSource,
+            scope,
+            modules.requireSchema(),
+            gst.requireService(),
+            presence,
+            properties.settings(retention.ifAvailable),
+            sink.getIfAvailable { LoggingUnrelayedEventSink() },
+        )
 
     /** The open-findings gauge (as the staleness gauges, INV-REQ-1165). */
     @Bean
@@ -330,7 +351,8 @@ class OutboxAndQueueWiring {
         handler: EventHandler,
         rebuildRequired: RebuildRequiredSink,
         clock: Clock,
-    ): JdbcInboxConsumer = JdbcInboxConsumer(subscription, catalogue, reader, dataSource, scope, handler, rebuildRequired, clock)
+    ): JdbcInboxConsumer =
+        JdbcInboxConsumer(subscription, catalogue, reader, dataSource, scope, handler, rebuildRequired, clock)
 
     @Bean
     @ConditionalOnBean(WorkQueue::class, TenantScope::class, JdbcInboxConsumer::class)

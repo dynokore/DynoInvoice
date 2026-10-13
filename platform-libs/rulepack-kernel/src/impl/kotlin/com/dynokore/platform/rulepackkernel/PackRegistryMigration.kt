@@ -108,7 +108,8 @@ object PackRegistryMigration {
         // The bound tenant: absent or blank binds nothing, so no row matches.
         val boundTenant = "nullif(current_setting('app.tenant_id', true), '')::uuid"
         val ownRow = "(tenant_id = $boundTenant AND tenant_id <> '$PLATFORM'::uuid)"
-        val tableDdl = """
+        val tableDdl =
+            """
             |CREATE TABLE $s.$t (
             |    id                 uuid PRIMARY KEY,
             |    pack_id            text NOT NULL,
@@ -138,7 +139,7 @@ object PackRegistryMigration {
             |CREATE POLICY $register ON $s.$t FOR INSERT TO $sys WITH CHECK (tenant_id = '$PLATFORM'::uuid);
             |GRANT USAGE ON SCHEMA $s TO $sys;
             |GRANT INSERT ON $s.$t TO $sys;
-        """.trimMargin()
+            """.trimMargin()
         return listOf(tableDdl, registeredBy(s, t), registerPlatformPack(s, t, runtime, sys)).joinToString("\n")
     }
 
@@ -188,7 +189,7 @@ object PackRegistryMigration {
         |    FOR EACH ROW EXECUTE FUNCTION $s.$stampFunction();
         |CREATE TRIGGER $fixFunction BEFORE UPDATE ON $s.$t
         |    FOR EACH ROW EXECUTE FUNCTION $s.$fixFunction();
-        """.trimMargin()
+            """.trimMargin()
     }
 
     /** The platform write path (INV-ADR-3968 item 6; coordinator ruling INV-Q-4117). */
@@ -246,6 +247,6 @@ object PackRegistryMigration {
             |REVOKE EXECUTE ON FUNCTION $s.$REGISTER_PLATFORM_PACK($REGISTER_PLATFORM_PACK_ARGUMENTS) FROM PUBLIC;
             |GRANT EXECUTE ON FUNCTION $s.$REGISTER_PLATFORM_PACK($REGISTER_PLATFORM_PACK_ARGUMENTS) TO $runtime;
             |REVOKE CREATE ON SCHEMA $s FROM $sys;
-        """.trimMargin()
+            """.trimMargin()
     }
 }

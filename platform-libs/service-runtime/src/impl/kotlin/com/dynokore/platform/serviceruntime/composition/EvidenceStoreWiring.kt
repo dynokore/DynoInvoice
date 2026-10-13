@@ -31,7 +31,8 @@ class EvidenceStoreWiring {
     fun evidenceLedger(
         connections: CurrentConnection,
         modules: ModuleProperties,
-    ): JdbcEvidenceLedger = JdbcEvidenceLedger(connections, modules.requireSchema(), checkNotNull(modules.evidence.ledgerTable))
+    ): JdbcEvidenceLedger =
+        JdbcEvidenceLedger(connections, modules.requireSchema(), checkNotNull(modules.evidence.ledgerTable))
 
     @Bean
     @ConditionalOnBean(CurrentConnection::class)
@@ -40,7 +41,8 @@ class EvidenceStoreWiring {
     fun legalHoldRegistry(
         connections: CurrentConnection,
         modules: ModuleProperties,
-    ): JdbcLegalHoldRegistry = JdbcLegalHoldRegistry(connections, modules.requireSchema(), checkNotNull(modules.evidence.legalHoldTable))
+    ): JdbcLegalHoldRegistry =
+        JdbcLegalHoldRegistry(connections, modules.requireSchema(), checkNotNull(modules.evidence.legalHoldTable))
 
     /** Its own class, so a service without the AWS SDK never loads a signature naming `S3Client`. */
     @Configuration(proxyBeanMethods = false)

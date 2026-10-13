@@ -51,22 +51,23 @@ class DeadLetterReplayIT {
         raw: String,
         reason: String = "handler schema mismatch",
         consumer: String = "submission-svc",
-    ): Long = harness.fixture.adminDataSource().connection.use { c ->
-        c
-            .prepareStatement(
-                "insert into submission.event_dead_letter (consumer, topic, log_offset, tenant_id, reason, raw) " +
-                    "values (?, 'gst.canonical.canonical-version-created.v1', 1, ?, ?, ?) returning id",
-            ).use {
-                it.setString(1, consumer)
-                it.setObject(2, tenant)
-                it.setString(3, reason)
-                it.setString(4, raw)
-                it.executeQuery().use { rows ->
-                    rows.next()
-                    rows.getLong(1)
+    ): Long =
+        harness.fixture.adminDataSource().connection.use { c ->
+            c
+                .prepareStatement(
+                    "insert into submission.event_dead_letter (consumer, topic, log_offset, tenant_id, reason, raw) " +
+                        "values (?, 'gst.canonical.canonical-version-created.v1', 1, ?, ?, ?) returning id",
+                ).use {
+                    it.setString(1, consumer)
+                    it.setObject(2, tenant)
+                    it.setString(3, reason)
+                    it.setString(4, raw)
+                    it.executeQuery().use { rows ->
+                        rows.next()
+                        rows.getLong(1)
+                    }
                 }
-            }
-    }
+        }
 
     private class Triage(
         harness: OutboxHarness,
@@ -118,7 +119,13 @@ class DeadLetterReplayIT {
             assertTrue(t.triage.discard(b, "producer bug, fixed upstream; events re-sent"))
             assertEquals(false, t.triage.discard(b, "again"))
             assertEquals(listOf(a), t.triage.list().map { it.id })
-            assertEquals(DeadLetterStatus.DISCARDED, t.triage.list(status = DeadLetterStatus.DISCARDED).single().status)
+            assertEquals(
+                DeadLetterStatus.DISCARDED,
+                t.triage
+                    .list(status = DeadLetterStatus.DISCARDED)
+                    .single()
+                    .status,
+            )
             assertThrows(IllegalArgumentException::class.java) { t.triage.discard(a, " ") }
         }
     }
@@ -198,7 +205,11 @@ class DeadLetterReplayIT {
             val t = Triage(harness)
             t.triage.replay(DeadLetterScope(tenant = TenantId(tenantA)), "submission-svc")
             val kit = harness.submission
-            fun count(tenant: UUID, table: String) = kit.inTx(tenant) {
+
+            fun count(
+                tenant: UUID,
+                table: String,
+            ) = kit.inTx(tenant) {
                 kit.boundary.require().createStatement().use { s ->
                     s.executeQuery("select count(*) from submission.$table").use {
                         it.next()

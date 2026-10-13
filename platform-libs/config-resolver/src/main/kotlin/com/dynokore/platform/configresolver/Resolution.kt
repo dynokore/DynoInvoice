@@ -151,8 +151,9 @@ interface PolicyReader {
         val only =
             raw.selected.singleOrNull()
                 ?: throw OptionKeyMismatch(key, raw.selected.joinToString { it.key }, options.java.simpleName)
-        val value = options.java.enumConstants.firstOrNull { it.name == only.key }
-            ?: throw OptionKeyMismatch(key, only.key, options.java.simpleName)
+        val value =
+            options.java.enumConstants.firstOrNull { it.name == only.key }
+                ?: throw OptionKeyMismatch(key, only.key, options.java.simpleName)
         return Resolved(value, raw.source, raw.profileVersion)
     }
 }

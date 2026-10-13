@@ -19,7 +19,10 @@ sealed interface JobTarget {
     }
 
     /** One entity's share; [tenant] is the entity's tenant, never the platform tenant. */
-    data class Entity(override val tenant: TenantId, override val entity: EntityRef) : JobTarget {
+    data class Entity(
+        override val tenant: TenantId,
+        override val entity: EntityRef,
+    ) : JobTarget {
         init {
             require(!tenant.isPlatform && !entity.isPlatform && !entity.isTenantWide) {
                 "an entity share needs a real tenant and entity"

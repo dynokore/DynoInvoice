@@ -48,7 +48,11 @@ class IsolationTest {
                         DSL.sum(Orders.AMOUNT).over(DSL.partitionBy(Orders.TENANT_ID).orderBy(Orders.AMOUNT)),
                         DSL.rank().over(DSL.orderBy(Orders.AMOUNT)),
                         DSL.sum(Orders.AMOUNT).over(window),
-                        DSL.rowNumber().over().partitionBy(Orders.TENANT_ID).orderBy(Orders.AMOUNT),
+                        DSL
+                            .rowNumber()
+                            .over()
+                            .partitionBy(Orders.TENANT_ID)
+                            .orderBy(Orders.AMOUNT),
                         DSL.count().over(),
                     ).from(Orders)
                     .window(window)
@@ -175,7 +179,11 @@ class IsolationTest {
         val count =
             asA(image) {
                 val cte = DSL.name("own_orders").`as`(DSL.select(Orders.ID).from(Orders))
-                it.with(cte).selectCount().from(cte).fetchOne(0, Int::class.java)
+                it
+                    .with(cte)
+                    .selectCount()
+                    .from(cte)
+                    .fetchOne(0, Int::class.java)
             }
         assertEquals(2, count)
     }
@@ -319,7 +327,12 @@ class IsolationTest {
                     .execute()
             }
         assertEquals(2, inserted)
-        val tenants = Seed.orderTenants(fixture).values.groupingBy { it }.eachCount()
+        val tenants =
+            Seed
+                .orderTenants(fixture)
+                .values
+                .groupingBy { it }
+                .eachCount()
         assertEquals(mapOf(Tenants.A.value to 4, Tenants.B.value to 1), tenants)
     }
 

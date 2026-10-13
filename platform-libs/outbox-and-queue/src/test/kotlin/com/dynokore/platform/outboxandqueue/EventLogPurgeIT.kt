@@ -75,13 +75,28 @@ class EventLogPurgeIT {
             repeat(4) { emit(harness, TestCatalogue.AUDIT_ENTRY_RECORDED) }
             age(harness, auditTable, "31")
 
-            assertEquals(0, purge(harness).purge().topics.single { it.topic == audit }.rows, "position 0: nothing")
+            assertEquals(
+                0,
+                purge(harness)
+                    .purge()
+                    .topics
+                    .single { it.topic == audit }
+                    .rows,
+                "position 0: nothing",
+            )
             assertEquals(listOf(1L, 2L, 3L, 4L), offsets(harness, auditTable))
 
             val positions = JdbcEventLogPositions(harness.fixture.eventLogDataSource())
             assertEquals(2L, positions.record(audit, 2))
             assertEquals(2L, positions.record(audit, 1), "a position never moves back")
-            assertEquals(2, purge(harness).purge().topics.single { it.topic == audit }.rows)
+            assertEquals(
+                2,
+                purge(harness)
+                    .purge()
+                    .topics
+                    .single { it.topic == audit }
+                    .rows,
+            )
             assertEquals(listOf(3L, 4L), offsets(harness, auditTable), "nothing above the recorded position")
             assertEquals(2L, watermarks(harness)[auditKey])
 
@@ -274,13 +289,14 @@ class EventLogPurgeIT {
     }
 
     /** The watermark rows the login of [source] can read. */
-    private fun watermarksAs(source: javax.sql.DataSource): Map<String, Long> = source.connection.use { connection ->
-        connection.createStatement().use { statement ->
-            statement.executeQuery("select topic_key, watermark from eventlog.purge_watermark").use { rows ->
-                buildMap { while (rows.next()) put(rows.getString(1), rows.getLong(2)) }
+    private fun watermarksAs(source: javax.sql.DataSource): Map<String, Long> =
+        source.connection.use { connection ->
+            connection.createStatement().use { statement ->
+                statement.executeQuery("select topic_key, watermark from eventlog.purge_watermark").use { rows ->
+                    buildMap { while (rows.next()) put(rows.getString(1), rows.getLong(2)) }
+                }
             }
         }
-    }
 
     @Test
     fun `a period below 7 days is refused, and so is a topic without a content marker`() {
@@ -337,7 +353,10 @@ class EventLogPurgeIT {
     private fun writeRetention(
         harness: OutboxHarness,
         retention: Retention,
-    ) = harness.fixture.migrateDataSource().connection.use { EventLogSchema.writeRetention(it, retention) }
+    ) = harness.fixture
+        .migrateDataSource()
+        .connection
+        .use { EventLogSchema.writeRetention(it, retention) }
 
     /** A purge result without its cut-off (taken from the database's clock). */
     private fun shape(purged: TopicPurge): List<Any> {
@@ -372,13 +391,14 @@ class EventLogPurgeIT {
     private fun offsets(
         harness: OutboxHarness,
         table: String,
-    ): List<Long> = harness.fixture.adminDataSource().connection.use { connection ->
-        connection.createStatement().use { statement ->
-            statement.executeQuery("select log_offset from $table order by log_offset").use { rows ->
-                buildList { while (rows.next()) add(rows.getLong(1)) }
+    ): List<Long> =
+        harness.fixture.adminDataSource().connection.use { connection ->
+            connection.createStatement().use { statement ->
+                statement.executeQuery("select log_offset from $table order by log_offset").use { rows ->
+                    buildList { while (rows.next()) add(rows.getLong(1)) }
+                }
             }
         }
-    }
 
     private fun watermarks(harness: OutboxHarness): Map<String, Long> {
         val admin = harness.fixture.adminDataSource()
@@ -395,16 +415,18 @@ class EventLogPurgeIT {
         harness: OutboxHarness,
         consumer: String,
         topic: String,
-    ): Long = harness.count(
-        "select coalesce(max(next_offset), 1) from reconciliation.consumer_offset where consumer = ? and topic = ?",
-        consumer,
-        topic,
-    )
+    ): Long =
+        harness.count(
+            "select coalesce(max(next_offset), 1) from reconciliation.consumer_offset where consumer = ? and topic = ?",
+            consumer,
+            topic,
+        )
 
-    private fun recording(seen: MutableList<String>) = object : EventHandler {
-        override fun handle(event: Envelope): HandleOutcome {
-            seen += event.id.value
-            return HandleOutcome.APPLIED
+    private fun recording(seen: MutableList<String>) =
+        object : EventHandler {
+            override fun handle(event: Envelope): HandleOutcome {
+                seen += event.id.value
+                return HandleOutcome.APPLIED
+            }
         }
-    }
 }

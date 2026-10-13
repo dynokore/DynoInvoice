@@ -83,11 +83,11 @@ class PlatformEventReader(
                 tenant = envelope.tenant,
                 entity = envelope.entity,
                 artefact =
-                EvidenceArtefact(
-                    EvidenceArtefactType(text(data, "artefactType")),
-                    text(data, "reference"),
-                    text(data, "hash"),
-                ),
+                    EvidenceArtefact(
+                        EvidenceArtefactType(text(data, "artefactType")),
+                        text(data, "reference"),
+                        text(data, "hash"),
+                    ),
                 time = envelope.time,
             )
         }
@@ -125,7 +125,11 @@ class PlatformEventReader(
         }
         val level = enumValue<ScopeLevel>(text.substringBefore(':', ""))
         val id = text.substringAfter(':', "")
-        if (id.isBlank() || level == ScopeLevel.INSTALLATION) throw ContractViolation("scope must be INSTALLATION or LEVEL:id")
+        if (id.isBlank() ||
+            level == ScopeLevel.INSTALLATION
+        ) {
+            throw ContractViolation("scope must be INSTALLATION or LEVEL:id")
+        }
         if (envelope.tenant.isPlatform) throw ContractViolation("a $level value carries its tenant")
         val tenant = envelope.tenant
         val entity = envelope.entity.takeUnless { it == EntityRef.TENANT_WIDE }?.value
@@ -151,7 +155,11 @@ class PlatformEventReader(
         field: String,
     ): String {
         val value = node.get(field)
-        if (value == null || !value.isString || value.asString().isBlank()) throw ContractViolation("$field is required")
+        if (value == null || !value.isString ||
+            value.asString().isBlank()
+        ) {
+            throw ContractViolation("$field is required")
+        }
         return value.asString()
     }
 
@@ -165,13 +173,16 @@ class PlatformEventReader(
         return value.asString()
     }
 
-    private inline fun <reified E : Enum<E>> enumValue(text: String): E = enumValues<E>().firstOrNull { it.name == text } ?: throw ContractViolation("unknown ${E::class.simpleName} '$text'")
+    private inline fun <reified E : Enum<E>> enumValue(text: String): E =
+        enumValues<E>().firstOrNull { it.name == text }
+            ?: throw ContractViolation("unknown ${E::class.simpleName} '$text'")
 
-    private inline fun <T> wrapped(block: () -> T): T = try {
-        block()
-    } catch (failure: IllegalArgumentException) {
-        throw ContractViolation("invalid payload: ${failure.message}", failure)
-    } catch (failure: DateTimeParseException) {
-        throw ContractViolation("invalid payload date: ${failure.message}", failure)
-    }
+    private inline fun <T> wrapped(block: () -> T): T =
+        try {
+            block()
+        } catch (failure: IllegalArgumentException) {
+            throw ContractViolation("invalid payload: ${failure.message}", failure)
+        } catch (failure: DateTimeParseException) {
+            throw ContractViolation("invalid payload date: ${failure.message}", failure)
+        }
 }

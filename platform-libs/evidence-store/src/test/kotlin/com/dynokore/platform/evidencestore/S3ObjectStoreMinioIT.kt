@@ -50,17 +50,17 @@ class S3ObjectStoreMinioIT {
         private const val MINIO_IMAGE =
             "cgr.dev/chainguard/minio@sha256:bd014394a80898e68c149f2311fdf8d5a2c2f3bb2c33b9327ae6d02b4b065ae1"
 
-        private fun minioClient(container: MinIOContainer): S3Client = S3Client
-            .builder()
-            .endpointOverride(URI.create(container.s3URL))
-            .region(Region.US_EAST_1)
-            .credentialsProvider(
-                StaticCredentialsProvider.create(
-                    AwsBasicCredentials.create(container.userName, container.password),
-                ),
-            )
-            .forcePathStyle(true)
-            .build()
+        private fun minioClient(container: MinIOContainer): S3Client =
+            S3Client
+                .builder()
+                .endpointOverride(URI.create(container.s3URL))
+                .region(Region.US_EAST_1)
+                .credentialsProvider(
+                    StaticCredentialsProvider.create(
+                        AwsBasicCredentials.create(container.userName, container.password),
+                    ),
+                ).forcePathStyle(true)
+                .build()
 
         // Refuse delete: the port itself has no delete method (ObjectStore.kt); this proves the
         // *server* refuses one too, attempted directly against the underlying client, bypassing
@@ -77,10 +77,22 @@ class S3ObjectStoreMinioIT {
             key: ObjectKey,
         ) {
             val versionId =
-                client.headObject(HeadObjectRequest.builder().bucket(bucket).key(key.value).build()).versionId()
+                client
+                    .headObject(
+                        HeadObjectRequest
+                            .builder()
+                            .bucket(bucket)
+                            .key(key.value)
+                            .build(),
+                    ).versionId()
             assertThrows(S3Exception::class.java) {
                 client.deleteObject(
-                    DeleteObjectRequest.builder().bucket(bucket).key(key.value).versionId(versionId).build(),
+                    DeleteObjectRequest
+                        .builder()
+                        .bucket(bucket)
+                        .key(key.value)
+                        .versionId(versionId)
+                        .build(),
                 )
             }
         }
@@ -95,13 +107,15 @@ class S3ObjectStoreMinioIT {
             key: ObjectKey,
         ) {
             val earlierRetention =
-                ObjectLockRetention.builder()
+                ObjectLockRetention
+                    .builder()
                     .mode(ObjectLockRetentionMode.COMPLIANCE)
                     .retainUntilDate(Instant.now().plus(1, ChronoUnit.HOURS))
                     .build()
             assertThrows(S3Exception::class.java) {
                 client.putObjectRetention(
-                    PutObjectRetentionRequest.builder()
+                    PutObjectRetentionRequest
+                        .builder()
                         .bucket(bucket)
                         .key(key.value)
                         .retention(earlierRetention)
@@ -125,7 +139,13 @@ class S3ObjectStoreMinioIT {
         try {
             val client = minioClient(container)
             val bucket = "evidence-store-it"
-            client.createBucket(CreateBucketRequest.builder().bucket(bucket).objectLockEnabledForBucket(true).build())
+            client.createBucket(
+                CreateBucketRequest
+                    .builder()
+                    .bucket(bucket)
+                    .objectLockEnabledForBucket(true)
+                    .build(),
+            )
 
             val store = S3ObjectStore(client, bucket)
             val key = ObjectKey("entity-1/2026-Q1/payload-1")

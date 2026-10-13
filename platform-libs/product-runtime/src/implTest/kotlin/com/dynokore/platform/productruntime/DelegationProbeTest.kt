@@ -25,18 +25,19 @@ class DelegationProbeTest {
         state: ConsentState,
         from: String,
         until: String?,
-    ): AuthorityReplica = AuthorityReplica(CLOCK).apply {
-        val consent =
-            AuthorityRecord.ConsentRecord(
-                "E-001",
-                state,
-                setOf(ConsentScopeItem.entries.first()),
-                Instant.parse(from),
-                until?.let(Instant::parse),
-            )
-        accept(AuthorityChanged(TENANT, "agent-1", 1, consent))
-        onSnapshotComplete(1)
-    }
+    ): AuthorityReplica =
+        AuthorityReplica(CLOCK).apply {
+            val consent =
+                AuthorityRecord.ConsentRecord(
+                    "E-001",
+                    state,
+                    setOf(ConsentScopeItem.entries.first()),
+                    Instant.parse(from),
+                    until?.let(Instant::parse),
+                )
+            accept(AuthorityChanged(TENANT, "agent-1", 1, consent))
+            onSnapshotComplete(1)
+        }
 
     private fun probe(replica: AuthorityReplica?) = AuthorityDelegationProbe { replica }
 
@@ -49,8 +50,14 @@ class DelegationProbeTest {
     fun `a consent overlapping any instant of the Singapore day counts, one ending before it does not`() {
         // 2026-10-12 in Asia/Singapore is 2026-10-11T16:00Z to 2026-10-12T16:00Z.
         probe(replicaWith(ConsentState.LIVE, "2026-10-12T15:59:00Z", null)).isDelegated(entity, day) shouldBe true
-        probe(replicaWith(ConsentState.LIVE, "2026-10-01T00:00:00Z", "2026-10-11T16:01:00Z")).isDelegated(entity, day) shouldBe true
-        probe(replicaWith(ConsentState.LIVE, "2026-10-01T00:00:00Z", "2026-10-11T16:00:00Z")).isDelegated(entity, day) shouldBe false
+        probe(
+            replicaWith(ConsentState.LIVE, "2026-10-01T00:00:00Z", "2026-10-11T16:01:00Z"),
+        ).isDelegated(entity, day) shouldBe
+            true
+        probe(
+            replicaWith(ConsentState.LIVE, "2026-10-01T00:00:00Z", "2026-10-11T16:00:00Z"),
+        ).isDelegated(entity, day) shouldBe
+            false
         probe(replicaWith(ConsentState.LIVE, "2026-10-12T16:00:00Z", null)).isDelegated(entity, day) shouldBe false
     }
 

@@ -8,7 +8,9 @@ package com.dynokore.platform.rulepackkernel
  * as the product layer names it.
  */
 @JvmInline
-value class PackType(val value: String) {
+value class PackType(
+    val value: String,
+) {
     init {
         require(value.isNotBlank()) { "PackType must not be blank" }
     }

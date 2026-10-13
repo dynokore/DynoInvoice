@@ -97,27 +97,33 @@ class Resilience4jResilientExecutor(
 
 fun TimeoutPolicy.toResilience4j(): TimeLimiterConfig = TimeLimiterConfig.custom().timeoutDuration(timeout).build()
 
-fun BulkheadPolicy.toResilience4j(): BulkheadConfig = BulkheadConfig.custom()
-    .maxConcurrentCalls(maxConcurrentCalls)
-    .maxWaitDuration(maxWaitDuration)
-    .build()
+fun BulkheadPolicy.toResilience4j(): BulkheadConfig =
+    BulkheadConfig
+        .custom()
+        .maxConcurrentCalls(maxConcurrentCalls)
+        .maxWaitDuration(maxWaitDuration)
+        .build()
 
-fun CircuitBreakerPolicy.toResilience4j(): CircuitBreakerConfig = CircuitBreakerConfig.custom()
-    .failureRateThreshold(failureRateThreshold)
-    .slidingWindowSize(slidingWindowSize)
-    // Resilience4j's own default (100) would otherwise apply regardless of how
-    // small a window this policy declares, so the breaker would never evaluate
-    // it: evaluate as soon as the window itself is full.
-    .minimumNumberOfCalls(slidingWindowSize)
-    .waitDurationInOpenState(waitDurationInOpenState)
-    .permittedNumberOfCallsInHalfOpenState(permittedCallsInHalfOpenState)
-    .build()
+fun CircuitBreakerPolicy.toResilience4j(): CircuitBreakerConfig =
+    CircuitBreakerConfig
+        .custom()
+        .failureRateThreshold(failureRateThreshold)
+        .slidingWindowSize(slidingWindowSize)
+        // Resilience4j's own default (100) would otherwise apply regardless of how
+        // small a window this policy declares, so the breaker would never evaluate
+        // it: evaluate as soon as the window itself is full.
+        .minimumNumberOfCalls(slidingWindowSize)
+        .waitDurationInOpenState(waitDurationInOpenState)
+        .permittedNumberOfCallsInHalfOpenState(permittedCallsInHalfOpenState)
+        .build()
 
 // The breaker itself already refuses a call fast when open (CallNotPermittedException);
 // retrying that outcome would only spend the bounded attempt budget waiting on a
 // breaker that will not close sooner for it, so it is the one exception retry ignores.
-fun RetryPolicy.toResilience4j(): RetryConfig = RetryConfig.custom<Any>()
-    .maxAttempts(maxAttempts)
-    .intervalFunction(IntervalFunction.ofExponentialRandomBackoff(initialBackoff, 2.0, jitter, maxBackoff))
-    .ignoreExceptions(CallNotPermittedException::class.java)
-    .build()
+fun RetryPolicy.toResilience4j(): RetryConfig =
+    RetryConfig
+        .custom<Any>()
+        .maxAttempts(maxAttempts)
+        .intervalFunction(IntervalFunction.ofExponentialRandomBackoff(initialBackoff, 2.0, jitter, maxBackoff))
+        .ignoreExceptions(CallNotPermittedException::class.java)
+        .build()

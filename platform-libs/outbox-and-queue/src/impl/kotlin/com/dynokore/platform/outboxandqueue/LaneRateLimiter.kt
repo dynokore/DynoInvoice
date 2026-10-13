@@ -99,10 +99,11 @@ class LaneRateLimiter(
         }
     }
 
-    private fun <T> withConnection(block: (Connection) -> T): T = dataSource.connection.use { connection ->
-        connection.autoCommit = true
-        block(connection)
-    }
+    private fun <T> withConnection(block: (Connection) -> T): T =
+        dataSource.connection.use { connection ->
+            connection.autoCommit = true
+            block(connection)
+        }
 
     private companion object {
         /** The stored window has ended by the database clock; its one `?` is the window in milliseconds. */

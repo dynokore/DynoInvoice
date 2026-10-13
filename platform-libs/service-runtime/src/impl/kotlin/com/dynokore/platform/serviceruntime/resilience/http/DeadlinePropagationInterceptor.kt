@@ -15,7 +15,9 @@ import java.time.Clock
  * required to use (ARC-08) — sends no header at all rather than a made-up
  * value: a call site to fix, not a value for this interceptor to invent.
  */
-class DeadlinePropagationInterceptor(private val clock: Clock) : ClientHttpRequestInterceptor {
+class DeadlinePropagationInterceptor(
+    private val clock: Clock,
+) : ClientHttpRequestInterceptor {
     override fun intercept(
         request: HttpRequest,
         body: ByteArray,

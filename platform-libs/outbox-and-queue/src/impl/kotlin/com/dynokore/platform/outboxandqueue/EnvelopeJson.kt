@@ -50,20 +50,29 @@ class EnvelopeJson(
      * UUID other than the reserved platform id; `TenantId.PLATFORM` when `tenantid` is absent and the type
      * is a platform type (INV-Q-2927 option D); `null` otherwise.
      */
-    fun tenantOf(json: String): TenantId? = try {
-        val node = mapper.readTree(json)
-        val text = node.get("tenantid")
-        when {
-            text == null && node.get("type")?.takeIf { it.isString }?.asString()?.let(Envelope::isPlatformType) == true ->
-                TenantId.PLATFORM
+    fun tenantOf(json: String): TenantId? =
+        try {
+            val node = mapper.readTree(json)
+            val text = node.get("tenantid")
+            when {
+                text == null && node
+                    .get(
+                        "type",
+                    )?.takeIf { it.isString }
+                    ?.asString()
+                    ?.let(Envelope::isPlatformType) == true -> {
+                    TenantId.PLATFORM
+                }
 
-            else -> text?.takeIf { it.isString }?.asString()?.let { TenantId.fromClaim(it) }
+                else -> {
+                    text?.takeIf { it.isString }?.asString()?.let { TenantId.fromClaim(it) }
+                }
+            }
+        } catch (_: tools.jackson.core.JacksonException) {
+            null
+        } catch (_: IllegalArgumentException) {
+            null
         }
-    } catch (_: tools.jackson.core.JacksonException) {
-        null
-    } catch (_: IllegalArgumentException) {
-        null
-    }
 
     /** Parses and validates [json]; throws [ContractViolation] when it is not a complete envelope. */
     fun read(json: String): Envelope {
@@ -84,22 +93,23 @@ class EnvelopeJson(
         }
     }
 
-    private fun build(node: ObjectNode): Envelope = Envelope(
-        id = EventId(text(node, "id")),
-        source = text(node, "source"),
-        type = text(node, "type"),
-        subject = text(node, "subject"),
-        time = Instant.parse(text(node, "time")),
-        tenant = tenantOf(node),
-        entity = if (node.has("tenantid")) realTenantEntityOf(node) else platformEntityOf(node),
-        docUuid = docUuidOf(text(node, "subject")),
-        transactionDate = optional(node, "transactiondate")?.let { LocalDate.parse(it) },
-        docSequence = docSequence(node),
-        instanceId = text(node, "instanceid"),
-        correlation = CorrelationId(text(node, "correlationid")),
-        causation = CausationId(text(node, "causationid")),
-        dataJson = mapper.writeValueAsString(node.get("data") ?: throw ContractViolation("data is missing")),
-    )
+    private fun build(node: ObjectNode): Envelope =
+        Envelope(
+            id = EventId(text(node, "id")),
+            source = text(node, "source"),
+            type = text(node, "type"),
+            subject = text(node, "subject"),
+            time = Instant.parse(text(node, "time")),
+            tenant = tenantOf(node),
+            entity = if (node.has("tenantid")) realTenantEntityOf(node) else platformEntityOf(node),
+            docUuid = docUuidOf(text(node, "subject")),
+            transactionDate = optional(node, "transactiondate")?.let { LocalDate.parse(it) },
+            docSequence = docSequence(node),
+            instanceId = text(node, "instanceid"),
+            correlation = CorrelationId(text(node, "correlationid")),
+            causation = CausationId(text(node, "causationid")),
+            dataJson = mapper.writeValueAsString(node.get("data") ?: throw ContractViolation("data is missing")),
+        )
 
     // INV-Q-2927 option D, INV-Q-3018: an absent `tenantid` maps back to the reserved platform tenant, for a
     // platform event type only; a domain event without one is a contract violation (FR-K.3). The reserved id
@@ -134,11 +144,12 @@ class EnvelopeJson(
 
     // The contract schema has no Doc UUID attribute: `subject` is the Doc UUID where the event concerns a document
     // (FR-K.3), and EventContext forces that, so a UUID subject is the Doc UUID.
-    private fun docUuidOf(subject: String): DocUuid? = try {
-        DocUuid(UUID.fromString(subject))
-    } catch (_: IllegalArgumentException) {
-        null
-    }
+    private fun docUuidOf(subject: String): DocUuid? =
+        try {
+            DocUuid(UUID.fromString(subject))
+        } catch (_: IllegalArgumentException) {
+            null
+        }
 
     private fun docSequence(node: ObjectNode): Long? {
         val value = node.get("docsequence") ?: return null

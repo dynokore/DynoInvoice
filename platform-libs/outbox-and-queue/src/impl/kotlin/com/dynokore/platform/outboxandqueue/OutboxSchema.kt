@@ -171,7 +171,7 @@ object OutboxSchema {
             create index ${DEAD_LETTER}_resolved_at on $s.$DEAD_LETTER (resolved_at) where resolved_at is not null;
             comment on column $s.$OUTBOX.data is 'class: content';
             comment on column $s.$DEAD_LETTER.raw is 'class: content';
-        """.trimIndent()
+            """.trimIndent()
     }
 
     /**
@@ -207,7 +207,7 @@ object OutboxSchema {
             revoke all on function $s.$OUTBOX_PUBLISH_ONCE() from public;
             create trigger $OUTBOX_PUBLISH_ONCE before update on $s.$OUTBOX
                 for each row execute function $s.$OUTBOX_PUBLISH_ONCE();
-        """.trimIndent()
+            """.trimIndent()
     }
 
     private fun runtimeGrants(
@@ -224,7 +224,7 @@ object OutboxSchema {
             grant select on $s.$DEAD_LETTER to $runtime;
             grant select, insert, update on $s.$CONSUMER_REPLAY, $s.$CONSUMER_REPLAY_MARKER, $s.$CONSUMER_SOURCE_SEEN
                 to $runtime;
-        """.trimIndent()
+            """.trimIndent()
     }
 
     /**
@@ -271,7 +271,7 @@ object OutboxSchema {
             grant insert on $s.$DEAD_LETTER to $sys;
             grant update (status, resolved_at, note, replayed_to) on $s.$DEAD_LETTER to $sys;
             grant delete on $s.$DEAD_LETTER to $sys;
-        """.trimIndent()
+            """.trimIndent()
     }
 
     /**
@@ -298,7 +298,7 @@ object OutboxSchema {
             revoke all on $s.$DEAD_LETTER_TRIAGE_VIEW from public;
             grant select on $s.$DEAD_LETTER_TRIAGE_VIEW to $runtime;
             revoke create on schema $s from $sys;
-        """.trimIndent()
+            """.trimIndent()
     }
 
     /*
@@ -341,7 +341,7 @@ object OutboxSchema {
             revoke all on function $s.$OUTBOX_PURGE_EXPIRED(timestamptz, integer) from public;
             grant execute on function $s.$OUTBOX_PURGE_EXPIRED(timestamptz, integer) to $runtime;
             revoke create on schema $s from $sys;
-        """.trimIndent()
+            """.trimIndent()
     }
 
     private fun inboxPurge(
@@ -376,7 +376,7 @@ object OutboxSchema {
             revoke all on function $s.$INBOX_PURGE_EXPIRED(timestamptz, integer) from public;
             grant execute on function $s.$INBOX_PURGE_EXPIRED(timestamptz, integer) to $runtime;
             revoke create on schema $s from $sys;
-        """.trimIndent()
+            """.trimIndent()
     }
 
     private fun deadLetterPurge(
@@ -412,7 +412,7 @@ object OutboxSchema {
             revoke all on function $s.$DEAD_LETTER_PURGE_EXPIRED(timestamptz, integer) from public;
             grant execute on function $s.$DEAD_LETTER_PURGE_EXPIRED(timestamptz, integer) to $runtime;
             revoke create on schema $s from $sys;
-        """.trimIndent()
+            """.trimIndent()
     }
 
     private fun fullSyncDelete(
@@ -442,7 +442,7 @@ object OutboxSchema {
             revoke all on function $s.$FULL_SYNC_DELETE(text, text) from public;
             grant execute on function $s.$FULL_SYNC_DELETE(text, text) to $runtime;
             revoke create on schema $s from $sys;
-        """.trimIndent()
+            """.trimIndent()
     }
 
     private fun deadLetterRecord(
@@ -476,7 +476,7 @@ object OutboxSchema {
             revoke all on function $s.$DEAD_LETTER_RECORD(text, text, bigint, uuid, text, text) from public;
             grant execute on function $s.$DEAD_LETTER_RECORD(text, text, bigint, uuid, text, text) to $runtime;
             revoke create on schema $s from $sys;
-        """.trimIndent()
+            """.trimIndent()
     }
 
     private fun deadLetterResolve(
@@ -506,7 +506,7 @@ object OutboxSchema {
             revoke all on function $s.$DEAD_LETTER_RESOLVE(bigint, text, timestamptz, text, text) from public;
             grant execute on function $s.$DEAD_LETTER_RESOLVE(bigint, text, timestamptz, text, text) to $runtime;
             revoke create on schema $s from $sys;
-        """.trimIndent()
+            """.trimIndent()
     }
 
     private const val DEAD_LETTER_COLUMNS =
@@ -543,7 +543,7 @@ object OutboxSchema {
                 source text not null,
                 primary key (consumer, producer, source)
             );
-        """.trimIndent()
+            """.trimIndent()
     }
 
     /**
@@ -572,7 +572,9 @@ object OutboxSchema {
         val sys = SqlIdentifier.require(sysRole, "sys role")
         SqlIdentifier.require(schema, "schema")
         require(runtime != sys) { "the runtime login and the sys role must differ, both were '$runtime'" }
-        require(t !in PROTECTED_LEDGERS) { "'$t' is a protected evidence ledger (INV-Q-4034); a full sync never clears it" }
+        require(
+            t !in PROTECTED_LEDGERS,
+        ) { "'$t' is a protected evidence ledger (INV-Q-4034); a full sync never clears it" }
         readModelClearFunctionName(t)
         return if (filterColumn == null) {
             clearAll(schema, table, runtimeRole, sysRole)
@@ -615,7 +617,7 @@ object OutboxSchema {
             revoke all on function $s.$name() from public;
             grant execute on function $s.$name() to $runtime;
             revoke create on schema $s from $sys;
-        """.trimIndent()
+            """.trimIndent()
     }
 
     private fun clearByColumn(
@@ -659,29 +661,31 @@ object OutboxSchema {
             revoke all on function $s.$name($s.$t.$column%type) from public;
             grant execute on function $s.$name($s.$t.$column%type) to $runtime;
             revoke create on schema $s from $sys;
-        """.trimIndent()
+            """.trimIndent()
     }
 
     /** The name of [table]'s full-sync clear function, `<table>_full_sync_clear`, as [SqlIdentifier.require] returns it. */
-    fun readModelClearFunctionName(table: String): String = SqlIdentifier.require("${SqlIdentifier.require(table, "table")}$FULL_SYNC_CLEAR_SUFFIX", "clear function name")
+    fun readModelClearFunctionName(table: String): String =
+        SqlIdentifier.require("${SqlIdentifier.require(table, "table")}$FULL_SYNC_CLEAR_SUFFIX", "clear function name")
 
     /**
      * The protected evidence-ledger set (coordinator ruling INV-Q-4034): `audit_entry`, `override_grant` and the stores
      * INV-REQ-2570 declares append-only and immutable from the first write. [readModelClearFunction] refuses them.
      */
-    val PROTECTED_LEDGERS: Set<String> = setOf(
-        "audit_entry",
-        "override_grant",
-        "source_event",
-        "evidence_payload",
-        "acknowledgement",
-        "decision_trace",
-        "audit_log",
-        "transport_attempt",
-        "notification_ledger",
-        "filing_fact",
-        "readiness_record",
-    )
+    val PROTECTED_LEDGERS: Set<String> =
+        setOf(
+            "audit_entry",
+            "override_grant",
+            "source_event",
+            "evidence_payload",
+            "acknowledgement",
+            "decision_trace",
+            "audit_log",
+            "transport_attempt",
+            "notification_ledger",
+            "filing_fact",
+            "readiness_record",
+        )
 
     private const val FULL_SYNC_CLEAR_SUFFIX = "_full_sync_clear"
 }

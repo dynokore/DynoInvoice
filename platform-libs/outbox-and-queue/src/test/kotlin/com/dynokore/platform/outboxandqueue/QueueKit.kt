@@ -51,13 +51,14 @@ class QueueKit(
     }
 
     /** Claims, completes and returns the lane and partition of each item, until nothing is claimable. */
-    fun drain(): List<ClaimedItem> = buildList {
-        while (true) {
-            val item = queue.claimNext() ?: break
-            kit.inTx(item.tenant.value) { queue.complete(item) }
-            add(item)
+    fun drain(): List<ClaimedItem> =
+        buildList {
+            while (true) {
+                val item = queue.claimNext() ?: break
+                kit.inTx(item.tenant.value) { queue.complete(item) }
+                add(item)
+            }
         }
-    }
 }
 
 /** The value, failing the test when it is null (JUnit's own `assertNotNull` returns nothing). */

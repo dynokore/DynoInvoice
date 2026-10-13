@@ -9,7 +9,9 @@ package com.dynokore.platform.adapterruntime
  * (CS-06): this value class validates its format once, at construction.
  */
 @JvmInline
-value class AdapterVersion(val value: String) {
+value class AdapterVersion(
+    val value: String,
+) {
     init {
         require(value.isNotBlank()) { "AdapterVersion must not be blank" }
         require(value.none(Char::isWhitespace)) { "AdapterVersion must not contain whitespace: '$value'" }

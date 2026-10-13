@@ -19,15 +19,20 @@ import javax.sql.DataSource
  * composed as TPL-18. The pool is lazy, so no database is needed: no connection is opened at start.
  */
 class DatabaseCredentialsWiringTest {
-    private fun service(mountRoot: Path) = tpl18Service().withPropertyValues(
-        "gst.bindings.secret-store.mount-root=$mountRoot",
-        "spring.datasource.url=jdbc:postgresql://localhost:5432/submission",
-        "spring.datasource.username=submission_app",
-    )
+    private fun service(mountRoot: Path) =
+        tpl18Service().withPropertyValues(
+            "gst.bindings.secret-store.mount-root=$mountRoot",
+            "spring.datasource.url=jdbc:postgresql://localhost:5432/submission",
+            "spring.datasource.username=submission_app",
+        )
 
-    private fun AssertableApplicationContext.applicationPool() = getBean(DataSource::class.java).unwrap(HikariDataSource::class.java)
+    private fun AssertableApplicationContext.applicationPool() =
+        getBean(DataSource::class.java).unwrap(HikariDataSource::class.java)
 
-    private fun AssertableApplicationContext.failureMessages() = generateSequence(startupFailure.shouldNotBeNull()) { it.cause }.joinToString(" | ") { it.message.orEmpty() }
+    private fun AssertableApplicationContext.failureMessages() =
+        generateSequence(startupFailure.shouldNotBeNull()) {
+            it.cause
+        }.joinToString(" | ") { it.message.orEmpty() }
 
     @Test
     fun `the application pool takes its credentials from the named SecretRef`(
@@ -62,8 +67,10 @@ class DatabaseCredentialsWiringTest {
     ) {
         Files.writeString(mountRoot.resolve("db-app"), "app-password-1")
         service(mountRoot)
-            .withPropertyValues("service-runtime.datasource.credential=db-app", "spring.datasource.password=property-password-1")
-            .run { context ->
+            .withPropertyValues(
+                "service-runtime.datasource.credential=db-app",
+                "spring.datasource.password=property-password-1",
+            ).run { context ->
                 val messages = context.failureMessages()
                 // the key check refuses it first, before any bean (coordinator rulings INV-Q-4548, INV-Q-4559)
                 messages shouldContain "spring.datasource.password"

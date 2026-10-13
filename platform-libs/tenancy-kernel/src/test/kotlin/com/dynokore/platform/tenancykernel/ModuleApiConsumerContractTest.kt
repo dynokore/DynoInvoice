@@ -81,7 +81,8 @@ class ModuleApiConsumerContractTest {
             }
 
             val rows =
-                tenants.bind(tenant, "test-actor") { tx.inTransaction { ProbeTable.selectAll(tx.require()) } }
+                tenants
+                    .bind(tenant, "test-actor") { tx.inTransaction { ProbeTable.selectAll(tx.require()) } }
                     .map { it.value }
             val expected = listOf("nested-first", "nested-second")
             assertTrue(rows.containsAll(expected), "both nested writes must be visible: $rows")
@@ -108,7 +109,8 @@ class ModuleApiConsumerContractTest {
             }
 
             val rows =
-                tenants.bind(tenant, "test-actor") { tx.inTransaction { ProbeTable.selectAll(tx.require()) } }
+                tenants
+                    .bind(tenant, "test-actor") { tx.inTransaction { ProbeTable.selectAll(tx.require()) } }
                     .map { it.value }
             assertTrue(rows.none { it.startsWith("rolled-back") }, "neither write must survive the rollback: $rows")
         }
@@ -123,10 +125,10 @@ class ModuleApiConsumerContractTest {
             val hangingLicence =
                 NonBlockingLicenceCheck(
                     delegate =
-                    LicenceCheck {
-                        Thread.sleep(10_000)
-                        LicenceStatus.EXPIRED
-                    },
+                        LicenceCheck {
+                            Thread.sleep(10_000)
+                            LicenceStatus.EXPIRED
+                        },
                     timeout = Duration.ofMillis(150),
                 )
             val useCase = FakeConsumerUseCase(tenants, tx, hangingLicence, tx)

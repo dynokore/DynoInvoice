@@ -9,7 +9,9 @@ import java.time.ZonedDateTime
  * The firings of a [JobSchedule]. [tickContaining] is the run window's tick: the latest firing at or
  * before an instant (INV-Q-3034, the schedule interval containing the request).
  */
-class CronTicks(private val schedule: JobSchedule) {
+class CronTicks(
+    private val schedule: JobSchedule,
+) {
     private val cron: CronExpression =
         try {
             CronExpression.parse(schedule.cron)
@@ -21,7 +23,10 @@ class CronTicks(private val schedule: JobSchedule) {
         requireNotNull(cron.next(ZonedDateTime.now(schedule.zone))) { "schedule never fires" }
     }
 
-    fun next(after: Instant): Instant = checkNotNull(cron.next(after.atZone(schedule.zone))) { "schedule has no further firing" }.toInstant()
+    fun next(after: Instant): Instant =
+        checkNotNull(cron.next(after.atZone(schedule.zone))) {
+            "schedule has no further firing"
+        }.toInstant()
 
     fun tickContaining(at: Instant): Instant {
         var step = Duration.ofSeconds(1)

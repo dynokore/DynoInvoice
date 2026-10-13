@@ -33,7 +33,6 @@ class BouncyCastleCms(
     private val provider: Provider = defaultProvider(),
 ) : DetachedSigner,
     DetachedSignatureVerifier {
-
     override fun sign(
         content: ByteArray,
         key: SigningKey,
@@ -57,46 +56,57 @@ class BouncyCastleCms(
         algorithm: SignatureAlgorithm,
         trustedCertificatesDer: List<ByteArray>,
     ): DetachedVerification {
-        val signedData = try {
-            CMSSignedData(CMSProcessableByteArray(content), signature)
-        } catch (failure: CMSException) {
-            return invalid("not a well-formed CMS SignedData: ${failure.message}")
-        }
+        val signedData =
+            try {
+                CMSSignedData(CMSProcessableByteArray(content), signature)
+            } catch (failure: CMSException) {
+                return invalid("not a well-formed CMS SignedData: ${failure.message}")
+            }
 
-        val signerInfo = signedData.signerInfos.signers.firstOrNull()
-            ?: return invalid("CMS SignedData carries no SignerInfo")
+        val signerInfo =
+            signedData.signerInfos.signers.firstOrNull()
+                ?: return invalid("CMS SignedData carries no SignerInfo")
 
         @Suppress("UNCHECKED_CAST") // CS-50: bc-java's SignerId implements the raw (unparameterised) Selector type
         val signerIdSelector = signerInfo.getSID() as Selector<X509CertificateHolder>
-        val signerCertificate = signedData.certificates
-            .getMatches(signerIdSelector)
-            .filterIsInstance<X509CertificateHolder>()
-            .firstOrNull()
-            ?: return invalid("no certificate in the CMS message matches its own SignerInfo")
+        val signerCertificate =
+            signedData.certificates
+                .getMatches(signerIdSelector)
+                .filterIsInstance<X509CertificateHolder>()
+                .firstOrNull()
+                ?: return invalid("no certificate in the CMS message matches its own SignerInfo")
 
         algorithmMismatch(algorithm, signerInfo.encryptionAlgOID, signerInfo.digestAlgOID, signerCertificate)
             ?.let { return invalid(it) }
 
-        val mathematicallyValid = try {
-            val verifier =
-                JcaSimpleSignerInfoVerifierBuilder()
-                    .setProvider(provider)
-                    .build(signerCertificate)
-            signerInfo.verify(verifier)
-        } catch (failure: CMSException) {
-            return invalid("signature verification failed: ${failure.message}")
-        }
+        val mathematicallyValid =
+            try {
+                val verifier =
+                    JcaSimpleSignerInfoVerifierBuilder()
+                        .setProvider(provider)
+                        .build(signerCertificate)
+                signerInfo.verify(verifier)
+            } catch (failure: CMSException) {
+                return invalid("signature verification failed: ${failure.message}")
+            }
         if (!mathematicallyValid) {
             return invalid("CMS signature does not verify against its own signer certificate")
         }
 
-        val signerCertificateDer = try {
-            signerCertificate.encoded
-        } catch (failure: IOException) {
-            return invalid("signer certificate could not be re-encoded: ${failure.message}")
-        }
+        val signerCertificateDer =
+            try {
+                signerCertificate.encoded
+            } catch (failure: IOException) {
+                return invalid("signer certificate could not be re-encoded: ${failure.message}")
+            }
         val trustedIndex = trustedCertificatesDer.indexOfFirst { it.contentEquals(signerCertificateDer) }
-        return if (trustedIndex < 0) DetachedVerification.UntrustedSigner else DetachedVerification.Verified(trustedIndex)
+        return if (trustedIndex <
+            0
+        ) {
+            DetachedVerification.UntrustedSigner
+        } else {
+            DetachedVerification.Verified(trustedIndex)
+        }
     }
 
     /** Why the signer's algorithms differ from [algorithm], or `null` when they match. */
@@ -109,23 +119,29 @@ class BouncyCastleCms(
         val keyParameters = signerCertificate.subjectPublicKeyInfo.algorithm.parameters
         val curveOid = (keyParameters as? ASN1ObjectIdentifier)?.id
         return when {
-            signatureOid != algorithm.signatureOid ->
+            signatureOid != algorithm.signatureOid -> {
                 "signer uses signature algorithm $signatureOid, not ${algorithm.name}"
+            }
 
-            digestOid != algorithm.digestOid ->
+            digestOid != algorithm.digestOid -> {
                 "signer uses digest algorithm $digestOid, not ${algorithm.name}"
+            }
 
-            curveOid != algorithm.curveOid ->
+            curveOid != algorithm.curveOid -> {
                 "signer key is not on the ${algorithm.name} curve (key parameters $curveOid)"
+            }
 
-            else -> null
+            else -> {
+                null
+            }
         }
     }
 
     private fun invalid(detail: String): DetachedVerification = DetachedVerification.SignatureInvalid(detail)
 
     private companion object {
-        fun defaultProvider(): Provider = Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) ?: BouncyCastleProvider()
+        fun defaultProvider(): Provider =
+            Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) ?: BouncyCastleProvider()
     }
 
     /** A Bouncy Castle [ContentSigner] that buffers the bytes to sign and hands them to a [SigningKey]. */
@@ -134,7 +150,8 @@ class BouncyCastleCms(
     ) : ContentSigner {
         private val buffer = ByteArrayOutputStream()
 
-        override fun getAlgorithmIdentifier(): AlgorithmIdentifier = AlgorithmIdentifier(ASN1ObjectIdentifier(key.algorithm.signatureOid))
+        override fun getAlgorithmIdentifier(): AlgorithmIdentifier =
+            AlgorithmIdentifier(ASN1ObjectIdentifier(key.algorithm.signatureOid))
 
         override fun getOutputStream(): OutputStream = buffer
 

@@ -23,7 +23,9 @@ class VersionedAdapterRouter<A : ManagedAdapter>(
 ) {
     private val byVersion: Map<AdapterVersion, A> =
         versions.associateBy { it.version }.also {
-            require(it.size == versions.size) { "VersionedAdapterRouter was given more than one adapter for the same version" }
+            require(
+                it.size == versions.size,
+            ) { "VersionedAdapterRouter was given more than one adapter for the same version" }
         }
 
     init {

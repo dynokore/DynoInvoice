@@ -55,12 +55,13 @@ class TenantWideEventIT {
             // Consume: absence maps back to TENANT_WIDE under the real tenant.
             val kit = harness.reconciliation
             val seen = CopyOnWriteArrayList<Triple<TenantId, EntityRef, TenantId>>()
-            val handler = object : EventHandler {
-                override fun handle(event: Envelope): HandleOutcome {
-                    seen += Triple(event.tenant, event.entity, kit.tenants.current())
-                    return HandleOutcome.APPLIED
+            val handler =
+                object : EventHandler {
+                    override fun handle(event: Envelope): HandleOutcome {
+                        seen += Triple(event.tenant, event.entity, kit.tenants.current())
+                        return HandleOutcome.APPLIED
+                    }
                 }
-            }
             val consumer = harness.consumer("evidence-svc", auditTopic, "reconciliation", kit.boundary, handler)
             assertEquals(2, consumer.pollOnce().applied)
             assertEquals(
@@ -99,19 +100,23 @@ class TenantWideEventIT {
                     "values ('$tenant', 'd', '$doc', '${harness.mapper.writeValueAsString(record)}')",
             )
             val kit = harness.submission
-            val consumer = harness.consumer(
-                "submission-svc",
-                "gst.payload.payload-ready.v1",
-                "submission",
-                kit.boundary,
-                SubmissionFixtureHandler(kit.boundary, TransportStub()),
-            )
+            val consumer =
+                harness.consumer(
+                    "submission-svc",
+                    "gst.payload.payload-ready.v1",
+                    "submission",
+                    kit.boundary,
+                    SubmissionFixtureHandler(kit.boundary, TransportStub()),
+                )
             assertEquals(1, consumer.pollOnce().deadLettered)
             assertEquals(0, harness.count("select count(*) from submission.inbox"))
         }
     }
 
-    private fun tenantRecordWithoutEntity(doc: UUID, tenant: UUID) = MAPPER.createObjectNode().apply {
+    private fun tenantRecordWithoutEntity(
+        doc: UUID,
+        tenant: UUID,
+    ) = MAPPER.createObjectNode().apply {
         put("specversion", "1.0")
         put("id", UUID.randomUUID().toString())
         put("source", "/gst/payload-svc")
@@ -126,14 +131,21 @@ class TenantWideEventIT {
         set("data", MAPPER.readTree("""{"version":1}"""))
     }
 
-    private fun ServiceKit.write(tenant: UUID, event: OutboundEvent, entity: EntityRef) {
+    private fun ServiceKit.write(
+        tenant: UUID,
+        event: OutboundEvent,
+        entity: EntityRef,
+    ) {
         val context = context(tenant, entity)
         inTx(tenant) { writer.append(listOf(event), context) }
     }
 
     private fun audit(who: String) = OutboundEvent(TestCatalogue.AUDIT_ENTRY_RECORDED, """{"who":"$who"}""")
 
-    private fun context(tenant: UUID, entity: EntityRef) = EventContext(
+    private fun context(
+        tenant: UUID,
+        entity: EntityRef,
+    ) = EventContext(
         tenant = TenantId(tenant),
         entity = entity,
         docUuid = null,

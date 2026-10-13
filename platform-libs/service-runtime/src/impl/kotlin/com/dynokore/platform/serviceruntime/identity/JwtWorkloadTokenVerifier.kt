@@ -16,7 +16,9 @@ import org.springframework.security.oauth2.jwt.JwtException
  * CS-14, CS-15); anything else is this decoder's own infrastructure failure
  * (for example the JWK set endpoint being unreachable) and propagates.
  */
-class JwtWorkloadTokenVerifier(private val jwtDecoder: JwtDecoder) : WorkloadTokenVerifier {
+class JwtWorkloadTokenVerifier(
+    private val jwtDecoder: JwtDecoder,
+) : WorkloadTokenVerifier {
     override fun verify(token: WorkloadToken?): WorkloadVerification {
         if (token == null) return WorkloadVerification.Refused("missing")
         return try {

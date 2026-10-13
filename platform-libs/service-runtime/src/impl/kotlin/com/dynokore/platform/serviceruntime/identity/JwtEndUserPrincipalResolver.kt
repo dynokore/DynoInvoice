@@ -48,11 +48,12 @@ class JwtEndUserPrincipalResolver(
     }
 
     /** The unverified claims name `act`: only the operator-session keys may verify it. Unreadable claims: none. */
-    private fun carriesAct(parsed: JWT): Boolean = try {
-        parsed.jwtClaimsSet?.claims?.containsKey(OperatorSessionTokens.ACT_CLAIM) == true
-    } catch (malformed: ParseException) {
-        false
-    }
+    private fun carriesAct(parsed: JWT): Boolean =
+        try {
+            parsed.jwtClaimsSet?.claims?.containsKey(OperatorSessionTokens.ACT_CLAIM) == true
+        } catch (malformed: ParseException) {
+            false
+        }
 
     private fun operatorPrincipal(parsed: JWT): EndUserPrincipal? {
         val (claims, session) = (parsed as? SignedJWT)?.let(operatorSessions::verify) ?: return null
@@ -87,22 +88,24 @@ class JwtEndUserPrincipalResolver(
         tenant: TenantId,
         actor: String,
         session: OperatorSession? = null,
-    ): EndUserPrincipal = if (authority.lag().isWithin(authority.lagBound)) {
-        EndUserPrincipal(actor, tenant, entitiesOf(tenant, actor), operatorSession = session)
-    } else {
-        EndUserPrincipal(actor, tenant, emptySet(), entitySetCurrent = false, operatorSession = session)
-    }
+    ): EndUserPrincipal =
+        if (authority.lag().isWithin(authority.lagBound)) {
+            EndUserPrincipal(actor, tenant, entitiesOf(tenant, actor), operatorSession = session)
+        } else {
+            EndUserPrincipal(actor, tenant, emptySet(), entitySetCurrent = false, operatorSession = session)
+        }
 
     private fun entitiesOf(
         tenant: TenantId,
         actor: String,
     ): Set<EntityRef> = authority.heldEntities(tenant, actor).mapTo(mutableSetOf()) { EntityRef(it) }
 
-    private fun tenantOf(claim: String): TenantId? = try {
-        TenantId.fromClaim(claim)
-    } catch (e: IllegalArgumentException) {
-        null
-    }
+    private fun tenantOf(claim: String): TenantId? =
+        try {
+            TenantId.fromClaim(claim)
+        } catch (e: IllegalArgumentException) {
+            null
+        }
 
     private fun bearer(authorization: String?): String? {
         val parts = authorization?.trim()?.split(' ', limit = 2) ?: return null

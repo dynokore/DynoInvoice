@@ -90,18 +90,19 @@ class ConfigResolverWiring {
         backdating: ObjectProvider<BackdatingFloor>,
         constraints: ObjectProvider<ValueConstraints>,
         clock: Clock,
-    ): JdbcPolicyWriter = JdbcPolicyWriter(
-        connections,
-        catalogue,
-        gst.configForm(),
-        modules.requireSchema(),
-        audit,
-        outbox.ifAvailable,
-        clock,
-        delegation.ifAvailable,
-        backdating.ifAvailable,
-        constraints.ifAvailable,
-    )
+    ): JdbcPolicyWriter =
+        JdbcPolicyWriter(
+            connections,
+            catalogue,
+            gst.configForm(),
+            modules.requireSchema(),
+            audit,
+            outbox.ifAvailable,
+            clock,
+            delegation.ifAvailable,
+            backdating.ifAvailable,
+            constraints.ifAvailable,
+        )
 
     private fun GstProperties.configForm(): DeploymentForm = DeploymentForm.valueOf(form.name)
 }

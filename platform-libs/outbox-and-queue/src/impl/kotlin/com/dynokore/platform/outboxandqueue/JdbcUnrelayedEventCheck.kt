@@ -61,11 +61,12 @@ class JdbcUnrelayedEventCheck(
                 val page = page(claim, after)
                 val published = page.filter { it.publishedAt != null }
                 val kept = stillVerified ?: published.firstOrNull()?.let { SeqSet(it.seq) }?.also { stillVerified = it }
-                val unverified = published.filter { row ->
-                    val known = row.seq in verified
-                    if (known) checkNotNull(kept) += row.seq
-                    !known
-                }
+                val unverified =
+                    published.filter { row ->
+                        val known = row.seq in verified
+                        if (known) checkNotNull(kept) += row.seq
+                        !known
+                    }
                 if (unverified.isNotEmpty()) verify(unverified, checkNotNull(kept), found)
                 if (page.size < pageSize) break
                 after = page.last().seq
@@ -103,55 +104,81 @@ class JdbcUnrelayedEventCheck(
     private fun page(
         claim: Connection,
         after: Long,
-    ): List<Claimed> = claim.prepareStatement("select seq, tenant_id, published_at from $claimView where seq > ? order by seq limit ?").use {
-        it.setLong(1, after)
-        it.setInt(2, pageSize)
-        it.executeQuery().use { rows ->
-            buildList {
-                while (rows.next()) {
-                    add(Claimed(rows.getLong(1), TenantId(rows.getObject(2, UUID::class.java)), rows.getTimestamp(3)?.toInstant()))
-                }
-            }
-        }
-    }
-
-    /** Records [row] as raised in the inbox, in its tenant's transaction; true only for the run that records it first. */
-    private fun recordRaised(row: Published): Boolean = scope.bindWorkload(row.tenant) {
-        scope.transactions.inTransaction {
-            val connection = scope.connections.require()
-            connection.prepareStatement("insert into $inbox (consumer, event_id, tenant_id) values (?, ?, ?) on conflict do nothing").use {
-                it.setString(1, RAISED_CONSUMER)
-                it.setString(2, row.eventId)
-                it.setObject(3, row.tenant.value)
-                it.executeUpdate() == 1
-            }
-        }
-    }
-
-    /** The topic and event id of each candidate, read once per tenant in a transaction bound to it. */
-    private fun describe(candidates: List<Claimed>): List<Published> = candidates
-        .groupBy { it.tenant }
-        .flatMap { (tenant, ofTenant) ->
-            ofTenant.chunked(pageSize).flatMap { chunk ->
-                val publishedAt = chunk.associate { it.seq to checkNotNull(it.publishedAt) }
-                scope.bindWorkload(tenant) {
-                    scope.transactions.inTransaction {
-                        val connection = scope.connections.require()
-                        connection.prepareStatement("select seq, topic, id from $outbox where seq = any(?) and published_at is not null").use {
-                            it.setArray(1, connection.createArrayOf("bigint", publishedAt.keys.toTypedArray()))
-                            it.executeQuery().use { rows ->
-                                buildList {
-                                    while (rows.next()) {
-                                        val seq = rows.getLong(1)
-                                        add(Published(seq, tenant, rows.getString(2), rows.getString(3), publishedAt.getValue(seq)))
-                                    }
-                                }
-                            }
+    ): List<Claimed> =
+        claim
+            .prepareStatement(
+                "select seq, tenant_id, published_at from $claimView where seq > ? order by seq limit ?",
+            ).use {
+                it.setLong(1, after)
+                it.setInt(2, pageSize)
+                it.executeQuery().use { rows ->
+                    buildList {
+                        while (rows.next()) {
+                            add(
+                                Claimed(
+                                    rows.getLong(1),
+                                    TenantId(rows.getObject(2, UUID::class.java)),
+                                    rows.getTimestamp(3)?.toInstant(),
+                                ),
+                            )
                         }
                     }
                 }
             }
+
+    /** Records [row] as raised in the inbox, in its tenant's transaction; true only for the run that records it first. */
+    private fun recordRaised(row: Published): Boolean =
+        scope.bindWorkload(row.tenant) {
+            scope.transactions.inTransaction {
+                val connection = scope.connections.require()
+                connection
+                    .prepareStatement(
+                        "insert into $inbox (consumer, event_id, tenant_id) values (?, ?, ?) on conflict do nothing",
+                    ).use {
+                        it.setString(1, RAISED_CONSUMER)
+                        it.setString(2, row.eventId)
+                        it.setObject(3, row.tenant.value)
+                        it.executeUpdate() == 1
+                    }
+            }
         }
+
+    /** The topic and event id of each candidate, read once per tenant in a transaction bound to it. */
+    private fun describe(candidates: List<Claimed>): List<Published> =
+        candidates
+            .groupBy { it.tenant }
+            .flatMap { (tenant, ofTenant) ->
+                ofTenant.chunked(pageSize).flatMap { chunk ->
+                    val publishedAt = chunk.associate { it.seq to checkNotNull(it.publishedAt) }
+                    scope.bindWorkload(tenant) {
+                        scope.transactions.inTransaction {
+                            val connection = scope.connections.require()
+                            connection
+                                .prepareStatement(
+                                    "select seq, topic, id from $outbox where seq = any(?) and published_at is not null",
+                                ).use {
+                                    it.setArray(1, connection.createArrayOf("bigint", publishedAt.keys.toTypedArray()))
+                                    it.executeQuery().use { rows ->
+                                        buildList {
+                                            while (rows.next()) {
+                                                val seq = rows.getLong(1)
+                                                add(
+                                                    Published(
+                                                        seq,
+                                                        tenant,
+                                                        rows.getString(2),
+                                                        rows.getString(3),
+                                                        publishedAt.getValue(seq),
+                                                    ),
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                        }
+                    }
+                }
+            }
 
     /** A set of outbox seqs from [base] on (a run's published rows span less than 2^31 seqs). */
     private class SeqSet(

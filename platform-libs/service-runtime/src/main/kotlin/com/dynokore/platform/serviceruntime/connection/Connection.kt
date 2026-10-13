@@ -35,7 +35,10 @@ data class ConnectionRecord(
 enum class ConnectionTestClass { SUCCESS, UNREACHABLE, AUTHENTICATION_REFUSED, UNEXPECTED_RESPONSE }
 
 /** A classified test result: its class and an error code, never a raw error or content (CS-34, INV-Q-2944). */
-data class ConnectionTestResult(val outcome: ConnectionTestClass, val errorCode: String? = null) {
+data class ConnectionTestResult(
+    val outcome: ConnectionTestClass,
+    val errorCode: String? = null,
+) {
     init {
         require(errorCode == null || ERROR_CODE.matches(errorCode)) {
             "a test result carries a catalogue error code only"
@@ -62,23 +65,29 @@ enum class CircuitBreakerState { CLOSED, HALF_OPEN, OPEN }
  * The connection state; [wire] is the payload's `state` (INV-REQ-836 b4: closed = up, half-open = degraded,
  * open = down).
  */
-enum class ConnectionState(val wire: String) {
+enum class ConnectionState(
+    val wire: String,
+) {
     UP("up"),
     DEGRADED("degraded"),
     DOWN("down"),
     ;
 
     companion object {
-        fun of(breaker: CircuitBreakerState): ConnectionState = when (breaker) {
-            CircuitBreakerState.CLOSED -> UP
-            CircuitBreakerState.HALF_OPEN -> DEGRADED
-            CircuitBreakerState.OPEN -> DOWN
-        }
+        fun of(breaker: CircuitBreakerState): ConnectionState =
+            when (breaker) {
+                CircuitBreakerState.CLOSED -> UP
+                CircuitBreakerState.HALF_OPEN -> DEGRADED
+                CircuitBreakerState.OPEN -> DOWN
+            }
     }
 }
 
 /** The most recent failure: when, and why as an error code or exception class, never a message (CS-34). */
-data class ConnectionFailure(val at: Instant, val reason: String) {
+data class ConnectionFailure(
+    val at: Instant,
+    val reason: String,
+) {
     init {
         require(reason.isNotBlank()) { "a failure reason is an error code or exception class" }
     }

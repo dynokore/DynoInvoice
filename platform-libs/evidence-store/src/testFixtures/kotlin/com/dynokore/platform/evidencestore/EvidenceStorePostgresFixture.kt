@@ -8,7 +8,9 @@ import org.testcontainers.utility.DockerImageName
 import javax.sql.DataSource
 
 /** Testcontainers needs a concrete subclass for its fluent `self()` typing (Kotlin, unlike Java, has no raw types). */
-private class Postgres(image: DockerImageName) : PostgreSQLContainer<Postgres>(image)
+private class Postgres(
+    image: DockerImageName,
+) : PostgreSQLContainer<Postgres>(image)
 
 /**
  * Isolation-test fixture for this module's own tests (done-when's own
@@ -26,7 +28,9 @@ private class Postgres(image: DockerImageName) : PostgreSQLContainer<Postgres>(i
  * already proven once, by tenancy-kernel's own test suite, and does not need
  * a second proof here.
  */
-class EvidenceStorePostgresFixture(image: String) : AutoCloseable {
+class EvidenceStorePostgresFixture(
+    image: String,
+) : AutoCloseable {
     private val container: Postgres =
         Postgres(DockerImageName.parse(image)).withInitScript("db/evidence-store-test-roles.sql")
 
@@ -73,11 +77,12 @@ class EvidenceStorePostgresFixture(image: String) : AutoCloseable {
     private fun dataSourceFor(
         user: String,
         password: String,
-    ): DataSource = PGSimpleDataSource().apply {
-        setUrl(container.jdbcUrl)
-        this.user = user
-        this.password = password
-    }
+    ): DataSource =
+        PGSimpleDataSource().apply {
+            setUrl(container.jdbcUrl)
+            this.user = user
+            this.password = password
+        }
 
     companion object {
         const val SCHEMA = "evidence_store_test"

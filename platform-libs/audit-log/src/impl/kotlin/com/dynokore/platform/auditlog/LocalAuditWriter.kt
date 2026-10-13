@@ -54,7 +54,8 @@ class LocalAuditWriter(
         val staged = stage(entry, context)
         try {
             insert(staged)
-        } catch (failure: Exception) { // includes the checked SQLException of a refused insert
+        } catch (failure: Exception) {
+            // includes the checked SQLException of a refused insert
             throw AuditWriteFailed(failure)
         }
         return staged.envelope
@@ -101,6 +102,7 @@ class LocalAuditWriter(
                 """.trimIndent(),
             ).use { statement ->
                 var column = 0
+
                 fun next() = ++column
                 statement.setString(next(), envelope.id.value)
                 statement.setObject(next(), envelope.tenant.value)

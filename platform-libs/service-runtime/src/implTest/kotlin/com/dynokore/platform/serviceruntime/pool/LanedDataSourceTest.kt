@@ -71,7 +71,12 @@ class LanedDataSourceTest {
         val waiter =
             Thread.ofPlatform().start {
                 waiting.countDown()
-                val failure = runCatching { PoolLanes.inLane(PoolLane.BACKGROUND) { lanes.connection } }.exceptionOrNull()
+                val failure =
+                    runCatching {
+                        PoolLanes.inLane(
+                            PoolLane.BACKGROUND,
+                        ) { lanes.connection }
+                    }.exceptionOrNull()
                 result.complete(failure to Thread.currentThread().isInterrupted)
             }
         waiting.await()

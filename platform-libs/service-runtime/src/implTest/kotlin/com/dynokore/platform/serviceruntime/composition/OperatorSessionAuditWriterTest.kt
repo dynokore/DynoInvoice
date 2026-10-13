@@ -89,10 +89,11 @@ class OperatorSessionAuditWriterTest {
         val tenant = TenantId(UUID.fromString("00000000-0000-0000-0000-00000000000a"))
         var resolved = 0
         var verdict: EndUserPrincipal? = EndUserPrincipal("op-1", tenant, emptySet(), operatorSession = session)
-        val resolver = EndUserPrincipalResolver {
-            resolved++
-            verdict
-        }
+        val resolver =
+            EndUserPrincipalResolver {
+                resolved++
+                verdict
+            }
         val filter = OperatorSessionBindingFilter(providerOf(resolver))
 
         fun reasonFor(authorization: String?): String? {
@@ -119,7 +120,14 @@ class OperatorSessionAuditWriterTest {
         val tenant = TenantId(UUID.fromString("00000000-0000-0000-0000-00000000000a"))
         val filter =
             OperatorSessionBindingFilter(
-                providerOf { EndUserPrincipal("op-1", tenant, emptySet(), operatorSession = OperatorSession("platform.support", "A: B")) },
+                providerOf {
+                    EndUserPrincipal(
+                        "op-1",
+                        tenant,
+                        emptySet(),
+                        operatorSession = OperatorSession("platform.support", "A: B"),
+                    )
+                },
             )
         val request = MockHttpServletRequest().apply { addHeader("Authorization", "Bearer " + jwt(act = true)) }
         shouldThrow<IllegalArgumentException> {
@@ -134,8 +142,12 @@ class OperatorSessionAuditWriterTest {
         val base =
             ApplicationContextRunner()
                 .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
-                .withConfiguration(AutoConfigurations.of(ServiceRuntimeConfiguration::class.java, L1CompositionAutoConfiguration::class.java))
-                .withPropertyValues("service-runtime.workload-identity.audience=svc")
+                .withConfiguration(
+                    AutoConfigurations.of(
+                        ServiceRuntimeConfiguration::class.java,
+                        L1CompositionAutoConfiguration::class.java,
+                    ),
+                ).withPropertyValues("service-runtime.workload-identity.audience=svc")
         base.withBean(AuditWriter::class.java, { own }).run { context ->
             val wired = context.getBean(AuditWriter::class.java)
             wired.shouldBeInstanceOf<OperatorSessionAuditWriter>().delegate shouldBe own
@@ -144,24 +156,47 @@ class OperatorSessionAuditWriterTest {
         }
         base
             .withBean("dataSource", DataSource::class.java, { mockk<DataSource>(relaxed = true) })
-            .withPropertyValues("gst.service=control-plane-svc", "gst.instance-id=cp-0", "service-runtime.modules.schema=control_plane")
-            .run { context ->
-                context.getBean(AuditWriter::class.java).shouldBeInstanceOf<OperatorSessionAuditWriter>().delegate.shouldBeInstanceOf<LocalAuditWriter>()
+            .withPropertyValues(
+                "gst.service=control-plane-svc",
+                "gst.instance-id=cp-0",
+                "service-runtime.modules.schema=control_plane",
+            ).run { context ->
+                context
+                    .getBean(
+                        AuditWriter::class.java,
+                    ).shouldBeInstanceOf<OperatorSessionAuditWriter>()
+                    .delegate
+                    .shouldBeInstanceOf<LocalAuditWriter>()
             }
     }
 
     private fun jwt(act: Boolean): String {
-        val claims = JWTClaimsSet.Builder().subject("op-1").apply { if (act) claim("act", mapOf("role" to "r", "case" to "c")) }.build()
+        val claims =
+            JWTClaimsSet
+                .Builder()
+                .subject("op-1")
+                .apply {
+                    if (act) {
+                        claim(
+                            "act",
+                            mapOf(
+                                "role" to "r",
+                                "case" to "c",
+                            ),
+                        )
+                    }
+                }.build()
         return PlainJWT(PlainHeader(), claims).serialize()
     }
 
-    private fun providerOf(resolver: EndUserPrincipalResolver): ObjectProvider<EndUserPrincipalResolver> = object : ObjectProvider<EndUserPrincipalResolver> {
-        override fun getObject(vararg args: Any?): EndUserPrincipalResolver = resolver
+    private fun providerOf(resolver: EndUserPrincipalResolver): ObjectProvider<EndUserPrincipalResolver> =
+        object : ObjectProvider<EndUserPrincipalResolver> {
+            override fun getObject(vararg args: Any?): EndUserPrincipalResolver = resolver
 
-        override fun getIfAvailable(): EndUserPrincipalResolver = resolver
+            override fun getIfAvailable(): EndUserPrincipalResolver = resolver
 
-        override fun getIfUnique(): EndUserPrincipalResolver = resolver
+            override fun getIfUnique(): EndUserPrincipalResolver = resolver
 
-        override fun getObject(): EndUserPrincipalResolver = resolver
-    }
+            override fun getObject(): EndUserPrincipalResolver = resolver
+        }
 }

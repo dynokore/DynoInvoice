@@ -16,10 +16,13 @@ import java.nio.file.Path
  * domain dependency) is what makes that failure visible (§36.7) rather than a
  * silent, permanently-empty diagnostic response.
  */
-class VaultHealthIndicator(private val mountRoot: Path) : HealthIndicator {
-    override fun health(): Health = if (Files.isDirectory(mountRoot) && Files.isReadable(mountRoot)) {
-        Health.up().withDetail("mountRoot", mountRoot.toString()).build()
-    } else {
-        Health.down().withDetail("mountRoot", mountRoot.toString()).build()
-    }
+class VaultHealthIndicator(
+    private val mountRoot: Path,
+) : HealthIndicator {
+    override fun health(): Health =
+        if (Files.isDirectory(mountRoot) && Files.isReadable(mountRoot)) {
+            Health.up().withDetail("mountRoot", mountRoot.toString()).build()
+        } else {
+            Health.down().withDetail("mountRoot", mountRoot.toString()).build()
+        }
 }

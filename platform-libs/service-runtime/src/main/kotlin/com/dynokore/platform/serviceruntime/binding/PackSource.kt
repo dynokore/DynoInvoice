@@ -21,7 +21,9 @@ fun interface PackSource : Binding {
 
 /** Names an artefact at the control-plane feed — opaque to this binding, meaningful only to the feed. */
 @JvmInline
-value class PackSourceRef(val value: String) {
+value class PackSourceRef(
+    val value: String,
+) {
     init {
         require(value.isNotBlank()) { "PackSourceRef must not be blank" }
     }

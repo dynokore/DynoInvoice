@@ -19,7 +19,9 @@ class StalenessGaugesTest {
             object : StalenessMonitor {
                 override fun check(): List<ConsumerStaleness> {
                     check(!failing) { "database unavailable" }
-                    return listOf(ConsumerStaleness(CONSUMER, CANONICAL, 1, null, Duration.ofSeconds(42), Duration.ofMinutes(5)))
+                    return listOf(
+                        ConsumerStaleness(CONSUMER, CANONICAL, 1, null, Duration.ofSeconds(42), Duration.ofMinutes(5)),
+                    )
                 }
             }
         val registry = SimpleMeterRegistry()
@@ -28,7 +30,11 @@ class StalenessGaugesTest {
         gauges.refresh().shouldNotBeNull()
         registry.get(LAG_NAME).gauge().value() shouldBe 42.0
         registry.meters.map { it.id.name }.sorted() shouldBe listOf(LAG_NAME, THRESHOLD_NAME)
-        registry.meters.forEach { meter -> meter.id.tags.map { it.key }.toSet() shouldBe setOf("consumer", "event_type") }
+        registry.meters.forEach { meter ->
+            meter.id.tags
+                .map { it.key }
+                .toSet() shouldBe setOf("consumer", "event_type")
+        }
 
         failing = true
         gauges.refresh().shouldBeNull()

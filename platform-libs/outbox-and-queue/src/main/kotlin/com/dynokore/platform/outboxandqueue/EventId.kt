@@ -5,7 +5,9 @@ package com.dynokore.platform.outboxandqueue
  * Assigned once, when the outbox row is written (S2-01); a re-published row keeps it.
  */
 @JvmInline
-value class EventId(val value: String) {
+value class EventId(
+    val value: String,
+) {
     init {
         require(value.isNotBlank()) { "event id must not be blank" }
     }

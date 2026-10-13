@@ -9,7 +9,9 @@ import tools.jackson.databind.ObjectMapper
  * tables, and the event log with one table per catalogued topic. The event log is reached
  * through [eventLogForRelay], a [FlakyDataSource] the outage test can switch off.
  */
-class OutboxHarness(image: String) : AutoCloseable {
+class OutboxHarness(
+    image: String,
+) : AutoCloseable {
     val fixture = OutboxPostgresFixture(image)
     val catalogue: EventCatalogue = TestCatalogue.load()
 
@@ -23,10 +25,11 @@ class OutboxHarness(image: String) : AutoCloseable {
     val mapper = ObjectMapper()
 
     /** A reader on a fixture consumer's own runtime login [login] (its replay topics, INV-Q-3601). */
-    fun readerFor(login: String): PostgresEventLogReader = PostgresEventLogReader(
-        fixture.roleDataSource(login),
-        fixture.eventLogScope(TenantContextImpl(), fixture.roleDataSource(login)),
-    )
+    fun readerFor(login: String): PostgresEventLogReader =
+        PostgresEventLogReader(
+            fixture.roleDataSource(login),
+            fixture.eventLogScope(TenantContextImpl(), fixture.roleDataSource(login)),
+        )
 
     /** An event binding over [eventLogForRelay], bound with its own tenant context and the workload principal. */
     fun binding(): PostgresEventBinding {
@@ -94,46 +97,49 @@ class OutboxHarness(image: String) : AutoCloseable {
     fun flags(
         schema: String,
         table: String,
-    ): List<Boolean> = fixture.adminDataSource().connection.use { connection ->
-        connection
-            .prepareStatement(
-                "select relrowsecurity, relforcerowsecurity from pg_class " +
-                    "where oid = (?::text)::regclass",
-            ).use { statement ->
-                statement.setString(1, "$schema.$table")
-                statement.executeQuery().use {
-                    it.next()
-                    listOf(it.getBoolean(1), it.getBoolean(2))
+    ): List<Boolean> =
+        fixture.adminDataSource().connection.use { connection ->
+            connection
+                .prepareStatement(
+                    "select relrowsecurity, relforcerowsecurity from pg_class " +
+                        "where oid = (?::text)::regclass",
+                ).use { statement ->
+                    statement.setString(1, "$schema.$table")
+                    statement.executeQuery().use {
+                        it.next()
+                        listOf(it.getBoolean(1), it.getBoolean(2))
+                    }
                 }
-            }
-    }
+        }
 
     /** The raw CloudEvents JSON of every record in the event-log table [logTable] (`eventlog.<table>`). */
-    fun wire(logTable: String): List<JsonNode> = fixture.adminDataSource().connection.use { connection ->
-        connection.createStatement().use { statement ->
-            statement.executeQuery("select envelope::text from $logTable order by log_offset").use { rows ->
-                generateSequence { if (rows.next()) mapper.readTree(rows.getString(1)) else null }.toList()
+    fun wire(logTable: String): List<JsonNode> =
+        fixture.adminDataSource().connection.use { connection ->
+            connection.createStatement().use { statement ->
+                statement.executeQuery("select envelope::text from $logTable order by log_offset").use { rows ->
+                    generateSequence { if (rows.next()) mapper.readTree(rows.getString(1)) else null }.toList()
+                }
             }
         }
-    }
 
     /** `is_nullable` of the `tenant_id` column of `schema.table`, as `information_schema` reports it. */
     fun nullable(
         schema: String,
         table: String,
-    ): List<String> = fixture.adminDataSource().connection.use { connection ->
-        connection
-            .prepareStatement(
-                "select is_nullable from information_schema.columns " +
-                    "where table_schema = ? and table_name = ? and column_name = 'tenant_id'",
-            ).use { statement ->
-                statement.setString(1, schema)
-                statement.setString(2, table)
-                statement.executeQuery().use { rows ->
-                    generateSequence { if (rows.next()) rows.getString(1) else null }.toList()
+    ): List<String> =
+        fixture.adminDataSource().connection.use { connection ->
+            connection
+                .prepareStatement(
+                    "select is_nullable from information_schema.columns " +
+                        "where table_schema = ? and table_name = ? and column_name = 'tenant_id'",
+                ).use { statement ->
+                    statement.setString(1, schema)
+                    statement.setString(2, table)
+                    statement.executeQuery().use { rows ->
+                        generateSequence { if (rows.next()) rows.getString(1) else null }.toList()
+                    }
                 }
-            }
-    }
+        }
 
     /** Rows of [table] whose [column] equals [value]. */
     fun rows(
@@ -155,27 +161,29 @@ class OutboxHarness(image: String) : AutoCloseable {
         schema: String,
         consumer: String,
         topic: String,
-    ): Long? = fixture.adminDataSource().connection.use { connection ->
-        val sql = "select next_offset from $schema.consumer_offset where consumer = ? and topic = ?"
-        connection.prepareStatement(sql).use {
-            it.setString(1, consumer)
-            it.setString(2, topic)
-            it.executeQuery().use { rows -> if (rows.next()) rows.getLong(1) else null }
+    ): Long? =
+        fixture.adminDataSource().connection.use { connection ->
+            val sql = "select next_offset from $schema.consumer_offset where consumer = ? and topic = ?"
+            connection.prepareStatement(sql).use {
+                it.setString(1, consumer)
+                it.setString(2, topic)
+                it.executeQuery().use { rows -> if (rows.next()) rows.getLong(1) else null }
+            }
         }
-    }
 
     fun count(
         sql: String,
         vararg args: Any,
-    ): Long = fixture.adminDataSource().connection.use { connection ->
-        connection.prepareStatement(sql).use { statement ->
-            args.forEachIndexed { index, value -> statement.setObject(index + 1, value) }
-            statement.executeQuery().use { rows ->
-                rows.next()
-                rows.getLong(1)
+    ): Long =
+        fixture.adminDataSource().connection.use { connection ->
+            connection.prepareStatement(sql).use { statement ->
+                args.forEachIndexed { index, value -> statement.setObject(index + 1, value) }
+                statement.executeQuery().use { rows ->
+                    rows.next()
+                    rows.getLong(1)
+                }
             }
         }
-    }
 
     override fun close() {
         fixture.close()

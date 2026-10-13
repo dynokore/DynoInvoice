@@ -97,7 +97,12 @@ class BoundsPostgresIT : WritePathBase() {
         assertEquals(BigDecimal(2), window(capped))
         assertTrue(capped.source is PolicySource.Override)
         assertEquals(cap("OTHER_NAMED_PAIR", "window", 6, 2, CROSS_SCOPE), capped.caps)
-        assertTrue(capped.selected.single().valueJson!!.contains("deployment.operator")) // the stored pair is kept
+        assertTrue(
+            capped.selected
+                .single()
+                .valueJson!!
+                .contains("deployment.operator"),
+        ) // the stored pair is kept
         // The recorded resolution keeps the capped value and its caps (INV-REQ-1068).
         val subject = ResolutionSubject("submission", "S1")
         val recorded = r.h.inTenant(r.t) { r.h.recorder().record(subject, capped, r.tenantScope) }
@@ -181,7 +186,14 @@ class BoundsPostgresIT : WritePathBase() {
         r.put(profile(2, "v2", nextMonth))
         assertEquals(PolicyRefusal.LOOSER_THAN_BROADER, r.refusedPut(entity(5)))
         r.put(entity(2))
-        assertEquals("2", r.resolve(CROSS_ENTITY, r.e1, nextMonth).selected.single().valueJson)
+        assertEquals(
+            "2",
+            r
+                .resolve(CROSS_ENTITY, r.e1, nextMonth)
+                .selected
+                .single()
+                .valueJson,
+        )
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
@@ -199,7 +211,14 @@ class BoundsPostgresIT : WritePathBase() {
         r.put(tenant(100))
         val lowered = number("CUSTOM", 80)
         r.installation(set(RETRY_MAX, r.tenantScope, ScopeLevel.INSTALLATION, lowered, operator, nextMonth))
-        assertEquals("100", r.resolve(INSTALLATION_BOUND, r.tenantScope, today).selected.single().valueJson)
+        assertEquals(
+            "100",
+            r
+                .resolve(INSTALLATION_BOUND, r.tenantScope, today)
+                .selected
+                .single()
+                .valueJson,
+        )
         val capped = r.resolve(INSTALLATION_BOUND, r.tenantScope, nextMonth)
         assertEquals("80", capped.selected.single().valueJson)
         assertEquals(cap("CUSTOM", "", 100, 80, RETRY_MAX), capped.caps)
@@ -212,7 +231,14 @@ class BoundsPostgresIT : WritePathBase() {
                 }
             }
         assertEquals(PolicyRefusal.BEYOND_INSTALLATION_BOUND, refused)
-        assertEquals("80", r.capped(INSTALLATION_BOUND, number("CUSTOM", 150), nextMonth).selected.single().valueJson)
+        assertEquals(
+            "80",
+            r
+                .capped(INSTALLATION_BOUND, number("CUSTOM", 150), nextMonth)
+                .selected
+                .single()
+                .valueJson,
+        )
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
@@ -227,7 +253,14 @@ class BoundsPostgresIT : WritePathBase() {
         assertEquals(0L, r.settings())
         r.put(shorter(14))
         r.installation(set(GRACE_MAX, r.tenantScope, ScopeLevel.INSTALLATION, number("CUSTOM", 7), operator, nextMonth))
-        assertEquals("14", r.resolve(GRACE, r.tenantScope).selected.single().valueJson)
+        assertEquals(
+            "14",
+            r
+                .resolve(GRACE, r.tenantScope)
+                .selected
+                .single()
+                .valueJson,
+        )
         val capped = r.resolve(GRACE, r.tenantScope, nextMonth)
         assertEquals("7", capped.selected.single().valueJson)
         assertEquals(cap("SHORTER", "", 14, 7, GRACE_MAX), capped.caps)
@@ -246,7 +279,14 @@ class BoundsPostgresIT : WritePathBase() {
         r.installation(set(UNTYPED_MAX, r.tenantScope, ScopeLevel.INSTALLATION, number("CUSTOM", 20), operator))
         assertEquals(PolicyRefusal.BEYOND_INSTALLATION_BOUND, r.refusedPut(shorter(25)))
         r.put(shorter(10))
-        assertEquals("10", r.resolve(UNTYPED_BOUNDED, r.tenantScope).selected.single().valueJson)
+        assertEquals(
+            "10",
+            r
+                .resolve(UNTYPED_BOUNDED, r.tenantScope)
+                .selected
+                .single()
+                .valueJson,
+        )
         val unreadable = listOf(SelectedOption("SHORTER", "\"x\""))
         assertThrows(BoundUnavailable::class.java) { r.capped(UNTYPED_BOUNDED, unreadable, today) }
     }

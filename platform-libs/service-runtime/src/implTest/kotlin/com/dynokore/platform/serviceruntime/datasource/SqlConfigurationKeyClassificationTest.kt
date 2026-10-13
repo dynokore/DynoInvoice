@@ -30,21 +30,24 @@ class SqlConfigurationKeyClassificationTest {
     fun `every allowlisted key exists in the metadata`() {
         val names = metadataKeys().map { ConfigurationPropertyName.of(it.first) }.toSet()
         val missing =
-            listOf("spring.datasource" to SqlConfigurationKeyGuard.DATASOURCE_ALLOWED, "spring.flyway" to SqlConfigurationKeyGuard.FLYWAY_ALLOWED)
-                .flatMap { (prefix, allowed) -> allowed.keys.map { "$prefix.$it".removeSuffix(".*") } }
+            listOf(
+                "spring.datasource" to SqlConfigurationKeyGuard.DATASOURCE_ALLOWED,
+                "spring.flyway" to SqlConfigurationKeyGuard.FLYWAY_ALLOWED,
+            ).flatMap { (prefix, allowed) -> allowed.keys.map { "$prefix.$it".removeSuffix(".*") } }
                 .filterNot { key -> names.any { uniform(it) == key.replace("-", "") } }
         missing.shouldBeEmpty()
     }
 
-    private fun classify(): List<String> = metadataKeys()
-        .filter { (name, _) -> PREFIXES.any { name.startsWith("$it.") } }
-        .map { (name, map) ->
-            // a map key is classified through one entry of it
-            val key = if (map) "$name.x" else name
-            val verdict = SqlConfigurationKeyGuard.refusal(ConfigurationPropertyName.of(key)) == null
-            "${if (verdict) "allowed" else "refused"} $name"
-        }.distinct()
-        .sorted()
+    private fun classify(): List<String> =
+        metadataKeys()
+            .filter { (name, _) -> PREFIXES.any { name.startsWith("$it.") } }
+            .map { (name, map) ->
+                // a map key is classified through one entry of it
+                val key = if (map) "$name.x" else name
+                val verdict = SqlConfigurationKeyGuard.refusal(ConfigurationPropertyName.of(key)) == null
+                "${if (verdict) "allowed" else "refused"} $name"
+            }.distinct()
+            .sorted()
 
     private fun metadataKeys(): List<Pair<String, Boolean>> {
         val mapper = JsonMapper.builder().build()
@@ -58,7 +61,10 @@ class SqlConfigurationKeyClassificationTest {
             }
     }
 
-    private fun uniform(name: ConfigurationPropertyName) = (0 until name.numberOfElements).joinToString(".") { name.getElement(it, ConfigurationPropertyName.Form.UNIFORM) }
+    private fun uniform(name: ConfigurationPropertyName) =
+        (0 until name.numberOfElements).joinToString(".") {
+            name.getElement(it, ConfigurationPropertyName.Form.UNIFORM)
+        }
 
     private companion object {
         val PREFIXES = listOf("spring.datasource", "spring.flyway")

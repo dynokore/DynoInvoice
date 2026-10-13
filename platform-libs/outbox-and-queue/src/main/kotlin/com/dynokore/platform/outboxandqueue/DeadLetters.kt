@@ -51,9 +51,10 @@ data class DeadLetterScope(
 ) {
     /** Whether at least one criterion is given. */
     val isNarrowed: Boolean
-        get() = ids.isNotEmpty() || tenant != null || consumer != null || topic != null ||
-            failureClass != null || subject != null || entity != null ||
-            recordedFrom != null || recordedBefore != null
+        get() =
+            ids.isNotEmpty() || tenant != null || consumer != null || topic != null ||
+                failureClass != null || subject != null || entity != null ||
+                recordedFrom != null || recordedBefore != null
 }
 
 /** What a replay did. */

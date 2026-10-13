@@ -89,7 +89,9 @@ object EventLogSchema {
             (producers + subscribers).forEach { SqlIdentifier.require(it, "runtime login") }
             if (keeper != null) {
                 SqlIdentifier.require(keeper, "keeper login")
-                require(keeper in subscribers) { "the keeper of record topic $name must subscribe to it, was '$keeper'" }
+                require(
+                    keeper in subscribers,
+                ) { "the keeper of record topic $name must subscribe to it, was '$keeper'" }
             }
         }
 
@@ -154,7 +156,7 @@ object EventLogSchema {
             grant select on $SCHEMA.$RECORD_POSITION to $sys;
             grant update (position, updated_at) on $SCHEMA.$RECORD_POSITION to $sys;
             grant select on $SCHEMA.$RETENTION to $sys;
-        """.trimIndent()
+            """.trimIndent()
     }
 
     /**
@@ -170,7 +172,8 @@ object EventLogSchema {
         val topicKey = SqlIdentifier.require(tableName(topic.name), "topic table")
         val sys = SqlIdentifier.require(sysRole, "sys role")
         require(sys !in topic.producers + topic.subscribers) { "the sys role is no runtime login, was '$sys'" }
-        val table = """
+        val table =
+            """
             create table $SCHEMA.$topicKey (
                 log_offset bigint generated always as identity primary key,
                 tenant_id uuid not null,
@@ -186,7 +189,7 @@ object EventLogSchema {
             grant usage on schema $SCHEMA to $sys;
             grant select (log_offset, tenant_id, inserted_at, event_id) on $SCHEMA.$topicKey to $sys;
             grant delete on $SCHEMA.$topicKey to $sys;
-        """.trimIndent()
+            """.trimIndent()
         return listOfNotNull(
             table,
             TenantRlsMigration.ddl(SCHEMA, topicKey, policyName = TENANT_POLICY),
@@ -201,7 +204,7 @@ object EventLogSchema {
         return """
             grant usage on schema $SCHEMA to ${producerLogins.joinToString(", ")};
             grant insert on $SCHEMA.$topicKey to ${producerLogins.joinToString(", ")};
-        """.trimIndent()
+            """.trimIndent()
     }
 
     private fun subscriberGrants(topic: Topic): String {
@@ -210,7 +213,7 @@ object EventLogSchema {
         return """
             grant usage on schema $SCHEMA to ${subscriberLogins.joinToString(", ")};
             grant select on $SCHEMA.$topicKey to ${subscriberLogins.joinToString(", ")};
-        """.trimIndent()
+            """.trimIndent()
     }
 
     /**
@@ -248,14 +251,16 @@ object EventLogSchema {
                 subscribed.map { subscriptionRows(it) } +
                 listOf("delete from $SCHEMA.$PRODUCER;") +
                 produced.map { producerRows(it) } +
-                listOf(if (records.isEmpty()) "delete from $SCHEMA.$RECORD_POSITION;" else staleRecordPositions(records)) +
+                listOf(
+                    if (records.isEmpty()) "delete from $SCHEMA.$RECORD_POSITION;" else staleRecordPositions(records),
+                ) +
                 records.map { recordPositionRow(it) } +
                 ordered.map { watermarkReads(it) } +
                 claimFunction(ordered, sysRole) +
                 purgeFunction(ordered, sysRole, purgeLogin) +
                 recordPositionFunction(records, sysRole) +
                 eventsMissingFunction(ordered, sysRole)
-            ).joinToString("\n")
+        ).joinToString("\n")
     }
 
     /**
@@ -288,7 +293,7 @@ object EventLogSchema {
         return """
             insert into $SCHEMA.$SUBSCRIPTION (topic_key, login)
             select '$topicKey', unnest(array['${subscriberLogins.joinToString("', '")}']::text[]);
-        """.trimIndent()
+            """.trimIndent()
     }
 
     private fun producerRows(topic: Topic): String {
@@ -297,7 +302,7 @@ object EventLogSchema {
         return """
             insert into $SCHEMA.$PRODUCER (topic_key, login)
             select '$topicKey', unnest(array['${producerLogins.joinToString("', '")}']::text[]);
-        """.trimIndent()
+            """.trimIndent()
     }
 
     /** Removes the record-position rows of topics no longer marked as record topics. */
@@ -306,7 +311,7 @@ object EventLogSchema {
         return """
             delete from $SCHEMA.$RECORD_POSITION
             where topic_key <> all(array['${recordKeys.joinToString("', '")}']::text[]);
-        """.trimIndent()
+            """.trimIndent()
     }
 
     private fun recordPositionRow(topic: Topic): String {
@@ -315,7 +320,7 @@ object EventLogSchema {
         return """
             insert into $SCHEMA.$RECORD_POSITION (topic_key, keeper) values ('$topicKey', '$keeperLogin')
             on conflict (topic_key) do update set keeper = excluded.keeper;
-        """.trimIndent()
+            """.trimIndent()
     }
 
     /** Each subscriber reads its topic's watermark row and no other (INV-REQ-1205 b3, b6). */
@@ -330,12 +335,17 @@ object EventLogSchema {
             create policy $policy on $SCHEMA.$PURGE_WATERMARK for select to ${subscriberLogins.joinToString(", ")}
                 using (topic_key = '$topicKey');
             grant select on $SCHEMA.$PURGE_WATERMARK to ${subscriberLogins.joinToString(", ")};
-        """.trimIndent()
+            """.trimIndent()
     }
 
-    private fun eventIdIndex(topic: Topic): String = SqlIdentifier.require(tableName(topic.name).take(MAX_IDENTIFIER - EVENT_ID_SUFFIX.length) + EVENT_ID_SUFFIX, "event_id index")
+    private fun eventIdIndex(topic: Topic): String =
+        SqlIdentifier.require(
+            tableName(topic.name).take(MAX_IDENTIFIER - EVENT_ID_SUFFIX.length) + EVENT_ID_SUFFIX,
+            "event_id index",
+        )
 
-    private fun watermarkPolicy(topic: Topic): String = SqlIdentifier.require("wm_${tableName(topic.name)}".take(MAX_IDENTIFIER), "watermark policy")
+    private fun watermarkPolicy(topic: Topic): String =
+        SqlIdentifier.require("wm_${tableName(topic.name)}".take(MAX_IDENTIFIER), "watermark policy")
 
     /**
      * [CLAIM]: refuses a malformed topic, a negative offset and a limit outside 1..[MAX_CLAIM]; returns nothing unless
@@ -348,8 +358,13 @@ object EventLogSchema {
     ): List<String> {
         val sys = SqlIdentifier.require(sysRole, "sys role")
         val subscriberLogins =
-            topics.flatMap { it.subscribers }.distinct().sorted().map { SqlIdentifier.require(it, "subscriber login") }
-        val head = """
+            topics
+                .flatMap { it.subscribers }
+                .distinct()
+                .sorted()
+                .map { SqlIdentifier.require(it, "subscriber login") }
+        val head =
+            """
             drop function if exists $SCHEMA.$CLAIM(text, bigint, integer);
             create function $SCHEMA.$CLAIM(p_topic text, p_after_offset bigint, p_limit integer)
             returns table (log_offset bigint, tenant_id uuid, inserted_at timestamptz)
@@ -370,24 +385,28 @@ object EventLogSchema {
                 end if;
                 if false then
                     return;
-        """.trimIndent()
-        val tail = """
+            """.trimIndent()
+        val tail =
+            """
                 end if;
             end
             $$;
-        """.trimIndent()
-        val handOver = """
+            """.trimIndent()
+        val handOver =
+            """
             grant create on schema $SCHEMA to $sys;
             alter function $SCHEMA.$CLAIM(text, bigint, integer) owner to $sys;
             revoke all on function $SCHEMA.$CLAIM(text, bigint, integer) from public;
             revoke create on schema $SCHEMA from $sys;
-        """.trimIndent()
+            """.trimIndent()
         val grant =
             if (subscriberLogins.isEmpty()) {
                 null
             } else {
                 """
-                grant execute on function $SCHEMA.$CLAIM(text, bigint, integer) to ${subscriberLogins.joinToString(", ")};
+                grant execute on function $SCHEMA.$CLAIM(text, bigint, integer) to ${subscriberLogins.joinToString(
+                    ", ",
+                )};
                 """.trimIndent()
             }
         return listOfNotNull(head) + topics.map { claimBranch(it) } + listOfNotNull(tail, handOver, grant)
@@ -396,11 +415,11 @@ object EventLogSchema {
     private fun claimBranch(topic: Topic): String {
         val topicKey = SqlIdentifier.require(tableName(topic.name), "topic table")
         return """
-                elsif v_key = '$topicKey' then
-                    return query
-                        select t.log_offset, t.tenant_id, t.inserted_at from $SCHEMA.$topicKey t
-                        where t.log_offset > p_after_offset order by t.log_offset limit p_limit;
-        """.trimIndent()
+            elsif v_key = '$topicKey' then
+                return query
+                    select t.log_offset, t.tenant_id, t.inserted_at from $SCHEMA.$topicKey t
+                    where t.log_offset > p_after_offset order by t.log_offset limit p_limit;
+            """.trimIndent()
     }
 
     /**
@@ -417,7 +436,8 @@ object EventLogSchema {
     ): List<String> {
         val sys = SqlIdentifier.require(sysRole, "sys role")
         val purge = SqlIdentifier.require(purgeLogin, "purge login")
-        val head = """
+        val head =
+            """
             drop function if exists $SCHEMA.$PURGE_BATCH();
             create function $SCHEMA.$PURGE_BATCH()
             returns table (purged_topic text, purged_content boolean, purged_period interval, purged_cutoff timestamptz,
@@ -436,19 +456,21 @@ object EventLogSchema {
                     raise warning 'event-log retention is missing or below 7 days: nothing is purged (INV-Q-4262)';
                     return;
                 end if;
-        """.trimIndent()
-        val tail = """
+            """.trimIndent()
+        val tail =
+            """
             end
             $$;
-        """.trimIndent()
-        val handOver = """
+            """.trimIndent()
+        val handOver =
+            """
             grant create on schema $SCHEMA to $sys;
             alter function $SCHEMA.$PURGE_BATCH() owner to $sys;
             revoke all on function $SCHEMA.$PURGE_BATCH() from public;
             grant usage on schema $SCHEMA to $purge;
             grant execute on function $SCHEMA.$PURGE_BATCH() to $purge;
             revoke create on schema $SCHEMA from $sys;
-        """.trimIndent()
+            """.trimIndent()
         return listOf(head) + topics.map { purgeBranch(it) } + listOf(tail, handOver)
     }
 
@@ -465,29 +487,29 @@ object EventLogSchema {
         val period = if (topic.contentTopic) "v_content" else "v_retention"
         val position = if (topic.record) READ_RECORD_POSITION else NO_RECORD_POSITION
         return """
-                purged_topic := '$topicKey';
-                purged_content := $content;
-                purged_period := $period;
-                purged_cutoff := now() - $period;
-                $position
-                with gone as (
-                    delete from $SCHEMA.$topicKey t where t.log_offset in (
-                        select c.log_offset from $SCHEMA.$topicKey c
-                        where c.inserted_at < purged_cutoff and (v_position is null or c.log_offset <= v_position)
-                        order by c.log_offset limit $PURGE_BATCH_SIZE
-                    ) returning t.log_offset
-                )
-                select count(*), max(g.log_offset) into purged_rows, v_max from gone g;
-                if purged_rows > 0 then
-                    insert into $SCHEMA.$PURGE_WATERMARK as w (topic_key, watermark, updated_at)
-                    values ('$topicKey', v_max, now())
-                    on conflict (topic_key) do update
-                        set watermark = greatest(w.watermark, excluded.watermark), updated_at = excluded.updated_at;
-                end if;
-                select coalesce(max(w.watermark), 0) into purged_watermark
-                from $SCHEMA.$PURGE_WATERMARK w where w.topic_key = '$topicKey';
-                return next;
-        """.trimIndent()
+            purged_topic := '$topicKey';
+            purged_content := $content;
+            purged_period := $period;
+            purged_cutoff := now() - $period;
+            $position
+            with gone as (
+                delete from $SCHEMA.$topicKey t where t.log_offset in (
+                    select c.log_offset from $SCHEMA.$topicKey c
+                    where c.inserted_at < purged_cutoff and (v_position is null or c.log_offset <= v_position)
+                    order by c.log_offset limit $PURGE_BATCH_SIZE
+                ) returning t.log_offset
+            )
+            select count(*), max(g.log_offset) into purged_rows, v_max from gone g;
+            if purged_rows > 0 then
+                insert into $SCHEMA.$PURGE_WATERMARK as w (topic_key, watermark, updated_at)
+                values ('$topicKey', v_max, now())
+                on conflict (topic_key) do update
+                    set watermark = greatest(w.watermark, excluded.watermark), updated_at = excluded.updated_at;
+            end if;
+            select coalesce(max(w.watermark), 0) into purged_watermark
+            from $SCHEMA.$PURGE_WATERMARK w where w.topic_key = '$topicKey';
+            return next;
+            """.trimIndent()
     }
 
     /**
@@ -500,10 +522,12 @@ object EventLogSchema {
         sysRole: String,
     ): List<String> {
         val sys = SqlIdentifier.require(sysRole, "sys role")
-        val keeperLogins = records.map { checkNotNull(it.keeper) }.distinct().sorted().map {
-            SqlIdentifier.require(it, "keeper login")
-        }
-        val function = """
+        val keeperLogins =
+            records.map { checkNotNull(it.keeper) }.distinct().sorted().map {
+                SqlIdentifier.require(it, "keeper login")
+            }
+        val function =
+            """
             drop function if exists $SCHEMA.$RECORD_POSITION_FUNCTION(text, bigint);
             create function $SCHEMA.$RECORD_POSITION_FUNCTION(p_topic text, p_offset bigint) returns bigint
             language plpgsql security definer set search_path = pg_catalog, $SCHEMA, pg_temp as $$
@@ -526,19 +550,22 @@ object EventLogSchema {
                 return v_position;
             end
             $$;
-        """.trimIndent()
-        val handOver = """
+            """.trimIndent()
+        val handOver =
+            """
             grant create on schema $SCHEMA to $sys;
             alter function $SCHEMA.$RECORD_POSITION_FUNCTION(text, bigint) owner to $sys;
             revoke all on function $SCHEMA.$RECORD_POSITION_FUNCTION(text, bigint) from public;
             revoke create on schema $SCHEMA from $sys;
-        """.trimIndent()
+            """.trimIndent()
         val grant =
             if (keeperLogins.isEmpty()) {
                 null
             } else {
                 """
-                grant execute on function $SCHEMA.$RECORD_POSITION_FUNCTION(text, bigint) to ${keeperLogins.joinToString(", ")};
+                grant execute on function $SCHEMA.$RECORD_POSITION_FUNCTION(text, bigint) to ${keeperLogins.joinToString(
+                    ", ",
+                )};
                 """.trimIndent()
             }
         return listOfNotNull(function, handOver, grant)
@@ -557,8 +584,13 @@ object EventLogSchema {
     ): List<String> {
         val sys = SqlIdentifier.require(sysRole, "sys role")
         val producerLogins =
-            topics.flatMap { it.producers }.distinct().sorted().map { SqlIdentifier.require(it, "producer login") }
-        val head = """
+            topics
+                .flatMap { it.producers }
+                .distinct()
+                .sorted()
+                .map { SqlIdentifier.require(it, "producer login") }
+        val head =
+            """
             drop function if exists $SCHEMA.$EVENTS_MISSING(text, text[]);
             create function $SCHEMA.$EVENTS_MISSING(p_topic text, p_event_ids text[], out missing text[],
                 out cutoff timestamptz)
@@ -587,18 +619,20 @@ object EventLogSchema {
                 end if;
                 if false then
                     return;
-        """.trimIndent()
-        val tail = """
+            """.trimIndent()
+        val tail =
+            """
                 end if;
             end
             $$;
-        """.trimIndent()
-        val handOver = """
+            """.trimIndent()
+        val handOver =
+            """
             grant create on schema $SCHEMA to $sys;
             alter function $SCHEMA.$EVENTS_MISSING(text, text[]) owner to $sys;
             revoke all on function $SCHEMA.$EVENTS_MISSING(text, text[]) from public;
             revoke create on schema $SCHEMA from $sys;
-        """.trimIndent()
+            """.trimIndent()
         val grant =
             if (producerLogins.isEmpty()) {
                 null
@@ -614,15 +648,15 @@ object EventLogSchema {
         val topicKey = SqlIdentifier.require(tableName(topic.name), "topic table")
         val period = if (topic.contentTopic) "v_content" else "v_retention"
         return """
-                elsif v_key = '$topicKey' then
-                    cutoff := now() - $period;
-                    missing := array(
-                        select distinct i.id from unnest(p_event_ids) as i(id)
-                        where i.id is not null
-                            and not exists (select 1 from $SCHEMA.$topicKey t where t.event_id = i.id)
-                        order by i.id
-                    );
-        """.trimIndent()
+            elsif v_key = '$topicKey' then
+                cutoff := now() - $period;
+                missing := array(
+                    select distinct i.id from unnest(p_event_ids) as i(id)
+                    where i.id is not null
+                        and not exists (select 1 from $SCHEMA.$topicKey t where t.event_id = i.id)
+                    order by i.id
+                );
+            """.trimIndent()
     }
 
     private const val MAX_IDENTIFIER = 63

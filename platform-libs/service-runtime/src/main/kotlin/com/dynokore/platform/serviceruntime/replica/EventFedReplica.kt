@@ -10,21 +10,36 @@ sealed interface ReplicaChange<K, V> {
     val key: K
     val version: Long
 
-    data class Upsert<K, V>(override val key: K, val value: V, override val version: Long) : ReplicaChange<K, V>
+    data class Upsert<K, V>(
+        override val key: K,
+        val value: V,
+        override val version: Long,
+    ) : ReplicaChange<K, V>
 
-    data class Remove<K, V>(override val key: K, override val version: Long) : ReplicaChange<K, V>
+    data class Remove<K, V>(
+        override val key: K,
+        override val version: Long,
+    ) : ReplicaChange<K, V>
 }
 
 /** Where a [EventFedReplica.get] answer came from. */
 sealed interface Lookup<out V> {
     /** Served from the replica: the key is held and the replica is within its lag bound (or has none). */
-    data class Local<V>(val value: V, val lag: Lag) : Lookup<V>
+    data class Local<V>(
+        val value: V,
+        val lag: Lag,
+    ) : Lookup<V>
 
     /** A miss, or a replica beyond its lag bound, answered by the fallback call; the answer is now held. */
-    data class Filled<V>(val value: V) : Lookup<V>
+    data class Filled<V>(
+        val value: V,
+    ) : Lookup<V>
 
     /** The fallback was down, so the last state held is served, possibly stale (INV-REQ-1200 behaviour #3). */
-    data class LastKnown<V>(val value: V, val lag: Lag) : Lookup<V>
+    data class LastKnown<V>(
+        val value: V,
+        val lag: Lag,
+    ) : Lookup<V>
 
     /** The key does not exist: a held removal, or the owner said so. */
     data object Absent : Lookup<Nothing>
@@ -67,7 +82,10 @@ class EventFedReplica<K : Any, V : Any>(
     val tracker: ReplicaLagTracker = ReplicaLagTracker(clock),
     private val versionOf: ((V) -> Long)? = null,
 ) {
-    private data class Entry<V>(val value: V?, val version: Long)
+    private data class Entry<V>(
+        val value: V?,
+        val version: Long,
+    )
 
     private val store = ConcurrentHashMap<K, Entry<V>>()
 
@@ -109,9 +127,10 @@ class EventFedReplica<K : Any, V : Any>(
     }
 
     /** Every value held (removals left out) whose key matches [predicate], with no fallback and no lag check. */
-    fun heldWhere(predicate: (K) -> Boolean): Map<K, V> = buildMap {
-        store.forEach { (key, entry) -> if (predicate(key)) entry.value?.let { put(key, it) } }
-    }
+    fun heldWhere(predicate: (K) -> Boolean): Map<K, V> =
+        buildMap {
+            store.forEach { (key, entry) -> if (predicate(key)) entry.value?.let { put(key, it) } }
+        }
 
     /** What is held for [key] with no fallback and no lag check; null for a miss or a held removal. */
     fun peek(key: K): V? = store[key]?.value
@@ -139,11 +158,12 @@ class EventFedReplica<K : Any, V : Any>(
         deadline: Deadline,
         held: Entry<V>?,
         lag: Lag,
-    ): Lookup<V> = when (val answer = fallback?.fetch(key, deadline) ?: FallbackResult.Unavailable) {
-        is FallbackResult.Found -> fill(key, answer.value)?.let { Lookup.Filled(it) } ?: Lookup.Absent
-        FallbackResult.NotFound -> Lookup.Absent
-        FallbackResult.Unavailable -> lastKnown(held, lag)
-    }
+    ): Lookup<V> =
+        when (val answer = fallback?.fetch(key, deadline) ?: FallbackResult.Unavailable) {
+            is FallbackResult.Found -> fill(key, answer.value)?.let { Lookup.Filled(it) } ?: Lookup.Absent
+            FallbackResult.NotFound -> Lookup.Absent
+            FallbackResult.Unavailable -> lastKnown(held, lag)
+        }
 
     private fun lastKnown(
         held: Entry<V>?,
@@ -161,13 +181,14 @@ class EventFedReplica<K : Any, V : Any>(
         value: V,
     ): V? {
         val versioned = versionOf
-        val held = store.compute(key) { _, old ->
-            when {
-                versioned == null -> Entry(value, old?.version ?: NO_VERSION)
-                old != null && versioned(value) <= old.version -> old
-                else -> Entry(value, versioned(value))
+        val held =
+            store.compute(key) { _, old ->
+                when {
+                    versioned == null -> Entry(value, old?.version ?: NO_VERSION)
+                    old != null && versioned(value) <= old.version -> old
+                    else -> Entry(value, versioned(value))
+                }
             }
-        }
         return held?.value
     }
 

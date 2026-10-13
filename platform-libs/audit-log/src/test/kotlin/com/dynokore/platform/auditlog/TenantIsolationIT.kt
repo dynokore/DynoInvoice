@@ -25,26 +25,29 @@ class TenantIsolationIT {
                 listOf(true, true),
                 h.fixture.adminDataSource().connection.use { c ->
                     c.createStatement().use { s ->
-                        s.executeQuery(
-                            "select relrowsecurity, relforcerowsecurity from pg_class " +
-                                "where oid = 'submission.override_grant'::regclass",
-                        ).use {
-                            it.next()
-                            listOf(it.getBoolean(1), it.getBoolean(2))
-                        }
+                        s
+                            .executeQuery(
+                                "select relrowsecurity, relforcerowsecurity from pg_class " +
+                                    "where oid = 'submission.override_grant'::regclass",
+                            ).use {
+                                it.next()
+                                listOf(it.getBoolean(1), it.getBoolean(2))
+                            }
                     }
                 },
             )
-            fun visible(tenant: UUID) = h.asTenant(tenant) {
-                h.boundary.inTransaction {
-                    h.boundary.require().createStatement().use { s ->
-                        s.executeQuery("select count(*) from submission.override_grant").use {
-                            it.next()
-                            it.getLong(1)
+
+            fun visible(tenant: UUID) =
+                h.asTenant(tenant) {
+                    h.boundary.inTransaction {
+                        h.boundary.require().createStatement().use { s ->
+                            s.executeQuery("select count(*) from submission.override_grant").use {
+                                it.next()
+                                it.getLong(1)
+                            }
                         }
                     }
                 }
-            }
             assertEquals(1, visible(owner))
             assertEquals(0, visible(UUID.randomUUID()))
         }
@@ -56,9 +59,16 @@ class TenantIsolationIT {
         AuditHarness(image).use { h ->
             val tenant = UUID.randomUUID()
             h.asTenant(tenant) { h.overrides.override(h.overrideCommand(tenant, UUID.randomUUID())) }
-            fun run(sql: String) = h.asTenant(tenant) {
-                h.boundary.inTransaction { h.boundary.require().createStatement().use { it.executeUpdate(sql) } }
-            }
+
+            fun run(sql: String) =
+                h.asTenant(tenant) {
+                    h.boundary.inTransaction {
+                        h.boundary
+                            .require()
+                            .createStatement()
+                            .use { it.executeUpdate(sql) }
+                    }
+                }
             assertThrows(SQLException::class.java) { run("update submission.override_grant set reason = 'changed'") }
             assertThrows(SQLException::class.java) { run("delete from submission.override_grant") }
             // The command names tenant B but the session is bound to A: the policy's WITH CHECK refuses the row.

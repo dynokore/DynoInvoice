@@ -50,13 +50,14 @@ internal class Rewriter(
         val tenantIndex = columns.indexOfFirst { isTenantColumn(it) }
         val select = insert.`$select`()
         when {
-            select != null && tenantIndex >= 0 ->
+            select != null && tenantIndex >= 0 -> {
                 throw TenantPredicateViolation(
                     "${target.base.qualifiedName}: an INSERT ... SELECT names ${TenancyTables.TENANT_COLUMN}; " +
                         "omit it, tenancy-jooq sets it to the bound tenant",
                 )
+            }
 
-            select != null ->
+            select != null -> {
                 result =
                     result
                         .`$columns`(columns + target.tenantField())
@@ -65,21 +66,26 @@ internal class Rewriter(
                                 .select(DSL.asterisk(), predicates.tenantValue())
                                 .from(select.asTable(DSL.name("tenancy_jooq_source"))),
                         )
+            }
 
-            columns.isEmpty() && insert.`$values`().isNotEmpty() ->
+            columns.isEmpty() && insert.`$values`().isNotEmpty() -> {
                 throw TenantPredicateViolation(
                     "${target.base.qualifiedName}: an INSERT names no columns; name the columns",
                 )
+            }
 
-            columns.isEmpty() ->
+            columns.isEmpty() -> {
                 result =
                     result
                         .`$columns`(listOf(target.tenantField()))
                         .`$values`(listOf(DSL.row(predicates.tenantValue())))
+            }
 
-            tenantIndex >= 0 -> insert.`$values`().forEach { row -> requireTenantValue(row, tenantIndex, target) }
+            tenantIndex >= 0 -> {
+                insert.`$values`().forEach { row -> requireTenantValue(row, tenantIndex, target) }
+            }
 
-            else ->
+            else -> {
                 result =
                     result
                         .`$columns`(columns + target.tenantField())
@@ -88,6 +94,7 @@ internal class Rewriter(
                                 DSL.row(row.`$fields`() + predicates.tenantValue())
                             },
                         )
+            }
         }
         if (insert.`$updateSet`().isNotEmpty()) {
             refuseTenantColumnSet(insert.`$updateSet`().keys, "an ON CONFLICT DO UPDATE")
@@ -110,17 +117,18 @@ internal class Rewriter(
                 val tenantIndex = columns.indexOfFirst { isTenantColumn(it) }
                 val withTenant =
                     when {
-                        columns.isEmpty() ->
+                        columns.isEmpty() -> {
                             throw TenantPredicateViolation(
                                 "${target.base.qualifiedName}: a MERGE WHEN NOT MATCHED names no columns",
                             )
+                        }
 
                         tenantIndex >= 0 -> {
                             clause.`$values`().forEach { row -> requireTenantValue(row, tenantIndex, target) }
                             clause
                         }
 
-                        else ->
+                        else -> {
                             clause
                                 .`$columns`(columns + target.tenantField())
                                 .`$values`(
@@ -128,6 +136,7 @@ internal class Rewriter(
                                         DSL.row(it.`$fields`() + predicates.tenantValue())
                                     },
                                 )
+                        }
                     }
                 withTenant.`$where`(and(clause.`$where`(), source))
             }
@@ -154,9 +163,10 @@ internal class Rewriter(
             .`$whenNotMatched`(merge.`$whenNotMatched`().map { it.`$where`(and(it.`$where`(), source)) })
     }
 
-    private fun mergeSource(merge: QOM.Merge<*>): TableLike<*> = merge.`$using`() ?: throw TenantPredicateViolation(
-        "a MERGE without a source",
-    )
+    private fun mergeSource(merge: QOM.Merge<*>): TableLike<*> =
+        merge.`$using`() ?: throw TenantPredicateViolation(
+            "a MERGE without a source",
+        )
 
     private fun sourceConditions(using: TableLike<*>): List<Condition> {
         if (using !is Table<*>) return emptyList() // a subquery: rewritten when it is visited itself
@@ -202,7 +212,9 @@ internal class Rewriter(
                 ref
             }
 
-            TableClass.TENANT -> ref
+            TableClass.TENANT -> {
+                ref
+            }
         }
     }
 
@@ -251,27 +263,42 @@ internal class Rewriter(
                     table to pending
                 }
 
-                NoData -> table to emptyList()
+                NoData -> {
+                    table to emptyList()
+                }
             }
         }
         val (left, leftPending) = rewriteTable(table.`$table1`())
         val (right, rightPending) = rewriteTable(table.`$table2`())
         val join = table.`$table1`(left).`$table2`(right)
         return when (joinKind(table)) {
-            JoinKind.INNER -> join to leftPending + rightPending
+            JoinKind.INNER -> {
+                join to leftPending + rightPending
+            }
 
-            JoinKind.LEFT -> withOn(join, rightPending) to leftPending
+            JoinKind.LEFT -> {
+                withOn(join, rightPending) to leftPending
+            }
 
-            JoinKind.RIGHT -> withOn(join, leftPending) to rightPending
+            JoinKind.RIGHT -> {
+                withOn(join, leftPending) to rightPending
+            }
 
-            JoinKind.FULL ->
+            JoinKind.FULL -> {
                 withOn(join, leftPending + rightPending) to (leftPending + rightPending).map { Pending(it.ref, true) }
+            }
 
-            JoinKind.LEFT_NO_ON -> refuseNullableData(table, rightPending).let { join to leftPending }
+            JoinKind.LEFT_NO_ON -> {
+                refuseNullableData(table, rightPending).let { join to leftPending }
+            }
 
-            JoinKind.RIGHT_NO_ON -> refuseNullableData(table, leftPending).let { join to rightPending }
+            JoinKind.RIGHT_NO_ON -> {
+                refuseNullableData(table, leftPending).let { join to rightPending }
+            }
 
-            JoinKind.FULL_NO_ON -> refuseNullableData(table, leftPending + rightPending).let { join to emptyList() }
+            JoinKind.FULL_NO_ON -> {
+                refuseNullableData(table, leftPending + rightPending).let { join to emptyList() }
+            }
         }
     }
 

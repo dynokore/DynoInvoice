@@ -64,9 +64,10 @@ class OperatorSessionAuditWriterPostProcessor : BeanPostProcessor {
     override fun postProcessAfterInitialization(
         bean: Any,
         beanName: String,
-    ): Any = when {
-        bean !is AuditWriter || bean is OperatorSessionAuditWriter -> bean
-        bean is AuditStager -> OperatorSessionAuditStager(bean)
-        else -> OperatorSessionAuditWriter(bean)
-    }
+    ): Any =
+        when {
+            bean !is AuditWriter || bean is OperatorSessionAuditWriter -> bean
+            bean is AuditStager -> OperatorSessionAuditStager(bean)
+            else -> OperatorSessionAuditWriter(bean)
+        }
 }

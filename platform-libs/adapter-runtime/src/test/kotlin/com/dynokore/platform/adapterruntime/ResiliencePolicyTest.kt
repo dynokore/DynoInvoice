@@ -15,12 +15,13 @@ class ResiliencePolicyTest {
 
     @Test
     fun `RetryPolicy enforces its invariants`() {
-        val ok = RetryPolicy(
-            maxAttempts = 3,
-            initialBackoff = Duration.ofMillis(100),
-            maxBackoff = Duration.ofSeconds(1),
-            jitter = 0.5,
-        )
+        val ok =
+            RetryPolicy(
+                maxAttempts = 3,
+                initialBackoff = Duration.ofMillis(100),
+                maxBackoff = Duration.ofSeconds(1),
+                jitter = 0.5,
+            )
         ok.maxAttempts shouldBe 3
 
         shouldThrow<IllegalArgumentException> {

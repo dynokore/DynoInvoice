@@ -23,6 +23,11 @@ import java.nio.file.Path
 class BindingAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(SecretStore::class)
-    @ConditionalOnProperty(name = ["gst.bindings.secret-store.implementation"], havingValue = "kubernetes", matchIfMissing = true)
-    fun secretStore(properties: GstProperties): SecretStore = MountedFileSecretStore(Path.of(properties.bindings.secretStore.mountRoot))
+    @ConditionalOnProperty(
+        name = ["gst.bindings.secret-store.implementation"],
+        havingValue = "kubernetes",
+        matchIfMissing = true,
+    )
+    fun secretStore(properties: GstProperties): SecretStore =
+        MountedFileSecretStore(Path.of(properties.bindings.secretStore.mountRoot))
 }

@@ -37,12 +37,13 @@ class InMemoryPackRegistry : PackRegistry {
         tenant: TenantId?,
         resolutionDate: LocalDate,
     ): PackVersion? {
-        val inForce = versions.get().filter { version ->
-            version.packType == packType &&
-                !version.effectiveFrom.isAfter(resolutionDate) &&
-                (version.effectiveTo == null || resolutionDate.isBefore(version.effectiveTo)) &&
-                (version.tenant == null || version.tenant == tenant)
-        }
+        val inForce =
+            versions.get().filter { version ->
+                version.packType == packType &&
+                    !version.effectiveFrom.isAfter(resolutionDate) &&
+                    (version.effectiveTo == null || resolutionDate.isBefore(version.effectiveTo)) &&
+                    (version.tenant == null || version.tenant == tenant)
+            }
         // INV-REQ-770: "returns the highest precedence, tenant pack over platform pack" — then, within one
         // precedence tier, the most recently activated version in force for this date.
         val tenantSpecific = inForce.filter { it.tenant != null }
@@ -50,5 +51,6 @@ class InMemoryPackRegistry : PackRegistry {
         return pool.maxByOrNull { it.effectiveFrom }
     }
 
-    private fun PackVersion.isSameLineage(other: PackVersion) = packType == other.packType && tenant == other.tenant && version == other.version
+    private fun PackVersion.isSameLineage(other: PackVersion) =
+        packType == other.packType && tenant == other.tenant && version == other.version
 }

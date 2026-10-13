@@ -48,7 +48,7 @@ object TenantRlsMigration {
             |CREATE POLICY $policy ON $schemaName.$tableName
             |    USING      ($TENANT_PREDICATE)
             |    WITH CHECK ($TENANT_PREDICATE);
-        """.trimMargin()
+            """.trimMargin()
     }
 
     private const val TENANT_PREDICATE = "tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid"

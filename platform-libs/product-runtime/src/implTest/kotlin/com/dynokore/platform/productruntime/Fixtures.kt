@@ -21,7 +21,19 @@ internal object Fixtures {
         dataJson: String,
         tenant: TenantId = TENANT,
     ) = Envelope(
-        EventId(UUID.randomUUID().toString()), "/gst/tenancy-svc", type, "agg-1", NOW, tenant, EntityRef("E-001"),
-        null, null, null, "svc-1", CorrelationId("corr-1"), CausationId("cause-1"), dataJson,
+        EventId(UUID.randomUUID().toString()),
+        "/gst/tenancy-svc",
+        type,
+        "agg-1",
+        NOW,
+        tenant,
+        EntityRef("E-001"),
+        null,
+        null,
+        null,
+        "svc-1",
+        CorrelationId("corr-1"),
+        CausationId("cause-1"),
+        dataJson,
     )
 }

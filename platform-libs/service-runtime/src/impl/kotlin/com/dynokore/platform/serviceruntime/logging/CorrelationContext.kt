@@ -22,8 +22,14 @@ object CorrelationContext {
     ): T = MdcContext.withValue(MdcKey.CAUSATION_ID, causationId.value, block)
 
     /** The correlation id bound in the current thread's MDC, if any. */
-    fun currentCorrelationId(): CorrelationId? = org.slf4j.MDC.get(MdcKey.CORRELATION_ID.key)?.let(::CorrelationId)
+    fun currentCorrelationId(): CorrelationId? =
+        org.slf4j.MDC
+            .get(MdcKey.CORRELATION_ID.key)
+            ?.let(::CorrelationId)
 
     /** The causation id bound in the current thread's MDC, if any. */
-    fun currentCausationId(): CausationId? = org.slf4j.MDC.get(MdcKey.CAUSATION_ID.key)?.let(::CausationId)
+    fun currentCausationId(): CausationId? =
+        org.slf4j.MDC
+            .get(MdcKey.CAUSATION_ID.key)
+            ?.let(::CausationId)
 }

@@ -72,7 +72,11 @@ class VersionedAdapterRouterTest {
         val duplicate = FakeManagedAdapter(v1)
         val alsoDuplicate = FakeManagedAdapter(v1)
         shouldThrow<IllegalArgumentException> {
-            VersionedAdapterRouter(listOf(duplicate, alsoDuplicate), TimeBasedCutoverRule(v1, v2, cutoverAt), Clock.fixed(cutoverAt, ZoneOffset.UTC))
+            VersionedAdapterRouter(
+                listOf(duplicate, alsoDuplicate),
+                TimeBasedCutoverRule(v1, v2, cutoverAt),
+                Clock.fixed(cutoverAt, ZoneOffset.UTC),
+            )
         }
     }
 }

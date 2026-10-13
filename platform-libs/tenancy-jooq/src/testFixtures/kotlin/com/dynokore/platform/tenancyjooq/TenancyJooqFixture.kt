@@ -102,11 +102,12 @@ internal class TenancyJooqFixture(
         target: Any,
         method: java.lang.reflect.Method,
         args: Array<out Any?>?,
-    ): Any? = try {
-        method.invoke(target, *(args ?: emptyArray()))
-    } catch (failure: InvocationTargetException) {
-        throw failure.targetException
-    }
+    ): Any? =
+        try {
+            method.invoke(target, *(args ?: emptyArray()))
+        } catch (failure: InvocationTargetException) {
+            throw failure.targetException
+        }
 
     private companion object {
         val LOGGED = setOf("prepareStatement", "prepareCall", "nativeSQL")

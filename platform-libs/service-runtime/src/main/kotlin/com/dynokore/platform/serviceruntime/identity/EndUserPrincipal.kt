@@ -72,9 +72,10 @@ data class OperatorSession(
          * control character (U+0000-U+001F, U+007F-U+009F), at least one outside [CASE_WHITESPACE]. The single place
          * the case rule lives.
          */
-        fun isValidCase(case: String): Boolean = case.codePointCount(0, case.length) in 1..MAX_CASE_LENGTH &&
-            case.codePoints().allMatch { it != CASE_SEPARATOR.code && !Character.isISOControl(it) } &&
-            case.codePoints().anyMatch { it !in CASE_WHITESPACE }
+        fun isValidCase(case: String): Boolean =
+            case.codePointCount(0, case.length) in 1..MAX_CASE_LENGTH &&
+                case.codePoints().allMatch { it != CASE_SEPARATOR.code && !Character.isISOControl(it) } &&
+                case.codePoints().anyMatch { it !in CASE_WHITESPACE }
 
         /** A role is non-blank and holds no ISO control character (review of !64). */
         fun isValidRole(role: String): Boolean = role.isNotBlank() && role.none(Char::isISOControl)
@@ -95,7 +96,9 @@ fun interface EndUserPrincipalResolver {
 }
 
 /** The token issuer's keys cannot be obtained and no cached key verifies the token (INV-Q-3773). Retryable. */
-class TokenIssuerUnavailableException(cause: Throwable? = null) : RuntimeException(MESSAGE, cause) {
+class TokenIssuerUnavailableException(
+    cause: Throwable? = null,
+) : RuntimeException(MESSAGE, cause) {
     private companion object {
         const val MESSAGE = "the token issuer is unavailable, so the token cannot be verified now"
     }

@@ -54,18 +54,22 @@ object PayloadSchema {
     ) {
         val value = schema.get(keyword)
         when (keyword) {
-            "required" -> value.forEach { if (!node.has(it.asString())) errors += "$at: missing ${it.asString()}" }
+            "required" -> {
+                value.forEach { if (!node.has(it.asString())) errors += "$at: missing ${it.asString()}" }
+            }
 
-            "properties" ->
+            "properties" -> {
                 value.properties().forEach { (name, sub) ->
                     node.get(name)?.let { validate(sub, it, "$at.$name", errors) }
                 }
+            }
 
-            else ->
+            else -> {
                 if (!value.asBoolean()) {
                     val known = schema.get("properties")?.propertyNames() ?: emptySet()
                     node.propertyNames().filterNot { it in known }.forEach { errors += "$at: unexpected $it" }
                 }
+            }
         }
     }
 

@@ -19,19 +19,24 @@ internal object RenderedSql {
         while (i < sql.length) {
             val c = sql[i]
             when {
-                c == '\'' -> i = endOfLiteral(sql, i, backslashEscapes = isEscapeString(sql, i)) ?: return UNTERMINATED
+                c == '\'' -> {
+                    i = endOfLiteral(sql, i, backslashEscapes = isEscapeString(sql, i)) ?: return UNTERMINATED
+                }
 
-                c == '"' -> i = endOfLiteral(sql, i, backslashEscapes = false) ?: return UNTERMINATED
+                c == '"' -> {
+                    i = endOfLiteral(sql, i, backslashEscapes = false) ?: return UNTERMINATED
+                }
 
                 else -> {
                     tokenProblem(sql, i)?.let { return it }
-                    depth += if (c == '(') {
-                        1
-                    } else if (c == ')') {
-                        -1
-                    } else {
-                        0
-                    }
+                    depth +=
+                        if (c == '(') {
+                            1
+                        } else if (c == ')') {
+                            -1
+                        } else {
+                            0
+                        }
                     if (depth < 0) return UNBALANCED
                     i++
                 }
@@ -43,22 +48,24 @@ internal object RenderedSql {
     private fun tokenProblem(
         sql: String,
         i: Int,
-    ): String? = when {
-        sql.startsWith("--", i) -> "a line comment (--)"
-        sql.startsWith("/*", i) || sql.startsWith("*/", i) -> "a block comment (/* */)"
-        sql[i] == ';' -> "a statement separator (;)"
-        sql[i] == '$' -> "a dollar sign outside a literal (dollar quoting)"
-        sql[i] == '\\' -> "a backslash outside a literal"
-        else -> null
-    }
+    ): String? =
+        when {
+            sql.startsWith("--", i) -> "a line comment (--)"
+            sql.startsWith("/*", i) || sql.startsWith("*/", i) -> "a block comment (/* */)"
+            sql[i] == ';' -> "a statement separator (;)"
+            sql[i] == '$' -> "a dollar sign outside a literal (dollar quoting)"
+            sql[i] == '\\' -> "a backslash outside a literal"
+            else -> null
+        }
 
     /** `E'...'` (PostgreSQL's escape string) takes backslash escapes; `'...'` and `"..."` only a doubled quote. */
     private fun isEscapeString(
         sql: String,
         quote: Int,
-    ): Boolean = quote > 0 &&
-        (sql[quote - 1] == 'E' || sql[quote - 1] == 'e') &&
-        (quote < 2 || !(sql[quote - 2].isLetterOrDigit() || sql[quote - 2] == '_' || sql[quote - 2] == '"'))
+    ): Boolean =
+        quote > 0 &&
+            (sql[quote - 1] == 'E' || sql[quote - 1] == 'e') &&
+            (quote < 2 || !(sql[quote - 2].isLetterOrDigit() || sql[quote - 2] == '_' || sql[quote - 2] == '"'))
 
     /** The index after the literal or quoted name opening at [start], or null when it never closes. */
     private fun endOfLiteral(

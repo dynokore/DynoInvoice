@@ -63,9 +63,17 @@ class LocalTokenVerificationTest {
     private val runner =
         ApplicationContextRunner()
             .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
-            .withConfiguration(AutoConfigurations.of(ServiceRuntimeConfiguration::class.java, L1CompositionAutoConfiguration::class.java))
-            .withPropertyValues("service-runtime.workload-identity.audience=svc", "service-runtime.end-user-identity.audience=svc")
-            .withBean(IdentityProvider::class.java, { IdentityProvider { OidcIssuer(issuer, "http://127.0.0.1:${server.address.port}/jwks") } })
+            .withConfiguration(
+                AutoConfigurations.of(
+                    ServiceRuntimeConfiguration::class.java,
+                    L1CompositionAutoConfiguration::class.java,
+                ),
+            ).withPropertyValues(
+                "service-runtime.workload-identity.audience=svc",
+                "service-runtime.end-user-identity.audience=svc",
+            ).withBean(IdentityProvider::class.java, {
+                IdentityProvider { OidcIssuer(issuer, "http://127.0.0.1:${server.address.port}/jwks") }
+            })
 
     @AfterEach
     fun stop() = server.stop(0)
@@ -75,7 +83,8 @@ class LocalTokenVerificationTest {
         signer: KeyPair = keys,
     ): String {
         val claims =
-            JWTClaimsSet.Builder()
+            JWTClaimsSet
+                .Builder()
                 .subject(subject)
                 .issuer(issuer)
                 .audience("svc")
@@ -108,12 +117,25 @@ class LocalTokenVerificationTest {
             val resolver = context.getBean(EndUserPrincipalResolver::class.java)
             val commands = mockk<JobCommands>()
             val idempotency = mockk<IdempotencyStore>()
-            val servlet = JobCommandServlet(commands, resolver, mockk<TenantScope>(), idempotency, null, Clock.systemUTC())
+            val servlet =
+                JobCommandServlet(commands, resolver, mockk<TenantScope>(), idempotency, null, Clock.systemUTC())
             val forger = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair()
             for (authorization in listOf(null, "Bearer not-a-jwt", token(signer = forger))) {
                 val request = MockHttpServletRequest("POST", "/internal/v1/jobs/nightly/run")
-                listOf("X-Tenant-Id", "X-Tenant", "tenant_id", "X-Actor", "X-User-Id", "X-Forwarded-User", "X-Auth-Request-User")
-                    .forEach { request.addHeader(it, if (it.contains("ten", ignoreCase = true)) tenant.toString() else "p1") }
+                listOf(
+                    "X-Tenant-Id",
+                    "X-Tenant",
+                    "tenant_id",
+                    "X-Actor",
+                    "X-User-Id",
+                    "X-Forwarded-User",
+                    "X-Auth-Request-User",
+                ).forEach {
+                    request.addHeader(
+                        it,
+                        if (it.contains("ten", ignoreCase = true)) tenant.toString() else "p1",
+                    )
+                }
                 request.addHeader("Idempotency-Key", UUID.randomUUID().toString())
                 authorization?.let { request.addHeader("Authorization", it) }
                 request.setContent("{}".toByteArray())

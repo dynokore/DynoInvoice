@@ -25,7 +25,8 @@ class IdempotencyKeyPurgeJob(
     store: IdempotencyStore,
     private val pollEvery: Duration = POLL_EVERY,
 ) : SmartLifecycle {
-    val definition = JobDefinition(NAME, service, JobEntityScope.PLATFORM, JobSchedule(SCHEDULE), JobCriticality.STANDARD, TOLERANCE)
+    val definition =
+        JobDefinition(NAME, service, JobEntityScope.PLATFORM, JobSchedule(SCHEDULE), JobCriticality.STANDARD, TOLERANCE)
 
     @Volatile
     private var scheduler: ScheduledExecutorService? = null

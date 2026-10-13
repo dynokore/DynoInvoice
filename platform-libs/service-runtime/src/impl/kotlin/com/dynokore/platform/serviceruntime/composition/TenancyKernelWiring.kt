@@ -40,12 +40,13 @@ class TenancyKernelWiring {
         dataSource: DataSource,
         tenants: TenantContext,
         environment: Environment,
-    ): TransactionRunnerImpl = TransactionRunnerImpl(
-        TenantAwareDataSource(dataSource),
-        tenants,
-        // each transaction names its pool lane, transaction-locally (INV-T-3982, coordinator ruling INV-Q-4487)
-        environment.getProperty("gst.service")?.takeIf { it.isNotBlank() }?.let { laneLabel(it) },
-    )
+    ): TransactionRunnerImpl =
+        TransactionRunnerImpl(
+            TenantAwareDataSource(dataSource),
+            tenants,
+            // each transaction names its pool lane, transaction-locally (INV-T-3982, coordinator ruling INV-Q-4487)
+            environment.getProperty("gst.service")?.takeIf { it.isNotBlank() }?.let { laneLabel(it) },
+        )
 
     companion object {
         /**
@@ -53,13 +54,14 @@ class TenancyKernelWiring {
          * the laned application pool ([LanedDataSource]), set transaction-locally in tenancy-kernel's binding statement;
          * `null` (statement unchanged) for any other connection.
          */
-        fun laneLabel(service: String): ConnectionLabel = ConnectionLabel { connection ->
-            if (connection.isWrapperFor(LaneConnection::class.java)) {
-                "$service:${connection.unwrap(LaneConnection::class.java).lane.name.lowercase()}"
-            } else {
-                null
+        fun laneLabel(service: String): ConnectionLabel =
+            ConnectionLabel { connection ->
+                if (connection.isWrapperFor(LaneConnection::class.java)) {
+                    "$service:${connection.unwrap(LaneConnection::class.java).lane.name.lowercase()}"
+                } else {
+                    null
+                }
             }
-        }
 
         /** Wraps the service's base [LicenceCheck] (never one already wrapped) in [NonBlockingLicenceCheck]. */
         @Bean

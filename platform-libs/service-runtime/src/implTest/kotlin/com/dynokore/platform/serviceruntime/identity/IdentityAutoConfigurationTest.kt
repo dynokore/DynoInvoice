@@ -13,7 +13,10 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner
  * would otherwise accept a workload token bearing any (or no) audience.
  */
 class IdentityAutoConfigurationTest {
-    private val contextRunner = ApplicationContextRunner().withConfiguration(AutoConfigurations.of(IdentityAutoConfiguration::class.java))
+    private val contextRunner =
+        ApplicationContextRunner().withConfiguration(
+            AutoConfigurations.of(IdentityAutoConfiguration::class.java),
+        )
 
     @Test
     fun `the application context refuses to start with no audience configured`() {

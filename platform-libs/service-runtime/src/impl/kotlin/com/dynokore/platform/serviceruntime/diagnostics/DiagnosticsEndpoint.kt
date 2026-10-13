@@ -40,19 +40,26 @@ class DiagnosticsEndpoint(
     private val queueDepthSource: ObjectProvider<QueueDepthSource>,
     private val outboxDepthSource: ObjectProvider<OutboxDepthSource>,
 ) {
-    private val statusAggregator: StatusAggregator = StatusAggregator.of(Status.DOWN, DegradedStatus.DEGRADED, Status.UP)
+    private val statusAggregator: StatusAggregator =
+        StatusAggregator.of(
+            Status.DOWN,
+            DegradedStatus.DEGRADED,
+            Status.UP,
+        )
 
     @ReadOperation
-    fun diagnostics(): DiagnosticsReport = DiagnosticsReport(
-        version = buildProperties.getIfAvailable()?.version ?: "unknown",
-        health = statusAggregator.getAggregateStatus(aggregatedHealthStatuses()).code,
-        recentErrorCodes = recorder.snapshot(),
-        queueDepth = queueDepthSource.getIfAvailable()?.depth(),
-        outboxDepth = outboxDepthSource.getIfAvailable()?.depth(),
-    )
+    fun diagnostics(): DiagnosticsReport =
+        DiagnosticsReport(
+            version = buildProperties.getIfAvailable()?.version ?: "unknown",
+            health = statusAggregator.getAggregateStatus(aggregatedHealthStatuses()).code,
+            recentErrorCodes = recorder.snapshot(),
+            queueDepth = queueDepthSource.getIfAvailable()?.depth(),
+            outboxDepth = outboxDepthSource.getIfAvailable()?.depth(),
+        )
 
-    private fun aggregatedHealthStatuses(): Set<Status> = buildSet {
-        add(vaultHealthIndicator.health().status)
-        domainDependencyHealthIndicators.forEach { add(it.health().status) }
-    }
+    private fun aggregatedHealthStatuses(): Set<Status> =
+        buildSet {
+            add(vaultHealthIndicator.health().status)
+            domainDependencyHealthIndicators.forEach { add(it.health().status) }
+        }
 }

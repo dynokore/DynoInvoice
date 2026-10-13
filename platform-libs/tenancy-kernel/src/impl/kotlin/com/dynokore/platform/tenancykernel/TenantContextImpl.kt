@@ -24,7 +24,10 @@ class TenantContextImpl :
     TenantContext,
     PlatformTenantBinding {
     /** One binding: the tenant and the actor bound with it (null for the deprecated actor-less form). */
-    private data class Binding(val tenant: TenantId, val actor: String?)
+    private data class Binding(
+        val tenant: TenantId,
+        val actor: String?,
+    )
 
     private val current = ThreadLocal<Binding>()
 
@@ -64,15 +67,17 @@ class TenantContextImpl :
     )
     override fun <T> bindPlatform(block: () -> T): T = bound(Binding(TenantId.PLATFORM, null), block)
 
-    private fun bindingOrThrow(): Binding = current.get()
-        ?: throw IllegalStateException(
-            "No tenant is bound on this thread (ARC-21): the inbound adapter must call " +
-                "TenantContext.bind before any application code runs.",
-        )
+    private fun bindingOrThrow(): Binding =
+        current.get()
+            ?: throw IllegalStateException(
+                "No tenant is bound on this thread (ARC-21): the inbound adapter must call " +
+                    "TenantContext.bind before any application code runs.",
+            )
 
-    private fun requireNotPlatform(tenant: TenantId) = require(!tenant.isPlatform) {
-        "The reserved platform tenant is bound only through PlatformTenantBinding (INV-Q-2927)."
-    }
+    private fun requireNotPlatform(tenant: TenantId) =
+        require(!tenant.isPlatform) {
+            "The reserved platform tenant is bound only through PlatformTenantBinding (INV-Q-2927)."
+        }
 
     private fun requireActor(actor: String): String {
         require(actor.isNotBlank()) {

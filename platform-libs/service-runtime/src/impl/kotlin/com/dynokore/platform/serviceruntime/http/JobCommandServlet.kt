@@ -104,7 +104,8 @@ class JobCommandServlet(
     ): Boolean {
         val tenant = principal.tenant
         if (principal.entitySetCurrent || tenant == null || authority == null) return principal.covers(entity)
-        val request = AuthorizationRequest(tenant, Principal(principal.actor, PrincipalKind.HUMAN), entity.value, JOB_OPERATE)
+        val request =
+            AuthorizationRequest(tenant, Principal(principal.actor, PrincipalKind.HUMAN), entity.value, JOB_OPERATE)
         return authority.decide(request, CurrentDeadline.current() ?: Deadline.after(FALLBACK_BUDGET, clock)).allowed
     }
 
@@ -172,8 +173,20 @@ class JobCommandServlet(
 
         fun validate(action: Action) {
             if (job.isBlank()) throw Violation("job is required")
-            optionalText("entityRef")?.let { if (it.isBlank() || it.length > JobTarget.MAX_ENTITY_REF) throw Violation("entityRef is 1 to ${JobTarget.MAX_ENTITY_REF} characters") }
-            optionalText("reason")?.let { if (it.isBlank() || it.length > JobCommandRequest.MAX_REASON) throw Violation("reason is 1 to ${JobCommandRequest.MAX_REASON} characters") }
+            optionalText("entityRef")?.let {
+                if (it.isBlank() ||
+                    it.length > JobTarget.MAX_ENTITY_REF
+                ) {
+                    throw Violation("entityRef is 1 to ${JobTarget.MAX_ENTITY_REF} characters")
+                }
+            }
+            optionalText("reason")?.let {
+                if (it.isBlank() ||
+                    it.length > JobCommandRequest.MAX_REASON
+                ) {
+                    throw Violation("reason is 1 to ${JobCommandRequest.MAX_REASON} characters")
+                }
+            }
             if (action == Action.PAUSE) until
         }
 
@@ -197,7 +210,8 @@ class JobCommandServlet(
             object : TransactionalJobCommandJournal {
                 override fun begin() = recorder.begin()
 
-                override fun withinTransaction(outcome: JobCommandOutcome.Done<*>) = recorder.record(render(action, outcome, correlation))
+                override fun withinTransaction(outcome: JobCommandOutcome.Done<*>) =
+                    recorder.record(render(action, outcome, correlation))
             }
         val command =
             try {
@@ -234,17 +248,19 @@ class JobCommandServlet(
         action: Action,
         done: JobCommandOutcome.Done<*>,
         correlation: String,
-    ): StoredResponse = when (action) {
-        Action.RUN -> runResponse(done as JobCommandOutcome.Done<JobRunState>, correlation)
-        Action.PAUSE, Action.RESUME -> pauseResponse(done as JobCommandOutcome.Done<JobPauseState>, correlation)
-    }
+    ): StoredResponse =
+        when (action) {
+            Action.RUN -> runResponse(done as JobCommandOutcome.Done<JobRunState>, correlation)
+            Action.PAUSE, Action.RESUME -> pauseResponse(done as JobCommandOutcome.Done<JobPauseState>, correlation)
+        }
 
     /**
      * A tenantless caller's command has a platform-level target (coordinator ruling INV-Q-4115): a whole-job command
      * (no `entityRef`) or any command on a PLATFORM-scoped job. An unknown job is not one.
      */
-    private fun platformTarget(parsed: Parsed): Boolean = parsed.entity == null ||
-        commands.registered().any { it.name == parsed.job && it.entityScope == JobEntityScope.PLATFORM }
+    private fun platformTarget(parsed: Parsed): Boolean =
+        parsed.entity == null ||
+            commands.registered().any { it.name == parsed.job && it.entityScope == JobEntityScope.PLATFORM }
 
     /**
      * Binds the caller's tenant and `sub` for the command (ARC-21, INV-REQ-854 b1); a tenantless caller, already
@@ -254,49 +270,59 @@ class JobCommandServlet(
         principal: EndUserPrincipal,
         block: () -> T,
     ): T {
-        val tenant = principal.tenant ?: return checkNotNull(scope.platform) { "a tenantless command needs the platform binding" }.bindPlatform(principal.actor, block)
+        val tenant =
+            principal.tenant
+                ?: return checkNotNull(scope.platform) {
+                    "a tenantless command needs the platform binding"
+                }.bindPlatform(principal.actor, block)
         return scope.tenants.bind(tenant, principal.actor, block)
     }
 
     private fun runResponse(
         outcome: JobCommandOutcome<JobRunState>,
         correlation: String,
-    ): StoredResponse = when (outcome) {
-        is JobCommandOutcome.Refused -> Problems.job(outcome.code, correlation)
+    ): StoredResponse =
+        when (outcome) {
+            is JobCommandOutcome.Refused -> {
+                Problems.job(outcome.code, correlation)
+            }
 
-        is JobCommandOutcome.Done -> {
-            val state = outcome.state
-            val node = mapper.createObjectNode()
-            node.put("job", state.job)
-            (state.target as? JobTarget.Entity)?.let { node.put("entityRef", it.entity.value) }
-            node.put("trigger", state.trigger.name)
-            node.put("scheduledFor", state.scheduledFor.toString())
-            node.put("attempt", state.attempt)
-            node.put("status", state.status.name)
-            node.put("startedAt", state.startedAt.toString())
-            node.put("repeat", state.repeat)
-            StoredResponse(if (outcome.created) HTTP_ACCEPTED else HTTP_OK, mapper.writeValueAsString(node))
+            is JobCommandOutcome.Done -> {
+                val state = outcome.state
+                val node = mapper.createObjectNode()
+                node.put("job", state.job)
+                (state.target as? JobTarget.Entity)?.let { node.put("entityRef", it.entity.value) }
+                node.put("trigger", state.trigger.name)
+                node.put("scheduledFor", state.scheduledFor.toString())
+                node.put("attempt", state.attempt)
+                node.put("status", state.status.name)
+                node.put("startedAt", state.startedAt.toString())
+                node.put("repeat", state.repeat)
+                StoredResponse(if (outcome.created) HTTP_ACCEPTED else HTTP_OK, mapper.writeValueAsString(node))
+            }
         }
-    }
 
     private fun pauseResponse(
         outcome: JobCommandOutcome<JobPauseState>,
         correlation: String,
-    ): StoredResponse = when (outcome) {
-        is JobCommandOutcome.Refused -> Problems.job(outcome.code, correlation)
+    ): StoredResponse =
+        when (outcome) {
+            is JobCommandOutcome.Refused -> {
+                Problems.job(outcome.code, correlation)
+            }
 
-        is JobCommandOutcome.Done -> {
-            val state = outcome.state
-            val node = mapper.createObjectNode()
-            node.put("job", state.job)
-            (state.target as? JobTarget.Entity)?.let { node.put("entityRef", it.entity.value) }
-            node.put("state", if (state.paused) "PAUSED" else "ACTIVE")
-            state.until?.let { node.put("until", it.toString()) }
-            state.pausedAt?.let { node.put("pausedAt", it.toString()) }
-            state.previousUntil?.let { node.put("previousUntil", it.toString()) }
-            StoredResponse(HTTP_OK, mapper.writeValueAsString(node))
+            is JobCommandOutcome.Done -> {
+                val state = outcome.state
+                val node = mapper.createObjectNode()
+                node.put("job", state.job)
+                (state.target as? JobTarget.Entity)?.let { node.put("entityRef", it.entity.value) }
+                node.put("state", if (state.paused) "PAUSED" else "ACTIVE")
+                state.until?.let { node.put("until", it.toString()) }
+                state.pausedAt?.let { node.put("pausedAt", it.toString()) }
+                state.previousUntil?.let { node.put("previousUntil", it.toString()) }
+                StoredResponse(HTTP_OK, mapper.writeValueAsString(node))
+            }
         }
-    }
 
     private fun jsonObject(body: ByteArray): JsonNode {
         if (body.isEmpty()) throw Violation("a request body is required")
@@ -313,7 +339,13 @@ class JobCommandServlet(
     private fun idempotencyKey(header: String?): UUID {
         val text = header?.trim() ?: throw Violation("Idempotency-Key is required", KEY_INVALID)
         return try {
-            UUID.fromString(text).also { if (it.toString() != text.lowercase()) throw Violation("Idempotency-Key must be a UUID", KEY_INVALID) }
+            UUID.fromString(text).also {
+                if (it.toString() !=
+                    text.lowercase()
+                ) {
+                    throw Violation("Idempotency-Key must be a UUID", KEY_INVALID)
+                }
+            }
         } catch (_: IllegalArgumentException) {
             throw Violation("Idempotency-Key must be a UUID", KEY_INVALID)
         }

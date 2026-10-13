@@ -13,17 +13,18 @@ class WorkloadTokenPropagationInterceptorTest {
     fun `sets X-Workload-Token from the token source, read fresh on every call`() {
         var current = WorkloadToken("token-a")
         val interceptor = WorkloadTokenPropagationInterceptor(WorkloadTokenSource { current })
-        val stubResponse = object : ClientHttpResponse {
-            override fun getStatusCode() = HttpStatusCode.valueOf(200)
+        val stubResponse =
+            object : ClientHttpResponse {
+                override fun getStatusCode() = HttpStatusCode.valueOf(200)
 
-            override fun getStatusText() = "OK"
+                override fun getStatusText() = "OK"
 
-            override fun close() = Unit
+                override fun close() = Unit
 
-            override fun getBody() = ByteArray(0).inputStream()
+                override fun getBody() = ByteArray(0).inputStream()
 
-            override fun getHeaders() = HttpHeaders.EMPTY
-        }
+                override fun getHeaders() = HttpHeaders.EMPTY
+            }
 
         val firstRequest = MockClientHttpRequest()
         interceptor.intercept(firstRequest, ByteArray(0)) { _, _ -> stubResponse }

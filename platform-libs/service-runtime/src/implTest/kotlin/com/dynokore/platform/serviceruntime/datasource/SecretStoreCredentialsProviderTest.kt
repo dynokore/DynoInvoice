@@ -18,7 +18,8 @@ class SecretStoreCredentialsProviderTest {
     ) {
         val file = mountRoot.resolve("db-app")
         Files.writeString(file, "first-value\n")
-        val provider = SecretStoreCredentialsProvider(MountedFileSecretStore(mountRoot), "submission_app", SecretRef("db-app"))
+        val provider =
+            SecretStoreCredentialsProvider(MountedFileSecretStore(mountRoot), "submission_app", SecretRef("db-app"))
 
         provider.credentials.username shouldBe "submission_app"
         provider.credentials.password shouldBe "first-value"
@@ -33,7 +34,8 @@ class SecretStoreCredentialsProviderTest {
         @TempDir mountRoot: Path,
     ) {
         Files.writeString(mountRoot.resolve("db-app"), "never-shown")
-        val provider = SecretStoreCredentialsProvider(MountedFileSecretStore(mountRoot), "submission_app", SecretRef("db-app"))
+        val provider =
+            SecretStoreCredentialsProvider(MountedFileSecretStore(mountRoot), "submission_app", SecretRef("db-app"))
         provider.credentials
         provider.toString() shouldBe "SecretStoreCredentialsProvider(username=submission_app, passwordRef=db-app)"
     }
@@ -42,6 +44,8 @@ class SecretStoreCredentialsProviderTest {
     fun `a blank username is refused`(
         @TempDir mountRoot: Path,
     ) {
-        shouldThrow<IllegalArgumentException> { SecretStoreCredentialsProvider(MountedFileSecretStore(mountRoot), " ", SecretRef("db-app")) }
+        shouldThrow<IllegalArgumentException> {
+            SecretStoreCredentialsProvider(MountedFileSecretStore(mountRoot), " ", SecretRef("db-app"))
+        }
     }
 }

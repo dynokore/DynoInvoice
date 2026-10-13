@@ -13,7 +13,10 @@ import java.util.UUID
  * the contract's `x-operation` declares (INV-REQ-957 b6): a run-now is irreversible where the job transmits, a
  * pause is undone by a resume and a resume by a pause.
  */
-enum class JobCommand(val operationId: String, val reversibility: Reversibility) {
+enum class JobCommand(
+    val operationId: String,
+    val reversibility: Reversibility,
+) {
     RUN_NOW("runJobNow", Reversibility.IRREVERSIBLE),
     PAUSE("pauseJob", Reversibility.UNDOABLE),
     RESUME("resumeJob", Reversibility.UNDOABLE),
@@ -85,7 +88,10 @@ private const val HTTP_NOT_FOUND = 404
 private const val HTTP_FORBIDDEN = 403
 private const val HTTP_UNPROCESSABLE = 422
 
-enum class JobErrorCode(val code: String, val httpStatus: Int) {
+enum class JobErrorCode(
+    val code: String,
+    val httpStatus: Int,
+) {
     /** No job of that name is registered in the owning service. */
     JOB_UNKNOWN("JOB-001", HTTP_NOT_FOUND),
 
@@ -102,9 +108,14 @@ enum class JobErrorCode(val code: String, val httpStatus: Int) {
 /** A command's outcome: done with its state, or refused with a catalogue code and nothing changed (ARC-19). */
 sealed interface JobCommandOutcome<out T> {
     /** [created] is true when this call started a run (202) or changed a pause; false for a repeat or no-op (200). */
-    data class Done<T>(val state: T, val created: Boolean) : JobCommandOutcome<T>
+    data class Done<T>(
+        val state: T,
+        val created: Boolean,
+    ) : JobCommandOutcome<T>
 
-    data class Refused(val code: JobErrorCode) : JobCommandOutcome<Nothing>
+    data class Refused(
+        val code: JobErrorCode,
+    ) : JobCommandOutcome<Nothing>
 }
 
 /** `JobPauseState` of the operation contract (INV-Q-3425 A): the key's own state. */

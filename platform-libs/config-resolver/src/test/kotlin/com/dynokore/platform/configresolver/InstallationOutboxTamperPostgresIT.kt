@@ -55,25 +55,29 @@ class InstallationOutboxTamperPostgresIT {
             }
             assertEquals("42501", refused(h, past), past)
         }
-        val aged = "select count(*) from svc.outbox where id in ('$audit', '$changed') " +
-            "and (published_at is null or published_at < now() - interval '1 minute')"
+        val aged =
+            "select count(*) from svc.outbox where id in ('$audit', '$changed') " +
+                "and (published_at is null or published_at < now() - interval '1 minute')"
         assertEquals(0L, h.count(aged), "an installation row was given a past published_at")
     }
 
-    private fun bind(c: java.sql.Connection) = c.prepareStatement(
-        "select set_config('app.tenant_id', ?, true), set_config('app.actor', 'op', true)",
-    ).use {
-        it.setString(1, TenantId.PLATFORM.value.toString())
-        it.execute()
-    }
+    private fun bind(c: java.sql.Connection) =
+        c
+            .prepareStatement(
+                "select set_config('app.tenant_id', ?, true), set_config('app.actor', 'op', true)",
+            ).use {
+                it.setString(1, TenantId.PLATFORM.value.toString())
+                it.execute()
+            }
 
     private fun refused(
         h: WriteHarness,
         sql: String,
-    ): String? = assertThrows(SQLException::class.java) {
-        h.runtime { c ->
-            bind(c)
-            c.createStatement().use { it.executeUpdate(sql) }
-        }
-    }.sqlState
+    ): String? =
+        assertThrows(SQLException::class.java) {
+            h.runtime { c ->
+                bind(c)
+                c.createStatement().use { it.executeUpdate(sql) }
+            }
+        }.sqlState
 }

@@ -36,10 +36,17 @@ enum class StructureChange {
     }
 }
 
-data class StructureKey(val tenant: TenantId, val nodeRef: String)
+data class StructureKey(
+    val tenant: TenantId,
+    val nodeRef: String,
+)
 
 /** One profile attribute value and the date it takes effect (INV-REQ-323, INV-REQ-376, INV-REQ-852). */
-data class ProfileEntry(val attribute: String, val value: String, val effectiveDate: LocalDate)
+data class ProfileEntry(
+    val attribute: String,
+    val value: String,
+    val effectiveDate: LocalDate,
+)
 
 /**
  * One node of a tenant's organisation structure: the full node state that both structure events and a
@@ -61,10 +68,11 @@ data class StructureNode(
     fun attribute(
         attribute: String,
         onDate: LocalDate,
-    ): String? = profile
-        .filter { it.attribute == attribute && !it.effectiveDate.isAfter(onDate) }
-        .maxByOrNull { it.effectiveDate }
-        ?.value
+    ): String? =
+        profile
+            .filter { it.attribute == attribute && !it.effectiveDate.isAfter(onDate) }
+            .maxByOrNull { it.effectiveDate }
+            ?.value
 
     /** Every attribute in force on [onDate]. */
     fun profileOn(onDate: LocalDate): Map<String, String> {

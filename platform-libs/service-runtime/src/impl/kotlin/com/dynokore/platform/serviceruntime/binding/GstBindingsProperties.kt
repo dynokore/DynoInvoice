@@ -20,9 +20,19 @@ data class GstProperties(
     val instanceId: String? = null,
     val bindings: BindingsProperties = BindingsProperties(),
 ) {
-    fun requireService(): String = checkNotNull(service?.takeIf { it.isNotBlank() }) { "gst.service must name the service (TPL-16)" }
+    fun requireService(): String =
+        checkNotNull(
+            service?.takeIf {
+                it.isNotBlank()
+            },
+        ) { "gst.service must name the service (TPL-16)" }
 
-    fun requireInstanceId(): String = checkNotNull(instanceId?.takeIf { it.isNotBlank() }) { "gst.instance-id (or HOSTNAME) must name this instance" }
+    fun requireInstanceId(): String =
+        checkNotNull(
+            instanceId?.takeIf {
+                it.isNotBlank()
+            },
+        ) { "gst.instance-id (or HOSTNAME) must name this instance" }
 }
 
 /**

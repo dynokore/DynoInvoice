@@ -32,12 +32,14 @@ class NonBlockingLicenceCheck(
             Thread(runnable, "licence-check").apply { isDaemon = true }
         },
 ) : LicenceCheck {
-    override fun status(tenant: TenantId): LicenceStatus = try {
-        executor.submit(Callable { delegate.status(tenant) })
-            .get(timeout.toMillis(), TimeUnit.MILLISECONDS)
-    } catch (_: TimeoutException) {
-        LicenceStatus.UNKNOWN
-    } catch (_: Exception) {
-        LicenceStatus.UNKNOWN
-    }
+    override fun status(tenant: TenantId): LicenceStatus =
+        try {
+            executor
+                .submit(Callable { delegate.status(tenant) })
+                .get(timeout.toMillis(), TimeUnit.MILLISECONDS)
+        } catch (_: TimeoutException) {
+            LicenceStatus.UNKNOWN
+        } catch (_: Exception) {
+            LicenceStatus.UNKNOWN
+        }
 }

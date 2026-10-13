@@ -48,7 +48,11 @@ class GstVariationPointCatalogue(
     private val definitions: Map<VariationPointKey, VariationPointDefinition> =
         VariationPoint.entries.associate { VariationPointKey(it.id) to definition(it) }
 
-    private val owners: Map<VariationPointKey, String> = VariationPoint.entries.associate { VariationPointKey(it.id) to it.owner }
+    private val owners: Map<VariationPointKey, String> =
+        VariationPoint.entries.associate {
+            VariationPointKey(it.id) to
+                it.owner
+        }
 
     override fun find(key: VariationPointKey): VariationPointDefinition? = definitions[key]
 
@@ -61,28 +65,30 @@ class GstVariationPointCatalogue(
     fun all(): Collection<VariationPointDefinition> = definitions.values
 
     companion object {
-        internal fun definition(vp: VariationPoint): VariationPointDefinition = VariationPointDefinition(
-            key = VariationPointKey(vp.id),
-            vpClass = VpClass.valueOf(vp.vpClass.name),
-            modifiers = vp.classModifiers.mapTo(linkedSetOf()) { VpModifier.valueOf(it.name) },
-            status = VpStatus.valueOf(vp.status.name),
-            scopeLevels = vp.scopeLevels.orEmpty().mapTo(linkedSetOf()) { ScopeLevel.valueOf(it.name) },
-            setBy = vp.setBy.toCollection(linkedSetOf()),
-            options = vp.optionSpecs.orEmpty().map(::option),
-            defaultByForm = vp.defaultByForm.mapKeys { DeploymentForm.valueOf(it.key) },
-            mustBeElected = vp.mustBeElected,
-            multiSelect = vp.multiSelect,
-            exclusiveKeys = vp.exclusiveKeys.toCollection(linkedSetOf()),
-            formDependence = vp.formDependence,
-            crossOption = crossOption(vp.constraints),
-            crossScope = vp.crossScope,
-            installationBound = vp.installationParameter != null || vp.installationParameterRef != null,
-            installationParameter = vp.installationParameterRef?.row?.let(::VariationPointKey),
-        )
+        internal fun definition(vp: VariationPoint): VariationPointDefinition =
+            VariationPointDefinition(
+                key = VariationPointKey(vp.id),
+                vpClass = VpClass.valueOf(vp.vpClass.name),
+                modifiers = vp.classModifiers.mapTo(linkedSetOf()) { VpModifier.valueOf(it.name) },
+                status = VpStatus.valueOf(vp.status.name),
+                scopeLevels = vp.scopeLevels.orEmpty().mapTo(linkedSetOf()) { ScopeLevel.valueOf(it.name) },
+                setBy = vp.setBy.toCollection(linkedSetOf()),
+                options = vp.optionSpecs.orEmpty().map(::option),
+                defaultByForm = vp.defaultByForm.mapKeys { DeploymentForm.valueOf(it.key) },
+                mustBeElected = vp.mustBeElected,
+                multiSelect = vp.multiSelect,
+                exclusiveKeys = vp.exclusiveKeys.toCollection(linkedSetOf()),
+                formDependence = vp.formDependence,
+                crossOption = crossOption(vp.constraints),
+                crossScope = vp.crossScope,
+                installationBound = vp.installationParameter != null || vp.installationParameterRef != null,
+                installationParameter = vp.installationParameterRef?.row?.let(::VariationPointKey),
+            )
 
-        fun crossOption(constraints: List<VpConstraint>): String? = constraints
-            .joinToString("\n") { "${it.id} ${it.kind.name}: ${it.rule} (refused: ${it.refused})" }
-            .ifEmpty { null }
+        fun crossOption(constraints: List<VpConstraint>): String? =
+            constraints
+                .joinToString("\n") { "${it.id} ${it.kind.name}: ${it.rule} (refused: ${it.refused})" }
+                .ifEmpty { null }
 
         private fun option(option: VpOption): OptionSpec {
             val typed = option.typedValue?.let(::typedValue)
@@ -101,41 +107,53 @@ class GstVariationPointCatalogue(
             return declared.flatMap { ack ->
                 val condition = AcknowledgerCondition.valueOf(ack.condition.name)
                 if (ack.rolesByForm.isNotEmpty()) {
-                    val byForm = ack.rolesByForm.entries.associate { DeploymentForm.valueOf(it.key.name) to it.value.single() }
-                    listOf(Acknowledger(condition = condition, distinctFromSetter = ack.distinctFromSetter, roleByForm = byForm))
+                    val byForm =
+                        ack.rolesByForm.entries.associate {
+                            DeploymentForm.valueOf(it.key.name) to
+                                it.value.single()
+                        }
+                    listOf(
+                        Acknowledger(
+                            condition = condition,
+                            distinctFromSetter = ack.distinctFromSetter,
+                            roleByForm = byForm,
+                        ),
+                    )
                 } else {
                     ack.roles.map { Acknowledger(it, condition, ack.distinctFromSetter) }
                 }
             }
         }
 
-        private fun typedValue(value: TypedValue): TypedValueSpec = TypedValueSpec(
-            type = ValueType.valueOf(value.type.name),
-            unit = value.unit,
-            min = value.min?.let(::bound),
-            max = value.max?.let(::bound),
-            minExclusive = value.minExclusive?.let(::bound),
-            direction = value.direction?.let { Direction.valueOf(it.name) } ?: Direction.NONE,
-            values = value.values.orEmpty(),
-            fields = value.fields.orEmpty().mapValues { typedValue(it.value) },
-            item = value.item?.let(::typedValue),
-            key = value.key?.let(::typedValue),
-            value = value.value?.let(::typedValue),
-            minItems = value.minItems,
-            maxItems = value.maxItems,
-            length = value.length?.let(::bound),
-            distinct = value.distinct ?: false,
-            ordered = value.ordered ?: false,
-            ref = value.ref,
-            rule = value.rule,
-            requires = value.requires,
-            default = value.default?.let(::bound),
-        )
+        private fun typedValue(value: TypedValue): TypedValueSpec =
+            TypedValueSpec(
+                type = ValueType.valueOf(value.type.name),
+                unit = value.unit,
+                min = value.min?.let(::bound),
+                max = value.max?.let(::bound),
+                minExclusive = value.minExclusive?.let(::bound),
+                direction = value.direction?.let { Direction.valueOf(it.name) } ?: Direction.NONE,
+                values = value.values.orEmpty(),
+                fields = value.fields.orEmpty().mapValues { typedValue(it.value) },
+                item = value.item?.let(::typedValue),
+                key = value.key?.let(::typedValue),
+                value = value.value?.let(::typedValue),
+                minItems = value.minItems,
+                maxItems = value.maxItems,
+                length = value.length?.let(::bound),
+                distinct = value.distinct ?: false,
+                ordered = value.ordered ?: false,
+                ref = value.ref,
+                rule = value.rule,
+                requires = value.requires,
+                default = value.default?.let(::bound),
+            )
 
-        private fun bound(value: BoundValue): Bound = Bound(
-            number = value.number,
-            named = value.symbolic,
-            row = value.row?.let(::VariationPointKey),
-        )
+        private fun bound(value: BoundValue): Bound =
+            Bound(
+                number = value.number,
+                named = value.symbolic,
+                row = value.row?.let(::VariationPointKey),
+            )
     }
 }

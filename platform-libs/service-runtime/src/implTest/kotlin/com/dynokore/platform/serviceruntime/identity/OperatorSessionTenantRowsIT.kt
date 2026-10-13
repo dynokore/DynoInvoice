@@ -43,29 +43,45 @@ class OperatorSessionTenantRowsIT {
             val tenants = TenantContextImpl()
             val tx = TransactionRunnerImpl(fixture.appDataSource(), tenants)
             for ((tenant, value) in listOf(tenantA to "a-row", tenantB to "b-row")) {
-                tenants.bind(tenant, "seed") { tx.inTransaction { ProbeTable.insert(tx.require(), ProbeRow(UUID.randomUUID(), tenant, value)) } }
+                tenants.bind(tenant, "seed") {
+                    tx.inTransaction { ProbeTable.insert(tx.require(), ProbeRow(UUID.randomUUID(), tenant, value)) }
+                }
             }
 
             val keys = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair()
             val replica = AuthorityReplica(Clock.systemUTC()).also { it.onSnapshotComplete(0) }
             val now = Instant.now()
-            val key = OperatorSessionKey("k1", "RS256", Base64.getEncoder().encodeToString(keys.public.encoded), now.minusSeconds(60), now.plusSeconds(3600))
+            val key =
+                OperatorSessionKey(
+                    "k1",
+                    "RS256",
+                    Base64.getEncoder().encodeToString(keys.public.encoded),
+                    now.minusSeconds(60),
+                    now.plusSeconds(3600),
+                )
             replica.operatorSessionKeys.accept(OperatorSessionKeysChanged(listOf(key)))
             val idpNeverAsked = JwtDecoder { error("an operator session is never verified by the identity provider") }
             val resolver = JwtEndUserPrincipalResolver(idpNeverAsked, replica, Clock.systemUTC())
 
             val claims =
-                JWTClaimsSet.Builder()
+                JWTClaimsSet
+                    .Builder()
                     .subject("op-1")
                     .claim(JwtEndUserPrincipalResolver.TENANT_CLAIM, tenantA.toString())
                     .claim("act", mapOf("role" to "platform.support", "case" to "CASE-5521"))
                     .issueTime(Date.from(now))
                     .expirationTime(Date.from(now.plusSeconds(600)))
                     .build()
-            val jwt = SignedJWT(JWSHeader.Builder(JWSAlgorithm.RS256).keyID("k1").build(), claims).apply { sign(RSASSASigner(keys.private)) }
+            val jwt =
+                SignedJWT(JWSHeader.Builder(JWSAlgorithm.RS256).keyID("k1").build(), claims).apply {
+                    sign(RSASSASigner(keys.private))
+                }
             val principal = checkNotNull(resolver.resolve("Bearer " + jwt.serialize()))
 
-            val read = tenants.bind(checkNotNull(principal.tenant), principal.actor) { tx.inTransaction { ProbeTable.selectAll(tx.require()) } }
+            val read =
+                tenants.bind(checkNotNull(principal.tenant), principal.actor) {
+                    tx.inTransaction { ProbeTable.selectAll(tx.require()) }
+                }
             read.map { it.value } shouldBe listOf("a-row")
             read.map { it.tenantId }.toSet() shouldBe setOf(tenantA)
         }

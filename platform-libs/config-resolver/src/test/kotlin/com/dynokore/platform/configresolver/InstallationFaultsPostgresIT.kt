@@ -27,9 +27,10 @@ class InstallationFaultsPostgresIT {
     @AfterAll
     fun stop() = harnesses.values.forEach { it.close() }
 
-    private fun cases() = listOf("postgres:16", "postgres:17", "postgres:18").flatMap { image ->
-        EventMode.entries.map { Arguments.of(image, it) }
-    }
+    private fun cases() =
+        listOf("postgres:16", "postgres:17", "postgres:18").flatMap { image ->
+            EventMode.entries.map { Arguments.of(image, it) }
+        }
 
     @ParameterizedTest(name = "{displayName}[{0}, {1}]")
     @MethodSource("cases")
@@ -56,11 +57,12 @@ class InstallationFaultsPostgresIT {
     private fun ObjectNode.edit(
         path: String,
         value: String?,
-    ): ObjectNode = deepCopy().also { copy ->
-        val parent = if (path.startsWith("data.")) copy.get("data") as ObjectNode else copy
-        val field = path.removePrefix("data.")
-        if (value == null) parent.remove(field) else parent.set(field, InstallationCalls.mapper.readTree(value))
-    }
+    ): ObjectNode =
+        deepCopy().also { copy ->
+            val parent = if (path.startsWith("data.")) copy.get("data") as ObjectNode else copy
+            val field = path.removePrefix("data.")
+            if (value == null) parent.remove(field) else parent.set(field, InstallationCalls.mapper.readTree(value))
+        }
 
     private fun InstallationArgs.auditWith(
         path: String,
@@ -113,15 +115,16 @@ class InstallationFaultsPostgresIT {
             )
         val modeFaults =
             when (mode) {
-                EventMode.NO_OUTBOX ->
+                EventMode.NO_OUTBOX -> {
                     listOf<Pair<String, (InstallationArgs) -> FaultCall>>(
                         "a PolicyChanged without an outbox" to { a ->
                             val changed = a.audit.deepCopy().also { it.put("type", JdbcPolicyWriter.POLICY_CHANGED) }
                             FaultCall(a.copy(policyChanged = changed))
                         },
                     )
+                }
 
-                EventMode.OUTBOX ->
+                EventMode.OUTBOX -> {
                     listOf<Pair<String, (InstallationArgs) -> FaultCall>>(
                         "no PolicyChanged in outbox mode" to { a -> FaultCall(a.copy(policyChanged = null)) },
                         "PolicyChanged tenant" to changed("tenant_id", "\"${UUID.randomUUID()}\""),
@@ -147,6 +150,7 @@ class InstallationFaultsPostgresIT {
                         },
                         "PolicyChanged data not an object" to changed("data", "[]"),
                     )
+                }
             }
         return common + modeFaults
     }

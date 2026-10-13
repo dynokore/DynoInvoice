@@ -8,7 +8,9 @@ import com.dynokore.platform.rulepackkernel.PackVersionLabel
  * system of record (INV-ADR-282), so the record holds this reference, never a copy of the trace.
  */
 @JvmInline
-value class TraceReference(val value: String) {
+value class TraceReference(
+    val value: String,
+) {
     init {
         require(value.isNotBlank()) { "TraceReference must not be blank" }
     }
@@ -31,7 +33,9 @@ data class TraceStep(
 }
 
 /** The trace of one evaluation. Pure data: the same inputs and pack version give the same trace (INV-REQ-775). */
-data class DecisionTrace(val steps: List<TraceStep>) {
+data class DecisionTrace(
+    val steps: List<TraceStep>,
+) {
     init {
         require(steps.isNotEmpty()) { "a decision trace explains a verdict with at least one rule" }
     }

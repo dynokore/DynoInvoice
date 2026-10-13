@@ -17,7 +17,12 @@ abstract class DeadLetterSinkContractTest {
         val sink = sink()
         val entries =
             (1..3).map { n ->
-                DeadLetterEntry(edge = "edge-$n", attempts = n, failedAt = Instant.parse("2026-09-27T00:0$n:00Z"), failureType = "java.io.IOException")
+                DeadLetterEntry(
+                    edge = "edge-$n",
+                    attempts = n,
+                    failedAt = Instant.parse("2026-09-27T00:0$n:00Z"),
+                    failureType = "java.io.IOException",
+                )
             }
 
         entries.forEach(sink::send)

@@ -250,7 +250,7 @@ object ConfigSchema {
                 (tenant_id, vp_key, scope_level, scope_id);
             comment on column $s.$RELAXATION_ACKNOWLEDGEMENT.principal is 'class: personal';
             comment on column $s.$RELAXATION_ACKNOWLEDGEMENT.reason is 'class: content';
-        """.trimIndent()
+            """.trimIndent()
     }
 
     /**
@@ -273,7 +273,7 @@ object ConfigSchema {
             grant select (tenant_id, subject_type, subject_ref) on $s.$RESOLVED_VALUE to $sys;
             grant select (tenant_id) on $s.$SETTING, $s.$RELAXATION_ACKNOWLEDGEMENT to $sys;
             grant delete on $s.$SETTING, $s.$RESOLVED_VALUE, $s.$RELAXATION_ACKNOWLEDGEMENT to $sys;
-        """.trimIndent()
+            """.trimIndent()
     }
 
     /** [INSTALLATION_MODE] answering [EventMode.OUTBOX]: owned by the sys role, executed by its functions only. */
@@ -290,7 +290,7 @@ object ConfigSchema {
             alter function $s.$INSTALLATION_MODE() owner to $sys;
             revoke all on function $s.$INSTALLATION_MODE() from public;
             revoke create on schema $s from $sys;
-        """.trimIndent()
+            """.trimIndent()
     }
 
     /** [INSTALLATION_MODE] answering [EventMode.NO_OUTBOX]: owned by the sys role, executed by its functions only. */
@@ -307,7 +307,7 @@ object ConfigSchema {
             alter function $s.$INSTALLATION_MODE() owner to $sys;
             revoke all on function $s.$INSTALLATION_MODE() from public;
             revoke create on schema $s from $sys;
-        """.trimIndent()
+            """.trimIndent()
     }
 
     @Suppress("LongMethod") // one static function body, kept whole so it can be read as the database runs it
@@ -498,7 +498,7 @@ object ConfigSchema {
             revoke all on function $s.$WRITE_INSTALLATION_SETTING($WRITE_ARGUMENTS) from public;
             grant execute on function $s.$WRITE_INSTALLATION_SETTING($WRITE_ARGUMENTS) to $runtime;
             revoke create on schema $s from $sys;
-        """.trimIndent()
+            """.trimIndent()
     }
 
     private fun purgeSubject(
@@ -537,7 +537,7 @@ object ConfigSchema {
             revoke all on function $s.$PURGE_SUBJECT(text, text) from public;
             grant execute on function $s.$PURGE_SUBJECT(text, text) to $runtime;
             revoke create on schema $s from $sys;
-        """.trimIndent()
+            """.trimIndent()
     }
 
     private fun purgeTenant(
@@ -579,6 +579,6 @@ object ConfigSchema {
             revoke all on function $s.$PURGE_TENANT(uuid) from public;
             grant execute on function $s.$PURGE_TENANT(uuid) to $runtime;
             revoke create on schema $s from $sys;
-        """.trimIndent()
+            """.trimIndent()
     }
 }

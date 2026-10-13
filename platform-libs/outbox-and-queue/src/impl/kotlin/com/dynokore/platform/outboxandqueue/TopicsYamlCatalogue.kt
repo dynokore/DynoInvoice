@@ -57,7 +57,9 @@ object TopicsYamlCatalogue {
                     list = null
                 }
 
-                entry == null -> Unit
+                entry == null -> {
+                    Unit
+                }
 
                 line.startsWith("event_type:") -> {
                     entry.type = line.removePrefix("event_type:").trim()
@@ -82,15 +84,25 @@ object TopicsYamlCatalogue {
                     list = null
                 }
 
-                line == "event_types:" -> list = entry.types
+                line == "event_types:" -> {
+                    list = entry.types
+                }
 
-                line == "producers:" -> list = entry.producers
+                line == "producers:" -> {
+                    list = entry.producers
+                }
 
-                line == "subscribers:" -> list = entry.subscribers
+                line == "subscribers:" -> {
+                    list = entry.subscribers
+                }
 
-                line.startsWith("- ") && list != null -> list += line.removePrefix("- ").trim()
+                line.startsWith("- ") && list != null -> {
+                    list += line.removePrefix("- ").trim()
+                }
 
-                else -> list = null // another key (an empty list `[]`, ...)
+                else -> {
+                    list = null
+                } // another key (an empty list `[]`, ...)
             }
         }
         return EventCatalogue(

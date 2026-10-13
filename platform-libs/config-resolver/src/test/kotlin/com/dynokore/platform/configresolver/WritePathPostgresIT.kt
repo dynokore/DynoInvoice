@@ -242,9 +242,7 @@ class WritePathPostgresIT : WritePathBase() {
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
-    fun `INV-AC-1146 the as-of view returns the state in force and later changes, scheduled included`(
-        image: String,
-    ) {
+    fun `INV-AC-1146 the as-of view returns the state in force and later changes, scheduled included`(image: String) {
         val r = Run(image)
         val e1 = r.e1
         val tenth = LocalDate.of(2026, 10, 10)
@@ -257,7 +255,11 @@ class WritePathPostgresIT : WritePathBase() {
         val carol = actor("carol", "tax.approver")
         r.put(set(DESPATCH, e1, ScopeLevel.ENTITY, one("DAILY_WINDOW"), carol, LocalDate.of(2026, 10, 25)), w2)
         val history = r.h.history()
-        val entry = r.h.inTenant(r.t) { history.asOf(e1, tenth, setOf(DESPATCH)) }.entries.single()
+        val entry =
+            r.h
+                .inTenant(r.t) { history.asOf(e1, tenth, setOf(DESPATCH)) }
+                .entries
+                .single()
         assertEquals(one("DAILY_WINDOW"), entry.inForce?.selected)
         assertEquals(listOf("bob", "carol"), entry.changedSince.map { it.setBy })
         // Without a filter every row is listed; one with nothing set shows its default.
@@ -287,7 +289,12 @@ class WritePathPostgresIT : WritePathBase() {
             "select count(*) from pg_class where oid = '$table'::regclass " +
                 "and relrowsecurity and relforcerowsecurity"
         assertEquals(1L, h.count(forced))
-        fun update(sql: String) = h.app.require().createStatement().use { it.executeUpdate(sql) }
+
+        fun update(sql: String) =
+            h.app
+                .require()
+                .createStatement()
+                .use { it.executeUpdate(sql) }
         val seen =
             h.inTenant(TenantId(UUID.randomUUID())) {
                 h.app.require().createStatement().use { s ->

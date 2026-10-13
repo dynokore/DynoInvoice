@@ -19,7 +19,9 @@ import java.time.Instant
  * never negative (ARC-13: time comes from the caller's own [Clock], never a
  * wall-clock read here).
  */
-data class Deadline(private val deadlineAt: Instant) {
+data class Deadline(
+    private val deadlineAt: Instant,
+) {
     /** How much of the budget is left, floored at zero (API-29). */
     fun remaining(clock: Clock): Duration {
         val left = Duration.between(clock.instant(), deadlineAt)

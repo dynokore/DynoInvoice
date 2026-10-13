@@ -9,7 +9,9 @@ import org.testcontainers.utility.DockerImageName
 import javax.sql.DataSource
 
 /** Testcontainers needs a concrete subclass for its fluent `self()` typing. */
-private class Postgres(image: DockerImageName) : PostgreSQLContainer<Postgres>(image)
+private class Postgres(
+    image: DockerImageName,
+) : PostgreSQLContainer<Postgres>(image)
 
 /**
  * A fresh PostgreSQL container (STK-14, STK-15; the PG 16, 17 and 18 matrix, TPL-14, owner ruling INV-Q-3965) with the
@@ -17,7 +19,9 @@ private class Postgres(image: DockerImageName) : PostgreSQLContainer<Postgres>(i
  * by the same generators a real migration would use ([OutboxSchema.ddl], [EventLogSchema.schemaDdl],
  * [EventLogSchema.topicDdl], [EventLogSchema.functionsDdl], [EventLogSchema.writeRetention]).
  */
-class OutboxPostgresFixture(image: String) : AutoCloseable {
+class OutboxPostgresFixture(
+    image: String,
+) : AutoCloseable {
     private val container: Postgres =
         Postgres(DockerImageName.parse(image)).withInitScript("db/outbox-and-queue-test-roles.sql")
 
@@ -102,7 +106,13 @@ class OutboxPostgresFixture(image: String) : AutoCloseable {
         val entries =
             catalogue.entries().groupBy { it.topic }.map { (topic, rows) ->
                 val record = rows.any { it.recordTopic }
-                EventLogSchema.Topic(topic, setOf(APP), setOf(APP), rows.any { it.contentTopic == true }, if (record) APP else null)
+                EventLogSchema.Topic(
+                    topic,
+                    setOf(APP),
+                    setOf(APP),
+                    rows.any { it.contentTopic == true },
+                    if (record) APP else null,
+                )
             }
         val replays =
             catalogue.replayTopics().map {
@@ -151,12 +161,13 @@ class OutboxPostgresFixture(image: String) : AutoCloseable {
     }
 
     /** The `app.actor` of each row inserted into [table] since [captureActors], in insert order. */
-    fun capturedActors(table: String): List<String?> = adminDataSource().connection.use { connection ->
-        connection.prepareStatement("select actor from public.captured_actor where tbl = ? order by seq").use {
-            it.setString(1, table)
-            it.executeQuery().use { rows -> buildList { while (rows.next()) add(rows.getString(1)) } }
+    fun capturedActors(table: String): List<String?> =
+        adminDataSource().connection.use { connection ->
+            connection.prepareStatement("select actor from public.captured_actor where tbl = ? order by seq").use {
+                it.setString(1, table)
+                it.executeQuery().use { rows -> buildList { while (rows.next()) add(rows.getString(1)) } }
+            }
         }
-    }
 
     /** Runs [sql] as the superuser. */
     fun runAsAdmin(sql: String) {
@@ -179,11 +190,12 @@ class OutboxPostgresFixture(image: String) : AutoCloseable {
     private fun dataSourceFor(
         user: String,
         password: String,
-    ): DataSource = PGSimpleDataSource().apply {
-        setUrl(container.jdbcUrl)
-        this.user = user
-        this.password = password
-    }
+    ): DataSource =
+        PGSimpleDataSource().apply {
+            setUrl(container.jdbcUrl)
+            this.user = user
+            this.password = password
+        }
 
     companion object {
         const val APP = "outbox_app"

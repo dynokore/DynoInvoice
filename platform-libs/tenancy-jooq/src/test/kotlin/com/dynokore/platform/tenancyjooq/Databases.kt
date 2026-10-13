@@ -20,11 +20,12 @@ object Images {
 internal object Databases {
     private val started = ConcurrentHashMap<String, TenancyJooqFixture>()
 
-    fun of(image: String): TenancyJooqFixture = started.computeIfAbsent(image) {
-        TenancyJooqFixture(it, "classpath:db/tenancy-jooq-test").also { fixture ->
-            Runtime.getRuntime().addShutdownHook(Thread { fixture.close() })
+    fun of(image: String): TenancyJooqFixture =
+        started.computeIfAbsent(image) {
+            TenancyJooqFixture(it, "classpath:db/tenancy-jooq-test").also { fixture ->
+                Runtime.getRuntime().addShutdownHook(Thread { fixture.close() })
+            }
         }
-    }
 }
 
 /**
@@ -68,6 +69,7 @@ internal fun <T> TenancyJooqFixture.asTenant(
 ): T = tenants.bind(tenant, "tenancy-jooq-test") { transactions.inTransaction(block) }
 
 /** Runs [block] in a transaction bound to the platform tenant. */
-internal fun <T> TenancyJooqFixture.asPlatform(block: () -> T): T = platform.bindPlatform("tenancy-jooq-test") {
-    transactions.inTransaction(block)
-}
+internal fun <T> TenancyJooqFixture.asPlatform(block: () -> T): T =
+    platform.bindPlatform("tenancy-jooq-test") {
+        transactions.inTransaction(block)
+    }

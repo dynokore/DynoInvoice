@@ -46,26 +46,28 @@ class TenancySvcFallbackPactTest {
     }
 
     @Pact(consumer = Contracts.PRODUCT_RUNTIME)
-    fun structureNode(builder: PactDslWithProvider): V4Pact = builder
-        .given("structure node E-001 exists")
-        .uponReceiving("getEntityStructure for a node the structure replica does not hold")
-        .path("/internal/v1/tenancy/entities/E-001")
-        .method("GET")
-        .willRespondWith()
-        .status(200)
-        .headers(mapOf("Content-Type" to "application/json"))
-        .body(FOUND)
-        .toPact(V4Pact::class.java)
+    fun structureNode(builder: PactDslWithProvider): V4Pact =
+        builder
+            .given("structure node E-001 exists")
+            .uponReceiving("getEntityStructure for a node the structure replica does not hold")
+            .path("/internal/v1/tenancy/entities/E-001")
+            .method("GET")
+            .willRespondWith()
+            .status(200)
+            .headers(mapOf("Content-Type" to "application/json"))
+            .body(FOUND)
+            .toPact(V4Pact::class.java)
 
     @Pact(consumer = Contracts.PRODUCT_RUNTIME)
-    fun unknownNode(builder: PactDslWithProvider): V4Pact = builder
-        .given("no structure node E-404 exists")
-        .uponReceiving("getEntityStructure for an unknown node")
-        .path("/internal/v1/tenancy/entities/E-404")
-        .method("GET")
-        .willRespondWith()
-        .status(404)
-        .toPact(V4Pact::class.java)
+    fun unknownNode(builder: PactDslWithProvider): V4Pact =
+        builder
+            .given("no structure node E-404 exists")
+            .uponReceiving("getEntityStructure for an unknown node")
+            .path("/internal/v1/tenancy/entities/E-404")
+            .method("GET")
+            .willRespondWith()
+            .status(404)
+            .toPact(V4Pact::class.java)
 
     @Test
     @PactTestFor(pactMethod = "structureNode")

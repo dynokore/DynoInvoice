@@ -75,8 +75,9 @@ data class Envelope(
          * only types that may be written under `TenantId.PLATFORM` and travel without `tenantid` and
          * `entityref` (INV-Q-3018). A domain event always carries a real tenant (FR-K.3, INV-REQ-1162).
          */
-        fun isPlatformType(type: String): Boolean = type.startsWith(PLATFORM_TYPE_PREFIX) &&
-            type.removePrefix(PLATFORM_TYPE_PREFIX).substringBefore(".v") in PLATFORM_EVENTS
+        fun isPlatformType(type: String): Boolean =
+            type.startsWith(PLATFORM_TYPE_PREFIX) &&
+                type.removePrefix(PLATFORM_TYPE_PREFIX).substringBefore(".v") in PLATFORM_EVENTS
 
         private val SOURCE_PATTERN = Regex("^/gst/[a-z-]+$")
         private val TYPE_PATTERN = Regex("^com\\.dynokore\\.gst\\.[a-z-]+\\.[A-Za-z]+\\.v[0-9]+$")

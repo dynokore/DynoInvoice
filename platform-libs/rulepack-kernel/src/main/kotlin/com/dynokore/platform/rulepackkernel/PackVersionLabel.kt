@@ -9,7 +9,9 @@ package com.dynokore.platform.rulepackkernel
  * ordering, so this type need be no more than an identifier.
  */
 @JvmInline
-value class PackVersionLabel(val value: String) {
+value class PackVersionLabel(
+    val value: String,
+) {
     init {
         require(value.isNotBlank()) { "PackVersionLabel must not be blank" }
     }

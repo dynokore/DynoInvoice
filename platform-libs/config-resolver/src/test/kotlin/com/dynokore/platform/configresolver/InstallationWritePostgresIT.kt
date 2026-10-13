@@ -81,9 +81,10 @@ class InstallationWritePostgresIT {
             EventMode.OUTBOX -> {
                 assertEquals(listOf("audit", "event"), events.map { it.kind })
                 // Both rows carry the database time of the value (INV-Q-4316), their fixed type and topic, no document.
-                val rows = "select count(*) from svc.outbox where subject = 'config:VP-78:INSTALLATION' " +
-                    "and event_time = '$stored' and doc_uuid is null and transaction_date is null " +
-                    "and docsequence is null"
+                val rows =
+                    "select count(*) from svc.outbox where subject = 'config:VP-78:INSTALLATION' " +
+                        "and event_time = '$stored' and doc_uuid is null and transaction_date is null " +
+                        "and docsequence is null"
                 assertEquals(2L, h.count(rows))
                 val audit = "$rows and id = '${change.auditEventId}' and type = '${WriteHarness.AUDIT}'"
                 assertEquals(1L, h.count("$audit and topic = '${WriteHarness.AUDIT_TOPIC}'"))
@@ -157,19 +158,21 @@ class InstallationWritePostgresIT {
         // The audit row's id is taken already, so its insert fails after the value's (all or none, INV-Q-3931).
         val taken = args.audit.get("id").asString()
         when (mode) {
-            EventMode.OUTBOX ->
+            EventMode.OUTBOX -> {
                 h.asAdmin(
                     "insert into svc.outbox (id, topic, type, source, subject, event_time, tenant_id, entity_ref, " +
                         "instance_id, correlation_id, causation_id, data) values ('$taken', 't', 'x', '/gst/x', 's', " +
                         "now(), '${TenantId.PLATFORM.value}', 'x', 'i', 'c', 'c', '{}')",
                 )
+            }
 
-            EventMode.NO_OUTBOX ->
+            EventMode.NO_OUTBOX -> {
                 h.asAdmin(
                     "insert into svc.audit_entry (id, tenant_id, entity_ref, recorded_at, source, subject, " +
                         "instance_id, correlation_id, causation_id, actor, action, scope) values ('$taken', " +
                         "'${TenantId.PLATFORM.value}', 'x', now(), '/gst/x', 's', 'i', 'c', 'c', 'a', 'a', 'a')",
                 )
+            }
         }
         val counts = h.stored()
         val failure = assertThrows(SQLException::class.java) { h.callInstallation(args) }

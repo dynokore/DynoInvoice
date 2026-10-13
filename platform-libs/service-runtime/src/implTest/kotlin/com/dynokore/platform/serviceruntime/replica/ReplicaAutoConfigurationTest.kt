@@ -21,8 +21,12 @@ class ReplicaAutoConfigurationTest {
     private val contextRunner =
         ApplicationContextRunner()
             .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
-            .withConfiguration(AutoConfigurations.of(ServiceRuntimeConfiguration::class.java, L1CompositionAutoConfiguration::class.java))
-            .withPropertyValues("service-runtime.workload-identity.audience=canonical-svc")
+            .withConfiguration(
+                AutoConfigurations.of(
+                    ServiceRuntimeConfiguration::class.java,
+                    L1CompositionAutoConfiguration::class.java,
+                ),
+            ).withPropertyValues("service-runtime.workload-identity.audience=canonical-svc")
 
     @Test
     fun `the policy replica waits for every configured policy topic`() {

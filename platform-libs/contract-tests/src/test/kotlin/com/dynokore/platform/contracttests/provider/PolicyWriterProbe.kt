@@ -43,9 +43,10 @@ class PolicyWriterProbe(
                 override fun append(
                     events: List<OutboundEvent>,
                     context: EventContext,
-                ): List<Envelope> = events.map { event ->
-                    envelope(event, context, payload(event.dataJson)).also { emitted += envelopes.write(it) }
-                }
+                ): List<Envelope> =
+                    events.map { event ->
+                        envelope(event, context, payload(event.dataJson)).also { emitted += envelopes.write(it) }
+                    }
             }
         val writer =
             JdbcPolicyWriter(

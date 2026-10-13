@@ -3,7 +3,10 @@ package com.dynokore.platform.evidencestore
 import java.time.Instant
 
 /** What [ObjectStore.put] hands back: the key and the retention date the store committed to. */
-data class ObjectRef(val key: ObjectKey, val retainUntil: Instant)
+data class ObjectRef(
+    val key: ObjectKey,
+    val retainUntil: Instant,
+)
 
 /**
  * Object storage under object lock (STK-20, FR-9.10): compliance-mode

@@ -8,6 +8,10 @@ import org.flywaydb.core.api.migration.Context
 @Suppress("ClassName")
 class V1__Jobs : BaseJavaMigration() {
     override fun migrate(context: Context) {
-        context.connection.createStatement().use { it.execute(JobSchema.ddl("ledger", "submission_runtime", "submission_sys")) }
+        context.connection.createStatement().use {
+            it.execute(
+                JobSchema.ddl("ledger", "submission_runtime", "submission_sys"),
+            )
+        }
     }
 }

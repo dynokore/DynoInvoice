@@ -37,13 +37,14 @@ class TenancyStructureFallback(
         return FallbackResult.Found(node.toReplicaNode())
     }
 
-    private fun TenancyNode.toReplicaNode() = StructureNode(
-        kind = StructureNodeKind.of(kind.value),
-        parentRef = parentRef,
-        retired = retired,
-        name = name,
-        code = code,
-        profile = profile.map { ProfileEntry(it.attribute, it.`value`, it.effectiveDate) },
-        structureVersion = structureVersion,
-    )
+    private fun TenancyNode.toReplicaNode() =
+        StructureNode(
+            kind = StructureNodeKind.of(kind.value),
+            parentRef = parentRef,
+            retired = retired,
+            name = name,
+            code = code,
+            profile = profile.map { ProfileEntry(it.attribute, it.`value`, it.effectiveDate) },
+            structureVersion = structureVersion,
+        )
 }

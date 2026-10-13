@@ -25,13 +25,21 @@ object ProvisionalStalenessThresholds {
     val SUBMISSION_PATH_CONSUMERS: Set<String> = setOf("payload-svc", "submission-svc")
 
     /** The event names on the submission path (INV-Q-2991). */
-    val SUBMISSION_PATH_EVENTS: Set<String> = setOf("CanonicalVersionCreated", "PayloadReady", "PayloadRejected", "DocumentReleased")
+    val SUBMISSION_PATH_EVENTS: Set<String> =
+        setOf("CanonicalVersionCreated", "PayloadReady", "PayloadRejected", "DocumentReleased")
 
     /** The provisional threshold, and ceiling, of [consumer] for [eventType]. */
     fun of(
         consumer: String,
         eventType: String,
-    ): Duration = if (consumer in SUBMISSION_PATH_CONSUMERS && eventName(eventType) in SUBMISSION_PATH_EVENTS) SUBMISSION_PATH else OTHER
+    ): Duration =
+        if (consumer in SUBMISSION_PATH_CONSUMERS &&
+            eventName(eventType) in SUBMISSION_PATH_EVENTS
+        ) {
+            SUBMISSION_PATH
+        } else {
+            OTHER
+        }
 
     /**
      * The event name of a CloudEvents type `com.dynokore.gst.<service>.<EventName>.v<major>` (API-40), or [eventType]
@@ -39,7 +47,13 @@ object ProvisionalStalenessThresholds {
      */
     internal fun eventName(eventType: String): String {
         val segments = eventType.split('.')
-        return if (segments.size >= 2 && VERSION.matches(segments.last())) segments[segments.size - 2] else segments.last()
+        return if (segments.size >= 2 &&
+            VERSION.matches(segments.last())
+        ) {
+            segments[segments.size - 2]
+        } else {
+            segments.last()
+        }
     }
 
     private val VERSION = Regex("v\\d+")

@@ -101,18 +101,20 @@ class OutboxStageIT {
         c: Connection,
         tenant: UUID,
         id: String,
-    ): Int = c.prepareStatement(
-        "insert into payload.outbox (id, topic, type, source, subject, event_time, tenant_id, entity_ref, " +
-            "instance_id, correlation_id, causation_id, data) " +
-            "values (?, 'gst.platform.audit-entry-recorded.v1', ?, '/gst/payload-svc', 'k', now(), ?, ?, " +
-            "'i', 'c', 'c', '{}')",
-    ).use {
-        it.setString(1, id)
-        it.setString(2, TestCatalogue.AUDIT_ENTRY_RECORDED)
-        it.setObject(3, tenant)
-        it.setString(4, EntityRef.PLATFORM.value)
-        it.executeUpdate()
-    }
+    ): Int =
+        c
+            .prepareStatement(
+                "insert into payload.outbox (id, topic, type, source, subject, event_time, tenant_id, entity_ref, " +
+                    "instance_id, correlation_id, causation_id, data) " +
+                    "values (?, 'gst.platform.audit-entry-recorded.v1', ?, '/gst/payload-svc', 'k', now(), ?, ?, " +
+                    "'i', 'c', 'c', '{}')",
+            ).use {
+                it.setString(1, id)
+                it.setString(2, TestCatalogue.AUDIT_ENTRY_RECORDED)
+                it.setObject(3, tenant)
+                it.setString(4, EntityRef.PLATFORM.value)
+                it.executeUpdate()
+            }
 
     private fun assertRefused(
         c: Connection,
@@ -124,16 +126,17 @@ class OutboxStageIT {
         c.rollback(savepoint)
     }
 
-    private fun platformContext(key: String) = EventContext(
-        tenant = TenantId.PLATFORM,
-        entity = EntityRef.PLATFORM,
-        docUuid = null,
-        transactionDate = null,
-        aggregateKey = key,
-        aggregateVersion = null,
-        correlation = CorrelationId("corr-$key"),
-        causation = CausationId("cmd-$key"),
-    )
+    private fun platformContext(key: String) =
+        EventContext(
+            tenant = TenantId.PLATFORM,
+            entity = EntityRef.PLATFORM,
+            docUuid = null,
+            transactionDate = null,
+            aggregateKey = key,
+            aggregateVersion = null,
+            correlation = CorrelationId("corr-$key"),
+            causation = CausationId("cmd-$key"),
+        )
 
     private companion object {
         const val POLICY_CHANGED = "com.dynokore.gst.platform.PolicyChanged.v1"

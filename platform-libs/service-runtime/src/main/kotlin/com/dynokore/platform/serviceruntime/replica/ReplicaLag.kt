@@ -11,7 +11,9 @@ import java.time.Instant
  * replica falls back at once and an unbounded one serves what it has.
  */
 sealed interface Lag {
-    data class Measured(val duration: Duration) : Lag {
+    data class Measured(
+        val duration: Duration,
+    ) : Lag {
         init {
             require(!duration.isNegative) { "lag must not be negative, was $duration" }
         }
@@ -46,7 +48,9 @@ sealed interface Lag {
  * must reorder before it reaches the replica. Time comes from the injected [Clock]
  * (ARC-13).
  */
-class ReplicaLagTracker(private val clock: Clock) {
+class ReplicaLagTracker(
+    private val clock: Clock,
+) {
     private val lock = Any()
     private var applied = NONE
     private var head = NONE
@@ -55,53 +59,58 @@ class ReplicaLagTracker(private val clock: Clock) {
     private var disconnected = false
     private var synced = false
 
-    fun onApplied(version: Long) = synchronized(lock) {
-        applied = maxOf(applied, version)
-        head = maxOf(head, applied)
-        if (applied >= head) behindSince = null
-        lastContact = clock.instant()
-        disconnected = false
-    }
+    fun onApplied(version: Long) =
+        synchronized(lock) {
+            applied = maxOf(applied, version)
+            head = maxOf(head, applied)
+            if (applied >= head) behindSince = null
+            lastContact = clock.instant()
+            disconnected = false
+        }
 
-    fun observeHead(version: Long) = synchronized(lock) {
-        val now = clock.instant()
-        if (version > head) head = version
-        if (head > applied && behindSince == null) behindSince = now
-        if (head <= applied) behindSince = null
-        lastContact = now
-        disconnected = false
-    }
+    fun observeHead(version: Long) =
+        synchronized(lock) {
+            val now = clock.instant()
+            if (version > head) head = version
+            if (head > applied && behindSince == null) behindSince = now
+            if (head <= applied) behindSince = null
+            lastContact = now
+            disconnected = false
+        }
 
     /**
      * The feed has delivered everything up to [version] as a full sync or snapshot: the replica now
      * holds the source's state as of then, so lag can be measured. Called once per start.
      */
-    fun onSnapshotComplete(version: Long) = synchronized(lock) {
-        applied = maxOf(applied, version)
-        head = maxOf(head, applied)
-        if (applied >= head) behindSince = null
-        synced = true
-        lastContact = clock.instant()
-        disconnected = false
-    }
+    fun onSnapshotComplete(version: Long) =
+        synchronized(lock) {
+            applied = maxOf(applied, version)
+            head = maxOf(head, applied)
+            if (applied >= head) behindSince = null
+            synced = true
+            lastContact = clock.instant()
+            disconnected = false
+        }
 
     /** The feed has dropped. The lag of a caught-up replica now grows from the last contact. */
-    fun onDisconnected() = synchronized(lock) {
-        disconnected = true
-    }
+    fun onDisconnected() =
+        synchronized(lock) {
+            disconnected = true
+        }
 
     /** The highest version applied so far, or -1 before the first. */
     fun appliedVersion(): Long = synchronized(lock) { applied }
 
-    fun lag(): Lag = synchronized(lock) {
-        val contact = lastContact
-        if (!synced || contact == null) return Lag.Unknown
-        val now = clock.instant()
-        val sinceBehind = behindSince?.let { Duration.between(it, now) }
-        val sinceContact = if (disconnected) Duration.between(contact, now) else Duration.ZERO
-        val lag = listOfNotNull(sinceBehind, sinceContact).maxOrNull() ?: Duration.ZERO
-        Lag.Measured(if (lag.isNegative) Duration.ZERO else lag)
-    }
+    fun lag(): Lag =
+        synchronized(lock) {
+            val contact = lastContact
+            if (!synced || contact == null) return Lag.Unknown
+            val now = clock.instant()
+            val sinceBehind = behindSince?.let { Duration.between(it, now) }
+            val sinceContact = if (disconnected) Duration.between(contact, now) else Duration.ZERO
+            val lag = listOfNotNull(sinceBehind, sinceContact).maxOrNull() ?: Duration.ZERO
+            Lag.Measured(if (lag.isNegative) Duration.ZERO else lag)
+        }
 
     companion object {
         private const val NONE = -1L

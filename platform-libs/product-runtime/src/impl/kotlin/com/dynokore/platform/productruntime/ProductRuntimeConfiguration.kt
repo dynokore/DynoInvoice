@@ -52,11 +52,13 @@ data class ProductRuntimeProperties(
 class ProductRuntimeConfiguration {
     @Bean
     @ConditionalOnMissingBean(VariationPointCatalogue::class)
-    fun gstVariationPointCatalogue(environment: Environment): GstVariationPointCatalogue = GstVariationPointCatalogue(environment.getProperty("gst.service"))
+    fun gstVariationPointCatalogue(environment: Environment): GstVariationPointCatalogue =
+        GstVariationPointCatalogue(environment.getProperty("gst.service"))
 
     @Bean
     @ConditionalOnMissingBean(DelegationProbe::class)
-    fun authorityDelegationProbe(authority: ObjectProvider<AuthorityReplica>): DelegationProbe = AuthorityDelegationProbe { authority.ifAvailable }
+    fun authorityDelegationProbe(authority: ObjectProvider<AuthorityReplica>): DelegationProbe =
+        AuthorityDelegationProbe { authority.ifAvailable }
 
     @Bean
     @ConditionalOnMissingBean(StructureFallback::class)
@@ -64,9 +66,10 @@ class ProductRuntimeConfiguration {
     fun tenancyStructureFallback(
         @Qualifier("internalRestClientBuilder") builder: ObjectProvider<RestClient.Builder>,
         properties: ProductRuntimeProperties,
-    ): StructureFallback = TenancyStructureFallback(
-        EntitiesApi(builder.getObject().baseUrl(requireNotNull(properties.tenancySvcUrl)).build()),
-    )
+    ): StructureFallback =
+        TenancyStructureFallback(
+            EntitiesApi(builder.getObject().baseUrl(requireNotNull(properties.tenancySvcUrl)).build()),
+        )
 
     @Bean
     @ConditionalOnMissingBean(AuthorityFallback::class)
@@ -74,9 +77,10 @@ class ProductRuntimeConfiguration {
     fun accessAuthorityFallback(
         @Qualifier("internalRestClientBuilder") builder: ObjectProvider<RestClient.Builder>,
         properties: ProductRuntimeProperties,
-    ): AuthorityFallback = AccessAuthorityFallback(
-        AuthoriseApi(builder.getObject().baseUrl(requireNotNull(properties.accessSvcUrl)).build()),
-    )
+    ): AuthorityFallback =
+        AccessAuthorityFallback(
+            AuthoriseApi(builder.getObject().baseUrl(requireNotNull(properties.accessSvcUrl)).build()),
+        )
 
     @Bean
     fun structureFeedHandler(replica: StructureReplica): StructureFeedHandler = StructureFeedHandler(replica)

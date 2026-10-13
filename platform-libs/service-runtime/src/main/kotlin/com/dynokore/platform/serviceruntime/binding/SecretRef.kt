@@ -6,7 +6,9 @@ package com.dynokore.platform.serviceruntime.binding
  * carries no secret material (CS-24).
  */
 @JvmInline
-value class SecretRef(val value: String) {
+value class SecretRef(
+    val value: String,
+) {
     init {
         require(value.isNotBlank()) { "SecretRef must not be blank" }
         require("/../" !in "/$value/" && !value.startsWith("../") && value != "..") {

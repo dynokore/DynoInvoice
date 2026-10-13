@@ -16,7 +16,8 @@ class StalenessRulesTest {
         listOf("payload-svc", "submission-svc").forEach { consumer ->
             path.forEach { ProvisionalStalenessThresholds.of(consumer, type(it)) shouldBe Duration.ofMinutes(5) }
         }
-        ProvisionalStalenessThresholds.of("evidence-svc", type("CanonicalVersionCreated")) shouldBe Duration.ofMinutes(30)
+        ProvisionalStalenessThresholds.of("evidence-svc", type("CanonicalVersionCreated")) shouldBe
+            Duration.ofMinutes(30)
         ProvisionalStalenessThresholds.of("submission-svc", type("PolicyChanged")) shouldBe Duration.ofMinutes(30)
         ProvisionalStalenessThresholds.of("console-bff", "SubmissionAcknowledged") shouldBe Duration.ofMinutes(30)
     }
@@ -35,15 +36,20 @@ class StalenessRulesTest {
 
     @Test
     fun `a shorter installation value applies`() {
-        StalenessRules.resolve(listOf(StalenessProperties.Rule("submission-svc", CANONICAL, Duration.ofMinutes(2))))
-            .rules.single().threshold shouldBe Duration.ofMinutes(2)
+        StalenessRules
+            .resolve(listOf(StalenessProperties.Rule("submission-svc", CANONICAL, Duration.ofMinutes(2))))
+            .rules
+            .single()
+            .threshold shouldBe Duration.ofMinutes(2)
     }
 
     @Test
     fun `a longer installation value is refused, naming the rule`() {
         val refused =
             shouldThrow<IllegalStateException> {
-                StalenessRules.resolve(listOf(StalenessProperties.Rule("submission-svc", CANONICAL, Duration.ofMinutes(6))))
+                StalenessRules.resolve(
+                    listOf(StalenessProperties.Rule("submission-svc", CANONICAL, Duration.ofMinutes(6))),
+                )
             }
         refused.message shouldContain "consumer submission-svc on $CANONICAL"
         refused.message shouldContain "only tighten"
@@ -52,17 +58,27 @@ class StalenessRulesTest {
     @Test
     fun `a declared rule bean is held to the same ceiling`() {
         shouldThrow<IllegalStateException> {
-            StalenessRules.resolve(emptyList(), listOf(StalenessRule("evidence-svc", type("PolicyChanged"), Duration.ofMinutes(31))))
+            StalenessRules.resolve(
+                emptyList(),
+                listOf(StalenessRule("evidence-svc", type("PolicyChanged"), Duration.ofMinutes(31))),
+            )
         }.message shouldContain "consumer evidence-svc"
     }
 
     @Test
     fun `one rule per consumer and event type, and both are named`() {
         shouldThrow<IllegalStateException> {
-            StalenessRules.resolve(listOf(StalenessProperties.Rule("submission-svc", CANONICAL)), listOf(StalenessRule("submission-svc", CANONICAL, Duration.ofMinutes(1))))
+            StalenessRules.resolve(
+                listOf(StalenessProperties.Rule("submission-svc", CANONICAL)),
+                listOf(StalenessRule("submission-svc", CANONICAL, Duration.ofMinutes(1))),
+            )
         }
         shouldThrow<IllegalStateException> { StalenessRules.resolve(listOf(StalenessProperties.Rule("", CANONICAL))) }
-        shouldThrow<IllegalStateException> { StalenessRules.resolve(listOf(StalenessProperties.Rule("submission-svc", ""))) }
+        shouldThrow<IllegalStateException> {
+            StalenessRules.resolve(
+                listOf(StalenessProperties.Rule("submission-svc", "")),
+            )
+        }
     }
 
     private companion object {

@@ -80,7 +80,12 @@ class JdbcOutboxWriter(
         if (events.isEmpty()) return emptyList()
         val entries = permitted(events, context)
         val now = clock.instant().truncatedTo(ChronoUnit.MICROS)
-        return events.mapIndexed { index, event -> StagedOutboxRow(entries[index].topic, envelope(event, context, now, null)) }
+        return events.mapIndexed {
+            index,
+            event,
+            ->
+            StagedOutboxRow(entries[index].topic, envelope(event, context, now, null))
+        }
     }
 
     /** The catalogue entry of every event, checked for the whole batch before anything is built or written. */
@@ -94,7 +99,11 @@ class JdbcOutboxWriter(
         // event always carries a real tenant (FR-K.3). Checked for the whole batch before any row.
         if (context.tenant.isPlatform) {
             events.firstOrNull { !Envelope.isPlatformType(it.type) }?.let {
-                throw EmissionNotPermitted(service, it.type, "a domain event cannot be written under the platform tenant")
+                throw EmissionNotPermitted(
+                    service,
+                    it.type,
+                    "a domain event cannot be written under the platform tenant",
+                )
             }
         }
         // INV-Q-3165: the tenant-wide entity is for platform event types only (FR-K.3).
@@ -230,6 +239,7 @@ class JdbcOutboxWriter(
                 """.trimIndent(),
             ).use { statement ->
                 var column = 0
+
                 fun next() = ++column
                 statement.setString(next(), envelope.id.value)
                 statement.setString(next(), topic)

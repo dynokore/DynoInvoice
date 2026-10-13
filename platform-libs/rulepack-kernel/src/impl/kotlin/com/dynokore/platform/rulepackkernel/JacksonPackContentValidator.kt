@@ -29,11 +29,12 @@ class JacksonPackContentValidator(
     private val objectMapper: ObjectMapper = ObjectMapper(),
 ) : PackContentValidator {
     override fun validate(contents: ByteArray): ContentValidationOutcome {
-        val root = try {
-            objectMapper.readTree(contents)
-        } catch (failure: RuntimeException) {
-            return ContentValidationOutcome.Rejected("contents is not valid JSON: ${failure.message}")
-        }
+        val root =
+            try {
+                objectMapper.readTree(contents)
+            } catch (failure: RuntimeException) {
+                return ContentValidationOutcome.Rejected("contents is not valid JSON: ${failure.message}")
+            }
         val reason = scan(root, "$")
         return if (reason == null) ContentValidationOutcome.Accepted else ContentValidationOutcome.Rejected(reason)
     }
@@ -64,11 +65,12 @@ class JacksonPackContentValidator(
             return suspiciousTextReason(node.asString(""))?.let { "value at '$path' $it" }
         }
         if (node.isBinary) {
-            val bytes = try {
-                node.binaryValue()
-            } catch (_: RuntimeException) {
-                null
-            }
+            val bytes =
+                try {
+                    node.binaryValue()
+                } catch (_: RuntimeException) {
+                    null
+                }
             if (bytes != null && looksLikeCompiledCode(bytes)) {
                 return "value at '$path' is binary data carrying a compiled-code magic number"
             }
@@ -76,7 +78,10 @@ class JacksonPackContentValidator(
         return null
     }
 
-    private fun isForbiddenFieldName(name: String): Boolean = FORBIDDEN_FIELD_NAMES.any { name.equals(it, ignoreCase = true) }
+    private fun isForbiddenFieldName(name: String): Boolean =
+        FORBIDDEN_FIELD_NAMES.any {
+            name.equals(it, ignoreCase = true)
+        }
 
     private fun suspiciousTextReason(text: String): String? {
         val pattern = SCRIPT_PATTERNS.firstOrNull { it.containsMatchIn(text) }
@@ -99,9 +104,10 @@ class JacksonPackContentValidator(
         }
     }
 
-    private fun looksLikeCompiledCode(bytes: ByteArray): Boolean = COMPILED_CODE_MAGIC_NUMBERS.any { magic ->
-        bytes.size >= magic.size && magic.indices.all { i -> bytes[i] == magic[i] }
-    } || (bytes.isNotEmpty() && bytes[0] == '#'.code.toByte() && bytes.size > 1 && bytes[1] == '!'.code.toByte())
+    private fun looksLikeCompiledCode(bytes: ByteArray): Boolean =
+        COMPILED_CODE_MAGIC_NUMBERS.any { magic ->
+            bytes.size >= magic.size && magic.indices.all { i -> bytes[i] == magic[i] }
+        } || (bytes.isNotEmpty() && bytes[0] == '#'.code.toByte() && bytes.size > 1 && bytes[1] == '!'.code.toByte())
 
     companion object {
         // Deliberately narrower than a first guess might make it: "code" and "handler" read as
@@ -110,29 +116,47 @@ class JacksonPackContentValidator(
         // "handlers"). A name collides only when it names an *execution* concept specifically
         // (a class to instantiate, a script body, a callback), never a data field that happens to
         // share a word with one.
-        private val FORBIDDEN_FIELD_NAMES: Set<String> = setOf(
-            "script", "scripts", "handlerclass", "classname", "eval", "exec", "execute",
-            "function", "lambda", "bytecode", "jar", "dll", "shell", "command", "macro",
-            "expression", "callback", "plugin",
-        )
+        private val FORBIDDEN_FIELD_NAMES: Set<String> =
+            setOf(
+                "script",
+                "scripts",
+                "handlerclass",
+                "classname",
+                "eval",
+                "exec",
+                "execute",
+                "function",
+                "lambda",
+                "bytecode",
+                "jar",
+                "dll",
+                "shell",
+                "command",
+                "macro",
+                "expression",
+                "callback",
+                "plugin",
+            )
 
-        private val SCRIPT_PATTERNS: List<Regex> = listOf(
-            Regex("^#!"), // shebang
-            Regex("<script[\\s>]", RegexOption.IGNORE_CASE),
-            Regex("\\bfunction\\s*\\("),
-            Regex("\\beval\\s*\\("),
-            Regex("\\bnew\\s+ProcessBuilder\\b"),
-            Regex("\\bRuntime\\s*\\.\\s*getRuntime\\s*\\("),
-            Regex("^\\s*import\\s+java\\."),
-            Regex("\\bclass\\s+\\w+\\s*\\{"),
-        )
+        private val SCRIPT_PATTERNS: List<Regex> =
+            listOf(
+                Regex("^#!"), // shebang
+                Regex("<script[\\s>]", RegexOption.IGNORE_CASE),
+                Regex("\\bfunction\\s*\\("),
+                Regex("\\beval\\s*\\("),
+                Regex("\\bnew\\s+ProcessBuilder\\b"),
+                Regex("\\bRuntime\\s*\\.\\s*getRuntime\\s*\\("),
+                Regex("^\\s*import\\s+java\\."),
+                Regex("\\bclass\\s+\\w+\\s*\\{"),
+            )
 
         // JVM .class (CAFEBABE), ELF, and Windows PE ("MZ") magic numbers.
-        private val COMPILED_CODE_MAGIC_NUMBERS: List<ByteArray> = listOf(
-            byteArrayOf(0xCA.toByte(), 0xFE.toByte(), 0xBA.toByte(), 0xBE.toByte()),
-            byteArrayOf(0x7F, 'E'.code.toByte(), 'L'.code.toByte(), 'F'.code.toByte()),
-            byteArrayOf('M'.code.toByte(), 'Z'.code.toByte()),
-        )
+        private val COMPILED_CODE_MAGIC_NUMBERS: List<ByteArray> =
+            listOf(
+                byteArrayOf(0xCA.toByte(), 0xFE.toByte(), 0xBA.toByte(), 0xBE.toByte()),
+                byteArrayOf(0x7F, 'E'.code.toByte(), 'L'.code.toByte(), 'F'.code.toByte()),
+                byteArrayOf('M'.code.toByte(), 'Z'.code.toByte()),
+            )
 
         private val BASE64_SHAPE = Regex("^[A-Za-z0-9+/]+={0,2}$")
     }

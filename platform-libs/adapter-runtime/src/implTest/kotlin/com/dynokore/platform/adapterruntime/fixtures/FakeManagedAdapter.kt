@@ -15,7 +15,9 @@ import kotlin.concurrent.withLock
  * [drainAndStop] really does wait for it (INV-REQ-1354) rather than merely changing
  * state.
  */
-class FakeManagedAdapter(override val version: AdapterVersion) : ManagedAdapter {
+class FakeManagedAdapter(
+    override val version: AdapterVersion,
+) : ManagedAdapter {
     @Volatile
     override var state: AdapterState = AdapterState.STARTING
         private set
@@ -29,14 +31,16 @@ class FakeManagedAdapter(override val version: AdapterVersion) : ManagedAdapter 
     }
 
     /** Marks one unit of work as accepted; call [finishWork] when it completes. */
-    fun beginWork() = lock.withLock {
-        activeCalls += 1
-    }
+    fun beginWork() =
+        lock.withLock {
+            activeCalls += 1
+        }
 
-    fun finishWork() = lock.withLock {
-        activeCalls -= 1
-        noActiveCalls.signalAll()
-    }
+    fun finishWork() =
+        lock.withLock {
+            activeCalls -= 1
+            noActiveCalls.signalAll()
+        }
 
     override fun drainAndStop(deadline: Instant) {
         if (state != AdapterState.STOPPED) state = AdapterState.DRAINING

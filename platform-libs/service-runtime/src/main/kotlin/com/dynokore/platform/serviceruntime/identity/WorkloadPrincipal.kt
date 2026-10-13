@@ -9,7 +9,9 @@ package com.dynokore.platform.serviceruntime.identity
  *   purges).
  * - [job], `svc:<svc>/job:<job>`: one job's runs, bound by the job runtime.
  */
-class WorkloadPrincipal(val service: String) {
+class WorkloadPrincipal(
+    val service: String,
+) {
     init {
         require(SERVICE.matches(service)) { "gst.service must be a lower-case service name like 'submission-svc'" }
     }

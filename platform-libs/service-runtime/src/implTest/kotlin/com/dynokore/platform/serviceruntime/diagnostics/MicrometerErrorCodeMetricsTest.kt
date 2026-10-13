@@ -19,8 +19,15 @@ class MicrometerErrorCodeMetricsTest {
         repeat(25) { metrics.increment("RUL-001", "entity-42", "2026-09") }
 
         registry
-            .counter(MicrometerErrorCodeMetrics.METER_NAME, "code", "RUL-001", "entity", "entity-42", "period", "2026-09")
-            .count() shouldBe 25.0
+            .counter(
+                MicrometerErrorCodeMetrics.METER_NAME,
+                "code",
+                "RUL-001",
+                "entity",
+                "entity-42",
+                "period",
+                "2026-09",
+            ).count() shouldBe 25.0
     }
 
     @Test
@@ -32,11 +39,25 @@ class MicrometerErrorCodeMetricsTest {
         metrics.increment("RUL-001", "entity-43", "2026-09")
 
         registry
-            .counter(MicrometerErrorCodeMetrics.METER_NAME, "code", "RUL-001", "entity", "entity-42", "period", "2026-09")
-            .count() shouldBe 1.0
+            .counter(
+                MicrometerErrorCodeMetrics.METER_NAME,
+                "code",
+                "RUL-001",
+                "entity",
+                "entity-42",
+                "period",
+                "2026-09",
+            ).count() shouldBe 1.0
         registry
-            .counter(MicrometerErrorCodeMetrics.METER_NAME, "code", "RUL-001", "entity", "entity-43", "period", "2026-09")
-            .count() shouldBe 1.0
+            .counter(
+                MicrometerErrorCodeMetrics.METER_NAME,
+                "code",
+                "RUL-001",
+                "entity",
+                "entity-43",
+                "period",
+                "2026-09",
+            ).count() shouldBe 1.0
     }
 
     @Test

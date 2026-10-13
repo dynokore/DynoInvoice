@@ -19,31 +19,36 @@ class JdbcConfigPurge(
     private val purgeSubject = "${SqlIdentifier.require(schema, "schema")}.${ConfigSchema.PURGE_SUBJECT}"
     private val purgeTenant = "${SqlIdentifier.require(schema, "schema")}.${ConfigSchema.PURGE_TENANT}"
 
-    override fun purgeSubject(subject: ResolutionSubject): Int = connections.require().prepareStatement(
-        "select $purgeSubject(?, ?)",
-    ).use {
-        it.setString(1, subject.type)
-        it.setString(2, subject.ref)
-        it.executeQuery().use { rows ->
-            check(rows.next()) { "the purge returned no count" }
-            Math.toIntExact(rows.getLong(1))
-        }
-    }
+    override fun purgeSubject(subject: ResolutionSubject): Int =
+        connections
+            .require()
+            .prepareStatement(
+                "select $purgeSubject(?, ?)",
+            ).use {
+                it.setString(1, subject.type)
+                it.setString(2, subject.ref)
+                it.executeQuery().use { rows ->
+                    check(rows.next()) { "the purge returned no count" }
+                    Math.toIntExact(rows.getLong(1))
+                }
+            }
 
     override fun purgeTenant(tenant: TenantId): PurgedTenant {
         require(!tenant.isPlatform) { "the platform tenant holds no configuration rows" }
-        return connections.require().prepareStatement(
-            "select resolved_values, settings, relaxation_acknowledgements from $purgeTenant(?)",
-        ).use {
-            it.setObject(1, tenant.value)
-            it.executeQuery().use { rows ->
-                check(rows.next()) { "the purge returned no counts" }
-                PurgedTenant(
-                    resolvedValues = Math.toIntExact(rows.getLong(1)),
-                    settings = Math.toIntExact(rows.getLong(2)),
-                    relaxationAcknowledgements = Math.toIntExact(rows.getLong(3)),
-                )
+        return connections
+            .require()
+            .prepareStatement(
+                "select resolved_values, settings, relaxation_acknowledgements from $purgeTenant(?)",
+            ).use {
+                it.setObject(1, tenant.value)
+                it.executeQuery().use { rows ->
+                    check(rows.next()) { "the purge returned no counts" }
+                    PurgedTenant(
+                        resolvedValues = Math.toIntExact(rows.getLong(1)),
+                        settings = Math.toIntExact(rows.getLong(2)),
+                        relaxationAcknowledgements = Math.toIntExact(rows.getLong(3)),
+                    )
+                }
             }
-        }
     }
 }

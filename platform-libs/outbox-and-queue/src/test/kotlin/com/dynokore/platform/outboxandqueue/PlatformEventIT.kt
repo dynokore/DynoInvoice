@@ -128,55 +128,59 @@ class PlatformEventIT {
         }
     }
 
-    private fun tenantlessDomainRecord(doc: UUID) = MAPPER.createObjectNode().apply {
-        put("specversion", "1.0")
-        put("id", UUID.randomUUID().toString())
-        put("source", "/gst/payload-svc")
-        put("type", TestCatalogue.PAYLOAD_READY)
-        put("subject", doc.toString())
-        put("time", "2026-10-01T00:00:00Z")
-        put("datacontenttype", "application/json")
-        put("instanceid", "payload-svc-1")
-        put("correlationid", "c")
-        put("causationid", "k")
-        set("data", MAPPER.readTree("""{"version":1}"""))
-    }
+    private fun tenantlessDomainRecord(doc: UUID) =
+        MAPPER.createObjectNode().apply {
+            put("specversion", "1.0")
+            put("id", UUID.randomUUID().toString())
+            put("source", "/gst/payload-svc")
+            put("type", TestCatalogue.PAYLOAD_READY)
+            put("subject", doc.toString())
+            put("time", "2026-10-01T00:00:00Z")
+            put("datacontenttype", "application/json")
+            put("instanceid", "payload-svc-1")
+            put("correlationid", "c")
+            put("causationid", "k")
+            set("data", MAPPER.readTree("""{"version":1}"""))
+        }
 
     private fun audit(who: String) = OutboundEvent(TestCatalogue.AUDIT_ENTRY_RECORDED, """{"who":"$who"}""")
 
-    private fun platformContext(key: String) = EventContext(
-        tenant = TenantId.PLATFORM,
-        entity = EntityRef.PLATFORM,
-        docUuid = null,
-        transactionDate = null,
-        aggregateKey = key,
-        aggregateVersion = 1,
-        correlation = CorrelationId("corr-$key"),
-        causation = CausationId("cmd-$key"),
-    )
+    private fun platformContext(key: String) =
+        EventContext(
+            tenant = TenantId.PLATFORM,
+            entity = EntityRef.PLATFORM,
+            docUuid = null,
+            transactionDate = null,
+            aggregateKey = key,
+            aggregateVersion = 1,
+            correlation = CorrelationId("corr-$key"),
+            causation = CausationId("cmd-$key"),
+        )
 
-    private fun ServiceKit.auditContext(tenant: UUID) = EventContext(
-        tenant = TenantId(tenant),
-        entity = EntityRef("entity-1"),
-        docUuid = null,
-        transactionDate = LocalDate.of(2026, 9, 30),
-        aggregateKey = "job-a",
-        aggregateVersion = 1,
-        correlation = CorrelationId("corr-$tenant"),
-        causation = CausationId("cmd-$service"),
-    )
+    private fun ServiceKit.auditContext(tenant: UUID) =
+        EventContext(
+            tenant = TenantId(tenant),
+            entity = EntityRef("entity-1"),
+            docUuid = null,
+            transactionDate = LocalDate.of(2026, 9, 30),
+            aggregateKey = "job-a",
+            aggregateVersion = 1,
+            correlation = CorrelationId("corr-$tenant"),
+            causation = CausationId("cmd-$service"),
+        )
 
     /** Rows of [table] with [owner]'s tenant id visible in the open transaction. */
     private fun ServiceKit.visible(
         table: String,
         owner: TenantId,
-    ): Int = boundary.require().prepareStatement("select count(*) from $table where tenant_id = ?").use {
-        it.setObject(1, owner.value)
-        it.executeQuery().use { rows ->
-            rows.next()
-            rows.getInt(1)
+    ): Int =
+        boundary.require().prepareStatement("select count(*) from $table where tenant_id = ?").use {
+            it.setObject(1, owner.value)
+            it.executeQuery().use { rows ->
+                rows.next()
+                rows.getInt(1)
+            }
         }
-    }
 
     private companion object {
         val MAPPER = tools.jackson.databind.ObjectMapper()

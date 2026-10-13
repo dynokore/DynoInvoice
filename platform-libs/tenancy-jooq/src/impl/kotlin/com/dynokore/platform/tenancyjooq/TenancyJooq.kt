@@ -54,10 +54,11 @@ object TenancyJooq {
         tables: Map<Name, TableClass>,
         tenants: TenantContext,
         transactionRunner: TransactionRunner,
-    ): DSLContext = configure(
-        DefaultConfiguration().set(SQLDialect.POSTGRES),
-        TenancyTables.declared(tables),
-        tenants,
-        transactionRunner,
-    ).dsl()
+    ): DSLContext =
+        configure(
+            DefaultConfiguration().set(SQLDialect.POSTGRES),
+            TenancyTables.declared(tables),
+            tenants,
+            transactionRunner,
+        ).dsl()
 }

@@ -57,14 +57,15 @@ object PackFixtures {
     ): X509CertificateHolder {
         val now = Instant.now()
         val subject = X500Name("CN=$commonName")
-        val builder: X509v3CertificateBuilder = JcaX509v3CertificateBuilder(
-            subject,
-            BigInteger.valueOf(now.toEpochMilli()),
-            Date.from(now.minus(1, ChronoUnit.DAYS)),
-            Date.from(now.plus(3650, ChronoUnit.DAYS)),
-            subject,
-            keyPair.public,
-        )
+        val builder: X509v3CertificateBuilder =
+            JcaX509v3CertificateBuilder(
+                subject,
+                BigInteger.valueOf(now.toEpochMilli()),
+                Date.from(now.minus(1, ChronoUnit.DAYS)),
+                Date.from(now.plus(3650, ChronoUnit.DAYS)),
+                subject,
+                keyPair.public,
+            )
         return builder.build(contentSigner(keyPair.private))
     }
 
@@ -103,7 +104,7 @@ object PackFixtures {
             {"packId":"$packId","packType":"$packType","version":"$version",
              "effectiveFrom":"$effectiveFrom","effectiveTo":$effectiveToJson,
              "minEngineVersion":"$minEngineVersion"}
-        """.trimIndent().toByteArray()
+            """.trimIndent().toByteArray()
     }
 
     fun checksumsJson(contents: ByteArray): ByteArray = """{"contents":"${sha256Hex(contents)}"}""".toByteArray()

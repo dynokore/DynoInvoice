@@ -8,7 +8,9 @@ package com.dynokore.platform.evidencestore
  * CS-06: a value class, never a bare `String`.
  */
 @JvmInline
-value class PeriodRef(val value: String) {
+value class PeriodRef(
+    val value: String,
+) {
     init {
         require(value.isNotBlank()) { "PeriodRef must not be blank" }
     }

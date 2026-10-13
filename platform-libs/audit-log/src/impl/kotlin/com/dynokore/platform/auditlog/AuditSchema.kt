@@ -159,7 +159,9 @@ object AuditSchema {
         val runtime = SqlIdentifier.require(runtimeRole, "runtime role")
         val sys = SqlIdentifier.require(sysRole, "sys role")
         require(runtime != sys) { "the runtime login and the sys role must differ, both were '$runtime'" }
-        require(SERVICE.matches(service)) { "service must be a lower-case name like 'control-plane-svc', was '$service'" }
+        require(
+            SERVICE.matches(service),
+        ) { "service must be a lower-case name like 'control-plane-svc', was '$service'" }
         // The service name has hyphens, so it enters the SQL text in its identifier form and is restored in SQL.
         val svc = SqlIdentifier.require(service.replace('-', '_'), "service")
         return """
@@ -232,7 +234,7 @@ object AuditSchema {
             revoke all on function $s.$PURGE_AUDIT_ENTRIES($PURGE_ARGUMENTS) from public;
             grant execute on function $s.$PURGE_AUDIT_ENTRIES($PURGE_ARGUMENTS) to $runtime;
             revoke create on schema $s from $sys;
-        """.trimIndent()
+            """.trimIndent()
     }
 
     private val SERVICE = Regex("^[a-z][a-z-]*$")

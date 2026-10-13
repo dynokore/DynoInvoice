@@ -45,11 +45,14 @@ class JdbcPolicyHistory(
                         null
                     }
                 val since =
-                    scope.chain()
+                    scope
+                        .chain()
                         .filter { it.level in definition.scopeLevels }
                         .flatMap { writes.versions(connections.require(), key, scope.target(it.level)) }
-                        .filter { it.effectiveFrom > date || it.recordedAt.atZone(BusinessDate.ZONE).toLocalDate() > date }
-                        .sortedBy { it.recordedAt }
+                        .filter {
+                            it.effectiveFrom > date ||
+                                it.recordedAt.atZone(BusinessDate.ZONE).toLocalDate() > date
+                        }.sortedBy { it.recordedAt }
                 AsOfEntry(key, inForce, since)
             }
         return ConfigurationAsOf(scope, date, entries)
@@ -69,7 +72,11 @@ class JdbcPolicyHistory(
             newer = newer,
             addedOptions = newerKeys.keys.filter { it !in olderKeys },
             removedOptions = olderKeys.keys.filter { it !in newerKeys },
-            changedValues = newerKeys.keys.filter { it in olderKeys && olderKeys[it]?.valueJson != newerKeys[it]?.valueJson },
+            changedValues =
+                newerKeys.keys.filter {
+                    it in olderKeys &&
+                        olderKeys[it]?.valueJson != newerKeys[it]?.valueJson
+                },
         )
     }
 }

@@ -38,11 +38,12 @@ data class UnrelayedEventProperties(
     }
 
     /** The check's settings for [retention], or the 7-day floor without one; refuses an invalid [margin]. */
-    fun settings(retention: Retention?): UnrelayedEventSettings = if (retention != null) {
-        UnrelayedEventSettings.forRetention(retention, margin)
-    } else {
-        UnrelayedEventSettings(Retention.FLOOR, margin)
-    }
+    fun settings(retention: Retention?): UnrelayedEventSettings =
+        if (retention != null) {
+            UnrelayedEventSettings.forRetention(retention, margin)
+        } else {
+            UnrelayedEventSettings(Retention.FLOOR, margin)
+        }
 
     companion object {
         const val PREFIX = "service-runtime.unrelayed-events"
@@ -95,13 +96,17 @@ class UnrelayedEventGauge(
 
     /** Runs the check and updates the gauge; returns the open count, or null when the check failed. */
     @Suppress("TooGenericExceptionCaught")
-    fun refresh(): Int? = try {
-        check.check().open.size.also { value.set(it.toDouble()) }
-    } catch (e: Exception) {
-        log.error("unrelayed-event check failed, gauge withdrawn: {}", e.javaClass.simpleName)
-        value.set(Double.NaN)
-        null
-    }
+    fun refresh(): Int? =
+        try {
+            check
+                .check()
+                .open.size
+                .also { value.set(it.toDouble()) }
+        } catch (e: Exception) {
+            log.error("unrelayed-event check failed, gauge withdrawn: {}", e.javaClass.simpleName)
+            value.set(Double.NaN)
+            null
+        }
 
     companion object {
         /** Rendered by the Prometheus registry as `gst_platform_outbox_unrelayed_events_open`. */
@@ -123,7 +128,9 @@ class UnrelayedEventCheckSchedule(
         if (scheduler != null) return
         scheduler =
             Executors.newSingleThreadScheduledExecutor(Thread.ofVirtual().name(NAME).factory()).also {
-                it.scheduleWithFixedDelay({ PoolLanes.inLane(PoolLane.BACKGROUND) { gauge.refresh() } }, 0, interval.toMillis(), TimeUnit.MILLISECONDS)
+                it.scheduleWithFixedDelay({
+                    PoolLanes.inLane(PoolLane.BACKGROUND) { gauge.refresh() }
+                }, 0, interval.toMillis(), TimeUnit.MILLISECONDS)
             }
     }
 

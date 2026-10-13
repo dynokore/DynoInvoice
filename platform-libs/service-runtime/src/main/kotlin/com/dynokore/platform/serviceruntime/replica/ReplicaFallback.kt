@@ -5,7 +5,9 @@ import com.dynokore.platform.serviceruntime.resilience.ResilientEdge
 
 /** What a synchronous fallback call to the owning service came back with. */
 sealed interface FallbackResult<out V> {
-    data class Found<V>(val value: V) : FallbackResult<V>
+    data class Found<V>(
+        val value: V,
+    ) : FallbackResult<V>
 
     /** The owner answered and has no such thing. */
     data object NotFound : FallbackResult<Nothing>

@@ -9,7 +9,9 @@ package com.dynokore.platform.evidencestore
  * cannot be transposed by argument order at a call site.
  */
 @JvmInline
-value class EntityRef(val value: String) {
+value class EntityRef(
+    val value: String,
+) {
     init {
         require(value.isNotBlank()) { "EntityRef must not be blank" }
     }

@@ -83,9 +83,11 @@ class PrecedenceResolver(
                 }
                 val policySource =
                     when (source) {
-                        SettingSource.OVERRIDE -> PolicySource.Override(ref.level, ref.id, found.id)
+                        SettingSource.OVERRIDE -> {
+                            PolicySource.Override(ref.level, ref.id, found.id)
+                        }
 
-                        SettingSource.PROFILE ->
+                        SettingSource.PROFILE -> {
                             PolicySource.Profile(
                                 checkNotNull(found.profileId),
                                 checkNotNull(found.profileVersion),
@@ -93,6 +95,7 @@ class PrecedenceResolver(
                                 ref.id,
                                 found.id,
                             )
+                        }
                     }
                 val resolved = ResolvedSetting(definition.key, at, found.selected, policySource)
                 return capped(definition, scope, ref.level, resolved)
@@ -132,7 +135,17 @@ class PrecedenceResolver(
         at: LocalDate,
     ): ResolvedSetting {
         val keys = definition.defaultKeys(form) ?: throw ElectionRequired(definition.key)
-        val selected = keys.map { SelectedOption(it, definition.option(it)?.typedValue?.let(::defaultValue)?.toString()) }
+        val selected =
+            keys.map {
+                SelectedOption(
+                    it,
+                    definition
+                        .option(it)
+                        ?.typedValue
+                        ?.let(::defaultValue)
+                        ?.toString(),
+                )
+            }
         return ResolvedSetting(definition.key, at, selected, PolicySource.CatalogueDefault)
     }
 
@@ -141,17 +154,22 @@ class PrecedenceResolver(
      * resolves as `{"window":4}` (INV-Q-3320, INV-Q-3548): a number with a numeric [TypedValueSpec.default], or
      * a record whose every field has one; `null` (no value) otherwise.
      */
-    private fun defaultValue(spec: TypedValueSpec): JsonNode? = when {
-        spec.type.numeric -> spec.default?.number?.let { JsonNodeFactory.instance.numberNode(it) }
+    private fun defaultValue(spec: TypedValueSpec): JsonNode? =
+        when {
+            spec.type.numeric -> {
+                spec.default?.number?.let { JsonNodeFactory.instance.numberNode(it) }
+            }
 
-        spec.type == ValueType.RECORD -> {
-            val node = JsonNodeFactory.instance.objectNode()
-            spec.fields.forEach { (name, field) -> node.set(name, defaultValue(field) ?: return null) }
-            node
+            spec.type == ValueType.RECORD -> {
+                val node = JsonNodeFactory.instance.objectNode()
+                spec.fields.forEach { (name, field) -> node.set(name, defaultValue(field) ?: return null) }
+                node
+            }
+
+            else -> {
+                null
+            }
         }
-
-        else -> null
-    }
 
     private companion object {
         /** The setting id of a per-object value: the owning service stores it, config-resolver has no row. */

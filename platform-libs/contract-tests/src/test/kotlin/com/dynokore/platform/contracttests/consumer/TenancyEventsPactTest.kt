@@ -41,34 +41,36 @@ class TenancyEventsPactTest {
     }
 
     @Pact(consumer = Contracts.PRODUCT_RUNTIME)
-    fun structureChanged(builder: MessagePactBuilder): V4Pact = builder
-        .given("entity E-001 moved under group G-1")
-        .expectsToReceive("an OrganisationStructureChanged carrying the full node")
-        .withContent(
-            Contracts.envelope(ProductEventTypes.ORGANISATION_STRUCTURE_CHANGED, SOURCE, true, true) {
-                stringMatcher("nodeType", "^[A-Z_]+$", "ENTITY")
-                stringType("nodeRef", "E-001")
-                stringMatcher("changeType", "^[A-Z_]+$", "MOVED")
-                node(this)
-            },
-        ).toPact(V4Pact::class.java)
+    fun structureChanged(builder: MessagePactBuilder): V4Pact =
+        builder
+            .given("entity E-001 moved under group G-1")
+            .expectsToReceive("an OrganisationStructureChanged carrying the full node")
+            .withContent(
+                Contracts.envelope(ProductEventTypes.ORGANISATION_STRUCTURE_CHANGED, SOURCE, true, true) {
+                    stringMatcher("nodeType", "^[A-Z_]+$", "ENTITY")
+                    stringType("nodeRef", "E-001")
+                    stringMatcher("changeType", "^[A-Z_]+$", "MOVED")
+                    node(this)
+                },
+            ).toPact(V4Pact::class.java)
 
     @Pact(consumer = Contracts.PRODUCT_RUNTIME)
-    fun profileChanged(builder: MessagePactBuilder): V4Pact = builder
-        .given("entity E-001's GST registration number changed")
-        .expectsToReceive("an EntityProfileChanged carrying the full node")
-        .withContent(
-            Contracts.envelope(ProductEventTypes.ENTITY_PROFILE_CHANGED, SOURCE, true, true) {
-                stringType("entityRef", "E-001")
-                minArrayLike("changedAttributes", 1)
-                    .stringType("attribute", "gstRegistrationNumber")
-                    .stringType("newValue", "M90312345A")
-                    .closeObject()!!
-                    .closeArray()
-                stringMatcher("effectiveDate", Contracts.DATE, "2026-01-01")
-                node(this)
-            },
-        ).toPact(V4Pact::class.java)
+    fun profileChanged(builder: MessagePactBuilder): V4Pact =
+        builder
+            .given("entity E-001's GST registration number changed")
+            .expectsToReceive("an EntityProfileChanged carrying the full node")
+            .withContent(
+                Contracts.envelope(ProductEventTypes.ENTITY_PROFILE_CHANGED, SOURCE, true, true) {
+                    stringType("entityRef", "E-001")
+                    minArrayLike("changedAttributes", 1)
+                        .stringType("attribute", "gstRegistrationNumber")
+                        .stringType("newValue", "M90312345A")
+                        .closeObject()!!
+                        .closeArray()
+                    stringMatcher("effectiveDate", Contracts.DATE, "2026-01-01")
+                    node(this)
+                },
+            ).toPact(V4Pact::class.java)
 
     @Test
     @PactTestFor(pactMethod = "structureChanged")
@@ -90,7 +92,9 @@ class TenancyEventsPactTest {
         Contracts.assertPayloadConforms(SCHEMA_PROFILE, Contracts.text(message))
         val event = read(message).shouldBeInstanceOf<EntityProfileChanged>()
         event.entityRef shouldBe "E-001"
-        event.node.profile.single().effectiveDate shouldBe LocalDate.of(2026, 1, 1)
+        event.node.profile
+            .single()
+            .effectiveDate shouldBe LocalDate.of(2026, 1, 1)
     }
 
     private companion object {
@@ -100,7 +104,8 @@ class TenancyEventsPactTest {
 
         /** The full-state node both events carry (INV-T-3298), with the fields the structure replica keeps. */
         fun node(payload: PactDslJsonBody) {
-            payload.`object`("node")
+            payload
+                .`object`("node")
                 .stringMatcher("kind", "^[A-Z_]+$", "ENTITY")
                 .stringType("parentRef", "G-1")
                 .booleanType("retired", false)

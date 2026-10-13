@@ -184,7 +184,8 @@ class JobContractIT {
         val def = job("ac3041-despatch")
         replica.runtime.register(def, entities) { processed += it.target }
 
-        replica.inA { runNow(request(engineer, def.name, E1)) }
+        replica
+            .inA { runNow(request(engineer, def.name, E1)) }
             .shouldBeInstanceOf<JobCommandOutcome.Done<JobRunState>>()
         replica.inA { runNow(request(engineer, def.name, null)) } shouldBe
             JobCommandOutcome.Refused(JobErrorCode.SCOPE_NOT_PERMITTED)
@@ -195,8 +196,10 @@ class JobContractIT {
         h.runs(def.name) shouldHaveSize 1
 
         // The platform operator role runs the whole job, under the platform tenant.
-        replica.inA { runNow(request(operator, def.name, null)) }
-            .shouldBeInstanceOf<JobCommandOutcome.Done<JobRunState>>().state.target shouldBe JobTarget.Whole
+        replica
+            .inA { runNow(request(operator, def.name, null)) }
+            .shouldBeInstanceOf<JobCommandOutcome.Done<JobRunState>>()
+            .state.target shouldBe JobTarget.Whole
         processed.last() shouldBe JobTarget.Whole
         h.runs(def.name).map { it["tenant_id"] } shouldContainExactlyInAnyOrder
             listOf(TENANT_A.value, TenantId.PLATFORM.value)
@@ -355,9 +358,15 @@ class JobContractIT {
         val def = job("q3531-platform", scope = JobEntityScope.PLATFORM, criticality = JobCriticality.DEADLINE_CRITICAL)
         replica.runtime.register(def) { }
 
-        replica.inA { pause(request(operator, def.name, null), START.plus(Duration.ofHours(3)).plusSeconds(1)) } shouldBe
+        replica.inA {
+            pause(
+                request(operator, def.name, null),
+                START.plus(Duration.ofHours(3)).plusSeconds(1),
+            )
+        } shouldBe
             JobCommandOutcome.Refused(JobErrorCode.PAUSE_PAST_DEADLINE)
-        replica.inA { pause(request(operator, def.name, null), START.plus(Duration.ofHours(3))) }
+        replica
+            .inA { pause(request(operator, def.name, null), START.plus(Duration.ofHours(3))) }
             .shouldBeInstanceOf<JobCommandOutcome.Done<JobPauseState>>()
     }
 
@@ -378,16 +387,23 @@ class JobContractIT {
 
         replica.inA { pause(request(operator, def.name, null), START.plus(Duration.ofHours(5))) } shouldBe
             JobCommandOutcome.Refused(JobErrorCode.PAUSE_PAST_DEADLINE)
-        replica.inA { pause(request(operator, def.name, null), START.plus(Duration.ofHours(3))) }
+        replica
+            .inA { pause(request(operator, def.name, null), START.plus(Duration.ofHours(3))) }
             .shouldBeInstanceOf<JobCommandOutcome.Done<JobPauseState>>()
 
         clock.advance(Duration.ofHours(1))
-        replica.runtime.fire(def.name).values.toSet() shouldBe setOf(FireResult.SKIPPED_PAUSED)
+        replica.runtime
+            .fire(def.name)
+            .values
+            .toSet() shouldBe setOf(FireResult.SKIPPED_PAUSED)
 
         // The earliest bound moves to 02:00: the job-wide pause lapses there for every entity.
         deadlines.due[JobTarget.Whole] = START.plus(Duration.ofHours(3))
         clock.advance(Duration.ofHours(1))
-        replica.runtime.fire(def.name).values.toSet() shouldBe setOf(FireResult.RAN)
+        replica.runtime
+            .fire(def.name)
+            .values
+            .toSet() shouldBe setOf(FireResult.RAN)
         val ended = h.rows("select ended_at from submission.job_pause where job = ?", def.name).single()
         ended["ended_at"].toString() shouldContain "02:00"
     }
@@ -406,8 +422,10 @@ class JobContractIT {
 
         val paused = replica.inA { pause(request(engineer, def.name, E1, "AP outage"), until) }
         paused shouldBe JobCommandOutcome.Done(JobPauseState(def.name, e1, true, until, START), created = true)
-        replica.inA { pause(request(engineer, def.name, E1), until) }
-            .shouldBeInstanceOf<JobCommandOutcome.Done<JobPauseState>>().created shouldBe false
+        replica
+            .inA { pause(request(engineer, def.name, E1), until) }
+            .shouldBeInstanceOf<JobCommandOutcome.Done<JobPauseState>>()
+            .created shouldBe false
 
         clock.advance(Duration.ofHours(1))
         replica.runtime.fire(def.name) shouldBe
@@ -419,8 +437,10 @@ class JobContractIT {
 
         val resumed = replica.inA { resume(request(engineer, def.name, E1)) }
         resumed shouldBe JobCommandOutcome.Done(JobPauseState(def.name, e1, false), created = true)
-        replica.inA { resume(request(engineer, def.name, E1)) }
-            .shouldBeInstanceOf<JobCommandOutcome.Done<JobPauseState>>().created shouldBe false
+        replica
+            .inA { resume(request(engineer, def.name, E1)) }
+            .shouldBeInstanceOf<JobCommandOutcome.Done<JobPauseState>>()
+            .created shouldBe false
 
         clock.advance(Duration.ofHours(1))
         replica.runtime.fire(def.name)[e1] shouldBe FireResult.RAN
@@ -444,13 +464,21 @@ class JobContractIT {
 
         replica.inA { pause(request(engineer, def.name, null), START.plusSeconds(7200)) } shouldBe
             JobCommandOutcome.Refused(JobErrorCode.SCOPE_NOT_PERMITTED)
-        replica.inA { pause(request(operator, def.name, null), START.plusSeconds(7200)) }
-            .shouldBeInstanceOf<JobCommandOutcome.Done<JobPauseState>>().state.target shouldBe JobTarget.Whole
+        replica
+            .inA { pause(request(operator, def.name, null), START.plusSeconds(7200)) }
+            .shouldBeInstanceOf<JobCommandOutcome.Done<JobPauseState>>()
+            .state.target shouldBe JobTarget.Whole
 
         clock.advance(Duration.ofHours(1))
-        replica.runtime.fire(def.name).values.toSet() shouldBe setOf(FireResult.SKIPPED_PAUSED)
+        replica.runtime
+            .fire(def.name)
+            .values
+            .toSet() shouldBe setOf(FireResult.SKIPPED_PAUSED)
         clock.advance(Duration.ofHours(1))
-        replica.runtime.fire(def.name).values.toSet() shouldBe setOf(FireResult.RAN)
+        replica.runtime
+            .fire(def.name)
+            .values
+            .toSet() shouldBe setOf(FireResult.RAN)
         val pause = h.rows("select tenant_id from submission.job_pause where job = ?", def.name).single()
         pause["tenant_id"] shouldBe TenantId.PLATFORM.value
     }
@@ -473,7 +501,8 @@ class JobContractIT {
             JobCommandOutcome.Refused(JobErrorCode.PAUSE_PAST_DEADLINE)
         replica.inA { pause(request(engineer, def.name, E1), START) } shouldBe
             JobCommandOutcome.Refused(JobErrorCode.PAUSE_END_NOT_FUTURE)
-        replica.inA { pause(request(engineer, def.name, E1), START.plus(Duration.ofHours(4))) }
+        replica
+            .inA { pause(request(engineer, def.name, E1), START.plus(Duration.ofHours(4))) }
             .shouldBeInstanceOf<JobCommandOutcome.Done<JobPauseState>>()
 
         clock.advance(Duration.ofHours(1))
@@ -498,7 +527,14 @@ class JobContractIT {
         }
 
         // the purge's age predicate is in SQL against the database's now() (INV-Q-4346 (A)): runs 3 and 1 days old
-        val past = MutableClock(Instant.now().truncatedTo(ChronoUnit.HOURS).minus(Duration.ofDays(3)).plusSeconds(5))
+        val past =
+            MutableClock(
+                Instant
+                    .now()
+                    .truncatedTo(ChronoUnit.HOURS)
+                    .minus(Duration.ofDays(3))
+                    .plusSeconds(5),
+            )
         val replica = h.replica("svc-1", past, retention = Duration.ofDays(2))
         h.writeRetention(Duration.ofDays(2))
         try {

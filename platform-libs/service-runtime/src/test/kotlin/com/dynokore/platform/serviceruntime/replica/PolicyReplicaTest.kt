@@ -24,7 +24,10 @@ class PolicyReplicaTest {
         tenant: com.dynokore.platform.tenancykernel.TenantId = TENANT_A,
     ) = PolicyScope.entity(tenant, entity, group, feed, ap, client)
 
-    private fun at(scope: PolicyScope, vp: String = "VP-1") = replica.valueAt(scope, vp, d1)?.value
+    private fun at(
+        scope: PolicyScope,
+        vp: String = "VP-1",
+    ) = replica.valueAt(scope, vp, d1)?.value
 
     private fun changed(
         scope: PolicyScope,
@@ -160,11 +163,19 @@ class PolicyReplicaTest {
     }
 
     /** A fake feed for the policy replica: offsets are the event log's, per topic. */
-    private class PolicyFeed(private val sink: PolicyFeedSink) {
+    private class PolicyFeed(
+        private val sink: PolicyFeedSink,
+    ) {
         fun publish(event: PolicyChanged) = sink.accept(event)
 
-        fun snapshotComplete(topic: String, offset: Long) = sink.onSnapshotComplete(topic, offset)
+        fun snapshotComplete(
+            topic: String,
+            offset: Long,
+        ) = sink.onSnapshotComplete(topic, offset)
 
-        fun heartbeat(topic: String, offset: Long) = sink.observeHead(topic, offset)
+        fun heartbeat(
+            topic: String,
+            offset: Long,
+        ) = sink.observeHead(topic, offset)
     }
 }

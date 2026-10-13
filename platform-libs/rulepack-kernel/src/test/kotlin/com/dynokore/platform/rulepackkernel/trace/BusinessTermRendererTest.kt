@@ -12,14 +12,14 @@ class BusinessTermRendererTest {
     private val catalogue =
         BusinessTermCatalogue(
             rules =
-            mapOf(
-                "PINT-R-001" to
-                    BusinessRule(
-                        "Customer tax registration",
-                        "The customer {customer} has registration {gstNo}.",
-                        mapOf("BLOCK" to "Blocked: fix the customer's GST registration number"),
-                    ),
-            ),
+                mapOf(
+                    "PINT-R-001" to
+                        BusinessRule(
+                            "Customer tax registration",
+                            "The customer {customer} has registration {gstNo}.",
+                            mapOf("BLOCK" to "Blocked: fix the customer's GST registration number"),
+                        ),
+                ),
             inputLabels = mapOf("customer" to "Customer"),
         )
 

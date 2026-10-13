@@ -16,10 +16,11 @@ class EmissionGuard(
     fun require(eventType: String): CatalogueEntry {
         val refusal =
             when {
-                eventType == ReplayProtocol.REPLAY_REQUESTED ->
+                eventType == ReplayProtocol.REPLAY_REQUESTED -> {
                     catalogue.requestTopicOf(service)?.let { own ->
                         return CatalogueEntry(eventType, own.topic, setOf(service), contentTopic = false)
                     } ?: "the service has no request topic"
+                }
 
                 else -> {
                     val entry = catalogue.find(eventType)

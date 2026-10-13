@@ -23,12 +23,14 @@ class JwtWorkloadTokenVerifierTest {
         expiresAt: Instant = Instant.now().plusSeconds(300),
         subject: String = "canonical-svc",
     ): String {
-        val claims = JWTClaimsSet.Builder()
-            .subject(subject)
-            .issuer("https://kubernetes.default.svc")
-            .expirationTime(Date.from(expiresAt))
-            .issueTime(Date.from(Instant.now()))
-            .build()
+        val claims =
+            JWTClaimsSet
+                .Builder()
+                .subject(subject)
+                .issuer("https://kubernetes.default.svc")
+                .expirationTime(Date.from(expiresAt))
+                .issueTime(Date.from(Instant.now()))
+                .build()
         val jwt = SignedJWT(JWSHeader(JWSAlgorithm.RS256), claims)
         jwt.sign(RSASSASigner(privateKey))
         return jwt.serialize()
@@ -58,7 +60,8 @@ class JwtWorkloadTokenVerifierTest {
         val decoder = NimbusJwtDecoder.withPublicKey(keyPair.public as RSAPublicKey).build()
         val expired = signedToken(keyPair.private as RSAPrivateKey, expiresAt = Instant.now().minusSeconds(60))
 
-        JwtWorkloadTokenVerifier(decoder).verify(WorkloadToken(expired)) shouldBe WorkloadVerification.Refused("invalid")
+        JwtWorkloadTokenVerifier(decoder).verify(WorkloadToken(expired)) shouldBe
+            WorkloadVerification.Refused("invalid")
     }
 
     @Test
@@ -68,6 +71,7 @@ class JwtWorkloadTokenVerifierTest {
         val decoder = NimbusJwtDecoder.withPublicKey(trusted.public as RSAPublicKey).build()
         val tokenFromSomeoneElse = signedToken(impostor.private as RSAPrivateKey)
 
-        JwtWorkloadTokenVerifier(decoder).verify(WorkloadToken(tokenFromSomeoneElse)) shouldBe WorkloadVerification.Refused("invalid")
+        JwtWorkloadTokenVerifier(decoder).verify(WorkloadToken(tokenFromSomeoneElse)) shouldBe
+            WorkloadVerification.Refused("invalid")
     }
 }

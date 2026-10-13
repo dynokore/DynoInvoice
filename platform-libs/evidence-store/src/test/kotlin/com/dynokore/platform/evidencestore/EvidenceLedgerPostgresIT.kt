@@ -45,13 +45,14 @@ class EvidenceLedgerPostgresIT {
         val entity = EntityRef("entity-1")
         val period = PeriodRef("2026-Q1")
 
-        val recorded = runInTransaction(fixture, tenant) { ledger ->
-            listOf(
-                ledger.append(tenant, entity, period, EvidenceType.PAYLOAD, "first".toByteArray()),
-                ledger.append(tenant, entity, period, EvidenceType.ACKNOWLEDGEMENT, "second".toByteArray()),
-                ledger.append(tenant, entity, period, EvidenceType.DECISION_TRACE, "third".toByteArray()),
-            )
-        }
+        val recorded =
+            runInTransaction(fixture, tenant) { ledger ->
+                listOf(
+                    ledger.append(tenant, entity, period, EvidenceType.PAYLOAD, "first".toByteArray()),
+                    ledger.append(tenant, entity, period, EvidenceType.ACKNOWLEDGEMENT, "second".toByteArray()),
+                    ledger.append(tenant, entity, period, EvidenceType.DECISION_TRACE, "third".toByteArray()),
+                )
+            }
 
         assertEquals(listOf(0L, 1L, 2L), recorded.map { it.sequence })
         assertEquals(null, recorded[0].previousHash)

@@ -6,7 +6,9 @@ import org.springframework.http.client.ClientHttpRequestInterceptor
 import org.springframework.http.client.ClientHttpResponse
 
 /** INV-REQ-1202 behaviour #1: every internal call carries this workload's own signed token. */
-class WorkloadTokenPropagationInterceptor(private val tokenSource: WorkloadTokenSource) : ClientHttpRequestInterceptor {
+class WorkloadTokenPropagationInterceptor(
+    private val tokenSource: WorkloadTokenSource,
+) : ClientHttpRequestInterceptor {
     override fun intercept(
         request: HttpRequest,
         body: ByteArray,

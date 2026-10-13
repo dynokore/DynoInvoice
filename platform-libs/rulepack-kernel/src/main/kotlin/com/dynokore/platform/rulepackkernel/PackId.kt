@@ -11,7 +11,9 @@ package com.dynokore.platform.rulepackkernel
  * (`product-runtime`/`rules-svc`), never to this kernel.
  */
 @JvmInline
-value class PackId(val value: String) {
+value class PackId(
+    val value: String,
+) {
     init {
         require(value.isNotBlank()) { "PackId must not be blank" }
     }

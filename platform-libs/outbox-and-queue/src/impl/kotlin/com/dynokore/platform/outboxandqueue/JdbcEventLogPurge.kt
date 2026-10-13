@@ -30,7 +30,7 @@ class JdbcEventLogPurge(
             catalogue.entries().map { it.topic } +
                 catalogue.replayTopics().map { it.topic } +
                 catalogue.requestTopics().map { it.topic }
-            ).distinct()
+        ).distinct()
             .associateBy { EventLogSchema.tableName(it) }
 
     init {
@@ -65,11 +65,19 @@ class JdbcEventLogPurge(
                 }
             }
         } catch (failure: SQLException) {
-            LOG.atError().setMessage("event-log purge failed").addKeyValue("sql_state", failure.sqlState).log()
+            LOG
+                .atError()
+                .setMessage("event-log purge failed")
+                .addKeyValue("sql_state", failure.sqlState)
+                .log()
             throw EventBindingUnavailable("event log not purgeable: ${failure.sqlState}", failure)
         }
         if (totals.isEmpty()) {
-            LOG.atError().setMessage("event-log retention is missing or below 7 days: nothing purged (INV-Q-4262)").log()
+            LOG
+                .atError()
+                .setMessage(
+                    "event-log retention is missing or below 7 days: nothing purged (INV-Q-4262)",
+                ).log()
         }
         val run = EventLogPurgeRun(totals.values.toList())
         run.topics.forEach {
@@ -88,32 +96,33 @@ class JdbcEventLogPurge(
     }
 
     /** One `purge_batch()` call: one row per topic. */
-    private fun batch(connection: Connection): List<TopicPurge> = connection
-        .prepareStatement(
-            """
-            select purged_topic, purged_content, extract(epoch from purged_period)::bigint, purged_cutoff, purged_rows,
-                purged_watermark
-            from ${EventLogSchema.SCHEMA}.${EventLogSchema.PURGE_BATCH}()
-            """.trimIndent(),
-        ).use { statement ->
-            statement.executeQuery().use { rows ->
-                buildList {
-                    while (rows.next()) {
-                        val key = rows.getString(1)
-                        add(
-                            TopicPurge(
-                                topic = names[key] ?: key,
-                                contentTopic = rows.getBoolean(2),
-                                period = Duration.ofSeconds(rows.getLong(3)),
-                                cutoff = rows.getTimestamp(4).toInstant(),
-                                rows = rows.getLong(5),
-                                watermark = rows.getLong(6),
-                            ),
-                        )
+    private fun batch(connection: Connection): List<TopicPurge> =
+        connection
+            .prepareStatement(
+                """
+                select purged_topic, purged_content, extract(epoch from purged_period)::bigint, purged_cutoff, purged_rows,
+                    purged_watermark
+                from ${EventLogSchema.SCHEMA}.${EventLogSchema.PURGE_BATCH}()
+                """.trimIndent(),
+            ).use { statement ->
+                statement.executeQuery().use { rows ->
+                    buildList {
+                        while (rows.next()) {
+                            val key = rows.getString(1)
+                            add(
+                                TopicPurge(
+                                    topic = names[key] ?: key,
+                                    contentTopic = rows.getBoolean(2),
+                                    period = Duration.ofSeconds(rows.getLong(3)),
+                                    cutoff = rows.getTimestamp(4).toInstant(),
+                                    rows = rows.getLong(5),
+                                    watermark = rows.getLong(6),
+                                ),
+                            )
+                        }
                     }
                 }
             }
-        }
 
     private companion object {
         val LOG: Logger = LoggerFactory.getLogger(JdbcEventLogPurge::class.java)

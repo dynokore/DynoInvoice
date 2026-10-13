@@ -16,16 +16,18 @@ import java.time.Clock
  * wiring of its own (TPL-07).
  */
 class InternalRestClientAutoConfigurationTest {
-    private fun <T : Any> providerOf(value: T): ObjectProvider<T> = object : ObjectProvider<T> {
-        override fun getIfAvailable(): T = value
-    }
+    private fun <T : Any> providerOf(value: T): ObjectProvider<T> =
+        object : ObjectProvider<T> {
+            override fun getIfAvailable(): T = value
+        }
 
     @Test
     fun `the built RestClient's own request interceptors are exactly the ones contributed`() {
         val deadlineInterceptor = DeadlinePropagationInterceptor(Clock.systemUTC())
         val endUserInterceptor = EndUserTokenPropagationInterceptor()
-        val builder = InternalRestClientAutoConfiguration()
-            .internalRestClientBuilder(providerOf(listOf(deadlineInterceptor, endUserInterceptor)))
+        val builder =
+            InternalRestClientAutoConfiguration()
+                .internalRestClientBuilder(providerOf(listOf(deadlineInterceptor, endUserInterceptor)))
 
         val captured = mutableListOf<ClientHttpRequestInterceptor>()
         builder.requestInterceptors { captured.addAll(it) }.build()

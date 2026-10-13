@@ -24,19 +24,21 @@ class SubmissionFixtureHandler(
         val doc = UUID.fromString(event.subject)
         val canonical = event.type == TestCatalogue.CANONICAL_VERSION_CREATED
         val payload = event.type == TestCatalogue.PAYLOAD_READY
-        connections.require().prepareStatement(
-            """
-            insert into submission.obligation_register (doc_uuid, canonical_seen, payload_seen) values (?, ?, ?)
-            on conflict (doc_uuid) do update set
-                canonical_seen = submission.obligation_register.canonical_seen or excluded.canonical_seen,
-                payload_seen = submission.obligation_register.payload_seen or excluded.payload_seen
-            """.trimIndent(),
-        ).use {
-            it.setObject(1, doc)
-            it.setBoolean(2, canonical)
-            it.setBoolean(3, payload)
-            it.executeUpdate()
-        }
+        connections
+            .require()
+            .prepareStatement(
+                """
+                insert into submission.obligation_register (doc_uuid, canonical_seen, payload_seen) values (?, ?, ?)
+                on conflict (doc_uuid) do update set
+                    canonical_seen = submission.obligation_register.canonical_seen or excluded.canonical_seen,
+                    payload_seen = submission.obligation_register.payload_seen or excluded.payload_seen
+                """.trimIndent(),
+            ).use {
+                it.setObject(1, doc)
+                it.setBoolean(2, canonical)
+                it.setBoolean(3, payload)
+                it.executeUpdate()
+            }
         if (payload) despatchOnce(doc, mapper.readTree(event.dataJson).get("version").asInt())
         return HandleOutcome.APPLIED
     }
@@ -48,13 +50,15 @@ class SubmissionFixtureHandler(
     ) {
         val inserted =
             listOf("queue_item", "submission_row").map { table ->
-                connections.require().prepareStatement(
-                    "insert into submission.$table (doc_uuid, version) values (?, ?) on conflict do nothing",
-                ).use {
-                    it.setObject(1, doc)
-                    it.setInt(2, version)
-                    it.executeUpdate()
-                }
+                connections
+                    .require()
+                    .prepareStatement(
+                        "insert into submission.$table (doc_uuid, version) values (?, ?) on conflict do nothing",
+                    ).use {
+                        it.setObject(1, doc)
+                        it.setInt(2, version)
+                        it.executeUpdate()
+                    }
             }
         if (inserted.all { it == 1 }) transport.calls += doc to version
     }
@@ -70,15 +74,17 @@ class ReconciliationFixtureHandler(
     private val afterUpdate: () -> Unit = {},
 ) : EventHandler {
     override fun handle(event: Envelope): HandleOutcome {
-        connections.require().prepareStatement(
-            """
-            insert into reconciliation.ack_read_model (doc_uuid, ack_count) values (?, 1)
-            on conflict (doc_uuid) do update set ack_count = reconciliation.ack_read_model.ack_count + 1
-            """.trimIndent(),
-        ).use {
-            it.setObject(1, UUID.fromString(event.subject))
-            it.executeUpdate()
-        }
+        connections
+            .require()
+            .prepareStatement(
+                """
+                insert into reconciliation.ack_read_model (doc_uuid, ack_count) values (?, 1)
+                on conflict (doc_uuid) do update set ack_count = reconciliation.ack_read_model.ack_count + 1
+                """.trimIndent(),
+            ).use {
+                it.setObject(1, UUID.fromString(event.subject))
+                it.executeUpdate()
+            }
         afterUpdate()
         return HandleOutcome.APPLIED
     }

@@ -39,8 +39,7 @@ class TableClassesTest {
                     .of(
                         platformScoped = listOf(countries, "tenancy_kernel_test.orders"),
                         reference = listOf(currencies),
-                    )
-                    .verify(TestSchema)
+                    ).verify(TestSchema)
             }
         assertTrue(
             "tenancy_kernel_test.orders is declared PLATFORM_SCOPED but has a tenant_id column" in

@@ -28,22 +28,25 @@ class PackArtefact(
     val signature: ByteArray,
     val contents: ByteArray,
 ) {
-    override fun equals(other: Any?): Boolean = this === other ||
-        (
-            other is PackArtefact &&
-                manifest.contentEquals(other.manifest) &&
-                checksums.contentEquals(other.checksums) &&
-                signature.contentEquals(other.signature) &&
-                contents.contentEquals(other.contents)
+    override fun equals(other: Any?): Boolean =
+        this === other ||
+            (
+                other is PackArtefact &&
+                    manifest.contentEquals(other.manifest) &&
+                    checksums.contentEquals(other.checksums) &&
+                    signature.contentEquals(other.signature) &&
+                    contents.contentEquals(other.contents)
             )
 
-    override fun hashCode(): Int = arrayOf(
-        manifest.contentHashCode(),
-        checksums.contentHashCode(),
-        signature.contentHashCode(),
-        contents.contentHashCode(),
-    ).contentHashCode()
+    override fun hashCode(): Int =
+        arrayOf(
+            manifest.contentHashCode(),
+            checksums.contentHashCode(),
+            signature.contentHashCode(),
+            contents.contentHashCode(),
+        ).contentHashCode()
 
-    override fun toString(): String = "PackArtefact(manifest=${manifest.size}B, checksums=${checksums.size}B, " +
-        "signature=${signature.size}B, contents=${contents.size}B)" // never the bytes themselves (CS-34)
+    override fun toString(): String =
+        "PackArtefact(manifest=${manifest.size}B, checksums=${checksums.size}B, " +
+            "signature=${signature.size}B, contents=${contents.size}B)" // never the bytes themselves (CS-34)
 }

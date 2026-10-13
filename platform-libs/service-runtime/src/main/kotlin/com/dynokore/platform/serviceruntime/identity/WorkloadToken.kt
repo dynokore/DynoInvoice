@@ -7,7 +7,9 @@ package com.dynokore.platform.serviceruntime.identity
  * never logged (CS-34): [toString] deliberately does not return [value].
  */
 @JvmInline
-value class WorkloadToken(val value: String) {
+value class WorkloadToken(
+    val value: String,
+) {
     init {
         require(value.isNotBlank()) { "WorkloadToken must not be blank" }
     }

@@ -137,21 +137,25 @@ internal class TenantPredicateCheck(
     private fun target(table: Table<*>): DataRef? {
         val ref = tables.classify(table) as? DataRef ?: throw TenantPredicateViolation("a write of $table")
         return when (ref.tableClass) {
-            TableClass.PLATFORM_SCOPED ->
+            TableClass.PLATFORM_SCOPED -> {
                 if (predicates.tenant.isPlatform) {
                     null
                 } else {
                     throw TenantPredicateViolation("a PLATFORM_SCOPED write under a tenant")
                 }
+            }
 
-            TableClass.REFERENCE ->
+            TableClass.REFERENCE -> {
                 if (predicates.tenant.isPlatform) {
                     throw TenantPredicateViolation("a REFERENCE write under the platform binding")
                 } else {
                     ref
                 }
+            }
 
-            TableClass.TENANT -> ref
+            TableClass.TENANT -> {
+                ref
+            }
         }
     }
 

@@ -232,10 +232,10 @@ object WriteCatalogue {
                         TypedValueSpec(
                             ValueType.RECORD,
                             fields =
-                            mapOf(
-                                "scale" to TypedValueSpec(ValueType.INT, min = Bound.of(0), max = Bound.of(4)),
-                                "mode" to TypedValueSpec(ValueType.ENUM, values = listOf("HALF_UP", "HALF_EVEN")),
-                            ),
+                                mapOf(
+                                    "scale" to TypedValueSpec(ValueType.INT, min = Bound.of(0), max = Bound.of(4)),
+                                    "mode" to TypedValueSpec(ValueType.ENUM, values = listOf("HALF_UP", "HALF_EVEN")),
+                                ),
                         ),
                     ),
                 ),

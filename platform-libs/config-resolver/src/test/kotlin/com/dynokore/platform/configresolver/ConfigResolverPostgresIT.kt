@@ -53,9 +53,10 @@ class ConfigResolverPostgresIT {
         key: VariationPointKey,
         at: LocalDate,
         subject: ResolutionSubject = submission,
-    ): RecordedResolution = asTenant(tenant) {
-        app.inTransaction { recorder.record(subject, reader.resolve(key, scope, at), scope) }
-    }
+    ): RecordedResolution =
+        asTenant(tenant) {
+            app.inTransaction { recorder.record(subject, reader.resolve(key, scope, at), scope) }
+        }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])

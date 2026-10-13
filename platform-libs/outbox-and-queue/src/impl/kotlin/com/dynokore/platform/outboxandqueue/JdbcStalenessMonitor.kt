@@ -40,13 +40,16 @@ class JdbcStalenessMonitor(
     private val open = HashSet<Pair<String, String>>()
 
     init {
-        require(rules.map { it.consumer to it.eventType }.toSet().size == rules.size) { "one rule per consumer and event type" }
+        require(
+            rules.map { it.consumer to it.eventType }.toSet().size == rules.size,
+        ) { "one rule per consumer and event type" }
     }
 
     @Synchronized
-    override fun check(): List<ConsumerStaleness> = offsetSource.connection.use { connection ->
-        watched.map { measure(connection, it) }
-    }
+    override fun check(): List<ConsumerStaleness> =
+        offsetSource.connection.use { connection ->
+            watched.map { measure(connection, it) }
+        }
 
     private fun measure(
         connection: Connection,
@@ -55,11 +58,25 @@ class JdbcStalenessMonitor(
         val after = nextOffset(connection, w) - 1
         val backlog = lag.backlog(w.topic, after)
         val now = clock.instant()
-        val age = backlog.oldestInsertedAt?.let { Duration.between(it, now) }?.coerceAtLeast(Duration.ZERO) ?: Duration.ZERO
-        val result = ConsumerStaleness(w.rule.consumer, w.rule.eventType, backlog.count, backlog.oldestInsertedAt, age, w.rule.threshold)
+        val age =
+            backlog.oldestInsertedAt?.let { Duration.between(it, now) }?.coerceAtLeast(Duration.ZERO) ?: Duration.ZERO
+        val result =
+            ConsumerStaleness(
+                w.rule.consumer,
+                w.rule.eventType,
+                backlog.count,
+                backlog.oldestInsertedAt,
+                age,
+                w.rule.threshold,
+            )
         val key = w.rule.consumer to w.rule.eventType
         if (result.breached) {
-            if (open.add(key)) sink.raise(StalenessBreach(w.rule.consumer, w.rule.eventType, age, w.rule.threshold, now))
+            if (open.add(
+                    key,
+                )
+            ) {
+                sink.raise(StalenessBreach(w.rule.consumer, w.rule.eventType, age, w.rule.threshold, now))
+            }
         } else {
             open.remove(key)
         }
@@ -69,9 +86,10 @@ class JdbcStalenessMonitor(
     private fun nextOffset(
         connection: Connection,
         w: Watched,
-    ): Long = connection.prepareStatement("select next_offset from $offsets where consumer = ? and topic = ?").use {
-        it.setString(1, w.rule.consumer)
-        it.setString(2, w.topic)
-        it.executeQuery().use { rows -> if (rows.next()) rows.getLong(1) else 1L }
-    }
+    ): Long =
+        connection.prepareStatement("select next_offset from $offsets where consumer = ? and topic = ?").use {
+            it.setString(1, w.rule.consumer)
+            it.setString(2, w.topic)
+            it.executeQuery().use { rows -> if (rows.next()) rows.getLong(1) else 1L }
+        }
 }

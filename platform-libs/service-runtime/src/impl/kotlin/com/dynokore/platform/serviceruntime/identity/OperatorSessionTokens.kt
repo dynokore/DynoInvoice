@@ -75,11 +75,12 @@ internal class OperatorSessionTokens(
         }
     }
 
-    private fun claimsOf(jwt: SignedJWT): JWTClaimsSet? = try {
-        jwt.jwtClaimsSet
-    } catch (malformed: ParseException) {
-        null
-    }
+    private fun claimsOf(jwt: SignedJWT): JWTClaimsSet? =
+        try {
+            jwt.jwtClaimsSet
+        } catch (malformed: ParseException) {
+            null
+        }
 
     private fun withinLifetime(claims: JWTClaimsSet): Boolean {
         val issued = claims.issueTime?.toInstant() ?: return false

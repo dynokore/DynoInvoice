@@ -33,8 +33,9 @@ import java.io.File
  * an entry with no finding left fails this test until it is removed. INV-T-3999 requires both lists empty.
  */
 class SqlGuardsTest {
-    private val rootDir: File = generateSequence(File("").absoluteFile) { it.parentFile }
-        .first { File(it, "settings.gradle.kts").isFile && File(it, "tenancy-kernel").isDirectory }
+    private val rootDir: File =
+        generateSequence(File("").absoluteFile) { it.parentFile }
+            .first { File(it, "settings.gradle.kts").isFile && File(it, "tenancy-kernel").isDirectory }
 
     private val allFindings: List<GuardViolation> by lazy {
         val placement = RawSqlPlacement.findViolations(Konsist.scopeFromProject())
@@ -141,9 +142,12 @@ class SqlGuardsTest {
                 .orEmpty()
                 .filter { File(it, "build.gradle.kts").isFile }
                 .flatMap { module ->
-                    File(module, "src").listFiles().orEmpty().filter { set ->
-                        set.walkTopDown().any { it.isFile && it.extension == "kt" }
-                    }.map { "${module.name}/${it.name}" }
+                    File(module, "src")
+                        .listFiles()
+                        .orEmpty()
+                        .filter { set ->
+                            set.walkTopDown().any { it.isFile && it.extension == "kt" }
+                        }.map { "${module.name}/${it.name}" }
                 }.toSet()
         assertTrue(sourceSets.any { it.endsWith("/test") } && sourceSets.any { it.endsWith("/main") }) {
             "expected main and test source sets, found $sourceSets"
@@ -153,7 +157,12 @@ class SqlGuardsTest {
 
     @Test
     fun `the scope covers the production sources of every module`() {
-        val scanned = Konsist.scopeFromProduction().files.map { moduleOf(it.path) }.toSet()
+        val scanned =
+            Konsist
+                .scopeFromProduction()
+                .files
+                .map { moduleOf(it.path) }
+                .toSet()
         val withProductionSources = productionModules()
         assertTrue(withProductionSources.size >= 10) {
             "expected the platform-libs modules, found $withProductionSources"
@@ -210,30 +219,37 @@ class SqlGuardsTest {
     }
 
     /** Every module directory with Kotlin sources in a non-test source set. */
-    private fun productionModules(): List<String> = rootDir.listFiles().orEmpty()
-        .filter { File(it, "build.gradle.kts").isFile && File(it, "src").isDirectory }
-        .map { it.name }
-        .sorted()
-        .filter { m ->
-            File(rootDir, "$m/src").listFiles().orEmpty().any { set ->
-                !set.name.contains("test", ignoreCase = true) &&
-                    set.walkTopDown().any { it.isFile && it.extension == "kt" }
+    private fun productionModules(): List<String> =
+        rootDir
+            .listFiles()
+            .orEmpty()
+            .filter { File(it, "build.gradle.kts").isFile && File(it, "src").isDirectory }
+            .map { it.name }
+            .sorted()
+            .filter { m ->
+                File(rootDir, "$m/src").listFiles().orEmpty().any { set ->
+                    !set.name.contains("test", ignoreCase = true) &&
+                        set.walkTopDown().any { it.isFile && it.extension == "kt" }
+                }
             }
-        }
 
     private fun guardFindings(
         scope: KoScope,
         projectDir: File,
-    ): List<GuardViolation> = SqlGuards.findRawJooqSql(scope) +
-        SqlGuards.findInterpolatedSql(scope) +
-        SqlGuards.findSessionSettings(scope) +
-        MigrationLint.findViolations(projectDir, scope)
+    ): List<GuardViolation> =
+        SqlGuards.findRawJooqSql(scope) +
+            SqlGuards.findInterpolatedSql(scope) +
+            SqlGuards.findSessionSettings(scope) +
+            MigrationLint.findViolations(projectDir, scope)
 
     private fun moduleOf(violation: GuardViolation): String = moduleOf(violation.location)
 
     private fun moduleOf(path: String): String {
         val file = File(path).let { if (it.isAbsolute) it else File(rootDir, path) }
-        return file.absoluteFile.relativeToOrNull(rootDir)?.invariantSeparatorsPath?.substringBefore('/')
+        return file.absoluteFile
+            .relativeToOrNull(rootDir)
+            ?.invariantSeparatorsPath
+            ?.substringBefore('/')
             ?: file.path
     }
 

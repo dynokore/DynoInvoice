@@ -12,7 +12,9 @@ import java.util.concurrent.atomic.AtomicLong
  * bounded — the catalogue of error codes is closed (`error-codes.yaml`), so this
  * never grows without limit the way a request-scoped or per-document cache would.
  */
-class RecentErrorCodesRecorder(private val clock: Clock) {
+class RecentErrorCodesRecorder(
+    private val clock: Clock,
+) {
     private val counts = ConcurrentHashMap<String, AtomicLong>()
     private val lastRaisedAt = ConcurrentHashMap<String, Instant>()
 
@@ -22,7 +24,8 @@ class RecentErrorCodesRecorder(private val clock: Clock) {
     }
 
     /** A snapshot of every code raised so far this JVM's lifetime, most recently raised first. */
-    fun snapshot(): List<ErrorCodeCount> = counts.keys
-        .map { code -> ErrorCodeCount(code, counts.getValue(code).get(), lastRaisedAt.getValue(code).toString()) }
-        .sortedByDescending { it.lastRaisedAt }
+    fun snapshot(): List<ErrorCodeCount> =
+        counts.keys
+            .map { code -> ErrorCodeCount(code, counts.getValue(code).get(), lastRaisedAt.getValue(code).toString()) }
+            .sortedByDescending { it.lastRaisedAt }
 }

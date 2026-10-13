@@ -68,7 +68,10 @@ class CredentialRotationIT {
                 // the first password is revoked: a new connection with the file left at it is refused (nothing cached)
                 pools.forEach { (pool, role) ->
                     val refused = shouldThrow<java.sql.SQLException> { pool.connection.close() }
-                    val messages = generateSequence<Throwable>(refused) { it.cause }.joinToString(" | ") { it.message.orEmpty() }
+                    val messages =
+                        generateSequence<Throwable>(
+                            refused,
+                        ) { it.cause }.joinToString(" | ") { it.message.orEmpty() }
                     messages shouldContain "password authentication failed for user \"$role\""
                     listOf(first, second, third).forEach { messages shouldNotContain it }
                 }
@@ -105,12 +108,18 @@ class CredentialRotationIT {
         postgres(image).use { pg ->
             val owner = password()
             val wrong = password()
-            pg.sql("create role $OWNER login password '$owner'", "grant create on database ${pg.databaseName} to $OWNER")
+            pg.sql(
+                "create role $OWNER login password '$owner'",
+                "grant create on database ${pg.databaseName} to $OWNER",
+            )
 
             // a wrong mounted password: the migration's connection is refused, and start-up fails
             mount(mountRoot, OWNER_REF, wrong)
             flyway(pg, mountRoot).run { context ->
-                val messages = generateSequence(context.startupFailure.shouldNotBeNull()) { it.cause }.joinToString(" | ") { it.message.orEmpty() }
+                val messages =
+                    generateSequence(context.startupFailure.shouldNotBeNull()) {
+                        it.cause
+                    }.joinToString(" | ") { it.message.orEmpty() }
                 messages shouldContain "password authentication failed for user \"$OWNER\""
                 messages shouldNotContain wrong
             }
@@ -118,8 +127,12 @@ class CredentialRotationIT {
             mount(mountRoot, OWNER_REF, owner)
             flyway(pg, mountRoot).run { context ->
                 context.startupFailure shouldBe null
-                pg.query("select tableowner from pg_tables where schemaname = 'ledger' and tablename = 'probe'") shouldBe OWNER
-                pg.query("select count(*) from ledger.flyway_schema_history where success and version = '1'") shouldBe "1"
+                pg.query(
+                    "select tableowner from pg_tables where schemaname = 'ledger' and tablename = 'probe'",
+                ) shouldBe
+                    OWNER
+                pg.query("select count(*) from ledger.flyway_schema_history where success and version = '1'") shouldBe
+                    "1"
             }
             listOf(owner, wrong).forEach { output.all shouldNotContain it }
         }
@@ -139,7 +152,10 @@ class CredentialRotationIT {
                 "spring.flyway.password=property-password-2",
                 "service-runtime.flyway.credential=$OWNER_REF",
             ).run { context ->
-                val messages = generateSequence(context.startupFailure.shouldNotBeNull()) { it.cause }.joinToString(" | ") { it.message.orEmpty() }
+                val messages =
+                    generateSequence(context.startupFailure.shouldNotBeNull()) {
+                        it.cause
+                    }.joinToString(" | ") { it.message.orEmpty() }
                 // the key check refuses it first, before any bean (coordinator rulings INV-Q-4548, INV-Q-4559)
                 messages shouldContain "spring.flyway.password"
                 messages shouldContain "INV-Q-4542"
@@ -199,33 +215,41 @@ class CredentialRotationIT {
             Files.writeString(root.resolve(ref), "$value\n")
         }
 
-        fun postgres(image: String): PostgreSQLContainer<*> = PostgreSQLContainer(DockerImageName.parse(image)).also { it.start() }
+        fun postgres(image: String): PostgreSQLContainer<*> =
+            PostgreSQLContainer(DockerImageName.parse(image)).also {
+                it.start()
+            }
 
         fun PostgreSQLContainer<*>.sql(vararg statements: String) {
-            DriverManager.getConnection(jdbcUrl, username, password).use { c -> statements.forEach { s -> c.createStatement().use { it.execute(s) } } }
+            DriverManager.getConnection(jdbcUrl, username, password).use { c ->
+                statements.forEach { s -> c.createStatement().use { it.execute(s) } }
+            }
         }
 
-        fun PostgreSQLContainer<*>.query(sql: String): String = DriverManager.getConnection(jdbcUrl, username, password).use { c ->
-            c.createStatement().use { s ->
-                s.executeQuery(sql).use {
+        fun PostgreSQLContainer<*>.query(sql: String): String =
+            DriverManager.getConnection(jdbcUrl, username, password).use { c ->
+                c.createStatement().use { s ->
+                    s.executeQuery(sql).use {
+                        it.next()
+                        it.getString(1)
+                    }
+                }
+            }
+
+        fun Connection.user(): String =
+            createStatement().use { s ->
+                s.executeQuery("select current_user").use {
                     it.next()
                     it.getString(1)
                 }
             }
-        }
 
-        fun Connection.user(): String = createStatement().use { s ->
-            s.executeQuery("select current_user").use {
-                it.next()
-                it.getString(1)
+        fun Connection.pid(): Int =
+            createStatement().use { s ->
+                s.executeQuery("select pg_backend_pid()").use {
+                    it.next()
+                    it.getInt(1)
+                }
             }
-        }
-
-        fun Connection.pid(): Int = createStatement().use { s ->
-            s.executeQuery("select pg_backend_pid()").use {
-                it.next()
-                it.getInt(1)
-            }
-        }
     }
 }

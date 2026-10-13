@@ -108,11 +108,17 @@ class Resilience4jResilientEdge(
         deadline: Deadline,
         endUserToken: String?,
         block: () -> T,
-    ): T = if (endUserToken != null) {
-        ScopedValue.where(CurrentDeadline.key, deadline).where(CurrentEndUserToken.key, endUserToken).call<T, RuntimeException>(block)
-    } else {
-        CurrentDeadline.callWith(deadline, block)
-    }
+    ): T =
+        if (endUserToken != null) {
+            ScopedValue
+                .where(
+                    CurrentDeadline.key,
+                    deadline,
+                ).where(CurrentEndUserToken.key, endUserToken)
+                .call<T, RuntimeException>(block)
+        } else {
+            CurrentDeadline.callWith(deadline, block)
+        }
 }
 
 // Public, not private: the mapping from this module's framework-free policy
@@ -123,28 +129,34 @@ class Resilience4jResilientEdge(
 
 fun TimeoutPolicy.toResilience4j(): TimeLimiterConfig = TimeLimiterConfig.custom().timeoutDuration(timeout).build()
 
-fun BulkheadPolicy.toResilience4j(): BulkheadConfig = BulkheadConfig.custom()
-    .maxConcurrentCalls(maxConcurrentCalls)
-    .maxWaitDuration(maxWaitDuration)
-    .build()
+fun BulkheadPolicy.toResilience4j(): BulkheadConfig =
+    BulkheadConfig
+        .custom()
+        .maxConcurrentCalls(maxConcurrentCalls)
+        .maxWaitDuration(maxWaitDuration)
+        .build()
 
-fun CircuitBreakerPolicy.toResilience4j(): CircuitBreakerConfig = CircuitBreakerConfig.custom()
-    .failureRateThreshold(failureRateThreshold)
-    .slidingWindowSize(slidingWindowSize)
-    // Resilience4j's own default (100) would otherwise apply regardless of how
-    // small a window this policy declares, so the breaker would never evaluate
-    // it: evaluate as soon as the window itself is full.
-    .minimumNumberOfCalls(slidingWindowSize)
-    .waitDurationInOpenState(waitDurationInOpenState)
-    .permittedNumberOfCallsInHalfOpenState(permittedCallsInHalfOpenState)
-    .build()
+fun CircuitBreakerPolicy.toResilience4j(): CircuitBreakerConfig =
+    CircuitBreakerConfig
+        .custom()
+        .failureRateThreshold(failureRateThreshold)
+        .slidingWindowSize(slidingWindowSize)
+        // Resilience4j's own default (100) would otherwise apply regardless of how
+        // small a window this policy declares, so the breaker would never evaluate
+        // it: evaluate as soon as the window itself is full.
+        .minimumNumberOfCalls(slidingWindowSize)
+        .waitDurationInOpenState(waitDurationInOpenState)
+        .permittedNumberOfCallsInHalfOpenState(permittedCallsInHalfOpenState)
+        .build()
 
 // The breaker and the bulkhead already refuse a call fast when open/full;
 // retrying either outcome would only spend the bounded attempt budget waiting
 // on a state that will not change sooner for it, so both are the exceptions
 // retry ignores.
-fun RetryPolicy.toResilience4j(): RetryConfig = RetryConfig.custom<Any>()
-    .maxAttempts(maxAttempts)
-    .intervalFunction(IntervalFunction.ofExponentialRandomBackoff(initialBackoff, 2.0, jitter, maxBackoff))
-    .ignoreExceptions(CallNotPermittedException::class.java, BulkheadFullException::class.java)
-    .build()
+fun RetryPolicy.toResilience4j(): RetryConfig =
+    RetryConfig
+        .custom<Any>()
+        .maxAttempts(maxAttempts)
+        .intervalFunction(IntervalFunction.ofExponentialRandomBackoff(initialBackoff, 2.0, jitter, maxBackoff))
+        .ignoreExceptions(CallNotPermittedException::class.java, BulkheadFullException::class.java)
+        .build()

@@ -46,8 +46,15 @@ class EventLogDataSourceWiring {
     ): HikariDataSource {
         val application =
             (dataSource as? HikariDataSource)
-                ?: dataSource.takeIf { it.isWrapperFor(HikariDataSource::class.java) }?.unwrap(HikariDataSource::class.java)
-                ?: error("the event-log pool takes the application pool's login, so the application DataSource must be a HikariDataSource (STK-17)")
+                ?: dataSource
+                    .takeIf {
+                        it.isWrapperFor(
+                            HikariDataSource::class.java,
+                        )
+                    }?.unwrap(HikariDataSource::class.java)
+                ?: error(
+                    "the event-log pool takes the application pool's login, so the application DataSource must be a HikariDataSource (STK-17)",
+                )
         // lazily started, as Spring Boot's application pool: no connection before the first use
         val pool = HikariDataSource()
         pool.poolName = "event-log"
@@ -60,7 +67,11 @@ class EventLogDataSourceWiring {
         pool.maxLifetime = application.maxLifetime
         pool.connectionTimeout = application.connectionTimeout
         // the pool's own name <gst.service>, set once at construction (coordinator ruling INV-Q-4487)
-        environment.getProperty(SERVICE)?.takeIf { it.isNotBlank() }?.let { pool.addDataSourceProperty(APPLICATION_NAME, it) }
+        environment
+            .getProperty(
+                SERVICE,
+            )?.takeIf { it.isNotBlank() }
+            ?.let { pool.addDataSourceProperty(APPLICATION_NAME, it) }
         return pool
     }
 
@@ -70,8 +81,16 @@ class EventLogDataSourceWiring {
             context: ConditionContext,
             metadata: AnnotatedTypeMetadata,
         ): Boolean {
-            val eventLog = context.environment.getProperty(EVENT_LOG_URL)?.trim().orEmpty()
-            val application = context.environment.getProperty(APPLICATION_URL)?.trim().orEmpty()
+            val eventLog =
+                context.environment
+                    .getProperty(EVENT_LOG_URL)
+                    ?.trim()
+                    .orEmpty()
+            val application =
+                context.environment
+                    .getProperty(APPLICATION_URL)
+                    ?.trim()
+                    .orEmpty()
             return eventLog.isNotEmpty() && eventLog != application
         }
     }

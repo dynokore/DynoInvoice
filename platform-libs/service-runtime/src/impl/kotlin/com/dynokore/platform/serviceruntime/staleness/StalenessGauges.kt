@@ -65,8 +65,9 @@ class StalenessGauges(
         if (thresholds.put(key, seconds(threshold)) == null) {
             Gauge
                 .builder(THRESHOLD, thresholds) { it[key] ?: Double.NaN }
-                .description("Configured staleness threshold of the consumer for the event type (provisional until SDS §13.7)")
-                .baseUnit(SECONDS)
+                .description(
+                    "Configured staleness threshold of the consumer for the event type (provisional until SDS §13.7)",
+                ).baseUnit(SECONDS)
                 .tags(CONSUMER, key.consumer, EVENT_TYPE, key.eventType)
                 .strongReference(true)
                 .register(registry)

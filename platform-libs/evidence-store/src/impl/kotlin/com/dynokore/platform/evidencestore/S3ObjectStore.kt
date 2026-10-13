@@ -25,18 +25,25 @@ class S3ObjectStore(
         bytes: ByteArray,
         retainUntil: Instant,
     ): ObjectRef {
-        val request = PutObjectRequest.builder()
-            .bucket(bucket)
-            .key(key.value)
-            .objectLockMode(ObjectLockMode.COMPLIANCE)
-            .objectLockRetainUntilDate(retainUntil)
-            .build()
+        val request =
+            PutObjectRequest
+                .builder()
+                .bucket(bucket)
+                .key(key.value)
+                .objectLockMode(ObjectLockMode.COMPLIANCE)
+                .objectLockRetainUntilDate(retainUntil)
+                .build()
         client.putObject(request, RequestBody.fromBytes(bytes))
         return ObjectRef(key, retainUntil)
     }
 
     override fun get(key: ObjectKey): ByteArray {
-        val request = GetObjectRequest.builder().bucket(bucket).key(key.value).build()
+        val request =
+            GetObjectRequest
+                .builder()
+                .bucket(bucket)
+                .key(key.value)
+                .build()
         return client.getObjectAsBytes(request).asByteArray()
     }
 }

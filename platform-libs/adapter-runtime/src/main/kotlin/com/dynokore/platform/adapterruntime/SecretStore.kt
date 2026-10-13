@@ -20,4 +20,6 @@ interface SecretStore {
 }
 
 /** Thrown by [SecretStore.read] when [ref] names no bound credential. */
-class SecretNotFound(val ref: SecretRef) : NoSuchElementException("no secret bound at '$ref'")
+class SecretNotFound(
+    val ref: SecretRef,
+) : NoSuchElementException("no secret bound at '$ref'")

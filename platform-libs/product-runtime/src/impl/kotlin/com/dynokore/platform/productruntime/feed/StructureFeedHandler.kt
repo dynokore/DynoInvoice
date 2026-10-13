@@ -37,26 +37,29 @@ class StructureFeedHandler(
     }
 
     /** The service-runtime event for [event]; throws [ContractViolation] when it does not meet the contract. */
-    fun decode(event: Envelope): StructureEvent = when (event.type) {
-        ProductEventTypes.ORGANISATION_STRUCTURE_CHANGED -> {
-            val payload = ContractJson.read(event.dataJson, OrganisationStructureChangedPayload::class.java)
-            val node = payload.node ?: throw noNode(event, payload.nodeRef)
-            OrganisationStructureChanged(
-                tenant = event.tenant,
-                nodeRef = payload.nodeRef,
-                change = StructureChange.of(payload.changeType.value),
-                node = node.toReplicaNode(),
-            )
-        }
+    fun decode(event: Envelope): StructureEvent =
+        when (event.type) {
+            ProductEventTypes.ORGANISATION_STRUCTURE_CHANGED -> {
+                val payload = ContractJson.read(event.dataJson, OrganisationStructureChangedPayload::class.java)
+                val node = payload.node ?: throw noNode(event, payload.nodeRef)
+                OrganisationStructureChanged(
+                    tenant = event.tenant,
+                    nodeRef = payload.nodeRef,
+                    change = StructureChange.of(payload.changeType.value),
+                    node = node.toReplicaNode(),
+                )
+            }
 
-        ProductEventTypes.ENTITY_PROFILE_CHANGED -> {
-            val payload = ContractJson.read(event.dataJson, EntityProfileChangedPayload::class.java)
-            val node = payload.node ?: throw noNode(event, payload.entityRef)
-            EntityProfileChanged(tenant = event.tenant, entityRef = payload.entityRef, node = node.toReplicaNode())
-        }
+            ProductEventTypes.ENTITY_PROFILE_CHANGED -> {
+                val payload = ContractJson.read(event.dataJson, EntityProfileChangedPayload::class.java)
+                val node = payload.node ?: throw noNode(event, payload.entityRef)
+                EntityProfileChanged(tenant = event.tenant, entityRef = payload.entityRef, node = node.toReplicaNode())
+            }
 
-        else -> throw ContractViolation("the structure feed takes no ${event.type}")
-    }
+            else -> {
+                throw ContractViolation("the structure feed takes no ${event.type}")
+            }
+        }
 
     private fun noNode(
         event: Envelope,
@@ -66,23 +69,25 @@ class StructureFeedHandler(
             "(INV-Q-3850, INV-T-3298)",
     )
 
-    private fun OrganisationStructureChangedPayloadNode.toReplicaNode() = StructureNode(
-        kind = StructureNodeKind.of(kind.value),
-        parentRef = parentRef,
-        retired = retired,
-        name = name,
-        code = code,
-        profile = profile.map { ProfileEntry(it.attribute, it.`value`, it.effectiveDate) },
-        structureVersion = structureVersion.toLong(),
-    )
+    private fun OrganisationStructureChangedPayloadNode.toReplicaNode() =
+        StructureNode(
+            kind = StructureNodeKind.of(kind.value),
+            parentRef = parentRef,
+            retired = retired,
+            name = name,
+            code = code,
+            profile = profile.map { ProfileEntry(it.attribute, it.`value`, it.effectiveDate) },
+            structureVersion = structureVersion.toLong(),
+        )
 
-    private fun EntityProfileChangedPayloadNode.toReplicaNode() = StructureNode(
-        kind = StructureNodeKind.of(kind.value),
-        parentRef = parentRef,
-        retired = retired,
-        name = name,
-        code = code,
-        profile = profile.map { ProfileEntry(it.attribute, it.`value`, it.effectiveDate) },
-        structureVersion = structureVersion.toLong(),
-    )
+    private fun EntityProfileChangedPayloadNode.toReplicaNode() =
+        StructureNode(
+            kind = StructureNodeKind.of(kind.value),
+            parentRef = parentRef,
+            retired = retired,
+            name = name,
+            code = code,
+            profile = profile.map { ProfileEntry(it.attribute, it.`value`, it.effectiveDate) },
+            structureVersion = structureVersion.toLong(),
+        )
 }

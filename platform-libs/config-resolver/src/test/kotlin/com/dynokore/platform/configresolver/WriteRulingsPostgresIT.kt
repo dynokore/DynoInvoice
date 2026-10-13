@@ -107,9 +107,7 @@ class WriteRulingsPostgresIT : WritePathBase() {
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
-    fun `INV-Q-3142 a tenant-scope relaxation has no entity, without an outbox only audit is written`(
-        image: String,
-    ) {
+    fun `INV-Q-3142 a tenant-scope relaxation has no entity, without an outbox only audit is written`(image: String) {
         val r = Run(image)
         val w = r.h.writer(withOutbox = false)
         val sole = one("TENANT_ADMIN_SOLE")
@@ -164,7 +162,11 @@ class WriteRulingsPostgresIT : WritePathBase() {
         val june = LocalDate.of(2026, 6, 1)
         val w = r.h.writer(clock = clockAt("2026-10-15T02:00:00Z"), backdating = { _, _ -> LocalDate.of(2026, 4, 1) })
         r.put(set(DESPATCH, r.e1, ScopeLevel.ENTITY, one("DAILY_WINDOW"), from = june), w)
-        val entry = r.h.inTenant(r.t) { r.h.history().asOf(r.e1, tenth, setOf(DESPATCH)) }.entries.single()
+        val entry =
+            r.h
+                .inTenant(r.t) { r.h.history().asOf(r.e1, tenth, setOf(DESPATCH)) }
+                .entries
+                .single()
         assertEquals(one("DAILY_WINDOW"), entry.inForce?.selected)
         assertEquals(listOf(june), entry.changedSince.map { it.effectiveFrom })
     }

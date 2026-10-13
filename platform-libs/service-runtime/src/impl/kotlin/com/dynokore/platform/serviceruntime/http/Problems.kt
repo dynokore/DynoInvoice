@@ -74,14 +74,20 @@ object Problems {
     private const val BLOCK = "BLOCK"
     private val mapper = ObjectMapper()
 
-    private class Catalogued(val title: String, val owner: String)
+    private class Catalogued(
+        val title: String,
+        val owner: String,
+    )
 
     /** Title and remediation owner per JOB code (platform-contracts catalogue/errors/error-codes.yaml); all BLOCK, TERMINAL. */
     private val jobCodes =
         mapOf(
             JobErrorCode.JOB_UNKNOWN to Catalogued("Job unknown", "Platform"),
             JobErrorCode.SCOPE_NOT_PERMITTED to
-                Catalogued("Job command not permitted at this scope", "tenant.admin or the form's platform operator role"),
+                Catalogued(
+                    "Job command not permitted at this scope",
+                    "tenant.admin or the form's platform operator role",
+                ),
             JobErrorCode.PAUSE_PAST_DEADLINE to Catalogued("Pause refused: past the deadline bound", "Integration"),
             JobErrorCode.PAUSE_END_NOT_FUTURE to Catalogued("Pause end time invalid", "Integration"),
         )
@@ -99,15 +105,16 @@ object Problems {
         code: ClosedErrorCode,
         correlationId: String,
         detail: String? = null,
-    ): StoredResponse = coded(
-        code.httpStatus,
-        code.title,
-        detail.takeIf { code.httpStatus < HTTP_SERVER_ERROR },
-        correlationId,
-        code.code,
-        code.disposition,
-        code.remediationOwner,
-    )
+    ): StoredResponse =
+        coded(
+            code.httpStatus,
+            code.title,
+            detail.takeIf { code.httpStatus < HTTP_SERVER_ERROR },
+            correlationId,
+            code.code,
+            code.disposition,
+            code.remediationOwner,
+        )
 
     /**
      * The closed case [code] as a complete response for a caller outside service-runtime's servlet path, such as the
@@ -193,4 +200,8 @@ object Problems {
 }
 
 /** An error response rendered by [Problems.render]: its status, its response headers and its API-20 envelope body. */
-data class ProblemResponse(val status: Int, val headers: Map<String, String>, val body: String)
+data class ProblemResponse(
+    val status: Int,
+    val headers: Map<String, String>,
+    val body: String,
+)

@@ -7,7 +7,10 @@ import java.time.Instant
  * while held, [RetentionGate.canDelete] is always `false`, regardless of how
  * long retention has already run.
  */
-data class LegalHold(val reason: String, val placedAt: Instant) {
+data class LegalHold(
+    val reason: String,
+    val placedAt: Instant,
+) {
     init {
         require(reason.isNotBlank()) { "a legal hold must record a reason" }
     }

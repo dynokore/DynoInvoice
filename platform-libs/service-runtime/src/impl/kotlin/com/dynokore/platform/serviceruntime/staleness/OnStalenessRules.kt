@@ -13,7 +13,8 @@ import org.springframework.core.type.AnnotatedTypeMetadata
 class OnStalenessRules :
     SpringBootCondition(),
     ConfigurationCondition {
-    override fun getConfigurationPhase(): ConfigurationCondition.ConfigurationPhase = ConfigurationCondition.ConfigurationPhase.REGISTER_BEAN
+    override fun getConfigurationPhase(): ConfigurationCondition.ConfigurationPhase =
+        ConfigurationCondition.ConfigurationPhase.REGISTER_BEAN
 
     override fun getMatchOutcome(
         context: ConditionContext,
@@ -25,7 +26,8 @@ class OnStalenessRules :
                 .bind("${StalenessProperties.PREFIX}.rules", Bindable.listOf(StalenessProperties.Rule::class.java))
                 .map { it.isNotEmpty() }
                 .orElse(false) == true
-        val declared = context.beanFactory?.getBeanNamesForType(StalenessRule::class.java, true, false)?.isNotEmpty() == true
+        val declared =
+            context.beanFactory?.getBeanNamesForType(StalenessRule::class.java, true, false)?.isNotEmpty() == true
         return if (configured || declared) {
             ConditionOutcome.match("staleness rules configured or declared")
         } else {

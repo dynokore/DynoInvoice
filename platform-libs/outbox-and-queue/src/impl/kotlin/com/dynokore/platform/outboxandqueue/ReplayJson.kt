@@ -28,7 +28,9 @@ class ReplayJson(
         val node = mapper.createObjectNode()
         node.put("kind", scope.kind)
         when (scope) {
-            is ReplayScope.Tenant -> node.put("tenantId", scope.tenant.toString())
+            is ReplayScope.Tenant -> {
+                node.put("tenantId", scope.tenant.toString())
+            }
 
             is ReplayScope.Entity -> {
                 node.put("tenantId", scope.tenant.toString())
@@ -44,33 +46,56 @@ class ReplayJson(
         return mapper.writeValueAsString(node)
     }
 
-    fun readRequest(json: String): ReplayRequest = guarded {
-        val node = mapper.readTree(json)
-        val mode = ReplayMode.valueOf(text(node, "mode"))
-        ReplayRequest(
-            replayId = UUID.fromString(text(node, "replayId")),
-            producer = text(node, "producer"),
-            mode = mode,
-            scope = node.get("scope")?.takeUnless { it.isNull }?.let { readScope(it) },
-        )
-    }
+    fun readRequest(json: String): ReplayRequest =
+        guarded {
+            val node = mapper.readTree(json)
+            val mode = ReplayMode.valueOf(text(node, "mode"))
+            ReplayRequest(
+                replayId = UUID.fromString(text(node, "replayId")),
+                producer = text(node, "producer"),
+                mode = mode,
+                scope = node.get("scope")?.takeUnless { it.isNull }?.let { readScope(it) },
+            )
+        }
 
     fun readScope(json: String): ReplayScope = guarded { readScope(mapper.readTree(json)) }
 
     /** The replayId a ReplayCompleted answers. */
-    fun readCompleted(json: String): UUID = guarded {
-        val node = mapper.readTree(json)
-        require(node.get("eventsReplayed")?.isIntegralNumber == true) { "eventsReplayed missing" }
-        UUID.fromString(text(node, "replayId"))
-    }
+    fun readCompleted(json: String): UUID =
+        guarded {
+            val node = mapper.readTree(json)
+            require(node.get("eventsReplayed")?.isIntegralNumber == true) { "eventsReplayed missing" }
+            UUID.fromString(text(node, "replayId"))
+        }
 
     private fun readScope(node: JsonNode): ReplayScope {
-        val tenant = node.get("tenantId")?.takeIf { it.isString }?.asString()?.let { TenantId.fromClaim(it) }
+        val tenant =
+            node
+                .get("tenantId")
+                ?.takeIf { it.isString }
+                ?.asString()
+                ?.let { TenantId.fromClaim(it) }
         return when (text(node, "kind")) {
-            "TENANT" -> ReplayScope.Tenant(requireNotNull(tenant) { "TENANT scope needs tenantId" })
-            "ENTITY" -> ReplayScope.Entity(requireNotNull(tenant) { "ENTITY scope needs tenantId" }, EntityRef(text(node, "entityRef")))
-            "PERIOD" -> ReplayScope.Period(Instant.parse(text(node, "from")), Instant.parse(text(node, "to")), tenant)
-            else -> throw IllegalArgumentException("unknown scope kind")
+            "TENANT" -> {
+                ReplayScope.Tenant(requireNotNull(tenant) { "TENANT scope needs tenantId" })
+            }
+
+            "ENTITY" -> {
+                ReplayScope.Entity(
+                    requireNotNull(tenant) {
+                        "ENTITY scope needs tenantId"
+                    },
+                    EntityRef(text(node, "entityRef")),
+                )
+            }
+
+            "PERIOD" -> {
+                ReplayScope.Period(Instant.parse(text(node, "from")), Instant.parse(text(node, "to")), tenant)
+            }
+
+            else -> {
+                throw IllegalArgumentException("unknown scope kind")
+            }
         }
     }
 
@@ -79,9 +104,10 @@ class ReplayJson(
         field: String,
     ): String = node.get(field)?.takeIf { it.isString }?.asString() ?: throw IllegalArgumentException("$field missing")
 
-    private fun <T> guarded(block: () -> T): T = try {
-        block()
-    } catch (failure: RuntimeException) {
-        throw ContractViolation("malformed replay payload: ${failure.message}")
-    }
+    private fun <T> guarded(block: () -> T): T =
+        try {
+            block()
+        } catch (failure: RuntimeException) {
+            throw ContractViolation("malformed replay payload: ${failure.message}")
+        }
 }

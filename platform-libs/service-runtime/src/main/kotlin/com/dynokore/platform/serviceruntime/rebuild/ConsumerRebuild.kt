@@ -73,7 +73,10 @@ private const val HTTP_FORBIDDEN = 403
 private const val HTTP_CONFLICT = 409
 
 /** The catalogue codes of rebuildConsumer (owner ruling INV-Q-3667; platform-contracts gst-catalogue 1.11.0). */
-enum class RebuildErrorCode(val code: String, val httpStatus: Int) {
+enum class RebuildErrorCode(
+    val code: String,
+    val httpStatus: Int,
+) {
     /** The topic is not one this service consumes. */
     TOPIC_NOT_CONSUMED("EVL-001", HTTP_NOT_FOUND),
 
@@ -93,9 +96,14 @@ enum class RebuildErrorCode(val code: String, val httpStatus: Int) {
 /** The outcome: done with the replay's state, or refused with a catalogue code and nothing written (ARC-19). */
 sealed interface RebuildOutcome {
     /** [created] is true when this call moved the head and wrote the request (202); false for a repeat (200). */
-    data class Done(val state: ReplayState, val created: Boolean) : RebuildOutcome
+    data class Done(
+        val state: ReplayState,
+        val created: Boolean,
+    ) : RebuildOutcome
 
-    data class Refused(val code: RebuildErrorCode) : RebuildOutcome
+    data class Refused(
+        val code: RebuildErrorCode,
+    ) : RebuildOutcome
 }
 
 /**

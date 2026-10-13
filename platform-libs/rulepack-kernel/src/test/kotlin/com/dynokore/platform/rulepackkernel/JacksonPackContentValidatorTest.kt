@@ -24,18 +24,20 @@ class JacksonPackContentValidatorTest {
 
     @Test
     fun `plain declarative content is accepted`() {
-        val contents = """
+        val contents =
+            """
             {"packType":"code-catalogue","codes":[{"code":"SR","rate":9,"annexEGroup":"1"}]}
-        """.trimIndent().toByteArray()
+            """.trimIndent().toByteArray()
 
         assertEquals(ContentValidationOutcome.Accepted, validator.validate(contents))
     }
 
     @Test
     fun `a fixture carrying a script field is refused (INV-AC-2394)`() {
-        val contents = """
+        val contents =
+            """
             {"packType":"scenario","handlers":[{"name":"self-billing","script":"function(doc){ return doc.rate }"}]}
-        """.trimIndent().toByteArray()
+            """.trimIndent().toByteArray()
 
         val rejected = rejectionOf(contents)
         assertReasonContains(rejected, "handlers[0].script")
@@ -43,9 +45,10 @@ class JacksonPackContentValidatorTest {
 
     @Test
     fun `a fixture carrying a handlerClass field is refused (INV-AC-2394)`() {
-        val contents = """
+        val contents =
+            """
             {"packType":"mapping","rules":[{"internalCode":"X1","handlerClass":"com.example.Injected"}]}
-        """.trimIndent().toByteArray()
+            """.trimIndent().toByteArray()
 
         val rejected = rejectionOf(contents)
         assertReasonContains(rejected, "rules[0].handlerClass")
@@ -53,9 +56,10 @@ class JacksonPackContentValidatorTest {
 
     @Test
     fun `a legitimate 'code' or 'handlers' field is accepted — that is data vocabulary, not code`() {
-        val contents = """
+        val contents =
+            """
             {"packType":"scenario","handlers":[{"name":"self-billing","internalCode":"X1","code":"SR"}]}
-        """.trimIndent().toByteArray()
+            """.trimIndent().toByteArray()
 
         assertEquals(ContentValidationOutcome.Accepted, validator.validate(contents))
     }

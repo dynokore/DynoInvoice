@@ -20,38 +20,41 @@ import com.dynokore.platform.tenancykernel.TransactionRunner
  * claimed item (relay, inbox, replay, dead-letter triage, event-log reads and publishes).
  */
 class TenantScope
-@JvmOverloads
-constructor(
-    val tenants: TenantContext,
-    val transactions: TransactionRunner,
-    val connections: CurrentConnection,
-    val workloadPrincipal: String,
-    val platform: PlatformTenantBinding? = tenants as? PlatformTenantBinding,
-) {
-    init {
-        require(workloadPrincipal.isNotBlank()) { "the workload principal must not be blank (INV-REQ-854 b1)" }
-    }
+    @JvmOverloads
+    constructor(
+        val tenants: TenantContext,
+        val transactions: TransactionRunner,
+        val connections: CurrentConnection,
+        val workloadPrincipal: String,
+        val platform: PlatformTenantBinding? = tenants as? PlatformTenantBinding,
+    ) {
+        init {
+            require(workloadPrincipal.isNotBlank()) { "the workload principal must not be blank (INV-REQ-854 b1)" }
+        }
 
-    /**
-     * Binds [tenant] and [actor] for [block]: the reserved `TenantId.PLATFORM` of a platform row or a tenantless
-     * platform event through [platform] (INV-Q-2927 option D), any other tenant through [tenants].
-     *
-     * @throws IllegalStateException when [tenant] is the platform tenant and no [platform] binding was given.
-     * @throws IllegalArgumentException when [actor] is blank.
-     */
-    fun <T> bind(
-        tenant: TenantId,
-        actor: String,
-        block: () -> T,
-    ): T = if (tenant.isPlatform) {
-        checkNotNull(platform) { "platform rows need a PlatformTenantBinding in this TenantScope" }.bindPlatform(actor, block)
-    } else {
-        tenants.bind(tenant, actor, block)
-    }
+        /**
+         * Binds [tenant] and [actor] for [block]: the reserved `TenantId.PLATFORM` of a platform row or a tenantless
+         * platform event through [platform] (INV-Q-2927 option D), any other tenant through [tenants].
+         *
+         * @throws IllegalStateException when [tenant] is the platform tenant and no [platform] binding was given.
+         * @throws IllegalArgumentException when [actor] is blank.
+         */
+        fun <T> bind(
+            tenant: TenantId,
+            actor: String,
+            block: () -> T,
+        ): T =
+            if (tenant.isPlatform) {
+                checkNotNull(
+                    platform,
+                ) { "platform rows need a PlatformTenantBinding in this TenantScope" }.bindPlatform(actor, block)
+            } else {
+                tenants.bind(tenant, actor, block)
+            }
 
-    /** [bind] with the service's [workloadPrincipal]: background work only (INV-REQ-854 b1). */
-    fun <T> bindWorkload(
-        tenant: TenantId,
-        block: () -> T,
-    ): T = bind(tenant, workloadPrincipal, block)
-}
+        /** [bind] with the service's [workloadPrincipal]: background work only (INV-REQ-854 b1). */
+        fun <T> bindWorkload(
+            tenant: TenantId,
+            block: () -> T,
+        ): T = bind(tenant, workloadPrincipal, block)
+    }

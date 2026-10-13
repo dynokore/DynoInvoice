@@ -73,16 +73,17 @@ class JdbcOverrideService(
         docUuid: DocUuid,
         documentVersion: Long,
         code: String,
-    ): Boolean = connections
-        .require()
-        .prepareStatement(
-            "select 1 from $schemaName.${AuditSchema.OVERRIDE_GRANT} where doc_uuid = ? and document_version = ? and error_code = ?",
-        ).use { statement ->
-            statement.setObject(1, docUuid.value)
-            statement.setLong(2, documentVersion)
-            statement.setString(3, code)
-            statement.executeQuery().use { it.next() }
-        }
+    ): Boolean =
+        connections
+            .require()
+            .prepareStatement(
+                "select 1 from $schemaName.${AuditSchema.OVERRIDE_GRANT} where doc_uuid = ? and document_version = ? and error_code = ?",
+            ).use { statement ->
+                statement.setObject(1, docUuid.value)
+                statement.setLong(2, documentVersion)
+                statement.setString(3, code)
+                statement.executeQuery().use { it.next() }
+            }
 
     private fun refuseIfNotAllowed(command: OverrideCommand) {
         when (errors.dispositionOf(command.code)) {
@@ -100,30 +101,32 @@ class JdbcOverrideService(
     private fun insert(
         command: OverrideCommand,
         grant: OverrideGrant,
-    ): Boolean = connections
-        .require()
-        .prepareStatement(
-            """
-            insert into $schemaName.${AuditSchema.OVERRIDE_GRANT} (id, tenant_id, doc_uuid, document_version, error_code, actor, reason, granted_at, audit_event_id)
-            values (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            on conflict (tenant_id, doc_uuid, document_version, error_code) do nothing
-            """.trimIndent(),
-        ).use { statement ->
-            statement.setObject(1, UUID.randomUUID())
-            statement.setObject(2, command.tenant.value)
-            statement.setObject(3, grant.docUuid.value)
-            statement.setLong(4, grant.documentVersion)
-            statement.setString(5, grant.code)
-            statement.setString(6, grant.actor)
-            statement.setString(7, grant.reason)
-            statement.setTimestamp(8, Timestamp.from(grant.grantedAt))
-            statement.setString(9, grant.auditEventId)
-            statement.executeUpdate() == 1
-        }
+    ): Boolean =
+        connections
+            .require()
+            .prepareStatement(
+                """
+                insert into $schemaName.${AuditSchema.OVERRIDE_GRANT} (id, tenant_id, doc_uuid, document_version, error_code, actor, reason, granted_at, audit_event_id)
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                on conflict (tenant_id, doc_uuid, document_version, error_code) do nothing
+                """.trimIndent(),
+            ).use { statement ->
+                statement.setObject(1, UUID.randomUUID())
+                statement.setObject(2, command.tenant.value)
+                statement.setObject(3, grant.docUuid.value)
+                statement.setLong(4, grant.documentVersion)
+                statement.setString(5, grant.code)
+                statement.setString(6, grant.actor)
+                statement.setString(7, grant.reason)
+                statement.setTimestamp(8, Timestamp.from(grant.grantedAt))
+                statement.setString(9, grant.auditEventId)
+                statement.executeUpdate() == 1
+            }
 
     private companion object {
         const val ACTION = "override"
 
-        fun scopeOf(command: OverrideCommand) = "document:${command.docUuid}/version:${command.documentVersion}/code:${command.code}"
+        fun scopeOf(command: OverrideCommand) =
+            "document:${command.docUuid}/version:${command.documentVersion}/code:${command.code}"
     }
 }

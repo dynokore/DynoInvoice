@@ -18,11 +18,12 @@ internal class Predicates(
     fun tenantValue(): Param<UUID> = DSL.`val`(tenant.value, SQLDataType.UUID)
 
     /** A read of [ref]: its own rows, and for a REFERENCE table also the platform rows. */
-    fun read(ref: DataRef): Condition = if (ref.tableClass == TableClass.REFERENCE && !tenant.isPlatform) {
-        ref.tenantField().`in`(tenantValue(), DSL.`val`(TenantId.PLATFORM.value, SQLDataType.UUID))
-    } else {
-        ref.tenantField().eq(tenantValue())
-    }
+    fun read(ref: DataRef): Condition =
+        if (ref.tableClass == TableClass.REFERENCE && !tenant.isPlatform) {
+            ref.tenantField().`in`(tenantValue(), DSL.`val`(TenantId.PLATFORM.value, SQLDataType.UUID))
+        } else {
+            ref.tenantField().eq(tenantValue())
+        }
 
     /** A write of [ref]: only the bound tenant's rows. */
     fun write(ref: DataRef): Condition = ref.tenantField().eq(tenantValue())

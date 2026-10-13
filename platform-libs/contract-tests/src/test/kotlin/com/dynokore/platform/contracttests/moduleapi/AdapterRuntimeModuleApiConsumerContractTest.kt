@@ -52,12 +52,13 @@ abstract class AdapterRuntimeModuleApiConsumerContract {
         private val version: AdapterVersion,
         private val clock: Clock,
     ) {
-        fun send(transmit: () -> String): String = try {
-            executor.execute(transmit).also { report(ConnectionState.UP, null) }
-        } catch (e: IOException) {
-            report(ConnectionState.DOWN, e.message)
-            throw e
-        }
+        fun send(transmit: () -> String): String =
+            try {
+                executor.execute(transmit).also { report(ConnectionState.UP, null) }
+            } catch (e: IOException) {
+                report(ConnectionState.DOWN, e.message)
+                throw e
+            }
 
         private fun report(
             state: ConnectionState,

@@ -79,16 +79,22 @@ interface DeclaredOperation<C, S, R> {
 
 /** What happened to a command. Nothing changed unless [Performed]. */
 sealed interface OperationOutcome<out R> {
-    data class Performed<R>(val result: R) : OperationOutcome<R>
+    data class Performed<R>(
+        val result: R,
+    ) : OperationOutcome<R>
 
     /** A repeat with the same key: the earlier result, no second effect and no second audit entry (b7). */
-    data class Repeated<R>(val result: R) : OperationOutcome<R>
+    data class Repeated<R>(
+        val result: R,
+    ) : OperationOutcome<R>
 
     /** The actor does not hold the role within the scope (b2). */
     data object NotPermitted : OperationOutcome<Nothing>
 
     /** A precondition is unmet against state (b3); [code] is the catalogue code. */
-    data class PreconditionUnmet(val code: String) : OperationOutcome<Nothing>
+    data class PreconditionUnmet(
+        val code: String,
+    ) : OperationOutcome<Nothing>
 }
 
 /**

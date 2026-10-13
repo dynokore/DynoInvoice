@@ -30,7 +30,9 @@ import java.time.ZoneOffset
  * fixture instance named after one.
  */
 class FenceTest {
-    private class MutableClock(private var now: Instant = Instant.parse("2026-10-11T00:00:00Z")) : Clock() {
+    private class MutableClock(
+        private var now: Instant = Instant.parse("2026-10-11T00:00:00Z"),
+    ) : Clock() {
         override fun getZone(): ZoneId = ZoneOffset.UTC
 
         override fun withZone(zone: ZoneId?): Clock = this

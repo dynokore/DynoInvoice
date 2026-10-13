@@ -38,9 +38,16 @@ class FenceParticipant<C : Any>(
     private val acknowledger: ReadinessAcknowledger,
     private val registry: PackRegistry,
 ) {
-    private data class Key(val packId: PackId, val version: PackVersionLabel)
+    private data class Key(
+        val packId: PackId,
+        val version: PackVersionLabel,
+    )
 
-    private class Held<C>(val manifest: PackManifest, val tenant: TenantId?, val compiled: C)
+    private class Held<C>(
+        val manifest: PackManifest,
+        val tenant: TenantId?,
+        val compiled: C,
+    )
 
     private val held = ConcurrentHashMap<Key, Held<C>>()
     private val armedPacks = ConcurrentHashMap<Key, Held<C>>()
@@ -56,21 +63,23 @@ class FenceParticipant<C : Any>(
         val loading = load(artefact, tenant)
         val ack =
             when (loading) {
-                is Loading.Held ->
+                is Loading.Held -> {
                     PackReadinessAcknowledgement(
                         loading.manifest.packId,
                         loading.manifest.version,
                         instance,
                         ReadinessOutcome.Loaded,
                     )
+                }
 
-                is Loading.Refused ->
+                is Loading.Refused -> {
                     PackReadinessAcknowledgement(
                         loading.identity?.first ?: PackId(UNKNOWN_PACK),
                         loading.identity?.second ?: PackVersionLabel(UNKNOWN_PACK),
                         instance,
                         loading.failure,
                     )
+                }
             }
         try {
             acknowledger.acknowledge(ack)
@@ -86,7 +95,10 @@ class FenceParticipant<C : Any>(
     }
 
     private sealed interface Loading {
-        data class Held(val manifest: PackManifest, val newlyHeld: Boolean) : Loading
+        data class Held(
+            val manifest: PackManifest,
+            val newlyHeld: Boolean,
+        ) : Loading
 
         data class Refused(
             val failure: ReadinessOutcome.Failed,
@@ -97,21 +109,26 @@ class FenceParticipant<C : Any>(
     private fun load(
         artefact: PackArtefact,
         tenant: TenantId?,
-    ): Loading = when (val verified = verifier.verify(artefact, trustAnchors)) {
-        is PackVerificationOutcome.Rejected ->
-            refused(ReadinessFailure.VERIFICATION_FAILED, verified.reason.name, null)
+    ): Loading =
+        when (val verified = verifier.verify(artefact, trustAnchors)) {
+            is PackVerificationOutcome.Rejected -> {
+                refused(ReadinessFailure.VERIFICATION_FAILED, verified.reason.name, null)
+            }
 
-        is PackVerificationOutcome.Verified -> {
-            val manifest = verified.manifest
-            val identity = manifest.packId to manifest.version
-            when (val content = contentValidator.validate(artefact.contents)) {
-                is ContentValidationOutcome.Rejected ->
-                    refused(ReadinessFailure.CONTENT_REFUSED, content.reason, identity)
+            is PackVerificationOutcome.Verified -> {
+                val manifest = verified.manifest
+                val identity = manifest.packId to manifest.version
+                when (val content = contentValidator.validate(artefact.contents)) {
+                    is ContentValidationOutcome.Rejected -> {
+                        refused(ReadinessFailure.CONTENT_REFUSED, content.reason, identity)
+                    }
 
-                ContentValidationOutcome.Accepted -> hold(manifest, tenant, artefact, identity)
+                    ContentValidationOutcome.Accepted -> {
+                        hold(manifest, tenant, artefact, identity)
+                    }
+                }
             }
         }
-    }
 
     private fun hold(
         manifest: PackManifest,
@@ -138,7 +155,9 @@ class FenceParticipant<C : Any>(
                 CompileOutcome.Failed("compiler threw ${e::class.simpleName}")
             }
         return when (compiled) {
-            is CompileOutcome.Failed -> refused(ReadinessFailure.COMPILE_FAILED, compiled.reason, identity)
+            is CompileOutcome.Failed -> {
+                refused(ReadinessFailure.COMPILE_FAILED, compiled.reason, identity)
+            }
 
             is CompileOutcome.Compiled -> {
                 held[key] = Held(manifest, tenant, compiled.compiled)

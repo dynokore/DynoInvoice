@@ -112,15 +112,16 @@ class StalenessIT {
     private fun oldest(
         harness: OutboxHarness,
         offset: Long,
-    ): Instant = harness.fixture.adminDataSource().connection.use { connection ->
-        connection.prepareStatement("select inserted_at from $table where log_offset = ?").use {
-            it.setLong(1, offset)
-            it.executeQuery().use { rows ->
-                rows.next()
-                rows.getTimestamp(1).toInstant()
+    ): Instant =
+        harness.fixture.adminDataSource().connection.use { connection ->
+            connection.prepareStatement("select inserted_at from $table where log_offset = ?").use {
+                it.setLong(1, offset)
+                it.executeQuery().use { rows ->
+                    rows.next()
+                    rows.getTimestamp(1).toInstant()
+                }
             }
         }
-    }
 
     private fun monitorFor(
         harness: OutboxHarness,

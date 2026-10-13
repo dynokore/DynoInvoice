@@ -55,8 +55,9 @@ internal object StatementGuard {
         }
     }
 
-    private fun isSupportedStatement(part: Query): Boolean = part is Select<*> || part is QOM.Insert<*> || part is QOM.Update<*> || part is QOM.Delete<*> ||
-        part is QOM.Merge<*>
+    private fun isSupportedStatement(part: Query): Boolean =
+        part is Select<*> || part is QOM.Insert<*> || part is QOM.Update<*> || part is QOM.Delete<*> ||
+            part is QOM.Merge<*>
 
     /**
      * Names render quoted, except a name created unquoted (`DSL.unquotedName`, `DSL.function(String, ...)`), which
@@ -64,11 +65,12 @@ internal object StatementGuard {
      * unquoted and are let through only while every part is a single identifier: one identifier can name a function
      * or a type but never add syntax.
      */
-    private fun isRenderedQuotedOrIdentifier(name: Name): Boolean = when (name.quoted()) {
-        Name.Quoted.DEFAULT, Name.Quoted.QUOTED -> true
-        Name.Quoted.SYSTEM -> name.parts().all { IDENTIFIER.matches(it.last().orEmpty()) }
-        else -> false
-    }
+    private fun isRenderedQuotedOrIdentifier(name: Name): Boolean =
+        when (name.quoted()) {
+            Name.Quoted.DEFAULT, Name.Quoted.QUOTED -> true
+            Name.Quoted.SYSTEM -> name.parts().all { IDENTIFIER.matches(it.last().orEmpty()) }
+            else -> false
+        }
 
     private val IDENTIFIER = Regex("[A-Za-z_][A-Za-z0-9_]*")
 
@@ -93,17 +95,38 @@ internal object StatementGuard {
         val value = DSL.inline(0)
         val functions: List<Any> =
             listOf(
-                DSL.rowNumber(), DSL.rank(), DSL.denseRank(), DSL.percentRank(), DSL.cumeDist(), DSL.ntile(1),
-                DSL.lag(value), DSL.lead(value), DSL.firstValue(value), DSL.lastValue(value), DSL.nthValue(value, 1),
-                DSL.count(), DSL.count(value), DSL.countDistinct(value), DSL.sum(value), DSL.avg(value),
-                DSL.max(value), DSL.min(value), DSL.every(DSL.noCondition()), DSL.boolAnd(DSL.noCondition()),
-                DSL.boolOr(DSL.noCondition()), DSL.arrayAgg(value), DSL.stddevPop(value), DSL.stddevSamp(value),
-                DSL.varPop(value), DSL.varSamp(value),
+                DSL.rowNumber(),
+                DSL.rank(),
+                DSL.denseRank(),
+                DSL.percentRank(),
+                DSL.cumeDist(),
+                DSL.ntile(1),
+                DSL.lag(value),
+                DSL.lead(value),
+                DSL.firstValue(value),
+                DSL.lastValue(value),
+                DSL.nthValue(value, 1),
+                DSL.count(),
+                DSL.count(value),
+                DSL.countDistinct(value),
+                DSL.sum(value),
+                DSL.avg(value),
+                DSL.max(value),
+                DSL.min(value),
+                DSL.every(DSL.noCondition()),
+                DSL.boolAnd(DSL.noCondition()),
+                DSL.boolOr(DSL.noCondition()),
+                DSL.arrayAgg(value),
+                DSL.stddevPop(value),
+                DSL.stddevSamp(value),
+                DSL.varPop(value),
+                DSL.varSamp(value),
             )
         return functions.filter { it is QOM.WindowFunction<*, *> }.map { it.javaClass }.toSet()
     }
 
-    private fun isCustom(part: QueryPart): Boolean = part is CustomQueryPart || part is CustomCondition || part is CustomField<*> || part is CustomTable<*>
+    private fun isCustom(part: QueryPart): Boolean =
+        part is CustomQueryPart || part is CustomCondition || part is CustomField<*> || part is CustomTable<*>
 
     /**
      * jOOQ renders the operator of an arithmetic or concatenation node, and the `*` of `count(*)`, as an [SQL] part.
@@ -117,8 +140,9 @@ internal object StatementGuard {
         return isOperatorNode(parent) || isCountAsterisk(parts)
     }
 
-    private fun isOperatorNode(part: QueryPart?): Boolean = part is QOM.Add<*> || part is QOM.Sub<*> || part is QOM.Mul<*> || part is QOM.Div<*> ||
-        part is QOM.BitAnd<*> || part is QOM.BitOr<*> || part is QOM.BitXor<*> || part is QOM.Concat
+    private fun isOperatorNode(part: QueryPart?): Boolean =
+        part is QOM.Add<*> || part is QOM.Sub<*> || part is QOM.Mul<*> || part is QOM.Div<*> ||
+            part is QOM.BitAnd<*> || part is QOM.BitOr<*> || part is QOM.BitXor<*> || part is QOM.Concat
 
     private fun isCountAsterisk(parts: Array<QueryPart>): Boolean {
         val count = parts.getOrNull(parts.size - COUNT_DEPTH)

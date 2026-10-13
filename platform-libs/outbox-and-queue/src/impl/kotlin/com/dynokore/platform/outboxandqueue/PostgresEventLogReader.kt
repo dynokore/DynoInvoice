@@ -53,8 +53,9 @@ class PostgresEventLogReader(
                     eventLog.transactions.inTransaction {
                         val connection = eventLog.connections.require()
                         connection
-                            .prepareStatement("select log_offset, envelope::text from $topicTable where log_offset = any(?)")
-                            .use { statement ->
+                            .prepareStatement(
+                                "select log_offset, envelope::text from $topicTable where log_offset = any(?)",
+                            ).use { statement ->
                                 statement.setArray(1, connection.createArrayOf("bigint", offsets.toTypedArray()))
                                 statement.executeQuery().use { rows ->
                                     while (rows.next()) envelopes[rows.getLong(1)] = rows.getString(2)
@@ -150,28 +151,31 @@ class PostgresEventLogReader(
         connection: Connection,
         topic: String,
         afterOffset: Long,
-    ): Pair<Long, Instant>? = connection
-        .prepareStatement("select log_offset, inserted_at from ${EventLogSchema.SCHEMA}.${EventLogSchema.CLAIM}(?, ?, 1)")
-        .use { statement ->
-            statement.setString(1, topic)
-            statement.setLong(2, afterOffset)
-            statement.executeQuery().use { rows ->
-                if (rows.next()) rows.getLong(1) to rows.getTimestamp(2).toInstant() else null
+    ): Pair<Long, Instant>? =
+        connection
+            .prepareStatement(
+                "select log_offset, inserted_at from ${EventLogSchema.SCHEMA}.${EventLogSchema.CLAIM}(?, ?, 1)",
+            ).use { statement ->
+                statement.setString(1, topic)
+                statement.setLong(2, afterOffset)
+                statement.executeQuery().use { rows ->
+                    if (rows.next()) rows.getLong(1) to rows.getTimestamp(2).toInstant() else null
+                }
             }
-        }
 
     private fun watermark(
         connection: Connection,
         topic: String,
-    ): Long = connection
-        .prepareStatement("select coalesce(max(watermark), 0) from $WATERMARK where topic_key = ?")
-        .use { statement ->
-            statement.setString(1, EventLogSchema.tableName(topic))
-            statement.executeQuery().use {
-                it.next()
-                it.getLong(1)
+    ): Long =
+        connection
+            .prepareStatement("select coalesce(max(watermark), 0) from $WATERMARK where topic_key = ?")
+            .use { statement ->
+                statement.setString(1, EventLogSchema.tableName(topic))
+                statement.executeQuery().use {
+                    it.next()
+                    it.getLong(1)
+                }
             }
-        }
 
     /** The topic's watermark and the claimed (offset, tenant) pairs after [afterOffset], read in one snapshot. */
     private fun claimBatch(
@@ -179,32 +183,33 @@ class PostgresEventLogReader(
         topic: String,
         afterOffset: Long,
         limit: Int,
-    ): Pair<Long, List<Pair<Long, TenantId>>> = connection
-        .prepareStatement(
-            """
-            select w.watermark, c.log_offset, c.tenant_id
-            from (select coalesce(max(watermark), 0) as watermark from $WATERMARK where topic_key = ?) w
-            left join lateral ${EventLogSchema.SCHEMA}.${EventLogSchema.CLAIM}(?, ?, ?) c on true
-            order by c.log_offset
-            """.trimIndent(),
-        ).use { statement ->
-            statement.setString(1, EventLogSchema.tableName(topic))
-            statement.setString(2, topic)
-            statement.setLong(3, afterOffset)
-            statement.setInt(4, limit)
-            statement.executeQuery().use { rows ->
-                var watermark = 0L
-                val claimed =
-                    buildList {
-                        while (rows.next()) {
-                            watermark = rows.getLong(1)
-                            val offset = rows.getLong(2)
-                            if (!rows.wasNull()) add(offset to TenantId(rows.getObject(3, UUID::class.java)))
+    ): Pair<Long, List<Pair<Long, TenantId>>> =
+        connection
+            .prepareStatement(
+                """
+                select w.watermark, c.log_offset, c.tenant_id
+                from (select coalesce(max(watermark), 0) as watermark from $WATERMARK where topic_key = ?) w
+                left join lateral ${EventLogSchema.SCHEMA}.${EventLogSchema.CLAIM}(?, ?, ?) c on true
+                order by c.log_offset
+                """.trimIndent(),
+            ).use { statement ->
+                statement.setString(1, EventLogSchema.tableName(topic))
+                statement.setString(2, topic)
+                statement.setLong(3, afterOffset)
+                statement.setInt(4, limit)
+                statement.executeQuery().use { rows ->
+                    var watermark = 0L
+                    val claimed =
+                        buildList {
+                            while (rows.next()) {
+                                watermark = rows.getLong(1)
+                                val offset = rows.getLong(2)
+                                if (!rows.wasNull()) add(offset to TenantId(rows.getObject(3, UUID::class.java)))
+                            }
                         }
-                    }
-                watermark to claimed
+                    watermark to claimed
+                }
             }
-        }
 
     private companion object {
         const val WATERMARK = "${EventLogSchema.SCHEMA}.${EventLogSchema.PURGE_WATERMARK}"

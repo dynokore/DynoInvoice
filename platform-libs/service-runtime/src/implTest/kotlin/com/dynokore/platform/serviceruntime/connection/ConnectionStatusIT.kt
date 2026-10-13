@@ -26,15 +26,16 @@ class ConnectionStatusIT {
             val two = h.replica("transport-svc-2", clock)
             val reporter1 = OutboxConnectionStatusReporter(one.scope, one.outbox)
             val reporter2 = OutboxConnectionStatusReporter(two.scope, two.outbox)
-            val ap = ConnectionRecord(
-                "ap-primary",
-                "https://ap.example",
-                SecretRef(SECRET),
-                "production",
-                "transport-svc",
-                JobsHarness.TENANT_A,
-                EntityRef.TENANT_WIDE,
-            )
+            val ap =
+                ConnectionRecord(
+                    "ap-primary",
+                    "https://ap.example",
+                    SecretRef(SECRET),
+                    "production",
+                    "transport-svc",
+                    JobsHarness.TENANT_A,
+                    EntityRef.TENANT_WIDE,
+                )
             val failure = ConnectionFailure(Instant.parse("2026-10-12T00:00:01Z"), "TRN-004")
 
             reporter1.report(ap, CircuitBreakerState.CLOSED) shouldBe false

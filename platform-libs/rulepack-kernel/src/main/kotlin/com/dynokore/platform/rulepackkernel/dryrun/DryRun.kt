@@ -20,9 +20,10 @@ data class Verdict(
     val trace: DecisionTrace,
 ) {
     /** Equal in outcome: same code and the same amounts, ignoring scale (2.0 equals 2.00) and the trace. */
-    fun sameOutcomeAs(other: Verdict): Boolean = code == other.code &&
-        taxableValue.compareTo(other.taxableValue) == 0 &&
-        gstValue.compareTo(other.gstValue) == 0
+    fun sameOutcomeAs(other: Verdict): Boolean =
+        code == other.code &&
+            taxableValue.compareTo(other.taxableValue) == 0 &&
+            gstValue.compareTo(other.gstValue) == 0
 }
 
 /** Evaluates a document under one pack version. Must be pure (INV-REQ-775): same document, same verdict. */
@@ -38,9 +39,16 @@ data class DocumentChange(
     val after: Verdict,
 )
 
-data class EvaluationFailure(val documentId: String, val side: Side, val message: String)
+data class EvaluationFailure(
+    val documentId: String,
+    val side: Side,
+    val message: String,
+)
 
-data class ValueDelta(val taxable: BigDecimal, val gst: BigDecimal)
+data class ValueDelta(
+    val taxable: BigDecimal,
+    val gst: BigDecimal,
+)
 
 /**
  * The dry-run delta of a candidate pack over a document sample (INV-REQ-772, INV-REQ-686, INV-REQ-703,
@@ -109,12 +117,13 @@ object DryRun {
         side: Side,
         evaluator: DocumentEvaluator,
         failures: MutableList<EvaluationFailure>,
-    ): Verdict? = try {
-        evaluator.evaluate(document)
-    } catch (
-        @Suppress("TooGenericExceptionCaught") e: RuntimeException,
-    ) {
-        failures += EvaluationFailure(document.id, side, e::class.simpleName ?: "failure")
-        null
-    }
+    ): Verdict? =
+        try {
+            evaluator.evaluate(document)
+        } catch (
+            @Suppress("TooGenericExceptionCaught") e: RuntimeException,
+        ) {
+            failures += EvaluationFailure(document.id, side, e::class.simpleName ?: "failure")
+            null
+        }
 }
