@@ -6,6 +6,29 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-13
+### Changed (breaking)
+- `PackRegistryMigration` stores platform-wide pack rows under the reserved platform tenant and writes them only
+  through a sys-owned definer function (coordinator ruling INV-Q-4117, owner ruling INV-Q-2927 D, INV-ADR-3968 items
+  4a and 6, INV-REQ-854 b2; INV-T-4137):
+  - `tenant_id` is `uuid NOT NULL`; a platform-wide row carries `TenantId.PLATFORM`. The lineage key is a plain
+    `UNIQUE (pack_type, tenant_id, version)`.
+  - `ddl(schema, table, runtimeRole, sysRole)` replaces `ddl(schema, table)`. Row-level security (enabled and
+    forced) is keyed on `app.tenant_id` only: SELECT shows the bound tenant's rows plus the platform rows, and nothing
+    with no tenant bound; INSERT, UPDATE and DELETE only the bound tenant's own rows, never a platform row.
+  - Platform rows are inserted only by `<schema>.register_platform_pack(...)`
+    (`REGISTER_PLATFORM_PACK`, `REGISTER_PLATFORM_PACK_ARGUMENTS`): SECURITY DEFINER, owned by the NOLOGIN sys
+    role, static SQL, `SET search_path = pg_catalog, <schema>, pg_temp`, EXECUTE revoked from PUBLIC and granted to
+    the runtime login only. It runs under the platform-tenant binding only, takes the actor from `app.actor`
+    (refused when blank) and validates every argument.
+  - `referenceTable(schema, table)`: the name a holder declares as a tenancy-jooq `REFERENCE` table.
+### Removed
+- The `app.platform_operator` session setting and its policy branch, every `tenant_id IS NULL` path, and
+  `lineageKeyUpgradeDdl` (the 1.x lineage-key upgrade). There is no upgrade path from 1.x: no service consumes the
+  registry table yet.
+- rulepack-kernel has zero platform-build 0.10.0 `tenant-column` findings and leaves SqlGuardsTest's 0.10.0 pending
+  list (coordinator ruling INV-Q-4185).
+
 ## [1.3.3] - 2026-10-13
 ### Fixed
 - The published impl POM (`rulepack-kernel`) declared no dependency (INV-T-4356; defect in INV-T-2860's and

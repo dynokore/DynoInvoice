@@ -276,7 +276,6 @@ class SqlGuardsTest {
             mapOf(
                 ("outbox-and-queue" to "tenant-column") to "INV-T-4134",
                 ("config-resolver" to "tenant-column") to "INV-T-4134",
-                ("rulepack-kernel" to "tenant-column") to "INV-T-4137",
             )
     }
 }

@@ -1,87 +1,92 @@
 package com.dynokore.platform.rulepackkernel
 
+import com.dynokore.platform.tenancykernel.TenantId
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
-/** The `new_table` done-when: the DDL a pack holder includes in its own migration. */
+/**
+ * The DDL a pack holder includes in its own migration (INV-T-4137; coordinator ruling INV-Q-4117). The behaviour
+ * against a live database is proved by [PackRegistryMigrationPostgresIT]; this pins the text a reviewer reads.
+ */
 class PackRegistryMigrationTest {
-    @Test
-    fun `emits a table with the expected columns, uniqueness constraint and resolution index`() {
-        val ddl = PackRegistryMigration.ddl(schema = "rules", table = "rule_pack_version")
-
-        assertTrue(ddl.contains("CREATE TABLE rules.rule_pack_version ("))
-        assertTrue(ddl.contains("tenant_id          uuid NULL"))
-        assertTrue(ddl.contains("effective_from     date NOT NULL"))
-        assertTrue(ddl.contains("effective_to       date NULL"))
-        assertTrue(ddl.contains("manifest           jsonb NOT NULL"))
-        assertTrue(ddl.contains("signature          bytea NOT NULL"))
-        assertTrue(
-            ddl.contains(
-                "CONSTRAINT rule_pack_version_lineage_key UNIQUE NULLS NOT DISTINCT (pack_type, tenant_id, version)",
-            ),
+    private val ddl =
+        PackRegistryMigration.ddl(
+            schema = "rules",
+            table = "rule_pack_version",
+            runtimeRole = "rules_app",
+            sysRole = "rules_sys",
         )
+
+    @Test
+    fun `tenant_id is NOT NULL and the lineage key is a plain UNIQUE`() {
+        assertTrue(ddl.contains("CREATE TABLE rules.rule_pack_version ("))
+        assertTrue(ddl.contains("tenant_id          uuid NOT NULL,"))
+        assertTrue(ddl.contains("CONSTRAINT rule_pack_version_lineage_key UNIQUE (pack_type, tenant_id, version)"))
         assertTrue(
             ddl.contains(
                 "CREATE INDEX rule_pack_version_resolution_idx ON rules.rule_pack_version " +
                     "(pack_type, tenant_id, effective_from)",
             ),
         )
+        assertFalse(ddl.contains("NULLS NOT DISTINCT"))
+        assertFalse(ddl.contains("IS NULL AND"), "no tenant_id IS NULL path is left")
+        assertFalse(ddl.contains("platform_operator"), "the app.platform_operator branch is removed")
     }
 
     @Test
-    fun `enables and forces row-level security with an explicit platform-operator identity`() {
-        val ddl = PackRegistryMigration.ddl(schema = "rules", table = "rule_pack_version")
-
+    fun `row-level security is enabled, forced and keyed on app_tenant_id only`() {
         assertTrue(ddl.contains("ALTER TABLE rules.rule_pack_version ENABLE ROW LEVEL SECURITY;"))
         assertTrue(ddl.contains("ALTER TABLE rules.rule_pack_version FORCE ROW LEVEL SECURITY;"))
-        assertTrue(ddl.contains("CREATE POLICY rule_pack_version_tenant_isolation ON rules.rule_pack_version"))
-        // Read side: both platform-wide (tenant_id IS NULL, e.g. Scope, MDE) and
-        // tenant-scoped (e.g. a tenant's own Mapping pack, packs.yaml
-        // tenant_overridable: Yes) rows must be visible to a session with *some*
-        // identity bound (a tenant, or the platform operator, INV-REQ-1343) —
-        // fail-closed for a session with neither (no row matches at all), not just
-        // for a tenant-scoped row. Real behaviour against a live database is
-        // proved by PackRegistryMigrationPostgresIT, not string matching here.
-        val boundTenant = "nullif(current_setting('app.tenant_id', true), '')"
-        val isPlatformOperator = "current_setting('app.platform_operator', true) = 'true'"
-        val hasSomeIdentity = "($boundTenant IS NOT NULL OR $isPlatformOperator)"
+        val platform = "'${TenantId.PLATFORM}'::uuid"
+        val bound = "nullif(current_setting('app.tenant_id', true), '')::uuid"
+        val own = "(tenant_id = $bound AND tenant_id <> $platform)"
         assertTrue(
             ddl.contains(
-                "USING      ((tenant_id IS NULL AND $hasSomeIdentity) OR tenant_id = $boundTenant::uuid)",
+                "CREATE POLICY rule_pack_version_tenant_read ON rules.rule_pack_version FOR SELECT\n" +
+                    "    USING (tenant_id = $bound OR ($bound IS NOT NULL AND tenant_id = $platform));",
             ),
         )
-        // Write side must NOT be the same text as the read side: a tenant-bound
-        // session must never be able to insert a tenant_id IS NULL row, and "no
-        // tenant bound" is not by itself the platform operator (the review
-        // escalation this fixes) — only an explicit app.platform_operator = 'true'
-        // may insert one.
-        assertTrue(
-            ddl.contains(
-                "WITH CHECK ((tenant_id IS NULL AND $isPlatformOperator) OR tenant_id = $boundTenant::uuid)",
-            ),
-        )
+        assertTrue(ddl.contains("_tenant_insert ON rules.rule_pack_version FOR INSERT WITH CHECK $own;"))
+        assertTrue(ddl.contains("FOR UPDATE USING $own WITH CHECK $own;"))
+        assertTrue(ddl.contains("FOR DELETE USING $own;"))
+        assertTrue(ddl.contains("FOR INSERT TO rules_sys WITH CHECK (tenant_id = $platform);"))
     }
 
     @Test
-    fun `refuses a schema name that is not a plain identifier`() {
-        assertThrows(IllegalArgumentException::class.java) {
-            PackRegistryMigration.ddl(schema = "rules; DROP TABLE x --", table = "rule_pack_version")
+    fun `register_platform_pack is a sys-owned definer for the runtime login only`() {
+        val signature = "rules.register_platform_pack(${PackRegistryMigration.REGISTER_PLATFORM_PACK_ARGUMENTS})"
+        assertTrue(ddl.contains("CREATE FUNCTION rules.register_platform_pack(p_id uuid,"))
+        assertTrue(ddl.contains("SECURITY DEFINER SET search_path = pg_catalog, rules, pg_temp AS"))
+        assertTrue(ddl.contains("current_setting('app.actor', true)"))
+        assertTrue(ddl.contains("ALTER FUNCTION $signature OWNER TO rules_sys;"))
+        assertTrue(ddl.contains("REVOKE EXECUTE ON FUNCTION $signature FROM PUBLIC;"))
+        assertTrue(ddl.contains("GRANT EXECUTE ON FUNCTION $signature TO rules_app;"))
+        assertFalse(Regex("""(?i)\bexecute\s+(format|'|\$|[a-z_]+\s*;)""").containsMatchIn(ddl), "static SQL only")
+    }
+
+    @Test
+    fun `the reference table name is the schema-qualified table`() {
+        assertEquals("rules.rule_pack_version", PackRegistryMigration.referenceTable("rules", "rule_pack_version"))
+        assertThrows(IllegalArgumentException::class.java) { PackRegistryMigration.referenceTable("Rules", "t") }
+    }
+
+    @Test
+    fun `refuses a name that is not a plain identifier, and one role for both`() {
+        val bad =
+            listOf(
+                listOf("rules; DROP TABLE x --", "rule_pack_version", "rules_app", "rules_sys"),
+                listOf("rules", "Rule Pack Version", "rules_app", "rules_sys"),
+                listOf("rules", "rule_pack_version", "rules app", "rules_sys"),
+                listOf("rules", "rule_pack_version", "rules_app", "rules_sys;"),
+                listOf("rules", "rule_pack_version", "rules_sys", "rules_sys"),
+            )
+        bad.forEach { names ->
+            assertThrows(IllegalArgumentException::class.java) {
+                PackRegistryMigration.ddl(names[0], names[1], runtimeRole = names[2], sysRole = names[3])
+            }
         }
-    }
-
-    @Test
-    fun `refuses a table name that is not a plain identifier`() {
-        assertThrows(IllegalArgumentException::class.java) {
-            PackRegistryMigration.ddl(schema = "rules", table = "Rule Pack Version")
-        }
-    }
-
-    @Test
-    fun `upgrade replaces the lineage constraint with NULLS NOT DISTINCT`() {
-        val ddl = PackRegistryMigration.lineageKeyUpgradeDdl(schema = "rules", table = "rule_pack_version")
-
-        assertTrue(ddl.contains("DROP CONSTRAINT rule_pack_version_lineage_key,"))
-        assertTrue(ddl.contains("UNIQUE NULLS NOT DISTINCT (pack_type, tenant_id, version)"))
     }
 }
