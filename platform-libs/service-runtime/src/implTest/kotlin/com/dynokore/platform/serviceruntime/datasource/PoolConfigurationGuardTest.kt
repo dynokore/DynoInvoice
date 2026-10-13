@@ -2,6 +2,7 @@ package com.dynokore.platform.serviceruntime.datasource
 
 import com.dynokore.platform.serviceruntime.composition.ServiceDataSources
 import com.zaxxer.hikari.HikariConfig
+import com.zaxxer.hikari.HikariDataSource
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -12,6 +13,7 @@ import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.context.ApplicationContextInitializer
 import org.springframework.context.ConfigurableApplicationContext
 import org.springframework.core.env.PropertySource
+import javax.sql.DataSource
 
 /**
  * Coordinator ruling INV-Q-4542 on what each pool actually receives: [PoolConfigurationGuard] classifies every
@@ -31,6 +33,22 @@ class PoolConfigurationGuardTest {
     fun `a pool at the allowed settings passes`() {
         val pool = allowedPool()
         PoolConfigurationGuard.findOffendingProperties(pool, SERVICE).shouldBeEmpty()
+    }
+
+    @Test
+    fun `dataSourceProperties may hold only ApplicationName equal to gst-service (INV-Q-4487, INV-Q-4566)`() {
+        // ApplicationName equal to gst.service: passes
+        PoolConfigurationGuard.findOffendingProperties(allowedPool(), SERVICE).shouldBeEmpty()
+        // no data-source property at all: passes
+        PoolConfigurationGuard.findOffendingProperties(allowedPool().apply { dataSourceProperties.clear() }, SERVICE).shouldBeEmpty()
+        // ApplicationName other than gst.service: refused, the value not printed
+        val other = allowedPool().apply { addDataSourceProperty("ApplicationName", "other-svc") }
+        PoolConfigurationGuard.findOffendingProperties(other, SERVICE) shouldBe listOf("dataSourceProperties (ApplicationName other than gst.service)")
+        // ApplicationName with no gst.service set: refused
+        PoolConfigurationGuard.findOffendingProperties(allowedPool(), null) shouldBe listOf("dataSourceProperties (ApplicationName other than gst.service)")
+        // another property beside a correct ApplicationName: refused, naming only the other property
+        val extra = allowedPool().apply { addDataSourceProperty("currentSchema", "evil") }
+        PoolConfigurationGuard.findOffendingProperties(extra, SERVICE) shouldBe listOf("dataSourceProperties (refused data-source properties [currentSchema])")
     }
 
     @ParameterizedTest(name = "{0}")
@@ -87,7 +105,10 @@ class PoolConfigurationGuardTest {
             )
         service.withPropertyValues("gst.db.event-log-url=jdbc:postgresql://log:5432/submission?loggerLevel=OFF&sslmode=verify-full&sslrootcert=/etc/ssl/pg.crt").run { context ->
             context.startupFailure shouldBe null
-            context.containsBean(ServiceDataSources.EVENT_LOG) shouldBe true
+            // the service-runtime pools with their ApplicationName <gst.service> pass (INV-Q-4566)
+            val eventLog = context.getBean(ServiceDataSources.EVENT_LOG, HikariDataSource::class.java)
+            eventLog.dataSourceProperties["ApplicationName"] shouldBe "submission-svc"
+            context.getBean(DataSource::class.java).unwrap(HikariDataSource::class.java).dataSourceProperties["ApplicationName"] shouldBe "submission-svc"
         }
         service.withInitializer(indirect("gst.db.event-log-url" to "jdbc:postgresql://log:5432/submission?options=-c%20search_path%3Dx")).run { context ->
             val failure = generateSequence(context.startupFailure) { it.cause }.joinToString(" | ") { it.message.orEmpty() }
