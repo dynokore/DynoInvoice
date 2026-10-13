@@ -56,6 +56,16 @@ class PackRegistryMigrationTest {
     }
 
     @Test
+    fun `registered_by is app actor at insert and fixed afterwards`() {
+        assertTrue(ddl.contains("registered_by      text NOT NULL CHECK (btrim(registered_by) <> ''),"))
+        assertTrue(ddl.contains("IF NEW.registered_by IS DISTINCT FROM v_actor THEN"))
+        assertTrue(ddl.contains("IF NEW.registered_by IS DISTINCT FROM OLD.registered_by THEN"))
+        assertTrue(ddl.contains("BEFORE INSERT ON rules.rule_pack_version"))
+        assertTrue(ddl.contains("BEFORE UPDATE ON rules.rule_pack_version"))
+        assertTrue(ddl.contains("p_contents, p_trusted_anchor, v_actor);"))
+    }
+
+    @Test
     fun `register_platform_pack is a sys-owned definer for the runtime login only`() {
         val signature = "rules.register_platform_pack(${PackRegistryMigration.REGISTER_PLATFORM_PACK_ARGUMENTS})"
         assertTrue(ddl.contains("CREATE FUNCTION rules.register_platform_pack(p_id uuid,"))

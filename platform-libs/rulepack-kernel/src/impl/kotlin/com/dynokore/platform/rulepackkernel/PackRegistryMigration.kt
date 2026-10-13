@@ -24,8 +24,12 @@ import com.dynokore.platform.tenancykernel.TenantId
  *   runtime login `INSERT, SELECT` only; the policy refuses a platform-row write even where a grant would allow it.
  * - Platform rows are inserted only by [REGISTER_PLATFORM_PACK], a SECURITY DEFINER function owned by the NOLOGIN
  *   `<svc>_sys` role (INV-ADR-3968 item 6): static SQL, `SET search_path = pg_catalog, <schema>, pg_temp`, EXECUTE
- *   revoked from PUBLIC and granted to the runtime login only, the actor taken from `app.actor` (refused when blank),
- *   every argument validated inside. Its own policy lets the sys role insert a platform row and nothing else.
+ *   revoked from PUBLIC and granted to the runtime login only, the actor taken from `app.actor` (refused when unset
+ *   or blank, nothing written) and stored as the row's `registered_by`, every argument validated inside. Its own
+ *   policy lets the sys role insert a platform row and nothing else.
+ * - Every row's `registered_by` is the registering principal, the transaction's `app.actor` at insert, and never
+ *   changes afterwards (owner ruling INV-Q-4580 (B)): a BEFORE INSERT trigger refuses any other value, a BEFORE
+ *   UPDATE trigger any change.
  *
  * For tenancy-jooq the table is class `REFERENCE` (INV-ADR-3968 item 4a): the holder declares [referenceTable] in its
  * `TableClasses.of(reference = …)`, so a read returns the tenant's and the platform rows and jOOQ never writes a
@@ -53,7 +57,9 @@ object PackRegistryMigration {
 
     /**
      * The qualified name (`schema.table`) a holder declares as a `REFERENCE` table in tenancy-jooq's
-     * `TableClasses.of(reference = …)` (INV-ADR-3968 item 4a).
+     * `TableClasses.of(reference = …)` (INV-ADR-3968 item 4a). The holder must declare it: undeclared, the table is
+     * classified TENANT (the item 4a default) and a tenant's reads silently drop the platform rows; the holder's own
+     * runtime test proves it (INV-MOD-53; coordinator ruling INV-Q-4596).
      */
     fun referenceTable(
         schema: String,
@@ -107,6 +113,7 @@ object PackRegistryMigration {
             |    signature          bytea NOT NULL,
             |    contents           jsonb NOT NULL,
             |    trusted_anchor     text NOT NULL,
+            |    registered_by      text NOT NULL CHECK (btrim(registered_by) <> ''),
             |    created_at         timestamptz NOT NULL DEFAULT clock_timestamp(),
             |    CONSTRAINT $lineageKey UNIQUE (pack_type, tenant_id, version)
             |);
@@ -122,7 +129,56 @@ object PackRegistryMigration {
             |GRANT USAGE ON SCHEMA $s TO $sys;
             |GRANT INSERT ON $s.$t TO $sys;
         """.trimMargin()
-        return listOf(tableDdl, registerPlatformPack(s, t, runtime, sys)).joinToString("\n")
+        return listOf(tableDdl, registeredBy(s, t), registerPlatformPack(s, t, runtime, sys)).joinToString("\n")
+    }
+
+    /**
+     * `registered_by` is the registering principal (owner ruling INV-Q-4580 (B)): a BEFORE INSERT trigger refuses a row
+     * whose `registered_by` is not the transaction's `app.actor` (trimmed; unset or blank refuses every insert), and a
+     * BEFORE UPDATE trigger refuses any change to it, so it is fixed at insert as the actor of
+     * `write_installation_setting`'s audit entry is (INV-T-3983). Static SQL, fixed search_path, EXECUTE revoked from
+     * PUBLIC (a trigger function's EXECUTE is checked when the trigger is created, never when it fires).
+     */
+    private fun registeredBy(
+        schema: String,
+        table: String,
+    ): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        val t = SqlIdentifier.require(table, "table")
+        val stampFunction = SqlIdentifier.require("${t}_registered_by_insert", "trigger function")
+        val fixFunction = SqlIdentifier.require("${t}_registered_by_update", "trigger function")
+        return """
+        |CREATE FUNCTION $s.$stampFunction() RETURNS trigger
+        |LANGUAGE plpgsql SET search_path = pg_catalog, $s, pg_temp AS $$
+        |DECLARE
+        |    v_actor text := nullif(btrim(current_setting('app.actor', true)), '');
+        |BEGIN
+        |    IF v_actor IS NULL THEN
+        |        RAISE EXCEPTION 'app.actor is not set: a pack row records its registering principal'
+        |            USING ERRCODE = '42501';
+        |    END IF;
+        |    IF NEW.registered_by IS DISTINCT FROM v_actor THEN
+        |        RAISE EXCEPTION 'registered_by must be app.actor' USING ERRCODE = '42501';
+        |    END IF;
+        |    RETURN NEW;
+        |END
+        |$$;
+        |CREATE FUNCTION $s.$fixFunction() RETURNS trigger
+        |LANGUAGE plpgsql SET search_path = pg_catalog, $s, pg_temp AS $$
+        |BEGIN
+        |    IF NEW.registered_by IS DISTINCT FROM OLD.registered_by THEN
+        |        RAISE EXCEPTION 'registered_by is fixed at insert' USING ERRCODE = '42501';
+        |    END IF;
+        |    RETURN NEW;
+        |END
+        |$$;
+        |REVOKE EXECUTE ON FUNCTION $s.$stampFunction() FROM PUBLIC;
+        |REVOKE EXECUTE ON FUNCTION $s.$fixFunction() FROM PUBLIC;
+        |CREATE TRIGGER $stampFunction BEFORE INSERT ON $s.$t
+        |    FOR EACH ROW EXECUTE FUNCTION $s.$stampFunction();
+        |CREATE TRIGGER $fixFunction BEFORE UPDATE ON $s.$t
+        |    FOR EACH ROW EXECUTE FUNCTION $s.$fixFunction();
+        """.trimMargin()
     }
 
     /** The platform write path (INV-ADR-3968 item 6; coordinator ruling INV-Q-4117). */
@@ -169,9 +225,9 @@ object PackRegistryMigration {
             |            USING ERRCODE = '22023';
             |    END IF;
             |    INSERT INTO $s.$t (id, pack_id, pack_type, version, tenant_id, effective_from, effective_to,
-            |        min_engine_version, manifest, checksums, signature, contents, trusted_anchor)
+            |        min_engine_version, manifest, checksums, signature, contents, trusted_anchor, registered_by)
             |    VALUES (p_id, p_pack_id, p_pack_type, p_version, '$PLATFORM'::uuid, p_effective_from, p_effective_to,
-            |        p_min_engine_version, p_manifest, p_checksums, p_signature, p_contents, p_trusted_anchor);
+            |        p_min_engine_version, p_manifest, p_checksums, p_signature, p_contents, p_trusted_anchor, v_actor);
             |    RETURN p_id;
             |END
             |$$;

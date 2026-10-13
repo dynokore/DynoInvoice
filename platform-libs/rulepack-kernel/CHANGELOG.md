@@ -20,10 +20,17 @@ train is its own (README.md: "own version and changelog").
     (`REGISTER_PLATFORM_PACK`, `REGISTER_PLATFORM_PACK_ARGUMENTS`): SECURITY DEFINER, owned by the NOLOGIN sys
     role, static SQL, `SET search_path = pg_catalog, <schema>, pg_temp`, EXECUTE revoked from PUBLIC and granted to
     the runtime login only. It runs under the platform-tenant binding only, takes the actor from `app.actor`
-    (refused when blank) and validates every argument. The migrating role (`<svc>_migrate`, NOSUPERUSER) must be a
+    (refused when unset, NULL or blank, nothing written), stores it as the row's `registered_by` and validates every
+    argument. The migrating role (`<svc>_migrate`, NOSUPERUSER) must be a
     member of the sys role: it needs SET ROLE on it for `ALTER FUNCTION ... OWNER TO`.
-  - `referenceTable(schema, table)`: the name a holder declares as a tenancy-jooq `REFERENCE` table; a test shows
-    tenancy-jooq's `TableClasses.verify` classifies the migrated table `REFERENCE` with it declared (INV-Q-4582).
+  - Every row carries `registered_by text NOT NULL`, the registering principal (owner ruling INV-Q-4580 (B)): a
+    BEFORE INSERT trigger refuses a row whose `registered_by` is blank or not the transaction's `app.actor`, and a
+    BEFORE UPDATE trigger refuses any change to it, so it is fixed at insert. A holder's own tenant insert sets
+    `registered_by` to its `app.actor`.
+  - `referenceTable(schema, table)`: the name a holder **must** declare as a tenancy-jooq `REFERENCE` table. A test
+    shows tenancy-jooq's `TableClasses.verify` classifies the migrated table `REFERENCE` with it declared, fails on a
+    wrongly declared name (declared but missing), and classifies it `TENANT` when undeclared, under which tenant reads
+    silently drop the platform rows; the holder's runtime test proves that loss (INV-Q-4582, INV-Q-4596, INV-MOD-53).
 ### Removed
 - The `app.platform_operator` session setting and its policy branch, every `tenant_id IS NULL` path, and
   `lineageKeyUpgradeDdl` (the 1.x lineage-key upgrade). There is no upgrade path from 1.x: no service consumes the

@@ -75,7 +75,7 @@ class PackRegistryMigrationPostgresIT {
         try {
             migrate(container)
             assertTheMigrationRoleOwnsTheTableWithoutPrivilege(container)
-            assertTheMigratedSchemaVerifiesAsReference(container)
+            assertTheTableClassCheckOfTheMigratedSchema(container)
             val app = TenancyProbe.connect(container.jdbcUrl, "rulepack_kernel_app", "rulepack_kernel_app_pw")
             val privileged =
                 app.fetchValue("select rolsuper or rolbypassrls from pg_roles where rolname = current_user")
@@ -90,6 +90,8 @@ class PackRegistryMigrationPostgresIT {
             assertTheFunctionRefusesAForgedTenantABlankActorAndBadArguments(app, tenantA)
             assertThePlatformOperatorSettingGrantsNothing(app, tenantA)
             assertNoTenantBoundSeesAndWritesNothing(app, tenantA)
+            assertRegisteredByIsTheActorAtInsert(app, tenantA)
+            assertRegisteredByCannotBeUpdated(app, tenantA)
             assertTheLineageKeyIsAPlainUnique(app, tenantA, tenantB)
         } finally {
             container.stop()
@@ -116,11 +118,13 @@ class PackRegistryMigrationPostgresIT {
     }
 
     /**
-     * tenancy-jooq's table-class verification of the migrated schema (INV-ADR-3968 item 4a; coordinator ruling
-     * INV-Q-4582): with [PackRegistryMigration.referenceTable] declared REFERENCE it passes and classifies the table
-     * REFERENCE (a bound tenant's reads take its own rows plus the platform rows).
+     * tenancy-jooq's table-class check of the migrated schema (INV-ADR-3968 item 4a; coordinator rulings INV-Q-4582
+     * and INV-Q-4596): declared via [PackRegistryMigration.referenceTable], the verification passes and classifies the
+     * table REFERENCE (a bound tenant's reads take its own rows plus the platform rows); a wrongly declared name fails
+     * (declared but missing); undeclared, the table is classified TENANT (the item 4a default, under which tenant
+     * reads silently drop the platform rows: the holder must declare it, INV-MOD-53).
      */
-    private fun assertTheMigratedSchemaVerifiesAsReference(container: Postgres) {
+    private fun assertTheTableClassCheckOfTheMigratedSchema(container: Postgres) {
         val columns =
             TenancyProbe.connect(container.jdbcUrl, MIGRATE, MIGRATE_PASSWORD).unbound {
                 fetchRows(
@@ -136,6 +140,17 @@ class PackRegistryMigrationPostgresIT {
         val reference = PackRegistryMigration.referenceTable("rulepack_test", "rule_pack_version")
         val tables = TableClasses.of(reference = listOf(reference)).verify(schema)
         assertEquals(listOf(TableClass.REFERENCE), schema.tables.map { tables.classOf(it.qualifiedName) })
+
+        val wrong = PackRegistryMigration.referenceTable("rulepack_test", "rule_pack_versions")
+        val refused =
+            assertThrows(IllegalStateException::class.java) {
+                TableClasses.of(reference = listOf(wrong)).verify(schema)
+            }
+        val message = refused.message.orEmpty()
+        assertTrue("rulepack_test.rule_pack_versions is declared but missing" in message, message)
+
+        val undeclared = TableClasses.of().verify(schema)
+        assertEquals(listOf(TableClass.TENANT), schema.tables.map { undeclared.classOf(it.qualifiedName) })
     }
 
     /** Owner `<svc>_sys` (NOLOGIN), SECURITY DEFINER, fixed search_path, EXECUTE for the runtime login only. */
@@ -172,14 +187,21 @@ class PackRegistryMigrationPostgresIT {
         assertTrue("permission denied" in denied.message.orEmpty(), denied.message)
     }
 
-    /** Under the platform binding with an actor, the function stores a row under TenantId.PLATFORM. */
+    /**
+     * Under the platform binding with an actor, the function stores a row under TenantId.PLATFORM whose registered_by
+     * is `app.actor` (INV-Q-4580).
+     */
     private fun assertTheFunctionInsertsAPlatformRow(app: TenancyProbe) {
         val id = app.inTenant(TenantId.PLATFORM, actor = "svc:rules-svc") { register(packId = "platform-scope") }
         val stored =
             app.inTenant(TenantId.PLATFORM) {
-                fetchValue("select tenant_id::text from rulepack_test.rule_pack_version where id = ?", id)
+                fetchRows(
+                    "select tenant_id::text as tenant, registered_by from rulepack_test.rule_pack_version where id = ?",
+                    id,
+                ).single()
             }
-        assertEquals(TenantId.PLATFORM.toString(), stored)
+        assertEquals(TenantId.PLATFORM.toString(), stored["tenant"])
+        assertEquals("svc:rules-svc", stored["registered_by"])
     }
 
     /**
@@ -246,6 +268,12 @@ class PackRegistryMigrationPostgresIT {
         assertRefusedWith("app.actor is not set") {
             app.inTenant(TenantId.PLATFORM, actor = " ") { register(packId = "no-actor") }
         }
+        assertRefusedWith("app.actor is not set") {
+            app.unbound {
+                bindTenantOnly(TenantId.PLATFORM)
+                register(packId = "unset-actor")
+            }
+        }
         val platform = { block: TenancyProbe.() -> Any? -> app.inTenant(TenantId.PLATFORM, "svc:rules-svc", block) }
         assertRefusedWith("not blank") { platform { register(packId = " ") } }
         assertRefusedWith("not blank") { platform { register(packId = "p", version = "") } }
@@ -265,7 +293,10 @@ class PackRegistryMigrationPostgresIT {
         assertEquals(emptySet<String>(), packIds(app, Identity.Operator(null)))
         assertEquals(setOf("platform-scope", "a-own-pack"), packIds(app, Identity.Operator(tenantA)))
         assertRefusedByPolicy {
-            app.bound(Identity.Operator(null)) { insertRow(TenantId.PLATFORM, "operator-unbound") }
+            app.bound(Identity.Operator(null)) {
+                bindActorOnly()
+                insertRow(TenantId.PLATFORM, "operator-unbound")
+            }
         }
         assertRefusedByPolicy {
             app.bound(Identity.Operator(tenantA)) { insertRow(TenantId.PLATFORM, "operator-as-a") }
@@ -278,8 +309,18 @@ class PackRegistryMigrationPostgresIT {
         tenantA: TenantId,
     ) {
         assertEquals(emptySet<String>(), packIds(app, Identity.None))
-        assertRefusedByPolicy { app.unbound { insertRow(TenantId.PLATFORM, "unbound-platform") } }
-        assertRefusedByPolicy { app.unbound { insertRow(tenantA, "unbound-claiming-a") } }
+        assertRefusedByPolicy {
+            app.unbound {
+                bindActorOnly()
+                insertRow(TenantId.PLATFORM, "unbound-platform")
+            }
+        }
+        assertRefusedByPolicy {
+            app.unbound {
+                bindActorOnly()
+                insertRow(tenantA, "unbound-claiming-a")
+            }
+        }
     }
 
     /** The lineage key is UNIQUE (pack_type, tenant_id, version): a platform version once, a tenant's per tenant. */
@@ -301,104 +342,69 @@ class PackRegistryMigrationPostgresIT {
         }
     }
 
-    /** Who the probe session is: a bound tenant, no tenant, or either with `app.platform_operator = 'true'` set. */
-    private sealed interface Identity {
-        data class Tenant(val tenant: TenantId) : Identity
-
-        data class Operator(val tenant: TenantId?) : Identity
-
-        data object None : Identity
-    }
-
-    private fun <T> TenancyProbe.bound(
-        identity: Identity,
-        block: TenancyProbe.() -> T,
-    ): T = when (identity) {
-        is Identity.Tenant -> {
-            inTenant(identity.tenant, block = block)
+    /**
+     * registered_by is the transaction's `app.actor` at insert and never changes (owner ruling INV-Q-4580 (B)): a
+     * tenant insert naming another principal, or with `app.actor` unset or blank, is refused and writes nothing.
+     */
+    private fun assertRegisteredByIsTheActorAtInsert(
+        app: TenancyProbe,
+        tenantA: TenantId,
+    ) {
+        app.inTenant(tenantA, actor = "user:a") {
+            insertRow(tenantA, "a-by-actor", version = "4.0.0", registeredBy = "user:a")
         }
-
-        is Identity.Operator -> {
-            val withSetting: TenancyProbe.() -> T = {
-                fetchValue("select set_config(?, ?, true)", "app.platform_operator", "true")
-                block()
+        assertRefusedWith("registered_by must be app.actor") {
+            app.inTenant(tenantA, actor = "user:a") {
+                insertRow(tenantA, "a-forged", version = "4.0.1", registeredBy = "user:someone-else")
             }
-            identity.tenant?.let { inTenant(it, block = withSetting) } ?: unbound(withSetting)
         }
-
-        Identity.None -> {
-            unbound(block)
+        assertRefusedWith("app.actor is not set") {
+            app.inTenant(tenantA, actor = " ") {
+                insertRow(tenantA, "a-blank-actor", version = "4.0.2", registeredBy = " ")
+            }
+        }
+        assertRefusedWith("app.actor is not set") {
+            app.unbound {
+                bindTenantOnly(tenantA)
+                insertRow(tenantA, "a-unset-actor", version = "4.0.3", registeredBy = "user:a")
+            }
         }
     }
 
-    /** Calls `register_platform_pack` in the current probe transaction; returns the stored id. */
-    private fun TenancyProbe.register(
-        packId: String,
-        version: String = "1.0.0",
-        effectiveTo: LocalDate? = null,
-        manifest: String = "{}",
-        signature: ByteArray = byteArrayOf(1, 2, 3),
-    ): Any? = fetchValue(
-        "select rulepack_test.register_platform_pack(?::uuid, ?, 'Scope', ?, ?::date, ?::date, '1.0.0', " +
-            "?::jsonb, '{}'::jsonb, ?::bytea, '{}'::jsonb, 'test-anchor')",
-        UUID.randomUUID(),
-        packId,
-        version,
-        LocalDate.now(),
-        effectiveTo,
-        manifest,
-        signature,
-    )
-
-    /** Inserts one row directly in the current probe transaction, the row carrying [rowTenant]. */
-    private fun TenancyProbe.insertRow(
-        rowTenant: TenantId,
-        packId: String,
-        version: String = "1.0.0",
-    ) {
-        fetchValue(
-            """
-            insert into rulepack_test.rule_pack_version
-                (id, pack_id, pack_type, version, tenant_id, effective_from, min_engine_version,
-                 manifest, checksums, signature, contents, trusted_anchor)
-            values (?, ?, 'Scope', ?, ?::uuid, ?, '1.0.0', '{}'::jsonb, '{}'::jsonb, ?, '{}'::jsonb, 'test-anchor')
-            returning pack_id
-            """.trimIndent(),
-            UUID.randomUUID(),
-            packId,
-            version,
-            rowTenant.toString(),
-            LocalDate.now(),
-            byteArrayOf(1, 2, 3),
-        )
-    }
-
-    private fun insert(
+    /**
+     * An UPDATE of registered_by is refused on a tenant row by the trigger and finds no platform row under the policy
+     * (owner ruling INV-Q-4580 (B)); only the rows inserted with registered_by = `app.actor` exist.
+     */
+    private fun assertRegisteredByCannotBeUpdated(
         app: TenancyProbe,
-        session: TenantId,
-        rowTenant: TenantId,
-        packId: String,
-        version: String = "1.0.0",
-    ) = app.inTenant(session) { insertRow(rowTenant, packId, version) }
-
-    private fun packIds(
-        app: TenancyProbe,
-        identity: Identity,
-    ): Set<String> = app.bound(identity) {
-        fetchRows("select pack_id from rulepack_test.rule_pack_version where version = '1.0.0'")
-            .map { it.getValue("pack_id") as String }
-            .toSet()
-    }
-
-    private fun assertRefusedByPolicy(block: () -> Unit) = assertRefusedWith("row-level security policy", block)
-
-    private fun assertRefusedWith(
-        expected: String,
-        block: () -> Unit,
+        tenantA: TenantId,
     ) {
-        val refused = assertThrows(DataAccessException::class.java, block)
-        val message = refused.message.orEmpty()
-        assertTrue(expected in message, "expected '$expected' in: $message")
+        assertRefusedWith("registered_by is fixed at insert") {
+            app.inTenant(tenantA, actor = "user:b") {
+                fetchValue(
+                    "update rulepack_test.rule_pack_version set registered_by = 'user:b' " +
+                        "where pack_id = 'a-by-actor' returning 1",
+                )
+            }
+        }
+        val platformChanged =
+            app.inTenant(TenantId.PLATFORM, actor = "user:b") {
+                fetchValue(
+                    "with u as (update rulepack_test.rule_pack_version set registered_by = 'user:b' " +
+                        "where tenant_id = ?::uuid returning 1) select count(*) from u",
+                    TenantId.PLATFORM.toString(),
+                )
+            }
+        assertEquals(0L, platformChanged)
+        val stored =
+            app.inTenant(tenantA) {
+                fetchRows(
+                    "select pack_id, registered_by from rulepack_test.rule_pack_version " +
+                        "where pack_id in ('a-by-actor', 'platform-scope', 'a-forged', 'a-blank-actor', " +
+                        "'a-unset-actor')",
+                ).associate { it["pack_id"] as String to it["registered_by"] as String }
+            }
+        assertEquals(mapOf("a-by-actor" to "user:a", "platform-scope" to "svc:rules-svc"), stored)
     }
 
     private fun migrate(container: Postgres) {
