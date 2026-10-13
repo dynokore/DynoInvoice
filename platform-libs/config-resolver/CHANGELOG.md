@@ -5,6 +5,8 @@ All notable changes to `config-resolver` are recorded here (FR-L.6). Format foll
 train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
+### Changed
+- Source formatted to ktlint_official (platform-build 0.11.0, INV-Q-4426); no behaviour or API change
 
 ## [2.0.1] - 2026-10-13
 ### Fixed

@@ -87,6 +87,9 @@ train is its own (README.md: "own version and changelog").
 - Tests for local end-user token verification (keys fetched once, no network call per request) and for forged
   identity headers (401).
 
+### Changed
+- Source formatted to ktlint_official (platform-build 0.11.0, INV-Q-4426); no behaviour or API change
+
 ## [4.0.1] - 2026-10-13
 ### Fixed
 - The published impl POM (`service-runtime`) declared no dependency (INV-T-4356; defect in INV-T-2860's and
