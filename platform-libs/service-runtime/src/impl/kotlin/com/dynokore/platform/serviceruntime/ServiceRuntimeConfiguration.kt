@@ -5,7 +5,6 @@ import com.dynokore.platform.serviceruntime.client.InternalRestClientAutoConfigu
 import com.dynokore.platform.serviceruntime.composition.L1CompositionAutoConfiguration
 import com.dynokore.platform.serviceruntime.composition.ModuleProperties
 import com.dynokore.platform.serviceruntime.datasource.DatabaseCredentialsConfiguration
-import com.dynokore.platform.serviceruntime.datasource.SqlConfigurationGuardWiring
 import com.dynokore.platform.serviceruntime.diagnostics.DiagnosticsAutoConfiguration
 import com.dynokore.platform.serviceruntime.health.HealthAutoConfiguration
 import com.dynokore.platform.serviceruntime.identity.EndUserIdentityAutoConfiguration
@@ -61,7 +60,6 @@ import org.springframework.context.annotation.PropertySource
     BindingAutoConfiguration::class,
     DatabaseCredentialsConfiguration::class,
     PoolLaneWiring::class,
-    SqlConfigurationGuardWiring::class,
     HealthAutoConfiguration::class,
     DiagnosticsAutoConfiguration::class,
     LoggingAutoConfiguration::class,

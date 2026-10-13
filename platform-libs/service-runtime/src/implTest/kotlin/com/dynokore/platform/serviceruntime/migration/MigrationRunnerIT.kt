@@ -5,7 +5,6 @@ import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Comp
 import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Companion.query
 import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Companion.sql
 import com.dynokore.platform.serviceruntime.datasource.Tpl18JdbcApplication
-import com.dynokore.platform.serviceruntime.datasource.withApplicationPool
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -65,14 +64,14 @@ class MigrationRunnerIT {
                 .withPropertyValues(
                     *database,
                     "spring.datasource.username=$RUNTIME",
+                    "spring.datasource.password=runtime-pw",
                     "spring.flyway.user=$MIGRATE",
                     "service-runtime.flyway.credential=$MIGRATE_REF",
                     "service-runtime.workload-identity.audience=submission-svc",
                     "gst.service=submission-svc",
                     "gst.instance-id=submission-svc-0",
                     "service-runtime.pool.profile=minimal",
-                ).withApplicationPool { it.password = "runtime-pw" }
-                .run { context ->
+                ).run { context ->
                     context.startupFailure shouldBe null
                     context.getBeanNamesForType(Flyway::class.java).size shouldBe 0
                     pg.query("select count(*) from pg_namespace where nspname = 'ledger'") shouldBe "0"

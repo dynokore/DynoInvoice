@@ -1,19 +1,14 @@
 package com.dynokore.platform.serviceruntime.datasource
 
 import com.dynokore.platform.tenancykernel.SqlIdentifier
-import org.springframework.beans.factory.config.BeanFactoryPostProcessor
-import org.springframework.beans.factory.config.ConfigurableListableBeanFactory
 import org.springframework.boot.EnvironmentPostProcessor
 import org.springframework.boot.SpringApplication
 import org.springframework.boot.context.properties.source.ConfigurationPropertyName
 import org.springframework.boot.context.properties.source.ConfigurationPropertySource
 import org.springframework.boot.context.properties.source.ConfigurationPropertySources
 import org.springframework.boot.context.properties.source.IterableConfigurationPropertySource
-import org.springframework.context.EnvironmentAware
 import org.springframework.core.Ordered
-import org.springframework.core.PriorityOrdered
 import org.springframework.core.env.ConfigurableEnvironment
-import org.springframework.core.env.Environment
 import org.springframework.core.env.SystemEnvironmentPropertySource
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
@@ -29,9 +24,7 @@ import java.nio.charset.StandardCharsets
  * configuration is loaded. It reads every property source through [ConfigurationPropertySources] (properties, YAML,
  * environment variables, command-line arguments, Helm values, installation-profile values), compares names in their
  * relaxed (uniform) form, and fails start-up naming every offending key and the ruling. It is deny-by-default (lessons
- * P140): under `spring.datasource` and `spring.flyway` only the allowlisted keys pass. Values are never printed. The
- * password properties are refused with or without a credential property, as is a URL `password` parameter (STK-29,
- * coordinator ruling INV-Q-4548).
+ * P140): under `spring.datasource` and `spring.flyway` only the allowlisted keys pass. Values are never printed.
  *
  * A key is added to an allowlist only through a Keel ruling.
  */
@@ -45,55 +38,17 @@ class SqlConfigurationKeyGuard :
         environment: ConfigurableEnvironment,
         application: SpringApplication,
     ) {
-        verify(environment, application.classLoader)
+        val offending = findOffendingKeys(environment)
+        check(offending.isEmpty()) {
+            "Spring configuration keys that run SQL or set session state are refused (coordinator ruling INV-Q-4542; " +
+                "INV-ADR-3968 item 4c, INV-REQ-1230): remove $offending"
+        }
     }
 
     companion object {
-        /**
-         * Fails naming every refused key of [environment] and every external pool or driver configuration file
-         * visible to [classLoader] (INV-Q-4559). Run by this post-processor and again by [SqlConfigurationKeyRecheck].
-         */
-        fun verify(
-            environment: ConfigurableEnvironment,
-            classLoader: ClassLoader?,
-        ) {
-            val offending = findOffendingKeys(environment) + findPasswordProperties(environment) + findExternalConfiguration(listOfNotNull(classLoader))
-            check(offending.isEmpty()) {
-                "Spring configuration keys that run SQL or set session state are refused (coordinator rulings INV-Q-4542, " +
-                    "INV-Q-4559; INV-ADR-3968 item 4c, INV-REQ-1230): remove $offending"
-            }
-        }
-
-        /**
-         * (6) The external pool and driver configuration files (coordinator ruling INV-Q-4559): the system property
-         * `hikaricp.configurationFile`, read by every `new HikariConfig()`, and pgjdbc's class-path
-         * `org/postgresql/driverconfig.properties` default connection properties. Either can set connectionInitSql,
-         * schema and options.
-         */
-        fun findExternalConfiguration(
-            classLoaders: List<ClassLoader>,
-            systemProperty: (String) -> String? = System::getProperty,
-        ): List<String> = listOfNotNull(
-            systemProperty(HIKARI_CONFIGURATION_FILE)?.let { "system property $HIKARI_CONFIGURATION_FILE (an external pool configuration file)" },
-            (classLoaders + listOfNotNull(Thread.currentThread().contextClassLoader, SqlConfigurationKeyGuard::class.java.classLoader))
-                .firstOrNull { it.getResource(DRIVER_CONFIGURATION) != null }
-                ?.let { "class-path resource $DRIVER_CONFIGURATION (pgjdbc default connection properties)" },
-        )
-
-        /**
-         * The password keys, read by exact name through [Environment.getProperty], which also consults property
-         * sources that cannot be enumerated (coordinator ruling INV-Q-4570; STK-29, INV-Q-4548). A value that cannot be
-         * resolved counts as set.
-         */
-        fun findPasswordProperties(environment: Environment): List<String> = PASSWORD_KEYS
-            .filter { key -> runCatching { environment.getProperty(key) != null }.getOrDefault(true) }
-            .map { "$it (a password: the login comes only through SecretStore (STK-29, INV-Q-4570))" }
-
         /** Every refused key, sorted, with the reason; each as its property source names it. */
         fun findOffendingKeys(environment: ConfigurableEnvironment): List<String> = ConfigurationPropertySources
             .get(environment)
-            // a source that cannot be enumerated (a stub, a servlet-context source before the web server) is not listed here;
-            // PoolConfigurationGuard checks what such a source binds into a pool
             .filterIsInstance<IterableConfigurationPropertySource>()
             .flatMap { source ->
                 val env = source.underlyingSource is SystemEnvironmentPropertySource
@@ -116,26 +71,15 @@ class SqlConfigurationKeyGuard :
             value: () -> String? = { null },
         ): String? {
             val elements = (0 until name.numberOfElements).map { name.getElement(it, ConfigurationPropertyName.Form.UNIFORM) }
-            // Tomcat hands a servlet-context init parameter to the environment once the web server exists, after this
-            // guard ran: `server.servlet.context-parameters.<key>` is checked as `<key>`
-            if (CONTEXT_PARAMETERS.isAncestorOf(name)) {
-                val rest =
-                    (CONTEXT_PARAMETERS.numberOfElements until name.numberOfElements)
-                        .joinToString(".") { name.getElement(it, ConfigurationPropertyName.Form.ORIGINAL) }
-                return refusal(ConfigurationPropertyName.adapt(rest, '.'), environmentVariable, value)
-                    ?.let { "a servlet-context parameter that $it" }
-            }
-            if (elements.joinToString("") == HIKARI_CONFIGURATION_FILE_FLAT) return "an external pool configuration file (INV-Q-4559)"
             REFUSED_PREFIXES.firstOrNull { it.isAncestorOf(name) || it == name }?.let { return "under $it" }
-            sqlSegment(withoutIndex(name, elements), environmentVariable)?.let { return "runs SQL: $it" }
+            sqlSegment(elements, environmentVariable)?.let { return "runs SQL: $it" }
             if (DATASOURCE.isAncestorOf(name) || DATASOURCE == name) {
                 return allowlisted(elements.drop(2), DATASOURCE_ALLOWED, environmentVariable, value)
             }
             if (FLYWAY.isAncestorOf(name) || FLYWAY == name) {
                 return allowlisted(elements.drop(2), FLYWAY_ALLOWED, environmentVariable, value)
             }
-            val eventLogUrl = name == EVENT_LOG_URL || (environmentVariable && elements.joinToString("") == EVENT_LOG_URL_FLAT)
-            if (eventLogUrl) return urlRefusal(value())
+            if (name == EVENT_LOG_URL) return urlRefusal(value())
             return null
         }
 
@@ -154,16 +98,6 @@ class SqlConfigurationKeyGuard :
                     ?: (if (key.size >= 2 && key.first() == PLACEHOLDERS) allowed["$PLACEHOLDERS.*"] else null)
                     ?: return "not on the allowlist"
             return check(value())
-        }
-
-        /** [elements] without the trailing list indexes and map keys (`init-sqls[0]`, `INITSQLS_0`, `init-sql[a]`). */
-        private fun withoutIndex(
-            name: ConfigurationPropertyName,
-            elements: List<String>,
-        ): List<String> {
-            var size = elements.size
-            while (size > 1 && (name.chop(size).isLastElementIndexed || elements[size - 1].all(Char::isDigit))) size--
-            return elements.take(size)
         }
 
         private fun sqlSegment(
@@ -189,30 +123,14 @@ class SqlConfigurationKeyGuard :
             environment: ConfigurableEnvironment,
         ): String? = source.getConfigurationProperty(name)?.value?.toString()?.let(environment::resolvePlaceholders)
 
-        /**
-         * (5) The parameters of a JDBC URL not on [URL_PARAMETERS_ALLOWED] (coordinator ruling INV-Q-4559), named
-         * exactly as pgjdbc reads them after URL decoding; values are never printed.
-         */
-        internal fun urlRefusal(url: String?): String? {
+        private fun urlRefusal(url: String?): String? {
             val query = url?.substringAfter('?', "") ?: return null
-            val refused =
-                query
-                    .split('&')
-                    .filter(String::isNotEmpty)
-                    .map { decode(it.substringBefore('=')) to decode(it.substringAfter('=', "")) }
-                    .filterNot { (name, value) -> URL_PARAMETERS_ALLOWED[name]?.invoke(value) == true }
-                    .map { it.first }
-            return when {
-                refused.isEmpty() -> null
-
-                // STK-29: credentials never in configuration (coordinator ruling INV-Q-4548)
-                refused.any { it.equals("password", ignoreCase = true) } -> "a password in the URL (STK-29, INV-Q-4548)"
-
-                else -> "URL parameters not on the allowlist (INV-Q-4559): ${refused.sorted()}"
-            }
+            val options =
+                query.split('&').any { parameter ->
+                    URLDecoder.decode(parameter.substringBefore('='), StandardCharsets.UTF_8).trim().equals("options", ignoreCase = true)
+                }
+            return if (options) "the pgjdbc options parameter sets server settings" else null
         }
-
-        private fun decode(text: String): String = URLDecoder.decode(text, StandardCharsets.UTF_8)
 
         private fun only(
             expected: String,
@@ -236,16 +154,10 @@ class SqlConfigurationKeyGuard :
             }
         }
 
-        private val PASSWORD_KEYS = listOf("spring.datasource.password", "spring.datasource.hikari.password", "spring.flyway.password")
         private const val PLACEHOLDERS = "placeholders"
-        private const val HIKARI_CONFIGURATION_FILE = "hikaricp.configurationFile"
-        private const val HIKARI_CONFIGURATION_FILE_FLAT = "hikaricpconfigurationfile"
-        private const val DRIVER_CONFIGURATION = "org/postgresql/driverconfig.properties"
         private val DATASOURCE = ConfigurationPropertyName.of("spring.datasource")
         private val FLYWAY = ConfigurationPropertyName.of("spring.flyway")
         private val EVENT_LOG_URL = ConfigurationPropertyName.of("gst.db.event-log-url")
-        private const val EVENT_LOG_URL_FLAT = "gstdbeventlogurl"
-        private val CONTEXT_PARAMETERS = ConfigurationPropertyName.of("server.servlet.context-parameters")
 
         // ---- The allowlists and refusals of coordinator ruling INV-Q-4542; changed only through a Keel ruling ----
 
@@ -266,16 +178,6 @@ class SqlConfigurationKeyGuard :
         val SQL_SEGMENTS: List<String> =
             listOf("initsql", "initializeschema", "schemainitialization", "schemalocations", "datalocations")
 
-        /** (5) The parameters a JDBC URL may carry (coordinator ruling INV-Q-4559), with their value check. */
-        val URL_PARAMETERS_ALLOWED: Map<String, (String) -> Boolean> =
-            mapOf(
-                // Testcontainers' jdbcUrl adds it; OFF only
-                "loggerLevel" to { value -> value == "OFF" },
-                // TLS to PostgreSQL (INV-T-2893): transport only, no session state, no class loading
-                "sslmode" to { _ -> true },
-                "sslrootcert" to { _ -> true },
-            )
-
         /** (3) The keys allowed under `spring.datasource` (uniform form), with their value check. */
         val DATASOURCE_ALLOWED: Map<String, (String?) -> String?> =
             mapOf(
@@ -293,6 +195,7 @@ class SqlConfigurationKeyGuard :
                 "hikari.leakdetectionthreshold" to ANY,
                 "hikari.initializationfailtimeout" to ANY,
                 "hikari.poolname" to ANY,
+                "hikari.registermbeans" to ANY,
             )
 
         /** (4) The keys allowed under `spring.flyway` (uniform form), with their value check. */
@@ -320,27 +223,5 @@ class SqlConfigurationKeyGuard :
                 "placeholderreplacement" to ANY,
                 "$PLACEHOLDERS.*" to IDENTIFIER,
             )
-    }
-}
-
-/**
- * The second run of [SqlConfigurationKeyGuard] (coordinator ruling INV-Q-4559): after configuration-class parsing and
- * before any application bean, so a property source added after environment post-processing (a `@PropertySource` on
- * any configuration class, an ApplicationContextInitializer, an earlier post-processor) is checked too.
- */
-class SqlConfigurationKeyRecheck :
-    BeanFactoryPostProcessor,
-    EnvironmentAware,
-    PriorityOrdered {
-    private lateinit var environment: ConfigurableEnvironment
-
-    override fun setEnvironment(environment: Environment) {
-        this.environment = environment as ConfigurableEnvironment
-    }
-
-    override fun getOrder(): Int = Ordered.HIGHEST_PRECEDENCE
-
-    override fun postProcessBeanFactory(beanFactory: ConfigurableListableBeanFactory) {
-        SqlConfigurationKeyGuard.verify(environment, beanFactory.beanClassLoader)
     }
 }

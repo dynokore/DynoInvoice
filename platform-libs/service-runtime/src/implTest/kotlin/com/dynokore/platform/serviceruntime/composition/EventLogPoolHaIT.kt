@@ -4,8 +4,6 @@ import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Comp
 import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Companion.sql
 import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Companion.user
 import com.dynokore.platform.serviceruntime.datasource.tpl18Service
-import com.dynokore.platform.serviceruntime.datasource.withApplicationPool
-import com.dynokore.platform.serviceruntime.datasource.withPool
 import com.zaxxer.hikari.HikariDataSource
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -33,16 +31,12 @@ class EventLogPoolHaIT {
                     .withPropertyValues(
                         "spring.datasource.url=${application.jdbcUrl}",
                         "spring.datasource.username=$RUNTIME",
+                        "spring.datasource.password=$PASSWORD",
                         "spring.datasource.hikari.connection-timeout=1000",
+                        // refused at start-up by SqlConfigurationKeyGuard (INV-Q-4542), which this runner bypasses
+                        "spring.datasource.hikari.connection-init-sql=$INIT_SQL",
                         "gst.db.event-log-url=${eventLog.jdbcUrl}",
-                    ).withApplicationPool {
-                        it.password = PASSWORD
-                        // refused at start-up (INV-Q-4542); set by a test post-processor that bypasses the check
-                        it.connectionInitSql = INIT_SQL
-                    }
-                    // the event-log pool copies no password (INV-Q-4570): the test login, set after the checks
-                    .withPool(ServiceDataSources.EVENT_LOG) { it.password = PASSWORD }
-                    .run { context ->
+                    ).run { context ->
                         context.startupFailure shouldBe null
                         context.getBeanNamesForType(DataSource::class.java).toSet() shouldBe setOf("dataSource", ServiceDataSources.EVENT_LOG)
                         val app = context.getBean(DataSource::class.java)

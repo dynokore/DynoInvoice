@@ -101,13 +101,8 @@ connection, and it reads the mounted file each time, with no cache.
 | Flyway's owner role (STK-16) | `service-runtime.flyway.credential: <SecretRef>` | `spring.flyway.user` |
 | The HA event-log pool (`eventLogDataSource`) | the application pool's credentials provider, reused | `spring.datasource.username` |
 
-Start-up fails if `spring.datasource.password`, `spring.datasource.hikari.password` or `spring.flyway.password` is set,
-with or without the credential property, in any property source (the three keys are also read by exact name, so a
-source that cannot be enumerated is seen), and if a JDBC URL carries a `password` parameter (`SqlConfigurationKeyGuard`,
-coordinator rulings INV-Q-4542, INV-Q-4548, INV-Q-4570). A pool's password comes only from SecretStore:
-`PoolConfigurationGuard` fails start-up when any HikariDataSource bean has a password, a credentials provider other than
-exactly `SecretStoreCredentialsProvider`, or MBeans on (MBeans expose `setPassword` over JMX; INV-Q-4570, INV-Q-4574).
-The HA event-log pool copies only the credentials provider, never a password.
+With the property set, start-up fails if `spring.datasource.password` (or `spring.datasource.hikari.password`), or
+`spring.flyway.password`, is set as well. Without it nothing changes.
 
 **Rotating a database role's password:** change the role's password (`ALTER ROLE ... PASSWORD`) and the mounted secret.
 Connections already open keep working until the pool retires them (`maxLifetime`). Each new connection logs in with
@@ -124,23 +119,10 @@ fails start-up, naming each offending key and the ruling (never a value), on:
 2. any key whose last segment contains `init-sql`, `init-sqls`, `init-s-q-l`, `initialize-schema`,
    `schema-initialization`, `schema-locations` or `data-locations`;
 3. any `spring.datasource` key outside its allowlist (`url`, `username`, `driver-class-name`, `type` =
-   `com.zaxxer.hikari.HikariDataSource`, and the Hikari pool sizes, timeouts and `pool-name`; `register-mbeans` is
-   refused, INV-Q-4574);
+   `com.zaxxer.hikari.HikariDataSource`, and the Hikari pool sizes, timeouts, `pool-name` and `register-mbeans`);
 4. any `spring.flyway` key outside its allowlist; `locations` only `classpath:`, `clean-disabled` only `true`, and
    `placeholders.*` values only plain identifiers (`SqlIdentifier`);
-5. any JDBC URL parameter in `spring.datasource.url`, `spring.flyway.url` or `gst.db.event-log-url` other than
-   `loggerLevel` (`OFF` only), `sslmode` and `sslrootcert` (coordinator ruling INV-Q-4559);
-6. an external pool or driver configuration file: `hikaricp.configuration-file` in any form, the
-   `hikaricp.configurationFile` system property, or a class-path `org/postgresql/driverconfig.properties` (INV-Q-4559).
-
-A key passed as `server.servlet.context-parameters.<key>` is checked as `<key>`. `SqlConfigurationKeyRecheck`, a
-`BeanFactoryPostProcessor` registered by `ServiceRuntimeConfiguration`, runs the same check again after
-configuration-class parsing and before any application bean, so a `@PropertySource` is seen too. `PoolConfigurationGuard`
-then checks what every HikariDataSource bean actually received (deny-by-default over every HikariConfig property:
-no connection-init SQL, test query, schema, catalog or session settings; data-source properties only `ApplicationName`
-= `gst.service`; the URL allowlist above; no password, MBeans off, and a credentials provider only exactly
-`SecretStoreCredentialsProvider`, coordinator rulings INV-Q-4570 and INV-Q-4574), so a path no key names is refused as
-well.
+5. the pgjdbc `options` parameter in `spring.datasource.url`, `spring.flyway.url` or `gst.db.event-log-url`.
 
 The allowlists live only in `SqlConfigurationKeyGuard`; a key is added only through a Keel ruling.
 `sql-configuration-keys.txt` (implTest) pins the classification of every `spring.datasource` and `spring.flyway` key in

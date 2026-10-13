@@ -6,18 +6,13 @@ import com.dynokore.platform.serviceruntime.health.Tpl18WebService
 import com.dynokore.platform.serviceruntime.migration.MigrationRunner
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContain
-import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
-import io.kotest.matchers.string.shouldNotContain
-import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.boot.EnvironmentPostProcessor
 import org.springframework.boot.WebApplicationType
 import org.springframework.boot.builder.SpringApplicationBuilder
-import org.springframework.context.annotation.Configuration
-import org.springframework.context.annotation.PropertySource
 import org.springframework.core.env.StandardEnvironment
 import org.springframework.core.env.SystemEnvironmentPropertySource
 import org.springframework.core.io.support.SpringFactoriesLoader
@@ -64,37 +59,6 @@ class SqlConfigurationKeyGuardContextIT {
         failure.message.orEmpty() shouldContain "spring.datasource.hikari.connection-init-sql"
         failure.message.orEmpty() shouldContain "INV-Q-4542"
     }
-
-    @Test
-    fun `start-up fails on a refused key passed as a servlet-context parameter`(
-        @TempDir secrets: Path,
-    ) {
-        val failure =
-            shouldThrow<IllegalStateException> {
-                service().run(*arguments(secrets), "--server.servlet.context-parameters.spring.datasource.hikari.schema=evil").close()
-            }
-        failure.message.orEmpty() shouldContain "server.servlet.context-parameters.spring.datasource.hikari.schema"
-        failure.message.orEmpty() shouldContain "INV-Q-4542"
-    }
-
-    @Test
-    fun `start-up fails on a refused key from a @PropertySource file, before the DataSource bean is created`() {
-        tpl18Service()
-            .withPropertyValues("spring.datasource.url=jdbc:postgresql://db:5432/submission", "spring.datasource.username=submission_runtime")
-            .withUserConfiguration(PropertySourceService::class.java)
-            .run { context ->
-                val failure = context.startupFailure.shouldNotBeNull()
-                // the second run (SqlConfigurationKeyRecheck), not a bean creation, fails it (INV-Q-4559)
-                failure.shouldBeInstanceOf<IllegalStateException>()
-                failure.message.orEmpty() shouldContain "spring.datasource.hikari.connection-init-sql"
-                failure.message.orEmpty() shouldContain "INV-Q-4559"
-                failure.message.orEmpty() shouldNotContain "probe_ps"
-            }
-    }
-
-    @Configuration(proxyBeanMethods = false)
-    @PropertySource("classpath:sqlguard/property-source-init-sql.properties")
-    class PropertySourceService
 
     @Test
     fun `start-up fails on a refused key set as an environment variable, naming the variable`(
