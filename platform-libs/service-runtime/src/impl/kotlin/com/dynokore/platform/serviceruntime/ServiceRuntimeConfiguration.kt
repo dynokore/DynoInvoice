@@ -10,6 +10,7 @@ import com.dynokore.platform.serviceruntime.health.HealthAutoConfiguration
 import com.dynokore.platform.serviceruntime.identity.EndUserIdentityAutoConfiguration
 import com.dynokore.platform.serviceruntime.identity.IdentityAutoConfiguration
 import com.dynokore.platform.serviceruntime.logging.LoggingAutoConfiguration
+import com.dynokore.platform.serviceruntime.pool.PoolLaneWiring
 import com.dynokore.platform.serviceruntime.replica.ReplicaAutoConfiguration
 import com.dynokore.platform.serviceruntime.resilience.ResilienceAutoConfiguration
 import org.springframework.boot.autoconfigure.AutoConfiguration
@@ -58,6 +59,7 @@ import org.springframework.context.annotation.PropertySource
 @Import(
     BindingAutoConfiguration::class,
     DatabaseCredentialsConfiguration::class,
+    PoolLaneWiring::class,
     HealthAutoConfiguration::class,
     DiagnosticsAutoConfiguration::class,
     LoggingAutoConfiguration::class,

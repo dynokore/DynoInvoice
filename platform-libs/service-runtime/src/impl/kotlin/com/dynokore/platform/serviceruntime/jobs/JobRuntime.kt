@@ -10,6 +10,8 @@ import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.serviceruntime.identity.WorkloadPrincipal
+import com.dynokore.platform.serviceruntime.pool.PoolLane
+import com.dynokore.platform.serviceruntime.pool.PoolLanes
 import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantId
 import org.slf4j.LoggerFactory
@@ -132,11 +134,17 @@ class JobRuntime(
     /**
      * One scheduled firing of [jobName] at [at] (normally now): for each target (the whole job, or each entity
      * of an ENTITY-scoped job) a paused target is skipped, then the instance that takes the lock claims the
-     * tick's `job_run` row and runs the body. Every instance may call this at the same firing.
+     * tick's `job_run` row and runs the body. Every instance may call this at the same firing. A firing runs in the
+     * pool's background lane (INV-REQ-1230 b1).
      */
     fun fire(
         jobName: String,
         at: Instant = clock.instant(),
+    ): Map<JobTarget, FireResult> = PoolLanes.inLane(PoolLane.BACKGROUND) { fireInBackground(jobName, at) }
+
+    private fun fireInBackground(
+        jobName: String,
+        at: Instant,
     ): Map<JobTarget, FireResult> {
         val registered = jobs[jobName] ?: throw IllegalArgumentException("job not registered")
         val tick = registered.ticks.tickContaining(at)

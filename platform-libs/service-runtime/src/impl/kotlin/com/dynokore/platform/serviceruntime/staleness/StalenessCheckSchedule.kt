@@ -1,5 +1,7 @@
 package com.dynokore.platform.serviceruntime.staleness
 
+import com.dynokore.platform.serviceruntime.pool.PoolLane
+import com.dynokore.platform.serviceruntime.pool.PoolLanes
 import org.springframework.context.SmartLifecycle
 import java.time.Duration
 import java.util.concurrent.Executors
@@ -21,7 +23,7 @@ class StalenessCheckSchedule(
         if (scheduler != null) return
         scheduler =
             Executors.newSingleThreadScheduledExecutor(Thread.ofVirtual().name(NAME).factory()).also {
-                it.scheduleWithFixedDelay({ gauges.refresh() }, 0, interval.toMillis(), TimeUnit.MILLISECONDS)
+                it.scheduleWithFixedDelay({ PoolLanes.inLane(PoolLane.BACKGROUND) { gauges.refresh() } }, 0, interval.toMillis(), TimeUnit.MILLISECONDS)
             }
     }
 

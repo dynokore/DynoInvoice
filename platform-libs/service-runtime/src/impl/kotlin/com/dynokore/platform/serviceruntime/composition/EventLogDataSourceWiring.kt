@@ -1,5 +1,7 @@
 package com.dynokore.platform.serviceruntime.composition
 
+import com.dynokore.platform.serviceruntime.pool.PoolLane
+import com.dynokore.platform.serviceruntime.pool.PoolLaneWiring
 import com.zaxxer.hikari.HikariDataSource
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
@@ -57,6 +59,9 @@ class EventLogDataSourceWiring {
         pool.idleTimeout = IDLE_TIMEOUT.toMillis()
         pool.maxLifetime = application.maxLifetime
         pool.connectionTimeout = application.connectionTimeout
+        // the event-log pool is the background lane only, 0 / 3 / 0 (owner ruling INV-Q-4023): its connections carry
+        // the background lane's application_name from the start
+        pool.addDataSourceProperty(APPLICATION_NAME, PoolLaneWiring.applicationName(environment.getProperty(SERVICE), PoolLane.BACKGROUND))
         return pool
     }
 
@@ -75,6 +80,8 @@ class EventLogDataSourceWiring {
     companion object {
         const val EVENT_LOG_URL = "gst.db.event-log-url"
         const val APPLICATION_URL = "spring.datasource.url"
+        private const val SERVICE = "gst.service"
+        private const val APPLICATION_NAME = "ApplicationName"
         private val IDLE_TIMEOUT: Duration = Duration.ofSeconds(60)
     }
 }

@@ -23,6 +23,14 @@ train is its own (README.md: "own version and changelog").
 - `IdempotencyStore` takes no `Clock`: a key's `created_at` and the purge cut-off are both read on the database clock,
   so a service clock skewed against the database neither fails the purge nor deletes a key early.
 - `UnrelayedEventCheck` (INV-T-4337) reads the outbox on the application DataSource.
+- The application pool is split into lanes (INV-T-3982; INV-REQ-1230 b1, INV-REQ-1072 b5, INV-ADR-3968 item 1, owner
+  ruling INV-Q-4023): the `dataSource` bean is a `LanedDataSource` over Spring Boot's HikariDataSource (unwrap to reach
+  the pool). Request, background and reprocessing permits per `service-runtime.pool.profile` (`minimal`, `ha`, `saas`)
+  with per-lane overrides `service-runtime.pool.lanes.*`; the pool maximum is their sum. Start-up fails when neither
+  the profile nor the lanes are set, or when `spring.datasource.hikari.maximum-pool-size` differs from the sum. A
+  thread is in the request lane unless it runs in `PoolLanes.inLane(...)`; job firings and service-runtime's own
+  schedules run in the background lane. Each lane's connections carry `application_name` `<gst.service>:<lane>`; the
+  HA event-log pool's carry the background one.
 - `FullSyncWiring` takes only the read-model clears; a full sync runs on the application DataSource (INV-Q-4064).
 ### Added
 - `MigrationRunner`, the migration entry point (INV-Q-3959): runs Flyway as `<svc>_migrate` and writes

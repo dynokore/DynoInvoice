@@ -108,6 +108,34 @@ With the property set, start-up fails if `spring.datasource.password` (or `sprin
 Connections already open keep working until the pool retires them (`maxLifetime`). Each new connection logs in with
 the value mounted at that moment, so no restart is needed.
 
+## Pool lanes (INV-T-3982; INV-REQ-1230 b1, INV-REQ-1072 b5, INV-ADR-3968 item 1, owner ruling INV-Q-4023)
+
+The service's one application pool (Spring Boot's HikariDataSource, STK-17) is split into three lanes, each a permit
+budget within the one pool: **request**, **background** (relay, consumers, claims, jobs, purges) and **reprocessing**
+(pack-activation reprocessing and backfill). The `dataSource` bean is a `LanedDataSource`: a connection is taken in the
+current thread's lane (`PoolLanes.inLane(PoolLane.BACKGROUND) { ... }`; a thread outside any `inLane` is in the request
+lane) and only within that lane's permits. The pool maximum is the sum of the budgets, so a saturated background or
+reprocessing lane never takes a connection a request is owed. A lane with a budget of 0 is refused, never served from
+another lane (INV-REQ-1072 b5). Job firings (`JobRuntime.fire`) and service-runtime's own schedules (staleness and
+unrelayed-event checks, idempotency-key purge) run in the background lane.
+
+Each lane's connections carry `application_name` `<gst.service>:request`, `:background` or `:reprocessing` (set through
+pgJDBC's `ApplicationName` client info when the connection is taken), so pg_stat_activity shows each lane. The HA
+event-log pool (`eventLogDataSource`) is the background lane only: its connections carry `<gst.service>:background`.
+
+Defaults (request / background / reprocessing), the INV-T-3977 capacity model:
+
+| `service-runtime.pool.profile` | ingestion-svc, canonical-svc, rules-svc, masterdata-svc, payload-svc, submission-svc, transport-svc | every other service |
+|---|---|---|
+| `minimal` | 4 / 2 / 1 (pool 7) | 4 / 2 / 0 (pool 6) |
+| `ha` | 7 / 3 / 1 (pool 11) | 7 / 3 / 0 (pool 10) |
+| `saas` (per pod) | 7 / 3 / 1 (pool 11) | 7 / 3 / 0 (pool 10) |
+| HA event-log pool | 0 / 3 / 0 (pool 3) | 0 / 3 / 0 (pool 3) |
+
+`service-runtime.pool.lanes.request`, `.background` and `.reprocessing` override a lane's default. Start-up fails when
+neither the profile nor the lane is set, and when `spring.datasource.hikari.maximum-pool-size` is set to anything but
+the sum (set the lanes instead).
+
 ## Consumer staleness (INV-T-3005; INV-REQ-1165, INV-AC-2150, INV-Q-3030 (a))
 
 A service lists one rule per consumer and event type it consumes:

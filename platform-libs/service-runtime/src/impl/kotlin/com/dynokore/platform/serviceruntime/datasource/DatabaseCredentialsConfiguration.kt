@@ -16,6 +16,7 @@ import org.springframework.jdbc.datasource.AbstractDataSource
 import java.sql.Connection
 import java.sql.DriverManager
 import java.util.Properties
+import javax.sql.DataSource
 
 /**
  * Database credentials through [SecretStore] (STK-29, INV-REQ-1231; ruling INV-Q-3909, INV-T-3913). Each part is
@@ -92,7 +93,11 @@ internal class ApplicationPoolCredentials(
     ): Any {
         if (beanName != APPLICATION_DATA_SOURCE) return bean
         val credential = DatabaseCredentialsConfiguration.DATASOURCE_CREDENTIAL
-        check(bean is HikariDataSource) {
+        // the pool itself, or the pool under its lanes (PoolLaneWiring), whichever post-processor runs first
+        val pool =
+            (bean as? HikariDataSource)
+                ?: (bean as? DataSource)?.takeIf { it.isWrapperFor(HikariDataSource::class.java) }?.unwrap(HikariDataSource::class.java)
+        check(pool != null) {
             "$credential needs Spring Boot's application DataSource to be a HikariDataSource (STK-17), " +
                 "but bean '$beanName' is a ${bean.javaClass.name}"
         }
@@ -103,8 +108,8 @@ internal class ApplicationPoolCredentials(
                 environment.required("spring.datasource.username", credential),
                 SecretRef(environment.getRequiredProperty(credential)),
             )
-        check(!bean.isRunning) { "$credential: the application pool '$beanName' started before its credentials were set" }
-        bean.credentialsProvider = provider
+        check(!pool.isRunning) { "$credential: the application pool '$beanName' started before its credentials were set" }
+        pool.credentialsProvider = provider
         return bean
     }
 

@@ -25,7 +25,7 @@ class DatabaseCredentialsWiringTest {
         "spring.datasource.username=submission_app",
     )
 
-    private fun AssertableApplicationContext.applicationPool() = getBean(DataSource::class.java).shouldBeInstanceOf<HikariDataSource>()
+    private fun AssertableApplicationContext.applicationPool() = getBean(DataSource::class.java).unwrap(HikariDataSource::class.java)
 
     private fun AssertableApplicationContext.failureMessages() = generateSequence(startupFailure.shouldNotBeNull()) { it.cause }.joinToString(" | ") { it.message.orEmpty() }
 

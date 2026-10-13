@@ -50,7 +50,7 @@ class CredentialRotationIT {
 
             service(pg, mountRoot).run { context ->
                 context.startupFailure shouldBe null
-                val app = context.getBean(DataSource::class.java) as HikariDataSource
+                val app = context.getBean(DataSource::class.java).unwrap(HikariDataSource::class.java)
                 // the event-log pool on its own URL takes the application pool's login and credentials provider
                 val eventLog = context.getBean(ServiceDataSources.EVENT_LOG, HikariDataSource::class.java)
                 app.password.shouldBeNull()
@@ -157,7 +157,10 @@ class CredentialRotationIT {
             "spring.datasource.url=${pg.jdbcUrl}",
             "spring.datasource.username=$APP",
             "spring.datasource.hikari.minimum-idle=0",
-            "spring.datasource.hikari.maximum-pool-size=3",
+            // a pool of 3, all request permits (INV-REQ-1230 b1: the maximum is the sum of the lane budgets)
+            "service-runtime.pool.lanes.request=3",
+            "service-runtime.pool.lanes.background=0",
+            "service-runtime.pool.lanes.reprocessing=0",
             "spring.datasource.hikari.connection-timeout=1000",
             "service-runtime.datasource.credential=$APP_REF",
         )

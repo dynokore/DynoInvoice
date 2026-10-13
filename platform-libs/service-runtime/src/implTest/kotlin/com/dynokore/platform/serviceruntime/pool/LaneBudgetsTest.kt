@@ -1,0 +1,76 @@
+package com.dynokore.platform.serviceruntime.pool
+
+import com.dynokore.platform.serviceruntime.composition.ServiceDataSources
+import com.dynokore.platform.serviceruntime.datasource.Tpl18JdbcApplication
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
+import io.micrometer.core.instrument.MeterRegistry
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.CsvSource
+import org.springframework.boot.test.context.runner.ApplicationContextRunner
+
+/**
+ * The lane defaults per installation profile (INV-REQ-1230 b1, INV-ADR-3968 item 1; owner ruling INV-Q-4023), as the
+ * INV-T-3977 capacity model publishes them, and their configuration.
+ */
+class LaneBudgetsTest {
+    @ParameterizedTest(name = "{0} {1}: {2} / {3} / {4}")
+    @CsvSource(
+        "MINIMAL, ingestion-svc, 4, 2, 1", "MINIMAL, canonical-svc, 4, 2, 1", "MINIMAL, rules-svc, 4, 2, 1",
+        "MINIMAL, masterdata-svc, 4, 2, 1", "MINIMAL, payload-svc, 4, 2, 1", "MINIMAL, submission-svc, 4, 2, 1",
+        "MINIMAL, transport-svc, 4, 2, 1", "MINIMAL, access-svc, 4, 2, 0", "MINIMAL, evidence-svc, 4, 2, 0",
+        "HA, submission-svc, 7, 3, 1", "HA, tenancy-svc, 7, 3, 0", "SAAS, rules-svc, 7, 3, 1", "SAAS, control-plane-svc, 7, 3, 0",
+    )
+    fun `the defaults match the capacity model`(
+        profile: InstallationProfile,
+        service: String,
+        request: Int,
+        background: Int,
+        reprocessing: Int,
+    ) {
+        val budgets = LaneBudgets.defaults(profile, service)
+        budgets shouldBe LaneBudgets(request, background, reprocessing)
+        budgets.maximum shouldBe request + background + reprocessing
+    }
+
+    @Test
+    fun `the reprocessing permit is held by the seven submission-path services only, and the event-log pool is 0 3 0`() {
+        LaneBudgets.REPROCESSING_SERVICES shouldBe
+            setOf("ingestion-svc", "canonical-svc", "rules-svc", "masterdata-svc", "payload-svc", "submission-svc", "transport-svc")
+        LaneBudgets.EVENT_LOG shouldBe LaneBudgets(0, 3, 0)
+        LaneBudgets.EVENT_LOG.maximum shouldBe ServiceDataSources.EVENT_LOG_MAXIMUM
+    }
+
+    @Test
+    fun `a lane override replaces the profile default, and the pool maximum is the sum`() {
+        PoolLaneProperties(InstallationProfile.HA, LaneOverrides(background = 5)).budgets("access-svc") shouldBe LaneBudgets(7, 5, 0)
+        PoolLaneProperties(null, LaneOverrides(2, 1, 0)).budgets(null) shouldBe LaneBudgets(2, 1, 0)
+    }
+
+    @Test
+    fun `start-up fails without a profile or lanes, and on a pool maximum other than the sum`() {
+        val service = ApplicationContextRunner()
+            .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
+            .withUserConfiguration(Tpl18JdbcApplication::class.java)
+            .withPropertyValues(
+                "service-runtime.workload-identity.audience=submission-svc",
+                "gst.service=submission-svc",
+                "gst.instance-id=submission-svc-0",
+                "spring.flyway.enabled=false",
+                "spring.datasource.url=jdbc:postgresql://localhost:5432/submission",
+                "spring.datasource.username=submission_runtime",
+            )
+        service.run { it.startupFailure!!.rootMessage() shouldContain "set service-runtime.pool.profile or service-runtime.pool.lanes.request" }
+        service.withPropertyValues("service-runtime.pool.profile=minimal", "spring.datasource.hikari.maximum-pool-size=10").run {
+            it.startupFailure!!.rootMessage() shouldContain "maximum-pool-size is 10, but the application pool's maximum is the sum"
+        }
+        service.withPropertyValues("service-runtime.pool.profile=saas").run { context ->
+            context.startupFailure shouldBe null
+            (context.getBean("dataSource") as LanedDataSource).budgets shouldBe LaneBudgets(7, 3, 1)
+        }
+    }
+
+    private fun Throwable.rootMessage(): String = generateSequence(this) { it.cause }.last().message.orEmpty()
+}

@@ -5,6 +5,8 @@ import com.dynokore.platform.outboxandqueue.UnrelayedEvent
 import com.dynokore.platform.outboxandqueue.UnrelayedEventCheck
 import com.dynokore.platform.outboxandqueue.UnrelayedEventSettings
 import com.dynokore.platform.outboxandqueue.UnrelayedEventSink
+import com.dynokore.platform.serviceruntime.pool.PoolLane
+import com.dynokore.platform.serviceruntime.pool.PoolLanes
 import io.micrometer.core.instrument.Gauge
 import io.micrometer.core.instrument.MeterRegistry
 import org.slf4j.LoggerFactory
@@ -121,7 +123,7 @@ class UnrelayedEventCheckSchedule(
         if (scheduler != null) return
         scheduler =
             Executors.newSingleThreadScheduledExecutor(Thread.ofVirtual().name(NAME).factory()).also {
-                it.scheduleWithFixedDelay({ gauge.refresh() }, 0, interval.toMillis(), TimeUnit.MILLISECONDS)
+                it.scheduleWithFixedDelay({ PoolLanes.inLane(PoolLane.BACKGROUND) { gauge.refresh() } }, 0, interval.toMillis(), TimeUnit.MILLISECONDS)
             }
     }
 

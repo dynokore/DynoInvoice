@@ -13,6 +13,7 @@ import com.dynokore.platform.serviceruntime.jobs.DeadlineSource
 import com.dynokore.platform.serviceruntime.jobs.JobCommandAuthorizer
 import com.dynokore.platform.serviceruntime.jobs.JobCommands
 import com.dynokore.platform.serviceruntime.operation.OperationRunner
+import com.dynokore.platform.serviceruntime.pool.LanedDataSource
 import com.dynokore.platform.tenancykernel.CurrentConnection
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import com.zaxxer.hikari.HikariDataSource
@@ -48,6 +49,7 @@ class Tpl16ServiceCompositionTest {
                 "service-runtime.workload-identity.audience=submission-svc",
                 "gst.service=submission-svc",
                 "gst.instance-id=submission-svc-0",
+                "service-runtime.pool.profile=minimal",
                 "service-runtime.modules.schema=submission",
                 "service-runtime.idempotency.schema=submission",
             )
@@ -57,7 +59,7 @@ class Tpl16ServiceCompositionTest {
     fun `every port the service injects is a bean, over the DataSource from spring-datasource`(composition: Composition) {
         service.withUserConfiguration(SubmissionBootstrap::class.java, composition.application).run { context ->
             context.startupFailure shouldBe null
-            val application = context.getBean(DataSource::class.java).shouldBeInstanceOf<HikariDataSource>()
+            val application = context.getBean(DataSource::class.java).unwrap(HikariDataSource::class.java)
             application.jdbcUrl shouldBe "jdbc:postgresql://localhost:5432/submission"
             listOf(
                 TransactionRunner::class, CurrentConnection::class, TenantScope::class, OutboxWriter::class, AuditWriter::class,
@@ -79,7 +81,8 @@ class Tpl16ServiceCompositionTest {
                 context.startupFailure shouldBe null
                 // one pool: a second application pool bean, or any role DataSource, fails here (INV-Q-3955)
                 context.getBeanNamesForType(DataSource::class.java).toList() shouldBe listOf("dataSource")
-                context.getBeansOfType(HikariDataSource::class.java).keys shouldBe setOf("dataSource")
+                // the pool under its lanes (INV-REQ-1230 b1): one HikariCP pool, no second one
+                context.getBean(DataSource::class.java).shouldBeInstanceOf<LanedDataSource>().unwrap(HikariDataSource::class.java).maximumPoolSize shouldBe 7
                 context.getBean(TenantScope::class.java).workloadPrincipal shouldBe "svc:submission-svc"
             }
         }
@@ -101,7 +104,7 @@ class Tpl16ServiceCompositionTest {
             eventLog.maximumPoolSize shouldBe 3
             eventLog.minimumIdle shouldBe 1
             // the application DataSource is still the one an unqualified injection gets
-            context.getBean(DataSource::class.java).shouldBeInstanceOf<HikariDataSource>().jdbcUrl shouldBe "jdbc:postgresql://localhost:5432/submission"
+            context.getBean(DataSource::class.java).unwrap(HikariDataSource::class.java).jdbcUrl shouldBe "jdbc:postgresql://localhost:5432/submission"
         }
         ha.withPropertyValues("service-runtime.event-log-pool.minimum-idle=2").run { context ->
             context.getBean(ServiceDataSources.EVENT_LOG, HikariDataSource::class.java).minimumIdle shouldBe 2

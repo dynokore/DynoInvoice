@@ -70,6 +70,7 @@ class MigrationRunnerIT {
                     "service-runtime.workload-identity.audience=submission-svc",
                     "gst.service=submission-svc",
                     "gst.instance-id=submission-svc-0",
+                    "service-runtime.pool.profile=minimal",
                 ).run { context ->
                     context.startupFailure shouldBe null
                     context.getBeanNamesForType(Flyway::class.java).size shouldBe 0
