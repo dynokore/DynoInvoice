@@ -13,11 +13,13 @@ import com.nimbusds.jose.proc.SecurityContext
 import com.nimbusds.jose.util.DefaultResourceRetriever
 import com.nimbusds.jose.util.JSONObjectUtils
 import com.nimbusds.jwt.proc.DefaultJWTProcessor
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
+import org.springframework.boot.web.servlet.FilterRegistrationBean
 import org.springframework.context.annotation.Bean
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator
 import org.springframework.security.oauth2.core.OAuth2TokenValidator
@@ -28,6 +30,7 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder
 import java.io.IOException
 import java.net.URI
 import java.text.ParseException
+import java.time.Clock
 
 /** `service-runtime.end-user-identity.*`: the audience end-user tokens must carry for this service (STK-27). */
 @ConfigurationProperties(prefix = "service-runtime.end-user-identity")
@@ -51,12 +54,25 @@ class EndUserIdentityAutoConfiguration {
         identityProvider: IdentityProvider,
         properties: EndUserIdentityProperties,
         authority: AuthorityReplica,
+        clock: Clock,
     ): EndUserPrincipalResolver {
         val issuer = identityProvider.issuer()
         val remote = issuer.jwkSetUri?.let { remoteKeys(URI(it)) } ?: DiscoveredKeySource(issuer.issuerUri)
         val decoder = endUserJwtDecoder(LastKnownKeySource(remote))
         decoder.setJwtValidator(DelegatingOAuth2TokenValidator(endUserTokenValidators(issuer.issuerUri, properties)))
-        return JwtEndUserPrincipalResolver(decoder, authority)
+        return JwtEndUserPrincipalResolver(decoder, authority, clock)
+    }
+
+    /** Binds a verified operator session for the request (INV-Q-4521), after the workload-identity filter. */
+    @Bean
+    fun operatorSessionBindingFilter(resolvers: ObjectProvider<EndUserPrincipalResolver>): FilterRegistrationBean<OperatorSessionBindingFilter> = FilterRegistrationBean(OperatorSessionBindingFilter(resolvers)).apply {
+        order = ORDER_OPERATOR_SESSION
+        urlPatterns = listOf("/*")
+    }
+
+    private companion object {
+        /** After the end-user token capture (-70), before any handler. */
+        const val ORDER_OPERATOR_SESSION = -60
     }
 }
 

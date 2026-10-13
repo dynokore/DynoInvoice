@@ -218,6 +218,45 @@ data class AuthorityVerdict(val allowed: Boolean)
 
 fun interface AuthorityFallback : ReplicaFallback<AuthorizationRequest, AuthorityVerdict>
 
+/**
+ * One access-svc operator-session signing key (platform-contracts access
+ * `operator-session-keys-changed-payload.schema.json`): [publicKey] is the DER X.509 SubjectPublicKeyInfo in
+ * standard base64, [alg] the JWS algorithm tokens signed with it name. Usable from [validFrom] until [validUntil].
+ */
+data class OperatorSessionKey(
+    val kid: String,
+    val alg: String,
+    val publicKey: String,
+    val validFrom: Instant,
+    val validUntil: Instant,
+) {
+    fun isValidAt(at: Instant): Boolean = !at.isBefore(validFrom) && at.isBefore(validUntil)
+}
+
+/**
+ * The platform event `OperatorSessionKeysChanged` on `gst.access.operator-session-keys-changed.v1` (coordinator
+ * rulings INV-Q-4162 and INV-Q-4171): the current key and, during rotation, the next one.
+ */
+data class OperatorSessionKeysChanged(val keys: List<OperatorSessionKey>)
+
+/**
+ * The operator-session signing keys the authority replica holds, from `OperatorSessionKeysChanged` (coordinator
+ * rulings INV-Q-4162, INV-Q-4171). Each event carries the whole set and replaces the one held.
+ */
+class OperatorSessionKeys(private val clock: Clock) {
+    @Volatile private var held: List<OperatorSessionKey> = emptyList()
+
+    fun accept(event: OperatorSessionKeysChanged) {
+        held = event.keys.toList()
+    }
+
+    /** The held key [kid] when it is valid now; null otherwise, so the token is refused (fail closed, INV-Q-4162). */
+    fun valid(kid: String): OperatorSessionKey? {
+        val now = clock.instant()
+        return held.firstOrNull { it.kid == kid && it.isValidAt(now) }
+    }
+}
+
 /** A principal record as held: the voiding version, and the state (null: voided by an event without state). */
 data class PrincipalRevocation(val state: PrincipalState?, val revocationVersion: Long)
 
@@ -243,6 +282,10 @@ data class PrincipalRevocation(val state: PrincipalState?, val revocationVersion
  *
  * A definite local or fallback answer is final for every principal: the machine
  * exception covers only the absence of any answer.
+ *
+ * It also keeps access-svc's operator-session signing keys from `OperatorSessionKeysChanged`, consumed beside
+ * `AuthorityChanged` with no ordering between the two (coordinator rulings INV-Q-4162, INV-Q-4171): each event
+ * carries the whole key set and replaces the one held. Holding no valid key refuses every operator-session token.
  */
 class AuthorityReplica(
     private val clock: Clock,
@@ -261,6 +304,9 @@ class AuthorityReplica(
         )
     val principals =
         EventFedReplica<PrincipalKey, PrincipalRevocation>("authority-principal", clock, lagBound, tracker = tracker)
+
+    /** access-svc's operator-session signing keys (INV-Q-4162, INV-Q-4171). */
+    val operatorSessionKeys = OperatorSessionKeys(clock)
 
     fun decide(
         request: AuthorizationRequest,

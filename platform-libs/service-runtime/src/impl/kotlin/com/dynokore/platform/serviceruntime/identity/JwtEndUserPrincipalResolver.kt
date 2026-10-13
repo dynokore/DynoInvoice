@@ -3,9 +3,14 @@ package com.dynokore.platform.serviceruntime.identity
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.tenancykernel.TenantId
+import com.nimbusds.jwt.JWT
+import com.nimbusds.jwt.JWTParser
+import com.nimbusds.jwt.SignedJWT
 import org.springframework.security.oauth2.jwt.BadJwtException
 import org.springframework.security.oauth2.jwt.JwtDecoder
 import org.springframework.security.oauth2.jwt.JwtException
+import java.text.ParseException
+import java.time.Clock
 
 /**
  * The default [EndUserPrincipalResolver] (owner ruling INV-Q-3716, INV-REQ-1202 b4, CS-23). [jwtDecoder]
@@ -16,13 +21,47 @@ import org.springframework.security.oauth2.jwt.JwtException
  * at the next one. A missing, invalid or expired token, or an unreadable `tenant_id`, resolves to null (401); an
  * issuer whose keys cannot be obtained, with no cached key verifying the token, throws
  * [TokenIssuerUnavailableException] (503 SRT-011, INV-Q-3773).
+ *
+ * A token carrying `act` is a tenant-scoped operator session (owner ruling INV-Q-4119, INV-REQ-1202 b4): it is
+ * verified only against access-svc's operator-session keys held by the [authority] replica ([OperatorSessionTokens],
+ * coordinator rulings INV-Q-4162, INV-Q-4171), never against the identity provider, and must carry `sub` and a
+ * `tenant_id`; it resolves to a tenant principal with its [OperatorSession]. Every other token is verified by
+ * [jwtDecoder] only, so a token from an operator-session key without `act` fails there, and an identity-provider
+ * token with `act` is refused. Each refusal is null (401).
  */
 class JwtEndUserPrincipalResolver(
     private val jwtDecoder: JwtDecoder,
     private val authority: AuthorityReplica,
+    clock: Clock = Clock.systemUTC(),
 ) : EndUserPrincipalResolver {
+    private val operatorSessions = OperatorSessionTokens(authority, clock)
+
     override fun resolve(authorization: String?): EndUserPrincipal? {
         val token = bearer(authorization) ?: return null
+        val parsed =
+            try {
+                JWTParser.parse(token)
+            } catch (malformed: ParseException) {
+                return null
+            }
+        return if (carriesAct(parsed)) operatorPrincipal(parsed) else identityProviderPrincipal(token)
+    }
+
+    /** The unverified claims name `act`: only the operator-session keys may verify it. Unreadable claims: none. */
+    private fun carriesAct(parsed: JWT): Boolean = try {
+        parsed.jwtClaimsSet?.claims?.containsKey(OperatorSessionTokens.ACT_CLAIM) == true
+    } catch (malformed: ParseException) {
+        false
+    }
+
+    private fun operatorPrincipal(parsed: JWT): EndUserPrincipal? {
+        val (claims, session) = (parsed as? SignedJWT)?.let(operatorSessions::verify) ?: return null
+        val actor = claims.subject?.takeIf { it.isNotBlank() }
+        val tenant = (claims.getClaim(TENANT_CLAIM) as? String)?.let(::tenantOf)
+        return if (actor != null && tenant != null) principalIn(tenant, actor, session) else null
+    }
+
+    private fun identityProviderPrincipal(token: String): EndUserPrincipal? {
         val jwt =
             try {
                 jwtDecoder.decode(token)
@@ -34,8 +73,10 @@ class JwtEndUserPrincipalResolver(
             }
         val actor = jwt?.subject?.takeIf { it.isNotBlank() }
         val claim = jwt?.getClaimAsString(TENANT_CLAIM)
+        // an identity-provider token never carries `act` (owner ruling INV-Q-4119)
+        val act = jwt?.hasClaim(OperatorSessionTokens.ACT_CLAIM) == true
         return when {
-            actor == null -> null
+            actor == null || act -> null
             claim == null -> EndUserPrincipal(actor, null, emptySet())
             else -> tenantOf(claim)?.let { tenant -> principalIn(tenant, actor) }
         }
@@ -45,10 +86,11 @@ class JwtEndUserPrincipalResolver(
     private fun principalIn(
         tenant: TenantId,
         actor: String,
+        session: OperatorSession? = null,
     ): EndUserPrincipal = if (authority.lag().isWithin(authority.lagBound)) {
-        EndUserPrincipal(actor, tenant, entitiesOf(tenant, actor))
+        EndUserPrincipal(actor, tenant, entitiesOf(tenant, actor), operatorSession = session)
     } else {
-        EndUserPrincipal(actor, tenant, emptySet(), entitySetCurrent = false)
+        EndUserPrincipal(actor, tenant, emptySet(), entitySetCurrent = false, operatorSession = session)
     }
 
     private fun entitiesOf(
