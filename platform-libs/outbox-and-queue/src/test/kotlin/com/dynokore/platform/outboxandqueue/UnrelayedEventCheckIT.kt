@@ -254,6 +254,50 @@ class UnrelayedEventCheckIT {
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
+    fun `the outbox is read in bounded pages and each events_missing call holds at most the batch size`(image: String) {
+        val s = setup(image, secondInstance = false)
+        try {
+            repeat(7) { s.write() }
+            s.drain()
+            val fault = s.write()
+            s.markPublished(fault)
+            val calls = mutableListOf<Int>()
+            val real = PostgresEventLogPresence(s.eventLog.eventLogDataSource())
+            val counting =
+                object : EventLogPresence {
+                    override fun missing(
+                        topic: String,
+                        eventIds: Collection<String>,
+                    ): MissingEvents {
+                        calls += eventIds.size
+                        return real.missing(topic, eventIds)
+                    }
+                }
+            val check =
+                JdbcUnrelayedEventCheck(
+                    s.service.runtimeDataSource(),
+                    s.scope,
+                    SCHEMA,
+                    "canonical-svc",
+                    counting,
+                    UnrelayedEventSettings(Duration.ofDays(30), margin, batchSize = 2),
+                    UnrelayedEventSink { s.raised += it },
+                    pageSize = 3,
+                )
+            assertEquals(listOf(fault), check.check().open.map { it.outboxSeq })
+            assertEquals(8, calls.sum(), "every published row sent once")
+            assertTrue(calls.all { it in 1..2 }, "at most the batch size per call: $calls")
+            assertTrue(calls.size >= 4, "8 rows over pages of 3 in batches of 2: $calls")
+            calls.clear()
+            assertEquals(listOf(fault), check.check().open.map { it.outboxSeq })
+            assertEquals(listOf(1), calls, "verified rows are not sent again; the open finding is")
+        } finally {
+            s.close()
+        }
+    }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `events_missing answers only a topic's producers, only with missing ids and the cut-off`(image: String) {
         val s = setup(image, secondInstance = false)
         try {
