@@ -245,7 +245,7 @@ class CompositionRootTest {
             context.getBean(MeterRegistry::class.java).find(UnrelayedEventGauge.OPEN).tag(UnrelayedEventGauge.SERVICE, "submission-svc").gauge().shouldNotBeNull()
             context.getBean(UnrelayedEventProperties::class.java).checkInterval shouldBe Duration.ofMinutes(5)
             // audit-log: the outbox writer in a service with an outbox
-            context.getBean(AuditWriter::class.java).shouldBeInstanceOf<OutboxAuditWriter>()
+            context.getBean(AuditWriter::class.java).shouldBeInstanceOf<OperatorSessionAuditWriter>().delegate.shouldBeInstanceOf<OutboxAuditWriter>()
             context.getBean(AuditedOperations::class.java)
             context.getBean(OverrideService::class.java)
             // config-resolver
@@ -400,7 +400,7 @@ class CompositionRootTest {
             .withPropertyValues("gst.service=control-plane-svc", "gst.instance-id=cp-0", "service-runtime.modules.schema=control_plane")
             .run { context ->
                 context.getBeansOfType(OutboxWriter::class.java).size shouldBe 0
-                context.getBean(AuditWriter::class.java).shouldBeInstanceOf<LocalAuditWriter>()
+                context.getBean(AuditWriter::class.java).shouldBeInstanceOf<OperatorSessionAuditWriter>().delegate.shouldBeInstanceOf<LocalAuditWriter>()
             }
     }
 
