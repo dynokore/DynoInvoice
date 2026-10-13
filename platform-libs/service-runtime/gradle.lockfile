@@ -5,7 +5,7 @@
 biz.aQute.bnd:biz.aQute.bnd.annotation:7.1.0=implCompileClasspath,implTestCompileClasspath
 ch.qos.logback:logback-classic:1.5.38=implCompileClasspath,implRuntimeClasspath,implTestCompileClasspath,implTestRuntimeClasspath
 ch.qos.logback:logback-core:1.5.38=implCompileClasspath,implRuntimeClasspath,implTestCompileClasspath,implTestRuntimeClasspath
-com.dynokore.gst.build:konsist-rules:0.10.0=implTestCompileClasspath,implTestRuntimeClasspath,testCompileClasspath,testRuntimeClasspath
+com.dynokore.gst.build:konsist-rules:0.9.0=implTestCompileClasspath,implTestRuntimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.fasterxml.jackson.core:jackson-annotations:2.22=implCompileClasspath,implRuntimeClasspath,implTestCompileClasspath,implTestRuntimeClasspath
 com.github.ben-manes.caffeine:caffeine:2.9.3=detekt
 com.github.curious-odd-man:rgxgen:2.0=implTestCompileClasspath,implTestRuntimeClasspath,testCompileClasspath,testRuntimeClasspath
@@ -236,7 +236,7 @@ org.osgi:org.osgi.annotation.bundle:2.0.0=implCompileClasspath,implTestCompileCl
 org.osgi:org.osgi.annotation.versioning:1.1.2=implCompileClasspath,implTestCompileClasspath
 org.osgi:org.osgi.resource:1.0.0=implCompileClasspath,implTestCompileClasspath
 org.osgi:org.osgi.service.serviceloader:1.0.0=implCompileClasspath,implTestCompileClasspath
-org.postgresql:postgresql:42.7.14=implTestCompileClasspath,implTestRuntimeClasspath
+org.postgresql:postgresql:42.7.13=implTestCompileClasspath,implTestRuntimeClasspath
 org.reactivestreams:reactive-streams:1.0.4=implCompileClasspath,implTestCompileClasspath,implTestRuntimeClasspath
 org.rnorth.duct-tape:duct-tape:1.0.8=implTestCompileClasspath,implTestRuntimeClasspath
 org.slf4j:jul-to-slf4j:2.0.18=implCompileClasspath,implRuntimeClasspath,implTestCompileClasspath,implTestRuntimeClasspath

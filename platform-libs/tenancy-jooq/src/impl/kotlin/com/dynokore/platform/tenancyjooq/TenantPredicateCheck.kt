@@ -26,13 +26,9 @@ internal class TenantPredicateCheck(
     private val declared = IdentityHashMap<Table<*>, Int>()
     private val verified = IdentityHashMap<Table<*>, Int>()
 
-    override fun visitEnd(context: VisitContext) {
-        StatementGuard.visitEnd(context)
-    }
-
     override fun visitStart(context: VisitContext) {
-        StatementGuard.visitStart(context)
         val part = context.queryPart()
+        StatementGuard.refuseUnsupported(part)
         if (context.context().declareTables() && isBaseTable(part)) {
             val ref = tables.classify(part as Table<*>)
             if (ref is DataRef && ref.tableClass != TableClass.PLATFORM_SCOPED) declared.merge(part, 1, Int::plus)

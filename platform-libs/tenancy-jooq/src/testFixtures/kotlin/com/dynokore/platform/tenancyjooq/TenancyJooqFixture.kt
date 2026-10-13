@@ -23,7 +23,7 @@ import javax.sql.DataSource
  * tenancy-kernel's tenant context and transaction runner on the runtime login, a [TenancyProbe] on the same login, and
  * a log of every statement the runtime login's connections prepare or execute.
  */
-internal class TenancyJooqFixture(
+class TenancyJooqFixture(
     image: String,
     vararg migrations: String,
 ) : AutoCloseable {

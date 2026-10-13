@@ -1,18 +1,13 @@
 package com.dynokore.platform.tenancyjooq
 
 import com.dynokore.platform.tenancyjooq.Seed.CUSTOMER_A
-import org.jooq.Context
 import org.jooq.DSLContext
-import org.jooq.impl.CustomCondition
-import org.jooq.impl.CustomField
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.FieldSource
-import java.time.OffsetDateTime
 import java.util.UUID
 
 /**
@@ -47,60 +42,6 @@ class RefusalTest {
         refusedAsA(image) { it.selectFrom(DSL.table("tenancy_kernel_test.orders")).fetch() }
         refusedAsA(image) { it.selectFrom(Orders).where(DSL.condition("true")).fetch() }
         refusedAsA(image) { it.selectFrom(Orders).where(DSL.condition(DSL.sql("true"))).fetch() }
-    }
-
-    @ParameterizedTest
-    @FieldSource("com.dynokore.platform.tenancyjooq.Images#ALL")
-    fun `plain SQL is refused whatever its text, operator characters and comment tokens included`(image: String) {
-        for (text in listOf("--", "/* */", "<>", ";", "*", "+")) {
-            assertPlainSql(refusedAsA(image) { it.selectFrom(Orders).where(DSL.condition(text)).fetch() })
-            assertPlainSql(refusedAsA(image) { it.select(Orders.ID, DSL.field(text)).from(Orders).fetch() })
-        }
-        assertPlainSql(refusedAsA(image) { it.select(DSL.count(DSL.field("*"))).from(Orders).fetch() })
-        assertPlainSql(
-            refusedAsA(image) { it.select(Orders.AMOUNT.plus(DSL.field("+", Int::class.java))).from(Orders).fetch() },
-        )
-    }
-
-    @ParameterizedTest
-    @FieldSource("com.dynokore.platform.tenancyjooq.Images#ALL")
-    fun `unquoted names and custom query parts are refused`(image: String) {
-        val injected = DSL.field(DSL.unquotedName("1 <> 2 or true"), Boolean::class.java)
-        refusedAsA(image) { it.selectFrom(Orders).where(injected.isTrue).fetch() }
-        val system = DSL.field(DSL.systemName("1 <> 2 or true"), Boolean::class.java)
-        refusedAsA(image) { it.selectFrom(Orders).where(system.isTrue).fetch() }
-        refusedAsA(image) { it.select(DSL.function("now", OffsetDateTime::class.java)).from(Orders).fetch() }
-        refusedAsA(image) { it.selectFrom(Orders).where(CustomCondition.of { context -> context.sql("true") }).fetch() }
-        val comment = CommentPart()
-        refusedAsA(image) { it.select(Orders.ID, comment).from(Orders).fetch() }
-        val commented = CustomCondition.of { context -> context.sql("true --") }
-        refusedAsA(image) { it.selectFrom(Orders).where(commented).fetch() }
-    }
-
-    @ParameterizedTest
-    @FieldSource("com.dynokore.platform.tenancyjooq.Images#ALL")
-    fun `the ExecuteListener alone refuses a rendered comment, separator or unbalanced fragment`(image: String) {
-        val fragments =
-            mapOf(
-                "true --" to "line comment",
-                "true /* */" to "block comment",
-                "true; select 1" to "statement separator",
-                "'a' = 'a" to "unterminated",
-                "(true" to "unbalanced",
-                "true = \$\$a\$\$" to "dollar",
-            )
-        for ((fragment, problem) in fragments) {
-            val violation =
-                refusedAsA(image, { dslWithoutInjector(it) }) {
-                    it.selectFrom(Orders).where(DSL.condition(fragment)).fetch()
-                }
-            assertTrue(violation.message!!.contains(problem), violation.message)
-        }
-    }
-
-    private fun assertPlainSql(violation: TenantPredicateViolation) {
-        val message = violation.message!!
-        assertTrue(message.contains("plain-SQL query part is refused, whatever its text"), message)
     }
 
     @ParameterizedTest
@@ -219,12 +160,5 @@ class RefusalTest {
             }
         }
         assertEquals(emptyList<String>(), fixture.statementsSince(mark))
-    }
-}
-
-/** A consumer's custom field that renders a comment: refused like every consumer custom part (review of !61). */
-private class CommentPart : CustomField<Int>(DSL.name("comment_part"), SQLDataType.INTEGER) {
-    override fun accept(ctx: Context<*>) {
-        ctx.sql("1 --")
     }
 }

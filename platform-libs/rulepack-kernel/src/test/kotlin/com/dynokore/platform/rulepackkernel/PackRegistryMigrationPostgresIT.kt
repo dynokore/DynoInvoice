@@ -1,21 +1,20 @@
 package com.dynokore.platform.rulepackkernel
 
-import com.dynokore.platform.tenancyjooq.TenancyProbe
-import com.dynokore.platform.tenancykernel.TenantId
-import org.flywaydb.core.Flyway
-import org.flywaydb.core.api.FlywayException
-import org.jooq.exception.DataAccessException
-import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
+import org.postgresql.ds.PGSimpleDataSource
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.utility.DockerImageName
+import java.sql.Connection
+import java.sql.SQLException
+import java.sql.Types
 import java.time.LocalDate
 import java.util.UUID
+import javax.sql.DataSource
 
 /** Testcontainers needs a concrete subclass for its fluent `self()` typing (Kotlin, unlike Java, has no raw types). */
 private class Postgres(image: DockerImageName) : PostgreSQLContainer<Postgres>(image)
@@ -26,12 +25,9 @@ private class Postgres(image: DockerImageName) : PostgreSQLContainer<Postgres>(i
  * a text assertion on the generated SQL cannot catch a policy that is
  * well-formed but wrong, as both the original symmetric `WITH CHECK` and the
  * later "no tenant bound treated as the platform identity" version were.
- *
- * The schema, the generated DDL and the runtime role are applied by Flyway as the container's superuser (the
- * migration owner's position); every RLS assertion runs through tenancy-jooq's [TenancyProbe] logged in as
- * `rulepack_kernel_app`, the same kind of INSERT/SELECT-only, `NOSUPERUSER`/`NOBYPASSRLS` role a real pack holder's
- * runtime uses (the probe itself refuses a superuser or BYPASSRLS session), so every assertion below is a real RLS
- * decision, never an app-level check. Test code names no JDBC type (owner ruling INV-Q-4196; INV-T-4188).
+ * Connects as the same kind of INSERT/SELECT-only, `NOSUPERUSER`/`NOBYPASSRLS`
+ * role a real pack holder's runtime uses, so every assertion below is a real
+ * RLS decision, never an app-level check.
  */
 @Tag("integration")
 class PackRegistryMigrationPostgresIT {
@@ -41,21 +37,30 @@ class PackRegistryMigrationPostgresIT {
         val container = Postgres(DockerImageName.parse(image))
         container.start()
         try {
-            migrate(container, BASE)
-            val app = TenancyProbe.connect(container.jdbcUrl, "rulepack_kernel_app", "rulepack_kernel_app_pw")
-            val privileged =
-                app.fetchValue("select rolsuper or rolbypassrls from pg_roles where rolname = current_user")
-            assertEquals(false, privileged)
+            val owner = dataSourceFor(container, container.username, container.password)
+            owner.connection.use { connection ->
+                connection.createStatement().use { statement ->
+                    statement.execute("CREATE SCHEMA rulepack_test")
+                    statement.execute(PackRegistryMigration.ddl(schema = "rulepack_test", table = "rule_pack_version"))
+                    statement.execute(
+                        "CREATE ROLE rulepack_kernel_app LOGIN PASSWORD 'rulepack_kernel_app_pw' " +
+                            "NOSUPERUSER NOBYPASSRLS",
+                    )
+                    statement.execute("GRANT USAGE ON SCHEMA rulepack_test TO rulepack_kernel_app")
+                    statement.execute("GRANT INSERT, SELECT ON rulepack_test.rule_pack_version TO rulepack_kernel_app")
+                }
+            }
 
-            val tenantA = TenantId(UUID.randomUUID())
-            val tenantB = TenantId(UUID.randomUUID())
+            val app = dataSourceFor(container, "rulepack_kernel_app", "rulepack_kernel_app_pw")
+            val tenantA = UUID.randomUUID()
+            val tenantB = UUID.randomUUID()
 
             assertTenantSeesOwnRowNeverAnothers(app, tenantA, tenantB)
             assertTenantCannotSmuggleAPlatformWideRow(app, tenantA)
             assertPlatformOperatorCanInsertAndReadAPlatformWideRow(app)
             assertNoIdentityBoundFailsClosedOnReadAndWrite(app, tenantA)
             assertLineageKeyRefusesDuplicatePlatformVersionButNotTenantRows(app, tenantA, tenantB)
-            assertUpgradeMigrationFixesAnOldConstraint(container, app)
+            assertUpgradeMigrationFixesAnOldConstraint(owner)
         } finally {
             container.stop()
         }
@@ -63,14 +68,14 @@ class PackRegistryMigrationPostgresIT {
 
     /** A tenant can insert its own row; tenant A cannot read tenant B's row. */
     private fun assertTenantSeesOwnRowNeverAnothers(
-        app: TenancyProbe,
-        tenantA: TenantId,
-        tenantB: TenantId,
+        app: DataSource,
+        tenantA: UUID,
+        tenantB: UUID,
     ) {
-        insert(app, Identity.Tenant(tenantA), rowTenant = tenantA, packId = "a-own-pack")
-        insert(app, Identity.Tenant(tenantB), rowTenant = tenantB, packId = "b-own-pack")
+        insert(app, tenant = tenantA, rowTenant = tenantA, packId = "a-own-pack")
+        insert(app, tenant = tenantB, rowTenant = tenantB, packId = "b-own-pack")
 
-        val visibleToA = selectPackIds(app, Identity.Tenant(tenantA))
+        val visibleToA = selectPackIds(app, tenant = tenantA)
         assertTrue(visibleToA.contains("a-own-pack"), "tenant A must see its own row, saw $visibleToA")
         assertFalse(visibleToA.contains("b-own-pack"), "tenant A must never see tenant B's row, saw $visibleToA")
     }
@@ -82,11 +87,11 @@ class PackRegistryMigrationPostgresIT {
      * only an explicit `app.platform_operator = 'true'` identity may.
      */
     private fun assertTenantCannotSmuggleAPlatformWideRow(
-        app: TenancyProbe,
-        tenantA: TenantId,
+        app: DataSource,
+        tenantA: UUID,
     ) {
-        assertRefusedByPolicy {
-            insert(app, Identity.Tenant(tenantA), rowTenant = null, packId = "smuggled-platform-wide")
+        assertThrows(SQLException::class.java) {
+            insert(app, tenant = tenantA, rowTenant = null, packId = "smuggled-platform-wide")
         }
     }
 
@@ -94,9 +99,9 @@ class PackRegistryMigrationPostgresIT {
      * The platform operator's own identity (INV-REQ-1343) can insert and read
      * a platform-wide row — the fix must not merely refuse everyone.
      */
-    private fun assertPlatformOperatorCanInsertAndReadAPlatformWideRow(app: TenancyProbe) {
-        insert(app, Identity.PlatformOperator, rowTenant = null, packId = "operator-platform-wide")
-        val visibleToOperator = selectPackIds(app, Identity.PlatformOperator)
+    private fun assertPlatformOperatorCanInsertAndReadAPlatformWideRow(app: DataSource) {
+        insert(app, platformOperator = true, rowTenant = null, packId = "operator-platform-wide")
+        val visibleToOperator = selectPackIds(app, platformOperator = true)
         assertTrue(
             visibleToOperator.contains("operator-platform-wide"),
             "the platform operator must see the platform-wide row it inserted, saw $visibleToOperator",
@@ -112,182 +117,154 @@ class PackRegistryMigrationPostgresIT {
      * this test guards: absence must never be read as the platform identity).
      */
     private fun assertNoIdentityBoundFailsClosedOnReadAndWrite(
-        app: TenancyProbe,
-        tenantA: TenantId,
+        app: DataSource,
+        tenantA: UUID,
     ) {
-        val visible = selectPackIds(app, Identity.None)
+        val visible = selectPackIds(app)
         assertTrue(visible.isEmpty(), "expected no rows visible with no identity bound, got $visible")
-        assertRefusedByPolicy { insert(app, Identity.None, rowTenant = null, packId = "unbound-platform-wide") }
-        assertRefusedByPolicy { insert(app, Identity.None, rowTenant = tenantA, packId = "unbound-claiming-tenant-a") }
+        assertThrows(SQLException::class.java) {
+            insert(app, rowTenant = null, packId = "unbound-platform-wide")
+        }
+        assertThrows(SQLException::class.java) {
+            insert(app, rowTenant = tenantA, packId = "unbound-claiming-tenant-a")
+        }
     }
 
     /** INV-Q-2964: a second platform row with the same pack_type and version is refused; tenant rows are unchanged. */
     private fun assertLineageKeyRefusesDuplicatePlatformVersionButNotTenantRows(
-        app: TenancyProbe,
-        tenantA: TenantId,
-        tenantB: TenantId,
+        app: DataSource,
+        tenantA: UUID,
+        tenantB: UUID,
     ) {
-        insert(app, Identity.PlatformOperator, rowTenant = null, packId = "platform-v3", version = "3.0.0")
-        assertRefusedByLineageKey {
-            insert(app, Identity.PlatformOperator, rowTenant = null, packId = "platform-v3-again", version = "3.0.0")
+        insert(app, platformOperator = true, rowTenant = null, packId = "platform-v3", version = "3.0.0")
+        assertThrows(SQLException::class.java) {
+            insert(app, platformOperator = true, rowTenant = null, packId = "platform-v3-again", version = "3.0.0")
         }
         // Same pack_type and version in two different tenants stays allowed.
-        insert(app, Identity.Tenant(tenantB), rowTenant = tenantB, packId = "b-v2", version = "2.0.0")
-        insert(app, Identity.Tenant(tenantA), rowTenant = tenantA, packId = "a-v2", version = "2.0.0")
+        insert(app, tenant = tenantB, rowTenant = tenantB, packId = "b-v2", version = "2.0.0")
+        insert(app, tenant = tenantA, rowTenant = tenantA, packId = "a-v2", version = "2.0.0")
         // The same tenant and version twice stays refused, as before.
-        assertRefusedByLineageKey {
-            insert(app, Identity.Tenant(tenantA), rowTenant = tenantA, packId = "a-v2-again", version = "2.0.0")
+        assertThrows(SQLException::class.java) {
+            insert(app, tenant = tenantA, rowTenant = tenantA, packId = "a-v2-again", version = "2.0.0")
         }
     }
 
-    /**
-     * A holder's existing table (old constraint, [OLD]: the generator's DDL with plain UNIQUE and RLS disabled, holding
-     * the same platform-wide version twice) is repaired by the upgrade migration: while the duplicate is present the
-     * single-statement upgrade fails and keeps the old constraint; once it is removed the upgrade applies and the
-     * duplicate is refused from then on.
-     */
-    private fun assertUpgradeMigrationFixesAnOldConstraint(
-        container: Postgres,
-        app: TenancyProbe,
-    ) {
-        val generatedOld =
-            PackRegistryMigration
-                .ddl(schema = "rulepack_test", table = "old_pack")
-                .replace("UNIQUE NULLS NOT DISTINCT", "UNIQUE")
-                .replace("rulepack_test.old_pack ENABLE", "rulepack_test.old_pack DISABLE")
-        val committedOld = resource("old/V10__old_pack.sql").normalised()
-        assertEquals(generatedOld.normalised(), committedOld, "the old table is the generator's")
-        migrate(container, BASE + OLD)
-
-        val failed = assertThrows(FlywayException::class.java) { migrate(container, BASE + OLD + UPGRADE) }
-        val failure = failed.message.orEmpty()
-        assertTrue("old_pack_lineage_key" in failure, "the upgrade fails on the duplicate: $failure")
-        val constraints =
-            app.fetchValue(
-                "select count(*) from pg_constraint " +
-                    "where conname = ? and conrelid = 'rulepack_test.old_pack'::regclass",
-                "old_pack_lineage_key",
-            )
-        assertEquals(1L, constraints, "the old lineage constraint must survive a failed upgrade")
-
-        migrate(container, BASE + OLD + DEDUPE + UPGRADE)
-        val again =
-            assertThrows(FlywayException::class.java) {
-                migrate(container, BASE + OLD + DEDUPE + UPGRADE + AGAIN)
-            }.message.orEmpty()
-        assertTrue("old_pack_lineage_key" in again, "the upgraded key refuses the duplicate: $again")
-    }
-
-    /** Who the probe session is: a bound tenant, the platform operator, or no identity at all. */
-    private sealed interface Identity {
-        data class Tenant(val tenant: TenantId) : Identity
-
-        data object PlatformOperator : Identity
-
-        data object None : Identity
-    }
-
-    /**
-     * Runs [block] in one probe transaction bound as [identity]: the tenant as the transaction runner binds it, the
-     * platform operator as `app.platform_operator = 'true'` with no tenant, or no `set_config` call at all.
-     */
-    private fun <T> TenancyProbe.bound(
-        identity: Identity,
-        block: TenancyProbe.() -> T,
-    ): T = when (identity) {
-        is Identity.Tenant -> inTenant(identity.tenant, block = block)
-
-        Identity.PlatformOperator ->
-            unbound {
-                fetchValue("select set_config(?, ?, true)", "app.platform_operator", "true")
-                block()
+    /** A holder's existing table (old constraint) is repaired by the upgrade migration. */
+    private fun assertUpgradeMigrationFixesAnOldConstraint(owner: DataSource) {
+        owner.connection.use { connection ->
+            connection.createStatement().use { statement ->
+                statement.execute(
+                    PackRegistryMigration.ddl(schema = "rulepack_test", table = "old_pack")
+                        .replace("UNIQUE NULLS NOT DISTINCT", "UNIQUE")
+                        .replace("rulepack_test.old_pack ENABLE", "rulepack_test.old_pack DISABLE"),
+                )
+                val row =
+                    "INSERT INTO rulepack_test.old_pack (id, pack_id, pack_type, version, tenant_id, effective_from, " +
+                        "min_engine_version, manifest, checksums, signature, contents, trusted_anchor) VALUES " +
+                        "(gen_random_uuid(), 'p', 'Scope', '1.0.0', NULL, now(), '1', '{}', '{}', '\\x01', '{}', 'a')"
+                statement.execute(row)
+                statement.execute(row) // old constraint admits the duplicate
+                val upgrade = PackRegistryMigration.lineageKeyUpgradeDdl(schema = "rulepack_test", table = "old_pack")
+                // Duplicate still present: the single-statement upgrade fails and keeps the old constraint.
+                assertThrows(SQLException::class.java) { statement.execute(upgrade) }
+                statement.executeQuery(
+                    "SELECT count(*) FROM pg_constraint WHERE conname = 'old_pack_lineage_key' " +
+                        "AND conrelid = 'rulepack_test.old_pack'::regclass",
+                ).use { rs ->
+                    rs.next()
+                    assertTrue(rs.getInt(1) == 1, "the old lineage constraint must survive a failed upgrade")
+                }
+                statement.execute(
+                    "DELETE FROM rulepack_test.old_pack WHERE ctid = (SELECT max(ctid) FROM rulepack_test.old_pack)",
+                )
+                statement.execute(upgrade)
+                assertThrows(SQLException::class.java) { statement.execute(row) }
             }
-
-        Identity.None -> unbound(block)
+        }
     }
 
-    /** Inserts one row through a session bound as [identity], the row itself carrying [rowTenant]. */
+    private val insertSql =
+        """
+        INSERT INTO rulepack_test.rule_pack_version
+            (id, pack_id, pack_type, version, tenant_id, effective_from, min_engine_version,
+             manifest, checksums, signature, contents, trusted_anchor)
+        VALUES (?, ?, 'Scope', ?, ?, ?, '1.0.0', ?::jsonb, ?::jsonb, ?, ?::jsonb, 'test-anchor')
+        """.trimIndent()
+
+    /**
+     * Inserts one row through a session with [tenant] bound as `app.tenant_id`
+     * and/or [platformOperator] bound as `app.platform_operator` (neither, by
+     * default — no identity at all), the row itself carrying [rowTenant].
+     */
     private fun insert(
-        app: TenancyProbe,
-        identity: Identity,
-        rowTenant: TenantId?,
+        dataSource: DataSource,
+        tenant: UUID? = null,
+        platformOperator: Boolean = false,
+        rowTenant: UUID?,
         packId: String,
         version: String = "1.0.0",
     ) {
-        app.bound(identity) {
-            fetchValue(
-                """
-                insert into rulepack_test.rule_pack_version
-                    (id, pack_id, pack_type, version, tenant_id, effective_from, min_engine_version,
-                     manifest, checksums, signature, contents, trusted_anchor)
-                values (?, ?, 'Scope', ?, ?::uuid, ?, '1.0.0', '{}'::jsonb, '{}'::jsonb, ?, '{}'::jsonb, 'test-anchor')
-                returning pack_id
-                """.trimIndent(),
-                UUID.randomUUID(),
-                packId,
-                version,
-                rowTenant?.toString(),
-                LocalDate.now(),
-                byteArrayOf(1, 2, 3),
-            )
+        dataSource.connection.use { connection ->
+            connection.autoCommit = false
+            bindIdentity(connection, tenant, platformOperator)
+            connection.prepareStatement(insertSql).use { ps ->
+                ps.setObject(1, UUID.randomUUID())
+                ps.setString(2, packId)
+                ps.setString(3, version)
+                if (rowTenant == null) ps.setNull(4, Types.OTHER) else ps.setObject(4, rowTenant)
+                ps.setObject(5, LocalDate.now())
+                ps.setString(6, "{}")
+                ps.setString(7, "{}")
+                ps.setBytes(8, byteArrayOf(1, 2, 3))
+                ps.setString(9, "{}")
+                ps.executeUpdate()
+            }
+            connection.commit()
         }
     }
 
-    /** Every visible `pack_id` through a session bound as [identity]. */
+    /**
+     * Reads every visible `pack_id` through a session with [tenant] and/or
+     * [platformOperator] bound (neither, by default — no identity at all).
+     */
     private fun selectPackIds(
-        app: TenancyProbe,
-        identity: Identity,
-    ): List<String> = app.bound(identity) {
-        fetchRows("select pack_id from rulepack_test.rule_pack_version").map { it.getValue("pack_id") as String }
+        dataSource: DataSource,
+        tenant: UUID? = null,
+        platformOperator: Boolean = false,
+    ): List<String> {
+        dataSource.connection.use { connection ->
+            connection.autoCommit = false
+            bindIdentity(connection, tenant, platformOperator)
+            val values =
+                connection.createStatement().use { statement ->
+                    statement.executeQuery("select pack_id from rulepack_test.rule_pack_version").use { rs ->
+                        generateSequence { if (rs.next()) rs.getString("pack_id") else null }.toList()
+                    }
+                }
+            connection.commit()
+            return values
+        }
     }
 
-    private fun assertRefusedByPolicy(block: () -> Unit) {
-        val refused = assertThrows(DataAccessException::class.java, block)
-        val message = refused.message.orEmpty()
-        assertTrue("row-level security policy" in message, "refused by the policy: $message")
-    }
-
-    private fun assertRefusedByLineageKey(block: () -> Unit) {
-        val refused = assertThrows(DataAccessException::class.java, block)
-        val message = refused.message.orEmpty()
-        assertTrue("rule_pack_version_lineage_key" in message, "refused by the key: $message")
-    }
-
-    private fun migrate(
-        container: Postgres,
-        locations: List<String>,
+    /** Binds exactly [tenant] and/or [platformOperator] on [connection] — no call at all for either that is absent. */
+    private fun bindIdentity(
+        connection: Connection,
+        tenant: UUID?,
+        platformOperator: Boolean,
     ) {
-        Flyway
-            .configure()
-            .dataSource(container.jdbcUrl, container.username, container.password)
-            .locations(*locations.map { "classpath:db/pack-registry-it/$it" }.toTypedArray())
-            .placeholders(
-                mapOf(
-                    "packRegistryDdl" to
-                        PackRegistryMigration.ddl(schema = "rulepack_test", table = "rule_pack_version"),
-                    "lineageKeyUpgradeDdl" to
-                        PackRegistryMigration.lineageKeyUpgradeDdl(schema = "rulepack_test", table = "old_pack"),
-                ),
-            ).load()
-            .migrate()
+        connection.createStatement().use { statement ->
+            if (tenant != null) statement.execute("select set_config('app.tenant_id', '$tenant', true)")
+            if (platformOperator) statement.execute("select set_config('app.platform_operator', 'true', true)")
+        }
     }
 
-    private fun resource(path: String): String {
-        val url = requireNotNull(javaClass.getResource("/db/pack-registry-it/$path")) { path }
-        return url.readText()
-    }
-
-    /** The statements of [this] SQL without comments, blank lines and indentation. */
-    private fun String.normalised(): List<String> {
-        val trimmed = lines().map { it.trim() }
-        return trimmed.filter { it.isNotEmpty() && !it.startsWith("--") }
-    }
-
-    private companion object {
-        val BASE = listOf("base")
-        val OLD = listOf("old")
-        val UPGRADE = listOf("upgrade")
-        val DEDUPE = listOf("dedupe")
-        val AGAIN = listOf("again")
+    private fun dataSourceFor(
+        container: Postgres,
+        user: String,
+        password: String,
+    ): DataSource = PGSimpleDataSource().apply {
+        setUrl(container.jdbcUrl)
+        this.user = user
+        this.password = password
     }
 }

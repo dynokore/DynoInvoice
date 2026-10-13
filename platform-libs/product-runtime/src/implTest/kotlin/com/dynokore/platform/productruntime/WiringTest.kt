@@ -28,6 +28,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import io.mockk.mockk
 import org.junit.jupiter.api.Test
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.AutoConfigurations
@@ -37,6 +38,7 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Import
 import org.springframework.web.client.RestClient
 import java.time.LocalDate
+import javax.sql.DataSource
 
 /** INV-T-2876: ProductRuntimeConfiguration (TPL-18) wires the bindings, and config-resolver over them under TPL-18. */
 class WiringTest {
@@ -123,21 +125,17 @@ class WiringTest {
     @Import(ServiceRuntimeConfiguration::class, ProductRuntimeConfiguration::class)
     class Tpl18Bootstrap
 
-    /** The bootstrap of TPL-18 with a service's own inputs: its datasource properties, meter registry and gst properties. */
+    /** The bootstrap of TPL-18 with a service's own inputs: its DataSource, meter registry and gst properties. */
     private fun tpl18(): ApplicationContextRunner = ApplicationContextRunner()
         .withUserConfiguration(Tpl18Bootstrap::class.java)
         .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
+        .withBean("dataSource", DataSource::class.java, { mockk<DataSource>(relaxed = true) }, { it.isPrimary = true })
         .withBean("internalRestClientBuilder", RestClient.Builder::class.java, { RestClient.builder() })
         .withPropertyValues(
             "gst.service=submission-svc",
             "gst.instance-id=submission-svc-0",
             "service-runtime.workload-identity.audience=submission-svc",
             "service-runtime.modules.schema=submission",
-            // The DataSource comes from Spring Boot's auto-configuration (INV-Q-4196 (A), INV-Q-4436): a lazy Hikari
-            // pool that opens no connection while the context starts, so no database is reached.
-            "spring.datasource.url=jdbc:postgresql://localhost:1/submission",
-            "spring.datasource.username=submission_svc_runtime",
-            "spring.datasource.password=unused",
         )
 
     @Test

@@ -9,7 +9,7 @@ import org.jooq.tools.jdbc.MockResult
  * Runs statements of a configuration against jOOQ's mock JDBC driver instead of a database, for the render-overhead
  * benchmark (INV-T-4133): every statement returns [result] (or no rows), so only rendering and the listeners are timed.
  */
-internal object MockExecution {
+object MockExecution {
     fun configuration(
         configuration: Configuration,
         result: Result<*>? = null,

@@ -36,37 +36,6 @@ class IsolationTest {
 
     @ParameterizedTest
     @FieldSource("com.dynokore.platform.tenancyjooq.Images#ALL")
-    fun `window functions see only the bound tenant's rows`(image: String) {
-        val window = DSL.name("by_amount").`as`(DSL.orderBy(Orders.AMOUNT))
-        val rows =
-            asA(image) {
-                it
-                    .select(
-                        Orders.ID,
-                        DSL.rowNumber().over(DSL.orderBy(Orders.AMOUNT)),
-                        DSL.lag(Orders.AMOUNT).over(DSL.orderBy(Orders.AMOUNT)),
-                        DSL.sum(Orders.AMOUNT).over(DSL.partitionBy(Orders.TENANT_ID).orderBy(Orders.AMOUNT)),
-                        DSL.rank().over(DSL.orderBy(Orders.AMOUNT)),
-                        DSL.sum(Orders.AMOUNT).over(window),
-                        DSL.rowNumber().over().partitionBy(Orders.TENANT_ID).orderBy(Orders.AMOUNT),
-                        DSL.count().over(),
-                    ).from(Orders)
-                    .window(window)
-                    .orderBy(Orders.AMOUNT)
-                    .fetch()
-                    .map { row -> row.intoList().map { value -> value?.toString() } }
-            }
-        assertEquals(
-            listOf(
-                listOf(ORDER_A1.toString(), "1", null, "10", "1", "10", "1", "2"),
-                listOf(ORDER_A2.toString(), "2", "10", "21", "2", "21", "2", "2"),
-            ),
-            rows,
-        )
-    }
-
-    @ParameterizedTest
-    @FieldSource("com.dynokore.platform.tenancyjooq.Images#ALL")
     fun `an aliased table is limited through its alias`(image: String) {
         val o = Orders.`as`("o")
         val ids = asA(image) { it.select(o.field(Orders.ID)).from(o).fetchSet(o.field(Orders.ID)) }

@@ -90,14 +90,8 @@ dependencies {
     // Real PostgreSQL only, in every environment including tests (STK-14, STK-15;
     // H2 is banned outright, banned-dependencies.yaml) — proves PackRegistryMigration's
     // RLS policy against the actual database CS-19 targets, not string matching.
-    testRuntimeOnly(libs.postgresql)
+    testImplementation(libs.postgresql)
     testImplementation(libs.testcontainers.postgresql)
-    // PackRegistryMigrationPostgresIT (INV-T-4188): the schema through Flyway, the RLS probes through tenancy-jooq's
-    // TenancyProbe on the runtime login (coordinator ruling INV-Q-4140; owner ruling INV-Q-4196: test code names no
-    // JDBC type).
-    testImplementation(libs.flyway.core)
-    testRuntimeOnly(libs.flyway.databasePostgresql)
-    testImplementation(testFixtures(project(":tenancy-jooq")))
     testRuntimeOnly(libs.slf4j.simple) // Testcontainers' own container/strategy logs are otherwise silently dropped (NOP logger)
 }
 

@@ -17,7 +17,7 @@ object Images {
 }
 
 /** One started database per image, shared by the test classes and stopped when the JVM exits. */
-internal object Databases {
+object Databases {
     private val started = ConcurrentHashMap<String, TenancyJooqFixture>()
 
     fun of(image: String): TenancyJooqFixture = started.computeIfAbsent(image) {
@@ -43,7 +43,7 @@ object Tenants {
 }
 
 /** The configured DSLContext of [fixture] (or, under [Mutation], the same DSLContext without the tenancy listeners). */
-internal fun dsl(fixture: TenancyJooqFixture): DSLContext {
+fun dsl(fixture: TenancyJooqFixture): DSLContext {
     val configuration = fixture.configuration(TEST_TABLES)
     return if (Mutation.withoutTenancyListeners) {
         configuration
@@ -56,18 +56,18 @@ internal fun dsl(fixture: TenancyJooqFixture): DSLContext {
 }
 
 /** The configured DSLContext of [fixture] with the VisitListener removed: the ExecuteListener alone (INV-Q-4146). */
-internal fun dslWithoutInjector(fixture: TenancyJooqFixture): DSLContext {
+fun dslWithoutInjector(fixture: TenancyJooqFixture): DSLContext {
     val configuration = fixture.configuration(TEST_TABLES)
     return configuration.derive(*arrayOf<VisitListenerProvider>()).dsl()
 }
 
 /** Runs [block] in a transaction of the runtime login bound to [tenant]. */
-internal fun <T> TenancyJooqFixture.asTenant(
+fun <T> TenancyJooqFixture.asTenant(
     tenant: TenantId,
     block: () -> T,
 ): T = tenants.bind(tenant, "tenancy-jooq-test") { transactions.inTransaction(block) }
 
 /** Runs [block] in a transaction bound to the platform tenant. */
-internal fun <T> TenancyJooqFixture.asPlatform(block: () -> T): T = platform.bindPlatform("tenancy-jooq-test") {
+fun <T> TenancyJooqFixture.asPlatform(block: () -> T): T = platform.bindPlatform("tenancy-jooq-test") {
     transactions.inTransaction(block)
 }
