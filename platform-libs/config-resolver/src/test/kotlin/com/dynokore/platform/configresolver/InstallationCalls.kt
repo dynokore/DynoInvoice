@@ -67,15 +67,15 @@ internal data class FaultCall(
 
 /**
  * The arguments [JdbcPolicyWriter] passes for an installation value of VP-78, its rows staged by the real stage
- * calls on a backdated clock in a platform transaction, encoded as the writer encodes them.
+ * calls on a backdated clock in a platform transaction bound to [actor], encoded as the writer encodes them.
  */
-internal fun WriteHarness.staged(): InstallationArgs {
+internal fun WriteHarness.staged(actor: String = "op"): InstallationArgs {
     val clock = InstallationCalls.backdated
     val context = InstallationCalls.context
     val reason = "platform maximum"
     val entry =
         AuditEntry(
-            actor = "op",
+            actor = actor,
             action = JdbcPolicyWriter.SET_POLICY,
             scope = "INSTALLATION",
             reason = reason,
@@ -84,7 +84,7 @@ internal fun WriteHarness.staged(): InstallationArgs {
     val payload =
         "{\"scope\":\"INSTALLATION\",\"vpId\":\"VP-78\",\"value\":[{\"key\":\"SMALLER\",\"value\":1048576}]," +
             "\"effectiveDate\":\"${InstallationCalls.effective}\",\"source\":\"OVERRIDE\"}"
-    return inPlatform("op") {
+    return inPlatform(actor) {
         val audit = (installationAudit(app, clock) as AuditStager).stage(entry, context)
         val changed =
             if (mode == EventMode.OUTBOX) {

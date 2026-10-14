@@ -1,5 +1,7 @@
 package com.dynokore.platform.auditlog
 
+import com.dynokore.platform.tenancykernel.BlankText
+
 /**
  * What an audit entry records (INV-REQ-861, INV-REQ-1376; payload of `AuditEntryRecorded`, platform-contracts
  * `service-runtime/schemas/audit-entry-recorded-payload.schema.json`).
@@ -18,7 +20,7 @@ data class AuditEntry(
     val priorStateJson: String? = null,
 ) {
     init {
-        require(actor.isNotBlank()) { "audit actor must not be blank" }
+        require(BlankText.isActor(actor)) { "audit actor must not be blank or hold a control character" }
         require(action.isNotBlank()) { "audit action must not be blank" }
         require(scope.isNotBlank()) { "audit scope must not be blank" }
         require(reason == null || reason.isNotBlank()) { "audit reason, when given, must not be blank" }

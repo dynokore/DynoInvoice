@@ -10,6 +10,12 @@ train is its own (README.md: "own version and changelog").
   place of 1.0.3 (CC0-1.0) (INV-T-4645; coordinator ruling INV-Q-4643 (A), delegated, owner 2026-10-14). Nothing
   published changes.
 
+## [2.0.2] - 2026-10-14
+### Fixed
+- `PackRegistryMigration` uses tenancy-kernel's shared `BlankText` instead of its own code-point literal (coordinator rulings INV-Q-4614 (A) and INV-Q-4622 (A), INV-T-4616):
+  the `app.actor` reads of `register_platform_pack` and the insert trigger and the `registered_by` CHECK also refuse an
+  actor holding any ISO control character, and the pack fields use the shared blank rule instead of `btrim`.
+
 ## [2.0.1] - 2026-10-14
 ### Changed
 - Metadata-only release (INV-T-4310, coordinator ruling INV-Q-4552): no behaviour or API change.

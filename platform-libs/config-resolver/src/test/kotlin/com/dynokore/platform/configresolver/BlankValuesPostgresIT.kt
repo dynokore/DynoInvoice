@@ -1,0 +1,257 @@
+package com.dynokore.platform.configresolver
+
+import com.dynokore.platform.tenancykernel.TenantId
+import org.junit.jupiter.api.AfterAll
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Tag
+import org.junit.jupiter.api.TestInstance
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
+import java.sql.SQLException
+import java.util.UUID
+
+/**
+ * INV-T-4616 (coordinator rulings INV-Q-4614 (A), INV-Q-4622 (A)): every blank check of config-resolver's functions
+ * and CHECKs uses tenancy-kernel's shared definition. A whitespace-only value (ISO controls and the caseId whitespace
+ * set) is refused through each function argument, each `app.actor` read and each CHECK (by a direct insert as the
+ * owner), with the function's own error and nothing written; an actor holding a control character is refused the same
+ * way; a value with a visible character is stored unchanged. PostgreSQL 16, 17 and 18.
+ */
+@Tag("integration")
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+class BlankValuesPostgresIT {
+    private val harnesses = mutableMapOf<String, WriteHarness>()
+
+    @AfterAll
+    fun stop() = harnesses.values.forEach { it.close() }
+
+    private fun harness(image: String) = harnesses.getOrPut(image) { WriteHarness(image) }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
+    fun `write_installation_setting refuses a blank or control actor, reason and staged id`(image: String) {
+        val h = harness(image)
+        val missed = mutableListOf<String>()
+
+        fun probe(
+            name: String,
+            state: String,
+            message: String,
+            call: () -> Unit,
+        ) {
+            val before = h.stored()
+            val refused = runCatching(call).exceptionOrNull()
+            if (refused !is SQLException || refused.sqlState != state || message !in refused.message.orEmpty()) {
+                missed += "$name: ${refused?.message ?: "accepted"}"
+            }
+            assertEquals(before, h.stored(), "$name wrote rows")
+        }
+        NOT_ACTORS.forEach { (name, actor) ->
+            probe("actor $name", "42501", "app.actor is not set") { h.callInstallation(h.staged(), actor = actor) }
+        }
+        BLANKS.forEach { (name, value) ->
+            probe("reason $name", "22023", "are required") { h.callInstallation(h.staged().copy(reason = value)) }
+            listOf("instance_id", "correlation_id", "causation_id").forEach { field ->
+                probe("$field $name", "22023", "needs an instance, correlation and causation") {
+                    val args = h.staged()
+                    h.callInstallation(args.copy(audit = args.audit.deepCopy().put(field, value)))
+                }
+            }
+        }
+        assertEquals(emptyList<String>(), missed)
+
+        VISIBLE_ACTORS.forEach { actor ->
+            val id = h.callInstallation(h.staged(actor), actor = actor).single()
+            assertEquals(actor, h.text("select set_by from svc.config_installation_setting where id = '$id'"))
+        }
+    }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
+    fun `the purges refuse a blank or control actor and delete nothing`(image: String) {
+        val h = harness(image)
+        val tenant = UUID.randomUUID().toString()
+        h.asAdmin(
+            "insert into svc.config_resolved_value (id, tenant_id, subject_type, subject_ref, vp_key, " +
+                "transaction_date, option_keys, source, resolved_at) values (gen_random_uuid(), '$tenant', " +
+                "'submission', 'doc-1/v1', 'VP-11', current_date, array['A'], 'DEFAULT', now())",
+        )
+        val purges =
+            listOf(
+                "select svc.config_purge_subject('submission', 'doc-1/v1')",
+                "select * from svc.config_purge_tenant('$tenant')",
+            )
+        val missed =
+            purges.flatMap { sql ->
+                NOT_ACTORS.mapNotNull { (name, actor) ->
+                    val refused = runCatching { h.runtime { c -> c.bindAndRun(tenant, actor, sql) } }.exceptionOrNull()
+                    val ok =
+                        refused is SQLException && refused.sqlState == "42501" &&
+                            "app.actor is not set" in refused.message.orEmpty()
+                    "$sql, actor $name".takeUnless { ok }
+                }
+            }
+        assertEquals(emptyList<String>(), missed)
+        assertEquals(1L, h.count("select count(*) from svc.config_resolved_value where tenant_id = '$tenant'"))
+        h.runtime { c -> c.bindAndRun(tenant, "CASE 5521", purges[0]) }
+        assertEquals(0L, h.count("select count(*) from svc.config_resolved_value where tenant_id = '$tenant'"))
+    }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
+    fun `every CHECK refuses a blank value, and an actor CHECK a control character, by a direct owner insert`(
+        image: String,
+    ) {
+        val h = harness(image)
+        val tenant = UUID.randomUUID().toString()
+        val missed = mutableListOf<String>()
+        INSERTS.forEach { insert ->
+            insert.columns.forEach { (column, actor) ->
+                (if (actor) NOT_ACTORS else BLANKS).forEach { (name, value) ->
+                    val before = counts(h)
+                    val refused = runCatching { insert.run(h, tenant, column, value) }.exceptionOrNull()
+                    if (refused !is SQLException || refused.sqlState != "23514") {
+                        missed += "${insert.table}.$column $name"
+                    }
+                    assertEquals(before, counts(h), "${insert.table}.$column $name wrote a row")
+                }
+                val accepted = if (actor) VISIBLE_ACTORS else VISIBLE_ACTORS + " \t x \n "
+                accepted.forEach { value ->
+                    val id = insert.run(h, tenant, column, value)
+                    val stored =
+                        h.ownerQuery(tenant, "select $column from svc.${insert.table} where id = '$id'")
+                    assertEquals(value, stored, "${insert.table}.$column stored")
+                }
+            }
+        }
+        assertEquals(emptyList<String>(), missed)
+        // The nullable acknowledgement reason stays optional.
+        INSERTS.single { it.table == "config_relaxation_acknowledgement" }.run(h, tenant, "reason", null)
+    }
+
+    private fun counts(h: WriteHarness) = INSERTS.map { h.count("select count(*) from svc.${it.table}") }
+
+    /** One owner insert of [table] with every probed column valid but [column]; returns the new row's id. */
+    private class Insert(
+        val table: String,
+        val sql: String,
+        /** The probed columns in parameter order, true for an actor column. */
+        val columns: List<Pair<String, Boolean>>,
+        /** True when the second parameter is the row's tenant. */
+        val tenanted: Boolean = true,
+    ) {
+        fun run(
+            h: WriteHarness,
+            tenant: String,
+            column: String,
+            value: String?,
+        ): UUID {
+            val id = UUID.randomUUID()
+            h.owner.connection.use { c ->
+                c.createStatement().use { it.execute("select set_config('app.tenant_id', '$tenant', false)") }
+                c.prepareStatement(sql).use { s ->
+                    s.setObject(1, id)
+                    var i = 2
+                    if (tenanted) s.setString(i++, tenant)
+                    columns.forEach { (name, _) -> s.setString(i++, if (name == column) value else "v-$name") }
+                    s.executeUpdate()
+                }
+            }
+            return id
+        }
+    }
+
+    private fun WriteHarness.ownerQuery(
+        tenant: String,
+        sql: String,
+    ): String? =
+        owner.connection.use { c ->
+            c.createStatement().use { it.execute("select set_config('app.tenant_id', '$tenant', false)") }
+            c.createStatement().use { s -> s.executeQuery(sql).use { if (it.next()) it.getString(1) else null } }
+        }
+
+    private fun java.sql.Connection.bindAndRun(
+        tenant: String,
+        actor: String,
+        sql: String,
+    ) {
+        prepareStatement("select set_config('app.tenant_id', ?, true), set_config('app.actor', ?, true)").use {
+            it.setString(1, tenant)
+            it.setString(2, actor)
+            it.execute()
+        }
+        createStatement().use { it.execute(sql) }
+    }
+
+    private companion object {
+        /** Whitespace-only values: ISO controls and the caseId whitespace set (INV-Q-4614), alone and mixed. */
+        val BLANKS =
+            listOf(
+                "tab" to "\t",
+                "newline" to "\n",
+                "CR" to "\r",
+                "U+0085" to "\u0085",
+                "U+00A0" to " ",
+                "U+1680" to " ",
+                "U+2000" to " ",
+                "U+200A" to " ",
+                "U+2028" to " ",
+                "U+2029" to " ",
+                "U+202F" to " ",
+                "U+205F" to " ",
+                "U+3000" to "　",
+                "U+FEFF" to "﻿",
+                "U+0001" to "\u0001",
+                "U+009F" to "\u009F",
+                "mix" to "  \t　\r\n﻿",
+            )
+
+        /** Blank values and actors holding a control character next to visible ones (INV-Q-4622). */
+        val NOT_ACTORS =
+            BLANKS +
+                listOf(
+                    "a TAB b" to "a\tb",
+                    "LF x" to "\nx",
+                    "x CR" to "x\r",
+                    "x U+0085" to "x\u0085",
+                    "ESC [31mx" to "\u001B[31mx",
+                    "x U+009B" to "x\u009B",
+                )
+
+        /** Actors with a visible character, stored unchanged. */
+        val VISIBLE_ACTORS = listOf("x​y", "CASE 5521", "a".repeat(254) + "z")
+
+        val INSERTS =
+            listOf(
+                Insert(
+                    "config_setting",
+                    "insert into svc.config_setting (id, tenant_id, vp_key, scope_level, scope_id, option_keys, " +
+                        "source, effective_from, set_by, reason, recorded_at) values (?::uuid, ?::uuid, 'VP-11', " +
+                        "'TENANT', ?, array['A'], 'OVERRIDE', current_date, ?, ?, now())",
+                    listOf("scope_id" to false, "set_by" to true, "reason" to false),
+                ),
+                Insert(
+                    "config_installation_setting",
+                    "insert into svc.config_installation_setting (id, vp_key, option_keys, effective_from, set_by, " +
+                        "reason, recorded_at) values (?::uuid, 'VP-11', array['A'], current_date, ?, ?, now())",
+                    listOf("set_by" to true, "reason" to false),
+                    tenanted = false,
+                ),
+                Insert(
+                    "config_resolved_value",
+                    "insert into svc.config_resolved_value (id, tenant_id, subject_type, subject_ref, vp_key, " +
+                        "transaction_date, option_keys, source, resolved_at) values (?::uuid, ?::uuid, " +
+                        "'submission', ?, 'VP-11', current_date, array['A'], 'DEFAULT', now())",
+                    listOf("subject_ref" to false),
+                ),
+                Insert(
+                    "config_relaxation_acknowledgement",
+                    "insert into svc.config_relaxation_acknowledgement (id, tenant_id, relaxation_id, vp_key, " +
+                        "scope_level, scope_id, option_keys, role, principal, effective_from, reason, " +
+                        "acknowledged_at) values (?::uuid, ?::uuid, gen_random_uuid(), 'VP-11', 'TENANT', ?, " +
+                        "array['A'], ?, ?, current_date, ?, now())",
+                    listOf("scope_id" to false, "role" to false, "principal" to true, "reason" to false),
+                ),
+            )
+    }
+}

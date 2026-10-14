@@ -6,6 +6,18 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-14
+### Added
+- `BlankText` (main, published in `tenancy-kernel-api`): the one definition of a blank value and of a valid actor
+  (coordinator rulings INV-Q-4614 (A) and INV-Q-4622 (A), INV-T-4616). Blank: NULL, empty or only U+0001-U+001F, U+007F-U+009F, U+0020, U+00A0, U+1680,
+  U+2000-U+200A, U+2028, U+2029, U+202F, U+205F, U+3000 and U+FEFF. Actor: not blank and no ISO control character
+  anywhere. `SQL_BLANK` and `SQL_NOT_ACTOR` are the PostgreSQL patterns every module splices into its DDL;
+  `isBlank` and `isActor` are the Kotlin checks over the same patterns.
+### Changed
+- The actor binding (`bind(tenant, actor)`, `bindPlatform(actor)`) refuses an actor by `BlankText.isActor` instead of
+  `isNotBlank()`, so an actor the SQL checks would refuse (whitespace only, U+FEFF, or holding a control character)
+  is never bound.
+
 ## [1.4.1] - 2026-10-14
 ### Changed
 - Metadata-only release (INV-T-4310, coordinator ruling INV-Q-4552): no behaviour or API change.

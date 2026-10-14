@@ -6,6 +6,15 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.3.3] - 2026-10-14
+### Fixed
+- Every blank check uses tenancy-kernel's `BlankText` instead of `btrim` (spaces only) (coordinator rulings INV-Q-4614 (A) and INV-Q-4622 (A), INV-T-4616):
+  `purge_audit_entries` (`app.actor`, `p_reason`, `p_subject` and the three ids) and the CHECKs on the audit entry
+  actor, action, scope and reason and the override grant reason. Actor values (`app.actor`, the audit entry actor and
+  a new CHECK on the override grant actor) also refuse any ISO control character, as do `AuditEntry` and
+  `OverrideCommand` (IllegalArgumentException). Refusals keep their error codes and messages; the actor is no longer
+  trimmed before it is stored.
+
 ## [2.3.2] - 2026-10-14
 ### Changed
 - Metadata-only release (INV-T-4310, coordinator ruling INV-Q-4552): no behaviour or API change.

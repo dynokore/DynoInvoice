@@ -1,5 +1,6 @@
 package com.dynokore.platform.auditlog
 
+import com.dynokore.platform.tenancykernel.BlankText
 import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantRlsMigration
 
@@ -53,8 +54,8 @@ object AuditSchema {
                 doc_uuid uuid not null,
                 document_version bigint not null check (document_version >= 1),
                 error_code text not null,
-                actor text not null,
-                reason text not null check (btrim(reason) <> ''),
+                actor text not null check (actor !~ '${BlankText.SQL_NOT_ACTOR}'),
+                reason text not null check (reason !~ '${BlankText.SQL_BLANK}'),
                 granted_at timestamptz not null,
                 audit_event_id text not null,
                 unique (tenant_id, doc_uuid, document_version, error_code)
@@ -100,10 +101,10 @@ object AuditSchema {
                 instance_id text not null,
                 correlation_id text not null,
                 causation_id text not null,
-                actor text not null check (btrim(actor) <> ''),
-                action text not null check (btrim(action) <> ''),
-                scope text not null check (btrim(scope) <> ''),
-                reason text check (reason is null or btrim(reason) <> ''),
+                actor text not null check (actor !~ '${BlankText.SQL_NOT_ACTOR}'),
+                action text not null check (action !~ '${BlankText.SQL_BLANK}'),
+                scope text not null check (scope !~ '${BlankText.SQL_BLANK}'),
+                reason text check (reason is null or reason !~ '${BlankText.SQL_BLANK}'),
                 prior_state jsonb check (prior_state is null or jsonb_typeof(prior_state) = 'object'),
                 primary key (tenant_id, id)
             );
@@ -179,13 +180,13 @@ object AuditSchema {
             language plpgsql security definer set search_path = pg_catalog, $s, pg_temp as $$
             declare
                 v_service constant text := replace('$svc', '_', '-');
-                v_actor text := nullif(btrim(current_setting('app.actor', true)), '');
+                v_actor text := current_setting('app.actor', true);
                 v_rows bigint;
                 v_oldest timestamptz;
                 v_newest timestamptz;
                 v_deleted bigint;
             begin
-                if v_actor is null then
+                if v_actor is null or v_actor ~ '${BlankText.SQL_NOT_ACTOR}' then
                     raise exception 'app.actor is not set: the purge records its actor' using errcode = '42501';
                 end if;
                 if current_setting('app.tenant_id', true) is distinct from '$PLATFORM' then
@@ -195,12 +196,13 @@ object AuditSchema {
                     raise exception 'cut-off % is later than the legal floor of $LEGAL_FLOOR', p_cut_off
                         using errcode = '22023';
                 end if;
-                if p_reason is null or btrim(p_reason) = '' then
+                if p_reason is null or p_reason ~ '${BlankText.SQL_BLANK}' then
                     raise exception 'the purge needs a reason' using errcode = '22023';
                 end if;
-                if p_subject is null or btrim(p_subject) = '' or p_instance_id is null or btrim(p_instance_id) = ''
-                    or p_correlation_id is null or btrim(p_correlation_id) = ''
-                    or p_causation_id is null or btrim(p_causation_id) = '' then
+                if p_subject is null or p_subject ~ '${BlankText.SQL_BLANK}'
+                    or p_instance_id is null or p_instance_id ~ '${BlankText.SQL_BLANK}'
+                    or p_correlation_id is null or p_correlation_id ~ '${BlankText.SQL_BLANK}'
+                    or p_causation_id is null or p_causation_id ~ '${BlankText.SQL_BLANK}' then
                     raise exception 'the staged entry needs a subject, instance, correlation and causation'
                         using errcode = '22023';
                 end if;

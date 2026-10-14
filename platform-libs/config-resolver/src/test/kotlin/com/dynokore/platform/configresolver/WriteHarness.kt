@@ -97,6 +97,9 @@ class WriteHarness(
     val tenants = TenantContextImpl()
     val app = TransactionRunnerImpl(TenantAwareDataSource(ds(RUNTIME, "config_app_pw")), tenants)
     val admin: DataSource = ds(container.username, container.password)
+
+    /** The migration login that owns the schema and every table (`<svc>_migrate`), for direct-insert CHECK probes. */
+    val owner: DataSource = ds("config_owner", "config_owner_pw")
     private val runtimeLogin: DataSource = ds(RUNTIME, "config_app_pw")
 
     /** [block] on a raw runtime-login connection in one transaction, committed when it returns, with nothing bound. */

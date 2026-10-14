@@ -6,6 +6,14 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.0.3] - 2026-10-14
+### Fixed
+- Every blank check uses tenancy-kernel's `BlankText` instead of `btrim` (spaces only) (coordinator rulings INV-Q-4614 (A) and INV-Q-4622 (A), INV-T-4616):
+  `write_installation_setting` (`app.actor`, `p_reason`, the staged instance, correlation and causation ids),
+  `config_purge_subject` and `config_purge_tenant` (`app.actor`), and the CHECKs on `scope_id`, `set_by`, `reason`,
+  `subject_ref`, `role` and `principal`. Actor values (`app.actor`, `set_by`, `principal`) also refuse any ISO control
+  character. Refusals keep their error codes and messages; the actor is no longer trimmed before it is stored.
+
 ## [2.0.2] - 2026-10-14
 ### Changed
 - Metadata-only release (INV-T-4310, coordinator ruling INV-Q-4552): no behaviour or API change.

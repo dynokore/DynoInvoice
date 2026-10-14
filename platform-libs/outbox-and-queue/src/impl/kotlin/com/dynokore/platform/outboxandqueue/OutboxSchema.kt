@@ -1,5 +1,6 @@
 package com.dynokore.platform.outboxandqueue
 
+import com.dynokore.platform.tenancykernel.BlankText
 import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantRlsMigration
 
@@ -429,7 +430,8 @@ object OutboxSchema {
             declare
                 deleted bigint;
             begin
-                if p_consumer is null or btrim(p_consumer) = '' or p_source is null or btrim(p_source) = '' then
+                if p_consumer is null or p_consumer ~ '${BlankText.SQL_BLANK}'
+                    or p_source is null or p_source ~ '${BlankText.SQL_BLANK}' then
                     raise exception 'a full sync names one consumer and one source' using errcode = '22023';
                 end if;
                 delete from $s.$CONSUMER_SEQUENCE where consumer = p_consumer and source = p_source;
@@ -460,7 +462,8 @@ object OutboxSchema {
             declare
                 recorded bigint;
             begin
-                if p_consumer is null or btrim(p_consumer) = '' or p_topic is null or p_log_offset is null
+                if p_consumer is null or p_consumer ~ '${BlankText.SQL_BLANK}'
+                    or p_topic is null or p_log_offset is null
                     or p_reason is null or p_raw is null then
                     raise exception 'a dead letter names its consumer, topic, offset, reason and record'
                         using errcode = '22023';
@@ -648,7 +651,7 @@ object OutboxSchema {
             declare
                 deleted bigint;
             begin
-                if p_value is null or btrim(p_value::text) = '' then
+                if p_value is null or p_value::text ~ '${BlankText.SQL_BLANK}' then
                     raise exception 'the filter value of $s.$t must not be blank' using errcode = '22023';
                 end if;
                 delete from $s.$t where $column = p_value;

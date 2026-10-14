@@ -6,6 +6,12 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.2.2] - 2026-10-14
+### Fixed
+- The full-sync delete (`p_consumer`, `p_source`), `event_dead_letter_record` (`p_consumer`) and the generated
+  per-column clear function (`p_value`) check blank values with tenancy-kernel's `BlankText` instead of `btrim`
+  (spaces only) (coordinator rulings INV-Q-4614 (A) and INV-Q-4622 (A), INV-T-4616). Refusals keep their error codes and messages.
+
 ## [2.2.1] - 2026-10-14
 ### Changed
 - Metadata-only release (INV-T-4310, coordinator ruling INV-Q-4552): no behaviour or API change.

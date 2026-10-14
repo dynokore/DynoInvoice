@@ -93,6 +93,24 @@ class TenantContextImplTest {
     }
 
     @Test
+    fun `an actor the SQL checks refuse is never bound (INV-Q-4614, INV-Q-4622)`() {
+        val ctx = TenantContextImpl()
+        val refused =
+            listOf("\t", "\n", "\r", "\u0085", "\u00A0", "\u2003", "\u3000", "\uFEFF", " \u00A0\t\r\n") +
+                listOf("a\tb", "\nx", "x\r", "x\u0085", "\u001B[31mx", "x\u009B", "x\u0000")
+        val bound =
+            refused.filter { actor ->
+                runCatching { ctx.bind(tenantA, actor) { } }.isSuccess ||
+                    runCatching { ctx.bindPlatform(actor) { } }.isSuccess
+            }
+        assertEquals(emptyList<String>(), bound)
+        listOf("x\u200By", "CASE 5521", " user-a ", "u".repeat(255)).forEach { actor ->
+            assertEquals(actor, ctx.bind(tenantA, actor) { ctx.currentActor() })
+            assertEquals(actor, ctx.bindPlatform(actor) { ctx.currentActor() })
+        }
+    }
+
+    @Test
     fun `the actor-bound bind refuses the platform tenant, bindPlatform with an actor binds it`() {
         val ctx = TenantContextImpl()
         assertThrows(IllegalArgumentException::class.java) { ctx.bind(TenantId.PLATFORM, "svc:x/job:y") { } }

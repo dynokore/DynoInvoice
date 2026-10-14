@@ -80,8 +80,10 @@ class TenantContextImpl :
         }
 
     private fun requireActor(actor: String): String {
-        require(actor.isNotBlank()) {
-            "The actor must be the end user's sub or the service's workload principal, never blank (INV-REQ-854 b1)."
+        // The shared actor rule (INV-Q-4614, INV-Q-4622): an actor the SQL checks would refuse is never bound.
+        require(BlankText.isActor(actor)) {
+            "The actor must be the end user's sub or the service's workload principal, never blank and with no " +
+                "control character (INV-REQ-854 b1)."
         }
         return actor
     }

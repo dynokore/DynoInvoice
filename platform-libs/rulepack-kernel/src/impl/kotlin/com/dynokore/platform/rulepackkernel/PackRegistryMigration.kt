@@ -1,5 +1,6 @@
 package com.dynokore.platform.rulepackkernel
 
+import com.dynokore.platform.tenancykernel.BlankText
 import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantId
 
@@ -24,9 +25,9 @@ import com.dynokore.platform.tenancykernel.TenantId
  *   runtime login `INSERT, SELECT` only; the policy refuses a platform-row write even where a grant would allow it.
  * - Platform rows are inserted only by [REGISTER_PLATFORM_PACK], a SECURITY DEFINER function owned by the NOLOGIN
  *   `<svc>_sys` role (INV-ADR-3968 item 6): static SQL, `SET search_path = pg_catalog, <schema>, pg_temp`, EXECUTE
- *   revoked from PUBLIC and granted to the runtime login only, the actor taken from `app.actor` (refused when unset
- *   or blank, nothing written) and stored as the row's `registered_by`, every argument validated inside. Its own
- *   policy lets the sys role insert a platform row and nothing else.
+ *   revoked from PUBLIC and granted to the runtime login only, the actor taken from `app.actor` (refused when unset,
+ *   blank or holding a control character, nothing written) and stored as the row's `registered_by`, every argument
+ *   validated inside. Its own policy lets the sys role insert a platform row and nothing else.
  * - Every row's `registered_by` is the registering principal, the transaction's `app.actor` at insert, and never
  *   changes afterwards (owner ruling INV-Q-4580 (B)): a BEFORE INSERT trigger refuses any other value, a BEFORE
  *   UPDATE trigger any change.
@@ -50,16 +51,6 @@ object PackRegistryMigration {
 
     /** [TenantId.PLATFORM], as SQL text (INV-Q-2927 D, INV-Q-3012). */
     internal const val PLATFORM = "ffffffff-ffff-ffff-ffff-ffffffffffff"
-
-    /**
-     * A PostgreSQL regular expression matching a blank actor: empty, or only ISO control characters (U+0000-U+001F,
-     * U+007F-U+009F: tab, newline, CR, NEL) and the caseId whitespace set of coordinator ruling INV-Q-4534 (U+0020,
-     * U+00A0, U+1680, U+2000-U+200A, U+2028, U+2029, U+202F, U+205F, U+3000, U+FEFF), the same explicit code-point
-     * list as service-runtime's caseId rule rather than `btrim` (spaces only) or a locale-dependent class (review
-     * of !66).
-     */
-    internal const val BLANK_ACTOR =
-        """^[\u0001-\u001F\u007F-\u009F\u0020\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000\uFEFF]*$"""
 
     init {
         check(PLATFORM == TenantId.PLATFORM.toString()) { "PackRegistryMigration.PLATFORM must be TenantId.PLATFORM" }
@@ -124,7 +115,7 @@ object PackRegistryMigration {
             |    signature          bytea NOT NULL,
             |    contents           jsonb NOT NULL,
             |    trusted_anchor     text NOT NULL,
-            |    registered_by      text NOT NULL CHECK (registered_by !~ '$BLANK_ACTOR'),
+            |    registered_by      text NOT NULL CHECK (registered_by !~ '${BlankText.SQL_NOT_ACTOR}'),
             |    created_at         timestamptz NOT NULL DEFAULT clock_timestamp(),
             |    CONSTRAINT $lineageKey UNIQUE (pack_type, tenant_id, version)
             |);
@@ -145,10 +136,11 @@ object PackRegistryMigration {
 
     /**
      * `registered_by` is the registering principal (owner ruling INV-Q-4580 (B)): a BEFORE INSERT trigger refuses a row
-     * whose `registered_by` is not the transaction's `app.actor` (unset or [BLANK_ACTOR] refuses every insert), and a
-     * BEFORE UPDATE trigger refuses any change to it, so it is fixed at insert as the actor of
-     * `write_installation_setting`'s audit entry is (INV-T-3983). Static SQL, fixed search_path, EXECUTE revoked from
-     * PUBLIC (a trigger function's EXECUTE is checked when the trigger is created, never when it fires).
+     * whose `registered_by` is not the transaction's `app.actor` (an unset actor, or one that is blank or holds a
+     * control character, [BlankText.SQL_NOT_ACTOR], refuses every insert), and a BEFORE UPDATE trigger refuses any
+     * change to it, so it is fixed at insert as the actor of `write_installation_setting`'s audit entry is
+     * (INV-T-3983). Static SQL, fixed search_path, EXECUTE revoked from PUBLIC (a trigger function's EXECUTE is checked
+     * when the trigger is created, never when it fires).
      */
     private fun registeredBy(
         schema: String,
@@ -164,7 +156,7 @@ object PackRegistryMigration {
         |DECLARE
         |    v_actor text := current_setting('app.actor', true);
         |BEGIN
-        |    IF v_actor IS NULL OR v_actor ~ '$BLANK_ACTOR' THEN
+        |    IF v_actor IS NULL OR v_actor ~ '${BlankText.SQL_NOT_ACTOR}' THEN
         |        RAISE EXCEPTION 'app.actor is not set: a pack row records its registering principal'
         |            USING ERRCODE = '42501';
         |    END IF;
@@ -216,14 +208,16 @@ object PackRegistryMigration {
             |        RAISE EXCEPTION 'a platform pack is registered under the platform tenant only'
             |            USING ERRCODE = '42501';
             |    END IF;
-            |    IF v_actor IS NULL OR v_actor ~ '$BLANK_ACTOR' THEN
+            |    IF v_actor IS NULL OR v_actor ~ '${BlankText.SQL_NOT_ACTOR}' THEN
             |        RAISE EXCEPTION 'app.actor is not set: a platform pack records its actor' USING ERRCODE = '42501';
             |    END IF;
             |    IF p_id IS NULL OR p_effective_from IS NULL OR p_manifest IS NULL OR p_checksums IS NULL
             |        OR p_signature IS NULL OR p_contents IS NULL
-            |        OR coalesce(btrim(p_pack_id), '') = '' OR coalesce(btrim(p_pack_type), '') = ''
-            |        OR coalesce(btrim(p_version), '') = '' OR coalesce(btrim(p_min_engine_version), '') = ''
-            |        OR coalesce(btrim(p_trusted_anchor), '') = '' THEN
+            |        OR coalesce(p_pack_id, '') ~ '${BlankText.SQL_BLANK}'
+            |        OR coalesce(p_pack_type, '') ~ '${BlankText.SQL_BLANK}'
+            |        OR coalesce(p_version, '') ~ '${BlankText.SQL_BLANK}'
+            |        OR coalesce(p_min_engine_version, '') ~ '${BlankText.SQL_BLANK}'
+            |        OR coalesce(p_trusted_anchor, '') ~ '${BlankText.SQL_BLANK}' THEN
             |        RAISE EXCEPTION 'every pack field but effective_to is required and not blank'
             |            USING ERRCODE = '22023';
             |    END IF;

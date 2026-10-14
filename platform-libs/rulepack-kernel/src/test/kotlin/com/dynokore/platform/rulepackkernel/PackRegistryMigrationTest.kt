@@ -1,5 +1,6 @@
 package com.dynokore.platform.rulepackkernel
 
+import com.dynokore.platform.tenancykernel.BlankText
 import com.dynokore.platform.tenancykernel.TenantId
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -57,12 +58,15 @@ class PackRegistryMigrationTest {
 
     @Test
     fun `registered_by is app actor at insert and fixed afterwards`() {
-        // ISO controls plus the caseId whitespace set (INV-Q-4534), code point for code point.
-        val blank =
-            """^[\u0001-\u001F\u007F-\u009F\u0020\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000\uFEFF]*$"""
-        assertTrue(ddl.contains("registered_by      text NOT NULL CHECK (registered_by !~ '$blank'),"))
-        assertEquals(2, Regex("""v_actor IS NULL OR v_actor ~ '\^\[""").findAll(ddl).count())
-        assertFalse(ddl.contains("btrim(current_setting('app.actor'"))
+        // tenancy-kernel's shared actor rule (INV-Q-4614 (A), INV-Q-4622 (A)); the set itself is pinned there.
+        val actor = BlankText.SQL_NOT_ACTOR
+        assertTrue(ddl.contains("registered_by      text NOT NULL CHECK (registered_by !~ '$actor'),"))
+        assertEquals(2, ddl.split("IF v_actor IS NULL OR v_actor ~ '$actor' THEN").size - 1)
+        assertFalse(Regex("""\b(b|l|r)?trim\s*\(""", RegexOption.IGNORE_CASE).containsMatchIn(ddl), "a trim check left")
+        val blank = BlankText.SQL_BLANK
+        listOf("p_pack_id", "p_pack_type", "p_version", "p_min_engine_version", "p_trusted_anchor").forEach {
+            assertEquals(1, ddl.split("OR coalesce($it, '') ~ '$blank'").size - 1, it)
+        }
         assertTrue(ddl.contains("IF NEW.registered_by IS DISTINCT FROM v_actor THEN"))
         assertTrue(ddl.contains("IF NEW.registered_by IS DISTINCT FROM OLD.registered_by THEN"))
         assertTrue(ddl.contains("BEFORE INSERT ON rules.rule_pack_version"))

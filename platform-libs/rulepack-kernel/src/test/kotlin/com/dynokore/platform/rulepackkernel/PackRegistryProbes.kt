@@ -2,6 +2,7 @@ package com.dynokore.platform.rulepackkernel
 
 import com.dynokore.platform.tenancyjooq.TenancyProbe
 import com.dynokore.platform.tenancykernel.TenantId
+import org.flywaydb.core.Flyway
 import org.jooq.exception.DataAccessException
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -130,4 +131,30 @@ internal fun assertRefusedWith(
     val refused = assertThrows(DataAccessException::class.java, block)
     val message = refused.message.orEmpty()
     assertTrue(expected in message, "expected '$expected' in: $message")
+}
+
+/** The migration login (`<svc>_migrate`): NOSUPERUSER, NOBYPASSRLS, owns the table, member of the sys role. */
+internal const val MIGRATE = "rulepack_kernel_migrate"
+internal const val MIGRATE_PASSWORD = "rulepack_kernel_migrate_pw"
+
+/** Applies the test migrations of `db/pack-registry-it/base` as [MIGRATE], the generated DDL as `packRegistryDdl`. */
+internal fun migratePackRegistry(jdbcUrl: String) {
+    Flyway
+        .configure()
+        .dataSource(jdbcUrl, MIGRATE, MIGRATE_PASSWORD)
+        .schemas("rulepack_migrations")
+        .createSchemas(false)
+        .locations("classpath:db/pack-registry-it/base")
+        .placeholders(
+            mapOf(
+                "packRegistryDdl" to
+                    PackRegistryMigration.ddl(
+                        schema = "rulepack_test",
+                        table = "rule_pack_version",
+                        runtimeRole = "rulepack_kernel_app",
+                        sysRole = "rulepack_kernel_sys",
+                    ),
+            ),
+        ).load()
+        .migrate()
 }

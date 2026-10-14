@@ -1,5 +1,6 @@
 package com.dynokore.platform.configresolver
 
+import com.dynokore.platform.tenancykernel.BlankText
 import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantRlsMigration
 
@@ -165,15 +166,15 @@ object ConfigSchema {
                 entity_id text,
                 vp_key text not null $VP_KEY,
                 scope_level text not null check (scope_level in ($LEVELS)),
-                scope_id text not null check (btrim(scope_id) <> ''),
+                scope_id text not null check (scope_id !~ '${BlankText.SQL_BLANK}'),
                 option_keys text[] not null $OPTION_KEYS,
                 option_values jsonb $OPTION_VALUES,
                 source text not null check (source in ('OVERRIDE', 'PROFILE')),
                 profile_id text,
                 profile_version text,
                 effective_from date not null,
-                set_by text not null check (btrim(set_by) <> ''),
-                reason text not null check (btrim(reason) <> ''),
+                set_by text not null check (set_by !~ '${BlankText.SQL_NOT_ACTOR}'),
+                reason text not null check (reason !~ '${BlankText.SQL_BLANK}'),
                 recorded_at timestamptz not null,
                 relaxation_ref uuid,
                 check ((scope_level in ('TENANT', 'GROUP')) = (entity_id is null)),
@@ -192,8 +193,8 @@ object ConfigSchema {
                 option_keys text[] not null $OPTION_KEYS,
                 option_values jsonb $OPTION_VALUES,
                 effective_from date not null,
-                set_by text not null check (btrim(set_by) <> ''),
-                reason text not null check (btrim(reason) <> ''),
+                set_by text not null check (set_by !~ '${BlankText.SQL_NOT_ACTOR}'),
+                reason text not null check (reason !~ '${BlankText.SQL_BLANK}'),
                 recorded_at timestamptz not null
             );
             create index ${INSTALLATION_SETTING}_lookup on $s.$INSTALLATION_SETTING
@@ -205,7 +206,7 @@ object ConfigSchema {
                 tenant_id uuid not null,
                 entity_id text,
                 subject_type text not null check (subject_type ~ '^[a-z][a-z0-9_]{0,62}$'),
-                subject_ref text not null check (btrim(subject_ref) <> ''),
+                subject_ref text not null check (subject_ref !~ '${BlankText.SQL_BLANK}'),
                 vp_key text not null $VP_KEY,
                 transaction_date date not null,
                 option_keys text[] not null $OPTION_KEYS,
@@ -234,13 +235,13 @@ object ConfigSchema {
                 entity_id text,
                 vp_key text not null $VP_KEY,
                 scope_level text not null check (scope_level in ($LEVELS)),
-                scope_id text not null check (btrim(scope_id) <> ''),
+                scope_id text not null check (scope_id !~ '${BlankText.SQL_BLANK}'),
                 option_keys text[] not null $OPTION_KEYS,
                 option_values jsonb $OPTION_VALUES,
-                role text not null check (btrim(role) <> ''),
-                principal text not null check (btrim(principal) <> ''),
+                role text not null check (role !~ '${BlankText.SQL_BLANK}'),
+                principal text not null check (principal !~ '${BlankText.SQL_NOT_ACTOR}'),
                 effective_from date not null,
-                reason text check (reason is null or btrim(reason) <> ''),
+                reason text check (reason is null or reason !~ '${BlankText.SQL_BLANK}'),
                 acknowledged_at timestamptz not null,
                 unique (tenant_id, relaxation_id, role),
                 unique (tenant_id, relaxation_id, principal),
@@ -325,7 +326,7 @@ object ConfigSchema {
                 returns table (setting_id uuid, stored_at timestamptz)
             language plpgsql security definer set search_path = pg_catalog, $s, pg_temp as $$
             declare
-                v_actor text := nullif(btrim(current_setting('app.actor', true)), '');
+                v_actor text := current_setting('app.actor', true);
                 v_mode constant text := $s.$INSTALLATION_MODE();
                 v_subject text;
                 v_value jsonb;
@@ -334,14 +335,14 @@ object ConfigSchema {
                 v_id uuid := gen_random_uuid();
                 v_now timestamptz;
             begin
-                if v_actor is null then
+                if v_actor is null or v_actor ~ '${BlankText.SQL_NOT_ACTOR}' then
                     raise exception 'app.actor is not set: an installation value records its actor' using errcode = '42501';
                 end if;
                 if current_setting('app.tenant_id', true) is distinct from '$PLATFORM' then
                     raise exception 'an installation value is written under the platform tenant only' using errcode = '42501';
                 end if;
                 if p_vp_key is null or p_option_keys is null or p_effective_from is null or p_reason is null
-                    or btrim(p_reason) = '' or p_audit is null then
+                    or p_reason ~ '${BlankText.SQL_BLANK}' or p_audit is null then
                     raise exception 'the key, options, effective date, reason and audit row are required'
                         using errcode = '22023';
                 end if;
@@ -402,8 +403,9 @@ object ConfigSchema {
                     if jsonb_typeof(v_row.staged -> 'instance_id') is distinct from 'string'
                         or jsonb_typeof(v_row.staged -> 'correlation_id') is distinct from 'string'
                         or jsonb_typeof(v_row.staged -> 'causation_id') is distinct from 'string'
-                        or btrim(v_row.staged ->> 'instance_id') = '' or btrim(v_row.staged ->> 'correlation_id') = ''
-                        or btrim(v_row.staged ->> 'causation_id') = '' then
+                        or (v_row.staged ->> 'instance_id') ~ '${BlankText.SQL_BLANK}'
+                        or (v_row.staged ->> 'correlation_id') ~ '${BlankText.SQL_BLANK}'
+                        or (v_row.staged ->> 'causation_id') ~ '${BlankText.SQL_BLANK}' then
                         raise exception 'the staged % row needs an instance, correlation and causation', v_row.kind
                             using errcode = '22023';
                     end if;
@@ -513,11 +515,11 @@ object ConfigSchema {
             create function $s.$PURGE_SUBJECT(p_subject_type text, p_subject_ref text) returns bigint
             language plpgsql security definer set search_path = pg_catalog, $s, pg_temp as $$
             declare
-                v_actor text := nullif(btrim(current_setting('app.actor', true)), '');
+                v_actor text := current_setting('app.actor', true);
                 v_tenant uuid := nullif(current_setting('app.tenant_id', true), '')::uuid;
                 v_deleted bigint;
             begin
-                if v_actor is null then
+                if v_actor is null or v_actor ~ '${BlankText.SQL_NOT_ACTOR}' then
                     raise exception 'app.actor is not set: a purge records its actor' using errcode = '42501';
                 end if;
                 if v_tenant is null or v_tenant = '$PLATFORM'::uuid then
@@ -553,13 +555,13 @@ object ConfigSchema {
                 returns table (resolved_values bigint, settings bigint, relaxation_acknowledgements bigint)
             language plpgsql security definer set search_path = pg_catalog, $s, pg_temp as $$
             declare
-                v_actor text := nullif(btrim(current_setting('app.actor', true)), '');
+                v_actor text := current_setting('app.actor', true);
                 v_tenant uuid := nullif(current_setting('app.tenant_id', true), '')::uuid;
                 v_resolved bigint;
                 v_settings bigint;
                 v_acknowledgements bigint;
             begin
-                if v_actor is null then
+                if v_actor is null or v_actor ~ '${BlankText.SQL_NOT_ACTOR}' then
                     raise exception 'app.actor is not set: a purge records its actor' using errcode = '42501';
                 end if;
                 if v_tenant is null or v_tenant = '$PLATFORM'::uuid or p_tenant is distinct from v_tenant then

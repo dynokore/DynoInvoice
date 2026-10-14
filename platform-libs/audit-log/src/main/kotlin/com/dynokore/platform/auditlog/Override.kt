@@ -4,6 +4,7 @@ import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.outboxandqueue.DocUuid
 import com.dynokore.platform.outboxandqueue.EntityRef
+import com.dynokore.platform.tenancykernel.BlankText
 import com.dynokore.platform.tenancykernel.TenantId
 import java.time.Instant
 import java.time.LocalDate
@@ -32,7 +33,7 @@ data class OverrideCommand(
     init {
         require(documentVersion >= 1) { "document version starts at 1" }
         require(code.isNotBlank()) { "error code must not be blank" }
-        require(actor.isNotBlank()) { "actor must not be blank" }
+        require(BlankText.isActor(actor)) { "actor must not be blank or hold a control character" }
     }
 }
 
