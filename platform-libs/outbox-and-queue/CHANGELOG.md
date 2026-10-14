@@ -5,8 +5,14 @@ All notable changes to `outbox-and-queue` are recorded here (FR-L.6). Format fol
 train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
+
+## [2.2.1] - 2026-10-14
 ### Changed
-- Source formatted to ktlint_official (platform-build 0.11.0, INV-Q-4426); no behaviour or API change
+- Metadata-only release (INV-T-4310, coordinator ruling INV-Q-4552): no behaviour or API change.
+- The POMs of both publications (api and impl) declare the company licence, `Dynokore Proprietary Licence`
+  (SPDX ref `LicenseRef-Dynokore-Proprietary`, no URL yet), stamped by platform-build 0.11.0 (INV-T-4310; owner
+  rulings INV-Q-4286 (C) and INV-Q-4284 (A), STK-66, INV-REQ-1383).
+- Source formatted to ktlint_official (platform-build 0.11.0, INV-Q-4426, INV-T-4556); formatting only.
 ### Fixed
 - tests no longer depend on the calendar date (INV-Q-4638)
 

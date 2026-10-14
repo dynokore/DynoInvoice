@@ -5,6 +5,8 @@ All notable changes to `service-runtime` are recorded here (FR-L.6). Format foll
 train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
+
+## [5.0.0] - 2026-10-14
 ### Changed (breaking)
 - Spring configuration keys that run SQL or set session state fail start-up (INV-T-4544; coordinator ruling
   INV-Q-4542; INV-ADR-3968 item 4c, INV-REQ-1230, INV-REQ-854 b8). `SqlConfigurationKeyGuard`, an
@@ -88,6 +90,9 @@ train is its own (README.md: "own version and changelog").
   identity headers (401).
 
 ### Changed
+- The POMs of both publications (api and impl) declare the company licence, `Dynokore Proprietary Licence`
+  (SPDX ref `LicenseRef-Dynokore-Proprietary`, no URL yet), stamped by platform-build 0.11.0 (INV-T-4310; owner
+  rulings INV-Q-4286 (C) and INV-Q-4284 (A), STK-66, INV-REQ-1383).
 - Source formatted to ktlint_official (platform-build 0.11.0, INV-Q-4426); no behaviour or API change
 ### Fixed
 - tests no longer depend on the calendar date (INV-Q-4638)

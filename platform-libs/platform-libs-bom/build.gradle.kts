@@ -28,7 +28,15 @@
 plugins {
     id("java-platform")
     `maven-publish`
+    // Only for gst.build.CompanyLicence below (INV-T-4310): `java-platform` cannot apply gst.kotlin-base, which
+    // stamps every other module's POMs, so the plugin is put on this script's classpath without being applied.
+    id("gst.kotlin-base") apply false
 }
+
+// The company licence in the BOM's POM (owner ruling INV-Q-4286 (C), STK-66, INV-T-4310): the same values and the
+// same check as every gst.kotlin-base publication, read from platform-build's one licence file. generatePomFile*
+// fails unless the POM declares exactly that licence.
+gst.build.CompanyLicence.applyTo(project)
 
 version = providers.gradleProperty("bomVersion").getOrElse("0.0.0-local")
 
