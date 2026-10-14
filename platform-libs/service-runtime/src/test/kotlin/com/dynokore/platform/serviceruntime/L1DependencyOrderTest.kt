@@ -10,19 +10,23 @@ import org.junit.jupiter.api.io.TempDir
 import java.io.File
 
 /**
- * Proves the §18.9 L1 dependency-order Konsist rule (STK-60, platform-build's
- * `konsist-rules`) is wired into this repository and genuinely fails an upward
- * dependency (done-when, INV-T-2860 / T16).
+ * The §18.9 L1 dependency-order Konsist rule (STK-60, platform-build's `konsist-rules`) on this repository.
  *
- * Against a small fixture, not this repository's own sources: no Wave 1 module
- * has real code yet (every one is still the design-only scaffold this train
- * adds — repository README.md), so there is nothing of this repository's own
- * to scan. `ArchitectureRules.assertL1DependencyOrder`'s default scope
- * (`Konsist.scopeFromProject()`) starts checking the real modules the moment
- * they gain classes, with no change here — build-logic's own
- * `gst.library.gradle.kts` KDoc notes the same thing.
+ * `the real modules keep the L1 order` checks the real modules: it calls
+ * `ArchitectureRules.assertL1DependencyOrder()` with its default scope (`Konsist.scopeFromProject()`: every module,
+ * every source set), so an import that breaks the order fails it (INV-T-4715, coordinator ruling INV-Q-4724 (A)).
+ * CI's unit-test job runs it on every pipeline, whatever changed, and its negative test plants a forbidden import
+ * (evidence-store main importing outbox-and-queue, INV-MOD-2738) and requires this case to fail.
+ *
+ * The four fixture cases are the rule's self-test (done-when, INV-T-2860 / T16): they prove, against a small
+ * fixture of stub modules, that the rule passes an allowed set of imports and fails an upward or sibling one.
  */
 class L1DependencyOrderTest {
+    @Test
+    fun `the real modules keep the L1 order`() {
+        ArchitectureRules.assertL1DependencyOrder()
+    }
+
     @Test
     fun `passes a fixture that uses only what Keel allows`(
         @TempDir dir: File,

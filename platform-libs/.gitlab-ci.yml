@@ -153,14 +153,56 @@ unit-test:
       # service-runtime (their host) is in the changed + downstream set below. It runs first, so the module tests below
       # rewrite service-runtime's test reports afterwards and none are lost. Fail-closed: a finding outside
       # SqlGuardsTest.PENDING fails this job.
-      # INV-T-4715 (INV-Q-4713 (A)): service-runtime's project-wide Konsist test L1DependencyOrderTest (the L1 dependency
-      # order over every module) runs here too, on every pipeline, whatever changed.
-      echo "gst-ci: SQL guards and L1 dependency order over every module (service-runtime SqlGuardsTest, L1DependencyOrderTest)"
+      # INV-T-4715 (coordinator rulings INV-Q-4713 (A), INV-Q-4724 (A)): the Konsist tests that scan the real modules
+      # run here too, on every pipeline, whatever changed: L1DependencyOrderTest (its real-scope case checks the L1
+      # order over every module and source set; its fixture cases are the rule's self-test) and
+      # CompositionRootDirectionTest (no other L1 module uses service-runtime).
+      echo "gst-ci: SQL guards, L1 order and composition-root direction over every module"
       ./gradlew -p "$GRADLE_PROJECT_DIR" :service-runtime:test \
         --tests 'com.dynokore.platform.serviceruntime.arch.SqlGuardsTest' \
-        --tests 'com.dynokore.platform.serviceruntime.L1DependencyOrderTest' --rerun --stacktrace
-      test -f "$GRADLE_PROJECT_DIR/service-runtime/build/test-results/test/TEST-com.dynokore.platform.serviceruntime.arch.SqlGuardsTest.xml"
-      test -f "$GRADLE_PROJECT_DIR/service-runtime/build/test-results/test/TEST-com.dynokore.platform.serviceruntime.L1DependencyOrderTest.xml"
+        --tests 'com.dynokore.platform.serviceruntime.L1DependencyOrderTest' \
+        --tests 'com.dynokore.platform.serviceruntime.arch.CompositionRootDirectionTest' --rerun --stacktrace
+      results="$GRADLE_PROJECT_DIR/service-runtime/build/test-results/test"
+      test -f "$results/TEST-com.dynokore.platform.serviceruntime.arch.SqlGuardsTest.xml"
+      test -f "$results/TEST-com.dynokore.platform.serviceruntime.arch.CompositionRootDirectionTest.xml"
+      l1="$results/TEST-com.dynokore.platform.serviceruntime.L1DependencyOrderTest.xml"
+      test -f "$l1"
+      # The real-scope case must be in the report as passed: no <failure>, <error> or <skipped> child.
+      if ! tr -d '\n' < "$l1" | grep -qE '<testcase name="the real modules keep the L1 order\(\)"[^>]*(/>|>[[:space:]]*</testcase>)'; then
+        echo "gst-ci: L1DependencyOrderTest's real-scope case is not in the report as passed"
+        exit 1
+      fi
+    - |
+      # Negative test (INV-T-4715, INV-Q-4724 (A)): an uncommitted forbidden L1 import (evidence-store main importing an
+      # outbox-and-queue type, INV-MOD-2738) must fail the real-scope case with the rule's own message; a pass, or a
+      # failure for another reason, fails this job. The fixture is removed and the passing reports are restored.
+      results="$GRADLE_PROJECT_DIR/service-runtime/build/test-results/test"
+      mkdir -p build/l1-negative-saved && cp "$results"/TEST-*.xml build/l1-negative-saved/
+      fixture="$GRADLE_PROJECT_DIR/evidence-store/src/main/kotlin/com/dynokore/platform/evidencestore/L1OrderNegativeFixture.kt"
+      trap 'rm -f "$fixture"' EXIT
+      printf '%s\n' 'package com.dynokore.platform.evidencestore' '' \
+        'import com.dynokore.platform.outboxandqueue.CorrelationId' '' \
+        'internal class L1OrderNegativeFixture(val id: CorrelationId)' > "$fixture"
+      if ./gradlew -p "$GRADLE_PROJECT_DIR" :service-runtime:test \
+          --tests 'com.dynokore.platform.serviceruntime.L1DependencyOrderTest' --rerun > build/l1-negative.log 2>&1; then
+        echo "gst-ci: negative test: L1DependencyOrderTest passed with evidence-store importing outbox-and-queue"
+        exit 1
+      fi
+      rm -f "$fixture"
+      if ! grep -q "'evidence-store' layer does not depends on 'outbox-and-queue' layer" \
+          "$results/TEST-com.dynokore.platform.serviceruntime.L1DependencyOrderTest.xml" \
+        || ! grep -q 'testcase name="the real modules keep the L1 order()"' \
+          "$results/TEST-com.dynokore.platform.serviceruntime.L1DependencyOrderTest.xml"; then
+        tail -40 build/l1-negative.log
+        echo "gst-ci: negative test: the build failed, but not on the L1 order rule"
+        exit 1
+      fi
+      if [ "$(grep -c '<failure' "$results/TEST-com.dynokore.platform.serviceruntime.L1DependencyOrderTest.xml")" -ne 1 ]; then
+        echo "gst-ci: negative test: a case other than the real-scope one failed"
+        exit 1
+      fi
+      rm -f "$results"/TEST-*.xml && cp build/l1-negative-saved/TEST-*.xml "$results"/
+      echo "gst-ci: negative test: the L1 order rule fails evidence-store importing outbox-and-queue, as it must"
     - MODULES="$(gst_changed_downstream_modules)"
     - |
       if [ -z "$(echo "$MODULES" | tr -d '[:space:]')" ]; then
@@ -308,7 +350,7 @@ verify-rules:
       set -e
       grep -E "^verify-rules: runs " build/verify-rules.log
       if [ "$rc" -ne 0 ]; then
-        grep -E "^> Task .* FAILED|^\* What went wrong|^Execution failed|^ +- |FAILURE" build/verify-rules.log | cut -c1-300 | head -80
+        grep -E "^> Task .* FAILED|^\* What went wrong|^Execution failed|^ +- |FAILURE" build/verify-rules.log | cut -c1-300 | sed -n 1,80p
         echo "gst-ci: verify-rules: check failed (exit $rc)"
         exit 1
       fi
