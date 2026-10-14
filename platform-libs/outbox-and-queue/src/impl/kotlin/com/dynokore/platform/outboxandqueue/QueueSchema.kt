@@ -174,8 +174,7 @@ object QueueSchema {
                 used int not null check (used >= 0),
                 primary key (lane)
             );
-            comment on table $s.$LANE_RATE_WINDOW is
-                'Shared per-lane rate-limit windows (no tenant data; CS-19 exception, as consumer_offset)';
+            comment on table $s.$LANE_RATE_WINDOW is 'platform-scoped: no tenant data';
             grant usage on schema $s to $runtime;
             grant select, insert, update, delete on $s.$LANE_RATE_WINDOW to $runtime;
             """.trimIndent()

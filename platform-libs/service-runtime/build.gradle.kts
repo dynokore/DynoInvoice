@@ -62,7 +62,9 @@ sourceSets {
 evaluationDependsOn(":tenancy-kernel")
 evaluationDependsOn(":outbox-and-queue")
 evaluationDependsOn(":audit-log")
+evaluationDependsOn(":tenancy-jooq")
 val tenancyKernelImplJar = project(":tenancy-kernel").tasks.named("implJar")
+val tenancyJooqImplJar = project(":tenancy-jooq").tasks.named("implJar")
 val outboxImplJar = project(":outbox-and-queue").tasks.named("implJar")
 val auditLogImplJar = project(":audit-log").tasks.named("implJar")
 
@@ -88,6 +90,16 @@ dependencies {
     api(project(":tenancy-kernel"))
     add("implImplementation", project(":tenancy-kernel"))
     add("implTestImplementation", project(":tenancy-kernel"))
+
+    // INV-T-4134 (INV-ADR-3968 item 4a, owner ruling INV-Q-4113): the framework tenant predicate on jOOQ, wired into every
+    // service. A hard dependency, not an optional one: a service that has jOOQ without it would have an unchecked
+    // DSLContext. tenancy-jooq-api brings jOOQ; Spring Boot's jOOQ auto-configuration (the customizer) is optional.
+    add("implImplementation", project(":tenancy-jooq"))
+    add("implImplementation", files(tenancyJooqImplJar))
+    add("implTestImplementation", project(":tenancy-jooq"))
+    add("implTestImplementation", files(tenancyJooqImplJar))
+    add("implCompileOnly", "org.springframework.boot:spring-boot-jooq")
+    add("implTestImplementation", "org.springframework.boot:spring-boot-jooq")
 
     // INV-T-3002: PolicyReplica resolves over config-resolver's scope chain (INV-REQ-1242), api half only.
     api(project(":config-resolver"))
@@ -166,6 +178,10 @@ dependencies {
     // Spring Boot's BOM manages Testcontainers 2.x; outbox-and-queue's fixture is built on the repository's
     // 1.21 line (libs.versions.toml), so the core artifact is held to it here.
     constraints {
+        // Spring Boot's BOM manages jOOQ too; tenancy-jooq is built and proved on this repository's (as its springTest).
+        listOf("implImplementation", "implTestImplementation").forEach {
+            add(it, libs.jooq) { version { strictly(libs.versions.jooq.get()) } }
+        }
         add("implTestImplementation", "org.testcontainers:testcontainers") {
             version { strictly(libs.versions.testcontainers.get()) }
         }

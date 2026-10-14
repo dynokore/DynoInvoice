@@ -1,5 +1,6 @@
 package com.dynokore.platform.outboxandqueue
 
+import com.dynokore.platform.tenancykernel.TenantId
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -63,7 +64,8 @@ class TenantIsolationIT {
 
             val deadLetters = "select count(*) from submission.event_dead_letter"
             assertEquals(1, harness.count("$deadLetters where tenant_id = ?", tenant))
-            assertEquals(1, harness.count("$deadLetters where tenant_id is null"))
+            // a record that names no tenant is stored under the platform tenant (CS-19: tenant_id NOT NULL)
+            assertEquals(1, harness.count("$deadLetters where tenant_id = ?", TenantId.PLATFORM.value))
             assertEquals(1, kit.inTx(tenant) { visible(kit, "event_dead_letter") }, "a tenant reads its own letter")
             val other = UUID.randomUUID()
             assertEquals(0, kit.inTx(other) { visible(kit, "event_dead_letter") }, "a cross-tenant read is refused")

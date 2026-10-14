@@ -6,6 +6,22 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+### Added
+- The framework tenant predicate on jOOQ, wired into every service (INV-T-4134; INV-ADR-3968 item 4a, INV-REQ-854 b2
+  and b6; owner rulings INV-Q-4113, INV-Q-4196). `TenancyJooqWiring` (its own auto-configuration, after the L1
+  composition and before Spring Boot's jOOQ auto-configuration) creates the `TenancyTables`, an `org.jooq.Configuration`
+  and the `DSLContext` over tenancy-kernel's `TransactionRunner` with tenancy-jooq's listeners, and a Spring Boot
+  `DefaultConfigurationCustomizer` for a service that has Boot's jOOQ support. `TenancyTables` is built by
+  `TableClasses.verify` over the service's `org.jooq.Schema` beans: start-up fails for a tenantless table nobody
+  declared, a declared table that is missing, or a declaration that disagrees with the columns. A service adds
+  declarations with `inv.tenancy.platform-scoped-tables` and `inv.tenancy.reference-tables` (`schema.table`); the
+  libraries declare their own (`ConfigSchema`, `OutboxSchema`, `EventLogSchema`, `JobSchema` `platformScopedTables`).
+  `TenancyJooqGuard` fails start-up for any `DSLContext` or `org.jooq.Configuration` bean not made by tenancy-jooq
+  (for example `DSL.using(dataSource)`). tenancy-jooq becomes a dependency of the impl half.
+- `JobSchema.platformScopedTables(schema)`: `shedlock` and `job_retention`, whose DDL carries the table comment
+  `platform-scoped: no tenant data`. No JdbcTemplate, NamedParameterJdbcTemplate, TransactionTemplate or transaction
+  manager is created. ShedLock's move to its jOOQ provider is INV-T-4203's.
+
 ## [6.0.1] - 2026-10-14
 ### Fixed
 - Every actor check uses tenancy-kernel's `BlankText.isActor` instead of `isNotBlank()` (coordinator ruling

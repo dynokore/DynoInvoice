@@ -215,7 +215,9 @@ class RetentionPurgeIT {
         harness.fixture.runAsAdmin(
             "insert into payload.event_dead_letter " +
                 "(consumer, topic, log_offset, tenant_id, reason, raw, status, resolved_at) " +
-                "values ('c', 't', 1, ${tenant?.let { "'$it'" } ?: "null"}, 'r', '{}', '$status', $resolved)",
+                "values ('c', 't', 1, ${tenant?.let {
+                    "'$it'"
+                } ?: "'ffffffff-ffff-ffff-ffff-ffffffffffff'"}, 'r', '{}', '$status', $resolved)",
         )
     }
 

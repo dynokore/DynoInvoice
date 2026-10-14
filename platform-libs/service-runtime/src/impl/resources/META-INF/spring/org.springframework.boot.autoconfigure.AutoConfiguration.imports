@@ -1,2 +1,3 @@
 com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration
 com.dynokore.platform.serviceruntime.composition.L1CompositionAutoConfiguration
+com.dynokore.platform.serviceruntime.composition.TenancyJooqWiring

@@ -105,6 +105,13 @@ object EventLogSchema {
     }
 
     /**
+     * The event log's tenantless tables, `PLATFORM_SCOPED` (INV-ADR-3968 item 4a, INV-T-4134), by qualified name: each
+     * has the table comment `platform-scoped: no tenant data` in [schemaDdl]. A topic table ([topicDdl]) is tenant data.
+     */
+    fun platformScopedTables(): List<String> =
+        listOf(SUBSCRIPTION, PRODUCER, PURGE_WATERMARK, RECORD_POSITION, RETENTION).map { "$SCHEMA.$it" }
+
+    /**
      * The tables the functions keep their state in, with `eventlog_sys`'s grants and nothing for any runtime login:
      * [SUBSCRIPTION], [PRODUCER], [PURGE_WATERMARK] (subscribers get SELECT on their topics' rows in [functionsDdl]),
      * [RECORD_POSITION] and [RETENTION] (CHECK of at least 7 days on each value). Run once, before [topicDdl].

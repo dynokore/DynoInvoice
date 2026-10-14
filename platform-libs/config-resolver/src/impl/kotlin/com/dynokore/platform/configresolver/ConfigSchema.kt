@@ -156,6 +156,14 @@ object ConfigSchema {
         ).joinToString("\n")
     }
 
+    /**
+     * The tables of [schema] this module declares `PLATFORM_SCOPED` (INV-ADR-3968 item 4a, INV-T-4134):
+     * [INSTALLATION_SETTING], whose DDL carries the table comment `platform-scoped: no tenant data`. A service's
+     * composition root merges it with its own declaration (`inv.tenancy.platform-scoped-tables`).
+     */
+    fun platformScopedTables(schema: String): List<String> =
+        listOf("${SqlIdentifier.require(schema, "schema")}.$INSTALLATION_SETTING")
+
     private fun tables(schema: String): String {
         val s = SqlIdentifier.require(schema, "schema")
         return """
@@ -200,6 +208,7 @@ object ConfigSchema {
             create index ${INSTALLATION_SETTING}_lookup on $s.$INSTALLATION_SETTING
                 (vp_key, effective_from desc, seq desc);
             comment on column $s.$INSTALLATION_SETTING.reason is 'class: content';
+            comment on table $s.$INSTALLATION_SETTING is 'platform-scoped: no tenant data';
 
             create table $s.$RESOLVED_VALUE (
                 id uuid primary key,

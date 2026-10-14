@@ -89,6 +89,25 @@ INV-REQ-1079), the base `LicenceCheck` (tenancy-svc, INV-REQ-1076), `MessageDeli
 and `EndUserPrincipalResolver`; and the per-edge or per-adapter `ResilientExecutor`, `VersionedAdapterRouter` and
 `SigningKey`. No other L1 module depends on service-runtime (`CompositionRootDirectionTest`).
 
+## Tenant predicate on jOOQ (INV-T-4134; INV-ADR-3968 item 4a, owner rulings INV-Q-4113, INV-Q-4196)
+
+`TenancyJooqWiring` gives every service one `org.jooq.Configuration` and one `DSLContext`, over tenancy-kernel's
+`TransactionRunner`, made by `TenancyJooq.configure` (tenant predicate injected and checked, connection only from the
+open tenant transaction). Spring Boot's jOOQ auto-configuration backs off; its `DefaultConfigurationCustomizer` is
+provided for a service that has it.
+
+- **Classification at start-up.** The service's generated jOOQ schemas are `org.jooq.Schema` beans. `TableClasses.verify`
+  runs over them: every table has `tenant_id`, or is declared PLATFORM_SCOPED (its migration carries the table comment
+  `platform-scoped: no tenant data`), or REFERENCE. A tenantless table nobody declared, a declared table that is
+  missing, or a declaration that disagrees with the columns stops the service. A service declares its own with
+  `inv.tenancy.platform-scoped-tables` and `inv.tenancy.reference-tables` (`schema.table`, lists). The libraries
+  declare theirs: `ConfigSchema` (`config_installation_setting`), `OutboxSchema` (`consumer_offset`, the replay state
+  tables, `lane_rate_window`), `EventLogSchema` (the event log's own tables), `JobSchema` (`shedlock`,
+  `job_retention`); a library table is declared when it is in the service's schemas.
+- **No other jOOQ.** `TenancyJooqGuard` fails start-up for any `DSLContext` or `org.jooq.Configuration` bean whose
+  connection provider, VisitListeners or last ExecuteListener are not tenancy-jooq's, such as `DSL.using(dataSource)`.
+  service-runtime creates no JdbcTemplate, NamedParameterJdbcTemplate, TransactionTemplate or transaction manager.
+
 ## Database credentials (INV-T-3913; STK-29, INV-REQ-1231, ruling INV-Q-3909)
 
 Every database password is read through `SecretStore` (STK-29: mounted files only, never a property or an environment

@@ -6,6 +6,12 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+### Changed
+- `ConfigSchema.ddl` gives `config_installation_setting` the table comment `platform-scoped: no tenant data`, and
+  `ConfigSchema.platformScopedTables(schema)` lists it for the service's tenant-table declaration (INV-T-4134;
+  INV-ADR-3968 item 4a, INV-REQ-854 b6; owner ruling INV-Q-4113). Clears the module's platform-build 0.10.0
+  `tenant-column` finding.
+
 ## [2.0.4] - 2026-10-14
 ### Fixed
 - `Actor.principal` uses tenancy-kernel's `BlankText.isActor` instead of `isNotBlank()` (coordinator ruling

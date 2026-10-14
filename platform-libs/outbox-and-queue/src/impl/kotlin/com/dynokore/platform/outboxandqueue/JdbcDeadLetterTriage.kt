@@ -79,7 +79,7 @@ class JdbcDeadLetterTriage(
                     with p as (
                         select ?::bigint as p_after, ?::text as p_status, ?::bigint[] as p_ids, ?::uuid as p_tenant,
                             ?::text as p_consumer, ?::text as p_topic, ?::text as p_failure, ?::timestamptz as p_from,
-                            ?::timestamptz as p_before, ?::boolean as p_with_tenant
+                            ?::timestamptz as p_before, ?::boolean as p_with_tenant, ?::uuid as p_platform
                     )
                     select $COLUMNS from $triageView, p
                     where id > p_after
@@ -91,7 +91,7 @@ class JdbcDeadLetterTriage(
                       and (p_failure is null or starts_with(reason, p_failure))
                       and (p_from is null or recorded_at >= p_from)
                       and (p_before is null or recorded_at < p_before)
-                      and (not p_with_tenant or tenant_id is not null)
+                      and (not p_with_tenant or tenant_id <> p_platform)
                     order by id limit ?
                     """.trimIndent(),
                 ).use {
@@ -106,7 +106,8 @@ class JdbcDeadLetterTriage(
                     it.setTimestamp(8, scope.recordedFrom?.let { from -> Timestamp.from(from) })
                     it.setTimestamp(9, scope.recordedBefore?.let { before -> Timestamp.from(before) })
                     it.setBoolean(10, scope.subject != null || scope.entity != null)
-                    it.setInt(11, limit)
+                    it.setObject(11, TenantId.PLATFORM.value)
+                    it.setInt(12, limit)
                     it.executeQuery().use { rows -> buildList { while (rows.next()) add(letter(rows)) } }
                 }
         }
@@ -267,7 +268,7 @@ class JdbcDeadLetterTriage(
             consumer = rows.getString("consumer"),
             topic = rows.getString("topic"),
             logOffset = rows.getLong("log_offset"),
-            tenant = rows.getObject("tenant_id", UUID::class.java)?.let { TenantId(it) },
+            tenant = rows.getObject("tenant_id", UUID::class.java)?.let { TenantId(it) }?.takeUnless { it.isPlatform },
             reason = rows.getString("reason"),
             raw = null,
             status = DeadLetterStatus.valueOf(rows.getString("status")),

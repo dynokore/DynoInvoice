@@ -23,7 +23,10 @@ import com.dynokore.platform.tenancykernel.TenantRlsMigration
  *   [DEAD_LETTER_RESOLVE]). Each purge function holds its age predicate and refuses a cut-off later than the
  *   retention floor ([Retention.FLOOR]), so a call can delete only expired rows.
  * - [CONSUMER_OFFSET] and the replay state tables hold no tenant data (positions and service names) and have no RLS;
- *   the runtime login writes them directly.
+ *   the runtime login writes them directly. Each carries `COMMENT ON TABLE ... IS 'platform-scoped: no tenant data'`
+ *   and is listed by [platformScopedTables] (INV-ADR-3968 item 4a, INV-T-4134), as is [QueueSchema.LANE_RATE_WINDOW].
+ * - [DEAD_LETTER] has `tenant_id uuid NOT NULL` (CS-19): a dead letter whose record names no tenant is stored under the
+ *   reserved platform tenant by [DEAD_LETTER_RECORD], and reads as a letter without a tenant.
  *
  * The migration role must be a member of `<svc>_sys` (it hands the views and functions to it); `<svc>_sys` holds
  * `CREATE` on the schema only for the moment of that hand-over.
@@ -68,6 +71,25 @@ object OutboxSchema {
 
     /** The upper bound a purge function accepts for one batch. */
     const val MAX_PURGE_BATCH = 10_000
+
+    /** The reserved platform tenant (`TenantId.PLATFORM`), under which a dead letter without a tenant is stored. */
+    internal const val PLATFORM_TENANT = "ffffffff-ffff-ffff-ffff-ffffffffffff"
+
+    /**
+     * The tables of [schema] this module declares `PLATFORM_SCOPED` (INV-ADR-3968 item 4a, INV-T-4134): no tenant column
+     * and no tenant data, each with the table comment `platform-scoped: no tenant data` in its DDL. A service's
+     * composition root merges them with its own declaration (`inv.tenancy.platform-scoped-tables`).
+     */
+    fun platformScopedTables(schema: String): List<String> {
+        val s = SqlIdentifier.require(schema, "schema")
+        return listOf(
+            CONSUMER_OFFSET,
+            CONSUMER_REPLAY,
+            CONSUMER_REPLAY_MARKER,
+            CONSUMER_SOURCE_SEEN,
+            QueueSchema.LANE_RATE_WINDOW,
+        ).map { "$s.$it" }
+    }
 
     /** `CREATE TABLE` statements for every table in [schema], the grants for [runtimeRole] and the objects of [sysRole]. */
     fun ddl(
@@ -155,12 +177,13 @@ object OutboxSchema {
                 retry_not_before timestamptz,
                 primary key (consumer, topic)
             );
+            comment on table $s.$CONSUMER_OFFSET is 'platform-scoped: no tenant data';
             create table $s.$DEAD_LETTER (
                 id bigint generated always as identity primary key,
                 consumer text not null,
                 topic text not null,
                 log_offset bigint not null,
-                tenant_id uuid,
+                tenant_id uuid not null,
                 reason text not null,
                 raw text not null,
                 recorded_at timestamptz not null default now(),
@@ -469,7 +492,7 @@ object OutboxSchema {
                         using errcode = '22023';
                 end if;
                 insert into $s.$DEAD_LETTER (consumer, topic, log_offset, tenant_id, reason, raw)
-                values (p_consumer, p_topic, p_log_offset, p_tenant_id, p_reason, p_raw)
+                values (p_consumer, p_topic, p_log_offset, coalesce(p_tenant_id, '$PLATFORM_TENANT'::uuid), p_reason, p_raw)
                 returning id into recorded;
                 return recorded;
             end
@@ -532,6 +555,7 @@ object OutboxSchema {
                 closed_at timestamptz,
                 primary key (replay_id, producer)
             );
+            comment on table $s.$CONSUMER_REPLAY is 'platform-scoped: no tenant data';
             create unique index if not exists ${CONSUMER_REPLAY}_pending on $s.$CONSUMER_REPLAY (consumer, producer)
                 where closed_at is null;
             create table if not exists $s.$CONSUMER_REPLAY_MARKER (
@@ -540,12 +564,14 @@ object OutboxSchema {
                 applied_at timestamptz not null default now(),
                 primary key (replay_id, source)
             );
+            comment on table $s.$CONSUMER_REPLAY_MARKER is 'platform-scoped: no tenant data';
             create table if not exists $s.$CONSUMER_SOURCE_SEEN (
                 consumer text not null,
                 producer text not null,
                 source text not null,
                 primary key (consumer, producer, source)
             );
+            comment on table $s.$CONSUMER_SOURCE_SEEN is 'platform-scoped: no tenant data';
             """.trimIndent()
     }
 

@@ -289,9 +289,6 @@ class SqlGuardsTest {
          * never add one (INV-T-4188). INV-T-3999 requires this to be empty.
          */
         val PENDING_0_10: Map<Pair<String, String>, String> =
-            mapOf(
-                ("outbox-and-queue" to "tenant-column") to "INV-T-4134",
-                ("config-resolver" to "tenant-column") to "INV-T-4134",
-            )
+            emptyMap()
     }
 }

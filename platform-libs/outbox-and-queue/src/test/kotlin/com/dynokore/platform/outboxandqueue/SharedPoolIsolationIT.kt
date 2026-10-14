@@ -163,7 +163,7 @@ class SharedPoolIsolationIT {
             )
             fixture.runAsAdmin(
                 "insert into $SCHEMA.event_dead_letter (consumer, topic, log_offset, tenant_id, reason, raw) " +
-                    "values ('c', 't', 2, null, 'open', 'x')",
+                    "values ('c', 't', 2, 'ffffffff-ffff-ffff-ffff-ffffffffffff', 'open', 'x')",
             )
             runtime(fixture) { c ->
                 val outbox = "select $SCHEMA.outbox_purge_expired(now() - interval '30 days', 100)"

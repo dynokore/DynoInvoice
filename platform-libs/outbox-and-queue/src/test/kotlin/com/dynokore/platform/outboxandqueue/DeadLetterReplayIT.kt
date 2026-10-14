@@ -59,7 +59,8 @@ class DeadLetterReplayIT {
                         "values (?, 'gst.canonical.canonical-version-created.v1', 1, ?, ?, ?) returning id",
                 ).use {
                     it.setString(1, consumer)
-                    it.setObject(2, tenant)
+                    // CS-19: tenant_id NOT NULL, a letter without a tenant is stored under the platform tenant
+                    it.setObject(2, tenant ?: TenantId.PLATFORM.value)
                     it.setString(3, reason)
                     it.setString(4, raw)
                     it.executeQuery().use { rows ->

@@ -51,6 +51,13 @@ object JobSchema {
     /** The upper bound [PURGE_EXPIRED] accepts for one batch. */
     const val MAX_PURGE_BATCH = 10_000
 
+    /**
+     * The tables of [schema] this module declares `PLATFORM_SCOPED` (INV-ADR-3968 item 4a, INV-T-4134): [SHEDLOCK] (the
+     * job scheduler's lock table) and [JOB_RETENTION], each with the table comment `platform-scoped: no tenant data`.
+     */
+    fun platformScopedTables(schema: String): List<String> =
+        listOf(SHEDLOCK, JOB_RETENTION).map { "${SqlIdentifier.require(schema, "schema")}.$it" }
+
     /** The statements for [schema], the grants of [runtimeRole] and the objects of [sysRole]. */
     fun ddl(
         schema: String,
