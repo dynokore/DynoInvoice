@@ -2,6 +2,7 @@ package com.dynokore.platform.serviceruntime.identity
 
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
+import com.dynokore.platform.tenancykernel.BlankText
 import com.dynokore.platform.tenancykernel.TenantId
 import com.nimbusds.jwt.JWT
 import com.nimbusds.jwt.JWTParser
@@ -18,7 +19,8 @@ import java.time.Clock
  * expiry, audience; STK-27). `sub` is the actor and `tenant_id` the tenant, absent for a platform operator,
  * who then has no entities. The entity set is not a claim: it is the entities on which the principal holds a
  * grant in that tenant in the [authority] replica, read at every request, so a revoked grant leaves the set
- * at the next one. A missing, invalid or expired token, or an unreadable `tenant_id`, resolves to null (401); an
+ * at the next one. A missing, invalid or expired token, a `sub` that is not a valid actor (`BlankText.isActor`,
+ * INV-Q-4684), or an unreadable `tenant_id`, resolves to null (401); an
  * issuer whose keys cannot be obtained, with no cached key verifying the token, throws
  * [TokenIssuerUnavailableException] (503 SRT-011, INV-Q-3773).
  *
@@ -57,7 +59,7 @@ class JwtEndUserPrincipalResolver(
 
     private fun operatorPrincipal(parsed: JWT): EndUserPrincipal? {
         val (claims, session) = (parsed as? SignedJWT)?.let(operatorSessions::verify) ?: return null
-        val actor = claims.subject?.takeIf { it.isNotBlank() }
+        val actor = claims.subject?.takeIf(BlankText::isActor)
         val tenant = (claims.getClaim(TENANT_CLAIM) as? String)?.let(::tenantOf)
         return if (actor != null && tenant != null) principalIn(tenant, actor, session) else null
     }
@@ -72,7 +74,7 @@ class JwtEndUserPrincipalResolver(
                 // not a bad token: the issuer's keys could not be obtained and no cached key verified it
                 throw TokenIssuerUnavailableException(unavailable)
             }
-        val actor = jwt?.subject?.takeIf { it.isNotBlank() }
+        val actor = jwt?.subject?.takeIf(BlankText::isActor)
         val claim = jwt?.getClaimAsString(TENANT_CLAIM)
         // an identity-provider token never carries `act` (owner ruling INV-Q-4119)
         val act = jwt?.hasClaim(OperatorSessionTokens.ACT_CLAIM) == true

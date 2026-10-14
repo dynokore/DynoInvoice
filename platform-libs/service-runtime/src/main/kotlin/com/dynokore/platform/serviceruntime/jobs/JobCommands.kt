@@ -4,6 +4,7 @@ import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.serviceruntime.operation.Reversibility
+import com.dynokore.platform.tenancykernel.BlankText
 import com.dynokore.platform.tenancykernel.TenantId
 import java.time.Instant
 import java.util.UUID
@@ -39,7 +40,7 @@ data class JobCommandRequest(
     val journal: JobCommandJournal? = null,
 ) {
     init {
-        require(actor.isNotBlank()) { "actor must not be blank" }
+        require(BlankText.isActor(actor)) { "actor must be not blank and hold no control character (INV-Q-4684)" }
         require(reason == null || (reason.isNotBlank() && reason.length <= MAX_REASON)) {
             "reason is 1 to $MAX_REASON characters"
         }

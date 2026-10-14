@@ -91,6 +91,15 @@ class OperatorSessionTokenTest {
     }
 
     @Test
+    fun `an operator-session sub that is not a valid actor resolves to null, a valid one is kept unchanged`() {
+        // INV-Q-4684 (A): before, `isNotBlank()` took U+FEFF alone as an actor and a principal was returned
+        "\uFEFF".isNotBlank() shouldBe true
+        resolver.resolve(session(subject = "\uFEFF")) shouldBe null
+        for (sub in REFUSED_SUBS) resolver.resolve(session(subject = sub)) shouldBe null
+        for (sub in ACCEPTED_SUBS) resolver.resolve(session(subject = sub))?.actor shouldBe sub
+    }
+
+    @Test
     fun `expired, issued in the future, longer than 15 minutes, or without iat or exp is refused`() {
         resolver.resolve(session(issuedAt = now.minusSeconds(600), expiresAt = now.minusSeconds(120))) shouldBe null
         resolver.resolve(session(issuedAt = now.plusSeconds(300), expiresAt = now.plusSeconds(600))) shouldBe null
@@ -348,6 +357,10 @@ class OperatorSessionTokenTest {
 
     private companion object {
         const val KID = "ops-2026-10"
+        val REFUSED_SUBS =
+            listOf("\uFEFF", "\u00A0\u3000", "a\tb", "\nx", "x\u0085", "\u001B[31mx", "x\u009B")
+        val ACCEPTED_SUBS =
+            listOf("x\u200By", "CASE 5521", ('!'..'~').joinToString("").repeat(3).take(255))
 
         fun rsa(): KeyPair = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair()
     }

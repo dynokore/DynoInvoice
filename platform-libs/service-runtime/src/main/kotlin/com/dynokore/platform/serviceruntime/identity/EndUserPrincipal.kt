@@ -1,6 +1,7 @@
 package com.dynokore.platform.serviceruntime.identity
 
 import com.dynokore.platform.outboxandqueue.EntityRef
+import com.dynokore.platform.tenancykernel.BlankText
 import com.dynokore.platform.tenancykernel.TenantId
 
 /**
@@ -26,7 +27,7 @@ data class EndUserPrincipal(
     val operatorSession: OperatorSession? = null,
 ) {
     init {
-        require(actor.isNotBlank()) { "actor must not be blank" }
+        require(BlankText.isActor(actor)) { "actor must be not blank and hold no control character (INV-Q-4684)" }
         require(tenant != null || entities.isEmpty()) { "an entity set belongs to a tenant" }
         require(tenant != null || operatorSession == null) { "an operator session is scoped to one tenant" }
         // INV-REQ-1226 b7: the reserved platform tenant is never bound from a token.

@@ -6,6 +6,13 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.2.3] - 2026-10-14
+### Fixed
+- `TenantScope.workloadPrincipal` uses tenancy-kernel's `BlankText.isActor` instead of `isNotBlank()` (coordinator
+  ruling INV-Q-4684 (A), INV-T-4686; INV-Q-4534, INV-Q-4614, INV-Q-4622; INV-REQ-854 b1): a workload principal that
+  is blank by the shared set or holds an ISO control character is refused with an `IllegalArgumentException` that
+  never echoes the value.
+
 ## [2.2.2] - 2026-10-14
 ### Fixed
 - The full-sync delete (`p_consumer`, `p_source`), `event_dead_letter_record` (`p_consumer`) and the generated

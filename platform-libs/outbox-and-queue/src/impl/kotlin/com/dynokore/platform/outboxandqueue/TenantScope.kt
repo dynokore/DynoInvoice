@@ -1,5 +1,6 @@
 package com.dynokore.platform.outboxandqueue
 
+import com.dynokore.platform.tenancykernel.BlankText
 import com.dynokore.platform.tenancykernel.CurrentConnection
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TenantContext
@@ -29,7 +30,9 @@ class TenantScope
         val platform: PlatformTenantBinding? = tenants as? PlatformTenantBinding,
     ) {
         init {
-            require(workloadPrincipal.isNotBlank()) { "the workload principal must not be blank (INV-REQ-854 b1)" }
+            require(BlankText.isActor(workloadPrincipal)) {
+                "the workload principal must be not blank and hold no control character (INV-REQ-854 b1, INV-Q-4684)"
+            }
         }
 
         /**

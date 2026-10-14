@@ -2,6 +2,7 @@ package com.dynokore.platform.configresolver
 
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.CorrelationId
+import com.dynokore.platform.tenancykernel.BlankText
 import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
@@ -15,7 +16,9 @@ data class Actor(
     val roles: Set<String>,
 ) {
     init {
-        require(principal.isNotBlank()) { "principal must not be blank" }
+        require(BlankText.isActor(principal)) {
+            "principal must be not blank and hold no control character (INV-Q-4684)"
+        }
     }
 }
 

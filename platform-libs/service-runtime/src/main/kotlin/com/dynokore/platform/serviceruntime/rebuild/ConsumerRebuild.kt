@@ -4,6 +4,7 @@ import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.outboxandqueue.ReplayMode
 import com.dynokore.platform.outboxandqueue.ReplayScope
+import com.dynokore.platform.tenancykernel.BlankText
 import java.time.Instant
 import java.util.UUID
 
@@ -25,7 +26,7 @@ data class RebuildConsumerRequest(
     val causation: CausationId,
 ) {
     init {
-        require(actor.isNotBlank()) { "actor must not be blank" }
+        require(BlankText.isActor(actor)) { "actor must be not blank and hold no control character (INV-Q-4684)" }
         require(topic.isNotBlank()) { "topic must not be blank" }
         require((mode == ReplayMode.SCOPE) == (scope != null)) { "a scope is given with SCOPE and only with SCOPE" }
         require(reason == null || (reason.isNotBlank() && reason.length <= MAX_REASON)) {

@@ -140,6 +140,15 @@ class JwtEndUserPrincipalResolverTest {
     }
 
     @Test
+    fun `an identity-provider sub that is not a valid actor resolves to null, a valid one is kept unchanged`() {
+        // INV-Q-4684 (A): before, `isNotBlank()` took U+FEFF alone as an actor and a principal was returned
+        "\uFEFF".isNotBlank() shouldBe true
+        resolver.resolve(token(subject = "\uFEFF")) shouldBe null
+        for (sub in REFUSED_SUBS) resolver.resolve(token(subject = sub)) shouldBe null
+        for (sub in ACCEPTED_SUBS) resolver.resolve(token(subject = sub))?.actor shouldBe sub
+    }
+
+    @Test
     fun `a missing, invalid, expired or foreign token resolves to null`() {
         val other = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair()
         resolver.resolve(null) shouldBe null
@@ -207,5 +216,12 @@ class JwtEndUserPrincipalResolverTest {
         shouldThrow<TokenIssuerUnavailableException> { outage.resolve(token(kid = "k2", signer = other)) }
         down = false
         outage.resolve(token(kid = "k2", signer = other)) shouldBe null // issuer reachable, unknown key: 401
+    }
+
+    private companion object {
+        val REFUSED_SUBS =
+            listOf("\uFEFF", "\u00A0\u3000", "a\tb", "\nx", "x\u0085", "\u001B[31mx", "x\u009B")
+        val ACCEPTED_SUBS =
+            listOf("x\u200By", "CASE 5521", ('!'..'~').joinToString("").repeat(3).take(255))
     }
 }

@@ -6,6 +6,16 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.0.1] - 2026-10-14
+### Fixed
+- Every actor check uses tenancy-kernel's `BlankText.isActor` instead of `isNotBlank()` (coordinator ruling
+  INV-Q-4684 (A), INV-T-4686; INV-Q-4534, INV-Q-4614, INV-Q-4622; INV-REQ-854 b1): `EndUserPrincipal.actor`,
+  `JobCommandRequest.actor` and `RebuildConsumerRequest.actor` refuse a value that is blank by the shared set (for
+  example U+FEFF alone) or holds an ISO control character, with an `IllegalArgumentException` that names the rule
+  and never echoes the value. `JwtEndUserPrincipalResolver` takes the `sub` of an operator-session token and of an
+  identity-provider token only when it is a valid actor; otherwise it resolves to null (401), as for a missing
+  `sub`.
+
 ## [6.0.0] - 2026-10-14
 ### Changed (breaking)
 - A stricter start-up check (INV-T-4605; coordinator rulings INV-Q-4603 and INV-Q-4694, the runtime half of the boundary for

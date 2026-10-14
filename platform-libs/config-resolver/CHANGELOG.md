@@ -6,6 +6,12 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.0.4] - 2026-10-14
+### Fixed
+- `Actor.principal` uses tenancy-kernel's `BlankText.isActor` instead of `isNotBlank()` (coordinator ruling
+  INV-Q-4684 (A), INV-T-4686; INV-Q-4534, INV-Q-4614, INV-Q-4622): a principal that is blank by the shared set or
+  holds an ISO control character is refused with an `IllegalArgumentException` that never echoes the value.
+
 ## [2.0.3] - 2026-10-14
 ### Fixed
 - Every blank check uses tenancy-kernel's `BlankText` instead of `btrim` (spaces only) (coordinator rulings INV-Q-4614 (A) and INV-Q-4622 (A), INV-T-4616):
