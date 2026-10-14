@@ -14,7 +14,10 @@ train is its own (README.md: "own version and changelog").
   (with the event log's own tenantless tables, among them the purge watermark) for the service's declaration.
 - `event_dead_letter.tenant_id` is `uuid NOT NULL` (CS-19): `event_dead_letter_record` stores a record that names no
   tenant under the reserved platform tenant, and `DeadLetterTriage` reads such a letter with `tenant = null`, as
-  before. A database migrated from an earlier DDL must set the NULL rows to the platform tenant before the column is
+  before. A restrictive SELECT policy `event_dead_letter_no_platform_tenant` `TO` the runtime role
+  (`tenant_id <> platform tenant`) keeps such a letter out of every session of the runtime login, whatever tenant it is
+  bound to, so its `raw` is never read (coordinator ruling INV-Q-4819; INV-Q-3130); the sys-owned triage view still
+  lists it. A database migrated from an earlier DDL must set the NULL rows to the platform tenant before the column is
   made NOT NULL.
 
 ## [2.2.3] - 2026-10-14

@@ -26,7 +26,10 @@ import com.dynokore.platform.tenancykernel.TenantRlsMigration
  *   the runtime login writes them directly. Each carries `COMMENT ON TABLE ... IS 'platform-scoped: no tenant data'`
  *   and is listed by [platformScopedTables] (INV-ADR-3968 item 4a, INV-T-4134), as is [QueueSchema.LANE_RATE_WINDOW].
  * - [DEAD_LETTER] has `tenant_id uuid NOT NULL` (CS-19): a dead letter whose record names no tenant is stored under the
- *   reserved platform tenant by [DEAD_LETTER_RECORD], and reads as a letter without a tenant.
+ *   reserved platform tenant by [DEAD_LETTER_RECORD], and reads as a letter without a tenant. A restrictive SELECT policy
+ *   `TO <runtime>` (`tenant_id <> platform tenant`) keeps such a letter out of every session of the runtime login,
+ *   whatever tenant it is bound to, so its `raw` is never read (coordinator ruling INV-Q-4819; INV-Q-3130); the
+ *   sys-owned [DEAD_LETTER_TRIAGE_VIEW] still lists it.
  *
  * The migration role must be a member of `<svc>_sys` (it hands the views and functions to it); `<svc>_sys` holds
  * `CREATE` on the schema only for the moment of that hand-over.
@@ -246,6 +249,8 @@ object OutboxSchema {
             grant select, insert, update on $s.$OUTBOX_SEQUENCE, $s.$CONSUMER_SEQUENCE, $s.$CONSUMER_OFFSET to $runtime;
             grant select, insert on $s.$INBOX to $runtime;
             grant select on $s.$DEAD_LETTER to $runtime;
+            create policy ${DEAD_LETTER}_no_platform_tenant on $s.$DEAD_LETTER as restrictive for select to $runtime
+                using (tenant_id <> '$PLATFORM_TENANT'::uuid);
             grant select, insert, update on $s.$CONSUMER_REPLAY, $s.$CONSUMER_REPLAY_MARKER, $s.$CONSUMER_SOURCE_SEEN
                 to $runtime;
             """.trimIndent()

@@ -73,8 +73,15 @@ class TenancyJooqWiring {
         schemas: ObjectProvider<Schema>,
         declared: TenancyProperties,
         modules: ModuleProperties,
+        transactionRunner: ObjectProvider<TransactionRunner>,
     ): TenancyTables {
         val generated = schemas.orderedStream().toList()
+        // INV-Q-4815: a service with a database (a TransactionRunner) supplies its generated schema; none is a failed check
+        check(transactionRunner.getIfAvailable() == null || generated.any { it.tables.isNotEmpty() }) {
+            "the context has a TransactionRunner but no org.jooq.Schema bean that holds a table: declare one " +
+                "org.jooq.Schema bean per generated schema in the service's bootstrap module (INV-Q-4815, " +
+                "INV-ADR-3968 item 4a: table classes are checked at start-up against the generated schema)"
+        }
         val present = generated.flatMap { it.tables }.map { it.qualifiedName.name.joinToString(".") }.toSet()
         val libraries =
             (

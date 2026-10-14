@@ -17,7 +17,9 @@ train is its own (README.md: "own version and changelog").
   declarations with `inv.tenancy.platform-scoped-tables` and `inv.tenancy.reference-tables` (`schema.table`); the
   libraries declare their own (`ConfigSchema`, `OutboxSchema`, `EventLogSchema`, `JobSchema` `platformScopedTables`).
   `TenancyJooqGuard` fails start-up for any `DSLContext` or `org.jooq.Configuration` bean not made by tenancy-jooq
-  (for example `DSL.using(dataSource)`). tenancy-jooq becomes a dependency of the impl half.
+  (for example `DSL.using(dataSource)`). A service with a database (a `TransactionRunner`) supplies its generated
+  schema as `org.jooq.Schema` beans in its bootstrap module; start-up fails when they hold no table (coordinator
+  ruling INV-Q-4815). tenancy-jooq becomes a dependency of the impl half.
 - `JobSchema.platformScopedTables(schema)`: `shedlock` and `job_retention`, whose DDL carries the table comment
   `platform-scoped: no tenant data`. No JdbcTemplate, NamedParameterJdbcTemplate, TransactionTemplate or transaction
   manager is created. ShedLock's move to its jOOQ provider is INV-T-4203's.

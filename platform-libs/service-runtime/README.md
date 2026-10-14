@@ -104,6 +104,9 @@ provided for a service that has it.
   declare theirs: `ConfigSchema` (`config_installation_setting`), `OutboxSchema` (`consumer_offset`, the replay state
   tables, `lane_rate_window`), `EventLogSchema` (the event log's own tables), `JobSchema` (`shedlock`,
   `job_retention`); a library table is declared when it is in the service's schemas.
+- **Schema supply (INV-Q-4815).** A service with a database declares one `org.jooq.Schema` bean per generated schema in
+  its bootstrap module. With a `TransactionRunner` and no Schema bean that holds a table (a `Catalog` or `Table` bean
+  does not count) start-up fails, naming `org.jooq.Schema`; a service without a database is not checked.
 - **No other jOOQ.** `TenancyJooqGuard` fails start-up for any `DSLContext` or `org.jooq.Configuration` bean whose
   connection provider, VisitListeners or last ExecuteListener are not tenancy-jooq's, such as `DSL.using(dataSource)`.
   service-runtime creates no JdbcTemplate, NamedParameterJdbcTemplate, TransactionTemplate or transaction manager.

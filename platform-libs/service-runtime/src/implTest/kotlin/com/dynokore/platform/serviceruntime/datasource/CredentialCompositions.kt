@@ -2,6 +2,7 @@ package com.dynokore.platform.serviceruntime.datasource
 
 import com.dynokore.platform.productruntime.ProductRuntimeConfiguration
 import com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration
+import com.dynokore.platform.serviceruntime.composition.DefaultServiceSchema
 import com.dynokore.platform.serviceruntime.composition.platform
 import com.dynokore.platform.serviceruntime.composition.sorted
 import com.zaxxer.hikari.HikariDataSource
@@ -26,7 +27,12 @@ import javax.sql.DataSource
  */
 
 @Configuration(proxyBeanMethods = false)
-@Import(ServiceRuntimeConfiguration::class, ProductRuntimeConfiguration::class, WithJdbcAndFlyway::class)
+@Import(
+    ServiceRuntimeConfiguration::class,
+    ProductRuntimeConfiguration::class,
+    WithJdbcAndFlyway::class,
+    DefaultServiceSchema::class,
+)
 class Tpl18JdbcApplication
 
 class WithJdbcAndFlyway : DeferredImportSelector {

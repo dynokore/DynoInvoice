@@ -57,6 +57,7 @@ class TenancyJooqIT {
                 .withPropertyValues(
                     "spring.datasource.url=${db.jdbcUrl}",
                     "spring.datasource.username=$RUNTIME",
+                    "test.default-schema=false",
                     "service-runtime.modules.schema=${Tables.SCHEMA}",
                     "inv.tenancy.platform-scoped-tables=${Tables.SCHEMA}.flag",
                 ).withMountedLogin(mountRoot, PASSWORD)

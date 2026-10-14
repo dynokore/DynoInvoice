@@ -24,15 +24,25 @@ import org.springframework.core.type.AnnotationMetadata
 
 /** TPL-18's application class, as every service writes it. */
 @Configuration(proxyBeanMethods = false)
-@Import(ServiceRuntimeConfiguration::class, ProductRuntimeConfiguration::class, WithProductRuntime::class)
+@Import(
+    ServiceRuntimeConfiguration::class,
+    ProductRuntimeConfiguration::class,
+    WithProductRuntime::class,
+    DefaultServiceSchema::class,
+)
 class Tpl18Application
 
 @Configuration(proxyBeanMethods = false)
-@Import(ProductRuntimeConfiguration::class, ServiceRuntimeConfiguration::class, WithProductRuntime::class)
+@Import(
+    ProductRuntimeConfiguration::class,
+    ServiceRuntimeConfiguration::class,
+    WithProductRuntime::class,
+    DefaultServiceSchema::class,
+)
 class ReversedApplication
 
 @Configuration(proxyBeanMethods = false)
-@Import(WithProductRuntime::class)
+@Import(WithProductRuntime::class, DefaultServiceSchema::class)
 class AutoConfiguredApplication
 
 /** The three ways a service registers the two roots. */
@@ -46,11 +56,11 @@ enum class Composition(
 
 /** A service without product-runtime: no catalogue. */
 @Configuration(proxyBeanMethods = false)
-@Import(ServiceRuntimeConfiguration::class, WithoutProductRuntime::class)
+@Import(ServiceRuntimeConfiguration::class, WithoutProductRuntime::class, DefaultServiceSchema::class)
 class ServiceOnlyApplication
 
 @Configuration(proxyBeanMethods = false)
-@Import(WithoutProductRuntime::class)
+@Import(WithoutProductRuntime::class, DefaultServiceSchema::class)
 class ServiceOnlyAutoConfiguredApplication
 
 /** TPL-18, on a classpath without Spring Boot's JDBC auto-configuration: no application DataSource. */

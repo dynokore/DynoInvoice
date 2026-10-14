@@ -74,3 +74,38 @@ class StraySchemaConfiguration {
     fun submissionSchema(): FixtureSchema =
         FixtureSchema(Tables.SCHEMA, Tables.SERVICE + Tables.LIBRARY + listOf("stray" to false))
 }
+
+/** Schema supply look-alikes (INV-Q-4815): none of these is an `org.jooq.Schema` that holds a table. */
+@Configuration(proxyBeanMethods = false)
+class EmptySchemaConfiguration {
+    @Bean
+    fun emptySchema(): FixtureSchema = FixtureSchema(Tables.SCHEMA, emptyList())
+}
+
+@Configuration(proxyBeanMethods = false)
+class CatalogOnlyConfiguration {
+    @Bean
+    fun catalog(): org.jooq.Catalog = org.jooq.impl.CatalogImpl("lookalike")
+}
+
+@Configuration(proxyBeanMethods = false)
+class TableOnlyConfiguration {
+    @Bean
+    fun table(): FixtureTable = FixtureSchema(Tables.SCHEMA, Tables.SERVICE).table("item")
+}
+
+/**
+ * The generated schema every composition fixture of this module supplies (INV-Q-4815: a service with a database declares
+ * its `org.jooq.Schema` beans in its bootstrap; TPL-18 compositions here have no real service behind them). Switched
+ * off with `test.default-schema=false` by the tests that supply their own.
+ */
+@Configuration(proxyBeanMethods = false)
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
+    name = ["test.default-schema"],
+    havingValue = "true",
+    matchIfMissing = true,
+)
+class DefaultServiceSchema {
+    @Bean
+    fun fixtureDefaultSchema(): FixtureSchema = FixtureSchema("fixture_default", listOf("default_item" to true))
+}

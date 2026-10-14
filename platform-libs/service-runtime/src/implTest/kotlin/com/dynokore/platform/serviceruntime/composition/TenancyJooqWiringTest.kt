@@ -10,6 +10,8 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.micrometer.core.instrument.MeterRegistry
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.mockk
 import org.jooq.Configuration
 import org.jooq.DSLContext
@@ -36,6 +38,7 @@ class TenancyJooqWiringTest {
         tpl18Service().withPropertyValues(
             "spring.datasource.url=jdbc:postgresql://localhost:5432/submission",
             "spring.datasource.username=submission_app",
+            "test.default-schema=false",
             "service-runtime.modules.schema=${Tables.SCHEMA}",
             "inv.tenancy.platform-scoped-tables=${Tables.SCHEMA}.flag",
         )
@@ -69,6 +72,41 @@ class TenancyJooqWiringTest {
                 context.getBeanNamesForType(Class.forName(name)).toList() shouldBe emptyList()
             }
         }
+    }
+
+    @Test
+    fun `a service with a database and no Schema bean that holds a table fails start-up (INV-Q-4815)`() {
+        // (1) no Schema bean, (2) a Schema bean without tables, (3) an org.jooq.Catalog look-alike, then a Table look-alike
+        listOf(
+            service,
+            service.withUserConfiguration(EmptySchemaConfiguration::class.java),
+            service.withUserConfiguration(CatalogOnlyConfiguration::class.java),
+            service.withUserConfiguration(TableOnlyConfiguration::class.java),
+        ).forEach { runner ->
+            runner.run { context ->
+                val message = failure(context)
+                message shouldContain "org.jooq.Schema"
+                message shouldContain "bootstrap module"
+                message shouldContain "INV-Q-4815"
+            }
+        }
+    }
+
+    @Test
+    fun `a service without a database needs no Schema bean and defines no DSLContext (INV-Q-4815)`() {
+        ApplicationContextRunner()
+            .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
+            .withUserConfiguration(Tpl18WithoutDataSourceApplication::class.java)
+            .withPropertyValues(
+                "service-runtime.workload-identity.audience=submission-svc",
+                "gst.service=submission-svc",
+                "gst.instance-id=submission-svc-0",
+                "service-runtime.pool.profile=minimal",
+            ).run { context ->
+                context.startupFailure shouldBe null
+                context.getBeanNamesForType(TransactionRunner::class.java).size shouldBe 0
+                context.getBeanNamesForType(DSLContext::class.java).size shouldBe 0
+            }
     }
 
     @Test
