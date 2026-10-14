@@ -329,8 +329,9 @@ impl-poms:
       echo "gst-ci: negative test: verifyImplPoms fails when an impl POM declares no dependency, as it must"
 
 # INV-T-4708 (coordinator ruling INV-Q-4706 (A), delegated, owner 2026-10-14; owner English-only rule 2026-10-12): refuse
-# CJK text and literal invisible or format characters in any git-tracked text file of the whole repository. It needs
-# only git, od and sh, runs in every merge-request and main pipeline (the workflow rules), and has `needs: []`, so it
+# CJK text (Han, kana, Hangul, compatibility forms), invalid UTF-8 and literal invisible or format characters in any
+# git-tracked text file of the whole repository; the checker and its probe are invoice-docs' (CS-57), copied unchanged. It needs
+# only git, bash and python3 (all in the Gradle image), runs in every merge-request and main pipeline (the workflow rules), and has `needs: []`, so it
 # is independent of Gradle, of `check` and of every other job. A source file writes such a character as a \uXXXX
 # escape of the same code point.
 text-check:
@@ -338,7 +339,8 @@ text-check:
   stage: verify
   needs: []
   script:
-    - sh ci/text-check.sh
+    - bash ci/text-check-probe.sh   # every forbidden class must fail the checker, accents and dashes must pass (CS-57)
+    - bash ci/text-check.sh
 
 # INV-T-4715 (coordinator ruling INV-Q-4713 (A), delegated, owner 2026-10-14; INV-REQ-854 b5): `check` is the merge
 # gate. A required job on every merge-request and main pipeline, over every module whatever changed, with no Docker
