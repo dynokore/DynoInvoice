@@ -58,8 +58,8 @@ class ActorRuleTest {
 
     companion object {
         val REFUSED =
-            listOf("﻿", " 　", "a\tb", "\nx", "x\u0085", "\u001B[31mx", "x\u009B")
+            listOf("\uFEFF", "\u00A0\u3000", "a\tb", "\nx", "x\u0085", "\u001B[31mx", "x\u009B")
         val ACCEPTED =
-            listOf("x​y", "CASE 5521", ('!'..'~').joinToString("").repeat(3).take(255))
+            listOf("x\u200By", "CASE 5521", ('!'..'~').joinToString("").repeat(3).take(255))
     }
 }

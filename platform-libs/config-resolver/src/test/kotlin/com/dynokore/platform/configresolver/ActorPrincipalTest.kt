@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test
 class ActorPrincipalTest {
     @Test
     fun `a blank or control-character principal is refused without echoing it`() {
-        for (sample in listOf("﻿", " 　", "a\tb", "\nx", "x\u0085", "\u001B[31mx", "x\u009B")) {
+        for (sample in listOf("\uFEFF", "\u00A0\u3000", "a\tb", "\nx", "x\u0085", "\u001B[31mx", "x\u009B")) {
             val refusal = assertThrows(IllegalArgumentException::class.java) { Actor(sample, emptySet()) }
             val message = refusal.message.orEmpty()
             assertTrue(message.contains("no control character"), message)
@@ -23,7 +23,7 @@ class ActorPrincipalTest {
 
     @Test
     fun `a valid principal is kept unchanged`() {
-        for (sample in listOf("x​y", "CASE 5521", ('!'..'~').joinToString("").repeat(3).take(255))) {
+        for (sample in listOf("x\u200By", "CASE 5521", ('!'..'~').joinToString("").repeat(3).take(255))) {
             assertEquals(sample, Actor(sample, setOf("role")).principal)
         }
     }
