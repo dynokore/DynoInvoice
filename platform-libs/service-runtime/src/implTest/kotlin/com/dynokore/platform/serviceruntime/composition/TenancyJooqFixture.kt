@@ -109,3 +109,14 @@ class DefaultServiceSchema {
     @Bean
     fun fixtureDefaultSchema(): FixtureSchema = FixtureSchema("fixture_default", listOf("default_item" to true))
 }
+
+/** The service schema in which `consumer_replay` gained a `tenant_id` column. */
+@Configuration(proxyBeanMethods = false)
+class ReplayGainsTenantSchemaConfiguration {
+    @Bean
+    fun submissionSchema(): FixtureSchema =
+        FixtureSchema(
+            Tables.SCHEMA,
+            Tables.SERVICE + Tables.LIBRARY.map { (name, tenant) -> name to (tenant || name == "consumer_replay") },
+        )
+}

@@ -73,6 +73,72 @@ class ConsumerRebuildIT {
         }
     }
 
+    /**
+     * Replay state (INV-T-4134; INV-Q-3671, INV-Q-4115): the stored `consumer_replay.scope` of each scope kind is the
+     * JSON of the request's scope; a caller who is not a platform operator gets EVL-002 and nothing is written, with the
+     * request otherwise valid (a purge watermark ahead of the consumer).
+     */
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `the stored replay scope of each kind equals the request's scope JSON`(image: String) {
+        val other = TenantId(UUID.fromString("0b000000-0000-0000-0000-00000000000b"))
+        val scopes =
+            listOf(
+                ReplayScope.Tenant(TENANT),
+                ReplayScope.Entity(
+                    other,
+                    com.dynokore.platform.outboxandqueue
+                        .EntityRef("entity-7"),
+                ),
+                ReplayScope.Period(
+                    java.time.Instant.parse("2026-09-01T00:00:00Z"),
+                    java.time.Instant.parse("2026-10-01T00:00:00Z"),
+                    TENANT,
+                ),
+                ReplayScope.Period(
+                    java.time.Instant.parse("2026-09-01T00:00:00Z"),
+                    java.time.Instant.parse("2026-10-01T00:00:00Z"),
+                ),
+            )
+        scopes.forEach { scope ->
+            Harness(image).use { h ->
+                h.behind(watermark = 5)
+                val done = h.runtime().rebuildConsumer(h.request(scope = scope)) as RebuildOutcome.Done
+                assertTrue(done.created)
+                val stored =
+                    h.strings(
+                        "select scope from $SCHEMA.consumer_replay where replay_id = '${done.state.replayId}'",
+                    )
+                assertEquals(1, stored.size)
+                assertEquals(
+                    mapper.readTree(ReplayJson().writeScope(scope)),
+                    mapper.readTree(stored.single()),
+                    "$scope",
+                )
+            }
+        }
+    }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `a caller who is not a platform operator gets EVL-002 and no replay row, request or audit entry is written`(
+        image: String,
+    ) {
+        Harness(image).use { h ->
+            h.behind(watermark = 5)
+            assertEquals(
+                refused(RebuildErrorCode.ROLE_NOT_PERMITTED),
+                h.runtime().rebuildConsumer(h.request(actor = "tenant.admin")),
+            )
+            assertEquals(0L, h.count("select count(*) from $SCHEMA.consumer_replay"))
+            assertEquals(0L, h.count("select count(*) from $SCHEMA.outbox where type like '%ReplayRequested%'"))
+            assertEquals(0L, h.count("select count(*) from $SCHEMA.outbox where type like '%AuditEntryRecorded%'"))
+            assertNull(h.nextOffsetOrNull(), "the head is not moved")
+            // the same request by a platform operator is accepted, so the refusal was the role
+            assertNotNull(h.runtime().rebuildConsumer(h.request()) as? RebuildOutcome.Done)
+        }
+    }
+
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-AC-3657 the head move, the request and the audit entry commit together, a repeat writes nothing`(

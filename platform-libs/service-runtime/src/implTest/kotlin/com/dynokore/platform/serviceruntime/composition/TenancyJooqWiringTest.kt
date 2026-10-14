@@ -110,6 +110,20 @@ class TenancyJooqWiringTest {
     }
 
     @Test
+    fun `the replay state tables are PLATFORM_SCOPED and a tenant_id column on consumer_replay fails start-up`() {
+        service.withUserConfiguration(SubmissionSchemaConfiguration::class.java).run { context ->
+            val tables = context.getBean(TenancyTables::class.java)
+            listOf("consumer_replay", "consumer_replay_marker", "consumer_source_seen").forEach {
+                tables.classOf(DSL.name("submission", it)) shouldBe TableClass.PLATFORM_SCOPED
+            }
+        }
+        service.withUserConfiguration(ReplayGainsTenantSchemaConfiguration::class.java).run { context ->
+            failure(context) shouldContain
+                "submission.consumer_replay is declared PLATFORM_SCOPED but has a tenant_id column"
+        }
+    }
+
+    @Test
     fun `an undeclared tenantless table fails start-up`() {
         service.withUserConfiguration(StraySchemaConfiguration::class.java).run { context ->
             failure(context) shouldContain
