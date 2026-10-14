@@ -163,22 +163,22 @@ class BlankValuesIT {
                 "newline" to "\n",
                 "CR" to "\r",
                 "U+0085" to "\u0085",
-                "U+00A0" to " ",
-                "U+1680" to " ",
-                "U+2000" to " ",
-                "U+200A" to " ",
-                "U+2028" to " ",
-                "U+2029" to " ",
-                "U+202F" to " ",
-                "U+205F" to " ",
-                "U+3000" to "　",
+                "U+00A0" to "\u00A0",
+                "U+1680" to "\u1680",
+                "U+2000" to "\u2000",
+                "U+200A" to "\u200A",
+                "U+2028" to "\u2028",
+                "U+2029" to "\u2029",
+                "U+202F" to "\u202F",
+                "U+205F" to "\u205F",
+                "U+3000" to "\u3000",
                 "U+FEFF" to "",
                 "U+0001" to "\u0001",
                 "U+009F" to "\u009F",
-                "mix" to "  \t　\r\n﻿",
+                "mix" to " \u00A0\t\u3000\r\n\uFEFF",
             )
 
         /** Values with a visible character, matched and stored unchanged. */
-        val VISIBLE = listOf(" \t c-1 \n ", "x​y", "CASE 5521")
+        val VISIBLE = listOf(" \t c-1 \n ", "x\u200By", "CASE 5521")
     }
 }

@@ -153,19 +153,19 @@ class RegisteredByActorPostgresIT {
                 "newline" to "\n",
                 "CR" to "\r",
                 "U+0085" to "\u0085",
-                "U+00A0" to " ",
-                "U+1680" to " ",
-                "U+2000" to " ",
-                "U+200A" to " ",
-                "U+2028" to " ",
-                "U+2029" to " ",
-                "U+202F" to " ",
-                "U+205F" to " ",
-                "U+3000" to "　",
-                "U+FEFF" to "﻿",
+                "U+00A0" to "\u00A0",
+                "U+1680" to "\u1680",
+                "U+2000" to "\u2000",
+                "U+200A" to "\u200A",
+                "U+2028" to "\u2028",
+                "U+2029" to "\u2029",
+                "U+202F" to "\u202F",
+                "U+205F" to "\u205F",
+                "U+3000" to "\u3000",
+                "U+FEFF" to "\uFEFF",
                 "U+0001" to "\u0001",
                 "U+009F" to "\u009F",
-                "mix" to "  \t　\r\n﻿",
+                "mix" to " \u00A0\t\u3000\r\n\uFEFF",
             )
 
         /** Blank values and actors holding a control character next to visible ones (INV-Q-4622). */
@@ -181,6 +181,6 @@ class RegisteredByActorPostgresIT {
                 )
 
         /** Actors with a visible character, stored unchanged. */
-        val VISIBLE_ACTORS = listOf("x​y", "CASE 5521", "a".repeat(254) + "z")
+        val VISIBLE_ACTORS = listOf("x\u200By", "CASE 5521", "a".repeat(254) + "z")
     }
 }

@@ -56,8 +56,8 @@ class ActorRuleTest {
 
     private companion object {
         val NOT_ACTORS =
-            listOf("", "\t", "\n", "\r", "\u0085", " ", " ", "　", "﻿", "\u0001", "\u009F") +
-                listOf("  \t　\r\n", "a\tb", "\nx", "x\r", "x\u0085", "\u001B[31mx", "x\u009B", "x\u0000")
-        val VISIBLE = listOf("x​y", "CASE 5521", " user-7 ", "a".repeat(254) + "z")
+            listOf("", "\t", "\n", "\r", "\u0085", "\u00A0", "\u2003", "\u3000", "\uFEFF", "\u0001", "\u009F") +
+                listOf(" \u00A0\t\u3000\r\n", "a\tb", "\nx", "x\r", "x\u0085", "\u001B[31mx", "x\u009B", "x\u0000")
+        val VISIBLE = listOf("x\u200By", "CASE 5521", " user-7 ", "a".repeat(254) + "z")
     }
 }

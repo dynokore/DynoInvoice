@@ -328,6 +328,18 @@ impl-poms:
       grep -m5 -E "^ +- " build/impl-poms-negative.log | cut -c1-200
       echo "gst-ci: negative test: verifyImplPoms fails when an impl POM declares no dependency, as it must"
 
+# INV-T-4708 (coordinator ruling INV-Q-4706 (A), delegated, owner 2026-10-14; owner English-only rule 2026-10-12): refuse
+# CJK text and literal invisible or format characters in any git-tracked text file of the whole repository. It needs
+# only git, od and sh, runs in every merge-request and main pipeline (the workflow rules), and has `needs: []`, so it
+# is independent of Gradle, of `check` and of every other job. A source file writes such a character as a \uXXXX
+# escape of the same code point.
+text-check:
+  image: "$GRADLE_IMAGE"
+  stage: verify
+  needs: []
+  script:
+    - sh ci/text-check.sh
+
 # INV-T-4715 (coordinator ruling INV-Q-4713 (A), delegated, owner 2026-10-14; INV-REQ-854 b5): `check` is the merge
 # gate. A required job on every merge-request and main pipeline, over every module whatever changed, with no Docker
 # service: `check --continue` with ci/verify-rules.init.gradle, which disables only Test tasks (unit-test,

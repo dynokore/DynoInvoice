@@ -13,7 +13,7 @@ class BlankTextTest {
         assertEquals(emptyList<String>(), notBlank.map(::hex))
         assertTrue(BlankText.isBlank(null))
         assertTrue(BlankText.isBlank(""))
-        assertTrue(BlankText.isBlank("  \t　\r\n﻿\u0001\u009F"))
+        assertTrue(BlankText.isBlank(" \u00A0\t\u3000\r\n\uFEFF\u0001\u009F"))
     }
 
     @Test
@@ -36,10 +36,10 @@ class BlankTextTest {
         val controls = (0x0000..0x001F) + (0x007F..0x009F)
         val accepted = controls.filter { BlankText.isActor("a${text(it)}b") }.map(::hex)
         assertEquals(emptyList<String>(), accepted)
-        val probes = listOf("a\tb", "\nx", "x\r", "x\u0085", "\u001B[31mx", "x\u009B", "\t", "﻿", "")
+        val probes = listOf("a\tb", "\nx", "x\r", "x\u0085", "\u001B[31mx", "x\u009B", "\t", "\uFEFF", "")
         assertEquals(emptyList<String>(), probes.filter { BlankText.isActor(it) })
         assertFalse(BlankText.isActor(null))
-        listOf("x​y", "CASE 5521", " user-a ", "u".repeat(255), "svc:x/job:y", "x y").forEach {
+        listOf("x\u200By", "CASE 5521", " user-a ", "u".repeat(255), "svc:x/job:y", "x\u00A0y").forEach {
             assertTrue(BlankText.isActor(it), it)
         }
     }
