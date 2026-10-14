@@ -5,7 +5,7 @@ import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Comp
 import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Companion.query
 import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Companion.sql
 import com.dynokore.platform.serviceruntime.datasource.Tpl18JdbcApplication
-import com.dynokore.platform.serviceruntime.datasource.withApplicationPool
+import com.dynokore.platform.serviceruntime.datasource.withMountedLogin
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -71,7 +71,7 @@ class MigrationRunnerIT {
                     "gst.service=submission-svc",
                     "gst.instance-id=submission-svc-0",
                     "service-runtime.pool.profile=minimal",
-                ).withApplicationPool { it.password = "runtime-pw" }
+                ).withMountedLogin(mountRoot, "runtime-pw")
                 .run { context ->
                     context.startupFailure shouldBe null
                     context.getBeanNamesForType(Flyway::class.java).size shouldBe 0

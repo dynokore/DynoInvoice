@@ -15,6 +15,8 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.DeferredImportSelector
 import org.springframework.context.annotation.Import
 import org.springframework.core.type.AnnotationMetadata
+import java.nio.file.Files
+import java.nio.file.Path
 import javax.sql.DataSource
 
 /*
@@ -48,11 +50,29 @@ fun tpl18Service(): ApplicationContextRunner =
             "spring.flyway.enabled=false",
         )
 
+/** The SecretStore reference of a test's database login ([withMountedLogin]). */
+const val TEST_LOGIN_REF = "db-test-login"
+
 /**
- * Sets the application pool (bean `dataSource`) in a test after the start-up checks have run: a pool password is
- * refused (STK-29, coordinator rulings INV-Q-4548, INV-Q-4570), so a test login over a Testcontainers role is set here;
- * a test that bypasses the check sets a refused setting the same way. An unordered post-processor runs after
- * [PoolConfigurationGuard]. Test code only: no main class sets a pool password.
+ * A test login over a Testcontainers role, given the way a service gets one: [password] is mounted in SecretStore under
+ * [mountRoot] and read by [SecretStoreCredentialsProvider] (STK-29, coordinator ruling INV-Q-4570); the HA event-log
+ * pool copies the provider. A pool password set in code fails the second pass of the pool check (INV-Q-4603).
+ */
+fun ApplicationContextRunner.withMountedLogin(
+    mountRoot: Path,
+    password: String,
+): ApplicationContextRunner {
+    Files.writeString(mountRoot.resolve(TEST_LOGIN_REF), "$password\n")
+    return withPropertyValues(
+        "gst.bindings.secret-store.mount-root=$mountRoot",
+        "service-runtime.datasource.credential=$TEST_LOGIN_REF",
+    )
+}
+
+/**
+ * Sets the application pool (bean `dataSource`) in a test after its first check (an unordered post-processor runs after
+ * [PoolConfigurationGuard]): a test that bypasses the first pass sets a refused setting here, and must undo it before
+ * the second pass ([PoolConfigurationRecheck], INV-Q-4603). Test code only.
  */
 fun ApplicationContextRunner.withApplicationPool(setting: (HikariDataSource) -> Unit): ApplicationContextRunner =
     withPool("dataSource", setting)

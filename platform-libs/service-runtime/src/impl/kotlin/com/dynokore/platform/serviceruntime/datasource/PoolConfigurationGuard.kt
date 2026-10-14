@@ -2,6 +2,10 @@ package com.dynokore.platform.serviceruntime.datasource
 
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
+import org.springframework.beans.factory.BeanFactory
+import org.springframework.beans.factory.BeanFactoryAware
+import org.springframework.beans.factory.ListableBeanFactory
+import org.springframework.beans.factory.SmartInitializingSingleton
 import org.springframework.beans.factory.config.BeanPostProcessor
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.context.annotation.Bean
@@ -40,6 +44,12 @@ class SqlConfigurationGuardWiring {
             @Bean
             fun serviceRuntimePoolConfigurationGuard(environment: Environment): PoolConfigurationGuard =
                 PoolConfigurationGuard(environment)
+
+            /** The second pass, after every singleton exists (coordinator ruling INV-Q-4603). */
+            @JvmStatic
+            @Bean
+            fun serviceRuntimePoolConfigurationRecheck(environment: Environment): PoolConfigurationRecheck =
+                PoolConfigurationRecheck(environment)
         }
     }
 }
@@ -58,29 +68,37 @@ class PoolConfigurationGuard(
         bean: Any,
         beanName: String,
     ): Any {
-        val pool =
-            (bean as? HikariConfig)
-                ?: (bean as? DataSource)
-                    ?.takeIf {
-                        runCatching {
-                            it.isWrapperFor(
-                                HikariDataSource::class.java,
-                            )
-                        }.getOrDefault(false)
-                    }?.unwrap(HikariDataSource::class.java)
-                ?: return bean
-        val offending = findOffendingProperties(pool, environment.getProperty(SERVICE))
-        check(offending.isEmpty()) {
-            "the pool of bean '$beanName' is configured to run SQL, set session state or take a login outside " +
-                "SecretStore, " +
-                "which is refused (coordinator rulings INV-Q-4542, INV-Q-4570, INV-Q-4574; INV-ADR-3968 item 4c, " +
-                "INV-REQ-1230, STK-29): $offending"
-        }
+        verify(bean, beanName, environment.getProperty(SERVICE), FIRST_PASS)
         return bean
     }
 
     companion object {
-        private const val SERVICE = "gst.service"
+        internal const val SERVICE = "gst.service"
+        private const val FIRST_PASS = "before its pool starts"
+
+        /** The pool of [bean] when it is a HikariConfig or a DataSource that wraps a HikariDataSource, else null. */
+        fun poolOf(bean: Any): HikariConfig? =
+            (bean as? HikariConfig)
+                ?: (bean as? DataSource)
+                    ?.takeIf { runCatching { it.isWrapperFor(HikariDataSource::class.java) }.getOrDefault(false) }
+                    ?.unwrap(HikariDataSource::class.java)
+
+        /** Fails naming [beanName] and every refused property of its pool (never a value, CS-24); [pass] says when. */
+        fun verify(
+            bean: Any,
+            beanName: String,
+            service: String?,
+            pass: String,
+        ) {
+            val pool = poolOf(bean) ?: return
+            val offending = findOffendingProperties(pool, service)
+            check(offending.isEmpty()) {
+                "the pool of bean '$beanName' ($pass) is configured to run SQL, set session state or take a login " +
+                    "outside SecretStore, which is refused (coordinator rulings INV-Q-4542, INV-Q-4570, INV-Q-4574, " +
+                    "INV-Q-4603; INV-ADR-3968 item 4c, INV-REQ-1230, STK-29): $offending"
+            }
+        }
+
         private const val APPLICATION_NAME = "ApplicationName"
         private const val SECRET_STORE_PROVIDER = "SecretStoreCredentialsProvider"
 
@@ -188,5 +206,36 @@ class PoolConfigurationGuard(
                 "scheduledExecutor",
                 "threadFactory",
             )
+    }
+}
+
+/**
+ * The second pass of [PoolConfigurationGuard] (coordinator ruling INV-Q-4603): once every singleton exists, every
+ * HikariDataSource bean (and every HikariConfig or DataSource wrapping one) is checked again with the same
+ * deny-by-default rules. A pool created before the guard was registered (a bean a BeanFactoryPostProcessor fetched
+ * early, which no BeanPostProcessor sees) or changed after its first check fails start-up, naming the bean and the
+ * properties, never a value (CS-24).
+ */
+class PoolConfigurationRecheck(
+    private val environment: Environment,
+) : SmartInitializingSingleton,
+    BeanFactoryAware {
+    private lateinit var beanFactory: ListableBeanFactory
+
+    override fun setBeanFactory(beanFactory: BeanFactory) {
+        this.beanFactory = beanFactory as ListableBeanFactory
+    }
+
+    override fun afterSingletonsInstantiated() {
+        val service = environment.getProperty(PoolConfigurationGuard.SERVICE)
+        listOf(HikariConfig::class.java, DataSource::class.java)
+            .flatMap { type -> beanFactory.getBeansOfType(type, false, false).entries }
+            .distinctBy { it.key }
+            .sortedBy { it.key }
+            .forEach { (name, bean) -> PoolConfigurationGuard.verify(bean, name, service, SECOND_PASS) }
+    }
+
+    private companion object {
+        const val SECOND_PASS = "second pass, after every singleton exists"
     }
 }

@@ -5,12 +5,15 @@ import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Comp
 import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Companion.user
 import com.dynokore.platform.serviceruntime.datasource.tpl18Service
 import com.dynokore.platform.serviceruntime.datasource.withApplicationPool
+import com.dynokore.platform.serviceruntime.datasource.withMountedLogin
 import com.dynokore.platform.serviceruntime.datasource.withPool
 import com.zaxxer.hikari.HikariDataSource
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import org.junit.jupiter.api.io.TempDir
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
+import java.nio.file.Path
 import java.sql.Connection
 import java.sql.SQLException
 import javax.sql.DataSource
@@ -24,7 +27,10 @@ import javax.sql.DataSource
 class EventLogPoolHaIT {
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
-    fun `the event-log pool connects to the second instance, at most 3 connections, minimumIdle 1`(image: String) {
+    fun `the event-log pool connects to the second instance, at most 3 connections, minimumIdle 1`(
+        image: String,
+        @TempDir mountRoot: Path,
+    ) {
         postgres(image).use { application ->
             postgres(image).use { eventLog ->
                 listOf(application, eventLog).forEach { it.sql("create role $RUNTIME login password '$PASSWORD'") }
@@ -35,21 +41,25 @@ class EventLogPoolHaIT {
                         "spring.datasource.username=$RUNTIME",
                         "spring.datasource.hikari.connection-timeout=1000",
                         "gst.db.event-log-url=${eventLog.jdbcUrl}",
-                    ).withApplicationPool {
-                        it.password = PASSWORD
-                        // refused at start-up (INV-Q-4542); set by a test post-processor that bypasses the check
+                    ).withMountedLogin(mountRoot, PASSWORD)
+                    // refused at start-up (INV-Q-4542); set by a test post-processor that bypasses the first pass, and
+                    // undone once the event-log pool exists, before the second pass (INV-Q-4603)
+                    .withApplicationPool {
                         it.connectionInitSql = INIT_SQL
-                    }
-                    // the event-log pool copies no password (INV-Q-4570): the test login, set after the checks
-                    .withPool(ServiceDataSources.EVENT_LOG) { it.password = PASSWORD }
-                    .run { context ->
+                        applicationPool = it
+                    }.withPool(ServiceDataSources.EVENT_LOG) {
+                        copiedInitSql = it.connectionInitSql
+                        applicationInitSql = applicationPool?.connectionInitSql
+                        applicationPool?.connectionInitSql = null
+                    }.run { context ->
                         context.startupFailure shouldBe null
                         context.getBeanNamesForType(DataSource::class.java).toSet() shouldBe
                             setOf("dataSource", ServiceDataSources.EVENT_LOG)
                         val app = context.getBean(DataSource::class.java)
                         val pool = context.getBean(ServiceDataSources.EVENT_LOG, HikariDataSource::class.java)
                         // the event-log pool does not copy the application pool's connection-init SQL (INV-Q-4542)
-                        app.unwrap(HikariDataSource::class.java).connectionInitSql shouldBe INIT_SQL
+                        applicationInitSql shouldBe INIT_SQL
+                        copiedInitSql shouldBe null
                         pool.connectionInitSql shouldBe null
                         pool.schema shouldBe null
                         app.connection.use { it.marker() shouldBe false }
@@ -67,6 +77,10 @@ class EventLogPoolHaIT {
             }
         }
     }
+
+    private var applicationPool: HikariDataSource? = null
+    private var applicationInitSql: String? = null
+    private var copiedInitSql: String? = null
 
     private fun Connection.marker(): Boolean =
         createStatement().use { s ->

@@ -62,9 +62,9 @@ class SqlConfigurationKeyGuard :
                 findOffendingKeys(environment) + findPasswordProperties(environment) +
                     findExternalConfiguration(listOfNotNull(classLoader))
             check(offending.isEmpty()) {
-                "Spring configuration keys that run SQL or set session state are refused (coordinator rulings " +
-                    "INV-Q-4542, " +
-                    "INV-Q-4559, INV-Q-4570, INV-Q-4591; INV-ADR-3968 item 4c, INV-REQ-1230): remove $offending"
+                "Spring configuration keys that run SQL, set session state, remove the start-up guards or load " +
+                    "bean definitions or SpEL are refused (coordinator rulings INV-Q-4542, INV-Q-4559, INV-Q-4570, " +
+                    "INV-Q-4591, INV-Q-4603; INV-ADR-3968 item 4c, INV-REQ-1230): remove $offending"
             }
         }
 
@@ -112,7 +112,10 @@ class SqlConfigurationKeyGuard :
                 .flatMap { source ->
                     val env = source.underlyingSource is SystemEnvironmentPropertySource
                     source.mapNotNull { name ->
-                        refusal(name, env) { valueOf(source, name, environment) }?.let { reason ->
+                        (
+                            refusal(name, env) { valueOf(source, name, environment) }
+                                ?: spelRefusal(source, name, environment)
+                        )?.let { reason ->
                             val origin =
                                 source
                                     .getConfigurationProperty(name)
@@ -155,9 +158,14 @@ class SqlConfigurationKeyGuard :
             ) {
                 return "an external pool configuration file (INV-Q-4559)"
             }
+            val key = withoutIndex(name, elements)
+            BOOTSTRAP_KEYS.entries
+                .firstOrNull { (refused, _) ->
+                    key == refused || (environmentVariable && key.joinToString("") == refused.joinToString(""))
+                }?.let { (_, check) -> check(value())?.let { return it } }
             REFUSED_PREFIXES.firstOrNull { it.isAncestorOf(name) || it == name }?.let { return "under $it" }
             if (JMX.isAncestorOf(name) || JMX == name) return jmxRefusal(elements.drop(2), value)
-            sqlSegment(withoutIndex(name, elements), environmentVariable)?.let { return "runs SQL: $it" }
+            sqlSegment(key, environmentVariable)?.let { return "runs SQL: $it" }
             if (DATASOURCE.isAncestorOf(name) || DATASOURCE == name) {
                 return allowlisted(elements.drop(2), DATASOURCE_ALLOWED, environmentVariable, value)
             }
@@ -239,6 +247,29 @@ class SqlConfigurationKeyGuard :
             }
         }
 
+        /**
+         * (9) A value that holds the SpEL template prefix, raw or after placeholder resolution, under any key
+         * (coordinator ruling INV-Q-4603): Spring evaluates a `@Value` placeholder's resolved value as SpEL, which can
+         * reach any bean. The value is never printed.
+         */
+        private fun spelRefusal(
+            source: ConfigurationPropertySource,
+            name: ConfigurationPropertyName,
+            environment: ConfigurableEnvironment,
+        ): String? {
+            val raw =
+                source
+                    .getConfigurationProperty(name)
+                    ?.value
+                    ?.toString() ?: return null
+            val resolved = runCatching { environment.resolvePlaceholders(raw) }.getOrDefault(raw)
+            return if (raw.contains(SPEL_PREFIX) || resolved.contains(SPEL_PREFIX)) {
+                "a SpEL template $SPEL_PREFIX in its value (INV-Q-4603)"
+            } else {
+                null
+            }
+        }
+
         private fun valueOf(
             source: ConfigurationPropertySource,
             name: ConfigurationPropertyName,
@@ -306,6 +337,9 @@ class SqlConfigurationKeyGuard :
         private val PASSWORD_KEYS =
             listOf("spring.datasource.password", "spring.datasource.hikari.password", "spring.flyway.password")
         private const val PLACEHOLDERS = "placeholders"
+        private const val SPEL_PREFIX = "#{"
+        private const val PLATFORM_PACKAGE = "com.dynokore.platform."
+        private const val POSTGRESQL_DRIVER = "org.postgresql.Driver"
         private const val HIKARI_CONFIGURATION_FILE = "hikaricp.configurationFile"
         private const val HIKARI_CONFIGURATION_FILE_FLAT = "hikaricpconfigurationfile"
         private const val DRIVER_CONFIGURATION = "org/postgresql/driverconfig.properties"
@@ -317,6 +351,41 @@ class SqlConfigurationKeyGuard :
         private val CONTEXT_PARAMETERS = ConfigurationPropertyName.of("server.servlet.context-parameters")
 
         // ---- The allowlists and refusals of coordinator ruling INV-Q-4542; changed only through a Keel ruling ----
+
+        /**
+         * (8) The keys that remove the start-up guards or load classes or bean definitions by name (coordinator ruling
+         * INV-Q-4603; uniform form, matched with list indexes dropped and, as an environment variable, with word
+         * boundaries relaxed), with their value check.
+         */
+        val BOOTSTRAP_KEYS: Map<List<String>, (String?) -> String?> =
+            mapOf(
+                // an excluded service-runtime auto-configuration removes the pool check
+                listOf("spring", "autoconfigure", "exclude") to { value ->
+                    val platform =
+                        value
+                            .orEmpty()
+                            .split(',')
+                            .map(String::trim)
+                            .any { it.startsWith(PLATFORM_PACKAGE) }
+                    if (platform) {
+                        "excludes a $PLATFORM_PACKAGE class, which removes a start-up guard (INV-Q-4603)"
+                    } else {
+                        null
+                    }
+                },
+                // an overriding bean definition could replace a guard
+                listOf("spring", "main", "allowbeandefinitionoverriding") to { value ->
+                    only("false", ignoreCase = true)(value)?.let { "$it: a bean could replace a guard (INV-Q-4603)" }
+                },
+                listOf("spring", "main", "sources") to
+                    { _ -> "class names or XML locations loaded as bean definitions (INV-Q-4603)" },
+                listOf("context", "initializer", "classes") to { _ -> "classes instantiated by name (INV-Q-4603)" },
+                listOf("context", "listener", "classes") to { _ -> "classes instantiated by name (INV-Q-4603)" },
+                // the Spring application admin MBean is JMX (INV-Q-4591)
+                listOf("spring", "application", "admin", "enabled") to { value ->
+                    only("false", ignoreCase = true)(value)?.let { "$it: JMX is refused (INV-Q-4591, INV-Q-4603)" }
+                },
+            )
 
         /** (1) Every key under these prefixes is refused: SQL scripts, and banned JPA, Hibernate and R2DBC. */
         val REFUSED_PREFIXES: List<ConfigurationPropertyName> =
@@ -350,7 +419,8 @@ class SqlConfigurationKeyGuard :
             mapOf(
                 "url" to { value -> urlRefusal(value) },
                 "username" to ANY,
-                "driverclassname" to ANY,
+                // the PostgreSQL driver only (coordinator ruling INV-Q-4603)
+                "driverclassname" to only(POSTGRESQL_DRIVER),
                 "type" to only("com.zaxxer.hikari.HikariDataSource"),
                 "hikari.maximumpoolsize" to ANY,
                 "hikari.minimumidle" to ANY,

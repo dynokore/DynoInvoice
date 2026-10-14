@@ -197,7 +197,7 @@ class CredentialRotationIT {
             "spring.flyway.schemas=ledger",
             "spring.flyway.locations=classpath:db/credential-rotation",
             "service-runtime.flyway.credential=$OWNER_REF",
-        ).withApplicationPool { it.password = pg.password }
+        ).withMountedLogin(mountRoot, pg.password)
 
     internal companion object {
         const val APP = "submission_app"

@@ -5,8 +5,7 @@ import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Comp
 import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Companion.query
 import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Companion.sql
 import com.dynokore.platform.serviceruntime.datasource.tpl18Service
-import com.dynokore.platform.serviceruntime.datasource.withApplicationPool
-import com.dynokore.platform.serviceruntime.datasource.withPool
+import com.dynokore.platform.serviceruntime.datasource.withMountedLogin
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
@@ -17,7 +16,9 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
+import org.junit.jupiter.api.io.TempDir
 import org.testcontainers.containers.PostgreSQLContainer
+import java.nio.file.Path
 import java.sql.Connection
 import java.sql.SQLTransientConnectionException
 import java.util.UUID
@@ -35,6 +36,10 @@ import javax.sql.DataSource
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class PoolLanesIT {
+    // the test login is mounted in SecretStore (INV-Q-4570, INV-Q-4603)
+    @TempDir
+    lateinit var mountRoot: Path
+
     private val postgres: PostgreSQLContainer<*> =
         postgres(IMAGE).also {
             it.sql("create role $RUNTIME login password '$PASSWORD'")
@@ -53,7 +58,7 @@ class PoolLanesIT {
             "spring.datasource.hikari.connection-timeout=$TIMEOUT_MS",
             "gst.service=$service",
             *properties,
-        ).withApplicationPool { it.password = PASSWORD }
+        ).withMountedLogin(mountRoot, PASSWORD)
 
     @Test
     fun `a saturated background and reprocessing lane never blocks a request`() {
@@ -157,8 +162,7 @@ class PoolLanesIT {
         postgres(IMAGE).use { eventLog ->
             eventLog.sql("create role $RUNTIME login password '$PASSWORD'")
             service("submission-svc", "service-runtime.pool.profile=ha", "gst.db.event-log-url=${eventLog.jdbcUrl}")
-                // the event-log pool copies no password (INV-Q-4570): the test login, set after the checks
-                .withPool(ServiceDataSources.EVENT_LOG) { it.password = PASSWORD }
+                // the event-log pool copies the SecretStore credentials provider (INV-Q-4570)
                 .run { context ->
                     context.startupFailure shouldBe null
                     context.getBean(DataSource::class.java).shouldBeInstanceOf<LanedDataSource>().budgets shouldBe

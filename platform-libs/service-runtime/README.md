@@ -123,7 +123,8 @@ fails start-up, naming each offending key and the ruling (never a value), on:
    `spring.integration.jdbc` or `spring.modulith.events.jdbc`;
 2. any key whose last segment contains `init-sql`, `init-sqls`, `init-s-q-l`, `initialize-schema`,
    `schema-initialization`, `schema-locations` or `data-locations`;
-3. any `spring.datasource` key outside its allowlist (`url`, `username`, `driver-class-name`, `type` =
+3. any `spring.datasource` key outside its allowlist (`url`, `username`, `driver-class-name` = `org.postgresql.Driver`
+   (INV-Q-4603), `type` =
    `com.zaxxer.hikari.HikariDataSource`, and the Hikari pool sizes, timeouts and `pool-name`; `register-mbeans` is
    refused, INV-Q-4574);
 4. any `spring.flyway` key outside its allowlist; `locations` only `classpath:`, `clean-disabled` only `true`, and
@@ -133,6 +134,12 @@ fails start-up, naming each offending key and the ruling (never a value), on:
 6. an external pool or driver configuration file: `hikaricp.configuration-file` in any form, the
    `hikaricp.configurationFile` system property, or a class-path `org/postgresql/driverconfig.properties` (INV-Q-4559).
 7. any `spring.jmx` key other than `spring.jmx.enabled=false` (INV-Q-4591).
+8. a key that removes a start-up guard or loads classes or bean definitions by name (coordinator ruling INV-Q-4603), in
+   any relaxed, list or indexed form: `spring.autoconfigure.exclude` with an entry in `com.dynokore.platform`,
+   `spring.main.allow-bean-definition-overriding` other than `false`, `spring.main.sources`,
+   `context.initializer.classes`, `context.listener.classes`, and `spring.application.admin.enabled` other than `false`;
+9. any property value, under any key, that contains the SpEL template prefix `#{`, raw or after placeholder resolution
+   (Spring evaluates a `@Value` placeholder's resolved value as SpEL; INV-Q-4603).
 
 A key passed as `server.servlet.context-parameters.<key>` is checked as `<key>`. `SqlConfigurationKeyRecheck`, a
 `BeanFactoryPostProcessor` registered by `ServiceRuntimeConfiguration`, runs the same check again after
@@ -143,7 +150,10 @@ no connection-init SQL, test query, schema, catalog or session settings; data-so
 `SecretStoreCredentialsProvider`, coordinator rulings INV-Q-4570 and INV-Q-4574), so a path no key names is refused as
 well. The second run also fails start-up on any `MBeanExporter` bean definition (Spring Boot's JMX
 auto-configuration, `@EnableMBeanExport`, an exporter `@Bean`): an exporter exports every HikariDataSource with a
-writable Password, so INV uses no JMX (coordinator ruling INV-Q-4591).
+writable Password, so INV uses no JMX (coordinator ruling INV-Q-4591). `PoolConfigurationRecheck`, a
+`SmartInitializingSingleton` registered beside `PoolConfigurationGuard`, checks every pool again with the same rules
+once every singleton exists, so a pool created before the guard was registered (a bean a `BeanFactoryPostProcessor`
+fetched early) or changed after its first check fails start-up too, naming the bean (coordinator ruling INV-Q-4603).
 
 The allowlists live only in `SqlConfigurationKeyGuard`; a key is added only through a Keel ruling.
 `sql-configuration-keys.txt` (implTest) pins the classification of every `spring.datasource` and `spring.flyway` key in

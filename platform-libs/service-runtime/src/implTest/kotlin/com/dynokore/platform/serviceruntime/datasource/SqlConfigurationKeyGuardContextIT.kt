@@ -15,6 +15,8 @@ import io.kotest.matchers.string.shouldNotContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.CsvSource
 import org.springframework.boot.EnvironmentPostProcessor
 import org.springframework.boot.WebApplicationType
 import org.springframework.boot.autoconfigure.AutoConfigurations
@@ -219,6 +221,73 @@ class SqlConfigurationKeyGuardContextIT {
             shouldThrow<IllegalStateException> { service().environment(environment).run(*arguments(secrets)).close() }
         failure.message.orEmpty() shouldContain "SPRING_FLYWAY_INITSQLS"
         failure.message.orEmpty() shouldContain "INV-Q-4542"
+    }
+
+    /**
+     * Coordinator ruling INV-Q-4603: each key that removes a start-up guard or loads classes, bean definitions or SpEL
+     * fails start-up as a command-line property and as an environment variable, naming the key, never the value.
+     */
+    @ParameterizedTest(name = "{0} / {1}")
+    @CsvSource(
+        delimiter = '|',
+        value = [
+            "spring.autoconfigure.exclude|SPRING_AUTOCONFIGURE_EXCLUDE|com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration",
+            "spring.autoconfigure.exclude[0]|SPRING_AUTOCONFIGURE_EXCLUDE_0|com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration",
+            "spring.main.allow-bean-definition-overriding|SPRING_MAIN_ALLOW_BEAN_DEFINITION_OVERRIDING|true",
+            "spring.main.allowBeanDefinitionOverriding|SPRING_MAIN_ALLOWBEANDEFINITIONOVERRIDING|yes",
+            "spring.main.sources|SPRING_MAIN_SOURCES|classpath:probe-beans.xml",
+            "spring.main.sources[1]|SPRING_MAIN_SOURCES_1|com.example.ProbeSource",
+            "context.initializer.classes|CONTEXT_INITIALIZER_CLASSES|com.example.ProbeInitializer",
+            "context.listener.classes|CONTEXT_LISTENER_CLASSES|com.example.ProbeListener",
+            "spring.application.admin.enabled|SPRING_APPLICATION_ADMIN_ENABLED|true",
+            "spring.datasource.driver-class-name|SPRING_DATASOURCE_DRIVER_CLASS_NAME|org.h2.Driver",
+            "spring.datasource.driver-class-name|SPRING_DATASOURCE_DRIVERCLASSNAME|com.example.ProbeDriver",
+            "probe.arbitrary-key|PROBE_ARBITRARY_KEY|#{1+1}",
+        ],
+    )
+    fun `start-up fails on a key that removes a guard or loads classes, bean definitions or SpEL (INV-Q-4603)`(
+        key: String,
+        variable: String,
+        value: String,
+        @TempDir secrets: Path,
+    ) {
+        val asProperty =
+            shouldThrow<IllegalStateException> { service().run(*arguments(secrets), "--$key=$value").close() }
+        // named in its relaxed form (spring.main.allowbeandefinitionoverriding)
+        SqlConfigurationKeyGuardTest.flat(asProperty.message.orEmpty()) shouldContain
+            SqlConfigurationKeyGuardTest.flat(key.substringBefore('['))
+        asProperty.message.orEmpty() shouldContain "INV-Q-4603"
+
+        val environment = StandardEnvironment()
+        environment.propertySources.replace(
+            StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+            SystemEnvironmentPropertySource(
+                StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+                System.getenv() + mapOf(variable to value),
+            ),
+        )
+        val asVariable =
+            shouldThrow<IllegalStateException> { service().environment(environment).run(*arguments(secrets)).close() }
+        asVariable.message.orEmpty() shouldContain variable
+        asVariable.message.orEmpty() shouldContain "INV-Q-4603"
+        if (value.startsWith("com.example") || value.startsWith("#")) {
+            asProperty.message.orEmpty() shouldNotContain value
+            asVariable.message.orEmpty() shouldNotContain value
+        }
+    }
+
+    @Test
+    fun `the allowed values of those keys start (INV-Q-4603)`(
+        @TempDir secrets: Path,
+    ) {
+        service()
+            .run(
+                *arguments(secrets),
+                "--spring.main.allow-bean-definition-overriding=false",
+                "--spring.application.admin.enabled=false",
+                "--spring.datasource.driver-class-name=org.postgresql.Driver",
+                "--probe.plain-placeholder=\${gst.service}",
+            ).use { context -> context.isActive shouldBe true }
     }
 
     @Test

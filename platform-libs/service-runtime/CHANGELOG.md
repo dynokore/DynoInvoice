@@ -6,6 +6,24 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.0.0] - 2026-10-14
+### Changed (breaking)
+- A stricter start-up check (INV-T-4605; coordinator ruling INV-Q-4603, the runtime half of the boundary for
+  string-based and programmatic bean creation; INV-REQ-854). 5.0.0 was already released, so this ships as the next
+  MAJOR. `SqlConfigurationKeyGuard` and `SqlConfigurationKeyRecheck` now also refuse, naming the key and never the
+  value, in any relaxed, list or indexed form (properties, environment variables, command line):
+  `spring.autoconfigure.exclude` with an entry naming a class in `com.dynokore.platform` (it removes the pool check);
+  `spring.main.allow-bean-definition-overriding` with any value but `false` (a bean could replace a guard);
+  `spring.main.sources` (class names or XML locations loaded as bean definitions); `context.initializer.classes` and
+  `context.listener.classes` (classes instantiated by name); `spring.application.admin.enabled` with any value but
+  `false` (JMX, INV-Q-4591); `spring.datasource.driver-class-name` with any value but `org.postgresql.Driver`; and any
+  property value, under any key, containing the SpEL template prefix `#{`, raw or after placeholder resolution.
+- `PoolConfigurationRecheck`, a `SmartInitializingSingleton` registered by service-runtime's auto-configuration beside
+  `PoolConfigurationGuard`, checks every HikariDataSource bean (and every HikariConfig or DataSource wrapping one) again
+  with the same deny-by-default rules (INV-Q-4566, INV-Q-4570, INV-Q-4574) once every singleton exists. A pool created
+  before the guard was registered (a bean a `BeanFactoryPostProcessor` fetched early) or changed after its first check
+  fails start-up, naming the bean and the properties without values (CS-24).
+
 ## [5.0.0] - 2026-10-14
 ### Changed (breaking)
 - Spring configuration keys that run SQL or set session state fail start-up (INV-T-4544; coordinator ruling
