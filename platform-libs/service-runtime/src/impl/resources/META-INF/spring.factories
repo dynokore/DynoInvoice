@@ -2,3 +2,7 @@
 # is created, in every service and in the migration runner.
 org.springframework.boot.EnvironmentPostProcessor=\
 com.dynokore.platform.serviceruntime.datasource.SqlConfigurationKeyGuard
+# Coordinator ruling INV-Q-4694: SpEL is refused where Spring evaluates it; the resolver is installed before any
+# bean-defined BeanFactoryPostProcessor.
+org.springframework.context.ApplicationContextInitializer=\
+com.dynokore.platform.serviceruntime.spel.SpelRefusalInitializer

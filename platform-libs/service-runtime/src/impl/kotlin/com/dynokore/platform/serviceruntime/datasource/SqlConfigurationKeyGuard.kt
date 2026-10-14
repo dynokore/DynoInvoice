@@ -63,8 +63,8 @@ class SqlConfigurationKeyGuard :
                     findExternalConfiguration(listOfNotNull(classLoader))
             check(offending.isEmpty()) {
                 "Spring configuration keys that run SQL, set session state, remove the start-up guards or load " +
-                    "bean definitions or SpEL are refused (coordinator rulings INV-Q-4542, INV-Q-4559, INV-Q-4570, " +
-                    "INV-Q-4591, INV-Q-4603; INV-ADR-3968 item 4c, INV-REQ-1230): remove $offending"
+                    "classes or bean definitions are refused (coordinator rulings INV-Q-4542, INV-Q-4559, " +
+                    "INV-Q-4570, INV-Q-4591, INV-Q-4603; INV-ADR-3968 item 4c, INV-REQ-1230): remove $offending"
             }
         }
 
@@ -112,10 +112,7 @@ class SqlConfigurationKeyGuard :
                 .flatMap { source ->
                     val env = source.underlyingSource is SystemEnvironmentPropertySource
                     source.mapNotNull { name ->
-                        (
-                            refusal(name, env) { valueOf(source, name, environment) }
-                                ?: spelRefusal(source, name, environment)
-                        )?.let { reason ->
+                        refusal(name, env) { valueOf(source, name, environment) }?.let { reason ->
                             val origin =
                                 source
                                     .getConfigurationProperty(name)
@@ -247,29 +244,6 @@ class SqlConfigurationKeyGuard :
             }
         }
 
-        /**
-         * (9) A value that holds the SpEL template prefix, raw or after placeholder resolution, under any key
-         * (coordinator ruling INV-Q-4603): Spring evaluates a `@Value` placeholder's resolved value as SpEL, which can
-         * reach any bean. The value is never printed.
-         */
-        private fun spelRefusal(
-            source: ConfigurationPropertySource,
-            name: ConfigurationPropertyName,
-            environment: ConfigurableEnvironment,
-        ): String? {
-            val raw =
-                source
-                    .getConfigurationProperty(name)
-                    ?.value
-                    ?.toString() ?: return null
-            val resolved = runCatching { environment.resolvePlaceholders(raw) }.getOrDefault(raw)
-            return if (raw.contains(SPEL_PREFIX) || resolved.contains(SPEL_PREFIX)) {
-                "a SpEL template $SPEL_PREFIX in its value (INV-Q-4603)"
-            } else {
-                null
-            }
-        }
-
         private fun valueOf(
             source: ConfigurationPropertySource,
             name: ConfigurationPropertyName,
@@ -337,7 +311,6 @@ class SqlConfigurationKeyGuard :
         private val PASSWORD_KEYS =
             listOf("spring.datasource.password", "spring.datasource.hikari.password", "spring.flyway.password")
         private const val PLACEHOLDERS = "placeholders"
-        private const val SPEL_PREFIX = "#{"
         private const val PLATFORM_PACKAGE = "com.dynokore.platform."
         private const val POSTGRESQL_DRIVER = "org.postgresql.Driver"
         private const val HIKARI_CONFIGURATION_FILE = "hikaricp.configurationFile"

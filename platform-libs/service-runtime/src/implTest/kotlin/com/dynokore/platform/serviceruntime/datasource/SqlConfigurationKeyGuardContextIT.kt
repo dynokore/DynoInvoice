@@ -224,7 +224,7 @@ class SqlConfigurationKeyGuardContextIT {
     }
 
     /**
-     * Coordinator ruling INV-Q-4603: each key that removes a start-up guard or loads classes, bean definitions or SpEL
+     * Coordinator ruling INV-Q-4603: each key that removes a start-up guard or loads classes or bean definitions
      * fails start-up as a command-line property and as an environment variable, naming the key, never the value.
      */
     @ParameterizedTest(name = "{0} / {1}")
@@ -242,10 +242,9 @@ class SqlConfigurationKeyGuardContextIT {
             "spring.application.admin.enabled|SPRING_APPLICATION_ADMIN_ENABLED|true",
             "spring.datasource.driver-class-name|SPRING_DATASOURCE_DRIVER_CLASS_NAME|org.h2.Driver",
             "spring.datasource.driver-class-name|SPRING_DATASOURCE_DRIVERCLASSNAME|com.example.ProbeDriver",
-            "probe.arbitrary-key|PROBE_ARBITRARY_KEY|#{1+1}",
         ],
     )
-    fun `start-up fails on a key that removes a guard or loads classes, bean definitions or SpEL (INV-Q-4603)`(
+    fun `start-up fails on a key that removes a guard or loads classes or bean definitions (INV-Q-4603)`(
         key: String,
         variable: String,
         value: String,
@@ -270,7 +269,7 @@ class SqlConfigurationKeyGuardContextIT {
             shouldThrow<IllegalStateException> { service().environment(environment).run(*arguments(secrets)).close() }
         asVariable.message.orEmpty() shouldContain variable
         asVariable.message.orEmpty() shouldContain "INV-Q-4603"
-        if (value.startsWith("com.example") || value.startsWith("#")) {
+        if (value.startsWith("com.example")) {
             asProperty.message.orEmpty() shouldNotContain value
             asVariable.message.orEmpty() shouldNotContain value
         }
@@ -286,7 +285,6 @@ class SqlConfigurationKeyGuardContextIT {
                 "--spring.main.allow-bean-definition-overriding=false",
                 "--spring.application.admin.enabled=false",
                 "--spring.datasource.driver-class-name=org.postgresql.Driver",
-                "--probe.plain-placeholder=\${gst.service}",
             ).use { context -> context.isActive shouldBe true }
     }
 

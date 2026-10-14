@@ -1,5 +1,7 @@
 package com.dynokore.platform.serviceruntime.datasource
 
+import com.dynokore.platform.serviceruntime.spel.SpelBoundaryRecheck
+import com.dynokore.platform.serviceruntime.spel.SpelRefusingResolverInstaller
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import org.springframework.beans.factory.BeanFactory
@@ -34,6 +36,20 @@ class SqlConfigurationGuardWiring {
         @JvmStatic
         @Bean
         fun serviceRuntimeSqlConfigurationKeyRecheck(): SqlConfigurationKeyRecheck = SqlConfigurationKeyRecheck()
+
+        /**
+         * The SpEL-refusing resolver (INV-Q-4694), also installed as a bean: SpelRefusalInitializer (spring.factories)
+         * installs it in every SpringApplication; this covers a context built without it (ApplicationContextRunner).
+         */
+        @JvmStatic
+        @Bean
+        fun serviceRuntimeSpelRefusingResolverInstaller(): SpelRefusingResolverInstaller =
+            SpelRefusingResolverInstaller()
+
+        /** The second pass of the SpEL boundary (INV-Q-4694). */
+        @JvmStatic
+        @Bean
+        fun serviceRuntimeSpelBoundaryRecheck(): SpelBoundaryRecheck = SpelBoundaryRecheck()
     }
 
     @Configuration(proxyBeanMethods = false)

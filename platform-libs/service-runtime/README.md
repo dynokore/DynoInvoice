@@ -137,9 +137,7 @@ fails start-up, naming each offending key and the ruling (never a value), on:
 8. a key that removes a start-up guard or loads classes or bean definitions by name (coordinator ruling INV-Q-4603), in
    any relaxed, list or indexed form: `spring.autoconfigure.exclude` with an entry in `com.dynokore.platform`,
    `spring.main.allow-bean-definition-overriding` other than `false`, `spring.main.sources`,
-   `context.initializer.classes`, `context.listener.classes`, and `spring.application.admin.enabled` other than `false`;
-9. any property value, under any key, that contains the SpEL template prefix `#{`, raw or after placeholder resolution
-   (Spring evaluates a `@Value` placeholder's resolved value as SpEL; INV-Q-4603).
+   `context.initializer.classes`, `context.listener.classes`, and `spring.application.admin.enabled` other than `false`.
 
 A key passed as `server.servlet.context-parameters.<key>` is checked as `<key>`. `SqlConfigurationKeyRecheck`, a
 `BeanFactoryPostProcessor` registered by `ServiceRuntimeConfiguration`, runs the same check again after
@@ -154,6 +152,14 @@ writable Password, so INV uses no JMX (coordinator ruling INV-Q-4591). `PoolConf
 `SmartInitializingSingleton` registered beside `PoolConfigurationGuard`, checks every pool again with the same rules
 once every singleton exists, so a pool created before the guard was registered (a bean a `BeanFactoryPostProcessor`
 fetched early) or changed after its first check fails start-up too, naming the bean (coordinator ruling INV-Q-4603).
+
+**SpEL (coordinator ruling INV-Q-4694).** INV evaluates no SpEL. `SpelRefusingExpressionResolver` replaces the bean
+factory's BeanExpressionResolver before any bean-defined post-processor runs (`SpelRefusalInitializer` in
+`META-INF/spring.factories`, and a bean of `ServiceRuntimeConfiguration`). It returns text without `#{` unchanged and
+fails wherever Spring would evaluate text containing `#{`: `@Value` after placeholder resolution, `@Scheduled`,
+`@RequestMapping` and every other embedded value, and bean-definition strings. `@ConditionalOnExpression` fails at the
+second pass, as does a replaced resolver. Property sources are not scanned, so a variable no evaluation point reads
+(a CI variable, a pod annotation) never affects start-up. Bind values with `@ConfigurationProperties`.
 
 The allowlists live only in `SqlConfigurationKeyGuard`; a key is added only through a Keel ruling.
 `sql-configuration-keys.txt` (implTest) pins the classification of every `spring.datasource` and `spring.flyway` key in

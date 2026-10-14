@@ -8,7 +8,7 @@ train is its own (README.md: "own version and changelog").
 
 ## [6.0.0] - 2026-10-14
 ### Changed (breaking)
-- A stricter start-up check (INV-T-4605; coordinator ruling INV-Q-4603, the runtime half of the boundary for
+- A stricter start-up check (INV-T-4605; coordinator rulings INV-Q-4603 and INV-Q-4694, the runtime half of the boundary for
   string-based and programmatic bean creation; INV-REQ-854). 5.0.0 was already released, so this ships as the next
   MAJOR. `SqlConfigurationKeyGuard` and `SqlConfigurationKeyRecheck` now also refuse, naming the key and never the
   value, in any relaxed, list or indexed form (properties, environment variables, command line):
@@ -16,13 +16,39 @@ train is its own (README.md: "own version and changelog").
   `spring.main.allow-bean-definition-overriding` with any value but `false` (a bean could replace a guard);
   `spring.main.sources` (class names or XML locations loaded as bean definitions); `context.initializer.classes` and
   `context.listener.classes` (classes instantiated by name); `spring.application.admin.enabled` with any value but
-  `false` (JMX, INV-Q-4591); `spring.datasource.driver-class-name` with any value but `org.postgresql.Driver`; and any
-  property value, under any key, containing the SpEL template prefix `#{`, raw or after placeholder resolution.
+  `false` (JMX, INV-Q-4591); and `spring.datasource.driver-class-name` with any value but `org.postgresql.Driver`.
+- SpEL is refused where Spring evaluates it (coordinator ruling INV-Q-4694 (C)). `SpelRefusingExpressionResolver`, the
+  bean factory's BeanExpressionResolver, never parses or evaluates: it returns text without `#{` unchanged and fails on
+  any text containing `#{`, never printing the value (Spring's wrapping exception names the bean and the injection
+  point). `SpelRefusalInitializer` (an ApplicationContextInitializer in `META-INF/spring.factories`) adds
+  `SpelRefusingResolverInstaller`, a highest-PriorityOrdered BeanFactoryPostProcessor (no
+  BeanDefinitionRegistryPostProcessor, INV-T-4593), which installs it before any bean-defined post-processor and any
+  application bean; the same installer is a bean of `ServiceRuntimeConfiguration` for contexts built without
+  `spring.factories`. It also gives Spring's standard resolver, already held by the EmbeddedValueResolver of every
+  EmbeddedValueResolverAware bean, a parser that never evaluates. This covers `@Value` after placeholder resolution,
+  every EmbeddedValueResolver user (`@Scheduled`, `@RequestMapping` and the rest), `@Value` method parameters and
+  bean-definition strings. `SpelBoundaryRecheck`, in the second pass, fails start-up when the bean factory's resolver is
+  not service-runtime's or when the ConditionEvaluationReport holds any OnExpressionCondition outcome. No property
+  source is scanned for `#{`.
 - `PoolConfigurationRecheck`, a `SmartInitializingSingleton` registered by service-runtime's auto-configuration beside
   `PoolConfigurationGuard`, checks every HikariDataSource bean (and every HikariConfig or DataSource wrapping one) again
   with the same deny-by-default rules (INV-Q-4566, INV-Q-4570, INV-Q-4574) once every singleton exists. A pool created
   before the guard was registered (a bean a `BeanFactoryPostProcessor` fetched early) or changed after its first check
   fails start-up, naming the bean and the properties without values (CS-24).
+
+### Migration
+1. A pool login or pool property set in code after the pool bean is created now fails at the second pass; mount the
+   login in SecretStore and read it through `SecretStoreCredentialsProvider` (STK-29, INV-Q-4570), as `withMountedLogin`
+   does in this repository's ITs.
+2. Remove any `spring.autoconfigure.exclude` entry naming a class in `com.dynokore.platform`, and remove
+   `spring.main.sources`, `context.initializer.classes` and `context.listener.classes`; set
+   `spring.main.allow-bean-definition-overriding` and `spring.application.admin.enabled` only to `false` or leave them
+   unset; set `spring.datasource.driver-class-name` only to `org.postgresql.Driver` or leave it unset.
+3. SpEL is never evaluated: a `@Value`, embedded-value attribute or bean-definition string whose resolved text contains
+   `#{` fails where Spring would evaluate it (at start-up for singletons), and any `@ConditionalOnExpression` fails
+   start-up; replace them with `@ConfigurationProperties` binding. Property sources are not scanned, so unrelated
+   environment variables (`CI_COMMIT_MESSAGE`, `CI_MERGE_REQUEST_DESCRIPTION`, orchestrator annotations) do not affect
+   start-up or consumer tests.
 
 ## [5.0.0] - 2026-10-14
 ### Changed (breaking)
