@@ -131,6 +131,7 @@ evaluationDependsOn(":service-runtime")
 evaluationDependsOn(":outbox-and-queue")
 evaluationDependsOn(":tenancy-kernel")
 evaluationDependsOn(":config-resolver")
+evaluationDependsOn(":tenancy-jooq")
 generatedContracts.forEach { evaluationDependsOn(it) }
 
 val serviceRuntimeImpl = project(":service-runtime").the<SourceSetContainer>()["impl"].output
@@ -138,6 +139,8 @@ val outboxImplJar = project(":outbox-and-queue").tasks.named("implJar")
 val tenancyKernelImplJar = project(":tenancy-kernel").tasks.named("implJar")
 // config-resolver's impl, so the TPL-18 WiringTest builds config-resolver's ports over the catalogue.
 val configResolverImplJar = project(":config-resolver").tasks.named("implJar")
+// tenancy-jooq's impl, which service-runtime's TenancyJooqWiring needs when the WiringTest loads its auto-configuration (INV-T-4134).
+val tenancyJooqImplJar = project(":tenancy-jooq").tasks.named("implJar")
 
 dependencies {
     add("implImplementation", sourceSets["main"].output)
@@ -162,6 +165,14 @@ dependencies {
     add("implTestImplementation", files(tenancyKernelImplJar))
     add("implTestImplementation", files(configResolverImplJar))
     // service-runtime impl's own dependencies, which a service gets from its POM (the TPL-18 WiringTest).
+    // INV-T-4134 (INV-Q-4842): service-runtime's TenancyJooqWiring runs in that context (tenancy-jooq at run time; the
+    // fixture's Schema bean names org.jooq types). Spring Boot's BOM manages jOOQ too: held to this repository's.
+    add("implTestRuntimeOnly", project(":tenancy-jooq"))
+    add("implTestRuntimeOnly", files(tenancyJooqImplJar))
+    add("implTestImplementation", libs.jooq)
+    constraints {
+        add("implTestImplementation", libs.jooq) { version { strictly(libs.versions.jooq.get()) } }
+    }
     add("implTestRuntimeOnly", libs.jakarta.servletApi)
     add("implTestRuntimeOnly", libs.springSecurity.oauth2Jose)
     // The TPL-18 WiringTest's DataSource from Spring Boot's DataSource auto-configuration on a lazy Hikari pool with

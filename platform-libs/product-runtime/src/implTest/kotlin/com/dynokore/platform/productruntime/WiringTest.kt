@@ -25,14 +25,23 @@ import com.dynokore.platform.serviceruntime.replica.StructureReplica
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import org.jooq.Record
+import org.jooq.Schema
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
+import org.jooq.impl.SchemaImpl
+import org.jooq.impl.TableImpl
 import org.junit.jupiter.api.Test
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
+import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Import
 import org.springframework.web.client.RestClient
@@ -120,7 +129,12 @@ class WiringTest {
 
     @Configuration(proxyBeanMethods = false)
     @EnableAutoConfiguration
-    @Import(ServiceRuntimeConfiguration::class, ProductRuntimeConfiguration::class)
+    @Import(
+        ServiceRuntimeConfiguration::class,
+        ProductRuntimeConfiguration::class,
+        DefaultSchemaConfiguration::class,
+        CatalogLookAlikeConfiguration::class,
+    )
     class Tpl18Bootstrap
 
     /** The bootstrap of TPL-18 with a service's own inputs: its datasource properties, meter registry and gst properties. */
@@ -143,6 +157,30 @@ class WiringTest {
                 "service-runtime.pool.profile=minimal",
             )
 
+    /** INV-Q-4815 (INV-T-4134): the bootstrap declares its generated schema; without it the service does not start. */
+    @Test
+    fun `the TPL-18 bootstrap holds one Schema bean, and start-up fails without it`() {
+        tpl18().run { context ->
+            context.startupFailure?.let { throw it }
+            val schemas = context.getBeansOfType(Schema::class.java)
+            schemas.size shouldBe 1
+            schemas.values
+                .single()
+                .tables
+                .map { it.name } shouldBe listOf("default_item")
+        }
+        listOf("test.default-schema=false", "test.default-schema=false,test.catalog-lookalike=true").forEach { switch ->
+            tpl18().withPropertyValues(*switch.split(",").toTypedArray()).run { context ->
+                val message =
+                    generateSequence(
+                        context.startupFailure,
+                    ) { it.cause }.joinToString(" | ") { it.message.orEmpty() }
+                message shouldContain "org.jooq.Schema"
+                message shouldContain "INV-Q-4815"
+            }
+        }
+    }
+
     @Test
     fun `the api catalogue names the same platform types and topics as service-runtime`() {
         PlatformEventCatalogue.POLICY_CHANGED.eventType shouldBe PlatformEventTypes.POLICY_CHANGED
@@ -160,4 +198,34 @@ class WiringTest {
         PlatformEventCatalogue.PACK_READINESS_ACKNOWLEDGED.eventType shouldBe
             PlatformEventTypes.PACK_READINESS_ACKNOWLEDGED
     }
+}
+
+/** The bootstrap's generated schema in the shape jOOQ's code generator emits: one TENANT table `default_item`. */
+internal class DefaultItemSchema : SchemaImpl(DSL.name("submission"), null) {
+    private val built: List<DefaultItemTable> by lazy { listOf(DefaultItemTable(this)) }
+
+    override fun getTables(): List<org.jooq.Table<*>> = built
+}
+
+internal class DefaultItemTable(
+    schema: Schema,
+) : TableImpl<Record>(DSL.name("default_item"), schema) {
+    val id = createField(DSL.name("id"), SQLDataType.UUID, this)
+    val tenantId = createField(DSL.name("tenant_id"), SQLDataType.UUID, this)
+}
+
+/** The Schema bean of the TPL-18 bootstrap; `test.default-schema=false` leaves it out. */
+@Configuration(proxyBeanMethods = false)
+@ConditionalOnProperty(name = ["test.default-schema"], havingValue = "true", matchIfMissing = true)
+internal class DefaultSchemaConfiguration {
+    @Bean
+    fun defaultItemSchema(): Schema = DefaultItemSchema()
+}
+
+/** A bean of type `org.jooq.Catalog` (not a Schema) does not count as a supplied schema. */
+@Configuration(proxyBeanMethods = false)
+@ConditionalOnProperty(name = ["test.catalog-lookalike"], havingValue = "true")
+internal class CatalogLookAlikeConfiguration {
+    @Bean
+    fun lookAlikeCatalog(): org.jooq.Catalog = DSL.catalog(DSL.name("lookalike"))
 }
