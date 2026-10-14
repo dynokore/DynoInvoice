@@ -153,10 +153,14 @@ unit-test:
       # service-runtime (their host) is in the changed + downstream set below. It runs first, so the module tests below
       # rewrite service-runtime's test reports afterwards and none are lost. Fail-closed: a finding outside
       # SqlGuardsTest.PENDING fails this job.
-      echo "gst-ci: SQL guards over every module (service-runtime SqlGuardsTest)"
+      # INV-T-4715 (INV-Q-4713 (A)): service-runtime's project-wide Konsist test L1DependencyOrderTest (the L1 dependency
+      # order over every module) runs here too, on every pipeline, whatever changed.
+      echo "gst-ci: SQL guards and L1 dependency order over every module (service-runtime SqlGuardsTest, L1DependencyOrderTest)"
       ./gradlew -p "$GRADLE_PROJECT_DIR" :service-runtime:test \
-        --tests 'com.dynokore.platform.serviceruntime.arch.SqlGuardsTest' --rerun --stacktrace
+        --tests 'com.dynokore.platform.serviceruntime.arch.SqlGuardsTest' \
+        --tests 'com.dynokore.platform.serviceruntime.L1DependencyOrderTest' --rerun --stacktrace
       test -f "$GRADLE_PROJECT_DIR/service-runtime/build/test-results/test/TEST-com.dynokore.platform.serviceruntime.arch.SqlGuardsTest.xml"
+      test -f "$GRADLE_PROJECT_DIR/service-runtime/build/test-results/test/TEST-com.dynokore.platform.serviceruntime.L1DependencyOrderTest.xml"
     - MODULES="$(gst_changed_downstream_modules)"
     - |
       if [ -z "$(echo "$MODULES" | tr -d '[:space:]')" ]; then
@@ -281,6 +285,79 @@ impl-poms:
       fi
       grep -m5 -E "^ +- " build/impl-poms-negative.log | cut -c1-200
       echo "gst-ci: negative test: verifyImplPoms fails when an impl POM declares no dependency, as it must"
+
+# INV-T-4715 (coordinator ruling INV-Q-4713 (A), delegated, owner 2026-10-14; INV-REQ-854 b5): `check` is the merge
+# gate. A required job on every merge-request and main pipeline, over every module whatever changed, with no Docker
+# service: `check --continue` with ci/verify-rules.init.gradle, which disables only Test tasks (unit-test,
+# contract-tests) and the lint job's spotless*Check and detekt* tasks. Every other task `check` depends on runs here,
+# the bytecode rules (verifyRawSqlPlacement and each verify<SourceSet>SqlPlacement) included, and so does any task
+# wired into `check` later. The job fails unless verifyRawSqlPlacement ran in every project that has it. Its negative
+# test writes an uncommitted raw-JDBC class into crypto's main source set (no exemption) and must see
+# verifyRawSqlPlacement fail with its own message; a pass, or a failure for any other reason, fails this job.
+verify-rules:
+  extends: [.gradle-job, .gst-changed-modules]
+  stage: verify
+  needs: [compile]
+  script:
+    - mkdir -p build
+    - |
+      set +e
+      ./gradlew -p "$GRADLE_PROJECT_DIR" check --continue --console=plain --stacktrace \
+        --init-script "$CI_PROJECT_DIR/ci/verify-rules.init.gradle" > build/verify-rules.log 2>&1
+      rc=$?
+      set -e
+      grep -E "^verify-rules: runs " build/verify-rules.log
+      if [ "$rc" -ne 0 ]; then
+        grep -E "^> Task .* FAILED|^\* What went wrong|^Execution failed|^ +- |FAILURE" build/verify-rules.log | cut -c1-300 | head -80
+        echo "gst-ci: verify-rules: check failed (exit $rc)"
+        exit 1
+      fi
+      expected="$(sed -n 's/^verify-rules: expects //p' build/verify-rules.log)"
+      if [ -z "$expected" ]; then
+        echo "gst-ci: verify-rules: no project has verifyRawSqlPlacement"
+        exit 1
+      fi
+      missing=0
+      for t in $expected; do
+        if ! grep -qxF "> Task $t" build/verify-rules.log; then
+          echo "gst-ci: verify-rules: $t did not run (skipped, up to date, from cache or absent)"
+          missing=1
+        fi
+      done
+      test "$missing" -eq 0
+      sed -n 's/^verify-rules: runs //p' build/verify-rules.log > build/verify-rules-planned.txt
+      echo "gst-ci: verify-rules: verifyRawSqlPlacement ran in $(echo "$expected" | wc -l) projects; tasks run:"
+      grep -E "^> Task \S+$" build/verify-rules.log | sed 's/^> Task //' \
+        | grep -F -x -f build/verify-rules-planned.txt
+    - |
+      fixture="$GRADLE_PROJECT_DIR/crypto/src/main/kotlin/com/dynokore/platform/crypto/VerifyRulesNegativeFixture.kt"
+      trap 'rm -f "$fixture"' EXIT
+      cat > "$fixture" <<'KT'
+      package com.dynokore.platform.crypto
+
+      internal object VerifyRulesNegativeFixture {
+          fun open(url: String) = java.sql.DriverManager.getConnection(url)
+      }
+      KT
+      if ./gradlew -p "$GRADLE_PROJECT_DIR" :crypto:verifyRawSqlPlacement --console=plain \
+          > build/verify-rules-negative.log 2>&1; then
+        echo "gst-ci: negative test: verifyRawSqlPlacement passed with a DriverManager.getConnection call in crypto"
+        exit 1
+      fi
+      if ! grep -q "INV-T-4135 raw-SQL placement" build/verify-rules-negative.log \
+          || ! grep -q "VerifyRulesNegativeFixture" build/verify-rules-negative.log; then
+        tail -40 build/verify-rules-negative.log
+        echo "gst-ci: negative test: the build failed, but not on verifyRawSqlPlacement's finding"
+        exit 1
+      fi
+      grep -E "^ +- .*VerifyRulesNegativeFixture" build/verify-rules-negative.log | cut -c1-200
+      rm -f "$fixture"
+      echo "gst-ci: negative test: verifyRawSqlPlacement fails on raw JDBC in crypto's main classes, as it must"
+  artifacts:
+    when: always
+    paths:
+      - build/verify-rules*.log
+    expire_in: 1 week
 
 # The shared template's pact-publish runs `pactPublish` in a job of its own, where no pact file exists (the pacts are
 # written by the contract-tests job above, which publishes them itself, before verifying from the broker).

@@ -32,6 +32,16 @@ The shared modules of the INV platform: the L1 modules, the L2 modules and the L
 - **Ownership** is per directory (CODEOWNERS, once teams are named).
 - A module moves to its own repository when it gains consumers outside INV, its release cadence stays different from the rest, or a separate team owns it.
 
+## CI
+
+`check` is the merge gate: every task `check` depends on, in every module, must pass before a merge request merges. The jobs that run on every merge-request and `main` pipeline:
+
+- `compile`: compiles the changed modules and everything downstream of them.
+- `unit-test`: the tests of the changed and downstream modules (implTest included), and on every pipeline, whatever changed, service-runtime's SqlGuardsTest and the Konsist test L1DependencyOrderTest, which scan every module.
+- `lint`: spotlessCheck and detekt.
+- `verify-rules` (INV-T-4715): `./gradlew check --continue` over every module with `ci/verify-rules.init.gradle`, which disables only the Test tasks and the lint tasks the jobs above run. Every other task wired into `check` runs here, including the bytecode SQL-placement rules (verifyRawSqlPlacement and each verify<SourceSet>SqlPlacement), verifyNoTenancyProbeOnMainClasspath, verifyBannedDependencies, checkDependencyCatalogUsage, verifySplitJars and verifyImplPoms, and any task added to `check` later. It needs no Docker. It fails unless verifyRawSqlPlacement ran in every module that has it, and its negative test must see a raw JDBC call in crypto rejected.
+- `contract-tests`, `split-jars`, `impl-poms`, `bom-verify`, and the shared template's Semgrep and Trivy jobs.
+
 ## Releasing
 
 - **A module** release: bump the module's own `version.txt` and `CHANGELOG.md` in its merge request.

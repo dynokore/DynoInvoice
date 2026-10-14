@@ -1,0 +1,35 @@
+// INV-T-4715 (coordinator ruling INV-Q-4713 (A), delegated, owner 2026-10-14): init script of the `verify-rules` job.
+// `./gradlew check --continue --init-script ci/verify-rules.init.gradle` runs every task `check` depends on, in every
+// project, except the two kinds other jobs already run:
+//   - every task of type Test (unit-test, contract-tests: they need Docker and run the changed + downstream set);
+//   - the lint job's tasks: spotless*Check and detekt*.
+// Nothing else is disabled: a task wired into `check` later runs here without a change to this file.
+// The bytecode SQL-placement tasks never count as up to date or come from a build cache, so the job proves they ran.
+
+def lintTask = { String name -> (name.startsWith('spotless') && name.endsWith('Check')) || name.startsWith('detekt') }
+
+allprojects {
+    tasks.matching { it.name ==~ /verify.*SqlPlacement/ }.configureEach {
+        outputs.upToDateWhen { false }
+        outputs.cacheIf { false }
+    }
+}
+
+gradle.projectsEvaluated { g ->
+    g.rootProject.allprojects.each { p ->
+        if (p.tasks.names.contains('verifyRawSqlPlacement')) {
+            println "verify-rules: expects ${p.path == ':' ? '' : p.path}:verifyRawSqlPlacement"
+        }
+    }
+}
+
+// Applied once the task graph is final: a plugin that configures its tasks late (Spotless's per-format check tasks)
+// cannot re-enable them afterwards.
+gradle.taskGraph.whenReady { graph ->
+    graph.allTasks.each { t ->
+        if (t instanceof Test || lintTask(t.name)) t.enabled = false
+    }
+    graph.allTasks.findAll { it.group == 'verification' }.each { t ->
+        println "verify-rules: ${t.enabled ? 'runs' : 'disabled'} ${t.path}"
+    }
+}
