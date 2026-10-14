@@ -1,5 +1,6 @@
 package com.dynokore.platform.serviceruntime.composition
 
+import com.dynokore.platform.serviceruntime.eventloop.EventLoopWiring
 import com.dynokore.platform.serviceruntime.http.JobCommandHttpAutoConfiguration
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.context.annotation.Import
@@ -31,6 +32,7 @@ import org.springframework.context.annotation.Import
     EventLogDataSourceWiring::class,
     TenancyKernelWiring::class,
     OutboxAndQueueWiring::class,
+    EventLoopWiring::class,
     AuditLogWiring::class,
     ConfigResolverWiring::class,
     EvidenceStoreWiring::class,

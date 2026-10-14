@@ -7,6 +7,17 @@ train is its own (README.md: "own version and changelog").
 ## [Unreleased]
 
 ### Added
+- The service's event loops (INV-T-3938; coordinator ruling INV-Q-3935, INV-ADR-3968; INV-REQ-1212, INV-REQ-1222).
+  service-runtime now drives every `OutboxRelay`, `InboxConsumer` and `ReplayDelivery` bean of the application context
+  (those OutboxAndQueueWiring creates and those a service declares, such as one `JdbcInboxConsumer` per topic), with no
+  code in the service: one loop per bean on its own virtual thread in the background lane, started on
+  `ApplicationReadyEvent` and stopped on shutdown before the DataSources close, finishing the call in hand. A loop
+  repeats at once while a call did work, otherwise waits `service-runtime.event-loops.relay-interval`,
+  `.consumer-interval` or `.replay-interval` (default 1 s each, 100 ms to 60 s, else start-up fails); a failing call is
+  logged (exception class and SQLSTATE) and retried after a bounded, jittered backoff. `service-runtime.event-loops.enabled`
+  (default true) switches every loop off. A loop ended by an Error is logged and sets readiness to `REFUSING_TRAFFIC`
+  (`eventLoops` health contributor, in the default `ready` group); each loop exposes
+  `gst.platform.event.loop.last.success.timestamp.seconds`. Additive: no port, API, event or schema change.
 - The framework tenant predicate on jOOQ, wired into every service (INV-T-4134; INV-ADR-3968 item 4a, INV-REQ-854 b2
   and b6; owner rulings INV-Q-4113, INV-Q-4196). `TenancyJooqWiring` (its own auto-configuration, after the L1
   composition and before Spring Boot's jOOQ auto-configuration) creates the `TenancyTables`, an `org.jooq.Configuration`

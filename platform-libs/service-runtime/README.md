@@ -226,6 +226,44 @@ profile (coordinator ruling INV-Q-4496): start-up fails, naming the missing sett
 any lane is not set explicitly, and when the profile is not `minimal`, `ha` or `saas`; it also fails when `spring.datasource.hikari.maximum-pool-size` is set to anything but
 the sum (set the lanes instead).
 
+## Event loops (INV-T-3938; coordinator ruling INV-Q-3935, INV-REQ-1212, INV-REQ-1222, INV-ADR-3968)
+
+A service writes no polling code (TPL-18 is unchanged). service-runtime drives every `OutboxRelay`, `InboxConsumer` and
+`ReplayDelivery` bean of the application context, those the composition creates and those a service declares itself
+(one `JdbcInboxConsumer` per subscribed topic, for example): one loop per bean, each on its own virtual thread, started
+on `ApplicationReadyEvent` and stopped on shutdown, as a lifecycle bean, before the DataSources close. A stop lets the
+call in hand finish (it interrupts only a call still running after 30 seconds).
+
+- A loop calls `runOnce` / `pollOnce` again at once while the last call did work (relay: rows published; consumer:
+  records consumed; replay delivery: an item delivered), otherwise it waits its interval.
+- A call that throws is logged at WARN with the exception class and SQLSTATE only (CS-34), retried after a bounded,
+  jittered backoff (the interval doubled per consecutive failure, at most 30 seconds or the interval if longer, reduced
+  by up to half), and the loop goes on. An `Error` ends the loop: it is logged at ERROR, the application's readiness
+  goes to `REFUSING_TRAFFIC` and the `eventLoops` health contributor reports DOWN (it is part of the default `ready`
+  group; a service that sets `management.endpoint.health.group.ready.include` itself adds `eventLoops`).
+- Each loop exposes the epoch seconds of its last successful call as the gauge
+  `gst.platform.event.loop.last.success.timestamp.seconds` (tags `loop` = bean name, `kind` = `relay`, `consumer` or
+  `replay`), NaN before the first.
+- A loop works in the background lane of the one pool (`PoolLanes`, "Pool lanes"), never the request lane, and uses no
+  role DataSource. It binds no tenant itself: the relay, consumers and replay delivery bind the service's workload
+  principal and each row's tenant in their own transactions.
+- Several instances of one service need no new lock: the relay runs one at a time (a transaction-scoped advisory lock)
+  and a consumer locks its offset row (outbox-and-queue).
+- **Lane sizing.** The relay holds its claim connection while it publishes a row in a tenant transaction, and the event
+  log on the application pool (no `gst.db.event-log-url`) takes a third connection for the append: the background lane
+  needs at least 3 permits for the relay to publish when the event log shares the application pool, and every other
+  loop (a consumer in its handler transaction, the staleness and unrelayed-event checks) shares those permits.
+
+| Property (`service-runtime.event-loops.*`) | Default | Meaning |
+|---|---|---|
+| `enabled` | `true` | `false` switches every loop off, for tests that call `runOnce` / `pollOnce` themselves |
+| `relay-interval` | `1s` | wait of each relay loop after a call that did no work |
+| `consumer-interval` | `1s` | the same for each inbox consumer loop |
+| `replay-interval` | `1s` | the same for each replay delivery loop |
+
+Each interval is between 100 ms and 60 s (start-up fails otherwise); 1 s is within the 'staleness is seconds' that
+INV-REQ-628 accepts.
+
 ## Consumer staleness (INV-T-3005; INV-REQ-1165, INV-AC-2150, INV-Q-3030 (a))
 
 A service lists one rule per consumer and event type it consumes:
