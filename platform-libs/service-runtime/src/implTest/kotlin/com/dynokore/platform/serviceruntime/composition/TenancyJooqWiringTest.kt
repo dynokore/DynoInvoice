@@ -17,9 +17,11 @@ import org.jooq.Configuration
 import org.jooq.DSLContext
 import org.jooq.ExecuteListener
 import org.jooq.SQLDialect
+import org.jooq.VisitListener
 import org.jooq.impl.DSL
 import org.jooq.impl.DefaultConfiguration
 import org.jooq.impl.DefaultExecuteListenerProvider
+import org.jooq.impl.DefaultVisitListenerProvider
 import org.junit.jupiter.api.Test
 import org.springframework.boot.jooq.autoconfigure.DefaultConfigurationCustomizer
 import org.springframework.boot.test.context.assertj.AssertableApplicationContext
@@ -205,6 +207,15 @@ class TenancyJooqWiringTest {
                 postgres().set(*owned.visitListenerProviders()).set(*owned.executeListenerProviders()),
             ) shouldContain
                 "connection provider"
+            // a foreign VisitListener beside tenancy-jooq's, and one alone, could rewrite the statement
+            val foreign = DefaultVisitListenerProvider(mockk<VisitListener>(relaxed = true))
+            refused(owned.derive().deriveAppending(foreign.provide())) shouldContain "VisitListeners"
+            refused(
+                postgres()
+                    .set(owned.connectionProvider())
+                    .set(foreign)
+                    .set(*owned.executeListenerProviders()),
+            ) shouldContain "VisitListeners"
             // a listener after the statement check could change the statement
             val after = DefaultExecuteListenerProvider(mockk<ExecuteListener>(relaxed = true))
             refused(owned.derive().deriveAppending(after.provide())) shouldContain "ExecuteListener"
