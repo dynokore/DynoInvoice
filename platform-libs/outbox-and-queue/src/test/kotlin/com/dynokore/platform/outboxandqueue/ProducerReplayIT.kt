@@ -13,6 +13,7 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import java.sql.SQLException
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
@@ -59,7 +60,7 @@ class ProducerReplayIT {
             assertEquals(listOf(consumer to live), s.harness.rebuildIncidents.map { it.consumer to it.topic })
 
             // The whole history, across tenants: a PERIOD scope on the time the state last changed (INV-Q-3671).
-            val replayId = s.request(ReplayScope.Period(Instant.EPOCH, Instant.parse("2100-01-01T00:00:00Z")))
+            val replayId = s.request(ReplayScope.Period(Instant.EPOCH, Instant.now().plus(Duration.ofDays(36_500))))
             s.publishReconciliation()
 
             // Live events after the head move come from the log while the replay is still to come.

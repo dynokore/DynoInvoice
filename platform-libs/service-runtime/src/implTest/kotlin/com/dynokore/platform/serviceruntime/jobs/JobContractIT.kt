@@ -95,8 +95,8 @@ class JobContractIT {
         listOf(
             """"entityScope": "E-001"""",
             """"status": "SUCCEEDED"""",
-            """"scheduledFor": "2026-10-12T00:00:00Z"""",
-            """"nextRunAt": "2026-10-12T01:00:00Z"""",
+            """"scheduledFor": "${START.truncatedTo(ChronoUnit.HOURS)}"""",
+            """"nextRunAt": "${START.truncatedTo(ChronoUnit.HOURS).plus(Duration.ofHours(1))}"""",
             """"criticality": "DEADLINE_CRITICAL"""",
         ).forEach { data shouldContain it }
         h.runs(def.name).map { it["status"] } shouldContainExactly listOf("SUCCEEDED", "SUCCEEDED")
@@ -139,7 +139,7 @@ class JobContractIT {
         val run = started.shouldBeInstanceOf<JobCommandOutcome.Done<JobRunState>>()
         run.created shouldBe true
         run.state.status shouldBe JobRunStatus.IN_PROGRESS
-        run.state.scheduledFor shouldBe Instant.parse("2026-10-12T00:00:00Z")
+        run.state.scheduledFor shouldBe START.truncatedTo(ChronoUnit.HOURS)
         listOf(again, byOther).forEach {
             val repeat = it.shouldBeInstanceOf<JobCommandOutcome.Done<JobRunState>>()
             repeat.created shouldBe false

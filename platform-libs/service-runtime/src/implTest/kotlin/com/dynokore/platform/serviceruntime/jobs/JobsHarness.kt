@@ -18,6 +18,7 @@ import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZoneOffset
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 import java.util.concurrent.Executor
 import javax.sql.DataSource
@@ -191,7 +192,17 @@ class JobsHarness(
         val TENANT_B = TenantId(UUID.fromString("0b000000-0000-0000-0000-00000000000b"))
         val E1 = EntityRef("E-001")
         val E2 = EntityRef("E-002")
-        val START: Instant = Instant.parse("2026-10-12T00:00:05Z")
+
+        /**
+         * Five seconds past the current hour (INV-Q-4638): the job tables are aged by the database's `now()`
+         * (retention purge, ShedLock's database time), so START follows the real clock instead of a fixed date.
+         * `INV_TEST_BASE_INSTANT` (an ISO instant) replaces the real clock as the base, to prove the tests do
+         * not depend on the calendar date.
+         */
+        val START: Instant =
+            (System.getenv("INV_TEST_BASE_INSTANT")?.let(Instant::parse) ?: Instant.now())
+                .truncatedTo(ChronoUnit.HOURS)
+                .plusSeconds(5)
 
         fun job(
             name: String,

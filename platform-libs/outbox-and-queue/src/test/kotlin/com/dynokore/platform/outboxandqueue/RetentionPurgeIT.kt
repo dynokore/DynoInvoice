@@ -13,13 +13,15 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 import javax.sql.DataSource
 
 /** INV-T-2998: the purge of published outbox rows (content window) and inbox rows (event-log retention + 1 day). */
 @Tag("integration")
 class RetentionPurgeIT {
-    private val now = Instant.parse("2026-10-11T00:00:00Z")
+    // a minute behind the database's now(), which the purge functions' retention floor reads (INV-Q-4638)
+    private val now = Instant.now().minusSeconds(60).truncatedTo(ChronoUnit.SECONDS)
     private val clock = Clock.fixed(now, ZoneOffset.UTC)
     private val tenantA = UUID.fromString("00000000-0000-0000-0000-00000000000a")
     private val tenantB = UUID.fromString("00000000-0000-0000-0000-00000000000b")

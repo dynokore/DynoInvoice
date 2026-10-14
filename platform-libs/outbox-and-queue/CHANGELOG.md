@@ -7,6 +7,8 @@ train is its own (README.md: "own version and changelog").
 ## [Unreleased]
 ### Changed
 - Source formatted to ktlint_official (platform-build 0.11.0, INV-Q-4426); no behaviour or API change
+### Fixed
+- tests no longer depend on the calendar date (INV-Q-4638)
 
 ## [2.2.0] - 2026-10-13
 ### Added (INV-T-4337, owner rulings INV-Q-4334 B and INV-Q-4350 A)

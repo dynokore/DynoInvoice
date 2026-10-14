@@ -715,7 +715,7 @@ class JobCommandHttpIT {
         s
             .post(
                 pausePath("http-actor"),
-                """{"entityRef":"E-001","until":"2026-10-12T05:00:00Z"}""",
+                """{"entityRef":"E-001","until":"${START.plus(Duration.ofHours(5))}"}""",
                 token = "Bearer op",
             ).closed(ClosedErrorCode.ACCESS_DENIED)
         s.h
