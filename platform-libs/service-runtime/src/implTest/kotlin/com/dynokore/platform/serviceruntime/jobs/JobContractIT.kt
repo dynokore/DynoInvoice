@@ -397,7 +397,7 @@ class JobContractIT {
             .values
             .toSet() shouldBe setOf(FireResult.SKIPPED_PAUSED)
 
-        // The earliest bound moves to 02:00: the job-wide pause lapses there for every entity.
+        // The earliest bound moves to START + 2 h: the job-wide pause lapses there for every entity.
         deadlines.due[JobTarget.Whole] = START.plus(Duration.ofHours(3))
         clock.advance(Duration.ofHours(1))
         replica.runtime
@@ -405,7 +405,7 @@ class JobContractIT {
             .values
             .toSet() shouldBe setOf(FireResult.RAN)
         val ended = h.rows("select ended_at from submission.job_pause where job = ?", def.name).single()
-        ended["ended_at"].toString() shouldContain "02:00"
+        JobsHarness.instantOf(ended["ended_at"]) shouldBe START.plus(Duration.ofHours(2))
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
@@ -513,7 +513,7 @@ class JobContractIT {
         clock.advance(Duration.ofHours(1))
         replica.runtime.fire(def.name)[target] shouldBe FireResult.RAN
         val ended = h.rows("select ended_at from submission.job_pause where job = ?", def.name).single()
-        ended["ended_at"].toString() shouldContain "02:00"
+        JobsHarness.instantOf(ended["ended_at"]) shouldBe START.plus(Duration.ofHours(2))
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")

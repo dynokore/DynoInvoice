@@ -73,7 +73,8 @@ class LeaderElectionIT {
             pool.shutdown()
 
             val runs = h.runs(def.name)
-            runs.map { it["tick"].toString().substring(11, 13) } shouldContainExactly listOf("00", "01", "02")
+            runs.map { JobsHarness.instantOf(it["tick"]) } shouldContainExactly
+                (0L..2L).map { JobsHarness.START_HOUR.plus(Duration.ofHours(it)) }
             runs.map { it["status"] } shouldContainExactly listOf("SUCCEEDED", "FAILED", "SUCCEEDED")
             runs[1]["reason"] shouldBe JobRuntime.ABANDONED
             h.events(JobPayloads.JOB_RUN_RECORDED, "$SERVICE/${def.name}") shouldHaveSize 3

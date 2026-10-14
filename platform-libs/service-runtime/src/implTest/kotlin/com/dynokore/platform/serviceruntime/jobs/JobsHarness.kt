@@ -204,6 +204,17 @@ class JobsHarness(
                 .truncatedTo(ChronoUnit.HOURS)
                 .plusSeconds(5)
 
+        /** The top of START's hour, the hourly cron tick START falls in. */
+        val START_HOUR: Instant = START.truncatedTo(ChronoUnit.HOURS)
+
+        /** A timestamptz read by [rows] as an instant, independent of the JVM's time zone. */
+        fun instantOf(value: Any?): Instant =
+            when (value) {
+                is java.sql.Timestamp -> value.toInstant()
+                is java.time.OffsetDateTime -> value.toInstant()
+                else -> error("not a timestamp: $value")
+            }
+
         fun job(
             name: String,
             scope: JobEntityScope = JobEntityScope.ENTITY,
