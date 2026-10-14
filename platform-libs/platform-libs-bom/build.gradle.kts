@@ -96,6 +96,12 @@ dependencies {
         api(libs.tomcatEmbed.core)
         api(libs.tomcatEmbed.el)
         api(libs.tomcatEmbed.websocket)
+
+        // Coordinator ruling INV-Q-4643 (A), delegated (owner 2026-10-14; INV-T-4645): jOOQ 3.21.9's io.r2dbc:r2dbc-spi
+        // brings org.reactivestreams:reactive-streams 1.0.3, CC0-1.0, which is not in STK-66; 1.0.4 is the same 13 classes
+        // under MIT-0 (INV-Q-4284). Pinned here, like Tomcat and Jackson, so a service that imports this BOM and declares
+        // jOOQ directly resolves 1.0.4 too.
+        api(libs.reactiveStreams)
     }
 
     // CVE-2026-89407, CVE-2026-89425, CVE-2026-68497, CVE-2026-91776, CVE-2026-91777

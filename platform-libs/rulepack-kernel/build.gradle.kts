@@ -73,6 +73,12 @@ dependencies {
     // STK-08: Jackson 3 (`tools.jackson`) — manifest, checksums and pack-content parsing.
     add("implImplementation", libs.jackson.databind)
 
+    constraints {
+        // Coordinator ruling INV-Q-4643 (A), delegated (owner 2026-10-14; INV-T-4645): the tests reach jOOQ (tenancy-jooq),
+        // whose io.r2dbc:r2dbc-spi brings reactive-streams 1.0.3 (CC0-1.0, not in STK-66); pinned to 1.0.4 (MIT-0).
+        testImplementation(libs.reactiveStreams)
+    }
+
     testImplementation(sourceSets["impl"].output)
     testImplementation(project(":tenancy-kernel"))
     testImplementation(project(":crypto"))

@@ -84,6 +84,13 @@ dependencies {
     add("springTestImplementation", libs.junit.jupiter)
     add("springTestRuntimeOnly", libs.junit.platformLauncher)
     constraints {
+        // Coordinator ruling INV-Q-4643 (A), delegated (owner 2026-10-14; INV-T-4645): jOOQ's io.r2dbc:r2dbc-spi brings
+        // reactive-streams 1.0.3 (CC0-1.0, not in STK-66); 1.0.4 (MIT-0) has the same classes. `api` and
+        // `testFixturesApi` put the constraint in tenancy-jooq-api's module metadata (main and test-fixtures variants;
+        // the impl artefact depends on tenancy-jooq-api), `implImplementation` pins the impl classpath. Not a dependency.
+        api(libs.reactiveStreams)
+        add("implImplementation", libs.reactiveStreams)
+        testFixturesApi(libs.reactiveStreams)
         // Spring Boot's BOM manages jOOQ and the PostgreSQL driver too; the fixtures are built on this repository's.
         add("springTestImplementation", libs.jooq) { version { strictly(libs.versions.jooq.get()) } }
         add("springTestRuntimeOnly", libs.postgresql) { version { strictly(libs.versions.postgresql.get()) } }

@@ -68,6 +68,11 @@ springBoot = "4.1.1"
 # reaches the first module, or first consuming service's `bootstrap`, that adds
 # spring-boot-starter-web through this same BOM.
 tomcatEmbed = "11.0.25"
+# Coordinator ruling INV-Q-4643 (A), delegated (owner 2026-10-14; INV-T-4645): reactive-streams arrives through
+# jOOQ 3.21.9 -> io.r2dbc:r2dbc-spi 1.0.0.RELEASE at 1.0.3, which is CC0-1.0 (not in STK-66); 1.0.4 is the same API
+# (the same 13 classes), relicensed MIT-0 (allowed, INV-Q-4284). tenancy-jooq, rulepack-kernel's tests and
+# `platform-libs-bom` pin it by a dependency constraint on the library entry below, never a direct dependency.
+reactiveStreams = "1.0.4"
 # product-runtime (INV-T-2876): the generated VariationPoint catalogue (STK-61; acknowledged_by since 1.3.0,
 # typed constraint records since 1.9.0), from platform-contracts' registry (226).
 gstCatalogue = "1.14.0"
@@ -167,3 +172,5 @@ awssdk-s3 = { module = "software.amazon.awssdk:s3", version.ref = "awssdk" }
 tomcatEmbed-core = { module = "org.apache.tomcat.embed:tomcat-embed-core", version.ref = "tomcatEmbed" }
 tomcatEmbed-el = { module = "org.apache.tomcat.embed:tomcat-embed-el", version.ref = "tomcatEmbed" }
 tomcatEmbed-websocket = { module = "org.apache.tomcat.embed:tomcat-embed-websocket", version.ref = "tomcatEmbed" }
+# A constraint only (INV-Q-4643 (A), see `reactiveStreams` in [versions]).
+reactiveStreams = { module = "org.reactivestreams:reactive-streams", version.ref = "reactiveStreams" }

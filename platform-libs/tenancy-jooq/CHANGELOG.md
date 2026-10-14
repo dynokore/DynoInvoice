@@ -6,6 +6,14 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-10-14
+### Changed
+- org.reactivestreams:reactive-streams pinned to 1.0.4 (MIT-0) by a dependency constraint on the main, impl and
+  test-fixtures classpaths, published in tenancy-jooq-api's module metadata, in place of the 1.0.3 (CC0-1.0, not in
+  STK-66) that jOOQ 3.21.9's io.r2dbc:r2dbc-spi 1.0.0.RELEASE brings (INV-T-4645; coordinator ruling INV-Q-4643 (A),
+  delegated, owner 2026-10-14). No API or behaviour change: 1.0.3 and 1.0.4 hold the same 13 classes; no dependency
+  is added, removed or bumped.
+
 ## [1.0.1] - 2026-10-14
 ### Changed
 - Metadata-only release (INV-T-4310, coordinator ruling INV-Q-4552): no behaviour or API change.
