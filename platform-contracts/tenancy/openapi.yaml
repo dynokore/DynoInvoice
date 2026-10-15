@@ -622,9 +622,8 @@ paths:
       operationId: listPeriodRecords
       summary: List an entity's period records with state and due date (INV-REQ-85, SCR-07)
       description: >-
-        The filing calendar read (INV-REQ-85, FR-AG.15): the entity's past, current and next periods, each
-        with its one state (precedence late, filed, due, open), its filing due date and the extension flag.
-        A late period that has been filed also carries its filing date. console-bff renders the calendar
+        The filing calendar read (INV-REQ-85, FR-AG.15): the entity's period records, each with its state and
+        its filing due date. console-bff renders the calendar
         from these records and the cross-entity portfolio view reads the same records.
       tags:
       - periods
@@ -656,13 +655,8 @@ paths:
                     entityRef: ENT-3F2A9C
                     periods:
                     - periodRef: 2026Q1
-                      periodStart: "2026-01-01"
-                      periodEnd: "2026-03-31"
-                      position: PAST
                       state: LATE
                       filingDueDate: "2026-04-30"
-                      filedOn: "2026-05-06"
-                      extensionGranted: false
         "400":
           $ref: '#/components/responses/Error'
         "401":
@@ -1575,8 +1569,7 @@ paths:
               $ref: '#/components/schemas/RecordRetentionHoldRequest'
             examples:
               default:
-                value:
-                  requestedBy: Ledger Custody Pte Ltd
+                value: {}
       responses:
         "201":
           description: Hold recorded
@@ -1587,10 +1580,7 @@ paths:
               examples:
                 default:
                   value:
-                    holdRef: HLD-90B1
                     tenantRef: TEN-7B1004
-                    state: PLACED
-                    requestedBy: Ledger Custody Pte Ltd
         "409":
           $ref: '#/components/responses/Error'
         "400":
@@ -2343,26 +2333,14 @@ components:
           type: string
           maxLength: 500
           description: The basis of the value set, recorded with it (INV-REQ-331).
-        evidenceRef:
-          type: string
-          maxLength: 200
-          description: Evidence of the Excluded Business determination, recorded at onboarding (INV-REQ-333).
         obligationStartDate:
           type: string
           format: date
           description: The later of the registration start date and the implementation date (INV-REQ-335).
         obligationStartBasis:
           type: string
-          enum:
-          - MANDATORY_DATE
-          - VOLUNTARY_ACTIVATION
-          - IRAS_COMMUNICATED
-          default: MANDATORY_DATE
-          description: Basis of the implementation date (INV-REQ-335 b1, INV-REQ-1312).
-        irasReference:
-          type: string
-          maxLength: 100
-          description: IRAS reference of a communicated date (basis IRAS_COMMUNICATED).
+          maxLength: 200
+          description: The basis of obligationStartDate, recorded with it (INV-REQ-335).
         obligationStartOverride:
           type: boolean
           default: false
@@ -2400,22 +2378,12 @@ components:
         basis:
           type: string
           maxLength: 500
-        evidenceRef:
-          type: string
-          maxLength: 200
         obligationStartDate:
           type: string
           format: date
         obligationStartBasis:
           type: string
-          enum:
-          - MANDATORY_DATE
-          - VOLUNTARY_ACTIVATION
-          - IRAS_COMMUNICATED
-          x-extensible-enum: true
-        irasReference:
-          type: string
-          maxLength: 100
+          maxLength: 200
         obligationStartOverride:
           type: boolean
     SetIssuanceModeRequest:
@@ -2628,35 +2596,16 @@ components:
           description: The handover statement stored in the offboarding record (INV-REQ-955 b3, INV-REQ-956 b2).
     RecordRetentionHoldRequest:
       type: object
-      required:
-      - requestedBy
-      properties:
-        requestedBy:
-          type: string
-          maxLength: 200
-          description: The retention custody holder who requested the hold.
+      additionalProperties: false
+      description: A hold requested in the notice window; the tenant is named by the path.
     RetentionHoldResponse:
       type: object
       required:
-      - holdRef
       - tenantRef
-      - state
-      - requestedBy
       properties:
-        holdRef:
-          type: string
-          maxLength: 64
         tenantRef:
           type: string
           maxLength: 64
-        state:
-          type: string
-          enum:
-          - PLACED
-          x-extensible-enum: true
-        requestedBy:
-          type: string
-          maxLength: 200
     RecordAppliedOperatingProfileRequest:
       type: object
       required:
@@ -2737,47 +2686,19 @@ components:
       type: object
       required:
       - periodRef
-      - periodStart
-      - periodEnd
-      - position
       - state
       - filingDueDate
-      - extensionGranted
       properties:
         periodRef:
           type: string
           maxLength: 64
-        periodStart:
-          type: string
-          format: date
-        periodEnd:
-          type: string
-          format: date
-        position:
-          type: string
-          enum:
-          - PAST
-          - CURRENT
-          - NEXT
-          x-extensible-enum: true
         state:
           type: string
-          enum:
-          - OPEN
-          - DUE
-          - FILED
-          - LATE
-          x-extensible-enum: true
+          maxLength: 32
+          description: The period's one state (INV-REQ-85).
         filingDueDate:
           type: string
           format: date
-        filedOn:
-          type: string
-          format: date
-          description: The filing date; present when a filing fact is recorded, also on a late period.
-        extensionGranted:
-          type: boolean
-          description: A flag that combines with any state, not a fifth state (INV-REQ-85 b4).
     PeriodRecordListResponse:
       type: object
       required:
