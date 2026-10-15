@@ -6,6 +6,13 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-10-16
+### Changed
+- Metadata-only release (INV-T-5340, coordinator ruling INV-Q-5337, delegated, owner 2026-10-14): no API or behaviour
+  change; `src/main` and `src/impl` are unchanged since 1.0.2.
+- The POMs and module metadata of both publications (api and impl) now name the sibling modules at their current
+  versions: tenancy-kernel 2.0.0 (was 1.4.1).
+
 ## [1.0.2] - 2026-10-14
 ### Changed
 - org.reactivestreams:reactive-streams pinned to 1.0.4 (MIT-0) by a dependency constraint on the main, impl and

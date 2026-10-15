@@ -10,6 +10,13 @@ train is its own (README.md: "own version and changelog").
   place of 1.0.3 (CC0-1.0) (INV-T-4645; coordinator ruling INV-Q-4643 (A), delegated, owner 2026-10-14). Nothing
   published changes.
 
+## [2.0.3] - 2026-10-16
+### Changed
+- Metadata-only release (INV-T-5340, coordinator ruling INV-Q-5337, delegated, owner 2026-10-14): no API or behaviour
+  change; `src/main` and `src/impl` are unchanged since 2.0.2.
+- The POMs and module metadata of both publications (api and impl) now name the sibling modules at their current
+  versions: tenancy-kernel 2.0.0 (was 1.5.0), crypto 1.1.0 (was 1.0.2).
+
 ## [2.0.2] - 2026-10-14
 ### Fixed
 - `PackRegistryMigration` uses tenancy-kernel's shared `BlankText` instead of its own code-point literal (coordinator rulings INV-Q-4614 (A) and INV-Q-4622 (A), INV-T-4616):
