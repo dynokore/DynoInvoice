@@ -1,0 +1,12 @@
+# INV-T-5392. Identifiers of the requirements this task implements (INV-REQ-1310, INV-REQ-1286, read from Keel): the backticked names in their
+# published behavior and intent are roles and services (integration.engineer, entity.admin, transport-svc), which are not contract elements.
+# Rows hold the contract names of the route, throughput ceiling and entity assignment (INV-REQ-1310, INV-REQ-1317, owner answer INV-Q-4993 B).
+# AccessPointRouteChanged is not a row (INV-Q-5389 A: the checker finds only property keys, operationId values and enum members).
+# identifier	kind	file	requirement
+acknowledgementRoute	property	openapi.yaml	INV-REQ-1310
+AP_CALLBACK	enum_value	openapi.yaml	INV-REQ-1310
+POLLING	enum_value	openapi.yaml	INV-REQ-1310
+REPORT_IMPORT	enum_value	openapi.yaml	INV-REQ-1310
+throughputCeiling	property	openapi.yaml	INV-REQ-1317
+entityRefs	property	openapi.yaml	INV-REQ-796
+setConnectionEntities	operation	openapi.yaml	INV-REQ-796

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: transport API
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     Contract-first source of truth for transport (API-01, STK-44). The
     `transport-contract` module generates its server interfaces and DTOs
@@ -407,6 +407,64 @@ paths:
                   value: { adapterRef: "AP-PRIMARY", targetAdapterRef: "AP-SECONDARY", cutoverAt: "2026-09-27T03:15:00Z" }
         default:
           $ref: '#/components/responses/Error'
+  /internal/v1/transport/connections/{connectionRef}/entities:
+    put:
+      operationId: setConnectionEntities
+      summary: Set the entities assigned to an AP connection
+      description: >-
+        Console command to console-bff (sync-edges.yaml `console-bff ->
+        transport-svc`, kind console). transport-svc holds the
+        entity-to-connection assignment on the AP connection record, the
+        same record that selects the adapter per entity (INV-REQ-796;
+        owner answer INV-Q-4993 B). The request replaces the whole
+        `entityRefs` list of the connection; the response is the
+        connection's resulting `entityRefs` and `version`. An entity is
+        assigned to at most one connection of its tenant: a request naming
+        an entity already assigned to another connection of the tenant is
+        refused, and so is the removal of an entity that is in Observe mode
+        (INV-REQ-1286). The checks belong to the transport-svc task. The
+        connection record also carries the elected acknowledgement route
+        (INV-REQ-1310) and the throughput ceiling (INV-REQ-1317).
+      tags: [administration]
+      x-principal: filing-workflow
+      x-timeout: 2000
+      x-sync-edge: console-bff->transport-svc
+      x-error-codes: []
+      x-requirements: [INV-REQ-796, INV-REQ-1286, INV-REQ-1310, INV-REQ-1317]
+      x-operation:
+        role: integration.engineer
+        scope: tenant
+        precondition: "The connection exists (INV-REQ-1310, connection scope)."
+        reversibility: UNDOABLE
+        repeatKey: "(connectionRef, Idempotency-Key) — a repeat returns the original result; the list replaces the previous one, so setting the same list again is a no-op."
+      parameters:
+        - name: connectionRef
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetConnectionEntitiesRequest'
+            examples:
+              default:
+                value:
+                  entityRefs: ["ENT-CL0043", "ENT-CL0044"]
+      responses:
+        '200':
+          description: The connection's entity assignment after the replacement.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SetConnectionEntitiesResponse'
+              examples:
+                default:
+                  value: { entityRefs: ["ENT-CL0043", "ENT-CL0044"], version: 4 }
+        default:
+          $ref: '#/components/responses/Error'
 components:
   parameters:
     IdempotencyKey:
@@ -517,6 +575,52 @@ components:
         targetAdapterRef: { type: string, maxLength: 40 }
         cutoverAt: { type: string, format: date-time }
       required: [adapterRef, targetAdapterRef, cutoverAt]
+    ApConnection:
+      type: object
+      description: >-
+        The AP connection record held by transport-svc. It selects the
+        adapter per entity (INV-REQ-796) and carries the elected
+        acknowledgement route (INV-REQ-1310; no default, absent until
+        elected), the throughput ceiling (INV-REQ-1317) and the entity refs
+        assigned to the connection (owner answer INV-Q-4993 B). An entity
+        is assigned to at most one connection of its tenant.
+      properties:
+        connectionRef: { type: string, maxLength: 40 }
+        adapterRef: { type: string, maxLength: 40 }
+        acknowledgementRoute:
+          type: string
+          description: 'How the acknowledgement of an invoice issued by another solution arrives (Observe mode): AP callback, polling, or import of the AP''s or IRSP''s report.'
+          enum: [AP_CALLBACK, POLLING, REPORT_IMPORT]
+          x-extensible-enum: true
+        throughputCeiling:
+          type: integer
+          minimum: 1
+          description: 'The rate agreed with the AP, captured at connection set-up, or a lower tenant value (tighten-only, INV-REQ-1317).'
+        entityRefs:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 40 }
+        version: { type: integer, minimum: 1 }
+      required: [connectionRef, adapterRef, entityRefs, version]
+    SetConnectionEntitiesRequest:
+      type: object
+      description: 'Replaces the whole list of entities assigned to the connection.'
+      properties:
+        entityRefs:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 40 }
+      required: [entityRefs]
+      additionalProperties: false
+    SetConnectionEntitiesResponse:
+      type: object
+      properties:
+        entityRefs:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 40 }
+        version: { type: integer, minimum: 1 }
+      required: [entityRefs, version]
   responses:
     Error:
       description: Error (API-20 envelope)
