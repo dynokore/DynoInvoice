@@ -51,6 +51,7 @@ javaPlatform {
 listOf(
     "service-runtime", "outbox-and-queue", "rulepack-kernel", "tenancy-kernel",
     "evidence-store", "adapter-runtime", "config-resolver", "audit-log", "crypto", "tenancy-jooq", "product-runtime",
+    "calendar-and-periods",
 ).forEach { evaluationDependsOn(":$it") }
 
 dependencies {
@@ -83,6 +84,9 @@ dependencies {
         api("com.dynokore.platform:tenancy-jooq:${project(":tenancy-jooq").version}") // INV-T-4133
         api("com.dynokore.platform:product-runtime-api:${project(":product-runtime").version}") // INV-T-2876 / T32
         api("com.dynokore.platform:product-runtime:${project(":product-runtime").version}") // INV-T-2876 / T32
+        // calendar-and-periods (INV-T-4963): the first L2 module, after the L1 modules and product-runtime.
+        api("com.dynokore.platform:calendar-and-periods-api:${project(":calendar-and-periods").version}") // INV-T-4963
+        api("com.dynokore.platform:calendar-and-periods:${project(":calendar-and-periods").version}") // INV-T-4963
 
         // CVE-2026-65182, CVE-2026-65905, CVE-2026-68525: service-runtime (INV-T-2871 /
         // T27) is this repository's first module on Spring Boot 4.1.1, whose managed

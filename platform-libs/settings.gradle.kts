@@ -159,6 +159,7 @@ include(
     "crypto", // CS-53, INV-Q-3356 M-A (INV-T-3358): the lowest L1 module
     "tenancy-jooq", // INV-T-4133: the framework tenant predicate on jOOQ (INV-ADR-3968 item 4a)
     "product-runtime",
+    "calendar-and-periods", // INV-T-4963: the L2 period and deadline library (INV-MOD-2742)
     // The consumer-driven contract suite of every Wave 1 module (INV-T-2877, coordinator ruling INV-Q-3925): Pact for
     // the wire edges whose consumer code is here, module-API consumer contract tests for every other boundary. Test
     // only: it publishes no artefact and is not in platform-libs-bom.
