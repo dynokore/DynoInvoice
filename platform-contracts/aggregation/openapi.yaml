@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: aggregation API
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     Contract-first source of truth for aggregation (API-01, STK-44). The
     `aggregation-contract` module generates its server interfaces and DTOs
@@ -171,6 +171,10 @@ components:
                 pattern: '^-?\d{1,17}(\.\d{1,2})?$'
                 description: Money as a decimal string (API-12).
             required: [internalTaxCode, amount]
+        claimantReference:
+          type: string
+          maxLength: 100
+          description: Reference of the expense claimant, never a name; names stay in the source expense system (INV-REQ-884).
       required: [entityRef, businessUnitRef, aggregateType, periodStart, periodEnd, underlyingRef, linesByInternalTaxCode]
     AggregationReceipt:
       type: object
@@ -184,11 +188,53 @@ components:
           type: string
           enum: [OPEN, CLOSED, LATE]
           x-extensible-enum: true
+        underlyingCount:
+          type: integer
+          minimum: 0
+          description: Declared number of retained underlying transactions; the retained list is checked against it (INV-REQ-414).
+        subtotalsByTaxCode:
+          type: array
+          description: Per internal tax code group subtotals; for a PCP aggregate the claimable input tax claimed per group (INV-REQ-441).
+          items:
+            type: object
+            properties:
+              internalTaxCode: { type: string, maxLength: 40 }
+              amount:
+                type: string
+                format: decimal
+                pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+                description: Money as a decimal string (API-12).
+            required: [internalTaxCode, amount]
+        replacesReceiptNumber:
+          type: string
+          maxLength: 100
+          description: Receipt number of the STI receipt a full tax invoice replaces; the receipt is excluded from any aggregate not yet transmitted (INV-REQ-440).
       required: [entityRef, aggregateType, windowState]
     UnderlyingTransactionPage:
       type: object
       properties:
         aggregateId: { type: string, maxLength: 40 }
+        underlyingCount:
+          type: integer
+          minimum: 0
+          description: Declared number of retained underlying transactions; the retained list is checked against it (INV-REQ-414).
+        subtotalsByTaxCode:
+          type: array
+          description: Per internal tax code group subtotals; for a PCP aggregate the claimable input tax claimed per group (INV-REQ-441).
+          items:
+            type: object
+            properties:
+              internalTaxCode: { type: string, maxLength: 40 }
+              amount:
+                type: string
+                format: decimal
+                pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+                description: Money as a decimal string (API-12).
+            required: [internalTaxCode, amount]
+        replacesReceiptNumber:
+          type: string
+          maxLength: 100
+          description: Receipt number of the STI receipt a full tax invoice replaces; the receipt is excluded from any aggregate not yet transmitted (INV-REQ-440).
         items:
           type: array
           items:
