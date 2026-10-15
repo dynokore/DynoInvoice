@@ -82,7 +82,7 @@ abstract class PolicyHttpBase {
                 portFailure?.invoke()
                 roles[actor].orEmpty()
             }
-        val idempotency = IdempotencyStore(h.scope, PolicyHttpHarness.SCHEMA)
+        val idempotency = IdempotencyStore(h.scope, h.dsl, PolicyHttpHarness.SCHEMA)
         val servlet =
             PolicyCommandServlet(writer, resolver, h.scope, idempotency, port.takeIf { bindRoles })
 

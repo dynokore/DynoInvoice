@@ -31,8 +31,11 @@ import com.dynokore.platform.outboxandqueue.JdbcOutboxWriter
 import com.dynokore.platform.outboxandqueue.OutboxPostgresFixture
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.serviceruntime.identity.WorkloadPrincipal
-import com.dynokore.platform.tenancykernel.TenantContextImpl
-import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
+import com.dynokore.platform.serviceruntime.testing.TestDatabase
+import com.dynokore.platform.tenancyjooq.TableClass
+import com.dynokore.platform.tenancykernel.TenantId
+import org.jooq.DSLContext
+import org.jooq.impl.DSL
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
@@ -46,20 +49,29 @@ import java.util.concurrent.CopyOnWriteArrayList
 class PolicyHttpHarness(
     image: String,
 ) : AutoCloseable {
-    val fixture = OutboxPostgresFixture(image)
-    val clock: Clock = Clock.fixed(Instant.parse("2026-10-01T00:00:00Z"), ZoneOffset.UTC)
-    val tenants = TenantContextImpl()
-    private val tx = TransactionRunnerImpl(fixture.appDataSource(), tenants)
-    val scope = TenantScope(tenants, tx, tx, WorkloadPrincipal(SERVICE).value)
-
-    init {
-        fixture.createService(
-            SCHEMA,
-            IdempotencySchema.ddl(SCHEMA, OutboxPostgresFixture.APP, OutboxPostgresFixture.SYS) +
-                "\n" +
-                ConfigSchema.ddl(SCHEMA, OutboxPostgresFixture.APP, OutboxPostgresFixture.SYS),
+    val fixture =
+        OutboxPostgresFixture(
+            image,
+            OutboxPostgresFixture.serviceInitSql(
+                SCHEMA,
+                IdempotencySchema.ddl(SCHEMA, OutboxPostgresFixture.APP, OutboxPostgresFixture.SYS) +
+                    "\n" +
+                    ConfigSchema.ddl(SCHEMA, OutboxPostgresFixture.APP, OutboxPostgresFixture.SYS),
+            ),
         )
-    }
+    val clock: Clock = Clock.fixed(Instant.parse("2026-10-01T00:00:00Z"), ZoneOffset.UTC)
+
+    /** The tables the tests read through jOOQ: the idempotency keys and the settings, both tenant data. */
+    private val db =
+        TestDatabase(
+            fixture.jdbcUrl(),
+            mapOf("$SCHEMA.idempotency_key" to TableClass.TENANT, "$SCHEMA.config_setting" to TableClass.TENANT),
+        )
+    private val app = db.login(OutboxPostgresFixture.APP, OutboxPostgresFixture.APP_PASSWORD)
+    val tenants = db.tenants
+    val dsl: DSLContext = app.dsl
+    private val tx = app.runner
+    val scope = TenantScope(tenants, tx, tx, WorkloadPrincipal(SERVICE).value)
 
     private val outbox = JdbcOutboxWriter(tx, SCHEMA, SERVICE, "policy-1", CATALOGUE, clock)
 
@@ -77,19 +89,14 @@ class PolicyHttpHarness(
 
     /** Rows of config-resolver's settings table for [tenant] (nothing stored means zero). */
     fun settings(tenant: java.util.UUID): Long =
-        count("select count(*) from $SCHEMA.config_setting where tenant_id = '$tenant'")
-
-    fun count(sql: String): Long =
-        fixture.adminDataSource().connection.use { c ->
-            c.createStatement().use { s ->
-                s.executeQuery(sql).use {
-                    it.next()
-                    it.getLong(1)
-                }
-            }
+        app.asTenant(TenantId(tenant)) {
+            selectCount().from(DSL.table(DSL.name(SCHEMA, "config_setting"))).fetchOne(0, Long::class.java) ?: 0L
         }
 
-    override fun close() = fixture.close()
+    override fun close() {
+        db.close()
+        fixture.close()
+    }
 
     companion object {
         const val SCHEMA = "submission"
