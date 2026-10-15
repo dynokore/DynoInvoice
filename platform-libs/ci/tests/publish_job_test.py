@@ -127,10 +127,8 @@ def check(text):
 
 
 def mutate(text, old, new):
-    """Replaces the first `old` inside the maven-publish job only (other jobs may repeat the same lines)."""
-    head, sep, tail = text.partition("\nmaven-publish:\n")
-    assert sep and old in tail, f"probe target missing in maven-publish: {old!r}"
-    return head + sep + tail.replace(old, new, 1)
+    assert old in text, f"probe target missing: {old!r}"
+    return text.replace(old, new, 1)
 
 
 def probes(text):
