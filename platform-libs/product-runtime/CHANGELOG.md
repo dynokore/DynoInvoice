@@ -6,6 +6,14 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-10-16
+### Changed
+- Metadata-only release (INV-T-5341, coordinator ruling INV-Q-5337, delegated, owner 2026-10-14): no API or behaviour
+  change; `src/main` and `src/impl` are unchanged since 1.0.2.
+- The POMs and module metadata of both publications (api and impl) now name the sibling modules at their current
+  versions: service-runtime 7.1.1 (was 5.0.0), config-resolver 2.1.2 (was 2.0.2), outbox-and-queue 3.0.1 (was 2.2.1), tenancy-jooq 1.0.3 (was 1.0.2) and
+  tenancy-kernel 2.0.0 (was 1.4.1).
+
 ## [1.0.2] - 2026-10-14
 ### Changed
 - Metadata-only release (INV-T-4310, coordinator ruling INV-Q-4552): no behaviour or API change.

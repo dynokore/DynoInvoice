@@ -6,6 +6,13 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [7.1.1] - 2026-10-16
+### Changed
+- Metadata-only release (INV-T-5341, coordinator ruling INV-Q-5337, delegated, owner 2026-10-14): no API or behaviour
+  change; `src/main` and `src/impl` are unchanged since 7.1.0.
+- The POMs and module metadata of both publications (api and impl) now name the sibling modules at their current
+  versions: config-resolver 2.1.2 (was 2.1.0), audit-log 2.3.4 (was 2.3.3) and tenancy-jooq 1.0.3 (was 1.0.2).
+
 ## [7.1.0] - 2026-10-15
 ### Added
 - `setPolicy` and `acknowledgeControlRelaxation` over HTTP (INV-T-5180; coordinator rulings INV-Q-5172, INV-Q-5217,
