@@ -1,0 +1,13 @@
+{
+  "scope": "ENTITY",
+  "entityRef": "ENT-3F2A9C",
+  "retentionCustodyHolder": {
+    "name": "Ledger Custody Pte Ltd",
+    "contactEmail": "custody@ledger.example"
+  },
+  "secondConfirmationBy": "user-8841",
+  "unsubmittedOverride": {
+    "acknowledgedBy": "user-8841",
+    "statement": "I accept that 3 in-scope documents remain unsubmitted."
+  }
+}

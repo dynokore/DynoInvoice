@@ -1,6 +1,7 @@
 {
-  "registrationEndDate": "2026-12-31",
+  "scope": "TENANT",
   "retentionCustodyHolder": {
     "name": "Ledger Custody Pte Ltd"
-  }
+  },
+  "secondConfirmationBy": "user-8841"
 }

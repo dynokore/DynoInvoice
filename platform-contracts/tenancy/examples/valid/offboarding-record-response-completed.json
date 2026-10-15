@@ -1,0 +1,24 @@
+{
+  "offboardingRef": "OFB-41D7",
+  "tenantRef": "TEN-7B1004",
+  "scope": "TENANT",
+  "state": "COMPLETED",
+  "retentionCustodyHolder": {
+    "name": "Ledger Custody Pte Ltd",
+    "contactEmail": "custody@ledger.example"
+  },
+  "export": {
+    "exportRef": "EXP-5C20",
+    "state": "READY",
+    "contents": [
+      "TRANSMITTED_XML",
+      "ACKNOWLEDGEMENTS",
+      "DECISION_TRACES",
+      "RECONCILIATION_WORK_PAPERS",
+      "SOURCE_DOCUMENT_REFERENCES",
+      "AUDIT_LOG"
+    ]
+  },
+  "noticeWindowDays": 365,
+  "handoverStatementRef": "HND-2201"
+}

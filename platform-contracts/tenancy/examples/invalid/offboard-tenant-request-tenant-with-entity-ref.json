@@ -1,0 +1,9 @@
+{
+  "scope": "TENANT",
+  "entityRef": "ENT-3F2A9C",
+  "retentionCustodyHolder": {
+    "name": "Ledger Custody Pte Ltd",
+    "contactEmail": "custody@ledger.example"
+  },
+  "secondConfirmationBy": "user-8841"
+}

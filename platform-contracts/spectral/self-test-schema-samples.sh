@@ -16,6 +16,7 @@ expect_fail() {
        *) echo "gst-ci: FAIL — '$1' failed, but not with '$2':"; echo "$out"; failed=1;; esac; fi
 }
 out=$(python3 validate-schema-samples.py --discover $N/yaml-ref-pass 2>&1) || { echo "gst-ci: FAIL — OpenAPI-pointer fixture rejected:"; echo "$out"; failed=1; }
+out=$(python3 validate-schema-samples.py --discover $N/conditional-pass 2>&1) || { echo "gst-ci: FAIL — if/then/else-not fixture rejected:"; echo "$out"; failed=1; }
 expect_fail yaml-ref-unclaimed-sample "matches no sample glob"
 expect_fail valid-sample-fails "expected VALID but failed"
 expect_fail invalid-sample-passes "expected INVALID but passed"

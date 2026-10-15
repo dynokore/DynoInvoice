@@ -1433,19 +1433,26 @@ paths:
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
-  /internal/v1/tenancy/tenants/{tenantRef}/offboarding-export:
+  /internal/v1/tenancy/tenants/{tenantRef}/offboarding:
     post:
-      operationId: exportTenantData
-      summary: Export a leaving tenant's data package (INV-REQ-877, FR-G.10)
+      operationId: offboardTenant
+      summary: Offboard an entity or the tenant, with the export (INV-REQ-877, INV-REQ-956)
       description: >-
-        Starts the offboarding export of a tenant that is leaving: transmitted XML, acknowledgements,
-        decision traces, reconciliation work-papers and source document references, in a form readable
-        without the platform (INV-REQ-877). The export is assembled from the evidence owners and
-        returned as a manifest; it is accepted (202) and the package is fetched through the manifest.
-        An entity's exit is recorded by deregisterEntity (INV-REQ-956); this operation is the tenant's
-        package. tenancy-svc refuses it while an in-scope document is unsubmitted and no override
-        acknowledgement is recorded, or no retention custody holder is named (INV-REQ-956 b1, b2), and
-        fails closed naming the unavailable input when the count of unsubmitted documents cannot be read.
+        Records the irreversible exit of one entity (scope ENTITY, entityRef present) or of the whole
+        tenant (scope TENANT, entityRef absent): a retention custody holder is named and stored in the
+        offboarding record with the handover statement, the full export is produced as a step of this
+        operation and retention responsibility transfers (INV-REQ-877, INV-REQ-956). It is separate from
+        deregisterEntity, the effective-dated registration end. Rules the service tests: the record state
+        is COMPLETED only when export.state is READY and export.contents lists all six members
+        (INV-REQ-877); a FAILED export leaves the entity or tenant open; the call is refused with 409
+        while an in-scope document is unsubmitted and no unsubmittedOverride is given, while no holder is
+        named, and for a range under DEP-007 (INV-REQ-662 b2); it fails closed naming the unavailable
+        input when the count of unsubmitted documents cannot be read (INV-Q-4900). A repeat with the same
+        Idempotency-Key returns the original record (API-15). A call with a new key while a record for the
+        same tenant, scope and entity is REQUESTED or COMPLETED is refused with 409 and creates nothing. A
+        call with a new key after a FAILED record is a new request: a new offboardingRef, every precondition
+        evaluated afresh, nothing carried over; the FAILED record stays as history (INV-Q-5025).
+        noticeWindowDays only lengthens the installation notice window (VP-66, INV-REQ-2462 b2).
       tags:
       - tenants
       x-principal: filing-workflow
@@ -1454,14 +1461,16 @@ paths:
       x-requirements:
       - FR-G.10
       - FR-AB.9
-      x-error-codes: []
+      - FR-AF.8
+      x-error-codes:
+      - DEP-007
       x-operation:
-        role: tenant.admin
+        role: entity.admin for scope ENTITY, tenant.admin for scope TENANT
         scope: tenant
         precondition: A retention custody holder is named and no in-scope document is unsubmitted, or an
           override acknowledgement is recorded (FR-AB.9)
         reversibility: IRREVERSIBLE
-        repeatKey: tenantRef — a repeat returns the original manifest
+        repeatKey: (tenantRef, scope, entityRef)
       parameters:
       - name: tenantRef
         in: path
@@ -1477,30 +1486,42 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ExportTenantDataRequest'
+              $ref: '#/components/schemas/OffboardTenantRequest'
             examples:
               default:
                 value:
+                  scope: TENANT
+                  retentionCustodyHolder:
+                    name: Ledger Custody Pte Ltd
+                    contactEmail: custody@ledger.example
                   secondConfirmationBy: user-8841
       responses:
         "202":
-          description: Export accepted; the manifest names the package contents
+          description: Offboarding accepted; the record carries the export manifest
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TenantExportResponse'
+                $ref: '#/components/schemas/OffboardingRecordResponse'
               examples:
                 default:
                   value:
-                    exportRef: EXP-5C20
+                    offboardingRef: OFB-41D7
                     tenantRef: TEN-7B1004
+                    scope: TENANT
                     state: REQUESTED
-                    contents:
-                    - TRANSMITTED_XML
-                    - ACKNOWLEDGEMENTS
-                    - DECISION_TRACES
-                    - RECONCILIATION_WORK_PAPERS
-                    - SOURCE_DOCUMENT_REFERENCES
+                    retentionCustodyHolder:
+                      name: Ledger Custody Pte Ltd
+                      contactEmail: custody@ledger.example
+                    export:
+                      exportRef: EXP-5C20
+                      state: REQUESTED
+                      contents:
+                      - TRANSMITTED_XML
+                      - ACKNOWLEDGEMENTS
+                      - DECISION_TRACES
+                      - RECONCILIATION_WORK_PAPERS
+                      - SOURCE_DOCUMENT_REFERENCES
+                      - AUDIT_LOG
         "409":
           $ref: '#/components/responses/Error'
         "400":
@@ -1885,14 +1906,8 @@ components:
         registrationEndDate:
           type: string
           format: date
-        retentionCustodyHolder:
-          $ref: '#/components/schemas/RetentionCustodyHolder'
         unsubmittedOverride:
           $ref: '#/components/schemas/UnsubmittedOverrideAcknowledgement'
-        secondConfirmationBy:
-          type: string
-          maxLength: 128
-          description: The second confirmation of an irreversible offboarding (INV-REQ-875, INV-REQ-956).
     RetentionCustodyHolder:
       type: object
       required:
@@ -2440,27 +2455,55 @@ components:
         activeEntities:
           type: integer
           minimum: 0
-    ExportTenantDataRequest:
+    OffboardTenantRequest:
       type: object
       required:
+      - scope
+      - retentionCustodyHolder
       - secondConfirmationBy
       properties:
+        scope:
+          type: string
+          enum:
+          - ENTITY
+          - TENANT
+        entityRef:
+          type: string
+          maxLength: 64
+          description: Present exactly when scope is ENTITY, absent when it is TENANT.
+        retentionCustodyHolder:
+          $ref: '#/components/schemas/RetentionCustodyHolder'
         secondConfirmationBy:
           type: string
           maxLength: 128
           description: The second confirmation of an irreversible operation (INV-REQ-875).
-    TenantExportResponse:
+        unsubmittedOverride:
+          $ref: '#/components/schemas/UnsubmittedOverrideAcknowledgement'
+        noticeWindowDays:
+          type: integer
+          minimum: 1
+          description: A lengthening of the installation notice window (VP-66) only (INV-REQ-2462 b2).
+      if:
+        required:
+        - scope
+        properties:
+          scope:
+            const: ENTITY
+      then:
+        required:
+        - entityRef
+      else:
+        not:
+          required:
+          - entityRef
+    TenantExportManifest:
       type: object
       required:
       - exportRef
-      - tenantRef
       - state
       - contents
       properties:
         exportRef:
-          type: string
-          maxLength: 64
-        tenantRef:
           type: string
           maxLength: 64
         state:
@@ -2480,7 +2523,53 @@ components:
             - DECISION_TRACES
             - RECONCILIATION_WORK_PAPERS
             - SOURCE_DOCUMENT_REFERENCES
+            - AUDIT_LOG
             x-extensible-enum: true
+    OffboardingRecordResponse:
+      type: object
+      required:
+      - offboardingRef
+      - tenantRef
+      - scope
+      - state
+      - retentionCustodyHolder
+      - export
+      properties:
+        offboardingRef:
+          type: string
+          maxLength: 64
+        tenantRef:
+          type: string
+          maxLength: 64
+        scope:
+          type: string
+          enum:
+          - ENTITY
+          - TENANT
+        entityRef:
+          type: string
+          maxLength: 64
+        state:
+          type: string
+          enum:
+          - REQUESTED
+          - COMPLETED
+          - FAILED
+          x-extensible-enum: true
+          description: COMPLETED only when export.state is READY and export.contents lists all six members.
+        retentionCustodyHolder:
+          $ref: '#/components/schemas/RetentionCustodyHolder'
+        export:
+          $ref: '#/components/schemas/TenantExportManifest'
+        unsubmittedOverride:
+          $ref: '#/components/schemas/UnsubmittedOverrideAcknowledgement'
+        noticeWindowDays:
+          type: integer
+          minimum: 1
+        handoverStatementRef:
+          type: string
+          maxLength: 200
+          description: The handover statement stored in the offboarding record (INV-REQ-955 b3, INV-REQ-956 b2).
     RecordRetentionHoldRequest:
       type: object
       required:

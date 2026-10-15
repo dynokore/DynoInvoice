@@ -1,0 +1,10 @@
+{
+  "offboardingRef": "OFB-41D7",
+  "tenantRef": "TEN-7B1004",
+  "scope": "TENANT",
+  "state": "REQUESTED",
+  "retentionCustodyHolder": {
+    "name": "Ledger Custody Pte Ltd",
+    "contactEmail": "custody@ledger.example"
+  }
+}

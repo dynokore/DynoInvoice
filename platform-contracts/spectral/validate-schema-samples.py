@@ -98,6 +98,18 @@ def _check(instance, schema: dict, root: dict, path: str) -> None:
         raise Invalid(f"{path}: {instance!r} not one of {schema['enum']!r}")
 
     t = schema.get("type")
+    if t is None and isinstance(instance, dict) and ("required" in schema or "properties" in schema):
+        t = "object"  # a typeless branch of if/then/else or not still constrains an object instance
+
+    # Conditional keywords (INV-T-4909: "entityRef present exactly when scope is ENTITY"):
+    # not, and if/then/else. A schema inside them is checked by the same rules.
+    if "not" in schema and _valid(instance, schema["not"], root, path):
+        raise Invalid(f"{path}: must not satisfy the 'not' schema")
+    if "if" in schema:
+        branch = schema.get("then") if _valid(instance, schema["if"], root, path) else schema.get("else")
+        if branch is not None:
+            _check(instance, branch, root, path)
+
     if t == "object":
         if not isinstance(instance, dict):
             raise Invalid(f"{path}: expected object, got {type(instance).__name__}")
@@ -154,6 +166,14 @@ def _check(instance, schema: dict, root: dict, path: str) -> None:
         if not isinstance(instance, bool):
             raise Invalid(f"{path}: expected boolean, got {type(instance).__name__}")
     # t is None (e.g. the envelope's untyped 'data') or another type: no further check.
+
+
+def _valid(instance, schema: dict, root: dict, path: str) -> bool:
+    try:
+        _check(instance, schema, root, path)
+        return True
+    except Invalid:
+        return False
 
 
 def validate(instance, schema: dict, root: dict | None = None) -> None:

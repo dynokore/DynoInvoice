@@ -1,0 +1,20 @@
+openapi: 3.1.0
+info: {title: fixture, version: 1.0.0}
+paths: {}
+components:
+  schemas:
+    Scoped:
+      type: object
+      required: [scope]
+      properties:
+        scope: {type: string, enum: [ENTITY, TENANT]}
+        entityRef: {type: string}
+      if:
+        required: [scope]
+        properties:
+          scope: {const: ENTITY}
+      then:
+        required: [entityRef]
+      else:
+        not:
+          required: [entityRef]

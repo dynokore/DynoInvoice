@@ -1,0 +1,8 @@
+{
+  "scope": "ENTITY",
+  "retentionCustodyHolder": {
+    "name": "Ledger Custody Pte Ltd",
+    "contactEmail": "custody@ledger.example"
+  },
+  "secondConfirmationBy": "user-8841"
+}
