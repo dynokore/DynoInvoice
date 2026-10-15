@@ -1,0 +1,34 @@
+# INV-T-5179. Identifiers in backticks in the published behavior and intent of INV-REQ-1243 (setPolicy) and INV-REQ-1244
+# (acknowledgeControlRelaxation), and the fields the INV-Q-5172 ruling fixes for them (tooling/setpolicy-contract-gap.md).
+# Not listed here: tenant, actor and roles (never request fields, CS-23); entityRef (already in this file).
+identifier	kind	file	requirement
+setPolicy	operation	openapi.yaml	INV-REQ-1243
+acknowledgeControlRelaxation	operation	openapi.yaml	INV-REQ-1244
+scopeLevel	property	openapi.yaml	INV-REQ-1243
+scopeRef	property	openapi.yaml	INV-REQ-1243
+selected	property	openapi.yaml	INV-REQ-1243
+option	property	openapi.yaml	INV-REQ-1243
+value	property	openapi.yaml	INV-REQ-1243
+effectiveDate	property	openapi.yaml	INV-REQ-1243
+reason	property	openapi.yaml	INV-REQ-1243
+source	property	openapi.yaml	INV-REQ-1243
+profileRef	property	openapi.yaml	INV-REQ-1243
+profileVersion	property	openapi.yaml	INV-REQ-1243
+relaxationId	property	openapi.yaml	INV-REQ-1244
+asRole	property	openapi.yaml	INV-REQ-1244
+prior	property	openapi.yaml	INV-REQ-1243
+auditEventId	property	openapi.yaml	INV-REQ-1243
+policyChangedEventId	property	openapi.yaml	INV-REQ-1241
+outstandingRoles	property	openapi.yaml	INV-REQ-1244
+acknowledgements	property	openapi.yaml	INV-REQ-1244
+complete	property	openapi.yaml	INV-REQ-1244
+settingId	property	openapi.yaml	INV-REQ-1243
+INSTALLATION	enum_value	openapi.yaml	INV-REQ-1242
+TENANT	enum_value	openapi.yaml	INV-REQ-1242
+GROUP	enum_value	openapi.yaml	INV-REQ-1242
+ENTITY	enum_value	openapi.yaml	INV-REQ-1242
+FEED	enum_value	openapi.yaml	INV-REQ-1242
+AP_CONNECTION	enum_value	openapi.yaml	INV-REQ-1242
+CLIENT_ENTITY	enum_value	openapi.yaml	INV-REQ-1242
+OVERRIDE	enum_value	openapi.yaml	INV-REQ-1242
+PROFILE	enum_value	openapi.yaml	INV-REQ-1242

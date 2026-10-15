@@ -1,0 +1,13 @@
+{
+  "scopeLevel": "ENTITY",
+  "scopeRef": "E-001",
+  "entityRef": "E-001",
+  "selected": [
+    {
+      "option": "OPTION_B",
+      "value": 4
+    }
+  ],
+  "effectiveDate": "2026-11-01",
+  "reason": "Change requested by the setting role"
+}

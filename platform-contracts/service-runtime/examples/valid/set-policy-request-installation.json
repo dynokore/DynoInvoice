@@ -1,0 +1,10 @@
+{
+  "scopeLevel": "INSTALLATION",
+  "selected": [
+    {
+      "option": "OPTION_A"
+    }
+  ],
+  "effectiveDate": "2026-11-01",
+  "reason": "Installation default"
+}

@@ -1,0 +1,12 @@
+{
+  "scopeLevel": "ENTITY",
+  "scopeRef": "E-001",
+  "entityRef": "E-001",
+  "selected": [
+    {
+      "option": "LOOSER_OPTION"
+    }
+  ],
+  "effectiveDate": "2026-11-01",
+  "asRole": "control.owner"
+}

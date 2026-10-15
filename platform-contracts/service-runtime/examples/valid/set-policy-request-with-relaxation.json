@@ -1,0 +1,14 @@
+{
+  "scopeLevel": "ENTITY",
+  "scopeRef": "E-001",
+  "entityRef": "E-001",
+  "selected": [
+    {
+      "option": "OPTION_B",
+      "value": 4
+    }
+  ],
+  "effectiveDate": "2026-11-01",
+  "reason": "Change requested by the setting role",
+  "relaxationId": "5b9e0c42-71d3-4a68-8f1e-2c4d6a9b3e10"
+}

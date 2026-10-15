@@ -1,0 +1,17 @@
+{
+  "scopeLevel": "TENANT",
+  "scopeRef": "T-001",
+  "selected": [
+    {
+      "option": "OPTION_A",
+      "value": {
+        "limit": 10
+      }
+    }
+  ],
+  "effectiveDate": "2026-11-01",
+  "reason": "Profile applied",
+  "source": "PROFILE",
+  "profileRef": "PRF-7",
+  "profileVersion": 2
+}

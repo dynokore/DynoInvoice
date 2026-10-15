@@ -1,1 +1,5 @@
 ../schemas/evidence-artefact-recorded-payload.schema.json
+../openapi.yaml#/components/schemas/SetPolicyRequest set-policy-request-*.json
+../openapi.yaml#/components/schemas/PolicySettingState policy-setting-state*.json
+../openapi.yaml#/components/schemas/AcknowledgeRelaxationRequest acknowledge-relaxation-request*.json
+../openapi.yaml#/components/schemas/RelaxationState relaxation-state*.json

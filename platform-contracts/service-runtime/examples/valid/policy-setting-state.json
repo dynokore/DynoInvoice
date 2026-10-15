@@ -1,0 +1,29 @@
+{
+  "variationPoint": "VP-12",
+  "scopeLevel": "ENTITY",
+  "scopeRef": "E-001",
+  "entityRef": "E-001",
+  "selected": [
+    {
+      "option": "OPTION_B",
+      "value": 4
+    }
+  ],
+  "source": "OVERRIDE",
+  "effectiveDate": "2026-11-01",
+  "setBy": "user-17",
+  "reason": "Change requested by the setting role",
+  "recordedAt": "2026-10-15T09:12:03Z",
+  "settingId": "7d2c1b0e-3a4f-4c85-9e16-0b5a8f3d2c71",
+  "prior": {
+    "selected": [
+      {
+        "option": "OPTION_A"
+      }
+    ],
+    "effectiveDate": "2026-01-01",
+    "source": "PROFILE"
+  },
+  "auditEventId": "AE-000123",
+  "policyChangedEventId": "EV-000456"
+}

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: service-runtime shared contract components
-  version: 1.2.0
+  version: 1.3.0
   description: >-
     Not a service: the shared OpenAPI components every other directory's
     openapi.yaml references by relative $ref (error envelope, API-20) rather
@@ -19,10 +19,15 @@ info:
     commands (INV-NOTE-3 §36.6 console-bff -> any, INV-REQ-1232 b1).
     rebuildConsumer (INV-T-3634, owner ruling INV-Q-3599 A, INV-API-3656) is
     declared the same way and served by service-runtime in every service that
-    consumes event-log topics.
+    consumes event-log topics. setPolicy and acknowledgeControlRelaxation (INV-T-5179, INV-Q-5172) are the shared
+    runtime contract every service that owns variation points mounts, served by service-runtime like runJobNow:
+    setPolicy sets a variation point's value at one scope, effective-dated, with a reason, and
+    acknowledgeControlRelaxation records the accountable role's acknowledgement of a looser option of a CONTROL.
 tags:
 - name: jobs
   description: Scheduled-job controls of the shared runtime contract (INV-REQ-1138).
+- name: policies
+  description: Setting a variation point's value and acknowledging a CONTROL's relaxation (INV-REQ-1241 b1, INV-REQ-1243, INV-REQ-1244).
 - name: event-consumers
   description: Recovery of an event-log consumer in 'rebuild required' (INV-REQ-1205 b4, b6).
 paths:
@@ -484,6 +489,254 @@ paths:
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
+  /internal/v1/policies/{variationPoint}:
+    post:
+      operationId: setPolicy
+      summary: Set a variation point's value at one scope, effective-dated, with a reason, in its owning service
+      description: >-
+        Sets the value of one variation point at one scope in the owning service, which stores and enforces it
+        (INV-REQ-1241 b1, INV-REQ-1243 b1, INV-Q-5172). Every service that owns variation points mounts this
+        operation, served by service-runtime like runJobNow. The new value takes an effective date and a reason;
+        the operation writes an audit entry holding the prior value (INV-REQ-1243 b2, INV-AC-2229) and the owning
+        service publishes PolicyChanged (INV-REQ-1241 b2); policyChangedEventId is null where the service has no
+        outbox. The tenant, the actor and the roles are never request fields: they come from the verified token
+        and the owning service's authority replica (CS-23). An installation-level value is set by the platform
+        operator role of the form (for example VP-66, VP-70 and VP-72, INV-AC-2551) under the platform tenant
+        (INV-Q-2927). A value with source PROFILE is written by console-bff's applyOperatingProfile through this
+        operation (INV-Q-2979, INV-Q-5022). A repeat with the same Idempotency-Key returns the stored response
+        (API-15). The contract declares no per-variation-point value schema: the value is typed per variation
+        point by the gst-catalogue row and checked by config-resolver (INV-REQ-5039). Where JSON Schema states a
+        present-exactly-when rule the request schema carries it as if/then; that entityRef equals scopeRef for
+        ENTITY is enforced by the service with SRT-001. Refusals carry their POL catalogue code, mapped once in
+        ProblemMapper; closed service-runtime cases carry their SRT code (SRT-001 400 contract violation, SRT-002
+        400 missing or malformed Idempotency-Key, SRT-003 401, SRT-004 403 entityRef outside the token's entity
+        set, SRT-007 409 request in flight, SRT-009 422 Idempotency-Key reused with a different body, SRT-010 500).
+      tags:
+      - policies
+      x-principal: filing-workflow
+      x-sync-edge: "console-bff->*"
+      x-timeout: 2000
+      x-requirements:
+      - INV-REQ-1241
+      - INV-REQ-1243
+      - INV-REQ-1239
+      - INV-AC-2224
+      - INV-AC-2229
+      x-error-codes:
+      - POL-001
+      - POL-002
+      - POL-003
+      - POL-004
+      - POL-005
+      - POL-006
+      - POL-007
+      - POL-008
+      - POL-009
+      - POL-010
+      - POL-011
+      - POL-012
+      - POL-013
+      - POL-014
+      - POL-015
+      - POL-016
+      - POL-017
+      - POL-018
+      - POL-019
+      - POL-020
+      - POL-021
+      - POL-022
+      - POL-023
+      - POL-024
+      x-operation:
+        role: the setting role or roles the gst-catalogue names for the variation point (INV-REQ-1239 b3,
+          INV-NOTE-7 operation catalogue), checked by config-resolver against the roles the owning service's
+          authority replica holds for the actor at the scope, never taken from a request field (CS-23)
+        scope: (scopeLevel, scopeRef, entityRef) of the variation point
+        precondition: the value is within the bounds of the catalogue row, the scope level is one the row
+          allows, a reason is given, the effective date is not before the installation business date except a
+          scope's first value (INV-REQ-1243 b6), and a looser option of a CONTROL has a complete relaxation
+          (INV-REQ-1244 b2)
+        repeatKey: (variation point, scope, effective date) as the catalogue row; a second value at the same key
+          is a superseding version, resolved by the latest recorded (INV-REQ-1243 b5)
+        reversibility: COMPENSABLE
+      parameters:
+      - $ref: '#/components/parameters/VariationPoint'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetPolicyRequest'
+            examples:
+              default:
+                value:
+                  scopeLevel: ENTITY
+                  scopeRef: E-001
+                  entityRef: E-001
+                  selected:
+                  - option: OPTION_B
+                  effectiveDate: "2026-11-01"
+                  reason: Change requested by the setting role
+      responses:
+        "200":
+          description: The setting as stored; a repeat with the same Idempotency-Key returns the stored response
+            (API-15)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicySettingState'
+              examples:
+                default:
+                  value:
+                    variationPoint: VP-12
+                    scopeLevel: ENTITY
+                    scopeRef: E-001
+                    entityRef: E-001
+                    selected:
+                    - option: OPTION_B
+                    source: OVERRIDE
+                    effectiveDate: "2026-11-01"
+                    setBy: user-17
+                    reason: Change requested by the setting role
+                    recordedAt: "2026-10-15T09:12:03Z"
+                    settingId: 7d2c1b0e-3a4f-4c85-9e16-0b5a8f3d2c71
+                    prior:
+                      selected:
+                      - option: OPTION_A
+                      effectiveDate: "2026-01-01"
+                      source: PROFILE
+                    auditEventId: AE-000123
+                    policyChangedEventId: EV-000456
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "409":
+          $ref: '#/components/responses/Error'
+        "422":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/policies/{variationPoint}/relaxations:
+    post:
+      operationId: acknowledgeControlRelaxation
+      summary: Acknowledge, as the accountable role, the relaxation of a CONTROL to a looser option
+      description: >-
+        Records one acknowledgement of the relaxation of a CONTROL to a looser option by the accountable role the
+        catalogue names (INV-REQ-1244 b2, INV-AC-205, INV-AC-2230, INV-Q-5172). Every service that owns variation
+        points mounts this operation, served by service-runtime like runJobNow. Absent relaxationId starts a new
+        relaxation; present, the acknowledgement joins that relaxation, whose target, value and effective date
+        must be the same (INV-Q-3138). Two acknowledgers must be distinct principals (INV-Q-3134). The relaxation
+        is complete when every role the option names has acknowledged; setPolicy then carries its relaxationId.
+        The tenant, the actor and the roles are never request fields: they come from the verified token and the
+        owning service's authority replica, and asRole is checked against the roles the actor holds (CS-23). A
+        repeat with the same Idempotency-Key returns the stored response (API-15). Refusals carry their POL
+        catalogue code; closed service-runtime cases carry their SRT code as for setPolicy.
+      tags:
+      - policies
+      x-principal: filing-workflow
+      x-sync-edge: "console-bff->*"
+      x-timeout: 2000
+      x-requirements:
+      - INV-REQ-1244
+      - INV-REQ-1241
+      - INV-AC-205
+      - INV-AC-2230
+      x-error-codes:
+      - POL-001
+      - POL-002
+      - POL-003
+      - POL-004
+      - POL-005
+      - POL-006
+      - POL-007
+      - POL-008
+      - POL-009
+      - POL-010
+      - POL-011
+      - POL-012
+      - POL-013
+      - POL-014
+      - POL-015
+      - POL-016
+      - POL-017
+      - POL-018
+      - POL-019
+      - POL-020
+      - POL-021
+      - POL-022
+      - POL-023
+      - POL-024
+      x-operation:
+        role: the accountable role the catalogue names for the control (INV-REQ-1244 b2), supplied as asRole
+          and checked against the roles the actor holds; two acknowledgers must be distinct principals
+          (INV-Q-3134)
+        scope: (scopeLevel, scopeRef, entityRef) of the variation point
+        precondition: a looser option of a CONTROL is selected and the value is looser
+        repeatKey: (variation point, scope, option) as the catalogue row
+        reversibility: COMPENSABLE
+      parameters:
+      - $ref: '#/components/parameters/VariationPoint'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcknowledgeRelaxationRequest'
+            examples:
+              default:
+                value:
+                  scopeLevel: ENTITY
+                  scopeRef: E-001
+                  entityRef: E-001
+                  selected:
+                  - option: LOOSER_OPTION
+                  effectiveDate: "2026-11-01"
+                  asRole: control.owner
+      responses:
+        "200":
+          description: The relaxation as it now stands, with the roles still outstanding
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RelaxationState'
+              examples:
+                default:
+                  value:
+                    relaxationId: 5b9e0c42-71d3-4a68-8f1e-2c4d6a9b3e10
+                    variationPoint: VP-31
+                    scopeLevel: ENTITY
+                    scopeRef: E-001
+                    entityRef: E-001
+                    selected:
+                    - option: LOOSER_OPTION
+                    effectiveDate: "2026-11-01"
+                    acknowledgements:
+                    - role: control.owner
+                      principal: user-17
+                      acknowledgedAt: "2026-10-15T09:12:03Z"
+                    outstandingRoles: []
+                    complete: true
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "409":
+          $ref: '#/components/responses/Error'
+        "422":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
 components:
   parameters:
     Job:
@@ -502,6 +755,15 @@ components:
       schema:
         type: string
         format: uuid
+    VariationPoint:
+      name: variationPoint
+      in: path
+      required: true
+      description: The variation point's key in the gst-catalogue VariationPoint catalogue (INV-REQ-1239); not
+        registered is POL-001, retired is POL-002.
+      schema:
+        type: string
+        pattern: ^VP-[0-9]+$
   schemas:
     RunJobNowRequest:
       type: object
@@ -763,6 +1025,359 @@ components:
         repeat:
           type: boolean
           description: True when a pending replay with the same mode and scope is returned (INV-Q-3665).
+    PolicyScopeLevel:
+      type: string
+      enum:
+      - INSTALLATION
+      - TENANT
+      - GROUP
+      - ENTITY
+      - FEED
+      - AP_CONNECTION
+      - CLIENT_ENTITY
+      x-extensible-enum: true
+      description: The seven scope levels of config-resolver's ScopeLevel (INV-REQ-1242 b1). A variation point
+        allows only the levels its catalogue row lists; another is POL-003.
+    PolicySource:
+      type: string
+      enum:
+      - OVERRIDE
+      - PROFILE
+      x-extensible-enum: true
+      default: OVERRIDE
+      description: OVERRIDE for a value set directly, PROFILE for a value written by console-bff's
+        applyOperatingProfile through setPolicy (INV-Q-2979, INV-Q-5022).
+    SelectedOption:
+      type: object
+      description: One selected option of a variation point. The contract declares no per-variation-point
+        value schema; the value is typed per variation point by the gst-catalogue row and checked by
+        config-resolver, which keeps domain content out of a shared schema (INV-REQ-5039).
+      required:
+      - option
+      properties:
+        option:
+          type: string
+          minLength: 1
+          description: The option key of the catalogue row; one the row does not have or offer is POL-011.
+        value:
+          description: The option's value, of any JSON type; absent for an option that carries none. Not of
+            the option's shape or outside its bounds is POL-013.
+    PolicyReason:
+      type: string
+      minLength: 1
+      maxLength: 500
+      description: Why the policy changes (INV-REQ-1243 b1, INV-AC-2229); empty or absent is POL-005.
+    PolicyScopeRef:
+      type: string
+      minLength: 1
+      description: The reference of the scope the value applies to, as the scope level defines it; absent
+        exactly when scopeLevel is INSTALLATION.
+    PolicyEntityRef:
+      type: string
+      minLength: 1
+      description: The entity the scope belongs to; present exactly when scopeLevel is ENTITY, FEED,
+        AP_CONNECTION or CLIENT_ENTITY, and equal to scopeRef for ENTITY (enforced by the service with
+        SRT-001; JSON Schema cannot state it). Outside the token's entity set is 403 (API-24).
+    SetPolicyRequest:
+      type: object
+      description: setPolicy request (INV-REQ-1241 b1, INV-REQ-1243 b1, INV-Q-5172). The tenant, the actor
+        and the roles are never fields; they come from the verified token and the authority replica (CS-23).
+        The present-exactly-when rules are stated as allOf if/then; entityRef equal to scopeRef for ENTITY is
+        enforced by the service with SRT-001.
+      required:
+      - scopeLevel
+      - selected
+      - effectiveDate
+      - reason
+      properties:
+        scopeLevel:
+          $ref: '#/components/schemas/PolicyScopeLevel'
+        scopeRef:
+          $ref: '#/components/schemas/PolicyScopeRef'
+        entityRef:
+          $ref: '#/components/schemas/PolicyEntityRef'
+        selected:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/SelectedOption'
+          description: The selected options; empty is POL-012.
+        effectiveDate:
+          type: string
+          format: date
+          description: When the value applies, a date of the installation's business calendar (Asia/Singapore);
+            before the business date and not a scope's first value is POL-022 (INV-REQ-1243 b6).
+        reason:
+          $ref: '#/components/schemas/PolicyReason'
+        source:
+          $ref: '#/components/schemas/PolicySource'
+        profileRef:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: The operating profile the value comes from; present exactly when source is PROFILE.
+        profileVersion:
+          type: integer
+          minimum: 1
+          description: The profile version applied (INV-Q-3283); present exactly when source is PROFILE.
+        relaxationId:
+          type: string
+          format: uuid
+          description: The complete relaxation of a looser option of a CONTROL (acknowledgeControlRelaxation);
+            absent for any other value.
+      allOf:
+      - if:
+          required:
+          - scopeLevel
+          properties:
+            scopeLevel:
+              const: INSTALLATION
+        then:
+          not:
+            required:
+            - scopeRef
+        else:
+          required:
+          - scopeRef
+      - if:
+          required:
+          - scopeLevel
+          properties:
+            scopeLevel:
+              enum:
+              - ENTITY
+              - FEED
+              - AP_CONNECTION
+              - CLIENT_ENTITY
+        then:
+          required:
+          - entityRef
+        else:
+          not:
+            required:
+            - entityRef
+      - if:
+          required:
+          - source
+          properties:
+            source:
+              const: PROFILE
+        then:
+          required:
+          - profileRef
+          - profileVersion
+        else:
+          allOf:
+          - not:
+              required:
+              - profileRef
+          - not:
+              required:
+              - profileVersion
+    PolicySettingPrior:
+      type:
+      - object
+      - 'null'
+      description: The value this setting replaced at its scope on its effective date; null when none applied.
+      required:
+      - selected
+      - effectiveDate
+      - source
+      properties:
+        selected:
+          type: array
+          items:
+            $ref: '#/components/schemas/SelectedOption'
+        effectiveDate:
+          type: string
+          format: date
+        source:
+          $ref: '#/components/schemas/PolicySource'
+    PolicySettingState:
+      type: object
+      description: setPolicy response (INV-REQ-1243 b2, INV-Q-5172).
+      required:
+      - variationPoint
+      - scopeLevel
+      - selected
+      - source
+      - effectiveDate
+      - setBy
+      - reason
+      - recordedAt
+      properties:
+        variationPoint:
+          type: string
+          pattern: ^VP-[0-9]+$
+        scopeLevel:
+          $ref: '#/components/schemas/PolicyScopeLevel'
+        scopeRef:
+          $ref: '#/components/schemas/PolicyScopeRef'
+        entityRef:
+          $ref: '#/components/schemas/PolicyEntityRef'
+        selected:
+          type: array
+          items:
+            $ref: '#/components/schemas/SelectedOption'
+        source:
+          $ref: '#/components/schemas/PolicySource'
+        profileRef:
+          type: string
+        profileVersion:
+          type: integer
+        relaxationId:
+          type: string
+          format: uuid
+        effectiveDate:
+          type: string
+          format: date
+        setBy:
+          type: string
+          description: The principal that set it, from the verified token.
+        reason:
+          $ref: '#/components/schemas/PolicyReason'
+        recordedAt:
+          type: string
+          format: date-time
+        settingId:
+          type: string
+          format: uuid
+        prior:
+          $ref: '#/components/schemas/PolicySettingPrior'
+        auditEventId:
+          type: string
+          description: The audit entry holding the prior value (INV-REQ-1243 b2).
+        policyChangedEventId:
+          type:
+          - string
+          - 'null'
+          description: The PolicyChanged event published by the owning service; null where the service has no
+            outbox.
+    AcknowledgeRelaxationRequest:
+      type: object
+      description: acknowledgeControlRelaxation request (INV-REQ-1244 b2, INV-Q-3138, INV-Q-5172). Scope,
+        selected and effectiveDate are the looser value being acknowledged, exactly as in SetPolicyRequest.
+        The actor and the roles are never fields (CS-23).
+      required:
+      - scopeLevel
+      - selected
+      - effectiveDate
+      - asRole
+      properties:
+        scopeLevel:
+          $ref: '#/components/schemas/PolicyScopeLevel'
+        scopeRef:
+          $ref: '#/components/schemas/PolicyScopeRef'
+        entityRef:
+          $ref: '#/components/schemas/PolicyEntityRef'
+        selected:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/SelectedOption'
+        effectiveDate:
+          type: string
+          format: date
+        asRole:
+          type: string
+          minLength: 1
+          description: The accountable role the actor acts as; not one the option names or the actor does not
+            hold is POL-019.
+        relaxationId:
+          type: string
+          format: uuid
+          description: Absent starts a new relaxation; present joins that relaxation, whose target, value and
+            effective date must be the same (INV-Q-3138).
+        reason:
+          type: string
+          maxLength: 500
+      allOf:
+      - if:
+          required:
+          - scopeLevel
+          properties:
+            scopeLevel:
+              const: INSTALLATION
+        then:
+          not:
+            required:
+            - scopeRef
+        else:
+          required:
+          - scopeRef
+      - if:
+          required:
+          - scopeLevel
+          properties:
+            scopeLevel:
+              enum:
+              - ENTITY
+              - FEED
+              - AP_CONNECTION
+              - CLIENT_ENTITY
+        then:
+          required:
+          - entityRef
+        else:
+          not:
+            required:
+            - entityRef
+    RelaxationAcknowledgement:
+      type: object
+      required:
+      - role
+      - principal
+      - acknowledgedAt
+      properties:
+        role:
+          type: string
+        principal:
+          type: string
+        acknowledgedAt:
+          type: string
+          format: date-time
+    RelaxationState:
+      type: object
+      description: acknowledgeControlRelaxation response (INV-REQ-1244 b2).
+      required:
+      - relaxationId
+      - variationPoint
+      - scopeLevel
+      - selected
+      - effectiveDate
+      - acknowledgements
+      - outstandingRoles
+      - complete
+      properties:
+        relaxationId:
+          type: string
+          format: uuid
+        variationPoint:
+          type: string
+          pattern: ^VP-[0-9]+$
+        scopeLevel:
+          $ref: '#/components/schemas/PolicyScopeLevel'
+        scopeRef:
+          $ref: '#/components/schemas/PolicyScopeRef'
+        entityRef:
+          $ref: '#/components/schemas/PolicyEntityRef'
+        selected:
+          type: array
+          items:
+            $ref: '#/components/schemas/SelectedOption'
+        effectiveDate:
+          type: string
+          format: date
+        acknowledgements:
+          type: array
+          items:
+            $ref: '#/components/schemas/RelaxationAcknowledgement'
+        outstandingRoles:
+          type: array
+          items:
+            type: string
+        complete:
+          type: boolean
   responses:
     Error:
       description: Error (API-20 envelope)
