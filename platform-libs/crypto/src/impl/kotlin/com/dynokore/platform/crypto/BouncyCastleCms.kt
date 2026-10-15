@@ -88,7 +88,7 @@ class BouncyCastleCms(
             } ?: return invalid("signer certificate is not a parseable X.509 certificate")
         if (checked.carried.size > CertificatePathValidator.MAX_CARRIED + 1) {
             return invalid(
-                "message carries ${checked.carried.size} certificates, more than " +
+                "message carries ${checked.carried.size - 1} certificates, more than " +
                     "${CertificatePathValidator.MAX_CARRIED} besides the signer",
             )
         }
