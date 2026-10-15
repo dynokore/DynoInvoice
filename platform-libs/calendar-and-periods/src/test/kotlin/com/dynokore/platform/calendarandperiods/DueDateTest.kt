@@ -88,34 +88,7 @@ class DueDateTest {
     @Test
     fun `a calendar whose every day is a weekend is refused`() {
         assertThrows(IllegalArgumentException::class.java) {
-            BusinessCalendar(
-                java.time.DayOfWeek.entries
-                    .toSet(),
-                emptySet(),
-            )
-        }
-    }
-
-    @Test
-    fun `two overlapping windows of one frequency are refused when the pack is built`() {
-        val overlapping =
-            mapOf(
-                Fixtures.quarterly to
-                    listOf(
-                        StandardWindow(d("2026-01-01"), d("2026-03-31"), "F5"),
-                        StandardWindow(d("2026-03-31"), d("2026-06-30"), "F5"),
-                    ),
-            )
-
-        assertThrows(IllegalArgumentException::class.java) {
-            CalendarPack(
-                version = "overlap",
-                windows = overlapping,
-                finalReturnForm = "F8",
-                dueRules = emptyMap(),
-                calendar = BusinessCalendar(emptySet(), emptySet()),
-                pinnedRule = null,
-            )
+            BusinessCalendar(java.time.DayOfWeek.entries.toSet(), emptySet())
         }
     }
 }

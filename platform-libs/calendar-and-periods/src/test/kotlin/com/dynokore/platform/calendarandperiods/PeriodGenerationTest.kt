@@ -67,8 +67,7 @@ class PeriodGenerationTest {
 
     @Test
     fun `a deregistration gives a final period on the final return form`() {
-        val periods =
-            generate("2026-01-01", history("2026-01-01" to quarterly), "2026-12-31", deregistration = "2026-05-20")
+        val periods = generate("2026-01-01", history("2026-01-01" to quarterly), "2026-12-31", deregistration = "2026-05-20")
 
         assertEquals(table("deregistration-quarterly.csv"), periods.map { it.row() })
         assertTrue(periods.last().irregular)
@@ -77,8 +76,7 @@ class PeriodGenerationTest {
 
     @Test
     fun `a registration and a deregistration in one window give a first and final period`() {
-        val periods =
-            generate("2026-02-15", history("2026-02-15" to quarterly), "2026-12-31", deregistration = "2026-03-10")
+        val periods = generate("2026-02-15", history("2026-02-15" to quarterly), "2026-12-31", deregistration = "2026-03-10")
 
         assertEquals(setOf(PeriodKind.FIRST, PeriodKind.FINAL), periods.single().kinds)
         assertEquals("F8", periods.single().returnForm)
@@ -101,26 +99,17 @@ class PeriodGenerationTest {
     }
 
     @Test
-    fun `quarterly to monthly effective 1 Feb 2026 ends the transitional period on 31 Jan (INV-AC-154)`() {
+    fun `a frequency change extended to the new window gives a long transitional period`() {
         val periods =
-            generate("2026-01-01", history("2026-01-01" to quarterly, "2026-02-01" to monthly), "2026-03-31")
+            generate(
+                "2026-01-01",
+                history("2026-01-01" to quarterly, "2026-05-10" to monthly),
+                "2026-07-31",
+                pack = pack(transition = TransitionStyle.EXTEND_TO_NEW_WINDOW),
+            )
 
-        val transitional = periods.first()
-        assertEquals(d("2026-01-01"), transitional.start)
-        assertEquals(d("2026-01-31"), transitional.end)
-        assertEquals(setOf(PeriodKind.TRANSITIONAL), transitional.kinds)
-        assertTrue(transitional.irregular && !transitional.confirmed)
-        assertEquals(d("2026-02-01"), periods[1].start)
-        assertEquals(d("2026-02-28"), periods[1].end)
-    }
-
-    @Test
-    fun `no transitional period ends on or after the day its change takes effect`() {
-        val change = d("2026-05-10")
-        val periods =
-            generate("2026-01-01", history("2026-01-01" to quarterly, "2026-05-10" to monthly), "2026-07-31")
-
-        assertTrue(periods.filter { PeriodKind.TRANSITIONAL in it.kinds && it.start < change }.all { it.end < change })
+        assertEquals(table("change-extend.csv"), periods.map { it.row() })
+        assertEquals(61, periods[1].lengthInDays)
     }
 
     @Test

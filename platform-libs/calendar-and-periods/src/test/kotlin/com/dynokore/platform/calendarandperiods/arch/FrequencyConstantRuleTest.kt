@@ -40,8 +40,7 @@ class FrequencyConstantRuleTest {
         for (file in files) {
             val fileName = file.name + "." + file.extension
             val text = file.text
-            val withoutDeclaration = text.replace(Regex("""value class FilingFrequency\s*\("""), "")
-            if (Regex("""\bFilingFrequency\s*\(""").containsMatchIn(withoutDeclaration)) {
+            if (Regex("""\bFilingFrequency\s*\(""").containsMatchIn(text.replace(Regex("""value class FilingFrequency\s*\("""), ""))) {
                 out += "$fileName: constructs a FilingFrequency"
             }
             if (Regex("""\bwhen\s*\([^)]*[Ff]requency[^)]*\)""").containsMatchIn(text)) {
@@ -50,14 +49,11 @@ class FrequencyConstantRuleTest {
             val declarations =
                 file.properties(includeNested = true).map { it.name to it.text } +
                     file.functions(includeNested = true).flatMap { f ->
-                        listOf(f.name to f.text.substringBefore("{").substringBefore("=")) +
+                        listOf(f.name to f.text.substringBefore("{").substringBefore("="), ) +
                             f.parameters.map { p -> p.name to p.text }
                     } +
                     file.classes(includeNested = true).flatMap { c ->
-                        c.primaryConstructor
-                            ?.parameters
-                            .orEmpty()
-                            .map { p -> p.name to p.text }
+                        c.primaryConstructor?.parameters.orEmpty().map { p -> p.name to p.text }
                     }
             for ((name, declText) in declarations) {
                 if (declText.contains("FilingFrequency") && "$fileName:$name" !in allowlist) {
@@ -85,17 +81,13 @@ class FrequencyConstantRuleTest {
         val seen = mutableSetOf<String>()
         for (file in realFiles()) {
             val fileName = file.name + "." + file.extension
-            file.properties(includeNested = true).forEach {
-                if (it.text.contains("FilingFrequency")) seen += "$fileName:${it.name}"
-            }
+            file.properties(includeNested = true).forEach { if (it.text.contains("FilingFrequency")) seen += "$fileName:${it.name}" }
             file.functions(includeNested = true).forEach { f ->
                 if (f.text.substringBefore("{").contains("FilingFrequency")) seen += "$fileName:${f.name}"
                 f.parameters.forEach { if (it.text.contains("FilingFrequency")) seen += "$fileName:${it.name}" }
             }
             file.classes(includeNested = true).forEach { c ->
-                c.primaryConstructor?.parameters.orEmpty().forEach {
-                    if (it.text.contains("FilingFrequency")) seen += "$fileName:${it.name}"
-                }
+                c.primaryConstructor?.parameters.orEmpty().forEach { if (it.text.contains("FilingFrequency")) seen += "$fileName:${it.name}" }
             }
         }
         assertEquals(allowed.keys, seen)
@@ -125,8 +117,7 @@ class FrequencyConstantRuleTest {
         @TempDir dir: File,
     ) {
         File(dir, "Pack.kt").writeText(
-            "package com.dynokore.platform.calendarandperiods\n\n" +
-                "class Pack(val lengths: Map<FilingFrequency, List<String>>)\n",
+            "package com.dynokore.platform.calendarandperiods\n\nclass Pack(val lengths: Map<FilingFrequency, List<String>>)\n",
         )
 
         val found = findings(Konsist.scopeFromExternalDirectory(dir.absolutePath).files, allowed.keys)

@@ -46,11 +46,7 @@ class ArchitectureTest {
             )
             val only = File(dir, "only$i").also { it.mkdirs() }
             File(dir, "Offender$i.kt").renameTo(File(only, "Offender$i.kt"))
-            assertThrows(
-                Throwable::class.java,
-                { assertOnlyOwnPlatformImports(Konsist.scopeFromExternalDirectory(only.absolutePath)) },
-                import,
-            )
+            assertThrows(Throwable::class.java, { assertOnlyOwnPlatformImports(Konsist.scopeFromExternalDirectory(only.absolutePath)) }, import)
         }
     }
 }
