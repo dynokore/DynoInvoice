@@ -4,3 +4,4 @@ identifier	kind	file	requirement
 underlyingCount	property	openapi.yaml	INV-REQ-414
 replacesReceiptNumber	property	openapi.yaml	INV-REQ-440
 subtotalsByTaxCode	property	openapi.yaml	INV-REQ-441
+claimantReference	property	openapi.yaml	INV-Q-5398
