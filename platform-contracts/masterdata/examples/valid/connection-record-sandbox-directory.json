@@ -1,0 +1,8 @@
+{
+  "connectionRef": "CON-31",
+  "externalService": "DIRECTORY",
+  "endpoint": "https://register.example.gov.sg/check",
+  "credentialRef": "SECRET-REG-PROD",
+  "environmentTag": "SANDBOX",
+  "ownerService": "masterdata-svc"
+}

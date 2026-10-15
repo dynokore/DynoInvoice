@@ -1,0 +1,19 @@
+{
+  "rows": [
+    {
+      "counterpartyRef": "CTP-1",
+      "findingClass": "UEN_ABSENT",
+      "errorCode": "MDM-002"
+    },
+    {
+      "counterpartyRef": "CTP-2",
+      "findingClass": "DUPLICATE_UEN"
+    }
+  ],
+  "notChecked": [
+    {
+      "counterpartyRef": "CTP-3",
+      "reason": "REGISTER_UNAVAILABLE"
+    }
+  ]
+}

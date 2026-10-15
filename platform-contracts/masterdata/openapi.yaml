@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: masterdata API
-  version: 1.1.0
+  version: 1.2.0
   description: >-
     Contract-first source of truth for masterdata (API-01, STK-44). The
     `masterdata-contract` module generates its server interfaces and DTOs
@@ -20,9 +20,9 @@ info:
     console-bff on a person's behalf (API-25 — the callee re-checks writes);
     `submitCounterpartyDetails` is also reached through console-bff, which
     serves the signed-link page (§34.9) the `counterparty` actor opens and
-    calls it. Counterparty-list, gap-report, connection
-    and directory-lookup reads are not named in that `provides` line, so
-    they stay out of this file's declared scope.
+    calls it. The gap report (INV-REQ-316) and the connection records
+    (INV-REQ-834, INV-REQ-835) are added by INV-T-4912; counterparty-list
+    and directory-lookup reads stay out of this file's declared scope.
   contact:
     name: masterdata (see CODEOWNERS)
 servers:
@@ -41,6 +41,10 @@ tags:
     description: Self-service requests to a counterparty for its own details (§34.9).
   - name: import
     description: Bulk counterparty and exchange-rate import (§35.10, §35.2).
+  - name: gap-report
+    description: Pre-go-live gap report over the counterparty masters (INV-REQ-316).
+  - name: connections
+    description: Connection records of the directory, the Check GST Register and the rate sources (INV-REQ-834, INV-REQ-835).
 paths:
   /internal/v1/masterdata/counterparties/resolution:
     get:
@@ -341,6 +345,15 @@ paths:
           required: true
           schema: { type: string, maxLength: 40 }
         - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendCounterpartyRequestBody'
+            examples:
+              default:
+                value: { contactEmail: "ap@example.com.sg", contactMobile: "+6591234567" }
       responses:
         '201':
           description: The pending counterparty request.
@@ -803,6 +816,281 @@ paths:
                   value: { currency: "USD", date: "2026-03-20", source: "MAS", rate: "1.35800000" }
         default:
           $ref: '#/components/responses/Error'
+  /internal/v1/masterdata/gap-reports:
+    post:
+      operationId: runGapReport
+      summary: Run the pre-go-live gap report
+      description: >-
+        Gap report to console-bff (INV-REQ-316, INV-AC-1608, INV-AC-1609;
+        INV-NOTE-7 SCR-19.2). Read-only on counterparty records: it writes
+        nothing. Lists, once each, the counterparties with no UEN and no
+        `NA` classification (MDM-002), with a UEN failing its checksum or
+        format (MDM-003), whose GST registration conflicts with the IRAS GST
+        register (MDM-007), with an incomplete address (MDM-006) and the
+        duplicates by UEN. A row whose register lookup returned
+        `REGISTER_UNAVAILABLE` is listed in `notChecked` and the report
+        still completes.
+
+
+        Long command (API-17), in the shape of `dryRunCounterpartyImport`: a
+        report finished within x-timeout returns `200` with `GapReport`; one
+        that is not returns `202` with `Location` and `Retry-After` pointing
+        at `getGapReport` and the `GapReportStatus` body with state RUNNING.
+        A repeat with the same Idempotency-Key replays the stored response
+        (API-15).
+      tags: [gap-report]
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->masterdata-svc
+      x-timeout: 2000
+      x-error-codes: [MDM-002, MDM-003, MDM-006, MDM-007]
+      x-requirements: [INV-REQ-316, INV-REQ-1232, INV-AC-1608, INV-AC-1609]
+      x-operation:
+        role: tax.operator
+        scope: tenant
+        precondition: "The counterparty masters exist (INV-REQ-316)."
+        reversibility: UNDOABLE
+        repeatKey: "Idempotency-Key — read-only on counterparty records; a repeat replays the stored result."
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: The gap report.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GapReport'
+              examples:
+                default:
+                  value: { rows: [{ counterpartyRef: "CTP-118", findingClass: "UEN_INVALID", errorCode: "MDM-003" }], notChecked: [] }
+        '202':
+          description: >-
+            The work did not finish within x-timeout and continues
+            asynchronously (API-17); poll the status resource.
+          headers:
+            Location:
+              schema: { type: string }
+              description: '`/internal/v1/masterdata/gap-reports/{gapReportId}` (API-17).'
+            Retry-After:
+              schema: { type: integer }
+              description: Seconds to wait before polling the status resource (API-17).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GapReportStatus'
+              examples:
+                default:
+                  value: { gapReportId: "GRP-12", state: "RUNNING", startedAt: "2026-03-20T03:10:00Z" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/masterdata/gap-reports/{gapReportId}:
+    get:
+      operationId: getGapReport
+      summary: Read a gap report's status and result
+      description: >-
+        The status resource of `runGapReport` (API-17). `state` is RUNNING,
+        SUCCEEDED or FAILED; `result` is the `GapReport` only when SUCCEEDED
+        and `error` the API-20 envelope only when FAILED. Readable only by the
+        principal that started the report, and kept at least 7 days (API-17).
+      tags: [gap-report]
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->masterdata-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-316, INV-REQ-1232]
+      x-operation:
+        role: tax.operator
+        scope: tenant
+        precondition: "The gap report was started by the caller."
+        reversibility: UNDOABLE
+        repeatKey: "None — a read."
+      parameters:
+        - name: gapReportId
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+      responses:
+        '200':
+          description: The gap report's status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GapReportStatus'
+              examples:
+                default:
+                  value: { gapReportId: "GRP-12", state: "SUCCEEDED", startedAt: "2026-03-20T03:10:00Z", completedAt: "2026-03-20T03:11:20Z", result: { rows: [], notChecked: [] } }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/masterdata/connections:
+    post:
+      operationId: createConnection
+      summary: Create a connection record for an external service and environment
+      description: >-
+        Console command to console-bff (INV-REQ-834, INV-REQ-835; INV-NOTE-7
+        SCR-18.1 to SCR-18.3, the `masterdata-svc` rows). The record
+        holds the endpoint, the credential reference in the secret store
+        (never the secret), the environment tag and the owner service; the
+        service assigns `connectionRef`.
+      tags: [connections]
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->masterdata-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-834, INV-AC-1883]
+      x-operation:
+        role: integration.engineer
+        scope: tenant
+        precondition: "The credential is already held in the secret store."
+        reversibility: UNDOABLE
+        repeatKey: "Idempotency-Key — a repeat returns the record created."
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateConnectionRequest'
+            examples:
+              default:
+                value: { externalService: "CHECK_GST_REGISTER", endpoint: "https://register.example.gov.sg/check", credentialRef: "SECRET-REG-PROD", environmentTag: "PRODUCTION", ownerService: "masterdata-svc" }
+      responses:
+        '201':
+          description: The connection record created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectionRecord'
+              examples:
+                default:
+                  value: { connectionRef: "CON-31", externalService: "CHECK_GST_REGISTER", endpoint: "https://register.example.gov.sg/check", credentialRef: "SECRET-REG-PROD", environmentTag: "PRODUCTION", ownerService: "masterdata-svc" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/masterdata/connections/{connectionRef}:
+    get:
+      operationId: getConnection
+      summary: Read one connection record
+      description: >-
+        Console command to console-bff (INV-REQ-834, INV-REQ-835; INV-NOTE-7
+        SCR-18.1 to SCR-18.3, the `masterdata-svc` rows). Shows endpoint,
+        credential reference, environment tag and owner service, never a
+        secret (INV-AC-1883).
+      tags: [connections]
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->masterdata-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-834, INV-AC-1883]
+      x-operation:
+        role: integration.engineer
+        scope: tenant
+        precondition: "The connection record exists."
+        reversibility: UNDOABLE
+        repeatKey: "None — a read."
+      parameters:
+        - name: connectionRef
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+      responses:
+        '200':
+          description: The connection record.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectionRecord'
+              examples:
+                default:
+                  value: { connectionRef: "CON-31", externalService: "CHECK_GST_REGISTER", endpoint: "https://register.example.gov.sg/check", credentialRef: "SECRET-REG-PROD", environmentTag: "PRODUCTION", ownerService: "masterdata-svc" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/masterdata/connections/{connectionRef}/connection-tests:
+    post:
+      operationId: testConnection
+      summary: Test a connection record
+      description: >-
+        Console command to console-bff (INV-REQ-834, INV-REQ-835; INV-NOTE-7
+        SCR-18.1 to SCR-18.3, the `masterdata-svc` rows). The owning service runs
+        the test against the endpoint with the referenced credential and
+        returns a classified result, not a raw error (INV-REQ-835,
+        INV-AC-1884).
+      tags: [connections]
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->masterdata-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-835, INV-AC-1884]
+      x-operation:
+        role: integration.engineer
+        scope: tenant
+        precondition: "The connection record exists."
+        reversibility: UNDOABLE
+        repeatKey: "None — a read; a repeat returns the current result."
+      parameters:
+        - name: connectionRef
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: The classified connection test result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectionTestResult'
+              examples:
+                default:
+                  value: { connectionRef: "CON-31", classification: "AUTHENTICATION_REFUSED", detail: "CREDENTIAL-REFUSED", checkedAt: "2026-03-20T03:10:00Z" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/masterdata/connections/{connectionRef}/credential-rotations:
+    post:
+      operationId: rotateCredential
+      summary: Rotate a connection record's credential reference
+      description: >-
+        Console command to console-bff (INV-REQ-834, INV-REQ-835; INV-NOTE-7
+        SCR-18.1 to SCR-18.3, the `masterdata-svc` rows). The replacement
+        credential is already held in the secret store; the request carries
+        only its reference, never the secret.
+      tags: [connections]
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->masterdata-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-834]
+      x-operation:
+        role: tenant.admin
+        scope: tenant
+        precondition: "A replacement credential is already held in the secret store."
+        reversibility: COMPENSABLE
+        repeatKey: "(connectionRef, credentialRef) — a repeat returns the original outcome."
+      parameters:
+        - name: connectionRef
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RotateConnectionCredentialRequest'
+            examples:
+              default:
+                value: { credentialRef: "SECRET-REG-PROD-2" }
+      responses:
+        '200':
+          description: The connection record after the rotation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectionRecord'
+              examples:
+                default:
+                  value: { connectionRef: "CON-31", externalService: "CHECK_GST_REGISTER", endpoint: "https://register.example.gov.sg/check", credentialRef: "SECRET-REG-PROD-2", environmentTag: "PRODUCTION", ownerService: "masterdata-svc" }
+        default:
+          $ref: '#/components/responses/Error'
 components:
   parameters:
     IdempotencyKey:
@@ -814,6 +1102,122 @@ components:
         type: string
         format: uuid
   schemas:
+    ApprovedScheme:
+      type: object
+      description: One approved scheme status item (INV-REQ-2433); `scheme` is a scenario-pack value, so not an enum.
+      properties:
+        scheme: { type: string, maxLength: 20 }
+        effectiveFrom: { type: string, format: date }
+        effectiveTo: { type: string, format: date }
+        evidenceRef: { type: string, maxLength: 256 }
+      required: [scheme, effectiveFrom]
+    Reachability:
+      type: object
+      description: Directory reachability of the counterparty (INV-REQ-319).
+      properties:
+        onNetwork: { type: boolean }
+        degradationCode:
+          type: string
+          pattern: '^[A-Z]{2,10}-[0-9]{3}$'
+          description: MDM-008 when the directory or SMP could not be reached and no cache served (INV-REQ-318 b2, INV-REQ-319 b2).
+      required: [onNetwork]
+    GapReport:
+      type: object
+      description: The pre-go-live gap report (INV-REQ-316).
+      properties:
+        rows:
+          type: array
+          items:
+            type: object
+            properties:
+              counterpartyRef: { type: string, maxLength: 40 }
+              findingClass:
+                type: string
+                enum: [UEN_ABSENT, UEN_INVALID, GST_REGISTER_CONFLICT, ADDRESS_INCOMPLETE, DUPLICATE_UEN]
+                x-extensible-enum: true
+              errorCode:
+                type: string
+                pattern: '^[A-Z]{2,10}-[0-9]{3}$'
+                description: MDM-002, MDM-003, MDM-007, MDM-006 for the first four classes; absent for DUPLICATE_UEN.
+            required: [counterpartyRef, findingClass]
+        notChecked:
+          type: array
+          items:
+            type: object
+            properties:
+              counterpartyRef: { type: string, maxLength: 40 }
+              reason:
+                type: string
+                enum: [REGISTER_UNAVAILABLE]
+                x-extensible-enum: true
+            required: [counterpartyRef, reason]
+      required: [rows, notChecked]
+    GapReportStatus:
+      type: object
+      description: Status resource of runGapReport (API-17); also the 202 body, with state RUNNING.
+      properties:
+        gapReportId: { type: string, maxLength: 40 }
+        state:
+          $ref: '#/components/schemas/OperationState'
+        startedAt: { type: string, format: date-time }
+        completedAt: { type: string, format: date-time, description: Present when state is not RUNNING. }
+        result:
+          $ref: '#/components/schemas/GapReport'
+        error:
+          $ref: '#/components/schemas/ErrorEnvelope'
+      required: [gapReportId, state, startedAt]
+    ConnectionFields:
+      type: object
+      properties:
+        externalService:
+          type: string
+          enum: [DIRECTORY, CHECK_GST_REGISTER, RATE_SOURCE]
+          x-extensible-enum: true
+        endpoint: { type: string, format: uri, maxLength: 512 }
+        credentialRef: { type: string, maxLength: 100, description: 'The secret-store key, never the secret.' }
+        environmentTag:
+          type: string
+          enum: [PRODUCTION, SANDBOX]
+          x-extensible-enum: true
+        ownerService: { type: string, maxLength: 40 }
+      required: [externalService, endpoint, credentialRef, environmentTag, ownerService]
+    CreateConnectionRequest:
+      description: The service assigns `connectionRef`.
+      allOf:
+        - $ref: '#/components/schemas/ConnectionFields'
+    ConnectionRecord:
+      allOf:
+        - $ref: '#/components/schemas/ConnectionFields'
+        - type: object
+          properties:
+            connectionRef: { type: string, maxLength: 40 }
+          required: [connectionRef]
+    RotateConnectionCredentialRequest:
+      type: object
+      description: The replacement credential is already held in the secret store; only its reference is carried, never the secret.
+      properties:
+        credentialRef: { type: string, maxLength: 100 }
+      required: [credentialRef]
+    ConnectionTestResult:
+      type: object
+      properties:
+        connectionRef: { type: string, maxLength: 40 }
+        classification:
+          type: string
+          enum: [SUCCESS, UNREACHABLE, AUTHENTICATION_REFUSED, UNEXPECTED_RESPONSE]
+          x-extensible-enum: true
+        detail:
+          type: string
+          maxLength: 32
+          pattern: '^[A-Z][A-Z0-9_-]{1,31}$'
+          description: A code only, never free text (INV-Q-2944); absent on SUCCESS.
+        checkedAt: { type: string, format: date-time }
+      required: [connectionRef, classification, checkedAt]
+    SendCounterpartyRequestBody:
+      type: object
+      properties:
+        contactEmail: { type: string, format: email, maxLength: 254 }
+        contactMobile: { type: string, pattern: '^\+[1-9][0-9]{6,14}$' }
     ResolutionResult:
       type: object
       properties:
@@ -821,6 +1225,15 @@ components:
           $ref: '#/components/schemas/IdentityTripleFacts'
         counterparty:
           $ref: '#/components/schemas/Counterparty'
+        sameGroup: { type: boolean }
+        sameTenant: { type: boolean }
+        arcsGstChargeAgreed: { type: boolean }
+        approvedSchemes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApprovedScheme'
+        reachability:
+          $ref: '#/components/schemas/Reachability'
       required: [identityTriple]
     IdentityTripleFacts:
       type: object
@@ -870,6 +1283,13 @@ components:
           type: string
           enum: [COUNTERPARTY, INTERNAL, MIGRATED]
           x-extensible-enum: true
+        sameGroup: { type: boolean }
+        sameTenant: { type: boolean }
+        arcsGstChargeAgreed: { type: boolean }
+        approvedSchemes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApprovedScheme'
       required: [partyRef, resolvedIdentifiers, providedBy]
     ResolveCounterpartyRequest:
       type: object
@@ -883,6 +1303,11 @@ components:
               value: { type: string, maxLength: 64 }
             required: [scheme, value]
         evidenceRef: { type: string, maxLength: 64 }
+        arcsGstChargeAgreed: { type: boolean }
+        approvedSchemes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApprovedScheme'
       required: [resolvedIdentifiers, evidenceRef]
     BulkResolveRequest:
       type: object
@@ -918,8 +1343,11 @@ components:
         counterpartyRef: { type: string, maxLength: 40 }
         status:
           type: string
-          enum: [SENT, ANSWERED, EXPIRED]
+          enum: [SENT, ANSWERED, EXPIRED, INVALIDATED]
           x-extensible-enum: true
+        contactEmail: { type: string, format: email, maxLength: 254 }
+        contactMobile: { type: string, pattern: '^\+[1-9][0-9]{6,14}$' }
+        expiresAt: { type: string, format: date-time }
       required: [requestId, counterpartyRef, status]
     SubmitCounterpartyDetailsRequest:
       type: object

@@ -1,0 +1,18 @@
+{
+  "partyRef": "CTP-118",
+  "resolvedIdentifiers": [
+    {
+      "scheme": "UEN",
+      "value": "201954321B"
+    }
+  ],
+  "providedBy": "INTERNAL",
+  "sameGroup": true,
+  "sameTenant": false,
+  "arcsGstChargeAgreed": true,
+  "approvedSchemes": [
+    {
+      "scheme": "MES"
+    }
+  ]
+}

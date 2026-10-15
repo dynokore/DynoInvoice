@@ -1,0 +1,5 @@
+{
+  "connectionRef": "CON-31",
+  "classification": "AUTHENTICATION_REFUSED",
+  "detail": "CREDENTIAL-REFUSED"
+}

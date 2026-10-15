@@ -1,0 +1,14 @@
+{
+  "rows": [
+    {
+      "counterpartyRef": "CTP-1",
+      "findingClass": "uen_absent"
+    }
+  ],
+  "notChecked": [
+    {
+      "counterpartyRef": "CTP-3",
+      "reason": "REGISTER_UNAVAILABLE"
+    }
+  ]
+}

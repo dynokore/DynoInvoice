@@ -1,0 +1,11 @@
+../openapi.yaml#/components/schemas/Counterparty counterparty-*.json
+../openapi.yaml#/components/schemas/ResolutionResult resolution-result-*.json
+../openapi.yaml#/components/schemas/ResolveCounterpartyRequest resolve-counterparty-request-*.json
+../openapi.yaml#/components/schemas/GapReport gap-report-*.json
+../openapi.yaml#/components/schemas/GapReportStatus report-status-*.json
+../openapi.yaml#/components/schemas/CreateConnectionRequest create-connection-request-*.json
+../openapi.yaml#/components/schemas/ConnectionRecord connection-record-*.json
+../openapi.yaml#/components/schemas/RotateConnectionCredentialRequest rotate-connection-credential-request-*.json
+../openapi.yaml#/components/schemas/ConnectionTestResult connection-test-result-*.json
+../openapi.yaml#/components/schemas/CounterpartyRequest party-request-*.json
+../openapi.yaml#/components/schemas/SendCounterpartyRequestBody send-counterparty-request-body-*.json

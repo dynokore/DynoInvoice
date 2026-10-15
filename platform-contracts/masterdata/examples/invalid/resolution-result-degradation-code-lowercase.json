@@ -1,0 +1,43 @@
+{
+  "identityTriple": {
+    "senderId": "S1",
+    "supplierId": "P1",
+    "supplierGstn": "M90000001A"
+  },
+  "counterparty": {
+    "partyRef": "CTP-118",
+    "resolvedIdentifiers": [
+      {
+        "scheme": "UEN",
+        "value": "201954321B"
+      }
+    ],
+    "providedBy": "INTERNAL",
+    "sameGroup": true,
+    "sameTenant": false,
+    "arcsGstChargeAgreed": true,
+    "approvedSchemes": [
+      {
+        "scheme": "MES",
+        "effectiveFrom": "2026-01-01",
+        "effectiveTo": "2026-12-31",
+        "evidenceRef": "EVD-2201"
+      }
+    ]
+  },
+  "sameGroup": false,
+  "sameTenant": true,
+  "arcsGstChargeAgreed": false,
+  "approvedSchemes": [
+    {
+      "scheme": "MES",
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": "2026-12-31",
+      "evidenceRef": "EVD-2201"
+    }
+  ],
+  "reachability": {
+    "onNetwork": false,
+    "degradationCode": "mdm-008"
+  }
+}

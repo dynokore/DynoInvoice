@@ -1,0 +1,52 @@
+# INV-T-4912. Identifiers in backticks in the published behavior and intent of INV-REQ-720, 738, 2433, 2445, 2446, 316, 834,
+# 835, 901 and 319 (read from Keel), plus the contract names pinned by coordinator ruling INV-Q-5189 for the same requirements.
+# One row per identifier, under the first requirement that names it (or, for a pinned name the text does not backtick, the
+# requirement it implements). Columns: identifier, kind, file, requirement key.
+# Not rows: resolveMasterData (the operation resolveMasterDataGap on main, INV-REQ-2433, 2445); CanonicalParty.approvedSchemes and
+# CanonicalLine.arcsGstChargeAgreed (canonical contract, Wave 3); ConnectionTestResult.detail (the row `detail`);
+# INFERRED (a scope-pack source class); NA (an IRAS classification); masterdata-svc, canonical-svc, transport-svc, access-svc,
+# adapter-runtime (services); ConnectionStatusChanged, SignedLinkRequested (events); tax.operator, integration.engineer (roles);
+# 429, Retry-After (HTTP).
+identifier	kind	file	requirement
+sameGroup	property	openapi.yaml	INV-REQ-720
+sameTenant	property	openapi.yaml	INV-REQ-720
+approvedSchemes	property	openapi.yaml	INV-REQ-2433
+arcsGstChargeAgreed	property	openapi.yaml	INV-REQ-2446
+reachability	property	openapi.yaml	INV-REQ-319
+onNetwork	property	openapi.yaml	INV-REQ-319
+degradationCode	property	openapi.yaml	INV-REQ-319
+rows	property	openapi.yaml	INV-REQ-316
+notChecked	property	openapi.yaml	INV-REQ-316
+findingClass	property	openapi.yaml	INV-REQ-316
+REGISTER_UNAVAILABLE	enum_value	openapi.yaml	INV-REQ-316
+UEN_ABSENT	enum_value	openapi.yaml	INV-REQ-316
+UEN_INVALID	enum_value	openapi.yaml	INV-REQ-316
+GST_REGISTER_CONFLICT	enum_value	openapi.yaml	INV-REQ-316
+ADDRESS_INCOMPLETE	enum_value	openapi.yaml	INV-REQ-316
+DUPLICATE_UEN	enum_value	openapi.yaml	INV-REQ-316
+runGapReport	operation	openapi.yaml	INV-REQ-316
+getGapReport	operation	openapi.yaml	INV-REQ-316
+externalService	property	openapi.yaml	INV-REQ-834
+endpoint	property	openapi.yaml	INV-REQ-834
+credentialRef	property	openapi.yaml	INV-REQ-834
+environmentTag	property	openapi.yaml	INV-REQ-834
+ownerService	property	openapi.yaml	INV-REQ-834
+DIRECTORY	enum_value	openapi.yaml	INV-REQ-834
+CHECK_GST_REGISTER	enum_value	openapi.yaml	INV-REQ-834
+RATE_SOURCE	enum_value	openapi.yaml	INV-REQ-834
+PRODUCTION	enum_value	openapi.yaml	INV-REQ-834
+SANDBOX	enum_value	openapi.yaml	INV-REQ-834
+createConnection	operation	openapi.yaml	INV-REQ-834
+getConnection	operation	openapi.yaml	INV-REQ-834
+rotateCredential	operation	openapi.yaml	INV-REQ-834
+classification	property	openapi.yaml	INV-REQ-835
+detail	property	openapi.yaml	INV-REQ-835
+SUCCESS	enum_value	openapi.yaml	INV-REQ-835
+UNREACHABLE	enum_value	openapi.yaml	INV-REQ-835
+AUTHENTICATION_REFUSED	enum_value	openapi.yaml	INV-REQ-835
+UNEXPECTED_RESPONSE	enum_value	openapi.yaml	INV-REQ-835
+testConnection	operation	openapi.yaml	INV-REQ-835
+contactEmail	property	openapi.yaml	INV-REQ-901
+contactMobile	property	openapi.yaml	INV-REQ-901
+expiresAt	property	openapi.yaml	INV-REQ-901
+INVALIDATED	enum_value	openapi.yaml	INV-REQ-901

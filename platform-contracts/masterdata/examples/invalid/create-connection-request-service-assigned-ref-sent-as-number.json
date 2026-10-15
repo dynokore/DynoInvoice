@@ -1,0 +1,7 @@
+{
+  "externalService": "CHECK_GST_REGISTER",
+  "endpoint": "https://register.example.gov.sg/check",
+  "credentialRef": "SECRET-REG-PROD",
+  "environmentTag": "PRODUCTION",
+  "ownerService": 7
+}

@@ -1,0 +1,10 @@
+{
+  "identityTriple": {
+    "senderId": "S1",
+    "supplierId": "P1",
+    "supplierGstn": "M90000001A"
+  },
+  "reachability": {
+    "onNetwork": true
+  }
+}

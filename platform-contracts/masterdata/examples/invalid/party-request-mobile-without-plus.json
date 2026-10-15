@@ -1,0 +1,8 @@
+{
+  "requestId": "REQ-77",
+  "counterpartyRef": "CTP-118",
+  "status": "INVALIDATED",
+  "contactEmail": "ap@example.com.sg",
+  "contactMobile": "6591234567",
+  "expiresAt": "2026-04-20T03:10:00Z"
+}
