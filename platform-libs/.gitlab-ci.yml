@@ -465,43 +465,6 @@ publish-job-test:
   script:
     - python3 ci/tests/publish_job_test.py --probes
 
-# TEMPORARY (INV-T-5316 evidence; removed by the next commit): stages main's publications twice, compares SHA-256, dry-runs the guard.
-publish-evidence:
-  extends: [.gradle-job, .gst-changed-modules]
-  stage: publish
-  needs: []
-  variables:
-    MAVEN_REGISTRY_PROJECT_ID: "$CI_PROJECT_ID"
-    GST_PUBLISH_STAGE: "${CI_PROJECT_DIR}/.gst-publish-stage"
-  rules:
-    - if: '$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "t/inv-t-5316"'
-  script:
-    - ci/bom-version.sh
-    - |
-      . build/bom.env
-      bom_args="-PbomVersion=${BOM_VERSION}"
-      if [ "$BOM_ACTION" = "publish" ]; then bom_args="$bom_args -PbomChangelog=$PWD/build/bom-changelog.txt"; fi
-      echo "evidence: commit ${CI_COMMIT_SHA} BOM_ACTION=${BOM_ACTION} BOM_VERSION=${BOM_VERSION}"
-      ./gradlew listPublications $bom_args --stacktrace
-    - !reference [.gst-publish-prepare, script]
-    - |
-      stage_once() {
-        export GST_PUBLISH_STAGE="$1"; rm -rf "$1"
-        tasks=""
-        while read -r path pub artifact version; do
-          if [ "$artifact" = "platform-libs-bom" ] && [ "$BOM_ACTION" != "publish" ]; then continue; fi
-          cap="$(printf '%s' "$pub" | cut -c1 | tr '[:lower:]' '[:upper:]')$(printf '%s' "$pub" | cut -c2-)"
-          tasks="$tasks ${path}:publish${cap}PublicationToGstStageRepository"
-        done < build/publications.txt
-        ./gradlew $tasks $bom_args --rerun-tasks --no-build-cache -I "$GST_RELEASE_DIR/stage-publish.init.gradle" -PgstStageDir="$1" --stacktrace > /dev/null
-        (cd "$1" && find . -type f | sort | xargs sha256sum) > "$1.sha"
-      }
-      stage_once "$CI_PROJECT_DIR/.stage-a"
-      stage_once "$CI_PROJECT_DIR/.stage-b"
-      echo "evidence: staged files: $(wc -l < .stage-a.sha)"
-      if diff .stage-a.sha .stage-b.sha > build/repro.diff; then echo "evidence: reproducibility: all $(wc -l < .stage-a.sha) files identical across two builds"; else echo "evidence: reproducibility: DIFFERENCES"; cat build/repro.diff | cut -c1-200; fi
-      GUARD_USER=gitlab-ci-token GUARD_PASSWORD="${CI_JOB_TOKEN}" python3 "$GST_RELEASE_DIR/publish_guard.py" --dry-run --stage "$CI_PROJECT_DIR/.stage-a" --registry "${CI_API_V4_URL}/projects/${MAVEN_REGISTRY_PROJECT_ID}/packages/maven" 2>&1 | tail -n 60
-
 # The shared template's pact-publish runs `pactPublish` in a job of its own, where no pact file exists (the pacts are
 # written by the contract-tests job above, which publishes them itself, before verifying from the broker).
 pact-publish:
