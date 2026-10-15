@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: control-plane API
-  version: 1.1.0
+  version: 1.2.0
   description: 'Contract-first source of truth for control-plane (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1), SaaS-operator-only: the operator
     console for regulatory, release and commercial roles (regulatory pack authoring/signing/publication,
@@ -74,6 +74,10 @@ paths:
                     packType: SCOPE
                     version: '2026.3'
                     status: DRAFT
+                    authors:
+                    - alice.author@operator.example
+                    minEngineVersion: 2026.10.0
+                    exposureReducing: false
         "400":
           $ref: '#/components/responses/Error'
         "401":
@@ -124,6 +128,8 @@ paths:
               default:
                 value:
                   signingKeyRef: KEY-REG-01
+                  minEngineVersion: 2026.10.0
+                  exposureReducing: false
       responses:
         "200":
           description: Signed
@@ -138,6 +144,28 @@ paths:
                     packType: SCOPE
                     version: '2026.3'
                     status: SIGNED
+                    authors:
+                    - alice.author@operator.example
+                    minEngineVersion: 2026.10.0
+                    exposureReducing: false
+                    signer: bob.approver@operator.example
+                    corpusResult: PASSED
+                    stagingRecord:
+                      packRef: PACK-SCOPE-2026.3
+                      outcome: PASSED
+                      target: IRAS_SANDBOX
+                      evidenceRef: evidence/staging/PACK-SCOPE-2026.3
+                      replayedPeriodRef: 2026-Q3
+                      recordedAt: '2026-10-12T08:30:00Z'
+                    releaseGateResult:
+                      gates:
+                      - gate: CORPUS
+                        candidateResult: PASSED
+                      - gate: STAGING
+                        candidateResult: PASSED
+                      exposureReducing: false
+                      classifiedByRole: release.manager
+                      recordedAt: '2026-10-12T08:45:00Z'
         "409":
           $ref: '#/components/responses/Error'
         "400":
@@ -196,6 +224,28 @@ paths:
                     packType: SCOPE
                     version: '2026.3'
                     status: PUBLISHED
+                    authors:
+                    - alice.author@operator.example
+                    minEngineVersion: 2026.10.0
+                    exposureReducing: false
+                    signer: bob.approver@operator.example
+                    corpusResult: PASSED
+                    stagingRecord:
+                      packRef: PACK-SCOPE-2026.3
+                      outcome: PASSED
+                      target: IRAS_SANDBOX
+                      evidenceRef: evidence/staging/PACK-SCOPE-2026.3
+                      replayedPeriodRef: 2026-Q3
+                      recordedAt: '2026-10-12T08:30:00Z'
+                    releaseGateResult:
+                      gates:
+                      - gate: CORPUS
+                        candidateResult: PASSED
+                      - gate: STAGING
+                        candidateResult: PASSED
+                      exposureReducing: false
+                      classifiedByRole: release.manager
+                      recordedAt: '2026-10-12T08:45:00Z'
         "409":
           $ref: '#/components/responses/Error'
         "400":
@@ -254,6 +304,16 @@ paths:
                     trainVersion: 2026.10.0
                     kind: TRAIN
                     status: AVAILABLE
+                    releaseGateResult:
+                      gates:
+                      - gate: SCENARIOS
+                        candidateResult: PASSED
+                      - gate: SECURITY
+                        candidateResult: FAILED
+                        baselineResult: FAILED
+                      exposureReducing: true
+                      classifiedByRole: release.manager
+                      recordedAt: '2026-10-12T08:45:00Z'
         "400":
           $ref: '#/components/responses/Error'
         "401":
@@ -712,6 +772,28 @@ paths:
                     packType: SCOPE
                     version: '2026.3'
                     status: SIGNED
+                    authors:
+                    - alice.author@operator.example
+                    minEngineVersion: 2026.10.0
+                    exposureReducing: false
+                    signer: bob.approver@operator.example
+                    corpusResult: PASSED
+                    stagingRecord:
+                      packRef: PACK-SCOPE-2026.3
+                      outcome: PASSED
+                      target: IRAS_SANDBOX
+                      evidenceRef: evidence/staging/PACK-SCOPE-2026.3
+                      replayedPeriodRef: 2026-Q3
+                      recordedAt: '2026-10-12T08:30:00Z'
+                    releaseGateResult:
+                      gates:
+                      - gate: CORPUS
+                        candidateResult: PASSED
+                      - gate: STAGING
+                        candidateResult: PASSED
+                      exposureReducing: false
+                      classifiedByRole: release.manager
+                      recordedAt: '2026-10-12T08:45:00Z'
         "400":
           $ref: '#/components/responses/Error'
         "401":
@@ -822,6 +904,112 @@ components:
           - SIGNED
           - PUBLISHED
           x-extensible-enum: true
+        authors:
+          description: Every identity that created or edited an entry of the version, recorded by the service from
+            each authorRegulatoryPack call (INV-REQ-2590 b2). Never a request field.
+          type: array
+          maxItems: 50
+          items:
+            type: string
+            maxLength: 128
+        signer:
+          description: The identity that signed the version, taken from the verified token; absent until signed.
+          type: string
+          maxLength: 128
+        corpusResult:
+          description: Result of the rule conformance corpus run (INV-REQ-2660); absent when no run.
+          type: string
+          enum:
+          - PASSED
+          - FAILED
+          x-extensible-enum: true
+        minEngineVersion:
+          description: The release-train version this pack needs as a minimum (INV-REQ-1094 b1).
+          type: string
+          maxLength: 32
+        exposureReducing:
+          description: The pack only reduces exposure (INV-REQ-2590 b10).
+          type: boolean
+        stagingRecord:
+          $ref: '#/components/schemas/PackStagingRecord'
+        releaseGateResult:
+          $ref: '#/components/schemas/ReleaseGateResult'
+    PackStagingRecord:
+      type: object
+      required:
+      - packRef
+      - outcome
+      properties:
+        packRef:
+          type: string
+          maxLength: 64
+        outcome:
+          description: PENDING means the IRAS sandbox is unavailable and staging is retried (INV-REQ-2662 b7).
+          type: string
+          enum:
+          - PASSED
+          - FAILED
+          - PENDING
+          x-extensible-enum: true
+        target:
+          type: string
+          enum:
+          - IRAS_SANDBOX
+          - SIMULATOR
+          x-extensible-enum: true
+        evidenceRef:
+          description: The sandbox acceptance evidence kept with the version.
+          type: string
+          maxLength: 256
+        replayedPeriodRef:
+          type: string
+          maxLength: 32
+        recordedAt:
+          type: string
+          format: date-time
+    ReleaseGateResult:
+      type: object
+      properties:
+        gates:
+          type: array
+          maxItems: 20
+          items:
+            type: object
+            required:
+            - gate
+            - candidateResult
+            properties:
+              gate:
+                type: string
+                enum:
+                - SCENARIOS
+                - REGENERATION
+                - SECURITY
+                - CERTIFICATION
+                - CORPUS
+                - STAGING
+                x-extensible-enum: true
+              candidateResult:
+                type: string
+                enum:
+                - PASSED
+                - FAILED
+                x-extensible-enum: true
+              baselineResult:
+                description: Only for a failing gate re-run against the released version (INV-REQ-2657 b4).
+                type: string
+                enum:
+                - PASSED
+                - FAILED
+                x-extensible-enum: true
+        exposureReducing:
+          type: boolean
+        classifiedByRole:
+          type: string
+          maxLength: 64
+        recordedAt:
+          type: string
+          format: date-time
     SignPackRequest:
       type: object
       required:
@@ -830,6 +1018,11 @@ components:
         signingKeyRef:
           type: string
           maxLength: 64
+        minEngineVersion:
+          type: string
+          maxLength: 32
+        exposureReducing:
+          type: boolean
     PublishTrainRequest:
       type: object
       required:
@@ -866,6 +1059,8 @@ components:
           enum:
           - AVAILABLE
           x-extensible-enum: true
+        releaseGateResult:
+          $ref: '#/components/schemas/ReleaseGateResult'
     SetSupportWindowRequest:
       type: object
       required:

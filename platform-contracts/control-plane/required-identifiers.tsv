@@ -1,0 +1,37 @@
+# INV-T-4914. Identifiers in backticks in the published behavior and intent of INV-REQ-2590, 2660, 2662, 1386, 1094, 2657
+# (read from Keel). One row per identifier, under the first requirement that names it or that the field serves.
+# Not rows: min_engine_version (INV-REQ-1094; the manifest name of the row minEngineVersion, API-09);
+# security.officer, regulatory.approver, release.manager, tax.approver (roles); control-plane-svc (a service).
+# The pack feed index that rules-svc polls (INV-REQ-1079) is not here: it waits on owner question INV-Q-5191.
+identifier	kind	file	requirement
+authors	property	openapi.yaml	INV-REQ-2590
+signer	property	openapi.yaml	INV-REQ-2590
+exposureReducing	property	openapi.yaml	INV-REQ-2590
+corpusResult	property	openapi.yaml	INV-REQ-2660
+minEngineVersion	property	openapi.yaml	INV-REQ-1094
+stagingRecord	property	openapi.yaml	INV-REQ-2662
+outcome	property	openapi.yaml	INV-REQ-2662
+target	property	openapi.yaml	INV-REQ-2662
+evidenceRef	property	openapi.yaml	INV-REQ-2662
+replayedPeriodRef	property	openapi.yaml	INV-REQ-2662
+releaseGateResult	property	openapi.yaml	INV-REQ-2657
+gates	property	openapi.yaml	INV-REQ-2657
+gate	property	openapi.yaml	INV-REQ-2657
+candidateResult	property	openapi.yaml	INV-REQ-2657
+baselineResult	property	openapi.yaml	INV-REQ-2657
+classifiedByRole	property	openapi.yaml	INV-REQ-2657
+PASSED	enum_value	openapi.yaml	INV-REQ-2662
+FAILED	enum_value	openapi.yaml	INV-REQ-2662
+PENDING	enum_value	openapi.yaml	INV-REQ-2662
+IRAS_SANDBOX	enum_value	openapi.yaml	INV-REQ-2662
+SIMULATOR	enum_value	openapi.yaml	INV-REQ-2662
+SCENARIOS	enum_value	openapi.yaml	INV-REQ-2657
+REGENERATION	enum_value	openapi.yaml	INV-REQ-2657
+SECURITY	enum_value	openapi.yaml	INV-REQ-2657
+CERTIFICATION	enum_value	openapi.yaml	INV-REQ-2657
+CORPUS	enum_value	openapi.yaml	INV-REQ-2657
+STAGING	enum_value	openapi.yaml	INV-REQ-2657
+signPack	operation	openapi.yaml	INV-REQ-2590
+publishPack	operation	openapi.yaml	INV-REQ-2590
+getPack	operation	openapi.yaml	INV-REQ-2590
+managePlan	operation	openapi.yaml	INV-REQ-1386

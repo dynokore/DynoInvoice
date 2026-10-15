@@ -1,0 +1,5 @@
+../openapi.yaml#/components/schemas/PackStagingRecord pack-staging-record-*.json
+../openapi.yaml#/components/schemas/ReleaseGateResult release-gate-result-*.json
+../openapi.yaml#/components/schemas/PackResponse pack-response-*.json
+../openapi.yaml#/components/schemas/SignPackRequest sign-pack-request-*.json
+../openapi.yaml#/components/schemas/ReleaseTrainResponse release-train-response-*.json

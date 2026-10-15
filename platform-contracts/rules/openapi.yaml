@@ -1050,6 +1050,7 @@ components:
           description: The classification result, not the caller's assertion (INV-REQ-371 b1).
         documentTypeCode:
           type: string
+          maxLength: 3
           pattern: '^38[01]$'
           description: >-
             The UNCL1001 document type code the classification table yields: 380 (invoice) or

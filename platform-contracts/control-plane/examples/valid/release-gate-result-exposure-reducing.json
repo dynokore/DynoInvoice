@@ -1,0 +1,1 @@
+{"gates":[{"gate":"SCENARIOS","candidateResult":"PASSED"},{"gate":"SECURITY","candidateResult":"FAILED","baselineResult":"FAILED"}],"exposureReducing":true,"classifiedByRole":"release.manager","recordedAt":"2026-10-12T08:45:00Z"}
