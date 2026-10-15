@@ -31,5 +31,6 @@ expect_fail map-min-properties "fewer than minProperties 1"
 expect_fail map-property-names "shorter than minLength 1"
 expect_fail map-unsupported-keyword "keyword 'patternProperties' is not supported"
 expect_fail map-unsupported-keyword "keyword 'maxProperties' is not supported"
+expect_fail map-unsupported-keyword "nested-unreached.json: schema keyword 'patternProperties'"
 [ "$failed" -eq 0 ] && echo "gst-ci: validate-schema-samples.py self-test passed."
 exit $failed

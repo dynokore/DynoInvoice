@@ -136,7 +136,9 @@ def _check(instance, schema: dict, root: dict, path: str) -> None:
         if "minProperties" in schema and len(instance) < schema["minProperties"]:
             raise Invalid(f"{path}: fewer than minProperties {schema['minProperties']}")
         names = schema.get("propertyNames")
-        if names is not None:
+        if names is False and instance:
+            raise Invalid(f"{path}: no property name is allowed (propertyNames false)")
+        if isinstance(names, dict):
             for key in instance:
                 _check(key, {"type": "string", **names}, root, f"{path}.<name {key!r}>")
         props = schema.get("properties", {})
@@ -204,8 +206,37 @@ def _valid(instance, schema: dict, root: dict, path: str) -> bool:
         return False
 
 
+def _scan_unsupported(schema, root: dict, seen: set[int]) -> None:
+    """Fail closed on a schema whose reachable subschemas (also those no sample reaches, and the
+    targets of local $refs) carry an unsupported keyword. Only schema positions are read, so a
+    property that happens to be named patternProperties is not a keyword."""
+    if not isinstance(schema, dict) or id(schema) in seen:
+        return
+    seen.add(id(schema))
+    for keyword in _UNSUPPORTED_KEYWORDS:
+        if keyword in schema:
+            raise Unsupported(f"schema keyword '{keyword}' is not supported by this validator")
+    if isinstance(schema.get("$ref"), str) and schema["$ref"].startswith("#/"):
+        try:
+            _scan_unsupported(_pointer(root, schema["$ref"]), root, seen)
+        except Invalid:
+            pass  # an unresolvable $ref is reported by _check when a sample reaches it
+    for key in ("properties", "$defs", "definitions"):
+        if isinstance(schema.get(key), dict):
+            for sub in schema[key].values():
+                _scan_unsupported(sub, root, seen)
+    for key in ("additionalProperties", "propertyNames", "items", "not", "if", "then", "else"):
+        _scan_unsupported(schema.get(key), root, seen)
+    for key in ("allOf", "anyOf", "oneOf", "prefixItems"):
+        if isinstance(schema.get(key), list):
+            for sub in schema[key]:
+                _scan_unsupported(sub, root, seen)
+
+
 def validate(instance, schema: dict, root: dict | None = None) -> None:
-    _check(instance, schema, schema if root is None else root, "$")
+    root = schema if root is None else root
+    _scan_unsupported(schema, root, set())
+    _check(instance, schema, root, "$")
 
 
 def run_dir(schema_spec: str, samples_dir: Path, pattern: str | None = None,

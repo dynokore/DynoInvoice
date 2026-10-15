@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "properties": {
+    "m": {
+      "type": "object",
+      "patternProperties": {
+        "^a": {
+          "type": "integer"
+        }
+      }
+    }
+  }
+}
