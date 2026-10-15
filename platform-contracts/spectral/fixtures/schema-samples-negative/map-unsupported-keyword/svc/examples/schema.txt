@@ -1,0 +1,2 @@
+../schemas/pattern.schema.json pattern-*.json
+../schemas/max.schema.json max-*.json

@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "properties": {
+    "counts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    }
+  }
+}

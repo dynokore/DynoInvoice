@@ -1,0 +1,19 @@
+{
+  "type": "object",
+  "properties": {
+    "rules": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "endOfMonth": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "endOfMonth"
+        ]
+      }
+    }
+  }
+}

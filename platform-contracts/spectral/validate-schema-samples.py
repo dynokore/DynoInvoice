@@ -5,9 +5,11 @@ T6's "Schema validation tests with valid and invalid samples pass": a
 minimal, dependency-free JSON Schema (2020-12 subset) validator, covering
 exactly the keywords the two envelope schemas use (type, properties,
 required, additionalProperties, pattern, format, const, enum, minLength,
-minimum, maximum, items, local $ref into #/$defs), plus uniqueItems and a calendar
+minimum, maximum, items, local $ref into #/$defs), plus uniqueItems, the map keywords
+minProperties, propertyNames and schema-valued additionalProperties (INV-T-5054), and a calendar
 check of format: date (a date matching YYYY-MM-DD must also exist, so
-2027-13-45 fails). No pip install in CI (mirrors
+2027-13-45 fails). A schema carrying patternProperties or maxProperties fails every sample
+(Unsupported, never silently ignored). No pip install in CI (mirrors
 check-payload-compat.py's stdlib-only style); networknt json-schema-validator
 (STK-74) is the consumer-edge validator once services exist in Kotlin — this
 script only proves the two envelope schemas in this repository behave as
@@ -54,6 +56,15 @@ class Invalid(Exception):
     pass
 
 
+class Unsupported(Exception):
+    """A schema keyword this validator cannot check. Not an Invalid: an invalid sample is not
+    counted as correctly rejected, and not / if-then-else (which catch only Invalid) never
+    swallow it."""
+
+
+_UNSUPPORTED_KEYWORDS = ("patternProperties", "maxProperties")
+
+
 def _resolve(schema: dict, root: dict) -> dict:
     if "$ref" in schema:
         ref = schema["$ref"]
@@ -91,6 +102,10 @@ def load_schema(spec: str) -> tuple[dict, dict]:
 def _check(instance, schema: dict, root: dict, path: str) -> None:
     schema = _resolve(schema, root)
 
+    for keyword in _UNSUPPORTED_KEYWORDS:
+        if keyword in schema:
+            raise Unsupported(f"schema keyword '{keyword}' is not supported by this validator")
+
     if "const" in schema and instance != schema["const"]:
         raise Invalid(f"{path}: expected const {schema['const']!r}, got {instance!r}")
 
@@ -118,12 +133,21 @@ def _check(instance, schema: dict, root: dict, path: str) -> None:
         for req in schema.get("required", []):
             if req not in instance:
                 raise Invalid(f"{path}: missing required property '{req}'")
+        if "minProperties" in schema and len(instance) < schema["minProperties"]:
+            raise Invalid(f"{path}: fewer than minProperties {schema['minProperties']}")
+        names = schema.get("propertyNames")
+        if names is not None:
+            for key in instance:
+                _check(key, {"type": "string", **names}, root, f"{path}.<name {key!r}>")
         props = schema.get("properties", {})
+        extra = schema.get("additionalProperties")
         for key, value in instance.items():
             if key in props:
                 _check(value, props[key], root, f"{path}.{key}")
-            elif schema.get("additionalProperties") is False:
+            elif extra is False:
                 raise Invalid(f"{path}: additional property '{key}' not allowed")
+            elif isinstance(extra, dict):
+                _check(value, extra, root, f"{path}.{key}")
     elif t == "array":
         if not isinstance(instance, list):
             raise Invalid(f"{path}: expected array, got {type(instance).__name__}")
@@ -205,6 +229,8 @@ def run_dir(schema_spec: str, samples_dir: Path, pattern: str | None = None,
             validate(instance, schema, root)
         except Invalid as e:
             failures.append(f"{sample}: expected VALID but failed: {e}")
+        except Unsupported as e:
+            failures.append(f"{sample}: {e}")
 
     for sample in sorted((samples_dir / "invalid").glob("*.json")):
         if not mine(sample):
@@ -215,6 +241,8 @@ def run_dir(schema_spec: str, samples_dir: Path, pattern: str | None = None,
             failures.append(f"{sample}: expected INVALID but passed")
         except Invalid:
             pass
+        except Unsupported as e:
+            failures.append(f"{sample}: {e}")
 
     return failures
 

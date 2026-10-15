@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "properties": {
+    "counts": {
+      "type": "object",
+      "minProperties": 1
+    }
+  }
+}

@@ -17,11 +17,19 @@ expect_fail() {
 }
 out=$(python3 validate-schema-samples.py --discover $N/yaml-ref-pass 2>&1) || { echo "gst-ci: FAIL — OpenAPI-pointer fixture rejected:"; echo "$out"; failed=1; }
 out=$(python3 validate-schema-samples.py --discover $N/conditional-pass 2>&1) || { echo "gst-ci: FAIL — if/then/else-not fixture rejected:"; echo "$out"; failed=1; }
+out=$(python3 validate-schema-samples.py --discover $N/map-pass 2>&1) || { echo "gst-ci: FAIL — map-keyword fixture rejected:"; echo "$out"; failed=1; }
 expect_fail yaml-ref-unclaimed-sample "matches no sample glob"
 expect_fail valid-sample-fails "expected VALID but failed"
 expect_fail invalid-sample-passes "expected INVALID but passed"
 expect_fail no-schema-declared "no schema.txt"
 expect_fail duplicate-items "violates uniqueItems"
 expect_fail bad-calendar-date "is not a valid calendar date"
+expect_fail map-value-minimum "below minimum 0"
+expect_fail map-value-required "missing required property 'endOfMonth'"
+expect_fail map-value-date "is not a valid calendar date"
+expect_fail map-min-properties "fewer than minProperties 1"
+expect_fail map-property-names "shorter than minLength 1"
+expect_fail map-unsupported-keyword "keyword 'patternProperties' is not supported"
+expect_fail map-unsupported-keyword "keyword 'maxProperties' is not supported"
 [ "$failed" -eq 0 ] && echo "gst-ci: validate-schema-samples.py self-test passed."
 exit $failed
