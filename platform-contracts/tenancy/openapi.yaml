@@ -622,8 +622,8 @@ paths:
       operationId: listPeriodRecords
       summary: List an entity's period records with state and due date (INV-REQ-85, SCR-07)
       description: >-
-        The filing calendar read (INV-REQ-85, FR-AG.15): the entity's period records, each with its state and
-        its filing due date. console-bff renders the calendar
+        The filing calendar read (INV-REQ-85, FR-AG.15): the entity's period records, each with its position,
+        its one state, its filing due date, its filing date when filed and the extension flag. console-bff renders the calendar
         from these records and the cross-entity portfolio view reads the same records.
       tags:
       - periods
@@ -655,8 +655,13 @@ paths:
                     entityRef: ENT-3F2A9C
                     periods:
                     - periodRef: 2026Q1
+                      periodStart: "2026-01-01"
+                      periodEnd: "2026-03-31"
+                      position: PAST
                       state: LATE
                       filingDueDate: "2026-04-30"
+                      filingDate: "2026-05-06"
+                      extensionGranted: true
         "400":
           $ref: '#/components/responses/Error'
         "401":
@@ -2332,19 +2337,54 @@ components:
         basis:
           type: string
           maxLength: 500
-          description: The basis of the value set, recorded with it (INV-REQ-331).
+          description: The basis of the value set; required whenever partiallyExempt or excludedBusinessStatus is present (INV-REQ-331 b1).
+        evidenceRef:
+          type: string
+          maxLength: 200
+          description: Reference to the evidence of the Excluded Business determination; required whenever excludedBusinessStatus is present (INV-REQ-333 b1).
         obligationStartDate:
           type: string
           format: date
           description: The later of the registration start date and the implementation date (INV-REQ-335).
         obligationStartBasis:
           type: string
-          maxLength: 200
-          description: The basis of obligationStartDate, recorded with it (INV-REQ-335).
+          enum:
+          - MANDATORY_DATE
+          - EARLIER_VOLUNTARY_DATE
+          - IRAS_COMMUNICATED_DATE
+          default: MANDATORY_DATE
+          description: Basis of the implementation date behind obligationStartDate, the option keys of INV-REQ-1312 (INV-REQ-335 b1).
+        irasReference:
+          type: string
+          maxLength: 100
+          description: IRAS reference of a communicated date; required when obligationStartBasis is IRAS_COMMUNICATED_DATE (INV-REQ-335 b1).
         obligationStartOverride:
           type: boolean
           default: false
           description: True when a GST group or division overrides the computed date (INV-REQ-335, INV-REQ-717).
+      allOf:
+      - if:
+          required:
+          - partiallyExempt
+        then:
+          required:
+          - basis
+      - if:
+          required:
+          - excludedBusinessStatus
+        then:
+          required:
+          - basis
+          - evidenceRef
+      - if:
+          required:
+          - obligationStartBasis
+          properties:
+            obligationStartBasis:
+              const: IRAS_COMMUNICATED_DATE
+        then:
+          required:
+          - irasReference
     EntityStatusResponse:
       type: object
       required:
@@ -2378,12 +2418,22 @@ components:
         basis:
           type: string
           maxLength: 500
+        evidenceRef:
+          type: string
+          maxLength: 200
         obligationStartDate:
           type: string
           format: date
         obligationStartBasis:
           type: string
-          maxLength: 200
+          enum:
+          - MANDATORY_DATE
+          - EARLIER_VOLUNTARY_DATE
+          - IRAS_COMMUNICATED_DATE
+          x-extensible-enum: true
+        irasReference:
+          type: string
+          maxLength: 100
         obligationStartOverride:
           type: boolean
     SetIssuanceModeRequest:
@@ -2686,19 +2736,48 @@ components:
       type: object
       required:
       - periodRef
+      - periodStart
+      - periodEnd
+      - position
       - state
       - filingDueDate
+      - extensionGranted
       properties:
         periodRef:
           type: string
           maxLength: 64
+        periodStart:
+          type: string
+          format: date
+        periodEnd:
+          type: string
+          format: date
+        position:
+          type: string
+          enum:
+          - PAST
+          - CURRENT
+          - NEXT
+          x-extensible-enum: true
         state:
           type: string
-          maxLength: 32
-          description: The period's one state (INV-REQ-85).
+          enum:
+          - OPEN
+          - DUE
+          - FILED
+          - LATE
+          x-extensible-enum: true
+          description: One state per record, by the precedence late, filed, due, open (INV-REQ-85 b3).
         filingDueDate:
           type: string
           format: date
+        filingDate:
+          type: string
+          format: date
+          description: Present when a filing fact is recorded, also on a late period (INV-REQ-85 b3).
+        extensionGranted:
+          type: boolean
+          description: A flag, not a fifth state; true with any state (INV-REQ-85 b4).
     PeriodRecordListResponse:
       type: object
       required:

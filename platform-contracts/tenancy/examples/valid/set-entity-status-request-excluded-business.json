@@ -2,5 +2,6 @@
   "statusKind": "EXCLUDED_BUSINESS",
   "effectiveFrom": "2026-10-01",
   "excludedBusinessStatus": "OVR",
-  "basis": "IRAS determination letter"
+  "basis": "IRAS determination letter",
+  "evidenceRef": "EV-2026-0042"
 }

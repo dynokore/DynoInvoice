@@ -3,13 +3,22 @@
   "periods": [
     {
       "periodRef": "2026Q1",
+      "periodStart": "2026-01-01",
+      "periodEnd": "2026-03-31",
+      "position": "PAST",
       "state": "LATE",
-      "filingDueDate": "2026-04-30"
+      "filingDueDate": "2026-04-30",
+      "filingDate": "2026-05-06",
+      "extensionGranted": true
     },
     {
       "periodRef": "2026Q2",
+      "periodStart": "2026-04-01",
+      "periodEnd": "2026-06-30",
+      "position": "CURRENT",
       "state": "OPEN",
-      "filingDueDate": "2026-07-31"
+      "filingDueDate": "2026-07-31",
+      "extensionGranted": false
     }
   ]
 }

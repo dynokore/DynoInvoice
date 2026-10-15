@@ -1,0 +1,14 @@
+{
+  "entityRef": "ENT-3F2A9C",
+  "periods": [
+    {
+      "periodRef": "2026Q2",
+      "periodStart": "2026-04-01",
+      "periodEnd": "2026-06-30",
+      "position": "CURRENT",
+      "state": "LATE_FILED",
+      "filingDueDate": "2026-07-31",
+      "extensionGranted": false
+    }
+  ]
+}

@@ -3,5 +3,6 @@
   "statusKind": "EXCLUDED_BUSINESS",
   "effectiveFrom": "2026-10-01",
   "excludedBusinessStatus": "RC_ONLY",
-  "basis": "Reverse-charge-only supplies"
+  "basis": "Reverse-charge-only supplies",
+  "evidenceRef": "EV-2026-0042"
 }

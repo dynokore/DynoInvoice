@@ -105,6 +105,8 @@ def _check(instance, schema: dict, root: dict, path: str) -> None:
     # not, and if/then/else. A schema inside them is checked by the same rules.
     if "not" in schema and _valid(instance, schema["not"], root, path):
         raise Invalid(f"{path}: must not satisfy the 'not' schema")
+    for sub in schema.get("allOf", []):
+        _check(instance, sub, root, path)
     if "if" in schema:
         branch = schema.get("then") if _valid(instance, schema["if"], root, path) else schema.get("else")
         if branch is not None:
