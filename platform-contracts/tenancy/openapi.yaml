@@ -1577,7 +1577,6 @@ paths:
               default:
                 value:
                   requestedBy: Ledger Custody Pte Ltd
-                  reason: Open IRAS enquiry on the 2026 filings
       responses:
         "201":
           description: Hold recorded
@@ -2636,9 +2635,6 @@ components:
           type: string
           maxLength: 200
           description: The retention custody holder who requested the hold.
-        reason:
-          type: string
-          maxLength: 500
     RetentionHoldResponse:
       type: object
       required:
