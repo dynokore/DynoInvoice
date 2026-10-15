@@ -26,7 +26,6 @@ internal object Fixtures {
 
     fun pack(
         holidays: Set<LocalDate> = emptySet(),
-        transition: TransitionStyle = TransitionStyle.CUT_AT_CHANGE,
         pinnedRule: NonBusinessDayRule? = null,
         weekend: Set<DayOfWeek> = setOf(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY),
     ) = CalendarPack(
@@ -43,7 +42,6 @@ internal object Fixtures {
                 "F8" to DueRule(monthsAfterEnd = 1, endOfMonth = true, daysAfterEnd = 0),
             ),
         calendar = BusinessCalendar(weekend, holidays),
-        transition = transition,
         pinnedRule = pinnedRule,
     )
 

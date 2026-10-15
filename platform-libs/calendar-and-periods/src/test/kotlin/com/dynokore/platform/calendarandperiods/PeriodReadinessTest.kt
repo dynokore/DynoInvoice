@@ -8,7 +8,10 @@ import org.junit.jupiter.api.Test
 class PeriodReadinessTest {
     @Test
     fun `all controls complete gives ready`() {
-        val verdict = gatePeriodReadiness(listOf(CompletenessControl("DOC-COMPLETE", true), CompletenessControl("REC-COMPLETE", true)))
+        val verdict =
+            gatePeriodReadiness(
+                listOf(CompletenessControl("DOC-COMPLETE", true), CompletenessControl("REC-COMPLETE", true)),
+            )
 
         assertEquals(ReadinessVerdict.Ready, verdict)
     }
