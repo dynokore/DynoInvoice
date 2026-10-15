@@ -1533,71 +1533,6 @@ paths:
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
-  /internal/v1/tenancy/tenants/{tenantRef}/retention-holds:
-    post:
-      operationId: recordRetentionHold
-      summary: Record a retention hold requested in the notice window (INV-AC-1402)
-      description: >-
-        At retention end of a closed tenant the retention custody holder may request a legal hold before
-        deletion (INV-REQ-639, INV-REQ-956 b4). A hold recorded inside the notice window stops the
-        deletion; without one, deletion needs both approvals (INV-AC-1402). A request after the window
-        is refused.
-      tags:
-      - tenants
-      x-principal: filing-workflow
-      x-sync-edge: console-bff->tenancy-svc
-      x-timeout: 2000
-      x-requirements:
-      - FR-AB.9
-      x-error-codes: []
-      x-operation:
-        role: security.officer
-        scope: tenant
-        precondition: The tenant is closed and the notice window before retention end is open
-        reversibility: COMPENSABLE
-        repeatKey: (tenantRef, requestedBy) — a repeat while the hold stands returns it
-      parameters:
-      - name: tenantRef
-        in: path
-        required: true
-        description: The closed tenant's opaque reference.
-        schema:
-          type: string
-          maxLength: 64
-        example: TEN-7B1004
-      - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RecordRetentionHoldRequest'
-            examples:
-              default:
-                value: {}
-      responses:
-        "201":
-          description: Hold recorded
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RetentionHoldResponse'
-              examples:
-                default:
-                  value:
-                    tenantRef: TEN-7B1004
-        "409":
-          $ref: '#/components/responses/Error'
-        "400":
-          $ref: '#/components/responses/Error'
-        "401":
-          $ref: '#/components/responses/Error'
-        "403":
-          $ref: '#/components/responses/Error'
-        "404":
-          $ref: '#/components/responses/Error'
-        default:
-          $ref: '#/components/responses/Error'
   /internal/v1/tenancy/tenants/{tenantRef}/operating-profile:
     post:
       operationId: recordAppliedOperatingProfile
@@ -2644,18 +2579,6 @@ components:
           type: string
           maxLength: 200
           description: The handover statement stored in the offboarding record (INV-REQ-955 b3, INV-REQ-956 b2).
-    RecordRetentionHoldRequest:
-      type: object
-      additionalProperties: false
-      description: A hold requested in the notice window; the tenant is named by the path.
-    RetentionHoldResponse:
-      type: object
-      required:
-      - tenantRef
-      properties:
-        tenantRef:
-          type: string
-          maxLength: 64
     RecordAppliedOperatingProfileRequest:
       type: object
       required:
