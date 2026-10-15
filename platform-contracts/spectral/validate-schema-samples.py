@@ -5,7 +5,7 @@ T6's "Schema validation tests with valid and invalid samples pass": a
 minimal, dependency-free JSON Schema (2020-12 subset) validator, covering
 exactly the keywords the two envelope schemas use (type, properties,
 required, additionalProperties, pattern, format, const, enum, minLength,
-minimum, items, local $ref into #/$defs), plus uniqueItems and a calendar
+minimum, maximum, items, local $ref into #/$defs), plus uniqueItems and a calendar
 check of format: date (a date matching YYYY-MM-DD must also exist, so
 2027-13-45 fails). No pip install in CI (mirrors
 check-payload-compat.py's stdlib-only style); networknt json-schema-validator
@@ -164,6 +164,8 @@ def _check(instance, schema: dict, root: dict, path: str) -> None:
             raise Invalid(f"{path}: expected integer, got {type(instance).__name__}")
         if "minimum" in schema and instance < schema["minimum"]:
             raise Invalid(f"{path}: {instance} below minimum {schema['minimum']}")
+        if "maximum" in schema and instance > schema["maximum"]:
+            raise Invalid(f"{path}: {instance} above maximum {schema['maximum']}")
     elif t == "boolean":
         if not isinstance(instance, bool):
             raise Invalid(f"{path}: expected boolean, got {type(instance).__name__}")

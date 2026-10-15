@@ -1,0 +1,26 @@
+openapi: 3.1.0
+info: {title: fixture, version: 1.0.0}
+paths:
+  /v1/verify:
+    post:
+      operationId: verify
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/VerifyRequest'}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/VerifyResponse'}
+components:
+  schemas:
+    VerifyRequest:
+      type: object
+      properties:
+        passcode: {type: string}
+    VerifyResponse:
+      type: object
+      properties:
+        passcodeAttempts: {type: string}

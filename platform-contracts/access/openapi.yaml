@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: access API
-  version: 1.3.0
+  version: 1.4.0
   description: 'Contract-first source of truth for access (API-01, STK-44), replacing the INV-T-2849 scaffold
     (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): who may do what, on whose authority.
     `authorise`, `getVerificationKeys` and `getRevocationList` are queries, not FR-AC.1 operations (no persistent state change),
@@ -1133,6 +1133,7 @@ paths:
                   clientRef: CLI-2201
                   purpose: CONFIRM_FILING
                   recipientEmail: signatory@client.example
+                  recipientMobile: "+6591234567"
       responses:
         "201":
           description: Link issued
@@ -1200,7 +1201,10 @@ paths:
                   passcode: "482913"
       responses:
         "200":
-          description: Verified; a session for the link's page starts
+          description: 'Verified; a session for the link''s page starts. A wrong entry is a 200 with `verified`
+            false and `wrongEntryCount`; the entry that reaches the limit is a 200 with `invalidated` true
+            (the link is invalidated and ACC-004 is raised to the sender); any later attempt, even with
+            the correct passcode, is the 410 ACC-004.'
           content:
             application/json:
               schema:
@@ -1210,6 +1214,22 @@ paths:
                   value:
                     linkRef: LNK-771A
                     verified: true
+                    wrongEntryCount: 0
+                    invalidated: false
+                wrongEntry:
+                  summary: A wrong entry
+                  value:
+                    linkRef: LNK-771A
+                    verified: false
+                    wrongEntryCount: 3
+                    invalidated: false
+                limitReached:
+                  summary: The entry that reaches the limit
+                  value:
+                    linkRef: LNK-771A
+                    verified: false
+                    wrongEntryCount: 5
+                    invalidated: true
         "410":
           description: Invalidated after the passcode attempt limit (ACC-004)
           content:
@@ -1504,8 +1524,9 @@ paths:
                 value:
                   clientRef: CLI-2201
                   agentRef: AGT-01
-                  scope:
-                  - FILE_GST_RETURN
+                  submitInvoiceData: false
+                  fileGstReturn: true
+                  mappingApproval: false
                   validFrom: "2026-09-27"
                   authorisingPersonEmail: director@client.example
       responses:
@@ -1588,6 +1609,7 @@ paths:
                     clientRef: CLI-2201
                     agentRef: AGT-01
                     status: WITHDRAWN
+                    handoverStatementRef: HOS-4471
         "400":
           $ref: '#/components/responses/Error'
         "401":
@@ -1854,6 +1876,14 @@ components:
           - ACTIVE
           - REVOKED
           x-extensible-enum: true
+        grantSource:
+          type: string
+          description: How the grant was provisioned (INV-REQ-1263); grantRole always answers BY_HAND.
+          enum:
+          - BY_HAND
+          - DIRECTORY_GROUPS
+          - SCIM
+          x-extensible-enum: true
     CreatePrincipalRequest:
       type: object
       required:
@@ -1869,6 +1899,14 @@ components:
           - AGENT
           - SUPPORT_TOOL
           - INTEGRATION
+          - INGEST
+          - FILING_WORKFLOW
+          - REPORTING
+          - MONITORING
+          - CERTIFICATION
+          description: 'The six principal types of INV-REQ-584 are INGEST, FILING_WORKFLOW, AP_CALLBACK,
+            REPORTING, MONITORING and CERTIFICATION. MACHINE_CLIENT, SCHEDULED_JOB, AGENT, SUPPORT_TOOL
+            and INTEGRATION are reserved and not issuable (kept because removing a value is breaking).'
         scope:
           type: string
           maxLength: 128
@@ -2139,6 +2177,10 @@ components:
           type: string
           format: email
           maxLength: 254
+        recipientMobile:
+          type: string
+          description: The recipient's mobile number, where one is on file; a plain string, because no
+            phone-number format is published. Where present, the passcode is sent by SMS (INV-REQ-2762).
     SignatoryLinkResponse:
       type: object
       required:
@@ -2178,6 +2220,16 @@ components:
           maxLength: 64
         verified:
           type: boolean
+        wrongEntryCount:
+          type: integer
+          minimum: 0
+          maximum: 5
+          description: The wrong passcode entries recorded for the link, including this call; never more
+            than five (INV-REQ-2762, INV-REQ-2758).
+        invalidated:
+          type: boolean
+          default: false
+          description: True when this entry reached the limit and the link is now invalidated.
     UnlockBreakGlassRequest:
       type: object
       required:
@@ -2275,7 +2327,6 @@ components:
       required:
       - clientRef
       - agentRef
-      - scope
       - validFrom
       - authorisingPersonEmail
       properties:
@@ -2288,9 +2339,23 @@ components:
         scope:
           type: array
           maxItems: 20
+          description: Legacy free-text scope. access-svc refuses a non-empty value, because a free-text
+            scope would grant by inference; use the three scope items below (INV-REQ-912).
           items:
             type: string
             maxLength: 64
+        submitInvoiceData:
+          type: boolean
+          default: false
+          description: SUBMIT_INVOICE_DATA, granted by the client signatory; no item implies another.
+        fileGstReturn:
+          type: boolean
+          default: false
+          description: FILE_GST_RETURN, granted by the client signatory; no item implies another.
+        mappingApproval:
+          type: boolean
+          default: false
+          description: MAPPING_APPROVAL, granted by the client signatory; no item implies another.
         validFrom:
           type: string
           format: date
@@ -2321,6 +2386,17 @@ components:
           - ACTIVE
           - WITHDRAWN
           x-extensible-enum: true
+        submitInvoiceData:
+          type: boolean
+        fileGstReturn:
+          type: boolean
+        mappingApproval:
+          type: boolean
+        handoverStatementRef:
+          type: string
+          maxLength: 64
+          description: The handover statement reference of a withdrawal (INV-REQ-955); present on every
+            response of withdrawConsent, the same value on a repeat.
     WithdrawConsentRequest:
       type: object
       required:

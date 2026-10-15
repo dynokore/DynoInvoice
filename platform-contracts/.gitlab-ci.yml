@@ -302,6 +302,7 @@ contract-check-self-tests:
     - sh spectral/self-test-schema-samples.sh
     - sh spectral/self-test-timeouts.sh   # INV-T-3431: proves check-timeouts.py fires
     - sh spectral/self-test-required-identifiers.sh   # INV-T-4909: proves check-required-identifiers.py fires
+    - sh spectral/self-test-forbidden-properties.sh   # INV-T-4910: proves check-forbidden-properties.py fires
 
 required-identifiers-check:
   # INV-T-4909 (INV-Q-4874): fails closed when a contract lacks an identifier its requirements name.
@@ -315,6 +316,18 @@ required-identifiers-check:
     - apk add --no-cache python3 py3-yaml
   script:
     - python3 spectral/check-required-identifiers.py .
+
+forbidden-properties-check:
+  # INV-T-4910 (INV-Q-4902): no response or event schema of access/ carries a listed secret property
+  # (access/forbidden-properties.tsv: passcode); the request that carries the entered passcode is allowed.
+  stage: verify
+  image:
+    name: "$OASDIFF_IMAGE"
+    entrypoint: [""]
+  before_script:
+    - apk add --no-cache python3 py3-yaml
+  script:
+    - python3 spectral/check-forbidden-properties.py access/
 
 sync-edge-rule-self-test:
   # INV-T-2850 follow-up (lesson P20): proves Spectral rule inv-api-08-x-sync-edge fires.

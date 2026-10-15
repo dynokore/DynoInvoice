@@ -214,7 +214,7 @@ rules:
   inv-api-09-field-casing:
     description: API-09 — field names are camelCase.
     message: "field name '{{property}}' must be camelCase (API-09)"
-    given: "$..properties"
+    given: "$..properties.*~"
     severity: error
     formats: ["oas3_1"]
     then:

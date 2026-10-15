@@ -1,1 +1,7 @@
 ../schemas/authority-changed-payload.schema.json
+../openapi.yaml#/components/schemas/SignatoryLinkRequest signatory-link-request-*.json
+../openapi.yaml#/components/schemas/SignatoryLinkVerifyResponse signatory-link-verify-response-*.json
+../openapi.yaml#/components/schemas/GrantConsentRequest grant-consent-request-*.json
+../openapi.yaml#/components/schemas/ConsentResponse consent-response-*.json
+../openapi.yaml#/components/schemas/GrantResponse grant-response-*.json
+../openapi.yaml#/components/schemas/CreatePrincipalRequest create-principal-request-*.json

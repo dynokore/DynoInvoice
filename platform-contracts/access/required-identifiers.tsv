@@ -1,0 +1,24 @@
+# INV-T-4910. Identifiers in backticks in the published behavior and intent of INV-REQ-584, 912, 955, 1269, 2758, 2762 (read from Keel),
+# plus the four names of rulings INV-Q-5143/5145/5147 that no requirement writes in backticks. Columns: identifier, kind, file, requirement key.
+# Spelling rule (API-09): the identifier column holds the contract spelling, an enum member in UPPER_SNAKE_CASE (hyphen to underscore) and a
+# property in camelCase, so `filing-workflow` is the row FILING_WORKFLOW and `SUBMIT_INVOICE_DATA` is the row submitInvoiceData.
+# Not rows, because they are not access-contract elements: confirmFiling (submission/openapi.yaml); private_key_jwt and client_secret_basic
+# (the VP-77 authentication settings, INV-REQ-2760, not access operations or schemas); security.officer, platform.engineer and
+# deployment.operator (roles); access-svc and notification-svc (services); MessageDelivery (a port of notification-svc, INV-REQ-817);
+# MessageRequested (a message name under components.messages of access/asyncapi.yaml, not a properties key, an operationId or an enum member).
+# identifier	kind	file	requirement
+INGEST	enum_value	openapi.yaml	INV-REQ-584
+FILING_WORKFLOW	enum_value	openapi.yaml	INV-REQ-584
+AP_CALLBACK	enum_value	openapi.yaml	INV-REQ-584
+REPORTING	enum_value	openapi.yaml	INV-REQ-584
+MONITORING	enum_value	openapi.yaml	INV-REQ-584
+CERTIFICATION	enum_value	openapi.yaml	INV-REQ-584
+submitInvoiceData	property	openapi.yaml	INV-REQ-912
+fileGstReturn	property	openapi.yaml	INV-REQ-912
+mappingApproval	property	openapi.yaml	INV-REQ-912
+withdrawConsent	operation	openapi.yaml	INV-REQ-955
+recipientMobile	property	openapi.yaml	INV-REQ-2762
+handoverStatementRef	property	openapi.yaml	INV-REQ-955
+wrongEntryCount	property	openapi.yaml	INV-REQ-2762
+invalidated	property	openapi.yaml	INV-REQ-2762
+grantSource	property	openapi.yaml	INV-REQ-1263
