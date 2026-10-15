@@ -142,7 +142,10 @@ compile:
         ./gradlew -p "$GRADLE_PROJECT_DIR" $TASKS --stacktrace
       fi
 
+# coordinator dev-process ruling 2026-10-15: unit-test exceeds the 1h default under runner contention
+# (pipelines 20126 and 20175 hit the 1h job timeout), so it gets a 2h job timeout.
 unit-test:
+  timeout: 2h
   extends: [.gradle-job, .gst-changed-modules]
   stage: test
   script:
