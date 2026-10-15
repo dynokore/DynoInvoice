@@ -42,6 +42,7 @@ train is its own (README.md: "own version and changelog").
   (for example `DSL.using(dataSource)`). A service with a database (a `TransactionRunner`) supplies its generated
   schema as `org.jooq.Schema` beans in its bootstrap module; start-up fails when they hold no table (coordinator
   ruling INV-Q-4815). tenancy-jooq becomes a dependency of the impl half.
+
 ### Migration
 1. Supply the service's generated jOOQ schema as `org.jooq.Schema` beans in the bootstrap module (start-up fails when
    a service with a database supplies none that holds a table, INV-Q-4815).

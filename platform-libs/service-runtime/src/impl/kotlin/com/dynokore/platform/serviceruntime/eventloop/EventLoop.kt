@@ -89,7 +89,13 @@ class EventLoop(
                 wait = if (worked) Duration.ZERO else interval
             } catch (_: InterruptedException) {
                 return
-            } catch (error: Exception) {
+            } catch (error: Throwable) {
+                // A StackOverflowError is the record's (a deep payload), as JdbcInboxConsumer treats it: back off and
+                // retry. Any other Error ends the loop below.
+                if (error !is Exception && error !is StackOverflowError) {
+                    end(error)
+                    return
+                }
                 if (stopRequested.count == 0L) return
                 failures++
                 wait = backoff(failures)
@@ -102,20 +108,29 @@ class EventLoop(
                     laneMessage(error),
                     wait.toMillis(),
                 )
-            } catch (error: Throwable) {
-                endedWith.set(error)
-                log.error(
-                    "event loop ended, the service is not ready: loop={} kind={} error_class={}",
-                    name,
-                    kind.label,
-                    error.javaClass.name,
-                )
-                onEnded(this)
-                return
             }
-            if (!wait.isZero && stopRequested.await(wait.toNanos(), TimeUnit.NANOSECONDS)) return
+            if (!wait.isZero && !pause(wait)) return
         }
     }
+
+    private fun end(error: Throwable) {
+        endedWith.set(error)
+        log.error(
+            "event loop ended, the service is not ready: loop={} kind={} error_class={}",
+            name,
+            kind.label,
+            error.javaClass.name,
+        )
+        onEnded(this)
+    }
+
+    /** Waits [wait]; false when the loop is to end (stop requested, or interrupted after the stop timeout). */
+    private fun pause(wait: Duration): Boolean =
+        try {
+            !stopRequested.await(wait.toNanos(), TimeUnit.NANOSECONDS)
+        } catch (_: InterruptedException) {
+            false
+        }
 
     /**
      * [interval] doubled per consecutive failure, capped at [MAX_BACKOFF] (or [interval] when longer), jittered down

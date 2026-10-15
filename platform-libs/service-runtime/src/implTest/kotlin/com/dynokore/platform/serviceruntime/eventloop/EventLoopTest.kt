@@ -114,6 +114,41 @@ class EventLoopTest {
     }
 
     @Test
+    fun `a StackOverflowError is the call's failure, retried with a backoff, and does not end the loop`() {
+        val calls = AtomicInteger()
+        val ended = AtomicInteger()
+        val l =
+            loop(interval = Duration.ofMillis(30), onEnded = { ended.incrementAndGet() }) {
+                if (calls.incrementAndGet() <= 2) throw StackOverflowError() else false
+            }
+        l.start()
+        await("a successful call after 2 overflows") { l.lastSuccess() != null }
+        l.ended() shouldBe null
+        ended.get() shouldBe 0
+        l.isAlive() shouldBe true
+        l.requestStop()
+        l.awaitStop(Duration.ofSeconds(5)) shouldBe true
+    }
+
+    @Test
+    fun `an interrupt after the stop timeout ends the loop quietly while it waits`() {
+        val thread =
+            java.util.concurrent.atomic
+                .AtomicReference<Thread>()
+        val l =
+            loop(interval = Duration.ofSeconds(30)) {
+                thread.set(Thread.currentThread())
+                false
+            }
+        l.start()
+        await("the first call") { l.lastSuccess() != null }
+        // interrupted while waiting its interval, without a stop request
+        thread.get().interrupt()
+        await("the loop to end") { !l.isAlive() }
+        l.ended() shouldBe null
+    }
+
+    @Test
     fun `the backoff doubles per failure, is capped and jittered down to half`() {
         fun backoff(
             failures: Int,

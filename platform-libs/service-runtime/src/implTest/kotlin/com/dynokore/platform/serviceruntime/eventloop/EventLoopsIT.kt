@@ -273,7 +273,12 @@ class EventLoopsIT {
                 svc.handler.entered.await(20, TimeUnit.SECONDS) shouldBe true
                 // the next event: the relay's claim connection takes the other permit, then waits for the row's one
                 svc.append(1)
-                eventually("the lane saturated") { laned.availablePermits(PoolLane.BACKGROUND) == 0 }
+                // sustained, not a passing moment of another loop's claim
+                var zeros = 0
+                eventually("the lane saturated") {
+                    zeros = if (laned.availablePermits(PoolLane.BACKGROUND) == 0) zeros + 1 else 0
+                    zeros >= 10
+                }
                 // a request-lane thread (no lane entered) gets its connections at once, twice over
                 val started = System.nanoTime()
                 pool.connection.use { a ->
