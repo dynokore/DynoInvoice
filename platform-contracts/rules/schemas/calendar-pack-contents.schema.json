@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/rules/schemas/calendar-pack-contents.schema.json",
+  "title": "CalendarPackContents",
+  "description": "The artefact.contents of a RulePackStaged payload whose packType is exactly calendar (INV-REQ-83, INV-REQ-87, INV-REQ-88, INV-REQ-1350). Names are those of the CalendarPack of calendar-and-periods 1.0.0. The envelope schema rule-pack-staged-payload.schema.json keeps contents opaque and is unchanged. There is no transition property: a frequency change is cut only at the change date (INV-AC-154), and a contents document that declares one is refused because additionalProperties is false. A later schema version adds one only by a new ruling and task. Rules a JSON Schema cannot express are tested by the decoder task, not here: the windows of one frequency do not overlap; a window ends on or after its start; every window's returnForm and finalReturnForm each has a due rule in dueRules; at least one day of the week is not in weekend. Within a major version this schema is additive-only (API-41, FR-K.4).",
+  "type": "object",
+  "properties": {
+    "windows": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Filing windows by filing-frequency code; each value lists the windows of that frequency.",
+      "additionalProperties": {
+        "type": "array",
+        "minItems": 1,
+        "description": "The windows of one filing frequency.",
+        "items": {
+          "type": "object",
+          "properties": {
+            "start": {
+              "type": "string",
+              "format": "date",
+              "description": "First day of the window."
+            },
+            "end": {
+              "type": "string",
+              "format": "date",
+              "description": "Last day of the window; on or after start."
+            },
+            "returnForm": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The return form filed for the window."
+            }
+          },
+          "required": [
+            "start",
+            "end",
+            "returnForm"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "finalReturnForm": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The return form of the final return."
+    },
+    "dueRules": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Due rules keyed by return form.",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "monthsAfterEnd": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Whole months after the window end."
+          },
+          "endOfMonth": {
+            "type": "boolean",
+            "description": "Whether the due date moves to the end of that month."
+          },
+          "daysAfterEnd": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Days after the window end."
+          }
+        },
+        "required": [
+          "monthsAfterEnd",
+          "endOfMonth",
+          "daysAfterEnd"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "weekend": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 6,
+      "uniqueItems": true,
+      "description": "The days of the week that are not working days.",
+      "items": {
+        "type": "string",
+        "enum": [
+          "MONDAY",
+          "TUESDAY",
+          "WEDNESDAY",
+          "THURSDAY",
+          "FRIDAY",
+          "SATURDAY",
+          "SUNDAY"
+        ]
+      }
+    },
+    "holidays": {
+      "type": "array",
+      "uniqueItems": true,
+      "description": "Public holidays.",
+      "items": {
+        "type": "string",
+        "format": "date"
+      }
+    },
+    "pinnedRule": {
+      "type": "string",
+      "enum": [
+        "NO_MOVE",
+        "NEXT_WORKING_DAY"
+      ],
+      "description": "The non-business-day rule the pack pins (INV-REQ-87); absent means the pack pins nothing."
+    }
+  },
+  "required": [
+    "windows",
+    "finalReturnForm",
+    "dueRules",
+    "weekend",
+    "holidays"
+  ],
+  "additionalProperties": false
+}
