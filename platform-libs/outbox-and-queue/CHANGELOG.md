@@ -6,6 +6,16 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [3.0.1] - 2026-10-15
+### Fixed
+- `JdbcReplayDelivery.runOnce()` holds at most one database connection of its DataSource at any instant (INV-T-4854;
+  coordinator ruling INV-Q-4850): the payload is read in one short tenant transaction, an invalid or foreign-tenant
+  envelope is dead-lettered on the claim connection outside any transaction and the item then completed in a second
+  short transaction, a valid one is applied and completed in one transaction as before. An item is completed only after
+  its dead letter is recorded. Outcomes, `event_dead_letter` rows and queue state are unchanged;
+  `JdbcInboxConsumer.applyReplayed` keeps its signature and result. A lane of two permits can no longer deadlock a
+  replay delivery against a relay run that holds its claim connection.
+
 ## [3.0.0] - 2026-10-15
 ### Changed
 - Tenantless tables are classified (INV-T-4134; INV-ADR-3968 item 4a, INV-REQ-854 b6; owner ruling INV-Q-4113):

@@ -110,20 +110,44 @@ class JdbcInboxConsumer
         fun applyReplayed(
             raw: String,
             expectedTenant: TenantId,
-        ): ReplayOutcome {
-            val envelope =
-                try {
-                    json.read(raw).also {
-                        if (it.tenant !=
-                            expectedTenant
-                        ) {
-                            throw ContractViolation("replayed envelope is for another tenant")
-                        }
-                    }
-                } catch (violation: ContractViolation) {
-                    deadLetter(LogRecord(REPLAY_OFFSET, raw), violation.message ?: "contract violation")
-                    return ReplayOutcome.REJECTED
+        ): ReplayOutcome =
+            when (val check = checkReplayed(raw, expectedTenant)) {
+                is ReplayCheck.Invalid -> {
+                    deadLetterReplayed(raw, check.reason)
+                    ReplayOutcome.REJECTED
                 }
+
+                is ReplayCheck.Valid -> {
+                    applyChecked(check.envelope)
+                }
+            }
+
+        /**
+         * The checks of [applyReplayed] that come before its transaction: [raw] parses as an envelope and belongs to
+         * [expectedTenant]. Opens no connection ([JdbcReplayDelivery] decides with it outside any transaction).
+         */
+        internal fun checkReplayed(
+            raw: String,
+            expectedTenant: TenantId,
+        ): ReplayCheck =
+            try {
+                val envelope = json.read(raw)
+                if (envelope.tenant != expectedTenant) {
+                    throw ContractViolation("replayed envelope is for another tenant")
+                }
+                ReplayCheck.Valid(envelope)
+            } catch (violation: ContractViolation) {
+                ReplayCheck.Invalid(violation.message ?: "contract violation")
+            }
+
+        /** Records the dead letter of a replayed envelope [checkReplayed] rejected, on the claim connection. */
+        internal fun deadLetterReplayed(
+            raw: String,
+            reason: String,
+        ) = deadLetter(LogRecord(REPLAY_OFFSET, raw), reason)
+
+        /** Applies a valid replayed [envelope] in its tenant's transaction (the caller's when one is open). */
+        internal fun applyChecked(envelope: Envelope): ReplayOutcome {
             val step =
                 scope.bindWorkload(envelope.tenant) {
                     scope.transactions.inTransaction { apply(scope.connections.require(), envelope) }
@@ -469,3 +493,14 @@ class JdbcInboxConsumer
             const val REPLAY_OFFSET = 0L // a replayed record has no position in the topic
         }
     }
+
+/** The pre-transaction verdict on a replayed envelope ([JdbcInboxConsumer.checkReplayed]). */
+internal sealed interface ReplayCheck {
+    class Valid(
+        val envelope: Envelope,
+    ) : ReplayCheck
+
+    class Invalid(
+        val reason: String,
+    ) : ReplayCheck
+}

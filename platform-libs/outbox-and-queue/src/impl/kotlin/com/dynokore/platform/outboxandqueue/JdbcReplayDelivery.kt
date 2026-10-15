@@ -4,8 +4,12 @@ import tools.jackson.databind.ObjectMapper
 
 /**
  * [ReplayDelivery] for the consumer that owns [inbox]. [queue] must be built with this consumer's name, so it
- * only ever claims the replay items queued for it. Claim, apply and completion run in the item's tenant
- * transaction: an item whose handler throws is released and delivered again, in order.
+ * only ever claims the replay items queued for it. One call holds at most one connection of its DataSource at any
+ * instant: the payload is read in one short tenant transaction that closes before anything else. A valid envelope
+ * is applied and completed in one tenant transaction; an invalid one (not an envelope, or another tenant's) is
+ * dead-lettered on the claim connection outside any transaction, and only then completed in a second short
+ * transaction, so a crash between the two leaves the item to be delivered again (at-least-once, one more dead
+ * letter, as before). An item whose handler throws is released and delivered again, in order.
  */
 class JdbcReplayDelivery(
     private val queue: WorkQueue,
@@ -16,17 +20,31 @@ class JdbcReplayDelivery(
     override fun runOnce(): ReplayOutcome? {
         val item = queue.claimNext() ?: return null
         try {
-            return scope.bindWorkload(item.tenant) {
-                scope.transactions.inTransaction {
-                    val raw = mapper.readTree(queue.payloadOf(item)).get("raw").asString()
-                    val outcome = inbox.applyReplayed(raw, item.tenant)
-                    queue.complete(item)
-                    outcome
+            val payload = inTenant(item) { queue.payloadOf(item) }
+            val raw = mapper.readTree(payload).get("raw").asString()
+            return when (val check = inbox.checkReplayed(raw, item.tenant)) {
+                is ReplayCheck.Invalid -> {
+                    inbox.deadLetterReplayed(raw, check.reason)
+                    inTenant(item) { queue.complete(item) }
+                    ReplayOutcome.REJECTED
+                }
+
+                is ReplayCheck.Valid -> {
+                    inTenant(item) {
+                        val outcome = inbox.applyChecked(check.envelope)
+                        queue.complete(item)
+                        outcome
+                    }
                 }
             }
         } catch (failure: Exception) {
-            scope.bindWorkload(item.tenant) { scope.transactions.inTransaction { queue.release(item) } }
+            inTenant(item) { queue.release(item) }
             throw failure
         }
     }
+
+    private fun <T> inTenant(
+        item: ClaimedItem,
+        block: () -> T,
+    ): T = scope.bindWorkload(item.tenant) { scope.transactions.inTransaction { block() } }
 }
