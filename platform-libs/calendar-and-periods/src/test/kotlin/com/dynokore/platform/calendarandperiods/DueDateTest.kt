@@ -114,7 +114,6 @@ class DueDateTest {
                 finalReturnForm = "F8",
                 dueRules = emptyMap(),
                 calendar = BusinessCalendar(emptySet(), emptySet()),
-                transition = TransitionStyle.CUT_AT_CHANGE,
                 pinnedRule = null,
             )
         }

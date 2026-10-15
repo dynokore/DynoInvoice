@@ -101,17 +101,26 @@ class PeriodGenerationTest {
     }
 
     @Test
-    fun `a frequency change extended to the new window gives a long transitional period`() {
+    fun `quarterly to monthly effective 1 Feb 2026 ends the transitional period on 31 Jan (INV-AC-154)`() {
         val periods =
-            generate(
-                "2026-01-01",
-                history("2026-01-01" to quarterly, "2026-05-10" to monthly),
-                "2026-07-31",
-                pack = pack(transition = TransitionStyle.EXTEND_TO_NEW_WINDOW),
-            )
+            generate("2026-01-01", history("2026-01-01" to quarterly, "2026-02-01" to monthly), "2026-03-31")
 
-        assertEquals(table("change-extend.csv"), periods.map { it.row() })
-        assertEquals(61, periods[1].lengthInDays)
+        val transitional = periods.first()
+        assertEquals(d("2026-01-01"), transitional.start)
+        assertEquals(d("2026-01-31"), transitional.end)
+        assertEquals(setOf(PeriodKind.TRANSITIONAL), transitional.kinds)
+        assertTrue(transitional.irregular && !transitional.confirmed)
+        assertEquals(d("2026-02-01"), periods[1].start)
+        assertEquals(d("2026-02-28"), periods[1].end)
+    }
+
+    @Test
+    fun `no transitional period ends on or after the day its change takes effect`() {
+        val change = d("2026-05-10")
+        val periods =
+            generate("2026-01-01", history("2026-01-01" to quarterly, "2026-05-10" to monthly), "2026-07-31")
+
+        assertTrue(periods.filter { PeriodKind.TRANSITIONAL in it.kinds && it.start < change }.all { it.end < change })
     }
 
     @Test

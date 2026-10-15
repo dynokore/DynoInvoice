@@ -21,16 +21,6 @@ data class StandardWindow(
 /** Whether a due date falling on a non-business day moves (VP-62, INV-REQ-87). A parameter, never a constant. */
 enum class NonBusinessDayRule { NO_MOVE, NEXT_WORKING_DAY }
 
-/**
- * How the pack cuts a period in which the filing frequency changes (INV-REQ-688). The pack chooses; the library holds
- * neither as a default.
- *  - [CUT_AT_CHANGE]: the transitional period ends the day before the change; the next period starts on the change
- *    date.
- *  - [EXTEND_TO_NEW_WINDOW]: the transitional period runs to the end of the new frequency's window that holds the
- *    change date.
- */
-enum class TransitionStyle { CUT_AT_CHANGE, EXTEND_TO_NEW_WINDOW }
-
 /** How a filing due date follows from a period end, as data (INV-REQ-87: pack data, not code). */
 data class DueRule(
     val monthsAfterEnd: Int,
@@ -79,7 +69,6 @@ class CalendarPack(
     val finalReturnForm: String,
     val dueRules: Map<String, DueRule>,
     val calendar: BusinessCalendar,
-    val transition: TransitionStyle,
     val pinnedRule: NonBusinessDayRule?,
 ) {
     private val windowsByFrequency: Map<FilingFrequency, List<StandardWindow>> =

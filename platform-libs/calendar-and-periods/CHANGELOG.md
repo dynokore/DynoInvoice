@@ -12,7 +12,8 @@ train is its own (README.md: "own version and changelog").
   carries explicit start and end dates, never derived from a frequency constant (INV-REQ-83, INV-REQ-707).
 - First, final (F8) and transitional periods generated explicitly and flagged irregular, unconfirmed until
   `confirmPeriods`; a mid-period frequency change yields a transitional period of explicit length (INV-REQ-84,
-  INV-REQ-688). How the pack cuts it is pack data (`TransitionStyle`).
+  INV-REQ-688). The period is cut the day before the
+  change takes effect and the next one starts on the change date (INV-AC-154, owner answer INV-Q-5045 A).
 - Due-date derivation with the non-business-day rule as a parameter (`NO_MOVE`, `NEXT_WORKING_DAY`); weekend days
   and the public holiday list come from the calendar pack, which may pin the rule (INV-REQ-87).
 - Period readiness gating as a pure function of a period's completeness controls.
