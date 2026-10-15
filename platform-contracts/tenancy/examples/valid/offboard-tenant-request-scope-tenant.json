@@ -2,7 +2,8 @@
   "scope": "TENANT",
   "retentionCustodyHolder": {
     "name": "Ledger Custody Pte Ltd",
-    "contactEmail": "custody@ledger.example"
+    "contactEmail": "custody@ledger.example",
+    "contactMobile": "+65 9123 4567"
   },
   "secondConfirmationBy": "user-8841",
   "noticeWindowDays": 365

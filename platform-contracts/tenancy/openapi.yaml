@@ -1922,6 +1922,9 @@ components:
           type: string
           maxLength: 254
           description: Where the holder is notified at retention end (INV-REQ-956 b4).
+        contactMobile:
+          type: string
+          description: Optional mobile number of the holder (INV-Q-5020); a plain string, no format rule.
     UnsubmittedOverrideAcknowledgement:
       type: object
       required:
