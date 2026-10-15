@@ -90,7 +90,6 @@ net.java.dev.jna:jna-platform:5.9.0=implTestCompileClasspath,implTestRuntimeClas
 net.java.dev.jna:jna:5.13.0=implTestCompileClasspath,implTestRuntimeClasspath
 net.java.dev.jna:jna:5.9.0=testCompileClasspath,testRuntimeClasspath
 net.javacrumbs.shedlock:shedlock-core:6.10.0=implTestRuntimeClasspath
-net.javacrumbs.shedlock:shedlock-provider-jdbc-template:6.10.0=implTestRuntimeClasspath
 org.apache.commons:commons-compress:1.24.0=implTestCompileClasspath,implTestRuntimeClasspath
 org.apache.logging.log4j:log4j-api:2.25.5=implCompileClasspath,implRuntimeClasspath,implTestCompileClasspath,implTestRuntimeClasspath
 org.apache.logging.log4j:log4j-to-slf4j:2.25.5=implCompileClasspath,implRuntimeClasspath,implTestCompileClasspath,implTestRuntimeClasspath
