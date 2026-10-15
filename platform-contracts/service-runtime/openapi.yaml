@@ -507,7 +507,8 @@ paths:
         (API-15). The contract declares no per-variation-point value schema: the value is typed per variation
         point by the gst-catalogue row and checked by config-resolver (INV-REQ-5039). Where JSON Schema states a
         present-exactly-when rule the request schema carries it as if/then; that entityRef equals scopeRef for
-        ENTITY is enforced by the service with SRT-001. Refusals carry their POL catalogue code, mapped once in
+        ENTITY is enforced by the service with SRT-001, and a PROFILE request missing profileRef or profileVersion is
+        refused with POL-023. Refusals carry their POL catalogue code, mapped once in
         ProblemMapper; closed service-runtime cases carry their SRT code (SRT-001 400 contract violation, SRT-002
         400 missing or malformed Idempotency-Key, SRT-003 401, SRT-004 403 entityRef outside the token's entity
         set, SRT-007 409 request in flight, SRT-009 422 Idempotency-Key reused with a different body, SRT-010 500).
@@ -1082,8 +1083,10 @@ components:
       type: object
       description: setPolicy request (INV-REQ-1241 b1, INV-REQ-1243 b1, INV-Q-5172). The tenant, the actor
         and the roles are never fields; they come from the verified token and the authority replica (CS-23).
-        The present-exactly-when rules are stated as allOf if/then; entityRef equal to scopeRef for ENTITY is
-        enforced by the service with SRT-001.
+        The scopeRef, entityRef and profile-pair rules are stated as allOf if/then/else (profileRef and
+        profileVersion with source OVERRIDE are refused as SRT-001); a source PROFILE request missing profileRef
+        or profileVersion is not a schema rule and is refused by config-resolver with 400 POL-023. entityRef equal
+        to scopeRef for ENTITY cannot be stated in JSON Schema and is enforced by the service with 400 SRT-001.
       required:
       - scopeLevel
       - selected
@@ -1115,11 +1118,11 @@ components:
           type: string
           minLength: 1
           maxLength: 64
-          description: The operating profile the value comes from; present exactly when source is PROFILE.
+          description: The operating profile the value comes from; required when source is PROFILE (missing is POL-023) and absent when source is OVERRIDE (SRT-001).
         profileVersion:
           type: integer
           minimum: 1
-          description: The profile version applied (INV-Q-3283); present exactly when source is PROFILE.
+          description: The profile version applied (INV-Q-3283); required when source is PROFILE (missing is POL-023) and absent when source is OVERRIDE (SRT-001).
         relaxationId:
           type: string
           format: uuid
@@ -1162,10 +1165,6 @@ components:
           properties:
             source:
               const: PROFILE
-        then:
-          required:
-          - profileRef
-          - profileVersion
         else:
           allOf:
           - not:
