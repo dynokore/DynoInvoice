@@ -1,6 +1,10 @@
 # calendar-and-periods
 
-—
+Fiscal and operational periods, business-day calendars, deadline derivation and period readiness gating.
+
+**No Singapore filing rule is built in.** Period windows, return forms, due-date rules, weekend days, public holidays,
+the way a frequency change is cut and any pinned non-business-day rule all come from a calendar pack passed in as
+data (INV-REQ-87, INV-REQ-707). Change the pack, not the library, to change a date.
 
 | | |
 | --- | --- |
