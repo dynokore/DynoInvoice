@@ -453,6 +453,18 @@ verify-rules:
       - build/verify-rules*.log
     expire_in: 1 week
 
+# INV-T-5316 (coordinator ruling INV-Q-5313): the maven-publish job publishes only through the immutable-release guard
+# (platform-build's .gst-publish-prepare / .gst-publish-upload). ci/tests/publish_job_test.py parses this file and fails
+# if the job passes the registry URL or job token to Gradle, PUTs to the registry itself, runs the upload before the
+# staging, drops GST_PUBLISH_REQUIRE_STAGE, or stages the BOM for any BOM_ACTION but publish; --probes proves each
+# assertion fails when its line is broken. Needs only python3 (in the Gradle image), `needs: []`, every pipeline.
+publish-job-test:
+  image: "$GRADLE_IMAGE"
+  stage: verify
+  needs: []
+  script:
+    - python3 ci/tests/publish_job_test.py --probes
+
 # The shared template's pact-publish runs `pactPublish` in a job of its own, where no pact file exists (the pacts are
 # written by the contract-tests job above, which publishes them itself, before verifying from the broker).
 pact-publish:
@@ -468,6 +480,8 @@ maven-publish:
   extends: [.gradle-job, .gst-changed-modules]
   variables:
     MAVEN_REGISTRY_PROJECT_ID: "$CI_PROJECT_ID"
+    GST_PUBLISH_STAGE: "${CI_PROJECT_DIR}/.gst-publish-stage"
+    GST_PUBLISH_REQUIRE_STAGE: "true"
   # Two main pipelines never decide the BOM version at the same time.
   resource_group: platform-libs-bom-version
   # Main only: the shared template also runs on tags, but a tag pipeline must not version the BOM.
@@ -479,33 +493,37 @@ maven-publish:
     - ci/bom-version.sh
     - |
       # platform-libs-bom is versioned here, not by a file: BOM_VERSION is the latest published
-      # one (constraint set unchanged: its upload is skipped below) or latest minor + 1.
+      # one (constraint set unchanged: it is not staged below) or latest minor + 1.
       . build/bom.env
       gst_tested_set
       bom_args="-PbomVersion=${BOM_VERSION}"
       if [ "$BOM_ACTION" = "publish" ]; then bom_args="$bom_args -PbomChangelog=$PWD/build/bom-changelog.txt"; fi
     - >
       ./gradlew listPublications $bom_args --stacktrace
+    - !reference [.gst-publish-prepare, script]
     - |
-      # Re-runs on main are safe: a publication whose .pom is already in the registry is
-      # skipped (GitLab may reject a duplicate upload), but it is still verified below.
+      # Gradle publishes only into the staging directory (ci/release/stage-publish.init.gradle of platform-build);
+      # it never sees the registry URL or the job token. The guard (.gst-publish-upload) is the only thing that
+      # uploads: a file absent from the registry is uploaded, one with the same SHA-256 is skipped, one with other
+      # bytes fails the job before any upload (INV-T-5316, coordinator ruling INV-Q-5313). The BOM is staged only
+      # when ci/bom-version.sh decided BOM_ACTION=publish; the read-back below verifies it in every case.
       grep -q . build/publications.txt || { echo "gst-ci: no publications listed (P20/P28)"; exit 1; }
-      registry="${CI_API_V4_URL}/projects/${MAVEN_REGISTRY_PROJECT_ID}/packages/maven/com/dynokore/platform"
-      pom_status() { curl -s -o /dev/null -w '%{http_code}' --header "JOB-TOKEN: ${CI_JOB_TOKEN}" "${registry}/$1/$2/$1-$2.pom"; }
       tasks=""
       while read -r path pub artifact version; do
-        if [ "$(pom_status "$artifact" "$version")" = "200" ]; then
-          echo "gst-ci: ${artifact}:${version} already in the registry, skipping its upload"
+        if [ "$artifact" = "platform-libs-bom" ] && [ "$BOM_ACTION" != "publish" ]; then
+          echo "gst-ci: ${artifact}:${version} not staged (BOM_ACTION=${BOM_ACTION})"
         else
           cap="$(printf '%s' "$pub" | cut -c1 | tr '[:lower:]' '[:upper:]')$(printf '%s' "$pub" | cut -c2-)"
-          tasks="$tasks ${path}:publish${cap}PublicationToGstMavenRepository"
+          tasks="$tasks ${path}:publish${cap}PublicationToGstStageRepository"
         fi
       done < build/publications.txt
-      if [ -n "$tasks" ]; then
-        ./gradlew $tasks $bom_args \
-          -PgstMavenUrl="${CI_API_V4_URL}/projects/${MAVEN_REGISTRY_PROJECT_ID}/packages/maven" \
-          -PgstMavenUser=gitlab-ci-token -PgstMavenPassword="${CI_JOB_TOKEN}" --stacktrace
-      fi
+      [ -n "$tasks" ] || { echo "gst-ci: nothing to stage (P20/P28)"; exit 1; }
+      ./gradlew $tasks $bom_args -I "$GST_RELEASE_DIR/stage-publish.init.gradle" -PgstStageDir="$GST_PUBLISH_STAGE" --stacktrace
+    - !reference [.gst-publish-upload, script]
+    - |
+      # Read-back: every module's artifact with its version is in the registry (read only).
+      registry="${CI_API_V4_URL}/projects/${MAVEN_REGISTRY_PROJECT_ID}/packages/maven/com/dynokore/platform"
+      pom_status() { curl -s -o /dev/null -w '%{http_code}' --header "JOB-TOKEN: ${CI_JOB_TOKEN}" "${registry}/$1/$2/$1-$2.pom"; }
       missing=0
       while read -r path pub artifact version; do
         code=$(pom_status "$artifact" "$version")
