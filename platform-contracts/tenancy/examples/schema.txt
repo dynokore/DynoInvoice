@@ -1,1 +1,11 @@
 ../schemas/organisation-structure-changed-payload.schema.json
+../openapi.yaml#/components/schemas/SetEntityStatusRequest set-entity-status-request-*.json
+../openapi.yaml#/components/schemas/EntityStatusResponse entity-status-response-*.json
+../openapi.yaml#/components/schemas/DeregisterEntityRequest deregister-entity-request-*.json
+../openapi.yaml#/components/schemas/ExportTenantDataRequest export-tenant-data-request-*.json
+../openapi.yaml#/components/schemas/TenantExportResponse tenant-export-response-*.json
+../openapi.yaml#/components/schemas/RecordRetentionHoldRequest record-retention-hold-request-*.json
+../openapi.yaml#/components/schemas/RetentionHoldResponse retention-hold-response-*.json
+../openapi.yaml#/components/schemas/ApplyOperatingProfileRequest apply-operating-profile-request-*.json
+../openapi.yaml#/components/schemas/ApplyOperatingProfileResponse apply-operating-profile-response-*.json
+../openapi.yaml#/components/schemas/PeriodRecordListResponse period-record-list-response-*.json

@@ -1,0 +1,16 @@
+openapi: 3.1.0
+info: {title: fixture, version: 1.0.0}
+paths:
+  /x:
+    post:
+      operationId: doThing
+components:
+  schemas:
+    Thing:
+      type: object
+      properties:
+        fooBar: {type: string}
+        outsiderOnly: {type: string}
+        status:
+          type: string
+          enum: [ACTIVE, CLOSED]

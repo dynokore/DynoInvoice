@@ -1,0 +1,12 @@
+{
+  "exportRef": "EXP-5C20",
+  "tenantRef": "TEN-7B1004",
+  "state": "REQUESTED",
+  "contents": [
+    "TRANSMITTED_XML",
+    "ACKNOWLEDGEMENTS",
+    "DECISION_TRACES",
+    "RECONCILIATION_WORK_PAPERS",
+    "SOURCE_DOCUMENT_REFERENCES"
+  ]
+}

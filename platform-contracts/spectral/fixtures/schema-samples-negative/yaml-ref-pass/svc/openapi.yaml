@@ -1,0 +1,16 @@
+openapi: 3.1.0
+info: {title: fixture, version: 1.0.0}
+paths: {}
+components:
+  schemas:
+    Outer:
+      type: object
+      required: [inner]
+      properties:
+        inner:
+          $ref: '#/components/schemas/Inner'
+    Inner:
+      type: object
+      required: [name]
+      properties:
+        name: {type: string}

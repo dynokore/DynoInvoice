@@ -1,0 +1,7 @@
+{
+  "entityRef": "ENT-3F2A9C",
+  "statusKind": "EXCLUDED_BUSINESS",
+  "effectiveFrom": "2026-10-01",
+  "excludedBusinessStatus": "RC_ONLY",
+  "basis": "Reverse-charge-only supplies"
+}

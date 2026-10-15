@@ -1,0 +1,8 @@
+{
+  "statusKind": "OBLIGATION_START",
+  "effectiveFrom": "2026-11-01",
+  "obligationStartDate": "2027-01-01",
+  "obligationStartBasis": "IRAS_COMMUNICATED",
+  "irasReference": "IRAS/GRP/2026/771",
+  "obligationStartOverride": true
+}

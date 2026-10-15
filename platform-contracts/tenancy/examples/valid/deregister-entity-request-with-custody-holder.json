@@ -1,0 +1,12 @@
+{
+  "registrationEndDate": "2026-12-31",
+  "retentionCustodyHolder": {
+    "name": "Ledger Custody Pte Ltd",
+    "contactEmail": "custody@ledger.example"
+  },
+  "unsubmittedOverride": {
+    "acknowledgedBy": "user-8841",
+    "statement": "I accept that 3 in-scope documents remain unsubmitted."
+  },
+  "secondConfirmationBy": "user-5120"
+}

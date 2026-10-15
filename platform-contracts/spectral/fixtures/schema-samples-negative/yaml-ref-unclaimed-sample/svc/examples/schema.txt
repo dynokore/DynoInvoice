@@ -1,0 +1,1 @@
+../openapi.yaml#/components/schemas/Outer outer-*.json

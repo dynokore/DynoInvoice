@@ -1,0 +1,13 @@
+{
+  "tenantRef": "TEN-7B1004",
+  "profileId": "PROF-SME-STANDARD",
+  "profileVersion": 3,
+  "applied": false,
+  "differences": [
+    {
+      "variationPoint": "VP-014",
+      "change": "REMOVED",
+      "proposedValue": "30"
+    }
+  ]
+}

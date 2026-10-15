@@ -34,6 +34,7 @@ Exits 0 if every valid sample passes and every invalid sample fails; 1 otherwise
 from __future__ import annotations
 
 import datetime
+import fnmatch
 import json
 import re
 import sys
@@ -56,10 +57,35 @@ class Invalid(Exception):
 def _resolve(schema: dict, root: dict) -> dict:
     if "$ref" in schema:
         ref = schema["$ref"]
-        if not ref.startswith("#/$defs/"):
-            raise Invalid(f"unsupported $ref (this validator only resolves local #/$defs): {ref}")
-        return root.get("$defs", {})[ref[len("#/$defs/"):]]
+        if not ref.startswith("#/"):
+            raise Invalid(f"unsupported $ref (this validator only resolves local '#/...' pointers): {ref}")
+        return _resolve(_pointer(root, ref), root)
     return schema
+
+
+def _pointer(doc, ref: str):
+    """Follow a local JSON pointer ('#/components/schemas/X', '#/$defs/y') in doc."""
+    node = doc
+    for part in ref[2:].split("/"):
+        part = part.replace("~1", "/").replace("~0", "~")
+        if not isinstance(node, dict) or part not in node:
+            raise Invalid(f"$ref {ref} does not resolve")
+        node = node[part]
+    return node
+
+
+def load_schema(spec: str) -> tuple[dict, dict]:
+    """(schema, root) for '<file>' or '<file>#/<pointer>'. A .yaml/.yml file (an OpenAPI
+    document, so request and response schemas are tested where they are defined, never as
+    a copy) needs PyYAML; its local '#/components/...' $refs resolve against the document."""
+    file_part, _, pointer = spec.partition("#")
+    path = Path(file_part)
+    if path.suffix in (".yaml", ".yml"):
+        import yaml  # PyYAML, as in the other spectral checks
+        root = yaml.safe_load(path.read_text())
+    else:
+        root = json.loads(path.read_text())
+    return (_pointer(root, "#" + pointer) if pointer else root), root
 
 
 def _check(instance, schema: dict, root: dict, path: str) -> None:
@@ -130,25 +156,38 @@ def _check(instance, schema: dict, root: dict, path: str) -> None:
     # t is None (e.g. the envelope's untyped 'data') or another type: no further check.
 
 
-def validate(instance, schema: dict) -> None:
-    _check(instance, schema, schema, "$")
+def validate(instance, schema: dict, root: dict | None = None) -> None:
+    _check(instance, schema, schema if root is None else root, "$")
 
 
-def run_dir(schema_path: Path, samples_dir: Path) -> list[str]:
+def run_dir(schema_spec: str, samples_dir: Path, pattern: str | None = None,
+            exclude: tuple[str, ...] = ()) -> list[str]:
+    """Run one schema against the samples of samples_dir. pattern (a filename glob) limits it to
+    the samples it claims; exclude lists the globs other schemas of the same directory claim,
+    so a schema with no glob tests only the samples nobody else claims."""
     failures: list[str] = []
-    schema = json.loads(schema_path.read_text())
+    schema, root = load_schema(schema_spec)
+
+    def mine(sample: Path) -> bool:
+        if pattern is not None:
+            return fnmatch.fnmatch(sample.name, pattern)
+        return not any(fnmatch.fnmatch(sample.name, g) for g in exclude)
 
     for sample in sorted((samples_dir / "valid").glob("*.json")):
+        if not mine(sample):
+            continue
         instance = json.loads(sample.read_text())
         try:
-            validate(instance, schema)
+            validate(instance, schema, root)
         except Invalid as e:
             failures.append(f"{sample}: expected VALID but failed: {e}")
 
     for sample in sorted((samples_dir / "invalid").glob("*.json")):
+        if not mine(sample):
+            continue
         instance = json.loads(sample.read_text())
         try:
-            validate(instance, schema)
+            validate(instance, schema, root)
             failures.append(f"{sample}: expected INVALID but passed")
         except Invalid:
             pass
@@ -156,8 +195,15 @@ def run_dir(schema_path: Path, samples_dir: Path) -> list[str]:
     return failures
 
 
-def discover(root: Path) -> list[tuple[Path, Path]] | str:
-    """(schema, examples-dir) for every <root>/*/examples; an error string if one is unusable."""
+def discover(root: Path) -> list[tuple[str, Path, str | None, tuple[str, ...]]] | str:
+    """(schema spec, examples-dir, sample glob, other schemas' globs) for every <root>/*/examples;
+    an error string if one is unusable.
+
+    schema.txt holds one line per schema: '<schema>' or '<schema> <sample-filename-glob>'. <schema> is
+    a path relative to <service>/examples, optionally '<file>#/<pointer>' (an OpenAPI schema, so a
+    request or response schema is tested where it is defined). A line with a glob tests the samples
+    whose file name matches it; a line without one tests the samples no glob claims. A sample that
+    no line claims fails."""
     pairs = []
     for ex in sorted(root.glob("*/examples")):
         if not ((ex / "valid").is_dir() or (ex / "invalid").is_dir()):
@@ -165,10 +211,24 @@ def discover(root: Path) -> list[tuple[Path, Path]] | str:
         decl = ex / "schema.txt"
         if not decl.is_file():
             return f"{ex} has valid/ or invalid/ samples but no schema.txt naming the schema they test"
-        schema = (ex / decl.read_text().strip()).resolve()
-        if not schema.is_file():
-            return f"{decl} names {schema}, which does not exist"
-        pairs.append((schema, ex))
+        lines = [ln.split() for ln in decl.read_text().splitlines() if ln.strip()]
+        if not lines or any(len(ln) > 2 for ln in lines):
+            return f"{decl} must hold lines of '<schema>' or '<schema> <sample-filename-glob>'"
+        globs = tuple(ln[1] for ln in lines if len(ln) == 2)
+        if sum(1 for ln in lines if len(ln) == 1) > 1:
+            return f"{decl} names more than one schema without a sample glob"
+        for ln in lines:
+            file_part = ln[0].partition("#")[0]
+            schema = (ex / file_part).resolve()
+            if not schema.is_file():
+                return f"{decl} names {schema}, which does not exist"
+            spec = str(schema) + ln[0][len(file_part):]
+            pairs.append((spec, ex, ln[1] if len(ln) == 2 else None, globs if len(ln) == 1 else ()))
+        if all(len(ln) == 2 for ln in lines):
+            for kind in ("valid", "invalid"):
+                for sample in sorted((ex / kind).glob("*.json")):
+                    if not any(fnmatch.fnmatch(sample.name, g) for g in globs):
+                        return f"{sample} matches no sample glob of {decl}"
     return pairs
 
 
@@ -181,24 +241,27 @@ def main(argv: list[str]) -> int:
         if not found:
             print(f"gst-ci: --discover found no <service>/examples directory under {argv[2]}")
             return 1
-        argv = [argv[0]] + [str(x) for pair in found for x in pair]
-    if len(argv) < 3 or len(argv) % 2 != 1:
-        print(__doc__)
-        return 2
+        runs = found
+    else:
+        if len(argv) < 3 or len(argv) % 2 != 1:
+            print(__doc__)
+            return 2
+        runs = [(a, Path(b), None, ()) for a, b in zip(argv[1::2], argv[2::2])]
     all_failures: list[str] = []
-    pairs = list(zip(argv[1::2], argv[2::2]))
-    for schema_arg, samples_arg in pairs:
-        schema_path, d = Path(schema_arg), Path(samples_arg)
-        failures = run_dir(schema_path, d)
+    for schema_spec, d, pattern, exclude in runs:
+        failures = run_dir(schema_spec, d, pattern, exclude)
         if failures:
-            print(f"gst-ci: {schema_path} against {d} — FAILED:")
+            print(f"gst-ci: {schema_spec} against {d} — FAILED:")
             for f in failures:
                 print(f"  - {f}")
             all_failures.extend(failures)
         else:
-            n_valid = len(list((d / "valid").glob("*.json")))
-            n_invalid = len(list((d / "invalid").glob("*.json")))
-            print(f"gst-ci: {schema_path} — {n_valid} valid + {n_invalid} invalid samples in {d} all as expected.")
+            def n(kind: str) -> int:
+                files = (d / kind).glob("*.json")
+                if pattern is not None:
+                    return sum(1 for f in files if fnmatch.fnmatch(f.name, pattern))
+                return sum(1 for f in files if not any(fnmatch.fnmatch(f.name, g) for g in exclude))
+            print(f"gst-ci: {schema_spec} — {n('valid')} valid + {n('invalid')} invalid samples in {d} all as expected.")
     return 1 if all_failures else 0
 
 

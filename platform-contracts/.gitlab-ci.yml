@@ -229,7 +229,7 @@ schema-sample-validation:
     name: "$OASDIFF_IMAGE"
     entrypoint: [""]
   before_script:
-    - apk add --no-cache python3
+    - apk add --no-cache python3 py3-yaml   # INV-T-4909: samples may test an OpenAPI schema (…/openapi.yaml#/components/schemas/X)
   script:
     - >
       python3 spectral/validate-schema-samples.py
@@ -301,6 +301,20 @@ contract-check-self-tests:
     - sh spectral/self-test-sync-edges.sh
     - sh spectral/self-test-schema-samples.sh
     - sh spectral/self-test-timeouts.sh   # INV-T-3431: proves check-timeouts.py fires
+    - sh spectral/self-test-required-identifiers.sh   # INV-T-4909: proves check-required-identifiers.py fires
+
+required-identifiers-check:
+  # INV-T-4909 (INV-Q-4874): fails closed when a contract lacks an identifier its requirements name.
+  # Every <service>/required-identifiers.tsv row (identifier, kind, file, requirement key) must be
+  # found, as a whole token, in that service's own file (spectral/check-required-identifiers.py).
+  stage: verify
+  image:
+    name: "$OASDIFF_IMAGE"
+    entrypoint: [""]
+  before_script:
+    - apk add --no-cache python3 py3-yaml
+  script:
+    - python3 spectral/check-required-identifiers.py .
 
 sync-edge-rule-self-test:
   # INV-T-2850 follow-up (lesson P20): proves Spectral rule inv-api-08-x-sync-edge fires.

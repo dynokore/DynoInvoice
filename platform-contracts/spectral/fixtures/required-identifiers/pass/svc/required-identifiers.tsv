@@ -1,0 +1,4 @@
+identifier	kind	file	requirement
+fooBar	property	openapi.yaml	R-1
+ACTIVE	enum_value	openapi.yaml	R-1
+doThing	operation	openapi.yaml	R-2

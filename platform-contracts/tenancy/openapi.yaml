@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 1.0.0
+  version: 1.1.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -608,6 +608,61 @@ paths:
                     periodRef: 2026Q1
                     periodStart: "2026-01-01"
                     periodEnd: "2026-03-31"
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+    get:
+      operationId: listPeriodRecords
+      summary: List an entity's period records with state and due date (INV-REQ-85, SCR-07)
+      description: >-
+        The filing calendar read (INV-REQ-85, FR-AG.15): the entity's past, current and next periods, each
+        with its one state (precedence late, filed, due, open), its filing due date and the extension flag.
+        A late period that has been filed also carries its filing date. console-bff renders the calendar
+        from these records and the cross-entity portfolio view reads the same records.
+      tags:
+      - periods
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->tenancy-svc
+      x-timeout: 2000
+      x-requirements:
+      - FR-AG.15
+      x-error-codes: []
+      parameters:
+      - name: entityRef
+        in: path
+        required: true
+        description: The registered entity's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: ENT-3F2A9C
+      responses:
+        "200":
+          description: Period records, oldest first
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PeriodRecordListResponse'
+              examples:
+                default:
+                  value:
+                    entityRef: ENT-3F2A9C
+                    periods:
+                    - periodRef: 2026Q1
+                      periodStart: "2026-01-01"
+                      periodEnd: "2026-03-31"
+                      position: PAST
+                      state: LATE
+                      filingDueDate: "2026-04-30"
+                      filedOn: "2026-05-06"
+                      extensionGranted: false
         "400":
           $ref: '#/components/responses/Error'
         "401":
@@ -1378,6 +1433,239 @@ paths:
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/tenants/{tenantRef}/offboarding-export:
+    post:
+      operationId: exportTenantData
+      summary: Export a leaving tenant's data package (INV-REQ-877, FR-G.10)
+      description: >-
+        Starts the offboarding export of a tenant that is leaving: transmitted XML, acknowledgements,
+        decision traces, reconciliation work-papers and source document references, in a form readable
+        without the platform (INV-REQ-877). The export is assembled from the evidence owners and
+        returned as a manifest; it is accepted (202) and the package is fetched through the manifest.
+        An entity's exit is recorded by deregisterEntity (INV-REQ-956); this operation is the tenant's
+        package. tenancy-svc refuses it while an in-scope document is unsubmitted and no override
+        acknowledgement is recorded, or no retention custody holder is named (INV-REQ-956 b1, b2), and
+        fails closed naming the unavailable input when the count of unsubmitted documents cannot be read.
+      tags:
+      - tenants
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->tenancy-svc
+      x-timeout: 2000
+      x-requirements:
+      - FR-G.10
+      - FR-AB.9
+      x-error-codes: []
+      x-operation:
+        role: tenant.admin
+        scope: tenant
+        precondition: A retention custody holder is named and no in-scope document is unsubmitted, or an
+          override acknowledgement is recorded (FR-AB.9)
+        reversibility: IRREVERSIBLE
+        repeatKey: tenantRef — a repeat returns the original manifest
+      parameters:
+      - name: tenantRef
+        in: path
+        required: true
+        description: The tenant's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: TEN-7B1004
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportTenantDataRequest'
+            examples:
+              default:
+                value:
+                  secondConfirmationBy: user-8841
+      responses:
+        "202":
+          description: Export accepted; the manifest names the package contents
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantExportResponse'
+              examples:
+                default:
+                  value:
+                    exportRef: EXP-5C20
+                    tenantRef: TEN-7B1004
+                    state: REQUESTED
+                    contents:
+                    - TRANSMITTED_XML
+                    - ACKNOWLEDGEMENTS
+                    - DECISION_TRACES
+                    - RECONCILIATION_WORK_PAPERS
+                    - SOURCE_DOCUMENT_REFERENCES
+        "409":
+          $ref: '#/components/responses/Error'
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/tenants/{tenantRef}/retention-holds:
+    post:
+      operationId: recordRetentionHold
+      summary: Record a retention hold requested in the notice window (INV-AC-1402)
+      description: >-
+        At retention end of a closed tenant the retention custody holder may request a legal hold before
+        deletion (INV-REQ-639, INV-REQ-956 b4). A hold recorded inside the notice window stops the
+        deletion; without one, deletion needs both approvals (INV-AC-1402). A request after the window
+        is refused.
+      tags:
+      - tenants
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->tenancy-svc
+      x-timeout: 2000
+      x-requirements:
+      - FR-AB.9
+      x-error-codes: []
+      x-operation:
+        role: security.officer
+        scope: tenant
+        precondition: The tenant is closed and the notice window before retention end is open
+        reversibility: COMPENSABLE
+        repeatKey: (tenantRef, requestedBy) — a repeat while the hold stands returns it
+      parameters:
+      - name: tenantRef
+        in: path
+        required: true
+        description: The closed tenant's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: TEN-7B1004
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordRetentionHoldRequest'
+            examples:
+              default:
+                value:
+                  requestedBy: Ledger Custody Pte Ltd
+                  reason: Open IRAS enquiry on the 2026 filings
+      responses:
+        "201":
+          description: Hold recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetentionHoldResponse'
+              examples:
+                default:
+                  value:
+                    holdRef: HLD-90B1
+                    tenantRef: TEN-7B1004
+                    state: PLACED
+                    requestedBy: Ledger Custody Pte Ltd
+        "409":
+          $ref: '#/components/responses/Error'
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/tenants/{tenantRef}/operating-profile-applications:
+    post:
+      operationId: applyOperatingProfile
+      summary: Preview, then apply, a versioned operating profile (INV-REQ-1245, FR-AI.7)
+      description: >-
+        Takes a profile id, its version and the profile's values. With apply false (the default) nothing
+        is applied: the response lists every value that would change and every deviation shown against
+        the profile. With apply true the same differences are applied and tenancy-svc records the profile
+        and version applied. A new profile version is never applied silently: the same call with the new
+        version shows its differences first. console-bff calls each owning service's setPolicy and owns
+        no policy value (INV-REQ-1245 b2); a value owned by another setting role is counted as waiting
+        and takes effect only when a holder of that role confirms it (INV-REQ-1245 b5).
+      tags:
+      - tenants
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->tenancy-svc
+      x-timeout: 2000
+      x-requirements:
+      - FR-AI.7
+      x-error-codes: []
+      x-operation:
+        role: tenant.admin
+        scope: tenant
+        precondition: The profile id and version exist; with apply true the caller has seen the differences
+        reversibility: COMPENSABLE
+        repeatKey: (tenantRef, profileId, profileVersion) — a repeat of an applied version is a no-op
+      parameters:
+      - name: tenantRef
+        in: path
+        required: true
+        description: The tenant's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: TEN-7B1004
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplyOperatingProfileRequest'
+            examples:
+              default:
+                value:
+                  profileId: PROF-SME-STANDARD
+                  profileVersion: 3
+                  values:
+                  - variationPoint: VP-014
+                    proposedValue: "30"
+                  apply: false
+      responses:
+        "200":
+          description: Differences the profile makes; applied is true only when apply was true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplyOperatingProfileResponse'
+              examples:
+                default:
+                  value:
+                    tenantRef: TEN-7B1004
+                    profileId: PROF-SME-STANDARD
+                    profileVersion: 3
+                    applied: false
+                    differences:
+                    - variationPoint: VP-014
+                      change: CHANGED
+                      currentValue: "14"
+                      proposedValue: "30"
+                    valuesWaiting: 0
+        "409":
+          $ref: '#/components/responses/Error'
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
 components:
   parameters:
     IdempotencyKey:
@@ -1597,6 +1885,41 @@ components:
         registrationEndDate:
           type: string
           format: date
+        retentionCustodyHolder:
+          $ref: '#/components/schemas/RetentionCustodyHolder'
+        unsubmittedOverride:
+          $ref: '#/components/schemas/UnsubmittedOverrideAcknowledgement'
+        secondConfirmationBy:
+          type: string
+          maxLength: 128
+          description: The second confirmation of an irreversible offboarding (INV-REQ-875, INV-REQ-956).
+    RetentionCustodyHolder:
+      type: object
+      required:
+      - name
+      - contactEmail
+      properties:
+        name:
+          type: string
+          maxLength: 200
+          description: The named retention custody holder, stored in the offboarding record (INV-REQ-956).
+        contactEmail:
+          type: string
+          maxLength: 254
+          description: Where the holder is notified at retention end (INV-REQ-956 b4).
+    UnsubmittedOverrideAcknowledgement:
+      type: object
+      required:
+      - acknowledgedBy
+      - statement
+      properties:
+        acknowledgedBy:
+          type: string
+          maxLength: 128
+        statement:
+          type: string
+          maxLength: 1000
+          description: The recorded acknowledgement that overrides the block on unsubmitted in-scope documents (INV-AC-2056).
     QuestionnaireAnswersRequest:
       type: object
       required:
@@ -1934,6 +2257,45 @@ components:
         effectiveFrom:
           type: string
           format: date
+        partiallyExempt:
+          type: boolean
+          description: Partial exemption flag in force from effectiveFrom (INV-REQ-331).
+        excludedBusinessStatus:
+          type: string
+          enum:
+          - NOT_EXCLUDED
+          - OVERSEAS_S33_1
+          - OVR
+          - RC_ONLY
+          description: Excluded Business determination in force from effectiveFrom (INV-REQ-331, INV-REQ-333).
+        basis:
+          type: string
+          maxLength: 500
+          description: The basis of the value set, recorded with it (INV-REQ-331).
+        evidenceRef:
+          type: string
+          maxLength: 200
+          description: Evidence of the Excluded Business determination, recorded at onboarding (INV-REQ-333).
+        obligationStartDate:
+          type: string
+          format: date
+          description: The later of the registration start date and the implementation date (INV-REQ-335).
+        obligationStartBasis:
+          type: string
+          enum:
+          - MANDATORY_DATE
+          - VOLUNTARY_ACTIVATION
+          - IRAS_COMMUNICATED
+          default: MANDATORY_DATE
+          description: Basis of the implementation date (INV-REQ-335 b1, INV-REQ-1312).
+        irasReference:
+          type: string
+          maxLength: 100
+          description: IRAS reference of a communicated date (basis IRAS_COMMUNICATED).
+        obligationStartOverride:
+          type: boolean
+          default: false
+          description: True when a GST group or division overrides the computed date (INV-REQ-335, INV-REQ-717).
     EntityStatusResponse:
       type: object
       required:
@@ -1954,6 +2316,37 @@ components:
         effectiveFrom:
           type: string
           format: date
+        partiallyExempt:
+          type: boolean
+        excludedBusinessStatus:
+          type: string
+          enum:
+          - NOT_EXCLUDED
+          - OVERSEAS_S33_1
+          - OVR
+          - RC_ONLY
+          x-extensible-enum: true
+        basis:
+          type: string
+          maxLength: 500
+        evidenceRef:
+          type: string
+          maxLength: 200
+        obligationStartDate:
+          type: string
+          format: date
+        obligationStartBasis:
+          type: string
+          enum:
+          - MANDATORY_DATE
+          - VOLUNTARY_ACTIVATION
+          - IRAS_COMMUNICATED
+          x-extensible-enum: true
+        irasReference:
+          type: string
+          maxLength: 100
+        obligationStartOverride:
+          type: boolean
     SetIssuanceModeRequest:
       type: object
       required:
@@ -2047,6 +2440,224 @@ components:
         activeEntities:
           type: integer
           minimum: 0
+    ExportTenantDataRequest:
+      type: object
+      required:
+      - secondConfirmationBy
+      properties:
+        secondConfirmationBy:
+          type: string
+          maxLength: 128
+          description: The second confirmation of an irreversible operation (INV-REQ-875).
+    TenantExportResponse:
+      type: object
+      required:
+      - exportRef
+      - tenantRef
+      - state
+      - contents
+      properties:
+        exportRef:
+          type: string
+          maxLength: 64
+        tenantRef:
+          type: string
+          maxLength: 64
+        state:
+          type: string
+          enum:
+          - REQUESTED
+          - READY
+          - FAILED
+          x-extensible-enum: true
+        contents:
+          type: array
+          items:
+            type: string
+            enum:
+            - TRANSMITTED_XML
+            - ACKNOWLEDGEMENTS
+            - DECISION_TRACES
+            - RECONCILIATION_WORK_PAPERS
+            - SOURCE_DOCUMENT_REFERENCES
+            x-extensible-enum: true
+    RecordRetentionHoldRequest:
+      type: object
+      required:
+      - requestedBy
+      properties:
+        requestedBy:
+          type: string
+          maxLength: 200
+          description: The retention custody holder who requested the hold.
+        reason:
+          type: string
+          maxLength: 500
+    RetentionHoldResponse:
+      type: object
+      required:
+      - holdRef
+      - tenantRef
+      - state
+      - requestedBy
+      properties:
+        holdRef:
+          type: string
+          maxLength: 64
+        tenantRef:
+          type: string
+          maxLength: 64
+        state:
+          type: string
+          enum:
+          - PLACED
+          x-extensible-enum: true
+        requestedBy:
+          type: string
+          maxLength: 200
+    OperatingProfileValue:
+      type: object
+      required:
+      - variationPoint
+      - proposedValue
+      properties:
+        variationPoint:
+          type: string
+          maxLength: 64
+        proposedValue:
+          type: string
+          maxLength: 500
+    ApplyOperatingProfileRequest:
+      type: object
+      required:
+      - profileId
+      - profileVersion
+      - values
+      properties:
+        profileId:
+          type: string
+          maxLength: 64
+        profileVersion:
+          type: integer
+          minimum: 1
+        values:
+          type: array
+          items:
+            $ref: '#/components/schemas/OperatingProfileValue'
+        apply:
+          type: boolean
+          default: false
+          description: False (the default) previews only; nothing is applied.
+    OperatingProfileDifference:
+      type: object
+      required:
+      - variationPoint
+      - change
+      - proposedValue
+      properties:
+        variationPoint:
+          type: string
+          maxLength: 64
+        change:
+          type: string
+          enum:
+          - ADDED
+          - CHANGED
+          - DEVIATION
+          x-extensible-enum: true
+          description: DEVIATION is a tenant value that differs from the profile, shown against it.
+        currentValue:
+          type: string
+          maxLength: 500
+        proposedValue:
+          type: string
+          maxLength: 500
+    ApplyOperatingProfileResponse:
+      type: object
+      required:
+      - tenantRef
+      - profileId
+      - profileVersion
+      - applied
+      - differences
+      properties:
+        tenantRef:
+          type: string
+          maxLength: 64
+        profileId:
+          type: string
+          maxLength: 64
+        profileVersion:
+          type: integer
+          minimum: 1
+        applied:
+          type: boolean
+        differences:
+          type: array
+          items:
+            $ref: '#/components/schemas/OperatingProfileDifference'
+        valuesWaiting:
+          type: integer
+          minimum: 0
+          description: Values held as waiting for another setting role (INV-REQ-1245 b5).
+    PeriodRecord:
+      type: object
+      required:
+      - periodRef
+      - periodStart
+      - periodEnd
+      - position
+      - state
+      - filingDueDate
+      - extensionGranted
+      properties:
+        periodRef:
+          type: string
+          maxLength: 64
+        periodStart:
+          type: string
+          format: date
+        periodEnd:
+          type: string
+          format: date
+        position:
+          type: string
+          enum:
+          - PAST
+          - CURRENT
+          - NEXT
+          x-extensible-enum: true
+        state:
+          type: string
+          enum:
+          - OPEN
+          - DUE
+          - FILED
+          - LATE
+          x-extensible-enum: true
+        filingDueDate:
+          type: string
+          format: date
+        filedOn:
+          type: string
+          format: date
+          description: The filing date; present when a filing fact is recorded, also on a late period.
+        extensionGranted:
+          type: boolean
+          description: A flag that combines with any state, not a fifth state (INV-REQ-85 b4).
+    PeriodRecordListResponse:
+      type: object
+      required:
+      - entityRef
+      - periods
+      properties:
+        entityRef:
+          type: string
+          maxLength: 64
+        periods:
+          type: array
+          items:
+            $ref: '#/components/schemas/PeriodRecord'
   responses:
     Error:
       description: Error (API-20 envelope)
