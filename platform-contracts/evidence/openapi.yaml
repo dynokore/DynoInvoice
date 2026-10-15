@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: evidence API
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     Contract-first source of truth for evidence (API-01, STK-44). The
     `evidence-contract` module generates its server interfaces and DTOs
@@ -402,7 +402,12 @@ paths:
         Legal-hold commands (services.yaml evidence-svc `provides`). A
         legal hold stops the controlled deletion operation at retention end
         (FR-D.4). Keel's operation catalogue (INV-NOTE-7 §7 SCR-30.3)
-        assigns `placeLegalHold` to `tax.approver`.
+        assigns `placeLegalHold` to `tax.approver`. `tax.approver` places the
+        hold while the tenant is live; the operator's `security.officer`
+        places it for a tenant that has closed, for a hold the custody holder
+        requested through a signed link issued by access-svc inside the
+        notice window (INV-REQ-639 behavior 3). The signed-link request is
+        access-svc's record and is not a property of this request.
       tags: [retention]
       x-principal: filing-workflow
       x-sync-edge: console-bff->evidence-svc
@@ -410,9 +415,15 @@ paths:
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-639]
       x-operation:
-        role: tax.approver
+        role: tax.approver, security.officer
         scope: entity+period
-        precondition: "No active legal hold already covers the same (entityRef, periodRef)."
+        precondition: >-
+          No active legal hold already covers the same (entityRef, periodRef).
+          `tax.approver` places the hold while the tenant is live (INV-REQ-639
+          behavior 2); the operator's `security.officer` places it for a
+          tenant that has closed, for a hold the custody holder requested
+          through a signed link issued by access-svc inside the notice window
+          (INV-REQ-639 behavior 3, INV-AC-1808, INV-Q-1707).
         reversibility: COMPENSABLE
         repeatKey: "(entityRef, periodRef, reason) — a repeat returns the existing active hold, unchanged."
       parameters:
@@ -461,7 +472,22 @@ paths:
         Legal-hold commands (services.yaml evidence-svc `provides`; FR-D.4).
         Once released, a due retention deletion for the covered partitions
         may proceed on its own schedule. The same role reverses its own
-        placement (INV-NOTE-7 §7 SCR-30.3): `tax.approver`.
+        placement (INV-NOTE-7 §7 SCR-30.3): `tax.approver`. While the tenant
+        is live only `tax.approver` releases the hold; the hold of a closed
+        tenant is released only by the operator's `security.officer`, with a
+        second `security.officer`, a different person from the caller, named
+        in `secondConfirmationBy` (INV-Q-5082 A). The closed-tenant rule is
+        enforced by evidence-svc, not by the schema, because the body is
+        optional so that live-tenant callers are unchanged: for a closed
+        tenant's hold a missing `secondConfirmationBy` answers 400 SRT-001,
+        and a caller without `security.officer`, a confirmer who does not
+        hold `security.officer`, or a confirmer equal to the caller answers
+        403 SRT-004; the hold stays ACTIVE in every refusal. evidence-svc
+        writes one audit-log entry naming `holdId`, the releasing identity
+        and, for a closed tenant, the confirming identity, in the same
+        transaction as the status change and before the response, so a
+        failed audit write leaves the hold ACTIVE (the pattern of
+        INV-REQ-639 behavior 5).
       tags: [retention]
       x-principal: filing-workflow
       x-sync-edge: console-bff->evidence-svc
@@ -469,9 +495,16 @@ paths:
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-639]
       x-operation:
-        role: tax.approver
+        role: tax.approver, security.officer
         scope: entity+period
-        precondition: "The hold is ACTIVE."
+        precondition: >-
+          The hold is ACTIVE. While the tenant is live only `tax.approver`
+          releases the hold (INV-REQ-639 behavior 2); the hold of a closed
+          tenant is released only by the operator's `security.officer`, and a
+          second `security.officer`, a different person from the caller,
+          confirms it in `secondConfirmationBy` (INV-Q-5082 A); there is no
+          sole-operator path for this release, so an operator with one
+          `security.officer` cannot release it.
         reversibility: COMPENSABLE
         repeatKey: "holdId — no-op; the hold is already released."
       parameters:
@@ -481,6 +514,16 @@ paths:
           schema:
             type: string
             format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReleaseLegalHoldRequest'
+            examples:
+              closedTenant:
+                value:
+                  secondConfirmationBy: "identity:USR-004"
       responses:
         '200':
           description: The hold's release.
@@ -497,6 +540,19 @@ paths:
                     reason: "Regulator inquiry INV-2026-0113"
                     status: "RELEASED"
                     placedAt: "2026-04-01T02:00:00Z"
+                    releasedAt: "2026-06-01T02:00:00Z"
+                    releasedBy: "identity:USR-002"
+                closedTenant:
+                  value:
+                    holdId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    entityRef: "E-001"
+                    periodRef: "2026-Q1"
+                    reason: "Regulator inquiry INV-2026-0113"
+                    status: "RELEASED"
+                    placedAt: "2026-04-01T02:00:00Z"
+                    releasedAt: "2026-06-01T02:00:00Z"
+                    releasedBy: "identity:USR-003"
+                    releaseConfirmedBy: "identity:USR-004"
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/evidence/entities/{entityRef}/periods/{periodRef}/audit-packs:
@@ -1064,7 +1120,32 @@ components:
         placedAt:
           type: string
           format: date-time
+        releasedAt:
+          type: string
+          format: date-time
+          description: Present exactly when status is RELEASED.
+        releasedBy:
+          type: string
+          maxLength: 128
+          description: The identity of the caller that released the hold. Present exactly when status is RELEASED.
+        releaseConfirmedBy:
+          type: string
+          maxLength: 128
+          description: >-
+            The confirming identity (the second `security.officer`). Present
+            only when status is RELEASED and the hold is a closed tenant's.
       required: [holdId, entityRef, periodRef, reason, status, placedAt]
+    ReleaseLegalHoldRequest:
+      type: object
+      properties:
+        secondConfirmationBy:
+          type: string
+          maxLength: 128
+          description: >-
+            The second `security.officer`, a different person from the
+            caller, who confirms the release of a closed tenant's hold
+            (INV-Q-5082 A). Same name, type and length as the offboarding
+            request's `secondConfirmationBy` (INV-REQ-875).
     AuditPackExport:
       type: object
       properties:
