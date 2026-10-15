@@ -4,8 +4,8 @@
 ../openapi.yaml#/components/schemas/DeregisterEntityRequest deregister-entity-request-*.json
 ../openapi.yaml#/components/schemas/RecordRetentionHoldRequest record-retention-hold-request-*.json
 ../openapi.yaml#/components/schemas/RetentionHoldResponse retention-hold-response-*.json
-../openapi.yaml#/components/schemas/ApplyOperatingProfileRequest apply-operating-profile-request-*.json
-../openapi.yaml#/components/schemas/ApplyOperatingProfileResponse apply-operating-profile-response-*.json
 ../openapi.yaml#/components/schemas/PeriodRecordListResponse period-record-list-response-*.json
 ../openapi.yaml#/components/schemas/OffboardTenantRequest offboard-tenant-request-*.json
 ../openapi.yaml#/components/schemas/OffboardingRecordResponse offboarding-record-response-*.json
+../openapi.yaml#/components/schemas/RecordAppliedOperatingProfileRequest record-applied-operating-profile-request-*.json
+../openapi.yaml#/components/schemas/AppliedOperatingProfileRecord applied-operating-profile-record-*.json

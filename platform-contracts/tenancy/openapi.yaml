@@ -1604,18 +1604,18 @@ paths:
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
-  /internal/v1/tenancy/tenants/{tenantRef}/operating-profile-applications:
+  /internal/v1/tenancy/tenants/{tenantRef}/operating-profile:
     post:
-      operationId: applyOperatingProfile
-      summary: Preview, then apply, a versioned operating profile (INV-REQ-1245, FR-AI.7)
+      operationId: recordAppliedOperatingProfile
+      summary: Record the operating profile and version applied to a scope (INV-REQ-1245, FR-AI.7)
       description: >-
-        Takes a profile id, its version and the profile's values. With apply false (the default) nothing
-        is applied: the response lists every value that would change and every deviation shown against
-        the profile. With apply true the same differences are applied and tenancy-svc records the profile
-        and version applied. A new profile version is never applied silently: the same call with the new
-        version shows its differences first. console-bff calls each owning service's setPolicy and owns
-        no policy value (INV-REQ-1245 b2); a value owned by another setting role is counted as waiting
-        and takes effect only when a holder of that role confirms it (INV-REQ-1245 b5).
+        Records, for the tenant or one of its entities, which operating profile and which version were
+        applied: only the scope, the profile reference and the version. The profile reference is opaque;
+        tenancy-svc does not check it against the catalogue and reads no profile content. console-bff
+        previews the differences and calls each owning service's setPolicy; it calls this operation with
+        what it applied, after its setPolicy calls have succeeded, so a failure part-way leaves no record of
+        a profile that was not applied (INV-REQ-1245 b2). A call for a scope that already has a record
+        replaces its profile reference and version.
       tags:
       - tenants
       x-principal: filing-workflow
@@ -1625,11 +1625,11 @@ paths:
       - FR-AI.7
       x-error-codes: []
       x-operation:
-        role: tenant.admin
+        role: tenant.admin for scope TENANT, entity.admin for scope ENTITY
         scope: tenant
-        precondition: The profile id and version exist; with apply true the caller has seen the differences
+        precondition: The tenant (and the entity, for scope ENTITY) exists
         reversibility: COMPENSABLE
-        repeatKey: (tenantRef, profileId, profileVersion) — a repeat of an applied version is a no-op
+        repeatKey: (tenantRef, scope, entityRef, profileRef, profileVersion)
       parameters:
       - name: tenantRef
         in: path
@@ -1645,38 +1645,92 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ApplyOperatingProfileRequest'
+              $ref: '#/components/schemas/RecordAppliedOperatingProfileRequest'
             examples:
               default:
                 value:
-                  profileId: PROF-SME-STANDARD
+                  scope: TENANT
+                  profileRef: PROF-SME-STANDARD
                   profileVersion: 3
-                  values:
-                  - variationPoint: VP-014
-                    proposedValue: "30"
-                  apply: false
       responses:
         "200":
-          description: Differences the profile makes; applied is true only when apply was true
+          description: The record of that scope after the call
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApplyOperatingProfileResponse'
+                $ref: '#/components/schemas/AppliedOperatingProfileRecord'
               examples:
                 default:
                   value:
                     tenantRef: TEN-7B1004
-                    profileId: PROF-SME-STANDARD
+                    scope: TENANT
+                    profileRef: PROF-SME-STANDARD
                     profileVersion: 3
-                    applied: false
-                    differences:
-                    - variationPoint: VP-014
-                      change: CHANGED
-                      currentValue: "14"
-                      proposedValue: "30"
-                    valuesWaiting: 0
-        "409":
+        "400":
           $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+    get:
+      operationId: getAppliedOperatingProfile
+      summary: Read the operating profile and version recorded for a scope (INV-REQ-1245, FR-AI.7)
+      description: >-
+        Returns the record of the scope named by the query: scope, and entityRef exactly when scope is
+        ENTITY (400 for a missing or contradictory entityRef). 404 for an unknown tenant or entity, or a scope
+        that has no record.
+      tags:
+      - tenants
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->tenancy-svc
+      x-timeout: 2000
+      x-requirements:
+      - FR-AI.7
+      x-error-codes: []
+      parameters:
+      - name: tenantRef
+        in: path
+        required: true
+        description: The tenant's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: TEN-7B1004
+      - name: scope
+        in: query
+        required: true
+        description: The scope whose record is read.
+        schema:
+          type: string
+          enum:
+          - TENANT
+          - ENTITY
+      - name: entityRef
+        in: query
+        required: false
+        description: The entity, present exactly when scope is ENTITY.
+        schema:
+          type: string
+          maxLength: 64
+      responses:
+        "200":
+          description: The recorded profile and version
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppliedOperatingProfileRecord'
+              examples:
+                default:
+                  value:
+                    tenantRef: TEN-7B1004
+                    scope: ENTITY
+                    entityRef: ENT-3F2A9C
+                    profileRef: PROF-SME-STANDARD
+                    profileVersion: 3
         "400":
           $ref: '#/components/responses/Error'
         "401":
@@ -2607,91 +2661,82 @@ components:
         requestedBy:
           type: string
           maxLength: 200
-    OperatingProfileValue:
+    RecordAppliedOperatingProfileRequest:
       type: object
       required:
-      - variationPoint
-      - proposedValue
-      properties:
-        variationPoint:
-          type: string
-          maxLength: 64
-        proposedValue:
-          type: string
-          maxLength: 500
-    ApplyOperatingProfileRequest:
-      type: object
-      required:
-      - profileId
+      - scope
+      - profileRef
       - profileVersion
-      - values
       properties:
-        profileId:
+        scope:
+          type: string
+          enum:
+          - TENANT
+          - ENTITY
+        entityRef:
           type: string
           maxLength: 64
+          description: Present exactly when scope is ENTITY, absent when it is TENANT.
+        profileRef:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: An opaque reference; tenancy-svc does not check it against the catalogue.
         profileVersion:
           type: integer
           minimum: 1
-        values:
-          type: array
-          items:
-            $ref: '#/components/schemas/OperatingProfileValue'
-        apply:
-          type: boolean
-          default: false
-          description: False (the default) previews only; nothing is applied.
-    OperatingProfileDifference:
-      type: object
-      required:
-      - variationPoint
-      - change
-      - proposedValue
-      properties:
-        variationPoint:
-          type: string
-          maxLength: 64
-        change:
-          type: string
-          enum:
-          - ADDED
-          - CHANGED
-          - DEVIATION
-          x-extensible-enum: true
-          description: DEVIATION is a tenant value that differs from the profile, shown against it.
-        currentValue:
-          type: string
-          maxLength: 500
-        proposedValue:
-          type: string
-          maxLength: 500
-    ApplyOperatingProfileResponse:
+      if:
+        required:
+        - scope
+        properties:
+          scope:
+            const: ENTITY
+      then:
+        required:
+        - entityRef
+      else:
+        not:
+          required:
+          - entityRef
+    AppliedOperatingProfileRecord:
       type: object
       required:
       - tenantRef
-      - profileId
+      - scope
+      - profileRef
       - profileVersion
-      - applied
-      - differences
       properties:
         tenantRef:
           type: string
           maxLength: 64
-        profileId:
+        scope:
+          type: string
+          enum:
+          - TENANT
+          - ENTITY
+        entityRef:
           type: string
           maxLength: 64
+        profileRef:
+          type: string
+          minLength: 1
+          maxLength: 128
         profileVersion:
           type: integer
           minimum: 1
-        applied:
-          type: boolean
-        differences:
-          type: array
-          items:
-            $ref: '#/components/schemas/OperatingProfileDifference'
-        valuesWaiting:
-          type: integer
-          minimum: 0
-          description: Values held as waiting for another setting role (INV-REQ-1245 b5).
+      if:
+        required:
+        - scope
+        properties:
+          scope:
+            const: ENTITY
+      then:
+        required:
+        - entityRef
+      else:
+        not:
+          required:
+          - entityRef
     PeriodRecord:
       type: object
       required:
