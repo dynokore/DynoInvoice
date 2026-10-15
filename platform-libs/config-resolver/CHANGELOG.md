@@ -6,6 +6,12 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.1.2] - 2026-10-16
+### Changed
+- Metadata-only release (INV-T-5384, coordinator ruling INV-Q-5382, delegated, owner 2026-10-14): no API or behaviour
+  change; `src/main` and `src/impl` are unchanged since 2.1.1.
+- The POMs and module metadata of both publications (api and impl) now name audit-log 2.3.4 (was 2.3.3).
+
 ## [2.1.1] - 2026-10-16
 ### Changed
 - Metadata-only release (INV-T-5339, coordinator ruling INV-Q-5337, delegated, owner 2026-10-14): no API or behaviour

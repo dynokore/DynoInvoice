@@ -6,6 +6,13 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.3.4] - 2026-10-16
+### Changed
+- Metadata-only release (INV-T-5384, coordinator ruling INV-Q-5382, delegated, owner 2026-10-14): no API or behaviour
+  change; `src/main` and `src/impl` are unchanged since 2.3.3.
+- The POMs and module metadata of both publications (api and impl) now name the sibling modules at their current
+  versions: tenancy-kernel 2.0.0 (was 1.5.0) and outbox-and-queue 3.0.1 (was 2.2.2).
+
 ## [2.3.3] - 2026-10-14
 ### Fixed
 - Every blank check uses tenancy-kernel's `BlankText` instead of `btrim` (spaces only) (coordinator rulings INV-Q-4614 (A) and INV-Q-4622 (A), INV-T-4616):
