@@ -16,6 +16,7 @@ internal class CertificatePathValidator(
     private val provider: Provider,
     private val anchorsDer: List<ByteArray>,
     private val at: Instant,
+    private val signatureOid: String,
 ) {
     private val anchors: List<X509Certificate> = anchorsDer.mapNotNull { parse(it) }
 
@@ -27,12 +28,13 @@ internal class CertificatePathValidator(
         if (anchorsDer.isEmpty() || !signerAcceptable(signer)) {
             return null
         }
-        return extend(listOf(signer), carried + anchors)
+        return extend(listOf(signer), carried + anchors, mutableSetOf())
     }
 
     private fun extend(
         path: List<X509Certificate>,
         pool: List<X509Certificate>,
+        deadEnds: MutableSet<Pair<Int, Int>>,
     ): Int? {
         val current = path.last()
         val anchorIndex = anchorsDer.indexOfFirst { it.contentEquals(current.encoded) }
@@ -42,10 +44,14 @@ internal class CertificatePathValidator(
         if (path.size >= MAX_PATH_LENGTH) {
             return null
         }
-        for (issuer in pool) {
+        for ((poolIndex, issuer) in pool.withIndex()) {
+            val state = poolIndex to path.size
             val onPath = path.any { it.encoded.contentEquals(issuer.encoded) }
-            if (!onPath && issuerAcceptable(current, issuer, path.size)) {
-                extend(path + issuer, pool)?.let { return it }
+            if (!onPath && state !in deadEnds && issuerAcceptable(current, issuer, path.size)) {
+                extend(path + issuer, pool, deadEnds)?.let { return it }
+                // a certificate at a position that led nowhere is never searched again: the search is
+                // polynomial in the pool size and the path length, whatever the message carries
+                deadEnds += state
             }
         }
         return null
@@ -67,6 +73,7 @@ internal class CertificatePathValidator(
         val withinPathLen = !isCa || position - 1 <= pathLen
         return certificateAcceptable(issuer) &&
             subject.issuerX500Principal == issuer.subjectX500Principal &&
+            subject.sigAlgOID == signatureOid &&
             signedBy(subject, issuer) &&
             isCa &&
             (issuer.keyUsage?.get(KU_KEY_CERT_SIGN) ?: true) &&
@@ -98,6 +105,9 @@ internal class CertificatePathValidator(
     private fun parse(der: ByteArray): X509Certificate? = parseCertificate(provider, der)
 
     companion object {
+        /** The most certificates a message may carry besides the signer; more is refused before any path search. */
+        const val MAX_CARRIED = 16
+
         /** Path length in certificates, signer and anchor included. */
         const val MAX_PATH_LENGTH = 8
 

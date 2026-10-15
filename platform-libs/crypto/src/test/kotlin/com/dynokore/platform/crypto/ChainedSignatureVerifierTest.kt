@@ -17,6 +17,7 @@ import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder
 import org.bouncycastle.operator.jcajce.JcaDigestCalculatorProviderBuilder
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.math.BigInteger
 import java.security.KeyPair
@@ -201,6 +202,40 @@ class ChainedSignatureVerifierTest {
     }
 
     @Test
+    fun `about 40 self-issued CAs are refused quickly`() {
+        val root = ca("root")
+        val signer = leaf("signer", ca("unrelated"))
+        // same subject, each its own key: every one is a candidate issuer of every other
+        val shared = keyPair()
+        val first = ca("crowd", pair = shared)
+        val crowd = listOf(first) + List(39) { ca("crowd", first, pair = shared) }
+        val started = System.nanoTime()
+        val outcome = run(signer, listOf(signer) + crowd, listOf(root.der))
+        assertInstanceOf(DetachedVerification.SignatureInvalid::class.java, outcome)
+        assertTrue((System.nanoTime() - started) < 20_000_000_000L)
+    }
+
+    @Test
+    fun `a bounded crowd of look-alike CAs is searched to a refusal in bounded time`() {
+        val root = ca("root")
+        val shared = keyPair()
+        val first = ca("crowd", pair = shared)
+        // cross-certificates: one name and one key, many certificates, each valid under every other
+        val crowd = listOf(first) + List(14) { ca("crowd", first, pair = shared) }
+        val signer = leaf("signer", first)
+        val started = System.nanoTime()
+        assertEquals(untrusted, run(signer, listOf(signer) + crowd, listOf(root.der)))
+        assertTrue((System.nanoTime() - started) < 20_000_000_000L)
+    }
+
+    @Test
+    fun `a link signed with another signature algorithm is untrusted`() {
+        val root = ca("root")
+        val signer = leaf("signer", root, linkSignature = "SHA384withECDSA")
+        assertEquals(untrusted, run(signer, listOf(signer), listOf(root.der)))
+    }
+
+    @Test
     fun `an empty anchor list is untrusted`() {
         val signer = leaf("signer", null)
         assertEquals(untrusted, run(signer, listOf(signer), emptyList()))
@@ -325,6 +360,7 @@ class ChainedSignatureVerifierTest {
         notBefore: Instant = now.minus(90, ChronoUnit.DAYS),
         notAfter: Instant = now.plus(30, ChronoUnit.DAYS),
         criticalUnknown: Boolean = false,
+        pair: KeyPair? = null,
     ): Node =
         issue(
             name,
@@ -335,6 +371,7 @@ class ChainedSignatureVerifierTest {
             notBefore,
             notAfter,
             criticalUnknown,
+            pair = pair,
         )
 
     /** A signing certificate; [issuer] `null` makes it self-signed. */
@@ -346,7 +383,8 @@ class ChainedSignatureVerifierTest {
         notAfter: Instant = now.plus(30, ChronoUnit.DAYS),
         criticalUnknown: Boolean = false,
         nameOfIssuer: X500Name? = null,
-    ): Node = issue(name, issuer, null, usage, nameOfIssuer, notBefore, notAfter, criticalUnknown)
+        linkSignature: String = "SHA256withECDSA",
+    ): Node = issue(name, issuer, null, usage, nameOfIssuer, notBefore, notAfter, criticalUnknown, linkSignature)
 
     private fun issue(
         name: String,
@@ -357,8 +395,10 @@ class ChainedSignatureVerifierTest {
         notBefore: Instant,
         notAfter: Instant,
         criticalUnknown: Boolean,
+        linkSignature: String = "SHA256withECDSA",
+        pair: KeyPair? = null,
     ): Node {
-        val pair = keyPair()
+        val pair = pair ?: keyPair()
         val subject = X500Name("CN=$name")
         val signingPair = issuer?.pair ?: pair
         val issuerX500 = issuerName ?: issuer?.cert?.subject ?: subject
@@ -379,7 +419,7 @@ class ChainedSignatureVerifierTest {
             builder.addExtension(ASN1ObjectIdentifier("1.3.6.1.4.1.99999.1"), true, DEROctetString(byteArrayOf(1)))
         }
         val signer =
-            JcaContentSignerBuilder("SHA256withECDSA")
+            JcaContentSignerBuilder(linkSignature)
                 .setProvider(BouncyCastleProvider.PROVIDER_NAME)
                 .build(signingPair.private)
         return Node(name, pair, builder.build(signer))

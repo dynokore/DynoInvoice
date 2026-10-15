@@ -34,6 +34,9 @@ Verification pins the signer to an exact trusted certificate (byte for byte), ne
 - every issuer has basicConstraints CA=true, keyCertSign if keyUsage is present, and its pathLenConstraint is not exceeded;
 - the signer has digitalSignature if keyUsage is present and is not a CA certificate (basicConstraints CA=true);
 - a certificate with an unknown critical extension is refused (understood: basicConstraints, keyUsage, subjectAltName);
+- every link is signed with the named signature algorithm (ECDSA P-256 with SHA-256, STK-13); any other link signature algorithm is refused;
+- a self-issued intermediate counts toward an issuer's pathLenConstraint (stricter than RFC 5280, which exempts self-issued certificates);
+- the message may carry at most 16 certificates besides the signer (more is `SignatureInvalid`, before any path search), and the path search is bounded (a certificate that led nowhere at a path position is not searched again);
 - an empty `trustAnchorsDer` gives `UntrustedSigner`.
 
 No revocation check (CRL, OCSP) is made: no published text requires one, and removing an anchor from the installation's set is the revocation path (INV-Q-5093).

@@ -71,13 +71,14 @@ class BouncyCastleCms(
     ): DetachedVerification =
         when (val checked = checkSignature(content, signature, algorithm)) {
             is SignatureCheck.Failed -> checked.outcome
-            is SignatureCheck.Signed -> chainedSigner(checked, trustAnchorsDer, at)
+            is SignatureCheck.Signed -> chainedSigner(checked, trustAnchorsDer, at, algorithm)
         }
 
     private fun chainedSigner(
         checked: SignatureCheck.Signed,
         trustAnchorsDer: List<ByteArray>,
         at: Instant,
+        algorithm: SignatureAlgorithm,
     ): DetachedVerification {
         val signer =
             try {
@@ -85,6 +86,12 @@ class BouncyCastleCms(
             } catch (failure: IOException) {
                 return invalid("signer certificate could not be re-encoded: ${failure.message}")
             } ?: return invalid("signer certificate is not a parseable X.509 certificate")
+        if (checked.carried.size > CertificatePathValidator.MAX_CARRIED + 1) {
+            return invalid(
+                "message carries ${checked.carried.size} certificates, more than " +
+                    "${CertificatePathValidator.MAX_CARRIED} besides the signer",
+            )
+        }
         val carried =
             checked.carried.mapNotNull {
                 try {
@@ -93,7 +100,13 @@ class BouncyCastleCms(
                     null
                 }
             }
-        val index = CertificatePathValidator(provider, trustAnchorsDer, at).trustedIndex(signer, carried)
+        val index =
+            CertificatePathValidator(
+                provider,
+                trustAnchorsDer,
+                at,
+                algorithm.signatureOid,
+            ).trustedIndex(signer, carried)
         return if (index == null) DetachedVerification.UntrustedSigner else DetachedVerification.Verified(index)
     }
 
