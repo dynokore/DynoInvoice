@@ -1,8 +1,16 @@
 # INV-T-4911. Identifiers in backticks in the published behavior and intent of INV-REQ-371, 701, 362, 858, 1303, 772,
 # 2444, 658 (read from Keel), plus the identifiers pinned by INV-Q-5189 for the done-when (rows under the requirement
 # that pins them: INV-REQ-370, 374, 493, 658, 771, 777, 1166). One row per identifier, under the first requirement that names it.
-# Not rows: tax.approver (a role); effective_from, effective_to (the pack manifest's and database's snake_case names of
-# the rows effectiveFrom and effectiveTo, API-09); NA, TXNA, DS, OS, SRRC (IRAS category codes, scenario-pack data).
+# Not rows, because they are not rules contract identifiers:
+#   roles: tax.approver, entity.admin, tenant.admin, security.officer;
+#   services and modules: rules-svc, payload-svc, tenancy-svc, reconciliation-svc, notification-svc, canonical-svc, evidence-svc, product-runtime, PackSource, gst-catalogue;
+#   events: PackReadinessAcknowledged, RulePackStaged, CanonicalVersionCreated (rules/asyncapi.yaml or other services' contracts);
+#   snake_case names of rows (API-09): effective_from, effective_to (rows effectiveFrom, effectiveTo), transaction_date (the pack-resolution date, request property transactionDate), doc_uuid, pack_type;
+#   IRAS category codes, scenario-pack data: NA, TXNA, DS, OS, SRRC, TX, ZR, BL;
+#   catalogue words of other requirements: MANUAL, AUTO_RELEASE, AUTO_RETRY, INFO, OVERRIDABLE, TERMINAL, AREA-NNN;
+#   line fields of the canonical and ingestion contracts: inputTaxClaimed, taxAmount;
+#   operations of other services' contracts: goLive, bulkResolve, replaySubmissions, withdrawConsent, deleteAtRetentionEnd;
+#   armPack (INV-REQ-1166, 962): the rules contract's existing operationId is armRegulatoryPack, unchanged by this task.
 # Enum members shared by several properties (CLAIMABLE_PORTION, ENTIRE_INVOICE, BILL_FOR_PAYMENT ...) are one row each.
 identifier	kind	file	requirement
 documentFunction	property	openapi.yaml	INV-REQ-371
@@ -10,7 +18,9 @@ documentKind	property	openapi.yaml	INV-REQ-371
 BILL_FOR_PAYMENT	enum_value	openapi.yaml	INV-REQ-371
 ADJUSTMENT	enum_value	openapi.yaml	INV-REQ-371
 NOT_A_BILL	enum_value	openapi.yaml	INV-REQ-371
+PRE_OBLIGATION	enum_value	openapi.yaml	INV-REQ-378
 lineSign	property	openapi.yaml	INV-REQ-371
+documentTypeCode	property	openapi.yaml	INV-REQ-658
 signNormalised	property	openapi.yaml	INV-REQ-371
 POSITIVE	enum_value	openapi.yaml	INV-REQ-371
 NEGATIVE	enum_value	openapi.yaml	INV-REQ-371
@@ -57,5 +67,6 @@ ABORTED	enum_value	openapi.yaml	INV-REQ-1166
 firstPeriodRef	property	openapi.yaml	INV-REQ-1303
 lastPeriodRef	property	openapi.yaml	INV-REQ-1303
 periodCount	property	openapi.yaml	INV-REQ-1303
+acknowledgePackDelta	operation	openapi.yaml	INV-REQ-2588
 dryRun	operation	openapi.yaml	INV-REQ-772
 approvePack	operation	openapi.yaml	INV-REQ-772

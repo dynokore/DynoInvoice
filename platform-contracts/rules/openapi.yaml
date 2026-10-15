@@ -1048,6 +1048,14 @@ components:
           type: string
           enum: [BILL_FOR_PAYMENT, ADJUSTMENT, NOT_A_BILL]
           description: The classification result, not the caller's assertion (INV-REQ-371 b1).
+        documentTypeCode:
+          type: string
+          maxLength: 3
+          pattern: '^38[01]$'
+          description: >-
+            The UNCL1001 document type code the classification table yields: 380 (invoice) or
+            381 (credit note) (INV-REQ-658). A pattern, not an enum: API-09 forbids numeric enum
+            members (coordinator ruling, option 1).
         signNormalised:
           type: boolean
           description: The classification table's sign-normalisation result (INV-REQ-659 b2).
