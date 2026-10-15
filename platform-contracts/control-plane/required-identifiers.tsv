@@ -1,7 +1,8 @@
 # INV-T-4914. Identifiers in backticks in the published behavior and intent of INV-REQ-2590, 2660, 2662, 1386, 1094, 2657
 # (read from Keel). One row per identifier, under the first requirement that names it or that the field serves.
 # Not rows: min_engine_version (INV-REQ-1094; the manifest name of the row minEngineVersion, API-09);
-# security.officer, regulatory.approver, release.manager, tax.approver (roles); control-plane-svc (a service).
+# security.officer, regulatory.author, regulatory.approver, release.manager, tax.approver, commercial.admin (roles);
+# control-plane-svc, tenancy-svc, rules-svc (services); `model/tool.py check` (a command); [FR-H.10] (a source reference).
 # The pack feed index that rules-svc polls (INV-REQ-1079) is not here: it waits on owner question INV-Q-5191.
 identifier	kind	file	requirement
 authors	property	openapi.yaml	INV-REQ-2590
@@ -31,6 +32,7 @@ SECURITY	enum_value	openapi.yaml	INV-REQ-2657
 CERTIFICATION	enum_value	openapi.yaml	INV-REQ-2657
 CORPUS	enum_value	openapi.yaml	INV-REQ-2657
 STAGING	enum_value	openapi.yaml	INV-REQ-2657
+authorRegulatoryPack	operation	openapi.yaml	INV-REQ-2590
 signPack	operation	openapi.yaml	INV-REQ-2590
 publishPack	operation	openapi.yaml	INV-REQ-2590
 getPack	operation	openapi.yaml	INV-REQ-2590
