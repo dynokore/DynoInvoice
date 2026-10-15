@@ -17,6 +17,7 @@ import org.springframework.core.env.StandardEnvironment
 import org.springframework.core.env.SystemEnvironmentPropertySource
 import org.springframework.core.io.ClassPathResource
 import org.springframework.core.io.support.ResourcePropertySource
+import java.net.URLClassLoader
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -418,11 +419,20 @@ class SqlConfigurationKeyGuardTest {
         val file = root.resolve("org/postgresql/driverconfig.properties")
         Files.createDirectories(file.parent)
         Files.writeString(file, "options=-c search_path=x\n")
-        val lookup: (String) -> Boolean = { name -> Files.exists(root.resolve(name)) }
-        val failure = shouldThrow<IllegalStateException> { SqlConfigurationKeyGuard.verify(properties(), lookup) }
-        failure.message.orEmpty() shouldContain "org/postgresql/driverconfig.properties"
-        failure.message.orEmpty() shouldContain "INV-Q-4559"
-        SqlConfigurationKeyGuard.verify(properties()) { false }
+        URLClassLoader(arrayOf(root.toUri().toURL()), null).use { loader ->
+            val failure =
+                shouldThrow<IllegalStateException> {
+                    SqlConfigurationKeyGuard.verify(properties()) { name ->
+                        loader.getResource(name) !=
+                            null
+                    }
+                }
+            failure.message.orEmpty() shouldContain "org/postgresql/driverconfig.properties"
+            failure.message.orEmpty() shouldContain "INV-Q-4559"
+        }
+        URLClassLoader(arrayOf(), null).use { empty ->
+            SqlConfigurationKeyGuard.verify(properties()) { name -> empty.getResource(name) != null }
+        }
     }
 
     companion object {

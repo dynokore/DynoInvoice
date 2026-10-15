@@ -14,7 +14,6 @@ import org.jooq.JSONB
 import org.jooq.SQLDialect
 import org.jooq.impl.DSL
 import org.jooq.impl.DefaultConfiguration
-import javax.sql.DataSource
 
 /**
  * JDBC-free database access for the service-runtime integration tests (owner ruling INV-Q-4508 (A), coordinator ruling
@@ -48,15 +47,7 @@ class TestDatabase(
         val runner = pool.runner(tenants, lanes)
         val dsl =
             TenancyJooq.configure(DefaultConfiguration().set(SQLDialect.POSTGRES), tenancyTables, tenants, runner).dsl()
-        return Access(this, runner, dsl, pool.dataSource(lanes))
-    }
-
-    /** A runner and DSLContext over a pool the test did not build (a service's own pool, a bean of its context). */
-    fun over(dataSource: DataSource): Access {
-        val runner = TransactionRunnerImpl(dataSource, tenants)
-        val dsl =
-            TenancyJooq.configure(DefaultConfiguration().set(SQLDialect.POSTGRES), tenancyTables, tenants, runner).dsl()
-        return Access(this, runner, dsl, dataSource)
+        return Access(this, runner, dsl)
     }
 
     override fun close() = pools.forEach { it.close() }
@@ -65,8 +56,6 @@ class TestDatabase(
         private val db: TestDatabase,
         val runner: TransactionRunnerImpl,
         val dsl: DSLContext,
-        /** The pool as a DataSource, for a context that needs the bean; a test takes no connection from it. */
-        val dataSource: DataSource,
     ) {
         /** Runs [block] in one transaction bound to [tenant] and [actor]. */
         fun <T> asTenant(

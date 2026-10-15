@@ -95,8 +95,7 @@ class TenancyProbe internal constructor(
         binds: Array<out Any?>,
         run: (Connection) -> T,
     ): T {
-        // the bind values are not logged: a probe may carry a password (CS-24)
-        log.info("probe [{}]: {} ({} bind value(s))", caller(), sql, binds.size)
+        log.info("probe [{}]: {} {}", caller(), sql, binds.toList())
         val open = session.get()
         return if (open != null) run(open) else open().use { run(it) }
     }

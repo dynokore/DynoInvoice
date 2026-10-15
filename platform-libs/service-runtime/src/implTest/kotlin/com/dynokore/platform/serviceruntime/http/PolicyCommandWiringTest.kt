@@ -8,13 +8,14 @@ import com.dynokore.platform.serviceruntime.policy.PolicyRoleResolver
 import com.dynokore.platform.tenancykernel.TenantContextImpl
 import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
 import io.kotest.matchers.shouldBe
-import io.mockk.mockk
 import org.junit.jupiter.api.Test
+import org.postgresql.ds.PGSimpleDataSource
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.boot.web.servlet.ServletRegistrationBean
 import org.springframework.mock.web.MockHttpServletRequest
 import org.springframework.mock.web.MockHttpServletResponse
+import java.lang.reflect.Proxy
 import javax.sql.DataSource
 
 /**
@@ -25,18 +26,18 @@ import javax.sql.DataSource
  */
 class PolicyCommandWiringTest {
     private val tenants = TenantContextImpl()
-
-    /** Never asked for a connection: the wiring is built, no request reaches the store. */
-    private val dataSource = mockk<DataSource>()
-    private val tx = TransactionRunnerImpl(dataSource, tenants)
+    private val tx = TransactionRunnerImpl(PGSimpleDataSource(), tenants)
     private val scope = TenantScope(tenants, tx, tx, "svc:wiring-test")
-    private val writer = mockk<PolicyWriter>()
-    private val jobs = mockk<JobCommands>()
+    private val writer = stub<PolicyWriter>()
+    private val jobs = stub<JobCommands>()
+
+    private inline fun <reified T : Any> stub(): T =
+        Proxy.newProxyInstance(javaClass.classLoader, arrayOf(T::class.java)) { _, _, _ -> null } as T
 
     private fun runner(): ApplicationContextRunner =
         ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(JobCommandHttpAutoConfiguration::class.java))
-            .withBean("dataSource", DataSource::class.java, { dataSource }, { it.isPrimary = true })
+            .withBean("dataSource", DataSource::class.java, { PGSimpleDataSource() }, { it.isPrimary = true })
             .withBean(TenantScope::class.java, { scope })
             .withBean(EndUserPrincipalResolver::class.java, { EndUserPrincipalResolver { null } })
             .withBean(java.time.Clock::class.java, { java.time.Clock.systemUTC() })

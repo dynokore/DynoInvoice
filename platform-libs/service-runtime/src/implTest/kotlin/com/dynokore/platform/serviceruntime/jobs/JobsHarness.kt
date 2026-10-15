@@ -17,8 +17,6 @@ import com.dynokore.platform.tenancyjooq.TableClass
 import com.dynokore.platform.tenancykernel.TenantContextImpl
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TestPoolFixture
-import org.jooq.DSLContext
-import org.jooq.Field
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 import org.jooq.types.DayToSecond
@@ -31,7 +29,6 @@ import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 import java.util.concurrent.Executor
-import javax.sql.DataSource
 
 /** A settable clock shared by the replicas of a test. */
 class MutableClock(
@@ -175,9 +172,6 @@ class JobsHarness
             val tenants: TenantContextImpl = replicaDb.tenants
             val tx = app.runner
             val dsl = app.dsl
-
-            /** The replica's pool as a DataSource bean for a Spring context; no test takes a connection from it. */
-            val dataSource: DataSource = app.dataSource
             val scope = TenantScope(tenants, tx, tx, WorkloadPrincipal(SERVICE).value)
             val outbox = JdbcOutboxWriter(tx, SCHEMA, SERVICE, instance, CATALOGUE, clock)
             val runtime =
@@ -251,49 +245,7 @@ class JobsHarness
             rows("$SCHEMA.job_run", "job" to job)
                 .sortedWith(compareBy({ instantOf(it["tick"]) }, { it["trigger"] as String }, { it["attempt"] as Int }))
 
-        /** Idempotency rows of [key], of every tenant the test created and the platform tenant. */
-        fun keyRows(key: String) = rows("$SCHEMA.idempotency_key", "idempotency_key" to UUID.fromString(key))
-
-        /** Moves `created_at` of the idempotency keys (all, or [key]'s) back by [age], as the superuser login. */
-        fun ageKeys(
-            age: Duration,
-            key: String? = null,
-        ) = updateKeys(key) { created -> created.minus(DSL.`val`(DayToSecond.valueOf(age))) }
-
-        /** Sets `created_at` of [key]'s row to [age] before the database clock's now(). */
-        fun setKeyAge(
-            key: String,
-            age: Duration,
-        ) = updateKeys(key) { DSL.currentOffsetDateTime().minus(DSL.`val`(DayToSecond.valueOf(age))) }
-
-        private fun updateKeys(
-            key: String?,
-            value: (Field<OffsetDateTime>) -> Field<OffsetDateTime>,
-        ) {
-            val created = DSL.field(DSL.name("created_at"), SQLDataType.TIMESTAMPWITHTIMEZONE)
-            val table = DSL.table(DSL.name(SCHEMA, "idempotency_key"))
-            val matching =
-                key?.let { DSL.field(DSL.name("idempotency_key"), SQLDataType.UUID).eq(UUID.fromString(it)) }
-                    ?: DSL.noCondition()
-            val update: DSLContext.() -> Unit = { update(table).set(created, value(created)).where(matching).execute() }
-            knownTenants.filter { !it.isPlatform }.forEach { admin.asTenant(it, block = update) }
-            admin.asPlatform(block = update)
-        }
-
-        private val extraLogins = mutableListOf<TestDatabase>()
-
-        /**
-         * The runtime login's own access with [tables] declared PLATFORM_SCOPED (no tenant predicate is injected), for the
-         * tests that prove what the database itself refuses that login.
-         */
-        fun runtimeLogin(vararg tables: String): TestDatabase.Access {
-            val database = TestDatabase(fixture.jdbcUrl(), tables.associateWith { TableClass.PLATFORM_SCOPED })
-            extraLogins += database
-            return database.login(OutboxPostgresFixture.APP, OutboxPostgresFixture.APP_PASSWORD)
-        }
-
         override fun close() {
-            extraLogins.forEach { it.close() }
             db.close()
             fixture.close()
         }

@@ -13,7 +13,6 @@ train is its own (README.md: "own version and changelog").
   tenancy-jooq's, or null (coordinator ruling INV-Q-5105). The listener classes stay internal.
 ### Changed
 - Test fixtures: `TenancyJooqFixture` builds its pools from `PostgresProbeFixture`'s URL and login strings (INV-Q-5208).
-  `TenancyProbe` logs the number of bind values of a probe, not the values (a probe may bind a password, CS-24).
   Tests: `BlankTextPostgresIT`, `ModuleApiConsumerTransactionContractTest` and `ConfigurationProblemTest` moved here
   from tenancy-kernel and service-runtime.
 

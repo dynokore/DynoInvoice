@@ -30,11 +30,7 @@ val PG_NAMESPACE: Table<*> = DSL.table(DSL.name("pg_catalog", "pg_namespace"))
 val PG_NAMESPACE_NAME: Field<String> = DSL.field(DSL.name("pg_namespace", "nspname"), SQLDataType.VARCHAR)
 val PG_NAMESPACE_OID: Field<Long> = DSL.field(DSL.name("pg_namespace", "oid"), SQLDataType.BIGINT)
 
-val PG_STAT_ACTIVITY: Table<*> = DSL.table(DSL.name("pg_catalog", "pg_stat_activity"))
-val PG_STAT_ACTIVITY_PID: Field<Int> = DSL.field(DSL.name("pg_stat_activity", "pid"), SQLDataType.INTEGER)
-val PG_STAT_ACTIVITY_NAME: Field<String> = DSL.field(DSL.name("pg_stat_activity", "application_name"), SQLDataType.VARCHAR)
-
 /** The catalog tables above, for [TestDatabase]. */
 val CATALOG_TABLES: Map<String, TableClass> =
-    listOf("pg_catalog.pg_class", "pg_catalog.pg_proc", "pg_catalog.pg_namespace", "pg_catalog.pg_stat_activity")
+    listOf("pg_catalog.pg_class", "pg_catalog.pg_proc", "pg_catalog.pg_namespace")
         .associateWith { TableClass.PLATFORM_SCOPED }
