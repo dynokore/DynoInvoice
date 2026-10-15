@@ -6,6 +6,20 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-15
+### Added
+- `ChainedSignatureVerifier` port in `crypto-api` and its implementation in `BouncyCastleCms` (INV-T-5097,
+  coordinator ruling INV-Q-5093 A, owner ruling INV-Q-3371 A, INV-REQ-1127, INV-REQ-1134): a detached CMS signature is
+  trusted when a valid certificate path leads from the signer certificate the message names, through the certificates
+  the message carries (candidates only, never trusted), to a certificate byte-equal to one in the caller's trust anchor
+  list, at the instant the caller passes. Rules, each failing closed: issuer name equals next subject name and the
+  signature verifies under the next key; every certificate on the path, anchor included, is valid at the instant;
+  every issuer has basicConstraints CA=true, keyCertSign when keyUsage is present, and an unexceeded pathLenConstraint;
+  the signer has digitalSignature when keyUsage is present and is not a CA certificate; an unknown critical extension
+  is refused; the path has at most 8 certificates; an empty anchor list is `UntrustedSigner`. No revocation check
+  (CRL, OCSP): removing an anchor from the installation's set is the revocation path (INV-Q-5093).
+- `DetachedSignatureVerifier` (exact-certificate pinning) is unchanged.
+
 ## [1.0.2] - 2026-10-14
 ### Changed
 - Metadata-only release (INV-T-4310, coordinator ruling INV-Q-4552): no behaviour or API change.

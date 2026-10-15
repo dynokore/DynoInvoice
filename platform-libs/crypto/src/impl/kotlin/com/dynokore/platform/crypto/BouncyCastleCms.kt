@@ -19,6 +19,7 @@ import java.io.IOException
 import java.io.OutputStream
 import java.security.Provider
 import java.security.Security
+import java.time.Instant
 
 /**
  * Detached CMS sign and verify over Bouncy Castle (STK-13): `SignedData` without encapsulated
@@ -32,7 +33,8 @@ import java.security.Security
 class BouncyCastleCms(
     private val provider: Provider = defaultProvider(),
 ) : DetachedSigner,
-    DetachedSignatureVerifier {
+    DetachedSignatureVerifier,
+    ChainedSignatureVerifier {
     override fun sign(
         content: ByteArray,
         key: SigningKey,
@@ -49,23 +51,69 @@ class BouncyCastleCms(
         return generator.generate(CMSProcessableByteArray(content), false).encoded
     }
 
-    @Suppress("ReturnCount") // CS-50: one early return per verification step reads as the documented step order
     override fun verify(
         content: ByteArray,
         signature: ByteArray,
         algorithm: SignatureAlgorithm,
         trustedCertificatesDer: List<ByteArray>,
+    ): DetachedVerification =
+        when (val checked = checkSignature(content, signature, algorithm)) {
+            is SignatureCheck.Failed -> checked.outcome
+            is SignatureCheck.Signed -> trustedSigner(checked.signer, trustedCertificatesDer)
+        }
+
+    override fun verify(
+        content: ByteArray,
+        signature: ByteArray,
+        algorithm: SignatureAlgorithm,
+        trustAnchorsDer: List<ByteArray>,
+        at: Instant,
+    ): DetachedVerification =
+        when (val checked = checkSignature(content, signature, algorithm)) {
+            is SignatureCheck.Failed -> checked.outcome
+            is SignatureCheck.Signed -> chainedSigner(checked, trustAnchorsDer, at)
+        }
+
+    private fun chainedSigner(
+        checked: SignatureCheck.Signed,
+        trustAnchorsDer: List<ByteArray>,
+        at: Instant,
     ): DetachedVerification {
+        val signer =
+            try {
+                CertificatePathValidator.parseCertificate(provider, checked.signer.encoded)
+            } catch (failure: IOException) {
+                return invalid("signer certificate could not be re-encoded: ${failure.message}")
+            } ?: return invalid("signer certificate is not a parseable X.509 certificate")
+        val carried =
+            checked.carried.mapNotNull {
+                try {
+                    CertificatePathValidator.parseCertificate(provider, it.encoded)
+                } catch (_: IOException) {
+                    null
+                }
+            }
+        val index = CertificatePathValidator(provider, trustAnchorsDer, at).trustedIndex(signer, carried)
+        return if (index == null) DetachedVerification.UntrustedSigner else DetachedVerification.Verified(index)
+    }
+
+    /** The signature steps shared by both verifiers: parse, name the signer, check algorithm, check the signature. */
+    @Suppress("ReturnCount") // CS-50: one early return per verification step reads as the documented step order
+    private fun checkSignature(
+        content: ByteArray,
+        signature: ByteArray,
+        algorithm: SignatureAlgorithm,
+    ): SignatureCheck {
         val signedData =
             try {
                 CMSSignedData(CMSProcessableByteArray(content), signature)
             } catch (failure: CMSException) {
-                return invalid("not a well-formed CMS SignedData: ${failure.message}")
+                return failed("not a well-formed CMS SignedData: ${failure.message}")
             }
 
         val signerInfo =
             signedData.signerInfos.signers.firstOrNull()
-                ?: return invalid("CMS SignedData carries no SignerInfo")
+                ?: return failed("CMS SignedData carries no SignerInfo")
 
         @Suppress("UNCHECKED_CAST") // CS-50: bc-java's SignerId implements the raw (unparameterised) Selector type
         val signerIdSelector = signerInfo.getSID() as Selector<X509CertificateHolder>
@@ -74,10 +122,10 @@ class BouncyCastleCms(
                 .getMatches(signerIdSelector)
                 .filterIsInstance<X509CertificateHolder>()
                 .firstOrNull()
-                ?: return invalid("no certificate in the CMS message matches its own SignerInfo")
+                ?: return failed("no certificate in the CMS message matches its own SignerInfo")
 
         algorithmMismatch(algorithm, signerInfo.encryptionAlgOID, signerInfo.digestAlgOID, signerCertificate)
-            ?.let { return invalid(it) }
+            ?.let { return failed(it) }
 
         val mathematicallyValid =
             try {
@@ -87,13 +135,28 @@ class BouncyCastleCms(
                         .build(signerCertificate)
                 signerInfo.verify(verifier)
             } catch (failure: CMSException) {
-                return invalid("signature verification failed: ${failure.message}")
+                return failed("signature verification failed: ${failure.message}")
             }
         if (!mathematicallyValid) {
-            return invalid("CMS signature does not verify against its own signer certificate")
+            return failed("CMS signature does not verify against its own signer certificate")
         }
+        return SignatureCheck.Signed(
+            signerCertificate,
+            signedData.certificates.getMatches(null).filterIsInstance<X509CertificateHolder>(),
+        )
+    }
 
-        return trustedSigner(signerCertificate, trustedCertificatesDer)
+    private fun failed(detail: String): SignatureCheck.Failed = SignatureCheck.Failed(invalid(detail))
+
+    private sealed interface SignatureCheck {
+        class Failed(
+            val outcome: DetachedVerification,
+        ) : SignatureCheck
+
+        class Signed(
+            val signer: X509CertificateHolder,
+            val carried: List<X509CertificateHolder>,
+        ) : SignatureCheck
     }
 
     /** The last verification step: the signer certificate's position among the trusted certificates, if any. */
