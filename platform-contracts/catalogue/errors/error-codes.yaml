@@ -1,7 +1,7 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
-# pinned at commit 089b718e523e57923eda73ebb148da4b89d6f82a (2026-10-15), the
-# merge of invoice-docs!34 adding POL-001..POL-024 (INV-T-5179, coordinator ruling INV-Q-5172;
-# previously pinned at 1231ff2186f1b77906b97125212c0ff298268f40, INV-T-4055).
+# pinned at commit 564e2d301d4512d2d2743b9ad17ec33a8de54eb2 (2026-10-16), the
+# head of invoice-docs!37 adding SUB-018 and SUB-019 (INV-T-5412, coordinator ruling INV-Q-5405;
+# previously pinned at 089b718e523e57923eda73ebb148da4b89d6f82a, INV-T-5179).
 #
 # This copy is the generator's (catalogue/generator/) sole input for the
 # gst-catalogue ErrorCode catalogue (STK-61, CS-13). It is never hand-edited:
@@ -394,6 +394,17 @@ error_codes:
   severity: BLOCK
   disposition: MANUAL
   owner: Tax operations
+# SUB-018, SUB-019: setConnectionEntities refusals (INV-Q-5405, INV-REQ-827 b1 and b2)
+- code: SUB-018
+  condition: 'Entity already assigned to another AP connection of the tenant: setConnectionEntities names an entity that is on the entityRefs of a different connection of the same tenant; nothing is recorded or published (HTTP 422)'
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Platform
+- code: SUB-019
+  condition: 'Removal refused: setConnectionEntities would remove from the connection an entity that is in Observe mode today, or an entity with no issuance-mode replica row (fail closed); nothing is recorded or published (HTTP 422)'
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Platform
 - code: PER-001
   condition: Period contains unsubmitted in-scope documents at readiness check
   severity: BLOCK
