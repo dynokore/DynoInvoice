@@ -6,11 +6,18 @@
 # CanonicalLine.arcsGstChargeAgreed (canonical contract, Wave 3); ConnectionTestResult.detail (the row `detail`);
 # INFERRED (a scope-pack source class); NA (an IRAS classification); masterdata-svc, canonical-svc, transport-svc, access-svc,
 # adapter-runtime (services); ConnectionStatusChanged, SignedLinkRequested (events); tax.operator, integration.engineer (roles);
-# 429, Retry-After (HTTP).
+# 429, Retry-After (HTTP); A3PL, ACMT, AISS, AMCS, ARCS, MES (scenario-pack scheme values, not an enum here); CanonicalParty, CanonicalLine
+# (canonical contract, Wave 3); console-bff, rules-svc, tenancy-svc, notification-svc, payload-svc, service-runtime (services);
+# SecretStore (the secret store); agent.operator, tax.approver, deployment.operator, tenant.admin (roles); ap-callback (an
+# adapter name); counterparty (an actor); FR-E.7 (a source reference).
 identifier	kind	file	requirement
 sameGroup	property	openapi.yaml	INV-REQ-720
 sameTenant	property	openapi.yaml	INV-REQ-720
 approvedSchemes	property	openapi.yaml	INV-REQ-2433
+scheme	property	openapi.yaml	INV-REQ-2433
+effectiveFrom	property	openapi.yaml	INV-REQ-2433
+effectiveTo	property	openapi.yaml	INV-REQ-2433
+evidenceRef	property	openapi.yaml	INV-REQ-2433
 arcsGstChargeAgreed	property	openapi.yaml	INV-REQ-2446
 reachability	property	openapi.yaml	INV-REQ-319
 onNetwork	property	openapi.yaml	INV-REQ-319
@@ -50,3 +57,4 @@ contactEmail	property	openapi.yaml	INV-REQ-901
 contactMobile	property	openapi.yaml	INV-REQ-901
 expiresAt	property	openapi.yaml	INV-REQ-901
 INVALIDATED	enum_value	openapi.yaml	INV-REQ-901
+sendCounterpartyRequest	operation	openapi.yaml	INV-REQ-901

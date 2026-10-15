@@ -940,8 +940,8 @@ paths:
         role: integration.engineer
         scope: tenant
         precondition: "The credential is already held in the secret store."
-        reversibility: UNDOABLE
-        repeatKey: "Idempotency-Key — a repeat returns the record created."
+        reversibility: COMPENSABLE
+        repeatKey: "(externalService, environmentTag) — a repeat returns the existing record."
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -1166,8 +1166,9 @@ components:
         error:
           $ref: '#/components/schemas/ErrorEnvelope'
       required: [gapReportId, state, startedAt]
-    ConnectionFields:
+    CreateConnectionRequest:
       type: object
+      description: The service assigns `connectionRef`; it is never a request property.
       properties:
         externalService:
           type: string
@@ -1181,17 +1182,22 @@ components:
           x-extensible-enum: true
         ownerService: { type: string, maxLength: 40 }
       required: [externalService, endpoint, credentialRef, environmentTag, ownerService]
-    CreateConnectionRequest:
-      description: The service assigns `connectionRef`.
-      allOf:
-        - $ref: '#/components/schemas/ConnectionFields'
     ConnectionRecord:
-      allOf:
-        - $ref: '#/components/schemas/ConnectionFields'
-        - type: object
-          properties:
-            connectionRef: { type: string, maxLength: 40 }
-          required: [connectionRef]
+      type: object
+      properties:
+        connectionRef: { type: string, maxLength: 40, readOnly: true, description: Assigned by the service. }
+        externalService:
+          type: string
+          enum: [DIRECTORY, CHECK_GST_REGISTER, RATE_SOURCE]
+          x-extensible-enum: true
+        endpoint: { type: string, format: uri, maxLength: 512 }
+        credentialRef: { type: string, maxLength: 100, description: 'The secret-store key, never the secret.' }
+        environmentTag:
+          type: string
+          enum: [PRODUCTION, SANDBOX]
+          x-extensible-enum: true
+        ownerService: { type: string, maxLength: 40 }
+      required: [connectionRef, externalService, endpoint, credentialRef, environmentTag, ownerService]
     RotateConnectionCredentialRequest:
       type: object
       description: The replacement credential is already held in the secret store; only its reference is carried, never the secret.
@@ -1218,6 +1224,7 @@ components:
       properties:
         contactEmail: { type: string, format: email, maxLength: 254 }
         contactMobile: { type: string, pattern: '^\+[1-9][0-9]{6,14}$' }
+      required: [contactEmail]
     ResolutionResult:
       type: object
       properties:
