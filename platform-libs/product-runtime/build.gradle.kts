@@ -189,6 +189,13 @@ dependencies {
     add("implTestRuntimeOnly", libs.springBoot.starterJdbc)
     add("implTestRuntimeOnly", libs.postgresql)
     add("implTestImplementation", libs.springBoot.test)
+    // The lane behaviour test runs transactions against a real PostgreSQL (INV-T-4747, owner ruling INV-Q-4798 (E)).
+    add("implTestImplementation", libs.testcontainers.postgresql)
+    constraints {
+        add("implTestImplementation", "org.testcontainers:testcontainers") {
+            version { strictly(libs.versions.testcontainers.get()) }
+        }
+    }
     add("implTestImplementation", libs.assertj.core)
 
     listOf("testImplementation", "implTestImplementation").forEach { config ->

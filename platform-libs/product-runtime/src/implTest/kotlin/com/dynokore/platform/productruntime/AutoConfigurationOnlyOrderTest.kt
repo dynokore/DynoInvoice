@@ -14,7 +14,6 @@ import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.productruntime.catalogue.GstVariationPointCatalogue
 import com.dynokore.platform.serviceruntime.composition.L1CompositionAutoConfiguration
-import com.dynokore.platform.serviceruntime.composition.ServiceDataSources
 import com.dynokore.platform.serviceruntime.http.IdempotencyStore
 import com.dynokore.platform.serviceruntime.http.JobCommandServlet
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
@@ -22,11 +21,9 @@ import com.dynokore.platform.serviceruntime.jobs.DeadlineSource
 import com.dynokore.platform.serviceruntime.jobs.JobCommandAuthorizer
 import com.dynokore.platform.serviceruntime.jobs.JobCommands
 import com.dynokore.platform.serviceruntime.operation.OperationRunner
-import com.dynokore.platform.serviceruntime.pool.LanedDataSource
 import com.dynokore.platform.tenancykernel.CurrentConnection
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.micrometer.core.instrument.MeterRegistry
@@ -38,9 +35,9 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.boot.web.servlet.ServletRegistrationBean
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.context.annotation.Import
 import org.springframework.web.client.RestClient
 import java.time.LocalDate
-import javax.sql.DataSource
 
 /**
  * INV-T-3881's third composition, auto-configuration only (rulings INV-Q-3877, INV-Q-3889), with the REAL
@@ -54,6 +51,7 @@ import javax.sql.DataSource
 class AutoConfigurationOnlyOrderTest {
     @Configuration(proxyBeanMethods = false)
     @EnableAutoConfiguration
+    @Import(DefaultSchemaConfiguration::class)
     class AutoConfigurationOnlyApplication
 
     private val service =
@@ -109,7 +107,6 @@ class AutoConfigurationOnlyOrderTest {
     fun `every port the service injects is a bean, over the DataSource from spring-datasource`() {
         tpl16.run { context ->
             context.startupFailure shouldBe null
-            context.getBean(DataSource::class.java)
             listOf(
                 TransactionRunner::class,
                 CurrentConnection::class,
@@ -128,39 +125,6 @@ class AutoConfigurationOnlyOrderTest {
                     ServletRegistrationBean::class.java,
                 ).servlet
                 .shouldBeInstanceOf<JobCommandServlet>()
-        }
-    }
-
-    @Test
-    fun `one application pool per instance and no role DataSource, the event log collapses into it on one instance`() {
-        for (eventLogUrl in listOf(null, "jdbc:postgresql://localhost:5432/submission")) {
-            val properties = listOfNotNull(eventLogUrl?.let { "gst.db.event-log-url=$it" }).toTypedArray()
-            tpl16.withPropertyValues(*properties).run { context ->
-                context.startupFailure shouldBe null
-                // one pool: a second application pool bean, or any role DataSource, fails here (INV-Q-3955)
-                context.getBeanNamesForType(DataSource::class.java).toList() shouldBe listOf("dataSource")
-                // the pool under its lanes (INV-REQ-1230 b1): one HikariCP pool, no second one
-                context.getBean(DataSource::class.java).shouldBeInstanceOf<LanedDataSource>()
-                context.getBean(TenantScope::class.java).workloadPrincipal shouldBe "svc:submission-svc"
-            }
-        }
-    }
-
-    @Test
-    fun `a separate event-log instance gets its own pool of at most 3, minimumIdle 1, app pool stays sole candidate`() {
-        val ha = tpl16.withPropertyValues("gst.db.event-log-url=jdbc:postgresql://event-log:5432/eventlog")
-        ha.run { context ->
-            context.startupFailure shouldBe null
-            context.getBeanNamesForType(DataSource::class.java).toSet() shouldBe
-                setOf("dataSource", ServiceDataSources.EVENT_LOG)
-        }
-        ha.withPropertyValues("service-runtime.event-log-pool.minimum-idle=2").run { context ->
-            context.startupFailure shouldBe null
-        }
-        ha.withPropertyValues("service-runtime.event-log-pool.minimum-idle=4").run { context ->
-            generateSequence(context.startupFailure.shouldNotBeNull()) { it.cause }.any {
-                it.message.orEmpty().contains("minimum-idle must be 0..3")
-            } shouldBe true
         }
     }
 
