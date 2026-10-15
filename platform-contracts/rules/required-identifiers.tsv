@@ -1,0 +1,62 @@
+# INV-T-4911. Identifiers in backticks in the published behavior and intent of INV-REQ-371, 701, 362, 858, 1303, 772,
+# 2444, 658 (read from Keel), plus the identifiers pinned by INV-Q-5189 for the done-when (rows under the requirement
+# that pins them: INV-REQ-370, 374, 493, 658, 771, 777, 1166). One row per identifier, under the first requirement that names it.
+# Not rows: tax.approver (a role); effective_from, effective_to (the pack manifest's and database's snake_case names of
+# the rows effectiveFrom and effectiveTo, API-09); NA, TXNA, DS, OS, SRRC (IRAS category codes, scenario-pack data).
+# Enum members shared by several properties (CLAIMABLE_PORTION, ENTIRE_INVOICE, BILL_FOR_PAYMENT ...) are one row each.
+identifier	kind	file	requirement
+documentFunction	property	openapi.yaml	INV-REQ-371
+documentKind	property	openapi.yaml	INV-REQ-371
+BILL_FOR_PAYMENT	enum_value	openapi.yaml	INV-REQ-371
+ADJUSTMENT	enum_value	openapi.yaml	INV-REQ-371
+NOT_A_BILL	enum_value	openapi.yaml	INV-REQ-371
+lineSign	property	openapi.yaml	INV-REQ-371
+documentTypeCode	property	openapi.yaml	INV-REQ-658
+signNormalised	property	openapi.yaml	INV-REQ-371
+POSITIVE	enum_value	openapi.yaml	INV-REQ-371
+NEGATIVE	enum_value	openapi.yaml	INV-REQ-371
+ZERO	enum_value	openapi.yaml	INV-REQ-371
+apportionmentMode	property	openapi.yaml	INV-REQ-370
+mixedUse	property	openapi.yaml	INV-REQ-370
+CLAIMABLE_PORTION	enum_value	openapi.yaml	INV-REQ-370
+ENTIRE_INVOICE	enum_value	openapi.yaml	INV-REQ-370
+precedingDocumentNumber	property	openapi.yaml	INV-REQ-701
+precedingDocumentDate	property	openapi.yaml	INV-REQ-701
+IN_SCOPE	enum_value	openapi.yaml	INV-REQ-374
+OUT_OF_SCOPE	enum_value	openapi.yaml	INV-REQ-374
+EXCLUDED_TXN	enum_value	openapi.yaml	INV-REQ-493
+packVersionsApplied	property	openapi.yaml	INV-REQ-771
+severity	property	openapi.yaml	INV-REQ-777
+code	property	openapi.yaml	INV-REQ-777
+BLOCK	enum_value	openapi.yaml	INV-REQ-777
+HOLD	enum_value	openapi.yaml	INV-REQ-777
+WARN	enum_value	openapi.yaml	INV-REQ-777
+effectiveFrom	property	openapi.yaml	INV-REQ-362
+effectiveTo	property	openapi.yaml	INV-REQ-362
+schemeTag	property	openapi.yaml	INV-REQ-2444
+SELF_BILLING	enum_value	openapi.yaml	INV-REQ-2444
+CUSTOMER_ACCOUNTING	enum_value	openapi.yaml	INV-REQ-2444
+GROSS_MARGIN	enum_value	openapi.yaml	INV-REQ-2444
+DISCOUNTED_SALE_PRICE	enum_value	openapi.yaml	INV-REQ-2444
+APPROVED_MARINE_FUEL_TRADER	enum_value	openapi.yaml	INV-REQ-2444
+ACMT	enum_value	openapi.yaml	INV-REQ-2444
+A3PL	enum_value	openapi.yaml	INV-REQ-2444
+AISS	enum_value	openapi.yaml	INV-REQ-2444
+AMCS	enum_value	openapi.yaml	INV-REQ-2444
+ARCS	enum_value	openapi.yaml	INV-REQ-2444
+SWS	enum_value	openapi.yaml	INV-REQ-2444
+MES	enum_value	openapi.yaml	INV-REQ-2444
+IGDS	enum_value	openapi.yaml	INV-REQ-2444
+CASH_ACCOUNTING	enum_value	openapi.yaml	INV-REQ-2444
+ACMT_RECIPIENT_ACCOUNTING	enum_value	openapi.yaml	INV-REQ-2444
+ACMT_OVERSEAS_CLIENT_PURCHASE	enum_value	openapi.yaml	INV-REQ-2444
+AMCS_SELF_ACCOUNTING	enum_value	openapi.yaml	INV-REQ-2444
+graceWindowEnd	property	openapi.yaml	INV-REQ-858
+ACTIVE	enum_value	openapi.yaml	INV-REQ-1166
+SUPERSEDED	enum_value	openapi.yaml	INV-REQ-1166
+ABORTED	enum_value	openapi.yaml	INV-REQ-1166
+firstPeriodRef	property	openapi.yaml	INV-REQ-1303
+lastPeriodRef	property	openapi.yaml	INV-REQ-1303
+periodCount	property	openapi.yaml	INV-REQ-1303
+dryRun	operation	openapi.yaml	INV-REQ-772
+approvePack	operation	openapi.yaml	INV-REQ-772

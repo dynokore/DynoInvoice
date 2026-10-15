@@ -1,0 +1,9 @@
+{
+ "entryId": "ENT-9",
+ "internalTaxCode": "SR-STD",
+ "irasCode": "SR",
+ "sourceClass": "PRIMARY",
+ "effectiveFrom": "2026-01-01",
+ "effectiveTo": "2026-12-31",
+ "schemeTag": "ACMT_RECIPIENT_ACCOUNTING"
+}

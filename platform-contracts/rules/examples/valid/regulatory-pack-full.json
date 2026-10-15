@@ -1,0 +1,8 @@
+{
+ "packType": "SCOPE",
+ "version": "2026.4",
+ "status": "ABORTED",
+ "failureCode": "RUL-005",
+ "effectiveFrom": "2026-07-01",
+ "graceWindowEnd": "2026-06-20"
+}

@@ -1,0 +1,7 @@
+../openapi.yaml#/components/schemas/EvaluateDocumentRequest evaluate-document-request-*.json
+../openapi.yaml#/components/schemas/EvaluationResult evaluation-result-*.json
+../openapi.yaml#/components/schemas/PackVersionApplied pack-version-applied-*.json
+../openapi.yaml#/components/schemas/DryRunRequest dry-run-request-*.json
+../openapi.yaml#/components/schemas/MappingEntry mapping-entry-*.json
+../openapi.yaml#/components/schemas/MapTaxCodeRequest map-tax-code-request-*.json
+../openapi.yaml#/components/schemas/RegulatoryPack regulatory-pack-*.json

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: rules API
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     Contract-first source of truth for rules (API-01, STK-44). The
     `rules-contract` module generates its server interfaces and DTOs
@@ -839,6 +839,15 @@ paths:
           required: true
           schema: { type: string, maxLength: 40 }
         - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DryRunRequest'
+            examples:
+              default:
+                value: { firstPeriodRef: "2026-Q1", lastPeriodRef: "2026-Q2", periodCount: 2 }
       responses:
         '200':
           description: The classification delta.
@@ -970,14 +979,57 @@ components:
                 type: string
                 maxLength: 20
           additionalProperties: true
+        documentFunction:
+          type: string
+          enum: [BILL_FOR_PAYMENT, ADJUSTMENT, NOT_A_BILL]
+          description: >-
+            The caller's assertion of the document's function (INV-REQ-371 b1). Rules
+            reclassify it; the canonical value is the classification result in
+            EvaluationResult, not this assertion.
+        documentKind:
+          type: string
+          maxLength: 32
+          description: >-
+            The upstream system's own name for the document: the key of the scope pack's
+            classification table (INV-REQ-371 b5, INV-REQ-658). Free text with no value set;
+            not the document type code 380 or 381, which is the table's result.
+        precedingDocumentNumber:
+          type: string
+          maxLength: 64
+          description: The preceding document's number, for a credit note (INV-REQ-701 b3).
+        precedingDocumentDate:
+          type: string
+          format: date
+          description: >-
+            The preceding document's transaction date. When populated, the rate, category code
+            and mapping resolve by it (INV-REQ-701 b1, INV-REQ-362 b4).
+        lineSign:
+          type: string
+          enum: [POSITIVE, NEGATIVE, ZERO]
+          description: >-
+            The sign of the line's net amount; no amount is carried. The lines of a document that
+            reaches evaluation share one sign (mixed-sign documents are held with ING-015 first,
+            INV-REQ-660) and a ZERO line adds none, so this supplies the sign-of-total key of the
+            classification table.
+        apportionmentMode:
+          type: string
+          enum: [CLAIMABLE_PORTION, ENTIRE_INVOICE]
+          description: The entity's VP-23 election (INV-REQ-370); absent while no election is recorded.
+        mixedUse:
+          type: string
+          enum: [CLAIMABLE_PORTION, ENTIRE_INVOICE]
+          description: The line's mixed-use indicator, purchases only (INV-REQ-370 b7).
       required: [entityRef, transactionDate, internalTaxCode]
     EvaluationResult:
       type: object
       properties:
         scopeVerdict:
           type: string
-          enum: [SUBMITTABLE, NOT_SUBMITTABLE, PRE_OBLIGATION]
+          enum: [SUBMITTABLE, NOT_SUBMITTABLE, PRE_OBLIGATION, IN_SCOPE, OUT_OF_SCOPE, EXCLUDED_TXN]
           x-extensible-enum: true
+          description: >-
+            IN_SCOPE, OUT_OF_SCOPE and EXCLUDED_TXN are the line verdicts of INV-REQ-374 b1,
+            INV-REQ-493 and INV-REQ-496.
         categoryCode:
           type: string
           maxLength: 10
@@ -992,7 +1044,50 @@ components:
         decisionTrace:
           type: object
           additionalProperties: true
+        documentFunction:
+          type: string
+          enum: [BILL_FOR_PAYMENT, ADJUSTMENT, NOT_A_BILL]
+          description: The classification result, not the caller's assertion (INV-REQ-371 b1).
+        documentTypeCode:
+          type: string
+          pattern: '^38[01]$'
+          description: >-
+            The UNCL1001 document type code the classification table yields: 380 (invoice) or
+            381 (credit note) (INV-REQ-658). A pattern, not an enum: API-09 forbids numeric enum
+            members (coordinator ruling, option 1).
+        signNormalised:
+          type: boolean
+          description: The classification table's sign-normalisation result (INV-REQ-659 b2).
+        packVersionsApplied:
+          type: array
+          description: One item per pack type the evaluation applied (INV-REQ-771 b2).
+          items:
+            $ref: '#/components/schemas/PackVersionApplied'
+        severity:
+          type: string
+          enum: [BLOCK, HOLD, WARN]
+          x-extensible-enum: true
+          description: >-
+            The catalogue severity of a refusal (INV-REQ-1178). Present with `code` when the
+            evaluation refuses and absent otherwise (enforced by rules-svc).
+        code:
+          type: string
+          pattern: '^[A-Z]{2,10}-[0-9]{3}$'
+          description: >-
+            The catalogue code of a refusal, the RUL code of a block (INV-REQ-777). Present with
+            `severity` when the evaluation refuses and absent otherwise (enforced by rules-svc).
       required: [scopeVerdict]
+    PackVersionApplied:
+      type: object
+      properties:
+        packType:
+          type: string
+          maxLength: 40
+          description: A pack type name, as RegulatoryPack.packType uses.
+        version:
+          type: string
+          maxLength: 32
+      required: [packType, version]
     DraftMappingPackRequest:
       type: object
       properties:
@@ -1032,6 +1127,13 @@ components:
           type: string
           enum: [PRIMARY, SECONDARY, INFERRED]
           x-extensible-enum: true
+        schemeTag:
+          type: string
+          enum: [SELF_BILLING, CUSTOMER_ACCOUNTING, GROSS_MARGIN, DISCOUNTED_SALE_PRICE, APPROVED_MARINE_FUEL_TRADER, ACMT, A3PL, AISS, AMCS, ARCS, SWS, MES, IGDS, CASH_ACCOUNTING, ACMT_RECIPIENT_ACCOUNTING, ACMT_OVERSEAS_CLIENT_PURCHASE, AMCS_SELF_ACCOUNTING]
+          x-extensible-enum: true
+          description: >-
+            Optional scheme tag of the entry, drafted and signed off with it (INV-REQ-2444 b1, b2).
+            The scenario pack lists which tags are handled (b3).
       required: [internalTaxCode, irasCode, sourceClass]
     MappingEntry:
       type: object
@@ -1051,6 +1153,23 @@ components:
           x-extensible-enum: true
         accepted:
           type: boolean
+        effectiveFrom:
+          type: string
+          format: date
+          readOnly: true
+          description: Start date of the pack version the entry belongs to (INV-REQ-362 b2).
+        effectiveTo:
+          type: string
+          format: date
+          readOnly: true
+          description: End date of that pack version; absent while open (INV-REQ-362 b2).
+        schemeTag:
+          type: string
+          enum: [SELF_BILLING, CUSTOMER_ACCOUNTING, GROSS_MARGIN, DISCOUNTED_SALE_PRICE, APPROVED_MARINE_FUEL_TRADER, ACMT, A3PL, AISS, AMCS, ARCS, SWS, MES, IGDS, CASH_ACCOUNTING, ACMT_RECIPIENT_ACCOUNTING, ACMT_OVERSEAS_CLIENT_PURCHASE, AMCS_SELF_ACCOUNTING]
+          x-extensible-enum: true
+          description: >-
+            Optional scheme tag of the entry, drafted and signed off with it (INV-REQ-2444 b1, b2).
+            The scenario pack lists which tags are handled (b3).
       required: [entryId, internalTaxCode, irasCode, sourceClass]
     ImportMappingSpreadsheetRequest:
       type: object
@@ -1103,11 +1222,13 @@ components:
           maxLength: 16
         status:
           type: string
-          enum: [STAGED, ACKNOWLEDGED, ARMED, IMPORTING, FAILED]
+          enum: [STAGED, ACKNOWLEDGED, ARMED, IMPORTING, FAILED, ACTIVE, SUPERSEDED, ABORTED]
           x-extensible-enum: true
           description: >-
             IMPORTING while an import that answered `202` runs; FAILED when
-            the import failed, with `failureCode` (INV-Q-3478).
+            the import failed, with `failureCode` (INV-Q-3478). The lifecycle is STAGED,
+            ACKNOWLEDGED, ARMED, ACTIVE, SUPERSEDED, ABORTED (INV-REQ-1166); ABORTED is an
+            activation the fence abandoned with RUL-005.
         effectiveFrom:
           type: string
           format: date
@@ -1115,8 +1236,15 @@ components:
           type: string
           pattern: '^[A-Z]{2,10}-[0-9]{3}$'
           description: >-
-            Present only when status is FAILED: the catalogue code that
-            failed the import, DEP-002, DEP-003 or RUL-005 (INV-Q-3478).
+            Present when status is FAILED or ABORTED: the catalogue code that
+            failed the import, DEP-002, DEP-003 or RUL-005 (INV-Q-3478); RUL-005 for ABORTED.
+        graceWindowEnd:
+          type: string
+          format: date
+          readOnly: true
+          description: >-
+            End of the grace window computed for the calling tenant, never later than
+            `effectiveFrom`; present once the effective date is known (INV-REQ-858 b5).
       required: [packType, version, status]
     ReprocessingRun:
       type: object
@@ -1132,6 +1260,26 @@ components:
           enum: [RUNNING, COMPLETE]
           x-extensible-enum: true
       required: [packType, version, status]
+    DryRunRequest:
+      type: object
+      description: >-
+        The historical sample window of a dry run (INV-REQ-1303). Absent body means the last
+        complete period. The three properties are given together or not at all (enforced by
+        rules-svc, which also applies the 2 to 4 period bound of VP-42).
+      properties:
+        firstPeriodRef:
+          type: string
+          maxLength: 32
+          description: First period of the sample, as the calendar issues the reference (opaque).
+        lastPeriodRef:
+          type: string
+          maxLength: 32
+          description: Last period of the sample (opaque reference).
+        periodCount:
+          type: integer
+          minimum: 1
+          description: Number of periods from first through last, never less than one.
+      required: [firstPeriodRef, lastPeriodRef, periodCount]
     DryRunResult:
       type: object
       properties:
