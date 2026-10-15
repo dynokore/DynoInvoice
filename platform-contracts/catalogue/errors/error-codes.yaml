@@ -1,8 +1,7 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
-# pinned at commit c8b82fe1dbdd50039efda588db4a39e8e53fddb9 (2026-10-15), the
-# head of invoice-docs!34 adding POL-001..POL-024 (INV-T-5179, coordinator ruling INV-Q-5172;
-# to be re-pinned to its merge commit; previously pinned at
-# 1231ff2186f1b77906b97125212c0ff298268f40, INV-T-4055).
+# pinned at commit 089b718e523e57923eda73ebb148da4b89d6f82a (2026-10-15), the
+# merge of invoice-docs!34 adding POL-001..POL-024 (INV-T-5179, coordinator ruling INV-Q-5172;
+# previously pinned at 1231ff2186f1b77906b97125212c0ff298268f40, INV-T-4055).
 #
 # This copy is the generator's (catalogue/generator/) sole input for the
 # gst-catalogue ErrorCode catalogue (STK-61, CS-13). It is never hand-edited:
