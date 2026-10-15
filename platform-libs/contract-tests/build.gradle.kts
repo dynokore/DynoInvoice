@@ -125,6 +125,8 @@ fun Test.suiteDefaults() {
             .asFile.path,
     )
     systemProperty("contracttests.bundleVersion", bundleVersion.get())
+    // BomTestedSetTest reads the BOM's constraint pairs and each module's version.txt from the repository checkout.
+    systemProperty("contracttests.repoRoot", rootDir.path)
     systemProperty("contracttests.gstCatalogueVersion", libs.versions.gstCatalogue.get())
 }
 
