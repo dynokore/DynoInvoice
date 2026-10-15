@@ -1,7 +1,7 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
-# pinned at commit 1231ff2186f1b77906b97125212c0ff298268f40 (2026-10-12), the
-# invoice-docs!19 commit adding SRT-012 (INV-T-4055, coordinator ruling INV-Q-4059;
-# previously pinned at 2d253dde6bf19e9455dbccfd2880a8bfed1c61f9, INV-T-3751).
+# pinned at commit 089b718e523e57923eda73ebb148da4b89d6f82a (2026-10-15), the
+# merge of invoice-docs!34 adding POL-001..POL-024 (INV-T-5179, coordinator ruling INV-Q-5172;
+# previously pinned at 1231ff2186f1b77906b97125212c0ff298268f40, INV-T-4055).
 #
 # This copy is the generator's (catalogue/generator/) sole input for the
 # gst-catalogue ErrorCode catalogue (STK-61, CS-13). It is never hand-edited:
@@ -656,3 +656,144 @@ error_codes:
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+- code: POL-001
+  condition: 'Variation point unknown: the key is not registered in the gst-catalogue VariationPoint catalogue the owning
+    service binds (HTTP 404; INV-Q-5172, INV-REQ-1243)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: POL-002
+  condition: 'Variation point retired: the key is registered but retired and cannot be set (HTTP 422; INV-Q-5172,
+    INV-REQ-1243)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: POL-003
+  condition: 'Scope level not allowed: the variation point row does not allow a setting at the requested scope level (HTTP
+    422; INV-Q-5172, INV-REQ-1243)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: The setting role of the variation point
+- code: POL-004
+  condition: 'Role not allowed: the actor holds none of the setting roles the catalogue names for the variation point
+    (also for a value that arrives with source PROFILE) (HTTP 403; INV-Q-5172, INV-REQ-1243)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: The setting role of the variation point
+- code: POL-005
+  condition: 'Reason missing: a policy change carries a reason and none was given (HTTP 400; INV-Q-5172, INV-REQ-1243)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: The setting role of the variation point
+- code: POL-006
+  condition: 'Variation point planned: a planned row cannot be set, it resolves to its default (HTTP 422; INV-Q-5172,
+    INV-REQ-1243)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: POL-007
+  condition: 'Not supported: a cross-scope rule or installation bound the resolver cannot evaluate in this release (HTTP
+    422; INV-Q-5172, INV-REQ-1243)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: POL-008
+  condition: 'Looser than a broader scope: a directed field is looser than the value of the same row at a broader scope
+    (tighten-only) (HTTP 422; INV-Q-5172, INV-REQ-1243)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: The setting role of the variation point
+- code: POL-009
+  condition: 'Beyond the installation bound: the value exceeds the installation parameter row that bounds it (HTTP 422;
+    INV-Q-5172, INV-REQ-1243)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: The setting role of the variation point
+- code: POL-010
+  condition: 'Bound unavailable: the broader value or installation bound could not be evaluated, so nothing is stored
+    (fail closed) (HTTP 422; INV-Q-5172, INV-REQ-1243)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: POL-011
+  condition: 'Unknown option: the row has no such option, or does not offer it (HTTP 422; INV-Q-5172, INV-REQ-1243)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: The setting role of the variation point
+- code: POL-012
+  condition: 'Selection invalid: the selection is empty, names several keys on a single-select row, or an exclusive key
+    with others (HTTP 400; INV-Q-5172, INV-REQ-1243)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: The setting role of the variation point
+- code: POL-013
+  condition: 'Out of bounds: the value is not of the option''s shape or lies outside its bounds (HTTP 422; INV-REQ-1239
+    b3; INV-Q-5172, INV-REQ-1243)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: The setting role of the variation point
+- code: POL-014
+  condition: 'Constraint refused: the owning service refused, or could not check, what only it can see (HTTP 422;
+    INV-Q-5172, INV-REQ-1243)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: The setting role of the variation point
+- code: POL-015
+  condition: 'Looser option not offered: the row offers no looser option, as a non-waivable control (HTTP 422;
+    INV-REQ-1244 b4; INV-Q-5172, INV-REQ-1243)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: The setting role of the variation point
+- code: POL-016
+  condition: 'Looser option at installation scope: not supported in this release (HTTP 422; INV-Q-5172, INV-REQ-1243)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: The setting role of the variation point
+- code: POL-017
+  condition: 'No accountable role: the looser option''s catalogue entry names no acknowledging role (HTTP 422; INV-Q-5172,
+    INV-REQ-1243)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: POL-018
+  condition: 'Relaxation required: a looser option of a CONTROL was set without a complete, matching and unused relaxation
+    (HTTP 409; INV-REQ-1244 b2, INV-AC-205; INV-Q-5172, INV-REQ-1243)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: The accountable role named for the control
+- code: POL-019
+  condition: 'Acknowledger not allowed: the role is not one the option names, or the actor does not hold it (HTTP 403;
+    INV-Q-5172, INV-REQ-1243)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: The accountable role named for the control
+- code: POL-020
+  condition: 'Acknowledger duplicate: the role has already acknowledged this relaxation, or the principal already
+    acknowledged it in another role (HTTP 409; INV-Q-5172, INV-REQ-1243)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: The accountable role named for the control
+- code: POL-021
+  condition: 'Not looser: there is nothing to acknowledge, or a relaxation was given with a value that is not looser (HTTP
+    422; INV-Q-5172, INV-REQ-1243)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: The setting role of the variation point
+- code: POL-022
+  condition: 'Back-dating refused: the effective date is before the business date and is not a scope''s first value (HTTP
+    422; INV-REQ-1243 b6; INV-Q-5172, INV-REQ-1243)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: The setting role of the variation point
+- code: POL-023
+  condition: 'Profile incomplete: source PROFILE without its profile reference and version (HTTP 400; INV-Q-5172,
+    INV-REQ-1243)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: The setting role of the variation point
+- code: POL-024
+  condition: 'Profile at installation scope: profile values are tenant-and-below settings (HTTP 422; INV-Q-5172,
+    INV-REQ-1243)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: The setting role of the variation point

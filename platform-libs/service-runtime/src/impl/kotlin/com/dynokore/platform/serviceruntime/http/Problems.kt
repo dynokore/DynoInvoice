@@ -146,6 +146,12 @@ object Problems {
         return ProblemResponse(response.status, headers, response.body)
     }
 
+    /** The POL refusal [code] of `setPolicy` and `acknowledgeControlRelaxation`, at the code's single status (API-21). */
+    fun policy(
+        code: PolicyErrorCode,
+        correlationId: String,
+    ): StoredResponse = coded(code.httpStatus, code.title, null, correlationId, code.code, "TERMINAL", code.owner.text)
+
     fun contractViolation(
         detail: String,
         correlationId: String,

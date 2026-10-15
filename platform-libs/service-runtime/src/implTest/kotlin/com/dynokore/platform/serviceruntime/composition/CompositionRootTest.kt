@@ -182,7 +182,6 @@ class CompositionRootTest {
                 ConnectionStatusReporter::class,
                 EvidenceArtefactRecorder::class,
                 JobCommands::class,
-                IdempotencyStore::class,
                 IdempotencyKeyPurgeJob::class,
             ) + INBOX, // the inbox consumer takes its record topics from the catalogue (INV-Q-3809)
         ),
@@ -239,11 +238,13 @@ class CompositionRootTest {
         ),
         JOB_COMMAND_AUTHORIZER(
             { it.withBean(JobCommandAuthorizer::class.java, { mockk<JobCommandAuthorizer>(relaxed = true) }) },
-            setOf(JobCommands::class, IdempotencyStore::class, IdempotencyKeyPurgeJob::class),
+            // the store stays: it also serves the policy commands of a service with a PolicyWriter (INV-T-5180)
+            setOf(JobCommands::class, IdempotencyKeyPurgeJob::class),
         ),
         DEADLINE_SOURCE(
             { it.withBean(DeadlineSource::class.java, { mockk<DeadlineSource>(relaxed = true) }) },
-            setOf(JobCommands::class, IdempotencyStore::class, IdempotencyKeyPurgeJob::class),
+            // the store stays: it also serves the policy commands of a service with a PolicyWriter (INV-T-5180)
+            setOf(JobCommands::class, IdempotencyKeyPurgeJob::class),
         ),
         END_USER_PRINCIPAL_RESOLVER(
             { it.withBean(EndUserPrincipalResolver::class.java, { EndUserPrincipalResolver { null } }) },
@@ -419,7 +420,8 @@ class CompositionRootTest {
             context.getBean(IdempotencyKeyPurgeJob::class.java).definition.name shouldBe "idempotency-key-purge"
             context.getBean(JobRuntime::class.java).registered().map { it.name } shouldBe
                 listOf("idempotency-key-purge")
-            context.getBeansOfType(ServletRegistrationBean::class.java).size shouldBe 1
+            context.getBeansOfType(ServletRegistrationBean::class.java).keys shouldBe
+                setOf("jobCommandServlet", "policyCommandServlet")
         }
     }
 

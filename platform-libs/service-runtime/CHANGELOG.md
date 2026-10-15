@@ -6,6 +6,22 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [7.1.0] - 2026-10-15
+### Added
+- `setPolicy` and `acknowledgeControlRelaxation` over HTTP (INV-T-5180; coordinator rulings INV-Q-5172, INV-Q-5217,
+  INV-Q-5233, INV-Q-5235 and INV-Q-5237; INV-REQ-1239, INV-REQ-1242, INV-REQ-1243, INV-REQ-1244; platform-contracts
+  `service-runtime/openapi.yaml` 1.3.0): `POST /internal/v1/policies/{variationPoint}` and
+  `POST /internal/v1/policies/{variationPoint}/relaxations`, served by `PolicyCommandServlet` onto the service's
+  config-resolver `PolicyWriter` and mounted by `JobCommandHttpAutoConfiguration` only when a `PolicyWriter` bean exists.
+  The actor and tenant come from the end-user token; the roles from the new api-half port `PolicyRoleResolver`
+  (`rolesOf(actor, tenant, level, scopeRef, entityRef)`), which the owning service binds; unbound, an error, no answer or
+  an empty set is 403 SRT-004. Scope-shape errors (`entityRef` equal to `scopeRef` for ENTITY, `scopeRef` and `entityRef`
+  present exactly when) are 400 SRT-001; a TENANT `scopeRef` other than the token tenant's id is 403 SRT-004; with a
+  stale entity set the `entityRef` is proved by the port. `Idempotency-Key` is kept in the existing `IdempotencyStore`.
+  `PolicyErrorCode` maps `UnknownVariationPoint`, `VariationPointRetired` and every `PolicyRefusal` to POL-001..POL-024.
+  Additive: no existing public type changes; `JobCommandHttpAutoConfiguration` now also needs only the principal resolver,
+  scope and data source at class level (the job servlet itself still needs `JobCommands`).
+
 ## [7.0.0] - 2026-10-15
 ### Added
 - The service's event loops (INV-T-3938; coordinator rulings INV-Q-3935 and INV-Q-4850, INV-ADR-3968; INV-REQ-1212, INV-REQ-1222).

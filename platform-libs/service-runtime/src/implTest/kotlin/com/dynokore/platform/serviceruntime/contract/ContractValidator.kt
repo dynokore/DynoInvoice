@@ -98,7 +98,8 @@ class ContractValidator {
         ): List<String> {
             val responses = node.get("responses")
             val declared =
-                responses.get(status.toString()) ?: return listOf("status $status is not declared for $operationId")
+                (responses.get(status.toString()) ?: responses.get("default"))
+                    ?: return listOf("status $status is not declared for $operationId")
             val response = resolve(Location(file, declared))
             val media =
                 response.node.get("content")?.get(contentType.substringBefore(';').trim())
@@ -144,19 +145,10 @@ class ContractValidator {
         val schema = resolved.node
         val unknown = schema.propertyNames().filterNot { it in KNOWN_KEYWORDS || it.startsWith("x-") }
         check(unknown.isEmpty()) { "validator does not implement $unknown at $path" }
-        schema.get("type")?.asString()?.let { type ->
-            val ok =
-                when (type) {
-                    "object" -> instance.isObject
-                    "array" -> instance.isArray
-                    "string" -> instance.isString
-                    "integer" -> instance.isIntegralNumber
-                    "number" -> instance.isNumber
-                    "boolean" -> instance.isBoolean
-                    else -> error("type $type")
-                }
-            if (!ok) {
-                errors += "$path: expected $type, was ${instance.nodeType}"
+        schema.get("type")?.let { declared ->
+            val types = if (declared.isArray) declared.toList().map { it.asString() } else listOf(declared.asString())
+            if (types.none { typeHolds(it, instance) }) {
+                errors += "$path: expected ${types.joinToString("|")}, was ${instance.nodeType}"
                 return
             }
         }
@@ -166,6 +158,18 @@ class ContractValidator {
                 errors +=
                     "$path: $instance not in $values"
             }
+        }
+        schema.get("allOf")?.forEach { validate(Location(resolved.file, it), instance, path, errors) }
+        schema.get("not")?.let { negated ->
+            val found = mutableListOf<String>()
+            validate(Location(resolved.file, negated), instance, path, found)
+            if (found.isEmpty()) errors += "$path: matches a schema it must not match"
+        }
+        schema.get("if")?.let { condition ->
+            val found = mutableListOf<String>()
+            validate(Location(resolved.file, condition), instance, path, found)
+            val branch = if (found.isEmpty()) schema.get("then") else schema.get("else")
+            branch?.let { validate(Location(resolved.file, it), instance, path, errors) }
         }
         if (instance.isString) {
             val text = instance.asString()
@@ -194,6 +198,13 @@ class ContractValidator {
             }
         }
         if (instance.isArray) {
+            schema.get("minItems")?.let {
+                if (instance.size() <
+                    it.asInt()
+                ) {
+                    errors += "$path: fewer than ${it.asInt()} items"
+                }
+            }
             schema.get("items")?.let { items ->
                 instance.forEachIndexed {
                     i,
@@ -226,6 +237,21 @@ class ContractValidator {
             }
         }
     }
+
+    private fun typeHolds(
+        type: String,
+        instance: JsonNode,
+    ): Boolean =
+        when (type) {
+            "object" -> instance.isObject
+            "array" -> instance.isArray
+            "string" -> instance.isString
+            "integer" -> instance.isIntegralNumber
+            "number" -> instance.isNumber
+            "boolean" -> instance.isBoolean
+            "null" -> instance.isNull
+            else -> error("type $type")
+        }
 
     private fun formatHolds(
         format: String,
@@ -262,6 +288,13 @@ class ContractValidator {
                 "format",
                 "items",
                 "examples",
+                "default",
+                "minItems",
+                "allOf",
+                "not",
+                "if",
+                "then",
+                "else",
             )
     }
 }
