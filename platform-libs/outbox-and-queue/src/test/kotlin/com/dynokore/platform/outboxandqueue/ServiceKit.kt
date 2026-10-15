@@ -34,17 +34,14 @@ class ServiceKit(
         )
 
     // Runs [block] in a transaction of [tenant], as an inbound adapter would after binding it (ARC-21).
-    // INV-T-3999 removes this call
-    @Suppress("DEPRECATION")
     fun <T> inTx(
         tenant: UUID,
         block: () -> T,
-    ): T = tenants.bind(TenantId(tenant)) { boundary.inTransaction(block) }
+    ): T = tenants.bind(TenantId(tenant), "test-actor") { boundary.inTransaction(block) }
 
     // Runs [block] in a transaction under the reserved platform tenant (INV-Q-2927).
-    // INV-T-3999 removes this call
-    @Suppress("DEPRECATION")
-    fun <T> inPlatformTx(block: () -> T): T = tenants.bindPlatform { boundary.inTransaction(block) }
+    fun <T> inPlatformTx(block: () -> T): T =
+        tenants.bindPlatform("svc:test/job:probe") { boundary.inTransaction(block) }
 
     /** A context for a document-scoped event (keyed by the Doc UUID). */
     fun docContext(

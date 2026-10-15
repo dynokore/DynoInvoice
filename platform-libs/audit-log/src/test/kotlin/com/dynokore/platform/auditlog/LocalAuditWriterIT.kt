@@ -30,20 +30,18 @@ import java.util.UUID
  */
 @Tag("integration")
 class LocalAuditWriterIT {
-    // INV-T-3999 removes this call
-    @Suppress("DEPRECATION")
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
     fun `an entry commits with its change and a rolled-back change leaves no entry`(image: String) {
         ControlPlane(image).use { cp ->
             val tenant = TenantId(UUID.randomUUID())
-            cp.tenants.bind(tenant) {
+            cp.tenants.bind(tenant, "test-actor") {
                 cp.operations.change(cp.entry("setSupportWindow"), cp.context(tenant, EntityRef("entity-1"))) {
                     cp.setting("support_window", "09-18")
                 }
             }
             assertThrows(IllegalStateException::class.java) {
-                cp.tenants.bind(tenant) {
+                cp.tenants.bind(tenant, "test-actor") {
                     cp.boundary.inTransaction {
                         cp.setting("support_window", "00-24")
                         cp.audit.record(cp.entry("setSupportWindow"), cp.context(tenant, EntityRef("entity-1")))
@@ -65,14 +63,12 @@ class LocalAuditWriterIT {
         }
     }
 
-    // INV-T-3999 removes this call
-    @Suppress("DEPRECATION")
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
     fun `an operator action with no tenant is recorded under the reserved platform tenant`(image: String) {
         ControlPlane(image).use { cp ->
             val envelope =
-                cp.tenants.bindPlatform {
+                cp.tenants.bindPlatform("svc:test/job:probe") {
                     cp.operations.change(cp.entry("publishPack"), cp.context(TenantId.PLATFORM, EntityRef.PLATFORM)) {
                         cp.setting("pack", "SG-2026.10")
                     }
@@ -96,7 +92,7 @@ class LocalAuditWriterIT {
             val tenant = TenantId(UUID.randomUUID())
             assertEquals(0, cp.visible(tenant))
             assertThrows(AuditWriteFailed::class.java) {
-                cp.tenants.bind(tenant) {
+                cp.tenants.bind(tenant, "test-actor") {
                     cp.boundary.inTransaction {
                         cp.audit.record(cp.entry("issueLicence"), cp.context(TenantId.PLATFORM, EntityRef.PLATFORM))
                     }
@@ -106,23 +102,19 @@ class LocalAuditWriterIT {
         }
     }
 
-    // INV-T-3999 removes this call
-    @Suppress("DEPRECATION")
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
     fun `the trail is tenant-isolated, insert-only and refuses a row for another tenant`(image: String) {
         ControlPlane(image).use { cp ->
             val owner = TenantId(UUID.randomUUID())
-            cp.tenants.bind(owner) {
+            cp.tenants.bind(owner, "test-actor") {
                 cp.boundary.inTransaction { cp.audit.record(cp.entry("grantRole"), cp.context(owner, EntityRef("e"))) }
             }
             assertEquals(1, cp.visible(owner))
             assertEquals(0, cp.visible(TenantId(UUID.randomUUID())))
 
-            // INV-T-3999 removes this call
-            @Suppress("DEPRECATION")
             fun run(sql: String) =
-                cp.tenants.bind(owner) {
+                cp.tenants.bind(owner, "test-actor") {
                     cp.boundary.inTransaction {
                         cp.boundary
                             .require()
@@ -134,7 +126,7 @@ class LocalAuditWriterIT {
             assertThrows(SQLException::class.java) { run("delete from controlplane.audit_entry") }
             // The context names tenant B but the session is bound to A: the policy's WITH CHECK refuses the row.
             assertThrows(AuditWriteFailed::class.java) {
-                cp.tenants.bind(owner) {
+                cp.tenants.bind(owner, "test-actor") {
                     cp.boundary.inTransaction {
                         cp.audit.record(cp.entry("grantRole"), cp.context(TenantId(UUID.randomUUID()), EntityRef("e")))
                     }
@@ -175,8 +167,6 @@ class LocalAuditWriterIT {
         }
     }
 
-    // INV-T-3999 removes this call
-    @Suppress("DEPRECATION")
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
     fun `a failed entry commits no change and a bad prior state writes nothing`(image: String) {
@@ -184,7 +174,7 @@ class LocalAuditWriterIT {
             val tenant = TenantId(UUID.randomUUID())
             cp.fixture.runAsAdmin("revoke insert on controlplane.audit_entry from ${OutboxPostgresFixture.APP}")
             assertThrows(AuditWriteFailed::class.java) {
-                cp.tenants.bind(tenant) {
+                cp.tenants.bind(tenant, "test-actor") {
                     cp.operations.change(cp.entry("managePlan"), cp.context(tenant, EntityRef("e"))) {
                         cp.setting("plan", "gold")
                     }
@@ -192,7 +182,7 @@ class LocalAuditWriterIT {
             }
             assertEquals(0, cp.count("select count(*) from controlplane.setting"))
             assertThrows(IllegalArgumentException::class.java) {
-                cp.tenants.bind(tenant) {
+                cp.tenants.bind(tenant, "test-actor") {
                     cp.boundary.inTransaction {
                         cp.audit.record(cp.entry("managePlan", prior = "[1]"), cp.context(tenant, EntityRef("e")))
                     }
@@ -278,10 +268,8 @@ class LocalAuditWriterIT {
             }
         }
 
-        // INV-T-3999 removes this call
-        @Suppress("DEPRECATION")
         fun visible(tenant: TenantId): Long =
-            tenants.bind(tenant) {
+            tenants.bind(tenant, "test-actor") {
                 boundary.inTransaction {
                     boundary.require().createStatement().use { s ->
                         s.executeQuery("select count(*) from $SCHEMA.audit_entry").use {

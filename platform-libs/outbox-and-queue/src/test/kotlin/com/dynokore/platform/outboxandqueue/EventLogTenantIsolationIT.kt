@@ -41,8 +41,6 @@ class EventLogTenantIsolationIT {
         }
     }
 
-    // INV-T-3999 removes this call
-    @Suppress("DEPRECATION")
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `tenant and platform events round-trip in offset order, each read only under its own tenant`(image: String) {
@@ -51,7 +49,7 @@ class EventLogTenantIsolationIT {
             val b = UUID.randomUUID()
             val producer = harness.payload
             producer.inTx(a) { producer.writer.append(listOf(audit("a1")), producer.context(TenantId(a), "k-a1")) }
-            producer.tenants.bindPlatform {
+            producer.tenants.bindPlatform("svc:test/job:probe") {
                 producer.boundary.inTransaction {
                     producer.writer.append(listOf(audit("p1")), producer.context(TenantId.PLATFORM, "k-p1"))
                 }

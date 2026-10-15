@@ -17,7 +17,7 @@ import javax.sql.DataSource
  * INV-REQ-854 b1, b3, b5): the binding carries the actor, TransactionRunner sets
  * `app.tenant_id` and `app.actor` transaction-locally, neither survives commit or
  * rollback on a pooled connection, a nested transaction under a different binding is
- * refused, and the deprecated actor-less binding still works.
+ * refused, and a transaction with no actor is refused before any SQL.
  *
  * The leak checks run on a one-slot pool WITHOUT [TenantAwareDataSource]'s RESET, so
  * they prove `set_config(..., true)` itself, then again with it.
@@ -29,7 +29,7 @@ class ActorBindingPostgresIT {
 
     @ParameterizedTest(name = "{0}")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
-    fun `actor binding, no leak to the next borrower, nested mismatch refused, actor-less path works`(image: String) {
+    fun `actor binding, no leak, nested mismatch refused, no-actor transaction refused`(image: String) {
         PostgresProbeFixture(image).use { fixture ->
             fixture.createProbeTable(fixture.ownerDataSource())
             SingleSlotDataSource(fixture.jdbcUrl(), "tenancy_kernel_app", "tenancy_kernel_app_pw").use { slot ->
@@ -37,7 +37,7 @@ class ActorBindingPostgresIT {
                 assertNothingSurvivesCommitOrRollback(slot.dataSource)
                 assertNothingSurvivesCommitOrRollback(TenantAwareDataSource(slot.dataSource))
                 assertNestedMismatchIsRefusedBeforeAnyStatement(slot.dataSource)
-                assertDeprecatedActorlessPathStillWorks(slot.dataSource)
+                assertTransactionWithNoActorIsRefusedBeforeAnySql(slot.dataSource)
             }
         }
     }
@@ -51,8 +51,6 @@ class ActorBindingPostgresIT {
         assertEquals(Settings(TenantId.PLATFORM.toString(), "svc:test/job:probe"), platform)
     }
 
-    // INV-T-3999 removes this call
-    @Suppress("DEPRECATION")
     private fun assertNothingSurvivesCommitOrRollback(pool: DataSource) {
         val tenants = TenantContextImpl()
         val tx = TransactionRunnerImpl(pool, tenants)
@@ -67,12 +65,10 @@ class ActorBindingPostgresIT {
 
         // The next borrower through the runner sees only its own binding, never the previous one.
         tenants.bind(tenantA, "user-a") { tx.inTransaction { } }
-        val next = tenants.bind(tenantB) { tx.inTransaction { settings(tx.require()) } }
-        assertEquals(Settings(tenantB.toString(), null), next)
+        val next = tenants.bind(tenantB, "user-b") { tx.inTransaction { settings(tx.require()) } }
+        assertEquals(Settings(tenantB.toString(), "user-b"), next)
     }
 
-    // INV-T-3999 removes this call
-    @Suppress("DEPRECATION")
     private fun assertNestedMismatchIsRefusedBeforeAnyStatement(pool: DataSource) {
         val tenants = TenantContextImpl()
         val tx = TransactionRunnerImpl(pool, tenants)
@@ -80,7 +76,6 @@ class ActorBindingPostgresIT {
             listOf(
                 { block -> tenants.bind(tenantB, "user-a", block) }, // other tenant
                 { block -> tenants.bind(tenantA, "user-b", block) }, // other actor
-                { block -> tenants.bind(tenantA, block) }, // actor-less under an actor-bound transaction
                 { block -> tenants.bindPlatform("user-a", block) }, // platform under a tenant's transaction
             )
         val marker = "outer-survives-${UUID.randomUUID()}"
@@ -107,19 +102,46 @@ class ActorBindingPostgresIT {
         assertTrue(marker in committed, "the outer transaction commits after the refusals, saw $committed")
     }
 
-    // INV-T-3999 removes this call
-    @Suppress("DEPRECATION")
-    private fun assertDeprecatedActorlessPathStillWorks(pool: DataSource) {
-        val tenants = TenantContextImpl()
-        val tx = TransactionRunnerImpl(pool, tenants)
-        val nested =
-            tenants.bind(tenantB) {
-                tx.inTransaction { tenants.bind(tenantB) { tx.inTransaction { settings(tx.require()) } } }
+    private fun assertTransactionWithNoActorIsRefusedBeforeAnySql(pool: DataSource) {
+        val counting = CountingDataSource(pool)
+        val real = TenantContextImpl()
+        // Nothing bound: refused before a connection is even taken.
+        val unbound = TransactionRunnerImpl(counting, real)
+        assertThrows(IllegalStateException::class.java) { unbound.inTransaction { } }
+        // A foreign TenantContext that binds a tenant but no actor: refused before any SQL.
+        val actorless =
+            object : TenantContext {
+                override fun current(): TenantId = tenantA
+
+                override fun currentActor(): String? = null
+
+                override fun <T> bind(
+                    tenant: TenantId,
+                    actor: String,
+                    block: () -> T,
+                ): T = block()
             }
-        assertEquals(Settings(tenantB.toString(), null), nested)
-        val platform = tenants.bindPlatform { tx.inTransaction { settings(tx.require()) } }
-        assertEquals(Settings(TenantId.PLATFORM.toString(), null), platform)
-        assertNull(nextBorrowerSees(pool).actor)
+        var ran = false
+        val refused =
+            assertThrows(IllegalStateException::class.java) {
+                TransactionRunnerImpl(counting, actorless).inTransaction { ran = true }
+            }
+        assertTrue("actor" in refused.message.orEmpty(), refused.message)
+        assertFalse(ran)
+        assertEquals(0, counting.connections.get(), "no connection was opened")
+    }
+
+    private class CountingDataSource(
+        private val delegate: DataSource,
+    ) : DataSource by delegate {
+        val connections =
+            java.util.concurrent.atomic
+                .AtomicInteger()
+
+        override fun getConnection(): java.sql.Connection {
+            connections.incrementAndGet()
+            return delegate.connection
+        }
     }
 
     private fun insert(

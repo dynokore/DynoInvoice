@@ -5,8 +5,8 @@ package com.dynokore.platform.tenancykernel
  * as its first statement (ARC-21 as revised: `set_config('app.tenant_id', :tenant, true)`
  * and `set_config('app.actor', :actor, true)`, scoped `true`: local to the transaction,
  * never the session, CS-19; owner rulings INV-Q-3951, INV-Q-3953; INV-REQ-854 b1).
- * `app.actor` is left unset when the binding carries no actor (the deprecated
- * actor-less binding, INV-Q-3997).
+ * Every transaction carries an actor: a binding with none is refused with
+ * `IllegalStateException` before any statement (INV-Q-3997, INV-T-3999).
  *
  * REQUIRED propagation: a nested `inTransaction` call joins the same
  * transaction rather than opening a new one, but only when the current binding

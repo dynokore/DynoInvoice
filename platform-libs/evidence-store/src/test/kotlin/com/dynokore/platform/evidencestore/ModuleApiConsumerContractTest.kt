@@ -65,8 +65,6 @@ class ModuleApiConsumerContractTest {
             }
     }
 
-    // INV-T-3999 removes this call
-    @Suppress("DEPRECATION")
     @Test
     fun `records chain and export together, and a legal hold overrides an otherwise-elapsed retention period`() {
         val schema = EvidenceStorePostgresFixture.SCHEMA
@@ -86,26 +84,30 @@ class ModuleApiConsumerContractTest {
             val periodEnd = LocalDate.of(2020, 3, 31)
             val contents = listOf("payload-a".toByteArray(), "payload-b".toByteArray())
 
-            val exported = tenants.bind(tenant) { useCase.recordAndExport(tenant, entity, period, contents) }
+            val exported =
+                tenants.bind(
+                    tenant,
+                    "test-actor",
+                ) { useCase.recordAndExport(tenant, entity, period, contents) }
             assertTrue(exported.map { String(it.content) } == contents.map { String(it) })
 
-            val verified = tenants.bind(tenant) { useCase.verify(tenant, entity, period) }
+            val verified = tenants.bind(tenant, "test-actor") { useCase.verify(tenant, entity, period) }
             assertTrue(verified is ChainVerificationResult.Valid)
 
             // Retention alone (five years, statutory floor, FR-D.3) has long
             // elapsed by "now" — deletable.
             val retention = RetentionPeriod.DEFAULT
             val deletableWithoutHold =
-                tenants.bind(tenant) {
+                tenants.bind(tenant, "test-actor") {
                     useCase.canDeleteWithHold(tenant, entity, period, retention, periodEnd, LocalDate.now())
                 }
             assertTrue(deletableWithoutHold)
 
             // A hold placed on the same (tenant, entity, period) refuses it regardless (FR-D.4).
             val hold = LegalHold("under dispute", Instant.now())
-            tenants.bind(tenant) { tx.inTransaction { holds.place(tenant, entity, period, hold) } }
+            tenants.bind(tenant, "test-actor") { tx.inTransaction { holds.place(tenant, entity, period, hold) } }
             val deletableWithHold =
-                tenants.bind(tenant) {
+                tenants.bind(tenant, "test-actor") {
                     useCase.canDeleteWithHold(tenant, entity, period, retention, periodEnd, LocalDate.now())
                 }
             assertFalse(deletableWithHold)

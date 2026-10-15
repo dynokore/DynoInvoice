@@ -38,12 +38,12 @@ class PlatformTenantTest {
         assertThrows(IllegalArgumentException::class.java) { TenantId.fromClaim("not-a-uuid") }
     }
 
-    // INV-T-3999 removes this call
-    @Suppress("DEPRECATION")
     @Test
     fun `the ordinary bind refuses the platform tenant and binds nothing`() {
         val ctx = TenantContextImpl()
-        assertThrows(IllegalArgumentException::class.java) { ctx.bind(TenantId.PLATFORM) { ctx.current() } }
+        assertThrows(IllegalArgumentException::class.java) {
+            ctx.bind(TenantId.PLATFORM, "svc:test/job:probe") { ctx.current() }
+        }
         assertThrows(IllegalStateException::class.java) { ctx.current() }
     }
 

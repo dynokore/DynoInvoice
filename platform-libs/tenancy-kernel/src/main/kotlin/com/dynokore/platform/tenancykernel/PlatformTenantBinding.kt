@@ -24,15 +24,4 @@ interface PlatformTenantBinding {
         actor: String,
         block: () -> T,
     ): T
-
-    /**
-     * Runs [block] with [TenantId.PLATFORM] bound as [TenantContext.current] and no actor,
-     * restoring the prior binding after. Deprecated in favour of `bindPlatform(actor, block)`;
-     * the removal task deletes this form (coordinator ruling INV-Q-3997).
-     */
-    @Deprecated(
-        message = "Binds no actor; use bindPlatform(actor, block) (INV-Q-3997; INV-T-3999 removes this form).",
-        replaceWith = ReplaceWith("bindPlatform(actor, block)"),
-    )
-    fun <T> bindPlatform(block: () -> T): T
 }

@@ -13,8 +13,8 @@ package com.dynokore.platform.tenancykernel
  * always restores the prior value (or nothing) on the way out, so a forgotten
  * unbind is not a way for one tenant's context to leak into the next.
  *
- * The binding carries the actor with the tenant ([currentActor]; null for the
- * deprecated actor-less forms, INV-Q-3997).
+ * The binding carries the actor with the tenant ([currentActor]; never null, the actor-less forms
+ * are removed, INV-Q-3997).
  *
  * Also the [PlatformTenantBinding]: [bind] refuses [TenantId.PLATFORM], and only
  * [bindPlatform] binds it (INV-Q-2927). The composition root exposes this object
@@ -23,17 +23,17 @@ package com.dynokore.platform.tenancykernel
 class TenantContextImpl :
     TenantContext,
     PlatformTenantBinding {
-    /** One binding: the tenant and the actor bound with it (null for the deprecated actor-less form). */
+    /** One binding: the tenant and the actor bound with it. */
     private data class Binding(
         val tenant: TenantId,
-        val actor: String?,
+        val actor: String,
     )
 
     private val current = ThreadLocal<Binding>()
 
     override fun current(): TenantId = bindingOrThrow().tenant
 
-    override fun currentActor(): String? = bindingOrThrow().actor
+    override fun currentActor(): String = bindingOrThrow().actor
 
     override fun <T> bind(
         tenant: TenantId,
@@ -44,28 +44,10 @@ class TenantContextImpl :
         return bound(Binding(tenant, requireActor(actor)), block)
     }
 
-    @Deprecated(
-        message = "Binds no actor; use bind(tenant, actor, block) (INV-Q-3997; INV-T-3999 removes this form).",
-        replaceWith = ReplaceWith("bind(tenant, actor, block)"),
-    )
-    override fun <T> bind(
-        tenant: TenantId,
-        block: () -> T,
-    ): T {
-        requireNotPlatform(tenant)
-        return bound(Binding(tenant, null), block)
-    }
-
     override fun <T> bindPlatform(
         actor: String,
         block: () -> T,
     ): T = bound(Binding(TenantId.PLATFORM, requireActor(actor)), block)
-
-    @Deprecated(
-        message = "Binds no actor; use bindPlatform(actor, block) (INV-Q-3997; INV-T-3999 removes this form).",
-        replaceWith = ReplaceWith("bindPlatform(actor, block)"),
-    )
-    override fun <T> bindPlatform(block: () -> T): T = bound(Binding(TenantId.PLATFORM, null), block)
 
     private fun bindingOrThrow(): Binding =
         current.get()

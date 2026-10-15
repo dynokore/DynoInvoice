@@ -10,8 +10,7 @@ import javax.sql.DataSource
  *
  * Binds the tenant and the actor of the current binding as the very first statement
  * of the transaction (ARC-21 as revised: `set_config('app.tenant_id', :tenant, true)`
- * and `set_config('app.actor', :actor, true)`, the latter only when the binding
- * carries an actor; INV-Q-3951, INV-Q-3953, INV-Q-3997), local scope — CS-19
+ * and `set_config('app.actor', :actor, true)`, both always, a binding with no actor is refused; INV-Q-3951, INV-Q-3953, INV-Q-3997), local scope — CS-19
  * requires transaction scope, never session scope, so the setting cannot
  * survive past this one transaction even before the connection is returned to
  * the pool). REQUIRED propagation: a call nested inside an outer
@@ -31,22 +30,27 @@ class TransactionRunnerImpl
         private class Open(
             val connection: Connection,
             val tenant: TenantId,
-            val actor: String?,
+            val actor: String,
         )
 
         private val open = ThreadLocal<Open>()
 
         override fun <T> inTransaction(block: () -> T): T {
             val tenant = tenants.current()
-            val actor = tenants.currentActor()
+            // A foreign TenantContext may still answer null: refuse before any SQL (INV-Q-3997, INV-T-3999).
+            val actor: String =
+                tenants.currentActor()
+                    ?: throw IllegalStateException(
+                        "No actor is bound for tenant $tenant (INV-REQ-854 b1): every transaction carries an actor.",
+                    )
 
             open.get()?.let { outer ->
                 // REQUIRED propagation, only under the same binding (INV-Q-3997): never run tenant B's
                 // work under tenant A's app.tenant_id, nor one actor's under another's app.actor.
                 check(outer.tenant == tenant && outer.actor == actor) {
                     "A nested transaction must run under the open transaction's binding (INV-Q-3997): " +
-                        "open under tenant ${outer.tenant} and actor ${outer.actor ?: "(none)"}, " +
-                        "nested under tenant $tenant and actor ${actor ?: "(none)"}."
+                        "open under tenant ${outer.tenant} and actor ${outer.actor}, " +
+                        "nested under tenant $tenant and actor $actor."
                 }
                 return block()
             }
@@ -80,16 +84,12 @@ class TransactionRunnerImpl
         private fun bindSettings(
             connection: Connection,
             tenant: TenantId,
-            actor: String?,
+            actor: String,
         ) {
             val name = label?.of(connection)
             // whole literals only, so the SQL guard traces each one (INV-Q-4036)
             val sql =
-                if (actor == null && name == null) {
-                    "select set_config('app.tenant_id', ?, true)"
-                } else if (actor == null) {
-                    "select set_config('app.tenant_id', ?, true), set_config('application_name', ?, true)"
-                } else if (name == null) {
+                if (name == null) {
                     "select set_config('app.tenant_id', ?, true), set_config('app.actor', ?, true)"
                 } else {
                     "select set_config('app.tenant_id', ?, true), set_config('app.actor', ?, true), set_config('application_name', ?, true)"
@@ -97,7 +97,7 @@ class TransactionRunnerImpl
             connection.prepareStatement(sql).use { statement ->
                 var index = 1
                 statement.setString(index++, tenant.toString())
-                if (actor != null) statement.setString(index++, actor)
+                statement.setString(index++, actor)
                 if (name != null) statement.setString(index, name)
                 statement.execute()
             }

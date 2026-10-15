@@ -304,10 +304,12 @@ class AuditPurgeIT {
         /** Calls the function as the runtime login, bound to the platform tenant (or [tenant]) and [actor]. */
         fun call(
             call: PurgeCall,
-            actor: String? = "operator-9",
             tenant: UUID? = null,
+            unsetActor: Boolean = false,
         ): Long =
-            bound(actor, tenant) {
+            bound("operator-9", tenant) {
+                // The runner always sets app.actor; this clears it so the function's own check is what refuses.
+                if (unsetActor) tx.require().createStatement().use { it.execute("reset app.actor") }
                 tx.require().prepareStatement("select $SCHEMA.purge_audit_entries(?, ?, ?::uuid, ?, ?, ?, ?, ?)").use {
                     it.setTimestamp(1, Timestamp.from(call.cutOff))
                     it.setString(2, call.reason)
@@ -327,16 +329,13 @@ class AuditPurgeIT {
         /** Runs [sql] as the runtime login under the platform tenant and an actor. */
         fun raw(sql: String) = bound("operator-9", null) { tx.require().createStatement().use { it.execute(sql) } }
 
-        // INV-T-3999 removes the actor-less binding
-        @Suppress("DEPRECATION")
         private fun <T> bound(
-            actor: String?,
+            actor: String,
             tenant: UUID?,
             block: () -> T,
         ): T =
             when {
-                tenant != null -> tenants.bind(TenantId(tenant), checkNotNull(actor)) { tx.inTransaction(block) }
-                actor == null -> tenants.bindPlatform { tx.inTransaction(block) }
+                tenant != null -> tenants.bind(TenantId(tenant), actor) { tx.inTransaction(block) }
                 else -> tenants.bindPlatform(actor) { tx.inTransaction(block) }
             }
 
@@ -377,7 +376,7 @@ class AuditPurgeIT {
         /** Each check of the function, and the call that fails only that check. */
         val REFUSALS: Map<String, (Purge, PurgeCall) -> Long> =
             mapOf(
-                "actor unset" to { p, call -> p.call(call, actor = null) },
+                "actor unset" to { p, call -> p.call(call, unsetActor = true) },
                 WRONG_TENANT to { p, call -> p.call(call, tenant = UUID.randomUUID()) },
                 "cut-off younger than the legal floor" to
                     { p, call -> p.call(call.copy(cutOff = p.yearsAgo(5).plusSeconds(DAY))) },

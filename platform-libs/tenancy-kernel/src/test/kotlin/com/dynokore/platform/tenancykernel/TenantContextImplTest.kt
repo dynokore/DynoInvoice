@@ -1,7 +1,6 @@
 package com.dynokore.platform.tenancykernel
 
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import java.util.UUID
@@ -74,15 +73,6 @@ class TenantContextImplTest {
             }
         assertEquals(Triple(tenantB to "user-b", tenantA, "user-a"), seen)
         assertThrows(IllegalStateException::class.java) { ctx.currentActor() }
-    }
-
-    // INV-T-3999 removes this call
-    @Suppress("DEPRECATION")
-    @Test
-    fun `the actor-less bind leaves the actor unset, even inside an actor-bound one`() {
-        val ctx = TenantContextImpl()
-        assertNull(ctx.bind(tenantA) { ctx.currentActor() })
-        assertNull(ctx.bind(tenantA, "user-a") { ctx.bind(tenantB) { ctx.currentActor() } })
     }
 
     @Test

@@ -97,8 +97,6 @@ class MultiProducerReplayIT {
     }
 
     // evidence-svc's full sync addressed to every one of [producers], on its runtime login bound to the platform.
-    // INV-T-3999 removes this call
-    @Suppress("DEPRECATION")
     private fun fullSync(
         harness: OutboxHarness,
         replayId: UUID,
@@ -109,7 +107,7 @@ class MultiProducerReplayIT {
         val clock = Clock.systemUTC()
         val catalogue = harness.catalogue
         val writer = JdbcOutboxWriter(syncTx, "evidence", "evidence-svc", "evidence-svc-w", catalogue, clock)
-        syncTenants.bindPlatform {
+        syncTenants.bindPlatform("svc:test/job:probe") {
             syncTx.inTransaction {
                 JdbcConsumerReplay("evidence", syncTx, harness.reader, writer, clock).fullSync(
                     "evidence-svc",

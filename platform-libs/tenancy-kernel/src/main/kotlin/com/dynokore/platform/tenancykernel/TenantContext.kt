@@ -22,11 +22,11 @@ interface TenantContext {
     fun current(): TenantId
 
     /**
-     * The actor bound together with [current] by [bind] with an actor or
-     * [PlatformTenantBinding.bindPlatform] with an actor: the end user's `sub`, or the
-     * service's workload principal for background work (INV-REQ-854 b1). Null when the
-     * binding was made through the actor-less form, which leaves `app.actor` unset
-     * (coordinator ruling INV-Q-3997).
+     * The actor bound together with [current] by [bind] or
+     * [PlatformTenantBinding.bindPlatform]: the end user's `sub`, or the service's workload
+     * principal for background work (INV-REQ-854 b1). Every binding carries one: the actor-less
+     * forms were removed (coordinator ruling INV-Q-3997, INV-T-3999), so a null return is only a
+     * foreign implementation's defect, which [TransactionRunner] refuses.
      *
      * @throws IllegalStateException if nothing is bound on this thread, as [current].
      */
@@ -47,31 +47,6 @@ interface TenantContext {
     fun <T> bind(
         tenant: TenantId,
         actor: String,
-        block: () -> T,
-    ): T
-
-    /**
-     * Runs [block] with [tenant] bound as [current] for its duration, restoring
-     * whatever was bound before (or nothing) when it returns or throws.
-     *
-     * For the one caller ARC-21 names: a cross-tenant worker binding once per
-     * claimed item, not a general-purpose override. Nesting restores the
-     * enclosing tenant, so a worker may safely call other tenant-scoped code
-     * without corrupting its caller's binding.
-     *
-     * Binds no actor ([currentActor] is null, `app.actor` stays unset). Deprecated in favour
-     * of the actor-bound `bind(tenant, actor, block)`; the removal task deletes this form
-     * (coordinator ruling INV-Q-3997).
-     *
-     * @throws IllegalArgumentException if [tenant] is [TenantId.PLATFORM]: the reserved
-     *   platform tenant is bound only through [PlatformTenantBinding] (INV-Q-2927).
-     */
-    @Deprecated(
-        message = "Binds no actor; use bind(tenant, actor, block) (INV-Q-3997; INV-T-3999 removes this form).",
-        replaceWith = ReplaceWith("bind(tenant, actor, block)"),
-    )
-    fun <T> bind(
-        tenant: TenantId,
         block: () -> T,
     ): T
 }

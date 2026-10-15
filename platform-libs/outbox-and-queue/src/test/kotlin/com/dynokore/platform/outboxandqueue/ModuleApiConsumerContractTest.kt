@@ -30,12 +30,10 @@ class ModuleApiConsumerContractTest {
         private val outbox: OutboxWriter,
         private val saveState: (UUID) -> Unit,
     ) {
-        // INV-T-3999 removes this call
-        @Suppress("DEPRECATION")
         fun despatch(
             context: EventContext,
             failAfterEmit: Boolean,
-        ) = tenants.bind(context.tenant) {
+        ) = tenants.bind(context.tenant, "test-actor") {
             tx.inTransaction {
                 saveState(checkNotNull(context.docUuid).value)
                 outbox.append(

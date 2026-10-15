@@ -47,12 +47,10 @@ class AuditHarness(
     }
 
     // Runs [block] with [tenant] bound, as an inbound adapter would after verifying the token (ARC-21).
-    // INV-T-3999 removes this call
-    @Suppress("DEPRECATION")
     fun <T> asTenant(
         tenant: UUID,
         block: () -> T,
-    ): T = tenants.bind(TenantId(tenant), block)
+    ): T = tenants.bind(TenantId(tenant), "test-actor", block)
 
     fun context(
         tenant: UUID,

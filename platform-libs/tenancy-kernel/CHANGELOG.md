@@ -6,6 +6,20 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-15
+### Removed (breaking)
+- `TenantContext.bind(tenant, block)` and `PlatformTenantBinding.bindPlatform(block)`, the actor-less bindings that
+  1.x kept deprecated (coordinator ruling INV-Q-3997, INV-T-3999; INV-REQ-854 b1, INV-ADR-3968 item 4). Every
+  binding now carries an actor: use `bind(tenant, actor, block)` and `bindPlatform(actor, block)`.
+### Changed
+- `TransactionRunner.inTransaction` refuses to open a transaction when the current binding has no actor
+  (`IllegalStateException` before a connection is taken or any SQL runs), so every transaction sets both
+  `app.tenant_id` and `app.actor`. `TenantContextImpl.currentActor()` never returns null; the nested-binding refusal
+  (INV-T-3980) is unchanged.
+### Migration
+- Replace each `bind(tenant) { ... }` by `bind(tenant, actor) { ... }` (the end user's `sub`, or the service's
+  workload principal for background work) and each `bindPlatform { ... }` by `bindPlatform(actor) { ... }`.
+
 ## [1.5.0] - 2026-10-14
 ### Added
 - `BlankText` (main, published in `tenancy-kernel-api`): the one definition of a blank value and of a valid actor

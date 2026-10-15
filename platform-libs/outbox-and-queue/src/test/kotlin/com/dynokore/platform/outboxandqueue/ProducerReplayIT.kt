@@ -337,8 +337,6 @@ class ProducerReplayIT {
         }
     }
 
-    // INV-T-3999 removes this call
-    @Suppress("DEPRECATION")
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-Q-3805 an 'every service' full sync deletes no docsequence rows`(image: String) {
@@ -350,7 +348,7 @@ class ProducerReplayIT {
             val sequences = "select count(*) from reconciliation.consumer_sequence where consumer = '$consumer'"
             assertEquals(2L, s.harness.count(sequences))
             val request = ReplayRequest(UUID.randomUUID(), CatalogueEntry.EVERY_SERVICE, ReplayMode.FULL_SYNC, null)
-            s.syncTenants.bindPlatform {
+            s.syncTenants.bindPlatform("svc:test/job:probe") {
                 s.syncTx.inTransaction {
                     JdbcConsumerReplay("reconciliation", s.syncTx, s.harness.reader, s.syncWriter, clock)
                         .fullSync(consumer, listOf(live), request, null, corr(), cause())
@@ -361,8 +359,6 @@ class ProducerReplayIT {
         }
     }
 
-    // INV-T-3999 removes this call
-    @Suppress("DEPRECATION")
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `a full sync failing before its commit leaves read model, sequences and position as they were`(image: String) {
@@ -380,7 +376,7 @@ class ProducerReplayIT {
                 JdbcOutboxWriter(s.syncTx, "reconciliation", consumer, "$consumer-w", withoutRequests, clock)
             val clear = s.readModelClear()
             assertThrows(EmissionNotPermitted::class.java) {
-                s.syncTenants.bindPlatform {
+                s.syncTenants.bindPlatform("svc:test/job:probe") {
                     s.syncTx.inTransaction {
                         JdbcConsumerReplay("reconciliation", s.syncTx, s.harness.reader, noRequestTopic, clock)
                             .fullSync(
@@ -499,12 +495,10 @@ class ProducerReplayIT {
         fun offset() = harness.nextOffsetOrNull("reconciliation", consumer, live)
 
         // rebuildConsumer's full sync: clear, docsequence delete, head move, request; one runtime transaction.
-        // INV-T-3999 removes this call
-        @Suppress("DEPRECATION")
         fun fullSync(): UUID {
             val request = ReplayRequest(UUID.randomUUID(), "canonical-svc", ReplayMode.FULL_SYNC, null)
             val clear = readModelClear()
-            syncTenants.bindPlatform {
+            syncTenants.bindPlatform("svc:test/job:probe") {
                 syncTx.inTransaction {
                     JdbcConsumerReplay("reconciliation", syncTx, harness.reader, syncWriter, clock)
                         .fullSync(consumer, listOf(live), request, clear, corr(), cause())

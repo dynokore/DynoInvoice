@@ -211,8 +211,6 @@ class EvidenceLedgerPostgresIT {
         assertEquals(1L, (result as ChainVerificationResult.Broken).atSequence)
     }
 
-    // INV-T-3999 removes this call
-    @Suppress("DEPRECATION")
     private fun assertLegalHoldPlaceAndRelease(fixture: EvidenceStorePostgresFixture) {
         val tenant = TenantId(UUID.randomUUID())
         val entity = EntityRef("hold-entity")
@@ -222,7 +220,7 @@ class EvidenceLedgerPostgresIT {
         val holdTable = EvidenceStorePostgresFixture.LEGAL_HOLD_TABLE
         val registry = JdbcLegalHoldRegistry(tx, EvidenceStorePostgresFixture.SCHEMA, holdTable)
 
-        tenants.bind(tenant) {
+        tenants.bind(tenant, "test-actor") {
             tx.inTransaction { assertFalse(registry.isHeld(tenant, entity, period)) }
             tx.inTransaction { registry.place(tenant, entity, period, LegalHold("under audit", Instant.now())) }
             tx.inTransaction { assertTrue(registry.isHeld(tenant, entity, period)) }
@@ -237,8 +235,6 @@ class EvidenceLedgerPostgresIT {
         return "$schema.$table"
     }
 
-    // INV-T-3999 removes this call
-    @Suppress("DEPRECATION")
     private fun <T> runInTransaction(
         fixture: EvidenceStorePostgresFixture,
         tenant: TenantId,
@@ -248,6 +244,6 @@ class EvidenceLedgerPostgresIT {
         val tx = TransactionRunnerImpl(fixture.appDataSource(), tenants)
         val ledger =
             JdbcEvidenceLedger(tx, EvidenceStorePostgresFixture.SCHEMA, EvidenceStorePostgresFixture.EVIDENCE_TABLE)
-        return tenants.bind(tenant) { tx.inTransaction { block(ledger) } }
+        return tenants.bind(tenant, "test-actor") { tx.inTransaction { block(ledger) } }
     }
 }
