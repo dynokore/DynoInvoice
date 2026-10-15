@@ -1,9 +1,10 @@
 package com.dynokore.platform.tenancykernel
 
-import org.postgresql.ds.PGSimpleDataSource
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.utility.DockerImageName
-import javax.sql.DataSource
+import org.testcontainers.utility.MountableFile
+import java.nio.file.Files
+import java.nio.file.Path
 
 /** Testcontainers needs a concrete subclass for its fluent `self()` typing (Kotlin, unlike Java, has no raw types). */
 private class Postgres(
@@ -12,71 +13,80 @@ private class Postgres(
 
 /**
  * Isolation-test fixtures (done-when, §9.2/§13.3): starts a real PostgreSQL
- * container running the two roles [tenancy-kernel-test-roles.sql] creates, and
- * hands out ready-to-use [DataSource]s for each — so a test proves RLS against
- * the actual database CS-19 targets, not a fake.
+ * container running the two roles [tenancy-kernel-test-roles.sql] creates and the probe table, and names the
+ * container's URL and logins — so a test proves RLS against the actual database CS-19 targets, not a fake.
  *
- * One instance per test class, started once and stopped in [close]; a test
- * class typically wants one per PostgreSQL version under test
- * (`@ParameterizedTest` over `postgres:17` and `postgres:18`, the done-when's
- * own matrix), so this is a value a test constructs itself rather than a
- * shared JUnit extension singleton.
+ * It names no `java.sql`, `javax.sql` or `org.postgresql` type (coordinator ruling INV-Q-5208): a test builds its pool
+ * from [jdbcUrl] and the login strings through [TestPoolFixture]. The probe table `tenancy_kernel_test.probe` is
+ * created at container start by the init script: the roles script, `SET ROLE` to the owner, the table and the text of
+ * [TenantRlsMigration.ddl], generated here and never a static copy.
+ *
+ * One instance per test class, started once and stopped in [close]; a test class typically wants one per PostgreSQL
+ * version under test (`@ParameterizedTest` over `postgres:17` and `postgres:18`, the done-when's own matrix), so this is
+ * a value a test constructs itself rather than a shared JUnit extension singleton.
  */
 class PostgresProbeFixture(
     image: String,
+    /** More provisioning SQL, run once at container start as the owner role after the probe table (INV-Q-5208). */
+    initSql: String = "",
 ) : AutoCloseable {
-    private val container: Postgres =
-        Postgres(
-            DockerImageName.parse(image),
-        ).withInitScript("db/tenancy-kernel-test-roles.sql")
+    private val script: Path = Files.createTempFile("tenancy-kernel-init", ".sql")
+
+    private val container: Postgres
 
     init {
+        val roles =
+            checkNotNull(PostgresProbeFixture::class.java.getResourceAsStream("/db/tenancy-kernel-test-roles.sql")) {
+                "db/tenancy-kernel-test-roles.sql is missing"
+            }.use { String(it.readAllBytes(), Charsets.UTF_8) }
+        Files.writeString(script, roles + "\n" + probeTableScript(initSql))
+        container =
+            Postgres(DockerImageName.parse(image))
+                .withCopyFileToContainer(
+                    MountableFile.forHostPath(script, READABLE),
+                    "/docker-entrypoint-initdb.d/00-init.sql",
+                )
         container.start()
     }
 
-    /** The JDBC URL of the running container, for a test that builds its own [DataSource] (e.g. [SingleSlotDataSource]). */
+    /** The JDBC URL of the running container, for a test that builds its own pool (see [TestPoolFixture]). */
     fun jdbcUrl(): String = container.jdbcUrl
 
-    /** The migration/owner role — DDL only, used to create the probe table and apply [TenantRlsMigration]. */
-    fun ownerDataSource(): DataSource = dataSourceFor("tenancy_kernel_owner", "tenancy_kernel_owner_pw")
-
-    /**
-     * The runtime application role — [TenantAwareDataSource]-wrapped, `NOSUPERUSER`,
-     * `NOBYPASSRLS`, owns no table (S2-05): every query through this DataSource is
-     * subject to the same RLS a real service's connection would be.
-     */
-    fun appDataSource(): DataSource =
-        TenantAwareDataSource(dataSourceFor("tenancy_kernel_app", "tenancy_kernel_app_pw"))
-
-    /** The one probe table this module's own tests exercise the RLS mechanism against. */
-    fun createProbeTable(owner: DataSource) {
-        owner.connection.use { connection ->
-            connection.createStatement().use { statement ->
-                statement.execute(
-                    """
-                    CREATE TABLE tenancy_kernel_test.probe (
-                        id        uuid PRIMARY KEY,
-                        tenant_id uuid NOT NULL,
-                        value     text NOT NULL
-                    )
-                    """.trimIndent(),
-                )
-                statement.execute(TenantRlsMigration.ddl(schema = "tenancy_kernel_test", table = "probe"))
-            }
-        }
-    }
-
     override fun close() {
-        container.stop()
+        try {
+            container.stop()
+        } finally {
+            Files.deleteIfExists(script)
+        }
     }
 
-    private fun dataSourceFor(
-        user: String,
-        password: String,
-    ): DataSource =
-        PGSimpleDataSource().apply {
-            setUrl(container.jdbcUrl)
-            this.user = user
-            this.password = password
-        }
+    /** The probe table this module's own tests exercise the RLS mechanism against, as the owner role. */
+    private fun probeTableScript(initSql: String): String =
+        """
+        SET ROLE $OWNER;
+        CREATE TABLE tenancy_kernel_test.probe (
+            id        uuid PRIMARY KEY,
+            tenant_id uuid NOT NULL,
+            value     text NOT NULL
+        );
+        ${TenantRlsMigration.ddl(schema = "tenancy_kernel_test", table = "probe")}
+        $initSql
+        RESET ROLE;
+        """.trimIndent()
+
+    companion object {
+        /** The init script is read by the container's postgres user: mode 0644 (a temp file is 0600). */
+        private const val READABLE = 420
+
+        /** The migration/owner role — DDL only. */
+        const val OWNER = "tenancy_kernel_owner"
+        const val OWNER_PASSWORD = "tenancy_kernel_owner_pw"
+
+        /**
+         * The runtime application role — `NOSUPERUSER`, `NOBYPASSRLS`, owns no table (S2-05): every query as this login
+         * is subject to the same RLS a real service's connection would be.
+         */
+        const val APP = "tenancy_kernel_app"
+        const val APP_PASSWORD = "tenancy_kernel_app_pw"
+    }
 }

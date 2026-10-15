@@ -2,11 +2,13 @@ package com.dynokore.platform.serviceruntime.operation
 
 import com.dynokore.platform.auditlog.AuditEntry
 import com.dynokore.platform.auditlog.AuditWriter
-import com.dynokore.platform.tenancykernel.CurrentConnection
 import com.dynokore.platform.tenancykernel.TransactionRunner
+import org.jooq.DSLContext
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 
 /**
- * [OperationRunner] over the service's [TransactionRunner] (with its [CurrentConnection]) and [AuditWriter] (INV-REQ-957, INV-REQ-1010). The
+ * [OperationRunner] over the service's [TransactionRunner] and the DSLContext of tenancy-jooq's factory and [AuditWriter] (INV-REQ-957, INV-REQ-1010). The
  * caller has bound the tenant (ARC-21). Order: the role and scope check (b2, CS-23); then in one transaction
  * (ARC-05) a transaction-scoped lock on (operation id, repeat key), so two concurrent commands with the same key
  * run one after the other and the second sees the first's committed state (INV-REQ-1010); the repeat check
@@ -17,7 +19,7 @@ import com.dynokore.platform.tenancykernel.TransactionRunner
  */
 class TransactionalOperationRunner(
     private val transactions: TransactionRunner,
-    private val connections: CurrentConnection,
+    private val dsl: DSLContext,
     private val audit: AuditWriter,
 ) : OperationRunner {
     override fun <C, S, R> run(
@@ -68,9 +70,17 @@ class TransactionalOperationRunner(
         operationId: String,
         key: String,
     ) {
-        connections.require().prepareStatement("select pg_advisory_xact_lock(hashtextextended(?, 0))").use { s ->
-            s.setString(1, "$operationId:$key")
-            s.executeQuery().close()
-        }
+        val lock =
+            DSL.function(
+                DSL.name("pg_advisory_xact_lock"),
+                SQLDataType.OTHER,
+                DSL.function(
+                    DSL.name("hashtextextended"),
+                    SQLDataType.BIGINT,
+                    DSL.`val`("$operationId:$key"),
+                    DSL.`val`(0L),
+                ),
+            )
+        dsl.select(lock).fetch()
     }
 }

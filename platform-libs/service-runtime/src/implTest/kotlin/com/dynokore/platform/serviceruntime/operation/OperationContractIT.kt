@@ -14,8 +14,11 @@ import com.dynokore.platform.serviceruntime.jobs.JobsHarness.Companion.SCHEMA
 import com.dynokore.platform.serviceruntime.jobs.JobsHarness.Companion.START
 import com.dynokore.platform.serviceruntime.jobs.JobsHarness.Companion.TENANT_A
 import com.dynokore.platform.serviceruntime.jobs.MutableClock
+import com.dynokore.platform.tenancyjooq.TableClass
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
@@ -34,18 +37,23 @@ import java.util.concurrent.TimeUnit
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class OperationContractIT {
-    private val h = JobsHarness("postgres:17")
-    private val replica = h.replica("svc-1", MutableClock(START))
-    private val runner = TransactionalOperationRunner(replica.tx, replica.tx, OutboxAuditWriter(replica.outbox))
-
-    init {
-        h.fixture.run(
+    // the fixture table is created with the service at container start (INV-Q-5119); it is a tenant table
+    private val h =
+        JobsHarness(
+            "postgres:17",
             """
-            create table $SCHEMA.fixture_doc (id text primary key, state text not null, approved_by_key text);
+            create table $SCHEMA.fixture_doc (id text primary key, tenant_id uuid not null, state text not null, approved_by_key text);
             grant select, insert, update on $SCHEMA.fixture_doc to ${OutboxPostgresFixture.APP};
             """.trimIndent(),
+            mapOf("$SCHEMA.fixture_doc" to TableClass.TENANT),
         )
-    }
+    private val replica = h.replica("svc-1", MutableClock(START))
+    private val runner = TransactionalOperationRunner(replica.tx, replica.dsl, OutboxAuditWriter(replica.outbox))
+    private val fixtureDoc = DSL.table(DSL.name(SCHEMA, "fixture_doc"))
+    private val docId = DSL.field(DSL.name("id"), SQLDataType.CLOB)
+    private val docTenant = DSL.field(DSL.name("tenant_id"), SQLDataType.UUID)
+    private val docState = DSL.field(DSL.name("state"), SQLDataType.CLOB)
+    private val docKey = DSL.field(DSL.name("approved_by_key"), SQLDataType.CLOB)
 
     @AfterAll
     fun close() = h.close()
@@ -81,17 +89,13 @@ class OperationContractIT {
 
         override fun load(command: Approve): Doc {
             loads++
-            // runs inside the runner's transaction: read through its connection, locking the row
-            val rows = mutableListOf<Doc>()
-            val lock = if (lockRow) " for update" else ""
-            replica.tx
-                .require()
-                .prepareStatement(
-                    "select state, approved_by_key from $SCHEMA.fixture_doc where id = ?$lock",
-                ).use { s ->
-                    s.setString(1, command.doc)
-                    s.executeQuery().use { r -> while (r.next()) rows += Doc(r.getString(1), r.getString(2)) }
-                }
+            // runs inside the runner's transaction: read through its DSLContext, locking the row
+            val query =
+                replica.dsl
+                    .select(docState, docKey)
+                    .from(fixtureDoc)
+                    .where(docId.eq(command.doc))
+            val rows = (if (lockRow) query.forUpdate() else query).fetch { Doc(it.get(docState), it.get(docKey)) }
             afterLoad()
             return rows.singleOrNull() ?: Doc(null, null)
         }
@@ -114,15 +118,12 @@ class OperationContractIT {
             command: Approve,
             state: Doc,
         ): String {
-            replica.tx
-                .require()
-                .prepareStatement(
-                    "update $SCHEMA.fixture_doc set state = 'APPROVED', approved_by_key = ? where id = ?",
-                ).use {
-                    it.setString(1, repeatKey(command))
-                    it.setString(2, command.doc)
-                    it.executeUpdate()
-                }
+            replica.dsl
+                .update(fixtureDoc)
+                .set(docState, "APPROVED")
+                .set(docKey, repeatKey(command))
+                .where(docId.eq(command.doc))
+                .execute()
             return "APPROVED"
         }
 
@@ -154,18 +155,15 @@ class OperationContractIT {
     private fun insert(doc: String) =
         replica.asTenant(TENANT_A) {
             replica.tx.inTransaction {
-                replica.tx
-                    .require()
-                    .prepareStatement(
-                        "insert into $SCHEMA.fixture_doc (id, state) values (?, 'DRAFT')",
-                    ).use {
-                        it.setString(1, doc)
-                        it.executeUpdate()
-                    }
+                replica.dsl
+                    .insertInto(fixtureDoc)
+                    .columns(docId, docTenant, docState)
+                    .values(doc, TENANT_A.value, "DRAFT")
+                    .execute()
             }
         }
 
-    private fun state(doc: String) = h.rows("select state from $SCHEMA.fixture_doc where id = ?", doc).single()["state"]
+    private fun state(doc: String) = h.rows("$SCHEMA.fixture_doc", "id" to doc).single()["state"]
 
     private fun audits(doc: String) = h.events(AUDIT, "fixture/$doc")
 
@@ -241,7 +239,7 @@ class OperationContractIT {
         val failing =
             TransactionalOperationRunner(
                 replica.tx,
-                replica.tx,
+                replica.dsl,
                 object : AuditWriter by OutboxAuditWriter(replica.outbox) {
                     override fun record(
                         entry: AuditEntry,

@@ -14,14 +14,19 @@ import com.dynokore.platform.serviceruntime.pool.PoolLane
 import com.dynokore.platform.serviceruntime.pool.PoolLanes
 import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantId
+import org.jooq.DSLContext
+import org.jooq.DatePart
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import org.slf4j.LoggerFactory
+import tools.jackson.databind.ObjectMapper
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.time.OffsetDateTime
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executor
-import javax.sql.DataSource
 
 /**
  * A [JobCommandJournal] that also opens the command's transaction: [JobRuntime] calls [begin] as the first step
@@ -40,8 +45,9 @@ interface TransactionalJobCommandJournal : JobCommandJournal {
  *
  * The service keeps its own scheduler (INV-REQ-1136 b2): its `@Scheduled` method calls [fire] at each
  * firing on every instance; the lock and the `job_run` key make one run per tick. Wiring:
- * - [scope]: the service's tenant binding, transactions and current connection, on the runtime login;
- * - [runtime]: the service's one application DataSource, the runtime login, for ShedLock's table (no tenant data);
+ * - [scope]: the service's tenant binding and transactions, on the runtime login;
+ * - [dsl]: the DSLContext of tenancy-jooq's factory, which every statement of the job state goes through;
+ * - leader election: ShedLock over the service's `shedlock` table (no tenant data) through [dsl] and [scope];
  * - [outbox] and [audit]: the service's outbox writer and audit writer (INV-REQ-1226, INV-REQ-2588).
  *
  * Actors (owner ruling INV-Q-4344 (b), coordinator ruling INV-Q-4268): a job's runs (the firing, the claim of its
@@ -55,9 +61,9 @@ class JobRuntime(
     private val service: String,
     schema: String,
     private val scope: TenantScope,
+    private val dsl: DSLContext,
     private val outbox: OutboxWriter,
     private val audit: AuditWriter,
-    private val runtime: DataSource,
     private val authorizer: JobCommandAuthorizer,
     private val deadlines: DeadlineSource,
     private val clock: Clock,
@@ -66,11 +72,11 @@ class JobRuntime(
     val retention: Duration = DEFAULT_RETENTION,
 ) : JobCommands {
     private val principal = WorkloadPrincipal(service)
-    private val inProgress = "${SqlIdentifier.require(schema, "schema")}.${JobSchema.IN_PROGRESS_VIEW}"
-    private val purgeExpired = "${SqlIdentifier.require(schema, "schema")}.${JobSchema.PURGE_EXPIRED}"
-    private val retentionWindow = "${SqlIdentifier.require(schema, "schema")}.${JobSchema.RETENTION_WINDOW}"
-    private val state = JdbcJobState(scope.connections, schema, service)
-    private val election = ShedLockLeaderElection.postgres(runtime, schema, clock)
+    private val inProgress = DSL.name(SqlIdentifier.require(schema, "schema"), JobSchema.IN_PROGRESS_RUNS)
+    private val purgeExpired = DSL.name(SqlIdentifier.require(schema, "schema"), JobSchema.PURGE_EXPIRED)
+    private val retentionWindow = DSL.name(SqlIdentifier.require(schema, "schema"), JobSchema.RETENTION_WINDOW)
+    private val state = JdbcJobState(dsl, schema, service)
+    private val election = ShedLockLeaderElection.postgres(dsl, scope, schema, clock)
 
     init {
         require(scope.workloadPrincipal == principal.value) {
@@ -190,13 +196,8 @@ class JobRuntime(
         val window =
             scope.bindWorkload(TenantId.PLATFORM) {
                 scope.transactions.inTransaction {
-                    scope.connections
-                        .require()
-                        .prepareStatement(
-                            "select extract(epoch from $retentionWindow())::bigint",
-                        ).use {
-                            it.executeQuery().use { rows -> if (rows.next()) rows.getObject(1) as Long? else null }
-                        }
+                    val interval = DSL.function(retentionWindow, SQLDataType.INTERVALDAYTOSECOND)
+                    dsl.select(DSL.extract(interval, DatePart.EPOCH).cast(SQLDataType.BIGINT)).fetchOne()?.value1()
                 }
             }
         check(window != null) { "the job-retention row is missing: run the service's migration (INV-Q-4346)" }
@@ -219,10 +220,10 @@ class JobRuntime(
             val deleted =
                 scope.bindWorkload(TenantId.PLATFORM) {
                     scope.transactions.inTransaction {
-                        scope.connections.require().prepareStatement("select $purgeExpired(?)").use {
-                            it.setInt(1, PURGE_BATCH)
-                            it.executeQuery().use { rows -> if (rows.next()) rows.getObject(1) as Long? else null }
-                        }
+                        dsl
+                            .select(DSL.function(purgeExpired, SQLDataType.BIGINT, DSL.`val`(PURGE_BATCH)))
+                            .fetchOne()
+                            ?.value1()
                     }
                 }
             if (deleted == null) {
@@ -596,42 +597,38 @@ class JobRuntime(
     private fun abandonedCandidates(): List<Candidate> =
         scope.bindWorkload(TenantId.PLATFORM) {
             scope.transactions.inTransaction {
-                scope.connections
-                    .require()
-                    .prepareStatement(
-                        """
-                        select tenant_id, job, entity_ref, tick, trigger, attempt, started_at from $inProgress
-                        order by started_at limit ?
-                        """.trimIndent(),
-                    ).use { statement ->
-                        statement.setInt(1, SWEEP_BATCH)
-                        statement.executeQuery().use { rows ->
-                            buildList {
-                                while (rows.next()) {
-                                    val tenant = TenantId(rows.getObject(1, UUID::class.java))
-                                    val target =
-                                        if (tenant.isPlatform) {
-                                            JobTarget.Whole
-                                        } else {
-                                            JobTarget.Entity(
-                                                tenant,
-                                                EntityRef(rows.getString(3)),
-                                            )
-                                        }
-                                    add(
-                                        Candidate(
-                                            rows.getString(2),
-                                            target,
-                                            rows.getTimestamp(4).toInstant(),
-                                            JobTrigger.valueOf(rows.getString(5)),
-                                            rows.getInt(6),
-                                            rows.getTimestamp(7).toInstant(),
-                                        ),
-                                    )
-                                }
-                            }
-                        }
+                val runs = DSL.function(inProgress, SQLDataType.JSONB, DSL.`val`(SWEEP_BATCH))
+                val json =
+                    dsl
+                        .select(runs)
+                        .fetchOne()
+                        ?.value1()
+                        ?.data()
+                parseCandidates(json)
+            }
+        }
+
+    /** The function's one jsonb array of objects (JobSchema.IN_PROGRESS_RUNS) as candidates, in its order. */
+    private fun parseCandidates(json: String?): List<Candidate> =
+        if (json == null) {
+            emptyList()
+        } else {
+            JSON.readTree(json).values().map { run ->
+                val tenant = TenantId(UUID.fromString(run.get("tenant_id").asString()))
+                val target =
+                    if (tenant.isPlatform) {
+                        JobTarget.Whole
+                    } else {
+                        JobTarget.Entity(tenant, EntityRef(run.get("entity_ref").asString()))
                     }
+                Candidate(
+                    run.get("job").asString(),
+                    target,
+                    OffsetDateTime.parse(run.get("tick").asString()).toInstant(),
+                    JobTrigger.valueOf(run.get("trigger").asString()),
+                    run.get("attempt").asInt(),
+                    OffsetDateTime.parse(run.get("started_at").asString()).toInstant(),
+                )
             }
         }
 
@@ -717,6 +714,7 @@ class JobRuntime(
         private const val SWEEP_BATCH = 500
         private const val PURGE_BATCH = 1000
         private val log = LoggerFactory.getLogger(JobRuntime::class.java)
+        private val JSON = ObjectMapper()
         private val REFUSED_SCOPE = JobCommandOutcome.Refused(JobErrorCode.SCOPE_NOT_PERMITTED)
     }
 }

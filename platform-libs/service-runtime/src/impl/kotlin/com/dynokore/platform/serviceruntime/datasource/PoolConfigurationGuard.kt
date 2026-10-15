@@ -14,8 +14,6 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.Ordered
 import org.springframework.core.env.Environment
-import java.beans.Introspector
-import javax.sql.DataSource
 
 /**
  * Coordinator ruling INV-Q-4542, checked on what each pool actually receives: [SqlConfigurationKeyGuard] reads the
@@ -92,12 +90,8 @@ class PoolConfigurationGuard(
         internal const val SERVICE = "gst.service"
         private const val FIRST_PASS = "before its pool starts"
 
-        /** The pool of [bean] when it is a HikariConfig or a DataSource that wraps a HikariDataSource, else null. */
-        fun poolOf(bean: Any): HikariConfig? =
-            (bean as? HikariConfig)
-                ?: (bean as? DataSource)
-                    ?.takeIf { runCatching { it.isWrapperFor(HikariDataSource::class.java) }.getOrDefault(false) }
-                    ?.unwrap(HikariDataSource::class.java)
+        /** The pool of [bean] when it is a HikariConfig (a HikariDataSource is one), else null; a wrapper is not followed. */
+        fun poolOf(bean: Any): HikariConfig? = bean as? HikariConfig
 
         /** Fails naming [beanName] and every refused property of its pool (never a value, CS-24); [pass] says when. */
         fun verify(
@@ -118,13 +112,102 @@ class PoolConfigurationGuard(
         private const val APPLICATION_NAME = "ApplicationName"
         private const val SECRET_STORE_PROVIDER = "SecretStoreCredentialsProvider"
 
-        /** Every HikariConfig property with a getter, by its bean property name. */
-        val PROPERTIES: Map<String, java.lang.reflect.Method> =
-            Introspector
-                .getBeanInfo(HikariConfig::class.java, Any::class.java)
-                .propertyDescriptors
-                .filter { it.readMethod != null }
-                .associate { it.name to it.readMethod }
+        /**
+         * The bean property names of the public no-argument get/is methods of the pinned HikariCP's HikariConfig
+         * (coordinator ruling INV-Q-5109); [PoolConfigurationGuardTest] holds the table equal to what `Class.getMethods`
+         * lists, so a HikariCP upgrade that adds a getter fails it until the property is classified.
+         */
+        val PROPERTIES: List<String> =
+            listOf(
+                "allowPoolSuspension",
+                "autoCommit",
+                "catalog",
+                "connectionInitSql",
+                "connectionTestQuery",
+                "connectionTimeout",
+                "credentials",
+                "credentialsProvider",
+                "credentialsProviderClassName",
+                "dataSource",
+                "dataSourceClassName",
+                "dataSourceJNDI",
+                "dataSourceProperties",
+                "driverClassName",
+                "exceptionOverride",
+                "exceptionOverrideClassName",
+                "healthCheckProperties",
+                "healthCheckRegistry",
+                "idleTimeout",
+                "initializationFailTimeout",
+                "isolateInternalQueries",
+                "jdbcUrl",
+                "keepaliveTime",
+                "leakDetectionThreshold",
+                "maxLifetime",
+                "maximumPoolSize",
+                "metricRegistry",
+                "metricsTrackerFactory",
+                "minimumIdle",
+                "password",
+                "poolName",
+                "readOnly",
+                "registerMbeans",
+                "scheduledExecutor",
+                "schema",
+                "threadFactory",
+                "transactionIsolation",
+                "username",
+                "validationTimeout",
+            )
+
+        /** The value of [property] on [pool], by a direct getter call (no reflection); `dataSource` reports whether it is set. */
+        @Suppress("CyclomaticComplexMethod", "LongMethod")
+        internal fun read(
+            pool: HikariConfig,
+            property: String,
+        ): Any? =
+            when (property) {
+                "allowPoolSuspension" -> pool.isAllowPoolSuspension
+                "autoCommit" -> pool.isAutoCommit
+                "catalog" -> pool.catalog
+                "connectionInitSql" -> pool.connectionInitSql
+                "connectionTestQuery" -> pool.connectionTestQuery
+                "connectionTimeout" -> pool.connectionTimeout
+                "credentials" -> pool.credentials
+                "credentialsProvider" -> pool.credentialsProvider
+                "credentialsProviderClassName" -> pool.credentialsProviderClassName
+                "dataSource" -> pool.dataSource != null
+                "dataSourceClassName" -> pool.dataSourceClassName
+                "dataSourceJNDI" -> pool.dataSourceJNDI
+                "dataSourceProperties" -> pool.dataSourceProperties
+                "driverClassName" -> pool.driverClassName
+                "exceptionOverride" -> pool.exceptionOverride
+                "exceptionOverrideClassName" -> pool.exceptionOverrideClassName
+                "healthCheckProperties" -> pool.healthCheckProperties
+                "healthCheckRegistry" -> pool.healthCheckRegistry
+                "idleTimeout" -> pool.idleTimeout
+                "initializationFailTimeout" -> pool.initializationFailTimeout
+                "isolateInternalQueries" -> pool.isIsolateInternalQueries
+                "jdbcUrl" -> pool.jdbcUrl
+                "keepaliveTime" -> pool.keepaliveTime
+                "leakDetectionThreshold" -> pool.leakDetectionThreshold
+                "maxLifetime" -> pool.maxLifetime
+                "maximumPoolSize" -> pool.maximumPoolSize
+                "metricRegistry" -> pool.metricRegistry
+                "metricsTrackerFactory" -> pool.metricsTrackerFactory
+                "minimumIdle" -> pool.minimumIdle
+                "password" -> pool.password
+                "poolName" -> pool.poolName
+                "readOnly" -> pool.isReadOnly
+                "registerMbeans" -> pool.isRegisterMbeans
+                "scheduledExecutor" -> pool.scheduledExecutor
+                "schema" -> pool.schema
+                "threadFactory" -> pool.threadFactory
+                "transactionIsolation" -> pool.transactionIsolation
+                "username" -> pool.username
+                "validationTimeout" -> pool.validationTimeout
+                else -> error("the pool property '$property' is not in the table (P140)")
+            }
 
         /** Every refused property of [pool], sorted, with the reason; [service] is `gst.service`. */
         fun findOffendingProperties(
@@ -133,11 +216,11 @@ class PoolConfigurationGuard(
         ): List<String> {
             val defaults = HikariConfig()
             return PROPERTIES
-                .mapNotNull { (property, getter) ->
-                    val value = getter.invoke(pool)
+                .mapNotNull { property ->
+                    val value = read(pool, property)
                     when {
                         property in ALLOWED -> ALLOWED.getValue(property)(value, service)
-                        value == getter.invoke(defaults) -> null
+                        value == read(defaults, property) -> null
                         property in AT_DEFAULT -> "set"
                         else -> "set, and not classified (P140)"
                     }?.let { "$property ($it)" }
@@ -227,7 +310,7 @@ class PoolConfigurationGuard(
 
 /**
  * The second pass of [PoolConfigurationGuard] (coordinator ruling INV-Q-4603): once every singleton exists, every
- * HikariDataSource bean (and every HikariConfig or DataSource wrapping one) is checked again with the same
+ * HikariConfig bean (a HikariDataSource is one) is checked again with the same
  * deny-by-default rules. A pool created before the guard was registered (a bean a BeanFactoryPostProcessor fetched
  * early, which no BeanPostProcessor sees) or changed after its first check fails start-up, naming the bean and the
  * properties, never a value (CS-24).
@@ -244,9 +327,9 @@ class PoolConfigurationRecheck(
 
     override fun afterSingletonsInstantiated() {
         val service = environment.getProperty(PoolConfigurationGuard.SERVICE)
-        listOf(HikariConfig::class.java, DataSource::class.java)
-            .flatMap { type -> beanFactory.getBeansOfType(type, false, false).entries }
-            .distinctBy { it.key }
+        beanFactory
+            .getBeansOfType(HikariConfig::class.java, false, false)
+            .entries
             .sortedBy { it.key }
             .forEach { (name, bean) -> PoolConfigurationGuard.verify(bean, name, service, SECOND_PASS) }
     }

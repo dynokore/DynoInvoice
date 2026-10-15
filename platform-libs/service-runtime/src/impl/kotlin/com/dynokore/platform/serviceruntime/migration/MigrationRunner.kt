@@ -4,29 +4,28 @@ import com.dynokore.platform.serviceruntime.binding.BindingAutoConfiguration
 import com.dynokore.platform.serviceruntime.composition.JobProperties
 import com.dynokore.platform.serviceruntime.composition.ModuleProperties
 import com.dynokore.platform.serviceruntime.datasource.DatabaseCredentialsConfiguration
-import com.dynokore.platform.serviceruntime.jobs.JobSchema
 import com.dynokore.platform.tenancykernel.SqlIdentifier
-import org.flywaydb.core.Flyway
 import org.slf4j.LoggerFactory
-import org.springframework.boot.ApplicationRunner
 import org.springframework.boot.WebApplicationType
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration
 import org.springframework.boot.builder.SpringApplicationBuilder
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration
+import org.springframework.boot.flyway.autoconfigure.FlywayConfigurationCustomizer
 import org.springframework.context.ApplicationContextInitializer
 import org.springframework.context.ConfigurableApplicationContext
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Import
+import org.springframework.core.env.Environment
 import org.springframework.core.env.MapPropertySource
 
 /**
  * The migration runner (INV-REQ-1189 b5; owner ruling INV-Q-3959): the entry point of a service's migration Job. It
  * runs the service's Flyway migrations (STK-16) as the service's `<svc>_migrate` login, `spring.flyway.user`, whose
- * password it reads through SecretStore from `service-runtime.flyway.credential` (STK-29, INV-Q-3909), then writes the
- * job-retention row from `service-runtime.jobs.retention` when the service's schema has one (coordinator ruling
- * INV-Q-4346 (A)), and exits. The service itself no longer migrates at start-up (`spring.flyway.enabled=false` in
+ * password it reads through SecretStore from `service-runtime.flyway.credential` (STK-29, INV-Q-3909), and its Flyway afterMigrate callback writes the
+ * job-retention row from `service-runtime.jobs.retention` when the service's schema has one (coordinator rulings
+ * INV-Q-4346 (A), INV-Q-5113), and exits. The service itself no longer migrates at start-up (`spring.flyway.enabled=false` in
  * service-runtime's defaults).
  *
  * It refuses to run unless `spring.flyway.user` is a `<svc>_migrate` login and `service-runtime.flyway.credential`
@@ -77,31 +76,40 @@ object MigrationRunner {
 @EnableConfigurationProperties(JobProperties::class, ModuleProperties::class)
 class MigrationRunnerConfiguration {
     /**
-     * After the migrations, the job-retention row with bound parameters on the `<svc>_migrate` connection, when
-     * `service-runtime.modules.schema` names a schema with the job tables (a service without jobs has none).
+     * Adds the job-retention callback (coordinator ruling INV-Q-5113): when `service-runtime.modules.schema` names a
+     * schema, the location of the `afterMigrate` SQL callback and its placeholders `jobSchema` (validated by
+     * [SqlIdentifier.require]) and `jobRetentionSeconds` (the digits of the positive retention in seconds). A service
+     * without a schema gets neither; one whose schema has no job tables migrates and the callback writes nothing.
      */
     @Bean
-    fun jobRetentionRow(
-        flyway: Flyway,
+    fun jobRetentionCallback(
         modules: ModuleProperties,
         jobs: JobProperties,
-    ): ApplicationRunner =
-        ApplicationRunner {
-            val schema = modules.schema?.takeIf { it.isNotBlank() } ?: return@ApplicationRunner
-            flyway.configuration.dataSource.connection.use { connection ->
-                val present =
-                    connection.prepareStatement("select to_regclass(?) is not null").use {
-                        it.setString(1, "${SqlIdentifier.require(schema, "schema")}.${JobSchema.JOB_RETENTION}")
-                        it.executeQuery().use { rows -> rows.next() && rows.getBoolean(1) }
-                    }
-                if (present) {
-                    JobSchema.writeRetention(connection, schema, jobs.retention)
-                    log.info("job retention row written: {}", jobs.retention)
-                }
+        environment: Environment,
+    ): FlywayConfigurationCustomizer =
+        FlywayConfigurationCustomizer { configuration ->
+            val schema = modules.schema?.takeIf { it.isNotBlank() }
+            if (schema != null) {
+                require(jobs.retention.isPositive) { "the job retention must be positive" }
+                configuration.placeholders(
+                    mapOf(
+                        JOB_SCHEMA to SqlIdentifier.require(schema, "schema"),
+                        JOB_RETENTION_SECONDS to jobs.retention.seconds.toString(),
+                    ),
+                )
+                // the service's own locations (Spring Boot's default when it sets none) plus the callback's
+                val own = environment.getProperty(LOCATIONS, DEFAULT_LOCATION).split(',').map { it.trim() }
+                configuration.locations(*(own + CALLBACK_LOCATION).toTypedArray())
+                log.info("job retention callback added: {}", jobs.retention)
             }
         }
 
     private companion object {
+        const val CALLBACK_LOCATION = "classpath:db/service-runtime-migration-runner"
+        const val LOCATIONS = "spring.flyway.locations"
+        const val DEFAULT_LOCATION = "classpath:db/migration"
+        const val JOB_SCHEMA = "jobSchema"
+        const val JOB_RETENTION_SECONDS = "jobRetentionSeconds"
         val log = LoggerFactory.getLogger(MigrationRunnerConfiguration::class.java)
     }
 }

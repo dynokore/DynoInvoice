@@ -13,7 +13,7 @@ import com.dynokore.platform.serviceruntime.jobs.DeadlineSource
 import com.dynokore.platform.serviceruntime.jobs.JobCommandAuthorizer
 import com.dynokore.platform.serviceruntime.jobs.JobCommands
 import com.dynokore.platform.serviceruntime.operation.OperationRunner
-import com.dynokore.platform.serviceruntime.pool.LanedDataSource
+import com.dynokore.platform.serviceruntime.pool.LaneGateHolder
 import com.dynokore.platform.tenancykernel.CurrentConnection
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import com.zaxxer.hikari.HikariDataSource
@@ -100,14 +100,15 @@ class Tpl16ServiceCompositionTest {
                     context.startupFailure shouldBe null
                     // one pool: a second application pool bean, or any role DataSource, fails here (INV-Q-3955)
                     context.getBeanNamesForType(DataSource::class.java).toList() shouldBe listOf("dataSource")
-                    // the pool under its lanes (INV-REQ-1230 b1): one HikariCP pool, no second one
+                    // one HikariCP pool, no second one, sized to the lane budgets' sum (INV-REQ-1230 b1)
                     context
-                        .getBean(
-                            DataSource::class.java,
-                        ).shouldBeInstanceOf<LanedDataSource>()
-                        .unwrap(HikariDataSource::class.java)
-                        .maximumPoolSize shouldBe
-                        6
+                        .getBean(DataSource::class.java)
+                        .shouldBeInstanceOf<HikariDataSource>()
+                        .maximumPoolSize shouldBe 6
+                    context
+                        .getBean(LaneGateHolder::class.java)
+                        .permits()
+                        .budgets.maximum shouldBe 6
                     context.getBean(TenantScope::class.java).workloadPrincipal shouldBe "svc:submission-svc"
                 }
         }

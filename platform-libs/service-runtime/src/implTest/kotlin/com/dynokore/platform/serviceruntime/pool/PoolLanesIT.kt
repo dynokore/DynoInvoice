@@ -6,6 +6,8 @@ import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Comp
 import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Companion.sql
 import com.dynokore.platform.serviceruntime.datasource.tpl18Service
 import com.dynokore.platform.serviceruntime.datasource.withMountedLogin
+import com.dynokore.platform.serviceruntime.pool.LaneGateHolder
+import com.dynokore.platform.tenancykernel.TenantAwareDataSource
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
@@ -68,9 +70,11 @@ class PoolLanesIT {
             "service-runtime.pool.runs-reprocessing=true",
         ).run { context ->
             context.startupFailure shouldBe null
-            val dataSource = context.getBean(DataSource::class.java).shouldBeInstanceOf<LanedDataSource>()
-            dataSource.budgets shouldBe LaneBudgets(4, 2, 1)
-            dataSource.unwrap(HikariDataSource::class.java).maximumPoolSize shouldBe 7
+            val pool = context.getBean(DataSource::class.java).shouldBeInstanceOf<HikariDataSource>()
+            val gate = context.getBean(LaneGateHolder::class.java).permits()
+            val dataSource: DataSource = TenantAwareDataSource(pool, gate)
+            gate.budgets shouldBe LaneBudgets(4, 2, 1)
+            pool.maximumPoolSize shouldBe 7
             val background = Executors.newFixedThreadPool(3)
             try {
                 // the background lane saturated (2 of 2) and the reprocessing lane (1 of 1), held on other threads
@@ -94,7 +98,7 @@ class PoolLanesIT {
 
                 requests.forEach { it.close() }
                 others.forEach { it.close() }
-                PoolLane.entries.forEach { dataSource.availablePermits(it) shouldBe dataSource.budgets.of(it) }
+                PoolLane.entries.forEach { gate.availablePermits(it) shouldBe gate.budgets.of(it) }
             } finally {
                 background.shutdownNow()
             }
@@ -105,15 +109,17 @@ class PoolLanesIT {
     fun `a lane with a budget of 0 is refused, never run on a live lane`() {
         service("access-svc", "service-runtime.pool.profile=minimal").run { context ->
             context.startupFailure shouldBe null
-            val dataSource = context.getBean(DataSource::class.java).shouldBeInstanceOf<LanedDataSource>()
-            dataSource.budgets shouldBe LaneBudgets(4, 2, 0)
+            val pool = context.getBean(DataSource::class.java).shouldBeInstanceOf<HikariDataSource>()
+            val gate = context.getBean(LaneGateHolder::class.java).permits()
+            val dataSource: DataSource = TenantAwareDataSource(pool, gate)
+            gate.budgets shouldBe LaneBudgets(4, 2, 0)
             val refused =
                 shouldThrow<SQLTransientConnectionException> {
                     PoolLanes.inLane(PoolLane.REPROCESSING) { dataSource.connection.close() }
                 }
             refused.message shouldBe
                 "the REPROCESSING lane has no permits (budget 0) and never runs on another lane (INV-REQ-1072 b5)"
-            PoolLane.entries.forEach { dataSource.availablePermits(it) shouldBe dataSource.budgets.of(it) }
+            PoolLane.entries.forEach { gate.availablePermits(it) shouldBe gate.budgets.of(it) }
         }
     }
 
@@ -165,7 +171,7 @@ class PoolLanesIT {
                 // the event-log pool copies the SecretStore credentials provider (INV-Q-4570)
                 .run { context ->
                     context.startupFailure shouldBe null
-                    context.getBean(DataSource::class.java).shouldBeInstanceOf<LanedDataSource>().budgets shouldBe
+                    context.getBean(LaneGateHolder::class.java).permits().budgets shouldBe
                         LaneBudgets(7, 3, 0)
                     val pool = context.getBean(ServiceDataSources.EVENT_LOG, HikariDataSource::class.java)
                     pool.maximumPoolSize shouldBe LaneBudgets.EVENT_LOG.maximum

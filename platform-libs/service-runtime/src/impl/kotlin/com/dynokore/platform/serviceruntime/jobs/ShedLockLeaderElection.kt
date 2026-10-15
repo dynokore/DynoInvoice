@@ -1,12 +1,10 @@
 package com.dynokore.platform.serviceruntime.jobs
 
-import com.dynokore.platform.tenancykernel.SqlIdentifier
+import com.dynokore.platform.outboxandqueue.TenantScope
 import net.javacrumbs.shedlock.core.LockConfiguration
 import net.javacrumbs.shedlock.core.LockProvider
-import net.javacrumbs.shedlock.provider.jdbctemplate.JdbcTemplateLockProvider
-import org.springframework.jdbc.core.JdbcTemplate
+import org.jooq.DSLContext
 import java.time.Clock
-import javax.sql.DataSource
 
 /**
  * Leader election with ShedLock 6 on PostgreSQL (STK-25, INV-REQ-2405 b1): at most one instance holds a
@@ -46,23 +44,15 @@ internal class ShedLockLeaderElection(
             }
 
         /**
-         * ShedLock over the service's own `shedlock` table (no tenant data), on the service's one application
-         * DataSource, the runtime login (INV-REQ-1230 b1, coordinator ruling INV-Q-4346).
+         * ShedLock over the service's own `shedlock` table (no tenant data, PLATFORM_SCOPED) on tenancy-jooq's
+         * DSLContext, each operation in one platform binding and one transaction of [scope] (owner answer to
+         * INV-Q-5210, option A): ShedLock core's [StorageBasedLockProvider] over [ShedLockJooqAccessor].
          */
         fun postgres(
-            runtime: DataSource,
+            dsl: DSLContext,
+            scope: TenantScope,
             schema: String,
             clock: Clock,
-        ) = ShedLockLeaderElection(
-            JdbcTemplateLockProvider(
-                JdbcTemplateLockProvider.Configuration
-                    .builder()
-                    .withJdbcTemplate(JdbcTemplate(runtime))
-                    .withTableName("${SqlIdentifier.require(schema, "schema")}.${JobSchema.SHEDLOCK}")
-                    .usingDbTime()
-                    .build(),
-            ),
-            clock,
-        )
+        ) = ShedLockLeaderElection(ShedLockJooqLockProvider(ShedLockJooqAccessor(scope, dsl, schema)), clock)
     }
 }

@@ -46,12 +46,6 @@ class EventLogDataSourceWiring {
     ): HikariDataSource {
         val application =
             (dataSource as? HikariDataSource)
-                ?: dataSource
-                    .takeIf {
-                        it.isWrapperFor(
-                            HikariDataSource::class.java,
-                        )
-                    }?.unwrap(HikariDataSource::class.java)
                 ?: error(
                     "the event-log pool takes the application pool's login, so the application DataSource must be a HikariDataSource (STK-17)",
                 )

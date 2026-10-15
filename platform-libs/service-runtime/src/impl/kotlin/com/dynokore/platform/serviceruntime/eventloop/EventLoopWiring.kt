@@ -43,7 +43,7 @@ class EventLoopWiring {
         )
 
     /** Bean name `eventLoops` is the health component `eventLoops` of the `ready` group. */
-    @Bean(EVENT_LOOPS_HEALTH)
+    @Bean(name = [EVENT_LOOPS_HEALTH])
     @ConditionalOnMissingBean(name = [EVENT_LOOPS_HEALTH])
     fun eventLoopsHealth(loops: ObjectProvider<EventLoops>): EventLoopHealthIndicator =
         EventLoopHealthIndicator { loops.getIfAvailable() }

@@ -2,8 +2,9 @@ package com.dynokore.platform.serviceruntime.eventloop
 
 import com.dynokore.platform.serviceruntime.pool.PoolLane
 import com.dynokore.platform.serviceruntime.pool.PoolLanes
+import com.dynokore.platform.tenancykernel.LaneRefusedException
+import com.dynokore.platform.tenancykernel.SqlErrors
 import org.slf4j.LoggerFactory
-import java.sql.SQLException
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -39,6 +40,7 @@ class EventLoop(
     private val interval: Duration,
     private val clock: Clock,
     private val jitter: DoubleSupplier,
+    private val errors: SqlErrors,
     private val onEnded: (EventLoop) -> Unit,
     private val call: () -> Boolean,
 ) {
@@ -144,14 +146,7 @@ class EventLoop(
         return Duration.ofMillis(maxOf(1L, (raw * spread).toLong()))
     }
 
-    private fun sqlState(error: Throwable): String? {
-        var cause: Throwable? = error
-        repeat(CAUSE_DEPTH) {
-            (cause as? SQLException)?.let { return it.sqlState }
-            cause = cause?.cause
-        }
-        return null
-    }
+    private fun sqlState(error: Throwable): String? = errors.sqlStateOf(error)
 
     /**
      * The message of the pool's own lane refusal ("the BACKGROUND lane's 2 permits stayed in use for 2000 ms"), which
@@ -160,7 +155,7 @@ class EventLoop(
     private fun laneMessage(error: Throwable): String? {
         var cause: Throwable? = error
         repeat(CAUSE_DEPTH) {
-            val message = (cause as? java.sql.SQLTransientConnectionException)?.message
+            val message = (cause as? LaneRefusedException)?.message
             if (message != null && LANE_REFUSAL.matches(message)) return message
             cause = cause?.cause
         }

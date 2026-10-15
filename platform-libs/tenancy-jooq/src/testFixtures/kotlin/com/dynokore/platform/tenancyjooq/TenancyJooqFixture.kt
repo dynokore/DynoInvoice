@@ -2,14 +2,15 @@ package com.dynokore.platform.tenancyjooq
 
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.PostgresProbeFixture
+import com.dynokore.platform.tenancykernel.TenantAwareDataSource
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantContextImpl
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
-import org.flywaydb.core.Flyway
 import org.jooq.Configuration
 import org.jooq.SQLDialect
 import org.jooq.impl.DefaultConfiguration
+import org.postgresql.ds.PGSimpleDataSource
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Proxy
@@ -27,7 +28,19 @@ internal class TenancyJooqFixture(
     image: String,
     vararg migrations: String,
 ) : AutoCloseable {
-    private val postgres = PostgresProbeFixture(image)
+    // the fixture's tables are created at container start, from the migration files, as the owner login
+    private val postgres =
+        PostgresProbeFixture(
+            image,
+            migrations.joinToString("\n") { location ->
+                val dir = location.removePrefix("classpath:")
+                val file = "$dir/V1__tenancy_jooq_test_tables.sql"
+                checkNotNull(
+                    TenancyJooqFixture::class.java.classLoader.getResourceAsStream(file),
+                ) { "$file is missing" }
+                    .use { String(it.readAllBytes(), Charsets.UTF_8) }
+            },
+        )
     private val statements: MutableList<String> = Collections.synchronizedList(mutableListOf())
     private val runnerImpl: TransactionRunnerImpl
     private val contextImpl = TenantContextImpl()
@@ -45,18 +58,19 @@ internal class TenancyJooqFixture(
     val probe: TenancyProbe
 
     init {
-        Flyway
-            .configure()
-            .dataSource(postgres.ownerDataSource())
-            .schemas("tenancy_kernel_test")
-            .createSchemas(false)
-            .table("tenancy_jooq_test_history")
-            .locations(*migrations)
-            .load()
-            .migrate()
-        runnerImpl = TransactionRunnerImpl(logging(postgres.appDataSource()), contextImpl)
-        probe = TenancyProbe.over(postgres.appDataSource())
+        runnerImpl = TransactionRunnerImpl(logging(runtimePool()), contextImpl)
+        probe = TenancyProbe.over(runtimePool())
     }
+
+    /** The runtime login's pool, wrapped as a service wires it. */
+    private fun runtimePool(): DataSource =
+        TenantAwareDataSource(
+            PGSimpleDataSource().apply {
+                setUrl(postgres.jdbcUrl())
+                user = PostgresProbeFixture.APP
+                password = PostgresProbeFixture.APP_PASSWORD
+            },
+        )
 
     /** A PostgreSQL configuration with tenancy-jooq installed for [tables]. */
     fun configuration(tables: TenancyTables): Configuration {

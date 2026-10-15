@@ -7,8 +7,11 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
+import org.postgresql.ds.PGSimpleDataSource
+import java.sql.Connection
 import java.sql.SQLException
 import java.util.UUID
+import javax.sql.DataSource
 
 /**
  * The done-when's own acceptance test: "Testcontainers tests on PostgreSQL 17
@@ -25,9 +28,6 @@ class TenancyKernelPostgresIT {
     @ValueSource(strings = ["postgres:17", "postgres:18"])
     fun `RLS isolation and pooled-connection cleanup hold`(image: String) {
         PostgresProbeFixture(image).use { fixture ->
-            val owner = fixture.ownerDataSource()
-            fixture.createProbeTable(owner)
-
             val tenantA = TenantId(UUID.randomUUID())
             val tenantB = TenantId(UUID.randomUUID())
 
@@ -42,7 +42,7 @@ class TenancyKernelPostgresIT {
 
     /** V-01 (TPL-14): the runtime role can neither read past RLS nor is exempt from it. */
     private fun assertConnectionIsNeitherSuperuserNorBypassRls(fixture: PostgresProbeFixture) {
-        fixture.appDataSource().connection.use { connection ->
+        app(fixture).connection.use { connection ->
             connection.createStatement().use { statement ->
                 statement
                     .executeQuery(
@@ -57,18 +57,18 @@ class TenancyKernelPostgresIT {
 
     /** CS-19 "V-10": unset or blank `app.tenant_id` matches no row — fail-closed, not fail-open. */
     private fun assertFailsClosedWithNoTenantBound(fixture: PostgresProbeFixture) {
-        val app = fixture.appDataSource()
+        val app = app(fixture)
         val tenant = TenantId(UUID.randomUUID())
         app.connection.use { connection ->
             connection.autoCommit = false
             val setTenant = "select set_config('app.tenant_id', '${tenant.value}', true)"
             connection.createStatement().use { it.execute(setTenant) }
-            ProbeTable.insert(connection, ProbeRow(UUID.randomUUID(), tenant, "fail-closed-probe"))
+            insertProbe(connection, ProbeRow(UUID.randomUUID(), tenant, "fail-closed-probe"))
             connection.commit()
         }
         // A fresh connection with nothing bound at all (no set_config call this time).
         app.connection.use { connection ->
-            val rows = ProbeTable.selectAll(connection)
+            val rows = selectProbes(connection)
             assertTrue(rows.isEmpty(), "expected no rows visible with no tenant bound, got $rows")
         }
     }
@@ -82,14 +82,14 @@ class TenancyKernelPostgresIT {
         tenantA: TenantId,
     ) {
         val tenants = TenantContextImpl()
-        val tx = TransactionRunnerImpl(fixture.appDataSource(), tenants)
+        val tx = TransactionRunnerImpl(app(fixture), tenants)
 
         fun insert(
             tenant: TenantId,
             value: String,
-        ) = tx.inTransaction { ProbeTable.insert(tx.require(), ProbeRow(UUID.randomUUID(), tenant, value)) }
+        ) = tx.inTransaction { insertProbe(tx.require(), ProbeRow(UUID.randomUUID(), tenant, value)) }
 
-        fun values() = tx.inTransaction { ProbeTable.selectAll(tx.require()).map { it.value } }
+        fun values() = tx.inTransaction { selectProbes(tx.require()).map { it.value } }
         tenants.bindPlatform("svc:test/job:probe") { insert(TenantId.PLATFORM, "belongs-to-platform") }
         tenants.bind(tenantA, "test-actor") { insert(tenantA, "belongs-to-a-too") }
         val seenByA = tenants.bind(tenantA, "test-actor") { values() }
@@ -105,17 +105,17 @@ class TenancyKernelPostgresIT {
         tenantB: TenantId,
     ) {
         val tenants = TenantContextImpl()
-        val tx = TransactionRunnerImpl(fixture.appDataSource(), tenants)
+        val tx = TransactionRunnerImpl(app(fixture), tenants)
 
         tenants.bind(tenantB, "test-actor") {
             tx.inTransaction {
-                ProbeTable.insert(tx.require(), ProbeRow(UUID.randomUUID(), tenantB, "belongs-to-b"))
+                insertProbe(tx.require(), ProbeRow(UUID.randomUUID(), tenantB, "belongs-to-b"))
             }
         }
 
         val visibleToA =
             tenants.bind(tenantA, "test-actor") {
-                tx.inTransaction { ProbeTable.selectAll(tx.require()).filter { it.value == "belongs-to-b" } }
+                tx.inTransaction { selectProbes(tx.require()).filter { it.value == "belongs-to-b" } }
             }
         assertTrue(visibleToA.isEmpty(), "tenant A must never see tenant B's row, saw $visibleToA")
     }
@@ -130,13 +130,13 @@ class TenancyKernelPostgresIT {
         tenantB: TenantId,
     ) {
         val tenants = TenantContextImpl()
-        val tx = TransactionRunnerImpl(fixture.appDataSource(), tenants)
+        val tx = TransactionRunnerImpl(app(fixture), tenants)
 
         assertThrows(SQLException::class.java) {
             tenants.bind(tenantA, "test-actor") {
                 tx.inTransaction {
                     // Tenant A's session, but the row claims to be tenant B's: WITH CHECK must refuse it.
-                    ProbeTable.insert(tx.require(), ProbeRow(UUID.randomUUID(), tenantB, "smuggled"))
+                    insertProbe(tx.require(), ProbeRow(UUID.randomUUID(), tenantB, "smuggled"))
                 }
             }
         }
@@ -157,7 +157,7 @@ class TenancyKernelPostgresIT {
         tenantB: TenantId,
     ) {
         val jdbcUrl = fixture.jdbcUrl()
-        SingleSlotDataSource(jdbcUrl, "tenancy_kernel_app", "tenancy_kernel_app_pw").use { slot ->
+        SingleSlotDataSource(jdbcUrl, PostgresProbeFixture.APP, PostgresProbeFixture.APP_PASSWORD).use { slot ->
             val pooled = TenantAwareDataSource(slot.dataSource)
             val tenants = TenantContextImpl()
             val tx = TransactionRunnerImpl(pooled, tenants)
@@ -183,4 +183,53 @@ class TenancyKernelPostgresIT {
             }
         }
     }
+
+    /** The runtime login's pool, wrapped as a service wires it ([TenantAwareDataSource]). */
+    private fun app(fixture: PostgresProbeFixture): DataSource =
+        TenantAwareDataSource(login(fixture, PostgresProbeFixture.APP, PostgresProbeFixture.APP_PASSWORD))
+
+    private fun login(
+        fixture: PostgresProbeFixture,
+        user: String,
+        password: String,
+    ): DataSource =
+        PGSimpleDataSource().apply {
+            setUrl(fixture.jdbcUrl())
+            this.user = user
+            this.password = password
+        }
+
+    private fun insertProbe(
+        connection: Connection,
+        row: ProbeRow,
+    ) {
+        connection
+            .prepareStatement(
+                "insert into tenancy_kernel_test.probe (id, tenant_id, value) values (?, ?, ?)",
+            ).use { statement ->
+                statement.setObject(1, row.id)
+                statement.setObject(2, row.tenantId.value)
+                statement.setString(3, row.value)
+                statement.executeUpdate()
+            }
+    }
+
+    private fun selectProbes(connection: Connection): List<ProbeRow> =
+        connection.createStatement().use { statement ->
+            statement
+                .executeQuery("select id, tenant_id, value from tenancy_kernel_test.probe order by value")
+                .use { rs ->
+                    buildList {
+                        while (rs.next()) {
+                            add(
+                                ProbeRow(
+                                    id = rs.getObject("id", UUID::class.java),
+                                    tenantId = TenantId(rs.getObject("tenant_id", UUID::class.java)),
+                                    value = rs.getString("value"),
+                                ),
+                            )
+                        }
+                    }
+                }
+        }
 }

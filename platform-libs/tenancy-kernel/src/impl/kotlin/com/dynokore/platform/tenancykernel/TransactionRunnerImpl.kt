@@ -1,6 +1,7 @@
 package com.dynokore.platform.tenancykernel
 
 import java.sql.Connection
+import java.sql.SQLException
 import javax.sql.DataSource
 
 /**
@@ -25,7 +26,12 @@ class TransactionRunnerImpl
         private val tenants: TenantContext,
         private val label: ConnectionLabel? = null,
     ) : TransactionRunner,
-        CurrentConnection {
+        CurrentConnection,
+        SqlErrors {
+        private companion object {
+            const val MAX_CAUSE_DEPTH = 8
+        }
+
         /** The open transaction on this thread and the binding (tenant, actor) it was opened under. */
         private class Open(
             val connection: Connection,
@@ -87,7 +93,7 @@ class TransactionRunnerImpl
             tenant: TenantId,
             actor: String,
         ) {
-            val name = label?.of(connection)
+            val name = label?.current()
             // whole literals only, so the SQL guard traces each one (INV-Q-4036)
             val sql =
                 if (name == null) {
@@ -104,6 +110,21 @@ class TransactionRunnerImpl
             }
         }
 
+        override fun sqlStateOf(error: Throwable): String? {
+            var current: Throwable? = error
+            var depth = 0
+            while (current != null && depth < MAX_CAUSE_DEPTH) {
+                val state = (current as? SQLException)?.sqlState
+                if (state != null) return state
+                val next = current.cause
+                current = if (next === current) null else next
+                depth++
+            }
+            return null
+        }
+
+        override fun transactionToken(): Any? = open.get()?.connection
+
         override fun require(): Connection =
             open.get()?.connection
                 ?: throw IllegalStateException(
@@ -113,10 +134,11 @@ class TransactionRunnerImpl
     }
 
 /**
- * The transaction-local `application_name` of a transaction on [connection] (coordinator ruling INV-Q-4487): set in the
- * binding statement with `set_config('application_name', ?, true)`, so it ends at commit or rollback; `null` leaves the
- * statement unchanged. service-runtime passes one that names the pool lane the connection holds a permit of.
+ * The transaction-local `application_name` of a transaction (coordinator ruling INV-Q-4487): set in the binding
+ * statement with `set_config('application_name', ?, true)`, so it ends at commit or rollback; `null` leaves the
+ * statement unchanged. service-runtime passes one that names the pool lane the calling thread runs in (it reads the
+ * lane from its thread binding, so it needs no connection and no JDBC type).
  */
 fun interface ConnectionLabel {
-    fun of(connection: Connection): String?
+    fun current(): String?
 }

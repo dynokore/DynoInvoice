@@ -4,6 +4,7 @@ import com.dynokore.platform.outboxandqueue.OutboxRelay
 import com.dynokore.platform.outboxandqueue.RelayOutcome
 import com.dynokore.platform.serviceruntime.pool.PoolLane
 import com.dynokore.platform.serviceruntime.pool.PoolLanes
+import com.dynokore.platform.tenancykernel.SqlErrors
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
 import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
@@ -20,7 +21,6 @@ import org.springframework.boot.availability.AvailabilityChangeEvent
 import org.springframework.boot.availability.ReadinessState
 import org.springframework.boot.health.contributor.Status
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
-import java.sql.SQLException
 import java.time.Clock
 import java.time.Duration
 import java.util.Collections
@@ -29,14 +29,37 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.function.DoubleSupplier
 
+/** A database error with a SQLSTATE, for the fake [SqlErrors] (the loop reads SQLSTATEs through that port only). */
+private class FakeDbError(
+    message: String,
+    val state: String,
+) : RuntimeException(message)
+
 /** The loop itself (INV-T-3938): immediate repeat, interval, backoff, stop, an Error that ends it, the properties. */
 class EventLoopTest {
+    private val sqlErrors =
+        object : SqlErrors {
+            override fun sqlStateOf(error: Throwable): String? =
+                generateSequence(error) { it.cause }.filterIsInstance<FakeDbError>().firstOrNull()?.state
+        }
+
     private fun loop(
         interval: Duration = Duration.ofSeconds(60),
         jitter: Double = 0.0,
         onEnded: (EventLoop) -> Unit = {},
         call: () -> Boolean,
-    ) = EventLoop("test", EventLoopKind.RELAY, interval, Clock.systemUTC(), DoubleSupplier { jitter }, onEnded, call)
+    ) = EventLoop(
+        "test",
+        EventLoopKind.RELAY,
+        interval,
+        Clock.systemUTC(),
+        DoubleSupplier {
+            jitter
+        },
+        sqlErrors,
+        onEnded,
+        call,
+    )
 
     private fun await(
         what: String,
@@ -98,7 +121,7 @@ class EventLoopTest {
         val l =
             loop(interval = Duration.ofMillis(40)) {
                 stamps += System.nanoTime()
-                if (calls.incrementAndGet() <= 3) throw SQLException("secret message", "08006") else calls.get() > 100
+                if (calls.incrementAndGet() <= 3) throw FakeDbError("secret message", "08006") else calls.get() > 100
             }
         l.start()
         await("a successful call after 3 failures") { l.lastSuccess() != null }
@@ -219,7 +242,7 @@ class EventLoopTest {
             object : OutboxRelay {
                 override fun runOnce(): RelayOutcome = throw Fatal()
             }
-        val beans = StaticListableBeanFactory(mapOf<String, Any>("outboxRelay" to relay))
+        val beans = StaticListableBeanFactory(mapOf<String, Any>("outboxRelay" to relay, "sqlErrors" to sqlErrors))
         val loops =
             EventLoops(beans, EventLoopProperties(), SimpleMeterRegistry(), { published += it })
         loops.start()
@@ -241,7 +264,7 @@ class EventLoopTest {
                     override fun runOnce(): RelayOutcome = RelayOutcome(0, 0, false)
                 }
             }
-        val beans = StaticListableBeanFactory(relays)
+        val beans = StaticListableBeanFactory(relays + ("sqlErrors" to sqlErrors))
         val registry = SimpleMeterRegistry()
         val loops =
             EventLoops(beans, EventLoopProperties(relayInterval = Duration.ofMillis(100)), registry, { _: Any -> })

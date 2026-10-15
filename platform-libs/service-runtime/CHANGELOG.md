@@ -6,6 +6,28 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [8.0.0] - 2026-10-15
+### Added
+- The abandoned-run sweeper's function `job_run_in_progress(batch_size)` (sys-owned SECURITY DEFINER, execute for the
+  runtime login only, batch 1..500, one jsonb array of the seven columns) replaces the view `job_run_in_progress_v`
+  (coordinator ruling INV-Q-5115). The job-retention row is written by the Flyway `afterMigrate` callback of the
+  migration runner (INV-Q-5113). `FlywayLoginPool` gives Flyway a HikariCP pool of the migrate login whose credentials
+  are read through SecretStore for each new connection (INV-Q-5111). `LanePermits`, the plain permit class that
+  implements tenancy-kernel's `LaneGate` (owner ruling INV-Q-4502 (A)).
+- ShedLock's storage is service-runtime's own `ShedLockJooqAccessor` under ShedLock core's `StorageBasedLockProvider`
+  (owner answer to INV-Q-5210, option A): the SQL of shedlock-provider-jooq on `DSL.name(schema, "shedlock")`, each
+  operation in one platform binding and one `TransactionRunner` transaction. `shedlock-provider-jdbc-template` and
+  `spring-jdbc` leave the build scripts; spring-jdbc stays only as a transitive of spring-boot-starter-jdbc.
+### Changed (breaking)
+- Every statement of `JdbcJobState`, `JobRuntime`, `IdempotencyStore` and `TransactionalOperationRunner` is jOOQ DSL on
+  tenancy-jooq's DSLContext (owner ruling INV-Q-4196): their constructors take a `DSLContext`, and `JobRuntime` takes no
+  DataSource. `EventLoop` takes `SqlErrors`; `ConsumerRebuildRuntime` reads SQLSTATEs through it (INV-Q-5121).
+  `SqlConfigurationKeyGuard.verify` takes a resource lookup (INV-Q-5117). `PoolConfigurationGuard` reads a pool by direct
+  getters, with no reflection (INV-Q-5109). `JobSchema.writeRetention` and `IN_PROGRESS_VIEW` are removed.
+### Removed (breaking)
+- `LanedDataSource` and `LaneConnection`: the application pool is the Hikari bean itself; the lane gate is the
+  `LaneGate` bean `PoolLanePostProcessor` registers. `SecretStoreDriverDataSource`.
+
 ## [7.1.1] - 2026-10-16
 ### Changed
 - Metadata-only release (INV-T-5341, coordinator ruling INV-Q-5337, delegated, owner 2026-10-14): no API or behaviour

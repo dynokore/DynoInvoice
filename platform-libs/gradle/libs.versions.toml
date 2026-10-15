@@ -131,11 +131,11 @@ junit-platformLauncher = { module = "org.junit.platform:junit-platform-launcher"
 junit-params = { module = "org.junit.jupiter:junit-jupiter-params" }
 junit-platformTestkit = { module = "org.junit.platform:junit-platform-testkit" }
 postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
+# TestPoolFixture and service-runtime's pools (INV-T-4515): the version Spring Boot 4.1.1's BOM manages
+hikaricp = { module = "com.zaxxer:HikariCP", version = "7.0.2" }
 testcontainers-postgresql = { module = "org.testcontainers:postgresql", version.ref = "testcontainers" }
 testcontainers-minio = { module = "org.testcontainers:minio", version.ref = "testcontainers" }
 shedlock-core = { module = "net.javacrumbs.shedlock:shedlock-core", version.ref = "shedlock" }
-shedlock-providerJdbcTemplate = { module = "net.javacrumbs.shedlock:shedlock-provider-jdbc-template", version.ref = "shedlock" }
-spring-jdbc = { module = "org.springframework:spring-jdbc" }
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4jSimple" }
 # tenancy-jooq (INV-T-4133): the jOOQ DSL and listeners; Flyway for the fixture migrations (test fixtures, tests);
 # Spring Boot's auto-configuration annotations for TenancyProbe's test auto-configuration (compile only, versions from

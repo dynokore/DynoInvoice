@@ -11,7 +11,7 @@ import org.springframework.core.env.Environment
 /**
  * Splits Spring Boot's application pool (bean `dataSource`, a HikariDataSource, STK-17) into lanes before it starts
  * (INV-REQ-1230 b1, INV-ADR-3968 item 1): the budgets come from `service-runtime.pool.*` ([PoolLaneProperties]), the
- * pool maximum is set to their sum, and the bean becomes a [LanedDataSource] over the pool. Start-up fails when no
+ * pool maximum is set to their sum, and the pool stays the bean and a [LanePermits] gate is registered. Start-up fails when no
  * budget can be determined, or when `spring.datasource.hikari.maximum-pool-size` is set to another value than the sum.
  * A `dataSource` that is not a HikariDataSource (a test double) is left as it is.
  */
@@ -21,12 +21,20 @@ class PoolLaneWiring {
     companion object {
         @JvmStatic
         @Bean
-        fun serviceRuntimePoolLanes(environment: Environment): BeanPostProcessor = PoolLanePostProcessor(environment)
+        fun serviceRuntimeLaneGate(): LaneGateHolder = LaneGateHolder()
+
+        @JvmStatic
+        @Bean
+        fun serviceRuntimePoolLanes(
+            environment: Environment,
+            gate: LaneGateHolder,
+        ): BeanPostProcessor = PoolLanePostProcessor(environment, gate)
     }
 }
 
 internal class PoolLanePostProcessor(
     private val environment: Environment,
+    private val gate: LaneGateHolder,
 ) : BeanPostProcessor {
     override fun postProcessAfterInitialization(
         bean: Any,
@@ -50,7 +58,9 @@ internal class PoolLanePostProcessor(
                 SERVICE,
             )?.takeIf { it.isNotBlank() }
             ?.let { bean.addDataSourceProperty(APPLICATION_NAME, it) }
-        return LanedDataSource(bean, budgets)
+        // the lane gate tenancy-kernel's TenantAwareDataSource calls (owner ruling INV-Q-4502 (A)); the pool stays the bean
+        gate.set(LanePermits(budgets, bean.connectionTimeout))
+        return bean
     }
 
     private companion object {

@@ -3,18 +3,18 @@ package com.dynokore.platform.serviceruntime.identity
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.OperatorSessionKey
 import com.dynokore.platform.serviceruntime.replica.OperatorSessionKeysChanged
+import com.dynokore.platform.serviceruntime.testing.TestDatabase
+import com.dynokore.platform.tenancyjooq.TableClass
 import com.dynokore.platform.tenancykernel.PostgresProbeFixture
-import com.dynokore.platform.tenancykernel.ProbeRow
-import com.dynokore.platform.tenancykernel.ProbeTable
-import com.dynokore.platform.tenancykernel.TenantContextImpl
 import com.dynokore.platform.tenancykernel.TenantId
-import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
 import com.nimbusds.jose.JWSAlgorithm
 import com.nimbusds.jose.JWSHeader
 import com.nimbusds.jose.crypto.RSASSASigner
 import com.nimbusds.jwt.JWTClaimsSet
 import com.nimbusds.jwt.SignedJWT
 import io.kotest.matchers.shouldBe
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
@@ -40,12 +40,18 @@ class OperatorSessionTenantRowsIT {
     @ValueSource(strings = ["postgres:17", "postgres:18"])
     fun `a valid operator session reads only its tenant's rows`(image: String) {
         PostgresProbeFixture(image).use { fixture ->
-            fixture.createProbeTable(fixture.ownerDataSource())
-            val tenants = TenantContextImpl()
-            val tx = TransactionRunnerImpl(fixture.appDataSource(), tenants)
+            // the runtime login's pool and a DSLContext from tenancy-jooq's factory over the probe table (TENANT)
+            val db = TestDatabase(fixture.jdbcUrl(), mapOf("tenancy_kernel_test.probe" to TableClass.TENANT))
+            val app = db.login(PostgresProbeFixture.APP, PostgresProbeFixture.APP_PASSWORD)
+            val probe = DSL.table(DSL.name("tenancy_kernel_test", "probe"))
+            val idCol = DSL.field(DSL.name("id"), SQLDataType.UUID)
+            val tenantCol = DSL.field(DSL.name("tenant_id"), SQLDataType.UUID)
+            val valueCol = DSL.field(DSL.name("value"), SQLDataType.CLOB)
             for ((tenant, value) in listOf(tenantA to "a-row", tenantB to "b-row")) {
-                tenants.bind(tenant, "seed") {
-                    tx.inTransaction { ProbeTable.insert(tx.require(), ProbeRow(UUID.randomUUID(), tenant, value)) }
+                app.asTenant(tenant, "seed") {
+                    insertInto(
+                        probe,
+                    ).columns(idCol, tenantCol, valueCol).values(UUID.randomUUID(), tenant.value, value).execute()
                 }
             }
 
@@ -68,11 +74,12 @@ class OperatorSessionTenantRowsIT {
             val principal = checkNotNull(resolver.resolve("Bearer " + jwt.serialize()))
 
             val read =
-                tenants.bind(checkNotNull(principal.tenant), principal.actor) {
-                    tx.inTransaction { ProbeTable.selectAll(tx.require()) }
+                app.asTenant(checkNotNull(principal.tenant), principal.actor) {
+                    select(tenantCol, valueCol).from(probe).fetch().map { it.get(tenantCol) to it.get(valueCol) }
                 }
-            read.map { it.value } shouldBe listOf("a-row")
-            read.map { it.tenantId }.toSet() shouldBe setOf(tenantA)
+            read.map { it.second } shouldBe listOf("a-row")
+            read.map { it.first }.toSet() shouldBe setOf(tenantA.value)
+            db.close()
         }
     }
 

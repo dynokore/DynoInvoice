@@ -6,6 +6,9 @@ import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
 import org.postgresql.ds.PGSimpleDataSource
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.utility.DockerImageName
+import org.testcontainers.utility.MountableFile
+import java.nio.file.Files
+import java.nio.file.Path
 import javax.sql.DataSource
 
 /** Testcontainers needs a concrete subclass for its fluent `self()` typing. */
@@ -21,13 +24,46 @@ private class Postgres(
  */
 class OutboxPostgresFixture(
     image: String,
+    /**
+     * Extra provisioning SQL run once at container start, after the roles script, as the owner role (the script
+     * begins with `SET ROLE outbox_owner`; a test switches with `RESET ROLE; SET ROLE ...` for the event log's
+     * migration login). It is written to a temporary file and copied to the container's init directory
+     * (INV-Q-5119), so a test needs no DDL connection after the start.
+     */
+    initSql: String = "",
 ) : AutoCloseable {
+    private val script: Path? =
+        if (initSql.isBlank()) {
+            null
+        } else {
+            Files.createTempFile("outbox-init", ".sql").also {
+                Files.writeString(it, rolesScript() + "\nSET ROLE $OWNER;\n" + initSql + "\nRESET ROLE;\n")
+            }
+        }
+
     private val container: Postgres =
-        Postgres(DockerImageName.parse(image)).withInitScript("db/outbox-and-queue-test-roles.sql")
+        Postgres(DockerImageName.parse(image)).let {
+            if (script == null) {
+                it.withInitScript("db/outbox-and-queue-test-roles.sql")
+            } else {
+                it.withCopyFileToContainer(
+                    MountableFile.forHostPath(script, READABLE),
+                    "/docker-entrypoint-initdb.d/00-init.sql",
+                )
+            }
+        }
 
     init {
         container.start()
     }
+
+    /** The container's JDBC URL, for [com.dynokore.platform.tenancykernel.TestPoolFixture] (INV-Q-5119). */
+    fun jdbcUrl(): String = container.jdbcUrl
+
+    /** The container superuser's login name and password (strings only). */
+    fun adminUser(): String = container.username
+
+    fun adminPassword(): String = container.password
 
     /** DDL-only owner role. */
     fun ownerDataSource(): DataSource = dataSourceFor("outbox_owner", "outbox_owner_pw")
@@ -44,7 +80,7 @@ class OutboxPostgresFixture(
     /** The role of service-runtime's job and idempotency tables (ARC 4.3 step 1a); no event-log right. */
     fun workerDataSource(): DataSource = dataSourceFor(WORKER, "outbox_worker_pw")
 
-    /** The container's superuser, for test assertions that must see every tenant's rows (RLS is forced on the owner). */
+    /** The container's superuser, for assertions that must see every tenant's rows (RLS is forced on the owner). */
     fun adminDataSource(): DataSource = dataSourceFor(container.username, container.password)
 
     /**
@@ -102,31 +138,10 @@ class OutboxPostgresFixture(
     }
 
     /** The event-log topics [createTopics] creates for [catalogue]. */
-    fun eventLogTopics(catalogue: EventCatalogue): List<EventLogSchema.Topic> {
-        val entries =
-            catalogue.entries().groupBy { it.topic }.map { (topic, rows) ->
-                val record = rows.any { it.recordTopic }
-                EventLogSchema.Topic(
-                    topic,
-                    setOf(APP),
-                    setOf(APP),
-                    rows.any { it.contentTopic == true },
-                    if (record) APP else null,
-                )
-            }
-        val replays =
-            catalogue.replayTopics().map {
-                EventLogSchema.Topic(it.topic, setOf(APP), setOf(replayLogin(it.subscriber)), it.contentTopic)
-            }
-        val requests = catalogue.requestTopics().map { EventLogSchema.Topic(it.topic, setOf(APP), setOf(APP), false) }
-        return entries + replays + requests
-    }
+    fun eventLogTopics(catalogue: EventCatalogue): List<EventLogSchema.Topic> = topicsOf(catalogue)
 
     /** The runtime login a fixture consumer reads its replay topics with (`<prefix>_runtime`). */
-    fun replayLogin(subscriber: String): String {
-        val prefix = REPLAY_LOGIN_PREFIX[subscriber] ?: error("no replay login for $subscriber in the fixture")
-        return "${prefix}_runtime"
-    }
+    fun replayLogin(subscriber: String): String = replayLoginOf(subscriber)
 
     /** A login data source for one of the fixture's logins ([replayLogin], or [APP]). */
     fun roleDataSource(role: String): DataSource = dataSourceFor(role, "${role}_pw")
@@ -184,7 +199,11 @@ class OutboxPostgresFixture(
     }
 
     override fun close() {
-        container.stop()
+        try {
+            container.stop()
+        } finally {
+            if (script != null) Files.deleteIfExists(script)
+        }
     }
 
     private fun dataSourceFor(
@@ -198,6 +217,113 @@ class OutboxPostgresFixture(
         }
 
     companion object {
+        /** The init script is read by the container's postgres user: mode 0644 (a temp file is 0600). */
+        private const val READABLE = 420
+
+        const val OWNER = "outbox_owner"
+        const val OWNER_PASSWORD = "outbox_owner_pw"
+        const val APP_PASSWORD = "outbox_app_pw"
+        const val WORKER_PASSWORD = "outbox_worker_pw"
+        const val MIGRATE_PASSWORD = "eventlog_migrate_pw"
+
+        /** The event-log topics for [catalogue] (see [createTopics]). */
+        fun topicsOf(catalogue: EventCatalogue): List<EventLogSchema.Topic> {
+            val entries =
+                catalogue.entries().groupBy { it.topic }.map { (topic, rows) ->
+                    val record = rows.any { it.recordTopic }
+                    EventLogSchema.Topic(
+                        topic,
+                        setOf(APP),
+                        setOf(APP),
+                        rows.any { it.contentTopic == true },
+                        if (record) APP else null,
+                    )
+                }
+            val replays =
+                catalogue.replayTopics().map {
+                    EventLogSchema.Topic(it.topic, setOf(APP), setOf(replayLoginOf(it.subscriber)), it.contentTopic)
+                }
+            val requests =
+                catalogue.requestTopics().map { EventLogSchema.Topic(it.topic, setOf(APP), setOf(APP), false) }
+            return entries + replays + requests
+        }
+
+        fun replayLoginOf(subscriber: String): String {
+            val prefix = REPLAY_LOGIN_PREFIX[subscriber] ?: error("no replay login for $subscriber in the fixture")
+            return "${prefix}_runtime"
+        }
+
+        /** The service tables of [schema] as init SQL (what [createService] runs): the outbox DDL and [extraDdl]. */
+        fun serviceInitSql(
+            schema: String,
+            extraDdl: String = "",
+        ): String = OutboxSchema.ddl(schema, APP, SYS) + "\n" + extraDdl
+
+        /**
+         * The event log for [catalogue] as init SQL, as [createTopics] builds it: it switches to the event log's
+         * migration login first and back to the owner after, so it can follow [serviceInitSql] in one init script.
+         */
+        fun eventLogInitSql(
+            catalogue: EventCatalogue,
+            retention: Retention = Retention(),
+        ): String {
+            val topics = topicsOf(catalogue)
+            return buildString {
+                append("RESET ROLE;\nSET ROLE $MIGRATE;\n")
+                append(EventLogSchema.schemaDdl(EVENTLOG_SYS)).append('\n')
+                topics.forEach { append(EventLogSchema.topicDdl(it, EVENTLOG_SYS)).append('\n') }
+                append(EventLogSchema.functionsDdl(topics, EVENTLOG_SYS, PURGE)).append('\n')
+                append(
+                    "insert into ${EventLogSchema.SCHEMA}.${EventLogSchema.RETENTION} " +
+                        "(id, content_window, eventlog_retention, updated_at) values (true, " +
+                        "${retention.contentWindow.seconds} * interval '1 second', " +
+                        "${retention.eventLogRetention.seconds} * interval '1 second', now()) " +
+                        "on conflict (id) do update set content_window = excluded.content_window, " +
+                        "eventlog_retention = excluded.eventlog_retention, updated_at = excluded.updated_at;\n",
+                )
+                append("RESET ROLE;\nSET ROLE $OWNER;\n")
+            }
+        }
+
+        /**
+         * Init SQL that records, for every row inserted into each of [tables] (`schema.table`, which must exist by
+         * then), the transaction's `app.actor` (the actor tenancy-kernel bound, INV-REQ-854 b1) in
+         * `public.captured_actor`, so a test can read it back (INV-Q-5119: the trigger is container provisioning).
+         * It runs as the superuser for the capture table and function, then as the owner for the triggers.
+         */
+        fun captureActorsInitSql(tables: List<String>): String =
+            buildString {
+                append("RESET ROLE;\n")
+                append(
+                    "create table if not exists public.captured_actor " +
+                        "(seq bigserial primary key, tbl text not null, actor text);\n",
+                )
+                append(
+                    "create or replace function public.capture_actor() returns trigger " +
+                        "language plpgsql security definer\n",
+                )
+                append("    set search_path = pg_catalog, public as ${'$'}${'$'}\n")
+                append("begin\n")
+                append(
+                    "    insert into public.captured_actor (tbl, actor) values " +
+                        "(tg_table_schema || '.' || tg_table_name, current_setting('app.actor', true));\n",
+                )
+                append("    return null;\n")
+                append("end ${'$'}${'$'};\n")
+                append("SET ROLE $OWNER;\n")
+                tables.forEach {
+                    append(
+                        "create trigger capture_actor after insert on $it for each row " +
+                            "execute function public.capture_actor();\n",
+                    )
+                }
+            }
+
+        private fun rolesScript(): String =
+            checkNotNull(OutboxPostgresFixture::class.java.getResourceAsStream("/db/outbox-and-queue-test-roles.sql")) {
+                "db/outbox-and-queue-test-roles.sql is missing"
+            }.use { String(it.readAllBytes(), Charsets.UTF_8) }
+
         const val APP = "outbox_app"
         const val SYS = "outbox_sys"
         const val WORKER = "outbox_worker"

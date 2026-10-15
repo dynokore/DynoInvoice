@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
+import org.postgresql.ds.PGSimpleDataSource
 import java.sql.Connection
 import java.util.UUID
 import javax.sql.DataSource
@@ -31,13 +32,13 @@ class ActorBindingPostgresIT {
     @ValueSource(strings = ["postgres:17", "postgres:18"])
     fun `actor binding, no leak, nested mismatch refused, no-actor transaction refused`(image: String) {
         PostgresProbeFixture(image).use { fixture ->
-            fixture.createProbeTable(fixture.ownerDataSource())
-            SingleSlotDataSource(fixture.jdbcUrl(), "tenancy_kernel_app", "tenancy_kernel_app_pw").use { slot ->
+            val app = PostgresProbeFixture.APP
+            SingleSlotDataSource(fixture.jdbcUrl(), app, PostgresProbeFixture.APP_PASSWORD).use { slot ->
                 assertBothSettingsSetFromTheBinding(slot.dataSource)
                 assertNothingSurvivesCommitOrRollback(slot.dataSource)
                 assertNothingSurvivesCommitOrRollback(TenantAwareDataSource(slot.dataSource))
                 assertNestedMismatchIsRefusedBeforeAnyStatement(slot.dataSource)
-                assertTransactionWithNoActorIsRefusedBeforeAnySql(slot.dataSource)
+                assertTransactionWithNoActorIsRefusedBeforeAnySql(slot)
             }
         }
     }
@@ -98,12 +99,13 @@ class ActorBindingPostgresIT {
             }
         assertEquals(Settings(tenantA.toString(), "user-a"), seenAfter)
         val committed =
-            tenants.bind(tenantA, "user-a") { tx.inTransaction { ProbeTable.selectAll(tx.require()).map { it.value } } }
+            tenants.bind(tenantA, "user-a") { tx.inTransaction { selectProbeValues(tx.require()) } }
         assertTrue(marker in committed, "the outer transaction commits after the refusals, saw $committed")
     }
 
-    private fun assertTransactionWithNoActorIsRefusedBeforeAnySql(pool: DataSource) {
-        val counting = CountingDataSource(pool)
+    private fun assertTransactionWithNoActorIsRefusedBeforeAnySql(slot: SingleSlotDataSource) {
+        val counting = slot.dataSource
+        val before = slot.checkouts
         val real = TenantContextImpl()
         // Nothing bound: refused before a connection is even taken.
         val unbound = TransactionRunnerImpl(counting, real)
@@ -130,27 +132,30 @@ class ActorBindingPostgresIT {
             assertTrue("actor" in refused.message.orEmpty(), "actor $answer: ${refused.message}")
             assertFalse(ran)
         }
-        assertEquals(0, counting.connections.get(), "no connection was opened")
-    }
-
-    private class CountingDataSource(
-        private val delegate: DataSource,
-    ) : DataSource by delegate {
-        val connections =
-            java.util.concurrent.atomic
-                .AtomicInteger()
-
-        override fun getConnection(): java.sql.Connection {
-            connections.incrementAndGet()
-            return delegate.connection
-        }
+        assertEquals(before, slot.checkouts, "no connection was opened")
     }
 
     private fun insert(
         connection: Connection,
         tenant: TenantId,
         value: String,
-    ) = ProbeTable.insert(connection, ProbeRow(UUID.randomUUID(), tenant, value))
+    ) {
+        connection
+            .prepareStatement("insert into tenancy_kernel_test.probe (id, tenant_id, value) values (?, ?, ?)")
+            .use { statement ->
+                statement.setObject(1, UUID.randomUUID())
+                statement.setObject(2, tenant.value)
+                statement.setString(3, value)
+                statement.executeUpdate()
+            }
+    }
+
+    private fun selectProbeValues(connection: Connection): List<String> =
+        connection.createStatement().use { statement ->
+            statement.executeQuery("select value from tenancy_kernel_test.probe order by value").use { rs ->
+                buildList { while (rs.next()) add(rs.getString(1)) }
+            }
+        }
 
     private data class Settings(
         val tenant: String?,

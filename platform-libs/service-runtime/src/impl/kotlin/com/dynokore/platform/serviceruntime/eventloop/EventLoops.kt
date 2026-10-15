@@ -3,6 +3,7 @@ package com.dynokore.platform.serviceruntime.eventloop
 import com.dynokore.platform.outboxandqueue.InboxConsumer
 import com.dynokore.platform.outboxandqueue.OutboxRelay
 import com.dynokore.platform.outboxandqueue.ReplayDelivery
+import com.dynokore.platform.tenancykernel.SqlErrors
 import io.micrometer.core.instrument.Gauge
 import io.micrometer.core.instrument.MeterRegistry
 import org.slf4j.LoggerFactory
@@ -96,11 +97,15 @@ class EventLoops(
         kind: EventLoopKind,
         interval: Duration,
         call: (T) -> Boolean,
-    ): List<EventLoop> =
-        beans
+    ): List<EventLoop> {
+        val errors = beans.getBeanProvider(SqlErrors::class.java).getIfAvailable { NO_SQL_ERRORS }
+        return beans
             .getBeansOfType(type)
             .toSortedMap()
-            .map { (name, bean) -> EventLoop(name, kind, interval, clock, jitter, ::refuseTraffic) { call(bean) } }
+            .map { (name, bean) ->
+                EventLoop(name, kind, interval, clock, jitter, errors, ::refuseTraffic) { call(bean) }
+            }
+    }
 
     /** A loop that ended makes readiness DOWN whatever the service's health group lists (INV-T-3938). */
     private fun refuseTraffic(ended: EventLoop) {
@@ -120,6 +125,9 @@ class EventLoops(
     }
 
     companion object {
+        /** A context with no transaction runner that reads SQLSTATEs (a service on no database): none is logged. */
+        private val NO_SQL_ERRORS = SqlErrors { null }
+
         /** Rendered by the Prometheus registry as `gst_platform_event_loop_last_success_timestamp_seconds`. */
         const val LAST_SUCCESS = "gst.platform.event.loop.last.success.timestamp.seconds"
         val STOP_TIMEOUT: Duration = Duration.ofSeconds(30)

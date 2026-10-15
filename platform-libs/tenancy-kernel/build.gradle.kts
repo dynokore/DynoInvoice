@@ -61,6 +61,9 @@ dependencies {
     // actually run the fixture, not just to compile against it.
     testFixturesApi(libs.postgresql)
     testFixturesApi(libs.testcontainers.postgresql)
+    testFixturesApi(libs.hikaricp)
+    testFixturesApi(libs.jooq)
+    testImplementation(libs.jooq)
 
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)

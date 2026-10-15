@@ -6,6 +6,16 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-15
+### Added
+- `TenancyJooq.install(configuration, tables, tenants, transactionRunner)`: `configure` applied in place on a
+  `DefaultConfiguration` (Spring Boot's customizer), and `TenancyJooq.problem(configuration)`: why a configuration is not
+  tenancy-jooq's, or null (coordinator ruling INV-Q-5105). The listener classes stay internal.
+### Changed
+- Test fixtures: `TenancyJooqFixture` builds its pools from `PostgresProbeFixture`'s URL and login strings (INV-Q-5208).
+  Tests: `BlankTextPostgresIT`, `ModuleApiConsumerTransactionContractTest` and `ConfigurationProblemTest` moved here
+  from tenancy-kernel and service-runtime.
+
 ## [1.0.3] - 2026-10-16
 ### Changed
 - Metadata-only release (INV-T-5340, coordinator ruling INV-Q-5337, delegated, owner 2026-10-14): no API or behaviour

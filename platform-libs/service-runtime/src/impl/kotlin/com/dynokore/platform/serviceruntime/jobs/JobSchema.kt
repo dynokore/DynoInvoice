@@ -2,8 +2,6 @@ package com.dynokore.platform.serviceruntime.jobs
 
 import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantRlsMigration
-import java.sql.Connection
-import java.time.Duration
 
 /**
  * DDL for the scheduler state a service keeps in its own schema (INV-REQ-2405 b2 and b4, INV-Q-2948),
@@ -17,13 +15,13 @@ import java.time.Duration
  * - [JOB_PAUSE]: one row per pause, at most one open row per (tenant, service, job, entity or platform);
  *   a job-wide pause carries the platform tenant (INV-Q-2985). Who paused is in the audit trail, not here.
  * - [JOB_RETENTION]: the one-row, platform-scoped job-retention window (no tenant data), written by the migration
- *   runner with bound parameters from the service's configured retention at every migration ([writeRetention]).
+ *   runner's Flyway afterMigrate callback from the service's configured retention at every migration.
  *
  * One runtime login per service (INV-REQ-1189 b2, INV-ADR-3968 items 5 and 6; coordinator ruling INV-Q-4346 (A)):
  * both state tables have `tenant_id NOT NULL` and tenancy-kernel's forced tenant policy (CS-19), and the runtime login
  * works on them under that policy only. The job-table maintenance that reaches across tenants is held by the NOLOGIN
- * `<svc>_sys` role and reached only through the objects it owns: [IN_PROGRESS_VIEW], the column-limited view of the
- * IN_PROGRESS runs the abandoned-run sweeper reads, and [PURGE_EXPIRED], a SECURITY DEFINER purge that takes no
+ * `<svc>_sys` role and reached only through the objects it owns: [IN_PROGRESS_RUNS], the SECURITY DEFINER
+ * function that returns the IN_PROGRESS runs the abandoned-run sweeper reads, and [PURGE_EXPIRED], a SECURITY DEFINER purge that takes no
  * cut-off and reads its window from [JOB_RETENTION]; [RETENTION_WINDOW] lets the job runtime compare its configured
  * retention with the row at start-up. Every function has static SQL, `SET search_path = pg_catalog, <schema>,
  * pg_temp`, EXECUTE revoked from PUBLIC and granted to the runtime login only.
@@ -39,8 +37,15 @@ object JobSchema {
     /** The one-row job-retention table (comment `platform-scoped: no tenant data`). */
     const val JOB_RETENTION = "job_retention"
 
-    /** Sys-owned view: the sweeper's columns of every IN_PROGRESS `job_run` row, across tenants. */
-    const val IN_PROGRESS_VIEW = "job_run_in_progress_v"
+    /**
+     * `job_run_in_progress(batch_size)`: sys-owned SECURITY DEFINER function (coordinator ruling INV-Q-5115) that
+     * returns one jsonb array of the sweeper's seven columns of the IN_PROGRESS `job_run` rows across tenants, oldest
+     * first, at most `batch_size` of them; the runtime login reads `job_run` only under its tenant policy.
+     */
+    const val IN_PROGRESS_RUNS = "job_run_in_progress"
+
+    /** The upper bound [IN_PROGRESS_RUNS] accepts for one batch. */
+    const val MAX_SWEEP_BATCH = 500
 
     /** `job_state_purge_expired(batch_size)`: deletes expired `job_run` and `job_pause` rows; no cut-off argument. */
     const val PURGE_EXPIRED = "job_state_purge_expired"
@@ -82,34 +87,10 @@ object JobSchema {
             ),
             runtimeGrants(schema, runtimeRole),
             sysAccess(schema, sysRole),
-            inProgressView(schema, runtimeRole, sysRole),
+            inProgressRunsFunction(schema, runtimeRole, sysRole),
             purgeFunction(schema, runtimeRole, sysRole),
             retentionWindowFunction(schema, runtimeRole, sysRole),
         ).joinToString("\n")
-    }
-
-    /**
-     * The migration step that writes the job-retention row with bound parameters, re-applied at every migration
-     * (coordinator ruling INV-Q-4346 (A)): [retention] is the service's configured job retention, the same value its
-     * job runtime is configured with (it refuses to start when they differ). Run as `<svc>_migrate` on [connection].
-     */
-    fun writeRetention(
-        connection: Connection,
-        schema: String,
-        retention: Duration,
-    ) {
-        require(retention.isPositive) { "the job retention must be positive" }
-        val s = SqlIdentifier.require(schema, "schema")
-        connection
-            .prepareStatement(
-                """
-                insert into $s.$JOB_RETENTION (id, job_window, updated_at) values (true, ? * interval '1 second', now())
-                on conflict (id) do update set job_window = excluded.job_window, updated_at = excluded.updated_at
-                """.trimIndent(),
-            ).use {
-                it.setLong(1, retention.seconds)
-                it.executeUpdate()
-            }
     }
 
     private fun tables(schema: String): String {
@@ -202,8 +183,13 @@ object JobSchema {
             """.trimIndent()
     }
 
-    /** The sweeper's view, handed to the sys role, `SELECT` for the runtime login only. */
-    private fun inProgressView(
+    /**
+     * The sweeper's function (coordinator ruling INV-Q-5115), handed to the sys role, `EXECUTE` for the runtime login
+     * only. It refuses a batch outside 1..[MAX_SWEEP_BATCH] (errcode 22023) and returns one jsonb array of objects with
+     * exactly the columns tenant_id, job, entity_ref, tick, trigger, attempt and started_at, ordered by started_at, of
+     * the IN_PROGRESS `job_run` rows across tenants, and nothing else.
+     */
+    private fun inProgressRunsFunction(
         schema: String,
         runtimeRole: String,
         sysRole: String,
@@ -212,13 +198,25 @@ object JobSchema {
         val runtime = SqlIdentifier.require(runtimeRole, "runtime role")
         val sys = SqlIdentifier.require(sysRole, "sys role")
         return """
-            create view $s.$IN_PROGRESS_VIEW as
-                select tenant_id, job, entity_ref, tick, trigger, attempt, started_at
-                from $s.$JOB_RUN where status = 'IN_PROGRESS';
+            create function $s.$IN_PROGRESS_RUNS(batch_size integer) returns jsonb
+            language plpgsql stable security definer set search_path = pg_catalog, $s, pg_temp as $$
+            begin
+                if batch_size is null or batch_size < 1 or batch_size > $MAX_SWEEP_BATCH then
+                    raise exception 'batch size % is outside 1..$MAX_SWEEP_BATCH', batch_size using errcode = '22023';
+                end if;
+                return coalesce((
+                    select jsonb_agg(jsonb_build_object(
+                        'tenant_id', r.tenant_id, 'job', r.job, 'entity_ref', r.entity_ref, 'tick', r.tick,
+                        'trigger', r.trigger, 'attempt', r.attempt, 'started_at', r.started_at) order by r.started_at)
+                    from (select tenant_id, job, entity_ref, tick, trigger, attempt, started_at from $s.$JOB_RUN
+                          where status = 'IN_PROGRESS' order by started_at limit batch_size) r
+                ), '[]'::jsonb);
+            end
+            $$;
             grant create on schema $s to $sys;
-            alter view $s.$IN_PROGRESS_VIEW owner to $sys;
-            revoke all on $s.$IN_PROGRESS_VIEW from public;
-            grant select on $s.$IN_PROGRESS_VIEW to $runtime;
+            alter function $s.$IN_PROGRESS_RUNS(integer) owner to $sys;
+            revoke all on function $s.$IN_PROGRESS_RUNS(integer) from public;
+            grant execute on function $s.$IN_PROGRESS_RUNS(integer) to $runtime;
             revoke create on schema $s from $sys;
             """.trimIndent()
     }

@@ -31,7 +31,7 @@ import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.outboxandqueue.TestCatalogue
 import com.dynokore.platform.serviceruntime.datasource.TEST_LOGIN_REF
 import com.dynokore.platform.serviceruntime.datasource.Tpl18JdbcApplication
-import com.dynokore.platform.serviceruntime.pool.LanedDataSource
+import com.dynokore.platform.serviceruntime.pool.LaneGateHolder
 import com.dynokore.platform.serviceruntime.pool.PoolLane
 import com.dynokore.platform.tenancykernel.CurrentConnection
 import com.dynokore.platform.tenancykernel.TenantContext
@@ -266,7 +266,7 @@ class EventLoopsIT {
             // minimal profile, no lane property: 4 / 2 / 0
             fx.run(mount).use { svc ->
                 val pool = svc.context.getBean("dataSource", DataSource::class.java)
-                val laned = pool.unwrap(LanedDataSource::class.java)
+                val laned = svc.context.getBean(LaneGateHolder::class.java).permits()
                 svc.handler.hold = CountDownLatch(1)
                 svc.append(1)
                 // one consumer sits in its handler transaction (one background permit)

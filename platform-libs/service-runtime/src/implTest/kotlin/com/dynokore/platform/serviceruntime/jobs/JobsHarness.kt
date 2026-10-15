@@ -8,20 +8,27 @@ import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.JdbcOutboxWriter
 import com.dynokore.platform.outboxandqueue.OutboxPostgresFixture
+import com.dynokore.platform.outboxandqueue.OutboxSchema
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.serviceruntime.identity.WorkloadPrincipal
+import com.dynokore.platform.serviceruntime.testing.CATALOG_TABLES
+import com.dynokore.platform.serviceruntime.testing.TestDatabase
+import com.dynokore.platform.tenancyjooq.TableClass
 import com.dynokore.platform.tenancykernel.TenantContextImpl
 import com.dynokore.platform.tenancykernel.TenantId
-import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
+import com.dynokore.platform.tenancykernel.TestPoolFixture
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
+import org.jooq.types.DayToSecond
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 import java.util.concurrent.Executor
-import javax.sql.DataSource
 
 /** A settable clock shared by the replicas of a test. */
 class MutableClock(
@@ -77,174 +84,248 @@ class MovableDeadlines(
  * One PostgreSQL container (17 or 18) holding the fixture service `submission-svc`: outbox-and-queue's outbox,
  * the job tables of [JobSchema] and their job-retention row, and outbox-and-queue's fixture roles (the runtime
  * login [OutboxPostgresFixture.APP] and the sys role [OutboxPostgresFixture.SYS]). Each [replica] is one
- * service instance with its own transaction runner, outbox writer (instance id) and [JobRuntime].
+ * service instance with its own transaction runner, outbox writer (instance id) and [JobRuntime]. The service's
+ * tables are created by the container's init script (INV-Q-5119); the tests reach the database only through
+ * [TestDatabase] (TransactionRunner and jOOQ).
+ *
+ * @param extraDdl state tables the test adds, created with the service (as the owner role).
+ * @param extraTables those tables (and any other the test reads) by `schema.table`, with their class.
  */
-class JobsHarness(
-    image: String,
-) : AutoCloseable {
-    val fixture = OutboxPostgresFixture(image)
-
-    init {
-        fixture.createService(SCHEMA, JobSchema.ddl(SCHEMA, OutboxPostgresFixture.APP, OutboxPostgresFixture.SYS))
-        writeRetention(JobRuntime.DEFAULT_RETENTION)
-    }
-
-    /** The migration runner's job-retention row (INV-Q-4346), written as the owner with bound parameters. */
-    fun writeRetention(retention: Duration) {
-        fixture.ownerDataSource().connection.use { JobSchema.writeRetention(it, SCHEMA, retention) }
-    }
-
-    inner class Replica(
-        val instance: String,
-        val clock: Clock,
-        authorizer: JobCommandAuthorizer,
-        deadlines: DeadlineSource,
-        executor: Executor,
-        retention: Duration,
-        app: DataSource,
-    ) {
-        val tenants = TenantContextImpl()
-        val tx = TransactionRunnerImpl(app, tenants)
-        val scope = TenantScope(tenants, tx, tx, WorkloadPrincipal(SERVICE).value)
-        val outbox = JdbcOutboxWriter(tx, SCHEMA, SERVICE, instance, CATALOGUE, clock)
-        val runtime =
-            JobRuntime(
-                SERVICE,
-                SCHEMA,
-                scope,
-                outbox,
-                OutboxAuditWriter(outbox),
-                fixture.runtimeDataSource(),
-                authorizer,
-                deadlines,
-                clock,
-                executor,
-                retention,
+class JobsHarness
+    @JvmOverloads
+    constructor(
+        image: String,
+        extraDdl: String = "",
+        extraTables: Map<String, TableClass> = emptyMap(),
+        /** Tables whose inserts record the bound actor (see [capturedActors]); they must exist after [extraDdl]. */
+        captureTables: List<String> = listOf("$SCHEMA.outbox", "$SCHEMA.job_run"),
+    ) : AutoCloseable {
+        val fixture =
+            OutboxPostgresFixture(
+                image,
+                OutboxPostgresFixture.serviceInitSql(
+                    SCHEMA,
+                    JobSchema.ddl(SCHEMA, OutboxPostgresFixture.APP, OutboxPostgresFixture.SYS) + "\n" + extraDdl,
+                ) + OutboxPostgresFixture.captureActorsInitSql(captureTables),
             )
 
-        /** Binds [tenant] with a test operator's actor (INV-REQ-854 b1). */
-        fun <T> asTenant(
-            tenant: TenantId,
-            block: () -> T,
-        ): T = tenants.bind(tenant, TEST_ACTOR, block)
-    }
+        /** The tables the tests declare to tenancy-jooq: the job and outbox tables, the libraries' platform tables. */
+        val tables: Map<String, TableClass> =
+            (
+                listOf(
+                    "outbox",
+                    JobSchema.JOB_RUN,
+                    JobSchema.JOB_PAUSE,
+                ).associate { "$SCHEMA.$it" to TableClass.TENANT } +
+                    ("public.captured_actor" to TableClass.PLATFORM_SCOPED) + CATALOG_TABLES +
+                    (JobSchema.platformScopedTables(SCHEMA) + OutboxSchema.platformScopedTables(SCHEMA))
+                        .associateWith { TableClass.PLATFORM_SCOPED }
+            ) + extraTables
 
-    fun replica(
-        instance: String,
-        clock: Clock,
-        authorizer: JobCommandAuthorizer = FakeAuthorizer(),
-        deadlines: DeadlineSource = FixedDeadlineSource(),
-        executor: Executor = Executor { it.run() },
-        retention: Duration = JobRuntime.DEFAULT_RETENTION,
-        app: DataSource = fixture.appDataSource(),
-    ) = Replica(instance, clock, authorizer, deadlines, executor, retention, app)
+        /** Reads and writes over the owner, runtime and admin logins, each through its own TransactionRunner. */
+        val owner: TestDatabase.Access
+        val admin: TestDatabase.Access
+        private val db = TestDatabase(fixture.jdbcUrl(), tables)
 
-    /** Rows of [sql] as the superuser (every tenant). */
-    fun rows(
-        sql: String,
-        vararg args: Any,
-    ): List<Map<String, Any?>> =
-        fixture.adminDataSource().connection.use { connection ->
-            connection.prepareStatement(sql).use { statement ->
-                args.forEachIndexed { index, value -> statement.setObject(index + 1, value) }
-                statement.executeQuery().use { rows ->
-                    val meta = rows.metaData
-                    buildList {
-                        while (rows.next()) {
-                            add((1..meta.columnCount).associate { meta.getColumnLabel(it) to rows.getObject(it) })
-                        }
-                    }
-                }
+        init {
+            owner = db.login(OutboxPostgresFixture.OWNER, OutboxPostgresFixture.OWNER_PASSWORD)
+            admin = db.login(fixture.adminUser(), fixture.adminPassword())
+            writeRetention(JobRuntime.DEFAULT_RETENTION)
+        }
+
+        /** The migration runner's job-retention row (INV-Q-4346), written as the owner under the platform binding. */
+        fun writeRetention(retention: Duration) {
+            val id = DSL.field(DSL.name("id"), SQLDataType.BOOLEAN)
+            val window = DSL.field(DSL.name("job_window"), SQLDataType.INTERVALDAYTOSECOND)
+            val updated = DSL.field(DSL.name("updated_at"), SQLDataType.TIMESTAMPWITHTIMEZONE)
+            val value = DayToSecond.valueOf(retention)
+            owner.asPlatform {
+                insertInto(DSL.table(DSL.name(SCHEMA, JobSchema.JOB_RETENTION)))
+                    .columns(id, window, updated)
+                    .values(true, value, OffsetDateTime.now())
+                    .onConflict(id)
+                    .doUpdate()
+                    .set(window, value)
+                    .set(updated, OffsetDateTime.now())
+                    .execute()
             }
         }
 
-    /** Outbox rows of [type] for [job]'s aggregate. */
-    fun events(
-        type: String,
-        aggregate: String,
-    ) = rows("select * from $SCHEMA.outbox where type = ? and subject = ? order by seq", type, aggregate)
+        inner class Replica(
+            val instance: String,
+            val clock: Clock,
+            authorizer: JobCommandAuthorizer,
+            deadlines: DeadlineSource,
+            executor: Executor,
+            retention: Duration,
+            poolMaximum: Int = TestPoolFixture.DEFAULT_MAXIMUM,
+            connectionTimeoutMillis: Long = TestPoolFixture.DEFAULT_TIMEOUT_MILLIS,
+        ) {
+            private val replicaDb = TestDatabase(fixture.jdbcUrl(), tables)
+            private val app =
+                replicaDb.login(
+                    OutboxPostgresFixture.APP,
+                    OutboxPostgresFixture.APP_PASSWORD,
+                    poolMaximum,
+                    connectionTimeoutMillis = connectionTimeoutMillis,
+                )
+            val tenants: TenantContextImpl = replicaDb.tenants
+            val tx = app.runner
+            val dsl = app.dsl
+            val scope = TenantScope(tenants, tx, tx, WorkloadPrincipal(SERVICE).value)
+            val outbox = JdbcOutboxWriter(tx, SCHEMA, SERVICE, instance, CATALOGUE, clock)
+            val runtime =
+                JobRuntime(
+                    SERVICE,
+                    SCHEMA,
+                    scope,
+                    dsl,
+                    outbox,
+                    OutboxAuditWriter(outbox),
+                    authorizer,
+                    deadlines,
+                    clock,
+                    executor,
+                    retention,
+                )
 
-    fun runs(job: String) = rows("select * from $SCHEMA.job_run where job = ? order by tick, trigger, attempt", job)
+            /** Binds [tenant] with a test operator's actor (INV-REQ-854 b1). */
+            fun <T> asTenant(
+                tenant: TenantId,
+                block: () -> T,
+            ): T = tenants.bind(tenant, TEST_ACTOR, block)
+        }
 
-    override fun close() = fixture.close()
+        fun replica(
+            instance: String,
+            clock: Clock,
+            authorizer: JobCommandAuthorizer = FakeAuthorizer(),
+            deadlines: DeadlineSource = FixedDeadlineSource(),
+            executor: Executor = Executor { it.run() },
+            retention: Duration = JobRuntime.DEFAULT_RETENTION,
+            poolMaximum: Int = TestPoolFixture.DEFAULT_MAXIMUM,
+            connectionTimeoutMillis: Long = TestPoolFixture.DEFAULT_TIMEOUT_MILLIS,
+        ) = Replica(instance, clock, authorizer, deadlines, executor, retention, poolMaximum, connectionTimeoutMillis)
 
-    companion object {
-        const val SCHEMA = "submission"
-        const val SERVICE = "submission-svc"
-        const val TEST_ACTOR = "test-operator"
-        const val AUDIT = "com.dynokore.gst.platform.AuditEntryRecorded.v1"
+        /** Forgets what an earlier call captured on [table] (the trigger exists from the start). */
+        fun captureActors(table: String) {
+            admin.asPlatform {
+                deleteFrom(DSL.table(DSL.name("public", "captured_actor")))
+                    .where(DSL.field(DSL.name("tbl")).eq(table))
+                    .execute()
+            }
+        }
 
-        private fun entry(
-            type: String,
-            topic: String,
-        ) = CatalogueEntry(type, topic, setOf(CatalogueEntry.EVERY_SERVICE))
-
-        val CATALOGUE =
-            EventCatalogue(
-                listOf(
-                    entry(JobPayloads.JOB_REGISTERED, "gst.platform.job-registered.v1"),
-                    entry(JobPayloads.JOB_RUN_RECORDED, "gst.platform.job-run-recorded.v1"),
-                    entry(JobPayloads.CONNECTION_STATUS_CHANGED, "gst.platform.connection-status-changed.v1"),
-                    entry(AUDIT, "gst.platform.audit-entry-recorded.v1"),
-                ),
-            )
-        val TENANT_A = TenantId(UUID.fromString("0a000000-0000-0000-0000-00000000000a"))
-        val TENANT_B = TenantId(UUID.fromString("0b000000-0000-0000-0000-00000000000b"))
-        val E1 = EntityRef("E-001")
-        val E2 = EntityRef("E-002")
-
-        /**
-         * Five seconds past the current hour (INV-Q-4638): the job tables are aged by the database's `now()`
-         * (retention purge, ShedLock's database time), so START follows the real clock instead of a fixed date.
-         * `INV_TEST_BASE_INSTANT` (an ISO instant) replaces the real clock as the base, to prove the tests do
-         * not depend on the calendar date.
-         */
-        val START: Instant =
-            (System.getenv("INV_TEST_BASE_INSTANT")?.let(Instant::parse) ?: Instant.now())
-                .truncatedTo(ChronoUnit.HOURS)
-                .plusSeconds(5)
-
-        /** The top of START's hour, the hourly cron tick START falls in. */
-        val START_HOUR: Instant = START.truncatedTo(ChronoUnit.HOURS)
-
-        /** A timestamptz read by [rows] as an instant, independent of the JVM's time zone. */
-        fun instantOf(value: Any?): Instant =
-            when (value) {
-                is java.sql.Timestamp -> value.toInstant()
-                is java.time.OffsetDateTime -> value.toInstant()
-                else -> error("not a timestamp: $value")
+        /** The `app.actor` of each row inserted into [table] since [captureActors], in insert order. */
+        fun capturedActors(table: String): List<String?> =
+            admin.asPlatform {
+                select(DSL.field(DSL.name("actor"), SQLDataType.CLOB))
+                    .from(DSL.table(DSL.name("public", "captured_actor")))
+                    .where(DSL.field(DSL.name("tbl")).eq(table))
+                    .orderBy(DSL.field(DSL.name("seq")))
+                    .fetch(DSL.field(DSL.name("actor"), SQLDataType.CLOB))
             }
 
-        fun job(
-            name: String,
-            scope: JobEntityScope = JobEntityScope.ENTITY,
-            criticality: JobCriticality = JobCriticality.STANDARD,
-            cron: String = "0 0 * * * *",
-            lockAtMostFor: Duration = JobDefinition.DEFAULT_LOCK_AT_MOST_FOR,
-        ) = JobDefinition(
-            name,
-            SERVICE,
-            scope,
-            JobSchedule(cron),
-            criticality,
-            Duration.ofMinutes(15),
-            lockAtMostFor,
-            Duration.ZERO,
-        )
+        /** The tenants the tests create; [rows] reads each of them and the platform tenant in turn. */
+        val knownTenants: MutableSet<TenantId> = mutableSetOf(TENANT_A, TENANT_B)
 
-        fun request(
-            actor: String,
-            job: String,
-            entity: EntityRef?,
-            reason: String? = null,
-        ) = JobCommandRequest(
-            actor,
-            job,
-            entity,
-            UUID.randomUUID(),
-            reason,
-            CorrelationId("corr-$actor"),
-            CausationId("cmd-$actor"),
-        )
+        /** Rows of `schema.table` where each [equal] column equals its value, of every tenant the test created. */
+        fun rows(
+            table: String,
+            vararg equal: Pair<String, Any?>,
+        ): List<Map<String, Any?>> = admin.rowsOf(table, knownTenants, *equal)
+
+        /** Outbox rows of [type] for [job]'s aggregate. */
+        fun events(
+            type: String,
+            aggregate: String,
+        ) = rows("$SCHEMA.outbox", "type" to type, "subject" to aggregate).sortedBy { (it["seq"] as Number).toLong() }
+
+        fun runs(job: String) =
+            rows("$SCHEMA.job_run", "job" to job)
+                .sortedWith(compareBy({ instantOf(it["tick"]) }, { it["trigger"] as String }, { it["attempt"] as Int }))
+
+        override fun close() {
+            db.close()
+            fixture.close()
+        }
+
+        companion object {
+            const val SCHEMA = "submission"
+            const val SERVICE = "submission-svc"
+            const val TEST_ACTOR = "test-operator"
+            const val AUDIT = "com.dynokore.gst.platform.AuditEntryRecorded.v1"
+
+            private fun entry(
+                type: String,
+                topic: String,
+            ) = CatalogueEntry(type, topic, setOf(CatalogueEntry.EVERY_SERVICE))
+
+            val CATALOGUE =
+                EventCatalogue(
+                    listOf(
+                        entry(JobPayloads.JOB_REGISTERED, "gst.platform.job-registered.v1"),
+                        entry(JobPayloads.JOB_RUN_RECORDED, "gst.platform.job-run-recorded.v1"),
+                        entry(JobPayloads.CONNECTION_STATUS_CHANGED, "gst.platform.connection-status-changed.v1"),
+                        entry(AUDIT, "gst.platform.audit-entry-recorded.v1"),
+                    ),
+                )
+            val TENANT_A = TenantId(UUID.fromString("0a000000-0000-0000-0000-00000000000a"))
+            val TENANT_B = TenantId(UUID.fromString("0b000000-0000-0000-0000-00000000000b"))
+            val E1 = EntityRef("E-001")
+            val E2 = EntityRef("E-002")
+
+            /**
+             * Five seconds past the current hour (INV-Q-4638): the job tables are aged by the database's `now()`
+             * (retention purge, ShedLock's database time), so START follows the real clock instead of a fixed date.
+             * `INV_TEST_BASE_INSTANT` (an ISO instant) replaces the real clock as the base, to prove the tests do
+             * not depend on the calendar date.
+             */
+            val START: Instant =
+                (System.getenv("INV_TEST_BASE_INSTANT")?.let(Instant::parse) ?: Instant.now())
+                    .truncatedTo(ChronoUnit.HOURS)
+                    .plusSeconds(5)
+
+            /** The top of START's hour, the hourly cron tick START falls in. */
+            val START_HOUR: Instant = START.truncatedTo(ChronoUnit.HOURS)
+
+            /** A timestamptz read by [rows] as an instant, independent of the JVM's time zone. */
+            fun instantOf(value: Any?): Instant =
+                when (value) {
+                    is java.time.OffsetDateTime -> value.toInstant()
+                    else -> error("not a timestamp: $value")
+                }
+
+            fun job(
+                name: String,
+                scope: JobEntityScope = JobEntityScope.ENTITY,
+                criticality: JobCriticality = JobCriticality.STANDARD,
+                cron: String = "0 0 * * * *",
+                lockAtMostFor: Duration = JobDefinition.DEFAULT_LOCK_AT_MOST_FOR,
+            ) = JobDefinition(
+                name,
+                SERVICE,
+                scope,
+                JobSchedule(cron),
+                criticality,
+                Duration.ofMinutes(15),
+                lockAtMostFor,
+                Duration.ZERO,
+            )
+
+            fun request(
+                actor: String,
+                job: String,
+                entity: EntityRef?,
+                reason: String? = null,
+            ) = JobCommandRequest(
+                actor,
+                job,
+                entity,
+                UUID.randomUUID(),
+                reason,
+                CorrelationId("corr-$actor"),
+                CausationId("cmd-$actor"),
+            )
+        }
     }
-}

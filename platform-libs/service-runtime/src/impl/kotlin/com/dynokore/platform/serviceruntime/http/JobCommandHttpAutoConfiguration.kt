@@ -3,11 +3,13 @@ package com.dynokore.platform.serviceruntime.http
 import com.dynokore.platform.configresolver.PolicyWriter
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.serviceruntime.binding.GstProperties
+import com.dynokore.platform.serviceruntime.composition.orConnectionless
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.jobs.JobCommands
 import com.dynokore.platform.serviceruntime.jobs.JobRuntime
 import com.dynokore.platform.serviceruntime.policy.PolicyRoleResolver
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
+import org.jooq.DSLContext
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.AnyNestedCondition
@@ -62,13 +64,14 @@ class JobCommandHttpAutoConfiguration {
     @ConditionalOnMissingBean
     fun idempotencyStore(
         scope: TenantScope,
+        dsl: ObjectProvider<DSLContext>,
         properties: IdempotencyProperties,
     ): IdempotencyStore {
         val schema =
             checkNotNull(properties.schema?.takeIf { it.isNotBlank() }) {
                 "service-runtime.idempotency.schema must name the service's schema (API-15 store)"
             }
-        return IdempotencyStore(scope, schema, properties.retention)
+        return IdempotencyStore(scope, dsl.orConnectionless(), schema, properties.retention)
     }
 
     /**

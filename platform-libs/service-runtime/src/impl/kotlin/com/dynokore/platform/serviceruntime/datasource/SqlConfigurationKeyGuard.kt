@@ -46,21 +46,28 @@ class SqlConfigurationKeyGuard :
         environment: ConfigurableEnvironment,
         application: SpringApplication,
     ) {
-        verify(environment, application.classLoader)
+        val loaders =
+            listOfNotNull(
+                application.classLoader,
+                Thread.currentThread().contextClassLoader,
+                SqlConfigurationKeyGuard::class.java.classLoader,
+            )
+        verify(environment) { name -> loaders.any { it.getResource(name) != null } }
     }
 
     companion object {
         /**
          * Fails naming every refused key of [environment] and every external pool or driver configuration file
-         * visible to [classLoader] (INV-Q-4559). Run by this post-processor and again by [SqlConfigurationKeyRecheck].
+         * visible to the class path, asked through [resourceExists] (INV-Q-4559). Run by this post-processor and again
+         * by [SqlConfigurationKeyRecheck].
          */
         fun verify(
             environment: ConfigurableEnvironment,
-            classLoader: ClassLoader?,
+            resourceExists: (String) -> Boolean,
         ) {
             val offending =
                 findOffendingKeys(environment) + findPasswordProperties(environment) +
-                    findExternalConfiguration(listOfNotNull(classLoader))
+                    findExternalConfiguration(resourceExists)
             check(offending.isEmpty()) {
                 "Spring configuration keys that run SQL, set session state, remove the start-up guards or load " +
                     "classes or bean definitions are refused (coordinator rulings INV-Q-4542, INV-Q-4559, " +
@@ -75,20 +82,15 @@ class SqlConfigurationKeyGuard :
          * schema and options.
          */
         fun findExternalConfiguration(
-            classLoaders: List<ClassLoader>,
+            resourceExists: (String) -> Boolean,
             systemProperty: (String) -> String? = System::getProperty,
         ): List<String> =
             listOfNotNull(
                 systemProperty(HIKARI_CONFIGURATION_FILE)?.let {
                     "system property $HIKARI_CONFIGURATION_FILE (an external pool configuration file)"
                 },
-                (
-                    classLoaders +
-                        listOfNotNull(
-                            Thread.currentThread().contextClassLoader,
-                            SqlConfigurationKeyGuard::class.java.classLoader,
-                        )
-                ).firstOrNull { it.getResource(DRIVER_CONFIGURATION) != null }
+                DRIVER_CONFIGURATION
+                    .takeIf(resourceExists)
                     ?.let { "class-path resource $DRIVER_CONFIGURATION (pgjdbc default connection properties)" },
             )
 
@@ -459,7 +461,14 @@ class SqlConfigurationKeyRecheck :
     override fun getOrder(): Int = Ordered.HIGHEST_PRECEDENCE
 
     override fun postProcessBeanFactory(beanFactory: ConfigurableListableBeanFactory) {
-        SqlConfigurationKeyGuard.verify(environment, beanFactory.beanClassLoader)
+        // the application's class loaders, as before: the bean class loader, the context's and this library's
+        val loaders =
+            listOfNotNull(
+                beanFactory.beanClassLoader,
+                Thread.currentThread().contextClassLoader,
+                SqlConfigurationKeyGuard::class.java.classLoader,
+            )
+        SqlConfigurationKeyGuard.verify(environment) { name -> loaders.any { it.getResource(name) != null } }
         val exporters = findMBeanExporters(beanFactory)
         check(exporters.isEmpty()) {
             "JMX export is refused: an MBeanExporter exports every HikariDataSource with a writable Password " +

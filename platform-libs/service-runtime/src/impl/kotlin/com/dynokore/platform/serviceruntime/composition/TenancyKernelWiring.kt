@@ -1,7 +1,7 @@
 package com.dynokore.platform.serviceruntime.composition
 
-import com.dynokore.platform.serviceruntime.pool.LaneConnection
-import com.dynokore.platform.serviceruntime.pool.LanedDataSource
+import com.dynokore.platform.serviceruntime.pool.LaneGateHolder
+import com.dynokore.platform.serviceruntime.pool.PoolLanes
 import com.dynokore.platform.tenancykernel.ConnectionLabel
 import com.dynokore.platform.tenancykernel.LicenceCheck
 import com.dynokore.platform.tenancykernel.NonBlockingLicenceCheck
@@ -10,6 +10,7 @@ import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantContextImpl
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.config.BeanPostProcessor
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
@@ -40,28 +41,32 @@ class TenancyKernelWiring {
         dataSource: DataSource,
         tenants: TenantContext,
         environment: Environment,
-    ): TransactionRunnerImpl =
-        TransactionRunnerImpl(
-            TenantAwareDataSource(dataSource),
+        gate: ObjectProvider<LaneGateHolder>,
+    ): TransactionRunnerImpl {
+        val lanes = gate.getIfAvailable()?.takeIf { it.active }
+        return TransactionRunnerImpl(
+            TenantAwareDataSource(dataSource, lanes),
             tenants,
-            // each transaction names its pool lane, transaction-locally (INV-T-3982, coordinator ruling INV-Q-4487)
-            environment.getProperty("gst.service")?.takeIf { it.isNotBlank() }?.let { laneLabel(it) },
+            // each transaction on the laned application pool names its lane, transaction-locally (INV-T-3982,
+            // coordinator ruling INV-Q-4487)
+            if (lanes ==
+                null
+            ) {
+                null
+            } else {
+                environment.getProperty("gst.service")?.takeIf { it.isNotBlank() }?.let { laneLabel(it) }
+            },
         )
+    }
 
     companion object {
         /**
-         * The transaction runner's label (coordinator ruling INV-Q-4487): `<service>:<lane>` for a connection taken from
-         * the laned application pool ([LanedDataSource]), set transaction-locally in tenancy-kernel's binding statement;
-         * `null` (statement unchanged) for any other connection.
+         * The transaction runner's label (coordinator ruling INV-Q-4487): `<service>:<lane>` of the calling thread's
+         * lane, read from [PoolLanes.current] (coordinator ruling INV-Q-4506), set transaction-locally in
+         * tenancy-kernel's binding statement.
          */
         fun laneLabel(service: String): ConnectionLabel =
-            ConnectionLabel { connection ->
-                if (connection.isWrapperFor(LaneConnection::class.java)) {
-                    "$service:${connection.unwrap(LaneConnection::class.java).lane.name.lowercase()}"
-                } else {
-                    null
-                }
-            }
+            ConnectionLabel { "$service:${PoolLanes.current().name.lowercase()}" }
 
         /** Wraps the service's base [LicenceCheck] (never one already wrapped) in [NonBlockingLicenceCheck]. */
         @Bean

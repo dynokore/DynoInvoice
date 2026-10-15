@@ -128,10 +128,7 @@ class TenancyJooqWiring {
         ): org.springframework.boot.jooq.autoconfigure.DefaultConfigurationCustomizer =
             org.springframework.boot.jooq.autoconfigure.DefaultConfigurationCustomizer { configuration ->
                 configuration.set(SQLDialect.POSTGRES)
-                val owned = TenancyJooq.configure(configuration, tables, tenants, transactionRunner)
-                configuration.set(owned.connectionProvider())
-                configuration.set(*owned.visitListenerProviders())
-                configuration.set(*owned.executeListenerProviders())
+                TenancyJooq.install(configuration, tables, tenants, transactionRunner)
             }
     }
 
@@ -195,46 +192,7 @@ class TenancyJooqGuard :
     }
 
     internal companion object {
-        private const val PACKAGE = "com.dynokore.platform.tenancyjooq."
-        const val CONNECTION_PROVIDER = PACKAGE + "TenantConnectionProvider"
-        const val VISIT_LISTENER = PACKAGE + "TenantPredicateInjector"
-        const val EXECUTE_LISTENER = PACKAGE + "TenantStatementCheck"
-
-        private fun type(name: String): Class<*>? =
-            try {
-                Class.forName(name, false, TenancyJooq::class.java.classLoader)
-            } catch (_: ClassNotFoundException) {
-                null
-            }
-
-        /** What is wrong with [configuration], or null when it is tenancy-jooq's. */
-        fun problem(configuration: Configuration): String? {
-            val connection = type(CONNECTION_PROVIDER)
-            val visit = type(VISIT_LISTENER)
-            val execute = type(EXECUTE_LISTENER)
-            return when {
-                connection == null || visit == null || execute == null -> {
-                    "tenancy-jooq's listener classes cannot be resolved"
-                }
-
-                !connection.isInstance(configuration.connectionProvider()) -> {
-                    "its connection provider is not tenancy-jooq's"
-                }
-
-                configuration.visitListenerProviders().let { providers ->
-                    providers.isEmpty() || providers.any { !visit.isInstance(it.provide()) }
-                } -> {
-                    "its VisitListeners are not exactly tenancy-jooq's predicate injector"
-                }
-
-                !execute.isInstance(configuration.executeListenerProviders().lastOrNull()?.provide()) -> {
-                    "its last ExecuteListener is not tenancy-jooq's statement check"
-                }
-
-                else -> {
-                    null
-                }
-            }
-        }
+        /** Why [configuration] is not tenancy-jooq's, or null (tenancy-jooq's own check, INV-Q-5105). */
+        fun problem(configuration: Configuration): String? = TenancyJooq.problem(configuration)
     }
 }

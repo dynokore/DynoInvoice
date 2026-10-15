@@ -10,6 +10,9 @@ import com.dynokore.platform.serviceruntime.jobs.JobsHarness.Companion.TENANT_A
 import com.dynokore.platform.serviceruntime.jobs.JobsHarness.Companion.TENANT_B
 import com.dynokore.platform.serviceruntime.jobs.JobsHarness.Companion.job
 import com.dynokore.platform.serviceruntime.jobs.JobsHarness.Companion.request
+import com.dynokore.platform.serviceruntime.testing.PG_CLASS
+import com.dynokore.platform.serviceruntime.testing.PG_CLASS_FORCE
+import com.dynokore.platform.serviceruntime.testing.PG_CLASS_NAME
 import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
@@ -17,6 +20,8 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.api.assertThrows
@@ -59,22 +64,20 @@ class JobContractIT {
         val replica = h.replica("svc-1", MutableClock(START))
         val def = job("ac2126-check", criticality = JobCriticality.DEADLINE_CRITICAL)
         replica.runtime.register(def, entities) { }
-        h.fixture.captureActors("submission.outbox")
+        h.captureActors("submission.outbox")
 
         replica.runtime.announce()
         // start-up is service-level background work: `svc:<svc>`; a scheduled run binds `svc:<svc>/job:<job>`
         // (owner ruling INV-Q-4344 (b))
-        h.fixture.capturedActors("submission.outbox").toSet() shouldBe setOf("svc:submission-svc")
+        h.capturedActors("submission.outbox").toSet() shouldBe setOf("svc:submission-svc")
         replica.runtime.fire(def.name) shouldBe mapOf(e1 to FireResult.RAN, e2 to FireResult.RAN)
-        h.fixture.capturedActors("submission.outbox").toSet() shouldBe
+        h.capturedActors("submission.outbox").toSet() shouldBe
             setOf("svc:submission-svc", "svc:submission-svc/job:ac2126-check")
 
         val registered =
-            h.rows(
-                "select data::text as data, tenant_id from submission.outbox where type = ? and data->>'job' = ?",
-                JobPayloads.JOB_REGISTERED,
-                def.name,
-            )
+            h
+                .rows("submission.outbox", "type" to JobPayloads.JOB_REGISTERED)
+                .filter { (it["data"] as String).contains(""""job": "${def.name}"""") }
         registered shouldHaveSize 1
         registered.single()["tenant_id"] shouldBe TenantId.PLATFORM.value
         val payload = registered.single()["data"] as String
@@ -252,7 +255,7 @@ class JobContractIT {
         // The pause stays in force for scheduled firings.
         clock.advance(Duration.ofHours(1))
         replica.runtime.fire(def.name)[e1] shouldBe FireResult.SKIPPED_PAUSED
-        h.rows("select ended_at from submission.job_pause where job = ?", def.name).single()["ended_at"] shouldBe null
+        h.rows("submission.job_pause", "job" to def.name).single()["ended_at"] shouldBe null
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
@@ -340,7 +343,7 @@ class JobContractIT {
         replica.inA { pause(request(engineer, def.name, E2), until) } shouldBe
             JobCommandOutcome.Refused(JobErrorCode.SCOPE_NOT_PERMITTED)
 
-        val pauses = h.rows("select entity_ref, ended_at from submission.job_pause where job = ?", def.name)
+        val pauses = h.rows("submission.job_pause", "job" to def.name)
         pauses.map { it["entity_ref"] } shouldContainExactlyInAnyOrder listOf(E1.value, EntityRef.PLATFORM.value)
         pauses.map { it["ended_at"] } shouldContainExactly listOf(null, null)
         h.events(AUDIT, "$SERVICE/${def.name}") shouldHaveSize audits
@@ -404,7 +407,7 @@ class JobContractIT {
             .fire(def.name)
             .values
             .toSet() shouldBe setOf(FireResult.RAN)
-        val ended = h.rows("select ended_at from submission.job_pause where job = ?", def.name).single()
+        val ended = h.rows("submission.job_pause", "job" to def.name).single()
         JobsHarness.instantOf(ended["ended_at"]) shouldBe START.plus(Duration.ofHours(2))
     }
 
@@ -479,7 +482,7 @@ class JobContractIT {
             .fire(def.name)
             .values
             .toSet() shouldBe setOf(FireResult.RAN)
-        val pause = h.rows("select tenant_id from submission.job_pause where job = ?", def.name).single()
+        val pause = h.rows("submission.job_pause", "job" to def.name).single()
         pause["tenant_id"] shouldBe TenantId.PLATFORM.value
     }
 
@@ -512,7 +515,7 @@ class JobContractIT {
         deadlines.due[target] = START.plus(Duration.ofHours(3))
         clock.advance(Duration.ofHours(1))
         replica.runtime.fire(def.name)[target] shouldBe FireResult.RAN
-        val ended = h.rows("select ended_at from submission.job_pause where job = ?", def.name).single()
+        val ended = h.rows("submission.job_pause", "job" to def.name).single()
         JobsHarness.instantOf(ended["ended_at"]) shouldBe START.plus(Duration.ofHours(2))
     }
 
@@ -562,21 +565,25 @@ class JobContractIT {
         replica.runtime.register(def, entities) { }
         replica.runtime.fire(def.name)
 
+        // forced row-level security on the job tables (and none on shedlock): read from the catalog as the admin login
         val forced =
-            h.rows(
-                "select relname, relforcerowsecurity from pg_class " +
-                    "where relname in ('job_run', 'job_pause', 'shedlock') order by relname",
-            )
-        forced.associate { it["relname"] to it["relforcerowsecurity"] } shouldBe
-            mapOf("job_pause" to true, "job_run" to true, "shedlock" to false)
+            h.admin.asPlatform {
+                select(PG_CLASS_NAME, PG_CLASS_FORCE)
+                    .from(PG_CLASS)
+                    .where(PG_CLASS_NAME.`in`("job_run", "job_pause", "shedlock"))
+                    .orderBy(PG_CLASS_NAME)
+                    .fetch()
+                    .associate { it.get(PG_CLASS_NAME) to it.get(PG_CLASS_FORCE) }
+            }
+        forced shouldBe mapOf("job_pause" to true, "job_run" to true, "shedlock" to false)
         val seenByA =
             replica.asTenant(TENANT_A) {
                 replica.tx.inTransaction {
-                    val sql = "select entity_ref from submission.job_run where job = ?"
-                    replica.tx.require().prepareStatement(sql).use { s ->
-                        s.setString(1, def.name)
-                        s.executeQuery().use { r -> buildList { while (r.next()) add(EntityRef(r.getString(1))) } }
-                    }
+                    replica.dsl
+                        .select(DSL.field(DSL.name("entity_ref"), SQLDataType.CLOB))
+                        .from(DSL.table(DSL.name("submission", "job_run")))
+                        .where(DSL.field(DSL.name("job"), SQLDataType.CLOB).eq(def.name))
+                        .fetch { EntityRef(it.value1()) }
                 }
             }
         seenByA shouldContainExactly listOf(E1)

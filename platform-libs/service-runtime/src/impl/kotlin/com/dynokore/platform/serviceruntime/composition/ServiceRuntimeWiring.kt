@@ -14,8 +14,10 @@ import com.dynokore.platform.serviceruntime.jobs.JobCommands
 import com.dynokore.platform.serviceruntime.jobs.JobRuntime
 import com.dynokore.platform.serviceruntime.operation.OperationRunner
 import com.dynokore.platform.serviceruntime.operation.TransactionalOperationRunner
-import com.dynokore.platform.tenancykernel.CurrentConnection
 import com.dynokore.platform.tenancykernel.TransactionRunner
+import org.jooq.DSLContext
+import org.jooq.SQLDialect
+import org.jooq.impl.DSL
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
@@ -28,7 +30,6 @@ import org.springframework.context.annotation.Configuration
 import java.time.Clock
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
-import javax.sql.DataSource
 
 /**
  * service-runtime's own ports over the embedded modules (INV-T-2875): the operation contract's
@@ -51,13 +52,13 @@ import javax.sql.DataSource
 @EnableConfigurationProperties(JobProperties::class)
 class ServiceRuntimeWiring {
     @Bean
-    @ConditionalOnBean(TransactionRunner::class, CurrentConnection::class, AuditWriter::class)
+    @ConditionalOnBean(TransactionRunner::class, AuditWriter::class)
     @ConditionalOnMissingBean(OperationRunner::class)
     fun operationRunner(
         transactions: TransactionRunner,
-        connections: CurrentConnection,
+        dsl: ObjectProvider<DSLContext>,
         audit: AuditWriter,
-    ): TransactionalOperationRunner = TransactionalOperationRunner(transactions, connections, audit)
+    ): TransactionalOperationRunner = TransactionalOperationRunner(transactions, dsl.orConnectionless(), audit)
 
     @Bean
     @ConditionalOnBean(TenantScope::class, OutboxWriter::class)
@@ -80,7 +81,6 @@ class ServiceRuntimeWiring {
         AuditWriter::class,
         JobCommandAuthorizer::class,
         DeadlineSource::class,
-        DataSource::class,
     )
     @ConditionalOnProperty(name = [Props.SERVICE, Props.SCHEMA])
     @ConditionalOnMissingBean(JobCommands::class)
@@ -89,9 +89,9 @@ class ServiceRuntimeWiring {
         gst: GstProperties,
         modules: ModuleProperties,
         scope: TenantScope,
+        dsl: ObjectProvider<DSLContext>,
         outbox: OutboxWriter,
         audit: AuditWriter,
-        dataSource: DataSource,
         authorizer: JobCommandAuthorizer,
         deadlines: DeadlineSource,
         clock: Clock,
@@ -102,9 +102,9 @@ class ServiceRuntimeWiring {
             gst.requireService(),
             modules.requireSchema(),
             scope,
+            dsl.orConnectionless(),
             outbox,
             audit,
-            dataSource,
             authorizer,
             deadlines,
             clock,
@@ -117,3 +117,11 @@ class ServiceRuntimeWiring {
         const val RUN_NOW_EXECUTOR = "jobRunNowExecutor"
     }
 }
+
+/**
+ * The DSLContext of tenancy-jooq's factory, which TenancyJooqWiring defines whenever the context has a TransactionRunner
+ * (start-up fails without a generated schema, INV-Q-4815). A context composed without it (a wiring test on no database)
+ * gets a connectionless DSLContext, which runs no statement.
+ */
+internal fun ObjectProvider<DSLContext>.orConnectionless(): DSLContext =
+    getIfAvailable { DSL.using(SQLDialect.POSTGRES) }

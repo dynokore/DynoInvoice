@@ -1,8 +1,6 @@
 package com.dynokore.platform.tenancykernel
 
 import org.postgresql.ds.PGSimpleDataSource
-import java.lang.reflect.InvocationHandler
-import java.lang.reflect.Proxy
 import java.sql.Connection
 import javax.sql.DataSource
 
@@ -25,7 +23,8 @@ class SingleSlotDataSource(
     url: String,
     user: String,
     password: String,
-) : AutoCloseable {
+) : DataSource,
+    AutoCloseable {
     private val physical: Connection =
         PGSimpleDataSource()
             .apply {
@@ -36,54 +35,50 @@ class SingleSlotDataSource(
 
     @Volatile private var checkedOut = false
 
-    val dataSource: DataSource =
-        object : DataSource {
-            override fun getConnection(): Connection = checkOut()
+    /** How many connections were checked out, both `getConnection` forms (INV-Q-5208: replaces a counting wrapper). */
+    @Volatile
+    var checkouts = 0
+        private set
 
-            override fun getConnection(
-                username: String,
-                password: String,
-            ): Connection = checkOut()
+    /** This instance: the class is the [DataSource] (INV-Q-5153). */
+    val dataSource: DataSource get() = this
 
-            override fun <T : Any?> unwrap(iface: Class<T>?): T = throw UnsupportedOperationException()
+    override fun getConnection(): Connection = checkOut()
 
-            override fun isWrapperFor(iface: Class<*>?): Boolean = false
+    override fun getConnection(
+        username: String,
+        password: String,
+    ): Connection = checkOut()
 
-            override fun getLogWriter() = null
+    override fun <T : Any?> unwrap(iface: Class<T>?): T = throw UnsupportedOperationException()
 
-            override fun setLogWriter(out: java.io.PrintWriter?) = Unit
+    override fun isWrapperFor(iface: Class<*>?): Boolean = false
 
-            override fun setLoginTimeout(seconds: Int) = Unit
+    override fun getLogWriter() = null
 
-            override fun getLoginTimeout(): Int = 0
+    override fun setLogWriter(out: java.io.PrintWriter?) = Unit
 
-            override fun getParentLogger(): java.util.logging.Logger = throw UnsupportedOperationException()
-        }
+    override fun setLoginTimeout(seconds: Int) = Unit
+
+    override fun getLoginTimeout(): Int = 0
+
+    override fun getParentLogger(): java.util.logging.Logger = throw UnsupportedOperationException()
 
     private fun checkOut(): Connection {
         check(!checkedOut) { "SingleSlotDataSource: the one slot is already checked out (test bug, not a pool defect)" }
         checkedOut = true
-        val handler =
-            InvocationHandler { _, method, args ->
-                if (method.name == "close" && (args == null || args.isEmpty())) {
-                    checkedOut = false
-                    null
-                } else {
-                    try {
-                        if (args == null) method.invoke(physical) else method.invoke(physical, *args)
-                    } catch (e: java.lang.reflect.InvocationTargetException) {
-                        throw e.targetException
-                    }
-                }
-            }
-        return Proxy.newProxyInstance(
-            Connection::class.java.classLoader,
-            arrayOf(Connection::class.java),
-            handler,
-        ) as Connection
+        checkouts++
+        return SlotConnection()
     }
 
     override fun close() {
         physical.close()
+    }
+
+    /** The physical connection by delegation; only `close()` differs: it frees the slot and never closes it. */
+    private inner class SlotConnection : Connection by physical {
+        override fun close() {
+            checkedOut = false
+        }
     }
 }

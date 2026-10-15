@@ -6,6 +6,7 @@ import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Comp
 import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Companion.sql
 import com.dynokore.platform.serviceruntime.datasource.Tpl18JdbcApplication
 import com.dynokore.platform.serviceruntime.datasource.withMountedLogin
+import com.dynokore.platform.serviceruntime.jobs.JobSchema
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -21,6 +22,8 @@ import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.boot.test.system.CapturedOutput
 import org.springframework.boot.test.system.OutputCaptureExtension
+import java.net.URLClassLoader
+import java.nio.file.Files
 import java.nio.file.Path
 import java.util.UUID
 
@@ -38,6 +41,32 @@ class MigrationRunnerIT {
     fun `the service starts without migrating, and the runner migrates as svc_migrate and writes the retention row`(
         image: String,
         @TempDir mountRoot: Path,
+        @TempDir migrations: Path,
+        output: CapturedOutput,
+    ) {
+        // the fixture service's migration (TPL-12) is a Flyway SQL file: the job tables of JobSchema in `ledger`
+        // The key guard refuses a `filesystem:` location (CS-19, only classpath: locations), so the temp directory is put
+        // on the class path of the run (a deviation from the `filesystem:` wording of INV-T-4515, reported in the MR).
+        Files.createDirectories(migrations.resolve("migrations"))
+        Files.writeString(
+            migrations.resolve("migrations/V1__Jobs.sql"),
+            JobSchema.ddl("ledger", "submission_runtime", "submission_sys"),
+        )
+        val previousLoader = Thread.currentThread().contextClassLoader
+        val migrationLoader = URLClassLoader(arrayOf(migrations.toUri().toURL()), previousLoader)
+        Thread.currentThread().contextClassLoader = migrationLoader
+        try {
+            runRunner(image, mountRoot, migrations, output)
+        } finally {
+            Thread.currentThread().contextClassLoader = previousLoader
+            migrationLoader.close()
+        }
+    }
+
+    private fun runRunner(
+        image: String,
+        mountRoot: Path,
+        migrations: Path,
         output: CapturedOutput,
     ) {
         postgres(image).use { pg ->
@@ -55,7 +84,7 @@ class MigrationRunnerIT {
                     "spring.datasource.url=${pg.jdbcUrl}",
                     "gst.bindings.secret-store.mount-root=$mountRoot",
                     "spring.flyway.schemas=ledger",
-                    "spring.flyway.locations=classpath:com/dynokore/platform/serviceruntime/migration/fixture",
+                    "spring.flyway.locations=classpath:migrations",
                 )
 
             // the service: service-runtime's defaults turn Flyway off, so its context starts and migrates nothing

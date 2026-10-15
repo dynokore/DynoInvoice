@@ -32,8 +32,23 @@ class PoolConfigurationGuardTest {
     fun `every HikariConfig property is classified once (fails when HikariCP adds a property)`() {
         val classified = PoolConfigurationGuard.ALLOWED.keys + PoolConfigurationGuard.AT_DEFAULT
         (PoolConfigurationGuard.ALLOWED.keys intersect PoolConfigurationGuard.AT_DEFAULT).shouldBeEmpty()
-        (PoolConfigurationGuard.PROPERTIES.keys - classified).shouldBeEmpty()
-        (classified - PoolConfigurationGuard.PROPERTIES.keys).shouldBeEmpty()
+        (PoolConfigurationGuard.PROPERTIES.toSet() - classified).shouldBeEmpty()
+        (classified - PoolConfigurationGuard.PROPERTIES.toSet()).shouldBeEmpty()
+    }
+
+    @Test
+    fun `the property table equals the public no-argument get and is methods of HikariConfig`() {
+        val fromClass =
+            HikariConfig::class.java.methods
+                .filter { it.parameterTypes.isEmpty() && it.declaringClass != Any::class.java }
+                .map { it.name }
+                .filter { (it.startsWith("get") && it != "getClass") || it.startsWith("is") }
+                .map { name ->
+                    val bare = name.removePrefix("get").removePrefix("is")
+                    if (bare.length > 1 && bare[1].isUpperCase()) bare else bare.replaceFirstChar { it.lowercase() }
+                }.toSet()
+        PoolConfigurationGuard.PROPERTIES.toSet() shouldBe fromClass
+        PoolConfigurationGuard.PROPERTIES.size shouldBe 39
     }
 
     @Test

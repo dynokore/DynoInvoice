@@ -6,6 +6,29 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-10-15
+### Added
+- `LaneGate`, `LanePermit` and `LaneRefusedException` (main, no `java.sql` type; owner ruling INV-Q-4502 (A), INV-REQ-1230
+  b1): `TenantAwareDataSource(delegate, lanes)` takes a permit before it takes a pool connection and gives it back once
+  when the connection is handed back; a refusal is thrown as `SQLTransientConnectionException` (a plain `SQLException`
+  when interrupted) with the `LaneRefusedException` as its cause (INV-Q-5121).
+- `SqlErrors.sqlStateOf(error)` (main), implemented by `TransactionRunnerImpl`: the first SQLSTATE of the cause chain to
+  a depth of 8 (INV-Q-5121). `CurrentConnection.transactionToken()`: an opaque token of the open transaction, so callers
+  need no `java.sql` type to tell whether one is open.
+- Test fixtures: `TestPoolFixture` (HikariCP from a Testcontainers URL, `TenantAwareDataSource`, handed to
+  `TransactionRunnerImpl`; no connection taken, no statement; owner ruling INV-Q-4508 (A)); `SingleSlotDataSource.checkouts`.
+### Changed (breaking)
+- `ConnectionLabel.of(connection)` is `ConnectionLabel.current()`: the label no longer reads the connection.
+- `TenantAwareDataSource` wraps each connection in the private class `TenantAwareDataSource$ResettingConnection`, a
+  `Connection` by Kotlin delegation that overrides only `close()`; no `java.lang.reflect.Proxy` (INV-Q-4504).
+  `SingleSlotDataSource` is itself a `DataSource` and returns `SingleSlotDataSource$SlotConnection`, also by delegation
+  (INV-Q-5153).
+### Removed (breaking)
+- `ProbeTable` and `PostgresProbeFixture.ownerDataSource`, `appDataSource` and `createProbeTable` (test fixtures,
+  INV-Q-5208): the fixture names no `java.sql`, `javax.sql` or `org.postgresql` type; it keeps `jdbcUrl()`, gains
+  `OWNER`, `OWNER_PASSWORD`, `APP`, `APP_PASSWORD`, and creates the probe table at container start from
+  `TenantRlsMigration.ddl`.
+
 ## [2.0.0] - 2026-10-15
 ### Removed (breaking)
 - `TenantContext.bind(tenant, block)` and `PlatformTenantBinding.bindPlatform(block)`, the actor-less bindings that

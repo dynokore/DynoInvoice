@@ -11,4 +11,16 @@ import java.sql.Connection
  */
 interface CurrentConnection {
     fun require(): Connection
+
+    /**
+     * An opaque token of the transaction open on the calling thread, or null when none is: two reads return the same
+     * object exactly while the same transaction is open. It names no JDBC type, so callers outside the connection core
+     * can tell whether a transaction is open, and whether it is still the one they saw, without a `java.sql` type.
+     */
+    fun transactionToken(): Any? =
+        try {
+            require()
+        } catch (_: IllegalStateException) {
+            null
+        }
 }

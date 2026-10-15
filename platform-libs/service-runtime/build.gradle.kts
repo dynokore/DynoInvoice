@@ -168,8 +168,6 @@ dependencies {
     add("implTestImplementation", testFixtures(project(":outbox-and-queue")))
     listOf("implImplementation", "implTestImplementation").forEach { config ->
         add(config, libs.shedlock.core)
-        add(config, libs.shedlock.providerJdbcTemplate)
-        add(config, libs.spring.jdbc)
         add(config, libs.jackson.databind)
     }
     add("implTestImplementation", libs.junit.params)

@@ -16,9 +16,9 @@ import com.dynokore.platform.outboxandqueue.ReplayJson
 import com.dynokore.platform.outboxandqueue.ReplayMode
 import com.dynokore.platform.outboxandqueue.ReplayRequest
 import com.dynokore.platform.outboxandqueue.TenantScope
+import com.dynokore.platform.tenancykernel.SqlErrors
 import com.dynokore.platform.tenancykernel.TenantId
 import tools.jackson.databind.ObjectMapper
-import java.sql.SQLException
 import java.time.Clock
 import java.util.UUID
 
@@ -64,6 +64,11 @@ class ConsumerRebuildRuntime
         private val authorizer: ConsumerRebuildAuthorizer,
         private val clock: Clock,
         private val fullSync: FullSyncWiring? = null,
+        /** Reads the SQLSTATE of a failed transaction (INV-Q-5121); the runner of [scope] by default. */
+        private val errors: SqlErrors =
+            checkNotNull(scope.transactions as? SqlErrors) {
+                "the TenantScope's TransactionRunner must read SQLSTATEs (tenancy-kernel's TransactionRunnerImpl)"
+            },
     ) : ConsumerRebuildCommands {
         /** The transaction a request runs in, on the runtime login, for a replay by scope and a full sync alike. */
         private inner class Side(
@@ -110,9 +115,9 @@ class ConsumerRebuildRuntime
             repeat(ATTEMPTS) {
                 try {
                     return side.platformTransaction(request.actor) { decide(side, request, consumer, producers) }
-                } catch (race: SQLException) {
+                } catch (race: Exception) {
                     // A concurrent call for the pair committed its pending replay first (unique index): read it again.
-                    if (race.sqlState != UNIQUE_VIOLATION) throw race
+                    if (errors.sqlStateOf(race) != UNIQUE_VIOLATION) throw race
                 }
             }
             error("rebuildConsumer kept racing on the pending replay")

@@ -1,9 +1,9 @@
 package com.dynokore.platform.tenancykernel
 
-import java.lang.reflect.InvocationHandler
-import java.lang.reflect.Method
-import java.lang.reflect.Proxy
 import java.sql.Connection
+import java.sql.SQLException
+import java.sql.SQLTransientConnectionException
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.sql.DataSource
 
 /**
@@ -19,61 +19,75 @@ import javax.sql.DataSource
  *
  * `close()` on the connection the pool hands out does not close the physical
  * connection (the pool intercepts that itself) — it returns it to the pool.
- * This wrapper runs `RESET app.tenant_id` and `RESET app.actor` immediately before that handback, on
- * the pool's own physical connection, using a JDK dynamic proxy: `Connection`
- * has no `by`-delegation-friendly single seam for "run one statement, then
- * delegate everything else, including `close`, unchanged" the way a hand
- * written wrapper would need one override method per interface (~40 methods)
- * to stay a transparent passthrough.
+ * [ResettingConnection] runs `RESET app.tenant_id` and `RESET app.actor` immediately before that handback, on
+ * the pool's own physical connection; it is a `Connection` by Kotlin delegation that overrides only `close()`
+ * (coordinator ruling INV-Q-4504: no reflection).
+ *
+ * With a [lanes] gate (owner ruling INV-Q-4502 (A)) a permit is taken before the pool connection and released once
+ * when the connection is handed back, or at once when no connection could be taken. A refusal is thrown as a
+ * `SQLTransientConnectionException` whose cause is the gate's [LaneRefusedException] (a plain `SQLException` when the
+ * wait was interrupted), as the former lane wrapper threw it.
  */
-class TenantAwareDataSource(
-    private val delegate: DataSource,
-) : DataSource by delegate {
-    override fun getConnection(): Connection = wrap(delegate.connection)
+class TenantAwareDataSource
+    @JvmOverloads
+    constructor(
+        private val delegate: DataSource,
+        private val lanes: LaneGate? = null,
+    ) : DataSource by delegate {
+        override fun getConnection(): Connection = wrap { delegate.connection }
 
-    override fun getConnection(
-        username: String,
-        password: String,
-    ): Connection = wrap(delegate.getConnection(username, password))
+        override fun getConnection(
+            username: String,
+            password: String,
+        ): Connection = wrap { delegate.getConnection(username, password) }
 
-    private fun wrap(physical: Connection): Connection {
-        val handler =
-            InvocationHandler { _, method, args ->
-                if (method.name == "close" && (args == null || args.isEmpty())) {
-                    resetTenantThenClose(physical)
-                    null
+        private fun wrap(take: () -> Connection): Connection {
+            val permit = acquire()
+            try {
+                return ResettingConnection(take(), permit)
+            } catch (failure: Throwable) {
+                permit?.release()
+                throw failure
+            }
+        }
+
+        private fun acquire(): LanePermit? =
+            try {
+                lanes?.acquire()
+            } catch (refused: LaneRefusedException) {
+                throw if (refused.interrupted) {
+                    SQLException(refused.message, refused)
                 } else {
-                    invoke(physical, method, args)
+                    SQLTransientConnectionException(refused.message, refused)
                 }
             }
-        return Proxy.newProxyInstance(
-            Connection::class.java.classLoader,
-            arrayOf(Connection::class.java),
-            handler,
-        ) as Connection
-    }
 
-    private fun resetTenantThenClose(physical: Connection) {
-        try {
-            if (!physical.isClosed) {
-                physical.createStatement().use {
-                    it.execute("RESET app.tenant_id")
-                    it.execute("RESET app.actor")
+        private class ResettingConnection(
+            private val physical: Connection,
+            private val permit: LanePermit?,
+        ) : Connection by physical {
+            private val closed = AtomicBoolean(false)
+
+            override fun close() {
+                if (!closed.compareAndSet(false, true)) return
+                try {
+                    resetTenantThenClose()
+                } finally {
+                    permit?.release()
                 }
             }
-        } finally {
-            physical.close()
+
+            private fun resetTenantThenClose() {
+                try {
+                    if (!physical.isClosed) {
+                        physical.createStatement().use {
+                            it.execute("RESET app.tenant_id")
+                            it.execute("RESET app.actor")
+                        }
+                    }
+                } finally {
+                    physical.close()
+                }
+            }
         }
     }
-
-    private fun invoke(
-        target: Connection,
-        method: Method,
-        args: Array<out Any?>?,
-    ): Any? =
-        try {
-            if (args == null) method.invoke(target) else method.invoke(target, *args)
-        } catch (e: java.lang.reflect.InvocationTargetException) {
-            throw e.targetException
-        }
-}

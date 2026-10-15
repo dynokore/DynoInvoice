@@ -392,9 +392,9 @@ class SqlConfigurationKeyGuardTest {
 
     @Test
     fun `the HikariCP configuration file system property is refused (INV-Q-4559)`() {
-        SqlConfigurationKeyGuard.findExternalConfiguration(emptyList()) { null }.shouldBeEmpty()
+        SqlConfigurationKeyGuard.findExternalConfiguration({ false }) { null }.shouldBeEmpty()
         SqlConfigurationKeyGuard
-            .findExternalConfiguration(emptyList()) { name ->
+            .findExternalConfiguration({ false }) { name ->
                 "/tmp/pool.properties".takeIf { name == "hikaricp.configurationFile" }
             }.single() shouldContain "hikaricp.configurationFile"
         val previous = System.setProperty("hikaricp.configurationFile", "/tmp/pool.properties")
@@ -420,11 +420,19 @@ class SqlConfigurationKeyGuardTest {
         Files.createDirectories(file.parent)
         Files.writeString(file, "options=-c search_path=x\n")
         URLClassLoader(arrayOf(root.toUri().toURL()), null).use { loader ->
-            val failure = shouldThrow<IllegalStateException> { SqlConfigurationKeyGuard.verify(properties(), loader) }
+            val failure =
+                shouldThrow<IllegalStateException> {
+                    SqlConfigurationKeyGuard.verify(properties()) { name ->
+                        loader.getResource(name) !=
+                            null
+                    }
+                }
             failure.message.orEmpty() shouldContain "org/postgresql/driverconfig.properties"
             failure.message.orEmpty() shouldContain "INV-Q-4559"
         }
-        SqlConfigurationKeyGuard.verify(properties(), URLClassLoader(arrayOf(), null))
+        URLClassLoader(arrayOf(), null).use { empty ->
+            SqlConfigurationKeyGuard.verify(properties()) { name -> empty.getResource(name) != null }
+        }
     }
 
     companion object {

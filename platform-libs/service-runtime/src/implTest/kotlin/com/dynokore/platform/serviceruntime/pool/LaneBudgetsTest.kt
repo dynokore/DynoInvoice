@@ -2,6 +2,7 @@ package com.dynokore.platform.serviceruntime.pool
 
 import com.dynokore.platform.serviceruntime.composition.ServiceDataSources
 import com.dynokore.platform.serviceruntime.datasource.Tpl18JdbcApplication
+import com.dynokore.platform.serviceruntime.pool.LaneGateHolder
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -90,7 +91,7 @@ class LaneBudgetsTest {
                 "service-runtime.pool.lanes.reprocessing=0",
             ).run {
                 it.startupFailure shouldBe null
-                (it.getBean("dataSource") as LanedDataSource).budgets shouldBe LaneBudgets(2, 1, 0)
+                it.getBean(LaneGateHolder::class.java).permits().budgets shouldBe LaneBudgets(2, 1, 0)
             }
         service
             .withPropertyValues(
@@ -123,7 +124,7 @@ class LaneBudgetsTest {
                 "service-runtime.pool.runs-reprocessing=true",
             ).run { context ->
                 context.startupFailure shouldBe null
-                (context.getBean("dataSource") as LanedDataSource).budgets shouldBe LaneBudgets(7, 3, 1)
+                context.getBean(LaneGateHolder::class.java).permits().budgets shouldBe LaneBudgets(7, 3, 1)
             }
         // INV-Q-4485: the declaration and the reprocessing budget disagree, at start-up
         service

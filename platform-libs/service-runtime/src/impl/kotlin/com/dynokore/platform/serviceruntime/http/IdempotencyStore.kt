@@ -4,8 +4,14 @@ import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TenantRlsMigration
-import java.sql.Connection
+import org.jooq.DSLContext
+import org.jooq.Field
+import org.jooq.Table
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
+import org.jooq.types.DayToSecond
 import java.time.Duration
+import java.time.OffsetDateTime
 import java.util.UUID
 
 /** A response as stored for a replay (API-15: the original status and body). */
@@ -173,11 +179,21 @@ fun interface IdempotencyRecorder {
  */
 class IdempotencyStore(
     private val scope: TenantScope,
+    private val dsl: DSLContext,
     schema: String,
     val retention: Duration = DEFAULT_RETENTION,
 ) {
-    private val table = "${SqlIdentifier.require(schema, "schema")}.${IdempotencySchema.TABLE}"
-    private val purgeExpired = "${SqlIdentifier.require(schema, "schema")}.${IdempotencySchema.PURGE_EXPIRED}"
+    private val table: Table<*> = DSL.table(DSL.name(SqlIdentifier.require(schema, "schema"), IdempotencySchema.TABLE))
+    private val tableName = "${SqlIdentifier.require(schema, "schema")}.${IdempotencySchema.TABLE}"
+    private val purgeExpired = DSL.name(SqlIdentifier.require(schema, "schema"), IdempotencySchema.PURGE_EXPIRED)
+    private val tenantId: Field<java.util.UUID> = DSL.field(DSL.name("tenant_id"), SQLDataType.UUID)
+    private val principalCol: Field<String> = DSL.field(DSL.name("principal"), SQLDataType.CLOB)
+    private val keyCol: Field<java.util.UUID> = DSL.field(DSL.name("idempotency_key"), SQLDataType.UUID)
+    private val fingerprintCol: Field<String> = DSL.field(DSL.name("fingerprint"), SQLDataType.CLOB)
+    private val statusCol: Field<Int> = DSL.field(DSL.name("status"), SQLDataType.INTEGER)
+    private val bodyCol: Field<String> = DSL.field(DSL.name("body"), SQLDataType.CLOB)
+    private val createdAt: Field<OffsetDateTime> =
+        DSL.field(DSL.name("created_at"), SQLDataType.TIMESTAMPWITHTIMEZONE)
 
     init {
         require(retention >= DEFAULT_RETENTION) { "API-15 keeps a key for at least 24 hours" }
@@ -220,13 +236,7 @@ class IdempotencyStore(
     }
 
     /** Whether a transaction is open on the calling thread (the enclosing command transaction of TPL-04). */
-    private fun transactionOpen(): Boolean =
-        try {
-            scope.connections.require()
-            true
-        } catch (_: IllegalStateException) {
-            false
-        }
+    private fun transactionOpen(): Boolean = scope.connections.transactionToken() != null
 
     /** One request's guard, lookup and record, each in the transaction open on the calling thread. */
     private inner class Command(
@@ -239,19 +249,19 @@ class IdempotencyStore(
             private set
 
         /** The transaction connection [begin] ran on; another one means a new transaction that must begin again. */
-        private var begunOn: Connection? = null
+        private var begunOn: Any? = null
 
         override fun begin() {
-            val connection = scope.connections.require()
-            if (begunOn === connection) return
+            val connection = scope.connections.transactionToken()
+            if (begunOn != null && begunOn === connection) return
             check(scope.tenants.current() == owner) { "the command transaction is not the key's tenant" }
-            val held =
-                connection
-                    .prepareStatement("select pg_try_advisory_xact_lock(hashtextextended(?, 0))")
-                    .use { statement ->
-                        statement.setString(1, "$table/$owner/$principal/$key")
-                        statement.executeQuery().use { it.next() && it.getBoolean(1) }
-                    }
+            val lock =
+                DSL.function(
+                    DSL.name("pg_try_advisory_xact_lock"),
+                    SQLDataType.BOOLEAN,
+                    hash("$tableName/$owner/$principal/$key"),
+                )
+            val held = dsl.select(lock).fetchOne()?.value1() == true
             if (!held) throw Settled(this, IdempotencyOutcome.InFlight)
             val stored = find(owner, principal, key)
             if (stored != null) {
@@ -298,15 +308,16 @@ class IdempotencyStore(
             val deleted =
                 scope.bindWorkload(TenantId.PLATFORM) {
                     scope.transactions.inTransaction {
-                        scope.connections
-                            .require()
-                            .prepareStatement(
-                                "select $purgeExpired(now() - ? * interval '1 second', ?)",
-                            ).use { statement ->
-                                statement.setLong(1, seconds)
-                                statement.setInt(2, PURGE_BATCH)
-                                statement.executeQuery().use { rows -> if (rows.next()) rows.getLong(1).toInt() else 0 }
-                            }
+                        val cutoff =
+                            DSL.currentOffsetDateTime().sub(
+                                DSL.`val`(DayToSecond.valueOf(Duration.ofSeconds(seconds))),
+                            )
+                        val purged = DSL.function(purgeExpired, SQLDataType.BIGINT, cutoff, DSL.`val`(PURGE_BATCH))
+                        dsl
+                            .select(purged)
+                            .fetchOne()
+                            ?.value1()
+                            ?.toInt() ?: 0
                     }
                 }
             total += deleted
@@ -320,18 +331,11 @@ class IdempotencyStore(
         principal: String,
         key: UUID,
     ): Pair<String, StoredResponse>? =
-        scope.connections
-            .require()
-            .prepareStatement(
-                "select fingerprint, status, body from $table where tenant_id = ? and principal = ? and idempotency_key = ?",
-            ).use { statement ->
-                statement.setObject(1, tenant.value)
-                statement.setString(2, principal)
-                statement.setObject(3, key)
-                statement.executeQuery().use { rows ->
-                    if (rows.next()) rows.getString(1) to StoredResponse(rows.getInt(2), rows.getString(3)) else null
-                }
-            }
+        dsl
+            .select(fingerprintCol, statusCol, bodyCol)
+            .from(table)
+            .where(tenantId.eq(tenant.value).and(principalCol.eq(principal)).and(keyCol.eq(key)))
+            .fetchOne { row -> row.get(fingerprintCol) to StoredResponse(row.get(statusCol), row.get(bodyCol)) }
 
     /** Inserts the record in the open transaction of the current thread. */
     private fun insert(
@@ -341,23 +345,24 @@ class IdempotencyStore(
         fingerprint: String,
         response: StoredResponse,
     ) {
-        scope.connections
-            .require()
-            .prepareStatement(
-                """
-                insert into $table (tenant_id, principal, idempotency_key, fingerprint, status, body, created_at)
-                values (?, ?, ?, ?, ?, ?, now()) on conflict do nothing
-                """.trimIndent(),
-            ).use { statement ->
-                statement.setObject(1, tenant.value)
-                statement.setString(2, principal)
-                statement.setObject(3, key)
-                statement.setString(4, fingerprint)
-                statement.setInt(5, response.status)
-                statement.setString(6, response.body)
-                statement.executeUpdate()
-            }
+        dsl
+            .insertInto(table)
+            .columns(tenantId, principalCol, keyCol, fingerprintCol, statusCol, bodyCol, createdAt)
+            .values(
+                DSL.`val`(tenant.value),
+                DSL.`val`(principal),
+                DSL.`val`(key),
+                DSL.`val`(fingerprint),
+                DSL.`val`(response.status),
+                DSL.`val`(response.body),
+                DSL.currentOffsetDateTime(),
+            ).onConflictDoNothing()
+            .execute()
     }
+
+    /** `hashtextextended(text, 0)`: the advisory-lock key of [text]; the text is a bind value. */
+    private fun hash(text: String) =
+        DSL.function(DSL.name("hashtextextended"), SQLDataType.BIGINT, DSL.`val`(text), DSL.`val`(0L))
 
     private fun <T> inTenant(
         tenant: TenantId,

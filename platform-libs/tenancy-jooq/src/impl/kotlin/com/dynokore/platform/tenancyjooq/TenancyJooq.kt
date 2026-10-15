@@ -47,6 +47,49 @@ object TenancyJooq {
     }
 
     /**
+     * [configure] applied in place (INV-Q-5105): validates [configuration] as [configure] does, then sets tenancy-jooq's
+     * connection provider, VisitListener and ExecuteListener on that object, for a caller that is handed a mutable
+     * `DefaultConfiguration` (Spring Boot's `DefaultConfigurationCustomizer`) and may not call a listener setter itself.
+     */
+    fun install(
+        configuration: DefaultConfiguration,
+        tables: TenancyTables,
+        tenants: TenantContext,
+        transactionRunner: TransactionRunner,
+    ) {
+        val owned = configure(configuration, tables, tenants, transactionRunner)
+        configuration.set(owned.connectionProvider())
+        configuration.set(*owned.visitListenerProviders())
+        configuration.set(*owned.executeListenerProviders())
+    }
+
+    /**
+     * Why [configuration] is not tenancy-jooq's (INV-Q-5105), or null when it is: its connection provider is
+     * tenancy-jooq's, its VisitListeners are exactly tenancy-jooq's predicate injector, and its last ExecuteListener is
+     * tenancy-jooq's statement check. The listener classes stay internal.
+     */
+    fun problem(configuration: Configuration): String? =
+        when {
+            configuration.connectionProvider() !is TenantConnectionProvider -> {
+                "its connection provider is not tenancy-jooq's"
+            }
+
+            configuration.visitListenerProviders().let { providers ->
+                providers.isEmpty() || providers.any { it.provide() !is TenantPredicateInjector }
+            } -> {
+                "its VisitListeners are not exactly tenancy-jooq's predicate injector"
+            }
+
+            configuration.executeListenerProviders().lastOrNull()?.provide() !is TenantStatementCheck -> {
+                "its last ExecuteListener is not tenancy-jooq's statement check"
+            }
+
+            else -> {
+                null
+            }
+        }
+
+    /**
      * The DSLContext of a platform-libs module (CS-18): PostgreSQL, on the transaction runner's connection, with the
      * tenancy listeners, for tables named with `DSL.name(schema, table)` and declared with their class.
      */

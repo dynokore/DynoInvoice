@@ -1,16 +1,16 @@
 package com.dynokore.platform.tenancykernel
 
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTimeoutPreemptively
-import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import java.time.Duration
 import java.util.UUID
 
 /**
- * Consumer-driven contract test of the module API (done-when).
+ * Consumer-driven contract test of the module API (done-when). The two statement tests (nested propagation, atomicity)
+ * moved to tenancy-jooq's `ModuleApiConsumerTransactionContractTest` (coordinator ruling INV-Q-5208): the kernel can
+ * build no DSLContext. The licence port's non-blocking guarantee stays here, with no statement.
  *
  * `platform-contracts`/Pact (TPL-13, TPL-14) is for a service's HTTP or event
  * boundary; `tenancy-kernel-api` is a Kotlin library boundary instead, so its
@@ -28,115 +28,34 @@ class ModuleApiConsumerContractTest {
     /** Written exactly as `submission-application`'s use cases are (TPL-04): only `-api` types in its constructor. */
     private class FakeConsumerUseCase(
         private val tenants: TenantContext,
-        private val tx: TransactionRunner,
         private val licence: LicenceCheck,
-        private val connections: CurrentConnection,
     ) {
-        fun recordTwoProbeRowsInOneTransaction(
-            first: ProbeRow,
-            second: ProbeRow,
-        ) {
-            tx.inTransaction {
-                ProbeTable.insert(connections.require(), first)
-                tx.inTransaction { ProbeTable.insert(connections.require(), second) } // nested: REQUIRED propagation
-            }
-        }
-
-        fun recordThenFailMidway(
-            first: ProbeRow,
-            second: ProbeRow,
-        ) {
-            tx.inTransaction {
-                ProbeTable.insert(connections.require(), first)
-                tx.inTransaction {
-                    ProbeTable.insert(connections.require(), second)
-                    error("simulated failure after both writes, before commit")
-                }
-            }
-        }
-
-        fun currentTenant(): TenantId = tenants.current()
-
         fun licenceStatusNeverBlocks(): LicenceStatus = licence.status(tenants.current())
-    }
-
-    @Test
-    fun `nested inTransaction joins one transaction (REQUIRED propagation) and current() reflects the bound tenant`() {
-        PostgresProbeFixture("postgres:18").use { fixture ->
-            fixture.createProbeTable(fixture.ownerDataSource())
-            val tenants = TenantContextImpl()
-            val tx = TransactionRunnerImpl(fixture.appDataSource(), tenants)
-            val alwaysOk = NonBlockingLicenceCheck(LicenceCheck { LicenceStatus.OK })
-            val useCase = FakeConsumerUseCase(tenants, tx, alwaysOk, tx)
-            val tenant = TenantId(UUID.randomUUID())
-
-            val seenTenant = tenants.bind(tenant, "test-actor") { useCase.currentTenant() }
-            assertEquals(tenant, seenTenant)
-
-            tenants.bind(tenant, "test-actor") {
-                useCase.recordTwoProbeRowsInOneTransaction(
-                    ProbeRow(UUID.randomUUID(), tenant, "nested-first"),
-                    ProbeRow(UUID.randomUUID(), tenant, "nested-second"),
-                )
-            }
-
-            val rows =
-                tenants
-                    .bind(tenant, "test-actor") { tx.inTransaction { ProbeTable.selectAll(tx.require()) } }
-                    .map { it.value }
-            val expected = listOf("nested-first", "nested-second")
-            assertTrue(rows.containsAll(expected), "both nested writes must be visible: $rows")
-        }
-    }
-
-    @Test
-    fun `a failure anywhere in the nested transaction rolls back every write in it (ARC-05 atomicity)`() {
-        PostgresProbeFixture("postgres:18").use { fixture ->
-            fixture.createProbeTable(fixture.ownerDataSource())
-            val tenants = TenantContextImpl()
-            val tx = TransactionRunnerImpl(fixture.appDataSource(), tenants)
-            val alwaysOk = NonBlockingLicenceCheck(LicenceCheck { LicenceStatus.OK })
-            val useCase = FakeConsumerUseCase(tenants, tx, alwaysOk, tx)
-            val tenant = TenantId(UUID.randomUUID())
-
-            assertThrows(IllegalStateException::class.java) {
-                tenants.bind(tenant, "test-actor") {
-                    useCase.recordThenFailMidway(
-                        ProbeRow(UUID.randomUUID(), tenant, "rolled-back-first"),
-                        ProbeRow(UUID.randomUUID(), tenant, "rolled-back-second"),
-                    )
-                }
-            }
-
-            val rows =
-                tenants
-                    .bind(tenant, "test-actor") { tx.inTransaction { ProbeTable.selectAll(tx.require()) } }
-                    .map { it.value }
-            assertTrue(rows.none { it.startsWith("rolled-back") }, "neither write must survive the rollback: $rows")
-        }
     }
 
     @Test
     fun `LicenceCheck never blocks the consumer, even wired to a hanging delegate (FR-G_12)`() {
         PostgresProbeFixture("postgres:18").use { fixture ->
-            fixture.createProbeTable(fixture.ownerDataSource())
-            val tenants = TenantContextImpl()
-            val tx = TransactionRunnerImpl(fixture.appDataSource(), tenants)
-            val hangingLicence =
-                NonBlockingLicenceCheck(
-                    delegate =
-                        LicenceCheck {
-                            Thread.sleep(10_000)
-                            LicenceStatus.EXPIRED
-                        },
-                    timeout = Duration.ofMillis(150),
-                )
-            val useCase = FakeConsumerUseCase(tenants, tx, hangingLicence, tx)
-            val tenant = TenantId(UUID.randomUUID())
+            val app = PostgresProbeFixture.APP
+            TestPoolFixture(fixture.jdbcUrl(), app, PostgresProbeFixture.APP_PASSWORD).use { pool ->
+                val tenants = TenantContextImpl()
+                pool.runner(tenants)
+                val hangingLicence =
+                    NonBlockingLicenceCheck(
+                        delegate =
+                            LicenceCheck {
+                                Thread.sleep(10_000)
+                                LicenceStatus.EXPIRED
+                            },
+                        timeout = Duration.ofMillis(150),
+                    )
+                val useCase = FakeConsumerUseCase(tenants, hangingLicence)
+                val tenant = TenantId(UUID.randomUUID())
 
-            assertTimeoutPreemptively(Duration.ofSeconds(2)) {
-                val status = tenants.bind(tenant, "test-actor") { useCase.licenceStatusNeverBlocks() }
-                assertEquals(LicenceStatus.UNKNOWN, status)
+                assertTimeoutPreemptively(Duration.ofSeconds(2)) {
+                    val status = tenants.bind(tenant, "test-actor") { useCase.licenceStatusNeverBlocks() }
+                    assertEquals(LicenceStatus.UNKNOWN, status)
+                }
             }
         }
     }

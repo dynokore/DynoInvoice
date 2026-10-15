@@ -4,6 +4,7 @@ import com.dynokore.platform.serviceruntime.binding.SecretRef
 import com.dynokore.platform.serviceruntime.binding.SecretStore
 import com.zaxxer.hikari.HikariDataSource
 import org.flywaydb.core.api.configuration.FluentConfiguration
+import org.springframework.beans.factory.DisposableBean
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.config.BeanPostProcessor
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
@@ -12,11 +13,6 @@ import org.springframework.boot.flyway.autoconfigure.FlywayConfigurationCustomiz
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.env.Environment
-import org.springframework.jdbc.datasource.AbstractDataSource
-import java.sql.Connection
-import java.sql.DriverManager
-import java.util.Properties
-import javax.sql.DataSource
 
 /**
  * Database credentials through [SecretStore] (STK-29, INV-REQ-1231; ruling INV-Q-3909, INV-T-3913). Each part is
@@ -95,15 +91,7 @@ internal class ApplicationPoolCredentials(
     ): Any {
         if (beanName != APPLICATION_DATA_SOURCE) return bean
         val credential = DatabaseCredentialsConfiguration.DATASOURCE_CREDENTIAL
-        // the pool itself, or the pool under its lanes (PoolLaneWiring), whichever post-processor runs first
-        val pool =
-            (bean as? HikariDataSource)
-                ?: (bean as? DataSource)
-                    ?.takeIf {
-                        it.isWrapperFor(
-                            HikariDataSource::class.java,
-                        )
-                    }?.unwrap(HikariDataSource::class.java)
+        val pool = bean as? HikariDataSource
         check(pool != null) {
             "$credential needs Spring Boot's application DataSource to be a HikariDataSource (STK-17), " +
                 "but bean '$beanName' is a ${bean.javaClass.name}"
@@ -130,11 +118,17 @@ internal class ApplicationPoolCredentials(
     }
 }
 
-/** Gives Flyway a connection source whose password is read through SecretStore on each connection. */
+/**
+ * Gives Flyway a connection source whose password is read through SecretStore on each connection: the pool of
+ * [FlywayLoginPool] (coordinator ruling INV-Q-5111), closed with the context.
+ */
 internal class FlywayCredentials(
     private val environment: Environment,
     private val secrets: ObjectProvider<SecretStore>,
-) : FlywayConfigurationCustomizer {
+) : FlywayConfigurationCustomizer,
+    DisposableBean {
+    private var pool: FlywayLoginPool? = null
+
     override fun customize(configuration: FluentConfiguration) {
         val credential = DatabaseCredentialsConfiguration.FLYWAY_CREDENTIAL
         environment.refuseAlongside(credential, listOf("spring.flyway.password"))
@@ -147,31 +141,14 @@ internal class FlywayCredentials(
                 environment.required("spring.flyway.user", credential),
                 SecretRef(environment.getRequiredProperty(credential)),
             )
-        configuration.dataSource(SecretStoreDriverDataSource(url, provider))
-    }
-}
-
-/** An unpooled DataSource that takes each connection's credentials from [credentials] (Flyway's owner role). */
-internal class SecretStoreDriverDataSource(
-    private val url: String,
-    private val credentials: SecretStoreCredentialsProvider,
-) : AbstractDataSource() {
-    override fun getConnection(): Connection {
-        val current = credentials.credentials
-        return DriverManager.getConnection(
-            url,
-            Properties().also {
-                it["user"] = current.username
-                it["password"] = current.password
-            },
-        )
+        pool?.close()
+        val built = FlywayLoginPool().build(url, provider)
+        pool = built
+        configuration.dataSource(built.dataSource())
     }
 
-    override fun getConnection(
-        username: String?,
-        password: String?,
-    ): Connection =
-        throw UnsupportedOperationException("credentials come from SecretStore (${credentials.passwordRef})")
-
-    override fun toString(): String = "SecretStoreDriverDataSource($credentials)"
+    override fun destroy() {
+        pool?.close()
+        pool = null
+    }
 }

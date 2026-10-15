@@ -1,11 +1,15 @@
 package com.dynokore.platform.serviceruntime.jobs
 
-import com.dynokore.platform.tenancykernel.CurrentConnection
 import com.dynokore.platform.tenancykernel.SqlIdentifier
-import java.sql.Connection
-import java.sql.PreparedStatement
-import java.sql.Timestamp
+import org.jooq.DSLContext
+import org.jooq.Field
+import org.jooq.Table
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import java.time.Instant
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
+import java.util.UUID
 
 /** One `job_run` row's key (INV-Q-2948, INV-Q-3039, INV-Q-3034). */
 internal data class RunKey(
@@ -28,35 +32,57 @@ internal data class PauseRow(
 )
 
 /**
- * `job_run` and `job_pause` statements, run on the connection of the caller's open transaction, in which
- * the target's tenant is bound (ARC-21; forced RLS, CS-19). Every statement also names `tenant_id`
- * (defence in depth, TPL-11).
+ * `job_run` and `job_pause` statements as jOOQ DSL on the DSLContext of tenancy-jooq's factory, run in the caller's
+ * open transaction, in which the target's tenant is bound (ARC-21; forced RLS, CS-19). Every statement also names
+ * `tenant_id` (defence in depth, TPL-11; tenancy-jooq checks the predicate again). Identifiers are `DSL.name` of the
+ * [SqlIdentifier]-validated schema and constant column names; every value is a bind value.
  */
 internal class JdbcJobState(
-    private val connections: CurrentConnection,
+    private val dsl: DSLContext,
     schema: String,
     private val service: String,
 ) {
-    private val run = "${SqlIdentifier.require(schema, "schema")}.${JobSchema.JOB_RUN}"
-    private val pause = "${SqlIdentifier.require(schema, "schema")}.${JobSchema.JOB_PAUSE}"
+    private val run: Table<*> = DSL.table(DSL.name(SqlIdentifier.require(schema, "schema"), JobSchema.JOB_RUN))
+    private val pause: Table<*> = DSL.table(DSL.name(SqlIdentifier.require(schema, "schema"), JobSchema.JOB_PAUSE))
+
+    private val tenantId: Field<UUID> = DSL.field(DSL.name("tenant_id"), SQLDataType.UUID)
+    private val serviceName: Field<String> = DSL.field(DSL.name("service"), SQLDataType.CLOB)
+    private val jobName: Field<String> = DSL.field(DSL.name("job"), SQLDataType.CLOB)
+    private val entityRef: Field<String> = DSL.field(DSL.name("entity_ref"), SQLDataType.CLOB)
+    private val tickAt: Field<OffsetDateTime> = DSL.field(DSL.name("tick"), SQLDataType.TIMESTAMPWITHTIMEZONE)
+    private val trigger: Field<String> = DSL.field(DSL.name("trigger"), SQLDataType.CLOB)
+    private val attempt: Field<Int> = DSL.field(DSL.name("attempt"), SQLDataType.INTEGER)
+    private val status: Field<String> = DSL.field(DSL.name("status"), SQLDataType.CLOB)
+    private val reason: Field<String> = DSL.field(DSL.name("reason"), SQLDataType.CLOB)
+    private val startedAt: Field<OffsetDateTime> = DSL.field(DSL.name("started_at"), SQLDataType.TIMESTAMPWITHTIMEZONE)
+    private val finishedAt: Field<OffsetDateTime> =
+        DSL.field(DSL.name("finished_at"), SQLDataType.TIMESTAMPWITHTIMEZONE)
+    private val durationMillis: Field<Long> = DSL.field(DSL.name("duration_millis"), SQLDataType.BIGINT)
+    private val pausedAt: Field<OffsetDateTime> = DSL.field(DSL.name("paused_at"), SQLDataType.TIMESTAMPWITHTIMEZONE)
+    private val pausedUntil: Field<OffsetDateTime> =
+        DSL.field(DSL.name("paused_until"), SQLDataType.TIMESTAMPWITHTIMEZONE)
+    private val endedAt: Field<OffsetDateTime> = DSL.field(DSL.name("ended_at"), SQLDataType.TIMESTAMPWITHTIMEZONE)
 
     /** Inserts the run IN_PROGRESS; false when the key already has a row (another replica or request has it). */
     fun begin(
         key: RunKey,
         startedAt: Instant,
     ): Boolean =
-        connections
-            .require()
-            .prepareStatement(
-                """
-                insert into $run (tenant_id, service, job, entity_ref, tick, trigger, attempt, status, started_at)
-                values (?, ?, ?, ?, ?, ?, ?, 'IN_PROGRESS', ?) on conflict do nothing
-                """.trimIndent(),
-            ).use {
-                bindKey(it, key)
-                it.setTimestamp(8, Timestamp.from(startedAt))
-                it.executeUpdate() == 1
-            }
+        dsl
+            .insertInto(run)
+            .columns(tenantId, serviceName, jobName, entityRef, tickAt, trigger, attempt, status, this.startedAt)
+            .values(
+                key.target.tenant.value,
+                service,
+                key.job.name,
+                key.target.entity.value,
+                at(key.tick),
+                key.trigger.name,
+                key.attempt,
+                JobRunStatus.IN_PROGRESS.name,
+                at(startedAt),
+            ).onConflictDoNothing()
+            .execute() == 1
 
     /**
      * Completes an IN_PROGRESS run; false when it is no longer in progress (the sweeper or another finish got
@@ -68,22 +94,15 @@ internal class JdbcJobState(
         finishedAt: Instant,
         durationMillis: Long,
     ): Boolean =
-        connections
-            .require()
-            .prepareStatement(
-                """
-                update $run set status = ?, reason = ?, finished_at = ?, duration_millis = ?
-                where tenant_id = ? and service = ? and job = ? and entity_ref = ? and tick = ? and trigger = ? and attempt = ?
-                  and status = 'IN_PROGRESS'
-                """.trimIndent(),
-            ).use {
-                it.setString(1, if (failureReason == null) JobRunStatus.SUCCEEDED.name else JobRunStatus.FAILED.name)
-                it.setString(2, failureReason)
-                it.setTimestamp(3, Timestamp.from(finishedAt))
-                it.setLong(4, durationMillis)
-                bindKey(it, key, offset = 4)
-                it.executeUpdate() == 1
-            }
+        dsl
+            .update(run)
+            .set(status, if (failureReason == null) JobRunStatus.SUCCEEDED.name else JobRunStatus.FAILED.name)
+            .set(reason, failureReason)
+            .set(this.finishedAt, at(finishedAt))
+            .set(this.durationMillis, durationMillis)
+            .where(keyCondition(key.job, key.target, key.tick, key.trigger).and(attempt.eq(key.attempt)))
+            .and(status.eq(JobRunStatus.IN_PROGRESS.name))
+            .execute() == 1
 
     /** The latest attempt for (job, target, tick, trigger), or null. */
     fun latest(
@@ -92,27 +111,18 @@ internal class JdbcJobState(
         tick: Instant,
         trigger: JobTrigger,
     ): RunRow? =
-        connections
-            .require()
-            .prepareStatement(
-                """
-                select attempt, status, started_at from $run
-                where tenant_id = ? and service = ? and job = ? and entity_ref = ? and tick = ? and trigger = ?
-                order by attempt desc limit 1
-                """.trimIndent(),
-            ).use {
-                bindKey(it, RunKey(job, target, tick, trigger, 0), withAttempt = false)
-                it.executeQuery().use { rows ->
-                    if (!rows.next()) {
-                        null
-                    } else {
-                        RunRow(
-                            rows.getInt(1),
-                            JobRunStatus.valueOf(rows.getString(2)),
-                            rows.getTimestamp(3).toInstant(),
-                        )
-                    }
-                }
+        dsl
+            .select(attempt, status, startedAt)
+            .from(run)
+            .where(keyCondition(job, target, tick, trigger))
+            .orderBy(attempt.desc())
+            .limit(1)
+            .fetchOne { row ->
+                RunRow(
+                    row.get(attempt),
+                    JobRunStatus.valueOf(row.get(status)),
+                    row.get(startedAt).toInstant(),
+                )
             }
 
     /** The open pause row of (job, target), locked for this transaction, or null. */
@@ -120,26 +130,13 @@ internal class JdbcJobState(
         job: JobDefinition,
         target: JobTarget,
     ): PauseRow? =
-        connections
-            .require()
-            .prepareStatement(
-                """
-                select paused_at, paused_until from $pause
-                where tenant_id = ? and service = ? and job = ? and entity_ref = ? and ended_at is null for update
-                """.trimIndent(),
-            ).use {
-                bindTarget(it, job, target)
-                it.executeQuery().use { rows ->
-                    if (!rows.next()) {
-                        null
-                    } else {
-                        PauseRow(
-                            rows.getTimestamp(1).toInstant(),
-                            rows.getTimestamp(2).toInstant(),
-                        )
-                    }
-                }
-            }
+        dsl
+            .select(pausedAt, pausedUntil)
+            .from(pause)
+            .where(targetCondition(job, target))
+            .and(endedAt.isNull)
+            .forUpdate()
+            .fetchOne { row -> PauseRow(row.get(pausedAt).toInstant(), row.get(pausedUntil).toInstant()) }
 
     /** Opens a pause; false when (job, target) already has an open one (a concurrent request). */
     fun openNewPause(
@@ -148,77 +145,60 @@ internal class JdbcJobState(
         pausedAt: Instant,
         until: Instant,
     ): Boolean =
-        connections
-            .require()
-            .prepareStatement(
-                """
-                insert into $pause (tenant_id, service, job, entity_ref, paused_at, paused_until) values (?, ?, ?, ?, ?, ?)
-                on conflict (tenant_id, service, job, entity_ref) where ended_at is null do nothing
-                """.trimIndent(),
-            ).use {
-                bindTarget(it, job, target)
-                it.setTimestamp(5, Timestamp.from(pausedAt))
-                it.setTimestamp(6, Timestamp.from(until))
-                it.executeUpdate() == 1
-            }
+        dsl
+            .insertInto(pause)
+            .columns(tenantId, serviceName, jobName, entityRef, this.pausedAt, pausedUntil)
+            .values(target.tenant.value, service, job.name, target.entity.value, at(pausedAt), at(until))
+            .onConflict(tenantId, serviceName, jobName, entityRef)
+            .where(endedAt.isNull)
+            .doNothing()
+            .execute() == 1
 
     fun replaceUntil(
         job: JobDefinition,
         target: JobTarget,
         until: Instant,
-    ) = updateOpen(job, target, PAUSED_UNTIL, until)
+    ) {
+        dsl
+            .update(pause)
+            .set(pausedUntil, at(until))
+            .where(openCondition(job, target))
+            .execute()
+    }
 
     /** Ends the open pause at [endedAt]: resumed, lapsed at the deadline bound, or past its end time. */
     fun endPause(
         job: JobDefinition,
         target: JobTarget,
         endedAt: Instant,
-    ) = updateOpen(job, target, ENDED_AT, endedAt)
+    ) {
+        dsl
+            .update(pause)
+            .set(this.endedAt, at(endedAt))
+            .where(openCondition(job, target))
+            .execute()
+    }
 
-    private fun updateOpen(
+    private fun openCondition(
         job: JobDefinition,
         target: JobTarget,
-        column: String,
-        value: Instant,
-    ) {
-        val set = SqlIdentifier.require(column, "job_pause column")
-        val connection: Connection = connections.require()
-        connection
-            .prepareStatement(
-                "update $pause set $set = ? where tenant_id = ? and service = ? and job = ? and entity_ref = ? and ended_at is null",
-            ).use {
-                it.setTimestamp(1, Timestamp.from(value))
-                bindTarget(it, job, target, offset = 1)
-                it.executeUpdate()
-            }
-    }
+    ) = targetCondition(job, target).and(endedAt.isNull)
 
-    private fun bindTarget(
-        statement: PreparedStatement,
+    private fun targetCondition(
         job: JobDefinition,
         target: JobTarget,
-        offset: Int = 0,
-    ) {
-        statement.setObject(offset + 1, target.tenant.value)
-        statement.setString(offset + 2, service)
-        statement.setString(offset + 3, job.name)
-        statement.setString(offset + 4, target.entity.value)
-    }
+    ) = tenantId
+        .eq(target.tenant.value)
+        .and(serviceName.eq(service))
+        .and(jobName.eq(job.name))
+        .and(entityRef.eq(target.entity.value))
 
-    private fun bindKey(
-        statement: PreparedStatement,
-        key: RunKey,
-        offset: Int = 0,
-        withAttempt: Boolean = true,
-    ) {
-        bindTarget(statement, key.job, key.target, offset)
-        statement.setTimestamp(offset + 5, Timestamp.from(key.tick))
-        statement.setString(offset + 6, key.trigger.name)
-        if (withAttempt) statement.setInt(offset + 7, key.attempt)
-    }
+    private fun keyCondition(
+        job: JobDefinition,
+        target: JobTarget,
+        tick: Instant,
+        trigger: JobTrigger,
+    ) = targetCondition(job, target).and(tickAt.eq(at(tick))).and(this.trigger.eq(trigger.name))
 
-    private companion object {
-        const val PAUSED_UNTIL = "paused_until"
-        const val ENDED_AT = "ended_at"
-    }
+    private fun at(instant: Instant): OffsetDateTime = OffsetDateTime.ofInstant(instant, ZoneOffset.UTC)
 }

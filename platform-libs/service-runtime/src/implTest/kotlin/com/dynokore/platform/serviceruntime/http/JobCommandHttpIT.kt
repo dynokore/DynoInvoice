@@ -33,8 +33,11 @@ import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.AuthorityVerdict
 import com.dynokore.platform.serviceruntime.replica.AuthorizationRequest
 import com.dynokore.platform.serviceruntime.replica.FallbackResult
+import com.dynokore.platform.serviceruntime.testing.legacyRows
+import com.dynokore.platform.tenancyjooq.TableClass
 import com.dynokore.platform.tenancykernel.TenantAwareDataSource
 import com.dynokore.platform.tenancykernel.TenantId
+import com.dynokore.platform.tenancykernel.TestPoolFixture
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -84,9 +87,11 @@ class JobCommandHttpIT {
 
     private fun harness(image: String) =
         harnesses.computeIfAbsent(image) {
-            JobsHarness(it).also { h ->
-                h.fixture.run(IdempotencySchema.ddl(SCHEMA, OutboxPostgresFixture.APP, OutboxPostgresFixture.SYS))
-            }
+            JobsHarness(
+                it,
+                IdempotencySchema.ddl(SCHEMA, OutboxPostgresFixture.APP, OutboxPostgresFixture.SYS),
+                mapOf("$SCHEMA.idempotency_key" to TableClass.TENANT),
+            )
         }
 
     @AfterAll
@@ -114,14 +119,23 @@ class JobCommandHttpIT {
     private inner class Service(
         image: String,
         authority: AuthorityReplica? = null,
-        app: DataSource? = null,
+        poolMaximum: Int = TestPoolFixture.DEFAULT_MAXIMUM,
+        connectionTimeoutMillis: Long = TestPoolFixture.DEFAULT_TIMEOUT_MILLIS,
         commands: ((JobCommands) -> JobCommands)? = null,
     ) {
         val h = harness(image)
         val clock = MutableClock(START)
         val deadlines = MovableDeadlines()
-        val replica = h.replica("svc-1", clock, authorizer, deadlines, app = app ?: h.fixture.appDataSource())
-        val idempotency = IdempotencyStore(replica.scope, SCHEMA)
+        val replica =
+            h.replica(
+                "svc-1",
+                clock,
+                authorizer,
+                deadlines,
+                poolMaximum = poolMaximum,
+                connectionTimeoutMillis = connectionTimeoutMillis,
+            )
+        val idempotency = IdempotencyStore(replica.scope, replica.dsl, SCHEMA)
         val servlet =
             JobCommandServlet(
                 commands?.invoke(replica.runtime) ?: replica.runtime,
@@ -300,7 +314,7 @@ class JobCommandHttpIT {
         }
         s.h.runs("http-flight").filter { it["trigger"] == "MANUAL" } shouldHaveSize 1
         s.h.events(JobsHarness.AUDIT, "submission-svc/http-flight") shouldHaveSize 1
-        s.h.rows("select status from $SCHEMA.idempotency_key where idempotency_key = ?::uuid", key).map {
+        s.h.legacyRows("select status from $SCHEMA.idempotency_key where idempotency_key = ?::uuid", key).map {
             it["status"]
         } shouldBe
             listOf(202)
@@ -358,18 +372,15 @@ class JobCommandHttpIT {
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
     fun `M and 2M concurrent commands on an app pool of maximum M all finish`(image: String) {
-        val h = harness(image)
-        val pool =
-            HikariDataSource(
-                HikariConfig().apply {
-                    dataSource = h.fixture.roleDataSource(OutboxPostgresFixture.APP)
-                    maximumPoolSize = POOL_MAX
-                    connectionTimeout = Duration.ofSeconds(2).toMillis()
-                },
-            )
-        try {
+        harness(image)
+        run {
             for (commands in listOf(POOL_MAX, 2 * POOL_MAX)) {
-                val s = Service(image, app = TenantAwareDataSource(pool))
+                val s =
+                    Service(
+                        image,
+                        poolMaximum = POOL_MAX,
+                        connectionTimeoutMillis = Duration.ofSeconds(2).toMillis(),
+                    )
                 val jobs = (1..commands).map { "http-pool-$commands-$it" }
                 jobs.forEach { s.replica.runtime.register(job(it), entities) { } }
                 val start = CyclicBarrier(commands)
@@ -388,8 +399,6 @@ class JobCommandHttpIT {
                 }
                 jobs.forEach { s.h.runs(it).filter { run -> run["trigger"] == "MANUAL" } shouldHaveSize 1 }
             }
-        } finally {
-            pool.close()
         }
     }
 
@@ -400,7 +409,7 @@ class JobCommandHttpIT {
         s.h.fixture.captureActors("$SCHEMA.idempotency_key")
         val key = UUID.randomUUID().toString()
         s.post(runPath("http-late"), """{"entityRef":"E-001"}""", key).coded("JOB-001", 404)
-        s.h.rows("select status from $SCHEMA.idempotency_key where idempotency_key = ?::uuid", key).map {
+        s.h.legacyRows("select status from $SCHEMA.idempotency_key where idempotency_key = ?::uuid", key).map {
             it["status"]
         } shouldBe
             listOf(404)
@@ -442,7 +451,8 @@ class JobCommandHttpIT {
         s.replica.runtime.register(job("http-tx"), entities) { }
         val key = UUID.randomUUID().toString()
 
-        fun records() = s.h.rows("select status from $SCHEMA.idempotency_key where idempotency_key = ?::uuid", key)
+        fun records() =
+            s.h.legacyRows("select status from $SCHEMA.idempotency_key where idempotency_key = ?::uuid", key)
 
         s.post(runPath("http-tx"), """{"entityRef":"E-001"}""", key).closed(ClosedErrorCode.INTERNAL_ERROR)
         records() shouldHaveSize 0
@@ -594,7 +604,7 @@ class JobCommandHttpIT {
 
         fun stored(key: String) =
             s.h
-                .rows(
+                .legacyRows(
                     "select count(*) as n from $SCHEMA.idempotency_key where idempotency_key = ?::uuid",
                     key,
                 ).single()["n"]
@@ -639,14 +649,14 @@ class JobCommandHttpIT {
 
         fun stored() =
             s.h
-                .rows(
+                .legacyRows(
                     "select count(*) as n from $SCHEMA.idempotency_key where idempotency_key = ?::uuid",
                     key,
                 ).single()["n"]
         // the key is stamped by the database, not by the service clock
         s.post(runPath("http-skew"), """{"entityRef":"E-001"}""", key = key).status shouldBe 202
         s.h
-            .rows(
+            .legacyRows(
                 "select count(*) as n from $SCHEMA.idempotency_key where idempotency_key = ?::uuid and created_at > now() - interval '1 hour'",
                 key,
             ).single()["n"] shouldBe 1L
@@ -674,7 +684,7 @@ class JobCommandHttpIT {
         val s = Service(image)
         val function =
             s.h
-                .rows(
+                .legacyRows(
                     "select pg_get_userbyid(p.proowner) as owner, p.prosecdef as definer, p.proconfig::text as " +
                         "config, " +
                         "has_function_privilege('public', p.oid, 'execute') as public_exec, " +
@@ -719,7 +729,7 @@ class JobCommandHttpIT {
                 token = "Bearer op",
             ).closed(ClosedErrorCode.ACCESS_DENIED)
         s.h
-            .rows(
+            .legacyRows(
                 "select count(*) as n from $SCHEMA.idempotency_key where idempotency_key = ?::uuid",
                 refusedKey,
             ).single()["n"] shouldBe
@@ -734,7 +744,7 @@ class JobCommandHttpIT {
             .closed(ClosedErrorCode.CONTRACT_VIOLATION)
         s.h.fixture.capturedActors("$SCHEMA.idempotency_key") shouldBe listOf(engineer, operator, operator)
         s.h
-            .rows("select distinct tenant_id from $SCHEMA.idempotency_key where principal = ?", operator)
+            .legacyRows("select distinct tenant_id from $SCHEMA.idempotency_key where principal = ?", operator)
             .map { it["tenant_id"] } shouldBe listOf(TenantId.PLATFORM.value)
     }
 
@@ -748,7 +758,7 @@ class JobCommandHttpIT {
 
         fun stored() =
             s.h
-                .rows(
+                .legacyRows(
                     "select count(*) as n from $SCHEMA.idempotency_key where idempotency_key = ?::uuid",
                     key,
                 ).single()["n"]
@@ -830,6 +840,7 @@ class JobCommandHttpIT {
             .withConfiguration(AutoConfigurations.of(JobCommandHttpAutoConfiguration::class.java))
             .withBean("dataSource", DataSource::class.java, { s.h.fixture.appDataSource() }, { it.isPrimary = true })
             .withBean(JobRuntime::class.java, { s.replica.runtime })
+            .withBean(org.jooq.DSLContext::class.java, { s.replica.dsl })
             .withBean(TenantScope::class.java, { s.replica.scope })
             .withBean(EndUserPrincipalResolver::class.java, { principals })
             .withBean(Clock::class.java, { s.clock })

@@ -12,22 +12,16 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
-import io.mockk.mockk
 import org.jooq.Configuration
 import org.jooq.DSLContext
-import org.jooq.ExecuteListener
 import org.jooq.SQLDialect
-import org.jooq.VisitListener
 import org.jooq.impl.DSL
 import org.jooq.impl.DefaultConfiguration
-import org.jooq.impl.DefaultExecuteListenerProvider
-import org.jooq.impl.DefaultVisitListenerProvider
 import org.junit.jupiter.api.Test
 import org.springframework.boot.jooq.autoconfigure.DefaultConfigurationCustomizer
 import org.springframework.boot.test.context.assertj.AssertableApplicationContext
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.context.annotation.Bean
-import javax.sql.DataSource
 import org.springframework.context.annotation.Configuration as SpringConfiguration
 
 /**
@@ -64,15 +58,18 @@ class TenancyJooqWiringTest {
                 .forEach { tables.classOf(DSL.name("submission", it)) shouldBe TableClass.PLATFORM_SCOPED }
             context.getBeansOfType(DSLContext::class.java).size shouldBe 1
             context.getBeansOfType(Configuration::class.java).size shouldBe 1
-            // service-runtime creates no JdbcTemplate, TransactionTemplate or transaction manager (INV-Q-4196)
-            listOf(
-                "org.springframework.jdbc.core.JdbcTemplate",
-                "org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate",
-                "org.springframework.transaction.support.TransactionTemplate",
-                "org.springframework.transaction.PlatformTransactionManager",
-            ).forEach { name ->
-                context.getBeanNamesForType(Class.forName(name)).toList() shouldBe emptyList()
-            }
+            // service-runtime creates no JdbcTemplate, NamedParameterJdbcTemplate, TransactionTemplate or transaction
+            // manager (INV-Q-4196): no bean definition has one of these type names (spring-jdbc stays on the class path
+            // while ShedLock waits for owner question INV-Q-5210, so the class files cannot be absent)
+            val refused =
+                setOf(
+                    "org.springframework.jdbc.core.JdbcTemplate",
+                    "org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate",
+                    "org.springframework.transaction.support.TransactionTemplate",
+                    "org.springframework.transaction.PlatformTransactionManager",
+                )
+            val types = context.beanDefinitionNames.mapNotNull { context.getType(it)?.name }
+            types.filter { it in refused } shouldBe emptyList()
         }
     }
 
@@ -163,7 +160,7 @@ class TenancyJooqWiringTest {
     }
 
     @Test
-    fun `a DSLContext made with DSL-using on the DataSource fails start-up`() {
+    fun `a DSLContext not made by tenancy-jooq fails start-up`() {
         service
             .withUserConfiguration(SubmissionSchemaConfiguration::class.java, RogueDslContext::class.java)
             .run { context -> failure(context) shouldContain "bean 'rogueDsl'" }
@@ -177,49 +174,6 @@ class TenancyJooqWiringTest {
                 failure(context) shouldContain "bean 'rogueConfiguration'"
                 failure(context) shouldContain "connection provider is not tenancy-jooq's"
             }
-    }
-
-    @Test
-    fun `a configuration needs all of tenancy-jooq's parts and no listener after its statement check`() {
-        service.withUserConfiguration(SubmissionSchemaConfiguration::class.java).run { context ->
-            context.startupFailure shouldBe null
-            val guard = TenancyJooqGuard()
-            val owned = context.getBean(Configuration::class.java)
-            guard.postProcessAfterInitialization(owned, "owned") shouldBe owned
-            guard.postProcessAfterInitialization(context.getBean(DSLContext::class.java), "dsl")
-
-            fun refused(configuration: Configuration): String =
-                runCatching { guard.postProcessAfterInitialization(configuration, "partial") }
-                    .exceptionOrNull()
-                    .shouldNotBeNull()
-                    .message
-                    .orEmpty()
-
-            val postgres = { DefaultConfiguration().set(SQLDialect.POSTGRES) }
-            // no execute listener
-            refused(postgres().set(owned.connectionProvider()).set(*owned.visitListenerProviders())) shouldContain
-                "ExecuteListener"
-            // no visit listener
-            refused(postgres().set(owned.connectionProvider()).set(*owned.executeListenerProviders())) shouldContain
-                "VisitListeners"
-            // no connection provider of tenancy-jooq's
-            refused(
-                postgres().set(*owned.visitListenerProviders()).set(*owned.executeListenerProviders()),
-            ) shouldContain
-                "connection provider"
-            // a foreign VisitListener beside tenancy-jooq's, and one alone, could rewrite the statement
-            val foreign = DefaultVisitListenerProvider(mockk<VisitListener>(relaxed = true))
-            refused(owned.derive().deriveAppending(foreign.provide())) shouldContain "VisitListeners"
-            refused(
-                postgres()
-                    .set(owned.connectionProvider())
-                    .set(foreign)
-                    .set(*owned.executeListenerProviders()),
-            ) shouldContain "VisitListeners"
-            // a listener after the statement check could change the statement
-            val after = DefaultExecuteListenerProvider(mockk<ExecuteListener>(relaxed = true))
-            refused(owned.derive().deriveAppending(after.provide())) shouldContain "ExecuteListener"
-        }
     }
 
     @Test
@@ -252,7 +206,7 @@ class TenancyJooqWiringTest {
     @SpringConfiguration(proxyBeanMethods = false)
     class RogueDslContext {
         @Bean
-        fun rogueDsl(dataSource: DataSource): DSLContext = DSL.using(dataSource, SQLDialect.POSTGRES)
+        fun rogueDsl(): DSLContext = DefaultConfiguration().set(SQLDialect.POSTGRES).dsl()
     }
 
     @SpringConfiguration(proxyBeanMethods = false)

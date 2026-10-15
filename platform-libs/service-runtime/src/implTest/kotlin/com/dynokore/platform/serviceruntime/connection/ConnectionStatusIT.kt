@@ -45,11 +45,9 @@ class ConnectionStatusIT {
             reporter1.report(ap, CircuitBreakerState.CLOSED) shouldBe true
 
             val events =
-                h.rows(
-                    "select instance_id, tenant_id, data::text as data from submission.outbox " +
-                        "where type = ? order by seq",
-                    JobPayloads.CONNECTION_STATUS_CHANGED,
-                )
+                h
+                    .rows("submission.outbox", "type" to JobPayloads.CONNECTION_STATUS_CHANGED)
+                    .sortedBy { (it["seq"] as Number).toLong() }
             events.map { it["instance_id"] } shouldContainExactly
                 listOf("transport-svc-1", "transport-svc-2", "transport-svc-1")
             events.map { it["tenant_id"] }.toSet() shouldBe setOf(JobsHarness.TENANT_A.value)
