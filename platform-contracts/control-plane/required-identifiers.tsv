@@ -3,7 +3,7 @@
 # Not rows: min_engine_version (INV-REQ-1094; the manifest name of the row minEngineVersion, API-09);
 # security.officer, regulatory.author, regulatory.approver, release.manager, tax.approver, commercial.admin (roles);
 # control-plane-svc, tenancy-svc, rules-svc (services); `model/tool.py check` (a command); [FR-H.10] (a source reference).
-# The pack feed index that rules-svc polls (INV-REQ-1079) is not here: it waits on owner question INV-Q-5191.
+# The pack feed index that rules-svc polls (INV-REQ-1079) is schemas/pack-feed-index.schema.json.
 identifier	kind	file	requirement
 authors	property	openapi.yaml	INV-REQ-2590
 signer	property	openapi.yaml	INV-REQ-2590
@@ -37,3 +37,11 @@ signPack	operation	openapi.yaml	INV-REQ-2590
 publishPack	operation	openapi.yaml	INV-REQ-2590
 getPack	operation	openapi.yaml	INV-REQ-2590
 managePlan	operation	openapi.yaml	INV-REQ-1386
+entries	property	schemas/pack-feed-index.schema.json	INV-REQ-1079
+packRef	property	schemas/pack-feed-index.schema.json	INV-REQ-1079
+packType	property	schemas/pack-feed-index.schema.json	INV-REQ-1079
+version	property	schemas/pack-feed-index.schema.json	INV-REQ-1079
+effectiveFrom	property	schemas/pack-feed-index.schema.json	INV-REQ-1079
+minEngineVersion	property	schemas/pack-feed-index.schema.json	INV-REQ-1079
+packContentHash	property	schemas/pack-feed-index.schema.json	INV-REQ-1079
+supersedes	property	schemas/pack-feed-index.schema.json	INV-AC-2594

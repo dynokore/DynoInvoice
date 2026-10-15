@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/control-plane/schemas/pack-feed-index.schema.json",
+  "title": "PackFeedIndex",
+  "description": "The pack feed index that the data plane polls (INV-REQ-1079, INV-REQ-1195): one entry per published pack version. Within a major version this schema is additive-only (API-41, FR-K.4), like the payload schemas of this repository. Every version ever published stays listed, a superseded one included (INV-AC-2594). The feed itself is the external PackSource channel; this document declares no HTTP operation.",
+  "type": "object",
+  "properties": {
+    "entries": {
+      "type": "array",
+      "maxItems": 5000,
+      "description": "One item per published pack version.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "packRef": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "As PackResponse.packRef."
+          },
+          "packType": {
+            "type": "string",
+            "maxLength": 32,
+            "description": "As PackResponse.packType."
+          },
+          "version": {
+            "type": "string",
+            "maxLength": 16,
+            "description": "As PackResponse.version."
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date",
+            "description": "As in the rule-pack-staged payload."
+          },
+          "minEngineVersion": {
+            "type": "string",
+            "maxLength": 32,
+            "description": "Minimum engine version (INV-REQ-1094)."
+          },
+          "packContentHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "SHA-256 over the exact content of the pack version, computed by the publication gate (INV-Q-4878); a poller compares it with the checksum of the bundle it installs (INV-AC-2074)."
+          },
+          "supersedes": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "The packRef of the version this one supersedes; absent for a first version. A superseded version stays listed (INV-AC-2594)."
+          }
+        },
+        "required": [
+          "packRef",
+          "packType",
+          "version",
+          "effectiveFrom",
+          "minEngineVersion",
+          "packContentHash"
+        ],
+        "additionalProperties": true
+      }
+    }
+  },
+  "required": [
+    "entries"
+  ],
+  "additionalProperties": true
+}

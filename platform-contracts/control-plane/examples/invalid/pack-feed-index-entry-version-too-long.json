@@ -1,0 +1,12 @@
+{
+  "entries": [
+    {
+      "packRef": "PACK-SCOPE-2026.3",
+      "packType": "SCOPE",
+      "version": "2026.3.0.0.0.0.0.0.0",
+      "effectiveFrom": "2026-10-01",
+      "minEngineVersion": "2026.10.0",
+      "packContentHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ]
+}

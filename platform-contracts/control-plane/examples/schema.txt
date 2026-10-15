@@ -3,3 +3,4 @@
 ../openapi.yaml#/components/schemas/PackResponse pack-response-*.json
 ../openapi.yaml#/components/schemas/SignPackRequest sign-pack-request-*.json
 ../openapi.yaml#/components/schemas/ReleaseTrainResponse release-train-response-*.json
+../schemas/pack-feed-index.schema.json pack-feed-index-*.json

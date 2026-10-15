@@ -1,0 +1,21 @@
+{
+  "entries": [
+    {
+      "packRef": "PACK-SCOPE-2026.3",
+      "packType": "SCOPE",
+      "version": "2026.3",
+      "effectiveFrom": "2026-10-01",
+      "minEngineVersion": "2026.10.0",
+      "packContentHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "packRef": "PACK-SCOPE-2026.4",
+      "packType": "SCOPE",
+      "version": "2026.4",
+      "effectiveFrom": "2026-10-01",
+      "minEngineVersion": "2026.10.0",
+      "packContentHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "supersedes": "PACK-SCOPE-2026.3"
+    }
+  ]
+}
