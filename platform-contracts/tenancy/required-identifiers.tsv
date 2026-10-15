@@ -4,6 +4,12 @@
 # Not listed, because they are not tenancy contract identifiers: entity.admin, tenant.admin, tax.approver (roles);
 # tenancy-svc, console-bff, console-web, config-resolver (services); setPolicy (owning services' contracts);
 # confirmFiling (submission/openapi.yaml).
+# Named by other requirements, not by the seven this task implements, and owned by another service's contract:
+# AggregateReady (aggregation/asyncapi.yaml; INV-REQ-437, 1205); NOT_SUBMITTABLE (catalogue and the ingestion, rules,
+# canonical, payload and submission contracts; INV-REQ-75, 78); approvePack (rules/openapi.yaml; INV-REQ-772, 995);
+# deleteAtRetentionEnd (evidence/openapi.yaml and submission/openapi.yaml; INV-REQ-639, 1011);
+# acknowledgeControlRelaxation (no contract defines it yet; INV-REQ-1244, 1252, 2588: a later task for the owning service).
+# answerQuestionnaire is a tenancy operation (INV-REQ-2588) and is listed.
 identifier	kind	file	requirement
 partiallyExempt	property	openapi.yaml	INV-REQ-331
 excludedBusinessStatus	property	openapi.yaml	INV-REQ-331
@@ -15,4 +21,5 @@ RC_ONLY	enum_value	openapi.yaml	INV-REQ-331
 setEntityStatus	operation	openapi.yaml	INV-REQ-331
 goLive	operation	openapi.yaml	INV-REQ-333
 applyOperatingProfile	operation	openapi.yaml	INV-REQ-1245
-offboardTenant	operation	openapi.yaml	INV-REQ-877
+offboardTenant	operation	openapi.yaml	INV-REQ-956
+answerQuestionnaire	operation	openapi.yaml	INV-REQ-2588
