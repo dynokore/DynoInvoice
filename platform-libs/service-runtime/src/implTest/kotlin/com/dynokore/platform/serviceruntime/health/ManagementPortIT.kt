@@ -1,7 +1,7 @@
 package com.dynokore.platform.serviceruntime.health
 
-import com.dynokore.platform.productruntime.ProductRuntimeConfiguration
 import com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration
+import com.dynokore.platform.serviceruntime.composition.StandInProductRuntimeConfiguration
 import com.dynokore.platform.serviceruntime.identity.WorkloadToken
 import com.dynokore.platform.serviceruntime.identity.WorkloadTokenVerifier
 import com.dynokore.platform.serviceruntime.identity.WorkloadVerification
@@ -38,7 +38,7 @@ import java.nio.file.Path
 
 /**
  * INV-T-4125 (API-33, owner ruling INV-Q-4103 A; INV-REQ-1228 b5, INV-REQ-1123 b4): a running service composed as
- * TPL-18 writes it (`@Import(ServiceRuntimeConfiguration, ProductRuntimeConfiguration)` plus Spring Boot's
+ * TPL-18 writes it (`@Import(ServiceRuntimeConfiguration, StandInProductRuntimeConfiguration)` plus Spring Boot's
  * auto-configuration, Tomcat on both ports) and with service-runtime's defaults alone serves /health/live,
  * /health/ready, /metrics and /diagnostics on the management port 8081 without a token. On the application port
  * WorkloadTokenAuthenticationFilter still covers every path: the same paths answer 401 without a token and 404
@@ -247,7 +247,7 @@ class ManagementPortIT {
 @Import(
     OneValidToken::class,
     ServiceRuntimeConfiguration::class,
-    ProductRuntimeConfiguration::class,
+    StandInProductRuntimeConfiguration::class,
     BusinessController::class,
 )
 class Tpl18WebService

@@ -1,4 +1,4 @@
-package db.migrationrunner
+package com.dynokore.platform.serviceruntime.migration.fixture
 
 import com.dynokore.platform.serviceruntime.jobs.JobSchema
 import org.flywaydb.core.api.migration.BaseJavaMigration

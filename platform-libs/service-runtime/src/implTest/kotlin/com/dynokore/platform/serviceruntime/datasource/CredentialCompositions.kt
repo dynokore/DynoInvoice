@@ -1,8 +1,8 @@
 package com.dynokore.platform.serviceruntime.datasource
 
-import com.dynokore.platform.productruntime.ProductRuntimeConfiguration
 import com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration
 import com.dynokore.platform.serviceruntime.composition.DefaultServiceSchema
+import com.dynokore.platform.serviceruntime.composition.StandInProductRuntimeConfiguration
 import com.dynokore.platform.serviceruntime.composition.platform
 import com.dynokore.platform.serviceruntime.composition.sorted
 import com.zaxxer.hikari.HikariDataSource
@@ -22,14 +22,14 @@ import javax.sql.DataSource
 
 /*
  * INV-T-3913 (P109): a service composed as TPL-18 writes it (`@Import(ServiceRuntimeConfiguration::class,
- * ProductRuntimeConfiguration::class)`), with Spring Boot's DataSourceAutoConfiguration and FlywayAutoConfiguration
+ * StandInProductRuntimeConfiguration::class)`), with Spring Boot's DataSourceAutoConfiguration and FlywayAutoConfiguration
  * among its auto-configurations, sorted as Spring Boot sorts them (see composition/Tpl18Compositions.kt).
  */
 
 @Configuration(proxyBeanMethods = false)
 @Import(
     ServiceRuntimeConfiguration::class,
-    ProductRuntimeConfiguration::class,
+    StandInProductRuntimeConfiguration::class,
     WithJdbcAndFlyway::class,
     DefaultServiceSchema::class,
 )
@@ -39,7 +39,7 @@ class WithJdbcAndFlyway : DeferredImportSelector {
     override fun selectImports(importingClassMetadata: AnnotationMetadata): Array<String> =
         sorted(
             platform() + DataSourceAutoConfiguration::class.java + FlywayAutoConfiguration::class.java +
-                ProductRuntimeConfiguration::class.java,
+                StandInProductRuntimeConfiguration::class.java,
         )
 }
 

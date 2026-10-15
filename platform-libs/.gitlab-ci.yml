@@ -203,6 +203,41 @@ unit-test:
       fi
       rm -f "$results"/TEST-*.xml && cp build/l1-negative-saved/TEST-*.xml "$results"/
       echo "gst-ci: negative test: the L1 order rule fails evidence-store importing outbox-and-queue, as it must"
+    - |
+      # Negative test (INV-T-4747, coordinator ruling INV-Q-4734, ARC-16): an uncommitted service-runtime main import of a
+      # product-runtime (L3) type must fail the real-scope case on the cross-layer rule with the rule's own message; a
+      # pass, or a failure for another reason, fails this job. Two fixture files, so that service-runtime still compiles:
+      # the importing one, and one that declares the imported type (in product-runtime's package, which the ownership
+      # rule flags too). Both are removed and the passing reports restored.
+      results="$GRADLE_PROJECT_DIR/service-runtime/build/test-results/test"
+      mkdir -p build/l1-negative-saved && cp "$results"/TEST-*.xml build/l1-negative-saved/
+      srcdir="$GRADLE_PROJECT_DIR/service-runtime/src/main/kotlin/com/dynokore/platform"
+      fixture="$srcdir/serviceruntime/L3OrderNegativeFixture.kt"
+      fixtureType="$srcdir/serviceruntime/L3OrderNegativeType.kt"
+      trap 'rm -f "$fixture" "$fixtureType"' EXIT
+      printf '%s\n' 'package com.dynokore.platform.serviceruntime' '' \
+        'import com.dynokore.platform.productruntime.L3OrderNegativeType' '' \
+        'internal class L3OrderNegativeFixture(val type: L3OrderNegativeType)' > "$fixture"
+      printf '%s\n' 'package com.dynokore.platform.productruntime' '' 'class L3OrderNegativeType' > "$fixtureType"
+      if ./gradlew -p "$GRADLE_PROJECT_DIR" :service-runtime:test \
+          --tests 'com.dynokore.platform.serviceruntime.L1DependencyOrderTest' --rerun > build/l3-negative.log 2>&1; then
+        echo "gst-ci: negative test: L1DependencyOrderTest passed with service-runtime importing a product-runtime type"
+        exit 1
+      fi
+      rm -f "$fixture" "$fixtureType"
+      l1="$results/TEST-com.dynokore.platform.serviceruntime.L1DependencyOrderTest.xml"
+      if ! grep -q "'service-runtime' layer does not depends on 'product-runtime' layer" "$l1" \
+        || ! grep -q 'testcase name="the real modules keep the L1 order()"' "$l1"; then
+        tail -40 build/l3-negative.log
+        echo "gst-ci: negative test: the build failed, but not on the cross-layer rule"
+        exit 1
+      fi
+      if [ "$(grep -c '<failure' "$l1")" -ne 1 ]; then
+        echo "gst-ci: negative test: a case other than the real-scope one failed"
+        exit 1
+      fi
+      rm -f "$results"/TEST-*.xml && cp build/l1-negative-saved/TEST-*.xml "$results"/
+      echo "gst-ci: negative test: the layer rules fail service-runtime importing a product-runtime type, as they must"
     - MODULES="$(gst_changed_downstream_modules)"
     - |
       if [ -z "$(echo "$MODULES" | tr -d '[:space:]')" ]; then

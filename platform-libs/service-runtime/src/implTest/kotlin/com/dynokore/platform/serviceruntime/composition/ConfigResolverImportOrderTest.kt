@@ -12,8 +12,6 @@ import com.dynokore.platform.configresolver.PolicyWriter
 import com.dynokore.platform.configresolver.ResolutionRecorder
 import com.dynokore.platform.configresolver.UnknownVariationPoint
 import com.dynokore.platform.configresolver.VariationPointKey
-import com.dynokore.platform.productruntime.ProductRuntimeConfiguration
-import com.dynokore.platform.productruntime.RecordingCatalogue
 import com.dynokore.platform.tenancykernel.CurrentConnection
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
@@ -33,7 +31,7 @@ import javax.sql.DataSource
 
 /**
  * INV-T-3881 (ruling INV-Q-3877, INV-Q-3710): config-resolver's ports are wired whatever the order in which a service
- * registers ServiceRuntimeConfiguration and ProductRuntimeConfiguration (the [Composition]s of Tpl18Compositions.kt).
+ * registers ServiceRuntimeConfiguration and StandInProductRuntimeConfiguration (the [Composition]s of Tpl18Compositions.kt).
  */
 class ConfigResolverImportOrderTest {
     /** The inputs every service declares: a DataSource, its name, its schema (README port table). */
@@ -89,7 +87,7 @@ class ConfigResolverImportOrderTest {
     ) {
         service
             .withUserConfiguration(composition.application)
-            .withPropertyValues("${ProductRuntimeConfiguration.DELEGATION_PROBE}=false")
+            .withPropertyValues("${StandInProductRuntimeConfiguration.DELEGATION_PROBE}=false")
             .run { context ->
                 context.startupFailure shouldBe null
                 context.getBeanNamesForType(DelegationProbe::class.java).size shouldBe 0

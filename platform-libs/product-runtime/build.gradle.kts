@@ -132,6 +132,7 @@ evaluationDependsOn(":outbox-and-queue")
 evaluationDependsOn(":tenancy-kernel")
 evaluationDependsOn(":config-resolver")
 evaluationDependsOn(":tenancy-jooq")
+evaluationDependsOn(":audit-log")
 generatedContracts.forEach { evaluationDependsOn(it) }
 
 val serviceRuntimeImpl = project(":service-runtime").the<SourceSetContainer>()["impl"].output
@@ -141,6 +142,8 @@ val tenancyKernelImplJar = project(":tenancy-kernel").tasks.named("implJar")
 val configResolverImplJar = project(":config-resolver").tasks.named("implJar")
 // tenancy-jooq's impl, which service-runtime's TenancyJooqWiring needs when the WiringTest loads its auto-configuration (INV-T-4134).
 val tenancyJooqImplJar = project(":tenancy-jooq").tasks.named("implJar")
+// audit-log's impl (AuditWriter), for the auto-configuration-only case that asserts every port (INV-T-4747, INV-Q-4769).
+val auditLogImplJar = project(":audit-log").tasks.named("implJar")
 
 dependencies {
     add("implImplementation", sourceSets["main"].output)
@@ -164,6 +167,8 @@ dependencies {
     add("implTestImplementation", files(outboxImplJar))
     add("implTestImplementation", files(tenancyKernelImplJar))
     add("implTestImplementation", files(configResolverImplJar))
+    add("implTestImplementation", project(":audit-log"))
+    add("implTestImplementation", files(auditLogImplJar))
     // service-runtime impl's own dependencies, which a service gets from its POM (the TPL-18 WiringTest).
     // INV-T-4134 (INV-Q-4842): service-runtime's TenancyJooqWiring runs in that context (tenancy-jooq at run time; the
     // fixture's Schema bean names org.jooq types). Spring Boot's BOM manages jOOQ too: held to this repository's.
@@ -173,8 +178,12 @@ dependencies {
     constraints {
         add("implTestImplementation", libs.jooq) { version { strictly(libs.versions.jooq.get()) } }
     }
-    add("implTestRuntimeOnly", libs.jakarta.servletApi)
+    add("implTestImplementation", libs.jakarta.servletApi) // compile scope: JobCommandServlet is asserted by type
     add("implTestRuntimeOnly", libs.springSecurity.oauth2Jose)
+    // The JobRuntime bean of service-runtime's impl (ShedLock on JDBC, as its own implTest has them).
+    add("implTestRuntimeOnly", libs.shedlock.core)
+    add("implTestRuntimeOnly", libs.shedlock.providerJdbcTemplate)
+    add("implTestRuntimeOnly", libs.spring.jdbc)
     // The TPL-18 WiringTest's DataSource from Spring Boot's DataSource auto-configuration on a lazy Hikari pool with
     // no database (INV-Q-4196 (A), coordinator ruling INV-Q-4436): spring-boot-jdbc, HikariCP and the driver.
     add("implTestRuntimeOnly", libs.springBoot.starterJdbc)

@@ -55,7 +55,7 @@ class MigrationRunnerIT {
                     "spring.datasource.url=${pg.jdbcUrl}",
                     "gst.bindings.secret-store.mount-root=$mountRoot",
                     "spring.flyway.schemas=ledger",
-                    "spring.flyway.locations=classpath:db/migrationrunner",
+                    "spring.flyway.locations=classpath:com/dynokore/platform/serviceruntime/migration/fixture",
                 )
 
             // the service: service-runtime's defaults turn Flyway off, so its context starts and migrates nothing
