@@ -11,7 +11,6 @@ BILL_FOR_PAYMENT	enum_value	openapi.yaml	INV-REQ-371
 ADJUSTMENT	enum_value	openapi.yaml	INV-REQ-371
 NOT_A_BILL	enum_value	openapi.yaml	INV-REQ-371
 lineSign	property	openapi.yaml	INV-REQ-371
-documentTypeCode	property	openapi.yaml	INV-REQ-658
 signNormalised	property	openapi.yaml	INV-REQ-371
 POSITIVE	enum_value	openapi.yaml	INV-REQ-371
 NEGATIVE	enum_value	openapi.yaml	INV-REQ-371
