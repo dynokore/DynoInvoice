@@ -119,6 +119,10 @@ class AutoConfigurationOnlyLaneBehaviourIT {
                 useEventLog(context.getBean(EventLogPresence::class.java))
                 eventually { sessionsOf(eventLog) } shouldBe 1
                 (sessionsOf(postgres) <= MINIMAL_POOL_MAXIMUM) shouldBe true
+                // minimumIdle 1 keeps the connection open past the pool's idle timeout (60 s); a pool of minimumIdle 0
+                // retires it at the next housekeeping run after that, so the count would drop to 0
+                Thread.sleep(IDLE_TIMEOUT_AND_HOUSEKEEPING_MS)
+                sessionsOf(eventLog) shouldBe 1
             }
             ha.withPropertyValues("service-runtime.event-log-pool.minimum-idle=2").run { context ->
                 context.startupFailure shouldBe null
@@ -234,6 +238,7 @@ class AutoConfigurationOnlyLaneBehaviourIT {
         const val LOGIN_REF = "db-test-login"
         const val TIMEOUT_MS = 1000L
         const val HOLD_SECONDS = 20L
+        const val IDLE_TIMEOUT_AND_HOUSEKEEPING_MS = 100_000L
         const val REQUEST_PERMITS = 4
         const val BACKGROUND_PERMITS = 2
         const val MINIMAL_POOL_MAXIMUM = REQUEST_PERMITS + BACKGROUND_PERMITS

@@ -59,6 +59,12 @@ class L1DependencyOrderTest {
         repo.importing("service-runtime", "config-resolver", "T")
         repo.importing("product-runtime", "service-runtime", "P1")
         repo.importing("product-runtime", "config-resolver", "P2")
+        repo.importing("product-runtime", "outbox-and-queue", "P3")
+        repo.importing("product-runtime", "audit-log", "P4")
+        // the same four in implTest: the rule does not differ by source set
+        listOf("service-runtime", "config-resolver", "outbox-and-queue", "audit-log").forEachIndexed { i, to ->
+            repo.importing("product-runtime", to, "PT$i", sourceSet = "implTest")
+        }
         repo.importing("party-registry", "tenancy-kernel", "L2")
 
         assertDoesNotThrow { assertClean(repo) }
@@ -214,6 +220,78 @@ class L1DependencyOrderTest {
         )
 
         fails(repo, "'crypto' layer does not depends on 'tenancy-kernel' layer")
+    }
+
+    @Test
+    fun `fails the second Java import on one line`(
+        @TempDir dir: File,
+    ) {
+        val repo = writeL1ModuleStubs(dir)
+        repo.file(
+            "crypto",
+            "src/test/java/com/dynokore/platform/crypto/J.java",
+            "package com.dynokore.platform.crypto;\n" +
+                "import java.util.List; import com.dynokore.platform.tenancykernel.Stub;\nclass J {}\n",
+        )
+
+        fails(repo, "'crypto' layer does not depends on 'tenancy-kernel' layer")
+    }
+
+    @Test
+    fun `an import inside a comment or a string is not an import`(
+        @TempDir dir: File,
+    ) {
+        val repo = writeL1ModuleStubs(dir)
+        repo.file(
+            "crypto",
+            "src/test/java/com/dynokore/platform/crypto/J.java",
+            "package com.dynokore.platform.crypto;\n// import com.dynokore.platform.tenancykernel.A;\n" +
+                "/* import com.dynokore.platform.tenancykernel.B; */\n" +
+                "class J { String s = \"import com.dynokore.platform.tenancykernel.C;\"; }\n",
+        )
+
+        assertClean(repo)
+    }
+
+    @Test
+    fun `fails a package line inside a block comment that hides the real package`(
+        @TempDir dir: File,
+    ) {
+        val repo = writeL1ModuleStubs(dir)
+        repo.file(
+            "crypto",
+            "src/main/java/com/dynokore/platform/crypto/J.java",
+            "/*\npackage com.dynokore.platform.crypto;\n*/\npackage org.evil;\nclass J {}\n",
+        )
+        repo.file(
+            "crypto",
+            "src/main/kotlin/com/dynokore/platform/crypto/K.kt",
+            "/* package com.dynokore.platform.crypto */\npackage org.evil\nclass K\n",
+        )
+        // Kotlin block comments nest: the compiler reads the last package line as the declaration
+        repo.file(
+            "crypto",
+            "src/main/kotlin/com/dynokore/platform/crypto/N.kt",
+            "/* /* */\npackage com.dynokore.platform.crypto\n*/\npackage org.evil\nclass N\n",
+        )
+
+        val findings = Rules.findings(repo.dir, Konsist.scopeFromExternalDirectory(repo.dir.absolutePath))
+        val evil = "package org.evil is not under com.dynokore.platform.crypto"
+        assertTrue(findings.count { evil in it } == 3) { "$findings" }
+    }
+
+    @Test
+    fun `fails a file whose only package line is in a comment`(
+        @TempDir dir: File,
+    ) {
+        val repo = writeL1ModuleStubs(dir)
+        repo.file(
+            "crypto",
+            "src/main/java/com/dynokore/platform/crypto/J.java",
+            "// package com.dynokore.platform.crypto;\nclass J {}\n",
+        )
+
+        fails(repo, "declares no package")
     }
 
     // ---- package ownership ----
