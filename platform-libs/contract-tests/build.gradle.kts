@@ -127,6 +127,13 @@ fun Test.suiteDefaults() {
     systemProperty("contracttests.bundleVersion", bundleVersion.get())
     // BomTestedSetTest reads the BOM's constraint pairs and each module's version.txt from the repository checkout.
     systemProperty("contracttests.repoRoot", rootDir.path)
+    inputs
+        .files(
+            rootProject.fileTree(rootDir) {
+                include("*/version.txt", "*/CHANGELOG.md", "platform-libs-bom/build.gradle.kts")
+            },
+        ).withPropertyName("bomTestedSetFiles")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
     systemProperty("contracttests.gstCatalogueVersion", libs.versions.gstCatalogue.get())
 }
 
