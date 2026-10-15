@@ -86,6 +86,22 @@ private fun hasKey(
     literal: String,
 ) = Regex("(?<![A-Za-z0-9-])" + Regex.escape(literal) + "(?![0-9A-Za-z])").containsMatchIn(text)
 
+/** Released sections after the named release, up to and including [current], that name the task and say revert. */
+private fun revertedSections(
+    case: BomCase,
+    sections: Map<String, String>,
+    current: List<Int>,
+): List<String> {
+    val releaseVersion = semver(case.release)!!
+    return sections.mapNotNull { (v, text) ->
+        val parsed = semver(v)!!
+        val later = compareSemver(parsed, releaseVersion) > 0 && compareSemver(parsed, current) <= 0
+        "${case.module} $v: section names ${case.task} and says revert".takeIf {
+            later && hasKey(text, case.task) && REVERT.containsMatchIn(text)
+        }
+    }
+}
+
 /** All violations of one module's case against the checkout at [root]; empty means the BOM carries the change. */
 internal fun violations(
     root: File,
@@ -111,13 +127,7 @@ internal fun violations(
     } else if (compareSemver(current, releaseVersion) < 0) {
         out += "$module: version $version is before ${case.release}"
     } else {
-        for ((v, text) in sections) {
-            val parsed = semver(v)!!
-            val later = compareSemver(parsed, releaseVersion) > 0 && compareSemver(parsed, current) <= 0
-            if (later && hasKey(text, case.task) && REVERT.containsMatchIn(text)) {
-                out += "$module $v: section names ${case.task} and says revert"
-            }
-        }
+        out += revertedSections(case, sections, current)
     }
     val bom = File(root, "platform-libs-bom/build.gradle.kts").readText()
     for (artifact in listOf("$module-api", module)) {
