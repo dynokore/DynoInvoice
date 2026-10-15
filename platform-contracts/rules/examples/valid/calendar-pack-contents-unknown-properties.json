@@ -4,7 +4,8 @@
       {
         "start": "2027-01-01",
         "end": "2027-01-31",
-        "returnForm": "F5"
+        "returnForm": "F5",
+        "note": "n"
       },
       {
         "start": "2027-02-01",
@@ -18,7 +19,8 @@
     "F5": {
       "monthsAfterEnd": 1,
       "endOfMonth": true,
-      "daysAfterEnd": 0
+      "daysAfterEnd": 0,
+      "label": "l"
     },
     "F8": {
       "monthsAfterEnd": 0,
@@ -34,5 +36,5 @@
     "2027-01-01",
     "2027-02-06"
   ],
-  "transition": "CUT_AT_CHANGE_DATE"
+  "defaultFrequency": "monthly"
 }
