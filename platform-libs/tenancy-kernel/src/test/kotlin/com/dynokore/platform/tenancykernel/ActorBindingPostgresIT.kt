@@ -108,26 +108,28 @@ class ActorBindingPostgresIT {
         // Nothing bound: refused before a connection is even taken.
         val unbound = TransactionRunnerImpl(counting, real)
         assertThrows(IllegalStateException::class.java) { unbound.inTransaction { } }
-        // A foreign TenantContext that binds a tenant but no actor: refused before any SQL.
-        val actorless =
-            object : TenantContext {
-                override fun current(): TenantId = tenantA
+        // A foreign TenantContext answering no actor, a blank one or one with a control character: refused before SQL.
+        listOf(null, "", " ", "\t", "\u00A0", "\uFEFF", "a\tb", "x\u0000", "x\u001B[0m").forEach { answer ->
+            val foreign =
+                object : TenantContext {
+                    override fun current(): TenantId = tenantA
 
-                override fun currentActor(): String? = null
+                    override fun currentActor(): String? = answer
 
-                override fun <T> bind(
-                    tenant: TenantId,
-                    actor: String,
-                    block: () -> T,
-                ): T = block()
-            }
-        var ran = false
-        val refused =
-            assertThrows(IllegalStateException::class.java) {
-                TransactionRunnerImpl(counting, actorless).inTransaction { ran = true }
-            }
-        assertTrue("actor" in refused.message.orEmpty(), refused.message)
-        assertFalse(ran)
+                    override fun <T> bind(
+                        tenant: TenantId,
+                        actor: String,
+                        block: () -> T,
+                    ): T = block()
+                }
+            var ran = false
+            val refused =
+                assertThrows(IllegalStateException::class.java) {
+                    TransactionRunnerImpl(counting, foreign).inTransaction { ran = true }
+                }
+            assertTrue("actor" in refused.message.orEmpty(), "actor $answer: ${refused.message}")
+            assertFalse(ran)
+        }
         assertEquals(0, counting.connections.get(), "no connection was opened")
     }
 

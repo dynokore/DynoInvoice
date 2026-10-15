@@ -37,12 +37,13 @@ class TransactionRunnerImpl
 
         override fun <T> inTransaction(block: () -> T): T {
             val tenant = tenants.current()
-            // A foreign TenantContext may still answer null: refuse before any SQL (INV-Q-3997, INV-T-3999).
+            // A foreign TenantContext may answer null, blank or a control character: refuse before any SQL, by the
+            // shared actor rule (INV-Q-3997, INV-Q-4614, INV-T-3999).
             val actor: String =
-                tenants.currentActor()
-                    ?: throw IllegalStateException(
-                        "No actor is bound for tenant $tenant (INV-REQ-854 b1): every transaction carries an actor.",
-                    )
+                tenants.currentActor().takeIf { BlankText.isActor(it) } ?: throw IllegalStateException(
+                    "No valid actor is bound for tenant $tenant (INV-REQ-854 b1): every transaction carries an actor " +
+                        "that is not blank and holds no control character.",
+                )
 
             open.get()?.let { outer ->
                 // REQUIRED propagation, only under the same binding (INV-Q-3997): never run tenant B's
