@@ -129,9 +129,12 @@ class OutboxAndQueueWiring {
     @ConditionalOnMissingBean(EventBinding::class)
     fun eventBinding(
         @Qualifier(ServiceDataSources.EVENT_LOG) eventLog: ObjectProvider<DataSource>,
-        dataSource: DataSource,
         scope: TenantScope,
-    ): PostgresEventBinding = PostgresEventBinding(eventLogScope(eventLog.getIfAvailable { dataSource }, scope))
+    ): PostgresEventBinding =
+        // The event log shares the application pool: the append joins the relay's row transaction (the same tenant and
+        // actor, REQUIRED propagation) and commits with published_at, so a relay run holds at most 2 permits of the
+        // background lane (INV-Q-4850). A separate event-log pool (HA) keeps its own transaction on that pool.
+        eventLog.getIfAvailable()?.let { PostgresEventBinding(eventLogScope(it, scope)) } ?: PostgresEventBinding(scope)
 
     @Bean
     @ConditionalOnBean(TenantScope::class, EventBinding::class, DataSource::class)

@@ -6,8 +6,9 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [7.0.0] - 2026-10-15
 ### Added
-- The service's event loops (INV-T-3938; coordinator ruling INV-Q-3935, INV-ADR-3968; INV-REQ-1212, INV-REQ-1222).
+- The service's event loops (INV-T-3938; coordinator rulings INV-Q-3935 and INV-Q-4850, INV-ADR-3968; INV-REQ-1212, INV-REQ-1222).
   service-runtime now drives every `OutboxRelay`, `InboxConsumer` and `ReplayDelivery` bean of the application context
   (those OutboxAndQueueWiring creates and those a service declares, such as one `JdbcInboxConsumer` per topic), with no
   code in the service: one loop per bean on its own virtual thread in the background lane, started on
@@ -18,6 +19,16 @@ train is its own (README.md: "own version and changelog").
   (default true) switches every loop off. A loop ended by an Error is logged and sets readiness to `REFUSING_TRAFFIC`
   (`eventLoops` health contributor, in the default `ready` group); each loop exposes
   `gst.platform.event.loop.last.success.timestamp.seconds`. Additive: no port, API, event or schema change.
+  When the event log shares the application pool (no `eventLogDataSource`), `OutboxAndQueueWiring.eventBinding` gives
+  `PostgresEventBinding` the application `TenantScope`, so the event-log append joins the row's tenant transaction and
+  commits with `published_at`: a relay run holds at most 2 permits of the background lane (the claim connection and the
+  row's transaction), within the owner's lane budgets (4 / 2 / x), which are unchanged (coordinator ruling INV-Q-4850).
+  With a separate event-log pool (HA) the append stays its own transaction on that pool. No lane budget changes.
+- `JobSchema.platformScopedTables(schema)`: `shedlock` and `job_retention`, whose DDL carries the table comment
+  `platform-scoped: no tenant data`. No JdbcTemplate, NamedParameterJdbcTemplate, TransactionTemplate or transaction
+  manager is created. ShedLock's move to its jOOQ provider is INV-T-4203's.
+
+### Changed (breaking)
 - The framework tenant predicate on jOOQ, wired into every service (INV-T-4134; INV-ADR-3968 item 4a, INV-REQ-854 b2
   and b6; owner rulings INV-Q-4113, INV-Q-4196). `TenancyJooqWiring` (its own auto-configuration, after the L1
   composition and before Spring Boot's jOOQ auto-configuration) creates the `TenancyTables`, an `org.jooq.Configuration`
@@ -31,9 +42,15 @@ train is its own (README.md: "own version and changelog").
   (for example `DSL.using(dataSource)`). A service with a database (a `TransactionRunner`) supplies its generated
   schema as `org.jooq.Schema` beans in its bootstrap module; start-up fails when they hold no table (coordinator
   ruling INV-Q-4815). tenancy-jooq becomes a dependency of the impl half.
-- `JobSchema.platformScopedTables(schema)`: `shedlock` and `job_retention`, whose DDL carries the table comment
-  `platform-scoped: no tenant data`. No JdbcTemplate, NamedParameterJdbcTemplate, TransactionTemplate or transaction
-  manager is created. ShedLock's move to its jOOQ provider is INV-T-4203's.
+### Migration
+1. Supply the service's generated jOOQ schema as `org.jooq.Schema` beans in the bootstrap module (start-up fails when
+   a service with a database supplies none that holds a table, INV-Q-4815).
+2. Declare each table without a tenant column in `inv.tenancy.platform-scoped-tables` or `inv.tenancy.reference-tables`
+   (`schema.table`); start-up fails for an undeclared tenantless table, a declared table that is missing, or a
+   declaration that disagrees with the columns.
+3. Remove every `DSLContext` or `org.jooq.Configuration` bean not made by tenancy-jooq (for example
+   `DSL.using(dataSource)`).
+4. tenancy-jooq and jOOQ are now on the impl half's classpath.
 
 ## [6.0.1] - 2026-10-14
 ### Fixed

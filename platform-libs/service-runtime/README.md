@@ -249,10 +249,13 @@ call in hand finish (it interrupts only a call still running after 30 seconds).
   principal and each row's tenant in their own transactions.
 - Several instances of one service need no new lock: the relay runs one at a time (a transaction-scoped advisory lock)
   and a consumer locks its offset row (outbox-and-queue).
-- **Lane sizing.** The relay holds its claim connection while it publishes a row in a tenant transaction, and the event
-  log on the application pool (no `gst.db.event-log-url`) takes a third connection for the append: the background lane
-  needs at least 3 permits for the relay to publish when the event log shares the application pool, and every other
-  loop (a consumer in its handler transaction, the staleness and unrelayed-event checks) shares those permits.
+- **Lane sizing.** A relay run holds at most 2 permits of the background lane: its claim connection, open for the whole
+  run so that one relay runs at a time and the order per key holds, and the row's tenant transaction. When the event
+  log shares the application pool (no `gst.db.event-log-url`), the append to the event log joins that transaction
+  (`OutboxAndQueueWiring.eventBinding` gives the binding the application `TenantScope`) and commits with
+  `published_at`, so the relay needs no third permit; with a separate event-log pool (HA) the append is its own
+  transaction on that pool (3 permits, the event-log pool's own lane). The lane budgets are unchanged. Every other loop
+  (a consumer in its handler transaction, the staleness and unrelayed-event checks) shares the same background permits.
 
 | Property (`service-runtime.event-loops.*`) | Default | Meaning |
 |---|---|---|

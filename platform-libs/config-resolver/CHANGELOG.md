@@ -6,6 +6,7 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-10-15
 ### Changed
 - `ConfigSchema.ddl` gives `config_installation_setting` the table comment `platform-scoped: no tenant data`, and
   `ConfigSchema.platformScopedTables(schema)` lists it for the service's tenant-table declaration (INV-T-4134;

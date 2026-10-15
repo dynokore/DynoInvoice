@@ -6,12 +6,15 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-10-15
 ### Changed
 - Tenantless tables are classified (INV-T-4134; INV-ADR-3968 item 4a, INV-REQ-854 b6; owner ruling INV-Q-4113):
   `consumer_offset`, `consumer_replay`, `consumer_replay_marker`, `consumer_source_seen` and `lane_rate_window` hold no
   tenant data and carry the table comment `platform-scoped: no tenant data` in `OutboxSchema.ddl` and
   `QueueSchema.ddl`; `OutboxSchema.platformScopedTables(schema)` and `EventLogSchema.platformScopedTables()` list them
   (with the event log's own tenantless tables, among them the purge watermark) for the service's declaration.
+
+### Changed (breaking)
 - `event_dead_letter.tenant_id` is `uuid NOT NULL` (CS-19): `event_dead_letter_record` stores a record that names no
   tenant under the reserved platform tenant, and `DeadLetterTriage` reads such a letter with `tenant = null`, as
   before. A restrictive SELECT policy `event_dead_letter_no_platform_tenant` `TO` the runtime role
@@ -19,6 +22,12 @@ train is its own (README.md: "own version and changelog").
   bound to, so its `raw` is never read (coordinator ruling INV-Q-4819; INV-Q-3130); the sys-owned triage view still
   lists it. A database migrated from an earlier DDL must set the NULL rows to the platform tenant before the column is
   made NOT NULL.
+
+### Migration
+1. In an existing database, update the NULL `tenant_id` rows of `event_dead_letter` to the reserved platform tenant
+   before the column is made NOT NULL (`update <schema>.event_dead_letter set tenant_id = <platform tenant> where
+   tenant_id is null`), then apply the new DDL (`alter column tenant_id set not null`, the restrictive policy
+   `event_dead_letter_no_platform_tenant`).
 
 ## [2.2.3] - 2026-10-14
 ### Fixed

@@ -94,11 +94,12 @@ class EventLoop(
                 failures++
                 wait = backoff(failures)
                 log.warn(
-                    "event loop call failed, retrying: loop={} kind={} error_class={} sql_state={} retry_in_ms={}",
+                    "event loop call failed, retrying: loop={} kind={} error_class={} sql_state={} lane_message={} retry_in_ms={}",
                     name,
                     kind.label,
                     error.javaClass.name,
                     sqlState(error),
+                    laneMessage(error),
                     wait.toMillis(),
                 )
             } catch (error: Throwable) {
@@ -137,7 +138,22 @@ class EventLoop(
         return null
     }
 
+    /**
+     * The message of the pool's own lane refusal ("the BACKGROUND lane's 2 permits stayed in use for 2000 ms"), which
+     * holds a lane name and numbers only and is safe to log (CS-34); any other exception's message is never logged.
+     */
+    private fun laneMessage(error: Throwable): String? {
+        var cause: Throwable? = error
+        repeat(CAUSE_DEPTH) {
+            val message = (cause as? java.sql.SQLTransientConnectionException)?.message
+            if (message != null && LANE_REFUSAL.matches(message)) return message
+            cause = cause?.cause
+        }
+        return null
+    }
+
     companion object {
+        private val LANE_REFUSAL = Regex("^the (REQUEST|BACKGROUND|REPROCESSING) lane('s| has) [\\w ()-.,]*$")
         val MAX_BACKOFF: Duration = Duration.ofSeconds(30)
         private const val MAX_SHIFT = 20
         private const val JITTER_FRACTION = 0.5
