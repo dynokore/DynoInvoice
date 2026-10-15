@@ -6,6 +6,13 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.0.5] - 2026-10-16
+### Changed
+- Metadata-only release (INV-T-5339, coordinator ruling INV-Q-5337, delegated, owner 2026-10-14): no API or behaviour
+  change; `src/main` and `src/impl` are unchanged since 1.0.4.
+- The POMs and module metadata of both publications (api and impl) now name the sibling modules at their current
+  versions: tenancy-kernel 2.0.0 (was 1.4.1), crypto 1.1.0 (was 1.0.2).
+
 ## [1.0.4] - 2026-10-14
 ### Changed
 - Metadata-only release (INV-T-4310, coordinator ruling INV-Q-4552): no behaviour or API change.
