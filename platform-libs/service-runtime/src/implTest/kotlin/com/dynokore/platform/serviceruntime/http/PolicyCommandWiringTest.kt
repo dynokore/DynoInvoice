@@ -13,6 +13,8 @@ import org.postgresql.ds.PGSimpleDataSource
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.boot.web.servlet.ServletRegistrationBean
+import org.springframework.mock.web.MockHttpServletRequest
+import org.springframework.mock.web.MockHttpServletResponse
 import java.lang.reflect.Proxy
 import javax.sql.DataSource
 
@@ -86,5 +88,34 @@ class PolicyCommandWiringTest {
                 mappings(context) shouldBe listOf(PolicyCommandServlet.MAPPING)
                 context.getBean(PolicyRoleResolver::class.java) shouldBe port
             }
+    }
+
+    @Test
+    fun `a context with a PolicyWriter answers an unknown path under the mapping 404 SRT-005 and a GET 405 SRT-006`() {
+        runner().withBean(PolicyWriter::class.java, { writer }).run { context ->
+            val servlet =
+                context
+                    .getBeansOfType(ServletRegistrationBean::class.java)
+                    .values
+                    .single()
+                    .servlet
+
+            fun answer(
+                method: String,
+                path: String,
+            ): Pair<Int, String> {
+                val response = MockHttpServletResponse()
+                servlet!!.service(MockHttpServletRequest(method, path), response)
+                return response.status to response.contentAsString
+            }
+            for (operation in listOf("/internal/v1/policies/VP-1", "/internal/v1/policies/VP-1/relaxations")) {
+                val (status, body) = answer("GET", operation)
+                status shouldBe 405
+                body.contains("SRT-006") shouldBe true
+            }
+            val (status, body) = answer("POST", "/internal/v1/policies/VP-1/unknown")
+            status shouldBe 404
+            body.contains("SRT-005") shouldBe true
+        }
     }
 }

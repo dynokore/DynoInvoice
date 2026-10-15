@@ -127,12 +127,15 @@ class RecordingWriter(
     /** Run before the delegate on every call (hold a call, or throw). */
     @Volatile var before: () -> Unit = {}
 
+    /** Applied to the delegate's [PolicyChange] (a test pins the prior the library returns). */
+    @Volatile var change: (PolicyChange) -> PolicyChange = { it }
+
     val calls: Int get() = sets.size + acknowledgements.size
 
     override fun setPolicy(command: SetPolicyCommand): PolicyChange {
         sets += command
         before()
-        return delegate.setPolicy(command)
+        return change(delegate.setPolicy(command))
     }
 
     override fun acknowledgeControlRelaxation(command: AcknowledgeRelaxationCommand): RelaxationStatus {
