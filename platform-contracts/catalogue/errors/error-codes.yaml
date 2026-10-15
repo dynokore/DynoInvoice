@@ -1,6 +1,6 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
-# pinned at commit 564e2d301d4512d2d2743b9ad17ec33a8de54eb2 (2026-10-16), the
-# head of invoice-docs!37 adding SUB-018 and SUB-019 (INV-T-5412, coordinator ruling INV-Q-5405;
+# pinned at commit 70e25c6aba57b111e5fd12a86e4b978f6fdb12d6 (2026-10-16), the
+# merge of invoice-docs!37 adding SUB-018 and SUB-019 (INV-T-5412, coordinator ruling INV-Q-5405;
 # previously pinned at 089b718e523e57923eda73ebb148da4b89d6f82a, INV-T-5179).
 #
 # This copy is the generator's (catalogue/generator/) sole input for the
