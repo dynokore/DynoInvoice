@@ -8,7 +8,9 @@ required, additionalProperties, pattern, format, const, enum, minLength,
 minimum, maximum, items, local $ref into #/$defs), plus uniqueItems, the map keywords
 minProperties, propertyNames and schema-valued additionalProperties (INV-T-5054), and a calendar
 check of format: date (a date matching YYYY-MM-DD must also exist, so
-2027-13-45 fails). A schema carrying patternProperties or maxProperties fails every sample
+2027-13-45 fails). Numbers (INV-Q-5443): type number (an int or a float that is not a bool, so "120", true, null and an array
+fail) and the keywords exclusiveMinimum, exclusiveMaximum, minimum and maximum on number and on integer.
+A schema carrying patternProperties or maxProperties fails every sample
 (Unsupported, never silently ignored). No pip install in CI (mirrors
 check-payload-compat.py's stdlib-only style); networknt json-schema-validator
 (STK-74) is the consumer-edge validator once services exist in Kotlin — this
@@ -97,6 +99,13 @@ def load_schema(spec: str) -> tuple[dict, dict]:
     else:
         root = json.loads(path.read_text())
     return (_pointer(root, "#" + pointer) if pointer else root), root
+
+
+def _check_exclusive_bounds(instance, schema: dict, path: str) -> None:
+    if "exclusiveMinimum" in schema and instance <= schema["exclusiveMinimum"]:
+        raise Invalid(f"{path}: {instance} not above exclusiveMinimum {schema['exclusiveMinimum']}")
+    if "exclusiveMaximum" in schema and instance >= schema["exclusiveMaximum"]:
+        raise Invalid(f"{path}: {instance} not below exclusiveMaximum {schema['exclusiveMaximum']}")
 
 
 def _check(instance, schema: dict, root: dict, path: str) -> None:
@@ -192,6 +201,15 @@ def _check(instance, schema: dict, root: dict, path: str) -> None:
             raise Invalid(f"{path}: {instance} below minimum {schema['minimum']}")
         if "maximum" in schema and instance > schema["maximum"]:
             raise Invalid(f"{path}: {instance} above maximum {schema['maximum']}")
+        _check_exclusive_bounds(instance, schema, path)
+    elif t == "number":
+        if not isinstance(instance, (int, float)) or isinstance(instance, bool):
+            raise Invalid(f"{path}: expected number, got {type(instance).__name__}")
+        if "minimum" in schema and instance < schema["minimum"]:
+            raise Invalid(f"{path}: {instance} below minimum {schema['minimum']}")
+        if "maximum" in schema and instance > schema["maximum"]:
+            raise Invalid(f"{path}: {instance} above maximum {schema['maximum']}")
+        _check_exclusive_bounds(instance, schema, path)
     elif t == "boolean":
         if not isinstance(instance, bool):
             raise Invalid(f"{path}: expected boolean, got {type(instance).__name__}")
