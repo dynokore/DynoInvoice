@@ -1,10 +1,10 @@
 package com.dynokore.platform.serviceruntime.datasource
 
 import com.dynokore.platform.serviceruntime.composition.ServiceDataSources
-import com.dynokore.platform.serviceruntime.testing.HeldTransaction
-import com.dynokore.platform.serviceruntime.testing.TestDatabase
 import com.dynokore.platform.serviceruntime.testing.BACKEND_PID
 import com.dynokore.platform.serviceruntime.testing.CURRENT_USER
+import com.dynokore.platform.serviceruntime.testing.HeldTransaction
+import com.dynokore.platform.serviceruntime.testing.TestDatabase
 import com.dynokore.platform.serviceruntime.testing.changeOwnPassword
 import com.dynokore.platform.serviceruntime.testing.createLoginSql
 import com.dynokore.platform.serviceruntime.testing.startPostgres
@@ -18,6 +18,8 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import org.junit.jupiter.api.io.TempDir
@@ -27,8 +29,6 @@ import org.springframework.boot.test.context.assertj.AssertableApplicationContex
 import org.springframework.boot.test.system.CapturedOutput
 import org.springframework.boot.test.system.OutputCaptureExtension
 import org.testcontainers.containers.PostgreSQLContainer
-import org.jooq.impl.DSL
-import org.jooq.impl.SQLDataType
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.UUID
@@ -69,7 +69,10 @@ class CredentialRotationIT {
                     val pools = listOf(Triple(app, db.over(appSource), APP), Triple(eventLog, db.over(eventLog), APP))
 
                     // each pool holds an open connection, logged in with the first password
-                    val open = pools.map { (_, access, role) -> HeldTransaction(access).also { it.user() shouldBe role } }
+                    val open =
+                        pools.map { (_, access, role) ->
+                            HeldTransaction(access).also { it.user() shouldBe role }
+                        }
                     val openPids = open.map { it.pid() }
 
                     // the role password changes; the mounted files are not rewritten yet
@@ -92,7 +95,12 @@ class CredentialRotationIT {
                     mount(mountRoot, APP_REF, second)
                     pools.forEach { (_, access, role) ->
                         val (user, pid) =
-                            access.asPlatform { select(CURRENT_USER, BACKEND_PID).fetchSingle().let { it.value1() to it.value2() } }
+                            access.asPlatform {
+                                select(CURRENT_USER, BACKEND_PID).fetchSingle().let {
+                                    it.value1() to
+                                        it.value2()
+                                }
+                            }
                         user shouldBe role
                         openPids shouldNotContain pid
                     }
@@ -161,7 +169,9 @@ class CredentialRotationIT {
                         reader.asPlatform {
                             fetchCount(
                                 DSL.table(DSL.name("ledger", "flyway_schema_history")),
-                                DSL.field(DSL.name("success"), SQLDataType.BOOLEAN).isTrue
+                                DSL
+                                    .field(DSL.name("success"), SQLDataType.BOOLEAN)
+                                    .isTrue
                                     .and(DSL.field(DSL.name("version"), SQLDataType.VARCHAR).eq("1")),
                             )
                         }

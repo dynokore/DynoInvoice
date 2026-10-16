@@ -22,6 +22,7 @@ import org.jooq.Field
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 import org.jooq.types.DayToSecond
+import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -102,6 +103,8 @@ class JobsHarness
         extraTables: Map<String, TableClass> = emptyMap(),
         /** Tables whose inserts record the bound actor (see [capturedActors]); they must exist after [extraDdl]. */
         captureTables: List<String> = listOf("$SCHEMA.outbox", "$SCHEMA.job_run"),
+        /** More provisioning SQL, run last as the owner role (a trigger on an object the harness created). */
+        extraInitSql: String = "",
     ) : AutoCloseable {
         val fixture =
             OutboxPostgresFixture(
@@ -109,7 +112,7 @@ class JobsHarness
                 OutboxPostgresFixture.serviceInitSql(
                     SCHEMA,
                     JobSchema.ddl(SCHEMA, OutboxPostgresFixture.APP, OutboxPostgresFixture.SYS) + "\n" + extraDdl,
-                ) + OutboxPostgresFixture.captureActorsInitSql(captureTables),
+                ) + OutboxPostgresFixture.captureActorsInitSql(captureTables) + "\n" + extraInitSql,
             )
 
         /** The tables the tests declare to tenancy-jooq: the job and outbox tables, the libraries' platform tables. */
@@ -176,8 +179,13 @@ class JobsHarness
             val tx = app.runner
             val dsl = app.dsl
 
-            /** The replica's pool as a DataSource bean for a Spring context; no test takes a connection from it. */
-            val dataSource: DataSource = app.dataSource
+            /** Registers the replica's pool as the `dataSource` bean of [runner]'s context. */
+            fun withDataSourceBean(runner: ApplicationContextRunner): ApplicationContextRunner =
+                app.withDataSourceBean(runner)
+
+            /** Hands the replica's pool to [block], for a library class that is built over a DataSource. */
+            fun <T> useDataSource(block: (DataSource) -> T): T = app.useDataSource(block)
+
             val scope = TenantScope(tenants, tx, tx, WorkloadPrincipal(SERVICE).value)
             val outbox = JdbcOutboxWriter(tx, SCHEMA, SERVICE, instance, CATALOGUE, clock)
             val runtime =

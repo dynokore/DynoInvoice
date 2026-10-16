@@ -3,20 +3,23 @@ package com.dynokore.platform.serviceruntime.staleness
 import com.dynokore.platform.outboxandqueue.CatalogueEntry
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.EventLogSchema
-import com.dynokore.platform.outboxandqueue.JdbcStalenessMonitor
 import com.dynokore.platform.outboxandqueue.OutboxPostgresFixture
-import com.dynokore.platform.outboxandqueue.PostgresEventLogReader
 import com.dynokore.platform.outboxandqueue.StalenessBreach
 import com.dynokore.platform.serviceruntime.jobs.MutableClock
-import com.dynokore.platform.tenancykernel.TenantContextImpl
+import com.dynokore.platform.serviceruntime.testing.TestDatabase
+import com.dynokore.platform.tenancyjooq.TableClass
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
 import io.micrometer.core.instrument.Gauge
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import java.time.Duration
 import java.time.Instant
+import java.time.ZoneOffset
+import java.util.UUID
 
 /**
  * INV-T-3005 over PostgreSQL 17 and 18 with outbox-and-queue's [JdbcStalenessMonitor]: a consumer that stops
@@ -27,9 +30,14 @@ class StalenessGaugesIT {
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
     fun `a stopped consumer's lag gauge passes its threshold gauge, and not before`(image: String) {
-        OutboxPostgresFixture(image).use { fixture ->
-            fixture.createService(SCHEMA)
-            fixture.createTopics(CATALOGUE)
+        OutboxPostgresFixture(
+            image,
+            OutboxPostgresFixture.serviceInitSql(SCHEMA) + OutboxPostgresFixture.eventLogInitSql(CATALOGUE),
+        ).use { fixture ->
+            val eventLogTable = "eventlog.${EventLogSchema.tableName(CANONICAL_TOPIC)}"
+            val eventLog =
+                TestDatabase(fixture.jdbcUrl(), mapOf(eventLogTable to TableClass.PLATFORM_SCOPED))
+            val admin = eventLog.login(fixture.adminUser(), fixture.adminPassword())
             val clock = MutableClock(T0)
             val breaches = mutableListOf<StalenessBreach>()
             val rules =
@@ -40,15 +48,7 @@ class StalenessGaugesIT {
                             StalenessProperties.Rule(CONSUMER, POLICY),
                         ),
                     ).rules
-            val monitor =
-                JdbcStalenessMonitor(
-                    fixture.runtimeDataSource(),
-                    PostgresEventLogReader(fixture.eventLogDataSource(), fixture.eventLogScope(TenantContextImpl())),
-                    CATALOGUE,
-                    SCHEMA,
-                    rules,
-                    clock,
-                ) { breaches += it }
+            val monitor = fixture.stalenessMonitor(CATALOGUE, SCHEMA, rules, clock) { breaches += it }
             val registry = SimpleMeterRegistry()
             val gauges = StalenessGauges(monitor, rules, registry)
 
@@ -70,7 +70,7 @@ class StalenessGaugesIT {
             registry.meters.map { it.id.name }.toSet() shouldBe setOf(LAG_NAME, THRESHOLD_NAME)
 
             // submission-svc is stopped while CanonicalVersionCreated events keep arriving, the oldest at T0
-            repeat(3) { insertEvent(fixture, CANONICAL_TOPIC, T0.plusSeconds(it.toLong())) }
+            repeat(3) { insertEvent(admin, CANONICAL_TOPIC, T0.plusSeconds(it.toLong())) }
 
             clock.advance(Duration.ofMinutes(4))
             gauges.refresh()
@@ -105,15 +105,22 @@ class StalenessGaugesIT {
     ) = gauge(registry, THRESHOLD_NAME, eventType).value()
 
     private fun insertEvent(
-        fixture: OutboxPostgresFixture,
+        admin: TestDatabase.Access,
         topic: String,
         insertedAt: Instant,
-    ) = fixture.runAsAdmin(
-        "insert into eventlog.${EventLogSchema.tableName(
-            topic,
-        )} (tenant_id, event_id, subject, envelope, inserted_at) " +
-            "values ('0a000000-0000-0000-0000-00000000000a', gen_random_uuid()::text, 'doc', '{}'::jsonb, timestamptz '$insertedAt')",
-    )
+    ) = admin.asPlatform {
+        insertInto(DSL.table(DSL.name("eventlog", EventLogSchema.tableName(topic))))
+            .set(
+                DSL.field(DSL.name("tenant_id"), SQLDataType.UUID),
+                UUID.fromString("0a000000-0000-0000-0000-00000000000a"),
+            ).set(DSL.field(DSL.name("event_id"), SQLDataType.VARCHAR), UUID.randomUUID().toString())
+            .set(DSL.field(DSL.name("subject"), SQLDataType.VARCHAR), "doc")
+            .set(DSL.field(DSL.name("envelope"), SQLDataType.JSONB), DSL.jsonbObject())
+            .set(
+                DSL.field(DSL.name("inserted_at"), SQLDataType.TIMESTAMPWITHTIMEZONE),
+                insertedAt.atOffset(ZoneOffset.UTC),
+            ).execute()
+    }
 
     private companion object {
         // the literal names INV-T-3035's alert rules read (INV-Q-3831 A), never the constants

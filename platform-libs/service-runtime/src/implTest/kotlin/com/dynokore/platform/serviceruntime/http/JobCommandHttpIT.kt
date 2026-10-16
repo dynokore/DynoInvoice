@@ -33,6 +33,16 @@ import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.AuthorityVerdict
 import com.dynokore.platform.serviceruntime.replica.AuthorizationRequest
 import com.dynokore.platform.serviceruntime.replica.FallbackResult
+import com.dynokore.platform.serviceruntime.testing.PG_NAMESPACE
+import com.dynokore.platform.serviceruntime.testing.PG_NAMESPACE_NAME
+import com.dynokore.platform.serviceruntime.testing.PG_NAMESPACE_OID
+import com.dynokore.platform.serviceruntime.testing.PG_PROC
+import com.dynokore.platform.serviceruntime.testing.PG_PROC_CONFIG
+import com.dynokore.platform.serviceruntime.testing.PG_PROC_DEFINER
+import com.dynokore.platform.serviceruntime.testing.PG_PROC_NAME
+import com.dynokore.platform.serviceruntime.testing.PG_PROC_NAMESPACE
+import com.dynokore.platform.serviceruntime.testing.PG_PROC_OID
+import com.dynokore.platform.serviceruntime.testing.PG_PROC_OWNER
 import com.dynokore.platform.tenancyjooq.TableClass
 import com.dynokore.platform.tenancykernel.TenantAwareDataSource
 import com.dynokore.platform.tenancykernel.TenantId
@@ -43,6 +53,8 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.api.assertThrows
@@ -54,23 +66,11 @@ import org.springframework.mock.web.MockHttpServletRequest
 import org.springframework.mock.web.MockHttpServletResponse
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
-import com.dynokore.platform.serviceruntime.testing.PG_NAMESPACE
-import com.dynokore.platform.serviceruntime.testing.PG_NAMESPACE_NAME
-import com.dynokore.platform.serviceruntime.testing.PG_NAMESPACE_OID
-import com.dynokore.platform.serviceruntime.testing.PG_PROC
-import com.dynokore.platform.serviceruntime.testing.PG_PROC_CONFIG
-import com.dynokore.platform.serviceruntime.testing.PG_PROC_DEFINER
-import com.dynokore.platform.serviceruntime.testing.PG_PROC_NAME
-import com.dynokore.platform.serviceruntime.testing.PG_PROC_NAMESPACE
-import com.dynokore.platform.serviceruntime.testing.PG_PROC_OID
-import com.dynokore.platform.serviceruntime.testing.PG_PROC_OWNER
-import org.jooq.impl.DSL
-import org.jooq.impl.SQLDataType
-import java.time.OffsetDateTime
 import java.sql.SQLException
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.time.OffsetDateTime
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
@@ -458,8 +458,7 @@ class JobCommandHttpIT {
         s.replica.runtime.register(job("http-tx"), entities) { }
         val key = UUID.randomUUID().toString()
 
-        fun records() =
-            s.h.keyRows(key)
+        fun records() = s.h.keyRows(key)
 
         s.post(runPath("http-tx"), """{"entityRef":"E-001"}""", key).closed(ClosedErrorCode.INTERNAL_ERROR)
         records() shouldHaveSize 0
@@ -609,7 +608,11 @@ class JobCommandHttpIT {
         s.post(runPath("http-purge"), """{"entityRef":"E-001"}""", key = tenantKey).status shouldBe 202
         s.post(runPath("http-purge-platform"), "{}", key = platformKey, token = "Bearer op").status shouldBe 202
 
-        fun stored(key: String) = s.h.keyRows(key).size.toLong()
+        fun stored(key: String) =
+            s.h
+                .keyRows(key)
+                .size
+                .toLong()
 
         runtimeLoginPurgesNothing(s)
         stored(tenantKey) shouldBe 1L
@@ -656,7 +659,11 @@ class JobCommandHttpIT {
         s.replica.runtime.register(job("http-skew"), entities) { }
         val key = UUID.randomUUID().toString()
 
-        fun stored() = s.h.keyRows(key).size.toLong()
+        fun stored() =
+            s.h
+                .keyRows(key)
+                .size
+                .toLong()
         // the key is stamped by the database, not by the service clock
         s.post(runPath("http-skew"), """{"entityRef":"E-001"}""", key = key).status shouldBe 202
         s.h
@@ -683,7 +690,9 @@ class JobCommandHttpIT {
         val function =
             s.h.admin.asPlatform {
                 val namespace =
-                    select(PG_NAMESPACE_OID).from(PG_NAMESPACE).where(PG_NAMESPACE_NAME.eq(SCHEMA)).fetchOne(PG_NAMESPACE_OID)
+                    select(
+                        PG_NAMESPACE_OID,
+                    ).from(PG_NAMESPACE).where(PG_NAMESPACE_NAME.eq(SCHEMA)).fetchOne(PG_NAMESPACE_OID)
                 select(
                     DSL.function(DSL.name("pg_get_userbyid"), SQLDataType.VARCHAR, PG_PROC_OWNER),
                     PG_PROC_DEFINER,
@@ -765,7 +774,11 @@ class JobCommandHttpIT {
         val key = UUID.randomUUID().toString()
         s.post(runPath("http-auto-purge"), """{"entityRef":"E-001"}""", key = key).status shouldBe 202
 
-        fun stored() = s.h.keyRows(key).size.toLong()
+        fun stored() =
+            s.h
+                .keyRows(key)
+                .size
+                .toLong()
         autoConfigured(s)
             .run { context ->
                 context.startupFailure shouldBe null
@@ -825,7 +838,14 @@ class JobCommandHttpIT {
         // SELECT with no tenant bound sees no row (forced RLS)
         val table = "$SCHEMA.idempotency_key"
         val runtime = s.h.runtimeLogin(table)
-        val refused = assertThrows<Exception> { runtime.asPlatform { deleteFrom(DSL.table(DSL.name(SCHEMA, "idempotency_key"))).execute() } }
+        val refused =
+            assertThrows<Exception> {
+                runtime.asPlatform {
+                    deleteFrom(
+                        DSL.table(DSL.name(SCHEMA, "idempotency_key")),
+                    ).execute()
+                }
+            }
         runtime.runner.sqlStateOf(refused) shouldBe "42501"
         // a tenant that stored nothing sees nothing: the policy limits every read to the bound tenant
         runtime.asTenant(TenantId(UUID.randomUUID())) {
@@ -835,9 +855,9 @@ class JobCommandHttpIT {
 
     /** The job command auto-configuration over [s]'s data source, runtime, scope, principals and clock. */
     private fun autoConfigured(s: Service): ApplicationContextRunner =
-        ApplicationContextRunner()
+        s.replica
+            .withDataSourceBean(ApplicationContextRunner())
             .withConfiguration(AutoConfigurations.of(JobCommandHttpAutoConfiguration::class.java))
-            .withBean("dataSource", DataSource::class.java, { s.replica.dataSource }, { it.isPrimary = true })
             .withBean(JobRuntime::class.java, { s.replica.runtime })
             .withBean(org.jooq.DSLContext::class.java, { s.replica.dsl })
             .withBean(TenantScope::class.java, { s.replica.scope })

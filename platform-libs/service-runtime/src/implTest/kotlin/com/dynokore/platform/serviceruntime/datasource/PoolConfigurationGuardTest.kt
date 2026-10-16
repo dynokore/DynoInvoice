@@ -38,9 +38,13 @@ class PoolConfigurationGuardTest {
 
     @Test
     fun `the property table equals the public no-argument get and is methods of HikariConfig`() {
+        val ofObject =
+            Any::class.java.methods
+                .map { it.name }
+                .toSet()
         val fromClass =
             HikariConfig::class.java.methods
-                .filter { it.parameterTypes.isEmpty() && it.declaringClass != Any::class.java }
+                .filter { it.parameterTypes.isEmpty() && it.name !in ofObject }
                 .map { it.name }
                 .filter { (it.startsWith("get") && it != "getClass") || it.startsWith("is") }
                 .map { name ->

@@ -27,7 +27,10 @@ fun startPostgres(
     val script = Files.createTempFile("pg-init-", ".sql")
     try {
         Files.writeString(script, initSql)
-        container.withCopyFileToContainer(MountableFile.forHostPath(script, 0b110_100_100), "/docker-entrypoint-initdb.d/10-init.sql")
+        container.withCopyFileToContainer(
+            MountableFile.forHostPath(script, 0b110_100_100),
+            "/docker-entrypoint-initdb.d/10-init.sql",
+        )
         container.start()
     } finally {
         Files.deleteIfExists(script)

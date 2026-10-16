@@ -27,8 +27,8 @@ import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.boot.test.system.CapturedOutput
 import org.springframework.boot.test.system.OutputCaptureExtension
-import java.time.Duration
 import java.nio.file.Path
+import java.time.Duration
 import java.util.UUID
 
 /**
@@ -101,7 +101,13 @@ class MigrationRunnerIT {
                 ).withMountedLogin(mountRoot, "runtime-pw")
                 .run { context ->
                     context.startupFailure shouldBe null
-                    context.beanDefinitionNames.filter { context.getType(it)?.name == "org.flywaydb.core.Flyway" } shouldBe emptyList()
+                    context.beanDefinitionNames.filter {
+                        context
+                            .getType(
+                                it,
+                            )?.name == "org.flywaydb.core.Flyway"
+                    } shouldBe
+                        emptyList()
                     TestDatabase(pg.jdbcUrl, mapOf("pg_catalog.pg_namespace" to TableClass.PLATFORM_SCOPED)).use { db ->
                         db.login(RUNTIME, "runtime-pw").asPlatform {
                             fetchCount(PG_NAMESPACE, PG_NAMESPACE_NAME.eq("ledger"))
@@ -186,7 +192,11 @@ class MigrationRunnerIT {
         window: org.jooq.Field<org.jooq.types.DayToSecond>,
     ): Duration =
         reader.asPlatform {
-            select(window).from(DSL.table(DSL.name("ledger", "job_retention"))).fetchSingle().value1().toDuration()
+            select(window)
+                .from(DSL.table(DSL.name("ledger", "job_retention")))
+                .fetchSingle()
+                .value1()
+                .toDuration()
         }
 
     private companion object {

@@ -552,8 +552,15 @@ class CompositionRootTest {
         val declared = base.withServiceInputs(mountRoot, without = ServiceInput.EVENT_LOG_DATA_SOURCE)
         declared.withBean(ServiceDataSources.EVENT_LOG, DataSource::class.java, { eventLog }).run { context ->
             context.startupFailure shouldBe null
-            // background work that started with the context (the staleness check) runs on the application DataSource
-            clearMocks(context.getBean("dataSource", DataSource::class.java), answers = false, recordedCalls = true)
+            // background work that started with the context (the staleness check and the unrelayed-event check, one
+            // run each, then every 5 minutes) runs on the application DataSource: wait for those two runs, then forget them
+            val application = context.getBean("dataSource", DataSource::class.java)
+            val deadline = System.nanoTime() + 20_000_000_000L
+            while (runCatching { verify(atLeast = 2) { application.connection } }.isFailure) {
+                check(System.nanoTime() < deadline) { "the start-up checks did not run on the application DataSource" }
+                Thread.sleep(50)
+            }
+            clearMocks(application, answers = false, recordedCalls = true)
             context
                 .getBean(
                     EventLogReader::class.java,

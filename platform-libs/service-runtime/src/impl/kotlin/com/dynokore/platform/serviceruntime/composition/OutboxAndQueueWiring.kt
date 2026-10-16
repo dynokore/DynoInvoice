@@ -140,7 +140,9 @@ class OutboxAndQueueWiring(
         // The event log shares the application pool: the append joins the relay's row transaction (the same tenant and
         // actor, REQUIRED propagation) and commits with published_at, so a relay run holds at most 2 permits of the
         // background lane (INV-Q-4850). A separate event-log pool (HA) keeps its own transaction on that pool.
-        eventLog.getIfAvailable()?.let { PostgresEventBinding(eventLogScope(handOff(it, eventLogGate.getIfAvailable()), scope)) }
+        eventLog.getIfAvailable()?.let {
+            PostgresEventBinding(eventLogScope(handOff(it, eventLogGate.getIfAvailable()), scope))
+        }
             ?: PostgresEventBinding(scope)
 
     @Bean
@@ -162,9 +164,11 @@ class OutboxAndQueueWiring(
         @Qualifier(ServiceDataSources.EVENT_LOG) eventLog: ObjectProvider<DataSource>,
         dataSource: DataSource,
         scope: TenantScope,
-    ): PostgresEventLogReader {
-        return PostgresEventLogReader(eventLogSource(eventLog, dataSource), eventLogScope(eventLogSource(eventLog, dataSource), scope))
-    }
+    ): PostgresEventLogReader =
+        PostgresEventLogReader(
+            eventLogSource(eventLog, dataSource),
+            eventLogScope(eventLogSource(eventLog, dataSource), scope),
+        )
 
     @Bean
     @ConditionalOnBean(LaneLimits::class, DataSource::class)
@@ -361,7 +365,16 @@ class OutboxAndQueueWiring(
         rebuildRequired: RebuildRequiredSink,
         clock: Clock,
     ): JdbcInboxConsumer =
-        JdbcInboxConsumer(subscription, catalogue, reader, application(dataSource), scope, handler, rebuildRequired, clock)
+        JdbcInboxConsumer(
+            subscription,
+            catalogue,
+            reader,
+            application(dataSource),
+            scope,
+            handler,
+            rebuildRequired,
+            clock,
+        )
 
     @Bean
     @ConditionalOnBean(WorkQueue::class, TenantScope::class, JdbcInboxConsumer::class)
@@ -373,19 +386,22 @@ class OutboxAndQueueWiring(
     ): JdbcReplayDelivery = JdbcReplayDelivery(queue, scope, inbox)
 
     /** The application pool as the services' raw users get it: behind the lane gate (INV-Q-5243). */
-    private fun application(pool: DataSource): DataSource = handOff(pool, applicationGate.getIfAvailable()?.takeIf { it.active })
+    private fun application(pool: DataSource): DataSource =
+        handOff(pool, applicationGate.getIfAvailable()?.takeIf { it.active })
 
     /** The pool the event log lives on: the HA pool behind its own admit-all gate, or else the application pool. */
     private fun eventLogSource(
         eventLog: ObjectProvider<DataSource>,
         dataSource: DataSource,
-    ): DataSource = eventLog.getIfAvailable()?.let { handOff(it, eventLogGate.getIfAvailable()) } ?: application(dataSource)
+    ): DataSource =
+        eventLog.getIfAvailable()?.let { handOff(it, eventLogGate.getIfAvailable()) } ?: application(dataSource)
 
-    private companion object {
+    companion object {
         /**
          * The one hand-off of a pool to a user of this wiring (INV-Q-5243): a [TenantAwareDataSource] over [pool] that takes
          * a permit of [gate] before every pool connection and resets the connection when it is handed back.
          */
+        @JvmStatic
         fun handOff(
             pool: DataSource,
             gate: LaneGate?,
@@ -396,7 +412,7 @@ class OutboxAndQueueWiring(
          * [TransactionRunnerImpl], so an event-log transaction never joins an application one), with the service's
          * [TenantScope.workloadPrincipal].
          */
-        fun eventLogScope(
+        private fun eventLogScope(
             eventLog: DataSource,
             scope: TenantScope,
         ): TenantScope {

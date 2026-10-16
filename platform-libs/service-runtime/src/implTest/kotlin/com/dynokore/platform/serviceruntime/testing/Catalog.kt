@@ -32,7 +32,11 @@ val PG_NAMESPACE_OID: Field<Long> = DSL.field(DSL.name("pg_namespace", "oid"), S
 
 val PG_STAT_ACTIVITY: Table<*> = DSL.table(DSL.name("pg_catalog", "pg_stat_activity"))
 val PG_STAT_ACTIVITY_PID: Field<Int> = DSL.field(DSL.name("pg_stat_activity", "pid"), SQLDataType.INTEGER)
-val PG_STAT_ACTIVITY_NAME: Field<String> = DSL.field(DSL.name("pg_stat_activity", "application_name"), SQLDataType.VARCHAR)
+val PG_STAT_ACTIVITY_NAME: Field<String> =
+    DSL.field(
+        DSL.name("pg_stat_activity", "application_name"),
+        SQLDataType.VARCHAR,
+    )
 
 /** The catalog tables above, for [TestDatabase]. */
 val CATALOG_TABLES: Map<String, TableClass> =
