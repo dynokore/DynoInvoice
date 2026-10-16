@@ -1,7 +1,6 @@
 package com.dynokore.platform.tenancykernel
 
 import com.zaxxer.hikari.HikariDataSource
-import javax.sql.DataSource
 
 /**
  * The one test pool fixture (owner ruling INV-Q-4508 (A)): it constructs a HikariCP pool from a Testcontainers URL and
@@ -41,10 +40,6 @@ class TestPoolFixture(
         lanes: LaneGate? = null,
         label: ConnectionLabel? = null,
     ): TransactionRunnerImpl = TransactionRunnerImpl(TenantAwareDataSource(pool, lanes), tenants, label)
-
-    /** The pool as a `DataSource` (gated by [lanes]), for a Spring context that needs the bean; tests take no connection from it. */
-    @JvmOverloads
-    fun dataSource(lanes: LaneGate? = null): DataSource = TenantAwareDataSource(pool, lanes)
 
     override fun close() = pool.close()
 

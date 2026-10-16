@@ -3,7 +3,6 @@ package com.dynokore.platform.serviceruntime.pool
 import com.dynokore.platform.tenancykernel.LaneGate
 import com.dynokore.platform.tenancykernel.LanePermit
 import com.dynokore.platform.tenancykernel.LaneRefusedException
-import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -61,12 +60,6 @@ class LanePermits(
 class LaneGateHolder : LaneGate {
     @Volatile
     private var current: LanePermits? = null
-    private val observers = CopyOnWriteArrayList<PermitObserver>()
-
-    /** Registers [observer] for every permit this gate hands out (a test hook; none is registered in production). */
-    fun observe(observer: PermitObserver) {
-        observers += observer
-    }
 
     /** Whether an application pool has been sized to lanes. */
     val active: Boolean get() = current != null
@@ -78,49 +71,5 @@ class LaneGateHolder : LaneGate {
     /** The lane permits of the application pool. */
     fun permits(): LanePermits = checkNotNull(current) { "the application pool has no lanes" }
 
-    override fun acquire(): LanePermit = observed(observers, current?.acquire() ?: LanePermit { })
-}
-
-/**
- * A listener on the permits of a gate (coordinator ruling INV-Q-5251): [acquired] runs on the thread that took the
- * permit, [released] on whichever thread gives it back, both with the name of the acquiring thread. No JDBC type.
- */
-interface PermitObserver {
-    fun acquired(threadName: String)
-
-    fun released(threadName: String)
-}
-
-/**
- * The gate of the HA event-log pool: it admits every connection (the pool maximum, 3, still bounds the pool, INV-Q-4348),
- * and accepts [PermitObserver]s like [LaneGateHolder].
- */
-class EventLogGate : LaneGate {
-    private val observers = CopyOnWriteArrayList<PermitObserver>()
-
-    /** Registers [observer] for every permit this gate hands out (a test hook; none is registered in production). */
-    fun observe(observer: PermitObserver) {
-        observers += observer
-    }
-
-    override fun acquire(): LanePermit = observed(observers, LanePermit { })
-}
-
-private fun observed(
-    observers: List<PermitObserver>,
-    permit: LanePermit,
-): LanePermit {
-    if (observers.isEmpty()) return permit
-    val thread = Thread.currentThread().name
-    observers.forEach { it.acquired(thread) }
-    val released = AtomicBoolean(false)
-    return LanePermit {
-        if (released.compareAndSet(false, true)) {
-            try {
-                permit.release()
-            } finally {
-                observers.forEach { it.released(thread) }
-            }
-        }
-    }
+    override fun acquire(): LanePermit = current?.acquire() ?: LanePermit { }
 }

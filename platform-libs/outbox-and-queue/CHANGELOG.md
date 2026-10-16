@@ -11,9 +11,7 @@ train is its own (README.md: "own version and changelog").
 - `OutboxPostgresFixture` (test fixtures, additive; coordinator ruling INV-Q-5119): the `initSql` constructor argument
   (provisioning SQL run once at container start as the owner role), `jdbcUrl()`, `adminUser()`, `adminPassword()`, the
   login strings `OWNER`, `OWNER_PASSWORD`, `APP_PASSWORD`, `WORKER_PASSWORD`, `MIGRATE_PASSWORD`, and the init-SQL
-  builders `serviceInitSql`, `eventLogInitSql`, `haEventLogInitSql` (the event log in the second database `ha_log`, with
-  `haEventLogUrl()`) and `captureActorsInitSql`, and the JDBC-free factories `eventLogReader()` and `stalenessMonitor(...)`.
-  Its `DataSource`-returning members stay.
+  builders `serviceInitSql`, `eventLogInitSql` and `captureActorsInitSql`. Its `DataSource`-returning members stay.
 
 ## [3.0.1] - 2026-10-15
 ### Fixed

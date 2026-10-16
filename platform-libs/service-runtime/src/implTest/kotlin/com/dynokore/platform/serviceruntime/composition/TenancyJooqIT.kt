@@ -1,10 +1,10 @@
 package com.dynokore.platform.serviceruntime.composition
 
-import com.dynokore.platform.serviceruntime.datasource.tpl18Service
-import com.dynokore.platform.serviceruntime.datasource.withMountedLogin
 import com.dynokore.platform.serviceruntime.testing.TestDatabase
 import com.dynokore.platform.serviceruntime.testing.startPostgres
 import com.dynokore.platform.tenancyjooq.TableClass
+import com.dynokore.platform.serviceruntime.datasource.tpl18Service
+import com.dynokore.platform.serviceruntime.datasource.withMountedLogin
 import com.dynokore.platform.tenancyjooq.TenantPredicateViolation
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TenantContext

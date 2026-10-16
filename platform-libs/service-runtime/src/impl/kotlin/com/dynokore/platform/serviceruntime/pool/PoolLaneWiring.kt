@@ -23,11 +23,6 @@ class PoolLaneWiring {
         @Bean
         fun serviceRuntimeLaneGate(): LaneGateHolder = LaneGateHolder()
 
-        /** The admit-all gate of the HA event-log pool (INV-Q-5251); the pool maximum bounds that pool. */
-        @JvmStatic
-        @Bean
-        fun serviceRuntimeEventLogGate(): EventLogGate = EventLogGate()
-
         @JvmStatic
         @Bean
         fun serviceRuntimePoolLanes(

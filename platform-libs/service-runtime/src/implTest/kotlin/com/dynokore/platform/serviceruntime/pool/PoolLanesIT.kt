@@ -1,9 +1,6 @@
 package com.dynokore.platform.serviceruntime.pool
 
 import com.dynokore.platform.serviceruntime.composition.ServiceDataSources
-import com.dynokore.platform.serviceruntime.datasource.tpl18Service
-import com.dynokore.platform.serviceruntime.datasource.withMountedLogin
-import com.dynokore.platform.serviceruntime.pool.LaneGateHolder
 import com.dynokore.platform.serviceruntime.testing.BACKEND_PID
 import com.dynokore.platform.serviceruntime.testing.CATALOG_TABLES
 import com.dynokore.platform.serviceruntime.testing.HeldTransaction
@@ -14,6 +11,9 @@ import com.dynokore.platform.serviceruntime.testing.TestDatabase
 import com.dynokore.platform.serviceruntime.testing.createLoginSql
 import com.dynokore.platform.serviceruntime.testing.setting
 import com.dynokore.platform.serviceruntime.testing.startPostgres
+import com.dynokore.platform.serviceruntime.datasource.tpl18Service
+import com.dynokore.platform.serviceruntime.datasource.withMountedLogin
+import com.dynokore.platform.serviceruntime.pool.LaneGateHolder
 import com.dynokore.platform.tenancykernel.TenantAwareDataSource
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
@@ -22,13 +22,13 @@ import com.zaxxer.hikari.HikariDataSource
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
-import org.jooq.DSLContext
-import org.jooq.impl.DSL
-import org.jooq.impl.SQLDataType
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.api.io.TempDir
+import org.jooq.DSLContext
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import org.testcontainers.containers.PostgreSQLContainer
 import java.nio.file.Path
 import java.sql.SQLTransientConnectionException
@@ -76,10 +76,7 @@ class PoolLanesIT {
             context.startupFailure shouldBe null
             val pool = context.getBean(DataSource::class.java).shouldBeInstanceOf<HikariDataSource>()
             val gate = context.getBean(LaneGateHolder::class.java).permits()
-            val access =
-                TestDatabase(postgres.jdbcUrl, emptyMap()).use { db ->
-                    db.over(TenantAwareDataSource(pool, gate))
-                }
+            val access = TestDatabase(postgres.jdbcUrl, emptyMap()).use { db -> db.over(TenantAwareDataSource(pool, gate)) }
             gate.budgets shouldBe LaneBudgets(4, 2, 1)
             pool.maximumPoolSize shouldBe 7
             // the background lane saturated (2 of 2) and the reprocessing lane (1 of 1), held on other threads
@@ -113,10 +110,7 @@ class PoolLanesIT {
             context.startupFailure shouldBe null
             val pool = context.getBean(DataSource::class.java).shouldBeInstanceOf<HikariDataSource>()
             val gate = context.getBean(LaneGateHolder::class.java).permits()
-            val access =
-                TestDatabase(postgres.jdbcUrl, emptyMap()).use { db ->
-                    db.over(TenantAwareDataSource(pool, gate))
-                }
+            val access = TestDatabase(postgres.jdbcUrl, emptyMap()).use { db -> db.over(TenantAwareDataSource(pool, gate)) }
             gate.budgets shouldBe LaneBudgets(4, 2, 0)
             val refused =
                 shouldThrow<SQLTransientConnectionException> {
@@ -203,9 +197,7 @@ class PoolLanesIT {
     private fun PostgreSQLContainer<*>.applicationNameOf(pid: Int): String =
         TestDatabase(jdbcUrl, CATALOG_TABLES).use { db ->
             db.login(RUNTIME, PASSWORD).asPlatform {
-                select(
-                    PG_STAT_ACTIVITY_NAME,
-                ).from(PG_STAT_ACTIVITY).where(PG_STAT_ACTIVITY_PID.eq(pid)).fetchSingle().value1()
+                select(PG_STAT_ACTIVITY_NAME).from(PG_STAT_ACTIVITY).where(PG_STAT_ACTIVITY_PID.eq(pid)).fetchSingle().value1()
             }
         }
 

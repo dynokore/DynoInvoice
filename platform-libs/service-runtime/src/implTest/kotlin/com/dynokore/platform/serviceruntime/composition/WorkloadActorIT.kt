@@ -10,13 +10,10 @@ import com.dynokore.platform.serviceruntime.jobs.JobsHarness.Companion.SCHEMA
 import com.dynokore.platform.serviceruntime.jobs.JobsHarness.Companion.SERVICE
 import com.dynokore.platform.serviceruntime.jobs.JobsHarness.Companion.job
 import com.dynokore.platform.serviceruntime.jobs.MutableClock
-import com.dynokore.platform.serviceruntime.pool.EventLogGate
-import com.dynokore.platform.serviceruntime.pool.LaneGateHolder
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
-import org.springframework.beans.factory.support.DefaultListableBeanFactory
 import java.time.Clock
 import java.time.Instant
 
@@ -29,18 +26,8 @@ class WorkloadActorIT {
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `app-actor is svc inside a relay transaction and svc-job inside a scheduled run`(image: String) {
-        JobsHarness(
-            image,
-            extraInitSql =
-                "create trigger capture_actor_relay after update on $SCHEMA.outbox for each row " +
-                    "execute function public.capture_actor();",
-        ).use { h ->
-            val gates = DefaultListableBeanFactory()
-            val wiring =
-                OutboxAndQueueWiring(
-                    gates.getBeanProvider(LaneGateHolder::class.java),
-                    gates.getBeanProvider(EventLogGate::class.java),
-                )
+        JobsHarness(image).use { h ->
+            val wiring = OutboxAndQueueWiring()
             val replica = h.replica("svc-1", MutableClock(Instant.now()))
             val scope = wiring.tenantScope(replica.tenants, replica.tx, replica.tx, wiring.workloadPrincipal(gst()))
             scope.workloadPrincipal shouldBe "svc:$SERVICE"
@@ -48,12 +35,15 @@ class WorkloadActorIT {
             // a scheduled run: its rows carry the job's own principal
             val def = job("actor-check", scope = JobEntityScope.PLATFORM)
             replica.runtime.register(def) { }
-            h.captureActors("$SCHEMA.job_run")
+            h.fixture.captureActors("$SCHEMA.job_run")
             replica.runtime.fire(def.name)
-            h.capturedActors("$SCHEMA.job_run") shouldBe listOf(WorkloadPrincipal(SERVICE).job(def.name))
+            h.fixture.capturedActors("$SCHEMA.job_run") shouldBe listOf(WorkloadPrincipal(SERVICE).job(def.name))
 
             // the relay publishes the run's events, each in a transaction bound to the service's principal
-            h.captureActors("$SCHEMA.outbox")
+            h.fixture.captureActors("$SCHEMA.outbox")
+            h.fixture.runAsAdmin(
+                "create trigger capture_actor_relay after update on $SCHEMA.outbox for each row execute function public.capture_actor()",
+            )
             val published = mutableListOf<String>()
             val binding =
                 object : EventBinding {
@@ -65,12 +55,16 @@ class WorkloadActorIT {
                     }
                 }
             val relay =
-                replica.useDataSource { pool ->
-                    wiring.outboxRelay(pool, scope, binding, ModuleProperties(schema = SCHEMA), Clock.systemUTC())
-                }
+                wiring.outboxRelay(
+                    h.fixture.runtimeDataSource(),
+                    scope,
+                    binding,
+                    ModuleProperties(schema = SCHEMA),
+                    Clock.systemUTC(),
+                )
             relay.runOnce()
             published.shouldNotBeEmpty()
-            h.capturedActors("$SCHEMA.outbox").toSet() shouldBe setOf("svc:$SERVICE")
+            h.fixture.capturedActors("$SCHEMA.outbox").toSet() shouldBe setOf("svc:$SERVICE")
         }
     }
 
