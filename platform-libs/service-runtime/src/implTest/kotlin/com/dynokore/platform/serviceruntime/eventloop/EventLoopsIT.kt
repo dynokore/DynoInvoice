@@ -412,7 +412,12 @@ class EventLoopsIT {
                             .gauge()
                             .value()
                     }
-                    Thread.sleep(4_000) // past the first failed call
+                    // past the first failed call
+                    eventually("the first failed outboxRelay call") {
+                        appender.list.any {
+                            it.level == Level.WARN && it.formattedMessage.contains("loop=outboxRelay")
+                        }
+                    }
                     val before = gauge()
                     Thread.sleep(10_000)
                     fx.count(OUTBOX, col("published_at").isNotNull) shouldBe 0
