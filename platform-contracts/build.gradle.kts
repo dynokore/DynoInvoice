@@ -73,6 +73,10 @@ tasks.register<Zip>("bundleContracts") {
     from("CODEOWNERS")
     from("README.md")
     includeEmptyDirs = false
+    // INV-T-5317: byte-reproducible, so a retried pipeline on the same commit produces the same zip (the
+    // immutable-release guard would fail a retry on a different byte).
+    isPreserveFileTimestamps = false
+    isReproducibleFileOrder = true
 }
 
 tasks.register("printTrainVersion") {

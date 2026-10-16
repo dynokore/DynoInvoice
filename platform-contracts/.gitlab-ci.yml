@@ -21,6 +21,7 @@ include:
     ref: main
     file:
       - 'ci/stages.gitlab-ci.yml'
+      - 'ci/publish.gitlab-ci.yml'   # INV-T-5317: the hidden .gst-publish-* and .gst-guard-* sections (its own jobs stay off: MAVEN_PUBLISH "false", IMAGE_NAME and HELM_CHART_NAME empty)
 
 variables:
   SPECTRAL_IMAGE: "stoplight/spectral@sha256:a07aa4455367b9501b574423b684ab0ef3ee42556089013583318ec015249050"
@@ -122,46 +123,98 @@ catalogue-drift-check:
     - >
       echo "gst-ci: catalogue/errors/error-codes.yaml matches invoice-docs at the pinned commit."
 
+# INV-T-5317 (coordinator ruling INV-Q-5313): a published version is never replaced. Nothing here uploads by
+# itself: Gradle publishes only into a staging directory (ci/release/stage-publish.init.gradle of platform-build, so
+# it never sees the registry URL or the job token) and platform-build's guard scripts do every upload, through the
+# hidden sections of ci/publish.gitlab-ci.yml. In each job every check (--dry-run) of every file the job would upload
+# runs before the first upload of any kind, so a conflict in the last file leaves nothing half-published. The
+# guard scripts are fetched from platform-build with the job token; HTTP 403 (this repository is not yet on that
+# project's job-token allowlist, an owner action) fails the job with nothing published. ci/tests/publish_jobs_test.py
+# asserts this shape.
+
+.catalogue-stage:
+  # Stages the Maven publication of catalogue/ and lists the two generic JSON files of the current
+  # gstCatalogueVersion in the manifest GST_GENERIC_MANIFEST (PACKAGE VERSION FILE-NAME PATH).
+  script:
+    - !reference [.gst-publish-prepare, script]
+    - >
+      gradle -p catalogue publish
+      -I "$GST_RELEASE_DIR/stage-publish.init.gradle" -PgstStageDir="$GST_PUBLISH_STAGE"
+      --stacktrace
+    - VERSION=$(grep '^gstCatalogueVersion=' catalogue/gradle.properties | cut -d= -f2)
+    - GEN_DIR=catalogue/gst-catalogue/build/generated/gst-catalogue
+    - echo "gst-catalogue-error-codes ${VERSION} gst-catalogue-error-codes-${VERSION}.json ${GEN_DIR}/gst-catalogue-error-codes-${VERSION}.json" >> "$GST_GENERIC_MANIFEST"
+    - echo "gst-catalogue-variation-points ${VERSION} gst-catalogue-variation-points-${VERSION}.json ${GEN_DIR}/gst-catalogue-variation-points-${VERSION}.json" >> "$GST_GENERIC_MANIFEST"
+
+.bundle-stage:
+  # Builds the train bundle and lists it in the manifest GST_GENERIC_MANIFEST.
+  script:
+    - VERSION=$(gradle -q printTrainVersion)
+    - gradle bundleContracts
+    - echo "platform-contracts ${VERSION} platform-contracts-${VERSION}.zip build/distributions/platform-contracts-${VERSION}.zip" >> "$GST_GENERIC_MANIFEST"
+
+.maven-guard-dry-run:
+  # The Maven check of INV-T-5257 has no section with a dry run, so the guard script is called with --dry-run itself.
+  script:
+    - >
+      GUARD_USER=gitlab-ci-token GUARD_PASSWORD="${CI_JOB_TOKEN}"
+      python3 "$GST_RELEASE_DIR/publish_guard.py"
+      --stage "$GST_PUBLISH_STAGE" --registry "${CI_API_V4_URL}/projects/${MAVEN_REGISTRY_PROJECT_ID}/packages/maven"
+      --dry-run
+
 catalogue-publish:
   # Publishes to *this* project's own Maven package registry (project $CI_PROJECT_ID) —
-  # not platform-build's shared registry ($MAVEN_REGISTRY_PROJECT_ID convention that
-  # platform-build's own modules use): a cross-project publish would need platform-build's
-  # Token Access allowlist to include platform-contracts first, which ci/README.md already
-  # names as a not-yet-done Maintainer action. Publishing to this repository's own registry
-  # needs no such allowlisting — the same reason bundle-publish, just below, already
-  # publishes its generic package here rather than anywhere else.
+  # not platform-build's shared registry (the default of MAVEN_REGISTRY_PROJECT_ID).
   stage: publish
   image: "$GRADLE_IMAGE"
+  variables:
+    MAVEN_REGISTRY_PROJECT_ID: "$CI_PROJECT_ID"
+    GST_PUBLISH_REQUIRE_STAGE: "true"
+    GST_PUBLISH_STAGE: "${CI_PROJECT_DIR}/.gst-publish-stage"
+    GST_GENERIC_MANIFEST: "${CI_PROJECT_DIR}/.gst-generic-manifest"
   rules:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_COMMIT_TAG'
   script:
-    - >
-      gradle -p catalogue publish
-      -PgstMavenUrl="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/maven"
-      -PgstMavenUser=gitlab-ci-token
-      -PgstMavenPassword="${CI_JOB_TOKEN}"
-      --stacktrace
-    # The catalogue artefacts (STK-61's other output, alongside the jar `publish` above
-    # just pushed): the same generic-package mechanism bundle-publish already uses.
-    # Both ErrorCode (T7) and VariationPoint (INV-T-2852 / T8) artefacts land in the
-    # same generated/gst-catalogue/ directory (gst.catalogue-generator.gradle.kts's own
-    # choice, so this one `artifacts.paths` entry below already covers both without a
-    # second entry) — only the second `curl` is new.
-    - VERSION=$(grep '^gstCatalogueVersion=' catalogue/gradle.properties | cut -d= -f2)
-    - >
-      curl --fail --request PUT
-      --header "JOB-TOKEN: ${CI_JOB_TOKEN}"
-      --upload-file "catalogue/gst-catalogue/build/generated/gst-catalogue/gst-catalogue-error-codes-${VERSION}.json"
-      "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/gst-catalogue-error-codes/${VERSION}/gst-catalogue-error-codes-${VERSION}.json"
-    - >
-      curl --fail --request PUT
-      --header "JOB-TOKEN: ${CI_JOB_TOKEN}"
-      --upload-file "catalogue/gst-catalogue/build/generated/gst-catalogue/gst-catalogue-variation-points-${VERSION}.json"
-      "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/gst-catalogue-variation-points/${VERSION}/gst-catalogue-variation-points-${VERSION}.json"
+    - rm -f "$GST_GENERIC_MANIFEST"
+    - !reference [.catalogue-stage, script]
+    # The catalogue artefacts (STK-61's other output, alongside the jar): ErrorCode (T7) and VariationPoint
+    # (INV-T-2852 / T8) land in the same generated/gst-catalogue/ directory.
+    - !reference [.gst-artefact-guard-prepare, script]
+    - !reference [.maven-guard-dry-run, script]
+    - GST_GUARD_DRY=--dry-run
+    - !reference [.gst-guard-generic, script]
+    - GST_GUARD_DRY=
+    - !reference [.gst-publish-upload, script]
+    - !reference [.gst-guard-generic, script]
   artifacts:
     paths:
       - "catalogue/gst-catalogue/build/generated/gst-catalogue/"
     expire_in: 1 month
+
+publish-guard-dry-run:
+  # INV-T-5317 (coordinator ruling INV-Q-5337): any merge request that changes a published artefact's content steps
+  # its version in the same merge request. Stages what catalogue-publish and bundle-publish would publish and runs
+  # the guards with --dry-run only, against the registry of this project, so a changed byte under an already
+  # published version fails the merge-request pipeline (the log names the artefact and both digests). It never
+  # uploads. No allow_failure: a failure blocks the merge.
+  stage: publish
+  image: "$GRADLE_IMAGE"
+  needs: []
+  variables:
+    MAVEN_REGISTRY_PROJECT_ID: "$CI_PROJECT_ID"
+    GST_PUBLISH_REQUIRE_STAGE: "true"
+    GST_PUBLISH_STAGE: "${CI_PROJECT_DIR}/.gst-publish-stage"
+    GST_GENERIC_MANIFEST: "${CI_PROJECT_DIR}/.gst-generic-manifest"
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  script:
+    - rm -f "$GST_GENERIC_MANIFEST"
+    - !reference [.catalogue-stage, script]
+    - !reference [.bundle-stage, script]
+    - !reference [.gst-artefact-guard-prepare, script]
+    - !reference [.maven-guard-dry-run, script]
+    - GST_GUARD_DRY=--dry-run
+    - !reference [.gst-guard-generic, script]
 
 spectral-lint:
   stage: verify
@@ -498,17 +551,30 @@ contracts-codegen-compile:
 bundle-publish:
   stage: publish
   image: "$GRADLE_IMAGE"
+  variables:
+    GST_GENERIC_MANIFEST: "${CI_PROJECT_DIR}/.gst-generic-manifest"
   rules:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_COMMIT_TAG'   # a train bundle publishes from the merged result, never an MR (CS-47)
   script:
-    - VERSION=$(gradle -q printTrainVersion)
-    - gradle bundleContracts
-    - >
-      curl --fail --request PUT
-      --header "JOB-TOKEN: ${CI_JOB_TOKEN}"
-      --upload-file "build/distributions/platform-contracts-${VERSION}.zip"
-      "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/platform-contracts/${VERSION}/platform-contracts-${VERSION}.zip"
+    - rm -f "$GST_GENERIC_MANIFEST"
+    - !reference [.bundle-stage, script]
+    - !reference [.gst-artefact-guard-prepare, script]
+    - GST_GUARD_DRY=--dry-run
+    - !reference [.gst-guard-generic, script]
+    - GST_GUARD_DRY=
+    - !reference [.gst-guard-generic, script]
   artifacts:
     paths:
       - build/distributions/
     expire_in: 1 month
+
+publish-jobs-test:
+  # INV-T-5317: fails closed when catalogue-publish, bundle-publish or publish-guard-dry-run lose the immutable-release guard.
+  stage: verify
+  image:
+    name: "$OASDIFF_IMAGE"
+    entrypoint: [""]
+  before_script:
+    - apk add --no-cache python3 py3-yaml
+  script:
+    - python3 -m unittest discover -s ci/tests -p '*_test.py' -v
