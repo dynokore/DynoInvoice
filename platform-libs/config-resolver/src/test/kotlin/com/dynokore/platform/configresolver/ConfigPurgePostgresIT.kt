@@ -90,7 +90,7 @@ class ConfigPurgePostgresIT {
             }
         }
 
-    /** Two resolved values (subjects doc-1/v1 and doc-2/v1) and one setting of [tenant], written as the runtime login. */
+    /** Two resolved values (doc-1/v1, doc-2/v1) and one setting of [tenant], written as the runtime login. */
     private fun seed(
         h: ConfigHarness,
         tenant: TenantId,

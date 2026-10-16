@@ -5,6 +5,7 @@ import com.dynokore.platform.configresolver.TestCatalogue.INSTALLATION_ONLY
 import com.dynokore.platform.configresolver.TestCatalogue.MULTI
 import com.dynokore.platform.configresolver.TestCatalogue.TYPED
 import com.dynokore.platform.tenancykernel.TenantId
+import org.jooq.Field
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -185,58 +186,26 @@ class ConfigResolverPostgresIT {
 
             val settings = DSL.table(DSL.name("svc", "config_setting"))
             val resolved = DSL.table(DSL.name("svc", "config_resolved_value"))
-            val keys = OptionColumns.keys
-            val inA = { block: () -> Unit -> h.refused { h.asTenant(a) { h.app.inTransaction(block) } } }
+            val changed = arrayOf("TWO_PERSON")
             listOf(
                 "update config_setting" to {
-                    inA {
-                        h.dsl
-                            .update(
-                                settings,
-                            ).set(keys, arrayOf("TWO_PERSON"))
-                            .execute()
-                    }
+                    h.dsl
+                        .update(settings)
+                        .set(OptionColumns.keys, changed)
+                        .execute()
                 },
-                "delete config_setting" to { inA { h.dsl.deleteFrom(settings).execute() } },
-                "update config_resolved_value" to
-                    {
-                        inA {
-                            h.dsl
-                                .update(resolved)
-                                .set(keys, arrayOf("TWO_PERSON"))
-                                .execute()
-                        }
-                    },
-                "delete config_resolved_value" to { inA { h.dsl.deleteFrom(resolved).execute() } },
-                "insert config_installation_setting" to
-                    {
-                        h.refused {
-                            h.tenants.bindPlatform("x") {
-                                h.app.inTransaction {
-                                    h.dsl
-                                        .insertInto(DSL.table(DSL.name("svc", "config_installation_setting")))
-                                        .columns(
-                                            DSL.field(DSL.name("id"), SQLDataType.UUID),
-                                            DSL.field(DSL.name("vp_key"), SQLDataType.CLOB),
-                                            keys,
-                                            DSL.field(DSL.name("effective_from"), SQLDataType.LOCALDATE),
-                                            DSL.field(DSL.name("set_by"), SQLDataType.CLOB),
-                                            DSL.field(DSL.name("reason"), SQLDataType.CLOB),
-                                            DSL.field(DSL.name("recorded_at"), SQLDataType.TIMESTAMPWITHTIMEZONE),
-                                        ).values(
-                                            UUID.randomUUID(),
-                                            "VP-72",
-                                            arrayOf("PLATFORM_DEFAULT"),
-                                            LocalDate.now(),
-                                            "x",
-                                            "y",
-                                            OffsetDateTime.now(),
-                                        ).execute()
-                                }
-                            }
-                        }
-                    },
-            ).forEach { (statement, run) -> assertEquals("42501", run(), statement) }
+                "delete config_setting" to { h.dsl.deleteFrom(settings).execute() },
+                "update config_resolved_value" to {
+                    h.dsl
+                        .update(resolved)
+                        .set(OptionColumns.keys, changed)
+                        .execute()
+                },
+                "delete config_resolved_value" to { h.dsl.deleteFrom(resolved).execute() },
+            ).forEach { (statement, run) ->
+                assertEquals("42501", h.refused { h.asTenant(a) { h.app.inTransaction { run() } } }, statement)
+            }
+            assertEquals("42501", h.refused { insertInstallationValue(h) }, "insert config_installation_setting")
         }
     }
 
@@ -303,6 +272,28 @@ class ConfigResolverPostgresIT {
             val other = h.refused { h.asTenant(a) { h.app.inTransaction { h.purge.purgeTenant(b) } } }
             assertEquals("42501", other)
             assertEquals(2L, h.rows("config_resolved_value", b))
+        }
+    }
+
+    /** The platform binding writes the installation table through tenancy-jooq; the runtime login has no INSERT. */
+    private fun insertInstallationValue(h: ConfigHarness) {
+        h.tenants.bindPlatform("x") {
+            h.app.inTransaction {
+                h.dsl
+                    .insertInto(DSL.table(DSL.name("svc", "config_installation_setting")))
+                    .set(
+                        mapOf<Field<*>, Any?>(
+                            DSL.field(DSL.name("id"), SQLDataType.UUID) to UUID.randomUUID(),
+                            DSL.field(DSL.name("vp_key"), SQLDataType.CLOB) to "VP-72",
+                            OptionColumns.keys to arrayOf("PLATFORM_DEFAULT"),
+                            DSL.field(DSL.name("effective_from"), SQLDataType.LOCALDATE) to LocalDate.now(),
+                            DSL.field(DSL.name("set_by"), SQLDataType.CLOB) to "x",
+                            DSL.field(DSL.name("reason"), SQLDataType.CLOB) to "y",
+                            DSL.field(DSL.name("recorded_at"), SQLDataType.TIMESTAMPWITHTIMEZONE) to
+                                OffsetDateTime.now(),
+                        ),
+                    ).execute()
+            }
         }
     }
 }

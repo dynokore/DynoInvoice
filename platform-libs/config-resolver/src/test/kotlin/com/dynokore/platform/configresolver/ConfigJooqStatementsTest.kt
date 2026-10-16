@@ -20,7 +20,8 @@ import java.time.LocalDate
 import java.util.UUID
 
 /**
- * The statements of [JdbcConfigPurge] and [JdbcResolutionRecorder] as tenancy-jooq's DSLContext renders them (INV-T-5303),
+ * The statements of [JdbcConfigPurge] and [JdbcResolutionRecorder] as tenancy-jooq's DSLContext renders them
+ * (INV-T-5303),
  * against jOOQ's mock JDBC driver: the real tenancy listeners accept every statement (a refused one throws), every
  * identifier is a quoted `DSL.name` of the schema and every value a bind value. The database behaviour is the
  * `*PostgresIT` classes'.
@@ -143,7 +144,7 @@ class ConfigJooqStatementsTest {
     }
 }
 
-/** A runner whose open transaction is one fixed connection (tenancy-jooq needs a runner that is a [CurrentConnection]). */
+/** A runner whose open transaction is one fixed connection (tenancy-jooq needs a [CurrentConnection] runner). */
 private class MockRunner(
     private val connection: Connection,
 ) : TransactionRunner,
