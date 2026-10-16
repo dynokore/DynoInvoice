@@ -323,6 +323,7 @@ contract-tests:
 # and must see the check fail with its own message; a pass, or a failure for any other reason, fails this job.
 split-jars:
   extends: [.gradle-job, .gst-changed-modules]
+  tags: [inv-arm64]
   stage: test
   script:
     - ./gradlew -p "$GRADLE_PROJECT_DIR" verifySplitJars --continue --stacktrace
@@ -349,6 +350,7 @@ split-jars:
 # or a failure for any other reason, fails this job.
 impl-poms:
   extends: [.gradle-job, .gst-changed-modules]
+  tags: [inv-arm64]
   stage: test
   script:
     - ./gradlew -p "$GRADLE_PROJECT_DIR" verifyImplPoms --continue --stacktrace
@@ -375,6 +377,7 @@ impl-poms:
 # escape of the same code point.
 text-check:
   image: "$GRADLE_IMAGE"
+  tags: [inv-arm64]
   stage: verify
   needs: []
   script:
@@ -461,6 +464,7 @@ verify-rules:
 # assertion fails when its line is broken. Needs only python3 (in the Gradle image), `needs: []`, every pipeline.
 publish-job-test:
   image: "$GRADLE_IMAGE"
+  tags: [inv-arm64]
   stage: verify
   needs: []
   script:
@@ -647,6 +651,7 @@ consumer-check:
 # maven-publish job versions the BOM (ci/bom-version.sh).
 bom-verify:
   extends: [.gradle-job, .gst-changed-modules]
+  tags: [inv-arm64]
   stage: verify
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
