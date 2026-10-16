@@ -13,6 +13,7 @@ import org.jooq.tools.jdbc.MockConnection
 import org.jooq.tools.jdbc.MockDataProvider
 import org.jooq.tools.jdbc.MockResult
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.sql.Connection
@@ -115,6 +116,7 @@ class ConfigJooqStatementsTest {
         assertEquals(listOf<Any?>("submission", "doc-1/v1"), statements[0].second)
         val purgeTenant = statements[1].first
         assertTrue(purgeTenant.contains(""""svc"."config_purge_tenant"(cast(? as uuid))"""), purgeTenant)
+        assertFalse(purgeTenant.contains("""from "svc"."config_purge_tenant""""), purgeTenant)
         assertEquals(listOf<Any?>(tenant.value), statements[1].second)
     }
 
