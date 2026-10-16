@@ -3,3 +3,5 @@
 ../openapi.yaml#/components/schemas/PolicySettingState policy-setting-state*.json
 ../openapi.yaml#/components/schemas/AcknowledgeRelaxationRequest acknowledge-relaxation-request*.json
 ../openapi.yaml#/components/schemas/RelaxationState relaxation-state*.json
+../schemas/pack-dry-run-sample-requested-payload.schema.json pack-dry-run-sample-requested-payload-*.json
+../schemas/pack-dry-run-sample-recorded-payload.schema.json pack-dry-run-sample-recorded-payload-*.json

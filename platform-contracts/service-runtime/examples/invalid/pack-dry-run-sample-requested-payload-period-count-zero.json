@@ -1,0 +1,9 @@
+{
+  "dryRunId": "dry-0001",
+  "entityRef": "ent-001",
+  "firstPeriodRef": "2026-Q3",
+  "lastPeriodRef": "2026-Q3",
+  "periodCount": 0,
+  "currentPackVersion": "1.4.0",
+  "candidatePackVersion": "1.5.0-draft"
+}

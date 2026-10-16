@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: service-runtime shared event components
-  version: 1.1.0
+  version: 1.2.0
   description: >-
     Not a service: holds the CloudEvents envelope every other directory's
     asyncapi.yaml references (API-40, ./schemas/cloud-event-envelope.schema.json)
@@ -78,6 +78,18 @@ channels:
     messages:
       JobRegistered:
         $ref: '#/components/messages/JobRegistered'
+
+  platformPackDryRunSampleRequested:
+    address: 'gst.platform.pack-dry-run-sample-requested.v1'
+    messages:
+      PackDryRunSampleRequested:
+        $ref: '#/components/messages/PackDryRunSampleRequested'
+
+  platformPackDryRunSampleRecorded:
+    address: 'gst.platform.pack-dry-run-sample-recorded.v1'
+    messages:
+      PackDryRunSampleRecorded:
+        $ref: '#/components/messages/PackDryRunSampleRecorded'
 operations:
   publishAuditEntryRecorded:
     action: send
@@ -134,6 +146,22 @@ operations:
       $ref: '#/channels/platformJobRegistered'
     messages:
       - $ref: '#/channels/platformJobRegistered/messages/JobRegistered'
+
+  publishPackDryRunSampleRequested:
+    action: send
+    description: PackDryRunSampleRequested — platform event added by owner ruling INV-Q-4870 B (INV-REQ-772 b1, INV-REQ-1303).
+    channel:
+      $ref: '#/channels/platformPackDryRunSampleRequested'
+    messages:
+      - $ref: '#/channels/platformPackDryRunSampleRequested/messages/PackDryRunSampleRequested'
+
+  publishPackDryRunSampleRecorded:
+    action: send
+    description: PackDryRunSampleRecorded — platform event added by owner ruling INV-Q-4870 B (INV-REQ-772 b1, INV-REQ-1303).
+    channel:
+      $ref: '#/channels/platformPackDryRunSampleRecorded'
+    messages:
+      - $ref: '#/channels/platformPackDryRunSampleRecorded/messages/PackDryRunSampleRecorded'
 components:
   messages:
     AuditEntryRecorded:
@@ -308,3 +336,38 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/replay-completed-payload.schema.json'
+
+    PackDryRunSampleRequested:
+      name: com.dynokore.gst.platform.PackDryRunSampleRequested.v1
+      title: PackDryRunSampleRequested
+      summary: PackDryRunSampleRequested — rules-svc asks canonical-svc for the historical sample of a pack dry run (INV-Q-4870 B).
+      description: >-
+        Platform event PackDryRunSampleRequested (INV-REQ-772 b1, INV-REQ-1303, owner ruling INV-Q-4870 B,
+        names pinned by INV-Q-5194; class: platform). Emitted by: rules-svc. Consumed by: canonical-svc.
+        Delivery: At-least-once. A dry run evaluates a historical sample under the current and the candidate
+        pack; canonical-svc supplies the sample over the event log and rules-svc keeps it for the run. The
+        tenant is the envelope attribute tenantid (API-40), not a payload property. Payload: dryRunId,
+        entityRef, the first and last calendar period references and their count (at least one complete
+        period, INV-REQ-1303) and the current and candidate pack versions. Carries no invoice content.
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/pack-dry-run-sample-requested-payload.schema.json'
+
+    PackDryRunSampleRecorded:
+      name: com.dynokore.gst.platform.PackDryRunSampleRecorded.v1
+      title: PackDryRunSampleRecorded
+      summary: PackDryRunSampleRecorded — one page of the historical sample canonical-svc supplies for a pack dry run (INV-Q-4870 B).
+      description: >-
+        Platform event PackDryRunSampleRecorded (INV-REQ-772 b1, INV-REQ-1303, owner ruling INV-Q-4870 B,
+        names pinned by INV-Q-5194; class: platform). Emitted by: canonical-svc. Consumed by: rules-svc.
+        Delivery: At-least-once. One page of the sample for the dryRunId of a PackDryRunSampleRequested,
+        numbered from 1, the last page marked lastPage; each document carries the entity, the transaction
+        date, the internal tax code, the document function, the preceding document date of a credit note and
+        the signed taxable and GST values as decimal strings (API-12). The tenant is the envelope attribute
+        tenantid (API-40). The event carries invoice content (FR-AH.12), so its topic keeps the content window.
+      # INV-Q-4870 B: this event carries invoice content (FR-AH.12), so its topic is a content topic.
+      # Copied into event-log/topics.yaml as content_topic by generate-topics.py.
+      x-invoice-content: true
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/pack-dry-run-sample-recorded-payload.schema.json'

@@ -266,6 +266,22 @@ topics:
     subscribers:
       - console-bff
       - notification-svc
+  - topic: gst.platform.pack-dry-run-sample-recorded.v1
+    event_type: com.dynokore.gst.platform.PackDryRunSampleRecorded.v1
+    content_topic: true
+    record_topic: false
+    producers:
+      - canonical-svc
+    subscribers:
+      - rules-svc
+  - topic: gst.platform.pack-dry-run-sample-requested.v1
+    event_type: com.dynokore.gst.platform.PackDryRunSampleRequested.v1
+    content_topic: false
+    record_topic: false
+    producers:
+      - rules-svc
+    subscribers:
+      - canonical-svc
   - topic: gst.platform.pack-readiness-acknowledged.v1
     event_type: com.dynokore.gst.platform.PackReadinessAcknowledged.v1
     content_topic: false
@@ -699,6 +715,16 @@ replay_topics:
       - canonical-svc
     subscribers:
       - reconciliation-svc
+  - topic: gst.canonical.replay-rules.v1
+    event_types:
+      - com.dynokore.gst.platform.PackDryRunSampleRecorded.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: true
+    record_topic: false
+    producers:
+      - canonical-svc
+    subscribers:
+      - rules-svc
   - topic: gst.canonical.replay-submission.v1
     event_types:
       - com.dynokore.gst.canonical.CanonicalVersionCreated.v1
@@ -980,6 +1006,16 @@ replay_topics:
       - reconciliation-svc
     subscribers:
       - submission-svc
+  - topic: gst.rules.replay-canonical.v1
+    event_types:
+      - com.dynokore.gst.platform.PackDryRunSampleRequested.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: false
+    record_topic: false
+    producers:
+      - rules-svc
+    subscribers:
+      - canonical-svc
   - topic: gst.rules.replay-console-bff.v1
     event_types:
       - com.dynokore.gst.platform.ConnectionStatusChanged.v1
@@ -1286,6 +1322,7 @@ replay_request_topics:
       - access-svc
       - aggregation-svc
       - masterdata-svc
+      - rules-svc
       - submission-svc
       - tenancy-svc
   - topic: gst.console-bff.replay-requested.v1
@@ -1409,6 +1446,7 @@ replay_request_topics:
       - rules-svc
     subscribers:
       - access-svc
+      - canonical-svc
       - notification-svc
       - payload-svc
       - reconciliation-svc

@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/service-runtime/schemas/pack-dry-run-sample-recorded-payload.schema.json",
+  "title": "PackDryRunSampleRecordedPayload",
+  "description": "Payload of the PackDryRunSampleRecorded platform event (owner ruling INV-Q-4870 B, names pinned by INV-Q-5194; INV-REQ-772 b1, INV-REQ-1303; class: platform): one page of the dry-run sample. The documents array holds at most 500 documents: a document is about 250 bytes of JSON, so a full page is about 125 KB, well below a typical 1 MiB broker message limit with room for the envelope, while a sample of some thousands of documents is still a handful of pages. The cloud-event envelope schema states no size limit, so the bound is chosen here. The tenant is the envelope attribute tenantid (API-40). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "dryRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "description": "The dry run the page belongs to."
+    },
+    "pageNumber": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Page number, from 1."
+    },
+    "lastPage": {
+      "type": "boolean",
+      "description": "True on the last page of the sample."
+    },
+    "documents": {
+      "type": "array",
+      "maxItems": 500,
+      "items": {
+        "type": "object",
+        "properties": {
+          "entityRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40,
+            "description": "The entity the document belongs to."
+          },
+          "transactionDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Transaction date of the document."
+          },
+          "internalTaxCode": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40,
+            "description": "The internal tax code of the document."
+          },
+          "documentFunction": {
+            "type": "string",
+            "enum": [
+              "BILL_FOR_PAYMENT",
+              "ADJUSTMENT",
+              "NOT_A_BILL"
+            ],
+            "description": "The function of the document."
+          },
+          "precedingDocumentDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Date of the preceding document; credit notes only."
+          },
+          "taxableValue": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{1,17}(\\.\\d{1,2})?$",
+            "description": "Signed taxable value as a decimal string (API-12)."
+          },
+          "gstValue": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{1,17}(\\.\\d{1,2})?$",
+            "description": "Signed GST value as a decimal string (API-12)."
+          }
+        },
+        "required": [
+          "entityRef",
+          "transactionDate",
+          "internalTaxCode",
+          "documentFunction",
+          "taxableValue",
+          "gstValue"
+        ],
+        "additionalProperties": true
+      },
+      "description": "The documents of the page; at most 500 (see the schema description)."
+    }
+  },
+  "required": [
+    "dryRunId",
+    "pageNumber",
+    "lastPage",
+    "documents"
+  ],
+  "additionalProperties": true
+}

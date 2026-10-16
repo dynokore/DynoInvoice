@@ -910,8 +910,11 @@ paths:
         with a different body also returns the original acknowledgement, applies nothing and raises the
         differing-repeat counter. Unknown request fields are ignored, never stored, and listed in warnings (API-10).
         A fact applies by occurredAt: an older step never overwrites a newer fact. Not in the console catalogue of
-        INV-REQ-2588 (INV-REQ-1101 b5, INV-REQ-1108 b6). A call without a valid workload token is SRT-003; under any
-        other identity SRT-004.'
+        INV-REQ-2588 (INV-REQ-1101 b5, INV-REQ-1108 b6). The scope and the prior state of the audit entry are not request fields:
+        the scope is the installation, and tenancy-svc reads the prior state, the facts the step changes as they
+        were, from its own installation facts (INV-Q-5498). The closed service-runtime refusals carry their SRT
+        codes and are not listed in x-error-codes (INV-Q-5500, ARC-19): a call without a valid workload token is
+        SRT-003; a call under any other identity is SRT-004.'
       tags:
       - installation
       x-principal: workload
@@ -923,9 +926,7 @@ paths:
       - INV-REQ-1116
       - INV-REQ-1108
       - INV-REQ-861
-      x-error-codes:
-      - SRT-003
-      - SRT-004
+      x-error-codes: []
       x-operation:
         role: installer workload identity
         scope: installation

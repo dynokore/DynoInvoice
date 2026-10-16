@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/service-runtime/schemas/pack-dry-run-sample-requested-payload.schema.json",
+  "title": "PackDryRunSampleRequestedPayload",
+  "description": "Payload of the PackDryRunSampleRequested platform event (owner ruling INV-Q-4870 B, names pinned by INV-Q-5194; INV-REQ-772 b1, INV-REQ-1303; class: platform). The tenant is the envelope attribute tenantid (API-40), not a payload property. Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "dryRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "description": "The dry run the sample is for."
+    },
+    "entityRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "description": "The entity whose documents are sampled."
+    },
+    "firstPeriodRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32,
+      "description": "Calendar period reference of the first period of the sample."
+    },
+    "lastPeriodRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32,
+      "description": "Calendar period reference of the last period of the sample."
+    },
+    "periodCount": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Number of complete periods in the sample; at least one (INV-REQ-1303)."
+    },
+    "currentPackVersion": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32,
+      "description": "Version of the pack in force."
+    },
+    "candidatePackVersion": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32,
+      "description": "Version of the candidate pack."
+    }
+  },
+  "required": [
+    "dryRunId",
+    "entityRef",
+    "firstPeriodRef",
+    "lastPeriodRef",
+    "periodCount",
+    "currentPackVersion",
+    "candidatePackVersion"
+  ],
+  "additionalProperties": true
+}
