@@ -42,15 +42,20 @@ import com.dynokore.platform.tenancykernel.TenantAwareDataSource
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
+import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import com.dynokore.platform.tenancyjooq.TenancyJooq
+import com.dynokore.platform.tenancyjooq.TenancyTables
 import org.jooq.Condition
 import org.jooq.DSLContext
 import org.jooq.Field
+import org.jooq.SQLDialect
+import org.jooq.impl.DefaultConfiguration
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 import org.junit.jupiter.api.io.TempDir
@@ -324,9 +329,11 @@ class EventLoopsIT {
                 eventually("the events to be applied", Duration.ofSeconds(10)) {
                     fx.count(APPLIED, col("consumer").eq("submission-svc")) == 3L
                 }
-                peaks.peak("dataSource", relay) shouldBe 2
-                peaks.peak("dataSource", consumer) shouldBe 1
-                peaks.peak("eventLogDataSource", relay) shouldBe 0
+                withClue(peaks.dump()) {
+                    peaks.peak("dataSource", relay) shouldBe 2
+                    peaks.peak("dataSource", consumer) shouldBe 1
+                    peaks.peak("eventLogDataSource", relay) shouldBe 0
+                }
             }
         }
         Service.fixture(image).use { fx ->
@@ -337,8 +344,10 @@ class EventLoopsIT {
                 eventually("the events to be applied", Duration.ofSeconds(10)) {
                     fx.count(APPLIED, col("consumer").eq("submission-svc")) == 3L
                 }
-                peaks.peak("dataSource", relay) shouldBe 2
-                peaks.peak("eventLogDataSource", relay) shouldBe 1
+                withClue(peaks.dump()) {
+                    peaks.peak("dataSource", relay) shouldBe 2
+                    peaks.peak("eventLogDataSource", relay) shouldBe 1
+                }
             }
         }
     }
@@ -457,8 +466,8 @@ class EventLoopsIT {
             bound += Triple(event.id.value, tenants.current().value, tenants.currentActor())
             dsl
                 .insertInto(DSL.table(DSL.name("submission", "applied")))
-                .columns(col("consumer"), col("event_id"))
-                .values(consumer, event.id.value)
+                .columns(col("consumer"), col("event_id"), col("tenant_id"))
+                .values(consumer, event.id.value, tenants.current().value)
                 .execute()
             hold?.await(30, TimeUnit.SECONDS)
             return HandleOutcome.APPLIED
@@ -482,15 +491,31 @@ class EventLoopsIT {
 
         @Bean
         fun handler(
-            dsl: DSLContext,
+            dsl: AppliedDsl,
             tenants: TenantContext,
-        ): RecordingHandler = RecordingHandler("submission-svc", dsl, tenants)
+        ): RecordingHandler = RecordingHandler("submission-svc", dsl.dsl, tenants)
 
         @Bean
         fun secondHandler(
-            dsl: DSLContext,
+            dsl: AppliedDsl,
             tenants: TenantContext,
-        ): RecordingHandler = RecordingHandler("submission-svc-b", dsl, tenants)
+        ): RecordingHandler = RecordingHandler("submission-svc-b", dsl.dsl, tenants)
+
+        /** The handlers' own DSLContext on the service's transaction runner, with `submission.applied` declared. */
+        @Bean
+        fun appliedDsl(
+            tenants: TenantContext,
+            runner: TransactionRunner,
+        ): AppliedDsl =
+            AppliedDsl(
+                TenancyJooq
+                    .configure(
+                        DefaultConfiguration().set(SQLDialect.POSTGRES),
+                        TenancyTables.declared(mapOf(DSL.name("submission", "applied") to TableClass.TENANT)),
+                        tenants,
+                        runner,
+                    ).dsl(),
+            )
 
         /** A service-declared consumer per subscription; the first is primary for the replay delivery wiring. */
         @Bean
@@ -620,7 +645,7 @@ class EventLoopsIT {
                 OutboxPostgresFixture.serviceInitSql(
                     "submission",
                     "create table submission.applied (consumer text not null, event_id text not null, " +
-                        "primary key (consumer, event_id));" +
+                        "tenant_id uuid not null, primary key (consumer, event_id));" +
                         "grant select, insert on submission.applied to ${OutboxPostgresFixture.APP};" +
                         QueueSchema.ddl("submission", OutboxPostgresFixture.APP, OutboxPostgresFixture.SYS),
                 ) + OutboxPostgresFixture.eventLogInitSql(catalogue) + PUBLISH_SWITCH_INIT_SQL +
@@ -678,7 +703,6 @@ class EventLoopsIT {
                         "service-runtime.modules.schema=submission",
                         "service-runtime.pool.profile=minimal",
                         "service-runtime.idempotency.schema=submission",
-                        "inv.tenancy.platform-scoped-tables=$APPLIED",
                         "spring.flyway.enabled=false",
                         "spring.main.banner-mode=off",
                         "spring.jmx.enabled=false",
@@ -761,6 +785,11 @@ class EventLoopsIT {
     }
 }
 
+/** A holder type, so the handlers' DSLContext is not a second DSLContext bean of the context. */
+class AppliedDsl(
+    val dsl: DSLContext,
+)
+
 /**
  * Counts, per gate and per thread name, the permits held at once and keeps the peak (coordinator ruling INV-Q-5251): an
  * observer of the application pool's lane gate and of the HA event-log pool's gate. A permit counts for the thread that
@@ -790,9 +819,13 @@ class PeakCounting {
         thread: String,
     ): Int = peaks["$pool|$thread"]?.get() ?: 0
 
+    /** Every peak seen, for a failure message. */
+    fun dump(): String = peaks.entries.sortedBy { it.key }.joinToString { "${it.key}=${it.value.get()}" }
+
+    /** Forgets the peaks; the permits held now stay counted, so a permit taken before and given back after balances. */
     fun reset() {
-        open.clear()
         peaks.clear()
+        open.forEach { (key, held) -> peaks.computeIfAbsent(key) { AtomicInteger() }.set(held.get().coerceAtLeast(0)) }
     }
 }
 
