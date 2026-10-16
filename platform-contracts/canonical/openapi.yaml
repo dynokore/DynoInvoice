@@ -281,6 +281,38 @@ components:
           type: string
           format: decimal
           pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+        sgdTotalExcludingTax:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+          description: >-
+            Total excluding tax in SGD, stated by the caller; validated, never recomputed (FR-M.7). Required with
+            the other SGD totals and exchangeRate when the currency is not SGD (INV-REQ-466).
+        sgdTotalTax:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+          description: >-
+            Total tax (GST) in SGD, stated by the caller; validated, never recomputed (FR-M.7). Required when the
+            currency is not SGD (INV-REQ-466).
+        sgdTotalIncludingTax:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+          description: >-
+            Total including tax in SGD, stated by the caller; validated, never recomputed (FR-M.7). Required when
+            the currency is not SGD (INV-REQ-466).
+        exchangeRate:
+          type: string
+          format: decimal
+          pattern: '^\d{1,11}(\.\d{1,8})?$'
+          description: >-
+            Exchange rate applied to convert to SGD, decimal(19,8) (INV-NOTE-3 section 20.2). Required when the
+            currency is not SGD (INV-REQ-466).
+        exchangeRateSource:
+          type: string
+          maxLength: 64
+          description: Source of the exchange rate, recorded with the rate for audit (INV-REQ-467).
       required: [totalExcludingTax, totalTax, totalIncludingTax]
     RecordDocumentRequest:
       type: object

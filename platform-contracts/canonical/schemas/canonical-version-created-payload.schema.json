@@ -270,6 +270,24 @@
                   "format": "decimal",
                   "pattern": "^-?\\d{1,17}(\\.\\d{1,2})?$",
                   "description": "Total including tax. Money as a decimal string (API-12)."
+                },
+                "sgdTotalExcludingTax": {
+                  "type": "string",
+                  "format": "decimal",
+                  "pattern": "^-?\\d{1,17}(\\.\\d{1,2})?$",
+                  "description": "Total excluding tax in SGD. Stated by the caller in SGD; the System validates it and never recomputes it (FR-M.7). Required together with the other SGD totals and exchangeRate when the transaction currency is not SGD (INV-REQ-466, INV-NOTE-3 section 19.5). Money as a decimal string (API-12)."
+                },
+                "sgdTotalTax": {
+                  "type": "string",
+                  "format": "decimal",
+                  "pattern": "^-?\\d{1,17}(\\.\\d{1,2})?$",
+                  "description": "Total tax (GST) in SGD. Stated by the caller in SGD; the System validates it and never recomputes it (FR-M.7). Required together with the other SGD totals and exchangeRate when the transaction currency is not SGD (INV-REQ-466, INV-NOTE-3 section 19.5). Money as a decimal string (API-12)."
+                },
+                "sgdTotalIncludingTax": {
+                  "type": "string",
+                  "format": "decimal",
+                  "pattern": "^-?\\d{1,17}(\\.\\d{1,2})?$",
+                  "description": "Total including tax in SGD. Stated by the caller in SGD; the System validates it and never recomputes it (FR-M.7). Required together with the other SGD totals and exchangeRate when the transaction currency is not SGD (INV-REQ-466, INV-NOTE-3 section 19.5). Money as a decimal string (API-12)."
                 }
               },
               "required": [
@@ -277,7 +295,8 @@
                 "totalTax",
                 "totalIncludingTax"
               ],
-              "additionalProperties": true
+              "additionalProperties": true,
+              "description": "The SGD totals (sgdTotalExcludingTax, sgdTotalTax, sgdTotalIncludingTax) are present when currency.value is not SGD (INV-REQ-466), checked by payload-svc as PAY-005; optional here (API-41)."
             },
             "classification": {
               "type": "string",
@@ -358,6 +377,69 @@
               "type": "string",
               "maxLength": 256,
               "description": "The evidence reference."
+            },
+            "classification": {
+              "type": "string",
+              "description": "The FR-AE.72 data classification tag for this content field."
+            }
+          },
+          "required": [
+            "value",
+            "classification"
+          ],
+          "additionalProperties": true
+        },
+        "taxCurrencyCode": {
+          "type": "object",
+          "description": "The tax currency code, always SGD; present on every version (INV-REQ-466). Set by canonical-svc.",
+          "properties": {
+            "value": {
+              "type": "string",
+              "enum": [
+                "SGD"
+              ],
+              "description": "Tax currency code (IBT-006)."
+            },
+            "classification": {
+              "type": "string",
+              "description": "The FR-AE.72 data classification tag for this content field."
+            }
+          },
+          "required": [
+            "value",
+            "classification"
+          ],
+          "additionalProperties": true
+        },
+        "exchangeRate": {
+          "type": "object",
+          "description": "The exchange rate applied; present when currency.value is not SGD (INV-REQ-467), checked by payload-svc as PAY-005.",
+          "properties": {
+            "value": {
+              "type": "string",
+              "format": "decimal",
+              "pattern": "^\\d{1,11}(\\.\\d{1,8})?$",
+              "description": "Exchange rate, decimal(19,8) (INV-NOTE-3 section 20.2)."
+            },
+            "classification": {
+              "type": "string",
+              "description": "The FR-AE.72 data classification tag for this content field."
+            }
+          },
+          "required": [
+            "value",
+            "classification"
+          ],
+          "additionalProperties": true
+        },
+        "exchangeRateSource": {
+          "type": "object",
+          "description": "The source of the exchange rate, recorded for audit; present when currency.value is not SGD (INV-REQ-467), checked by payload-svc as PAY-005.",
+          "properties": {
+            "value": {
+              "type": "string",
+              "maxLength": 64,
+              "description": "Exchange rate source."
             },
             "classification": {
               "type": "string",

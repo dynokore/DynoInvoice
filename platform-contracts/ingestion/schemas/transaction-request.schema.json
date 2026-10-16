@@ -106,7 +106,12 @@
       "properties": {
         "totalExcludingTax": { "type": "string", "format": "decimal", "pattern": "^-?\\d{1,17}(\\.\\d{1,2})?$" },
         "totalTax": { "type": "string", "format": "decimal", "pattern": "^-?\\d{1,17}(\\.\\d{1,2})?$" },
-        "totalIncludingTax": { "type": "string", "format": "decimal", "pattern": "^-?\\d{1,17}(\\.\\d{1,2})?$" }
+        "totalIncludingTax": { "type": "string", "format": "decimal", "pattern": "^-?\\d{1,17}(\\.\\d{1,2})?$" },
+        "sgdTotalExcludingTax": {"type": "string", "format": "decimal", "pattern": "^-?\\d{1,17}(\\.\\d{1,2})?$", "description": "Total excluding tax in SGD. Stated by the caller in SGD; the System validates it and never recomputes it (FR-M.7). Required together with the other SGD totals and exchangeRate when the transaction currency is not SGD (INV-REQ-466, INV-NOTE-3 section 19.5). Money as a decimal string (API-12)."},
+        "sgdTotalTax": {"type": "string", "format": "decimal", "pattern": "^-?\\d{1,17}(\\.\\d{1,2})?$", "description": "Total tax (GST) in SGD. Stated by the caller in SGD; the System validates it and never recomputes it (FR-M.7). Required together with the other SGD totals and exchangeRate when the transaction currency is not SGD (INV-REQ-466, INV-NOTE-3 section 19.5). Money as a decimal string (API-12)."},
+        "sgdTotalIncludingTax": {"type": "string", "format": "decimal", "pattern": "^-?\\d{1,17}(\\.\\d{1,2})?$", "description": "Total including tax in SGD. Stated by the caller in SGD; the System validates it and never recomputes it (FR-M.7). Required together with the other SGD totals and exchangeRate when the transaction currency is not SGD (INV-REQ-466, INV-NOTE-3 section 19.5). Money as a decimal string (API-12)."},
+        "exchangeRate": {"type": "string", "format": "decimal", "pattern": "^\\d{1,11}(\\.\\d{1,8})?$", "description": "Exchange rate applied to convert to SGD, decimal(19,8) (INV-NOTE-3 section 20.2). Required together with the three SGD totals when the transaction currency is not SGD (INV-REQ-466, INV-NOTE-3 section 19.5). Decimal string (API-12)."},
+        "exchangeRateSource": {"type": "string", "maxLength": 64, "description": "Source of the exchange rate, recorded with the rate for audit (INV-REQ-467)."}
       },
       "required": ["totalExcludingTax", "totalTax", "totalIncludingTax"]
     }
