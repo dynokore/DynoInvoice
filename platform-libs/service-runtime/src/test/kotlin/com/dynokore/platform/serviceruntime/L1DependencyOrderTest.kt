@@ -463,7 +463,7 @@ class L1DependencyOrderTest {
     }
 
     @Test
-    fun `the unlayered allowlist is exactly the eight names`() {
+    fun `the unlayered allowlist is exactly the nine names`() {
         assertTrue(
             UNLAYERED ==
                 setOf(
@@ -475,6 +475,7 @@ class L1DependencyOrderTest {
                     "product-runtime-profile-events",
                     "product-runtime-authority-events",
                     "product-runtime-policy-events",
+                    "testcontainers-pins",
                 ),
         )
     }
@@ -588,6 +589,7 @@ internal val UNLAYERED =
     setOf(
         "platform-libs-bom", // the BOM: constraints only
         "contract-tests", // test-only, publishes nothing
+        "testcontainers-pins", // test-only, publishes nothing
         // generated gst.contract-client and gst.event-types projects folded into product-runtime's artefact
         "product-runtime-tenancy-client",
         "product-runtime-access-client",
@@ -972,6 +974,7 @@ internal fun writeL1ModuleStubs(
     }
     repo.module("platform-libs-bom", layer = null)
     repo.module("contract-tests", layer = null)
+    repo.module("testcontainers-pins", layer = null)
     listOf(
         "tenancy-client",
         "access-client",
