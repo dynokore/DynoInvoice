@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-10-16
+### Changed
+- Metadata-only release (INV-T-4515, version-file scope of the downstream closure; 1.0.3 was released by INV-T-5341 meanwhile): no API or behaviour change; `src/main` and `src/impl` are unchanged. The POMs and module metadata of the publications name the sibling modules at their current versions (tenancy-kernel 3.0.0, outbox-and-queue 3.1.0 and, where depended on, tenancy-jooq 1.1.0 and service-runtime 8.0.0). Its build script drops the shedlock-provider-jdbc-template and spring-jdbc test pins that service-runtime no longer uses (INV-Q-5210).
+
 ## [1.0.3] - 2026-10-16
 ### Changed
 - Metadata-only release (INV-T-5341, coordinator ruling INV-Q-5337, delegated, owner 2026-10-14): no API or behaviour

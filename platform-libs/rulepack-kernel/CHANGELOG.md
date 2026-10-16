@@ -5,7 +5,10 @@ All notable changes to `rulepack-kernel` are recorded here (FR-L.6). Format foll
 train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
+
+## [2.0.4] - 2026-10-16
 ### Changed
+- Metadata-only for the published artefacts (INV-T-4515, version-file scope of the downstream closure): no API or behaviour change; the POMs and module metadata name tenancy-kernel 3.0.0 and tenancy-jooq 1.1.0.
 - Test classpath only: org.reactivestreams:reactive-streams (from jOOQ through tenancy-jooq) pinned to 1.0.4 (MIT-0) in
   place of 1.0.3 (CC0-1.0) (INV-T-4645; coordinator ruling INV-Q-4643 (A), delegated, owner 2026-10-14). Nothing
   published changes.

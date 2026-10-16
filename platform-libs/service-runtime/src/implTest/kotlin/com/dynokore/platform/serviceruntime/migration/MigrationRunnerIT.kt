@@ -1,19 +1,24 @@
 package com.dynokore.platform.serviceruntime.migration
 
 import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Companion.mount
-import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Companion.postgres
-import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Companion.query
-import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Companion.sql
 import com.dynokore.platform.serviceruntime.datasource.Tpl18JdbcApplication
 import com.dynokore.platform.serviceruntime.datasource.withMountedLogin
 import com.dynokore.platform.serviceruntime.jobs.JobSchema
+import com.dynokore.platform.serviceruntime.testing.PG_NAMESPACE
+import com.dynokore.platform.serviceruntime.testing.PG_NAMESPACE_NAME
+import com.dynokore.platform.serviceruntime.testing.TestDatabase
+import com.dynokore.platform.serviceruntime.testing.createLoginSql
+import com.dynokore.platform.serviceruntime.testing.startPostgres
+import com.dynokore.platform.tenancyjooq.TableClass
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
-import org.flywaydb.core.Flyway
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import org.junit.jupiter.api.io.TempDir
@@ -22,8 +27,7 @@ import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.boot.test.system.CapturedOutput
 import org.springframework.boot.test.system.OutputCaptureExtension
-import java.net.URLClassLoader
-import java.nio.file.Files
+import java.time.Duration
 import java.nio.file.Path
 import java.util.UUID
 
@@ -41,50 +45,44 @@ class MigrationRunnerIT {
     fun `the service starts without migrating, and the runner migrates as svc_migrate and writes the retention row`(
         image: String,
         @TempDir mountRoot: Path,
-        @TempDir migrations: Path,
         output: CapturedOutput,
     ) {
-        // the fixture service's migration (TPL-12) is a Flyway SQL file: the job tables of JobSchema in `ledger`
-        // The key guard refuses a `filesystem:` location (CS-19, only classpath: locations), so the temp directory is put
-        // on the class path of the run (a deviation from the `filesystem:` wording of INV-T-4515, reported in the MR).
-        Files.createDirectories(migrations.resolve("migrations"))
-        Files.writeString(
-            migrations.resolve("migrations/V1__Jobs.sql"),
-            JobSchema.ddl("ledger", "submission_runtime", "submission_sys"),
-        )
-        val previousLoader = Thread.currentThread().contextClassLoader
-        val migrationLoader = URLClassLoader(arrayOf(migrations.toUri().toURL()), previousLoader)
-        Thread.currentThread().contextClassLoader = migrationLoader
-        try {
-            runRunner(image, mountRoot, migrations, output)
-        } finally {
-            Thread.currentThread().contextClassLoader = previousLoader
-            migrationLoader.close()
-        }
+        runRunner(image, mountRoot, output)
+    }
+
+    /**
+     * The fixture service's migration (TPL-12) is a Flyway SQL file on the class path, `db/migration-it/V1__Jobs.sql`
+     * (the key guard refuses a `filesystem:` location, CS-19): it is the job tables of JobSchema in `ledger`.
+     */
+    @Test
+    fun `the committed migration resource is JobSchema ddl for ledger byte for byte`() {
+        val resource =
+            javaClass.classLoader
+                .getResourceAsStream("db/migration-it/V1__Jobs.sql")
+                .shouldNotBeNull()
+                .use { String(it.readAllBytes(), Charsets.UTF_8) }
+        resource shouldBe JobSchema.ddl("ledger", "submission_runtime", "submission_sys")
     }
 
     private fun runRunner(
         image: String,
         mountRoot: Path,
-        migrations: Path,
         output: CapturedOutput,
     ) {
-        postgres(image).use { pg ->
-            val migrate = "pw-${UUID.randomUUID()}"
-            pg.sql(
-                "create role $MIGRATE login password '$migrate'",
-                "create role $RUNTIME login password 'runtime-pw'",
-                "create role $SYS nologin",
-                "grant $SYS to $MIGRATE",
-                "grant create on database ${pg.databaseName} to $MIGRATE",
-            )
+        val migrate = "pw-${UUID.randomUUID()}"
+        val roles =
+            createLoginSql(MIGRATE, migrate) +
+                createLoginSql(RUNTIME, "runtime-pw") +
+                "create role $SYS nologin;\ngrant $SYS to $MIGRATE;\n" +
+                "do \$\$ begin execute format('grant create on database %I to $MIGRATE', current_database()); end \$\$;\n"
+        startPostgres(image, roles).use { pg ->
             mount(mountRoot, MIGRATE_REF, migrate)
             val database =
                 arrayOf(
                     "spring.datasource.url=${pg.jdbcUrl}",
                     "gst.bindings.secret-store.mount-root=$mountRoot",
                     "spring.flyway.schemas=ledger",
-                    "spring.flyway.locations=classpath:migrations",
+                    "spring.flyway.locations=classpath:db/migration-it",
                 )
 
             // the service: service-runtime's defaults turn Flyway off, so its context starts and migrates nothing
@@ -103,8 +101,12 @@ class MigrationRunnerIT {
                 ).withMountedLogin(mountRoot, "runtime-pw")
                 .run { context ->
                     context.startupFailure shouldBe null
-                    context.getBeanNamesForType(Flyway::class.java).size shouldBe 0
-                    pg.query("select count(*) from pg_namespace where nspname = 'ledger'") shouldBe "0"
+                    context.beanDefinitionNames.filter { context.getType(it)?.name == "org.flywaydb.core.Flyway" } shouldBe emptyList()
+                    TestDatabase(pg.jdbcUrl, mapOf("pg_catalog.pg_namespace" to TableClass.PLATFORM_SCOPED)).use { db ->
+                        db.login(RUNTIME, "runtime-pw").asPlatform {
+                            fetchCount(PG_NAMESPACE, PG_NAMESPACE_NAME.eq("ledger"))
+                        } shouldBe 0
+                    }
                 }
 
             // the runner, with the service's own `spring.flyway.enabled=false` in its configuration
@@ -119,20 +121,39 @@ class MigrationRunnerIT {
                             "service-runtime.jobs.retention=2d",
                         )
                 ).map { "--$it" }.toTypedArray()
-            MigrationRunner.run(*args).close()
-            pg.query(
-                "select string_agg(distinct installed_by, ',') from ledger.flyway_schema_history where success",
-            ) shouldBe
-                MIGRATE
-            pg.query("select tableowner from pg_tables where schemaname = 'ledger' and tablename = 'job_run'") shouldBe
-                MIGRATE
-            pg.query("select extract(epoch from job_window)::bigint from ledger.job_retention") shouldBe
-                "${2 * 24 * 3600}"
+            val tables =
+                mapOf(
+                    "pg_catalog.pg_tables" to TableClass.PLATFORM_SCOPED,
+                    "ledger.flyway_schema_history" to TableClass.PLATFORM_SCOPED,
+                    "ledger.job_retention" to TableClass.PLATFORM_SCOPED,
+                )
+            TestDatabase(pg.jdbcUrl, tables).use { db ->
+                val reader = db.login(MIGRATE, migrate)
+                val installers = DSL.field(DSL.name("installed_by"), SQLDataType.VARCHAR)
+                val history = DSL.table(DSL.name("ledger", "flyway_schema_history"))
+                val window = DSL.field(DSL.name("job_window"), SQLDataType.INTERVALDAYTOSECOND)
 
-            // a second run re-applies the configured retention with bound parameters
-            MigrationRunner.run(*args.map { it.replace("retention=2d", "retention=3d") }.toTypedArray()).close()
-            pg.query("select extract(epoch from job_window)::bigint from ledger.job_retention") shouldBe
-                "${3 * 24 * 3600}"
+                MigrationRunner.run(*args).close()
+                reader.asPlatform {
+                    select(installers)
+                        .from(history)
+                        .where(DSL.field(DSL.name("success"), SQLDataType.BOOLEAN).isTrue)
+                        .fetchSet(installers)
+                } shouldBe setOf(MIGRATE)
+                reader.asPlatform {
+                    select(DSL.field(DSL.name("tableowner"), SQLDataType.VARCHAR))
+                        .from(DSL.table(DSL.name("pg_catalog", "pg_tables")))
+                        .where(DSL.field(DSL.name("schemaname")).eq("ledger"))
+                        .and(DSL.field(DSL.name("tablename")).eq("job_run"))
+                        .fetchSingle()
+                        .value1()
+                } shouldBe MIGRATE
+                retention(reader, window) shouldBe Duration.ofDays(2)
+
+                // a second run re-applies the configured retention with bound parameters
+                MigrationRunner.run(*args.map { it.replace("retention=2d", "retention=3d") }.toTypedArray()).close()
+                retention(reader, window) shouldBe Duration.ofDays(3)
+            }
             output.all shouldNotContain migrate
         }
     }
@@ -159,6 +180,14 @@ class MigrationRunnerIT {
             shouldThrow<IllegalArgumentException> { MigrationRunner.run(*base, "--spring.flyway.user=$MIGRATE") }
         noCredential.message.orEmpty() shouldContain "service-runtime.flyway.credential"
     }
+
+    private fun retention(
+        reader: TestDatabase.Access,
+        window: org.jooq.Field<org.jooq.types.DayToSecond>,
+    ): Duration =
+        reader.asPlatform {
+            select(window).from(DSL.table(DSL.name("ledger", "job_retention"))).fetchSingle().value1().toDuration()
+        }
 
     private companion object {
         const val MIGRATE = "submission_migrate"

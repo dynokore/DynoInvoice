@@ -40,6 +40,8 @@ import com.dynokore.platform.outboxandqueue.UnrelayedEventSink
 import com.dynokore.platform.outboxandqueue.WorkQueue
 import com.dynokore.platform.serviceruntime.binding.GstProperties
 import com.dynokore.platform.serviceruntime.identity.WorkloadPrincipal
+import com.dynokore.platform.serviceruntime.pool.EventLogGate
+import com.dynokore.platform.serviceruntime.pool.LaneGateHolder
 import com.dynokore.platform.serviceruntime.staleness.LoggingStalenessBreachSink
 import com.dynokore.platform.serviceruntime.staleness.OnStalenessRules
 import com.dynokore.platform.serviceruntime.staleness.StalenessCheckSchedule
@@ -47,6 +49,7 @@ import com.dynokore.platform.serviceruntime.staleness.StalenessGauges
 import com.dynokore.platform.serviceruntime.staleness.StalenessProperties
 import com.dynokore.platform.serviceruntime.staleness.StalenessRules
 import com.dynokore.platform.tenancykernel.CurrentConnection
+import com.dynokore.platform.tenancykernel.LaneGate
 import com.dynokore.platform.tenancykernel.TenantAwareDataSource
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
@@ -77,7 +80,10 @@ import javax.sql.DataSource
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnClass(name = ["com.dynokore.platform.outboxandqueue.JdbcOutboxWriter"])
 @EnableConfigurationProperties(StalenessProperties::class, UnrelayedEventProperties::class)
-class OutboxAndQueueWiring {
+class OutboxAndQueueWiring(
+    private val applicationGate: ObjectProvider<LaneGateHolder>,
+    private val eventLogGate: ObjectProvider<EventLogGate>,
+) {
     /**
      * The service's typed workload principal (owner ruling INV-Q-4344 (b)): built from the required `gst.service` and
      * format-checked at start-up, so a service name that is not a lower-case service name stops the context.
@@ -134,7 +140,8 @@ class OutboxAndQueueWiring {
         // The event log shares the application pool: the append joins the relay's row transaction (the same tenant and
         // actor, REQUIRED propagation) and commits with published_at, so a relay run holds at most 2 permits of the
         // background lane (INV-Q-4850). A separate event-log pool (HA) keeps its own transaction on that pool.
-        eventLog.getIfAvailable()?.let { PostgresEventBinding(eventLogScope(it, scope)) } ?: PostgresEventBinding(scope)
+        eventLog.getIfAvailable()?.let { PostgresEventBinding(eventLogScope(handOff(it, eventLogGate.getIfAvailable()), scope)) }
+            ?: PostgresEventBinding(scope)
 
     @Bean
     @ConditionalOnBean(TenantScope::class, EventBinding::class, DataSource::class)
@@ -146,7 +153,7 @@ class OutboxAndQueueWiring {
         binding: EventBinding,
         modules: ModuleProperties,
         clock: Clock,
-    ): JdbcOutboxRelay = JdbcOutboxRelay(dataSource, scope, modules.requireSchema(), binding, clock)
+    ): JdbcOutboxRelay = JdbcOutboxRelay(application(dataSource), scope, modules.requireSchema(), binding, clock)
 
     @Bean
     @ConditionalOnBean(TenantScope::class, DataSource::class)
@@ -156,8 +163,7 @@ class OutboxAndQueueWiring {
         dataSource: DataSource,
         scope: TenantScope,
     ): PostgresEventLogReader {
-        val source = eventLog.getIfAvailable { dataSource }
-        return PostgresEventLogReader(source, eventLogScope(source, scope))
+        return PostgresEventLogReader(eventLogSource(eventLog, dataSource), eventLogScope(eventLogSource(eventLog, dataSource), scope))
     }
 
     @Bean
@@ -168,7 +174,7 @@ class OutboxAndQueueWiring {
         dataSource: DataSource,
         limits: LaneLimits,
         modules: ModuleProperties,
-    ): LaneRateLimiter = LaneRateLimiter(dataSource, modules.requireSchema(), limits)
+    ): LaneRateLimiter = LaneRateLimiter(application(dataSource), modules.requireSchema(), limits)
 
     @Bean
     @ConditionalOnBean(TenantScope::class, LaneRateLimiter::class, DataSource::class)
@@ -179,7 +185,7 @@ class OutboxAndQueueWiring {
         limiter: LaneRateLimiter,
         modules: ModuleProperties,
         clock: Clock,
-    ): JdbcWorkQueue = JdbcWorkQueue(dataSource, scope, modules.requireSchema(), limiter, clock)
+    ): JdbcWorkQueue = JdbcWorkQueue(application(dataSource), scope, modules.requireSchema(), limiter, clock)
 
     @Bean
     @ConditionalOnBean(TenantScope::class, DataSource::class)
@@ -190,7 +196,7 @@ class OutboxAndQueueWiring {
         scope: TenantScope,
         modules: ModuleProperties,
         clock: Clock,
-    ): JdbcDeadLetterTriage = JdbcDeadLetterTriage(dataSource, scope, modules.requireSchema(), clock)
+    ): JdbcDeadLetterTriage = JdbcDeadLetterTriage(application(dataSource), scope, modules.requireSchema(), clock)
 
     @Bean
     @ConditionalOnBean(Retention::class, DataSource::class)
@@ -201,7 +207,7 @@ class OutboxAndQueueWiring {
         retention: Retention,
         modules: ModuleProperties,
         clock: Clock,
-    ): JdbcRetentionPurge = JdbcRetentionPurge(dataSource, modules.requireSchema(), retention, clock)
+    ): JdbcRetentionPurge = JdbcRetentionPurge(application(dataSource), modules.requireSchema(), retention, clock)
 
     /** The event-log component's purge (INV-MOD-2748); its retention is the event log's own row (INV-Q-4262). */
     @Bean
@@ -211,7 +217,7 @@ class OutboxAndQueueWiring {
         @Qualifier(ServiceDataSources.EVENT_LOG) eventLog: ObjectProvider<DataSource>,
         dataSource: DataSource,
         catalogue: EventCatalogue,
-    ): JdbcEventLogPurge = JdbcEventLogPurge(eventLog.getIfAvailable { dataSource }, catalogue)
+    ): JdbcEventLogPurge = JdbcEventLogPurge(eventLogSource(eventLog, dataSource), catalogue)
 
     /**
      * The service's staleness rules (INV-REQ-1165): `service-runtime.staleness.rules` and any [StalenessRule] beans,
@@ -246,7 +252,7 @@ class OutboxAndQueueWiring {
         clock: Clock,
     ): JdbcStalenessMonitor =
         JdbcStalenessMonitor(
-            dataSource,
+            application(dataSource),
             lag,
             catalogue,
             modules.requireSchema(),
@@ -283,7 +289,7 @@ class OutboxAndQueueWiring {
     fun eventLogPresence(
         @Qualifier(ServiceDataSources.EVENT_LOG) eventLog: ObjectProvider<DataSource>,
         dataSource: DataSource,
-    ): PostgresEventLogPresence = PostgresEventLogPresence(eventLog.getIfAvailable { dataSource })
+    ): PostgresEventLogPresence = PostgresEventLogPresence(eventLogSource(eventLog, dataSource))
 
     /**
      * The check of outbox rows marked published whose event never reached the event log (owner rulings INV-Q-4334 (B),
@@ -307,7 +313,7 @@ class OutboxAndQueueWiring {
         gst: GstProperties,
     ): JdbcUnrelayedEventCheck =
         JdbcUnrelayedEventCheck(
-            dataSource,
+            application(dataSource),
             scope,
             modules.requireSchema(),
             gst.requireService(),
@@ -355,7 +361,7 @@ class OutboxAndQueueWiring {
         rebuildRequired: RebuildRequiredSink,
         clock: Clock,
     ): JdbcInboxConsumer =
-        JdbcInboxConsumer(subscription, catalogue, reader, dataSource, scope, handler, rebuildRequired, clock)
+        JdbcInboxConsumer(subscription, catalogue, reader, application(dataSource), scope, handler, rebuildRequired, clock)
 
     @Bean
     @ConditionalOnBean(WorkQueue::class, TenantScope::class, JdbcInboxConsumer::class)
@@ -366,16 +372,35 @@ class OutboxAndQueueWiring {
         inbox: JdbcInboxConsumer,
     ): JdbcReplayDelivery = JdbcReplayDelivery(queue, scope, inbox)
 
+    /** The application pool as the services' raw users get it: behind the lane gate (INV-Q-5243). */
+    private fun application(pool: DataSource): DataSource = handOff(pool, applicationGate.getIfAvailable()?.takeIf { it.active })
+
+    /** The pool the event log lives on: the HA pool behind its own admit-all gate, or else the application pool. */
+    private fun eventLogSource(
+        eventLog: ObjectProvider<DataSource>,
+        dataSource: DataSource,
+    ): DataSource = eventLog.getIfAvailable()?.let { handOff(it, eventLogGate.getIfAvailable()) } ?: application(dataSource)
+
     private companion object {
         /**
-         * A [TenantScope] over the event log's own transactions (its own [TransactionRunnerImpl], so an event-log
-         * transaction never joins an application one), with the service's [TenantScope.workloadPrincipal].
+         * The one hand-off of a pool to a user of this wiring (INV-Q-5243): a [TenantAwareDataSource] over [pool] that takes
+         * a permit of [gate] before every pool connection and resets the connection when it is handed back.
+         */
+        fun handOff(
+            pool: DataSource,
+            gate: LaneGate?,
+        ): DataSource = TenantAwareDataSource(pool, gate)
+
+        /**
+         * A [TenantScope] over the event log's own transactions on [eventLog] (already handed off; its own
+         * [TransactionRunnerImpl], so an event-log transaction never joins an application one), with the service's
+         * [TenantScope.workloadPrincipal].
          */
         fun eventLogScope(
             eventLog: DataSource,
             scope: TenantScope,
         ): TenantScope {
-            val transactions = TransactionRunnerImpl(TenantAwareDataSource(eventLog), scope.tenants)
+            val transactions = TransactionRunnerImpl(eventLog, scope.tenants)
             return TenantScope(scope.tenants, transactions, transactions, scope.workloadPrincipal, scope.platform)
         }
     }

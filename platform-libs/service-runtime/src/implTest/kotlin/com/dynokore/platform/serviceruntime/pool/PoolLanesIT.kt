@@ -1,9 +1,16 @@
 package com.dynokore.platform.serviceruntime.pool
 
 import com.dynokore.platform.serviceruntime.composition.ServiceDataSources
-import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Companion.postgres
-import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Companion.query
-import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Companion.sql
+import com.dynokore.platform.serviceruntime.testing.BACKEND_PID
+import com.dynokore.platform.serviceruntime.testing.CATALOG_TABLES
+import com.dynokore.platform.serviceruntime.testing.HeldTransaction
+import com.dynokore.platform.serviceruntime.testing.PG_STAT_ACTIVITY
+import com.dynokore.platform.serviceruntime.testing.PG_STAT_ACTIVITY_NAME
+import com.dynokore.platform.serviceruntime.testing.PG_STAT_ACTIVITY_PID
+import com.dynokore.platform.serviceruntime.testing.TestDatabase
+import com.dynokore.platform.serviceruntime.testing.createLoginSql
+import com.dynokore.platform.serviceruntime.testing.setting
+import com.dynokore.platform.serviceruntime.testing.startPostgres
 import com.dynokore.platform.serviceruntime.datasource.tpl18Service
 import com.dynokore.platform.serviceruntime.datasource.withMountedLogin
 import com.dynokore.platform.serviceruntime.pool.LaneGateHolder
@@ -19,13 +26,13 @@ import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.api.io.TempDir
+import org.jooq.DSLContext
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import org.testcontainers.containers.PostgreSQLContainer
 import java.nio.file.Path
-import java.sql.Connection
 import java.sql.SQLTransientConnectionException
 import java.util.UUID
-import java.util.concurrent.CompletableFuture
-import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import javax.sql.DataSource
 
@@ -42,10 +49,7 @@ class PoolLanesIT {
     @TempDir
     lateinit var mountRoot: Path
 
-    private val postgres: PostgreSQLContainer<*> =
-        postgres(IMAGE).also {
-            it.sql("create role $RUNTIME login password '$PASSWORD'")
-        }
+    private val postgres: PostgreSQLContainer<*> = startPostgres(IMAGE, createLoginSql(RUNTIME, PASSWORD))
 
     @AfterAll
     fun stop() = postgres.stop()
@@ -72,35 +76,30 @@ class PoolLanesIT {
             context.startupFailure shouldBe null
             val pool = context.getBean(DataSource::class.java).shouldBeInstanceOf<HikariDataSource>()
             val gate = context.getBean(LaneGateHolder::class.java).permits()
-            val dataSource: DataSource = TenantAwareDataSource(pool, gate)
+            val access = TestDatabase(postgres.jdbcUrl, emptyMap()).use { db -> db.over(TenantAwareDataSource(pool, gate)) }
             gate.budgets shouldBe LaneBudgets(4, 2, 1)
             pool.maximumPoolSize shouldBe 7
-            val background = Executors.newFixedThreadPool(3)
+            // the background lane saturated (2 of 2) and the reprocessing lane (1 of 1), held on other threads
+            val held =
+                (1..2).map { take(access, PoolLane.BACKGROUND) } + take(access, PoolLane.REPROCESSING)
             try {
-                // the background lane saturated (2 of 2) and the reprocessing lane (1 of 1), held on other threads
-                val held =
-                    (1..2).map { background.take(dataSource, PoolLane.BACKGROUND) } +
-                        background.take(dataSource, PoolLane.REPROCESSING)
-                val others = held.map { it.get(TIMEOUT_MS * 4, TimeUnit.MILLISECONDS) }
                 // a further background connection waits for its own permits and times out
                 shouldThrow<SQLTransientConnectionException> {
-                    PoolLanes.inLane(
-                        PoolLane.BACKGROUND,
-                    ) { dataSource.connection.close() }
+                    PoolLanes.inLane(PoolLane.BACKGROUND) { access.asPlatform { } }
                 }
 
                 // every request permit is served at once, from the connections the other lanes are not owed
                 val started = System.nanoTime()
-                val requests = (1..4).map { dataSource.connection }
+                val requests = (1..4).map { HeldTransaction(access) }
                 (TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started) < TIMEOUT_MS) shouldBe true
                 // the request lane is bounded by its own budget too
-                shouldThrow<SQLTransientConnectionException> { dataSource.connection.close() }
+                shouldThrow<SQLTransientConnectionException> { access.asPlatform { } }
 
                 requests.forEach { it.close() }
-                others.forEach { it.close() }
+                held.forEach { it.close() }
                 PoolLane.entries.forEach { gate.availablePermits(it) shouldBe gate.budgets.of(it) }
             } finally {
-                background.shutdownNow()
+                held.forEach { it.close() }
             }
         }
     }
@@ -111,11 +110,11 @@ class PoolLanesIT {
             context.startupFailure shouldBe null
             val pool = context.getBean(DataSource::class.java).shouldBeInstanceOf<HikariDataSource>()
             val gate = context.getBean(LaneGateHolder::class.java).permits()
-            val dataSource: DataSource = TenantAwareDataSource(pool, gate)
+            val access = TestDatabase(postgres.jdbcUrl, emptyMap()).use { db -> db.over(TenantAwareDataSource(pool, gate)) }
             gate.budgets shouldBe LaneBudgets(4, 2, 0)
             val refused =
                 shouldThrow<SQLTransientConnectionException> {
-                    PoolLanes.inLane(PoolLane.REPROCESSING) { dataSource.connection.close() }
+                    PoolLanes.inLane(PoolLane.REPROCESSING) { access.asPlatform { } }
                 }
             refused.message shouldBe
                 "the REPROCESSING lane has no permits (budget 0) and never runs on another lane (INV-REQ-1072 b5)"
@@ -134,13 +133,14 @@ class PoolLanesIT {
         ).run { context ->
             context.startupFailure shouldBe null
             val tx = context.getBean(TransactionRunnerImpl::class.java)
+            val dsl = context.getBean(DSLContext::class.java)
             val tenants = context.getBean(TenantContext::class.java)
             val tenant = TenantId(UUID.randomUUID())
             PoolLane.entries.forEach { lane ->
                 // commit: the lane's name during the transaction, the pool's own name on the same connection after it
                 val (pid, during) =
                     PoolLanes.inLane(lane) {
-                        tenants.bind(tenant, "user-a") { tx.inTransaction { tx.require().backend() } }
+                        tenants.bind(tenant, "user-a") { tx.inTransaction { dsl.backend() } }
                     }
                 during shouldBe "submission-svc:${lane.name.lowercase()}"
                 postgres.applicationNameOf(pid) shouldBe "submission-svc"
@@ -150,7 +150,7 @@ class PoolLanesIT {
                     PoolLanes.inLane(lane) {
                         tenants.bind(tenant, "user-a") {
                             tx.inTransaction {
-                                val (p, name) = tx.require().backend()
+                                val (p, name) = dsl.backend()
                                 name shouldBe "submission-svc:${lane.name.lowercase()}"
                                 rolledBack = p
                                 error("rolled back")
@@ -165,8 +165,7 @@ class PoolLanesIT {
 
     @Test
     fun `the HA event-log pool's connections carry the pool's own name`() {
-        postgres(IMAGE).use { eventLog ->
-            eventLog.sql("create role $RUNTIME login password '$PASSWORD'")
+        startPostgres(IMAGE, createLoginSql(RUNTIME, PASSWORD)).use { eventLog ->
             service("submission-svc", "service-runtime.pool.profile=ha", "gst.db.event-log-url=${eventLog.jdbcUrl}")
                 // the event-log pool copies the SecretStore credentials provider (INV-Q-4570)
                 .run { context ->
@@ -175,35 +174,32 @@ class PoolLanesIT {
                         LaneBudgets(7, 3, 0)
                     val pool = context.getBean(ServiceDataSources.EVENT_LOG, HikariDataSource::class.java)
                     pool.maximumPoolSize shouldBe LaneBudgets.EVENT_LOG.maximum
-                    pool.connection.use { it.backend().second shouldBe "submission-svc" }
+                    TestDatabase(eventLog.jdbcUrl, emptyMap()).use { db ->
+                        db.over(pool).asPlatform { backend().second } shouldBe "submission-svc"
+                    }
                 }
         }
     }
 
-    /** Takes a connection in [lane] on this executor and keeps it open until the test closes it. */
-    private fun java.util.concurrent.ExecutorService.take(
-        dataSource: DataSource,
+    /** Takes a connection in [lane] on a helper thread and keeps its transaction open until the test closes it. */
+    private fun take(
+        access: TestDatabase.Access,
         lane: PoolLane,
-    ): CompletableFuture<Connection> =
-        CompletableFuture.supplyAsync({
-            PoolLanes.inLane(lane) { dataSource.connection }
-        }, this)
+    ) = HeldTransaction(access) { body -> PoolLanes.inLane(lane) { body() } }
 
-    /** This backend's pid and its application_name as pg_stat_activity shows it. */
-    private fun Connection.backend(): Pair<Int, String> =
-        createStatement().use { statement ->
-            statement
-                .executeQuery(
-                    "select pid, application_name from pg_stat_activity where pid = pg_backend_pid()",
-                ).use {
-                    it.next()
-                    it.getInt(1) to it.getString(2)
-                }
-        }
+    /** This backend's pid and its application_name, as the session itself reports them. */
+    private fun DSLContext.backend(): Pair<Int, String> =
+        select(BACKEND_PID, setting("application_name"))
+            .fetchSingle()
+            .let { it.value1() to it.value2() }
 
-    /** [pid]'s application_name, seen from another session. */
+    /** [pid]'s application_name, seen from another session of the same login. */
     private fun PostgreSQLContainer<*>.applicationNameOf(pid: Int): String =
-        query("select application_name from pg_stat_activity where pid = $pid")
+        TestDatabase(jdbcUrl, CATALOG_TABLES).use { db ->
+            db.login(RUNTIME, PASSWORD).asPlatform {
+                select(PG_STAT_ACTIVITY_NAME).from(PG_STAT_ACTIVITY).where(PG_STAT_ACTIVITY_PID.eq(pid)).fetchSingle().value1()
+            }
+        }
 
     private companion object {
         const val IMAGE = "postgres:17"

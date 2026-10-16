@@ -31,9 +31,14 @@ import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.outboxandqueue.TestCatalogue
 import com.dynokore.platform.serviceruntime.datasource.TEST_LOGIN_REF
 import com.dynokore.platform.serviceruntime.datasource.Tpl18JdbcApplication
+import com.dynokore.platform.serviceruntime.pool.EventLogGate
 import com.dynokore.platform.serviceruntime.pool.LaneGateHolder
+import com.dynokore.platform.serviceruntime.pool.PermitObserver
 import com.dynokore.platform.serviceruntime.pool.PoolLane
-import com.dynokore.platform.tenancykernel.CurrentConnection
+import com.dynokore.platform.serviceruntime.testing.HeldTransaction
+import com.dynokore.platform.serviceruntime.testing.TestDatabase
+import com.dynokore.platform.tenancyjooq.TableClass
+import com.dynokore.platform.tenancykernel.TenantAwareDataSource
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
@@ -43,10 +48,14 @@ import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import org.jooq.Condition
+import org.jooq.DSLContext
+import org.jooq.Field
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import org.junit.jupiter.api.io.TempDir
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
-import org.postgresql.ds.PGSimpleDataSource
 import org.slf4j.LoggerFactory
 import org.springframework.boot.WebApplicationType
 import org.springframework.boot.builder.SpringApplicationBuilder
@@ -61,6 +70,8 @@ import java.time.Duration
 import java.time.LocalDate
 import java.util.Collections
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import javax.sql.DataSource
@@ -90,19 +101,17 @@ class EventLoopsIT {
                 val event = svc.append(1).single()
                 // within 10 s, applied once by each subscriber (INV-Q-4850 probe a)
                 eventually("each subscriber to apply the event", Duration.ofSeconds(10)) {
-                    fx.count("select count(*) from submission.applied") >= 2
+                    fx.count(APPLIED) >= 2
                 }
-                fx.count("select count(*) from submission.applied where consumer = 'submission-svc-b'") shouldBe 1
+                fx.count(APPLIED, col("consumer").eq("submission-svc-b")) shouldBe 1
                 val topic = "eventlog.${EventLogSchema.tableName(Service.TOPIC)}"
-                fx.count("select count(*) from $topic where event_id = '${event.id.value}'") shouldBe 1
-                fx.count(
-                    "select count(*) from submission.outbox where id = '${event.id.value}' and published_at is not null",
-                ) shouldBe 1
+                fx.count(topic, col("event_id").eq(event.id.value)) shouldBe 1
+                fx.count(OUTBOX, col("id").eq(event.id.value), col("published_at").isNotNull) shouldBe 1
                 // once: one row per consumer, one inbox row per consumer, one event-log record
-                fx.count("select count(*) from submission.applied where consumer = 'submission-svc'") shouldBe 1
-                fx.count("select count(*) from submission.inbox where consumer = 'submission-svc'") shouldBe 1
-                fx.count("select count(*) from eventlog.${EventLogSchema.tableName(Service.TOPIC)}") shouldBe 1
-                fx.count("select count(*) from submission.outbox where published_at is not null") shouldBe 1
+                fx.count(APPLIED, col("consumer").eq("submission-svc")) shouldBe 1
+                fx.count(INBOX, col("consumer").eq("submission-svc")) shouldBe 1
+                fx.count("eventlog.${EventLogSchema.tableName(Service.TOPIC)}") shouldBe 1
+                fx.count(OUTBOX, col("published_at").isNotNull) shouldBe 1
                 // the consumer, not the loop, bound the row's tenant and the service's workload principal
                 svc.handler.bound.single() shouldBe Triple(event.id.value, Service.TENANT, "svc:submission-svc")
                 // every loop reports a last successful call, the service is ready
@@ -118,7 +127,7 @@ class EventLoopsIT {
                 // later events too, with the loops running (no call from the test)
                 svc.append(5)
                 eventually("five more events") {
-                    fx.count("select count(*) from submission.applied where consumer = 'submission-svc'") == 6L
+                    fx.count(APPLIED, col("consumer").eq("submission-svc")) == 6L
                 }
             }
         }
@@ -135,8 +144,8 @@ class EventLoopsIT {
                 svc.context.getBeansOfType(EventLoops::class.java).size shouldBe 0
                 svc.append(1)
                 Thread.sleep(3_500)
-                fx.count("select count(*) from submission.outbox where published_at is not null") shouldBe 0
-                fx.count("select count(*) from eventlog.${EventLogSchema.tableName(Service.TOPIC)}") shouldBe 0
+                fx.count(OUTBOX, col("published_at").isNotNull) shouldBe 0
+                fx.count("eventlog.${EventLogSchema.tableName(Service.TOPIC)}") shouldBe 0
                 svc.context
                     .getBean(OutboxRelay::class.java)
                     .runOnce()
@@ -160,15 +169,15 @@ class EventLoopsIT {
                 fx.run(mount, instance = "submission-svc-1").use { second ->
                     val appended = (1..4).flatMap { listOf(first, second)[it % 2].append(10) }
                     eventually("all events applied", Duration.ofSeconds(60)) {
-                        fx.count("select count(*) from submission.applied where consumer = 'submission-svc'") == 40L
+                        fx.count(APPLIED, col("consumer").eq("submission-svc")) == 40L
                     }
                     val table = "eventlog.${EventLogSchema.tableName(Service.TOPIC)}"
-                    fx.count("select count(*) from $table") shouldBe 40
-                    fx.count("select count(distinct event_id) from $table") shouldBe 40
-                    fx.count("select count(*) from submission.inbox where consumer = 'submission-svc'") shouldBe 40
+                    fx.count(table) shouldBe 40
+                    fx.countDistinct(table, "event_id") shouldBe 40
+                    fx.count(INBOX, col("consumer").eq("submission-svc")) shouldBe 40
                     // published in outbox seq order: log order is seq order
-                    val logOrder = fx.strings("select event_id from $table order by log_offset")
-                    val seqOrder = fx.strings("select id from submission.outbox order by seq")
+                    val logOrder = fx.strings(table, "event_id", "log_offset")
+                    val seqOrder = fx.strings(OUTBOX, "id", "seq")
                     logOrder shouldContainExactly seqOrder
                     logOrder.toSet() shouldBe appended.map { it.id.value }.toSet()
                     first.context
@@ -194,16 +203,14 @@ class EventLoopsIT {
                         .single()
                         .id.value
                 eventually("the dead letter", Duration.ofSeconds(30)) {
-                    fx.count(
-                        "select count(*) from submission.event_dead_letter where consumer = 'submission-svc'",
-                    ) == 1L
+                    fx.count(DEAD_LETTER, col("consumer").eq("submission-svc")) == 1L
                 }
-                fx.count("select count(*) from submission.applied where consumer = 'submission-svc'") shouldBe 0
+                fx.count(APPLIED, col("consumer").eq("submission-svc")) shouldBe 0
                 svc.handler.attempts.get() shouldBe 3 // maxAttempts of the fixture subscription
                 // the loop went on: the next event is applied
                 svc.append(1)
                 eventually("the next event to be applied") {
-                    fx.count("select count(*) from submission.applied where consumer = 'submission-svc'") == 1L
+                    fx.count(APPLIED, col("consumer").eq("submission-svc")) == 1L
                 }
                 val consumerLoop =
                     svc.context
@@ -247,7 +254,7 @@ class EventLoopsIT {
             loops.loops().none { it.isAlive() } shouldBe true
             loops.isRunning shouldBe false
             // the call in hand finished and committed before the pool closed
-            fx.count("select count(*) from submission.applied where consumer = 'submission-svc'") shouldBe 1
+            fx.count(APPLIED, col("consumer").eq("submission-svc")) shouldBe 1
             pool.unwrap(com.zaxxer.hikari.HikariDataSource::class.java).isClosed shouldBe true
         }
         appender.list
@@ -281,10 +288,13 @@ class EventLoopsIT {
                 }
                 // a request-lane thread (no lane entered) gets its connections at once, twice over
                 val started = System.nanoTime()
-                pool.connection.use { a ->
-                    pool.connection.use { b ->
-                        a.createStatement().use { it.execute("select 1") }
-                        b.createStatement().use { it.execute("select 1") }
+                TestDatabase(fx.jdbcUrl(), emptyMap()).use { db ->
+                    val access = db.over(TenantAwareDataSource(pool, laned))
+                    HeldTransaction(access).use { a ->
+                        HeldTransaction(access).use { b ->
+                            a.user()
+                            b.user()
+                        }
                     }
                 }
                 (TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started) < 1_500) shouldBe true
@@ -292,7 +302,7 @@ class EventLoopsIT {
                 laned.availablePermits(PoolLane.BACKGROUND) shouldBe 0
                 svc.handler.hold!!.countDown()
                 eventually("both consumers to apply both events", Duration.ofSeconds(60)) {
-                    fx.count("select count(*) from submission.applied") == 4L
+                    fx.count(APPLIED) == 4L
                 }
             }
         }
@@ -312,7 +322,7 @@ class EventLoopsIT {
                 peaks.reset()
                 svc.append(3)
                 eventually("the events to be applied", Duration.ofSeconds(10)) {
-                    fx.count("select count(*) from submission.applied where consumer = 'submission-svc'") == 3L
+                    fx.count(APPLIED, col("consumer").eq("submission-svc")) == 3L
                 }
                 peaks.peak("dataSource", relay) shouldBe 2
                 peaks.peak("dataSource", consumer) shouldBe 1
@@ -325,7 +335,7 @@ class EventLoopsIT {
                 peaks.reset()
                 svc.append(3)
                 eventually("the events to be applied", Duration.ofSeconds(10)) {
-                    fx.count("select count(*) from submission.applied where consumer = 'submission-svc'") == 3L
+                    fx.count(APPLIED, col("consumer").eq("submission-svc")) == 3L
                 }
                 peaks.peak("dataSource", relay) shouldBe 2
                 peaks.peak("eventLogDataSource", relay) shouldBe 1
@@ -350,23 +360,18 @@ class EventLoopsIT {
                             .single()
                             .id.value
                     val topic = "eventlog.${EventLogSchema.tableName(Service.TOPIC)}"
-                    val rows = { sql: String -> if (ha) fx.countHa(sql) else fx.count(sql) }
+                    val rows = { fx.countIn(ha, topic, col("event_id").eq(id)) }
                     val relay = svc.context.getBean(OutboxRelay::class.java)
-                    fx.admin(
-                        "create function public.block_publish() returns trigger language plpgsql as \$\$ begin " +
-                            "if new.published_at is not null and old.published_at is null then " +
-                            "raise exception 'blocked'; end if; return new; end \$\$;" +
-                            "create trigger block_publish before update on submission.outbox for each row " +
-                            "execute function public.block_publish();",
-                    )
+                    // the container's trigger on the outbox refuses a publish while the switch is on
+                    fx.blockPublishing(true)
                     runCatching { relay.runOnce() }
-                    val unpublished = "select count(*) from submission.outbox where id = '$id' and published_at is null"
-                    rows("select count(*) from $topic where event_id = '$id'") shouldBe if (ha) 1 else 0
-                    fx.count(unpublished) shouldBe 1
-                    fx.admin("drop trigger block_publish on submission.outbox")
+                    val unpublished = { fx.count(OUTBOX, col("id").eq(id), col("published_at").isNull) }
+                    rows() shouldBe if (ha) 1 else 0
+                    unpublished() shouldBe 1
+                    fx.blockPublishing(false)
                     relay.runOnce().published shouldBe 1
-                    rows("select count(*) from $topic where event_id = '$id'") shouldBe if (ha) 2 else 1
-                    fx.count(unpublished) shouldBe 0
+                    rows() shouldBe if (ha) 2 else 1
+                    unpublished() shouldBe 0
                 }
             }
         }
@@ -401,8 +406,8 @@ class EventLoopsIT {
                     Thread.sleep(4_000) // past the first failed call
                     val before = gauge()
                     Thread.sleep(10_000)
-                    fx.count("select count(*) from submission.outbox where published_at is not null") shouldBe 0
-                    fx.count("select count(*) from eventlog.${EventLogSchema.tableName(Service.TOPIC)}") shouldBe 0
+                    fx.count(OUTBOX, col("published_at").isNotNull) shouldBe 0
+                    fx.count("eventlog.${EventLogSchema.tableName(Service.TOPIC)}") shouldBe 0
                     // never advanced: NaN (no success yet) or unchanged
                     ((before.isNaN() && gauge().isNaN()) || gauge() == before) shouldBe true
                     val failures =
@@ -432,7 +437,7 @@ class EventLoopsIT {
     /** The recording handler of one consumer; `failing` ids throw, `hold` blocks inside the transaction. */
     class RecordingHandler(
         private val consumer: String,
-        private val connections: CurrentConnection,
+        private val dsl: DSLContext,
         private val tenants: TenantContext,
     ) : EventHandler {
         val failing: MutableSet<String> = Collections.synchronizedSet(mutableSetOf())
@@ -450,12 +455,11 @@ class EventLoopsIT {
             entered.countDown()
             if (event.id.value in failing) throw IllegalStateException("handler failure")
             bound += Triple(event.id.value, tenants.current().value, tenants.currentActor())
-            val insert = "insert into submission.applied (consumer, event_id) values (?, ?)"
-            connections.require().prepareStatement(insert).use {
-                it.setString(1, consumer)
-                it.setString(2, event.id.value)
-                it.executeUpdate()
-            }
+            dsl
+                .insertInto(DSL.table(DSL.name("submission", "applied")))
+                .columns(col("consumer"), col("event_id"))
+                .values(consumer, event.id.value)
+                .execute()
             hold?.await(30, TimeUnit.SECONDS)
             return HandleOutcome.APPLIED
         }
@@ -478,15 +482,15 @@ class EventLoopsIT {
 
         @Bean
         fun handler(
-            connections: CurrentConnection,
+            dsl: DSLContext,
             tenants: TenantContext,
-        ): RecordingHandler = RecordingHandler("submission-svc", connections, tenants)
+        ): RecordingHandler = RecordingHandler("submission-svc", dsl, tenants)
 
         @Bean
         fun secondHandler(
-            connections: CurrentConnection,
+            dsl: DSLContext,
             tenants: TenantContext,
-        ): RecordingHandler = RecordingHandler("submission-svc-b", connections, tenants)
+        ): RecordingHandler = RecordingHandler("submission-svc-b", dsl, tenants)
 
         /** A service-declared consumer per subscription; the first is primary for the replay delivery wiring. */
         @Bean
@@ -496,6 +500,7 @@ class EventLoopsIT {
             catalogue: EventCatalogue,
             reader: EventLogReader,
             dataSource: DataSource,
+            gate: LaneGateHolder,
             scope: TenantScope,
             rebuildRequired: RebuildRequiredSink,
             clock: Clock,
@@ -505,7 +510,7 @@ class EventLoopsIT {
                 ConsumerSubscription("submission-svc", Service.TOPIC, "submission", RETRY),
                 catalogue,
                 reader,
-                dataSource,
+                TenantAwareDataSource(dataSource, gate.takeIf { it.active }),
                 scope,
                 handler,
                 rebuildRequired,
@@ -518,6 +523,7 @@ class EventLoopsIT {
             catalogue: EventCatalogue,
             reader: EventLogReader,
             dataSource: DataSource,
+            gate: LaneGateHolder,
             scope: TenantScope,
             rebuildRequired: RebuildRequiredSink,
             clock: Clock,
@@ -527,19 +533,25 @@ class EventLoopsIT {
                 ConsumerSubscription("submission-svc-b", Service.TOPIC, "submission", RETRY),
                 catalogue,
                 reader,
-                dataSource,
+                TenantAwareDataSource(dataSource, gate.takeIf { it.active }),
                 scope,
                 handler,
                 rebuildRequired,
                 clock,
             )
 
-        companion object {
-            /** Wraps the application pool and the HA event-log pool, after the lane wrapper (INV-Q-4850 probes). */
-            @JvmStatic
-            @Bean
-            fun peakCounting(): PeakCounting = PeakCounting()
+        /** Observes the permits of the application pool's lane gate and of the HA event-log pool's gate (INV-Q-5251). */
+        @Bean
+        fun peakCounting(
+            gate: LaneGateHolder,
+            eventLogGate: EventLogGate,
+        ): PeakCounting =
+            PeakCounting().also {
+                gate.observe(it.observer("dataSource"))
+                eventLogGate.observe(it.observer("eventLogDataSource"))
+            }
 
+        companion object {
             val RETRY =
                 ConsumerRetryPolicy(
                     maxAttempts = 3,
@@ -601,19 +613,48 @@ class EventLoopsIT {
     class Fixture(
         image: String,
     ) : AutoCloseable {
-        private val fx = OutboxPostgresFixture(image)
-
-        init {
-            val catalogue = TestCatalogue.load()
-            fx.createService(
-                "submission",
-                "create table submission.applied (consumer text not null, event_id text not null, " +
-                    "primary key (consumer, event_id));" +
-                    "grant select, insert on submission.applied to ${OutboxPostgresFixture.APP};" +
-                    QueueSchema.ddl("submission", OutboxPostgresFixture.APP, OutboxPostgresFixture.SYS),
+        private val catalogue = TestCatalogue.load()
+        private val fx =
+            OutboxPostgresFixture(
+                image,
+                OutboxPostgresFixture.serviceInitSql(
+                    "submission",
+                    "create table submission.applied (consumer text not null, event_id text not null, " +
+                        "primary key (consumer, event_id));" +
+                        "grant select, insert on submission.applied to ${OutboxPostgresFixture.APP};" +
+                        QueueSchema.ddl("submission", OutboxPostgresFixture.APP, OutboxPostgresFixture.SYS),
+                ) + OutboxPostgresFixture.eventLogInitSql(catalogue) + PUBLISH_SWITCH_INIT_SQL +
+                    OutboxPostgresFixture.haEventLogInitSql(catalogue),
             )
-            fx.createTopics(catalogue)
-        }
+
+        /** The superuser's access to the service database and to the HA event-log database (no tenant predicates). */
+        private val adminDb =
+            TestDatabase(
+                fx.jdbcUrl(),
+                (
+                    listOf(
+                        APPLIED,
+                        OUTBOX,
+                        INBOX,
+                        DEAD_LETTER,
+                        "public.publish_switch",
+                        "eventlog.${EventLogSchema.tableName(Service.TOPIC)}",
+                    )
+                ).associateWith { TableClass.PLATFORM_SCOPED },
+            )
+        private val admin = adminDb.login(fx.adminUser(), fx.adminPassword())
+        private val haDb =
+            TestDatabase(
+                fx.haEventLogUrl(),
+                mapOf("eventlog.${EventLogSchema.tableName(Service.TOPIC)}" to TableClass.PLATFORM_SCOPED),
+            )
+        private val haAdmin = haDb.login(fx.adminUser(), fx.adminPassword())
+
+        /** The container's URL, for a test that builds its own access. */
+        fun jdbcUrl(): String = fx.jdbcUrl()
+
+        /** The URL of the event log in the second database (HA form), provisioned with the container. */
+        fun haEventLogUrl(): String = fx.haEventLogUrl()
 
         /** Starts the service; [extra] are `key=value` properties. */
         fun run(
@@ -621,7 +662,7 @@ class EventLoopsIT {
             vararg extra: String,
             instance: String = "submission-svc-0",
         ): Service {
-            val url = (fx.runtimeDataSource() as PGSimpleDataSource).getUrl().substringBefore("?")
+            val url = fx.jdbcUrl().substringBefore("?")
             Files.writeString(mount.resolve(TEST_LOGIN_REF), "outbox_app_pw\n")
             val context =
                 SpringApplicationBuilder(Tpl18JdbcApplication::class.java, ServiceBeans::class.java)
@@ -637,6 +678,7 @@ class EventLoopsIT {
                         "service-runtime.modules.schema=submission",
                         "service-runtime.pool.profile=minimal",
                         "service-runtime.idempotency.schema=submission",
+                        "inv.tenancy.platform-scoped-tables=$APPLIED",
                         "spring.flyway.enabled=false",
                         "spring.main.banner-mode=off",
                         "spring.jmx.enabled=false",
@@ -645,86 +687,61 @@ class EventLoopsIT {
             return Service(context, fx)
         }
 
-        fun count(sql: String): Long =
-            fx.adminDataSource().connection.use { c ->
-                c.createStatement().use { s ->
-                    s.executeQuery(sql).use {
-                        it.next()
-                        it.getLong(1)
-                    }
-                }
-            }
+        /** Rows of [table] (`schema.table`) in the service database that meet every one of [where]. */
+        fun count(
+            table: String,
+            vararg where: Condition,
+        ): Long = countOn(admin, table, *where)
 
-        /** The HA form: the event log in another database of the same instance, created as its migration would. */
-        fun haEventLogUrl(): String {
-            val admin = fx.adminDataSource() as PGSimpleDataSource
-            val base = admin.getUrl().substringBefore("?").substringBeforeLast('/')
-            admin.connection.use { it.createStatement().use { s -> s.execute("create database ha_log") } }
-            val haAdmin =
-                PGSimpleDataSource().apply {
-                    setUrl("$base/ha_log")
-                    user = admin.user
-                    password =
-                        admin.password
-                }
-            haAdmin.connection.use {
-                it.createStatement().use { s -> s.execute("create schema eventlog authorization eventlog_migrate") }
+        /** As [count], in the HA event-log database when [ha], else in the service database. */
+        fun countIn(
+            ha: Boolean,
+            table: String,
+            vararg where: Condition,
+        ): Long = countOn(if (ha) haAdmin else admin, table, *where)
+
+        private fun countOn(
+            access: TestDatabase.Access,
+            table: String,
+            vararg where: Condition,
+        ): Long =
+            access
+                .asPlatform { fetchCount(DSL.table(DSL.name(table.split('.'))), DSL.and(*where)) }
+                .toLong()
+
+        fun countDistinct(
+            table: String,
+            column: String,
+        ): Long =
+            admin.asPlatform {
+                select(DSL.countDistinct(col(column))).from(DSL.table(DSL.name(table.split('.')))).fetchSingle().value1()
+            }.toLong()
+
+        /** Switches the container's trigger that refuses a publish of an outbox row on or off. */
+        fun blockPublishing(blocked: Boolean) {
+            admin.asPlatform {
+                update(DSL.table(DSL.name("public", "publish_switch"))).set(col("blocked"), blocked).execute()
             }
-            val migrate =
-                PGSimpleDataSource().apply {
-                    setUrl("$base/ha_log")
-                    user = OutboxPostgresFixture.MIGRATE
-                    password = "eventlog_migrate_pw"
-                }
-            val catalogue = TestCatalogue.load()
-            val topics = fx.eventLogTopics(catalogue)
-            migrate.connection.use { c ->
-                c.createStatement().use { s ->
-                    s.execute(EventLogSchema.schemaDdl(OutboxPostgresFixture.EVENTLOG_SYS))
-                    topics.forEach { s.execute(EventLogSchema.topicDdl(it, OutboxPostgresFixture.EVENTLOG_SYS)) }
-                    s.execute(
-                        EventLogSchema.functionsDdl(
-                            topics,
-                            OutboxPostgresFixture.EVENTLOG_SYS,
-                            OutboxPostgresFixture.PURGE,
-                        ),
-                    )
-                }
-                EventLogSchema.writeRetention(
-                    c,
-                    com.dynokore.platform.outboxandqueue
-                        .Retention(),
-                )
-            }
-            haCount = { sql ->
-                haAdmin.connection.use { c ->
-                    c.createStatement().use { s ->
-                        s.executeQuery(sql).use {
-                            it.next()
-                            it.getLong(1)
-                        }
-                    }
-                }
-            }
-            return "$base/ha_log"
         }
 
-        private var haCount: (String) -> Long = { error("no HA event log") }
-
-        /** A count in the HA event-log database ([haEventLogUrl]). */
-        fun countHa(sql: String): Long = haCount(sql)
-
-        /** Runs [sql] as the superuser in the service database. */
-        fun admin(sql: String) = fx.runAsAdmin(sql)
-
-        fun strings(sql: String): List<String> =
-            fx.adminDataSource().connection.use { c ->
-                c.createStatement().use { s ->
-                    s.executeQuery(sql).use { rows -> buildList { while (rows.next()) add(rows.getString(1)) } }
-                }
+        /** Column [column] of every row of [table] in the service database, ordered by [orderBy]. */
+        fun strings(
+            table: String,
+            column: String,
+            orderBy: String,
+        ): List<String> =
+            admin.asPlatform {
+                select(DSL.field(DSL.name(column), SQLDataType.VARCHAR))
+                    .from(DSL.table(DSL.name(table.split('.'))))
+                    .orderBy(col(orderBy))
+                    .fetch(DSL.field(DSL.name(column), SQLDataType.VARCHAR))
             }
 
-        override fun close() = fx.close()
+        override fun close() {
+            haDb.close()
+            adminDb.close()
+            fx.close()
+        }
     }
 
     private fun eventually(
@@ -745,24 +762,29 @@ class EventLoopsIT {
 }
 
 /**
- * Counts, per thread name, the peak of connections open at once on the application pool and on the HA event-log pool.
- * A connection counts for the thread that opened it until it is closed (by any thread).
+ * Counts, per gate and per thread name, the permits held at once and keeps the peak (coordinator ruling INV-Q-5251): an
+ * observer of the application pool's lane gate and of the HA event-log pool's gate. A permit counts for the thread that
+ * took it until it is given back (by any thread).
  */
-class PeakCounting : org.springframework.beans.factory.config.BeanPostProcessor {
-    private val open = java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.AtomicInteger>()
-    private val peaks = java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.AtomicInteger>()
+class PeakCounting {
+    private val open = ConcurrentHashMap<String, AtomicInteger>()
+    private val peaks = ConcurrentHashMap<String, AtomicInteger>()
 
-    override fun postProcessAfterInitialization(
-        bean: Any,
-        beanName: String,
-    ): Any =
-        if (bean is DataSource && (beanName == "dataSource" || beanName == "eventLogDataSource")) {
-            Counting(bean, beanName)
-        } else {
-            bean
+    /** The observer of the gate of [pool] ("dataSource" or "eventLogDataSource"). */
+    fun observer(pool: String): PermitObserver =
+        object : PermitObserver {
+            override fun acquired(threadName: String) {
+                val key = "$pool|$threadName"
+                val now = open.computeIfAbsent(key) { AtomicInteger() }.incrementAndGet()
+                peaks.computeIfAbsent(key) { AtomicInteger() }.accumulateAndGet(now, ::maxOf)
+            }
+
+            override fun released(threadName: String) {
+                open.computeIfAbsent("$pool|$threadName") { AtomicInteger() }.decrementAndGet()
+            }
         }
 
-    /** The peak of [pool] ("dataSource" or "eventLogDataSource") for threads whose name is [thread]. */
+    /** The peak of [pool] for threads whose name is [thread]. */
     fun peak(
         pool: String,
         thread: String,
@@ -772,49 +794,35 @@ class PeakCounting : org.springframework.beans.factory.config.BeanPostProcessor 
         open.clear()
         peaks.clear()
     }
-
-    private inner class Counting(
-        delegate: DataSource,
-        private val pool: String,
-    ) : org.springframework.jdbc.datasource.DelegatingDataSource(delegate) {
-        override fun getConnection(): java.sql.Connection = track(super.getConnection())
-
-        override fun getConnection(
-            username: String,
-            password: String,
-        ): java.sql.Connection = track(super.getConnection(username, password))
-
-        private fun track(connection: java.sql.Connection): java.sql.Connection {
-            val key = "$pool|${Thread.currentThread().name}"
-            val now =
-                open
-                    .computeIfAbsent(key) {
-                        java.util.concurrent.atomic
-                            .AtomicInteger()
-                    }.incrementAndGet()
-            peaks
-                .computeIfAbsent(key) {
-                    java.util.concurrent.atomic
-                        .AtomicInteger()
-                }.accumulateAndGet(now, ::maxOf)
-            val closed =
-                java.util.concurrent.atomic
-                    .AtomicBoolean()
-            return java.lang.reflect.Proxy.newProxyInstance(
-                javaClass.classLoader,
-                arrayOf(java.sql.Connection::class.java),
-            ) { _, method, args ->
-                try {
-                    if (method.name == "close" &&
-                        closed.compareAndSet(false, true)
-                    ) {
-                        open.getValue(key).decrementAndGet()
-                    }
-                    method.invoke(connection, *(args ?: emptyArray()))
-                } catch (e: java.lang.reflect.InvocationTargetException) {
-                    throw e.targetException
-                }
-            } as java.sql.Connection
-        }
-    }
 }
+
+private const val APPLIED = "submission.applied"
+private const val OUTBOX = "submission.outbox"
+private const val INBOX = "submission.inbox"
+private const val DEAD_LETTER = "submission.event_dead_letter"
+
+private fun col(name: String): Field<Any> = DSL.field(DSL.name(name))
+
+/**
+ * Container provisioning for the publish-failure test: a switch row and a trigger that refuses to mark an outbox row
+ * published while the switch is on (the test flips the row; it issues no DDL).
+ */
+private val PUBLISH_SWITCH_INIT_SQL =
+    """
+    RESET ROLE;
+    create table public.publish_switch (blocked boolean not null);
+    insert into public.publish_switch values (false);
+    grant select on public.publish_switch to ${OutboxPostgresFixture.APP};
+    create function public.block_publish() returns trigger language plpgsql as ${'$'}${'$'}
+    begin
+        if new.published_at is not null and old.published_at is null
+           and (select blocked from public.publish_switch) then
+            raise exception 'blocked';
+        end if;
+        return new;
+    end ${'$'}${'$'};
+    SET ROLE ${OutboxPostgresFixture.OWNER};
+    create trigger block_publish before update on submission.outbox for each row
+        execute function public.block_publish();
+
+    """.trimIndent()

@@ -1,6 +1,15 @@
 package com.dynokore.platform.serviceruntime.datasource
 
 import com.dynokore.platform.serviceruntime.composition.ServiceDataSources
+import com.dynokore.platform.serviceruntime.testing.HeldTransaction
+import com.dynokore.platform.serviceruntime.testing.TestDatabase
+import com.dynokore.platform.serviceruntime.testing.BACKEND_PID
+import com.dynokore.platform.serviceruntime.testing.CURRENT_USER
+import com.dynokore.platform.serviceruntime.testing.changeOwnPassword
+import com.dynokore.platform.serviceruntime.testing.createLoginSql
+import com.dynokore.platform.serviceruntime.testing.startPostgres
+import com.dynokore.platform.tenancyjooq.TableClass
+import com.dynokore.platform.tenancyjooq.TenancyProbe
 import com.zaxxer.hikari.HikariDataSource
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldNotContain
@@ -18,11 +27,10 @@ import org.springframework.boot.test.context.assertj.AssertableApplicationContex
 import org.springframework.boot.test.system.CapturedOutput
 import org.springframework.boot.test.system.OutputCaptureExtension
 import org.testcontainers.containers.PostgreSQLContainer
-import org.testcontainers.utility.DockerImageName
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import java.nio.file.Files
 import java.nio.file.Path
-import java.sql.Connection
-import java.sql.DriverManager
 import java.util.UUID
 import javax.sql.DataSource
 
@@ -30,7 +38,9 @@ import javax.sql.DataSource
  * INV-T-3913 (STK-29, INV-REQ-1231; ruling INV-Q-3909) on PostgreSQL 17 and 18, with a MountedFileSecretStore over a
  * temporary mount, in one application context composed as TPL-18: a database role's password rotates with no restart.
  * Open connections keep their session; each new connection logs in with the password mounted at that moment, and the
- * revoked one no longer works. No password reaches the output or an exception message (CS-24).
+ * revoked one no longer works. No password reaches the output or an exception message (CS-24). The roles are created
+ * by the container's init SQL; a role changes its own password through its own login (TenancyProbe, route R5); a
+ * connection held open is a transaction held open by a helper thread (route R6).
  */
 @ExtendWith(OutputCaptureExtension::class)
 class CredentialRotationIT {
@@ -41,58 +51,62 @@ class CredentialRotationIT {
         @TempDir mountRoot: Path,
         output: CapturedOutput,
     ) {
-        postgres(image).use { pg ->
-            val first = password()
-            val second = password()
-            val third = password()
-            pg.sql("create role $APP login password '$first'")
+        val first = password()
+        val second = password()
+        val third = password()
+        startPostgres(image, createLoginSql(APP, first)).use { pg ->
             mount(mountRoot, APP_REF, first)
 
             service(pg, mountRoot).run { context ->
                 context.startupFailure shouldBe null
-                val app = context.getBean(DataSource::class.java).unwrap(HikariDataSource::class.java)
+                val appSource = context.getBean(DataSource::class.java)
+                val app = appSource.unwrap(HikariDataSource::class.java)
                 // the event-log pool on its own URL takes the application pool's login and credentials provider
                 val eventLog = context.getBean(ServiceDataSources.EVENT_LOG, HikariDataSource::class.java)
                 app.password.shouldBeNull()
                 eventLog.password.shouldBeNull()
-                val pools = listOf(app to APP, eventLog to APP)
+                TestDatabase(pg.jdbcUrl, emptyMap()).use { db ->
+                    val pools = listOf(Triple(app, db.over(appSource), APP), Triple(eventLog, db.over(eventLog), APP))
 
-                // each pool holds an open connection, logged in with the first password
-                val open = pools.map { (pool, role) -> pool.connection.also { it.user() shouldBe role } }
-                val openPids = open.map { it.pid() }
+                    // each pool holds an open connection, logged in with the first password
+                    val open = pools.map { (_, access, role) -> HeldTransaction(access).also { it.user() shouldBe role } }
+                    val openPids = open.map { it.pid() }
 
-                // the role passwords change; the mounted files are not rewritten yet
-                pg.sql("alter role $APP password '$second'")
-                open.forEach { it.user() } // open connections keep working
-                pools.forEach { (pool, _) -> pool.hikariPoolMXBean.softEvictConnections() }
-                // the first password is revoked: a new connection with the file left at it is refused (nothing cached)
-                pools.forEach { (pool, role) ->
-                    val refused = shouldThrow<java.sql.SQLException> { pool.connection.close() }
-                    val messages =
-                        generateSequence<Throwable>(
-                            refused,
-                        ) { it.cause }.joinToString(" | ") { it.message.orEmpty() }
-                    messages shouldContain "password authentication failed for user \"$role\""
-                    listOf(first, second, third).forEach { messages shouldNotContain it }
-                }
-                open.forEach { it.user() } // still open
+                    // the role password changes; the mounted files are not rewritten yet
+                    TenancyProbe.connect(pg.jdbcUrl, APP, first).changeOwnPassword(second)
+                    open.forEach { it.user() } // open connections keep working
+                    pools.forEach { (pool, _, _) -> pool.hikariPoolMXBean.softEvictConnections() }
+                    // the first password is revoked: a new connection with the file left at it is refused (nothing cached)
+                    pools.forEach { (_, access, role) ->
+                        val refused = shouldThrow<Exception> { access.asPlatform { } }
+                        val messages =
+                            generateSequence<Throwable>(
+                                refused,
+                            ) { it.cause }.joinToString(" | ") { it.message.orEmpty() }
+                        messages shouldContain "password authentication failed for user \"$role\""
+                        listOf(first, second, third).forEach { messages shouldNotContain it }
+                    }
+                    open.forEach { it.user() } // still open
 
-                // the mounted files now carry the new password: new connections log in, with no restart
-                mount(mountRoot, APP_REF, second)
-                pools.forEach { (pool, role) ->
-                    pool.connection.use { fresh ->
-                        fresh.user() shouldBe role
-                        openPids shouldNotContain fresh.pid()
+                    // the mounted files now carry the new password: new connections log in, with no restart
+                    mount(mountRoot, APP_REF, second)
+                    pools.forEach { (_, access, role) ->
+                        val (user, pid) =
+                            access.asPlatform { select(CURRENT_USER, BACKEND_PID).fetchSingle().let { it.value1() to it.value2() } }
+                        user shouldBe role
+                        openPids shouldNotContain pid
+                    }
+                    open.forEach { it.user() }
+                    open.forEach { it.close() } // returned after the eviction: retired, not reused
+
+                    // a second rotation, again in the same context
+                    TenancyProbe.connect(pg.jdbcUrl, APP, second).changeOwnPassword(third)
+                    mount(mountRoot, APP_REF, third)
+                    pools.forEach { (pool, _, _) -> pool.hikariPoolMXBean.softEvictConnections() }
+                    pools.forEach { (_, access, role) ->
+                        access.asPlatform { select(CURRENT_USER).fetchSingle().value1() } shouldBe role
                     }
                 }
-                open.forEach { it.user() }
-                open.forEach { it.close() } // returned after the eviction: retired, not reused
-
-                // a second rotation, again in the same context
-                pg.sql("alter role $APP password '$third'")
-                mount(mountRoot, APP_REF, third)
-                pools.forEach { (pool, _) -> pool.hikariPoolMXBean.softEvictConnections() }
-                pools.forEach { (pool, role) -> pool.connection.use { it.user() shouldBe role } }
             }
             listOf(first, second, third).forEach { output.all shouldNotContain it }
         }
@@ -105,14 +119,13 @@ class CredentialRotationIT {
         @TempDir mountRoot: Path,
         output: CapturedOutput,
     ) {
-        postgres(image).use { pg ->
-            val owner = password()
-            val wrong = password()
-            pg.sql(
-                "create role $OWNER login password '$owner'",
-                "grant create on database ${pg.databaseName} to $OWNER",
-            )
-
+        val owner = password()
+        val wrong = password()
+        startPostgres(
+            image,
+            createLoginSql(OWNER, owner) +
+                "do \$\$ begin execute format('grant create on database %I to $OWNER', current_database()); end \$\$;\n",
+        ).use { pg ->
             // a wrong mounted password: the migration's connection is refused, and start-up fails
             mount(mountRoot, OWNER_REF, wrong)
             flyway(pg, mountRoot).run { context ->
@@ -127,12 +140,33 @@ class CredentialRotationIT {
             mount(mountRoot, OWNER_REF, owner)
             flyway(pg, mountRoot).run { context ->
                 context.startupFailure shouldBe null
-                pg.query(
-                    "select tableowner from pg_tables where schemaname = 'ledger' and tablename = 'probe'",
-                ) shouldBe
-                    OWNER
-                pg.query("select count(*) from ledger.flyway_schema_history where success and version = '1'") shouldBe
-                    "1"
+                val tables =
+                    mapOf(
+                        "pg_catalog.pg_tables" to TableClass.PLATFORM_SCOPED,
+                        "ledger.flyway_schema_history" to TableClass.PLATFORM_SCOPED,
+                    )
+                TestDatabase(pg.jdbcUrl, tables).use { db ->
+                    val reader = db.login(OWNER, owner)
+                    val ownerOfProbe =
+                        reader.asPlatform {
+                            select(DSL.field(DSL.name("tableowner"), SQLDataType.VARCHAR))
+                                .from(DSL.table(DSL.name("pg_catalog", "pg_tables")))
+                                .where(DSL.field(DSL.name("schemaname")).eq("ledger"))
+                                .and(DSL.field(DSL.name("tablename")).eq("probe"))
+                                .fetchSingle()
+                                .value1()
+                        }
+                    ownerOfProbe shouldBe OWNER
+                    val migrated =
+                        reader.asPlatform {
+                            fetchCount(
+                                DSL.table(DSL.name("ledger", "flyway_schema_history")),
+                                DSL.field(DSL.name("success"), SQLDataType.BOOLEAN).isTrue
+                                    .and(DSL.field(DSL.name("version"), SQLDataType.VARCHAR).eq("1")),
+                            )
+                        }
+                    migrated shouldBe 1
+                }
             }
             listOf(owner, wrong).forEach { output.all shouldNotContain it }
         }
@@ -214,42 +248,5 @@ class CredentialRotationIT {
         ) {
             Files.writeString(root.resolve(ref), "$value\n")
         }
-
-        fun postgres(image: String): PostgreSQLContainer<*> =
-            PostgreSQLContainer(DockerImageName.parse(image)).also {
-                it.start()
-            }
-
-        fun PostgreSQLContainer<*>.sql(vararg statements: String) {
-            DriverManager.getConnection(jdbcUrl, username, password).use { c ->
-                statements.forEach { s -> c.createStatement().use { it.execute(s) } }
-            }
-        }
-
-        fun PostgreSQLContainer<*>.query(sql: String): String =
-            DriverManager.getConnection(jdbcUrl, username, password).use { c ->
-                c.createStatement().use { s ->
-                    s.executeQuery(sql).use {
-                        it.next()
-                        it.getString(1)
-                    }
-                }
-            }
-
-        fun Connection.user(): String =
-            createStatement().use { s ->
-                s.executeQuery("select current_user").use {
-                    it.next()
-                    it.getString(1)
-                }
-            }
-
-        fun Connection.pid(): Int =
-            createStatement().use { s ->
-                s.executeQuery("select pg_backend_pid()").use {
-                    it.next()
-                    it.getInt(1)
-                }
-            }
     }
 }
