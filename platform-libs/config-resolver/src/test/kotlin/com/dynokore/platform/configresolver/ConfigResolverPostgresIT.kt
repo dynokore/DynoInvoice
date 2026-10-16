@@ -5,14 +5,14 @@ import com.dynokore.platform.configresolver.TestCatalogue.INSTALLATION_ONLY
 import com.dynokore.platform.configresolver.TestCatalogue.MULTI
 import com.dynokore.platform.configresolver.TestCatalogue.TYPED
 import com.dynokore.platform.tenancykernel.TenantId
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertThrows
-import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
-import java.sql.SQLException
 import java.time.LocalDate
+import java.time.OffsetDateTime
 import java.util.UUID
 
 /** Resolution, recording, RLS and purge against real PostgreSQL 17 and 18 (STK-14, STK-15). */
@@ -65,9 +65,10 @@ class ConfigResolverPostgresIT {
             listOf("config_setting", "config_resolved_value").forEach { table ->
                 assertEquals(
                     1L,
-                    h.count(
-                        "select count(*) from pg_class where oid = 'svc.$table'::regclass " +
+                    h.probe.fetchValue(
+                        "select count(*) from pg_class where oid = ?::regclass " +
                             "and relrowsecurity and relforcerowsecurity",
+                        "svc.$table",
                     ),
                     table,
                 )
@@ -102,7 +103,7 @@ class ConfigResolverPostgresIT {
             val withProfile =
                 "select count(*) from svc.config_resolved_value " +
                     "where source = 'PROFILE' and profile_id = 'small-business' and profile_version = '3'"
-            assertEquals(1L, h.count(withProfile))
+            assertEquals(1L, h.probe.inTenant(a) { fetchValue(withProfile) })
         }
     }
 
@@ -123,7 +124,7 @@ class ConfigResolverPostgresIT {
             // A retry of the same document version keeps the first record (first write wins, INV-Q-2938).
             val retried = h.resolveAndRecord(a, scope, ENTITY_POLICY, LocalDate.of(2026, 8, 1))
             assertEquals(recorded, retried)
-            assertEquals(1L, h.count("select count(*) from svc.config_resolved_value"))
+            assertEquals(1L, h.rows("config_resolved_value", a))
         }
     }
 
@@ -171,16 +172,7 @@ class ConfigResolverPostgresIT {
             assertEquals(emptyList<RecordedResolution>(), h.inTx(b) { h.recorder.recorded(submission) })
             val both =
                 "select (select count(*) from svc.config_setting) + (select count(*) from svc.config_resolved_value)"
-            val visibleToB =
-                h.inTx(b) {
-                    h.app.require().createStatement().use { st ->
-                        st.executeQuery(both).use {
-                            it.next()
-                            it.getLong(1)
-                        }
-                    }
-                }
-            assertEquals(0L, visibleToB)
+            assertEquals(0L, h.probe.inTenant(b) { fetchValue(both) })
         }
     }
 
@@ -191,15 +183,60 @@ class ConfigResolverPostgresIT {
             h.entityOverride(a, "SOLE_OPERATOR", march.minusDays(1))
             h.resolveAndRecord(a, PolicyScope.entity(a, "E1"), ENTITY_POLICY, march)
 
+            val settings = DSL.table(DSL.name("svc", "config_setting"))
+            val resolved = DSL.table(DSL.name("svc", "config_resolved_value"))
+            val keys = OptionColumns.keys
+            val inA = { block: () -> Unit -> h.refused { h.asTenant(a) { h.app.inTransaction(block) } } }
             listOf(
-                "update svc.config_setting set option_keys = array['TWO_PERSON']",
-                "delete from svc.config_setting",
-                "update svc.config_resolved_value set option_keys = array['TWO_PERSON']",
-                "delete from svc.config_resolved_value",
-                "insert into svc.config_installation_setting (id, vp_key, option_keys, effective_from, set_by, " +
-                    "reason, recorded_at) values (gen_random_uuid(), 'VP-72', array['PLATFORM_DEFAULT'], " +
-                    "current_date, 'x', 'y', now())",
-            ).forEach { sql -> assertThrows(SQLException::class.java, { h.execAs(h.app, a, sql) }, sql) }
+                "update config_setting" to {
+                    inA {
+                        h.dsl
+                            .update(
+                                settings,
+                            ).set(keys, arrayOf("TWO_PERSON"))
+                            .execute()
+                    }
+                },
+                "delete config_setting" to { inA { h.dsl.deleteFrom(settings).execute() } },
+                "update config_resolved_value" to
+                    {
+                        inA {
+                            h.dsl
+                                .update(resolved)
+                                .set(keys, arrayOf("TWO_PERSON"))
+                                .execute()
+                        }
+                    },
+                "delete config_resolved_value" to { inA { h.dsl.deleteFrom(resolved).execute() } },
+                "insert config_installation_setting" to
+                    {
+                        h.refused {
+                            h.tenants.bindPlatform("x") {
+                                h.app.inTransaction {
+                                    h.dsl
+                                        .insertInto(DSL.table(DSL.name("svc", "config_installation_setting")))
+                                        .columns(
+                                            DSL.field(DSL.name("id"), SQLDataType.UUID),
+                                            DSL.field(DSL.name("vp_key"), SQLDataType.CLOB),
+                                            keys,
+                                            DSL.field(DSL.name("effective_from"), SQLDataType.LOCALDATE),
+                                            DSL.field(DSL.name("set_by"), SQLDataType.CLOB),
+                                            DSL.field(DSL.name("reason"), SQLDataType.CLOB),
+                                            DSL.field(DSL.name("recorded_at"), SQLDataType.TIMESTAMPWITHTIMEZONE),
+                                        ).values(
+                                            UUID.randomUUID(),
+                                            "VP-72",
+                                            arrayOf("PLATFORM_DEFAULT"),
+                                            LocalDate.now(),
+                                            "x",
+                                            "y",
+                                            OffsetDateTime.now(),
+                                        ).execute()
+                                }
+                            }
+                        }
+                    },
+            ).forEach { (statement, run) -> assertEquals("42501", run(), statement) }
         }
     }
 
@@ -207,17 +244,37 @@ class ConfigResolverPostgresIT {
     @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `the subject type is constrained in the table too`(image: String) {
         ConfigHarness(image).use { h ->
-            val error =
-                assertThrows(SQLException::class.java) {
-                    h.execAs(
-                        h.app,
-                        a,
-                        "insert into svc.config_resolved_value (id, tenant_id, subject_type, subject_ref, vp_key, " +
-                            "transaction_date, option_keys, source, resolved_at) values (gen_random_uuid(), '$a', " +
-                            "'Sub mission', 'x', 'VP-11', current_date, array['TWO_PERSON'], 'DEFAULT', now())",
-                    )
+            val state =
+                h.refused {
+                    h.asTenant(a) {
+                        h.app.inTransaction {
+                            h.dsl
+                                .insertInto(DSL.table(DSL.name("svc", "config_resolved_value")))
+                                .columns(
+                                    DSL.field(DSL.name("id"), SQLDataType.UUID),
+                                    DSL.field(DSL.name("tenant_id"), SQLDataType.UUID),
+                                    DSL.field(DSL.name("subject_type"), SQLDataType.CLOB),
+                                    DSL.field(DSL.name("subject_ref"), SQLDataType.CLOB),
+                                    DSL.field(DSL.name("vp_key"), SQLDataType.CLOB),
+                                    DSL.field(DSL.name("transaction_date"), SQLDataType.LOCALDATE),
+                                    OptionColumns.keys,
+                                    DSL.field(DSL.name("source"), SQLDataType.CLOB),
+                                    DSL.field(DSL.name("resolved_at"), SQLDataType.TIMESTAMPWITHTIMEZONE),
+                                ).values(
+                                    UUID.randomUUID(),
+                                    a.value,
+                                    "Sub mission",
+                                    "x",
+                                    "VP-11",
+                                    LocalDate.now(),
+                                    arrayOf("TWO_PERSON"),
+                                    "DEFAULT",
+                                    OffsetDateTime.now(),
+                                ).execute()
+                        }
+                    }
                 }
-            assertTrue(error.sqlState == "23514", error.sqlState) // check_violation
+            assertEquals("23514", state) // check_violation
         }
     }
 
@@ -233,22 +290,19 @@ class ConfigResolverPostgresIT {
             }
 
             assertEquals(1, h.asTenant(a) { h.app.inTransaction { h.purge.purgeSubject(submission) } })
-            assertEquals(3L, h.count("select count(*) from svc.config_resolved_value"))
+            assertEquals(3L, h.rows("config_resolved_value", a) + h.rows("config_resolved_value", b))
 
             val purged = h.asTenant(a) { h.app.inTransaction { h.purge.purgeTenant(a) } }
             assertEquals(PurgedTenant(resolvedValues = 1, settings = 1), purged)
-            assertEquals(0L, h.count("select count(*) from svc.config_resolved_value where tenant_id = '$a'"))
-            assertEquals(0L, h.count("select count(*) from svc.config_setting where tenant_id = '$a'"))
-            assertEquals(2L, h.count("select count(*) from svc.config_resolved_value where tenant_id = '$b'"))
-            assertEquals(1L, h.count("select count(*) from svc.config_setting where tenant_id = '$b'"))
+            assertEquals(0L, h.rows("config_resolved_value", a))
+            assertEquals(0L, h.rows("config_setting", a))
+            assertEquals(2L, h.rows("config_resolved_value", b))
+            assertEquals(1L, h.rows("config_setting", b))
 
             // Bound to A, a purge of B is refused (INV-T-3983): a tenant is purged only in its own transaction.
-            val other =
-                assertThrows(SQLException::class.java) {
-                    h.asTenant(a) { h.app.inTransaction { h.purge.purgeTenant(b) } }
-                }
-            assertEquals("42501", other.sqlState)
-            assertEquals(2L, h.count("select count(*) from svc.config_resolved_value where tenant_id = '$b'"))
+            val other = h.refused { h.asTenant(a) { h.app.inTransaction { h.purge.purgeTenant(b) } } }
+            assertEquals("42501", other)
+            assertEquals(2L, h.rows("config_resolved_value", b))
         }
     }
 }

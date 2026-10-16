@@ -5,6 +5,11 @@ All notable changes to `service-runtime` are recorded here (FR-L.6). Format foll
 train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
+### Changed
+- `ConfigResolverWiring` builds `JdbcConfigPurge` and `JdbcResolutionRecorder` (config-resolver 3.0.0) with the module's
+  DSLContext, `TenancyJooq.dslContext(ConfigTables.declared(schema), tenants, transactionRunner)`; their beans are
+  conditional on the `TransactionRunner` bean (INV-T-5303; coordinator ruling INV-Q-5275). The DSLContext is not a bean (the
+  context keeps its one, `TenancyJooqWiring`); the other beans of the file are unchanged.
 
 ## [8.0.3] - 2026-10-17
 ### Changed

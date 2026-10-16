@@ -1,23 +1,27 @@
 package com.dynokore.platform.configresolver
 
 import com.dynokore.platform.outboxandqueue.OutboxSchema
-import com.dynokore.platform.tenancykernel.TenantAwareDataSource
+import com.dynokore.platform.tenancyjooq.TenancyJooq
+import com.dynokore.platform.tenancyjooq.TenancyProbe
 import com.dynokore.platform.tenancykernel.TenantContextImpl
 import com.dynokore.platform.tenancykernel.TenantId
-import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
-import org.postgresql.ds.PGSimpleDataSource
+import com.dynokore.platform.tenancykernel.TestPoolFixture
+import org.jooq.DSLContext
+import org.jooq.DataType
+import org.jooq.Field
+import org.jooq.JSONB
+import org.jooq.Table
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import org.testcontainers.containers.PostgreSQLContainer
+import org.testcontainers.images.builder.Transferable
 import org.testcontainers.utility.DockerImageName
-import java.sql.Connection
-import java.sql.PreparedStatement
-import java.sql.Timestamp
-import java.sql.Types
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
+import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
-import javax.sql.DataSource
 
 /** Testcontainers needs a concrete subclass for its fluent `self()` typing. */
 private class Postgres(
@@ -25,33 +29,42 @@ private class Postgres(
 ) : PostgreSQLContainer<Postgres>(image)
 
 /**
- * One PostgreSQL container (16, 17 or 18) holding this module's tables in a fixture service schema `svc`,
- * created by [ConfigSchema.ddl] after the outbox it writes into, as the service's migration login would. Settings are
- * written by [setTenant] as the runtime login inserts them and by [setInstallation] as a row the installation write
- * function would store (the setting operation itself is [JdbcPolicyWriter]'s, tested by the write-path tests).
+ * One PostgreSQL container (16, 17 or 18) holding this module's tables in a fixture service schema `svc`, created at
+ * container start by init SQL (route R1, owner ruling INV-Q-4508 (A)): [ConfigSchema.ddl] after the outbox it writes
+ * into, as the service's migration login would (`SET ROLE config_owner`). No test issues DDL. Every login reaches the
+ * database through [TestPoolFixture], a transaction runner and tenancy-jooq's DSLContext, or [probe]:
+ *
+ * - [app] (runner), [dsl] and the module's [recorder], [purge] and [reader] are the runtime login `config_app`'s;
+ * - [probe] is a `TenancyProbe` on the same login, for catalog reads and row counts under a tenant's binding;
+ * - settings are written by [setTenant] as the runtime login inserts them and by [setInstallation] as a row the
+ *   installation write function would store, as the owner login under the platform binding (the runtime login has no
+ *   grant; the setting operation itself is [JdbcPolicyWriter]'s, tested by the write-path tests).
  */
 class ConfigHarness(
     image: String,
     form: DeploymentForm = DeploymentForm.SAAS,
 ) : AutoCloseable {
-    private val container = Postgres(DockerImageName.parse(image)).withInitScript("db/config-resolver-test-roles.sql")
-
-    init {
-        container.start()
-        dataSource("config_owner", "config_owner_pw").connection.use { c ->
-            c.createStatement().use {
-                it.execute(OutboxSchema.ddl(SCHEMA, "config_app", "config_sys"))
-                it.execute(ConfigSchema.ddl(SCHEMA, "config_app", "config_sys"))
-            }
-        }
-    }
+    private val container =
+        Postgres(DockerImageName.parse(image))
+            .withInitScript("db/config-resolver-test-roles.sql")
+            .withCopyToContainer(Transferable.of(schemaScript()), "/docker-entrypoint-initdb.d/zz-config-schema.sql")
+            .also { it.start() }
 
     val tenants = TenantContextImpl()
-    val app = TransactionRunnerImpl(TenantAwareDataSource(dataSource("config_app", "config_app_pw")), tenants)
-    val admin: DataSource = dataSource(container.username, container.password)
+    private val appPool = TestPoolFixture(container.jdbcUrl, "config_app", "config_app_pw", poolName = "config-app")
+    private val ownerPool =
+        TestPoolFixture(container.jdbcUrl, "config_owner", "config_owner_pw", poolName = "config-owner")
+    val app = appPool.runner(tenants)
+    private val owner = ownerPool.runner(tenants)
+    val dsl: DSLContext = TenancyJooq.dslContext(ConfigTables.declared(SCHEMA), tenants, app)
+    private val ownerDsl: DSLContext = TenancyJooq.dslContext(ConfigTables.declared(SCHEMA), tenants, owner)
+    val probe: TenancyProbe = TenancyProbe.connect(container.jdbcUrl, "config_app", "config_app_pw")
     val reader = JdbcPolicyReader(app, TestCatalogue.catalogue, form, SCHEMA)
-    val recorder = JdbcResolutionRecorder(app, SCHEMA, CLOCK)
-    val purge = JdbcConfigPurge(app, SCHEMA)
+    val recorder = JdbcResolutionRecorder(dsl, SCHEMA, CLOCK)
+    val purge = JdbcConfigPurge(dsl, SCHEMA)
+
+    private val setting: Table<*> = DSL.table(DSL.name(SCHEMA, ConfigSchema.SETTING))
+    private val installationSetting: Table<*> = DSL.table(DSL.name(SCHEMA, ConfigSchema.INSTALLATION_SETTING))
 
     /** Binds [tenant] with [actor] (INV-Q-3997, INV-Q-4268). */
     fun <T> asTenant(
@@ -73,114 +86,113 @@ class ConfigHarness(
         asTenant(tenant) {
             app.inTransaction {
                 val id = UUID.randomUUID()
-                val c = app.require()
-                c
-                    .prepareStatement(
-                        "insert into $SCHEMA.config_setting (id, tenant_id, entity_id, vp_key, scope_level, " +
-                            "scope_id, " +
-                            "option_keys, option_values, source, profile_id, profile_version, effective_from, " +
-                            "set_by, " +
-                            "reason, recorded_at) " +
-                            "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'user-1', 'test', ?)",
-                    ).use {
-                        it.setObject(1, id)
-                        it.setObject(2, tenant.value)
-                        it.setString(3, entity)
-                        it.setString(4, key.value)
-                        it.setString(5, ref.level.name)
-                        it.setString(6, ref.id)
-                        bindSelected(it, c, 7, selected)
-                        it.setString(9, if (profile == null) "OVERRIDE" else "PROFILE")
-                        it.setString(10, profile?.first)
-                        it.setString(11, profile?.second)
-                        it.setObject(12, from)
-                        it.setTimestamp(13, Timestamp.from(CLOCK.instant()))
-                        it.executeUpdate()
-                    }
+                dsl
+                    .insertInto(setting)
+                    .set(
+                        mapOf<Field<*>, Any?>(
+                            field("id", SQLDataType.UUID) to id,
+                            field("tenant_id", SQLDataType.UUID) to tenant.value,
+                            field("entity_id", SQLDataType.CLOB) to entity,
+                            field("vp_key", SQLDataType.CLOB) to key.value,
+                            field("scope_level", SQLDataType.CLOB) to ref.level.name,
+                            field("scope_id", SQLDataType.CLOB) to ref.id,
+                            OptionColumns.keys to OptionColumns.keysOf(selected),
+                            OptionColumns.values to OptionColumns.valuesOf(selected),
+                            field("source", SQLDataType.CLOB) to if (profile == null) "OVERRIDE" else "PROFILE",
+                            field("profile_id", SQLDataType.CLOB) to profile?.first,
+                            field("profile_version", SQLDataType.CLOB) to profile?.second,
+                            field("effective_from", SQLDataType.LOCALDATE) to from,
+                            field("set_by", SQLDataType.CLOB) to "user-1",
+                            field("reason", SQLDataType.CLOB) to "test",
+                            field("recorded_at", SQLDataType.TIMESTAMPWITHTIMEZONE) to recordedAt(),
+                        ),
+                    ).execute()
                 id
             }
         }
 
     /**
-     * Inserts an installation setting as the superuser: the runtime login cannot, and the write function also writes
-     * the value's audit entry and PolicyChanged, which resolution does not read.
+     * Inserts an installation setting as the owner login in a platform transaction: the runtime login cannot, and the
+     * write function also writes the value's audit entry and PolicyChanged, which resolution does not read.
      */
     fun setInstallation(
         key: VariationPointKey,
         selected: List<SelectedOption>,
         from: LocalDate,
-    ): UUID =
-        admin.connection.use { c ->
-            val id = UUID.randomUUID()
-            c
-                .prepareStatement(
-                    "insert into $SCHEMA.config_installation_setting (id, vp_key, option_keys, option_values, " +
-                        "effective_from, set_by, reason, recorded_at) " +
-                        "values (?, ?, ?, ?, ?, 'operator-1', 'test', ?)",
-                ).use {
-                    it.setObject(1, id)
-                    it.setString(2, key.value)
-                    bindSelected(it, c, 3, selected)
-                    it.setObject(5, from)
-                    it.setTimestamp(6, Timestamp.from(CLOCK.instant()))
-                    it.executeUpdate()
-                }
-            id
-        }
-
-    /** Runs [sql] as [role]'s connection inside a transaction of [tenant]; returns the update count. */
-    fun execAs(
-        runner: TransactionRunnerImpl,
-        tenant: TenantId,
-        sql: String,
-    ): Int =
-        asTenant(tenant) {
-            runner.inTransaction { runner.require().createStatement().use { it.executeUpdate(sql) } }
-        }
-
-    fun count(sql: String): Long =
-        admin.connection.use { c ->
-            c.createStatement().use { s ->
-                s.executeQuery(sql).use {
-                    it.next()
-                    it.getLong(1)
-                }
+    ): UUID {
+        val id = UUID.randomUUID()
+        tenants.bindPlatform("operator-1") {
+            owner.inTransaction {
+                ownerDsl
+                    .insertInto(installationSetting)
+                    .set(
+                        mapOf<Field<*>, Any?>(
+                            field("id", SQLDataType.UUID) to id,
+                            field("vp_key", SQLDataType.CLOB) to key.value,
+                            OptionColumns.keys to OptionColumns.keysOf(selected),
+                            OptionColumns.values to OptionColumns.valuesOf(selected),
+                            field("effective_from", SQLDataType.LOCALDATE) to from,
+                            field("set_by", SQLDataType.CLOB) to "operator-1",
+                            field("reason", SQLDataType.CLOB) to "test",
+                            field("recorded_at", SQLDataType.TIMESTAMPWITHTIMEZONE) to recordedAt(),
+                        ),
+                    ).execute()
             }
         }
-
-    /** `option_keys` at [index], `option_values` (an object of typed values, or null) at [index] + 1. */
-    private fun bindSelected(
-        statement: PreparedStatement,
-        connection: Connection,
-        index: Int,
-        selected: List<SelectedOption>,
-    ) {
-        statement.setArray(index, connection.createArrayOf("text", selected.map { it.key }.toTypedArray()))
-        val typed = selected.filter { it.valueJson != null }
-        if (typed.isEmpty()) {
-            statement.setNull(index + 1, Types.OTHER)
-        } else {
-            val json = typed.joinToString(",", "{", "}") { "\"${it.key}\":${it.valueJson}" }
-            statement.setObject(index + 1, json, Types.OTHER)
-        }
+        return id
     }
+
+    /** The number of rows of [table] that [tenant]'s own binding sees (RLS is forced, so no wider count exists). */
+    fun rows(
+        table: String,
+        tenant: TenantId,
+    ): Long = probe.inTenant(tenant) { fetchValue("select count(*) from $SCHEMA.$table") } as Long
+
+    /** The SQLSTATE a refused statement of [block] ends with; fails when [block] does not throw. */
+    fun refused(block: () -> Unit): String? {
+        val error = runCatching(block).exceptionOrNull() ?: error("the statement was not refused")
+        return app.sqlStateOf(error)
+    }
+
+    private fun recordedAt(): OffsetDateTime = CLOCK.instant().atOffset(ZoneOffset.UTC)
+
+    private fun <T> field(
+        name: String,
+        type: DataType<T>,
+    ): Field<T> = DSL.field(DSL.name(name), type)
 
     override fun close() {
+        appPool.close()
+        ownerPool.close()
         container.stop()
     }
-
-    private fun dataSource(
-        user: String,
-        password: String,
-    ): DataSource =
-        PGSimpleDataSource().apply {
-            setUrl(container.jdbcUrl)
-            this.user = user
-            this.password = password
-        }
 
     companion object {
         const val SCHEMA = "svc"
         val CLOCK: Clock = Clock.fixed(Instant.parse("2026-10-01T00:00:00Z"), ZoneOffset.UTC)
+
+        /** The tables, as the migration login `config_owner` creates them; run by the image's init, after the roles. */
+        private fun schemaScript(): String =
+            "SET ROLE config_owner;\n" +
+                OutboxSchema.ddl(SCHEMA, "config_app", "config_sys") + "\n" +
+                ConfigSchema.ddl(SCHEMA, "config_app", "config_sys") + "\n" +
+                "RESET ROLE;\n"
     }
+}
+
+/** The two selected-option columns of a table row as jOOQ fields, written the way the test fixtures always did. */
+internal object OptionColumns {
+    val keys: Field<Array<String>> = DSL.field(DSL.name("option_keys"), SQLDataType.CLOB.array())
+    val values: Field<JSONB> = DSL.field(DSL.name("option_values"), SQLDataType.JSONB)
+
+    fun keysOf(selected: List<SelectedOption>): Array<String> = selected.map { it.key }.toTypedArray()
+
+    /** `option_values` as an object of the typed options' values, or null when none is typed. */
+    fun valuesOf(selected: List<SelectedOption>): Field<JSONB> =
+        selected
+            .filter { it.valueJson != null }
+            .takeIf { it.isNotEmpty() }
+            ?.let { typed ->
+                DSL.`val`(typed.joinToString(",", "{", "}") { "\"${it.key}\":${it.valueJson}" }).cast(SQLDataType.JSONB)
+            } ?: DSL.`val`(null, SQLDataType.JSONB)
 }

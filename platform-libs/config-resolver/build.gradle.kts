@@ -41,6 +41,7 @@ val tenancyJooqImplJar = project(":tenancy-jooq").tasks.named("implJar")
 val tenancyKernelImplJar = project(":tenancy-kernel").tasks.named("implJar")
 val auditLogImplJar = project(":audit-log").tasks.named("implJar")
 val outboxImplJar = project(":outbox-and-queue").tasks.named("implJar")
+val tenancyJooqImplJar = project(":tenancy-jooq").tasks.named("implJar")
 
 dependencies {
     api(project(":tenancy-kernel"))
@@ -53,6 +54,11 @@ dependencies {
     add("implImplementation", project(":audit-log"))
     add("implImplementation", project(":outbox-and-queue"))
     add("implImplementation", files(tenancyKernelImplJar))
+
+    // INV-T-5303 (INV-T-4517 slice 1; INV-ADR-3968 item 4c, owner ruling INV-Q-4196): the purge and the recorder run jOOQ's
+    // DSL on tenancy-jooq's DSLContext. impl half only: `src/main` stays framework-free (ARC-16).
+    add("implImplementation", project(":tenancy-jooq"))
+    add("implImplementation", files(tenancyJooqImplJar))
 
     // STK-08: Jackson 3 (`tools.jackson`) — the typed option values (jsonb).
     add("implImplementation", libs.jackson.databind)
@@ -68,6 +74,10 @@ dependencies {
     testImplementation(project(":tenancy-jooq"))
     testImplementation(files(tenancyJooqImplJar))
     testImplementation(libs.jackson.databind)
+    // INV-T-5303 (owner ruling INV-Q-4508 (A)): tests reach the database only through TransactionRunner (TestPoolFixture),
+    // tenancy-jooq's DSLContext and TenancyProbe.
+    testImplementation(testFixtures(project(":tenancy-jooq")))
+    testImplementation(testFixtures(project(":tenancy-kernel")))
     testImplementation(libs.postgresql)
     testImplementation(libs.testcontainers.postgresql)
     testImplementation(platform(libs.junit.bom))
@@ -75,6 +85,12 @@ dependencies {
     testImplementation(libs.junit.params)
     testRuntimeOnly(libs.junit.platformLauncher)
     testRuntimeOnly(libs.slf4j.simple)
+
+    constraints {
+        // Coordinator ruling INV-Q-4643 (A), delegated (owner 2026-10-14; INV-T-4645): jOOQ's io.r2dbc:r2dbc-spi brings
+        // reactive-streams 1.0.3 (CC0-1.0, not in STK-66); pinned to 1.0.4 (MIT-0).
+        listOf("implImplementation", "testImplementation").forEach { add(it, libs.reactiveStreams) }
+    }
 
     // The impl half compiles and runs against the api half's output, in this
     // same project (Gradle's own idiom for a second source set that extends

@@ -1,14 +1,14 @@
 package com.dynokore.platform.configresolver
 
 import com.dynokore.platform.tenancykernel.TenantId
+import org.jooq.impl.DSL
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
-import java.sql.SQLException
+import java.time.LocalDate
 import java.util.UUID
 
 /**
@@ -19,7 +19,7 @@ import java.util.UUID
 @Tag("integration")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class ConfigPurgePostgresIT {
-    private val harnesses = mutableMapOf<String, WriteHarness>()
+    private val harnesses = mutableMapOf<String, ConfigHarness>()
 
     @AfterAll
     fun stop() = harnesses.values.forEach { it.close() }
@@ -29,61 +29,90 @@ class ConfigPurgePostgresIT {
     fun `a purge removes only the subject's or the bound tenant's rows, and needs an actor and a tenant`(
         image: String,
     ) {
-        val h = harnesses.getOrPut(image) { WriteHarness(image) }
+        val h = harnesses.getOrPut(image) { ConfigHarness(image) }
         val a = TenantId(UUID.randomUUID())
         val b = TenantId(UUID.randomUUID())
         listOf(a, b).forEach { seed(h, it) }
 
-        fun rows(
-            table: String,
-            tenant: TenantId,
-        ) = h.count("select count(*) from svc.$table where tenant_id = '${tenant.value}'")
+        fun resolved(tenant: TenantId) = h.rows("config_resolved_value", tenant)
 
-        fun resolved(tenant: TenantId) = rows("config_resolved_value", tenant)
-
-        fun settings(tenant: TenantId) = rows("config_setting", tenant)
+        fun settings(tenant: TenantId) = h.rows("config_setting", tenant)
         val subject = ResolutionSubject("submission", "doc-1/v1")
 
+        // The functions are called with the settings given, an absent one as the empty setting, so each refusal is the
+        // function's own (a TenancyProbe transaction on the runtime login; the runner never binds an unset actor).
         val subjectPurge = "select svc.config_purge_subject('submission', 'doc-1/v1')"
         val tenantPurge = "select * from svc.config_purge_tenant('${a.value}')"
         listOf(subjectPurge, tenantPurge).forEach { sql ->
-            assertEquals("42501", h.refusedRaw(sql, a.value.toString(), null), "actor unset: $sql")
-            assertEquals("42501", h.refusedRaw(sql, null, "u"), "tenant unbound: $sql")
-            assertEquals("42501", h.refusedRaw(sql, TenantId.PLATFORM.value.toString(), "u"), "platform: $sql")
+            assertEquals("42501", refusedRaw(h, sql, a.value.toString(), null), "actor unset: $sql")
+            assertEquals("42501", refusedRaw(h, sql, null, "u"), "tenant unbound: $sql")
+            assertEquals("42501", refusedRaw(h, sql, TenantId.PLATFORM.value.toString(), "u"), "platform: $sql")
         }
-        assertEquals("42501", h.refusedRaw(tenantPurge, b.value.toString(), "u"), "another tenant")
+        assertEquals("42501", refusedRaw(h, tenantPurge, b.value.toString(), "u"), "another tenant")
         assertEquals(2L, resolved(a))
         val direct =
-            assertThrows(SQLException::class.java) {
-                h.inTenant(a) { h.execute("delete from svc.config_resolved_value") }
+            h.refused {
+                h.asTenant(a) {
+                    h.app.inTransaction {
+                        h.dsl.deleteFrom(DSL.table(DSL.name("svc", "config_resolved_value"))).execute()
+                    }
+                }
             }
-        assertEquals("42501", direct.sqlState)
+        assertEquals("42501", direct)
 
-        assertEquals(1, h.inTenant(a) { h.purge().purgeSubject(subject) })
+        assertEquals(1, h.asTenant(a) { h.app.inTransaction { h.purge.purgeSubject(subject) } })
         assertEquals(1L, resolved(a))
         assertEquals(2L, resolved(b), "the same subject of another tenant stays")
-        assertEquals(PurgedTenant(resolvedValues = 1, settings = 1), h.inTenant(a) { h.purge().purgeTenant(a) })
+        assertEquals(
+            PurgedTenant(resolvedValues = 1, settings = 1),
+            h.asTenant(a) { h.app.inTransaction { h.purge.purgeTenant(a) } },
+        )
         assertEquals(0L, resolved(a) + settings(a))
         assertEquals(2L, resolved(b))
         assertEquals(1L, settings(b))
     }
 
-    /** Two resolved values (subjects doc-1/v1 and doc-2/v1) and one setting of [tenant], inserted as the superuser. */
+    /** Runs [sql] in one probe transaction with `app.tenant_id` and `app.actor` as given; its refusal's SQLSTATE. */
+    private fun refusedRaw(
+        h: ConfigHarness,
+        sql: String,
+        tenant: String?,
+        actor: String?,
+    ): String? =
+        h.refused {
+            h.probe.unbound {
+                fetchValue(
+                    "select set_config('app.tenant_id', ?, true), set_config('app.actor', ?, true)",
+                    tenant.orEmpty(),
+                    actor.orEmpty(),
+                )
+                fetchRows(sql)
+            }
+        }
+
+    /** Two resolved values (subjects doc-1/v1 and doc-2/v1) and one setting of [tenant], written as the runtime login. */
     private fun seed(
-        h: WriteHarness,
+        h: ConfigHarness,
         tenant: TenantId,
     ) {
+        val vp = VariationPointKey("VP-11")
         listOf("doc-1/v1", "doc-2/v1").forEach { ref ->
-            h.asAdmin(
-                "insert into svc.config_resolved_value (id, tenant_id, subject_type, subject_ref, vp_key, " +
-                    "transaction_date, option_keys, source, resolved_at) values (gen_random_uuid(), " +
-                    "'${tenant.value}', 'submission', '$ref', 'VP-11', current_date, array['A'], 'DEFAULT', now())",
-            )
+            h.asTenant(tenant) {
+                h.app.inTransaction {
+                    h.recorder.record(
+                        ResolutionSubject("submission", ref),
+                        ResolvedSetting(
+                            vp,
+                            LocalDate.now(),
+                            listOf(SelectedOption("A")),
+                            PolicySource.CatalogueDefault,
+                        ),
+                        PolicyScope.tenant(tenant),
+                    )
+                }
+            }
         }
-        h.asAdmin(
-            "insert into svc.config_setting (id, tenant_id, vp_key, scope_level, scope_id, option_keys, source, " +
-                "effective_from, set_by, reason, recorded_at) values (gen_random_uuid(), '${tenant.value}', " +
-                "'VP-11', 'TENANT', '${tenant.value}', array['A'], 'OVERRIDE', current_date, 'u', 'r', now())",
-        )
+        val tenantScope = ScopeRef(ScopeLevel.TENANT, "${tenant.value}")
+        h.setTenant(tenant, vp, tenantScope, listOf(SelectedOption("A")), LocalDate.now())
     }
 }

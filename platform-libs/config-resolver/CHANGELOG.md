@@ -6,6 +6,21 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-10-16
+### Changed (breaking)
+- `JdbcConfigPurge` and `JdbcResolutionRecorder` take a `DSLContext` (tenancy-jooq's `TenancyJooq.dslContext`, built over the
+  service's `TransactionRunner`) instead of a `CurrentConnection`, and run every statement as jOOQ DSL (INV-T-5303, slice 1
+  of 2 of INV-T-4517; INV-ADR-3968 item 4c, INV-REQ-854 b8; owner ruling INV-Q-4196). Identifiers are `DSL.name` of the
+  `SqlIdentifier`-validated schema, every value is a bind value, the definer functions `config_purge_subject` and
+  `config_purge_tenant` are jOOQ function calls. Behaviour is unchanged, and so are the lane (the DSLContext runs on the
+  `TransactionRunner` whose `TenantAwareDataSource` holds the lane gate, owner ruling INV-Q-4502 (A)) and the tenant
+  predicate (tenancy-jooq adds it and checks it again).
+### Added
+- `ConfigTables.declared(schema)`: the module's tables for `TenancyJooq.dslContext`, named with `DSL.name(schema, table)` and
+  declared with their class (`config_setting`, `config_resolved_value`, `config_relaxation_acknowledgement` TENANT;
+  `config_installation_setting` PLATFORM_SCOPED, by its table comment). The JDBC `SelectedOptionsColumns` stays for
+  `JdbcSettingStore` and `JdbcSettingWrites` until the last slice (INV-T-4517) deletes it.
+
 ## [2.1.5] - 2026-10-16
 ### Changed
 - Metadata-only release (INV-T-5301, coordinator ruling INV-Q-5688, version-file scope of the downstream closure of audit-log 3.0.0): no API or behaviour change; `src/main` and `src/impl` are unchanged. The POMs and module metadata of the publications name audit-log, which now carries tenancy-jooq and jOOQ, so a published version is not replaced.

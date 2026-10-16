@@ -102,6 +102,9 @@ class WriteHarness(
     val app = TransactionRunnerImpl(TenantAwareDataSource(ds(RUNTIME, "config_app_pw")), tenants)
     val admin: DataSource = ds(container.username, container.password)
 
+    /** tenancy-jooq's DSLContext on [app] (owner ruling INV-Q-4196): the purge and the recorder run on it. */
+    private val dsl = TenancyJooq.dslContext(ConfigTables.declared(SCHEMA), tenants, app)
+
     /** The migration login that owns the schema and every table (`<svc>_migrate`), for direct-insert CHECK probes. */
     val owner: DataSource = ds("config_owner", "config_owner_pw")
     private val runtimeLogin: DataSource = ds(RUNTIME, "config_app_pw")
@@ -218,14 +221,14 @@ class WriteHarness(
         return JdbcPolicyReader(app, catalogue, form, SCHEMA)
     }
 
-    fun recorder() = JdbcResolutionRecorder(app, SCHEMA, CLOCK)
+    fun recorder() = JdbcResolutionRecorder(dsl, SCHEMA, CLOCK)
 
     fun history(catalogue: VariationPointCatalogue = WriteCatalogue.catalogue): PolicyHistory {
         val form = DeploymentForm.SAAS
         return JdbcPolicyHistory(app, catalogue, form, SCHEMA)
     }
 
-    fun purge() = JdbcConfigPurge(app, SCHEMA)
+    fun purge() = JdbcConfigPurge(dsl, SCHEMA)
 
     /** A transaction of [tenant] on the runtime login with [actor] bound (INV-Q-3997, INV-Q-4268). */
     fun <T> inTenant(
