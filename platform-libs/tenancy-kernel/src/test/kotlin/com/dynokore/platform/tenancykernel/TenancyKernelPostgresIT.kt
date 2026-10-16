@@ -176,7 +176,9 @@ class TenancyKernelPostgresIT {
             // a session-level setting (is_local false) left by a caller on a handed-out connection is cleared on handback
             pooled.connection.use { leaker ->
                 leaker.createStatement().use {
-                    it.execute("select set_config('app.tenant_id', '${tenantA.value}', false), set_config('app.actor', 'leaked', false)")
+                    it.execute(
+                        "select set_config('app.tenant_id', '${tenantA.value}', false), set_config('app.actor', 'leaked', false)",
+                    )
                 }
             }
             pooled.connection.use { next ->
