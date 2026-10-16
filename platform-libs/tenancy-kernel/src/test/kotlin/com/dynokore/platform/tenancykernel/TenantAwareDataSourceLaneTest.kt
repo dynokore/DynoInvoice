@@ -13,8 +13,8 @@ import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * The lane permit of [TenantAwareDataSource] is released exactly once per permit taken (INV-Q-4502 (A)), driven only
- * through [TestPoolFixture] and [TransactionRunner] (INV-Q-4508 (A): no JDBC type, no reflection). The double close and
- * the failed close of a pooled connection need a `Connection` in the test and are not covered here (reported as a gap).
+ * through [TestPoolFixture] and [TransactionRunner] against a real pool. Double close and failed close are in
+ * [TenantAwareDataSourceConnectionTest].
  */
 @Tag("integration")
 class TenantAwareDataSourceLaneTest {
