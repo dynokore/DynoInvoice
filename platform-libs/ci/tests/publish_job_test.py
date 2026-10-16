@@ -13,6 +13,8 @@ job must fail its named assertion.
 """
 import re
 import sys
+
+sys.dont_write_bytecode = True
 from pathlib import Path
 
 CI = Path(__file__).resolve().parents[2] / ".gitlab-ci.yml"
@@ -123,12 +125,63 @@ def check(text):
     joined = "\n".join(l for _, l in code)
     if not re.search(r'if \[ "\$artifact" = "platform-libs-bom" \] && \[ "\$BOM_ACTION" != "publish" \]; then\n(.*\n)*?\s*echo [^\n]*not staged[^\n]*\n\s*else\n(.*\n)*?\s*tasks="\$tasks ', joined + "\n"):
         failed.append("bom-staged-only-for-publish")
-    return sorted(set(failed))
+    return sorted(set(failed + check_dry_run(text)))
 
 
-def mutate(text, old, new):
-    assert old in text, f"probe target missing: {old!r}"
-    return text.replace(old, new, 1)
+DRY = "publish-guard-dry-run"
+
+
+def check_dry_run(text):
+    """The merge-request check job: exactly one job keyed `publish-guard-dry-run`, dry-run only, never uploads."""
+    if text.splitlines().count(DRY + ":") != 1:
+        return ["dryrun-job-exists-once"]
+    block = job_block(text, DRY)
+    failed = []
+    rules = section(block, "rules")
+    if not any(l.strip() == "- if: '$CI_PIPELINE_SOURCE == \"merge_request_event\"'" for l in rules):
+        failed.append("dryrun-runs-in-merge-request-pipelines")
+    if any(re.match(r"^  allow_failure:\s*(?!false\s*$)", l) for l in block):
+        failed.append("dryrun-not-allow-failure")
+    if "  stage: publish" not in block:
+        failed.append("dryrun-stage-publish")
+    if "  needs: []" not in block:
+        failed.append("dryrun-needs-empty")
+    if variables(block).get("MAVEN_REGISTRY_PROJECT_ID") != "$CI_PROJECT_ID":
+        failed.append("dryrun-registry-is-this-project")
+    code = code_lines(script_items(block))
+    staging = [i for i, l in code if "stage-publish.init.gradle" in l and "-PgstStageDir=" in l and "./gradlew" in l]
+    guard = [i for i, l in code if "publish_guard.py" in l]
+    if len(guard) != 1 or "--dry-run" not in dict(code)[guard[0]]:
+        failed.append("dryrun-guard-line-has-dry-run")
+    if not staging or not guard or not min(staging) < guard[0]:
+        failed.append("dryrun-guard-after-staging")
+    if any(l == UPLOAD for _, l in code):
+        failed.append("dryrun-no-upload-section")
+    for _, l in code:
+        if "curl" in l or "gstMavenUrl" in l or "gstMavenPassword" in l:
+            failed.append("dryrun-no-curl-no-registry-credential-to-gradle")
+    return failed
+
+
+def mutate(text, old, new, job="maven-publish"):
+    """Replaces the first `old` inside the named job only (other jobs may repeat the same lines)."""
+    head, sep, tail = text.partition(f"\n{job}:\n")
+    assert sep and old in tail.split("\n\n", 1)[0] + "\n", f"probe target missing in {job}: {old!r}"
+    return head + sep + tail.replace(old, new, 1)
+
+
+def move_guard_before_staging(text):
+    block = text.partition(f"\n{DRY}:\n")[2].split("\n\n", 1)[0]
+    guard = next(l for l in block.splitlines() if "publish_guard.py" in l)
+    text = mutate(text, guard + "\n", "", DRY)
+    return mutate(text, "    - !reference [.gst-publish-prepare, script]\n",
+                  "    - !reference [.gst-publish-prepare, script]\n" + guard + "\n", DRY)
+
+
+def drop_job(text, job):
+    head, sep, tail = text.partition(f"\n{job}:\n")
+    rest = tail.split("\n\n", 1)[1]
+    return head + "\n" + rest
 
 
 def probes(text):
@@ -170,6 +223,30 @@ def probes(text):
             lambda t: mutate(t, 'if [ "$artifact" = "platform-libs-bom" ] && [ "$BOM_ACTION" != "publish" ]; then',
                              'if false; then'),
             "bom-staged-only-for-publish"),
+        "dryrun-delete-dry-run": (
+            lambda t: mutate(t, " python3 \"$GST_RELEASE_DIR/publish_guard.py\" --dry-run", " python3 \"$GST_RELEASE_DIR/publish_guard.py\"", DRY),
+            "dryrun-guard-line-has-dry-run"),
+        "dryrun-allow-failure": (
+            lambda t: mutate(t, "  needs: []\n", "  needs: []\n  allow_failure: true\n", DRY),
+            "dryrun-not-allow-failure"),
+        "dryrun-main-branch-condition": (
+            lambda t: mutate(t, "$CI_PIPELINE_SOURCE == \"merge_request_event\"", "$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH", DRY),
+            "dryrun-runs-in-merge-request-pipelines"),
+        "dryrun-add-upload-reference": (
+            lambda t: mutate(t, "    - GUARD_USER=", "    - !reference [.gst-publish-upload, script]\n    - GUARD_USER=", DRY),
+            "dryrun-no-upload-section"),
+        "dryrun-guard-before-staging": (
+            lambda t: move_guard_before_staging(t),
+            "dryrun-guard-after-staging"),
+        "dryrun-renamed": (
+            lambda t: t.replace("\n" + DRY + ":\n", "\npublish-guard-dryrun:\n", 1),
+            "dryrun-job-exists-once"),
+        "dryrun-deleted": (
+            lambda t: drop_job(t, DRY),
+            "dryrun-job-exists-once"),
+        "dryrun-curl": (
+            lambda t: mutate(t, "    - GUARD_USER=", "    - curl -s \"$CI_API_V4_URL\"\n    - GUARD_USER=", DRY),
+            "dryrun-no-curl-no-registry-credential-to-gradle"),
     }
     bad = []
     for name, (fn, expected) in cases.items():
