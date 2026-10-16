@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "NestedFixturePayload",
+  "type": "object",
+  "properties": {
+    "entityRef": {
+      "type": "string"
+    },
+    "inner": {
+      "type": "object",
+      "properties": {
+        "a": {
+          "type": "string"
+        },
+        "b": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "a",
+        "b"
+      ]
+    },
+    "party": {
+      "$ref": "#/$defs/party"
+    },
+    "lines": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "sku": {
+            "type": "string"
+          },
+          "qty": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sku"
+        ]
+      }
+    },
+    "state": {
+      "$ref": "./lifecycle-states.schema.json#/$defs/lifecycleState"
+    }
+  },
+  "required": [
+    "entityRef"
+  ],
+  "$defs": {
+    "party": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ]
+    }
+  },
+  "additionalProperties": true
+}

@@ -186,7 +186,82 @@ if [ "$gate_rc" -ne 0 ]; then
 fi
 rm -rf "$NEWFILE_TMP"
 
+# INV-T-5648: nested, array-item and local-$ref comparison (API-41)
+NB=fixtures/payload-nested-before.schema.json
+NESTED_TMP=$(mktemp -d)
+trap 'rm -rf "$NESTED_TMP"' EXIT
+# edit <name> <python statement on d>: writes a modified copy of the nested before fixture
+edit() { python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); exec(sys.argv[3]); json.dump(d,open(sys.argv[2],"w"))' "$NB" "$NESTED_TMP/$1.json" "$2"; }
+
+echo "gst-ci: self-test — a nested property made required must FAIL (inner.required gains b)"
+nested_out=$(python3 check-payload-compat.py "$NB" fixtures/payload-nested-after-required.schema.json); nested_rc=$?
+if [ "$nested_rc" -ne 1 ] || ! printf '%s\n' "$nested_out" | grep -F "made required" | grep -F "at 'inner'" | grep -qF "['b']"; then
+  echo "gst-ci: FAIL — a nested made-required name was not reported"; failed=1
+fi
+
+echo "gst-ci: self-test — nested optional additions (incl. a property named required) must PASS"
+nested_out=$(python3 check-payload-compat.py "$NB" fixtures/payload-nested-after-optional.schema.json); nested_rc=$?
+if [ "$nested_rc" -ne 0 ] || ! printf '%s\n' "$nested_out" | grep -qF "additive-only"; then
+  echo "gst-ci: FAIL — nested optional additions were rejected"; failed=1
+fi
+
+echo "gst-ci: self-test — a name made required in a local \$ref target must FAIL"
+edit refreq 'd["$defs"]["party"]["required"]=["name","id"]'
+nested_out=$(python3 check-payload-compat.py "$NB" "$NESTED_TMP/refreq.json"); nested_rc=$?
+if [ "$nested_rc" -ne 1 ] || ! printf '%s\n' "$nested_out" | grep -F "at 'party'" | grep -qF "['id']"; then
+  echo "gst-ci: FAIL — a made-required name behind a local \$ref was not reported"; failed=1
+fi
+
+echo "gst-ci: self-test — a name made required in array items must FAIL"
+edit itemreq 'd["properties"]["lines"]["items"]["required"]=["sku","qty"]'
+nested_out=$(python3 check-payload-compat.py "$NB" "$NESTED_TMP/itemreq.json"); nested_rc=$?
+if [ "$nested_rc" -ne 1 ] || ! printf '%s\n' "$nested_out" | grep -qF "at 'lines[]'"; then
+  echo "gst-ci: FAIL — a made-required name in array items was not reported"; failed=1
+fi
+
+echo "gst-ci: self-test — a nested removed property must FAIL"
+edit rm 'del d["properties"]["inner"]["properties"]["b"]'
+nested_out=$(python3 check-payload-compat.py "$NB" "$NESTED_TMP/rm.json"); nested_rc=$?
+if [ "$nested_rc" -ne 1 ] || ! printf '%s\n' "$nested_out" | grep -qF "removed property 'b' at 'inner'"; then
+  echo "gst-ci: FAIL — a nested removed property was not reported"; failed=1
+fi
+
+echo "gst-ci: self-test — a nested retyped property must FAIL"
+edit retype 'd["properties"]["inner"]["properties"]["a"]["type"]="integer"'
+nested_out=$(python3 check-payload-compat.py "$NB" "$NESTED_TMP/retype.json"); nested_rc=$?
+if [ "$nested_rc" -ne 1 ] || ! printf '%s\n' "$nested_out" | grep -qF "retyped property 'a' at 'inner': string -> integer"; then
+  echo "gst-ci: FAIL — a nested retyped property was not reported"; failed=1
+fi
+
+echo "gst-ci: self-test — the nested fixture against itself must PASS"
+if ! python3 check-payload-compat.py "$NB" "$NB" >/dev/null; then
+  echo "gst-ci: FAIL — the nested fixture failed against itself"; failed=1
+fi
+
+echo "gst-ci: self-test — a changed file \$ref must FAIL"
+edit fileref 'd["properties"]["state"]["$ref"]="./other-states.schema.json#/$defs/lifecycleState"'
+nested_out=$(python3 check-payload-compat.py "$NB" "$NESTED_TMP/fileref.json"); nested_rc=$?
+if [ "$nested_rc" -ne 1 ] || ! printf '%s\n' "$nested_out" | grep -qF "changed \$ref at 'state'"; then
+  echo "gst-ci: FAIL — a changed file \$ref was not reported"; failed=1
+fi
+
+echo "gst-ci: self-test — an unresolved local \$ref in the new file must FAIL"
+edit missing 'd["properties"]["party"]["$ref"]="#/$defs/missing"'
+nested_out=$(python3 check-payload-compat.py "$NB" "$NESTED_TMP/missing.json"); nested_rc=$?
+if [ "$nested_rc" -ne 1 ] || ! printf '%s\n' "$nested_out" | grep -qF "unresolved \$ref '#/\$defs/missing' at 'party'"; then
+  echo "gst-ci: FAIL — an unresolved local \$ref was not reported"; failed=1
+fi
+
+echo "gst-ci: self-test — a recursive schema against an identical copy must PASS and end"
+edit rec1 'd["properties"]={"node":{"$ref":"#/$defs/node"}}; d["required"]=[]; d["$defs"]={"node":{"type":"object","properties":{"child":{"$ref":"#/$defs/node"}}}}'
+cp "$NESTED_TMP/rec1.json" "$NESTED_TMP/rec2.json"
+if ! timeout 20 python3 check-payload-compat.py "$NESTED_TMP/rec1.json" "$NESTED_TMP/rec2.json" >/dev/null; then
+  echo "gst-ci: FAIL — a recursive schema did not pass within 20 seconds"; failed=1
+fi
+rm -rf "$NESTED_TMP"
+trap - EXIT
+
 if [ "$failed" -eq 0 ]; then
-  echo "gst-ci: breaking-change gate self-test passed (fails on breaking, passes on additive, exempts only the exact BASE-carried T5 scaffold placeholder, admits only marked extensible-enum values and recorded exceptions, and rejects a new payload schema file with a closed root additionalProperties)."
+  echo "gst-ci: breaking-change gate self-test passed (fails on breaking, passes on additive, exempts only the exact BASE-carried T5 scaffold placeholder, admits only marked extensible-enum values and recorded exceptions, rejects a new payload schema file with a closed root additionalProperties, and compares nested properties, array items and local $ref targets, file $ref values and recursive schemas)."
 fi
 exit $failed
