@@ -233,6 +233,10 @@ class ManagementPortIT {
             .withPropertyValues("service-runtime.workload-identity.audience=submission-svc")
 
     private companion object {
+        // Fixed port kept on purpose (INV-Q-5752): this test proves the API-33 default port 8081.
+        // It cannot collide under parallel forks: it is the only test opening a fixed server port,
+        // a test class runs in one fork, and each unit-test job runs in its own container network
+        // namespace on the runner, so 8081 of one job is not 8081 of another job on the same host.
         const val MANAGEMENT_PORT = 8081
         const val VALID = "valid-workload-token"
     }
