@@ -6,9 +6,11 @@
 # oasdiff for openapi.yaml (API-03), check-payload-compat.py — an additive-
 # only JSON Schema comparison — for the payload schemas (API-41; this is the
 # "JSON Schema compatibility check of each payload" API-41 names alongside
-# `asyncapi diff`, which does not itself deeply diff payload schemas). A file
-# that is new in this merge request has nothing to compare against and is
-# skipped, not failed.
+# `asyncapi diff`, which does not itself deeply diff payload schemas). A payload
+# schema file that is new in this merge request has nothing to compare against;
+# it is checked against API-41 alone (additionalProperties never false, INV-T-5469)
+# and the unchanged-rule comparison applies only to files present at the base.
+# A new openapi.yaml has nothing to compare against and is skipped, not failed.
 #
 # T6 (INV-T-2850) fixes two bugs this script's first real exercise (this is
 # the first merge request where these openapi.yaml files already exist at the
@@ -74,13 +76,16 @@ for dir in */; do
   if [ -d "$svc/schemas" ]; then
     for schema in "$svc"/schemas/*.schema.json; do
       [ -f "$schema" ] || continue
-      case "$(basename "$schema")" in
-        cloud-event-envelope.schema.json|error-envelope.schema.json) continue ;;
+      case "$schema" in
+        service-runtime/schemas/cloud-event-envelope.schema.json|service-runtime/schemas/error-envelope.schema.json) continue ;;
       esac
       if git cat-file -e "$base_sha:$schema" 2>/dev/null; then
         git show "$base_sha:$schema" > /tmp/base-payload.schema.json
         echo "gst-ci: payload compatibility $schema against $base_sha"
         python3 spectral/check-payload-compat.py /tmp/base-payload.schema.json "$schema" || failed=1
+      else
+        echo "gst-ci: payload new-file check $schema (not present at $base_sha)"
+        python3 spectral/check-payload-compat.py --new "$schema" || failed=1
       fi
     done
   fi

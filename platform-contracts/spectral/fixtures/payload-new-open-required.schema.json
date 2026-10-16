@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FixtureNewOpenRequiredPayload",
+  "type": "object",
+  "properties": {
+    "entityRef": { "type": "string" },
+    "amount": { "type": "string" }
+  },
+  "required": ["entityRef", "amount"],
+  "additionalProperties": true
+}

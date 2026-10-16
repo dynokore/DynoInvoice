@@ -13,7 +13,11 @@ sets additionalProperties: false (a consumer must tolerate unknown fields,
 API-41/CS's tolerant-reader rule).
 
 Usage: check-payload-compat.py <old.schema.json> <new.schema.json>
-Exits 0 if additive, 1 and names every violation otherwise.
+       check-payload-compat.py --new <new.schema.json>
+Exits 0 if additive, 1 and names every violation otherwise. The --new form is
+for a file with no base (new in the merge request): only the root
+additionalProperties: false rule applies (API-41); the removed, retyped and
+made-required rules need a base and are not applied.
 """
 from __future__ import annotations
 
@@ -49,6 +53,13 @@ def check(old: dict, new: dict) -> list[str]:
 
 
 def main(argv: list[str]) -> int:
+    if len(argv) == 3 and argv[1] == "--new":
+        new = json.loads(Path(argv[2]).read_text())
+        if new.get("additionalProperties") is False:
+            print(f"gst-ci: new payload schema {argv[2]} sets additionalProperties: false"
+                  " — a consumer must tolerate unknown fields (API-41, FR-K.4)")
+            return 1
+        return 0
     if len(argv) != 3:
         print(__doc__)
         return 2

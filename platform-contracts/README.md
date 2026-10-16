@@ -126,8 +126,9 @@ platform-build that does not exist yet (ci/README.md, platform-build).
   changed in a given pipeline.
 - `oasdiff-breaking-gate` / `asyncapi-breaking-gate` — merge-request pipelines
   only: fail on a breaking change to any file that already existed at the
-  merge request's base commit (API-03, API-41). A new file has nothing to
-  compare against and is skipped, not failed.
+  merge request's base commit (API-03, API-41). A new payload schema file is
+  checked against API-41 (additionalProperties never false); the unchanged-rule
+  comparison applies only to files present at the base.
 - `bundle-publish` — `main`/tag pipelines only: packages every directory's
   contracts into one versioned archive (`build.gradle.kts`'s
   `bundleContracts`) and publishes it to this project's generic package
