@@ -2,3 +2,4 @@
 ../openapi.yaml#/components/schemas/SetConnectionEntitiesRequest set-connection-entities-request-*.json
 ../openapi.yaml#/components/schemas/SetConnectionEntitiesResponse set-connection-entities-response-*.json
 ../openapi.yaml#/components/schemas/TransportOutcome transport-outcome-*.json
+../schemas/access-point-route-changed-payload.schema.json access-point-route-changed-payload-*.json

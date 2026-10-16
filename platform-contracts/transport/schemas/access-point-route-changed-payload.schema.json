@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/transport/schemas/access-point-route-changed-payload.schema.json",
+  "title": "AccessPointRouteChangedPayload",
+  "description": "Payload of the AccessPointRouteChanged event (model/architecture/events.yaml; class: domain; owner rulings INV-Q-4872 and INV-Q-4993). Emitted when the elected acknowledgement route of an AP connection, or the entity refs assigned to it, change. Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "connectionRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "description": "The AP connection the change concerns."
+    },
+    "acknowledgementRoute": {
+      "type": "string",
+      "enum": [
+        "AP_CALLBACK",
+        "POLLING",
+        "REPORT_IMPORT"
+      ],
+      "description": "The elected acknowledgement route (INV-REQ-1310). Absent when the route is cleared (no route elected)."
+    },
+    "entityRefs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 40
+      },
+      "uniqueItems": true,
+      "description": "The whole list of entity refs assigned to the connection after the change; may be empty."
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Per-connection version; rises by one on every change of the route or of the entity refs."
+    }
+  },
+  "required": [
+    "connectionRef",
+    "entityRefs",
+    "version"
+  ],
+  "additionalProperties": true
+}

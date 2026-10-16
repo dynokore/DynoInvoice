@@ -1,0 +1,8 @@
+{
+  "connectionRef": "ap-conn-01",
+  "acknowledgementRoute": "WEBHOOK",
+  "entityRefs": [
+    "ent-001"
+  ],
+  "version": 3
+}

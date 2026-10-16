@@ -431,6 +431,14 @@ topics:
     subscribers:
       - console-bff
       - submission-svc
+  - topic: gst.transport.access-point-route-changed.v1
+    event_type: com.dynokore.gst.transport.AccessPointRouteChanged.v1
+    content_topic: false
+    record_topic: false
+    producers:
+      - transport-svc
+    subscribers:
+      - tenancy-svc
   - topic: gst.transport.acknowledgement-received.v1
     event_type: com.dynokore.gst.transport.AcknowledgementReceived.v1
     content_topic: false
@@ -1236,6 +1244,16 @@ replay_topics:
       - transport-svc
     subscribers:
       - submission-svc
+  - topic: gst.transport.replay-tenancy.v1
+    event_types:
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+      - com.dynokore.gst.transport.AccessPointRouteChanged.v1
+    content_topic: false
+    record_topic: false
+    producers:
+      - transport-svc
+    subscribers:
+      - tenancy-svc
 replay_request_topics:
   - topic: gst.access.replay-requested.v1
     event_types:
@@ -1422,6 +1440,7 @@ replay_request_topics:
       - access-svc
       - rules-svc
       - submission-svc
+      - transport-svc
   - topic: gst.transport.replay-requested.v1
     event_types:
       - com.dynokore.gst.platform.ReplayRequested.v1

@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: transport events
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     Every event transport produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -35,6 +35,11 @@ channels:
     messages:
       NetworkDocumentReceived:
         $ref: '#/components/messages/NetworkDocumentReceived'
+  transportAccessPointRouteChanged:
+    address: 'gst.transport.access-point-route-changed.v1'
+    messages:
+      AccessPointRouteChanged:
+        $ref: '#/components/messages/AccessPointRouteChanged'
   transportExampleHappened:
     address: 'gst.transport.example-happened.v1'
     messages:
@@ -56,6 +61,13 @@ operations:
       $ref: '#/channels/transportNetworkDocumentReceived'
     messages:
       - $ref: '#/channels/transportNetworkDocumentReceived/messages/NetworkDocumentReceived'
+  publishAccessPointRouteChanged:
+    action: send
+    description: AccessPointRouteChanged — catalogued in model/architecture/events.yaml (§19.8).
+    channel:
+      $ref: '#/channels/transportAccessPointRouteChanged'
+    messages:
+      - $ref: '#/channels/transportAccessPointRouteChanged/messages/AccessPointRouteChanged'
   publishExampleHappened:
     action: send
     description: Placeholder operation (INV-T-2849 scaffold) — replace with a real one.
@@ -90,6 +102,19 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/network-document-received-payload.schema.json'
+    AccessPointRouteChanged:
+      name: com.dynokore.gst.transport.AccessPointRouteChanged.v1
+      title: AccessPointRouteChanged
+      summary: AccessPointRouteChanged — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event AccessPointRouteChanged (model/architecture/events.yaml; class: domain; owner
+        rulings INV-Q-4872 and INV-Q-4993). Emitted by: transport-svc. Consumed by: tenancy-svc. Delivery:
+        At-least-once. Payload: the connection, the elected acknowledgement route or its clearing,
+        entityRefs (the whole list of entity refs assigned to the connection, possibly empty) and a
+        per-connection version that rises by one on every change of the route or of the entity refs.
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/access-point-route-changed-payload.schema.json'
     ExampleHappened:
       name: com.dynokore.gst.transport.ExampleHappened.v1
       title: ExampleHappened

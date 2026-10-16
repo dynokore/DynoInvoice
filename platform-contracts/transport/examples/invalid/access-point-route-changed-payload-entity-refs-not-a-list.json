@@ -1,0 +1,6 @@
+{
+  "connectionRef": "ap-conn-01",
+  "acknowledgementRoute": "POLLING",
+  "entityRefs": "ent-001",
+  "version": 3
+}

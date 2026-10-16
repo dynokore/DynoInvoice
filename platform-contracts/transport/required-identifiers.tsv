@@ -10,3 +10,7 @@ REPORT_IMPORT	enum_value	openapi.yaml	INV-REQ-1310
 throughputCeiling	property	openapi.yaml	INV-REQ-1317
 entityRefs	property	openapi.yaml	INV-REQ-796
 setConnectionEntities	operation	openapi.yaml	INV-REQ-796
+connectionRef	property	schemas/access-point-route-changed-payload.schema.json	INV-Q-4872
+acknowledgementRoute	property	schemas/access-point-route-changed-payload.schema.json	INV-REQ-1310
+entityRefs	property	schemas/access-point-route-changed-payload.schema.json	INV-Q-4993
+version	property	schemas/access-point-route-changed-payload.schema.json	INV-Q-4872
