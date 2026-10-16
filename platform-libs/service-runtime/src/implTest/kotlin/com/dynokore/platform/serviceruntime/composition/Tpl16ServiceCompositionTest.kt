@@ -28,6 +28,7 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.EnumSource
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.boot.web.servlet.ServletRegistrationBean
+import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import javax.sql.DataSource
@@ -61,8 +62,7 @@ class Tpl16ServiceCompositionTest {
     ) {
         service.withUserConfiguration(SubmissionBootstrap::class.java, composition.application).run { context ->
             context.startupFailure shouldBe null
-            val application = context.getBean(DataSource::class.java) as HikariDataSource
-            application.jdbcUrl shouldBe "jdbc:postgresql://localhost:5432/submission"
+            applicationUrl(context) shouldBe "jdbc:postgresql://localhost:5432/submission"
             listOf(
                 TransactionRunner::class,
                 CurrentConnection::class,
@@ -101,10 +101,7 @@ class Tpl16ServiceCompositionTest {
                     // one pool: a second application pool bean, or any role DataSource, fails here (INV-Q-3955)
                     context.getBeanNamesForType(DataSource::class.java).toList() shouldBe listOf("dataSource")
                     // one HikariCP pool, no second one, sized to the lane budgets' sum (INV-REQ-1230 b1)
-                    context
-                        .getBean(DataSource::class.java)
-                        .shouldBeInstanceOf<HikariDataSource>()
-                        .maximumPoolSize shouldBe 6
+                    applicationMaximum(context) shouldBe 6
                     context
                         .getBean(LaneGateHolder::class.java)
                         .permits()
@@ -127,17 +124,15 @@ class Tpl16ServiceCompositionTest {
             context.startupFailure shouldBe null
             context.getBeanNamesForType(DataSource::class.java).toSet() shouldBe
                 setOf("dataSource", ServiceDataSources.EVENT_LOG)
-            val eventLog = context.getBean(ServiceDataSources.EVENT_LOG, HikariDataSource::class.java)
-            eventLog.jdbcUrl shouldBe "jdbc:postgresql://event-log:5432/eventlog"
-            eventLog.username shouldBe "submission_app"
-            eventLog.maximumPoolSize shouldBe 3
-            eventLog.minimumIdle shouldBe 1
+            eventLogUrl(context) shouldBe "jdbc:postgresql://event-log:5432/eventlog"
+            eventLogUsername(context) shouldBe "submission_app"
+            eventLogMaximum(context) shouldBe 3
+            eventLogMinimumIdle(context) shouldBe 1
             // the application DataSource is still the one an unqualified injection gets
-            (context.getBean(DataSource::class.java) as HikariDataSource).jdbcUrl shouldBe
-                "jdbc:postgresql://localhost:5432/submission"
+            applicationUrl(context) shouldBe "jdbc:postgresql://localhost:5432/submission"
         }
         ha.withPropertyValues("service-runtime.event-log-pool.minimum-idle=2").run { context ->
-            context.getBean(ServiceDataSources.EVENT_LOG, HikariDataSource::class.java).minimumIdle shouldBe 2
+            eventLogMinimumIdle(context) shouldBe 2
         }
         ha.withPropertyValues("service-runtime.event-log-pool.minimum-idle=4").run { context ->
             generateSequence(context.startupFailure.shouldNotBeNull()) { it.cause }.any {
@@ -177,6 +172,25 @@ class Tpl16ServiceCompositionTest {
                 context.containsBean("jobCommandServlet") shouldBe false
             }
     }
+
+    // pool-inspection reads (owner ruling INV-Q-4788 (B)): getters in method bodies of this class, plain values out
+    private fun applicationUrl(context: ApplicationContext): String =
+        (context.getBean(DataSource::class.java) as HikariDataSource).jdbcUrl
+
+    private fun applicationMaximum(context: ApplicationContext): Int =
+        (context.getBean(DataSource::class.java) as HikariDataSource).maximumPoolSize
+
+    private fun eventLogUrl(context: ApplicationContext): String =
+        context.getBean(ServiceDataSources.EVENT_LOG, HikariDataSource::class.java).jdbcUrl
+
+    private fun eventLogUsername(context: ApplicationContext): String =
+        context.getBean(ServiceDataSources.EVENT_LOG, HikariDataSource::class.java).username
+
+    private fun eventLogMaximum(context: ApplicationContext): Int =
+        context.getBean(ServiceDataSources.EVENT_LOG, HikariDataSource::class.java).maximumPoolSize
+
+    private fun eventLogMinimumIdle(context: ApplicationContext): Int =
+        context.getBean(ServiceDataSources.EVENT_LOG, HikariDataSource::class.java).minimumIdle
 
     /** The service's own `bootstrap` configuration (TPL-18): its inputs, no DataSource (INV-REQ-1230 b1). */
     @Configuration(proxyBeanMethods = false)

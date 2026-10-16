@@ -8,6 +8,7 @@ import com.zaxxer.hikari.HikariCredentialsProvider
 import com.zaxxer.hikari.HikariDataSource
 import com.zaxxer.hikari.util.Credentials
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
@@ -15,12 +16,16 @@ import io.mockk.mockk
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
+import org.springframework.beans.factory.config.BeanDefinitionCustomizer
+import org.springframework.beans.factory.config.BeanFactoryPostProcessor
 import org.springframework.beans.factory.config.BeanPostProcessor
 import org.springframework.context.ApplicationContextInitializer
 import org.springframework.context.ConfigurableApplicationContext
+import org.springframework.context.support.GenericApplicationContext
 import org.springframework.core.PriorityOrdered
 import org.springframework.core.env.PropertySource
 import java.nio.file.Path
+import java.util.function.Supplier
 import javax.sql.DataSource
 
 /**
@@ -271,6 +276,76 @@ class PoolConfigurationGuardTest {
             if (beanName == "dataSource") setting(bean as HikariDataSource)
             return bean
         }
+    }
+
+    @Test
+    fun `a pool a BeanFactoryPostProcessor fetched before the guard was registered fails at the second pass`() {
+        tpl18Service()
+            .withPropertyValues(
+                "spring.datasource.url=jdbc:postgresql://db:5432/submission",
+                "spring.datasource.username=submission_runtime",
+            )
+            // not an autowire candidate, so the application pool is still the auto-configured one
+            .withBean(
+                "earlyPool",
+                DataSource::class.java,
+                Supplier { earlyPool() },
+                BeanDefinitionCustomizer { it.isAutowireCandidate = false },
+            )
+            // runs before any BeanPostProcessor is registered, so the first pass never sees earlyPool
+            .withBean(
+                "earlyFetch",
+                BeanFactoryPostProcessor::class.java,
+                Supplier { BeanFactoryPostProcessor { it.getBean("earlyPool") } },
+            ).run { context ->
+                context.startupFailure.shouldNotBeNull()
+                val failure = failure(context.startupFailure)
+                failure shouldContain "'earlyPool' (second pass"
+                failure shouldContain "connectionInitSql (set)"
+                failure shouldContain "INV-Q-4603"
+                failure shouldNotContain "probe_role"
+            }
+    }
+
+    @Test
+    fun `a pool whose password is set in code after its first check fails at the second pass`() {
+        tpl18Service()
+            .withPropertyValues(
+                "spring.datasource.url=jdbc:postgresql://db:5432/submission",
+                "spring.datasource.username=submission_runtime",
+            ).withInitializer(
+                ApplicationContextInitializer<ConfigurableApplicationContext> { configurable ->
+                    val initializing = configurable as GenericApplicationContext
+                    initializing.registerBean(
+                        "passwordAfterCheck",
+                        Runnable::class.java,
+                        Supplier {
+                            setPassword(initializing.getBean(DataSource::class.java), "pw-value")
+                            Runnable {}
+                        },
+                    )
+                },
+            ).run { context ->
+                context.startupFailure.shouldNotBeNull()
+                val failure = failure(context.startupFailure)
+                failure shouldContain "'dataSource' (second pass"
+                failure shouldContain "password (set)"
+                failure shouldNotContain "pw-value"
+            }
+    }
+
+    // pool construction and the refused setters stay in method bodies of this class (pool-guard-test grant, INV-Q-4788 (B))
+    private fun earlyPool(): DataSource =
+        HikariDataSource().apply {
+            jdbcUrl = "jdbc:postgresql://db:5432/submission"
+            connectionInitSql = "set role probe_role"
+        }
+
+    private fun setPassword(
+        pool: DataSource,
+        value: String,
+    ) {
+        (pool as HikariDataSource).password = value
     }
 
     private fun failure(startupFailure: Throwable?): String =

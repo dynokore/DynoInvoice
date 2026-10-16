@@ -22,6 +22,7 @@ import org.springframework.boot.WebApplicationType
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.autoconfigure.jmx.JmxAutoConfiguration
 import org.springframework.boot.builder.SpringApplicationBuilder
+import org.springframework.context.ApplicationContext
 import org.springframework.context.ApplicationContextInitializer
 import org.springframework.context.ConfigurableApplicationContext
 import org.springframework.context.annotation.Bean
@@ -179,11 +180,14 @@ class SqlConfigurationKeyGuardContextIT {
         service.run { context ->
             context.startupFailure shouldBe null
             context.getBeanNamesForType(MBeanExporter::class.java).shouldBeEmpty()
-            (context.getBean(DataSource::class.java) as HikariDataSource).isRegisterMbeans shouldBe
-                false
+            applicationRegistersMbeans(context) shouldBe false
             hikariMBeans().shouldBeEmpty()
         }
     }
+
+    // pool-inspection read (owner ruling INV-Q-4788 (B)): a getter in a method body of this class
+    private fun applicationRegistersMbeans(context: ApplicationContext): Boolean =
+        (context.getBean(DataSource::class.java) as HikariDataSource).isRegisterMbeans
 
     private fun hikariMBeans() =
         ManagementFactory.getPlatformMBeanServer().queryNames(ObjectName("com.zaxxer.hikari:*"), null)
