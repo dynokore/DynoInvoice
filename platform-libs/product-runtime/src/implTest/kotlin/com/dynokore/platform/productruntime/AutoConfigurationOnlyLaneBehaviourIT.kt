@@ -116,13 +116,18 @@ class AutoConfigurationOnlyLaneBehaviourIT {
                 sessionsOf(eventLog) shouldBe 0
                 // the event-log port reaches the event-log database through a pool of its own, minimumIdle 1; the
                 // application database gains no connection
-                useEventLog(context.getBean(EventLogPresence::class.java))
-                eventually { sessionsOf(eventLog) } shouldBe 1
-                (sessionsOf(postgres) <= MINIMAL_POOL_MAXIMUM) shouldBe true
-                // minimumIdle 1 keeps the connection open past the pool's idle timeout (60 s); a pool of minimumIdle 0
-                // retires it at the next housekeeping run after that, so the count would drop to 0
-                Thread.sleep(IDLE_TIMEOUT_AND_HOUSEKEEPING_MS)
-                sessionsOf(eventLog) shouldBe 1
+                // the pool starts on this first use; the probe counts its housekeeping passes from here (INV-T-5668)
+                HousekeepingPassProbe("event-log").use { housekeeping ->
+                    useEventLog(context.getBean(EventLogPresence::class.java))
+                    eventually { sessionsOf(eventLog) } shouldBe 1
+                    (sessionsOf(postgres) <= MINIMAL_POOL_MAXIMUM) shouldBe true
+                    // minimumIdle 1 keeps the connection open past the pool's idle timeout (60 s); a pool of
+                    // minimumIdle 0 retires it at the next housekeeping run after that, so the count would drop to 0.
+                    // The window is the passes it allows (HOUSEKEEPING_PASSES_IN_WINDOW), polled instead of slept.
+                    housekeeping.awaitPasses(HOUSEKEEPING_PASSES_IN_WINDOW, HOUSEKEEPING_DEADLINE_MS) shouldBe
+                        HOUSEKEEPING_PASSES_IN_WINDOW
+                    sessionsOf(eventLog) shouldBe 1
+                }
             }
             ha.withPropertyValues("service-runtime.event-log-pool.minimum-idle=2").run { context ->
                 context.startupFailure shouldBe null
@@ -238,7 +243,18 @@ class AutoConfigurationOnlyLaneBehaviourIT {
         const val LOGIN_REF = "db-test-login"
         const val TIMEOUT_MS = 1000L
         const val HOLD_SECONDS = 20L
-        const val IDLE_TIMEOUT_AND_HOUSEKEEPING_MS = 100_000L
+        const val WINDOW_MS = 100_000L
+
+        // HikariCP's housekeeper: first pass 100 ms after the pool starts, then 30 s after each pass ends (the library
+        // default, not set here). Passes in the window: 1 + (100 000 - 100) / 30 000 = 4, at about 0.1, 30, 60 and 90 s.
+        // Only the 4th follows the 60 s idle timeout with margin, so the count is awaited until it is reached.
+        const val HOUSEKEEPING_PERIOD_MS = 30_000L
+        const val HOUSEKEEPING_FIRST_PASS_MS = 100L
+        const val HOUSEKEEPING_PASSES_IN_WINDOW =
+            (1 + (WINDOW_MS - HOUSEKEEPING_FIRST_PASS_MS) / HOUSEKEEPING_PERIOD_MS).toInt()
+
+        // never shorter than the 100 s window; one more period of slack for a slow runner
+        const val HOUSEKEEPING_DEADLINE_MS = WINDOW_MS + HOUSEKEEPING_PERIOD_MS
         const val REQUEST_PERMITS = 4
         const val BACKGROUND_PERMITS = 2
         const val MINIMAL_POOL_MAXIMUM = REQUEST_PERMITS + BACKGROUND_PERMITS
