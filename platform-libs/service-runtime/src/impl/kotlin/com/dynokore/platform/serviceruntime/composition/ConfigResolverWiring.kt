@@ -19,10 +19,10 @@ import com.dynokore.platform.configresolver.ValueConstraints
 import com.dynokore.platform.configresolver.VariationPointCatalogue
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.serviceruntime.binding.GstProperties
+import com.dynokore.platform.tenancyjooq.TenancyJooq
 import com.dynokore.platform.tenancykernel.CurrentConnection
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
-import com.dynokore.platform.tenancyjooq.TenancyJooq
 import org.jooq.DSLContext
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
