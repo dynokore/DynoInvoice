@@ -55,7 +55,8 @@ class MigrationRunnerPlaceholdersTest {
         listOf("led\"ger", "ledger.evil", "ledger;drop", "Ledger").forEach { schema ->
             val configuration = Flyway.configure().placeholders(mapOf("svc" to "submission"))
             val locations = configuration.locations.toList()
-            shouldThrow<IllegalArgumentException> { customize(configuration, schema = schema) }.message shouldContain "schema"
+            val refusal = shouldThrow<IllegalArgumentException> { customize(configuration, schema = schema) }
+            refusal.message shouldContain "schema"
             configuration.placeholders shouldBe mapOf("svc" to "submission")
             configuration.locations.toList() shouldBe locations
         }
