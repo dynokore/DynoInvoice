@@ -291,6 +291,7 @@ schema-sample-validation:
     # INV-T-2850 follow-up (API-04): every service's examples/valid must pass and
     # examples/invalid must fail the schema named in <service>/examples/schema.txt.
     - python3 spectral/validate-schema-samples.py --discover .
+    - python3 service-runtime/check-page-bound.py
 
 sync-edge-allowlist-check:
   # INV-T-2850 follow-up (API-08): every x-sync-edge of every service's openapi.yaml

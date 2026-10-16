@@ -1,4 +1,4 @@
-"""INV-T-4915 (INV-Q-5509): the twelve probes of check-page-bound.py, each on a temporary copy of the files."""
+"""INV-T-4915 (INV-Q-5509): the twelve probes of check-page-bound.py (each on a temporary copy of the files) and the CI wiring probes."""
 import copy
 import importlib.util
 import json
@@ -12,6 +12,9 @@ ROOT = HERE.parent
 spec = importlib.util.spec_from_file_location("check_page_bound", HERE / "check-page-bound.py")
 cpb = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(cpb)
+
+
+LINE = "python3 service-runtime/check-page-bound.py"
 
 
 class PageBoundProbes(unittest.TestCase):
@@ -78,6 +81,30 @@ class PageBoundProbes(unittest.TestCase):
         p = self.tmp / cpb.REGISTRY
         p.write_text("".join(l for l in p.read_text().splitlines(True) if "pack-dry-run-sample-recorded" not in l))
         self.failed("e")
+
+    def test_ci_line_in_schema_sample_validation_only(self):
+        text = (ROOT / ".gitlab-ci.yml").read_text()
+        self.assertEqual(self.job_lines(text, LINE), ["schema-sample-validation"])
+
+    def test_ci_line_in_another_job_does_not_count(self):
+        text = (ROOT / ".gitlab-ci.yml").read_text().replace(f"    - {LINE}\n", "")
+        text = text.replace("asyncapi-validate:\n", f"asyncapi-validate:\n  script:\n    - {LINE}\n", 1)
+        self.assertNotEqual(self.job_lines(text, LINE), ["schema-sample-validation"])
+
+    def test_ci_line_removed_from_the_job_fails(self):
+        text = (ROOT / ".gitlab-ci.yml").read_text().replace(f"    - {LINE}\n", "")
+        self.assertEqual(self.job_lines(text, LINE), [])
+
+    @staticmethod
+    def job_lines(text, line):
+        """Names of the top-level jobs whose block holds the exact command line `- <line>`."""
+        jobs, current = [], None
+        for raw in text.splitlines():
+            if raw and not raw[0].isspace() and raw.endswith(":") and not raw.startswith("#"):
+                current = raw[:-1]
+            elif raw.strip() == f"- {line}" and current:
+                jobs.append(current)
+        return jobs
 
     def test_unloadable_file_exits_non_zero(self):
         (self.tmp / cpb.VALID).write_text("{")

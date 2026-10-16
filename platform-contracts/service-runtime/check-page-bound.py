@@ -5,17 +5,18 @@ Loads service-runtime/schemas/pack-dry-run-sample-recorded-payload.schema.json a
   (a) properties.documents.maxItems is the integer 500;
   (b) the top-level description contains 'API-42' and '1 MB';
   (c) the valid full-page sample has len(documents) == maxItems, validates, and is under 1,000,000 bytes;
-  (d) the invalid over-max sample has len(documents) == maxItems + 1 and exactly one validation error,
-      keyword maxItems at path documents;
+  (d) the invalid over-max sample has len(documents) == maxItems + 1, `validate` raises Invalid for it with a
+      message that names maxItems and path $.documents, and the same document cut to its first maxItems
+      entries validates (so maxItems is the only violation);
   (e) both samples are registered in examples/schema.txt against this schema.
 Prints one line per failed item and exits 1; a file that cannot be loaded exits 2. Usage: check-page-bound.py [ROOT]
 """
 import fnmatch
+import importlib.util
 import json
 import sys
 from pathlib import Path
 
-import jsonschema
 
 SCHEMA = "service-runtime/schemas/pack-dry-run-sample-recorded-payload.schema.json"
 VALID = "service-runtime/examples/valid/pack-dry-run-sample-recorded-payload-full-page.json"
@@ -24,6 +25,15 @@ SCHEMA_REF = "../schemas/pack-dry-run-sample-recorded-payload.schema.json"
 REGISTRY = "service-runtime/examples/schema.txt"
 MAX_ITEMS = 500
 EVENT_LIMIT_BYTES = 1_000_000
+
+
+def _load_validator():
+    """The stdlib-only validator of schema-sample-validation (spectral/validate-schema-samples.py)."""
+    path = Path(__file__).resolve().parent.parent / "spectral" / "validate-schema-samples.py"
+    spec = importlib.util.spec_from_file_location("validate_schema_samples", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def check(root: Path) -> list[str]:
@@ -43,24 +53,32 @@ def check(root: Path) -> list[str]:
         if not isinstance(description, str) or needle not in description:
             failures.append(f"(b) schema description lacks {needle!r}")
 
-    validator = jsonschema.Draft202012Validator(schema, format_checker=jsonschema.FormatChecker())
+    vss = _load_validator()
     bound = max_items if type(max_items) is int else MAX_ITEMS
     valid_docs = valid.get("documents") if isinstance(valid, dict) else None
     if not isinstance(valid_docs, list) or len(valid_docs) != bound:
         failures.append(f"(c) valid sample has {len(valid_docs) if isinstance(valid_docs, list) else valid_docs!r} documents, expected {bound}")
-    errors = list(validator.iter_errors(valid))
-    if errors:
-        failures.append(f"(c) valid sample fails the schema: {errors[0].message[:120]}")
+    try:
+        vss.validate(valid, schema)
+    except vss.Invalid as e:
+        failures.append(f"(c) valid sample fails the schema: {str(e)[:120]}")
     if len(valid_bytes) >= EVENT_LIMIT_BYTES:
         failures.append(f"(c) valid sample is {len(valid_bytes)} bytes, not under {EVENT_LIMIT_BYTES}")
 
     invalid_docs = invalid.get("documents") if isinstance(invalid, dict) else None
     if not isinstance(invalid_docs, list) or len(invalid_docs) != bound + 1:
         failures.append(f"(d) invalid sample has {len(invalid_docs) if isinstance(invalid_docs, list) else invalid_docs!r} documents, expected {bound + 1}")
-    errors = list(validator.iter_errors(invalid))
-    if len(errors) != 1 or errors[0].validator != "maxItems" or list(errors[0].absolute_path) != ["documents"]:
-        failures.append("(d) invalid sample must give exactly one error, keyword maxItems at path documents; got "
-                        + str([(e.validator, list(e.absolute_path)) for e in errors]))
+    try:
+        vss.validate(invalid, schema)
+        failures.append("(d) invalid sample validates, expected an Invalid naming maxItems at $.documents")
+    except vss.Invalid as e:
+        if "maxItems" not in str(e) or not str(e).startswith("$.documents:"):
+            failures.append(f"(d) invalid sample fails for another reason: {str(e)[:120]}")
+    if isinstance(invalid_docs, list):
+        try:
+            vss.validate(dict(invalid, documents=invalid_docs[:bound]), schema)
+        except vss.Invalid as e:
+            failures.append(f"(d) invalid sample cut to {bound} documents still fails (maxItems is not the only violation): {str(e)[:120]}")
 
     registered = [parts[1] for parts in (line.split() for line in registry) if len(parts) == 2 and parts[0] == SCHEMA_REF]
     for sample in (VALID, INVALID):
@@ -73,7 +91,7 @@ def main(argv: list[str]) -> int:
     root = Path(argv[1] if len(argv) > 1 else ".")
     try:
         failures = check(root)
-    except (OSError, ValueError) as e:
+    except (OSError, ValueError, ImportError, AttributeError) as e:
         print(f"gst-ci: page-bound check cannot load a file: {e}")
         return 2
     for f in failures:
