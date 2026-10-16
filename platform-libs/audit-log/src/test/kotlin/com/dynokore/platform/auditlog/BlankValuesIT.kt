@@ -212,7 +212,7 @@ class BlankValuesIT {
             arguments: List<String>,
         ) = db.app.inTenant(TenantId.PLATFORM, actor) {
             fetchValue(
-                "select $SCHEMA.purge_audit_entries(?, ?, ?::uuid, ?, ?, ?, ?, ?)",
+                "select $SCHEMA.purge_audit_entries(?::timestamptz, ?, ?::uuid, ?, ?, ?, ?, ?)",
                 ZonedDateTime.now(ZoneOffset.UTC).minusYears(6).toOffsetDateTime(),
                 arguments[0],
                 UUID.fromString(arguments[1]),

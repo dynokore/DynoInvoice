@@ -130,7 +130,7 @@ class ModuleApiConsumerContractTest {
                     .insertInto(MAPPING)
                     .columns(IDP_GROUP, ROLE)
                     .values(group, role)
-                    .onConflict(IDP_GROUP)
+                    .onConflict(TENANT_ID, IDP_GROUP)
                     .doUpdate()
                     .set(ROLE, DSL.excluded(ROLE))
                     .execute()
@@ -153,6 +153,7 @@ class ModuleApiConsumerContractTest {
         private companion object {
             val MAPPING: Table<*> = DSL.table(DSL.name("submission", "idp_group_mapping"))
             val BUNDLE: Table<*> = DSL.table(DSL.name("submission", "support_bundle"))
+            val TENANT_ID = DSL.field(DSL.name("tenant_id"), SQLDataType.UUID)
             val IDP_GROUP = DSL.field(DSL.name("idp_group"), SQLDataType.CLOB)
             val ROLE = DSL.field(DSL.name("role"), SQLDataType.CLOB)
         }
@@ -164,7 +165,7 @@ class ModuleApiConsumerContractTest {
         AuditHarness(image).use { h ->
             val tenant = UUID.randomUUID()
             val service = FakeAccessService(h)
-            h.seedMapping("finance", "viewer")
+            h.seedMapping(tenant, "finance", "viewer")
             service.mapIdpGroup(tenant, "ops", "viewer")
             assertEquals(1, h.auditEntries(listOf(tenant)), "baseline: with a working outbox the entry is written")
 

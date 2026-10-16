@@ -37,7 +37,9 @@ class AuditHarness(
                 AuditSchema.ddl(SCHEMA, OutboxPostgresFixture.APP) +
                 """
 
-                create table $SCHEMA.idp_group_mapping (idp_group text primary key, role text not null);
+                create table $SCHEMA.idp_group_mapping (
+                    tenant_id uuid not null, idp_group text not null, role text not null,
+                    primary key (tenant_id, idp_group));
                 create table $SCHEMA.support_bundle (id uuid primary key, tenant_id uuid not null);
                 grant select, insert, update on $SCHEMA.idp_group_mapping, $SCHEMA.support_bundle
                     to ${OutboxPostgresFixture.APP};
@@ -67,7 +69,7 @@ class AuditHarness(
             boundary,
             mapOf(
                 "$SCHEMA.override_grant" to TableClass.TENANT,
-                "$SCHEMA.idp_group_mapping" to TableClass.PLATFORM_SCOPED,
+                "$SCHEMA.idp_group_mapping" to TableClass.TENANT,
                 "$SCHEMA.support_bundle" to TableClass.TENANT,
             ),
         )
@@ -76,7 +78,7 @@ class AuditHarness(
         db.dsl(
             db.ownerTx,
             mapOf(
-                "$SCHEMA.idp_group_mapping" to TableClass.PLATFORM_SCOPED,
+                "$SCHEMA.idp_group_mapping" to TableClass.TENANT,
                 "$SCHEMA.outbox_gate" to TableClass.PLATFORM_SCOPED,
             ),
         )
@@ -95,9 +97,18 @@ class AuditHarness(
 
     /** A pre-existing mapping row, as an earlier migration would have left it. */
     fun seedMapping(
+        tenant: UUID,
         group: String,
         role: String,
-    ) = ownerInsert("idp_group_mapping", group, role)
+    ) = db.asOwner(TenantId(tenant)) {
+        ownerDsl
+            .insertInto(DSL.table(DSL.name(SCHEMA, "idp_group_mapping")))
+            .columns(
+                DSL.field(DSL.name("idp_group"), String::class.java),
+                DSL.field(DSL.name("role"), String::class.java),
+            ).values(group, role)
+            .execute()
+    }
 
     /** From now on the outbox refuses every insert (INV-AC-2593). */
     fun refuseOutbox() = ownerInsert("outbox_gate", true)

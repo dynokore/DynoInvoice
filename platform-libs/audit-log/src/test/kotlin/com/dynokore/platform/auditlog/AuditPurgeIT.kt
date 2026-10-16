@@ -67,7 +67,7 @@ class AuditPurgeIT {
         assertEquals(3L, p.call(PurgeCall.of(staged, cutOff)))
 
         assertEquals(3L, p.countAll("select count(*) from controlplane.audit_entry"))
-        val older = "select count(*) from controlplane.audit_entry where recorded_at < ?"
+        val older = "select count(*) from controlplane.audit_entry where recorded_at < ?::timestamptz"
         assertEquals(0L, p.countAll(older, p.at(cutOff)))
         val own =
             "select count(*) from controlplane.audit_entry where id = ?::uuid and tenant_id = ? and entity_ref = ? " +
@@ -76,8 +76,9 @@ class AuditPurgeIT {
                 "and source = '/gst/control-plane-svc' and subject = 'audit-purge' " +
                 "and instance_id = 'control-plane-svc-1' and correlation_id = 'corr-purge' " +
                 "and causation_id = 'cmd-purge' and (prior_state->>'rowCount')::int = 3 " +
-                "and (prior_state->>'oldest')::timestamptz = ? and (prior_state->>'newest')::timestamptz = ? " +
-                "and (prior_state->>'cutOff')::timestamptz = ?"
+                "and (prior_state->>'oldest')::timestamptz = ?::timestamptz " +
+                "and (prior_state->>'newest')::timestamptz = ?::timestamptz " +
+                "and (prior_state->>'cutOff')::timestamptz = ?::timestamptz"
         assertEquals(
             1L,
             p.countAll(
@@ -132,7 +133,7 @@ class AuditPurgeIT {
         assertTrue(first.envelope.time < p.yearsAgo(5), "staged older than the floor")
         assertEquals(1L, p.call(PurgeCall.of(first, p.yearsAgo(6).minusSeconds(DAY))))
         p.call(PurgeCall.of(p.stage(), p.yearsAgo(5).minusSeconds(DAY)))
-        val kept = "select count(*) from controlplane.audit_entry where id = ?::uuid and recorded_at > ?"
+        val kept = "select count(*) from controlplane.audit_entry where id = ?::uuid and recorded_at > ?::timestamptz"
         val stays = p.countAll(kept, UUID.fromString(first.envelope.id.value), p.at(p.now))
         assertEquals(1L, stays, "the first purge's entry carries the database time and stays")
         assertEquals(2L, p.countAll("select count(*) from controlplane.audit_entry"))
@@ -335,7 +336,7 @@ class AuditPurgeIT {
             val actor = if (unsetActor) "" else "operator-9"
             return db.app.inTenant(tenant?.let { TenantId(it) } ?: TenantId.PLATFORM, actor) {
                 fetchValue(
-                    "select $SCHEMA.purge_audit_entries(?, ?, ?::uuid, ?, ?, ?, ?, ?)",
+                    "select $SCHEMA.purge_audit_entries(?::timestamptz, ?, ?::uuid, ?, ?, ?, ?, ?)",
                     at(call.cutOff),
                     call.reason,
                     UUID.fromString(call.entryId),

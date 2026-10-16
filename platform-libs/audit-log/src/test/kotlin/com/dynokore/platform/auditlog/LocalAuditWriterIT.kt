@@ -243,7 +243,8 @@ class LocalAuditWriterIT {
                 "reset role;\ncreate schema $SCHEMA authorization outbox_owner;\n" +
                     "grant usage on schema $SCHEMA to ${OutboxPostgresFixture.APP};\nset role outbox_owner;\n" +
                     AuditSchema.auditEntryDdl(SCHEMA, OutboxPostgresFixture.APP) +
-                    "\ncreate table $SCHEMA.setting (name text not null, value text not null);" +
+                    "\ncreate table $SCHEMA.setting " +
+                    "(tenant_id uuid not null, name text not null, value text not null);" +
                     "\ngrant select, insert on $SCHEMA.setting to ${OutboxPostgresFixture.APP};" +
                     if (revokeInsert) REVOKE_INSERT else "",
             )
@@ -253,7 +254,7 @@ class LocalAuditWriterIT {
         val dsl =
             db.dsl(
                 boundary,
-                mapOf("$SCHEMA.audit_entry" to TableClass.TENANT, "$SCHEMA.setting" to TableClass.PLATFORM_SCOPED),
+                mapOf("$SCHEMA.audit_entry" to TableClass.TENANT, "$SCHEMA.setting" to TableClass.TENANT),
             )
         val audit = LocalAuditWriter(dsl, SCHEMA, "control-plane-svc", "control-plane-svc-1", CLOCK)
         val operations = TransactionalAuditedOperations(boundary, audit)
@@ -302,7 +303,8 @@ class LocalAuditWriterIT {
         ): Long =
             count(
                 "select count(*) from controlplane.audit_entry where id = ?::uuid and tenant_id = ? " +
-                    "and entity_ref = ? and recorded_at = ? and source = ? and subject = ? and doc_uuid is null " +
+                    "and entity_ref = ? and recorded_at = ?::timestamptz and source = ? and subject = ? " +
+                    "and doc_uuid is null " +
                     "and transaction_date is null and instance_id = ? and correlation_id = ? " +
                     "and causation_id = ? and actor = ? and action = ? and scope = ? and reason = ? " +
                     "and prior_state = ?::jsonb",

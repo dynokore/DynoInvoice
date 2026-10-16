@@ -39,7 +39,7 @@ class OutboxAuditStageIT {
                 h.count(
                     "select count(*) from ${AuditHarness.SCHEMA}.outbox where id = ? and type = ? and data = ?::jsonb",
                     PLATFORM_ONLY,
-                    UUID.fromString(recorded.id.value),
+                    recorded.id.value,
                     OutboxAuditWriter.EVENT_TYPE,
                     staged.envelope.dataJson,
                 ),
