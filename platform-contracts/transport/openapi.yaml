@@ -422,14 +422,18 @@ paths:
         assigned to at most one connection of its tenant: a request naming
         an entity already assigned to another connection of the tenant is
         refused, and so is the removal of an entity that is in Observe mode
-        (INV-REQ-1286). The checks belong to the transport-svc task. The
+        (INV-REQ-1286). Each refusal is HTTP 422 with its own code:
+        SUB-018 (an entity already assigned to another connection of the
+        tenant) and SUB-019 (the removal of an entity that is in Observe
+        mode, or that has no issuance-mode replica row). The checks belong
+        to the transport-svc task (INV-T-4983). The
         connection record also carries the elected acknowledgement route
         (INV-REQ-1310) and the throughput ceiling (INV-REQ-1317).
       tags: [administration]
       x-principal: filing-workflow
       x-timeout: 2000
       x-sync-edge: console-bff->transport-svc
-      x-error-codes: []
+      x-error-codes: [SUB-018, SUB-019]
       x-requirements: [INV-REQ-796, INV-REQ-1286, INV-REQ-1310, INV-REQ-1317]
       x-operation:
         role: integration.engineer
@@ -463,6 +467,30 @@ paths:
               examples:
                 default:
                   value: { entityRefs: ["ENT-CL0043", "ENT-CL0044"], version: 4 }
+        '422':
+          description: >-
+            Refused: SUB-018 (an entity already assigned to another connection
+            of the tenant) or SUB-019 (removal of an entity in Observe mode,
+            or one with no issuance-mode replica row).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '../service-runtime/schemas/error-envelope.schema.json'
+              examples:
+                SUB-018:
+                  value:
+                    type: "about:blank"
+                    title: "Entity already assigned to another connection of the tenant"
+                    status: 422
+                    code: "SUB-018"
+                    correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                SUB-019:
+                  value:
+                    type: "about:blank"
+                    title: "Entity in Observe mode cannot be removed from the connection"
+                    status: 422
+                    code: "SUB-019"
+                    correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
         default:
           $ref: '#/components/responses/Error'
 components:
@@ -593,9 +621,9 @@ components:
           enum: [AP_CALLBACK, POLLING, REPORT_IMPORT]
           x-extensible-enum: true
         throughputCeiling:
-          type: integer
-          minimum: 1
-          description: 'The rate agreed with the AP, captured at connection set-up, or a lower tenant value (tighten-only, INV-REQ-1317).'
+          type: number
+          exclusiveMinimum: 0
+          description: 'Throughput ceiling of the connection, in documents per minute. Defaults to the rate agreed with the AP, captured at connection set-up; a tenant may set a lower value only (tighten-only, INV-REQ-1317).'
         entityRefs:
           type: array
           uniqueItems: true

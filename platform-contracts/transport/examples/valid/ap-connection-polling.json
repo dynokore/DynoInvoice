@@ -1,1 +1,1 @@
-{"connectionRef":"CONN-01","adapterRef":"AP-PRIMARY","acknowledgementRoute":"POLLING","throughputCeiling":20,"entityRefs":["ENT-CL0043"],"version":3}
+{"connectionRef":"CONN-01","adapterRef":"AP-PRIMARY","acknowledgementRoute":"POLLING","throughputCeiling":120,"entityRefs":["ENT-CL0043"],"version":3}
