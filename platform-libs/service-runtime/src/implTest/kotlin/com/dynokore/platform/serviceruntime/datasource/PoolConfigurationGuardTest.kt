@@ -16,10 +16,10 @@ import io.mockk.mockk
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
+import org.springframework.beans.factory.config.BeanDefinitionCustomizer
 import org.springframework.beans.factory.config.BeanFactoryPostProcessor
 import org.springframework.beans.factory.config.BeanPostProcessor
 import org.springframework.context.ApplicationContextInitializer
-import org.springframework.beans.factory.config.BeanDefinitionCustomizer
 import org.springframework.context.ConfigurableApplicationContext
 import org.springframework.context.support.GenericApplicationContext
 import org.springframework.core.PriorityOrdered

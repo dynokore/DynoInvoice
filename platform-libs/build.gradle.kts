@@ -76,6 +76,23 @@ subprojects {
     }
 }
 
+// INV-T-5604: the Testcontainers images are pinned by digest through one table (testcontainers-pins/). Its jar holds the
+// classpath testcontainers.properties that registers the ImageNameSubstitutor and the Ryuk image, so it joins the
+// classpath of every Test task of every other module (implTest, springTest, the contract suite's tasks too). It is added
+// after the module's own script ran (afterEvaluate), because a script may assign a Test task's classpath itself; as
+// a classpath file it is an input of the task, so a changed digest re-runs the tests and is never FROM-CACHE.
+subprojects {
+    if (path != ":testcontainers-pins") {
+        evaluationDependsOn(":testcontainers-pins")
+        afterEvaluate {
+            val pinsJar = project(":testcontainers-pins").tasks.named("jar")
+            tasks.withType<Test>().configureEach {
+                classpath += files(pinsJar)
+            }
+        }
+    }
+}
+
 // The expected publish set, written as `<project path> <publication> <artifactId> <version>` lines to
 // build/publications.txt for CI's post-publish check (P20/P28: a module with a
 // version that is not published must fail the job, never be skipped). Fails itself

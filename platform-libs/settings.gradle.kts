@@ -165,6 +165,9 @@ include(
     // the wire edges whose consumer code is here, module-API consumer contract tests for every other boundary. Test
     // only: it publishes no artefact and is not in platform-libs-bom.
     "contract-tests",
+    // INV-T-5604: the digest pin table of the Testcontainers images (postgres:16/17/18, Ryuk), on every module's Test
+    // runtime classpath (build.gradle.kts). Test only: it publishes no artefact and is not in platform-libs-bom.
+    "testcontainers-pins",
 )
 
 // product-runtime's generated contract code (INV-T-2876, INV-Q-3852): one project per generator source, as
