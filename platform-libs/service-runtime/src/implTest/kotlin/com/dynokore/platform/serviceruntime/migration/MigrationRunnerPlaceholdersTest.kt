@@ -49,4 +49,16 @@ class MigrationRunnerPlaceholdersTest {
         customize(configuration, schema = null)
         configuration.placeholders shouldBe mapOf("svc" to "submission")
     }
+
+    @Test
+    fun `a schema with a quote or a dot stops start-up before Flyway is given any placeholder or location`() {
+        listOf("led\"ger", "ledger.evil", "ledger;drop", "Ledger").forEach { schema ->
+            val configuration = Flyway.configure().placeholders(mapOf("svc" to "submission"))
+            val locations = configuration.locations.toList()
+            val refusal = shouldThrow<IllegalArgumentException> { customize(configuration, schema = schema) }
+            refusal.message shouldContain "schema"
+            configuration.placeholders shouldBe mapOf("svc" to "submission")
+            configuration.locations.toList() shouldBe locations
+        }
+    }
 }

@@ -12,8 +12,9 @@ import java.util.concurrent.TimeUnit
  * Permit accounting of [LanePermits] (INV-REQ-1230 b1; owner ruling INV-Q-4502 (A)), JDBC-free: a permit is given back
  * when released, a permit released twice gives back one, a lane with no permits is refused and a saturated lane times out
  * after the pool's connection timeout. Before and after: the class was `LanedDataSourceTest` over `LanedDataSource` and a
- * mocked pool; its checks on the pooled connection (a failed checkout, a double close, a failed close) are the
- * `TenantAwareDataSource` cases of `PoolLanesIT`; the permit checks below keep their compared values.
+ * mocked pool; its three checks on the pooled connection (a failed checkout, a double close, a failed close) went with
+ * `LanedDataSource` and have no replacement yet (reported to the coordinator as a coverage gap); the permit checks
+ * below keep their compared values.
  */
 class LanedDataSourceTest {
     private val budgets = LaneBudgets(2, 1, 0)
