@@ -57,6 +57,12 @@
       "required": [
         "x"
       ]
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     }
   },
   "required": [

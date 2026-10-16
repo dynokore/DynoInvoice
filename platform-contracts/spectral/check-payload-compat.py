@@ -109,6 +109,11 @@ def _compare(old_doc: dict, new_doc: dict, old, new, path: str, done: set, viola
         violations.append(f"made required (was optional or absent){_at(path)}: {newly_required} (API-41)")
 
     if isinstance(old.get("items"), dict) and isinstance(new.get("items"), dict):
+        o, o_file, _ = _follow(old_doc, old["items"], f"{path}[]", [])
+        n, n_file, _ = _follow(new_doc, new["items"], f"{path}[]", [])
+        if isinstance(o, dict) and isinstance(n, dict) and o_file is None and n_file is None:
+            if o.get("type") is not None and o.get("type") != n.get("type"):
+                violations.append(f"retyped items at '{path}[]': {o.get('type')} -> {n.get('type')} (API-41)")
         _compare(old_doc, new_doc, old["items"], new["items"], f"{path}[]", done, violations)
 
 

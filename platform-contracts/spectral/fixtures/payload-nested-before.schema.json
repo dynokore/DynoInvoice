@@ -42,6 +42,12 @@
     },
     "state": {
       "$ref": "./lifecycle-states.schema.json#/$defs/lifecycleState"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     }
   },
   "required": [

@@ -201,7 +201,7 @@ fi
 
 echo "gst-ci: self-test — nested optional additions (incl. a property named required) must PASS"
 nested_out=$(python3 check-payload-compat.py "$NB" fixtures/payload-nested-after-optional.schema.json); nested_rc=$?
-if [ "$nested_rc" -ne 0 ] || ! printf '%s\n' "$nested_out" | grep -qF "additive-only"; then
+if [ "$nested_rc" -ne 0 ] || ! printf '%s\n' "$nested_out" | grep -qF "additive-only" || printf '%s\n' "$nested_out" | grep -qF "retyped"; then
   echo "gst-ci: FAIL — nested optional additions were rejected"; failed=1
 fi
 
@@ -234,8 +234,23 @@ if [ "$nested_rc" -ne 1 ] || ! printf '%s\n' "$nested_out" | grep -qF "retyped p
 fi
 
 echo "gst-ci: self-test — the nested fixture against itself must PASS"
-if ! python3 check-payload-compat.py "$NB" "$NB" >/dev/null; then
+nested_out=$(python3 check-payload-compat.py "$NB" "$NB"); nested_rc=$?
+if [ "$nested_rc" -ne 0 ] || printf '%s\n' "$nested_out" | grep -qF "retyped"; then
   echo "gst-ci: FAIL — the nested fixture failed against itself"; failed=1
+fi
+
+echo "gst-ci: self-test — a retyped items type must FAIL"
+edit itemtype 'd["properties"]["tags"]["items"]["type"]="integer"'
+nested_out=$(python3 check-payload-compat.py "$NB" "$NESTED_TMP/itemtype.json"); nested_rc=$?
+if [ "$nested_rc" -ne 1 ] || ! printf '%s\n' "$nested_out" | grep -qF "retyped items at 'tags[]': string -> integer"; then
+  echo "gst-ci: FAIL — a retyped items type was not reported"; failed=1
+fi
+
+echo "gst-ci: self-test — a property retyped inside array items must FAIL"
+edit itemprop 'd["properties"]["lines"]["items"]["properties"]["qty"]["type"]="integer"'
+nested_out=$(python3 check-payload-compat.py "$NB" "$NESTED_TMP/itemprop.json"); nested_rc=$?
+if [ "$nested_rc" -ne 1 ] || ! printf '%s\n' "$nested_out" | grep -qF "retyped property 'qty' at 'lines[]': string -> integer"; then
+  echo "gst-ci: FAIL — a property retyped inside array items was not reported"; failed=1
 fi
 
 echo "gst-ci: self-test — a changed file \$ref must FAIL"
