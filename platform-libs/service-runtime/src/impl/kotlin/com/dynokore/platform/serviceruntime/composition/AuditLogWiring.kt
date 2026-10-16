@@ -1,5 +1,6 @@
 package com.dynokore.platform.serviceruntime.composition
 
+import com.dynokore.platform.auditlog.AuditSchema
 import com.dynokore.platform.auditlog.AuditWriter
 import com.dynokore.platform.auditlog.AuditedOperations
 import com.dynokore.platform.auditlog.ErrorCatalogue
@@ -11,8 +12,12 @@ import com.dynokore.platform.auditlog.OverrideService
 import com.dynokore.platform.auditlog.TransactionalAuditedOperations
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.serviceruntime.binding.GstProperties
-import com.dynokore.platform.tenancykernel.CurrentConnection
+import com.dynokore.platform.tenancyjooq.TableClass
+import com.dynokore.platform.tenancyjooq.TenancyJooq
+import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
+import org.jooq.DSLContext
+import org.jooq.impl.DSL
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
@@ -46,16 +51,25 @@ class AuditLogWiring {
     fun outboxAuditWriter(outbox: OutboxWriter): OutboxAuditWriter = OutboxAuditWriter(outbox)
 
     @Bean
-    @ConditionalOnBean(CurrentConnection::class)
+    @ConditionalOnBean(TransactionRunner::class)
     @ConditionalOnProperty(name = [Props.SERVICE, Props.SCHEMA])
     @ConditionalOnMissingBean(AuditWriter::class, OutboxWriter::class)
     fun localAuditWriter(
-        connections: CurrentConnection,
+        transactions: TransactionRunner,
+        tenants: TenantContext,
         gst: GstProperties,
         modules: ModuleProperties,
         clock: Clock,
-    ): LocalAuditWriter =
-        LocalAuditWriter(connections, modules.requireSchema(), gst.requireService(), gst.requireInstanceId(), clock)
+    ): LocalAuditWriter {
+        val schema = modules.requireSchema()
+        return LocalAuditWriter(
+            dslFor(schema, AuditSchema.AUDIT_ENTRY, tenants, transactions),
+            schema,
+            gst.requireService(),
+            gst.requireInstanceId(),
+            clock,
+        )
+    }
 
     @Bean
     @ConditionalOnBean(TransactionRunner::class, AuditWriter::class)
@@ -66,29 +80,44 @@ class AuditLogWiring {
     ): TransactionalAuditedOperations = TransactionalAuditedOperations(transactions, audit)
 
     @Bean
-    @ConditionalOnBean(CurrentConnection::class, TransactionRunner::class, AuditWriter::class, ErrorCatalogue::class)
+    @ConditionalOnBean(TransactionRunner::class, AuditWriter::class, ErrorCatalogue::class)
     @ConditionalOnProperty(name = [Props.SCHEMA])
     @ConditionalOnMissingBean(OverrideService::class)
     @Suppress("LongParameterList")
     fun overrideService(
-        connections: CurrentConnection,
         transactions: TransactionRunner,
+        tenants: TenantContext,
         audit: AuditWriter,
         errors: ErrorCatalogue,
         policy: ObjectProvider<OverridePolicy>,
         modules: ModuleProperties,
         clock: Clock,
-    ): JdbcOverrideService =
-        JdbcOverrideService(
-            connections,
+    ): JdbcOverrideService {
+        val schema = modules.requireSchema()
+        return JdbcOverrideService(
+            dslFor(schema, AuditSchema.OVERRIDE_GRANT, tenants, transactions),
             transactions,
             audit,
             errors,
-            modules.requireSchema(),
+            schema,
             clock,
             policy
                 .getIfAvailable {
                     OverridePolicy()
                 },
         )
+    }
+
+    /**
+     * The module's DSLContext (INV-T-4133, coordinator ruling INV-Q-5275): tenancy-jooq's factory over the
+     * [TransactionRunner] and [TenantContext] beans, the module's table named with `DSL.name(schema, table)` and
+     * declared `TENANT` (it carries `tenant_id` under forced row-level security). It is private to the class that
+     * uses it and is no bean of the context.
+     */
+    private fun dslFor(
+        schema: String,
+        table: String,
+        tenants: TenantContext,
+        transactions: TransactionRunner,
+    ): DSLContext = TenancyJooq.dslContext(mapOf(DSL.name(schema, table) to TableClass.TENANT), tenants, transactions)
 }

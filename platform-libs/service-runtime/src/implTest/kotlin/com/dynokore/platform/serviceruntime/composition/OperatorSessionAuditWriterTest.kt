@@ -11,7 +11,9 @@ import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.identity.OperatorSession
 import com.dynokore.platform.serviceruntime.identity.OperatorSessionBindingFilter
+import com.dynokore.platform.tenancykernel.CurrentConnection
 import com.dynokore.platform.tenancykernel.TenantId
+import com.dynokore.platform.tenancykernel.TransactionRunner
 import com.nimbusds.jose.PlainHeader
 import com.nimbusds.jwt.JWTClaimsSet
 import com.nimbusds.jwt.PlainJWT
@@ -28,8 +30,8 @@ import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.mock.web.MockHttpServletRequest
 import org.springframework.mock.web.MockHttpServletResponse
+import java.sql.Connection
 import java.util.UUID
-import javax.sql.DataSource
 
 /**
  * Coordinator ruling INV-Q-4521 (INV-REQ-862 b4, INV-REQ-861 b2, INV-REQ-1180): every audit entry recorded under an
@@ -50,6 +52,14 @@ class OperatorSessionAuditWriterTest {
             }
         }
     private val writer = OperatorSessionAuditWriter(own)
+
+    // The wiring conditions are on the TransactionRunner bean (INV-T-5301); tenancy-jooq needs it to be the current connection too.
+    private val transactionRunner =
+        object : TransactionRunner, CurrentConnection {
+            override fun <T> inTransaction(block: () -> T): T = error("no transaction is opened in this test")
+
+            override fun require(): Connection = error("no connection is used in this test")
+        }
     private val entry = AuditEntry("op-1", "readInvoice", "INV-1")
 
     private fun recordedReason(entry: AuditEntry): String? {
@@ -155,7 +165,7 @@ class OperatorSessionAuditWriterTest {
             recorded.last().reason shouldBe "case CASE-5521: own"
         }
         base
-            .withBean("dataSource", DataSource::class.java, { mockk<DataSource>(relaxed = true) })
+            .withBean(TransactionRunner::class.java, { transactionRunner })
             .withPropertyValues(
                 "gst.service=control-plane-svc",
                 "gst.instance-id=cp-0",

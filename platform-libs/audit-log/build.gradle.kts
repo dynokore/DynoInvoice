@@ -35,6 +35,8 @@ sourceSets {
 // Project evaluation order is alphabetical, so these modules' `implJar` tasks would not exist yet.
 evaluationDependsOn(":tenancy-kernel")
 evaluationDependsOn(":outbox-and-queue")
+evaluationDependsOn(":tenancy-jooq")
+val tenancyJooqImplJar = project(":tenancy-jooq").tasks.named("implJar")
 val tenancyKernelImplJar = project(":tenancy-kernel").tasks.named("implJar")
 val outboxImplJar = project(":outbox-and-queue").tasks.named("implJar")
 
@@ -46,6 +48,11 @@ dependencies {
     add("implImplementation", files(tenancyKernelImplJar))
     add("implImplementation", files(outboxImplJar))
 
+    // INV-T-5301 (INV-ADR-3968 item 4a, owner ruling INV-Q-4196): every statement is jOOQ on tenancy-jooq's DSLContext.
+    // tenancy-jooq-api brings jOOQ.
+    add("implImplementation", project(":tenancy-jooq"))
+    add("implImplementation", files(tenancyJooqImplJar))
+
     // STK-08: Jackson 3 (`tools.jackson`) — the AuditEntryRecorded payload.
     add("implImplementation", libs.jackson.databind)
 
@@ -54,6 +61,10 @@ dependencies {
     testImplementation(files(tenancyKernelImplJar))
     testImplementation(files(outboxImplJar))
     testImplementation(testFixtures(project(":outbox-and-queue")))
+    testImplementation(testFixtures(project(":tenancy-kernel")))
+    testImplementation(project(":tenancy-jooq"))
+    testImplementation(files(tenancyJooqImplJar))
+    testImplementation(testFixtures(project(":tenancy-jooq")))
     testImplementation(libs.jackson.databind)
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)

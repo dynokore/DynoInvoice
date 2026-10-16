@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [8.0.2] - 2026-10-16
+### Changed
+- `AuditLogWiring` (INV-T-5301, audit-log 3.0.0; coordinator ruling INV-Q-5275) builds `LocalAuditWriter` and `JdbcOverrideService` with the module's tenancy-jooq `DSLContext` (`TenancyJooq.dslContext` over the `TransactionRunner` and `TenantContext` beans, the table declared `TENANT`) and no longer takes tenancy-kernel's `CurrentConnection`; the bean conditions are on the `TransactionRunner` bean. The `DSLContext` is private to the bean method, no bean of the context.
+
 ## [8.0.1] - 2026-10-16
 ### Changed
 - Metadata only: depends on `tenancy-kernel` 3.1.0 (adds `TransactionRunner.outsideOpenTransaction`, INV-T-5675); version step per ruling INV-Q-5678 (A). No code change.

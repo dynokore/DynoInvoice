@@ -20,11 +20,15 @@ import com.dynokore.platform.outboxandqueue.JdbcOutboxWriter
 import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxSchema
 import com.dynokore.platform.outboxandqueue.OutboxWriter
+import com.dynokore.platform.tenancyjooq.TableClass
+import com.dynokore.platform.tenancyjooq.TenancyJooq
 import com.dynokore.platform.tenancykernel.CurrentConnection
 import com.dynokore.platform.tenancykernel.TenantAwareDataSource
 import com.dynokore.platform.tenancykernel.TenantContextImpl
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
+import org.jooq.DSLContext
+import org.jooq.impl.DSL
 import org.postgresql.ds.PGSimpleDataSource
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.utility.DockerImageName
@@ -117,6 +121,10 @@ class WriteHarness(
     /** Fails the next audit write or stage when set. */
     @Volatile var failAudit = false
 
+    /** The module's tenancy-jooq DSLContext on [app] for the local audit table, declared `TENANT` (INV-T-5301). */
+    private fun auditDsl(): DSLContext =
+        TenancyJooq.dslContext(mapOf(DSL.name(SCHEMA, AuditSchema.AUDIT_ENTRY) to TableClass.TENANT), tenants, app)
+
     fun audit(connections: CurrentConnection): AuditWriter =
         object : AuditWriter {
             override fun record(
@@ -153,7 +161,7 @@ class WriteHarness(
         val real =
             when (mode) {
                 EventMode.OUTBOX -> OutboxAuditWriter(installationOutbox(connections, clock))
-                EventMode.NO_OUTBOX -> LocalAuditWriter(connections, SCHEMA, SERVICE, INSTANCE, clock)
+                EventMode.NO_OUTBOX -> LocalAuditWriter(auditDsl(), SCHEMA, SERVICE, INSTANCE, clock)
             }
         return object : AuditWriter, AuditStager {
             override fun record(

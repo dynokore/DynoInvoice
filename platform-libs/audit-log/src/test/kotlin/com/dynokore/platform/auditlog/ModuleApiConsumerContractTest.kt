@@ -1,6 +1,8 @@
 package com.dynokore.platform.auditlog
 
-import com.dynokore.platform.outboxandqueue.OutboxPostgresFixture
+import org.jooq.Table
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -39,10 +41,17 @@ class ModuleApiConsumerContractTest {
                 }
             }
 
-            assertEquals(1, h.auditEntries(committed.toString()))
-            assertEquals(1, h.count("select count(*) from submission.override_grant where doc_uuid = ?", committed))
-            assertEquals(0, h.auditEntries(rolledBack.toString()))
-            assertEquals(0, h.count("select count(*) from submission.override_grant where doc_uuid = ?", rolledBack))
+            val only = listOf(tenant)
+            assertEquals(1, h.auditEntries(only, committed.toString()))
+            assertEquals(
+                1,
+                h.count("select count(*) from submission.override_grant where doc_uuid = ?", only, committed),
+            )
+            assertEquals(0, h.auditEntries(only, rolledBack.toString()))
+            assertEquals(
+                0,
+                h.count("select count(*) from submission.override_grant where doc_uuid = ?", only, rolledBack),
+            )
 
             val expected =
                 """{"actor":"user-7","action":"override","reason":"UEN confirmed with the supplier",""" +
@@ -50,6 +59,7 @@ class ModuleApiConsumerContractTest {
             val matching =
                 h.count(
                     "select count(*) from submission.outbox where subject = ? and data @> ?::jsonb",
+                    only,
                     committed.toString(),
                     expected,
                 )
@@ -68,8 +78,8 @@ class ModuleApiConsumerContractTest {
             val refused =
                 assertThrows(OverrideRefused::class.java) { h.asTenant(tenant) { h.overrides.override(command) } }
             assertEquals(RefusalReason.TERMINAL, refused.reason)
-            assertEquals(0, h.count("select count(*) from submission.override_grant"))
-            assertEquals(0, h.count("select count(*) from submission.outbox"))
+            assertEquals(0, h.count("select count(*) from submission.override_grant", listOf(tenant)))
+            assertEquals(0, h.count("select count(*) from submission.outbox", listOf(tenant)))
         }
     }
 
@@ -93,11 +103,11 @@ class ModuleApiConsumerContractTest {
             val manual = h.overrideCommand(tenant, doc, code = AuditHarness.PAY_001)
             assertEquals(RefusalReason.NOT_OVERRIDABLE, refusal(manual))
             assertEquals(RefusalReason.UNKNOWN_CODE, refusal(h.overrideCommand(tenant, doc, code = "XXX-999")))
-            assertEquals(0, h.count("select count(*) from submission.outbox"))
+            assertEquals(0, h.count("select count(*) from submission.outbox", listOf(tenant)))
 
             h.asTenant(tenant) { h.overrides.override(h.overrideCommand(tenant, doc, version = 1)) }
             assertEquals(RefusalReason.ALREADY_OVERRIDDEN, refusal(h.overrideCommand(tenant, doc, version = 1)))
-            assertEquals(1, h.auditEntries(), "the repeated override left no second entry")
+            assertEquals(1, h.auditEntries(listOf(tenant)), "the repeated override left no second entry")
 
             assertTrue(h.overridden(tenant, doc, 1))
             assertFalse(h.overridden(tenant, doc, 2), "version 2 is blocked afresh")
@@ -116,16 +126,14 @@ class ModuleApiConsumerContractTest {
         ) = h.asTenant(tenant) {
             val entry = AuditEntry("tenant-admin-1", "mapIdpGroup", "idp-group:$group", "onboarding")
             h.operations.change(entry, h.context(tenant)) {
-                h.boundary
-                    .require()
-                    .prepareStatement(
-                        "insert into submission.idp_group_mapping values (?, ?) " +
-                            "on conflict (idp_group) do update set role = excluded.role",
-                    ).use {
-                        it.setString(1, group)
-                        it.setString(2, role)
-                        it.executeUpdate()
-                    }
+                h.dsl
+                    .insertInto(MAPPING)
+                    .columns(IDP_GROUP, ROLE)
+                    .values(group, role)
+                    .onConflict(IDP_GROUP)
+                    .doUpdate()
+                    .set(ROLE, DSL.excluded(ROLE))
+                    .execute()
             }
         }
 
@@ -134,12 +142,20 @@ class ModuleApiConsumerContractTest {
                 val entry = AuditEntry("operator-1", "exportSupportBundle", "tenant:$tenant")
                 h.operations.read(entry, h.context(tenant)) {
                     // The bundle is assembled from existing data; it reads the tenant's rows and returns an id.
-                    h.boundary.require().prepareStatement("select count(*) from submission.support_bundle").use {
-                        it.executeQuery().close()
-                    }
+                    h.dsl
+                        .selectCount()
+                        .from(BUNDLE)
+                        .fetchOne()
                     UUID.randomUUID()
                 }
             }
+
+        private companion object {
+            val MAPPING: Table<*> = DSL.table(DSL.name("submission", "idp_group_mapping"))
+            val BUNDLE: Table<*> = DSL.table(DSL.name("submission", "support_bundle"))
+            val IDP_GROUP = DSL.field(DSL.name("idp_group"), SQLDataType.CLOB)
+            val ROLE = DSL.field(DSL.name("role"), SQLDataType.CLOB)
+        }
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
@@ -148,23 +164,23 @@ class ModuleApiConsumerContractTest {
         AuditHarness(image).use { h ->
             val tenant = UUID.randomUUID()
             val service = FakeAccessService(h)
-            h.fixture.runAsAdmin("insert into submission.idp_group_mapping values ('finance', 'viewer')")
+            h.seedMapping("finance", "viewer")
             service.mapIdpGroup(tenant, "ops", "viewer")
-            assertEquals(1, h.auditEntries(), "baseline: with a working outbox the entry is written")
+            assertEquals(1, h.auditEntries(listOf(tenant)), "baseline: with a working outbox the entry is written")
 
             // The outbox table refuses inserts (INV-AC-2593).
-            h.fixture.runAsAdmin("revoke insert on submission.outbox from ${OutboxPostgresFixture.APP}")
+            h.refuseOutbox()
 
             val change =
                 assertThrows(AuditWriteFailed::class.java) { service.mapIdpGroup(tenant, "finance", "approver") }
             assertNotNull(change.cause)
             val unchanged =
                 "select count(*) from submission.idp_group_mapping where idp_group = 'finance' and role = 'viewer'"
-            assertEquals(1, h.count(unchanged), "mapping unchanged")
+            assertEquals(1, h.count(unchanged, listOf(tenant)), "mapping unchanged")
             var result: UUID? = null
             assertThrows(AuditWriteFailed::class.java) { result = service.exportSupportBundle(tenant) }
             assertNull(result)
-            assertEquals(1, h.auditEntries(), "no entry for either failed call")
+            assertEquals(1, h.auditEntries(listOf(tenant)), "no entry for either failed call")
         }
     }
 
@@ -172,11 +188,12 @@ class ModuleApiConsumerContractTest {
     @ValueSource(strings = ["postgres:17", "postgres:18"])
     fun `a read returns its result once its entry is written`(image: String) {
         AuditHarness(image).use { h ->
-            val bundle = FakeAccessService(h).exportSupportBundle(UUID.randomUUID())
+            val tenant = UUID.randomUUID()
+            val bundle = FakeAccessService(h).exportSupportBundle(tenant)
             assertTrue(bundle.toString().isNotBlank())
-            assertEquals(1, h.auditEntries())
+            assertEquals(1, h.auditEntries(listOf(tenant)))
             val exported = "select count(*) from submission.outbox where data ->> 'action' = 'exportSupportBundle'"
-            assertEquals(1, h.count(exported))
+            assertEquals(1, h.count(exported, listOf(tenant)))
         }
     }
 }

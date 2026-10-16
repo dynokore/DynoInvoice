@@ -26,7 +26,7 @@ class OutboxAuditStageIT {
             val context = platformContext("config:VP-78:INSTALLATION")
             val entry = AuditEntry("operator-1", "setPolicy", "INSTALLATION", "because", """{"value": null}""")
             val staged = h.inPlatform { h.audit.stage(entry, context) }
-            assertEquals(0, h.auditEntries(context.aggregateKey), "stage inserts nothing")
+            assertEquals(0, h.auditEntries(PLATFORM_ONLY, context.aggregateKey), "stage inserts nothing")
 
             val recorded = h.inPlatform { h.audit.record(entry, context) }
             // Same clock and context: only the UUIDv7's random bits differ.
@@ -38,7 +38,8 @@ class OutboxAuditStageIT {
                 1,
                 h.count(
                     "select count(*) from ${AuditHarness.SCHEMA}.outbox where id = ? and type = ? and data = ?::jsonb",
-                    recorded.id.value,
+                    PLATFORM_ONLY,
+                    UUID.fromString(recorded.id.value),
                     OutboxAuditWriter.EVENT_TYPE,
                     staged.envelope.dataJson,
                 ),
@@ -58,6 +59,10 @@ class OutboxAuditStageIT {
             val document = h.context(tenant, doc = UUID.randomUUID())
             assertThrows(IllegalArgumentException::class.java) { h.asTenant(tenant) { h.audit.stage(entry, document) } }
         }
+    }
+
+    private companion object {
+        val PLATFORM_ONLY = listOf(TenantId.PLATFORM.value)
     }
 
     private fun <T> AuditHarness.inPlatform(block: () -> T): T {

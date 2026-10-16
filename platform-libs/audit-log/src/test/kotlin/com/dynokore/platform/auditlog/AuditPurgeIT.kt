@@ -7,9 +7,10 @@ import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.OutboxPostgresFixture
 import com.dynokore.platform.outboxandqueue.OutboxPostgresFixture.Companion.APP
 import com.dynokore.platform.outboxandqueue.OutboxPostgresFixture.Companion.SYS
-import com.dynokore.platform.tenancykernel.TenantContextImpl
+import com.dynokore.platform.tenancyjooq.TableClass
 import com.dynokore.platform.tenancykernel.TenantId
-import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
+import org.jooq.exception.DataAccessException
+import org.jooq.impl.DSL
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
@@ -21,10 +22,9 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.Arguments
 import org.junit.jupiter.params.provider.MethodSource
 import org.junit.jupiter.params.provider.ValueSource
-import java.sql.SQLException
-import java.sql.Timestamp
 import java.time.Clock
 import java.time.Instant
+import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
@@ -42,7 +42,11 @@ import java.util.stream.Stream
 class AuditPurgeIT {
     private val fixtures = mutableMapOf<String, Purge>()
 
-    private fun purge(image: String): Purge = fixtures.getOrPut(image) { Purge(image) }.also { it.reset() }
+    // One container per image and provisioning variant: the grants and policies a test needs are init SQL (route R1).
+    private fun purge(
+        image: String,
+        extraInit: String = "",
+    ): Purge = fixtures.getOrPut("$image|$extraInit") { Purge(image, extraInit) }.also { it.reset() }
 
     @AfterAll
     fun close() = fixtures.values.forEach { it.close() }
@@ -62,9 +66,9 @@ class AuditPurgeIT {
 
         assertEquals(3L, p.call(PurgeCall.of(staged, cutOff)))
 
-        assertEquals(3L, p.count("select count(*) from controlplane.audit_entry"))
+        assertEquals(3L, p.countAll("select count(*) from controlplane.audit_entry"))
         val older = "select count(*) from controlplane.audit_entry where recorded_at < ?"
-        assertEquals(0L, p.count(older, Timestamp.from(cutOff)))
+        assertEquals(0L, p.countAll(older, p.at(cutOff)))
         val own =
             "select count(*) from controlplane.audit_entry where id = ?::uuid and tenant_id = ? and entity_ref = ? " +
                 "and actor = 'operator-9' and action = 'purgeAuditEntries' " +
@@ -76,14 +80,14 @@ class AuditPurgeIT {
                 "and (prior_state->>'cutOff')::timestamptz = ?"
         assertEquals(
             1L,
-            p.count(
+            p.countAll(
                 own,
-                staged.envelope.id.value,
+                UUID.fromString(staged.envelope.id.value),
                 TenantId.PLATFORM.value,
                 EntityRef.PLATFORM.value,
-                Timestamp.from(p.yearsAgo(8)),
-                Timestamp.from(p.yearsAgo(6)),
-                Timestamp.from(cutOff),
+                p.at(p.yearsAgo(8)),
+                p.at(p.yearsAgo(6)),
+                p.at(cutOff),
             ),
         )
     }
@@ -95,23 +99,24 @@ class AuditPurgeIT {
         p.seed(PLATFORM, p.yearsAgo(1))
         val staged = p.stage()
         assertEquals(0L, p.call(PurgeCall.of(staged, p.yearsAgo(6))))
-        assertEquals(2L, p.count("select count(*) from controlplane.audit_entry"))
+        assertEquals(2L, p.countAll("select count(*) from controlplane.audit_entry"))
         val prior = "select prior_state::text from controlplane.audit_entry where id = ?::uuid"
-        assertNull(p.strings(prior, staged.envelope.id.value).single())
+        assertNull(
+            p
+                .platformRows(prior, UUID.fromString(staged.envelope.id.value))
+                .single()
+                .values
+                .single(),
+        )
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
     fun `a purge whose own entry cannot be written deletes nothing`(image: String) {
-        val p = purge(image)
+        val p = purge(image, NO_SYS_INSERT)
         p.seed(PLATFORM, p.yearsAgo(7))
-        p.fixture.runAsAdmin("revoke insert on controlplane.audit_entry from $SYS")
-        try {
-            assertThrows(SQLException::class.java) { p.call(PurgeCall.of(p.stage(), p.yearsAgo(6))) }
-        } finally {
-            p.fixture.runAsAdmin("grant insert on controlplane.audit_entry to $SYS")
-        }
-        assertEquals(1L, p.count("select count(*) from controlplane.audit_entry"))
+        assertThrows(DataAccessException::class.java) { p.call(PurgeCall.of(p.stage(), p.yearsAgo(6))) }
+        assertEquals(1L, p.countAll("select count(*) from controlplane.audit_entry"))
     }
 
     /**
@@ -128,9 +133,9 @@ class AuditPurgeIT {
         assertEquals(1L, p.call(PurgeCall.of(first, p.yearsAgo(6).minusSeconds(DAY))))
         p.call(PurgeCall.of(p.stage(), p.yearsAgo(5).minusSeconds(DAY)))
         val kept = "select count(*) from controlplane.audit_entry where id = ?::uuid and recorded_at > ?"
-        val stays = p.count(kept, first.envelope.id.value, Timestamp.from(p.now))
+        val stays = p.countAll(kept, UUID.fromString(first.envelope.id.value), p.at(p.now))
         assertEquals(1L, stays, "the first purge's entry carries the database time and stays")
-        assertEquals(2L, p.count("select count(*) from controlplane.audit_entry"))
+        assertEquals(2L, p.countAll("select count(*) from controlplane.audit_entry"))
     }
 
     /** One test per check of the function (INV-T-3984, INV-Q-4277): each refuses, and nothing is written or deleted. */
@@ -140,26 +145,20 @@ class AuditPurgeIT {
         image: String,
         check: String,
     ) {
-        val p = purge(image)
+        // The tenant check is the function's own: an extra sys policy lets RLS admit the platform-tenant entry, so
+        // only the check can refuse the call (provisioned as init SQL of that variant).
+        val p = purge(image, if (check == WRONG_TENANT) OPEN_SYS_INSERT else "")
         p.seed(PLATFORM, p.yearsAgo(7))
         p.seed(UUID.randomUUID(), p.yearsAgo(9))
         val staged = p.stage()
         val good = PurgeCall.of(staged, p.yearsAgo(6))
         if (check == ALREADY_PRESENT) p.seed(PLATFORM, p.now, id = staged.envelope.id.value)
-        // The tenant check is the function's own: an extra sys policy lets RLS admit the platform-tenant entry, so
-        // only the check can refuse the call.
-        if (check == WRONG_TENANT) p.fixture.runAsAdmin(OPEN_SYS_INSERT)
-        val failure =
-            try {
-                assertThrows(SQLException::class.java) { checkNotNull(REFUSALS[check])(p, good) }
-            } finally {
-                if (check == WRONG_TENANT) p.fixture.runAsAdmin(DROP_OPEN_SYS_INSERT)
-            }
+        val failure = assertThrows(DataAccessException::class.java) { checkNotNull(REFUSALS[check])(p, good) }
         if (check == WRONG_TENANT) assertTrue("platform tenant only" in failure.message.orEmpty(), failure.message)
         val expected = if (check in PRIVILEGE_CHECKS) "42501" else "22023"
-        assertEquals(expected, failure.sqlState, failure.message)
+        assertEquals(expected, p.db.tx.sqlStateOf(failure), failure.message)
         val seeded = if (check == ALREADY_PRESENT) 3L else 2L
-        assertEquals(seeded, p.count("select count(*) from controlplane.audit_entry"))
+        assertEquals(seeded, p.countAll("select count(*) from controlplane.audit_entry"))
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
@@ -170,7 +169,7 @@ class AuditPurgeIT {
         val p = purge(image)
         assertEquals(
             listOf("INSERT,SELECT"),
-            p.strings(
+            p.db.strings(
                 "select string_agg(privilege_type, ',' order by privilege_type) " +
                     "from information_schema.role_table_grants " +
                     "where grantee = '$APP' and table_schema = 'controlplane' and table_name = 'audit_entry'",
@@ -178,27 +177,30 @@ class AuditPurgeIT {
         )
         assertEquals(
             listOf("purge_audit_entries|$SYS|search_path=pg_catalog, controlplane, pg_temp|$APP,$SYS"),
-            p.strings(
+            p.db.strings(
                 "select p.proname || '|' || pg_get_userbyid(p.proowner) || '|' || array_to_string(p.proconfig, ';') " +
                     "|| '|' || (select string_agg(distinct split_part(a::text, '=', 1), ',' " +
                     "order by split_part(a::text, '=', 1)) from unnest(p.proacl) a) " +
                     "from pg_proc p where p.pronamespace = 'controlplane'::regnamespace and p.prosecdef",
             ),
         )
-        assertEquals(listOf("false"), p.strings("select has_schema_privilege('$SYS', 'controlplane', 'CREATE')::text"))
+        assertEquals(
+            listOf("false"),
+            p.db.strings("select has_schema_privilege('$SYS', 'controlplane', 'CREATE')::text"),
+        )
 
         p.seed(PLATFORM, p.yearsAgo(7))
-        val delete = assertThrows(SQLException::class.java) { p.raw("delete from controlplane.audit_entry") }
-        assertEquals("42501", delete.sqlState)
+        val delete = assertThrows(DataAccessException::class.java) { p.raw("delete from controlplane.audit_entry") }
+        assertEquals("42501", p.db.tx.sqlStateOf(delete))
         val young =
-            assertThrows(SQLException::class.java) {
+            assertThrows(DataAccessException::class.java) {
                 p.raw(
                     "select controlplane.purge_audit_entries(now() - interval '4 years', 'raw', " +
                         "'${p.stage().envelope.id.value}'::uuid, '/gst/control-plane-svc', 's', 'i', 'c', 'c')",
                 )
             }
-        assertEquals("22023", young.sqlState)
-        assertEquals(1L, p.count("select count(*) from controlplane.audit_entry"))
+        assertEquals("22023", p.db.tx.sqlStateOf(young))
+        assertEquals(1L, p.countAll("select count(*) from controlplane.audit_entry"))
     }
 
     fun refusals(): Stream<Arguments> =
@@ -234,35 +236,47 @@ class AuditPurgeIT {
         }
     }
 
-    /** The fixture `control-plane-svc` with the audit table and the purge function, on one container. */
+    /**
+     * The fixture `control-plane-svc` with the audit table and the purge function, on one container ([extraInit]: SQL
+     * of this provisioning variant, run as the schema owner after the DDL).
+     */
     private class Purge(
         image: String,
+        extraInit: String = "",
     ) : AutoCloseable {
-        val fixture = OutboxPostgresFixture(image)
-        val tenants = TenantContextImpl()
-        val tx = TransactionRunnerImpl(fixture.appDataSource(), tenants)
+        val fixture =
+            OutboxPostgresFixture(
+                image,
+                "reset role;\ncreate schema $SCHEMA authorization outbox_owner;\n" +
+                    "grant usage on schema $SCHEMA to $APP;\nset role outbox_owner;\n" +
+                    AuditSchema.auditEntryDdl(SCHEMA, APP) + "\n" +
+                    AuditSchema.purgeDdl(SCHEMA, APP, SYS, "control-plane-svc") + "\n" + extraInit,
+            )
+        val db = AuditTestDb(fixture)
+        val tenants = db.tenants
+        private val ownerDsl = db.dsl(db.ownerTx, mapOf("$SCHEMA.audit_entry" to TableClass.TENANT))
+        private val seeded = mutableSetOf(PLATFORM)
 
         /** The time the rows are aged against, a minute behind the database's `now()`. */
         val now: Instant = Instant.now().minusSeconds(60).truncatedTo(ChronoUnit.MICROS)
 
-        init {
-            fixture.runAsAdmin(
-                "create schema $SCHEMA authorization outbox_owner; grant usage on schema $SCHEMA to $APP;",
-            )
-            fixture.run(
-                AuditSchema.auditEntryDdl(SCHEMA, APP) + "\n" +
-                    AuditSchema.purgeDdl(SCHEMA, APP, SYS, "control-plane-svc"),
-            )
+        /** Deletes every row of every tenant this fixture touched, as the owner under each tenant's binding. */
+        fun reset() {
+            seeded.toList().forEach { tenant ->
+                db.asOwner(TenantId(tenant)) {
+                    ownerDsl.deleteFrom(DSL.table(DSL.name(SCHEMA, "audit_entry"))).execute()
+                }
+            }
         }
 
-        fun reset() = fixture.runAsAdmin("truncate $SCHEMA.audit_entry")
+        fun at(instant: Instant): OffsetDateTime = instant.atOffset(ZoneOffset.UTC)
 
         fun yearsAgo(years: Long): Instant = ZonedDateTime.ofInstant(now, ZoneOffset.UTC).minusYears(years).toInstant()
 
         /** The purge's own entry, staged as control-plane-svc would stage it. */
         fun stage(clock: Clock = Clock.systemUTC()): StagedAuditEntry =
             LocalAuditWriter(
-                tx,
+                db.dsl(db.tx, emptyMap()),
                 SCHEMA,
                 "control-plane-svc",
                 "control-plane-svc-1",
@@ -281,83 +295,75 @@ class AuditPurgeIT {
                 ),
             )
 
-        /** An existing entry of [tenant] recorded at [at], written as the superuser. */
+        /** An existing entry of [tenant] recorded at [at], written as the schema owner under [tenant]'s binding. */
         fun seed(
             tenant: UUID,
             at: Instant,
             id: String = UUID.randomUUID().toString(),
-        ) = fixture.adminDataSource().connection.use { c ->
-            c
-                .prepareStatement(
-                    "insert into $SCHEMA.audit_entry (id, tenant_id, entity_ref, recorded_at, source, subject, " +
-                        "instance_id, correlation_id, causation_id, actor, action, scope) " +
-                        "values (?::uuid, ?, 'e', ?, '/gst/control-plane-svc', 's', 'i', 'c', 'c', " +
-                        "'operator-1', 'grantRole', 'x')",
-                ).use {
-                    it.setString(1, id)
-                    it.setObject(2, tenant)
-                    it.setTimestamp(3, Timestamp.from(at))
-                    it.executeUpdate()
-                }
+        ) {
+            seeded += tenant
+            db.ownerInsert(
+                ownerDsl,
+                TenantId(tenant),
+                SCHEMA,
+                "audit_entry",
+                mapOf(
+                    "id" to UUID.fromString(id),
+                    "tenant_id" to tenant,
+                    "entity_ref" to "e",
+                    "recorded_at" to at(at),
+                    "source" to "/gst/control-plane-svc",
+                    "subject" to "s",
+                    "instance_id" to "i",
+                    "correlation_id" to "c",
+                    "causation_id" to "c",
+                    "actor" to "operator-1",
+                    "action" to "grantRole",
+                    "scope" to "x",
+                ),
+            )
         }
 
-        /** Calls the function as the runtime login, bound to the platform tenant (or [tenant]) and [actor]. */
+        /** Calls the function as the runtime login, bound to the platform tenant (or [tenant]) and an actor. */
         fun call(
             call: PurgeCall,
             tenant: UUID? = null,
             unsetActor: Boolean = false,
-        ): Long =
-            bound("operator-9", tenant) {
-                // The runner always sets app.actor; this clears it so the function's own check is what refuses.
-                if (unsetActor) tx.require().createStatement().use { it.execute("reset app.actor") }
-                tx.require().prepareStatement("select $SCHEMA.purge_audit_entries(?, ?, ?::uuid, ?, ?, ?, ?, ?)").use {
-                    it.setTimestamp(1, Timestamp.from(call.cutOff))
-                    it.setString(2, call.reason)
-                    it.setString(3, call.entryId)
-                    it.setString(4, call.source)
-                    it.setString(5, call.subject)
-                    it.setString(6, call.instanceId)
-                    it.setString(7, call.correlationId)
-                    it.setString(8, call.causationId)
-                    it.executeQuery().use { rs ->
-                        rs.next()
-                        rs.getLong(1)
-                    }
-                }
+        ): Long {
+            seeded += tenant ?: PLATFORM
+            // The runner never binds a blank actor; the probe sets app.actor itself, so the function's check refuses.
+            val actor = if (unsetActor) "" else "operator-9"
+            return db.app.inTenant(tenant?.let { TenantId(it) } ?: TenantId.PLATFORM, actor) {
+                fetchValue(
+                    "select $SCHEMA.purge_audit_entries(?, ?, ?::uuid, ?, ?, ?, ?, ?)",
+                    at(call.cutOff),
+                    call.reason,
+                    UUID.fromString(call.entryId),
+                    call.source,
+                    call.subject,
+                    call.instanceId,
+                    call.correlationId,
+                    call.causationId,
+                ) as Long
             }
+        }
 
         /** Runs [sql] as the runtime login under the platform tenant and an actor. */
-        fun raw(sql: String) = bound("operator-9", null) { tx.require().createStatement().use { it.execute(sql) } }
+        fun raw(sql: String) = db.app.inTenant(TenantId.PLATFORM, "operator-9") { fetchRows(sql) }
 
-        private fun <T> bound(
-            actor: String,
-            tenant: UUID?,
-            block: () -> T,
-        ): T =
-            when {
-                tenant != null -> tenants.bind(TenantId(tenant), actor) { tx.inTransaction(block) }
-                else -> tenants.bindPlatform(actor) { tx.inTransaction(block) }
-            }
-
-        fun count(
+        /** The rows of [sql] under the platform tenant's RLS binding. */
+        fun platformRows(
             sql: String,
             vararg args: Any,
-        ): Long = strings(sql, *args).single()!!.toLong()
+        ) = db.app.inTenant(TenantId.PLATFORM, "operator-9") { fetchRows(sql, *args) }
 
-        fun strings(
+        /** The one-number [sql] summed over the RLS binding of every tenant this fixture touched. */
+        fun countAll(
             sql: String,
             vararg args: Any,
-        ): List<String?> =
-            fixture.adminDataSource().connection.use { c ->
-                c.prepareStatement(sql).use { statement ->
-                    args.forEachIndexed { index, value -> statement.setObject(index + 1, value) }
-                    statement.executeQuery().use { rs ->
-                        buildList { while (rs.next()) add(rs.getString(1)) }
-                    }
-                }
-            }
+        ): Long = db.count(sql, seeded, *args)
 
-        override fun close() = fixture.close()
+        override fun close() = db.close()
     }
 
     private companion object {
@@ -370,8 +376,8 @@ class AuditPurgeIT {
         const val ALREADY_PRESENT = "entry id already present"
         const val WRONG_TENANT = "tenant not the platform tenant"
         const val OPEN_SYS_INSERT =
-            "create policy audit_entry_test_open on $SCHEMA.audit_entry for insert to $SYS with check (true)"
-        const val DROP_OPEN_SYS_INSERT = "drop policy audit_entry_test_open on $SCHEMA.audit_entry"
+            "create policy audit_entry_test_open on $SCHEMA.audit_entry for insert to $SYS with check (true);"
+        const val NO_SYS_INSERT = "revoke insert on $SCHEMA.audit_entry from $SYS;"
 
         /** Each check of the function, and the call that fails only that check. */
         val REFUSALS: Map<String, (Purge, PurgeCall) -> Long> =

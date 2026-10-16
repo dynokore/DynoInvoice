@@ -2,22 +2,25 @@ package com.dynokore.platform.auditlog
 
 import com.dynokore.platform.outboxandqueue.DocUuid
 import com.dynokore.platform.outboxandqueue.EventContext
-import com.dynokore.platform.tenancykernel.CurrentConnection
 import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TransactionRunner
-import java.sql.Timestamp
+import org.jooq.DSLContext
+import org.jooq.Table
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import java.time.Clock
+import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 /**
- * The override path over JDBC (INV-REQ-1179, -1180, -1226). Refusals are decided from the command and the
+ * The override path over jOOQ (the module's tenancy-jooq [DSLContext]) (INV-REQ-1179, -1180, -1226). Refusals are decided from the command and the
  * catalogue before the transaction opens, so a refused override touches nothing (INV-AC-2166). The grant
  * row and its `AuditEntryRecorded` are written in one transaction: a rollback leaves neither (INV-AC-2209).
  * Also the [OverrideRegister]: a grant answers for exactly the version it was given for.
  */
 class JdbcOverrideService(
-    private val connections: CurrentConnection,
+    private val dsl: DSLContext,
     private val tx: TransactionRunner,
     private val audit: AuditWriter,
     private val errors: ErrorCatalogue,
@@ -28,6 +31,7 @@ class JdbcOverrideService(
     OverrideRegister {
     // INV-REQ-854 b5 (coordinator ruling INV-Q-4036): the schema enters SQL text only through SqlIdentifier.require.
     private val schemaName = SqlIdentifier.require(schema, "schema")
+    private val table: Table<*> = DSL.table(DSL.name(schemaName, AuditSchema.OVERRIDE_GRANT))
 
     override fun override(command: OverrideCommand): OverrideGrant {
         refuseIfNotAllowed(command)
@@ -74,16 +78,11 @@ class JdbcOverrideService(
         documentVersion: Long,
         code: String,
     ): Boolean =
-        connections
-            .require()
-            .prepareStatement(
-                "select 1 from $schemaName.${AuditSchema.OVERRIDE_GRANT} where doc_uuid = ? and document_version = ? and error_code = ?",
-            ).use { statement ->
-                statement.setObject(1, docUuid.value)
-                statement.setLong(2, documentVersion)
-                statement.setString(3, code)
-                statement.executeQuery().use { it.next() }
-            }
+        dsl
+            .selectOne()
+            .from(table)
+            .where(DOC_UUID.eq(docUuid.value), DOCUMENT_VERSION.eq(documentVersion), ERROR_CODE.eq(code))
+            .fetchOne() != null
 
     private fun refuseIfNotAllowed(command: OverrideCommand) {
         when (errors.dispositionOf(command.code)) {
@@ -102,29 +101,35 @@ class JdbcOverrideService(
         command: OverrideCommand,
         grant: OverrideGrant,
     ): Boolean =
-        connections
-            .require()
-            .prepareStatement(
-                """
-                insert into $schemaName.${AuditSchema.OVERRIDE_GRANT} (id, tenant_id, doc_uuid, document_version, error_code, actor, reason, granted_at, audit_event_id)
-                values (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                on conflict (tenant_id, doc_uuid, document_version, error_code) do nothing
-                """.trimIndent(),
-            ).use { statement ->
-                statement.setObject(1, UUID.randomUUID())
-                statement.setObject(2, command.tenant.value)
-                statement.setObject(3, grant.docUuid.value)
-                statement.setLong(4, grant.documentVersion)
-                statement.setString(5, grant.code)
-                statement.setString(6, grant.actor)
-                statement.setString(7, grant.reason)
-                statement.setTimestamp(8, Timestamp.from(grant.grantedAt))
-                statement.setString(9, grant.auditEventId)
-                statement.executeUpdate() == 1
-            }
+        dsl
+            .insertInto(table)
+            .columns(ID, TENANT_ID, DOC_UUID, DOCUMENT_VERSION, ERROR_CODE, ACTOR, REASON, GRANTED_AT, AUDIT_EVENT_ID)
+            .values(
+                UUID.randomUUID(),
+                command.tenant.value,
+                grant.docUuid.value,
+                grant.documentVersion,
+                grant.code,
+                grant.actor,
+                grant.reason,
+                grant.grantedAt.atOffset(ZoneOffset.UTC),
+                grant.auditEventId,
+            ).onConflict(TENANT_ID, DOC_UUID, DOCUMENT_VERSION, ERROR_CODE)
+            .doNothing()
+            .execute() == 1
 
     private companion object {
         const val ACTION = "override"
+
+        val ID = DSL.field(DSL.name("id"), SQLDataType.UUID)
+        val TENANT_ID = DSL.field(DSL.name("tenant_id"), SQLDataType.UUID)
+        val DOC_UUID = DSL.field(DSL.name("doc_uuid"), SQLDataType.UUID)
+        val DOCUMENT_VERSION = DSL.field(DSL.name("document_version"), SQLDataType.BIGINT)
+        val ERROR_CODE = DSL.field(DSL.name("error_code"), SQLDataType.CLOB)
+        val ACTOR = DSL.field(DSL.name("actor"), SQLDataType.CLOB)
+        val REASON = DSL.field(DSL.name("reason"), SQLDataType.CLOB)
+        val GRANTED_AT = DSL.field(DSL.name("granted_at"), SQLDataType.TIMESTAMPWITHTIMEZONE)
+        val AUDIT_EVENT_ID = DSL.field(DSL.name("audit_event_id"), SQLDataType.CLOB)
 
         fun scopeOf(command: OverrideCommand) =
             "document:${command.docUuid}/version:${command.documentVersion}/code:${command.code}"

@@ -4,23 +4,27 @@ import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
+import com.dynokore.platform.tenancyjooq.TenancyJooq
 import com.dynokore.platform.tenancykernel.CurrentConnection
+import com.dynokore.platform.tenancykernel.TenantContextImpl
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
+import java.sql.Connection
 import java.util.UUID
 
 /** Refusals and payload shaping need no database: they are decided before any transaction opens. */
 class OverrideRefusalTest {
     private val untouchable =
-        object : TransactionRunner {
+        object : TransactionRunner, CurrentConnection {
             override fun <T> inTransaction(block: () -> T): T = error("a refused override must not open a transaction")
+
+            override fun require(): Connection = error("a refused override must not use a connection")
         }
-    private val noConnection =
-        object : CurrentConnection {
-            override fun require(): java.sql.Connection = error("no connection")
-        }
+
+    // A tenancy-jooq DSLContext whose runner opens nothing: a statement would fail, a refusal never gets that far.
+    private val dsl = TenancyJooq.dslContext(emptyMap(), TenantContextImpl(), untouchable)
     private val noAudit =
         object : AuditWriter {
             override fun record(
@@ -32,7 +36,7 @@ class OverrideRefusalTest {
 
     private fun service(policy: OverridePolicy = OverridePolicy()) =
         JdbcOverrideService(
-            noConnection,
+            dsl,
             untouchable,
             noAudit,
             AuditHarness.CATALOGUE,

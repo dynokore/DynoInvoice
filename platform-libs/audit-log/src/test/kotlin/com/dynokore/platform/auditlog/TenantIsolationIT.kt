@@ -1,11 +1,12 @@
 package com.dynokore.platform.auditlog
 
+import com.dynokore.platform.tenancykernel.TenantId
+import org.jooq.exception.DataAccessException
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
-import java.sql.SQLException
 import java.util.UUID
 
 /**
@@ -23,30 +24,19 @@ class TenantIsolationIT {
 
             assertEquals(
                 listOf(true, true),
-                h.fixture.adminDataSource().connection.use { c ->
-                    c.createStatement().use { s ->
-                        s
-                            .executeQuery(
-                                "select relrowsecurity, relforcerowsecurity from pg_class " +
-                                    "where oid = 'submission.override_grant'::regclass",
-                            ).use {
-                                it.next()
-                                listOf(it.getBoolean(1), it.getBoolean(2))
-                            }
-                    }
-                },
+                h.db.app
+                    .fetchRows(
+                        "select relrowsecurity, relforcerowsecurity from pg_class " +
+                            "where oid = 'submission.override_grant'::regclass",
+                    ).single()
+                    .values
+                    .toList(),
             )
 
+            // RLS alone decides here: the probe carries no tenant predicate of its own.
             fun visible(tenant: UUID) =
-                h.asTenant(tenant) {
-                    h.boundary.inTransaction {
-                        h.boundary.require().createStatement().use { s ->
-                            s.executeQuery("select count(*) from submission.override_grant").use {
-                                it.next()
-                                it.getLong(1)
-                            }
-                        }
-                    }
+                h.db.app.inTenant(TenantId(tenant), "audit-test") {
+                    fetchValue("select count(*) from submission.override_grant") as Long
                 }
             assertEquals(1, visible(owner))
             assertEquals(0, visible(UUID.randomUUID()))
@@ -60,23 +50,17 @@ class TenantIsolationIT {
             val tenant = UUID.randomUUID()
             h.asTenant(tenant) { h.overrides.override(h.overrideCommand(tenant, UUID.randomUUID())) }
 
-            fun run(sql: String) =
-                h.asTenant(tenant) {
-                    h.boundary.inTransaction {
-                        h.boundary
-                            .require()
-                            .createStatement()
-                            .use { it.executeUpdate(sql) }
-                    }
-                }
-            assertThrows(SQLException::class.java) { run("update submission.override_grant set reason = 'changed'") }
-            assertThrows(SQLException::class.java) { run("delete from submission.override_grant") }
+            fun run(sql: String) = h.db.app.inTenant(TenantId(tenant), "audit-test") { fetchRows(sql) }
+            assertThrows(DataAccessException::class.java) {
+                run("update submission.override_grant set reason = 'changed'")
+            }
+            assertThrows(DataAccessException::class.java) { run("delete from submission.override_grant") }
             // The command names tenant B but the session is bound to A: the policy's WITH CHECK refuses the row.
             val other = UUID.randomUUID()
             assertThrows(Exception::class.java) {
                 h.asTenant(tenant) { h.overrides.override(h.overrideCommand(other, UUID.randomUUID())) }
             }
-            assertEquals(1, h.count("select count(*) from submission.override_grant"))
+            assertEquals(1, h.count("select count(*) from submission.override_grant", listOf(tenant, other)))
         }
     }
 }

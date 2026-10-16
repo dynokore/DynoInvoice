@@ -36,6 +36,8 @@ sourceSets {
 evaluationDependsOn(":tenancy-kernel")
 evaluationDependsOn(":audit-log")
 evaluationDependsOn(":outbox-and-queue")
+evaluationDependsOn(":tenancy-jooq")
+val tenancyJooqImplJar = project(":tenancy-jooq").tasks.named("implJar")
 val tenancyKernelImplJar = project(":tenancy-kernel").tasks.named("implJar")
 val auditLogImplJar = project(":audit-log").tasks.named("implJar")
 val outboxImplJar = project(":outbox-and-queue").tasks.named("implJar")
@@ -62,6 +64,9 @@ dependencies {
     // or the local audit_entry; OutboxWriter.stage), into the real outbox and audit_entry tables of the test schema.
     testImplementation(files(auditLogImplJar))
     testImplementation(files(outboxImplJar))
+    // INV-T-5301: WriteHarness builds audit-log's LocalAuditWriter on a tenancy-jooq DSLContext.
+    testImplementation(project(":tenancy-jooq"))
+    testImplementation(files(tenancyJooqImplJar))
     testImplementation(libs.jackson.databind)
     testImplementation(libs.postgresql)
     testImplementation(libs.testcontainers.postgresql)
