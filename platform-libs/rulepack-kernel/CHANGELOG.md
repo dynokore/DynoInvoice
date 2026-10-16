@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.0.5] - 2026-10-16
+### Changed
+- Metadata only: depends on `tenancy-kernel` 3.1.0 (adds `TransactionRunner.outsideOpenTransaction`, INV-T-5675); version step per ruling INV-Q-5678 (A). No code change.
+
 ## [2.0.4] - 2026-10-16
 ### Changed
 - Metadata-only for the published artefacts (INV-T-4515, version-file scope of the downstream closure): no API or behaviour change; the POMs and module metadata name tenancy-kernel 3.0.0 and tenancy-jooq 1.1.0.

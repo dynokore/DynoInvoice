@@ -83,6 +83,16 @@ class TransactionRunnerImpl
             }
         }
 
+        override fun <T> outsideOpenTransaction(block: () -> T): T {
+            val saved = open.get()
+            open.remove()
+            try {
+                return block()
+            } finally {
+                if (saved != null) open.set(saved) else open.remove()
+            }
+        }
+
         /**
          * The first statement of the transaction: one `select`, every setting transaction-local (`true`), so each ends
          * at commit or rollback: the tenant, the actor, and the [label]'s `application_name` when it gives one

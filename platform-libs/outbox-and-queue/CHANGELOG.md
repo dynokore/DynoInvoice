@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [3.1.1] - 2026-10-16
+### Changed
+- Metadata only: depends on `tenancy-kernel` 3.1.0 (adds `TransactionRunner.outsideOpenTransaction`, INV-T-5675); version step per ruling INV-Q-5678 (A). No code change.
+
 ## [3.1.0] - 2026-10-15
 ### Added
 - `OutboxPostgresFixture` (test fixtures, additive; coordinator ruling INV-Q-5119): the `initSql` constructor argument

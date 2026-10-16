@@ -6,6 +6,15 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-10-16
+### Added
+- `TransactionRunner.outsideOpenTransaction(block)` (main; a member with a default body `= block()`, so existing
+  implementers compile unchanged; owner answer INV-Q-5609 (b), ruling INV-Q-5683): `TransactionRunnerImpl` clears the
+  calling thread's open-transaction marker for the block and restores it in a `finally`, so a run-spanning transaction
+  (the outbox relay's advisory lock) and per-row transactions under other tenants coexist on one thread. Nesting
+  without the seam is unchanged (INV-Q-3997). A seam user needs at least 2 permits in its lane: the outer and the
+  inner connection each take one `LaneGate` permit; `LaneGate` and `TenantAwareDataSource` are unchanged.
+
 ## [3.0.0] - 2026-10-15
 ### Added
 - `LaneGate`, `LanePermit` and `LaneRefusedException` (main, no `java.sql` type; owner ruling INV-Q-4502 (A), INV-REQ-1230

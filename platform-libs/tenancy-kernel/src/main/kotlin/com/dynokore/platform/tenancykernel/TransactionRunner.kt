@@ -23,4 +23,19 @@ package com.dynokore.platform.tenancykernel
  */
 interface TransactionRunner {
     fun <T> inTransaction(block: () -> T): T
+
+    /**
+     * Runs [block] with the calling thread's open-transaction marker of this runner cleared, and restores it after,
+     * also when [block] throws (owner answer INV-Q-5609 (b)). A transaction opened inside [block] takes its own
+     * connection and its own binding, so a run-spanning transaction (an advisory lock) and per-row transactions under
+     * other tenants can coexist on one thread. The outer transaction stays open and is neither committed nor rolled
+     * back by the block. Only the calling thread's marker of this runner is cleared. With no transaction open it just
+     * runs [block].
+     *
+     * A runner without an override clears nothing: the default body runs [block] inside the open transaction, so a
+     * different-binding transaction there is still refused (INV-Q-3997). A seam user needs at least 2 permits in its
+     * lane, because the outer and the inner connection each take one [LaneGate] permit (ruling INV-Q-5683); with
+     * fewer, the inner checkout is refused with [LaneRefusedException].
+     */
+    fun <T> outsideOpenTransaction(block: () -> T): T = block()
 }
