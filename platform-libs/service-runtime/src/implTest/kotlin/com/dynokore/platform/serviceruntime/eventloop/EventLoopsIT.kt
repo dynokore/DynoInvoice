@@ -414,7 +414,8 @@ class EventLoopsIT {
                     }
                     // past the first failed call
                     eventually("the first failed outboxRelay call") {
-                        appender.list.any {
+                        // snapshot: the relay thread appends to the list concurrently
+                        appender.list.toTypedArray().any {
                             it.level == Level.WARN && it.formattedMessage.contains("loop=outboxRelay")
                         }
                     }
