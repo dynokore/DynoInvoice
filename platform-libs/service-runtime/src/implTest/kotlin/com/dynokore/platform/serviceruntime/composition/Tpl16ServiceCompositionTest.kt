@@ -61,7 +61,7 @@ class Tpl16ServiceCompositionTest {
     ) {
         service.withUserConfiguration(SubmissionBootstrap::class.java, composition.application).run { context ->
             context.startupFailure shouldBe null
-            val application = context.getBean(DataSource::class.java).unwrap(HikariDataSource::class.java)
+            val application = context.getBean(DataSource::class.java) as HikariDataSource
             application.jdbcUrl shouldBe "jdbc:postgresql://localhost:5432/submission"
             listOf(
                 TransactionRunner::class,
@@ -133,7 +133,7 @@ class Tpl16ServiceCompositionTest {
             eventLog.maximumPoolSize shouldBe 3
             eventLog.minimumIdle shouldBe 1
             // the application DataSource is still the one an unqualified injection gets
-            context.getBean(DataSource::class.java).unwrap(HikariDataSource::class.java).jdbcUrl shouldBe
+            (context.getBean(DataSource::class.java) as HikariDataSource).jdbcUrl shouldBe
                 "jdbc:postgresql://localhost:5432/submission"
         }
         ha.withPropertyValues("service-runtime.event-log-pool.minimum-idle=2").run { context ->

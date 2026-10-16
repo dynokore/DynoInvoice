@@ -179,7 +179,8 @@ class SqlConfigurationKeyGuardContextIT {
         service.run { context ->
             context.startupFailure shouldBe null
             context.getBeanNamesForType(MBeanExporter::class.java).shouldBeEmpty()
-            context.getBean(DataSource::class.java).unwrap(HikariDataSource::class.java).isRegisterMbeans shouldBe false
+            (context.getBean(DataSource::class.java) as HikariDataSource).isRegisterMbeans shouldBe
+                false
             hikariMBeans().shouldBeEmpty()
         }
     }

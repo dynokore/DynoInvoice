@@ -29,7 +29,7 @@ class PoolConfigurationRecheckTest {
             context.startupFailure shouldBe null
             context.getBeansOfType(PoolConfigurationRecheck::class.java).keys shouldBe
                 setOf("serviceRuntimePoolConfigurationRecheck")
-            context.getBean(DataSource::class.java).unwrap(HikariDataSource::class.java).password shouldBe null
+            (context.getBean(DataSource::class.java) as HikariDataSource).password shouldBe null
         }
     }
 
@@ -77,7 +77,7 @@ class PoolConfigurationRecheckTest {
     class PasswordAfterCheckService {
         @Bean
         fun passwordAfterCheck(dataSource: DataSource): Runnable {
-            dataSource.unwrap(HikariDataSource::class.java).password = "pw-value"
+            (dataSource as HikariDataSource).password = "pw-value"
             return Runnable {}
         }
     }

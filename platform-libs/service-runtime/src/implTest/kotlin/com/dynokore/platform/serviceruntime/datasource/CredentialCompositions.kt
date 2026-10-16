@@ -18,7 +18,6 @@ import org.springframework.context.annotation.Import
 import org.springframework.core.type.AnnotationMetadata
 import java.nio.file.Files
 import java.nio.file.Path
-import javax.sql.DataSource
 
 /*
  * INV-T-3913 (P109): a service composed as TPL-18 writes it (`@Import(ServiceRuntimeConfiguration::class,
@@ -94,7 +93,7 @@ fun ApplicationContextRunner.withPool(
                 bean: Any,
                 beanName: String,
             ): Any {
-                if (beanName == poolBean) setting((bean as DataSource).unwrap(HikariDataSource::class.java))
+                if (beanName == poolBean) setting(bean as HikariDataSource)
                 return bean
             }
         }

@@ -60,7 +60,7 @@ class CredentialRotationIT {
             service(pg, mountRoot).run { context ->
                 context.startupFailure shouldBe null
                 val appSource = context.getBean(DataSource::class.java)
-                val app = appSource.unwrap(HikariDataSource::class.java)
+                val app = appSource as HikariDataSource
                 // the event-log pool on its own URL takes the application pool's login and credentials provider
                 val eventLog = context.getBean(ServiceDataSources.EVENT_LOG, HikariDataSource::class.java)
                 app.password.shouldBeNull()

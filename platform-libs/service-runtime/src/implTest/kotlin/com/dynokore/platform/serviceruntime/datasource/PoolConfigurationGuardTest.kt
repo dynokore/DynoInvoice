@@ -268,7 +268,7 @@ class PoolConfigurationGuardTest {
             bean: Any,
             beanName: String,
         ): Any {
-            if (beanName == "dataSource") setting((bean as DataSource).unwrap(HikariDataSource::class.java))
+            if (beanName == "dataSource") setting(bean as HikariDataSource)
             return bean
         }
     }
@@ -316,9 +316,8 @@ class PoolConfigurationGuardTest {
                 val eventLog = context.getBean(ServiceDataSources.EVENT_LOG, HikariDataSource::class.java)
                 eventLog.dataSourceProperties["ApplicationName"] shouldBe "submission-svc"
                 context
-                    .getBean(
-                        DataSource::class.java,
-                    ).unwrap(HikariDataSource::class.java)
+                    .getBean(DataSource::class.java)
+                    .let { it as HikariDataSource }
                     .dataSourceProperties["ApplicationName"] shouldBe
                     "submission-svc"
             }
