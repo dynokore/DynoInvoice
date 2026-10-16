@@ -261,14 +261,11 @@ class AuditPurgeIT {
         /** The time the rows are aged against, a minute behind the database's `now()`. */
         val now: Instant = Instant.now().minusSeconds(60).truncatedTo(ChronoUnit.MICROS)
 
-        /** Deletes every row of every tenant this fixture touched, as the owner under each tenant's binding. */
-        fun reset() {
-            seeded.toList().forEach { tenant ->
-                db.asOwner(TenantId(tenant)) {
-                    ownerDsl.deleteFrom(DSL.table(DSL.name(SCHEMA, "audit_entry"))).execute()
-                }
-            }
-        }
+        /**
+         * Empties the table with the fixture's superuser: the schema owner is a member of the sys role, so its own
+         * deletes are held to the legal floor by the restrictive policy and cannot clear a young row.
+         */
+        fun reset() = fixture.runAsAdmin("truncate $SCHEMA.audit_entry")
 
         fun at(instant: Instant): OffsetDateTime = instant.atOffset(ZoneOffset.UTC)
 
