@@ -23,3 +23,4 @@ goLive	operation	openapi.yaml	INV-REQ-333
 recordAppliedOperatingProfile	operation	openapi.yaml	INV-REQ-1245
 getAppliedOperatingProfile	operation	openapi.yaml	INV-REQ-1245
 offboardTenant	operation	openapi.yaml	INV-REQ-956
+recordInstallationAction	operation	openapi.yaml	INV-REQ-1101

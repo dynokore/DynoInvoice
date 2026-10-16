@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 1.1.0
+  version: 1.2.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -894,6 +894,93 @@ paths:
         "403":
           $ref: '#/components/responses/Error'
         "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/installation-actions:
+    post:
+      operationId: recordInstallationAction
+      summary: Record one installer run-record step and the installation facts it sets (INV-REQ-1101 b5, INV-REQ-861)
+      description: 'Called by the installer sender (a Job under the chart-created installer service account), after
+        every command and after a restore. In one transaction tenancy-svc stores the step, updates the installation
+        facts it owns (release train and supported window; backup-target verification, INV-REQ-1107; heartbeat target
+        or its absence, INV-REQ-1116) and writes AuditEntryRecorded under the reserved platform TenantId through its
+        own outbox (INV-REQ-861; actor = runIdentity with the named deploymentOperator). Idempotent by (runId, step),
+        permanently: a repeat returns the original acknowledgement, changes no fact and writes no second entry; a repeat
+        with a different body also returns the original acknowledgement, applies nothing and raises the
+        differing-repeat counter. Unknown request fields are ignored, never stored, and listed in warnings (API-10).
+        A fact applies by occurredAt: an older step never overwrites a newer fact. Not in the console catalogue of
+        INV-REQ-2588 (INV-REQ-1101 b5, INV-REQ-1108 b6). The scope and the prior state of the audit entry are not request fields:
+        the scope is the installation, and tenancy-svc reads the prior state, the facts the step changes as they
+        were, from its own installation facts (INV-Q-5498). The closed service-runtime refusals carry their SRT
+        codes and are not listed in x-error-codes (INV-Q-5500, ARC-19): a call without a valid workload token is
+        SRT-003; a call under any other identity is SRT-004.'
+      tags:
+      - installation
+      x-principal: workload
+      x-sync-edge: installer->tenancy-svc
+      x-timeout: 2000
+      x-requirements:
+      - INV-REQ-1101
+      - INV-REQ-1107
+      - INV-REQ-1116
+      - INV-REQ-1108
+      - INV-REQ-861
+      x-error-codes: []
+      x-operation:
+        role: installer workload identity
+        scope: installation
+        precondition: tenancy-svc is healthy and the step is one of the object-locked run record
+        reversibility: IRREVERSIBLE
+        repeatKey: (runId, step), permanent - a repeat returns the original acknowledgement, changes no fact and writes no second entry
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordInstallationActionRequest'
+            examples:
+              default:
+                value:
+                  runId: 0b0c9a3e-6d1f-4f0e-9a52-7a1d3c5e8f10
+                  step: 1
+                  command: INSTALL
+                  stepName: verify-backup-target
+                  outcome: SUCCEEDED
+                  occurredAt: "2026-10-16T08:30:00Z"
+                  runIdentity: cli:ops-lee
+                  deploymentOperator: ops-lee
+                  facts:
+                    releaseTrain: "2026.10"
+                    backupTarget:
+                      verified: true
+                      checkedAt: "2026-10-16T08:29:40Z"
+      responses:
+        "200":
+          description: The step is recorded, or it was already recorded and the original acknowledgement is returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstallationActionAck'
+              examples:
+                default:
+                  value:
+                    runId: 0b0c9a3e-6d1f-4f0e-9a52-7a1d3c5e8f10
+                    step: 1
+                    auditEntryId: 7f1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d
+                    recordedAt: "2026-10-16T08:30:01Z"
+                    warnings: []
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "409":
+          $ref: '#/components/responses/Error'
+        "422":
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
@@ -2534,6 +2621,130 @@ components:
             - SOURCE_DOCUMENT_REFERENCES
             - AUDIT_LOG
             x-extensible-enum: true
+    RecordInstallationActionRequest:
+      type: object
+      description: One installer run-record step. Every string has a maxLength; there is no free-form inputs map, so no secret can reach the audit entry (API-49, INV-REQ-1101 b5).
+      required:
+      - runId
+      - step
+      - command
+      - stepName
+      - outcome
+      - occurredAt
+      - runIdentity
+      - deploymentOperator
+      properties:
+        runId:
+          type: string
+          format: uuid
+        step:
+          type: integer
+          minimum: 1
+          description: Order within the run; restarts per run.
+        command:
+          type: string
+          enum:
+          - INSTALL
+          - UPGRADE
+          - PATCH_TRAIN_APPLY
+          - RESTORE
+          - PROVISIONING
+          - HEARTBEAT_TARGET_CHANGE
+          - SIEM_TARGET_CHANGE
+          - SUPPORT_BUNDLE_EXPORT
+        stepName:
+          type: string
+          maxLength: 128
+        outcome:
+          type: string
+          enum:
+          - SUCCEEDED
+          - FAILED
+          - SKIPPED
+        occurredAt:
+          type: string
+          format: date-time
+        runIdentity:
+          type: string
+          maxLength: 128
+          description: The identity that ran the command (the CLI identity on a first install).
+        deploymentOperator:
+          type: string
+          maxLength: 128
+          description: The named deployment.operator.
+        approvingEngineer:
+          type: string
+          maxLength: 128
+          description: The approving platform.engineer; SaaS only.
+        trainFrom:
+          type: string
+          maxLength: 64
+        trainTo:
+          type: string
+          maxLength: 64
+        facts:
+          $ref: '#/components/schemas/InstallationFacts'
+    InstallationFacts:
+      type: object
+      properties:
+        releaseTrain:
+          type: string
+          maxLength: 64
+        supportedWindow:
+          type: string
+          maxLength: 128
+        backupTarget:
+          type: object
+          required:
+          - verified
+          - checkedAt
+          properties:
+            verified:
+              type: boolean
+            checkedAt:
+              type: string
+              format: date-time
+            detail:
+              type: string
+              maxLength: 256
+        heartbeatTarget:
+          type: object
+          required:
+          - present
+          properties:
+            present:
+              type: boolean
+            endpointHost:
+              type: string
+              maxLength: 253
+              description: Host name only, never a URL with credentials.
+    InstallationActionAck:
+      type: object
+      required:
+      - runId
+      - step
+      - auditEntryId
+      - recordedAt
+      - warnings
+      properties:
+        runId:
+          type: string
+          format: uuid
+        step:
+          type: integer
+          minimum: 1
+        auditEntryId:
+          type: string
+          format: uuid
+        recordedAt:
+          type: string
+          format: date-time
+        warnings:
+          type: array
+          description: Names of ignored unknown request fields (API-10).
+          items:
+            type: string
+            maxLength: 128
     OffboardingRecordResponse:
       type: object
       required:
