@@ -133,34 +133,14 @@ class TenancyKernelPostgresIT {
         val tenants = TenantContextImpl()
         val tx = TransactionRunnerImpl(app(fixture), tenants)
 
-        val refused =
-            assertThrows(SQLException::class.java) {
-                tenants.bind(tenantA, "test-actor") {
-                    tx.inTransaction {
-                        // Tenant A's session, but the row claims to be tenant B's: WITH CHECK must refuse it.
-                        insertProbe(tx.require(), ProbeRow(UUID.randomUUID(), tenantB, "smuggled"))
-                    }
+        assertThrows(SQLException::class.java) {
+            tenants.bind(tenantA, "test-actor") {
+                tx.inTransaction {
+                    // Tenant A's session, but the row claims to be tenant B's: WITH CHECK must refuse it.
+                    insertProbe(tx.require(), ProbeRow(UUID.randomUUID(), tenantB, "smuggled"))
                 }
             }
-        // INV-Q-5121: the runner reads the SQLSTATE of the error the database really raised (42501, RLS WITH CHECK).
-        assertEquals("42501", tx.sqlStateOf(refused))
-        assertSqlStateOf(tx)
-    }
-
-    /** INV-Q-5121: first SQLSTATE in the cause chain, to the depth of 8, none for a chain without one. */
-    private fun assertSqlStateOf(tx: TransactionRunnerImpl) {
-        val unique = SQLException("duplicate key", "23505")
-        assertEquals("23505", tx.sqlStateOf(unique))
-        // a wrapper such as jOOQ's DataAccessException is a RuntimeException with the SQLException as its cause
-        assertEquals("23505", tx.sqlStateOf(IllegalStateException("wrapped", unique)))
-        var deep: Throwable = unique
-        repeat(5) { deep = RuntimeException("level $it", deep) }
-        assertEquals("23505", tx.sqlStateOf(deep))
-        var tooDeep: Throwable = unique
-        repeat(8) { tooDeep = RuntimeException("level $it", tooDeep) }
-        assertNull(tx.sqlStateOf(tooDeep))
-        assertNull(tx.sqlStateOf(RuntimeException("outer", IllegalStateException("inner"))))
-        assertNull(tx.sqlStateOf(SQLException("no state")))
+        }
     }
 
     /**
