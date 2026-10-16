@@ -192,6 +192,12 @@ components:
           type: integer
           minimum: 0
           description: Declared number of retained underlying transactions; the retained list is checked against it (INV-REQ-414).
+        isCreditNote:
+          type: boolean
+          description: True for a credit-note aggregate, document type 381; absent means false (INV-REQ-438).
+        isSupplementary:
+          type: boolean
+          description: True for a supplementary aggregate; absent means false. Both flags true is a refund arriving after its window was transmitted (INV-REQ-439).
         subtotalsByTaxCode:
           type: array
           description: Per internal tax code group subtotals; for a PCP aggregate the claimable input tax claimed per group (INV-REQ-441).
@@ -218,6 +224,12 @@ components:
           type: integer
           minimum: 0
           description: Declared number of retained underlying transactions; the retained list is checked against it (INV-REQ-414).
+        isCreditNote:
+          type: boolean
+          description: True for a credit-note aggregate, document type 381; absent means false (INV-REQ-438).
+        isSupplementary:
+          type: boolean
+          description: True for a supplementary aggregate; absent means false. Both flags true is a refund arriving after its window was transmitted (INV-REQ-439).
         subtotalsByTaxCode:
           type: array
           description: Per internal tax code group subtotals; for a PCP aggregate the claimable input tax claimed per group (INV-REQ-441).
