@@ -9,7 +9,7 @@ minimum, maximum, items, local $ref into #/$defs), plus uniqueItems, the map key
 minProperties, propertyNames and schema-valued additionalProperties (INV-T-5054), and a calendar
 check of format: date (a date matching YYYY-MM-DD must also exist, so
 2027-13-45 fails). Numbers (INV-Q-5443): type number (an int or a float that is not a bool, so "120", true, null and an array
-fail) and the keywords exclusiveMinimum, exclusiveMaximum, minimum and maximum on number and on integer.
+fail; NaN and Infinity fail too) and the keywords exclusiveMinimum, exclusiveMaximum, minimum and maximum on number and on integer.
 A schema carrying patternProperties or maxProperties fails every sample
 (Unsupported, never silently ignored). No pip install in CI (mirrors
 check-payload-compat.py's stdlib-only style); networknt json-schema-validator
@@ -40,6 +40,7 @@ from __future__ import annotations
 import datetime
 import fnmatch
 import json
+import math
 import re
 import sys
 from pathlib import Path
@@ -205,6 +206,8 @@ def _check(instance, schema: dict, root: dict, path: str) -> None:
     elif t == "number":
         if not isinstance(instance, (int, float)) or isinstance(instance, bool):
             raise Invalid(f"{path}: expected number, got {type(instance).__name__}")
+        if not math.isfinite(instance):
+            raise Invalid(f"{path}: {instance} is not a finite number")
         if "minimum" in schema and instance < schema["minimum"]:
             raise Invalid(f"{path}: {instance} below minimum {schema['minimum']}")
         if "maximum" in schema and instance > schema["maximum"]:
