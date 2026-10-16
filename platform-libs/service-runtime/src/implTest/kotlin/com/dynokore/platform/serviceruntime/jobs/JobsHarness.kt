@@ -102,8 +102,6 @@ class JobsHarness
         extraTables: Map<String, TableClass> = emptyMap(),
         /** Tables whose inserts record the bound actor (see [capturedActors]); they must exist after [extraDdl]. */
         captureTables: List<String> = listOf("$SCHEMA.outbox", "$SCHEMA.job_run"),
-        /** More provisioning SQL, run last as the owner role (a trigger on an object the harness created). */
-        extraInitSql: String = "",
     ) : AutoCloseable {
         val fixture =
             OutboxPostgresFixture(
@@ -111,7 +109,7 @@ class JobsHarness
                 OutboxPostgresFixture.serviceInitSql(
                     SCHEMA,
                     JobSchema.ddl(SCHEMA, OutboxPostgresFixture.APP, OutboxPostgresFixture.SYS) + "\n" + extraDdl,
-                ) + OutboxPostgresFixture.captureActorsInitSql(captureTables) + "\n" + extraInitSql,
+                ) + OutboxPostgresFixture.captureActorsInitSql(captureTables),
             )
 
         /** The tables the tests declare to tenancy-jooq: the job and outbox tables, the libraries' platform tables. */

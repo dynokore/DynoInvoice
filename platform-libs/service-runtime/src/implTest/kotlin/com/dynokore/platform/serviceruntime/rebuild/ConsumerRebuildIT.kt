@@ -14,6 +14,7 @@ import com.dynokore.platform.outboxandqueue.EventLogSchema
 import com.dynokore.platform.outboxandqueue.JdbcOutboxWriter
 import com.dynokore.platform.outboxandqueue.OutboxPostgresFixture
 import com.dynokore.platform.outboxandqueue.OutboxSchema
+import com.dynokore.platform.outboxandqueue.PostgresEventLogReader
 import com.dynokore.platform.outboxandqueue.ReadModelClear
 import com.dynokore.platform.outboxandqueue.ReadModelTable
 import com.dynokore.platform.outboxandqueue.ReplayJson
@@ -23,14 +24,10 @@ import com.dynokore.platform.outboxandqueue.ReplayRequestTopic
 import com.dynokore.platform.outboxandqueue.ReplayScope
 import com.dynokore.platform.outboxandqueue.ReplayTopic
 import com.dynokore.platform.outboxandqueue.TenantScope
-import com.dynokore.platform.serviceruntime.testing.TestDatabase
-import com.dynokore.platform.tenancyjooq.TableClass
+import com.dynokore.platform.tenancykernel.TenantContextImpl
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TenantRlsMigration
-import org.jooq.Condition
-import org.jooq.Field
-import org.jooq.impl.DSL
-import org.jooq.impl.SQLDataType
+import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -42,7 +39,6 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import tools.jackson.databind.ObjectMapper
 import java.time.Clock
-import java.time.OffsetDateTime
 import java.util.UUID
 
 /**
@@ -72,8 +68,8 @@ class ConsumerRebuildIT {
                 h.runtime().rebuildConsumer(h.request()),
                 "no watermark yet",
             )
-            assertEquals(0L, h.count("outbox"))
-            assertEquals(0L, h.count("consumer_replay"))
+            assertEquals(0L, h.count("select count(*) from $SCHEMA.outbox"))
+            assertEquals(0L, h.count("select count(*) from $SCHEMA.consumer_replay"))
         }
     }
 
@@ -110,7 +106,9 @@ class ConsumerRebuildIT {
                 val done = h.runtime().rebuildConsumer(h.request(scope = scope)) as RebuildOutcome.Done
                 assertTrue(done.created)
                 val stored =
-                    h.strings("consumer_replay", "scope", where = f("replay_id").eq(done.state.replayId))
+                    h.strings(
+                        "select scope from $SCHEMA.consumer_replay where replay_id = '${done.state.replayId}'",
+                    )
                 assertEquals(1, stored.size)
                 assertEquals(
                     mapper.readTree(ReplayJson().writeScope(scope)),
@@ -132,9 +130,9 @@ class ConsumerRebuildIT {
                 refused(RebuildErrorCode.ROLE_NOT_PERMITTED),
                 h.runtime().rebuildConsumer(h.request(actor = "tenant.admin")),
             )
-            assertEquals(0L, h.count("consumer_replay"))
-            assertEquals(0L, h.count("outbox", f("type").like("%ReplayRequested%")))
-            assertEquals(0L, h.count("outbox", f("type").like("%AuditEntryRecorded%")))
+            assertEquals(0L, h.count("select count(*) from $SCHEMA.consumer_replay"))
+            assertEquals(0L, h.count("select count(*) from $SCHEMA.outbox where type like '%ReplayRequested%'"))
+            assertEquals(0L, h.count("select count(*) from $SCHEMA.outbox where type like '%AuditEntryRecorded%'"))
             assertNull(h.nextOffsetOrNull(), "the head is not moved")
             // the same request by a platform operator is accepted, so the refusal was the role
             assertNotNull(h.runtime().rebuildConsumer(h.request()) as? RebuildOutcome.Done)
@@ -148,7 +146,7 @@ class ConsumerRebuildIT {
     ) {
         Harness(image).use { h ->
             h.behind(watermark = 5)
-            h.captureActors("$SCHEMA.outbox")
+            h.fixture.captureActors("$SCHEMA.outbox")
             val request = h.request()
             val done = h.runtime().rebuildConsumer(request) as RebuildOutcome.Done
             assertTrue(done.created)
@@ -161,7 +159,7 @@ class ConsumerRebuildIT {
             assertEquals(6L, h.nextOffset(), "moved past max(head, watermark)")
             assertEquals(
                 setOf("platform.engineer"),
-                h.capturedActors("$SCHEMA.outbox").toSet(),
+                h.fixture.capturedActors("$SCHEMA.outbox").toSet(),
                 "the operator's transaction is bound to the operator, never the service (INV-Q-4268)",
             )
 
@@ -185,8 +183,8 @@ class ConsumerRebuildIT {
                 }
             assertThrows(IllegalStateException::class.java) { h.runtime(audit = failing).rebuildConsumer(h.request()) }
             assertNull(h.nextOffsetOrNull())
-            assertEquals(0L, h.count("outbox"))
-            assertEquals(0L, h.count("consumer_replay"))
+            assertEquals(0L, h.count("select count(*) from $SCHEMA.outbox"))
+            assertEquals(0L, h.count("select count(*) from $SCHEMA.consumer_replay"))
             assertNotNull(h.runtime().rebuildConsumer(h.request()) as? RebuildOutcome.Done, "a later call succeeds")
         }
     }
@@ -207,15 +205,15 @@ class ConsumerRebuildIT {
             assertEquals(ReplayMode.FULL_SYNC, done.state.mode)
             assertEquals(
                 0L,
-                h.count("match_view"),
+                h.count("select count(*) from $SCHEMA.match_view"),
                 "the read model of both tenants cleared",
             )
             assertEquals(
                 listOf("/gst/other-svc", "/gst/other-svc"),
-                h.strings("consumer_sequence", "source", orderBy = "source"),
+                h.strings("select source from $SCHEMA.consumer_sequence order by source"),
                 "the producer's docsequence rows of both tenants deleted, another producer's kept",
             )
-            assertEquals(2L, h.count("inbox"), "the inbox kept")
+            assertEquals(2L, h.count("select count(*) from $SCHEMA.inbox"), "the inbox kept")
             assertEquals(6L, h.nextOffset())
             assertEquals(
                 "FULL_SYNC",
@@ -228,7 +226,7 @@ class ConsumerRebuildIT {
             assertEquals(1, h.data(OutboxAuditWriter.EVENT_TYPE).size)
             assertEquals(
                 listOf(TenantId.PLATFORM.value.toString()),
-                h.strings("outbox", "tenant_id", distinct = true),
+                h.strings("select distinct tenant_id::text from $SCHEMA.outbox"),
             )
         }
     }
@@ -239,8 +237,10 @@ class ConsumerRebuildIT {
         Harness(image).use { h ->
             h.behind(watermark = 5)
             h.matchView()
-            h.insert("match_view", CONSUMER, TENANT.value, "n")
-            h.insert("consumer_sequence", CONSUMER, "/gst/$PRODUCER", "s", TENANT.value, 4)
+            h.fixture.runAsAdmin(
+                "insert into $SCHEMA.match_view values ('$CONSUMER', '${TENANT.value}', 'n');" +
+                    "insert into $SCHEMA.consumer_sequence values ('$CONSUMER', '/gst/$PRODUCER', 's', '${TENANT.value}', 4)",
+            )
             val failing =
                 object : AuditWriter {
                     override fun record(
@@ -252,11 +252,11 @@ class ConsumerRebuildIT {
             assertThrows(
                 IllegalStateException::class.java,
             ) { h.runtime(fullSync = true, audit = failing).rebuildConsumer(full) }
-            assertEquals(1L, h.count("consumer_sequence"))
-            assertEquals(1L, h.count("match_view"))
+            assertEquals(1L, h.count("select count(*) from $SCHEMA.consumer_sequence"))
+            assertEquals(1L, h.count("select count(*) from $SCHEMA.match_view"))
             assertNull(h.nextOffsetOrNull())
-            assertEquals(0L, h.count("outbox"))
-            assertEquals(0L, h.count("consumer_replay"))
+            assertEquals(0L, h.count("select count(*) from $SCHEMA.outbox"))
+            assertEquals(0L, h.count("select count(*) from $SCHEMA.consumer_replay"))
         }
     }
 
@@ -272,7 +272,7 @@ class ConsumerRebuildIT {
             assertEquals(ReplayState.SEVERAL_PRODUCERS, done.state.producer)
             assertEquals(
                 listOf(MULTI),
-                h.strings("consumer_offset", "topic"),
+                h.strings("select topic from $SCHEMA.consumer_offset"),
                 "one head move, this topic only",
             )
             assertEquals(6L, h.nextOffset(MULTI))
@@ -284,29 +284,21 @@ class ConsumerRebuildIT {
             )
             assertEquals(setOf(done.state.replayId.toString()), requested.map { it.get("replayId").asString() }.toSet())
             Checks(h).assertAuditNamesEveryAddressee()
-            assertEquals(3L, h.count("outbox"))
+            assertEquals(3L, h.count("select count(*) from $SCHEMA.outbox"))
 
             Checks(h).repeatOverPairs(done)
             // Another replay (same mode and scope) pending on one of the pairs only is EVL-004 too.
             val scopeJson = ReplayJson().writeScope(ReplayScope.Tenant(TENANT))
-            h.delete("consumer_replay", f("producer").eq("b-svc"))
-            h.insert(
-                "consumer_replay",
-                UUID.randomUUID(),
-                CONSUMER,
-                "b-svc",
-                "SCOPE",
-                scopeJson,
-                arrayOf(MULTI),
-                OffsetDateTime.now(),
-                null,
-                null,
+            h.fixture.runAsAdmin(
+                "delete from $SCHEMA.consumer_replay where producer = 'b-svc'; insert into $SCHEMA.consumer_replay " +
+                    "(replay_id, consumer, producer, mode, scope, topics, requested_at) values " +
+                    "('${UUID.randomUUID()}', '$CONSUMER', 'b-svc', 'SCOPE', '$scopeJson', array['$MULTI'], now())",
             )
             assertEquals(
                 refused(RebuildErrorCode.OTHER_REPLAY_PENDING),
                 h.runtime().rebuildConsumer(h.request(topic = MULTI)),
             )
-            assertEquals(3L, h.count("outbox"))
+            assertEquals(3L, h.count("select count(*) from $SCHEMA.outbox"))
         }
     }
 
@@ -319,23 +311,23 @@ class ConsumerRebuildIT {
             h.behind(watermark = 5, topic = MULTI)
             h.behind(watermark = 5, topic = A_ONLY)
             h.matchView()
-            h.insert("match_view", CONSUMER, TENANT.value, "n")
+            h.fixture.runAsAdmin("insert into $SCHEMA.match_view values ('$CONSUMER', '${TENANT.value}', 'n')")
             val clears = listOf("a-svc", "b-svc").map { ReadModelClear(it, listOf(CLEAR)) }
             val runtime = h.runtime(fullSync = true, clears = clears, extra = listOf(A_ONLY))
             val done = runtime.rebuildConsumer(h.request(topic = MULTI)) as RebuildOutcome.Done
             assertEquals(listOf("a-svc", "b-svc"), done.state.producers)
-            val written = h.count("outbox")
+            val written = h.count("select count(*) from $SCHEMA.outbox")
 
             fun nothingWritten(step: String) {
-                assertEquals(written, h.count("outbox"), step)
-                assertEquals(2L, h.count("consumer_replay"), step)
+                assertEquals(written, h.count("select count(*) from $SCHEMA.outbox"), step)
+                assertEquals(2L, h.count("select count(*) from $SCHEMA.consumer_replay"), step)
                 assertNull(h.nextOffsetOrNull(A_ONLY), "$step: no head move on a-svc's own topic")
                 assertEquals(6L, h.nextOffset(MULTI), "$step: no second head move")
-                assertEquals(1L, h.count("match_view"), "$step: nothing cleared")
+                assertEquals(1L, h.count("select count(*) from $SCHEMA.match_view"), "$step: nothing cleared")
             }
 
             // a-svc completed, b-svc still pending: a replay on a-svc's own topic touches the open set's pair, EVL-004.
-            h.update("consumer_replay", "completed_at", f("producer").eq("a-svc"))
+            h.fixture.runAsAdmin("update $SCHEMA.consumer_replay set completed_at = now() where producer = 'a-svc'")
             assertEquals(
                 refused(RebuildErrorCode.OTHER_REPLAY_PENDING),
                 runtime.rebuildConsumer(h.request(topic = A_ONLY)),
@@ -348,7 +340,7 @@ class ConsumerRebuildIT {
 
             // Every pair completed but the incident not yet closed (closeCompleted not yet run, or the sink failed):
             // a same mode and scope call returns the pending set, never EVL-003; a-svc's own topic is still EVL-004.
-            h.update("consumer_replay", "completed_at", f("producer").eq("b-svc"))
+            h.fixture.runAsAdmin("update $SCHEMA.consumer_replay set completed_at = now() where producer = 'b-svc'")
             val repeat = runtime.rebuildConsumer(h.request(topic = MULTI)) as RebuildOutcome.Done
             assertEquals(listOf(false, true), listOf(repeat.created, repeat.state.repeat))
             assertEquals(done.state.replayId, repeat.state.replayId)
@@ -360,7 +352,7 @@ class ConsumerRebuildIT {
             nothingWritten("every pair completed, incident open")
 
             // Once the incident has closed: EVL-003 on the rebuilt topic, and a-svc's pair is free for a new replay.
-            h.update("consumer_replay", "closed_at")
+            h.fixture.runAsAdmin("update $SCHEMA.consumer_replay set closed_at = now()")
             assertEquals(
                 refused(RebuildErrorCode.NOT_REBUILD_REQUIRED),
                 runtime.rebuildConsumer(h.request(topic = MULTI)),
@@ -379,10 +371,14 @@ class ConsumerRebuildIT {
         Harness(image).use { h ->
             h.behind(watermark = 5)
             h.matchView()
-            h.insert("match_view", CONSUMER, TENANT.value, "n")
-            h.insert("consumer_sequence", CONSUMER, "/gst/$PRODUCER", "s", TENANT.value, 4)
-            h.insert("consumer_sequence", CONSUMER, "/gst/b-svc", "s", TENANT.value, 4)
-            h.insert("consumer_sequence", CONSUMER, "/gst/other-svc", "s", TENANT.value, 4)
+            h.fixture.runAsAdmin(
+                "insert into $SCHEMA.match_view values ('$CONSUMER', '${TENANT.value}', 'n');" +
+                    "insert into $SCHEMA.consumer_sequence values ('$CONSUMER', '/gst/$PRODUCER', 's', " +
+                    "'${TENANT.value}', 4);" +
+                    "insert into $SCHEMA.consumer_sequence values ('$CONSUMER', '/gst/b-svc', 's', " +
+                    "'${TENANT.value}', 4);" +
+                    "insert into $SCHEMA.consumer_sequence values ('$CONSUMER', '/gst/other-svc', 's', '${TENANT.value}', 4)",
+            )
             val full = h.request(mode = ReplayMode.FULL_SYNC, scope = null)
             // canonical-svc shares SHARED with b-svc, and b-svc shares MULTI with a-svc: all three are addressed.
             Checks(h).assertPartialClearsRefused(full)
@@ -398,15 +394,15 @@ class ConsumerRebuildIT {
             assertEquals(ReplayState.SEVERAL_PRODUCERS, done.state.producer)
             assertEquals(
                 listOf(MULTI, SHARED, LIVE).sorted(),
-                h.strings("consumer_offset", "topic", orderBy = "topic"),
+                h.strings("select topic from $SCHEMA.consumer_offset order by topic"),
             )
             val requested = h.data(ReplayProtocol.REPLAY_REQUESTED)
             assertEquals(listOf("a-svc", "b-svc", PRODUCER), requested.map { it.get("producer").asString() }.sorted())
             assertEquals(setOf(done.state.replayId.toString()), requested.map { it.get("replayId").asString() }.toSet())
-            assertEquals(0L, h.count("match_view"), "every addressee's clear ran")
+            assertEquals(0L, h.count("select count(*) from $SCHEMA.match_view"), "every addressee's clear ran")
             assertEquals(
                 listOf("/gst/other-svc"),
-                h.strings("consumer_sequence", "source"),
+                h.strings("select source from $SCHEMA.consumer_sequence"),
                 "every addressee's docsequence rows deleted, another producer's kept (INV-Q-3843)",
             )
         }
@@ -417,13 +413,15 @@ class ConsumerRebuildIT {
     fun `a full sync without the service's read-model clear for the producer is refused`(image: String) {
         Harness(image).use { h ->
             h.behind(watermark = 5)
-            h.insert("consumer_sequence", CONSUMER, "/gst/$PRODUCER", "s", TENANT.value, 4)
+            h.fixture.runAsAdmin(
+                "insert into $SCHEMA.consumer_sequence values ('$CONSUMER', '/gst/$PRODUCER', 's', '${TENANT.value}', 4)",
+            )
             val full = h.request(mode = ReplayMode.FULL_SYNC, scope = null)
             val runtime = h.runtime(fullSync = true, clears = emptyList())
             assertThrows(IllegalStateException::class.java) { runtime.rebuildConsumer(full) }
-            assertEquals(1L, h.count("consumer_sequence"))
+            assertEquals(1L, h.count("select count(*) from $SCHEMA.consumer_sequence"))
             assertNull(h.nextOffsetOrNull())
-            assertEquals(0L, h.count("outbox"))
+            assertEquals(0L, h.count("select count(*) from $SCHEMA.outbox"))
         }
     }
 
@@ -462,20 +460,24 @@ class ConsumerRebuildIT {
             assertFalse(repeat.created)
             assertTrue(repeat.state.repeat)
             assertEquals(done.state.replayId, repeat.state.replayId)
-            assertEquals(2L, h.count("outbox"))
+            assertEquals(2L, h.count("select count(*) from $SCHEMA.outbox"))
             // ...another scope while it is pending: EVL-004.
             val other = h.request(scope = ReplayScope.Tenant(TenantId(UUID.randomUUID())))
             assertEquals(refused(RebuildErrorCode.OTHER_REPLAY_PENDING), h.runtime().rebuildConsumer(other))
-            assertEquals(2L, h.count("outbox"))
+            assertEquals(2L, h.count("select count(*) from $SCHEMA.outbox"))
         }
 
         /** Per tenant: a read-model row, docsequence rows of the producer and another producer, and an inbox row. */
         fun seedRows(tenants: List<TenantId>) {
             for (tenant in tenants) {
-                h.insert("match_view", CONSUMER, tenant.value, "n")
-                h.insert("consumer_sequence", CONSUMER, "/gst/$PRODUCER", "s", tenant.value, 4)
-                h.insert("consumer_sequence", CONSUMER, "/gst/other-svc", "s", tenant.value, 4)
-                h.insertColumns("inbox", "consumer" to CONSUMER, "event_id" to "e-${tenant.value}", "tenant_id" to tenant.value)
+                h.fixture.runAsAdmin(
+                    "insert into $SCHEMA.match_view values ('$CONSUMER', '${tenant.value}', 'n');" +
+                        "insert into $SCHEMA.consumer_sequence values ('$CONSUMER', '/gst/$PRODUCER', 's', " +
+                        "'${tenant.value}', 4);" +
+                        "insert into $SCHEMA.consumer_sequence values ('$CONSUMER', '/gst/other-svc', 's', " +
+                        "'${tenant.value}', 4);" +
+                        "insert into $SCHEMA.inbox (consumer, event_id, tenant_id) values ('$CONSUMER', 'e-${tenant.value}', '${tenant.value}')",
+                )
             }
         }
 
@@ -506,12 +508,12 @@ class ConsumerRebuildIT {
             }
             assertEquals(
                 3L,
-                h.count("consumer_sequence"),
+                h.count("select count(*) from $SCHEMA.consumer_sequence"),
                 "no clear for a-svc: nothing deleted",
             )
             assertEquals(
                 0L,
-                h.count("outbox"),
+                h.count("select count(*) from $SCHEMA.outbox"),
                 "no clear for a-svc: refused, nothing written",
             )
         }
@@ -525,7 +527,7 @@ class ConsumerRebuildIT {
                 assertEquals(listOf(false, true), listOf(repeat.created, repeat.state.repeat), step)
                 assertEquals(done.state.replayId, repeat.state.replayId, step)
                 assertEquals(done.state.producers, repeat.state.producers, step)
-                h.update("consumer_replay", "completed_at", f("producer").eq("a-svc"))
+                h.fixture.runAsAdmin("update $SCHEMA.consumer_replay set completed_at = now() where producer = 'a-svc'")
             }
             val other = h.request(topic = MULTI, scope = ReplayScope.Tenant(TenantId(UUID.randomUUID())))
             assertEquals(refused(RebuildErrorCode.OTHER_REPLAY_PENDING), h.runtime().rebuildConsumer(other))
@@ -537,49 +539,15 @@ class ConsumerRebuildIT {
     private inner class Harness(
         image: String,
     ) : AutoCloseable {
-        val fixture =
-            OutboxPostgresFixture(
-                image,
-                OutboxPostgresFixture.serviceInitSql(SCHEMA, MATCH_VIEW_DDL) +
-                    OutboxPostgresFixture.eventLogInitSql(CATALOGUE) +
-                    OutboxPostgresFixture.captureActorsInitSql(listOf("$SCHEMA.outbox")),
-            )
-        private val db =
-            TestDatabase(
-                fixture.jdbcUrl(),
-                (
-                    listOf(
-                        "outbox",
-                        "consumer_replay",
-                        "consumer_offset",
-                        "consumer_sequence",
-                        "inbox",
-                        "match_view",
-                    ).map { "$SCHEMA.$it" } + listOf("eventlog.purge_watermark", "public.captured_actor")
-                ).associateWith { TableClass.PLATFORM_SCOPED },
-            )
-
-        /** The superuser's access (no tenant predicates), for the state the tests seed and read. */
-        private val admin = db.login(fixture.adminUser(), fixture.adminPassword())
-        private val app = db.login(OutboxPostgresFixture.APP, OutboxPostgresFixture.APP_PASSWORD)
-        private val tenants = db.tenants
-        private val tx = app.runner
+        val fixture = OutboxPostgresFixture(image)
+        private val tenants = TenantContextImpl()
+        private val tx = TransactionRunnerImpl(fixture.appDataSource(), tenants)
         private val outbox = JdbcOutboxWriter(tx, SCHEMA, CONSUMER, "$CONSUMER-1", CATALOGUE, Clock.systemUTC())
 
-        private fun tbl(name: String) = DSL.table(DSL.name(name.split('.').let { if (it.size == 1) listOf(SCHEMA, it[0]) else it }))
-
-        fun captureActors(table: String) {
-            admin.asPlatform { deleteFrom(DSL.table(DSL.name("public", "captured_actor"))).where(f("tbl").eq(table)).execute() }
+        init {
+            fixture.createService(SCHEMA)
+            fixture.createTopics(CATALOGUE)
         }
-
-        fun capturedActors(table: String): List<String?> =
-            admin.asPlatform {
-                select(DSL.field(DSL.name("actor"), SQLDataType.CLOB))
-                    .from(DSL.table(DSL.name("public", "captured_actor")))
-                    .where(f("tbl").eq(table))
-                    .orderBy(f("seq"))
-                    .fetch(DSL.field(DSL.name("actor"), SQLDataType.CLOB))
-            }
 
         fun runtime(
             audit: AuditWriter = OutboxAuditWriter(outbox),
@@ -594,7 +562,7 @@ class ConsumerRebuildIT {
             TenantScope(tenants, tx, tx, OutboxPostgresFixture.WORKLOAD),
             outbox,
             audit,
-            fixture.eventLogReader(),
+            PostgresEventLogReader(fixture.eventLogDataSource(), fixture.eventLogScope(TenantContextImpl())),
             { it == "platform.engineer" },
             Clock.systemUTC(),
             if (fullSync) {
@@ -604,66 +572,28 @@ class ConsumerRebuildIT {
             },
         )
 
-        /** The read-model table of the full sync is provisioned with the container ([MATCH_VIEW_DDL]); kept for the tests' reading order. */
-        fun matchView() = Unit
+        /** A tenant read-model table cleared by the full sync, through its sys-owned clear function (INV-Q-4064). */
+        fun matchView() =
+            fixture.run(
+                """
+                create table $SCHEMA.match_view (consumer text not null, tenant_id uuid not null, note text not null);
+                ${TenantRlsMigration.ddl(SCHEMA, "match_view", policyName = "match_view_tenant_isolation")}
+                ${OutboxSchema.readModelClearFunction(
+                    SCHEMA,
+                    "match_view",
+                    OutboxPostgresFixture.APP,
+                    OutboxPostgresFixture.SYS,
+                    "consumer",
+                )}
+                """.trimIndent(),
+            )
 
-        /** Rows of [table] (in [SCHEMA] unless qualified) that meet every one of [where]. */
-        fun count(
-            table: String,
-            vararg where: Condition,
-        ): Long = admin.asPlatform { fetchCount(tbl(table), DSL.and(*where)) }.toLong()
-
-        /** Column [column] of the rows of [table], as text, in [orderBy] order. */
-        fun strings(
-            table: String,
-            column: String,
-            orderBy: String? = null,
-            distinct: Boolean = false,
-            where: Condition = DSL.noCondition(),
-        ): List<String> =
-            admin.asPlatform {
-                val source = if (distinct) selectDistinct(f(column)) else select(f(column))
-                source
-                    .from(tbl(table))
-                    .where(where)
-                    .let { q -> if (orderBy != null) q.orderBy(f(orderBy)) else q }
-                    .fetch()
-                    .map { it.get(0).toString() }
+        fun strings(sql: String): List<String> =
+            fixture.adminDataSource().connection.use { connection ->
+                connection.createStatement().executeQuery(sql).use { rows ->
+                    buildList { while (rows.next()) add(rows.getString(1)) }
+                }
             }
-
-        /** A row with every column of [table], in table order. */
-        fun insert(
-            table: String,
-            vararg values: Any?,
-        ) {
-            admin.asPlatform { insertInto(tbl(table)).values(*values).execute() }
-        }
-
-        /** A row with the named columns only. */
-        fun insertColumns(
-            table: String,
-            vararg values: Pair<String, Any?>,
-        ) {
-            admin.asPlatform {
-                insertInto(tbl(table), *values.map { f(it.first) }.toTypedArray()).values(*values.map { it.second }.toTypedArray()).execute()
-            }
-        }
-
-        fun delete(
-            table: String,
-            where: Condition,
-        ) {
-            admin.asPlatform { deleteFrom(tbl(table)).where(where).execute() }
-        }
-
-        /** Sets [column] to the database's now() on the rows of [table] that meet [where]. */
-        fun update(
-            table: String,
-            column: String,
-            where: Condition = DSL.noCondition(),
-        ) {
-            admin.asPlatform { update(tbl(table)).set(f(column), DSL.currentOffsetDateTime()).where(where).execute() }
-        }
 
         fun request(
             actor: String = "platform.engineer",
@@ -684,53 +614,47 @@ class ConsumerRebuildIT {
         fun behind(
             watermark: Long,
             topic: String = LIVE,
-        ) = insert("eventlog.purge_watermark", EventLogSchema.tableName(topic), watermark, OffsetDateTime.now())
+        ) = fixture.runAsAdmin(
+            "insert into eventlog.purge_watermark values ('${EventLogSchema.tableName(topic)}', $watermark, now())",
+        )
 
         fun nextOffsetOrNull(topic: String = LIVE): Long? =
-            admin.asPlatform {
-                select(f("next_offset"))
-                    .from(tbl("consumer_offset"))
-                    .where(f("consumer").eq(CONSUMER).and(f("topic").eq(topic)))
-                    .fetchOne(0, Long::class.java)
+            fixture.adminDataSource().connection.use { connection ->
+                connection
+                    .prepareStatement(
+                        "select next_offset from $SCHEMA.consumer_offset where consumer = ? and topic = ?",
+                    ).use {
+                        it.setString(1, CONSUMER)
+                        it.setString(2, topic)
+                        it.executeQuery().use { rows -> if (rows.next()) rows.getLong(1) else null }
+                    }
             }
 
         fun nextOffset(topic: String = LIVE): Long = checkNotNull(nextOffsetOrNull(topic))
 
-        fun data(type: String) =
-            admin.asPlatform {
-                select(DSL.field(DSL.name("data"), SQLDataType.JSONB))
-                    .from(tbl("outbox"))
-                    .where(f("type").eq(type))
-                    .orderBy(f("seq"))
-                    .fetch()
-                    .map { mapper.readTree(it.value1().data()) }
+        fun count(sql: String): Long =
+            fixture.adminDataSource().connection.use { connection ->
+                connection.createStatement().executeQuery(sql).use { rows ->
+                    rows.next()
+                    rows.getLong(1)
+                }
             }
 
-        override fun close() {
-            db.close()
-            fixture.close()
-        }
+        fun data(type: String) =
+            fixture.adminDataSource().connection.use { connection ->
+                connection.prepareStatement("select data::text from $SCHEMA.outbox where type = ? order by seq").use {
+                    it.setString(1, type)
+                    it.executeQuery().use { rows ->
+                        buildList { while (rows.next()) add(mapper.readTree(rows.getString(1))) }
+                    }
+                }
+            }
+
+        override fun close() = fixture.close()
     }
 
     private companion object {
         const val SCHEMA = "reconciliation"
-
-        /** A tenant read-model table cleared by the full sync, through its sys-owned clear function (INV-Q-4064). */
-        val MATCH_VIEW_DDL =
-            """
-            create table $SCHEMA.match_view (consumer text not null, tenant_id uuid not null, note text not null);
-            ${TenantRlsMigration.ddl(SCHEMA, "match_view", policyName = "match_view_tenant_isolation")}
-            ${OutboxSchema.readModelClearFunction(
-                SCHEMA,
-                "match_view",
-                OutboxPostgresFixture.APP,
-                OutboxPostgresFixture.SYS,
-                "consumer",
-            )}
-            """.trimIndent()
-
-        private fun f(name: String): Field<Any> = DSL.field(DSL.name(name))
-
         const val CONSUMER = "reconciliation-svc"
         const val PRODUCER = "canonical-svc"
         const val LIVE = "gst.canonical.canonical-version-created.v1"

@@ -57,34 +57,6 @@ class OutboxPostgresFixture(
         container.start()
     }
 
-    /**
-     * A staleness monitor over this fixture's own pools (route R3, INV-Q-5245): the runtime login for the offsets and the
-     * event log's reader; it takes and returns no JDBC type.
-     */
-    fun stalenessMonitor(
-        catalogue: EventCatalogue,
-        schema: String,
-        rules: List<StalenessRule>,
-        clock: java.time.Clock,
-        sink: StalenessBreachSink,
-    ): JdbcStalenessMonitor =
-        JdbcStalenessMonitor(
-            runtimeDataSource(),
-            PostgresEventLogReader(eventLogDataSource(), eventLogScope(TenantContextImpl())),
-            catalogue,
-            schema,
-            rules,
-            clock,
-            sink,
-        )
-
-    /** An event-log reader over this fixture's own pools (route R3); it takes and returns no JDBC type. */
-    fun eventLogReader(): PostgresEventLogReader =
-        PostgresEventLogReader(eventLogDataSource(), eventLogScope(TenantContextImpl()))
-
-    /** The URL of the second database [HA_DATABASE] of the same instance (see [haEventLogInitSql]). */
-    fun haEventLogUrl(): String = jdbcUrl().substringBefore("?").substringBeforeLast('/') + "/" + HA_DATABASE
-
     /** The container's JDBC URL, for [com.dynokore.platform.tenancykernel.TestPoolFixture] (INV-Q-5119). */
     fun jdbcUrl(): String = container.jdbcUrl
 
@@ -249,7 +221,6 @@ class OutboxPostgresFixture(
         private const val READABLE = 420
 
         const val OWNER = "outbox_owner"
-        const val HA_DATABASE = "ha_log"
         const val OWNER_PASSWORD = "outbox_owner_pw"
         const val APP_PASSWORD = "outbox_app_pw"
         const val WORKER_PASSWORD = "outbox_worker_pw"
@@ -295,36 +266,10 @@ class OutboxPostgresFixture(
         fun eventLogInitSql(
             catalogue: EventCatalogue,
             retention: Retention = Retention(),
-        ): String =
-            buildString {
-                append("RESET ROLE;\nSET ROLE $MIGRATE;\n")
-                append(eventLogBody(catalogue, retention))
-                append("RESET ROLE;\nSET ROLE $OWNER;\n")
-            }
-
-        /**
-         * Init SQL for a second database, [HA_DATABASE], of the same instance that holds the event log (the HA form,
-         * INV-REQ-1230 b2), created as its migration would: the schema is made over to the migration login, which then
-         * runs the event-log DDL of [catalogue]. It ends in that database, so it comes last in an init script. The
-         * runtime login reaches it through [haEventLogUrl].
-         */
-        fun haEventLogInitSql(
-            catalogue: EventCatalogue,
-            retention: Retention = Retention(),
-        ): String =
-            buildString {
-                append("RESET ROLE;\ncreate database $HA_DATABASE;\n\\connect $HA_DATABASE\n")
-                append("create schema ${EventLogSchema.SCHEMA} authorization $MIGRATE;\nSET ROLE $MIGRATE;\n")
-                append(eventLogBody(catalogue, retention))
-                append("RESET ROLE;\n")
-            }
-
-        private fun eventLogBody(
-            catalogue: EventCatalogue,
-            retention: Retention,
         ): String {
             val topics = topicsOf(catalogue)
             return buildString {
+                append("RESET ROLE;\nSET ROLE $MIGRATE;\n")
                 append(EventLogSchema.schemaDdl(EVENTLOG_SYS)).append('\n')
                 topics.forEach { append(EventLogSchema.topicDdl(it, EVENTLOG_SYS)).append('\n') }
                 append(EventLogSchema.functionsDdl(topics, EVENTLOG_SYS, PURGE)).append('\n')
@@ -336,6 +281,7 @@ class OutboxPostgresFixture(
                         "on conflict (id) do update set content_window = excluded.content_window, " +
                         "eventlog_retention = excluded.eventlog_retention, updated_at = excluded.updated_at;\n",
                 )
+                append("RESET ROLE;\nSET ROLE $OWNER;\n")
             }
         }
 
