@@ -14,6 +14,8 @@ import org.jooq.JSONB
 import org.jooq.SQLDialect
 import org.jooq.impl.DSL
 import org.jooq.impl.DefaultConfiguration
+import org.springframework.boot.test.context.runner.ApplicationContextRunner
+import javax.sql.DataSource
 
 /**
  * JDBC-free database access for the service-runtime integration tests (owner ruling INV-Q-4508 (A), coordinator ruling
@@ -47,7 +49,15 @@ class TestDatabase(
         val runner = pool.runner(tenants, lanes)
         val dsl =
             TenancyJooq.configure(DefaultConfiguration().set(SQLDialect.POSTGRES), tenancyTables, tenants, runner).dsl()
-        return Access(this, runner, dsl)
+        return Access(this, runner, dsl, pool.dataSource(lanes))
+    }
+
+    /** A runner and DSLContext over a pool the test did not build (a service's own pool, a bean of its context). */
+    fun over(dataSource: DataSource): Access {
+        val runner = TransactionRunnerImpl(dataSource, tenants)
+        val dsl =
+            TenancyJooq.configure(DefaultConfiguration().set(SQLDialect.POSTGRES), tenancyTables, tenants, runner).dsl()
+        return Access(this, runner, dsl, dataSource)
     }
 
     override fun close() = pools.forEach { it.close() }
@@ -56,7 +66,18 @@ class TestDatabase(
         private val db: TestDatabase,
         val runner: TransactionRunnerImpl,
         val dsl: DSLContext,
+        private val dataSource: DataSource,
     ) {
+        /** Registers the pool as bean [name] of [runner]'s context; a test takes no connection from it. */
+        fun withDataSourceBean(
+            runner: ApplicationContextRunner,
+            name: String = "dataSource",
+        ): ApplicationContextRunner =
+            runner.withBean(name, DataSource::class.java, { dataSource }, { it.isPrimary = true })
+
+        /** Hands the pool to [block], for a library class that is built over a DataSource. */
+        fun <T> useDataSource(block: (DataSource) -> T): T = block(dataSource)
+
         /** Runs [block] in one transaction bound to [tenant] and [actor]. */
         fun <T> asTenant(
             tenant: TenantId,

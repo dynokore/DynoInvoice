@@ -1,12 +1,17 @@
 package com.dynokore.platform.serviceruntime.composition
 
-import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Companion.postgres
-import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Companion.sql
-import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Companion.user
 import com.dynokore.platform.serviceruntime.datasource.tpl18Service
 import com.dynokore.platform.serviceruntime.datasource.withApplicationPool
 import com.dynokore.platform.serviceruntime.datasource.withMountedLogin
 import com.dynokore.platform.serviceruntime.datasource.withPool
+import com.dynokore.platform.serviceruntime.testing.CATALOG_TABLES
+import com.dynokore.platform.serviceruntime.testing.CURRENT_USER
+import com.dynokore.platform.serviceruntime.testing.HeldTransaction
+import com.dynokore.platform.serviceruntime.testing.PG_CLASS
+import com.dynokore.platform.serviceruntime.testing.PG_CLASS_NAME
+import com.dynokore.platform.serviceruntime.testing.TestDatabase
+import com.dynokore.platform.serviceruntime.testing.createLoginSql
+import com.dynokore.platform.serviceruntime.testing.startPostgres
 import com.zaxxer.hikari.HikariDataSource
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -14,8 +19,6 @@ import org.junit.jupiter.api.io.TempDir
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import java.nio.file.Path
-import java.sql.Connection
-import java.sql.SQLException
 import javax.sql.DataSource
 
 /**
@@ -31,10 +34,9 @@ class EventLogPoolHaIT {
         image: String,
         @TempDir mountRoot: Path,
     ) {
-        postgres(image).use { application ->
-            postgres(image).use { eventLog ->
-                listOf(application, eventLog).forEach { it.sql("create role $RUNTIME login password '$PASSWORD'") }
-                eventLog.sql("create table public.event_log_marker (id integer)")
+        val login = createLoginSql(RUNTIME, PASSWORD)
+        startPostgres(image, login).use { application ->
+            startPostgres(image, login + "create table public.event_log_marker (id integer);\n").use { eventLog ->
                 tpl18Service()
                     .withPropertyValues(
                         "spring.datasource.url=${application.jdbcUrl}",
@@ -62,17 +64,22 @@ class EventLogPoolHaIT {
                         copiedInitSql shouldBe null
                         pool.connectionInitSql shouldBe null
                         pool.schema shouldBe null
-                        app.connection.use { it.marker() shouldBe false }
-                        pool.connection.use {
-                            it.marker() shouldBe true
-                            it.user() shouldBe RUNTIME
+                        TestDatabase(application.jdbcUrl, CATALOG_TABLES).use { db ->
+                            val onApp = db.over(app)
+                            val onEventLog = db.over(pool)
+                            val marker = { access: TestDatabase.Access ->
+                                access.asPlatform { fetchCount(PG_CLASS, PG_CLASS_NAME.eq("event_log_marker")) } == 1
+                            }
+                            marker(onApp) shouldBe false
+                            marker(onEventLog) shouldBe true
+                            onEventLog.asPlatform { select(CURRENT_USER).fetchSingle().value1() } shouldBe RUNTIME
+                            // minimumIdle 1: the pool keeps an idle connection once started (INV-Q-4348)
+                            (pool.hikariPoolMXBean.idleConnections >= 1) shouldBe true
+                            // maximum 3: a fourth concurrent connection waits and times out
+                            val held = (1..3).map { HeldTransaction(onEventLog) }
+                            shouldThrow<Exception> { onEventLog.asPlatform { } }
+                            held.forEach { it.close() }
                         }
-                        // minimumIdle 1: the pool keeps an idle connection once started (INV-Q-4348)
-                        (pool.hikariPoolMXBean.idleConnections >= 1) shouldBe true
-                        // maximum 3: a fourth concurrent connection waits and times out
-                        val held = (1..3).map { pool.connection }
-                        shouldThrow<SQLException> { pool.connection.close() }
-                        held.forEach { it.close() }
                     }
             }
         }
@@ -81,14 +88,6 @@ class EventLogPoolHaIT {
     private var applicationPool: HikariDataSource? = null
     private var applicationInitSql: String? = null
     private var copiedInitSql: String? = null
-
-    private fun Connection.marker(): Boolean =
-        createStatement().use { s ->
-            s.executeQuery("select to_regclass('public.event_log_marker') is not null").use {
-                it.next()
-                it.getBoolean(1)
-            }
-        }
 
     private companion object {
         const val RUNTIME = "submission_runtime"

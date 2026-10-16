@@ -1,10 +1,10 @@
 package com.dynokore.platform.serviceruntime.composition
 
-import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Companion.postgres
-import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Companion.query
-import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Companion.sql
 import com.dynokore.platform.serviceruntime.datasource.tpl18Service
 import com.dynokore.platform.serviceruntime.datasource.withMountedLogin
+import com.dynokore.platform.serviceruntime.testing.TestDatabase
+import com.dynokore.platform.serviceruntime.testing.startPostgres
+import com.dynokore.platform.tenancyjooq.TableClass
 import com.dynokore.platform.tenancyjooq.TenantPredicateViolation
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TenantContext
@@ -13,6 +13,8 @@ import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import org.jooq.DSLContext
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.boot.test.context.assertj.AssertableApplicationContext
@@ -41,8 +43,8 @@ class TenancyJooqIT {
         mountRoot: Path,
         block: (AssertableApplicationContext, FixtureSchema, com.dynokore.platform.tenancykernel.TenantContext) -> Unit,
     ) {
-        postgres("postgres:17").use { db ->
-            db.sql(
+        val init =
+            listOf(
                 "create role $RUNTIME login password '$PASSWORD'",
                 "create schema submission",
                 "create table submission.item (id uuid primary key, tenant_id uuid not null, label text)",
@@ -52,7 +54,8 @@ class TenancyJooqIT {
                 "insert into submission.item values ('${FixtureTable.id(1)}', '${a.value}', 'a1')," +
                     "('${FixtureTable.id(2)}', '${a.value}', 'a2'), ('${FixtureTable.id(3)}', '${b.value}', 'b1')",
                 "insert into submission.flag values ('${FixtureTable.id(9)}', 'f')",
-            )
+            ).joinToString("") { "$it;\n" }
+        startPostgres("postgres:17", init).use { db ->
             tpl18Service()
                 .withPropertyValues(
                     "spring.datasource.url=${db.jdbcUrl}",
@@ -67,7 +70,14 @@ class TenancyJooqIT {
                     val schema = context.getBean(FixtureSchema::class.java)
                     block(context, schema, context.getBean(TenantContext::class.java))
                     // the ground truth, as the database owner (no row-level security): nothing else was written
-                    db.query("select count(*) from submission.item where tenant_id = '${b.value}'") shouldBe "1"
+                    TestDatabase(db.jdbcUrl, mapOf("submission.item" to TableClass.PLATFORM_SCOPED)).use { truth ->
+                        truth.login(db.username, db.password).asPlatform {
+                            fetchCount(
+                                DSL.table(DSL.name("submission", "item")),
+                                DSL.field(DSL.name("tenant_id"), SQLDataType.UUID).eq(b.value),
+                            )
+                        } shouldBe 1
+                    }
                 }
         }
     }

@@ -27,6 +27,11 @@ train is its own (README.md: "own version and changelog").
 ### Removed (breaking)
 - `LanedDataSource` and `LaneConnection`: the application pool is the Hikari bean itself; the lane gate is the
   `LaneGate` bean `PoolLanePostProcessor` registers. `SecretStoreDriverDataSource`.
+- Every raw user of the pools is behind the lane gate (coordinator ruling INV-Q-5243): the relay, claim queue, retention and
+  event-log purges, triage, rate limiter, staleness monitor, event-log reader and presence, unrelayed-event check and
+  inbox consumers get `OutboxAndQueueWiring.handOff(pool, gate)` (a `TenantAwareDataSource`), the HA event-log pool its own
+  admit-all `EventLogGate`. `LaneGateHolder` and `EventLogGate` accept `PermitObserver`s (a test hook, none in production;
+  coordinator ruling INV-Q-5251). `OutboxAndQueueWiring` takes the two gates as constructor arguments (breaking).
 
 ## [7.1.1] - 2026-10-16
 ### Changed

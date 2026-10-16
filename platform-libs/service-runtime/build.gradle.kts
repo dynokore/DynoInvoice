@@ -98,6 +98,7 @@ dependencies {
     add("implImplementation", files(tenancyJooqImplJar))
     add("implTestImplementation", project(":tenancy-jooq"))
     add("implTestImplementation", files(tenancyJooqImplJar))
+    add("implTestImplementation", testFixtures(project(":tenancy-jooq")))
     add("implCompileOnly", "org.springframework.boot:spring-boot-jooq")
     add("implTestImplementation", "org.springframework.boot:spring-boot-jooq")
 

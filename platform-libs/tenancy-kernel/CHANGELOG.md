@@ -28,6 +28,7 @@ train is its own (README.md: "own version and changelog").
   INV-Q-5208): the fixture names no `java.sql`, `javax.sql` or `org.postgresql` type; it keeps `jdbcUrl()`, gains
   `OWNER`, `OWNER_PASSWORD`, `APP`, `APP_PASSWORD`, and creates the probe table at container start from
   `TenantRlsMigration.ddl`.
+- Test fixtures: `TestPoolFixture.dataSource(lanes)` hands the pool to a Spring context that needs the bean.
 
 ## [2.0.0] - 2026-10-15
 ### Removed (breaking)

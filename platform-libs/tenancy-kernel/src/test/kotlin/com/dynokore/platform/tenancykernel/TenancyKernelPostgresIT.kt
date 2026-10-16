@@ -2,6 +2,7 @@ package com.dynokore.platform.tenancykernel
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Tag
@@ -171,8 +172,30 @@ class TenancyKernelPostgresIT {
 
             val message = "tenant B's transaction must not see tenant A's leftover session setting"
             assertEquals(tenantB.toString(), settingSeenByB, message)
+
+            // a session-level setting (is_local false) left by a caller on a handed-out connection is cleared on handback
+            pooled.connection.use { leaker ->
+                leaker.createStatement().use {
+                    it.execute("select set_config('app.tenant_id', '${tenantA.value}', false), set_config('app.actor', 'leaked', false)")
+                }
+            }
+            pooled.connection.use { next ->
+                assertNull(currentSettingOf(next, "app.tenant_id"), "app.tenant_id survived the handback")
+                assertNull(currentSettingOf(next, "app.actor"), "app.actor survived the handback")
+            }
         }
     }
+
+    private fun currentSettingOf(
+        connection: java.sql.Connection,
+        name: String,
+    ): String? =
+        connection.createStatement().use { statement ->
+            statement.executeQuery("select nullif(current_setting('$name', true), '') as t").use { rs ->
+                rs.next()
+                rs.getString("t")
+            }
+        }
 
     private fun currentSetting(connection: java.sql.Connection): String {
         val currentTenantSetting = "select nullif(current_setting('app.tenant_id', true), '') as t"
