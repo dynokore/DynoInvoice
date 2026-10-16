@@ -52,17 +52,6 @@ subprojects {
     }
 }
 
-// INV-T-5597: with org.gradle.parallel=true a contract-tests `moduleApiContract-<module>` task failed with
-// "Resolution of the configuration ':<module>:testRuntimeClasspath' was attempted without an exclusive lock": its
-// classpath is another project's runtime classpath, first resolved at execution time while that project's own tasks
-// run in parallel. Once the task graph is ready (single-threaded, before any task runs) those classpaths are resolved
-// here, so the execution phase only reads a resolved configuration.
-gradle.taskGraph.whenReady {
-    allTasks.filterIsInstance<Test>()
-        .filter { it.project.path == ":contract-tests" && it.name.startsWith("moduleApiContract-") }
-        .forEach { it.classpath.files }
-}
-
 // Resolves every resolvable configuration of every project, so one
 // `./gradlew resolveAndLockAll --write-locks` writes every gradle.lockfile; the build script and
 // settings classpaths are resolved while the build is configured and are written in the same run.
