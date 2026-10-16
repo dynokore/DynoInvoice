@@ -125,8 +125,6 @@ class MigrationRunnerIT {
                             "service-runtime.flyway.credential=$MIGRATE_REF",
                             "service-runtime.modules.schema=ledger",
                             "service-runtime.jobs.retention=2d",
-                            // the service's own placeholder, used by V2__Placeholder.sql beside the callback's two
-                            "spring.flyway.placeholders.svc=ledger",
                         )
                 ).map { "--$it" }.toTypedArray()
             val tables =

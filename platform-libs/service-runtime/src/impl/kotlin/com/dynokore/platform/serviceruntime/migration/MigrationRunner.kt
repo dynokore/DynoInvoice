@@ -91,15 +91,12 @@ class MigrationRunnerConfiguration {
             val schema = modules.schema?.takeIf { it.isNotBlank() }
             if (schema != null) {
                 require(jobs.retention.isPositive) { "the job retention must be positive" }
-                // Spring Boot has bound spring.flyway.placeholders.* already and placeholders(Map) replaces the whole map
-                // (INV-Q-5255): the service's own placeholders stay, a clash with the callback's two is refused
-                val merged = LinkedHashMap(configuration.placeholders)
-                listOf(JOB_SCHEMA, JOB_RETENTION_SECONDS).forEach {
-                    check(it !in merged) { "spring.flyway.placeholders.$it is reserved for the job-retention callback" }
-                }
-                merged[JOB_SCHEMA] = SqlIdentifier.require(schema, "schema")
-                merged[JOB_RETENTION_SECONDS] = jobs.retention.seconds.toString()
-                configuration.placeholders(merged)
+                configuration.placeholders(
+                    mapOf(
+                        JOB_SCHEMA to SqlIdentifier.require(schema, "schema"),
+                        JOB_RETENTION_SECONDS to jobs.retention.seconds.toString(),
+                    ),
+                )
                 // the service's own locations (Spring Boot's default when it sets none) plus the callback's
                 val own = environment.getProperty(LOCATIONS, DEFAULT_LOCATION).split(',').map { it.trim() }
                 configuration.locations(*(own + CALLBACK_LOCATION).toTypedArray())
