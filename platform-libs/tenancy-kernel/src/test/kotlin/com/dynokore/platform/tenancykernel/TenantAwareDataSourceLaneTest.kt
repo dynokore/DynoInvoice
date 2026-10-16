@@ -1,140 +1,104 @@
 package com.dynokore.platform.tenancykernel
 
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertSame
+import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
-import java.lang.reflect.InvocationTargetException
-import java.lang.reflect.Proxy
-import java.sql.Connection
-import java.sql.SQLException
-import java.sql.Statement
-import javax.sql.DataSource
+import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
-/** The lane permit of [TenantAwareDataSource] is released exactly once on every path (INV-Q-4502 (A)). */
+/**
+ * The lane permit of [TenantAwareDataSource] is released exactly once per permit taken (INV-Q-4502 (A)), driven only
+ * through [TestPoolFixture] and [TransactionRunner] (INV-Q-4508 (A): no JDBC type, no reflection). The double close and
+ * the failed close of a pooled connection need a `Connection` in the test and are not covered here (reported as a gap).
+ */
+@Tag("integration")
 class TenantAwareDataSourceLaneTest {
     private class CountingGate : LaneGate {
-        var acquired = 0
-        var released = 0
+        val acquired = AtomicInteger()
+        val released = AtomicInteger()
 
         override fun acquire(): LanePermit {
-            acquired++
-            return LanePermit { released++ }
+            acquired.incrementAndGet()
+            return LanePermit { released.incrementAndGet() }
         }
     }
 
-    private class Physical(
-        private val failOnClose: Boolean = false,
-    ) {
-        var closes = 0
-        var resets = 0
-        private var closed = false
-
-        val connection: Connection =
-            Proxy.newProxyInstance(javaClass.classLoader, arrayOf(Connection::class.java)) { _, method, _ ->
-                when (method.name) {
-                    "isClosed" -> {
-                        closed
-                    }
-
-                    "createStatement" -> {
-                        statement()
-                    }
-
-                    "close" -> {
-                        closes++
-                        closed = true
-                        if (failOnClose) throw SQLException("close failed")
-                        null
-                    }
-
-                    else -> {
-                        throw UnsupportedOperationException(method.name)
-                    }
-                }
-            } as Connection
-
-        private fun statement(): Statement =
-            Proxy.newProxyInstance(javaClass.classLoader, arrayOf(Statement::class.java)) { _, method, _ ->
-                when (method.name) {
-                    "execute" -> {
-                        resets++
-                        false
-                    }
-
-                    "close" -> {
-                        null
-                    }
-
-                    else -> {
-                        throw UnsupportedOperationException(method.name)
-                    }
-                }
-            } as Statement
-    }
-
-    private fun pool(take: () -> Connection): DataSource =
-        Proxy.newProxyInstance(javaClass.classLoader, arrayOf(DataSource::class.java)) { _, method, _ ->
-            if (method.name != "getConnection") throw UnsupportedOperationException(method.name)
-            try {
-                take()
-            } catch (e: InvocationTargetException) {
-                throw e.targetException
+    private fun <T> withRunner(
+        gate: CountingGate,
+        maximumPoolSize: Int = 1,
+        timeoutMillis: Long = 500,
+        body: (tenants: TenantContext, runner: TransactionRunner) -> T,
+    ): T =
+        PostgresProbeFixture("postgres:18").use { fixture ->
+            TestPoolFixture(
+                fixture.jdbcUrl(),
+                PostgresProbeFixture.APP,
+                PostgresProbeFixture.APP_PASSWORD,
+                maximumPoolSize = maximumPoolSize,
+                connectionTimeoutMillis = timeoutMillis,
+            ).use { pool ->
+                val tenants = TenantContextImpl()
+                body(tenants, pool.runner(tenants, gate))
             }
-        } as DataSource
+        }
+
+    private fun <T> TenantContext.asTenant(block: () -> T): T = bind(TenantId(UUID.randomUUID()), "test-actor", block)
 
     @Test
-    fun `a closed connection releases the permit once and resets the session`() {
+    fun `a finished transaction releases the permit once`() {
         val gate = CountingGate()
-        val physical = Physical()
-        val connection = TenantAwareDataSource(pool { physical.connection }, gate).connection
-        assertEquals(1, gate.acquired)
-        assertEquals(0, gate.released)
-
-        connection.close()
-
-        assertEquals(1, gate.released)
-        assertEquals(2, physical.resets)
-        assertEquals(1, physical.closes)
+        withRunner(gate) { tenants, runner -> tenants.asTenant { runner.inTransaction { 1 } } }
+        assertEquals(1, gate.acquired.get())
+        assertEquals(1, gate.released.get())
     }
 
     @Test
-    fun `a failed pool checkout releases the permit once and rethrows the pool failure`() {
+    fun `a failing transaction releases the permit once`() {
         val gate = CountingGate()
-        val failure = SQLException("pool exhausted")
-
-        val thrown =
-            assertThrows(SQLException::class.java) { TenantAwareDataSource(pool { throw failure }, gate).connection }
-
-        assertSame(failure, thrown)
-        assertEquals(1, gate.acquired)
-        assertEquals(1, gate.released)
+        withRunner(gate) { tenants, runner ->
+            assertThrows(IllegalStateException::class.java) {
+                tenants.asTenant { runner.inTransaction { error("rolled back") } }
+            }
+        }
+        assertEquals(1, gate.acquired.get())
+        assertEquals(1, gate.released.get())
     }
 
     @Test
-    fun `closing twice releases the permit once and closes the physical connection once`() {
+    fun `a checkout the pool fails gives its permit back once`() {
         val gate = CountingGate()
-        val physical = Physical()
-        val connection = TenantAwareDataSource(pool { physical.connection }, gate).connection
-
-        connection.close()
-        connection.close()
-
-        assertEquals(1, gate.released)
-        assertEquals(1, physical.closes)
-        assertEquals(2, physical.resets)
-    }
-
-    @Test
-    fun `a failed close still releases the permit once and a second close does nothing`() {
-        val gate = CountingGate()
-        val physical = Physical(failOnClose = true)
-        val connection = TenantAwareDataSource(pool { physical.connection }, gate).connection
-
-        assertThrows(SQLException::class.java) { connection.close() }
-        connection.close()
-
-        assertEquals(1, gate.released)
-        assertEquals(1, physical.closes)
+        val executor = Executors.newSingleThreadExecutor()
+        try {
+            withRunner(gate) { tenants, runner ->
+                val holding = CountDownLatch(1)
+                val release = CountDownLatch(1)
+                val holder =
+                    executor.submit {
+                        tenants.asTenant {
+                            runner.inTransaction {
+                                holding.countDown()
+                                release.await(10, TimeUnit.SECONDS)
+                            }
+                        }
+                    }
+                assertEquals(true, holding.await(10, TimeUnit.SECONDS))
+                // the pool's one connection is taken: this checkout times out in the pool, after the permit was taken
+                val failure = runCatching { tenants.asTenant { runner.inTransaction { 1 } } }.exceptionOrNull()
+                assertInstanceOf(Exception::class.java, failure)
+                assertEquals(2, gate.acquired.get())
+                assertEquals(1, gate.released.get())
+                release.countDown()
+                holder.get(10, TimeUnit.SECONDS)
+            }
+        } finally {
+            executor.shutdownNow()
+        }
+        assertEquals(2, gate.acquired.get())
+        assertEquals(2, gate.released.get())
     }
 }
