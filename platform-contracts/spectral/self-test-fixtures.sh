@@ -277,6 +277,6 @@ rm -rf "$NESTED_TMP"
 trap - EXIT
 
 if [ "$failed" -eq 0 ]; then
-  echo "gst-ci: breaking-change gate self-test passed (fails on breaking, passes on additive, exempts only the exact BASE-carried T5 scaffold placeholder, admits only marked extensible-enum values and recorded exceptions, rejects a new payload schema file with a closed root additionalProperties, and compares nested properties, array items and local $ref targets, file $ref values and recursive schemas)."
+  echo "gst-ci: breaking-change gate self-test passed (fails on breaking, passes on additive, exempts only the exact BASE-carried T5 scaffold placeholder, admits only marked extensible-enum values and recorded exceptions, rejects a new payload schema file with a closed root additionalProperties, and compares nested properties, array items and local \$ref targets, file \$ref values and recursive schemas)."
 fi
 exit $failed
