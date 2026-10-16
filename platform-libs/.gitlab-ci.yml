@@ -296,6 +296,7 @@ lint:
 # suite tested (STK-60, INV-Q-3261).
 contract-tests:
   extends: [.gradle-job, .gst-changed-modules]
+  tags: [inv-arm64]
   stage: test
   script:
     - ./gradlew -p "$GRADLE_PROJECT_DIR" :contract-tests:check --stacktrace
