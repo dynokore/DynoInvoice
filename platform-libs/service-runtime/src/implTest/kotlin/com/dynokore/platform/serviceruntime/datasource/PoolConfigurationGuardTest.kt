@@ -11,6 +11,7 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
+import io.mockk.mockk
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
@@ -91,7 +92,7 @@ class PoolConfigurationGuardTest {
         strings = [
             "connectionInitSql", "connectionTestQuery", "schema", "catalog", "transactionIsolation", "autoCommit",
             "readOnly", "dataSourceClassName", "options", "jdbcUrlOptions", "jdbcUrlPassword", "applicationName",
-            "password", "registerMbeans", "credentialsProvider",
+            "password", "registerMbeans", "credentialsProvider", "dataSource",
         ],
     )
     fun `a pool that runs SQL or sets session state is refused, and the value is not printed`(setting: String) {
@@ -135,6 +136,10 @@ class PoolConfigurationGuardTest {
 
             "readOnly" -> {
                 pool.isReadOnly = true
+            }
+
+            "dataSource" -> {
+                pool.dataSource = mockk<DataSource>()
             }
 
             "dataSourceClassName" -> {
@@ -233,6 +238,7 @@ class PoolConfigurationGuardTest {
         mapOf<String, (HikariDataSource) -> Unit>(
             "password (set)" to { it.password = "pw-value" },
             "registerMbeans (set)" to { it.isRegisterMbeans = true },
+            "dataSource (set)" to { it.dataSource = mockk<DataSource>() },
             "credentialsProvider (only SecretStoreCredentialsProvider" to
                 { it.credentialsProvider = HikariCredentialsProvider { Credentials.of("x", "pw-value") } },
         ).forEach { (expected, setting) ->
