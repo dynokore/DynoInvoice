@@ -138,21 +138,19 @@ class OutboxAndQueueWiring(
 
     @Bean
     @ConditionalOnProperty(name = [Props.EVENT_BINDING], havingValue = "postgres", matchIfMissing = true)
-    @ConditionalOnBean(TenantScope::class, DataSource::class)
+    @ConditionalOnBean(TenantScope::class, EventCatalogue::class, DataSource::class)
     @ConditionalOnMissingBean(EventBinding::class)
     fun eventBinding(
         @Qualifier(ServiceDataSources.EVENT_LOG) eventLog: ObjectProvider<DataSource>,
         scope: TenantScope,
-        catalogue: ObjectProvider<EventCatalogue>,
+        catalogue: EventCatalogue,
     ): PostgresEventBinding {
         // The event log shares the application pool: the append joins the relay's row transaction (the same tenant and
         // actor, REQUIRED propagation) and commits with published_at, so a relay run holds at most 2 permits of the
         // background lane (INV-Q-4850). A separate event-log pool (HA) keeps its own transaction on that pool.
         val binding =
             eventLog.getIfAvailable()?.let { eventLogScope(handOff(it, eventLogGate.getIfAvailable()), scope) } ?: scope
-        // No catalogue declares no topic table: a publish then fails until one is declared (INV-Q-5851).
-        val topics = catalogue.getIfAvailable()?.let(::topicsOf).orEmpty()
-        return PostgresEventBinding(binding, eventLogDsl(binding, topics))
+        return PostgresEventBinding(binding, eventLogDsl(binding, topicsOf(catalogue)))
     }
 
     @Bean

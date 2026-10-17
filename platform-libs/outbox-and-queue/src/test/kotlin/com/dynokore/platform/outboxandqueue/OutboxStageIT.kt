@@ -1,17 +1,13 @@
 package com.dynokore.platform.outboxandqueue
 
-import com.dynokore.platform.tenancyjooq.TableClass
-import com.dynokore.platform.tenancyjooq.TenancyProbe
 import com.dynokore.platform.tenancykernel.TenantId
-import org.jooq.DSLContext
-import org.jooq.Field
-import org.jooq.impl.DSL
-import org.jooq.impl.SQLDataType
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
+import java.sql.Connection
+import java.sql.SQLException
 import java.util.UUID
 
 /**
@@ -77,106 +73,58 @@ class OutboxStageIT {
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
     fun `the sys role inserts an outbox row only under its bound tenant`(image: String) {
-        OutboxHarness(image, payloadDdl = PROBE_DDL).use { harness ->
-            val fixture = harness.fixture
-            val app = {
-                TenancyProbe.connect(
-                    fixture.jdbcUrl(),
-                    OutboxPostgresFixture.APP,
-                    OutboxPostgresFixture.APP_PASSWORD,
-                )
+        OutboxHarness(image).use { harness ->
+            harness.fixture.adminDataSource().connection.use { c ->
+                c.autoCommit = false
+                c.createStatement().use { it.execute("set local role ${OutboxPostgresFixture.SYS}") }
+                bindTenant(c, TenantId.PLATFORM.value.toString())
+                assertEquals(1, insertAsSys(c, TenantId.PLATFORM.value, "platform-row"))
+                // Bound to the platform tenant, another tenant's row is refused by the tenant policy.
+                assertRefused(c) { insertAsSys(c, UUID.randomUUID(), "foreign-row") }
+                // Nothing bound: no row at all.
+                bindTenant(c, "")
+                assertRefused(c) { insertAsSys(c, TenantId.PLATFORM.value, "unbound-row") }
+                c.rollback()
             }
-            assertEquals(PROBE_CATALOGUE, probeCatalogue(app()))
-
-            val platformId = "platform-row-${UUID.randomUUID()}"
-            val inserted =
-                JooqKit.Access.runtime(fixture, PROBE_TABLES).use {
-                    it.asPlatform { dsl ->
-                        callProbe(dsl, platformId, TenantId.PLATFORM.value)
-                    }
-                }
-            assertEquals(1, inserted)
-            assertEquals(1L, rowsWithId(app(), platformId))
-
-            val foreignId = "foreign-row-${UUID.randomUUID()}"
-            val foreign = refusedBound(fixture, foreignId, UUID.randomUUID())
-            assertEquals("42501", JooqKit.sqlState(foreign), foreign?.message)
-            assertEquals(0L, rowsWithId(app(), foreignId))
-
-            val unboundId = "unbound-row-${UUID.randomUUID()}"
-            val unbound = refusedUnbound(app(), unboundId)
-            assertEquals("42501", JooqKit.sqlState(unbound), unbound?.message)
-            assertEquals(0L, rowsWithId(app(), unboundId))
         }
     }
 
-    /** Bound to the platform tenant, another tenant's row is refused by the tenant policy. */
-    private fun refusedBound(
-        fixture: OutboxPostgresFixture,
-        id: String,
-        tenant: UUID,
-    ): Throwable? =
-        JooqKit.Access.runtime(fixture, PROBE_TABLES).use { access ->
-            runCatching { access.asPlatform { callProbe(it, id, tenant) } }.exceptionOrNull()
-        }
-
-    /** Nothing bound: no row at all. */
-    private fun refusedUnbound(
-        probe: TenancyProbe,
-        id: String,
-    ): Throwable? {
-        val platform = TenantId.PLATFORM.value.toString()
-        return runCatching {
-            probe.unbound {
-                fetchValue(
-                    "select payload.$PROBE(?, ?::uuid)",
-                    id,
-                    platform,
-                )
-            }
-        }.exceptionOrNull()
+    private fun bindTenant(
+        c: Connection,
+        tenant: String,
+    ) = c.prepareStatement("select set_config('app.tenant_id', ?, true)").use {
+        it.setString(1, tenant)
+        it.executeQuery().close()
     }
 
-    /** The owner, definer flag, search_path and non-owner grantees of the probe function, from pg_proc. */
-    private fun probeCatalogue(probe: TenancyProbe): Map<String, Any?> =
-        probe
-            .unbound {
-                fetchRows(
-                    "select pg_get_userbyid(p.proowner) as owner, p.prosecdef as definer, " +
-                        "array_to_string(p.proconfig, ';') as config, " +
-                        "(select string_agg(a.privilege_type || ':' || case when a.grantee = 0 then 'PUBLIC' " +
-                        "else pg_get_userbyid(a.grantee) end, ',' order by a.grantee) " +
-                        "from aclexplode(p.proacl) a where a.grantee <> p.proowner) as acl " +
-                        "from pg_proc p where p.pronamespace = 'payload'::regnamespace and p.proname = ?",
-                    PROBE,
-                )
-            }.single()
-
-    private fun callProbe(
-        dsl: DSLContext,
-        id: String,
+    private fun insertAsSys(
+        c: Connection,
         tenant: UUID,
-    ): Int? = dsl.select(probeCall(id, tenant)).fetchOne(0, Int::class.java)
-
-    private fun probeCall(
         id: String,
-        tenant: UUID,
-    ): Field<Int> =
-        DSL.function(
-            DSL.name("payload", PROBE),
-            SQLDataType.INTEGER,
-            DSL.`val`(id, SQLDataType.CLOB),
-            DSL.`val`(tenant, SQLDataType.UUID),
-        )
+    ): Int =
+        c
+            .prepareStatement(
+                "insert into payload.outbox (id, topic, type, source, subject, event_time, tenant_id, entity_ref, " +
+                    "instance_id, correlation_id, causation_id, data) " +
+                    "values (?, 'gst.platform.audit-entry-recorded.v1', ?, '/gst/payload-svc', 'k', now(), ?, ?, " +
+                    "'i', 'c', 'c', '{}')",
+            ).use {
+                it.setString(1, id)
+                it.setString(2, TestCatalogue.AUDIT_ENTRY_RECORDED)
+                it.setObject(3, tenant)
+                it.setString(4, EntityRef.PLATFORM.value)
+                it.executeUpdate()
+            }
 
-    /** The rows of `payload.outbox` with [id], read under the platform binding. */
-    private fun rowsWithId(
-        probe: TenancyProbe,
-        id: String,
-    ): Long =
-        probe.inTenant(TenantId.PLATFORM) {
-            fetchValue("select count(*) from payload.outbox where id = ?", id)
-        } as Long
+    private fun assertRefused(
+        c: Connection,
+        block: () -> Unit,
+    ) {
+        val savepoint = c.setSavepoint()
+        val failure = assertThrows(SQLException::class.java) { block() }
+        assertEquals("42501", failure.sqlState, failure.message)
+        c.rollback(savepoint)
+    }
 
     private fun platformContext(key: String) =
         EventContext(
@@ -192,42 +140,5 @@ class OutboxStageIT {
 
     private companion object {
         const val POLICY_CHANGED = "com.dynokore.gst.platform.PolicyChanged.v1"
-        const val PROBE = "sys_insert_probe"
-
-        val PROBE_CATALOGUE =
-            mapOf<String, Any?>(
-                "owner" to OutboxPostgresFixture.SYS,
-                "definer" to true,
-                "config" to "search_path=pg_catalog, payload, pg_temp",
-                "acl" to "EXECUTE:${OutboxPostgresFixture.APP}",
-            )
-
-        /** The probe function is declared PLATFORM_SCOPED: it reads no tenant table of its own. */
-        val PROBE_TABLES = mapOf(DSL.name("payload", PROBE) to TableClass.PLATFORM_SCOPED)
-
-        /**
-         * Init SQL of the `payload` schema (INV-Q-5854): a definer function owned by the sys role that inserts one
-         * outbox row for a tenant and returns the row count. The sys role holds CREATE only for the hand-over.
-         */
-        val PROBE_DDL =
-            """
-            create function payload.$PROBE(p_id text, p_tenant uuid) returns integer
-            language plpgsql security definer set search_path = pg_catalog, payload, pg_temp as $$
-            declare inserted integer;
-            begin
-                insert into payload.outbox (id, topic, type, source, subject, event_time, tenant_id, entity_ref,
-                    instance_id, correlation_id, causation_id, data)
-                values (p_id, 'gst.platform.audit-entry-recorded.v1', '${TestCatalogue.AUDIT_ENTRY_RECORDED}',
-                    '/gst/payload-svc', 'k', now(), p_tenant, '${EntityRef.PLATFORM.value}', 'i', 'c', 'c', '{}');
-                get diagnostics inserted = row_count;
-                return inserted;
-            end
-            $$;
-            grant create on schema payload to ${OutboxPostgresFixture.SYS};
-            alter function payload.$PROBE(text, uuid) owner to ${OutboxPostgresFixture.SYS};
-            revoke all on function payload.$PROBE(text, uuid) from public;
-            grant execute on function payload.$PROBE(text, uuid) to ${OutboxPostgresFixture.APP};
-            revoke create on schema payload from ${OutboxPostgresFixture.SYS};
-            """.trimIndent()
     }
 }

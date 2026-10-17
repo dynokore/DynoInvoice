@@ -12,8 +12,7 @@ train is its own (README.md: "own version and changelog").
   outbox writer, relay, event binding, unrelayed-event check and event-log presence with the module's tenancy-jooq
   `DSLContext` (private to the bean methods, no bean of the context) or the `TenantScope`; the presence takes the
   event-log `TenantScope`; the relay gets the background lane's budget and refuses a run under 2 permits (a pool
-  without lanes has no bound). The event binding keeps its creation conditions (no `EventCatalogue` needed, INV-Q-5851): it declares the topic tables of the
-  `EventCatalogue` bean when the context has one, and none otherwise (a publish then fails until a catalogue is declared).
+  without lanes has no bound). The event binding now needs the `EventCatalogue` bean, whose topics it declares.
 
 ## [8.0.4] - 2026-10-17
 ### Changed
