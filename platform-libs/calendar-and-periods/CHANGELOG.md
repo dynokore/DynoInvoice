@@ -6,6 +6,12 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-18
+### Added
+- Transaction-date period assignment: `PeriodSet.of` (overlap refused), `TransactionTimestamp` (`Explicit`,
+  `ZoneLess`) and `assignPeriod`, which returns `Assigned` or a typed `NoPeriod` with a decision trace. Both zones are
+  arguments; the library reads no clock (INV-REQ-76, INV-REQ-77, INV-AC-118, INV-AC-119, INV-AC-199; INV-T-6099).
+
 ## [1.0.0] - 2026-10-15
 ### Added
 - Period generation from a registration date, a filing-frequency history and a calendar pack: every period record

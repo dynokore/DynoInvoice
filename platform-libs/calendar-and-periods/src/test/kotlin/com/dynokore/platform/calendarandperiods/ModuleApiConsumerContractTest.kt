@@ -75,4 +75,19 @@ class ModuleApiConsumerContractTest {
 
         assertEquals(ReadinessVerdict.Blocked(listOf("DOC-COMPLETE")), verdict)
     }
+
+    @Test
+    fun `canonical-svc style period assignment gives the period of the boundary-zone date`() {
+        val quarter = { start: String, end: String -> PeriodRecord(d(start), d(end), "F5", d(end), d(end), emptySet()) }
+        val march = quarter("2026-01-01", "2026-03-31")
+        val april = quarter("2026-04-01", "2026-06-30")
+        val sg = java.time.ZoneId.of("Asia/Singapore")
+        val ts = TransactionTimestamp.Explicit(java.time.ZonedDateTime.parse("2026-03-31T23:30+01:00[Europe/London]"))
+
+        val result = assignPeriod(PeriodSet.of(listOf(march, april)), ts, sg, sg)
+
+        assertEquals(PeriodAssignment.Assigned::class, result::class)
+        assertEquals(april, (result as PeriodAssignment.Assigned).period)
+        assertEquals(d("2026-04-01"), result.boundaryDate)
+    }
 }
