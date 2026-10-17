@@ -199,11 +199,10 @@ class EventsMissing private constructor(
 /**
  * [block] in its own transaction under the platform binding, on a connection of its own even when the caller holds a
  * transaction (owner answer INV-Q-5609 (b)): the claims, the rate-limit counters and the dead-letter triage run
- * outside any tenant (ARC 4.3 step 1a). It is inline so that the frames of its lane-gate call belong to the calling
- * class, the recipient that asked the pool.
+ * outside any tenant (ARC 4.3 step 1a).
  */
-internal inline fun <T> TenantScope.platformTransaction(crossinline block: () -> T): T =
-    transactions.outsideOpenTransaction { bindWorkload(TenantId.PLATFORM) { transactions.inTransaction { block() } } }
+internal fun <T> TenantScope.platformTransaction(block: () -> T): T =
+    transactions.outsideOpenTransaction { bindWorkload(TenantId.PLATFORM) { transactions.inTransaction(block) } }
 
 /** `<schema>.claim_due(lane, consumer, claimed_at, reclaim_before)` ([QueueSchema.CLAIM_DUE]). */
 class ClaimDue private constructor(

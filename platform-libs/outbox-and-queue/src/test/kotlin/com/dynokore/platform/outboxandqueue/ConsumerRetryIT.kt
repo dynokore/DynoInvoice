@@ -85,9 +85,9 @@ class ConsumerRetryIT {
             clock.advance(Duration.ofSeconds(1))
             assertEquals(1, consumer.pollOnce().applied)
             val ackCount = "select ack_count from reconciliation.ack_read_model where doc_uuid = ?"
-            assertEquals(1, harness.countIn(ServiceKit.TENANT, ackCount, doc))
-            assertEquals(1, harness.countIn(ServiceKit.TENANT, "select count(*) from reconciliation.inbox"))
-            assertEquals(0, harness.countIn(ServiceKit.TENANT, "select count(*) from reconciliation.event_dead_letter"))
+            assertEquals(1, harness.count(ackCount, doc))
+            assertEquals(1, harness.count("select count(*) from reconciliation.inbox"))
+            assertEquals(0, harness.count("select count(*) from reconciliation.event_dead_letter"))
             assertEquals(0, consumer.pollOnce().total)
         }
     }
@@ -107,7 +107,7 @@ class ConsumerRetryIT {
             assertThrows(IllegalStateException::class.java) { consumer.pollOnce() }
             assertEquals(
                 0,
-                harness.countIn(ServiceKit.TENANT, "select count(*) from reconciliation.ack_read_model"),
+                harness.count("select count(*) from reconciliation.ack_read_model"),
                 "the later record waits behind the failing one",
             )
             clock.advance(Duration.ofSeconds(10))
@@ -118,18 +118,17 @@ class ConsumerRetryIT {
             assertEquals(1, last.deadLettered)
             assertEquals(1, last.applied, "the consumer moved on to the next record")
             assertEquals(3, handler.calls - 1, "three attempts for the failing record, then one call for the good one")
-            assertEquals(1, harness.countIn(ServiceKit.TENANT, "select count(*) from reconciliation.event_dead_letter"))
+            assertEquals(1, harness.count("select count(*) from reconciliation.event_dead_letter"))
             assertEquals(
                 1,
-                harness.countIn(
-                    ServiceKit.TENANT,
+                harness.count(
                     "select count(*) from reconciliation.event_dead_letter where reason = " +
                         "'handler failed, retries exhausted after 3 attempts: java.lang.IllegalStateException'",
                 ),
             )
             val acks = "select count(*) from reconciliation.ack_read_model where doc_uuid = ?"
-            assertEquals(0, harness.countIn(ServiceKit.TENANT, acks, bad))
-            assertEquals(1, harness.countIn(ServiceKit.TENANT, acks, good))
+            assertEquals(0, harness.count(acks, bad))
+            assertEquals(1, harness.count(acks, good))
             assertEquals(0, consumer.pollOnce().total, "nothing is retried for ever")
             clock.advance(Duration.ofDays(1))
             assertEquals(0, consumer.pollOnce().total)
@@ -151,10 +150,7 @@ class ConsumerRetryIT {
             assertEquals(1, handler.calls)
             assertEquals(
                 1,
-                harness.countIn(
-                    ServiceKit.TENANT,
-                    "select count(*) from reconciliation.event_dead_letter where reason = 'payload shape'",
-                ),
+                harness.count("select count(*) from reconciliation.event_dead_letter where reason = 'payload shape'"),
             )
             assertTrue(consumer.pollOnce().total == 0)
         }
@@ -194,7 +190,7 @@ class ConsumerRetryIT {
             val (third, handler) = consumerOf(harness, clock, failFor = always)
             assertEquals(1, third.pollOnce().deadLettered)
             assertEquals(1, handler.calls)
-            assertEquals(1, harness.countIn(ServiceKit.TENANT, "select count(*) from reconciliation.event_dead_letter"))
+            assertEquals(1, harness.count("select count(*) from reconciliation.event_dead_letter"))
         }
     }
 
@@ -214,8 +210,7 @@ class ConsumerRetryIT {
             assertEquals(0, handler.calls, "the handler is not called again")
             assertEquals(
                 1,
-                harness.countIn(
-                    ServiceKit.TENANT,
+                harness.count(
                     "select count(*) from reconciliation.event_dead_letter " +
                         "where reason like 'handler failed, retries exhausted after 3 attempts%'",
                 ),
@@ -241,14 +236,13 @@ class ConsumerRetryIT {
                 clock.advance(Duration.ofSeconds(1))
             }
             assertEquals(5, handler.calls)
-            assertEquals(0, harness.countIn(ServiceKit.TENANT, "select count(*) from reconciliation.event_dead_letter"))
+            assertEquals(0, harness.count("select count(*) from reconciliation.event_dead_letter"))
 
             clock.advance(Duration.ofHours(24))
             assertEquals(1, consumer.pollOnce().deadLettered)
             assertEquals(
                 1,
-                harness.countIn(
-                    ServiceKit.TENANT,
+                harness.count(
                     "select count(*) from reconciliation.event_dead_letter " +
                         "where reason like 'handler failed on infrastructure failures for PT24H%'",
                 ),
@@ -270,7 +264,7 @@ class ConsumerRetryIT {
                 clock.advance(Duration.ofMinutes(1))
             }
             assertEquals(policy.maxAttempts + 2, handler.calls)
-            assertEquals(0, harness.countIn(ServiceKit.TENANT, "select count(*) from reconciliation.event_dead_letter"))
+            assertEquals(0, harness.count("select count(*) from reconciliation.event_dead_letter"))
         }
     }
 
