@@ -85,9 +85,33 @@ object TenancyJooq {
             }
 
             else -> {
+                tablesProblem(configuration)
+            }
+        }
+
+    /**
+     * The tables of the injector and of the statement check must be one instance, built by [TableClasses.verify] or by
+     * [dslContext] (INV-Q-4821 B); a [TenancyTables.declared] instance is refused here, not in [configure].
+     */
+    private fun tablesProblem(configuration: Configuration): String? {
+        val injectors = configuration.visitListenerProviders().map { it.provide() as TenantPredicateInjector }
+        val check = configuration.executeListenerProviders().last().provide() as TenantStatementCheck
+        return when {
+            injectors.any { it.tables !== check.tables } -> {
+                "its predicate injector and statement check do not share one TenancyTables built by " +
+                    "TableClasses.verify (INV-Q-4821)"
+            }
+
+            check.tables.origin == TenancyTables.Origin.DECLARED -> {
+                "its TenancyTables was not built by TableClasses.verify (INV-Q-4821): " +
+                    "TenancyTables.declared is not accepted for a bean"
+            }
+
+            else -> {
                 null
             }
         }
+    }
 
     /**
      * The DSLContext of a platform-libs module (CS-18): PostgreSQL, on the transaction runner's connection, with the
@@ -100,7 +124,7 @@ object TenancyJooq {
     ): DSLContext =
         configure(
             DefaultConfiguration().set(SQLDialect.POSTGRES),
-            TenancyTables.declared(tables),
+            TenancyTables.library(tables),
             tenants,
             transactionRunner,
         ).dsl()

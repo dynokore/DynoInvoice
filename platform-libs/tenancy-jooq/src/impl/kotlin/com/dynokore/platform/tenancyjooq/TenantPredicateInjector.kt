@@ -15,7 +15,7 @@ import org.jooq.impl.QOM
  * are refused ([StatementGuard], [classify]).
  */
 internal class TenantPredicateInjector(
-    private val tables: TenancyTables,
+    internal val tables: TenancyTables,
     private val tenants: TenantContext,
 ) : VisitListener {
     override fun visitEnd(context: VisitContext) {

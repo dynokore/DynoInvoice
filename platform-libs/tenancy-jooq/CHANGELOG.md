@@ -6,6 +6,11 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-17
+### Changed
+- `TenancyJooq.problem` (owner answer INV-Q-4821 B, INV-T-5820) also refuses a configuration whose `TenancyTables` did not come from `TableClasses.verify`: the tables held by its predicate injector and by its statement check must be one instance, and that instance must not come from `TenancyTables.declared`; the text names `TableClasses.verify` and `INV-Q-4821`. Each `TenancyTables` carries an internal origin: `VERIFIED` (`TableClasses.verify`), `DECLARED` (`TenancyTables.declared`) or `LIBRARY` (`TenancyJooq.dslContext`, accepted). `declared`, `configure` and `install` still accept a declared instance; the refusal is the guard's, at start-up. The public API is unchanged.
+
+
 ## [1.1.1] - 2026-10-16
 ### Changed
 - Metadata only: depends on `tenancy-kernel` 3.1.0 (adds `TransactionRunner.outsideOpenTransaction`, INV-T-5675); version step per ruling INV-Q-5678 (A). No code change.

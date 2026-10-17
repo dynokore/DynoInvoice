@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.0.11] - 2026-10-17
+### Changed
+- Metadata-only release (INV-T-5820, ruling INV-Q-5678 A): depends on `tenancy-jooq` 1.2.0 (the guard refuses a `TenancyTables` not built by `TableClasses.verify`, INV-Q-4821 B); no code change.
+
 ## [1.0.10] - 2026-10-17
 ### Changed
 - Metadata-only release (INV-T-4517, version-file scope of the downstream closure of config-resolver 4.0.0 and service-runtime 8.0.6; the publish guard refuses a changed POM at a published version): no API or behaviour change; `src/main` and `src/impl` are unchanged. The POMs and module metadata of the publications name service-runtime 8.0.6 and config-resolver 4.0.0.

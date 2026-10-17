@@ -13,7 +13,7 @@ import org.jooq.ExecuteListener
  * server. A batch, a routine call or anything else without a single query is refused.
  */
 internal class TenantStatementCheck(
-    private val tables: TenancyTables,
+    internal val tables: TenancyTables,
     private val tenants: TenantContext,
 ) : ExecuteListener {
     override fun renderEnd(context: ExecuteContext) {

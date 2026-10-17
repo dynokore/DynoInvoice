@@ -12,7 +12,11 @@ import org.jooq.Name
  */
 class TenancyTables private constructor(
     private val classes: Map<List<String>, TableClass>,
+    internal val origin: Origin,
 ) {
+    /** Who built a [TenancyTables]; `TenancyJooq.problem` accepts [VERIFIED] and [LIBRARY] only (INV-Q-4821 B). */
+    internal enum class Origin { VERIFIED, DECLARED, LIBRARY }
+
     /** The class of the table with this qualified name, or null when the table is not known. */
     fun classOf(qualifiedName: Name): TableClass? = classes[key(qualifiedName)]
 
@@ -29,7 +33,15 @@ class TenancyTables private constructor(
          *
          * @throws IllegalArgumentException when a name is not qualified by its schema, or is declared twice.
          */
-        fun declared(tables: Map<Name, TableClass>): TenancyTables {
+        fun declared(tables: Map<Name, TableClass>): TenancyTables = declared(tables, Origin.DECLARED)
+
+        /** [declared] for the library DSLContext of `TenancyJooq.dslContext`, which the guard accepts. */
+        internal fun library(tables: Map<Name, TableClass>): TenancyTables = declared(tables, Origin.LIBRARY)
+
+        private fun declared(
+            tables: Map<Name, TableClass>,
+            origin: Origin,
+        ): TenancyTables {
             val keyed = tables.entries.map { (name, tableClass) -> key(name) to tableClass }
             keyed.forEach { (name, _) ->
                 require(name.size == 2 && name.all { it.isNotEmpty() }) {
@@ -38,10 +50,11 @@ class TenancyTables private constructor(
             }
             val duplicates = keyed.groupBy({ it.first }, { it.second }).filterValues { it.size > 1 }.keys
             require(duplicates.isEmpty()) { "tables declared twice: ${duplicates.map { it.joinToString(".") }}" }
-            return TenancyTables(keyed.toMap())
+            return TenancyTables(keyed.toMap(), origin)
         }
 
-        internal fun of(classes: Map<List<String>, TableClass>): TenancyTables = TenancyTables(classes.toMap())
+        internal fun of(classes: Map<List<String>, TableClass>): TenancyTables =
+            TenancyTables(classes.toMap(), Origin.VERIFIED)
 
         internal fun key(name: Name): List<String> = name.name.toList()
     }

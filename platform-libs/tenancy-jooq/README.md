@@ -29,3 +29,5 @@ Released on its own version with its own changelog. Services consume it only as 
 - An ExecuteListener that renders the statement again with an independent check and refuses it, before it is prepared, unless every TENANT or REFERENCE table carries its predicate and the checked SQL is the SQL about to run.
 
 Refused with `TenantPredicateViolation`, before any SQL reaches the server: plain-SQL query parts (`DSL.sql`, `field(String)`, `table(String)`, `condition(String)`, `resultQuery(String)`), TRUNCATE, DDL, batches and routine calls, a table that is not in the declared schema, an outer NATURAL, USING or OUTER APPLY join whose nullable side reads a tenant table, INSERT without a column list, and INSERT ... SELECT that names `tenant_id`.
+
+`TenancyJooq.problem` (service-runtime's guard) refuses a configuration whose `TenancyTables` did not come from `TableClasses.verify` (a `TenancyTables.declared` instance, or listeners built from two instances), except the library `TenancyJooq.dslContext`; `configure` and `install` still accept a declared instance (INV-Q-4821 B).
