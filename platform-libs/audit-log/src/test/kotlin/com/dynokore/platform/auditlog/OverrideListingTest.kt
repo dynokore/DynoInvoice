@@ -74,7 +74,8 @@ class OverrideListingTest {
         assertTrue(ddl.contains("transaction_date date,"), "nullable: no not-null on the date")
         assertTrue(
             ddl.contains(
-                "override_grant_tenant_entity_date on submission.override_grant (tenant_id, entity_ref, transaction_date)",
+                "override_grant_tenant_entity_date on submission.override_grant " +
+                    "(tenant_id, entity_ref, transaction_date)",
             ),
         )
         assertTrue(ddl.contains("grant select, insert on submission.override_grant to submission_app;"))

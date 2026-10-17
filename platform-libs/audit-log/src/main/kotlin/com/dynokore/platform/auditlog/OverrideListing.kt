@@ -36,7 +36,8 @@ data class OverrideEntry(
 /**
  * The listing of an entity's overrides. [dated] holds the grants whose transaction date lies in the queried range;
  * [undated] holds every grant of the entity with no transaction date, so that no override is left out of a period
- * listing (fail closed: the owning service sees them and decides). Both are ordered by (transaction date, granted at, id).
+ * listing (fail closed: the owning service sees them and decides). Both are ordered by (transaction date, granted at,
+ * id).
  */
 data class OverrideListingResult(
     val dated: List<OverrideEntry>,
