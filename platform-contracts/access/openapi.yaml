@@ -1904,7 +1904,6 @@ components:
       required:
       - principalType
       - scope
-      - callingSystem
       properties:
         principalType:
           type: string
@@ -1927,7 +1926,7 @@ components:
           type: string
           maxLength: 128
         callingSystem:
-          type: integer
+          type: string
           minLength: 1
           maxLength: 64
           description: 'The name of the system that holds the credential, set by the tenant administrator when the

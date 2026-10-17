@@ -1,3 +1,4 @@
+# INV-T-6256. The callingSystem rows come from the ruling of INV-Q-6252 on INV-REQ-587 (which names `filing-workflow` and no property of its own).
 # INV-T-4910. Identifiers in backticks in the published behavior and intent of INV-REQ-584, 912, 955, 1269, 2758, 2762 (read from Keel),
 # plus the four names of rulings INV-Q-5143/5145/5147 that no requirement writes in backticks. Columns: identifier, kind, file, requirement key.
 # Spelling rule (API-09): the identifier column holds the contract spelling, an enum member in UPPER_SNAKE_CASE (hyphen to underscore) and a
