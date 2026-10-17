@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: notification API
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     Contract-first source of truth for notification (API-01, STK-44). The
     `notification-contract` module generates its server interfaces and DTOs
@@ -29,11 +29,8 @@ info:
     `createWebhookSubscription`, `rotateWebhookSecret` and
     `deleteWebhookSubscription`; "webhook commands" is `replayWebhookDelivery`;
     "delivery-status queries" is `listWebhookDeliveries` and
-    `listMessageDeliveries`. Alert-instance acknowledgement and snooze
-    (capabilities "Acknowledgement and bounded snooze") are NOT included:
-    `provides` names only "Policy … commands" for alerts, not instance
-    acknowledgement, so that capability is left as an architecture gap for
-    the coordinator rather than added here (T13b review correction). No
+    `listMessageDeliveries`. Alert-instance listing and acknowledgement are
+    `listAlerts` and `acknowledgeAlert` (INV-REQ-79, INV-REQ-1113). No
     catalogue error code exists yet under a NOT- prefix
     (model/architecture/error-codes.yaml has no such prefix) — every
     operation below declares `x-error-codes: []`; also flagged as an
@@ -46,6 +43,8 @@ servers:
 tags:
   - name: policies
     description: Alert policies per entity and class, with escalation tiers (§33.13, FR-AE.67).
+  - name: alerts
+    description: Alert instances and their acknowledgement (INV-REQ-79, INV-REQ-1113).
   - name: webhooks
     description: Customer webhook subscriptions, signing, retries, dead-letter and replay (§35.6).
   - name: deliveries
@@ -69,11 +68,30 @@ paths:
         `x-operation.role` is a single string today, so only the primary
         actor is declared here — the multi-role format is tracked
         separately by the coordinator.
+
+
+        Deadline thresholds: `thresholdDays` is the first-alert number of days
+        before the due date, meaningful for the class DEADLINE only. More days
+        before the due date is tighter. A `thresholdDays` smaller than the
+        policy's `calendarPackDefaultDays` is looser and is refused with
+        POL-008 (INV-AC-203: a tighter threshold is accepted, a looser one
+        refused); a value equal to or larger is accepted. Thresholds of monthly
+        and quarterly filers are held separately, each from its own filing
+        frequency's default (INV-AC-109).
+
+
+        Refusals, each a 422 with the API-20 envelope: POL-008 for a looser
+        threshold; POL-015 for a request that disables the class DEADLINE or
+        COVERAGE, which can be rerouted to other recipients or channels but
+        never disabled (INV-AC-103, INV-AC-185); POL-013 for escalation tiers
+        on the class SECURITY, which reaches every recipient at once without
+        tiers (INV-AC-2384), and the same for ACC-004, which goes to the link's
+        sender only.
       tags: [policies]
       x-principal: filing-workflow
       x-sync-edge: console-bff->notification-svc
       x-timeout: 2000
-      x-error-codes: []
+      x-error-codes: [POL-008, POL-013, POL-015]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-1113, INV-REQ-1114, INV-REQ-1115, INV-REQ-1117]
       x-operation:
         role: tenant.admin
@@ -130,6 +148,24 @@ paths:
                       - tier: 2
                         afterMinutes: 1440
                     updatedAt: "2026-04-01T02:00:00Z"
+        '422':
+          description: >-
+            Refused with the API-20 envelope: POL-008 (threshold looser than
+            the calendar-pack default), POL-015 (disabling the class DEADLINE
+            or COVERAGE) or POL-013 (escalation tiers on the class SECURITY or
+            on ACC-004).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '../service-runtime/schemas/error-envelope.schema.json'
+              examples:
+                looserThreshold:
+                  value:
+                    type: "about:blank"
+                    title: "Threshold looser than the calendar-pack default"
+                    status: 422
+                    code: "POL-008"
+                    correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/notification/entities/{entityRef}/alert-policies:
@@ -165,6 +201,115 @@ paths:
                         - tier: 1
                           afterMinutes: 0
                       updatedAt: "2026-04-01T02:00:00Z"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/notification/entities/{entityRef}/alerts:
+    get:
+      operationId: listAlerts
+      summary: List an entity's alerts, with state
+      description: >-
+        Alert instances raised by event consumption (INV-REQ-79,
+        INV-REQ-1113). Filter by `alertClass` and `state`.
+      tags: [alerts]
+      x-principal: reporting
+      x-sync-edge: console-bff->notification-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-79, INV-REQ-1113]
+      parameters:
+        - $ref: '#/components/parameters/EntityRef'
+        - name: alertClass
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [COVERAGE, DEADLINE, BACKLOG, MISSING_ACKNOWLEDGEMENT, PACK_STALENESS, SECURITY]
+            x-extensible-enum: true
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [RAISED, ACKNOWLEDGED]
+            x-extensible-enum: true
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            maximum: 500
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: One page of alerts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertPage'
+              examples:
+                default:
+                  value:
+                    items:
+                      - alertId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                        entityRef: "E-001"
+                        alertClass: "DEADLINE"
+                        state: "RAISED"
+                        raisedAt: "2026-04-22T00:00:00Z"
+                        trigger: "DUE_DATE_THRESHOLD"
+                        currentTier: 1
+                        periodRef: "2026-Q1"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/notification/entities/{entityRef}/alerts/{alertId}/acknowledgements:
+    post:
+      operationId: acknowledgeAlert
+      summary: Acknowledge an alert
+      description: >-
+        Records the acknowledgement of one alert; an acknowledged alert is not
+        escalated further (INV-REQ-79, INV-REQ-1113). A repeat reports the
+        recorded acknowledgement unchanged.
+      tags: [alerts]
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->notification-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-79, INV-REQ-1113]
+      x-operation:
+        role: tax.approver
+        scope: entity
+        precondition: The alert exists for the entity and is in the state RAISED or already ACKNOWLEDGED (a repeat reports the recorded acknowledgement).
+        reversibility: IRREVERSIBLE
+        repeatKey: "alertId — a repeat reports the recorded acknowledgement unchanged."
+      parameters:
+        - $ref: '#/components/parameters/EntityRef'
+        - name: alertId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The alert, acknowledged.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Alert'
+              examples:
+                default:
+                  value:
+                    alertId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    entityRef: "E-001"
+                    alertClass: "DEADLINE"
+                    state: "ACKNOWLEDGED"
+                    raisedAt: "2026-04-22T00:00:00Z"
+                    acknowledgedAt: "2026-04-23T01:00:00Z"
+                    acknowledgedBy: "tax.approver:jane.tan"
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/notification/webhook-subscriptions:
@@ -527,6 +672,11 @@ components:
         afterMinutes:
           type: integer
           minimum: 0
+        daysToDue:
+          type: integer
+          minimum: -366
+          maximum: 366
+          description: Days to the due date at which the tier applies; a negative value is days after the due date (INV-REQ-1113).
       required: [tier, afterMinutes]
     AlertPolicyRequest:
       type: object
@@ -541,12 +691,23 @@ components:
           type: array
           items:
             type: string
-            enum: [EMAIL, SMS]
+            enum: [EMAIL, SMS, WEBHOOK, CHAT_WEBHOOK]
             x-extensible-enum: true
         escalationTiers:
           type: array
+          description: >-
+            A tier not acknowledged by its `afterMinutes` escalates to the
+            next tier (INV-AC-104).
           items:
             $ref: '#/components/schemas/EscalationTier'
+        thresholdDays:
+          type: integer
+          minimum: 0
+          maximum: 365
+          description: >-
+            First-alert days before the due date, for the class DEADLINE only.
+            More days before the due date is tighter; a value smaller than the
+            calendar-pack default is refused (POL-008).
         soleOperatorAcknowledgement:
           type: boolean
           description: Recorded when fewer than two recipients are named (FR-AE.69).
@@ -568,14 +729,78 @@ components:
           type: array
           items:
             type: string
+            enum: [EMAIL, SMS, WEBHOOK, CHAT_WEBHOOK]
+            x-extensible-enum: true
         escalationTiers:
           type: array
+          description: >-
+            A tier not acknowledged by its `afterMinutes` escalates to the
+            next tier (INV-AC-104).
           items:
             $ref: '#/components/schemas/EscalationTier'
+        thresholdDays:
+          type: integer
+          minimum: 0
+          maximum: 365
+          description: >-
+            First-alert days before the due date, for the class DEADLINE only.
+            More days before the due date is tighter; a value smaller than
+            `calendarPackDefaultDays` is refused (INV-AC-203). Held separately
+            for monthly and quarterly filers (INV-AC-109).
+        calendarPackDefaultDays:
+          type: integer
+          minimum: 0
+          maximum: 365
+          readOnly: true
+          description: The default first-alert days of the entity's filing frequency, from the calendar pack (INV-REQ-1117).
         updatedAt:
           type: string
           format: date-time
       required: [entityRef, alertClass, recipients, channels, updatedAt]
+    Alert:
+      type: object
+      properties:
+        alertId:
+          type: string
+          format: uuid
+        entityRef:
+          type: string
+        alertClass:
+          type: string
+          enum: [COVERAGE, DEADLINE, BACKLOG, MISSING_ACKNOWLEDGEMENT, PACK_STALENESS, SECURITY]
+          x-extensible-enum: true
+        state:
+          type: string
+          enum: [RAISED, ACKNOWLEDGED]
+          x-extensible-enum: true
+        raisedAt:
+          type: string
+          format: date-time
+        trigger:
+          type: string
+          enum: [DUE_DATE_THRESHOLD, READINESS_CHECK_INVOKED, RETURN_FIGURES_UPLOADED, PAST_DUE]
+          x-extensible-enum: true
+        currentTier:
+          type: integer
+          minimum: 1
+        periodRef:
+          type: string
+        acknowledgedAt:
+          type: string
+          format: date-time
+        acknowledgedBy:
+          type: string
+      required: [alertId, entityRef, alertClass, state, raisedAt]
+    AlertPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Alert'
+        nextCursor:
+          type: string
+      required: [items]
     CreateWebhookSubscriptionRequest:
       type: object
       properties:

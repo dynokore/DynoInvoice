@@ -1,0 +1,1 @@
+{"recipients":["tax.approver:jane.tan","operator:desk-1"],"channels":["CHAT_WEBHOOK"],"thresholdDays":14,"escalationTiers":[{"tier":1,"afterMinutes":0,"daysToDue":10}]}

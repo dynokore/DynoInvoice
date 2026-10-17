@@ -1,0 +1,1 @@
+{"recipients":["tax.approver:jane.tan","operator:desk-1"],"channels":["PIGEON"],"thresholdDays":-1,"escalationTiers":[{"tier":1,"afterMinutes":0,"daysToDue":400}]}

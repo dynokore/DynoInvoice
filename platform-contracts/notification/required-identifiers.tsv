@@ -1,0 +1,16 @@
+# INV-T-6017. Identifiers in backticks in the published behavior and intent of INV-REQ-79, 80, 1113, 1117
+# (re-derived from Keel). Not listed, because they are not notification contract identifiers: notification-svc (service),
+# tenant.admin (role). Rows below are the identifiers the task names.
+identifier	kind	file	requirement
+listAlerts	operation	openapi.yaml	INV-REQ-79
+acknowledgeAlert	operation	openapi.yaml	INV-REQ-79
+daysToDue	property	openapi.yaml	INV-REQ-1113
+thresholdDays	property	openapi.yaml	INV-REQ-80
+calendarPackDefaultDays	property	openapi.yaml	INV-REQ-1117
+currentTier	property	openapi.yaml	INV-REQ-79
+acknowledgedBy	property	openapi.yaml	INV-REQ-79
+WEBHOOK	enum_value	openapi.yaml	INV-REQ-1113
+CHAT_WEBHOOK	enum_value	openapi.yaml	INV-REQ-1113
+READINESS_CHECK_INVOKED	enum_value	openapi.yaml	INV-REQ-79
+RETURN_FIGURES_UPLOADED	enum_value	openapi.yaml	INV-REQ-79
+ACKNOWLEDGED	enum_value	openapi.yaml	INV-REQ-79
