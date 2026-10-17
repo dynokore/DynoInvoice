@@ -6,6 +6,12 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-10-18
+### Added
+- Upstream adapter contract check in the api half (INV-T-6137, INV-Q-6131 option A): `UpstreamEvent` and its parts,
+  `UpstreamContractVerifier` (the seven elements of INV-REQ-799) and `TaxPassThroughVerifier` (no dropped, filtered
+  or recoded tax treatment, INV-REQ-800). Pure and framework-free; additive API.
+
 ## [2.0.3] - 2026-10-14
 ### Changed
 - Metadata-only release (INV-T-4310, coordinator ruling INV-Q-4552): no behaviour or API change.
