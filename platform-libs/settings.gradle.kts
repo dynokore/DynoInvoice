@@ -162,6 +162,7 @@ include(
     "calendar-and-periods", // INV-T-4963: the L2 period and deadline library (INV-MOD-2742)
     "party-registry", // INV-T-4964: the L2 party model library (INV-MOD-2740)
     "document-lifecycle", // INV-T-5938: the L2 document lifecycle library (INV-MOD-2741)
+    "reconciliation-engine", // INV-T-5940: the L2 reconciliation library (INV-MOD-2743)
     // The consumer-driven contract suite of every Wave 1 module (INV-T-2877, coordinator ruling INV-Q-3925): Pact for
     // the wire edges whose consumer code is here, module-API consumer contract tests for every other boundary. Test
     // only: it publishes no artefact and is not in platform-libs-bom.

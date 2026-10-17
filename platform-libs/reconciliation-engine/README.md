@@ -1,6 +1,11 @@
 # reconciliation-engine
 
-—
+Two-sided comparison by an opaque key, a difference taxonomy supplied by the host as data, explained versus
+unexplained variance and the work-paper model with a plain-value export (`toRows()`).
+
+The library carries no category, tolerance, form type or tax rule: each embedding service supplies its categories and
+`ClassificationRule`s. A variance no rule explains stays in the unexplained residual (`hasUnexplained`); raising an
+alert for it is the service's. It holds no persistence, clock, file or event type.
 
 | | |
 | --- | --- |
