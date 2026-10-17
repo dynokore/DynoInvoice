@@ -34,13 +34,6 @@ sourceSets {
     }
 }
 
-// The impl compilation sees main's `internal` members (TenancyTables.library and origin) without making them public.
-kotlin {
-    target {
-        compilations.getByName("impl").associateWith(compilations.getByName("main"))
-    }
-}
-
 // tenancy-kernel's `implJar` (TransactionRunnerImpl, CurrentConnection) must be configured before it is referenced.
 evaluationDependsOn(":tenancy-kernel")
 val tenancyKernelImplJar = project(":tenancy-kernel").tasks.named("implJar")
