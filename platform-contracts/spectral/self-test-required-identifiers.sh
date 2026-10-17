@@ -26,5 +26,8 @@ expect_fail other-service-only "not found as a property"
 for c in query-param-missing query-param-wrong-location query-param-other-case query-param-property-only; do
   expect_fail $c "not found as a query_parameter"   # INV-T-5959
 done
+for c in schema-enum-other-schema schema-enum-wrong-property schema-enum-other-case; do
+  expect_fail $c "not found as a schema_enum_value"   # INV-T-6049
+done
 [ "$failed" -eq 0 ] && echo "gst-ci: check-required-identifiers.py self-test passed."
 exit $failed

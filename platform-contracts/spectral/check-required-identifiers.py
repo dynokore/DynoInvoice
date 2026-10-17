@@ -13,6 +13,9 @@ substring, never in another case):
     operation   the value of an `operationId`
     enum_value  a member of an `enum` list
     query_parameter  the `name` of a parameter object whose `in` is `query` (INV-T-5959, INV-Q-6006 A)
+    schema_enum_value  `Schema.property.MEMBER`: MEMBER is in the `enum` of `property` directly under
+                the named `components.schemas` schema, so a member of another schema does not count
+                (INV-T-6049)
 file is a YAML or JSON file under the row's own directory (a schema under <service>/schemas/ is
 fine). The file is searched alone, so an identifier present only in another service's directory
 does not count, and a file path that leaves the directory is a finding.
@@ -32,7 +35,7 @@ from pathlib import Path
 
 import yaml
 
-KINDS = ("property", "operation", "enum_value", "query_parameter")
+KINDS = ("property", "operation", "enum_value", "query_parameter", "schema_enum_value")
 HEADER = ("identifier", "kind", "file", "requirement")
 
 
@@ -57,6 +60,13 @@ def collect(doc) -> dict[str, set[str]]:
                 walk(item)
 
     walk(doc)
+    schemas = ((doc.get("components") or {}).get("schemas") or {}) if isinstance(doc, dict) else {}
+    for sname, schema in schemas.items():
+        props = schema.get("properties") if isinstance(schema, dict) else None
+        for pname, prop in (props.items() if isinstance(props, dict) else ()):
+            members = prop.get("enum") if isinstance(prop, dict) else None
+            if isinstance(members, list):
+                found["schema_enum_value"].update(f"{sname}.{pname}.{m}" for m in members if isinstance(m, (str, int)))
     return found
 
 

@@ -1,0 +1,2 @@
+identifier	kind	file	requirement
+Thing.status.active	schema_enum_value	openapi.yaml	R-4

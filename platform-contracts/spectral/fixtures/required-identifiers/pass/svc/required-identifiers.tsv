@@ -3,3 +3,4 @@ fooBar	property	openapi.yaml	R-1
 ACTIVE	enum_value	openapi.yaml	R-1
 doThing	operation	openapi.yaml	R-2
 filterCode	query_parameter	openapi.yaml	R-3
+Thing.status.ACTIVE	schema_enum_value	openapi.yaml	R-4
