@@ -56,7 +56,7 @@ Service inputs:
 | outbox-and-queue | `EventBinding` (§12.1) | `PostgresEventBinding` | `eventLogDataSource` if present, else the application `DataSource` |
 | outbox-and-queue | `OutboxRelay` | `JdbcOutboxRelay` | application `DataSource`, schema |
 | outbox-and-queue | `EventLogReader`, `EventLogLag` | `PostgresEventLogReader` | `eventLogDataSource` if present, else the application `DataSource` |
-| outbox-and-queue | `LaneRateLimiter`, `WorkQueue` | `LaneRateLimiter`, `JdbcWorkQueue` | `LaneLimits`, `TenantScope`, schema |
+| outbox-and-queue | `LaneRateLimiter`, `WorkQueue` | `LaneRateLimiter`, `JdbcWorkQueue` | `LaneLimits`, application `DataSource`, schema |
 | outbox-and-queue | `DeadLetterTriage` | `JdbcDeadLetterTriage` | application `DataSource`, schema |
 | outbox-and-queue | `RetentionPurge` | `JdbcRetentionPurge` | `Retention`, application `DataSource`, schema |
 | outbox-and-queue | `EventLogPurge` | `JdbcEventLogPurge` | `Retention`, `EventCatalogue`, `eventLogDataSource` if present, else the application `DataSource` |

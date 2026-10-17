@@ -8,9 +8,11 @@ import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
+import java.sql.SQLException
 import java.util.UUID
 
 /**
@@ -134,25 +136,17 @@ class DeadLetterPlatformTenantIT {
         OutboxHarness(image).use { harness ->
             val own = record(harness, tenant, "{\"own\":1}")
             val platformLetter = record(harness, null, "{\"another tenant content\":1}")
-            // (4) a NULL tenant_id is refused by the table itself: asserted through the catalog (INV-Q-5892 B)
-            val probe =
-                TenancyProbe.connect(
-                    harness.fixture.jdbcUrl(),
-                    OutboxPostgresFixture.APP,
-                    OutboxPostgresFixture.APP_PASSWORD,
-                )
+            // (4) a NULL tenant_id is refused by the table itself
+            val insertNull =
+                "insert into submission.event_dead_letter (consumer, topic, log_offset, tenant_id, reason, raw) " +
+                    "values ('c', 't', 1, null, 'r', '{}')"
+            val refused = assertThrows(SQLException::class.java) { harness.fixture.runAsAdmin(insertNull) }
             assertEquals(
-                listOf("NO"),
-                probe
-                    .unbound {
-                        fetchRows(
-                            "select is_nullable from information_schema.columns " +
-                                "where table_schema = ? and table_name = ? and column_name = 'tenant_id'",
-                            "submission",
-                            "event_dead_letter",
-                        )
-                    }.map { it["is_nullable"] },
-                "tenant_id of submission.event_dead_letter is NOT NULL",
+                "23502",
+                generateSequence<Throwable>(refused) { it.cause }
+                    .filterIsInstance<SQLException>()
+                    .mapNotNull { it.sqlState }
+                    .first(),
             )
             val table = "submission.event_dead_letter"
             // (5) bound to the platform tenant: 0 rows (the policy, not the tenant policy, hides the letter)

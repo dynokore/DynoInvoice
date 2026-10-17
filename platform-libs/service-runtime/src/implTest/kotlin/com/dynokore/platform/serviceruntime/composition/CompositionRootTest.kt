@@ -281,7 +281,6 @@ class CompositionRootTest {
                 EventBinding::class,
                 OutboxRelay::class,
                 EventLogReader::class,
-                LaneRateLimiter::class,
                 WorkQueue::class,
                 DeadLetterTriage::class,
                 StalenessMonitor::class,
