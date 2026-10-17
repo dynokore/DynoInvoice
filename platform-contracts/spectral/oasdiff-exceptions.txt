@@ -28,3 +28,8 @@ PUT /v1/entities/{entityRef}/periods/{periodRef}/gst-return added the new requir
 # `periods` becomes the page array `items`, permitted within v1 on INV-Q-3569's reasoning: no train is
 # published and no consumer is deployed.
 GET /internal/v1/tenancy/entities/{entityRef}/periods removed the required property `periods` from the response with the `200` status
+#
+# INV-Q-6163 (owner, 2026-10-18; INV-T-6174): listAlertPolicies pages by cursor (API-18); the response array
+# becomes the page object {items, nextCursor}, permitted within v1 on INV-Q-3569's reasoning: no train is
+# published and no consumer is deployed.
+GET /internal/v1/notification/entities/{entityRef}/alert-policies the response's body `type` changed from `array<object>` to `object` for status `200`
