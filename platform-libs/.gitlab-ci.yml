@@ -306,6 +306,7 @@ contract-tests:
   extends: [.gradle-job, .gst-changed-modules]
   tags: [inv-arm64]
   stage: test
+  needs: ["compile"]   # CI-FAST (2026-10-17): DAG like unit-test; does not wait for the gradle-cache-warm jobs
   rules:
     - !reference [.gst-docs-only-skip, rules]
     - when: on_success
@@ -336,6 +337,7 @@ split-jars:
   extends: [.gradle-job, .gst-changed-modules]
   tags: [inv-arm64]
   stage: test
+  needs: ["compile"]   # CI-FAST (2026-10-17): DAG like unit-test; does not wait for the gradle-cache-warm jobs
   rules:
     - !reference [.gst-docs-only-skip, rules]
     - when: on_success
@@ -366,6 +368,7 @@ impl-poms:
   extends: [.gradle-job, .gst-changed-modules]
   tags: [inv-arm64]
   stage: test
+  needs: ["compile"]   # CI-FAST (2026-10-17): DAG like unit-test; does not wait for the gradle-cache-warm jobs
   rules:
     - !reference [.gst-docs-only-skip, rules]
     - when: on_success
@@ -495,6 +498,9 @@ publish-job-test:
 # files changed; a failure blocks the merge. ci/tests/publish_job_test.py asserts the shape of this job.
 publish-guard-dry-run:
   extends: [.gradle-job, .gst-changed-modules]
+  # CI-FAST (2026-10-17): on the Mac runner, whose slots share one cache volume; on the local runner a merge-request
+  # job found neither the Gradle cache nor the build cache (pipeline 20500: 197 s, 182 tasks executed).
+  tags: [inv-arm64]
   stage: publish
   needs: []
   variables:
@@ -671,6 +677,7 @@ bom-verify:
   extends: [.gradle-job, .gst-changed-modules]
   tags: [inv-arm64]
   stage: verify
+  needs: []   # CI-FAST (2026-10-17): reads the registry and the BOM only; does not wait for the test stage
   rules:
     - !reference [.gst-docs-only-skip, rules]
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
