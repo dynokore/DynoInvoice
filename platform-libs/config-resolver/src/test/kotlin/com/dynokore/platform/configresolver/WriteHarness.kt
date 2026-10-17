@@ -26,6 +26,7 @@ import com.dynokore.platform.tenancykernel.CurrentConnection
 import com.dynokore.platform.tenancykernel.TenantAwareDataSource
 import com.dynokore.platform.tenancykernel.TenantContextImpl
 import com.dynokore.platform.tenancykernel.TenantId
+import com.dynokore.platform.tenancykernel.TransactionRunner
 import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
 import org.jooq.DSLContext
 import org.jooq.impl.DSL
@@ -151,7 +152,15 @@ class WriteHarness(
     fun installationOutbox(
         connections: CurrentConnection,
         clock: Clock = CLOCK,
-    ): OutboxWriter = JdbcOutboxWriter(connections, SCHEMA, SERVICE, INSTANCE, CATALOGUE, clock)
+    ): OutboxWriter =
+        JdbcOutboxWriter(
+            TenancyJooq.dslContext(OutboxSchema.jooqTables(SCHEMA), tenants, connections as TransactionRunner),
+            SCHEMA,
+            SERVICE,
+            INSTANCE,
+            CATALOGUE,
+            clock,
+        )
 
     /**
      * The service's real audit writer and stager: [OutboxAuditWriter] over [installationOutbox] in outbox mode,

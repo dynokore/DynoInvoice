@@ -14,6 +14,7 @@ import com.dynokore.platform.serviceruntime.identity.WorkloadPrincipal
 import com.dynokore.platform.serviceruntime.testing.CATALOG_TABLES
 import com.dynokore.platform.serviceruntime.testing.TestDatabase
 import com.dynokore.platform.tenancyjooq.TableClass
+import com.dynokore.platform.tenancyjooq.TenancyJooq
 import com.dynokore.platform.tenancykernel.TenantContextImpl
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TestPoolFixture
@@ -187,7 +188,15 @@ class JobsHarness
             fun <T> useDataSource(block: (DataSource) -> T): T = app.useDataSource(block)
 
             val scope = TenantScope(tenants, tx, tx, WorkloadPrincipal(SERVICE).value)
-            val outbox = JdbcOutboxWriter(tx, SCHEMA, SERVICE, instance, CATALOGUE, clock)
+            val outbox =
+                JdbcOutboxWriter(
+                    TenancyJooq.dslContext(OutboxSchema.jooqTables(SCHEMA), tenants, tx),
+                    SCHEMA,
+                    SERVICE,
+                    instance,
+                    CATALOGUE,
+                    clock,
+                )
             val runtime =
                 JobRuntime(
                     SERVICE,

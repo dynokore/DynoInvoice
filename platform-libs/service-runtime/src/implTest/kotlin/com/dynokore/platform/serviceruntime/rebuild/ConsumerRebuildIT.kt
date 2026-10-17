@@ -25,6 +25,7 @@ import com.dynokore.platform.outboxandqueue.ReplayTopic
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.serviceruntime.testing.TestDatabase
 import com.dynokore.platform.tenancyjooq.TableClass
+import com.dynokore.platform.tenancyjooq.TenancyJooq
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TenantRlsMigration
 import org.jooq.Condition
@@ -569,7 +570,15 @@ class ConsumerRebuildIT {
         private val app = db.login(OutboxPostgresFixture.APP, OutboxPostgresFixture.APP_PASSWORD)
         private val tenants = db.tenants
         private val tx = app.runner
-        private val outbox = JdbcOutboxWriter(tx, SCHEMA, CONSUMER, "$CONSUMER-1", CATALOGUE, Clock.systemUTC())
+        private val outbox =
+            JdbcOutboxWriter(
+                TenancyJooq.dslContext(OutboxSchema.jooqTables(SCHEMA), tenants, tx),
+                SCHEMA,
+                CONSUMER,
+                "$CONSUMER-1",
+                CATALOGUE,
+                Clock.systemUTC(),
+            )
 
         private fun tbl(name: String) =
             DSL.table(

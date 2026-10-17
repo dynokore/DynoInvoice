@@ -29,10 +29,12 @@ import com.dynokore.platform.outboxandqueue.CatalogueEntry
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.JdbcOutboxWriter
 import com.dynokore.platform.outboxandqueue.OutboxPostgresFixture
+import com.dynokore.platform.outboxandqueue.OutboxSchema
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.serviceruntime.identity.WorkloadPrincipal
 import com.dynokore.platform.serviceruntime.testing.TestDatabase
 import com.dynokore.platform.tenancyjooq.TableClass
+import com.dynokore.platform.tenancyjooq.TenancyJooq
 import com.dynokore.platform.tenancykernel.TenantId
 import org.jooq.DSLContext
 import org.jooq.impl.DSL
@@ -73,7 +75,15 @@ class PolicyHttpHarness(
     private val tx = app.runner
     val scope = TenantScope(tenants, tx, tx, WorkloadPrincipal(SERVICE).value)
 
-    private val outbox = JdbcOutboxWriter(tx, SCHEMA, SERVICE, "policy-1", CATALOGUE, clock)
+    private val outbox =
+        JdbcOutboxWriter(
+            TenancyJooq.dslContext(OutboxSchema.jooqTables(SCHEMA), tenants, tx),
+            SCHEMA,
+            SERVICE,
+            "policy-1",
+            CATALOGUE,
+            clock,
+        )
 
     val real: PolicyWriter =
         JdbcPolicyWriter(
