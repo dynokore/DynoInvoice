@@ -1,0 +1,10 @@
+openapi: 3.1.0
+info: {title: fixture, version: 1.0.0}
+paths:
+  /x:
+    post:
+      operationId: doThing
+      parameters:
+        - {name: filterCode, in: path, required: true, schema: {type: string}}
+components:
+  schemas: {}

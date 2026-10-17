@@ -4,6 +4,8 @@ paths:
   /x:
     post:
       operationId: doThing
+      parameters:
+        - {name: filterCode, in: query, required: false, schema: {type: string}}
 components:
   schemas:
     Thing:

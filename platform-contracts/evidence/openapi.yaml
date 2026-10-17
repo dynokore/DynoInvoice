@@ -1235,10 +1235,6 @@ components:
         state:
           type: string
           maxLength: 40
-        categoryCode:
-          type: string
-          maxLength: 20
-          description: The GST category code the submission is indexed under (INV-REQ-650). The service always sends it.
       required: [docUuid, version, state]
     ReverseLookupPage:
       type: object

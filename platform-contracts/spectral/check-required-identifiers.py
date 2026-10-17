@@ -12,6 +12,7 @@ substring, never in another case):
     property    a key of a `properties` mapping (an OpenAPI or JSON Schema property)
     operation   the value of an `operationId`
     enum_value  a member of an `enum` list
+    query_parameter  the `name` of a parameter object whose `in` is `query` (INV-T-5959, INV-Q-6006 A)
 file is a YAML or JSON file under the row's own directory (a schema under <service>/schemas/ is
 fine). The file is searched alone, so an identifier present only in another service's directory
 does not count, and a file path that leaves the directory is a finding.
@@ -31,7 +32,7 @@ from pathlib import Path
 
 import yaml
 
-KINDS = ("property", "operation", "enum_value")
+KINDS = ("property", "operation", "enum_value", "query_parameter")
 HEADER = ("identifier", "kind", "file", "requirement")
 
 
@@ -41,6 +42,8 @@ def collect(doc) -> dict[str, set[str]]:
 
     def walk(node) -> None:
         if isinstance(node, dict):
+            if node.get("in") == "query" and isinstance(node.get("name"), str):
+                found["query_parameter"].add(node["name"])
             for key, value in node.items():
                 if key == "properties" and isinstance(value, dict):
                     found["property"].update(str(k) for k in value)

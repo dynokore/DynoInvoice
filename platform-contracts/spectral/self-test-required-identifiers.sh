@@ -23,5 +23,8 @@ expect_fail missing-column "four non-empty columns"
 expect_fail empty-table "the table has no rows"
 expect_fail no-table "no */required-identifiers.tsv found"
 expect_fail other-service-only "not found as a property"
+for c in query-param-missing query-param-wrong-location query-param-other-case query-param-property-only; do
+  expect_fail $c "not found as a query_parameter"   # INV-T-5959
+done
 [ "$failed" -eq 0 ] && echo "gst-ci: check-required-identifiers.py self-test passed."
 exit $failed
