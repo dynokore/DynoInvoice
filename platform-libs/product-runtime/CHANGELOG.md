@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.0.7] - 2026-10-17
+### Changed
+- Metadata-only release (INV-T-4516, version-file scope of the downstream closure of evidence-store 2.0.0 and service-runtime 8.0.3): no API or behaviour change; `src/main` and `src/impl` are unchanged. The POMs and module metadata of the publications name service-runtime and evidence-store, which now carry tenancy-jooq and jOOQ, so a published version is not replaced.
+
 ## [1.0.6] - 2026-10-16
 ### Changed
 - Metadata-only release (INV-T-5301, coordinator ruling INV-Q-5688, version-file scope of the downstream closure of audit-log 3.0.0): no API or behaviour change; `src/main` and `src/impl` are unchanged. The POMs and module metadata of the publications name audit-log, which now carries tenancy-jooq and jOOQ, so a published version is not replaced.
