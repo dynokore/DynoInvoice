@@ -1,5 +1,6 @@
 package com.dynokore.platform.documentlifecycle
 
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -37,6 +38,24 @@ class StateModelTest {
     @Test
     fun `an initial state outside the set is refused`() {
         assertThrows(IllegalArgumentException::class.java) { StateModel(listOf(a), emptySet(), "B") }
+    }
+
+    @Test
+    fun `an initial state differing only in letter case or blank is refused`() {
+        listOf("a", "A ", "", " ").forEach {
+            assertThrows(IllegalArgumentException::class.java, { StateModel(listOf(a, b), emptySet(), it) }, it)
+        }
+    }
+
+    @Test
+    fun `new versions get exactly the model's initial state, whatever the order of the states`() {
+        val ab = StateModel(listOf(a, b), setOf(Transition("A", "B")), "B")
+        val ba = StateModel(listOf(b, a), setOf(Transition("A", "B")), "B")
+        listOf(ab, ba).forEach {
+            val doc = DocumentLifecycle(it).open(LogicalId("d")).addVersion()
+            assertEquals(listOf("B", "B"), doc.versions.map { v -> v.state })
+            assertEquals(it.initial, doc.get(2).state)
+        }
     }
 
     @Test
