@@ -66,7 +66,7 @@ class WorkloadActorIT {
                 }
             val relay =
                 replica.useDataSource { pool ->
-                    wiring.outboxRelay(scope, binding, ModuleProperties(schema = SCHEMA), Clock.systemUTC())
+                    wiring.outboxRelay(pool, scope, binding, ModuleProperties(schema = SCHEMA), Clock.systemUTC())
                 }
             relay.runOnce()
             published.shouldNotBeEmpty()

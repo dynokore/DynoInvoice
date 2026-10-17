@@ -11,7 +11,6 @@ import com.dynokore.platform.outboxandqueue.OutboxPostgresFixture
 import com.dynokore.platform.outboxandqueue.OutboxSchema
 import com.dynokore.platform.outboxandqueue.TestCatalogue
 import com.dynokore.platform.tenancyjooq.TableClass
-import com.dynokore.platform.tenancyjooq.TenancyJooq
 import com.dynokore.platform.tenancykernel.TenantId
 import org.jooq.DSLContext
 import org.jooq.impl.DSL
@@ -60,15 +59,7 @@ class AuditHarness(
     internal val db = AuditTestDb(fixture)
     val tenants = db.tenants
     val boundary = KillableTransactionRunner(db.appDataSource, tenants)
-    val outbox =
-        JdbcOutboxWriter(
-            TenancyJooq.dslContext(OutboxSchema.jooqTables(SCHEMA), tenants, boundary),
-            SCHEMA,
-            "submission-svc",
-            "submission-svc-1",
-            TestCatalogue.load(),
-            CLOCK,
-        )
+    val outbox = JdbcOutboxWriter(boundary, SCHEMA, "submission-svc", "submission-svc-1", TestCatalogue.load(), CLOCK)
     val audit = OutboxAuditWriter(outbox)
     val operations = TransactionalAuditedOperations(boundary, audit)
 
