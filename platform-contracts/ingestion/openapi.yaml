@@ -1089,7 +1089,7 @@ components:
         is counted for nothing and is submitted to nothing. Refused with 422
         and ING-021 where the installation has no paired non-production
         workspace.
-      schema: { type: string, enum: ['true'], x-enum-varnames: [TRUE] }
+      schema: { type: boolean, const: true }
     IfMatch:
       name: If-Match
       in: header
