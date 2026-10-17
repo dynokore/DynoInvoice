@@ -1,0 +1,13 @@
+# Fixture for self-test-enum-casing.sh (INV-T-6047).
+openapi: 3.1.0
+info: {title: fixture, version: 1.0.0}
+paths: {}
+components:
+  schemas:
+    Probe:
+      type: object
+      properties:
+        field:
+          type: string
+          enum: [a, b]
+          x-enum-varnames: [A_ONE]

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 1.2.0
+  version: 1.3.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -625,6 +625,13 @@ paths:
         The filing calendar read (INV-REQ-85, FR-AG.15): the entity's period records, each with its position,
         its one state, its filing due date, its filing date when filed and the extension flag. console-bff renders the calendar
         from these records and the cross-entity portfolio view reads the same records.
+
+
+        The list pages by cursor (API-18): limit defaults to 100 and is at most 500 (a larger value is refused with 400);
+        cursor is opaque and integrity-protected, bound to the principal, filters and sort that produced it, and valid for
+        at least 24 hours (another filter, another principal or an expired cursor is refused with 400); the order is total
+        (the documented sort is periodStart ascending, and periodRef is the identifier that breaks ties); nextCursor is
+        omitted on the last page; there is no offset and no total count.
       tags:
       - periods
       x-principal: filing-workflow
@@ -642,6 +649,18 @@ paths:
           type: string
           maxLength: 64
         example: ENT-3F2A9C
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 100
+          maximum: 500
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
       responses:
         "200":
           description: Period records, oldest first
@@ -653,7 +672,7 @@ paths:
                 default:
                   value:
                     entityRef: ENT-3F2A9C
-                    periods:
+                    items:
                     - periodRef: 2026Q1
                       periodStart: "2026-01-01"
                       periodEnd: "2026-03-31"
@@ -2916,15 +2935,17 @@ components:
       type: object
       required:
       - entityRef
-      - periods
+      - items
       properties:
         entityRef:
           type: string
           maxLength: 64
-        periods:
+        items:
           type: array
           items:
             $ref: '#/components/schemas/PeriodRecord'
+        nextCursor:
+          type: string
   responses:
     Error:
       description: Error (API-20 envelope)
