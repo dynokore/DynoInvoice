@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: canonical API
-  version: 1.2.0
+  version: 1.3.0
   description: >-
     Contract-first source of truth for canonical (API-01, STK-44). The
     `canonical-contract` module generates its server interfaces and DTOs
@@ -51,7 +51,10 @@ paths:
         INV-REQ-327). A receipt (`networkReceipt`) carrying a `supplierDocUuid`
         already bound for the entity becomes a new version of that document
         (INV-REQ-430); a receipt that carries `PENDING` returns it to a hold
-        with ING-013. A fallback match of more than one document is held with
+        with ING-013. A `networkReceipt` whose `buyerDisposition` is REJECTED is
+        answered with `scopeVerdict` NOT_SUBMITTABLE and `notSubmittableReason`
+        BUYER_REJECTED, and a later credit note or revised invoice follows
+        INV-REQ-557 (INV-REQ-432). A fallback match of more than one document is held with
         ING-017. The same source key with a higher `sourceRevision` is an
         amendment under the same Doc UUID, a lower one is `409` with ING-002,
         and a change of direction, document type or entity is ING-012
@@ -62,7 +65,7 @@ paths:
       x-timeout: 2000
       x-sync-edge: ingestion-svc->canonical-svc
       x-error-codes: [ING-002, ING-005, ING-011, ING-012, ING-016, ING-019, ING-013, ING-017]
-      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-547, INV-REQ-806, INV-REQ-327, INV-REQ-430, INV-REQ-431, INV-REQ-793, INV-REQ-1192]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-547, INV-REQ-806, INV-REQ-327, INV-REQ-430, INV-REQ-431, INV-REQ-793, INV-REQ-1192, INV-REQ-714, INV-REQ-432]
       x-operation:
         role: ingest
         scope: entity
@@ -88,7 +91,8 @@ paths:
                   tenantId: "5e0b8a0e-2c4d-4b8f-9a61-0d3c7f1e2b44"
                   entityRef: "E-001"
                   sourceSystem: "erp-acme"
-                  sourceKey: "INV-2026-000123"
+                  sourceKey: "ERP-DOC-884213"
+                  documentNumber: "INV-2026-000123"
                   sourceRevision: 1
                   documentFunction: "INVOICE"
                   transactionDate: "2026-03-20"
@@ -232,6 +236,7 @@ paths:
                     scopeVerdict: "SUBMITTABLE"
                     transactionDate: "2026-03-20"
                     prescribedPeriodRef: "2026-Q1"
+                    documentNumber: "INV-2026-000123"
                     totals: { totalExcludingTax: "1000.00", totalTax: "90.00", totalIncludingTax: "1090.00" }
         default:
           $ref: '#/components/responses/Error'
@@ -464,6 +469,16 @@ components:
         sourceRevision:
           type: integer
           minimum: 1
+        documentNumber:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: >-
+            The document number issued to the customer; payload-svc builds IBT-001 from it and the internal
+            accounting reference is never used as the number (INV-REQ-714, INV-AC-766). Optional: this contract does
+            not refuse its absence, and a document that builds into an invoice or a credit note without one is stopped
+            downstream by PAY-001 (Mandatory Data Element absent). `sourceKey` and `sourceRevision` keep their meaning
+            (the identity of the source record and its revision) and are never the number.
         documentFunction:
           type: string
           enum: [INVOICE, CREDIT_NOTE, DEBIT_NOTE, BILL_FOR_PAYMENT]
@@ -608,6 +623,15 @@ components:
             Where the Doc UUID came from: ISSUER when `networkIssuance.issuedDocUuid` was bound (INV-AC-1769),
             SUPPLIER when the pack rule `inboundDocUuidRule` is ADOPT_SUPPLIER and the supplier's UUID was bound,
             SYSTEM when the System generated one (INV-AC-1433). Optional so an older consumer validates (INV-REQ-431).
+        notSubmittableReason:
+          type: string
+          enum: [BUYER_REJECTED, ISSUANCE_REFUSED, NETTED_INTO_REVISION]
+          x-extensible-enum: true
+          description: >-
+            Set by canonical-svc when `scopeVerdict` is NOT_SUBMITTABLE for one of these three causes: BUYER_REJECTED,
+            ISSUANCE_REFUSED or NETTED_INTO_REVISION (INV-REQ-432). BUYER_REJECTED is set when a received document's
+            `buyerDisposition` is REJECTED. Other causes keep their `reasons` items and set none. Optional so an
+            older consumer validates.
       required: [docUuid, version, scopeVerdict, transactionDate, prescribedPeriodRef]
     ReasonItem:
       type: object
@@ -648,6 +672,15 @@ components:
             Where the Doc UUID came from: ISSUER when `networkIssuance.issuedDocUuid` was bound (INV-AC-1769),
             SUPPLIER when the pack rule `inboundDocUuidRule` is ADOPT_SUPPLIER and the supplier's UUID was bound,
             SYSTEM when the System generated one (INV-AC-1433). Optional so an older consumer validates (INV-REQ-431).
+        notSubmittableReason:
+          type: string
+          enum: [BUYER_REJECTED, ISSUANCE_REFUSED, NETTED_INTO_REVISION]
+          x-extensible-enum: true
+          description: >-
+            Set by canonical-svc when `scopeVerdict` is NOT_SUBMITTABLE for one of these three causes: BUYER_REJECTED,
+            ISSUANCE_REFUSED or NETTED_INTO_REVISION (INV-REQ-432). BUYER_REJECTED is set when a received document's
+            `buyerDisposition` is REJECTED. Other causes keep their `reasons` items and set none. Optional so an
+            older consumer validates.
       required: [docUuid, currentVersion, documentFunction, scopeVerdict, transactionDate, prescribedPeriodRef]
     DocumentVersion:
       type: object
@@ -682,6 +715,22 @@ components:
             Where the Doc UUID came from: ISSUER when `networkIssuance.issuedDocUuid` was bound (INV-AC-1769),
             SUPPLIER when the pack rule `inboundDocUuidRule` is ADOPT_SUPPLIER and the supplier's UUID was bound,
             SYSTEM when the System generated one (INV-AC-1433). Optional so an older consumer validates (INV-REQ-431).
+        documentNumber:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: >-
+            The document number issued to the customer, the number payload-svc transmits as IBT-001 (INV-REQ-714,
+            INV-AC-766). Optional. Never the `sourceKey` or the internal accounting reference.
+        notSubmittableReason:
+          type: string
+          enum: [BUYER_REJECTED, ISSUANCE_REFUSED, NETTED_INTO_REVISION]
+          x-extensible-enum: true
+          description: >-
+            Set by canonical-svc when `scopeVerdict` is NOT_SUBMITTABLE for one of these three causes: BUYER_REJECTED,
+            ISSUANCE_REFUSED or NETTED_INTO_REVISION (INV-REQ-432). BUYER_REJECTED is set when a received document's
+            `buyerDisposition` is REJECTED. Other causes keep their `reasons` items and set none. Optional so an
+            older consumer validates.
       required: [docUuid, version, docsequence, documentFunction, scopeVerdict, transactionDate, prescribedPeriodRef]
     PreparedReassignment:
       type: object

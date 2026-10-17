@@ -1,1 +1,2 @@
 ../openapi.yaml#/components/schemas/PreparedReassignment prepared-reassignment-*.json
+../openapi.yaml#/components/schemas/DocumentVersion document-version-*.json

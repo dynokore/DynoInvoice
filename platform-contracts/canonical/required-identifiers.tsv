@@ -1,3 +1,4 @@
+# INV-T-6274. Rows for INV-REQ-714 and INV-REQ-432 (read from Keel). INV-REQ-714 names no backticked identifier; INV-REQ-432 names buyerDisposition, PENDING and REJECTED (rows above), NOT_SUBMITTABLE and BUYER_REJECTED (new rows) and HOLD, which is a severity of the error catalogue and not an element of this contract (the catalogue contract owns it).
 # INV-T-6049. Contract identifiers named in the published behavior of INV-REQ-547, 327, 430, 431, 793 and 1192 (read from Keel), plus INV-REQ-428 for the receipt fields.
 identifier	kind	file	requirement
 docUuidSource	property	openapi.yaml	INV-REQ-431
@@ -48,3 +49,24 @@ confirmedAt	property	openapi.yaml	INV-REQ-706
 confirmedBy	property	openapi.yaml	INV-REQ-706
 PREPARED	enum_value	openapi.yaml	INV-REQ-708
 CONFIRMED	enum_value	openapi.yaml	INV-REQ-706
+documentNumber	property	openapi.yaml	INV-REQ-714
+notSubmittableReason	property	openapi.yaml	INV-REQ-432
+BUYER_REJECTED	enum_value	openapi.yaml	INV-REQ-432
+ISSUANCE_REFUSED	enum_value	openapi.yaml	INV-REQ-432
+NETTED_INTO_REVISION	enum_value	openapi.yaml	INV-REQ-432
+NOT_SUBMITTABLE	enum_value	openapi.yaml	INV-REQ-432
+RecordDocumentRequest.documentNumber	schema_property	openapi.yaml	INV-REQ-714
+DocumentVersion.documentNumber	schema_property	openapi.yaml	INV-REQ-714
+RecordDocumentResponse.notSubmittableReason	schema_property	openapi.yaml	INV-REQ-432
+DocumentSummary.notSubmittableReason	schema_property	openapi.yaml	INV-REQ-432
+DocumentVersion.notSubmittableReason	schema_property	openapi.yaml	INV-REQ-432
+RecordDocumentResponse.notSubmittableReason.BUYER_REJECTED	schema_enum_value	openapi.yaml	INV-REQ-432
+RecordDocumentResponse.notSubmittableReason.ISSUANCE_REFUSED	schema_enum_value	openapi.yaml	INV-REQ-432
+RecordDocumentResponse.notSubmittableReason.NETTED_INTO_REVISION	schema_enum_value	openapi.yaml	INV-REQ-432
+DocumentSummary.notSubmittableReason.BUYER_REJECTED	schema_enum_value	openapi.yaml	INV-REQ-432
+DocumentSummary.notSubmittableReason.ISSUANCE_REFUSED	schema_enum_value	openapi.yaml	INV-REQ-432
+DocumentSummary.notSubmittableReason.NETTED_INTO_REVISION	schema_enum_value	openapi.yaml	INV-REQ-432
+DocumentVersion.notSubmittableReason.BUYER_REJECTED	schema_enum_value	openapi.yaml	INV-REQ-432
+DocumentVersion.notSubmittableReason.ISSUANCE_REFUSED	schema_enum_value	openapi.yaml	INV-REQ-432
+DocumentVersion.notSubmittableReason.NETTED_INTO_REVISION	schema_enum_value	openapi.yaml	INV-REQ-432
+documentNumber	property	schemas/canonical-version-created-payload.schema.json	INV-REQ-714

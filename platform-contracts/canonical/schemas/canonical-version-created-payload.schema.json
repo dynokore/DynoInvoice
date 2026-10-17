@@ -451,6 +451,27 @@
             "classification"
           ],
           "additionalProperties": true
+        },
+        "documentNumber": {
+          "type": "object",
+          "description": "The document number issued to the customer (IBT-001), where known (INV-REQ-714, INV-AC-766); payload-svc builds IBT-001 from it and the internal accounting reference is never used. Optional: its absence is stopped downstream by PAY-001, not by this schema. Never the sourceKey. Wrapped with its FR-AE.72 classification (INV-Q-6268).",
+          "properties": {
+            "value": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "description": "The document number issued to the customer."
+            },
+            "classification": {
+              "type": "string",
+              "description": "The FR-AE.72 data classification tag for this content field."
+            }
+          },
+          "required": [
+            "value",
+            "classification"
+          ],
+          "additionalProperties": true
         }
       },
       "required": [
