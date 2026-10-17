@@ -13,6 +13,11 @@ data class AttestationEntry(
     val timestamp: Instant,
 )
 
+/** A host header key equal to a key the work-paper reserves for itself. */
+class ReservedHeaderKeyException(
+    val key: String,
+) : IllegalArgumentException("Header key '$key' is reserved by the work-paper")
+
 /** One exported row: the section name and the row cells as text. */
 data class Row(
     val section: String,
@@ -41,7 +46,7 @@ class WorkPaper private constructor(
         buildList {
             add(Row(HEADER, listOf("name", "value")))
             header.toSortedMap().forEach { (k, v) -> add(Row(HEADER, listOf(k, v))) }
-            add(Row(HEADER, listOf("reconciledTo", reconciledTo)))
+            add(Row(HEADER, listOf(RECONCILED_TO, reconciledTo)))
             add(Row(COMPARISON, listOf("key", "return", "submitted", "variance", "missingSide")))
             comparison.forEach {
                 val cells = listOf(it.key, "${it.returnAmount}", "${it.submittedAmount}", "${it.variance}")
@@ -59,6 +64,7 @@ class WorkPaper private constructor(
         }
 
     companion object {
+        const val RECONCILED_TO = "reconciledTo"
         const val HEADER = "header"
         const val COMPARISON = "comparison"
         const val CLASSIFIED = "classified variances"
@@ -66,7 +72,7 @@ class WorkPaper private constructor(
         const val ATTESTATION = "attestation"
 
         /**
-         * Throws [IllegalArgumentException] for a header lacking a required key, a blank [reconciledTo] or an
+         * Throws [IllegalArgumentException] for a header lacking a required key, a header holding the reserved key `reconciledTo` ([ReservedHeaderKeyException]), a blank [reconciledTo] or an
          * attestation entry with a blank role or person. An empty attestation list is allowed and reports
          * `attested = false`.
          */
@@ -77,6 +83,7 @@ class WorkPaper private constructor(
             attestation: List<AttestationEntry>,
             reconciledTo: String,
         ): WorkPaper {
+            if (RECONCILED_TO in header.keys) throw ReservedHeaderKeyException(RECONCILED_TO)
             val missing = spec.requiredHeaderKeys - header.keys
             require(missing.isEmpty()) { "Header lacks required keys: ${missing.sorted()}" }
             require(reconciledTo.isNotBlank()) { "reconciledTo must not be blank" }

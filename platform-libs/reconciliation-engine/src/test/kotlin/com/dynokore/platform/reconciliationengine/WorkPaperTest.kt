@@ -35,6 +35,13 @@ class WorkPaperTest {
     }
 
     @Test
+    fun `a host header key equal to the reserved key is refused with a named error`() {
+        val e = assertThrows(ReservedHeaderKeyException::class.java) { build(h = header + ("reconciledTo" to "x")) }
+        assertEquals("reconciledTo", e.key)
+        build(h = header + ("reconciledTo2" to "x") + ("ReconciledTo" to "x"))
+    }
+
+    @Test
     fun `sections are separate and an empty attestation is not attested`() {
         val w = build(a = emptyList())
         assertFalse(w.attested)

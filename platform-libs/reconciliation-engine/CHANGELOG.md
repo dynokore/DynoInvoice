@@ -14,5 +14,6 @@ train is its own (README.md: "own version and changelog").
 - `Classifier`: classified variances and the unexplained residual per line, never clamped, no tolerance
   (INV-REQ-633, INV-AC-1807).
 - `WorkPaper` with header, comparison, classified variances, unexplained residual, attestation and `reconciledTo`,
-  and the plain-value export `toRows()` (INV-REQ-947).
+  and the plain-value export `toRows()` (INV-REQ-947); a header key `reconciledTo` is refused with
+  `ReservedHeaderKeyException` (INV-Q-6066).
 - `ReconciliationEngine` facade in the impl half.
