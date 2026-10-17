@@ -149,4 +149,26 @@ class AmendmentTest {
         assertEquals(run(old, new), run(old, new))
         assertEquals(before, old to new)
     }
+
+    @Test
+    fun `extra refusal - an outcome map naming a class that is not in the list`() {
+        val extra = "GHOST" to Outcome("X")
+        assertThrows(
+            IllegalArgumentException::class.java,
+        ) { AmendmentFixtures.with(after = t.afterTransmission + extra) }
+        assertThrows(IllegalArgumentException::class.java) {
+            AmendmentFixtures.with(
+                before =
+                    t.beforeTransmission + extra,
+            )
+        }
+    }
+
+    @Test
+    fun `extra refusal - a blank raised code or a blank classifier field name`() {
+        assertThrows(IllegalArgumentException::class.java) { Outcome("X", listOf("A", " ")) }
+        assertThrows(IllegalArgumentException::class.java) {
+            AmendmentFixtures.with(classifiers = mapOf("" to FieldClassifier.fixed("MONETARY")))
+        }
+    }
 }
