@@ -320,7 +320,6 @@ class BlankValuesIT {
                         "error_code" to "MDM-003",
                         "granted_at" to OffsetDateTime.now(ZoneOffset.UTC),
                         "audit_event_id" to "evt-1",
-                        "entity_ref" to "entity-1",
                     ),
                     listOf("actor" to true, "reason" to false),
                 ),
