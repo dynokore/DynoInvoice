@@ -13,7 +13,10 @@ sealed interface CoverageVerdict {
     ) : CoverageVerdict
 }
 
-/** Pure trigger-class coverage decision (INV-REQ-788, INV-REQ-953, INV-REQ-1322). Holds no default and reads no clock. */
+/**
+ * Pure trigger-class coverage decision (INV-REQ-788, INV-REQ-953, INV-REQ-1322).
+ * Holds no default and reads no clock.
+ */
 object TriggerCoverage {
     const val ENTITY_ADMIN: String = "entity.admin"
 
