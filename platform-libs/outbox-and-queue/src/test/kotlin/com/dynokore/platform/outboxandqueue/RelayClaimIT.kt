@@ -63,46 +63,26 @@ class RelayClaimIT {
     fun `a login without EXECUTE is refused and the catalogue holds the contract`(image: String) {
         OutboxHarness(image).use { harness ->
             val fixture = harness.fixture
-            val probe =
-                TenancyProbe.connect(
-                    fixture.jdbcUrl(),
-                    OutboxPostgresFixture.APP,
-                    OutboxPostgresFixture.APP_PASSWORD,
-                )
-            val rows =
-                probe
-                    .fetchRows(
-                        "select p.proname, pg_get_function_result(p.oid) as result, p.prosecdef, " +
-                            "array_to_string(p.proconfig, ';') as config, " +
-                            "exists (select 1 from aclexplode(p.proacl) a where a.grantee = 0) as public_grant, " +
-                            "pg_get_userbyid(p.proowner) as owner " +
-                            "from pg_proc p where p.pronamespace = 'payload'::regnamespace and p.proname in (?, ?)",
-                        OutboxSchema.OUTBOX_CLAIM_PAGE,
-                        OutboxSchema.OUTBOX_CLAIM_PENDING,
-                    ).associateBy { it["proname"] }
-            assertEquals(
-                "TABLE(seq bigint, tenant_id uuid, published_at timestamp with time zone)",
-                rows.getValue(OutboxSchema.OUTBOX_CLAIM_PAGE)["result"],
-            )
-            assertEquals("bigint", rows.getValue(OutboxSchema.OUTBOX_CLAIM_PENDING)["result"])
-            rows.values.forEach {
-                assertEquals(true, it["prosecdef"])
-                assertEquals("search_path=pg_catalog, payload, pg_temp", it["config"])
-                assertEquals(false, it["public_grant"])
-                assertEquals(OutboxPostgresFixture.SYS, it["owner"])
-            }
-            val stranger = TenancyProbe.connect(fixture.jdbcUrl(), "recon_runtime", "recon_runtime_pw")
-            val refused =
-                runCatching { stranger.fetchValue("select payload.${OutboxSchema.OUTBOX_CLAIM_PENDING}()") }
-                    .exceptionOrNull()
-            assertEquals(
-                "42501",
-                generateSequence(refused) { it.cause }
-                    .filterIsInstance<java.sql.SQLException>()
-                    .firstOrNull()
-                    ?.sqlState,
-            )
+            assertEquals(emptyList<String>(), ClaimContract.violations(fixture, "payload"))
+            assertEquals("42501", sqlStateOfClaimAs(fixture.jdbcUrl(), "recon_runtime", "recon_runtime_pw"))
         }
+    }
+
+    private fun sqlStateOfClaimAs(
+        url: String,
+        user: String,
+        password: String,
+    ): String? {
+        val refused =
+            runCatching {
+                TenancyProbe
+                    .connect(
+                        url,
+                        user,
+                        password,
+                    ).fetchValue("select payload.${OutboxSchema.OUTBOX_CLAIM_PENDING}()")
+            }.exceptionOrNull()
+        return generateSequence(refused) { it.cause }.filterIsInstance<java.sql.SQLException>().firstOrNull()?.sqlState
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
@@ -172,7 +152,7 @@ class RelayClaimIT {
     }
 
     /** Plants [count] rows over two tenants and returns their seqs in order. */
-    private fun plant(
+    internal fun plant(
         kit: ServiceKit,
         count: Int,
     ): List<Long> {
@@ -196,7 +176,7 @@ class RelayClaimIT {
     }
 
     /** The number of backends holding a granted advisory lock, read from `pg_catalog.pg_locks` through jOOQ. */
-    private fun advisoryHolders(kit: ServiceKit): Long {
+    internal fun advisoryHolders(kit: ServiceKit): Long {
         val locks = DSL.name("pg_catalog", "pg_locks")
         val dsl = TenancyJooq.dslContext(mapOf(locks to TableClass.PLATFORM_SCOPED), kit.tenants, kit.boundary)
         val pid = DSL.field(DSL.name("pid"), SQLDataType.INTEGER)
