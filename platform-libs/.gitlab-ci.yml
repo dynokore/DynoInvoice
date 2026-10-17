@@ -35,6 +35,9 @@ variables:
 
 .gst-changed-modules:
   before_script:
+    # CI-FAST (P283 follow-up, 2026-10-17): this before_script replaces .gradle-job's, so run that one first:
+    # it writes the Maven Central mirror and build cache init scripts every Gradle job here needs.
+    - !reference [.gradle-job, before_script]
     - |
       # P6 proof that CI reads platform-build's registry with the job token: the platformBuild
       # version's konsist-rules pom must answer 200 (the Gradle resolution below needs it too).
@@ -377,7 +380,7 @@ impl-poms:
 # escape of the same code point.
 text-check:
   image: "$GRADLE_IMAGE"
-  tags: [inv-arm64]
+  # CI-FAST (2026-10-17): light job, untagged so it runs on the idle local runner and frees a Mac slot.
   stage: verify
   needs: []
   script:
@@ -464,7 +467,7 @@ verify-rules:
 # assertion fails when its line is broken. Needs only python3 (in the Gradle image), `needs: []`, every pipeline.
 publish-job-test:
   image: "$GRADLE_IMAGE"
-  tags: [inv-arm64]
+  # CI-FAST (2026-10-17): light job, untagged so it runs on the idle local runner and frees a Mac slot.
   stage: verify
   needs: []
   script:
