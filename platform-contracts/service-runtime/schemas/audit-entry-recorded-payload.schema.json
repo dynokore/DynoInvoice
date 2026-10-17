@@ -17,6 +17,12 @@
       "type": "string",
       "description": "The entity or resource the action concerns."
     },
+    "callingSystem": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "The name of the system that holds the credential of a filing-workflow principal (INV-REQ-587, ruling INV-Q-6252). An entry written for a call by a FILING_WORKFLOW principal carries it, and its actor is then the principalRef; the schema cannot express that rule and the entry is written by many services."
+    },
     "reason": {
       "type": "string",
       "description": "Why the action was taken, absent when none was given."

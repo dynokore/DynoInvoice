@@ -5,3 +5,4 @@
 ../openapi.yaml#/components/schemas/ConsentResponse consent-response-*.json
 ../openapi.yaml#/components/schemas/GrantResponse grant-response-*.json
 ../openapi.yaml#/components/schemas/CreatePrincipalRequest create-principal-request-*.json
+../openapi.yaml#/components/schemas/PrincipalResponse principal-response-*.json

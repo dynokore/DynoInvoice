@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: service-runtime shared event components
-  version: 1.3.0
+  version: 1.4.0
   description: >-
     Not a service: holds the CloudEvents envelope every other directory's
     asyncapi.yaml references (API-40, ./schemas/cloud-event-envelope.schema.json)
@@ -174,7 +174,8 @@ components:
         At-least-once — platform event (AD-27). Payload (catalogue text): actor, action, scope, reason,
         prior state. Written through the producing service's own outbox in the same transaction as the
         change it records (ARC-05, INV-NOTE-3#row:SB-05); evidence-svc is its system of record (INV-ADR-282).
-        Authored by INV-T-2855 (T11).
+        Authored by INV-T-2855 (T11). INV-T-6256 adds the optional property callingSystem (INV-REQ-587,
+        ruling INV-Q-6252; additive minor, API-41): the calling system of a filing-workflow principal.
       # INV-T-3606 (owner ruling INV-Q-3627): a record topic; the purge never removes it above
       # evidence-svc's recorded position. Copied into event-log/topics.yaml as record_topic.
       x-record-topic: true

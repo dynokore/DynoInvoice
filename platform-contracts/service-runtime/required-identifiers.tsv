@@ -50,3 +50,4 @@ internalTaxCode	property	schemas/pack-dry-run-sample-recorded-payload.schema.jso
 transactionDate	property	schemas/pack-dry-run-sample-recorded-payload.schema.json	INV-Q-5194
 precedingDocumentDate	property	schemas/pack-dry-run-sample-recorded-payload.schema.json	INV-Q-5194
 sgdValuesAbsent	property	schemas/pack-dry-run-sample-recorded-payload.schema.json	INV-Q-5634
+callingSystem	property	schemas/audit-entry-recorded-payload.schema.json	INV-REQ-587
