@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [4.0.2] - 2026-10-17
+### Changed
+- KDoc only: a tenant id in `consumer_replay.scope` is request metadata, not tenant data (INV-T-5821, owner answer INV-Q-4817 A); no behaviour change.
+
 ## [4.0.1] - 2026-10-17
 ### Changed
 - Metadata-only release (INV-T-5820, ruling INV-Q-5896 A): depends on `tenancy-jooq` 1.2.0 (the guard refuses a `TenancyTables` not built by `TableClasses.verify`, INV-Q-4821 B); no code change.

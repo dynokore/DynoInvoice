@@ -7,7 +7,8 @@ import com.dynokore.platform.tenancykernel.TenantRlsMigration
  * DDL for the scheduler state a service keeps in its own schema (INV-REQ-2405 b2 and b4, INV-Q-2948),
  * embedded by the service's own migration (TPL-12), run as `<svc>_migrate`.
  *
- * - [SHEDLOCK]: ShedLock 6 on PostgreSQL (STK-25). Lock names and lease times only, no tenant data, so no
+ * - [SHEDLOCK]: ShedLock 6 on PostgreSQL (STK-25). Lock names and lease times only; a tenant id in `shedlock.name`
+ *   names the entity a job lock covers: scheduling metadata, not tenant data (owner answer INV-Q-4817 A), so no
  *   `tenant_id` and no RLS (as `consumer_offset`, INV-Q-2954); used by the runtime login.
  * - [JOB_RUN]: one row per run, keyed by (tenant, service, job, entity or platform, tick, trigger, attempt)
  *   (INV-Q-2948, INV-Q-3039, INV-Q-3034). An ENTITY run carries the entity's tenant; a PLATFORM or whole-job

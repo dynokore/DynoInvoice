@@ -25,8 +25,9 @@ import org.jooq.impl.DSL
  *   [OUTBOX_PURGE_EXPIRED], [INBOX_PURGE_EXPIRED], [DEAD_LETTER_PURGE_EXPIRED], [DEAD_LETTER_RECORD],
  *   [DEAD_LETTER_RESOLVE]). Each purge function holds its age predicate and refuses a cut-off later than the
  *   retention floor ([Retention.FLOOR]), so a call can delete only expired rows.
- * - [CONSUMER_OFFSET] and the replay state tables hold no tenant data (positions and service names) and have no RLS;
- *   the runtime login writes them directly. Each carries `COMMENT ON TABLE ... IS 'platform-scoped: no tenant data'`
+ * - [CONSUMER_OFFSET] and the replay state tables hold positions and service names and have no RLS; a tenant id in
+ *   `consumer_replay.scope` names the target of an operator's replay request: request metadata, not tenant data
+ *   (owner answer INV-Q-4817 A). The runtime login writes them directly. Each carries `COMMENT ON TABLE ... IS 'platform-scoped: no tenant data'`
  *   and is listed by [platformScopedTables] (INV-ADR-3968 item 4a, INV-T-4134), as is [QueueSchema.LANE_RATE_WINDOW].
  * - [DEAD_LETTER] has `tenant_id uuid NOT NULL` (CS-19): a dead letter whose record names no tenant is stored under the
  *   reserved platform tenant by [DEAD_LETTER_RECORD], and reads as a letter without a tenant. A restrictive SELECT policy

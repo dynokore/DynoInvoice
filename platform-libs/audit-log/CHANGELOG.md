@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [3.0.3] - 2026-10-17
+### Changed
+- Metadata-only release (INV-T-5821, ruling INV-Q-5678 A): depends on `service-runtime` 8.1.0 and `outbox-and-queue` 4.0.2; no code change.
+
 ## [3.0.2] - 2026-10-17
 ### Changed
 - Metadata-only release (INV-T-5820, ruling INV-Q-5678 A): depends on `tenancy-jooq` 1.2.0 (the guard refuses a `TenancyTables` not built by `TableClasses.verify`, INV-Q-4821 B); no code change.

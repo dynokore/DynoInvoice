@@ -2,6 +2,7 @@ package com.dynokore.platform.serviceruntime.composition
 
 import com.dynokore.platform.serviceruntime.datasource.tpl18Service
 import com.dynokore.platform.tenancyjooq.TableClass
+import com.dynokore.platform.tenancyjooq.TableClasses
 import com.dynokore.platform.tenancyjooq.TenancyJooq
 import com.dynokore.platform.tenancyjooq.TenancyTables
 import com.dynokore.platform.tenancykernel.TenantContext
@@ -201,6 +202,88 @@ class TenancyJooqWiringTest {
                 )
             TenancyJooqGuard().postProcessAfterInitialization(configured, "configured")
         }
+    }
+
+    @Test
+    fun `a second TenancyTables bean built by TableClasses-verify fails start-up (INV-Q-4821 B)`() {
+        service
+            .withUserConfiguration(SubmissionSchemaConfiguration::class.java, SecondVerifiedTables::class.java)
+            .run { context ->
+                // two candidates, the library's and the service's (not the guard's refusal of a foreign bean)
+                failure(context) shouldContain "TenancyTables"
+                failure(context) shouldContain "tenancyTables"
+                failure(context) shouldContain "verifiedTables"
+            }
+    }
+
+    @Test
+    fun `a second TenancyTables bean built by TenancyTables-declared fails start-up (INV-Q-4821 B)`() {
+        service
+            .withUserConfiguration(SubmissionSchemaConfiguration::class.java, SecondDeclaredTables::class.java)
+            .run { context ->
+                failure(context) shouldContain "TenancyTables"
+                failure(context) shouldContain "tenancyTables"
+                failure(context) shouldContain "declaredTables"
+            }
+    }
+
+    @Test
+    fun `a Configuration over declared TenancyTables fails start-up (INV-Q-4821 B)`() {
+        service
+            .withUserConfiguration(SubmissionSchemaConfiguration::class.java, DeclaredConfiguration::class.java)
+            .run { context ->
+                failure(context) shouldContain "bean 'declaredConfiguration'"
+                failure(context) shouldContain "TableClasses.verify"
+            }
+    }
+
+    @Test
+    fun `a Configuration made by TenancyJooq-configure over the context's own TenancyTables starts`() {
+        service
+            .withUserConfiguration(SubmissionSchemaConfiguration::class.java, OwnTablesConfiguration::class.java)
+            .run { context -> context.startupFailure shouldBe null }
+    }
+
+    @SpringConfiguration(proxyBeanMethods = false)
+    class SecondVerifiedTables {
+        @Bean
+        fun verifiedTables(): TenancyTables =
+            TableClasses
+                .of(
+                    platformScoped = (Tables.SERVICE + Tables.LIBRARY).filter { !it.second }.map { "${Tables.SCHEMA}.${it.first}" },
+                ).verify(FixtureSchema(Tables.SCHEMA, Tables.SERVICE + Tables.LIBRARY))
+    }
+
+    @SpringConfiguration(proxyBeanMethods = false)
+    class SecondDeclaredTables {
+        @Bean
+        fun declaredTables(): TenancyTables =
+            TenancyTables.declared(mapOf(DSL.name(Tables.SCHEMA, "item") to TableClass.TENANT))
+    }
+
+    @SpringConfiguration(proxyBeanMethods = false)
+    class DeclaredConfiguration {
+        @Bean
+        fun declaredConfiguration(
+            tenants: TenantContext,
+            runner: TransactionRunner,
+        ): Configuration =
+            TenancyJooq.configure(
+                DefaultConfiguration().set(SQLDialect.POSTGRES),
+                TenancyTables.declared(mapOf(DSL.name(Tables.SCHEMA, "item") to TableClass.TENANT)),
+                tenants,
+                runner,
+            )
+    }
+
+    @SpringConfiguration(proxyBeanMethods = false)
+    class OwnTablesConfiguration {
+        @Bean
+        fun ownTablesConfiguration(
+            tables: TenancyTables,
+            tenants: TenantContext,
+            runner: TransactionRunner,
+        ): Configuration = TenancyJooq.configure(DefaultConfiguration().set(SQLDialect.POSTGRES), tables, tenants, runner)
     }
 
     @SpringConfiguration(proxyBeanMethods = false)

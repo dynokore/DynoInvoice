@@ -56,6 +56,9 @@ data class TenancyProperties(
  *   listeners and connection provider ([TenancyJooq.configure]).
  * - [TenancyJooqGuard]: start-up fails for any `DSLContext` or `org.jooq.Configuration` bean that does not carry them.
  *
+ * Every `TenancyTables` must have been built by `TableClasses.verify` (owner answer INV-Q-4821 B): the `tenancyTables`
+ * bean is not replaceable, so a service that defines its own `TenancyTables` bean fails start-up.
+ *
  * Its own auto-configuration, after the L1 composition (which creates the [TransactionRunner]) and before Spring Boot's
  * jOOQ auto-configuration, which then backs off: it would build a configuration on a plain `DataSource`.
  * service-runtime creates no JdbcTemplate, NamedParameterJdbcTemplate, TransactionTemplate or transaction manager.
@@ -68,7 +71,6 @@ data class TenancyProperties(
 @Import(TenancyJooqWiring.BootCustomizer::class)
 class TenancyJooqWiring {
     @Bean
-    @ConditionalOnMissingBean(TenancyTables::class)
     fun tenancyTables(
         schemas: ObjectProvider<Schema>,
         declared: TenancyProperties,
@@ -141,6 +143,8 @@ class TenancyJooqWiring {
 }
 
 /**
+ * Every `TenancyTables` must have been built by `TableClasses.verify` (owner answer INV-Q-4821 B); a `DSLContext` or
+ * `org.jooq.Configuration` over any other fails the check.
  * Start-up fails when a `DSLContext` or `org.jooq.Configuration` bean lacks tenancy-jooq's connection provider, its
  * VisitListener or its ExecuteListener (INV-T-4134; owner ruling INV-Q-4196). Deny by default: it checks every such
  * bean the moment it is created, and again once all singletons exist (lazy beans are created for the check), and a

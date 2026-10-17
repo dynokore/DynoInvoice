@@ -34,6 +34,10 @@ internal class ShedLockLeaderElection(
     }
 
     companion object {
+        /**
+         * The lock name of [job] on [target]; a tenant id in `shedlock.name` names the entity a job lock covers:
+         * scheduling metadata, not tenant data (owner answer INV-Q-4817 A).
+         */
         fun lockName(
             job: JobDefinition,
             target: JobTarget,
@@ -44,7 +48,8 @@ internal class ShedLockLeaderElection(
             }
 
         /**
-         * ShedLock over the service's own `shedlock` table (no tenant data, PLATFORM_SCOPED) on tenancy-jooq's
+         * ShedLock over the service's own `shedlock` table (PLATFORM_SCOPED; a tenant id in `shedlock.name` names the
+         * entity a job lock covers: scheduling metadata, not tenant data, owner answer INV-Q-4817 A) on tenancy-jooq's
          * DSLContext, each operation in one platform binding and one transaction of [scope] (owner answer to
          * INV-Q-5210, option A): ShedLock core's [StorageBasedLockProvider] over [ShedLockJooqAccessor].
          */
