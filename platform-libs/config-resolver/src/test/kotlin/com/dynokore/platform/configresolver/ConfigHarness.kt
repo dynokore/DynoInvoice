@@ -46,8 +46,8 @@ class ConfigHarness(
 ) : AutoCloseable {
     private val container =
         Postgres(DockerImageName.parse(image))
-            .withInitScript("db/config-resolver-test-roles.sql")
-            .withCopyToContainer(Transferable.of(schemaScript()), "/docker-entrypoint-initdb.d/zz-config-schema.sql")
+            .withCopyToContainer(Transferable.of(rolesScript()), "/docker-entrypoint-initdb.d/00-config-roles.sql")
+            .withCopyToContainer(Transferable.of(schemaScript()), "/docker-entrypoint-initdb.d/10-config-schema.sql")
             .also { it.start() }
 
     val tenants = TenantContextImpl()
@@ -170,6 +170,12 @@ class ConfigHarness(
     companion object {
         const val SCHEMA = "svc"
         val CLOCK: Clock = Clock.fixed(Instant.parse("2026-10-01T00:00:00Z"), ZoneOffset.UTC)
+
+        /** The roles and grants, run by the image's init before [schemaScript] (a container init script runs later). */
+        private fun rolesScript(): String =
+            checkNotNull(ConfigHarness::class.java.getResource("/db/config-resolver-test-roles.sql")) {
+                "no roles script"
+            }.readText()
 
         /** The tables, as the migration login `config_owner` creates them; run by the image's init, after the roles. */
         private fun schemaScript(): String =

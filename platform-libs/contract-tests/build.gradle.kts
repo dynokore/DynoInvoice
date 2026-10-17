@@ -31,6 +31,7 @@ val suiteModules =
         "product-runtime",
     )
 suiteModules.forEach { evaluationDependsOn(":$it") }
+evaluationDependsOn(":tenancy-jooq")
 
 fun sourceSet(
     module: String,
@@ -59,6 +60,11 @@ dependencies {
     testImplementation(project(":config-resolver"))
     testImplementation(implJar("config-resolver"))
     testImplementation(implJar("tenancy-kernel"))
+    // config-resolver's harness builds its DSLContext and pools from tenancy-jooq and the tenancy-kernel test fixtures.
+    testImplementation(project(":tenancy-jooq"))
+    testImplementation(implJar("tenancy-jooq"))
+    testImplementation(testFixtures(project(":tenancy-jooq")))
+    testImplementation(testFixtures(project(":tenancy-kernel")))
     testImplementation(implJar("outbox-and-queue"))
     testImplementation(libs.gstCatalogue)
     testImplementation(project(":adapter-runtime"))
