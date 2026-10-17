@@ -1,13 +1,15 @@
 package com.dynokore.platform.outboxandqueue
 
+import org.jooq.DSLContext
+import org.jooq.JSONB
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
-import java.sql.SQLException
 import java.util.UUID
 
 /**
@@ -157,26 +159,26 @@ class RelayOutageIT {
     fun `the event log grants are producer insert and subscriber select only`(image: String) {
         OutboxHarness(image).use { harness ->
             val table = "eventlog.gst_payload_payload_ready_v1"
+            val log = DSL.table(DSL.name("eventlog", "gst_payload_payload_ready_v1"))
+            val tables = JooqKit.platformScoped(table)
+            val insert = { dsl: DSLContext ->
+                dsl
+                    .insertInto(log)
+                    .set(EVENT_ID, "x")
+                    .set(SUBJECT, "y")
+                    .set(ENVELOPE, DSL.`val`("{}", SQLDataType.JSONB))
+                    .execute()
+            }
             // a login that neither produces nor subscribes to the topic reaches nothing of it
-            harness.fixture.roleDataSource("recon_runtime").connection.use { connection ->
-                assertThrows(SQLException::class.java) {
-                    connection.createStatement().use { it.executeQuery("select * from $table") }
-                }
-                assertThrows(SQLException::class.java) {
-                    connection.createStatement().use {
-                        it.executeUpdate("insert into $table (event_id, subject, envelope) values ('x', 'y', '{}')")
-                    }
-                }
+            JooqKit.Access.role(harness.fixture, "recon_runtime", tables).use { stranger ->
+                assertEquals("42501", sqlStateOf { stranger.asPlatform { it.selectFrom(log).fetch() } })
+                assertEquals("42501", sqlStateOf { stranger.asPlatform(insert) })
             }
             // the producer and subscriber login: no update or delete, and no row without a bound tenant
-            harness.fixture.eventLogDataSource().connection.use { connection ->
-                assertThrows(SQLException::class.java) {
-                    connection.createStatement().use { it.executeUpdate("delete from $table") }
-                }
-                assertThrows(SQLException::class.java) {
-                    connection.createStatement().use { it.executeUpdate("update $table set subject = 'z'") }
-                }
-                assertFalse(connection.createStatement().use { it.executeQuery("select * from $table").next() })
+            JooqKit.Access.runtime(harness.fixture, tables).use { producer ->
+                assertEquals("42501", sqlStateOf { producer.asPlatform { it.deleteFrom(log).execute() } })
+                assertEquals("42501", sqlStateOf { producer.asPlatform { it.update(log).set(SUBJECT, "z").execute() } })
+                assertTrue(producer.asPlatform { it.selectFrom(log).fetch() }.isEmpty())
             }
         }
     }
@@ -196,15 +198,26 @@ class RelayOutageIT {
             assertEquals(0, seen(UUID.randomUUID()))
             // The runtime login sees no outbox row outside a tenant transaction; the sys-owned claim view gives the
             // claim columns of every tenant's rows and nothing else (INV-Q-3953).
-            harness.fixture.runtimeDataSource().connection.use { connection ->
-                connection.createStatement().use {
-                    assertFalse(it.executeQuery("select seq from payload.outbox").next())
-                    assertTrue(it.executeQuery("select seq, tenant_id from payload.outbox_claim_v").next())
-                    assertThrows(SQLException::class.java) {
-                        it.executeQuery("select data from payload.outbox_claim_v")
-                    }
-                }
-            }
+            val runtime = JooqKit.Access.runtime(harness.fixture, CLAIM_TABLES)
+            val view = DSL.table(DSL.name("payload", "outbox_claim_v"))
+            val outbox = DSL.table(DSL.name("payload", "outbox"))
+            assertTrue(runtime.asPlatform { it.select(DSL.field(DSL.name("seq"))).from(outbox).fetch() }.isEmpty())
+            assertTrue(
+                runtime
+                    .asPlatform {
+                        it
+                            .select(
+                                DSL.field(DSL.name("seq")),
+                                DSL.field(DSL.name("tenant_id")),
+                            ).from(view)
+                            .fetch()
+                    }.isNotEmpty(),
+            )
+            assertEquals(
+                "42703",
+                sqlStateOf { runtime.asPlatform { it.select(DSL.field(DSL.name("data"))).from(view).fetch() } },
+            )
+            runtime.close()
         }
     }
 
@@ -223,13 +236,9 @@ class RelayOutageIT {
         assertEquals(0, consumer.pollOnce().total)
     }
 
-    private fun rowsVisible(kit: ServiceKit): Int =
-        kit.boundary.require().createStatement().use { statement ->
-            statement.executeQuery("select count(*) from payload.outbox").use { rows ->
-                rows.next()
-                rows.getInt(1)
-            }
-        }
+    private fun rowsVisible(kit: ServiceKit): Int = kit.dsl.fetchCount(DSL.table(DSL.name("payload", "outbox")))
+
+    private fun sqlStateOf(block: () -> Unit): String? = JooqKit.sqlState(runCatching(block).exceptionOrNull())
 
     private fun versionOf(
         harness: OutboxHarness,
@@ -244,5 +253,9 @@ class RelayOutageIT {
         const val DOCS = 6
         const val EVENTS_PER_DOC = 3
         const val PAYLOAD_READY_TOPIC = "gst.payload.payload-ready.v1"
+        val CLAIM_TABLES = JooqKit.platformScoped("payload.outbox", "payload.outbox_claim_v")
+        val EVENT_ID = DSL.field(DSL.name("event_id"), SQLDataType.CLOB)
+        val SUBJECT = DSL.field(DSL.name("subject"), SQLDataType.CLOB)
+        val ENVELOPE = DSL.field(DSL.name("envelope"), SQLDataType.JSONB)
     }
 }

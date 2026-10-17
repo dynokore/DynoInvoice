@@ -1,7 +1,10 @@
 package com.dynokore.platform.outboxandqueue
 
+import com.dynokore.platform.tenancykernel.LaneGate
+import com.dynokore.platform.tenancykernel.LanePermit
+import com.dynokore.platform.tenancykernel.LaneRefusedException
 import com.dynokore.platform.tenancykernel.TenantContextImpl
-import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
+import com.dynokore.platform.tenancykernel.TestPoolFixture
 import org.jooq.SQLDialect
 import org.jooq.impl.DSL
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -9,28 +12,32 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
-import java.lang.reflect.Proxy
-import java.sql.Connection
 import java.time.Clock
 import java.util.concurrent.atomic.AtomicInteger
-import javax.sql.DataSource
 
 /**
  * The relay holds an outer transaction and a row transaction, so its lane needs at least 2 permits (owner answer
- * INV-Q-5609 (b)): 2 and 3 start, 1 and 0 are refused with the lane and its size, before any connection is taken.
+ * INV-Q-5609 (b)): 2 and 3 run, 1 and 0 are refused at the
+ * first run with the lane and its size, before any connection is taken.
  */
 class RelayLaneSizeTest {
     private val taken = AtomicInteger()
 
-    private val source: DataSource =
-        Proxy.newProxyInstance(javaClass.classLoader, arrayOf(DataSource::class.java)) { _, method, _ ->
-            if (method.returnType == Connection::class.java) taken.incrementAndGet()
-            throw UnsupportedOperationException(method.name)
-        } as DataSource
+    /** A pool that is never reached: a refused run takes no lane permit, so no connection is asked for. */
+    private val pool = TestPoolFixture("jdbc:postgresql://127.0.0.1:1/none", "nobody", "none")
 
     private fun relay(laneSize: Int): JdbcOutboxRelay {
         val tenants = TenantContextImpl()
-        val runner = TransactionRunnerImpl(source, tenants)
+        val runner =
+            pool.runner(
+                tenants,
+                object : LaneGate {
+                    override fun acquire(): LanePermit {
+                        taken.incrementAndGet()
+                        return LanePermit {}
+                    }
+                },
+            )
         return JdbcOutboxRelay(
             TenantScope(tenants, runner, runner, "svc:test"),
             DSL.using(SQLDialect.POSTGRES),
@@ -57,8 +64,8 @@ class RelayLaneSizeTest {
     @ParameterizedTest(name = "lane size {0} is refused")
     @ValueSource(ints = [1, 0, -1])
     fun `a lane of fewer than 2 permits is refused, naming the lane and its size, before any connection`(size: Int) {
-        val refused = assertThrows(IllegalStateException::class.java) { relay(size) }
-        assertTrue(refused.message!!.contains("background") && refused.message!!.contains("has $size"), refused.message)
+        val refused = assertThrows(LaneRefusedException::class.java) { relay(size).runOnce() }
+        assertTrue(refused.message!!.contains("BACKGROUND") && refused.message!!.contains("has $size"), refused.message)
         assertEquals(0, taken.get())
     }
 }

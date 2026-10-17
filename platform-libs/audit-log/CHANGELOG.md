@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [3.0.1] - 2026-10-17
+### Changed
+- Metadata-only release (INV-T-5304, owner ruling INV-Q-5836 A, version-file scope of the downstream closure of outbox-and-queue 4.0.0): no API or behaviour change; `src/main` and `src/impl` are unchanged. The POMs name outbox-and-queue at the stepped version.
+
 ## [3.0.0] - 2026-10-16
 ### Changed
 - BREAKING (INV-T-5301, slice 1 of 3 of INV-T-4516; owner rulings INV-Q-4196 (A), INV-Q-4508 (A)): `LocalAuditWriter` and `JdbcOverrideService` run every statement through jOOQ on a `DSLContext` from tenancy-jooq's factory (`TenancyJooq.dslContext`), with the module's table named `DSL.name(schema, table)` and declared `TENANT`; identifiers are `DSL.name(...)` of `SqlIdentifier`-validated names and every value is a bind value. Their first constructor parameter is that `DSLContext`; the `CurrentConnection` parameter is gone, so they run on the `TransactionRunner` whose data source holds the lane gate (lane behaviour unchanged, INV-Q-5243). Behaviour is unchanged: the same rows, the same refusals, `ON CONFLICT DO NOTHING` on the override grant. `audit-log` depends on tenancy-jooq.

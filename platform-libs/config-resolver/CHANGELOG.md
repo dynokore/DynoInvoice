@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [3.0.1] - 2026-10-17
+### Changed
+- Metadata-only release (INV-T-5304, owner ruling INV-Q-5836 A, version-file scope of the downstream closure of outbox-and-queue 4.0.0): no API or behaviour change; `src/main` and `src/impl` are unchanged. The POMs name outbox-and-queue at the stepped version.
+
 ## [3.0.0] - 2026-10-16
 ### Changed (breaking)
 - `JdbcConfigPurge` and `JdbcResolutionRecorder` take a `DSLContext` (tenancy-jooq's `TenancyJooq.dslContext`, built over the
