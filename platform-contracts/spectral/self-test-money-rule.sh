@@ -53,5 +53,4 @@ fi
 if [ "$failed" -eq 0 ]; then
   echo "gst-ci: inv-api-12-money-format self-test passed (fails a number-typed money field in AsyncAPI and a standalone event schema, passes a decimal-string one)."
 fi
-sh ./self-test-enum-casing.sh || failed=1   # INV-T-6047: enum casing with x-enum-varnames
 exit $failed

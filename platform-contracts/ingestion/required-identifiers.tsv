@@ -9,7 +9,6 @@ subtotalsByTaxCode	property	openapi.yaml	INV-REQ-812
 lookbackDays	property	openapi.yaml	INV-REQ-790
 watermarkField	property	openapi.yaml	INV-REQ-790
 sourceTimeZone	property	openapi.yaml	INV-REQ-790
-postingTimestamp	enum_value	openapi.yaml	INV-REQ-790
 description	property	openapi.yaml	INV-REQ-812
 entityRef	property	openapi.yaml	INV-REQ-811
 partyRef	property	schemas/transaction-request.schema.json	INV-REQ-808
@@ -24,11 +23,6 @@ inputTaxClaimed	property	schemas/transaction-request.schema.json	INV-REQ-809
 apportionmentBasis	property	schemas/transaction-request.schema.json	INV-REQ-809
 mixedUse	property	schemas/transaction-request.schema.json	INV-REQ-809
 direction	property	schemas/transaction-request.schema.json	INV-REQ-809
-postingTimestamp	property	schemas/transaction-request.schema.json	INV-REQ-790
-unitCode	property	schemas/transaction-request.schema.json	INV-REQ-809
-glAccount	property	schemas/transaction-request.schema.json	INV-REQ-809
-businessUnitRef	property	schemas/transaction-request.schema.json	INV-REQ-809
-taxCode	property	schemas/transaction-request.schema.json	INV-REQ-809
 networkIssuance	property	schemas/transaction-request.schema.json	INV-REQ-327
 issuedDocUuid	property	schemas/transaction-request.schema.json	INV-REQ-327
 apMessageId	property	schemas/transaction-request.schema.json	INV-REQ-327

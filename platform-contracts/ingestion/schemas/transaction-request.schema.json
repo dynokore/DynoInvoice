@@ -28,11 +28,6 @@
     },
     "transactionDate": { "type": "string", "format": "date" },
     "currency": { "type": "string", "minLength": 3, "maxLength": 3 },
-    "postingTimestamp": {
-      "type": "string",
-      "format": "date-time",
-      "description": "Time the source system posted the document: the field a scheduled pull uses as its watermark (INV-REQ-790). Optional in the schema; a pull that finds it absent is refused by the operation, not by this schema."
-    },
     "direction": {
       "type": "string",
       "enum": ["SALE", "PURCHASE"],
@@ -137,10 +132,7 @@
           "pattern": "^-?\\d{1,17}(\\.\\d{1,2})?$",
           "description": "Money as a decimal string, decimal(19,2) (API-12)."
         },
-        "taxCode": { "type": "string", "maxLength": 32 },
-        "unitCode": { "type": "string", "maxLength": 16 },
-        "glAccount": { "type": "string", "maxLength": 32 },
-        "businessUnitRef": { "type": "string", "maxLength": 64 },
+        "taxCode": { "type": "string", "maxLength": 10 },
         "taxAmount": {
           "type": "string",
           "format": "decimal",

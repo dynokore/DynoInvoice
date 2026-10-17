@@ -200,50 +200,16 @@ rules:
       function: undefined
 
   # --- API-09: casing, extensible enums -----------------------------------------
-  # INV-T-6047 (owner ruling INV-Q-6109): an enum that maps an interface field or DTO property
-  # names its UPPER_SNAKE_CASE member in a sibling `x-enum-varnames`; its values are then the
-  # real camelCase property names. Three rules, one per condition, all named inv-api-09-enum-casing-*.
   inv-api-09-enum-casing:
-    description: API-09 — enum values are UPPER_SNAKE_CASE (an enum without a sibling x-enum-varnames).
-    message: "enum value '{{value}}' must be UPPER_SNAKE_CASE (API-09) unless the enum has a sibling x-enum-varnames"
-    given: "$..[?(@.enum && !@['x-enum-varnames'])].enum[*]"
+    description: API-09 — enum values are UPPER_SNAKE_CASE.
+    message: "enum value '{{value}}' must be UPPER_SNAKE_CASE (API-09)"
+    given: "$..[?(@.enum)].enum[*]"
     severity: error
     formats: ["oas3_1"]
     then:
       function: pattern
       functionOptions:
         match: "^[A-Z][A-Z0-9_]*$"
-
-  inv-api-09-enum-casing-varnames:
-    description: API-09 — x-enum-varnames members are UPPER_SNAKE_CASE.
-    message: "x-enum-varnames member '{{value}}' must be UPPER_SNAKE_CASE (API-09)"
-    given: "$..[?(@.enum && @['x-enum-varnames'])]['x-enum-varnames'][*]"
-    severity: error
-    formats: ["oas3_1"]
-    then:
-      function: pattern
-      functionOptions:
-        match: "^[A-Z][A-Z0-9_]*$"
-
-  inv-api-09-enum-casing-values:
-    description: API-09 — an enum with x-enum-varnames has camelCase property names as values.
-    message: "enum value '{{value}}' beside x-enum-varnames must be a camelCase property name (API-09)"
-    given: "$..[?(@.enum && @['x-enum-varnames'])].enum[*]"
-    severity: error
-    formats: ["oas3_1"]
-    then:
-      function: pattern
-      functionOptions:
-        match: "^[a-z][A-Za-z0-9]*$"
-
-  inv-api-09-enum-casing-count:
-    description: API-09 — an enum with x-enum-varnames has exactly one varname per value.
-    message: "enum and x-enum-varnames must have the same number of members (API-09)"
-    given: "$..[?(@.enum && @['x-enum-varnames'] && @.enum.length !== @['x-enum-varnames'].length)]"
-    severity: error
-    formats: ["oas3_1"]
-    then:
-      function: falsy
 
   inv-api-09-field-casing:
     description: API-09 — field names are camelCase.

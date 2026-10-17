@@ -1261,9 +1261,8 @@ components:
           description: Look-back window re-read by each pull, in days; default 7 (INV-REQ-790, INV-REQ-1295).
         watermarkField:
           type: string
-          enum: [postingTimestamp]
-          x-enum-varnames: [POSTING_TIMESTAMP]
-          description: The watermark is the posting timestamp (`postingTimestamp` of the transaction, `posting_timestamp` in INV-REQ-790), never the document date.
+          enum: [posting_timestamp]
+          description: The watermark is the posting timestamp, never the document date (INV-REQ-790).
         sourceTimeZone:
           type: string
           maxLength: 40
