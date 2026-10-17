@@ -9,16 +9,8 @@ subtotalsByTaxCode	property	openapi.yaml	INV-REQ-812
 lookbackDays	property	openapi.yaml	INV-REQ-790
 watermarkField	property	openapi.yaml	INV-REQ-790
 sourceTimeZone	property	openapi.yaml	INV-REQ-790
-description	property	openapi.yaml	INV-REQ-812
-entityRef	property	openapi.yaml	INV-REQ-811
 partyRef	property	schemas/transaction-request.schema.json	INV-REQ-808
 providedBy	property	schemas/transaction-request.schema.json	INV-REQ-808
-identifierScheme	property	schemas/transaction-request.schema.json	INV-REQ-808
-identifierValue	property	schemas/transaction-request.schema.json	INV-REQ-808
-name	property	schemas/transaction-request.schema.json	INV-REQ-808
-gstn	property	schemas/transaction-request.schema.json	INV-REQ-808
-address	property	schemas/transaction-request.schema.json	INV-REQ-808
-evidenceRef	property	schemas/transaction-request.schema.json	INV-REQ-808
 inputTaxClaimed	property	schemas/transaction-request.schema.json	INV-REQ-809
 apportionmentBasis	property	schemas/transaction-request.schema.json	INV-REQ-809
 mixedUse	property	schemas/transaction-request.schema.json	INV-REQ-809
