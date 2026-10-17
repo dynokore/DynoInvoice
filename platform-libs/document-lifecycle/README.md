@@ -1,6 +1,11 @@
 # document-lifecycle
 
-—
+Versioned document, the state model as data, supersession rules and the in-flight guard (part 1). Amendment
+classification (part 2) is not in this release.
+
+The library carries no state code, return form or tax rule: each embedding service supplies its `StateModel`
+(states, `inFlight` and `countsAsOpen` flags, allowed transitions, initial state) and `SupersessionRules`. It holds no
+persistence, clock or event type; claim and timer behaviour belong to the service.
 
 | | |
 | --- | --- |

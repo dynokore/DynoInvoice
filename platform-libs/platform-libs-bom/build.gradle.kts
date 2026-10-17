@@ -51,7 +51,7 @@ javaPlatform {
 listOf(
     "service-runtime", "outbox-and-queue", "rulepack-kernel", "tenancy-kernel",
     "evidence-store", "adapter-runtime", "config-resolver", "audit-log", "crypto", "tenancy-jooq", "product-runtime",
-    "calendar-and-periods", "party-registry",
+    "calendar-and-periods", "party-registry", "document-lifecycle",
 ).forEach { evaluationDependsOn(":$it") }
 
 dependencies {
@@ -90,6 +90,9 @@ dependencies {
         // party-registry (INV-T-4964): the second L2 module.
         api("com.dynokore.platform:party-registry-api:${project(":party-registry").version}") // INV-T-4964
         api("com.dynokore.platform:party-registry:${project(":party-registry").version}") // INV-T-4964
+        // document-lifecycle (INV-T-5938): the third L2 module.
+        api("com.dynokore.platform:document-lifecycle-api:${project(":document-lifecycle").version}") // INV-T-5938
+        api("com.dynokore.platform:document-lifecycle:${project(":document-lifecycle").version}") // INV-T-5938
 
         // CVE-2026-65182, CVE-2026-65905, CVE-2026-68525: service-runtime (INV-T-2871 /
         // T27) is this repository's first module on Spring Boot 4.1.1, whose managed
