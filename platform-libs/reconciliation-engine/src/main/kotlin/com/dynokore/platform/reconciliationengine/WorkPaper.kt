@@ -72,9 +72,9 @@ class WorkPaper private constructor(
         const val ATTESTATION = "attestation"
 
         /**
-         * Throws [IllegalArgumentException] for a header lacking a required key, a header holding the reserved key `reconciledTo` ([ReservedHeaderKeyException]), a blank [reconciledTo] or an
-         * attestation entry with a blank role or person. An empty attestation list is allowed and reports
-         * `attested = false`.
+         * Throws [IllegalArgumentException] for a header lacking a required key, a blank [reconciledTo] or an
+         * attestation entry with a blank role or person, and [ReservedHeaderKeyException] for a header key equal to
+         * `reconciledTo`. An empty attestation list is allowed and reports `attested = false`.
          */
         fun build(
             spec: WorkPaperSpec,
