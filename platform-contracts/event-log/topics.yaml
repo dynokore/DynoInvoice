@@ -19,6 +19,11 @@
 # message declares x-record-topic: true — the purge never removes such
 # a topic above evidence-svc's recorded position; false elsewhere.
 #
+# retained_while_resolvable (INV-REQ-1210, owner delegation INV-Q-6281): true
+# when the message declares x-retained-while-resolvable: true — the purge
+# keeps such a topic for the pack artefact retention; a replay topic is
+# true when any type it carries is; a request topic is false.
+#
 # replay_topics (INV-T-3606, rulings INV-Q-3601, INV-Q-3625, INV-Q-3644):
 # one per (producer, subscriber) pair of the topics above, derived — the
 # producer's relay INSERTs its replay (INV-REQ-1205 b4) and only that
@@ -34,6 +39,7 @@ topics:
     event_type: com.dynokore.gst.access.AccessAlertRaised.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - access-svc
     subscribers:
@@ -42,6 +48,7 @@ topics:
     event_type: com.dynokore.gst.access.AuthorityChanged.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - access-svc
     subscribers:
@@ -51,6 +58,7 @@ topics:
     event_type: com.dynokore.gst.access.MessageRequested.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - access-svc
     subscribers:
@@ -59,6 +67,7 @@ topics:
     event_type: com.dynokore.gst.access.OperatorSessionKeysChanged.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - access-svc
     subscribers:
@@ -80,6 +89,7 @@ topics:
     event_type: com.dynokore.gst.aggregation.AggregateReady.v1
     content_topic: true
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - aggregation-svc
     subscribers:
@@ -88,6 +98,7 @@ topics:
     event_type: com.dynokore.gst.aggregation.AggregateWindowChanged.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - aggregation-svc
     subscribers:
@@ -97,6 +108,7 @@ topics:
     event_type: com.dynokore.gst.canonical.CanonicalVersionCreated.v1
     content_topic: true
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - canonical-svc
     subscribers:
@@ -109,6 +121,7 @@ topics:
     event_type: com.dynokore.gst.canonical.DecisionTraceRecorded.v1
     content_topic: true
     record_topic: true
+    retained_while_resolvable: false
     producers:
       - canonical-svc
     subscribers:
@@ -118,6 +131,7 @@ topics:
     event_type: com.dynokore.gst.canonical.DocumentHeld.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - canonical-svc
     subscribers:
@@ -128,6 +142,7 @@ topics:
     event_type: com.dynokore.gst.canonical.DocumentReleased.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - canonical-svc
     subscribers:
@@ -137,6 +152,7 @@ topics:
     event_type: com.dynokore.gst.canonical.PeriodReassigned.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - canonical-svc
     subscribers:
@@ -147,6 +163,7 @@ topics:
     event_type: com.dynokore.gst.canonical.TransactionRecorded.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - canonical-svc
     subscribers:
@@ -155,6 +172,7 @@ topics:
     event_type: com.dynokore.gst.evidence.EvidenceIntegrityFailed.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - evidence-svc
     subscribers:
@@ -164,6 +182,7 @@ topics:
     event_type: com.dynokore.gst.ingestion.FeedHealthChanged.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - ingestion-svc
     subscribers:
@@ -174,6 +193,7 @@ topics:
     event_type: com.dynokore.gst.masterdata.MasterDataResolved.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - masterdata-svc
     subscribers:
@@ -182,6 +202,7 @@ topics:
     event_type: com.dynokore.gst.masterdata.ReferenceRateLoaded.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - masterdata-svc
     subscribers:
@@ -190,6 +211,7 @@ topics:
     event_type: com.dynokore.gst.masterdata.SignedLinkRequested.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - masterdata-svc
     subscribers:
@@ -198,6 +220,7 @@ topics:
     event_type: com.dynokore.gst.payload.PayloadReady.v1
     content_topic: true
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - payload-svc
     subscribers:
@@ -207,6 +230,7 @@ topics:
     event_type: com.dynokore.gst.payload.PayloadRejected.v1
     content_topic: true
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - payload-svc
     subscribers:
@@ -217,6 +241,7 @@ topics:
     event_type: com.dynokore.gst.platform.AuditEntryRecorded.v1
     content_topic: false
     record_topic: true
+    retained_while_resolvable: false
     producers:
       - every service
     subscribers:
@@ -225,6 +250,7 @@ topics:
     event_type: com.dynokore.gst.platform.ConnectionStatusChanged.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - access-svc
       - evidence-svc
@@ -241,6 +267,7 @@ topics:
     event_type: com.dynokore.gst.platform.EvidenceArtefactRecorded.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - access-svc
       - masterdata-svc
@@ -252,6 +279,7 @@ topics:
     event_type: com.dynokore.gst.platform.JobRegistered.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - every service
     subscribers:
@@ -261,6 +289,7 @@ topics:
     event_type: com.dynokore.gst.platform.JobRunRecorded.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - every service
     subscribers:
@@ -270,6 +299,7 @@ topics:
     event_type: com.dynokore.gst.platform.PackDryRunSampleRecorded.v1
     content_topic: true
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - canonical-svc
     subscribers:
@@ -278,6 +308,7 @@ topics:
     event_type: com.dynokore.gst.platform.PackDryRunSampleRequested.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - rules-svc
     subscribers:
@@ -286,6 +317,7 @@ topics:
     event_type: com.dynokore.gst.platform.PackReadinessAcknowledged.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - notification-svc
       - payload-svc
@@ -297,6 +329,7 @@ topics:
     event_type: com.dynokore.gst.platform.PolicyChanged.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - every service
     subscribers:
@@ -305,6 +338,7 @@ topics:
     event_type: com.dynokore.gst.reconciliation.GstReturnRecorded.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - reconciliation-svc
     subscribers:
@@ -313,6 +347,7 @@ topics:
     event_type: com.dynokore.gst.reconciliation.ReconciliationCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - reconciliation-svc
     subscribers:
@@ -322,6 +357,7 @@ topics:
     event_type: com.dynokore.gst.rules.PackCurrencyChanged.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - rules-svc
     subscribers:
@@ -331,6 +367,7 @@ topics:
     event_type: com.dynokore.gst.rules.RulePackActivated.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - rules-svc
     subscribers:
@@ -342,6 +379,7 @@ topics:
     event_type: com.dynokore.gst.rules.RulePackStaged.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: true
     producers:
       - rules-svc
     subscribers:
@@ -353,6 +391,7 @@ topics:
     event_type: com.dynokore.gst.submission.ReadinessChanged.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - submission-svc
     subscribers:
@@ -362,6 +401,7 @@ topics:
     event_type: com.dynokore.gst.submission.SubmissionAcknowledged.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - submission-svc
     subscribers:
@@ -375,6 +415,7 @@ topics:
     event_type: com.dynokore.gst.submission.SubmissionDespatched.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - submission-svc
     subscribers:
@@ -385,6 +426,7 @@ topics:
     event_type: com.dynokore.gst.submission.SubmissionFailed.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - submission-svc
     subscribers:
@@ -394,6 +436,7 @@ topics:
     event_type: com.dynokore.gst.tenancy.EntityProfileChanged.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - tenancy-svc
     subscribers:
@@ -405,6 +448,7 @@ topics:
     event_type: com.dynokore.gst.tenancy.FilingFrequencyChanged.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - tenancy-svc
     subscribers:
@@ -413,6 +457,7 @@ topics:
     event_type: com.dynokore.gst.tenancy.InstallationStatusChanged.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - tenancy-svc
     subscribers:
@@ -423,6 +468,7 @@ topics:
     event_type: com.dynokore.gst.tenancy.OrganisationStructureChanged.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - tenancy-svc
     subscribers:
@@ -433,6 +479,7 @@ topics:
     event_type: com.dynokore.gst.tenancy.PeriodDueDateChanged.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - tenancy-svc
     subscribers:
@@ -442,6 +489,7 @@ topics:
     event_type: com.dynokore.gst.tenancy.PeriodExtended.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - tenancy-svc
     subscribers:
@@ -451,6 +499,7 @@ topics:
     event_type: com.dynokore.gst.transport.AccessPointRouteChanged.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - transport-svc
     subscribers:
@@ -459,6 +508,7 @@ topics:
     event_type: com.dynokore.gst.transport.AcknowledgementReceived.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - transport-svc
     subscribers:
@@ -467,6 +517,7 @@ topics:
     event_type: com.dynokore.gst.transport.NetworkDocumentReceived.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - transport-svc
     subscribers:
@@ -478,6 +529,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - access-svc
     subscribers:
@@ -488,6 +540,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - access-svc
     subscribers:
@@ -500,6 +553,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - access-svc
     subscribers:
@@ -510,6 +564,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - access-svc
     subscribers:
@@ -521,6 +576,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - access-svc
     subscribers:
@@ -531,6 +587,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - access-svc
     subscribers:
@@ -541,6 +598,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - access-svc
     subscribers:
@@ -555,6 +613,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - access-svc
     subscribers:
@@ -565,6 +624,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - access-svc
     subscribers:
@@ -575,6 +635,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - access-svc
     subscribers:
@@ -585,6 +646,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - access-svc
     subscribers:
@@ -595,6 +657,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - access-svc
     subscribers:
@@ -605,6 +668,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - access-svc
     subscribers:
@@ -615,6 +679,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - access-svc
     subscribers:
@@ -625,6 +690,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: true
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - aggregation-svc
     subscribers:
@@ -635,6 +701,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - aggregation-svc
     subscribers:
@@ -645,6 +712,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - aggregation-svc
     subscribers:
@@ -659,6 +727,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: true
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - canonical-svc
     subscribers:
@@ -670,6 +739,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: true
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - canonical-svc
     subscribers:
@@ -680,6 +750,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - canonical-svc
     subscribers:
@@ -690,6 +761,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - canonical-svc
     subscribers:
@@ -700,6 +772,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: true
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - canonical-svc
     subscribers:
@@ -711,6 +784,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: true
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - canonical-svc
     subscribers:
@@ -721,6 +795,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: true
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - canonical-svc
     subscribers:
@@ -734,6 +809,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: true
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - canonical-svc
     subscribers:
@@ -745,6 +821,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - evidence-svc
     subscribers:
@@ -756,6 +833,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - evidence-svc
     subscribers:
@@ -767,6 +845,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - ingestion-svc
     subscribers:
@@ -778,6 +857,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - ingestion-svc
     subscribers:
@@ -788,6 +868,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - ingestion-svc
     subscribers:
@@ -798,6 +879,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - masterdata-svc
     subscribers:
@@ -808,6 +890,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - masterdata-svc
     subscribers:
@@ -818,6 +901,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - masterdata-svc
     subscribers:
@@ -828,6 +912,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - masterdata-svc
     subscribers:
@@ -838,6 +923,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - masterdata-svc
     subscribers:
@@ -848,6 +934,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - masterdata-svc
     subscribers:
@@ -858,6 +945,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - notification-svc
     subscribers:
@@ -868,6 +956,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - notification-svc
     subscribers:
@@ -878,6 +967,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - notification-svc
     subscribers:
@@ -888,6 +978,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: true
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - payload-svc
     subscribers:
@@ -899,6 +990,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: true
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - payload-svc
     subscribers:
@@ -909,6 +1001,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: true
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - payload-svc
     subscribers:
@@ -919,6 +1012,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - payload-svc
     subscribers:
@@ -930,6 +1024,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: true
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - payload-svc
     subscribers:
@@ -941,6 +1036,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - every service
     subscribers:
@@ -951,6 +1047,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - every service
     subscribers:
@@ -962,6 +1059,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - every service
     subscribers:
@@ -972,6 +1070,7 @@ replay_topics:
       - com.dynokore.gst.reconciliation.ReconciliationCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - reconciliation-svc
     subscribers:
@@ -982,6 +1081,7 @@ replay_topics:
       - com.dynokore.gst.reconciliation.ReconciliationCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - reconciliation-svc
     subscribers:
@@ -992,6 +1092,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - reconciliation-svc
     subscribers:
@@ -1002,6 +1103,7 @@ replay_topics:
       - com.dynokore.gst.reconciliation.GstReturnRecorded.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - reconciliation-svc
     subscribers:
@@ -1012,6 +1114,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - rules-svc
     subscribers:
@@ -1023,6 +1126,7 @@ replay_topics:
       - com.dynokore.gst.rules.PackCurrencyChanged.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - rules-svc
     subscribers:
@@ -1033,6 +1137,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - rules-svc
     subscribers:
@@ -1046,6 +1151,7 @@ replay_topics:
       - com.dynokore.gst.rules.RulePackStaged.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: true
     producers:
       - rules-svc
     subscribers:
@@ -1057,6 +1163,7 @@ replay_topics:
       - com.dynokore.gst.rules.RulePackStaged.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: true
     producers:
       - rules-svc
     subscribers:
@@ -1068,6 +1175,7 @@ replay_topics:
       - com.dynokore.gst.rules.RulePackStaged.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: true
     producers:
       - rules-svc
     subscribers:
@@ -1079,6 +1187,7 @@ replay_topics:
       - com.dynokore.gst.rules.RulePackStaged.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: true
     producers:
       - rules-svc
     subscribers:
@@ -1089,6 +1198,7 @@ replay_topics:
       - com.dynokore.gst.submission.SubmissionDespatched.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - submission-svc
     subscribers:
@@ -1099,6 +1209,7 @@ replay_topics:
       - com.dynokore.gst.submission.SubmissionAcknowledged.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - submission-svc
     subscribers:
@@ -1112,6 +1223,7 @@ replay_topics:
       - com.dynokore.gst.submission.SubmissionFailed.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - submission-svc
     subscribers:
@@ -1123,6 +1235,7 @@ replay_topics:
       - com.dynokore.gst.submission.SubmissionDespatched.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - submission-svc
     subscribers:
@@ -1135,6 +1248,7 @@ replay_topics:
       - com.dynokore.gst.submission.SubmissionFailed.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - submission-svc
     subscribers:
@@ -1145,6 +1259,7 @@ replay_topics:
       - com.dynokore.gst.submission.SubmissionAcknowledged.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - submission-svc
     subscribers:
@@ -1155,6 +1270,7 @@ replay_topics:
       - com.dynokore.gst.submission.SubmissionAcknowledged.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - submission-svc
     subscribers:
@@ -1166,6 +1282,7 @@ replay_topics:
       - com.dynokore.gst.tenancy.OrganisationStructureChanged.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - tenancy-svc
     subscribers:
@@ -1177,6 +1294,7 @@ replay_topics:
       - com.dynokore.gst.tenancy.FilingFrequencyChanged.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - tenancy-svc
     subscribers:
@@ -1192,6 +1310,7 @@ replay_topics:
       - com.dynokore.gst.tenancy.PeriodExtended.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - tenancy-svc
     subscribers:
@@ -1202,6 +1321,7 @@ replay_topics:
       - com.dynokore.gst.tenancy.EntityProfileChanged.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - tenancy-svc
     subscribers:
@@ -1214,6 +1334,7 @@ replay_topics:
       - com.dynokore.gst.tenancy.OrganisationStructureChanged.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - tenancy-svc
     subscribers:
@@ -1224,6 +1345,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - tenancy-svc
     subscribers:
@@ -1236,6 +1358,7 @@ replay_topics:
       - com.dynokore.gst.tenancy.PeriodExtended.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - tenancy-svc
     subscribers:
@@ -1246,6 +1369,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - transport-svc
     subscribers:
@@ -1256,6 +1380,7 @@ replay_topics:
       - com.dynokore.gst.transport.NetworkDocumentReceived.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - transport-svc
     subscribers:
@@ -1266,6 +1391,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - transport-svc
     subscribers:
@@ -1276,6 +1402,7 @@ replay_topics:
       - com.dynokore.gst.transport.AcknowledgementReceived.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - transport-svc
     subscribers:
@@ -1286,6 +1413,7 @@ replay_topics:
       - com.dynokore.gst.transport.AccessPointRouteChanged.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - transport-svc
     subscribers:
@@ -1296,6 +1424,7 @@ replay_request_topics:
       - com.dynokore.gst.platform.ReplayRequested.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - access-svc
     subscribers:
@@ -1306,6 +1435,7 @@ replay_request_topics:
       - com.dynokore.gst.platform.ReplayRequested.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - aggregation-svc
     subscribers:
@@ -1316,6 +1446,7 @@ replay_request_topics:
       - com.dynokore.gst.platform.ReplayRequested.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - canonical-svc
     subscribers:
@@ -1330,6 +1461,7 @@ replay_request_topics:
       - com.dynokore.gst.platform.ReplayRequested.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - console-bff
     subscribers:
@@ -1352,6 +1484,7 @@ replay_request_topics:
       - com.dynokore.gst.platform.ReplayRequested.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - control-plane-svc
     subscribers:
@@ -1361,6 +1494,7 @@ replay_request_topics:
       - com.dynokore.gst.platform.ReplayRequested.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - evidence-svc
     subscribers:
@@ -1376,6 +1510,7 @@ replay_request_topics:
       - com.dynokore.gst.platform.ReplayRequested.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - ingestion-svc
     subscribers:
@@ -1387,6 +1522,7 @@ replay_request_topics:
       - com.dynokore.gst.platform.ReplayRequested.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - masterdata-svc
     subscribers:
@@ -1397,6 +1533,7 @@ replay_request_topics:
       - com.dynokore.gst.platform.ReplayRequested.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - notification-svc
     subscribers:
@@ -1418,6 +1555,7 @@ replay_request_topics:
       - com.dynokore.gst.platform.ReplayRequested.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - payload-svc
     subscribers:
@@ -1430,6 +1568,7 @@ replay_request_topics:
       - com.dynokore.gst.platform.ReplayRequested.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - reconciliation-svc
     subscribers:
@@ -1442,6 +1581,7 @@ replay_request_topics:
       - com.dynokore.gst.platform.ReplayRequested.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - rules-svc
     subscribers:
@@ -1456,6 +1596,7 @@ replay_request_topics:
       - com.dynokore.gst.platform.ReplayRequested.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - submission-svc
     subscribers:
@@ -1472,6 +1613,7 @@ replay_request_topics:
       - com.dynokore.gst.platform.ReplayRequested.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - tenancy-svc
     subscribers:
@@ -1484,6 +1626,7 @@ replay_request_topics:
       - com.dynokore.gst.platform.ReplayRequested.v1
     content_topic: false
     record_topic: false
+    retained_while_resolvable: false
     producers:
       - transport-svc
     subscribers:

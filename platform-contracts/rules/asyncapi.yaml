@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: rules events
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     Every event rules produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -81,6 +81,8 @@ components:
   messages:
     RulePackStaged:
       name: com.dynokore.gst.rules.RulePackStaged.v1
+      # INV-REQ-1210, INV-Q-6281: the topic is kept while any pack version it carries is resolvable.
+      x-retained-while-resolvable: true
       title: RulePackStaged
       summary: RulePackStaged — catalogued in model/architecture/events.yaml (§19.8).
       description: >-

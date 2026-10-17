@@ -362,6 +362,134 @@ class RecordTopicTest(unittest.TestCase):
                          ["AuditEntryRecorded", "DecisionTraceRecorded"])
 
 
+class RetainedWhileResolvableTest(unittest.TestCase):
+    """INV-REQ-1210 (INV-Q-6281): the third retention class."""
+
+    def _repo(self, extra: str | None, content: str | None = None) -> Path:
+        tmp = Path(tempfile.mkdtemp())
+        (tmp / "svc").mkdir()
+        text = _asyncapi({"Ret": content, "Plain": None})
+        if extra is not None:
+            text = text.replace("      name: com.example.Ret.v1\n",
+                                f"      name: com.example.Ret.v1\n{extra}\n")
+        (tmp / "svc" / "asyncapi.yaml").write_text(text)
+        return tmp
+
+    def _run(self, *argv: str) -> int:
+        with redirect_stdout(io.StringIO()):
+            return gen.main(["generate-topics.py", *argv])
+
+    def _written(self, repo: Path) -> Path:
+        out = repo / "topics.yaml"
+        self.assertEqual(self._run(str(repo), "--write", str(out)), 0)
+        return out
+
+    def test_marker_is_copied_to_an_event_topic(self):
+        repo = self._repo("      x-retained-while-resolvable: true")
+        by = {t["topic"]: t["retained_while_resolvable"] for t in gen.collect_topics(repo)}
+        self.assertEqual(by, {"gst.t.ret.v1": True, "gst.t.plain.v1": False})
+
+    def test_absent_marker_gives_false(self):
+        by = [t["retained_while_resolvable"] for t in gen.collect_topics(self._repo(None))]
+        self.assertEqual(by, [False, False])
+
+    def test_look_alike_key_is_not_the_marker(self):
+        repo = self._repo("      x-retained-while-resolveable: true")
+        self.assertEqual([t["retained_while_resolvable"] for t in gen.collect_topics(repo)], [False, False])
+
+    def test_invalid_value_is_refused_naming_the_message(self):
+        with self.assertRaises(SystemExit) as cm:
+            gen.collect_topics(self._repo("      x-retained-while-resolvable: yes"))
+        self.assertIn("message 'Ret'", str(cm.exception))
+
+    def test_both_markers_on_one_message_are_refused(self):
+        with self.assertRaises(SystemExit) as cm:
+            gen.collect_topics(self._repo("      x-retained-while-resolvable: true", content="true"))
+        self.assertIn("message 'Ret'", str(cm.exception))
+        self.assertIn("x-retained-while-resolvable", str(cm.exception))
+
+    TOPICS = [
+        _topic("gst.a.r.v1", "R", ["a-svc"], ["b-svc"]),
+        _topic("gst.a.p.v1", "P", ["a-svc"], ["c-svc"]),
+        _topic("gst.a.c.v1", "C", ["a-svc"], ["b-svc"], content=True),
+    ]
+    TOPICS[0]["retained_while_resolvable"] = True
+
+    def test_replay_topic_is_true_exactly_when_a_carried_type_is(self):
+        by = {r["topic"]: r["retained_while_resolvable"] for r in gen.derive_replay_topics(self.TOPICS)}
+        self.assertEqual(by, {"gst.a.replay-b.v1": True, "gst.a.replay-c.v1": False})
+
+    def test_replay_topic_with_both_classes_is_an_error_naming_it(self):
+        errors = gen.validate_replay_topics(self.TOPICS, gen.derive_replay_topics(self.TOPICS))
+        self.assertEqual([e for e in errors if "gst.a.replay-b.v1" in e and "one retention class" in e].__len__(), 1)
+        self.assertFalse(any("gst.a.replay-c.v1" in e for e in errors))
+
+    def test_request_topic_is_false(self):
+        self.assertEqual({r["retained_while_resolvable"] for r in gen.derive_request_topics(self.TOPICS)}, {False})
+
+    def test_check_passes_and_counts_match(self):
+        repo = self._repo("      x-retained-while-resolvable: true")
+        out = self._written(repo)
+        text = out.read_text()
+        self.assertEqual(text.count("  - topic: "), text.count("    retained_while_resolvable: "))
+        self.assertEqual(self._run(str(repo), "--check", str(out)), 0)
+
+    def test_check_fails_for_a_missing_line(self):
+        repo = self._repo(None)
+        out = self._written(repo)
+        out.write_text(out.read_text().replace("    retained_while_resolvable: false\n", "", 1))
+        text = out.read_text()
+        self.assertEqual(gen.validate_retained_lines(text),
+                         ["topic 'gst.t.plain.v1' lacks retained_while_resolvable"])
+        self.assertEqual(self._run(str(repo), "--check", str(out)), 1)
+
+    def test_check_fails_for_a_line_carried_twice(self):
+        repo = self._repo(None)
+        out = self._written(repo)
+        line = "    retained_while_resolvable: false\n"
+        out.write_text(out.read_text().replace(line, line + line, 1))
+        self.assertEqual(gen.validate_retained_lines(out.read_text()),
+                         ["topic 'gst.t.plain.v1' has retained_while_resolvable 2 times"])
+        self.assertEqual(self._run(str(repo), "--check", str(out)), 1)
+
+    def test_check_fails_for_a_derived_topic_with_the_wrong_value(self):
+        repo = self._repo("      x-retained-while-resolvable: true")
+        out = self._written(repo)
+        topics = gen.collect_topics(repo)
+        derived = gen.derive_all(topics)
+        # an event topic flipped
+        flipped = out.read_text().replace("    retained_while_resolvable: true\n",
+                                          "    retained_while_resolvable: false\n", 1)
+        self.assertEqual(gen.validate_retained_topics(flipped, topics, derived),
+                         ["topic 'gst.t.ret.v1' has retained_while_resolvable false"
+                          " — its message markers make it true"])
+        out.write_text(flipped)
+        self.assertEqual(self._run(str(repo), "--check", str(out)), 1)
+        # a derived replay topic flipped to true while its types make it false
+        out = self._written(repo)
+        text = out.read_text()
+        head, tail = text.split("replay_topics:\n", 1)
+        out.write_text(head + "replay_topics:\n" +
+                       tail.replace("    retained_while_resolvable: false\n",
+                                    "    retained_while_resolvable: true\n", 1))
+        errors = gen.validate_retained_topics(out.read_text(), topics, derived)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("replay-", errors[0])
+        self.assertEqual(self._run(str(repo), "--check", str(out)), 1)
+
+    def test_committed_retained_set(self):
+        topics = gen.collect_topics(_HERE.parent)
+        derived = gen.derive_all(topics)
+        text = (_HERE / "topics.yaml").read_text()
+        self.assertEqual(gen.validate_retained_topics(text, topics, derived), [])
+        expected = {"gst.rules.rule-pack-staged.v1", "gst.rules.replay-notification.v1",
+                    "gst.rules.replay-payload.v1", "gst.rules.replay-reconciliation.v1",
+                    "gst.rules.replay-tenancy.v1"}
+        got = {t["topic"] for t in topics if t["retained_while_resolvable"]} | \
+              {d["topic"] for ds in derived.values() for d in ds if d["retained_while_resolvable"]}
+        self.assertEqual(got, expected)
+
+
 class CommittedCatalogueTest(unittest.TestCase):
     def test_committed_catalogue_has_every_derived_topic(self):
         topics = gen.collect_topics(_HERE.parent)

@@ -35,3 +35,12 @@ diffs it.
   false on every other topic, including replay and request topics. The purge
   never removes a record topic's rows above evidence-svc's recorded position
   (owner ruling INV-Q-3627).
+- `retained_while_resolvable` on every topic (written after `record_topic`):
+  true when the topic's message declares `x-retained-while-resolvable: true`
+  (today RulePackStaged), absent meaning false. A replay topic is true exactly
+  when any type it carries is (so the four replay topics that carry
+  RulePackStaged); a request topic is false. The event log keeps such a topic
+  for the pack artefact retention so a pack holder can refill its cache from
+  it (INV-REQ-1210, INV-Q-6281). A message declaring both this marker and
+  `x-invoice-content: true`, and a replay topic whose types make both true,
+  fail the generator. The purge itself is outside this contract.

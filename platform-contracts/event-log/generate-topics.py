@@ -55,6 +55,12 @@ Record topics (owner ruling INV-Q-3627): a message declaring
 `x-record-topic: true` gives its topic `record_topic: true`; every other
 topic (event, replay, request) gets `record_topic: false`.
 
+Retained-while-resolvable topics (INV-REQ-1210, owner delegation INV-Q-6281):
+a message declaring `x-retained-while-resolvable: true` gives its topic
+`retained_while_resolvable: true`; a replay topic is true exactly when any type
+it carries is; a request topic is false. A message (or a replay topic) that is
+both a content topic and retained is an error.
+
 Derived families render under their own keys (`replay_topics:`,
 `replay_request_topics:`) so the event topics keep their shape; they are
 listed in DERIVED_FAMILIES as (key, derive function, validate function).
@@ -103,6 +109,9 @@ _NAME_RE = re.compile(r"^      name: (?P<name>\S+)$", re.MULTILINE)
 _CONTENT_RE = re.compile(r"^      x-invoice-content:[ \t]*(?P<value>.*?)[ \t]*$", re.MULTILINE)
 # Message-level record-topic marker (INV-T-3606, owner ruling INV-Q-3627), same indent rule.
 _RECORD_RE = re.compile(r"^      x-record-topic:[ \t]*(?P<value>.*?)[ \t]*$", re.MULTILINE)
+# Message-level retained-while-resolvable marker (INV-Q-6281), same indent rule;
+# the key is matched whole (the `:` follows it directly), never by prefix.
+_RETAINED_RE = re.compile(r"^      x-retained-while-resolvable:[ \t]*(?P<value>.*?)[ \t]*$", re.MULTILINE)
 _EMITTED_CONSUMED_RE = re.compile(
     r"Emitted by: (?P<producers>.+?)\. Consumed by: (?P<consumers>.+?)\.",
     re.DOTALL,
@@ -159,6 +168,18 @@ def parse_asyncapi_file(path: Path) -> list[dict]:
                 f"gst-ci: {path}: message '{key}' has x-record-topic: '{record_value}'"
                 " — must be true or false"
             )
+        retained_m = _RETAINED_RE.search(body)
+        retained_value = retained_m.group("value") if retained_m else "false"
+        if retained_value not in ("true", "false"):
+            raise SystemExit(
+                f"gst-ci: {path}: message '{key}' has x-retained-while-resolvable: '{retained_value}'"
+                " — must be true or false"
+            )
+        if content_value == "true" and retained_value == "true":
+            raise SystemExit(
+                f"gst-ci: {path}: message '{key}' declares both x-invoice-content: true"
+                " and x-retained-while-resolvable: true — a topic has one retention class"
+            )
         topics.append(
             {
                 "topic": address,
@@ -167,6 +188,7 @@ def parse_asyncapi_file(path: Path) -> list[dict]:
                 "subscribers": _split_list(ec_m.group("consumers")),
                 "content_topic": content_value == "true",
                 "record_topic": record_value == "true",
+                "retained_while_resolvable": retained_value == "true",
             }
         )
     return topics
@@ -285,9 +307,10 @@ def producers_by_consumer(topics: list[dict]) -> dict[str, list[str]]:
     return {c: sorted(p) for c, p in out.items()}
 
 
-def _entry(topic, event_types, producers, subscribers, content=False):
+def _entry(topic, event_types, producers, subscribers, content=False, retained=False):
     return {"topic": topic, "event_types": event_types, "producers": producers,
-            "subscribers": subscribers, "content_topic": content, "record_topic": False}
+            "subscribers": subscribers, "content_topic": content, "record_topic": False,
+            "retained_while_resolvable": retained}
 
 
 def derive_replay_topics(topics: list[dict]) -> list[dict]:
@@ -301,6 +324,7 @@ def derive_replay_topics(topics: list[dict]) -> list[dict]:
             [producer],
             [subscriber],
             any(t["content_topic"] for t in carried),
+            any(t.get("retained_while_resolvable", False) for t in carried),
         )
         for (producer, subscriber), carried in replay_pairs(topics).items()
     ]
@@ -333,6 +357,7 @@ def validate_replay_topics(topics: list[dict], replay: list[dict]) -> list[str]:
     pairs = replay_pairs(topics)
     by_address = {replay_topic_address(producer_namespace(p, topics), s): (p, s) for p, s in pairs}
     content_by_type = {t["event_type"]: t["content_topic"] for t in topics}
+    retained_by_type = {t["event_type"]: t.get("retained_while_resolvable", False) for t in topics}
     seen = set()
     for r in replay:
         name = r["topic"]
@@ -353,6 +378,11 @@ def validate_replay_topics(topics: list[dict], replay: list[dict]) -> list[str]:
         expected = any(content_by_type.get(et, False) for et in r["event_types"])
         if r["content_topic"] != expected:
             errors.append(f"replay topic '{name}' has content_topic {str(r['content_topic']).lower()} — its types make it {str(expected).lower()}")
+        retained_expected = any(retained_by_type.get(et, False) for et in r["event_types"])
+        if r.get("retained_while_resolvable", False) != retained_expected:
+            errors.append(f"replay topic '{name}' has retained_while_resolvable {str(r.get('retained_while_resolvable', False)).lower()} — its types make it {str(retained_expected).lower()}")
+        if expected and retained_expected:
+            errors.append(f"replay topic '{name}' carries both a content type and a retained-while-resolvable type — a topic has one retention class")
     for p, s in sorted(set(pairs) - seen):
         errors.append(f"pair ({p}, {s}) lacks its replay topic {replay_topic_address(producer_namespace(p, topics), s)}")
     return errors
@@ -382,6 +412,8 @@ def validate_request_topics(topics: list[dict], request: list[dict]) -> list[str
             errors.append(f"request topic '{name}' carries {r['event_types']} — must carry only {REPLAY_REQUESTED_TYPE}")
         if r["content_topic"]:
             errors.append(f"request topic '{name}' has content_topic true — must be false")
+        if r.get("retained_while_resolvable", False):
+            errors.append(f"request topic '{name}' has retained_while_resolvable true — must be false")
     for c in sorted(set(expected) - seen):
         errors.append(f"consumer {c} lacks its request topic {request_topic_address(c)}")
     return errors
@@ -436,6 +468,11 @@ def render_yaml(topics: list[dict], derived: dict[str, list[dict]] | None = None
         "# message declares x-record-topic: true — the purge never removes such",
         "# a topic above evidence-svc's recorded position; false elsewhere.",
         "#",
+        "# retained_while_resolvable (INV-REQ-1210, owner delegation INV-Q-6281): true",
+        "# when the message declares x-retained-while-resolvable: true — the purge",
+        "# keeps such a topic for the pack artefact retention; a replay topic is",
+        "# true when any type it carries is; a request topic is false.",
+        "#",
         "# replay_topics (INV-T-3606, rulings INV-Q-3601, INV-Q-3625, INV-Q-3644):",
         "# one per (producer, subscriber) pair of the topics above, derived — the",
         "# producer's relay INSERTs its replay (INV-REQ-1205 b4) and only that",
@@ -453,6 +490,7 @@ def render_yaml(topics: list[dict], derived: dict[str, list[dict]] | None = None
         lines.append(f"    event_type: {t['event_type']}")
         lines.append(f"    content_topic: {'true' if t['content_topic'] else 'false'}")
         lines.append(f"    record_topic: {'true' if t['record_topic'] else 'false'}")
+        lines.append(f"    retained_while_resolvable: {'true' if t['retained_while_resolvable'] else 'false'}")
         lines.append("    producers:")
         lines.append(_list_block("      ", t["producers"]).rstrip("\n"))
         lines.append("    subscribers:")
@@ -467,6 +505,7 @@ def render_yaml(topics: list[dict], derived: dict[str, list[dict]] | None = None
             lines.append(_list_block("      ", r["event_types"]).rstrip("\n"))
             lines.append(f"    content_topic: {'true' if r['content_topic'] else 'false'}")
             lines.append(f"    record_topic: {'true' if r['record_topic'] else 'false'}")
+            lines.append(f"    retained_while_resolvable: {'true' if r['retained_while_resolvable'] else 'false'}")
             lines.append("    producers:")
             lines.append(_list_block("      ", r["producers"]).rstrip("\n"))
             lines.append("    subscribers:")
@@ -498,6 +537,7 @@ def validate_producers(topics: list[dict]) -> list[str]:
 _TOPIC_ENTRY_RE = re.compile(r"^  - topic: (?P<topic>\S+)$", re.MULTILINE)
 _CONTENT_TOPIC_LINE_RE = re.compile(r"^    content_topic: (?P<value>\S+)$", re.MULTILINE)
 _RECORD_TOPIC_LINE_RE = re.compile(r"^    record_topic: (?P<value>\S+)$", re.MULTILINE)
+_RETAINED_TOPIC_LINE_RE = re.compile(r"^    retained_while_resolvable: (?P<value>\S+)$", re.MULTILINE)
 
 
 def validate_topics_yaml(text: str) -> list[str]:
@@ -540,6 +580,47 @@ def validate_record_topics(text: str, topics: list[dict]) -> list[str]:
     return errors
 
 
+def validate_retained_lines(text: str) -> list[str]:
+    """Returns one error per topic entry that lacks `retained_while_resolvable`,
+    carries it more than once, or carries a value other than true/false
+    (INV-Q-6281); the same shape as validate_topics_yaml."""
+    errors = []
+    entries = list(_TOPIC_ENTRY_RE.finditer(text))
+    for i, m in enumerate(entries):
+        end = entries[i + 1].start() if i + 1 < len(entries) else len(text)
+        values = [c.group("value") for c in _RETAINED_TOPIC_LINE_RE.finditer(text, m.end(), end)]
+        topic = m.group("topic")
+        if not values:
+            errors.append(f"topic '{topic}' lacks retained_while_resolvable")
+        elif len(values) > 1:
+            errors.append(f"topic '{topic}' has retained_while_resolvable {len(values)} times")
+        elif values[0] not in ("true", "false"):
+            errors.append(f"topic '{topic}' has retained_while_resolvable: {values[0]} — must be true or false")
+    return errors
+
+
+def validate_retained_topics(text: str, topics: list[dict], derived: dict[str, list[dict]]) -> list[str]:
+    """Returns one error per topic entry whose retained_while_resolvable
+    disagrees with the value derived from the message markers (INV-Q-6281)."""
+    expected = {t["topic"]: t["retained_while_resolvable"] for t in topics}
+    for entries in derived.values():
+        expected.update({d["topic"]: d["retained_while_resolvable"] for d in entries})
+    errors = []
+    entries = list(_TOPIC_ENTRY_RE.finditer(text))
+    for i, m in enumerate(entries):
+        end = entries[i + 1].start() if i + 1 < len(entries) else len(text)
+        value = _RETAINED_TOPIC_LINE_RE.search(text, m.end(), end)
+        if value is None or value.group("value") not in ("true", "false"):
+            continue  # reported by validate_topics_yaml
+        want = expected.get(m.group("topic"), False)
+        if (value.group("value") == "true") != want:
+            errors.append(
+                f"topic '{m.group('topic')}' has retained_while_resolvable {value.group('value')}"
+                f" — its message markers make it {str(want).lower()}"
+            )
+    return errors
+
+
 def main(argv: list[str]) -> int:
     if len(argv) != 4 or argv[2] not in ("--write", "--check"):
         print(__doc__)
@@ -576,9 +657,11 @@ def main(argv: list[str]) -> int:
         return 0
 
     existing = target.read_text() if target.exists() else ""
-    errors = validate_topics_yaml(existing) or validate_record_topics(existing, topics)
+    errors = validate_topics_yaml(existing) or validate_retained_lines(existing) \
+        or validate_record_topics(existing, topics) \
+        or validate_retained_topics(existing, topics, derived)
     if errors:
-        print(f"gst-ci: {target} fails the content_topic/record_topic check (INV-T-3386, INV-T-3606):")
+        print(f"gst-ci: {target} fails the content_topic/record_topic/retained_while_resolvable check (INV-T-3386, INV-T-3606, INV-Q-6281):")
         for e in errors:
             print(f"  {e}")
         return 1
