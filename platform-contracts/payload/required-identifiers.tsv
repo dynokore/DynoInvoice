@@ -29,3 +29,8 @@ overrideValidation	operation	openapi.yaml	INV-REQ-500
 overriddenBy	property	openapi.yaml	INV-REQ-500
 overriddenAt	property	openapi.yaml	INV-REQ-500
 reason	property	openapi.yaml	INV-REQ-500
+regenerationKey	property	openapi.yaml	INV-REQ-591
+canonicalVersion	property	openapi.yaml	INV-REQ-591
+packVersions	property	openapi.yaml	INV-REQ-591
+builtSha256	property	openapi.yaml	INV-REQ-591
+identicalToBuilt	property	openapi.yaml	INV-REQ-591

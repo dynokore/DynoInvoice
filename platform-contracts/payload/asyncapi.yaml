@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: payload events
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     Every event payload produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -80,7 +80,8 @@ components:
         class: domain). Emitted by: payload-svc. Consumed by: evidence-svc, submission-svc. Delivery:
         At-least-once, idempotent consumption mandatory — the dedupe key is docUuid+version (FR-M.12), not
         the envelope id alone. Payload (catalogue text): docUuid, version, docsequence, submissionType,
-        specificationVersion, the payload bytes and their SHA-256, amendment class. A payload over 10 MB
+        specificationVersion, the payload bytes and their SHA-256, amendment class, and the optional
+        regenerationKey (INV-Q-6228, INV-REQ-591) and exchangeRate (INV-Q-6230, INV-REQ-512; both added by INV-T-6234). A payload over 10 MB
         raises PAY-010 and yields PayloadRejected, never PayloadReady (FR-4.13); inbound documents are at
         most 1 MB (VP-78), so payloads are normally far smaller. Bytes added 25 Sep 2026 (AD-30): submission-svc
         holds them with the queue item (FR-J.4); evidence-svc seals them as transmitted on

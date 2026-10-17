@@ -1,0 +1,23 @@
+{
+  "docUuid": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "version": 2,
+  "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+  "sizeBytes": 4096,
+  "generatedAt": "2026-03-20T03:16:00Z",
+  "regenerationKey": {
+    "canonicalVersion": 2,
+    "specificationVersion": "PINT-SG-1.0",
+    "packVersions": [
+      {
+        "packRef": "gst-rules",
+        "version": "2026.1"
+      },
+      {
+        "packRef": "pint-sg",
+        "version": "1.0.3"
+      }
+    ]
+  },
+  "builtSha256": "9F86D081884C7D659A2FEAA0C55AD015A3BF4F1B2B0B822CD15D6C15B0F00A08",
+  "identicalToBuilt": true
+}

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://platform-contracts.invoice.internal/payload/schemas/payload-ready-payload.schema.json",
   "title": "PayloadReadyPayload",
-  "description": "Payload of the PayloadReady event (catalogued in model/architecture/events.yaml, INV-NOTE-3 \u00a719.8; class: domain). Authored by INV-T-2854 (T10). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required. Dedupe key: docUuid+version (FR-M.12) \u2014 submission-svc's idempotent consumption of this at-least-once, idempotent-consumption-mandatory event keys on this pair, not on the envelope id alone. Bytes added 25 Sep 2026 (AD-30): submission-svc holds them with the queue item (FR-J.4); evidence-svc seals them as transmitted on SubmissionDespatched.",
+  "description": "Payload of the PayloadReady event (catalogued in model/architecture/events.yaml, INV-NOTE-3 \u00a719.8; class: domain). Authored by INV-T-2854 (T10). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required. Dedupe key: docUuid+version (FR-M.12) \u2014 submission-svc's idempotent consumption of this at-least-once, idempotent-consumption-mandatory event keys on this pair, not on the envelope id alone. Bytes added 25 Sep 2026 (AD-30): submission-svc holds them with the queue item (FR-J.4); evidence-svc seals them as transmitted on SubmissionDespatched. Additive (INV-T-6234): optional regenerationKey (INV-Q-6228, INV-REQ-591: canonicalVersion, specificationVersion, packVersions, the key the payload regenerates under) and optional exchangeRate (INV-Q-6230, INV-REQ-512: the rate record used, with its provenance). Producer-enforced rules (not expressible in this schema; enforced by payload-svc): (a) no two packVersions items share a packRef; (b) exchangeRate is present exactly when the document currency is not SGD; (c) provenance.importId is present when provenance.kind is IMPORT and provenance.evidenceRef when it is MANUAL.",
   "type": "object",
   "properties": {
     "docUuid": {
@@ -55,6 +55,14 @@
         "STRUCTURAL"
       ],
       "description": "The amendment class this version represents relative to its predecessor (model/architecture/amendment-taxonomy.yaml); present when this version amends a prior one, absent on a document's first version."
+    },
+    "regenerationKey": {
+      "$ref": "#/$defs/RegenerationKey",
+      "description": "The regeneration key of this payload (INV-REQ-591): canonical version, specification version and pack versions. Optional; absent on a payload built before the key was recorded."
+    },
+    "exchangeRate": {
+      "$ref": "#/$defs/ExchangeRateUsed",
+      "description": "The exchange-rate record used for this document (INV-REQ-512, INV-AC-530), with its source and load provenance. Present exactly when the document currency is not SGD (producer-enforced)."
     }
   },
   "required": [
@@ -66,5 +74,120 @@
     "payloadBytes",
     "payloadSha256"
   ],
-  "additionalProperties": true
+  "additionalProperties": true,
+  "$defs": {
+    "RegenerationKey": {
+      "type": "object",
+      "description": "Key of the regeneration invariant (INV-REQ-591). No two packVersions items share a packRef (producer-enforced).",
+      "properties": {
+        "canonicalVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "The canonical version."
+        },
+        "specificationVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "The specification version recorded on the submission version."
+        },
+        "packVersions": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/$defs/PackVersion"
+          },
+          "description": "The pack versions used; packRef values are unique (producer-enforced)."
+        }
+      },
+      "required": [
+        "canonicalVersion",
+        "specificationVersion",
+        "packVersions"
+      ]
+    },
+    "PackVersion": {
+      "type": "object",
+      "properties": {
+        "packRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "packRef",
+        "version"
+      ]
+    },
+    "ExchangeRateUsed": {
+      "type": "object",
+      "description": "The rate record used (INV-REQ-512).",
+      "properties": {
+        "currency": {
+          "type": "string",
+          "maxLength": 3
+        },
+        "date": {
+          "type": "string",
+          "format": "date"
+        },
+        "source": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "rate": {
+          "type": "string",
+          "pattern": "^-?\\d{1,17}(\\.\\d{1,8})?$",
+          "description": "Decimal string, the masterdata ExchangeRate.rate form."
+        },
+        "provenance": {
+          "$ref": "#/$defs/RateProvenance"
+        }
+      },
+      "required": [
+        "currency",
+        "date",
+        "source",
+        "rate",
+        "provenance"
+      ]
+    },
+    "RateProvenance": {
+      "type": "object",
+      "description": "Load provenance of the rate record. importId is present when kind is IMPORT and evidenceRef when kind is MANUAL (producer-enforced).",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "MANUAL",
+            "IMPORT"
+          ],
+          "x-extensible-enum": true
+        },
+        "loadedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "importId": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "evidenceRef": {
+          "type": "string",
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "kind",
+        "loadedAt"
+      ]
+    }
+  }
 }

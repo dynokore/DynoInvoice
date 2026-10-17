@@ -1,0 +1,34 @@
+{
+  "docUuid": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "version": 2,
+  "docsequence": 3,
+  "submissionType": "1A",
+  "specificationVersion": "PINT-SG-1.0",
+  "payloadBytes": "e30=",
+  "payloadSha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+  "regenerationKey": {
+    "canonicalVersion": 2,
+    "specificationVersion": "PINT-SG-1.0",
+    "packVersions": [
+      {
+        "packRef": "gst-rules",
+        "version": "2026.1"
+      },
+      {
+        "packRef": "pint-sg",
+        "version": "1.0.3"
+      }
+    ]
+  },
+  "exchangeRate": {
+    "currency": "USD",
+    "date": "2026-03-20",
+    "source": "MAS",
+    "rate": "1.34520000",
+    "provenance": {
+      "kind": "FILE",
+      "loadedAt": "2026-03-20T01:00:00Z",
+      "importId": "imp-20260320-01"
+    }
+  }
+}

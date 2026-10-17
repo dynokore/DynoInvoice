@@ -1,3 +1,5 @@
 ../openapi.yaml#/components/schemas/DraftDocument draft-document-*.json
 ../openapi.yaml#/components/schemas/RegisterLookup register-lookup-*.json
 ../openapi.yaml#/components/schemas/ReasonItem reason-item-*.json
+../schemas/payload-ready-payload.schema.json payload-ready-*.json
+../openapi.yaml#/components/schemas/RegeneratedPayload regenerated-payload-*.json
