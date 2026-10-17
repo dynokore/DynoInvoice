@@ -214,7 +214,7 @@ class RelayOutageIT {
                     }.isNotEmpty(),
             )
             assertEquals(
-                "42501",
+                "42703",
                 sqlStateOf { runtime.asPlatform { it.select(DSL.field(DSL.name("data"))).from(view).fetch() } },
             )
             runtime.close()

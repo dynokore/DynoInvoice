@@ -12,6 +12,7 @@ import tools.jackson.databind.ObjectMapper
  */
 class OutboxHarness(
     image: String,
+    payloadDdl: String = "",
 ) : AutoCloseable {
     val fixture = OutboxPostgresFixture(image)
     val catalogue: EventCatalogue = TestCatalogue.load()
@@ -67,7 +68,7 @@ class OutboxHarness(
             SUBMISSION_STATE + QueueSchema.ddl("submission", APP, OutboxPostgresFixture.SYS),
         )
         fixture.createService("reconciliation", RECONCILIATION_STATE)
-        fixture.createService("payload")
+        fixture.createService("payload", payloadDdl)
         fixture.createService("canonical")
         fixture.createService("evidence")
         fixture.createTopics(catalogue)

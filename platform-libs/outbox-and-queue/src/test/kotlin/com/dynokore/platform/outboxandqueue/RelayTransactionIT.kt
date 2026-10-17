@@ -47,7 +47,7 @@ class RelayTransactionIT {
             val failing =
                 JdbcOutboxRelay(kit.scope, ghost, "ghost", harness.binding(), ServiceKit.CLOCK, "background", 2)
             val refused = runCatching { failing.runOnce() }.exceptionOrNull()
-            assertEquals("42883", JooqKit.sqlState(refused), refused?.toString())
+            assertEquals("3F000", JooqKit.sqlState(refused), refused?.toString())
             assertEquals(0L, claim.advisoryHolders(observer), "the lock ended with the rolled back outer transaction")
             assertEquals(0L, harness.count("select count(*) from payload.outbox where published_at is not null"))
         }

@@ -1,5 +1,6 @@
 package com.dynokore.platform.outboxandqueue
 
+import com.dynokore.platform.tenancyjooq.TableClass
 import org.jooq.DSLContext
 import org.jooq.JSONB
 import org.jooq.Query
@@ -32,7 +33,7 @@ class OutboxUpdateHardeningIT {
             val admin =
                 JooqKit.Access.admin(harness.fixture, TABLES).use { access ->
                     runCatching {
-                        access.asPlatform {
+                        access.asTenant(ServiceKit.TENANT) {
                             it
                                 .update(
                                     OUTBOX,
@@ -101,7 +102,6 @@ class OutboxUpdateHardeningIT {
             },
             "type" to { it.update(OUTBOX).set(TYPE, "com.dynokore.gst.payload.Other.v1").where(SEQ.eq(seq)) },
             "topic" to { it.update(OUTBOX).set(TOPIC, "gst.payload.other.v1").where(SEQ.eq(seq)) },
-            "tenant" to { it.update(OUTBOX).set(TENANT_ID, UUID.randomUUID()).where(SEQ.eq(seq)) },
             "id" to { it.update(OUTBOX).set(ID, "forged").where(SEQ.eq(seq)) },
             "publish and data" to {
                 it
@@ -156,7 +156,7 @@ class OutboxUpdateHardeningIT {
         const val PAYLOAD_READY_TOPIC = "gst.payload.payload-ready.v1"
         const val RECENT = "published_at > now() - interval '1 minute'"
         const val BACKDATE_DAYS = 400L
-        val TABLES = JooqKit.platformScoped("payload.outbox")
+        val TABLES = mapOf(DSL.name("payload", "outbox") to TableClass.TENANT)
         val OUTBOX = DSL.table(DSL.name("payload", "outbox"))
         val SEQ = DSL.field(DSL.name("seq"), SQLDataType.BIGINT)
         val DATA = DSL.field(DSL.name("data"), SQLDataType.JSONB)
