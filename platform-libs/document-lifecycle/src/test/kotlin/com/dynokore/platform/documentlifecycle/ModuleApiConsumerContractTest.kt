@@ -56,4 +56,18 @@ class ModuleApiConsumerContractTest {
         assert(svc.waiting(doc, 2))
         assertThrows(IllegalTransitionException::class.java) { svc.move(doc, 1, "READY") }
     }
+
+    @Test
+    fun `a stub embedding service classifies a change against its own taxonomy`() {
+        val d =
+            classify(
+                mapOf("invoiceNote" to "a", "lineAmount" to "1"),
+                mapOf("invoiceNote" to "b", "lineAmount" to "2"),
+                true,
+                AmendmentFixtures.taxonomy,
+            )
+        assertEquals("MONETARY", d.decidingClass)
+        assertEquals(listOf("SUB-015"), d.outcome!!.raised)
+        assertEquals(3, d.trace.size)
+    }
 }

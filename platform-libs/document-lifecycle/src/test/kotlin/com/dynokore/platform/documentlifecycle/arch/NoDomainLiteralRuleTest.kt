@@ -12,7 +12,28 @@ import java.io.File
  */
 class NoDomainLiteralRuleTest {
     private val forbidden =
-        listOf("ACKNOWLEDGED", "QUEUED", "SENT", "RETRY", "READY", "CANCELLED", "SUPERSEDED", "GST", "IRAS")
+        listOf(
+            "ACKNOWLEDGED",
+            "QUEUED",
+            "SENT",
+            "RETRY",
+            "READY",
+            "CANCELLED",
+            "SUPERSEDED",
+            "GST",
+            "IRAS",
+            "NON_MONETARY",
+            "MONETARY",
+            "IDENTITY",
+            "PERIOD_SHIFTING",
+            "STRUCTURAL",
+            "SUB-015",
+            "SUB-016",
+            "PER-006",
+            "ING-012",
+            "categoryCode",
+            "glAccount",
+        )
 
     private fun findings(root: File): List<String> =
         root
@@ -20,6 +41,9 @@ class NoDomainLiteralRuleTest {
             .filter { it.isFile }
             .flatMap { f -> forbidden.filter { f.readText().contains(it) }.map { "${f.name}: $it" } }
             .toList()
+
+    // A literal that contains another (NON_MONETARY holds MONETARY) is reported for both.
+    private fun expected(literal: String) = forbidden.filter { literal.contains(it) }.map { "A.kt: $it" }
 
     private fun module(): File {
         var dir: File? = File("").absoluteFile
@@ -38,9 +62,9 @@ class NoDomainLiteralRuleTest {
     ) {
         forbidden.forEach { literal ->
             File(dir, "A.kt").writeText("// $literal\n")
-            assertEquals(listOf("A.kt: $literal"), findings(dir), literal)
+            assertEquals(expected(literal), findings(dir), literal)
             File(dir, "A.kt").writeText("val x = \"a${literal}b\"\n")
-            assertEquals(listOf("A.kt: $literal"), findings(dir), literal)
+            assertEquals(expected(literal), findings(dir), literal)
         }
     }
 }
