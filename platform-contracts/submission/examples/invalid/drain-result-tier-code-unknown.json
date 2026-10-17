@@ -1,0 +1,39 @@
+{
+  "entityRef": "E-001",
+  "periodRef": "2026-Q1",
+  "drainedCount": 5,
+  "remaining": [
+    {
+      "tier": 1,
+      "description": "Held documents",
+      "blockedCount": 2
+    }
+  ],
+  "completedAt": "2026-03-20T03:16:00Z",
+  "drainedByTier": [
+    {
+      "tier": 1,
+      "tierCode": "URGENT",
+      "drainedCount": 1
+    },
+    {
+      "tier": 2,
+      "tierCode": "PERIOD_BACKLOG",
+      "drainedCount": 3
+    },
+    {
+      "tier": 3,
+      "tierCode": "ROUTINE",
+      "drainedCount": 1
+    }
+  ],
+  "residualItems": [
+    {
+      "docUuid": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "version": 1,
+      "tier": 2,
+      "blockingReasonCode": "MDM-001"
+    }
+  ],
+  "checkId": "chk-2026Q1-0002"
+}

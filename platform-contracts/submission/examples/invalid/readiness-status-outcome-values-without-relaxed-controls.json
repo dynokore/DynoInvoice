@@ -1,0 +1,37 @@
+{
+  "entityRef": "E-001",
+  "periodRef": "2026-Q1",
+  "ready": false,
+  "tiers": [
+    {
+      "tier": 1,
+      "description": "Held documents",
+      "blockedCount": 2
+    }
+  ],
+  "dueDate": "2026-04-30",
+  "computedAt": "2026-03-20T03:15:22Z",
+  "checkId": "chk-2026Q1-0001",
+  "outcomeValues": {
+    "filerOfRecord": {
+      "partyRef": "P-001",
+      "optionKey": "DERIVED"
+    },
+    "filingGate": {
+      "variationPoint": "VP-14",
+      "optionKey": "BLOCKING"
+    },
+    "readinessStrictness": {
+      "variationPoint": "VP-15",
+      "optionKey": "BLOCK_ONLY"
+    },
+    "overrideApproval": {
+      "variationPoint": "VP-32",
+      "optionKey": "ONE_TAX_APPROVER"
+    },
+    "amendmentRoute": {
+      "variationPoint": "VP-31",
+      "optionKey": "ASK_APPROVER"
+    }
+  }
+}

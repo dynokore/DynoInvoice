@@ -1,0 +1,13 @@
+{
+  "entityRef": "E-001",
+  "periodRef": "2026-Q1",
+  "drainedCount": 5,
+  "remaining": [
+    {
+      "tier": 1,
+      "description": "Held documents",
+      "blockedCount": 2
+    }
+  ],
+  "completedAt": "2026-03-20T03:16:00Z"
+}

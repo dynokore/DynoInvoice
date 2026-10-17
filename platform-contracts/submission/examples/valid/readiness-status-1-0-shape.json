@@ -1,0 +1,14 @@
+{
+  "entityRef": "E-001",
+  "periodRef": "2026-Q1",
+  "ready": false,
+  "tiers": [
+    {
+      "tier": 1,
+      "description": "Held documents",
+      "blockedCount": 2
+    }
+  ],
+  "dueDate": "2026-04-30",
+  "computedAt": "2026-03-20T03:15:22Z"
+}

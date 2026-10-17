@@ -2,3 +2,7 @@
 ../openapi.yaml#/components/schemas/SubmissionSummaryTotals totals-*.json
 ../openapi.yaml#/components/schemas/SentVersusAcknowledgedView sent-versus-acknowledged-view*.json
 ../openapi.yaml#/components/schemas/SubmissionExportHeader submission-export-header*.json
+../openapi.yaml#/components/schemas/DrainResult drain-result-*.json
+../openapi.yaml#/components/schemas/ReadinessStatus readiness-status-*.json
+../openapi.yaml#/components/schemas/ReadinessCheckPage readiness-check-page-*.json
+../openapi.yaml#/components/schemas/FilingConfirmation filing-confirmation-*.json

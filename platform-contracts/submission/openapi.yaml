@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: submission API
-  version: 1.1.0
+  version: 1.2.0
   description: >-
     Contract-first source of truth for submission (API-01, STK-44). The
     `submission-contract` module generates its server interfaces and DTOs
@@ -17,7 +17,11 @@ info:
     getSubmissionReconciliation, exportSubmissions) complete the submission
     list in 1.1.0 (INV-REQ-629, INV-REQ-975 to INV-REQ-979); the list itself
     has no total count (API-18), so the filtered row count and totals live in
-    getSubmissionSummary. Two additional operations (withdrawSubmission, replaySubmissions)
+    getSubmissionSummary. 1.2.0 completes readiness, drain and filing
+    (INV-REQ-554, INV-REQ-814, INV-REQ-914, INV-REQ-917, INV-REQ-951,
+    INV-REQ-961, INV-REQ-1250) and adds the `filing-workflow` operation
+    listReadinessChecks; every property it adds is optional, and the service
+    always sends it. Two additional operations (withdrawSubmission, replaySubmissions)
     are `/internal/v1/…`, reachable only by console-bff on a person's behalf
     (API-25 — the callee re-checks writes), rather than through the public
     `/v1/…` surface (INV-REQ-568, INV-REQ-575, INV-REQ-581, INV-T-2858, T14).
@@ -43,6 +47,22 @@ paths:
         InstallationStatusChanged (services.yaml submission-svc capabilities).
 
 
+        The call of both a person and the `filing-workflow` principal
+        (INV-REQ-555, INV-REQ-814). A `filing-workflow` principal is refused
+        for an entity it is not named for (INV-AC-2037): the response is
+        `403` (SRT-004); an `ingest` principal is refused the same way
+        (INV-AC-1868).
+
+
+        The service always sends `outcomeValues` (INV-REQ-1250): the filer of
+        record, the filing gate, the readiness strictness, the override
+        approval, the amendment route and every relaxed control, by default
+        and not on request. Each `optionKey` is a `key` of the named variation
+        point in the variation-point catalogue; this contract copies no value
+        set. The service always sends `checkId` too: each invocation appends
+        one record (INV-REQ-951), read through listReadinessChecks.
+
+
         Timeout class (INV-REQ-1204 b7, INV-Q-3476): `API gateway -> any
         other service's public /v1 operation`, 3 s (x-timeout 3000).
         When the gateway's circuit breaker for this service is open, or
@@ -52,8 +72,8 @@ paths:
       tags: [readiness]
       x-principal: filing-workflow
       x-timeout: 3000
-      x-error-codes: []
-      x-requirements: [INV-REQ-555, INV-REQ-1168]
+      x-error-codes: [SRT-004]
+      x-requirements: [INV-REQ-555, INV-REQ-1168, INV-REQ-814, INV-REQ-951, INV-REQ-1250]
       parameters:
         - $ref: '#/components/parameters/EntityRef'
         - $ref: '#/components/parameters/PeriodRef'
@@ -82,6 +102,30 @@ paths:
                         blockedCount: 0
                     dueDate: "2026-04-30"
                     computedAt: "2026-03-20T03:15:22Z"
+                    checkId: "chk-2026Q1-0001"
+                    outcomeValues:
+                      filerOfRecord:
+                        partyRef: "P-001"
+                        optionKey: "DERIVED"
+                      filingGate:
+                        variationPoint: "VP-14"
+                        optionKey: "BLOCKING"
+                      readinessStrictness:
+                        variationPoint: "VP-15"
+                        optionKey: "BLOCK_ONLY"
+                      overrideApproval:
+                        variationPoint: "VP-32"
+                        optionKey: "ONE_TAX_APPROVER"
+                      amendmentRoute:
+                        variationPoint: "VP-31"
+                        optionKey: "ASK_APPROVER"
+                      relaxedControls:
+                        - variationPoint: "VP-15"
+                          optionKey: "ADD_WARN_CODES"
+                          acknowledgedBy: "P-002"
+                          acknowledgedAt: "2026-03-01T09:00:00Z"
+        '403':
+          $ref: '#/components/responses/Error'
         '503':
           $ref: '#/components/responses/Error'
         default:
@@ -95,6 +139,23 @@ paths:
         tiers, then reports what cannot be drained (INV-REQ-554, FR-C.8).
         Never reports readiness without draining first (submission-svc
         `must_not`).
+
+
+        Despatch order has three tiers (INV-REQ-554): any document already
+        inside its own safety-margin window goes first, whatever its period;
+        then the backlog of the period being drained; then routine traffic, by
+        days to due date. A drain never delays a tier 1 document. `remaining`
+        and `drainedCount` keep their meaning; the service always sends
+        `drainedByTier` (the count despatched per tier), `residualItems` (each
+        document that could not be drained, with its blocking reason code, a
+        code of the error catalogue, INV-AC-1773) and `checkId` (the record
+        this invocation appends, INV-REQ-951).
+
+
+        The call of both a person and the `filing-workflow` principal
+        (INV-REQ-555, INV-REQ-814). A `filing-workflow` principal is refused
+        for an entity it is not named for (INV-AC-2037): the response is
+        `403` (SRT-004).
 
 
         Timeout class (INV-REQ-1204 b7, INV-Q-3476): `API gateway -> any
@@ -111,8 +172,8 @@ paths:
       tags: [readiness]
       x-principal: filing-workflow
       x-timeout: 3000
-      x-error-codes: []
-      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-554]
+      x-error-codes: [SRT-004]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-554, INV-REQ-555, INV-REQ-814, INV-REQ-951]
       x-operation:
         role: filing-workflow
         scope: filing-workflow
@@ -142,6 +203,89 @@ paths:
                         description: "Held documents awaiting masterdata or rules resolution"
                         blockedCount: 2
                     completedAt: "2026-03-20T03:16:00Z"
+                    drainedByTier:
+                      - tier: 1
+                        tierCode: "SAFETY_MARGIN"
+                        drainedCount: 1
+                      - tier: 2
+                        tierCode: "PERIOD_BACKLOG"
+                        drainedCount: 3
+                      - tier: 3
+                        tierCode: "ROUTINE"
+                        drainedCount: 1
+                    residualItems:
+                      - docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                        version: 1
+                        tier: 2
+                        blockingReasonCode: "MDM-001"
+                    checkId: "chk-2026Q1-0002"
+        '403':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/entities/{entityRef}/periods/{periodRef}/readiness/checks:
+    get:
+      operationId: listReadinessChecks
+      summary: List the recorded readiness checks of a period, newest first
+      description: >-
+        Every readiness check records its verdict, its timestamp and the
+        approver (INV-REQ-951, INV-AC-1043). Each `getReadiness` and
+        `drainPeriod` invocation appends one record. A record is never
+        changed or deleted: two runs of one period return two records,
+        unchanged (INV-AC-2055). The `approver` is the verified caller
+        identity, a person reference or the `filing-workflow` principal
+        reference, and never a request field. Cursor pagination (API-18),
+        newest first; no offset and no total count.
+
+
+        Timeout class (INV-REQ-1204 b7, INV-Q-3476): `API gateway -> any
+        other service's public /v1 operation`, 3 s (x-timeout 3000).
+        When the gateway's circuit breaker for this service is open, or
+        the call times out, the gateway answers `503` with the API-20
+        envelope; the `503` is retryable, and the client retries by a
+        re-read (a safe GET; INV-REQ-1204 b7, INV-Q-3571).
+      tags: [readiness]
+      x-principal: filing-workflow
+      x-timeout: 3000
+      x-error-codes: []
+      x-requirements: [INV-REQ-951]
+      parameters:
+        - $ref: '#/components/parameters/EntityRef'
+        - $ref: '#/components/parameters/PeriodRef'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            maximum: 500
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: One page of readiness check records.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessCheckPage'
+              examples:
+                default:
+                  value:
+                    items:
+                      - checkId: "chk-2026Q1-0002"
+                        verdict: "NOT_READY"
+                        checkedAt: "2026-03-20T03:16:00Z"
+                        approver: "filing-workflow"
+                      - checkId: "chk-2026Q1-0001"
+                        verdict: "READY"
+                        checkedAt: "2026-03-20T03:15:22Z"
+                        approver: "P-002"
+                    nextCursor: "eyJvIjoxMDB9"
         '503':
           $ref: '#/components/responses/Error'
         default:
@@ -159,6 +303,26 @@ paths:
         only on its own triggers (submission-svc `must_not`, §7.7).
 
 
+        `irasAcknowledgementReference` is required and is the acknowledgement;
+        `portalReference` is optional and is the reference number where the
+        acknowledgement shows one (INV-Q-5948). A call without the
+        acknowledgement is refused with `400` and nothing is recorded, from a
+        user and from the `filing-workflow` principal alike (INV-AC-930); a
+        call with the acknowledgement and `filedAt` and no `portalReference`
+        is recorded (INV-AC-2784).
+
+
+        A call with a `filedAt` that differs from the recorded filing fact of
+        the original return is recorded as a second fact, raises PER-010 and
+        does not replace the first; only a call with `correction` true
+        resolves it (INV-REQ-917, INV-AC-931). `governingFiledAt` is the
+        earlier date until a correction, the default of VP-13. The documents
+        of the period still unsubmitted when the call is made are already
+        late and raise SUB-010 immediately (INV-REQ-961, INV-AC-1054). The
+        service always sends `governingFiledAt` and `lateDocuments`, and
+        sends `conflict` while two facts disagree.
+
+
         Timeout class (INV-REQ-1204 b7, INV-Q-3476): `API gateway -> any
         other service's public /v1 operation`, 3 s (x-timeout 3000).
         When the gateway's circuit breaker for this service is open, or
@@ -174,13 +338,16 @@ paths:
       x-principal: filing-workflow
       x-timeout: 3000
       x-error-codes: []
-      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-655, INV-REQ-914]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-655, INV-REQ-914, INV-REQ-917, INV-REQ-961]
       x-operation:
         role: filing-workflow
         scope: filing-workflow
         precondition: >-
-          Readiness has been checked for the period (INV-REQ-555); no later
-          filedAt is already confirmed for it.
+          Readiness has been checked for the period (INV-REQ-555); a filedAt
+          that differs from the recorded filing fact of the original return
+          is recorded as a second fact, raises PER-010 and does not replace
+          the first; only a call with correction true resolves it
+          (INV-REQ-917).
         reversibility: COMPENSABLE
         repeatKey: >-
           (entityRef, periodRef) — a repeat with the same filedAt and
@@ -214,6 +381,13 @@ paths:
                     filedAt: "2026-04-28T09:00:00Z"
                     irasAcknowledgementReference: "IRAS-ACK-2026Q1-E001"
                     confirmedAt: "2026-04-28T09:01:00Z"
+                    governingFiledAt: "2026-04-28T09:00:00Z"
+                    lateDocuments:
+                      code: "SUB-010"
+                      count: 1
+                      docUuids: ["3fa85f64-5717-4562-b3fc-2c963f66afa6"]
+        '400':
+          $ref: '#/components/responses/Error'
         '503':
           $ref: '#/components/responses/Error'
         default:
@@ -781,6 +955,105 @@ components:
         blockedCount:
           type: integer
       required: [tier, blockedCount]
+    OutcomeValue:
+      type: object
+      description: The option in force for one variation point, by its key in the variation-point catalogue.
+      properties:
+        variationPoint:
+          type: string
+          pattern: '^VP-[0-9]+$'
+        optionKey:
+          type: string
+          minLength: 1
+      required: [variationPoint, optionKey]
+    OutcomeValues:
+      type: object
+      description: >-
+        The values that change a compliance outcome (INV-REQ-1250). Each
+        optionKey is a key of the named variation point; no value set is
+        copied here.
+      properties:
+        filerOfRecord:
+          type: object
+          properties:
+            partyRef:
+              type: string
+            optionKey:
+              type: string
+              description: The option key of VP-11.
+          required: [partyRef, optionKey]
+        filingGate:
+          allOf:
+            - $ref: '#/components/schemas/OutcomeValue'
+            - properties:
+                variationPoint:
+                  const: VP-14
+        readinessStrictness:
+          allOf:
+            - $ref: '#/components/schemas/OutcomeValue'
+            - properties:
+                variationPoint:
+                  const: VP-15
+        overrideApproval:
+          allOf:
+            - $ref: '#/components/schemas/OutcomeValue'
+            - properties:
+                variationPoint:
+                  const: VP-32
+        amendmentRoute:
+          allOf:
+            - $ref: '#/components/schemas/OutcomeValue'
+            - properties:
+                variationPoint:
+                  const: VP-31
+        relaxedControls:
+          type: array
+          maxItems: 200
+          items:
+            type: object
+            properties:
+              variationPoint:
+                type: string
+                pattern: '^VP-[0-9]+$'
+              optionKey:
+                type: string
+                minLength: 1
+              acknowledgedBy:
+                type: string
+              acknowledgedAt:
+                type: string
+                format: date-time
+            required: [variationPoint, optionKey, acknowledgedBy, acknowledgedAt]
+      required: [filerOfRecord, filingGate, readinessStrictness, overrideApproval, amendmentRoute, relaxedControls]
+    ReadinessCheckRecord:
+      type: object
+      properties:
+        checkId:
+          type: string
+          minLength: 1
+        verdict:
+          type: string
+          enum: [READY, NOT_READY]
+          x-extensible-enum: true
+        checkedAt:
+          type: string
+          format: date-time
+        approver:
+          type: string
+          description: The verified caller identity; never a request field.
+        outcomeValues:
+          $ref: '#/components/schemas/OutcomeValues'
+      required: [checkId, verdict, checkedAt, approver]
+    ReadinessCheckPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReadinessCheckRecord'
+        nextCursor:
+          type: string
+      required: [items]
     ReadinessStatus:
       type: object
       properties:
@@ -800,6 +1073,11 @@ components:
         computedAt:
           type: string
           format: date-time
+        checkId:
+          type: string
+          minLength: 1
+        outcomeValues:
+          $ref: '#/components/schemas/OutcomeValues'
       required: [entityRef, periodRef, ready, tiers, computedAt]
     DrainResult:
       type: object
@@ -817,6 +1095,47 @@ components:
         completedAt:
           type: string
           format: date-time
+        drainedByTier:
+          type: array
+          items:
+            type: object
+            properties:
+              tier:
+                type: integer
+                minimum: 1
+                maximum: 3
+              tierCode:
+                type: string
+                enum: [SAFETY_MARGIN, PERIOD_BACKLOG, ROUTINE]
+                x-extensible-enum: true
+                description: SAFETY_MARGIN for tier 1, PERIOD_BACKLOG for tier 2, ROUTINE for tier 3.
+              drainedCount:
+                type: integer
+                minimum: 0
+            required: [tier, tierCode, drainedCount]
+        residualItems:
+          type: array
+          items:
+            type: object
+            properties:
+              docUuid:
+                type: string
+                format: uuid
+              version:
+                type: integer
+                minimum: 1
+              tier:
+                type: integer
+                minimum: 1
+                maximum: 3
+              blockingReasonCode:
+                type: string
+                pattern: '^[A-Z]{3}-[0-9]{3}$'
+                description: A code of catalogue/errors/error-codes.yaml.
+            required: [docUuid, version, tier, blockingReasonCode]
+        checkId:
+          type: string
+          minLength: 1
       required: [entityRef, periodRef, drainedCount, remaining, completedAt]
     ConfirmFilingRequest:
       type: object
@@ -830,6 +1149,9 @@ components:
         portalReference:
           type: string
           maxLength: 100
+        correction:
+          type: boolean
+          default: false
       required: [filedAt, irasAcknowledgementReference]
     FilingConfirmation:
       type: object
@@ -848,6 +1170,35 @@ components:
         confirmedAt:
           type: string
           format: date-time
+        governingFiledAt:
+          type: string
+          format: date-time
+          description: The earlier date until a correction, the default of VP-13.
+        conflict:
+          type: object
+          description: Present only while two filing facts disagree.
+          properties:
+            code:
+              const: PER-010
+            otherFiledAt:
+              type: string
+              format: date-time
+          required: [code, otherFiledAt]
+        lateDocuments:
+          type: object
+          properties:
+            code:
+              const: SUB-010
+            count:
+              type: integer
+              minimum: 0
+            docUuids:
+              type: array
+              maxItems: 500
+              items:
+                type: string
+                format: uuid
+          required: [code, count, docUuids]
       required: [entityRef, periodRef, filedAt, irasAcknowledgementReference, confirmedAt]
     WithdrawRequest:
       type: object

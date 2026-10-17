@@ -3,6 +3,13 @@
 # (a route, not an identifier of a kind below; listSubmissions serves it) and `reporting` (a principal, the x-principal value,
 # not an enum member). The rows below are therefore the operations and the fields the six requirements name in plain text,
 # one row per identifier, under the first requirement that names it.
+# INV-T-5952. Identifiers in backticks in the published behavior and intent of INV-REQ-554, 555, 814, 914, 917, 951, 961, 1250
+# (read from Keel): confirmFiling, filedAt, irasAcknowledgementReference, portalReference, checkReadiness, plus roles, principals,
+# scopes, routes and service names (`filing-workflow`, `tax.approver`, `client.signatory`, `FILE_GST_RETURN`, `submission-svc`, `drain`,
+# `readiness`, the two routes), which are not identifiers of a kind below. `checkReadiness` (INV-REQ-951) is the service-side name of
+# the check; the contract operations that run it are getReadiness and drainPeriod, so it has no row. Below, the rows for the backticked
+# properties and operation, then the operation and the fields the requirements and the coordinator rulings (INV-Q-5948, INV-Q-5950)
+# name in plain text, one row per identifier, under the first requirement that names it.
 identifier	kind	file	requirement
 listSubmissions	operation	openapi.yaml	INV-REQ-979
 getSubmissionSummary	operation	openapi.yaml	INV-REQ-977
@@ -35,3 +42,34 @@ generatedAt	property	openapi.yaml	INV-REQ-978
 generatedBy	property	openapi.yaml	INV-REQ-978
 gstn	property	openapi.yaml	INV-REQ-978
 filter	property	openapi.yaml	INV-REQ-978
+confirmFiling	operation	openapi.yaml	INV-REQ-555
+filedAt	property	openapi.yaml	INV-REQ-914
+irasAcknowledgementReference	property	openapi.yaml	INV-REQ-914
+portalReference	property	openapi.yaml	INV-REQ-914
+listReadinessChecks	operation	openapi.yaml	INV-REQ-951
+getReadiness	operation	openapi.yaml	INV-REQ-814
+drainPeriod	operation	openapi.yaml	INV-REQ-554
+drainedByTier	property	openapi.yaml	INV-REQ-554
+tierCode	property	openapi.yaml	INV-REQ-554
+residualItems	property	openapi.yaml	INV-REQ-554
+blockingReasonCode	property	openapi.yaml	INV-REQ-554
+SAFETY_MARGIN	enum_value	openapi.yaml	INV-REQ-554
+PERIOD_BACKLOG	enum_value	openapi.yaml	INV-REQ-554
+ROUTINE	enum_value	openapi.yaml	INV-REQ-554
+outcomeValues	property	openapi.yaml	INV-REQ-1250
+filerOfRecord	property	openapi.yaml	INV-REQ-1250
+filingGate	property	openapi.yaml	INV-REQ-1250
+readinessStrictness	property	openapi.yaml	INV-REQ-1250
+overrideApproval	property	openapi.yaml	INV-REQ-1250
+amendmentRoute	property	openapi.yaml	INV-REQ-1250
+relaxedControls	property	openapi.yaml	INV-REQ-1250
+checkId	property	openapi.yaml	INV-REQ-951
+verdict	property	openapi.yaml	INV-REQ-951
+checkedAt	property	openapi.yaml	INV-REQ-951
+approver	property	openapi.yaml	INV-REQ-951
+READY	enum_value	openapi.yaml	INV-REQ-951
+NOT_READY	enum_value	openapi.yaml	INV-REQ-951
+correction	property	openapi.yaml	INV-REQ-917
+governingFiledAt	property	openapi.yaml	INV-REQ-917
+conflict	property	openapi.yaml	INV-REQ-917
+lateDocuments	property	openapi.yaml	INV-REQ-961
