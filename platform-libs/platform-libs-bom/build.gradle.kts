@@ -51,7 +51,7 @@ javaPlatform {
 listOf(
     "service-runtime", "outbox-and-queue", "rulepack-kernel", "tenancy-kernel",
     "evidence-store", "adapter-runtime", "config-resolver", "audit-log", "crypto", "tenancy-jooq", "product-runtime",
-    "calendar-and-periods", "party-registry", "document-lifecycle", "reconciliation-engine",
+    "calendar-and-periods", "party-registry", "document-lifecycle", "reconciliation-engine", "integration-canon",
 ).forEach { evaluationDependsOn(":$it") }
 
 dependencies {
@@ -96,6 +96,9 @@ dependencies {
         // reconciliation-engine (INV-T-5940): the fourth L2 module.
         api("com.dynokore.platform:reconciliation-engine-api:${project(":reconciliation-engine").version}") // INV-T-5940
         api("com.dynokore.platform:reconciliation-engine:${project(":reconciliation-engine").version}") // INV-T-5940
+        // integration-canon (INV-T-6101): the fifth L2 module.
+        api("com.dynokore.platform:integration-canon-api:${project(":integration-canon").version}") // INV-T-6101
+        api("com.dynokore.platform:integration-canon:${project(":integration-canon").version}") // INV-T-6101
 
         // CVE-2026-65182, CVE-2026-65905, CVE-2026-68525: service-runtime (INV-T-2871 /
         // T27) is this repository's first module on Spring Boot 4.1.1, whose managed
