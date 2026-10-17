@@ -199,36 +199,53 @@ class OutboxAndQueueWiring(
         )
 
     @Bean
-    @ConditionalOnBean(LaneLimits::class, DataSource::class)
+    @ConditionalOnBean(TenantScope::class, LaneLimits::class)
     @ConditionalOnProperty(name = [Props.SCHEMA])
     @ConditionalOnMissingBean(LaneRateLimiter::class)
     fun laneRateLimiter(
-        dataSource: DataSource,
+        scope: TenantScope,
         limits: LaneLimits,
         modules: ModuleProperties,
-    ): LaneRateLimiter = LaneRateLimiter(application(dataSource), modules.requireSchema(), limits)
+    ): LaneRateLimiter =
+        LaneRateLimiter(
+            scope,
+            moduleDsl(modules.requireSchema(), scope.tenants, scope.transactions),
+            modules.requireSchema(),
+            limits,
+        )
 
     @Bean
-    @ConditionalOnBean(TenantScope::class, LaneRateLimiter::class, DataSource::class)
+    @ConditionalOnBean(TenantScope::class, LaneRateLimiter::class)
     @ConditionalOnMissingBean(WorkQueue::class)
     fun workQueue(
-        dataSource: DataSource,
         scope: TenantScope,
         limiter: LaneRateLimiter,
         modules: ModuleProperties,
         clock: Clock,
-    ): JdbcWorkQueue = JdbcWorkQueue(application(dataSource), scope, modules.requireSchema(), limiter, clock)
+    ): JdbcWorkQueue =
+        JdbcWorkQueue(
+            scope,
+            moduleDsl(modules.requireSchema(), scope.tenants, scope.transactions),
+            modules.requireSchema(),
+            limiter,
+            clock,
+        )
 
     @Bean
     @ConditionalOnBean(TenantScope::class, DataSource::class)
     @ConditionalOnProperty(name = [Props.SCHEMA])
     @ConditionalOnMissingBean(DeadLetterTriage::class)
     fun deadLetterTriage(
-        dataSource: DataSource,
         scope: TenantScope,
         modules: ModuleProperties,
         clock: Clock,
-    ): JdbcDeadLetterTriage = JdbcDeadLetterTriage(application(dataSource), scope, modules.requireSchema(), clock)
+    ): JdbcDeadLetterTriage =
+        JdbcDeadLetterTriage(
+            scope,
+            moduleDsl(modules.requireSchema(), scope.tenants, scope.transactions),
+            modules.requireSchema(),
+            clock,
+        )
 
     @Bean
     @ConditionalOnBean(Retention::class, DataSource::class)
@@ -381,7 +398,7 @@ class OutboxAndQueueWiring(
     @ConditionalOnBean(
         value = [
             ConsumerSubscription::class, EventCatalogue::class, EventHandler::class, RebuildRequiredSink::class,
-            EventLogReader::class, TenantScope::class, DataSource::class,
+            EventLogReader::class, TenantScope::class,
         ],
     )
     @ConditionalOnMissingBean(InboxConsumer::class)
@@ -390,7 +407,6 @@ class OutboxAndQueueWiring(
         subscription: ConsumerSubscription,
         catalogue: EventCatalogue,
         reader: EventLogReader,
-        dataSource: DataSource,
         scope: TenantScope,
         handler: EventHandler,
         rebuildRequired: RebuildRequiredSink,
@@ -400,8 +416,8 @@ class OutboxAndQueueWiring(
             subscription,
             catalogue,
             reader,
-            application(dataSource),
             scope,
+            moduleDsl(subscription.schema, scope.tenants, scope.transactions),
             handler,
             rebuildRequired,
             clock,

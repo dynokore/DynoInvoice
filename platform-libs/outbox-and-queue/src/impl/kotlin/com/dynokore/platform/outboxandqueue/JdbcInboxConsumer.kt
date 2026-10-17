@@ -2,11 +2,16 @@ package com.dynokore.platform.outboxandqueue
 
 import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantId
-import java.sql.Connection
+import org.jooq.DSLContext
+import org.jooq.Field
+import org.jooq.Table
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import java.time.Clock
 import java.time.Instant
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
 import java.util.concurrent.ThreadLocalRandom
-import javax.sql.DataSource
 
 /**
  * [InboxConsumer] over JDBC, one instance per (consumer, topic). Each record is applied in
@@ -29,10 +34,10 @@ import javax.sql.DataSource
  * [catalogue] gives the record-topic event types (INV-Q-3809); a [ConsumerSubscription.recordTypes] declaration that
  * differs from them fails construction, so a service cannot run with record events under the sequence check.
  *
- * [claimSource] is a connection of the service's runtime login outside any tenant transaction: it only reads
- * and writes the offset (no tenant data) to know where to poll, and records dead letters through the
- * `<svc>_sys`-owned [OutboxSchema.DEAD_LETTER_RECORD]; the inbox and sequence tables (row-level security) are
- * reached only inside a tenant transaction.
+ * Outside any tenant transaction the consumer works in a transaction of its own under the platform binding: it only
+ * reads and writes the offset (a `PLATFORM_SCOPED` table, no tenant data) to know where to poll, and records dead
+ * letters through the `<svc>_sys`-owned [OutboxSchema.DEAD_LETTER_RECORD]; the inbox and sequence tables (row-level
+ * security) are reached only inside a tenant transaction.
  *
  * When the reader reports that this consumer's next position is at or below the topic's purge watermark
  * ([RebuildRequired], INV-REQ-1205 b6), the poll applies nothing and moves nothing: the consumer stops this topic
@@ -45,8 +50,8 @@ class JdbcInboxConsumer
         private val subscription: ConsumerSubscription,
         catalogue: EventCatalogue,
         private val reader: EventLogReader,
-        private val claimSource: DataSource,
         private val scope: TenantScope,
+        private val dsl: DSLContext,
         private val handler: EventHandler,
         private val rebuildRequired: RebuildRequiredSink,
         private val clock: Clock = Clock.systemUTC(),
@@ -56,7 +61,13 @@ class JdbcInboxConsumer
         private val consumer = subscription.consumer
         private val topic = subscription.topic
         private val s = SqlIdentifier.require(subscription.schema, "schema")
-        private val offsets = "$s.${OutboxSchema.CONSUMER_OFFSET}"
+        private val offsets: Table<*> = DSL.table(DSL.name(s, OutboxSchema.CONSUMER_OFFSET))
+        private val inbox: Table<*> = DSL.table(DSL.name(s, OutboxSchema.INBOX))
+        private val sequences: Table<*> = DSL.table(DSL.name(s, OutboxSchema.CONSUMER_SEQUENCE))
+
+        /** The offset row's own columns, qualified by the table name: in `ON CONFLICT DO UPDATE` a bare name is ambiguous. */
+        private val storedNext = stored("next_offset", NEXT_OFFSET)
+        private val storedAttempts = stored("attempts", ATTEMPTS)
         private var stopped = false
         private val recordTypes =
             catalogue.recordTypes().also {
@@ -67,7 +78,7 @@ class JdbcInboxConsumer
 
         @Synchronized
         override fun pollOnce(): PollResult {
-            val (next, notBefore) = claimSource.connection.use { position(it) }
+            val (next, notBefore) = position()
             if (notBefore != null && clock.instant().isBefore(notBefore)) return PollResult(0, 0, 0, 0, 0)
             val records =
                 try {
@@ -150,7 +161,7 @@ class JdbcInboxConsumer
         internal fun applyChecked(envelope: Envelope): ReplayOutcome {
             val step =
                 scope.bindWorkload(envelope.tenant) {
-                    scope.transactions.inTransaction { apply(scope.connections.require(), envelope) }
+                    scope.transactions.inTransaction { apply(envelope) }
                 }
             return when (step) {
                 Step.APPLIED -> ReplayOutcome.APPLIED
@@ -231,25 +242,26 @@ class JdbcInboxConsumer
 
         /** In its own transaction, before the handler runs: counts this delivery on the offset row (INV-Q-3108). */
         private fun beginAttempt(offset: Long): AttemptState? =
-            claimSource.connection.use { connection ->
-                connection.autoCommit = true
-                connection
-                    .prepareStatement(
-                        "insert into $offsets (consumer, topic, next_offset, attempts) values (?, ?, $FIRST_OFFSET, " +
-                            "1) " +
-                            "on conflict (consumer, topic) do update set attempts = $offsets.attempts + 1 " +
-                            "where $offsets.next_offset <= ? returning attempts, infra_failures, first_infra_failure_at",
-                    ).use {
-                        it.setString(1, consumer)
-                        it.setString(2, topic)
-                        it.setLong(3, offset)
-                        it.executeQuery().use { rows ->
-                            if (!rows.next()) {
-                                null
-                            } else {
-                                AttemptState(rows.getInt(1), rows.getInt(2), rows.getTimestamp(3)?.toInstant())
-                            }
-                        }
+            platform {
+                dsl
+                    .insertInto(offsets, CONSUMER, TOPIC, NEXT_OFFSET, ATTEMPTS)
+                    .values(
+                        DSL.`val`(consumer, SQLDataType.CLOB),
+                        DSL.`val`(topic, SQLDataType.CLOB),
+                        DSL.inline(FIRST_OFFSET),
+                        DSL.inline(1),
+                    ).onConflict(CONSUMER, TOPIC)
+                    .doUpdate()
+                    .set(ATTEMPTS, storedAttempts.plus(1))
+                    .where(storedNext.le(offset))
+                    .returning(ATTEMPTS, INFRA_FAILURES, FIRST_INFRA_FAILURE_AT)
+                    .fetchOne()
+                    ?.let {
+                        AttemptState(
+                            it.get(ATTEMPTS),
+                            it.get(INFRA_FAILURES),
+                            it.get(FIRST_INFRA_FAILURE_AT)?.toInstant(),
+                        )
                     }
             }
 
@@ -261,23 +273,15 @@ class JdbcInboxConsumer
             firstInfra: Instant?,
             notBefore: Instant,
         ) {
-            claimSource.connection.use { connection ->
-                connection.autoCommit = true
-                connection
-                    .prepareStatement(
-                        "update $offsets set attempts = greatest(attempts - ?, 0), infra_failures = ?, " +
-                            "first_infra_failure_at = ?, retry_not_before = ? " +
-                            "where consumer = ? and topic = ? and next_offset <= ?",
-                    ).use {
-                        it.setInt(1, uncount)
-                        it.setInt(2, infraFailures)
-                        it.setTimestamp(3, firstInfra?.let(java.sql.Timestamp::from))
-                        it.setTimestamp(4, java.sql.Timestamp.from(notBefore))
-                        it.setString(5, consumer)
-                        it.setString(6, topic)
-                        it.setLong(7, offset)
-                        it.executeUpdate()
-                    }
+            platform {
+                dsl
+                    .update(offsets)
+                    .set(ATTEMPTS, DSL.greatest(ATTEMPTS.minus(uncount), DSL.inline(0)))
+                    .set(INFRA_FAILURES, infraFailures)
+                    .set(FIRST_INFRA_FAILURE_AT, firstInfra?.let(::utc))
+                    .set(RETRY_NOT_BEFORE, utc(notBefore))
+                    .where(CONSUMER.eq(consumer).and(TOPIC.eq(topic)).and(NEXT_OFFSET.le(offset)))
+                    .execute()
             }
         }
 
@@ -285,203 +289,166 @@ class JdbcInboxConsumer
             record: LogRecord,
             envelope: Envelope,
         ): Step {
-            val connection = scope.connections.require()
-            if (record.offset < lockOffset(connection)) return Step.DUPLICATE
-            val step = apply(connection, envelope)
-            advance(connection, record.offset)
+            if (record.offset < lockOffset()) return Step.DUPLICATE
+            val step = apply(envelope)
+            advance(record.offset)
             return step
         }
 
-        private fun apply(
-            connection: Connection,
-            envelope: Envelope,
-        ): Step {
-            if (!claimInbox(connection, envelope)) return Step.DUPLICATE
+        private fun apply(envelope: Envelope): Step {
+            if (!claimInbox(envelope)) return Step.DUPLICATE
             if (subscription.trackSources &&
                 envelope.type != ReplayProtocol.REPLAY_COMPLETED
             ) {
-                recordSource(connection, envelope)
+                recordSource(envelope)
             }
             // A record-topic event is deduped by event id only: no docsequence check, no held row (INV-Q-3809).
             val sequence = envelope.docSequence?.takeUnless { envelope.type in recordTypes }
-            if (sequence != null && sequence <= heldSequence(connection, envelope)) return Step.STALE
+            if (sequence != null && sequence <= heldSequence(envelope)) return Step.STALE
             val outcome = handler.handle(envelope)
-            if (sequence != null) recordSequence(connection, envelope, sequence)
+            if (sequence != null) recordSequence(envelope, sequence)
             return when (outcome) {
                 HandleOutcome.APPLIED -> Step.APPLIED
                 HandleOutcome.IGNORED -> Step.IGNORED
             }
         }
 
-        private fun position(connection: Connection): Pair<Long, Instant?> =
-            connection
-                .prepareStatement(
-                    "select next_offset, retry_not_before from $offsets where consumer = ? and topic = ?",
-                ).use {
-                    it.setString(1, consumer)
-                    it.setString(2, topic)
-                    it.executeQuery().use { rows ->
-                        if (rows.next()) rows.getLong(1) to rows.getTimestamp(2)?.toInstant() else FIRST_OFFSET to null
-                    }
-                }
+        private fun position(): Pair<Long, Instant?> =
+            platform {
+                dsl
+                    .select(NEXT_OFFSET, RETRY_NOT_BEFORE)
+                    .from(offsets)
+                    .where(CONSUMER.eq(consumer).and(TOPIC.eq(topic)))
+                    .fetchOne()
+                    ?.let { it.get(NEXT_OFFSET) to it.get(RETRY_NOT_BEFORE)?.toInstant() } ?: (FIRST_OFFSET to null)
+            }
 
-        private fun lockOffset(connection: Connection): Long {
-            connection
-                .prepareStatement(
-                    "insert into $offsets (consumer, topic, next_offset) values (?, ?, $FIRST_OFFSET) on conflict do nothing",
-                ).use {
-                    it.setString(1, consumer)
-                    it.setString(2, topic)
-                    it.executeUpdate()
-                }
-            connection
-                .prepareStatement(
-                    "select next_offset from $offsets where consumer = ? and topic = ? for update",
-                ).use {
-                    it.setString(1, consumer)
-                    it.setString(2, topic)
-                    it.executeQuery().use { rows ->
-                        check(rows.next()) { "offset row missing" }
-                        return rows.getLong(1)
-                    }
-                }
+        // The offset and source-seen tables are `PLATFORM_SCOPED`, which tenancy-jooq writes only under the platform
+        // binding, while the offset moves in the record's tenant transaction (INV-AC-2205): these three calls go through
+        // sys-owned definer routines (INV-Q-5873).
+        private fun lockOffset(): Long =
+            dsl.select(JooqRoutines.consumerOffsetLock(s, consumer, topic)).fetchSingle().value1()
+
+        private fun advance(offset: Long) {
+            dsl.select(JooqRoutines.consumerOffsetAdvance(s, consumer, topic, offset + 1)).fetch()
         }
 
-        private fun advance(
-            connection: Connection,
-            offset: Long,
-        ) {
-            connection
-                .prepareStatement(
-                    "update $offsets set next_offset = ?, attempts = 0, infra_failures = 0, first_infra_failure_at = " +
-                        "null, " +
-                        "retry_not_before = null where consumer = ? and topic = ?",
-                ).use {
-                    it.setLong(1, offset + 1)
-                    it.setString(2, consumer)
-                    it.setString(3, topic)
-                    it.executeUpdate()
-                }
-        }
-
-        private fun claimInbox(
-            connection: Connection,
-            envelope: Envelope,
-        ): Boolean =
-            connection
-                .prepareStatement(
-                    "insert into $s.${OutboxSchema.INBOX} (consumer, event_id, tenant_id) values (?, ?, ?) on conflict do nothing",
-                ).use {
-                    it.setString(1, consumer)
-                    it.setString(2, envelope.id.value)
-                    it.setObject(3, envelope.tenant.value)
-                    it.executeUpdate() == 1
-                }
+        private fun claimInbox(envelope: Envelope): Boolean =
+            dsl
+                .insertInto(inbox, CONSUMER, EVENT_ID, TENANT_ID)
+                .values(
+                    DSL.`val`(consumer, SQLDataType.CLOB),
+                    DSL.`val`(envelope.id.value, SQLDataType.CLOB),
+                    DSL.`val`(envelope.tenant.value, SQLDataType.UUID),
+                ).onConflictDoNothing()
+                .execute() == 1
 
         /**
          * INV-Q-3669: the source of an event on an 'every service' topic joins the consumer's seen set (a completion marker
          * from a service never seen changes nothing, so it does not join).
          */
-        private fun recordSource(
-            connection: Connection,
-            envelope: Envelope,
-        ) {
-            connection
-                .prepareStatement(
-                    "insert into $s.${OutboxSchema.CONSUMER_SOURCE_SEEN} (consumer, producer, source) values (?, ?, " +
-                        "?) " +
-                        "on conflict do nothing",
-                ).use {
-                    it.setString(1, consumer)
-                    it.setString(2, CatalogueEntry.EVERY_SERVICE)
-                    it.setString(3, envelope.source)
-                    it.executeUpdate()
-                }
+        private fun recordSource(envelope: Envelope) {
+            dsl
+                .select(
+                    JooqRoutines.consumerSourceSeenRecord(s, consumer, CatalogueEntry.EVERY_SERVICE, envelope.source),
+                ).fetch()
         }
 
-        private fun heldSequence(
-            connection: Connection,
-            envelope: Envelope,
-        ): Long =
-            connection
-                .prepareStatement(
-                    "select last_value from $s.${OutboxSchema.CONSUMER_SEQUENCE} " +
-                        "where consumer = ? and tenant_id = ? and source = ? and subject = ?",
-                ).use {
-                    it.setString(1, consumer)
-                    it.setObject(2, envelope.tenant.value)
-                    it.setString(3, envelope.source)
-                    it.setString(4, envelope.subject)
-                    it.executeQuery().use { rows -> if (rows.next()) rows.getLong(1) else 0L }
-                }
+        private fun heldSequence(envelope: Envelope): Long =
+            dsl
+                .select(LAST_VALUE)
+                .from(sequences)
+                .where(
+                    CONSUMER
+                        .eq(consumer)
+                        .and(TENANT_ID.eq(envelope.tenant.value))
+                        .and(SOURCE.eq(envelope.source))
+                        .and(SUBJECT.eq(envelope.subject)),
+                ).fetchOne()
+                ?.get(LAST_VALUE) ?: 0L
 
         private fun recordSequence(
-            connection: Connection,
             envelope: Envelope,
             sequence: Long,
         ) {
-            connection
-                .prepareStatement(
-                    """
-                    insert into $s.${OutboxSchema.CONSUMER_SEQUENCE} (consumer, source, subject, tenant_id, last_value)
-                    values (?, ?, ?, ?, ?)
-                    on conflict (consumer, tenant_id, source, subject) do update set last_value = excluded.last_value
-                    """.trimIndent(),
-                ).use {
-                    it.setString(1, consumer)
-                    it.setString(2, envelope.source)
-                    it.setString(3, envelope.subject)
-                    it.setObject(4, envelope.tenant.value)
-                    it.setLong(5, sequence)
-                    it.executeUpdate()
-                }
+            dsl
+                .insertInto(sequences, CONSUMER, SOURCE, SUBJECT, TENANT_ID, LAST_VALUE)
+                .values(
+                    DSL.`val`(consumer, SQLDataType.CLOB),
+                    DSL.`val`(envelope.source, SQLDataType.CLOB),
+                    DSL.`val`(envelope.subject, SQLDataType.CLOB),
+                    DSL.`val`(envelope.tenant.value, SQLDataType.UUID),
+                    DSL.`val`(sequence, SQLDataType.BIGINT),
+                ).onConflict(CONSUMER, TENANT_ID, SOURCE, SUBJECT)
+                .doUpdate()
+                .set(LAST_VALUE, DSL.excluded(LAST_VALUE))
+                .execute()
         }
 
         /**
-         * Records the dead letter and moves the offset past it in one runtime-login transaction, the letter through the
+         * Records the dead letter and moves the offset past it in one platform transaction, the letter through the
          * `<svc>_sys`-owned [OutboxSchema.DEAD_LETTER_RECORD] (a letter may have no tenant, so no tenant policy admits it).
+         * The offset upsert resets attempts, infra_failures, first_infra_failure_at and retry_not_before when the new
+         * offset is greater than the stored one and keeps the stored value otherwise.
          */
         private fun deadLetter(
             record: LogRecord,
             reason: String,
         ) {
-            claimSource.connection.use { connection ->
-                connection.autoCommit = false
-                connection.prepareStatement("select $s.${OutboxSchema.DEAD_LETTER_RECORD}(?, ?, ?, ?, ?, ?)").use {
-                    it.setString(1, consumer)
-                    it.setString(2, topic)
-                    it.setLong(3, record.offset)
-                    it.setObject(4, json.tenantOf(record.envelopeJson)?.value, java.sql.Types.OTHER)
-                    it.setString(5, reason)
-                    it.setString(6, record.envelopeJson)
-                    it.executeQuery().close()
-                }
-                connection
-                    .prepareStatement(
-                        "insert into $offsets (consumer, topic, next_offset) values (?, ?, ?) " +
-                            "on conflict (consumer, topic) do update set next_offset = " +
-                            "greatest($offsets.next_offset, excluded.next_offset), " +
-                            "attempts = ${keepUnlessMoved(
-                                "attempts",
-                                "0",
-                            )}, infra_failures = ${keepUnlessMoved("infra_failures", "0")}, " +
-                            "first_infra_failure_at = ${keepUnlessMoved("first_infra_failure_at", "null")}, " +
-                            "retry_not_before = ${keepUnlessMoved("retry_not_before", "null")}",
-                    ).use {
-                        it.setString(1, consumer)
-                        it.setString(2, topic)
-                        it.setLong(3, record.offset + 1)
-                        it.executeUpdate()
-                    }
-                connection.commit()
+            platform {
+                val letter =
+                    DSL.function(
+                        DSL.name(s, OutboxSchema.DEAD_LETTER_RECORD),
+                        SQLDataType.OTHER,
+                        DSL.`val`(consumer, SQLDataType.CLOB),
+                        DSL.`val`(topic, SQLDataType.CLOB),
+                        DSL.`val`(record.offset, SQLDataType.BIGINT),
+                        DSL.`val`(json.tenantOf(record.envelopeJson)?.value, SQLDataType.UUID),
+                        DSL.`val`(reason, SQLDataType.CLOB),
+                        DSL.`val`(record.envelopeJson, SQLDataType.CLOB),
+                    )
+                dsl.select(letter).fetch()
+                val moved = DSL.excluded(NEXT_OFFSET).gt(storedNext)
+                dsl
+                    .insertInto(offsets, CONSUMER, TOPIC, NEXT_OFFSET)
+                    .values(
+                        DSL.`val`(consumer, SQLDataType.CLOB),
+                        DSL.`val`(topic, SQLDataType.CLOB),
+                        DSL.`val`(record.offset + 1, SQLDataType.BIGINT),
+                    ).onConflict(CONSUMER, TOPIC)
+                    .doUpdate()
+                    .set(NEXT_OFFSET, DSL.greatest(storedNext, DSL.excluded(NEXT_OFFSET)))
+                    .set(ATTEMPTS, DSL.`when`(moved, DSL.inline(0)).otherwise(storedAttempts))
+                    .set(
+                        INFRA_FAILURES,
+                        DSL.`when`(moved, DSL.inline(0)).otherwise(stored("infra_failures", INFRA_FAILURES)),
+                    ).set(
+                        FIRST_INFRA_FAILURE_AT,
+                        DSL
+                            .`when`(
+                                moved,
+                                DSL.castNull(FIRST_INFRA_FAILURE_AT),
+                            ).otherwise(stored("first_infra_failure_at", FIRST_INFRA_FAILURE_AT)),
+                    ).set(
+                        RETRY_NOT_BEFORE,
+                        DSL
+                            .`when`(
+                                moved,
+                                DSL.castNull(RETRY_NOT_BEFORE),
+                            ).otherwise(stored("retry_not_before", RETRY_NOT_BEFORE)),
+                    ).execute()
             }
         }
 
-        /** SQL: [column]'s value, or [reset] when the offset moved past the row's record. */
-        private fun keepUnlessMoved(
+        /** [block] in its own transaction under the platform binding: the offset and the dead letters are no tenant's. */
+        private fun <T> platform(block: () -> T): T = scope.platformTransaction(block)
+
+        private fun <T> stored(
             column: String,
-            reset: String,
-        ) = "case when excluded.next_offset > $offsets.next_offset then $reset else $offsets.$column end"
+            like: Field<T>,
+        ): Field<T> = DSL.field(DSL.name(s, OutboxSchema.CONSUMER_OFFSET, column), like.dataType)
+
+        private fun utc(instant: Instant): OffsetDateTime = instant.atOffset(ZoneOffset.UTC)
 
         private enum class Step { APPLIED, IGNORED, DUPLICATE, STALE, DEAD_LETTER }
 
@@ -491,6 +458,22 @@ class JdbcInboxConsumer
             const val EXHAUSTED = "handler failed, retries exhausted"
             const val INFRA_EXHAUSTED = "handler failed on infrastructure failures for"
             const val REPLAY_OFFSET = 0L // a replayed record has no position in the topic
+            val CONSUMER = DSL.field(DSL.name("consumer"), SQLDataType.CLOB)
+            val TOPIC = DSL.field(DSL.name("topic"), SQLDataType.CLOB)
+            val NEXT_OFFSET = DSL.field(DSL.name("next_offset"), SQLDataType.BIGINT)
+            val ATTEMPTS = DSL.field(DSL.name("attempts"), SQLDataType.INTEGER)
+            val INFRA_FAILURES = DSL.field(DSL.name("infra_failures"), SQLDataType.INTEGER)
+            val FIRST_INFRA_FAILURE_AT =
+                DSL.field(
+                    DSL.name("first_infra_failure_at"),
+                    SQLDataType.TIMESTAMPWITHTIMEZONE,
+                )
+            val RETRY_NOT_BEFORE = DSL.field(DSL.name("retry_not_before"), SQLDataType.TIMESTAMPWITHTIMEZONE)
+            val EVENT_ID = DSL.field(DSL.name("event_id"), SQLDataType.CLOB)
+            val TENANT_ID = DSL.field(DSL.name("tenant_id"), SQLDataType.UUID)
+            val SOURCE = DSL.field(DSL.name("source"), SQLDataType.CLOB)
+            val SUBJECT = DSL.field(DSL.name("subject"), SQLDataType.CLOB)
+            val LAST_VALUE = DSL.field(DSL.name("last_value"), SQLDataType.BIGINT)
         }
     }
 

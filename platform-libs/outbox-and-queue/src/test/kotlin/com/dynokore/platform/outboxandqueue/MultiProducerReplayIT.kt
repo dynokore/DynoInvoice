@@ -220,6 +220,7 @@ class MultiProducerReplayIT {
             harness.readerFor(harness.fixture.replayLogin("evidence-svc")),
             harness.fixture.runtimeDataSource(),
             evidence.scope,
+            evidence.dsl,
             object : EventHandler {
                 override fun handle(event: Envelope): HandleOutcome {
                     seen(event)

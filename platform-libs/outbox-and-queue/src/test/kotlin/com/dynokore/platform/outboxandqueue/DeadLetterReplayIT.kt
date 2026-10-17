@@ -76,7 +76,7 @@ class DeadLetterReplayIT {
     ) {
         val kit = harness.submission
         val scope = kit.scope
-        val triage = JdbcDeadLetterTriage(harness.fixture.runtimeDataSource(), scope, "submission", clock)
+        val triage = JdbcDeadLetterTriage(scope, kit.dsl, "submission", clock)
 
         fun delivery(
             harness: OutboxHarness,
@@ -88,14 +88,13 @@ class DeadLetterReplayIT {
                     ConsumerSubscription(consumer, "gst.canonical.canonical-version-created.v1", "submission"),
                     harness.catalogue,
                     harness.reader,
-                    harness.fixture.runtimeDataSource(),
                     scope,
+                    kit.dsl,
                     SubmissionFixtureHandler(kit.boundary, transport),
                     harness.rebuildSink,
                 )
-            val limiter = LaneRateLimiter(harness.fixture.runtimeDataSource(), "submission", LaneLimits())
-            val runtime = harness.fixture.runtimeDataSource()
-            val queue = JdbcWorkQueue(runtime, scope, "submission", limiter, clock, consumer)
+            val limiter = LaneRateLimiter(scope, kit.dsl, "submission", LaneLimits())
+            val queue = JdbcWorkQueue(scope, kit.dsl, "submission", limiter, clock, consumer)
             return JdbcReplayDelivery(queue, scope, inbox)
         }
     }

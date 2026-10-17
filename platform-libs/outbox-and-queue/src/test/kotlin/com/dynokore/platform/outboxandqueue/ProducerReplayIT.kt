@@ -525,6 +525,7 @@ class ProducerReplayIT {
                 harness.readerFor(harness.fixture.replayLogin(consumer)),
                 harness.fixture.runtimeDataSource(),
                 recon.scope,
+                recon.dsl,
                 ViewHandler(consumer),
                 harness.rebuildSink,
             )
@@ -726,8 +727,8 @@ private fun evidenceConsumer(
     subscription,
     harness.catalogue,
     harness.reader,
-    harness.fixture.runtimeDataSource(),
     harness.evidence.scope,
+    harness.evidence.dsl,
     countingHandler(),
     harness.rebuildSink,
 )
@@ -740,6 +741,7 @@ private fun evidenceIntake(harness: OutboxHarness) =
         harness.readerFor(harness.fixture.replayLogin("evidence-svc")),
         harness.fixture.runtimeDataSource(),
         harness.evidence.scope,
+        harness.evidence.dsl,
         countingHandler(),
         harness.rebuildSink,
     )

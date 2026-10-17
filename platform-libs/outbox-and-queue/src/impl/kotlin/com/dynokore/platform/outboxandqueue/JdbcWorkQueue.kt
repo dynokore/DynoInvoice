@@ -2,12 +2,14 @@ package com.dynokore.platform.outboxandqueue
 
 import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantId
-import java.sql.Connection
-import java.sql.Timestamp
+import org.jooq.DSLContext
+import org.jooq.Table
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import java.time.Clock
 import java.time.Duration
-import java.util.UUID
-import javax.sql.DataSource
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
 
 /**
  * [WorkQueue] over the `work_queue` table of the service's schema ([QueueSchema]).
@@ -25,45 +27,40 @@ import javax.sql.DataSource
  *   claim is still uncommitted, so each claim also takes a transaction advisory lock on its partition and
  *   re-checks eligibility under it. All of this runs inside the `<svc>_sys`-owned definer function
  *   [QueueSchema.CLAIM_DUE], in one short transaction.
- * - **Cross-tenant claim (ARC 4.3 step 1a; INV-Q-3953).** The claim runs on [claimSource], a connection of the
- *   service's runtime login, which calls [QueueSchema.CLAIM_DUE] and gets the claim columns only; the payload is
- *   read later in the item's own tenant transaction.
+ * - **Cross-tenant claim (ARC 4.3 step 1a; INV-Q-3953).** The claim is a jOOQ read of [QueueSchema.CLAIM_DUE] in its
+ *   own transaction under the platform binding, which gets the claim columns only; the payload is read later in the
+ *   item's own tenant transaction.
  * - **Crash.** A claim not completed within [claimTimeout] is claimed again (at-least-once; the handler is
  *   idempotent, INV-REQ-1164).
  */
 class JdbcWorkQueue(
-    private val claimSource: DataSource,
     private val scope: TenantScope,
+    private val dsl: DSLContext,
     schema: String,
     private val limiter: LaneRateLimiter,
     private val clock: Clock,
     private val consumer: String? = null,
     private val claimTimeout: Duration = Duration.ofMinutes(5),
 ) : WorkQueue {
-    private val queue = "${SqlIdentifier.require(schema, "schema")}.${QueueSchema.WORK_QUEUE}"
-    private val claimDue = "${SqlIdentifier.require(schema, "schema")}.${QueueSchema.CLAIM_DUE}"
+    private val schemaName = SqlIdentifier.require(schema, "schema")
+    private val queue: Table<*> = DSL.table(DSL.name(schemaName, QueueSchema.WORK_QUEUE))
 
     override fun enqueue(entry: QueueEntry): Long {
         val tenant = scope.tenants.current()
-        return scope.connections
-            .require()
-            .prepareStatement(
-                """
-                insert into $queue (tenant_id, partition_key, lane, consumer, payload, enqueued_at)
-                values (?, ?, ?, ?, ?::jsonb, ?) returning seq
-                """.trimIndent(),
-            ).use { statement ->
-                statement.setObject(1, tenant.value)
-                statement.setString(2, entry.partitionKey)
-                statement.setString(3, entry.lane.name)
-                statement.setString(4, entry.consumer)
-                statement.setString(5, entry.payloadJson)
-                statement.setTimestamp(6, Timestamp.from(clock.instant()))
-                statement.executeQuery().use {
-                    check(it.next()) { "enqueue returned no row" }
-                    it.getLong(1)
-                }
-            }
+        val seq =
+            dsl
+                .insertInto(queue)
+                .columns(TENANT_ID, PARTITION_KEY, LANE, CONSUMER, PAYLOAD, ENQUEUED_AT)
+                .values(
+                    DSL.`val`(tenant.value, SQLDataType.UUID),
+                    DSL.`val`(entry.partitionKey, SQLDataType.CLOB),
+                    DSL.`val`(entry.lane.name, SQLDataType.CLOB),
+                    DSL.`val`(entry.consumer, SQLDataType.CLOB),
+                    DSL.`val`(entry.payloadJson, SQLDataType.JSONB),
+                    DSL.`val`(now(), SQLDataType.TIMESTAMPWITHTIMEZONE),
+                ).returning(SEQ)
+                .fetchOne()
+        return checkNotNull(seq) { "enqueue returned no row" }.get(SEQ)
     }
 
     override fun claimNext(): ClaimedItem? {
@@ -77,74 +74,59 @@ class JdbcWorkQueue(
     }
 
     override fun payloadOf(item: ClaimedItem): String =
-        scope.connections
-            .require()
-            .prepareStatement("select payload::text from $queue where seq = ?")
-            .use { statement ->
-                statement.setLong(1, item.seq)
-                statement.executeQuery().use {
-                    check(it.next()) { "queue item ${item.seq} is not visible to this tenant" }
-                    it.getString(1)
-                }
-            }
+        checkNotNull(
+            dsl
+                .select(PAYLOAD_TEXT)
+                .from(queue)
+                .where(SEQ.eq(item.seq))
+                .fetchOne(),
+        ) {
+            "queue item ${item.seq} is not visible to this tenant"
+        }.get(PAYLOAD_TEXT)
 
     override fun complete(item: ClaimedItem) {
-        scope.connections.require().prepareStatement("delete from $queue where seq = ?").use {
-            it.setLong(1, item.seq)
-            it.executeUpdate()
-        }
+        dsl.deleteFrom(queue).where(SEQ.eq(item.seq)).execute()
     }
 
     override fun release(item: ClaimedItem) {
-        scope.connections
-            .require()
-            .prepareStatement("update $queue set state = 'PENDING', claimed_at = null where seq = ?")
-            .use {
-                it.setLong(1, item.seq)
-                it.executeUpdate()
-            }
+        dsl
+            .update(queue)
+            .set(STATE, "PENDING")
+            .setNull(CLAIMED_AT)
+            .where(SEQ.eq(item.seq))
+            .execute()
     }
 
+    /** The claim, in its own short transaction under the platform binding: its commit ends the partition lock. */
     private fun claimInLane(lane: Lane): ClaimedItem? =
-        claimSource.connection.use { connection ->
-            val wasAutoCommit = connection.autoCommit
-            connection.autoCommit = false
-            try {
-                val claimed = claimDue(connection, lane)
-                connection.commit() // ends the claim transaction and with it the partition lock
-                claimed
-            } catch (failure: Exception) {
-                connection.rollback()
-                throw failure
-            } finally {
-                connection.autoCommit = wasAutoCommit
-            }
+        scope.platformTransaction {
+            val claim = ClaimDue(schemaName).call(lane.name, consumer, now(), now().minus(claimTimeout))
+            dsl
+                .select(claim.claimedSeq, claim.claimedTenant, claim.claimedPartition)
+                .from(claim)
+                .fetchOne()
+                ?.let {
+                    ClaimedItem(
+                        it.get(claim.claimedSeq),
+                        TenantId(it.get(claim.claimedTenant)),
+                        it.get(claim.claimedPartition),
+                        lane,
+                    )
+                }
         }
 
-    private fun claimDue(
-        connection: Connection,
-        lane: Lane,
-    ): ClaimedItem? =
-        connection
-            .prepareStatement("select claimed_seq, claimed_tenant, claimed_partition from $claimDue(?, ?, ?, ?)")
-            .use { statement ->
-                statement.setString(1, lane.name)
-                statement.setString(2, consumer)
-                statement.setTimestamp(3, Timestamp.from(clock.instant()))
-                statement.setTimestamp(4, reclaimBefore())
-                statement.executeQuery().use { rows ->
-                    if (rows.next()) {
-                        ClaimedItem(
-                            rows.getLong(1),
-                            TenantId(rows.getObject(2, UUID::class.java)),
-                            rows.getString(3),
-                            lane,
-                        )
-                    } else {
-                        null
-                    }
-                }
-            }
+    private fun now(): OffsetDateTime = clock.instant().atOffset(ZoneOffset.UTC)
 
-    private fun reclaimBefore(): Timestamp = Timestamp.from(clock.instant().minus(claimTimeout))
+    private companion object {
+        val SEQ = DSL.field(DSL.name("seq"), SQLDataType.BIGINT)
+        val TENANT_ID = DSL.field(DSL.name("tenant_id"), SQLDataType.UUID)
+        val PARTITION_KEY = DSL.field(DSL.name("partition_key"), SQLDataType.CLOB)
+        val LANE = DSL.field(DSL.name("lane"), SQLDataType.CLOB)
+        val CONSUMER = DSL.field(DSL.name("consumer"), SQLDataType.CLOB)
+        val PAYLOAD = DSL.field(DSL.name("payload"), SQLDataType.JSONB)
+        val PAYLOAD_TEXT = PAYLOAD.cast(SQLDataType.CLOB)
+        val STATE = DSL.field(DSL.name("state"), SQLDataType.CLOB)
+        val ENQUEUED_AT = DSL.field(DSL.name("enqueued_at"), SQLDataType.TIMESTAMPWITHTIMEZONE)
+        val CLAIMED_AT = DSL.field(DSL.name("claimed_at"), SQLDataType.TIMESTAMPWITHTIMEZONE)
+    }
 }

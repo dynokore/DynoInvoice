@@ -6,6 +6,13 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [8.1.1] - 2026-10-17
+### Changed
+- `OutboxAndQueueWiring` (INV-T-5305, outbox-and-queue 5.0.0; coordinator ruling INV-Q-5275): builds `LaneRateLimiter`,
+  `JdbcWorkQueue`, `JdbcDeadLetterTriage` and `JdbcInboxConsumer` with the module's tenancy-jooq `DSLContext` and the
+  `TenantScope`; the limiter, the work queue and the inbox consumer get no `DataSource` any more, so the lane gate hand-off
+  of these beans is gone (the transactions of the scope's `TenantAwareDataSource` hold the gate).
+
 ## [8.1.0] - 2026-10-17
 ### Changed
 - The `tenancyTables` bean is no longer replaceable: a service that defines its own `TenancyTables` bean now fails start-up (INV-T-5821, owner answer INV-Q-4821 B). KDoc: a tenant id in `shedlock.name` is scheduling metadata, not tenant data (owner answer INV-Q-4817 A).
@@ -13,6 +20,7 @@ train is its own (README.md: "own version and changelog").
 ## [8.0.7] - 2026-10-17
 ### Changed
 - Metadata-only release (INV-T-5820, ruling INV-Q-5678 A): depends on `tenancy-jooq` 1.2.0 (the guard refuses a `TenancyTables` not built by `TableClasses.verify`, INV-Q-4821 B); no code change.
+
 
 ## [8.0.6] - 2026-10-17
 ### Changed

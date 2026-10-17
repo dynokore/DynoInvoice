@@ -1,6 +1,7 @@
 package com.dynokore.platform.outboxandqueue
 
 import com.dynokore.platform.tenancykernel.SqlIdentifier
+import org.jooq.DSLContext
 import java.sql.Connection
 import java.sql.Timestamp
 import java.time.Clock
@@ -37,6 +38,7 @@ class JdbcReplayIntake
         reader: EventLogReader,
         private val claimSource: DataSource,
         private val scope: TenantScope,
+        dsl: DSLContext,
         handler: EventHandler,
         private val sink: RebuildRequiredSink,
         private val clock: Clock = Clock.systemUTC(),
@@ -50,8 +52,8 @@ class JdbcReplayIntake
                 subscription.copy(trackSources = producer == CatalogueEntry.EVERY_SERVICE),
                 catalogue,
                 reader,
-                claimSource,
                 scope,
+                dsl,
                 MarkerAwareHandler(handler),
                 sink,
                 clock,

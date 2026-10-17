@@ -1,7 +1,10 @@
 package com.dynokore.platform.outboxandqueue
 
+import com.dynokore.platform.tenancyjooq.TableClass
 import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantRlsMigration
+import org.jooq.Name
+import org.jooq.impl.DSL
 
 /**
  * DDL for the partition-ordered queue (INV-REQ-540, INV-REQ-1072): one `work_queue` table in a service's own
@@ -42,6 +45,21 @@ object QueueSchema {
         check(LANE_VALUES == Lane.entries.joinToString(", ") { "'${it.name}'" }) {
             "QueueSchema.LANE_VALUES must list every Lane in order"
         }
+    }
+
+    /**
+     * The tables and the function the queue classes use as jOOQ, by `DSL.name(schema, name)` with their class for
+     * tenancy-jooq (INV-T-5305): [WORK_QUEUE] is a tenant table (`tenant_id` under forced row-level security);
+     * [LANE_RATE_WINDOW] holds no tenant data ([OutboxSchema.platformScopedTables]); [CLAIM_DUE] returns the claim
+     * columns of rows of no tenant table (the sys-owned function is the grant), so both are `PLATFORM_SCOPED`.
+     */
+    fun jooqTables(schema: String): Map<Name, TableClass> {
+        val s = SqlIdentifier.require(schema, "schema")
+        return mapOf(
+            DSL.name(s, WORK_QUEUE) to TableClass.TENANT,
+            DSL.name(s, LANE_RATE_WINDOW) to TableClass.PLATFORM_SCOPED,
+            DSL.name(s, CLAIM_DUE) to TableClass.PLATFORM_SCOPED,
+        )
     }
 
     fun ddl(

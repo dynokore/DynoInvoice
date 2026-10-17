@@ -83,8 +83,8 @@ class RecordTopicIT {
         ConsumerSubscription(name, audit, "evidence", recordTypes = recordTypes),
         catalogue,
         harness.reader,
-        harness.fixture.runtimeDataSource(),
         scope,
+        JooqKit.module("evidence", scope.tenants, scope.transactions),
         object : EventHandler {
             override fun handle(event: Envelope) = HandleOutcome.APPLIED
         },

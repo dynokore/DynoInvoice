@@ -102,13 +102,14 @@ private class Delivery(
             ConsumerSubscription(consumer, topic, "submission"),
             harness.sequencedCatalogue,
             harness.reader,
-            source,
             scope,
+            JooqKit.module("submission", tenants, scope.transactions),
             ModeHandler(),
             harness.rebuildSink,
         )
-    val limiter = LaneRateLimiter(source, "submission", LaneLimits())
-    val queue = JdbcWorkQueue(source, scope, "submission", limiter, MutableClock(), consumer)
+    val dsl = JooqKit.module("submission", tenants, scope.transactions)
+    val limiter = LaneRateLimiter(scope, dsl, "submission", LaneLimits())
+    val queue = JdbcWorkQueue(scope, dsl, "submission", limiter, MutableClock(), consumer)
     val delivery = JdbcReplayDelivery(queue, scope, inbox)
     private val feeder = QueueKit(harness, consumer = consumer)
 
@@ -341,7 +342,7 @@ class ReplayDeliveryConnectionsIT {
             assertEquals(1, d.pending(), "claimable again")
 
             // the completion fails after the dead letter is recorded: the item is claimable, the letter stands
-            source.failOn = { it.startsWith("delete from submission.work_queue") }
+            source.failOn = { it.startsWith("delete from \"submission\".\"work_queue\"") }
             assertThrows(IllegalStateException::class.java) { d.delivery.runOnce() }
             assertEquals(1, d.items())
             assertEquals(1, d.letters(), "letters after a failed completion (main gives the same number)")

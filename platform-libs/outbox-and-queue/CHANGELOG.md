@@ -6,6 +6,27 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [5.0.0] - 2026-10-17
+### Changed
+- BREAKING (INV-T-5305, slice 2 of 4 of INV-T-4202; owner ruling INV-Q-4196): `JdbcWorkQueue` and `LaneRateLimiter` run
+  every statement as jOOQ on a tenancy-jooq `DSLContext` and take the `TenantScope` and the `DSLContext` instead of a
+  `DataSource` (`JdbcWorkQueue(scope, dsl, schema, limiter, clock, consumer, claimTimeout)`,
+  `LaneRateLimiter(scope, dsl, schema, limits)`). `claim_due` is a jOOQ table-valued function call and the rate-limit
+  upsert one jOOQ statement on the database clock, each in a transaction of its own under the platform binding.
+  `QueueSchema.jooqTables(schema)` declares `work_queue` (tenant), `lane_rate_window` and `claim_due`
+  (`PLATFORM_SCOPED`); `OutboxSchema.jooqTables(schema)` adds them, `event_dead_letter`, `consumer_sequence` and
+  `consumer_offset`.
+- BREAKING: `JdbcInboxConsumer` takes the `DSLContext` after its `TenantScope` and no claim `DataSource`; its offset
+  reads and writes outside the tenant transaction, the dead-letter record, the inbox claim and the sequence statements
+  are jOOQ. The string-built keep-unless-moved helper is gone: the dead-letter offset upsert is one jOOQ statement with bind values that resets
+  attempts, infra_failures, first_infra_failure_at and retry_not_before when the new offset is greater than the stored
+  one. `JdbcReplayIntake` takes the `DSLContext` after its `TenantScope` (it builds the inbox consumer).
+- BREAKING: `JdbcDeadLetterTriage` takes the `DSLContext` after its `TenantScope`; the raw read, the replay enqueue and
+  the resolve call are jOOQ.
+- Not converted, pending an owner ruling (reported in the merge request): the offset lock, the offset advance and the
+  consumer-source-seen insert of `JdbcInboxConsumer` (they write `PLATFORM_SCOPED` tables inside the record's tenant
+  transaction) and the triage-view read of `JdbcDeadLetterTriage` (a cross-tenant view with a `tenant_id` column).
+
 ## [4.0.2] - 2026-10-17
 ### Changed
 - KDoc only: a tenant id in `consumer_replay.scope` is request metadata, not tenant data (INV-T-5821, owner answer INV-Q-4817 A); no behaviour change.

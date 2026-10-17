@@ -85,8 +85,8 @@ class DeadLetterPlatformTenantIT {
         OutboxHarness(image).use { harness ->
             val triage =
                 JdbcDeadLetterTriage(
-                    harness.fixture.runtimeDataSource(),
                     harness.submission.scope,
+                    harness.submission.dsl,
                     "submission",
                     MutableClock(),
                 )
