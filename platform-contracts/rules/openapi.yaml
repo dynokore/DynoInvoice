@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: rules API
-  version: 1.1.0
+  version: 1.2.0
   description: >-
     Contract-first source of truth for rules (API-01, STK-44). The
     `rules-contract` module generates its server interfaces and DTOs
@@ -197,7 +197,103 @@ paths:
                   value: { packId: "MAP-0042", status: "DRAFT" }
         default:
           $ref: '#/components/responses/Error'
+  /internal/v1/rules/mapping-packs/{packId}:
+    get:
+      operationId: getMappingPack
+      summary: Read a mapping pack with the counts the approver sees before signing
+      description: >-
+        Query to console-bff (SCR-11.3, INV-REQ-730, INV-AC-1749, INV-Q-6285 A).
+        Answers the pack with `entryCount`, `nonPrimaryCount` and
+        `unacceptedNonPrimaryCount`. Producer-enforced rules: `entryCount` is the
+        number of entries of the pack; `nonPrimaryCount` counts the entries whose
+        `sourceClass` is SECONDARY or INFERRED; `unacceptedNonPrimaryCount` counts
+        those of them whose `accepted` is false, which are the entries that block
+        sign-off with RUL-007. The three counts are present on this answer only.
+      tags: [mapping-packs]
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->rules-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-730, INV-REQ-729]
+      parameters:
+        - name: packId
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+          example: "MAP-0042"
+      responses:
+        '200':
+          description: The pack with its entry counts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MappingPack'
+              examples:
+                default:
+                  value: { packId: "MAP-0042", status: "SUBMITTED", entryCount: 12, nonPrimaryCount: 2, unacceptedNonPrimaryCount: 1 }
+        default:
+          $ref: '#/components/responses/Error'
   /internal/v1/rules/mapping-packs/{packId}/entries:
+    get:
+      operationId: listMappingPackEntries
+      summary: List the entries of a mapping pack with their source class, a page at a time
+      description: >-
+        Query to console-bff (SCR-11.3, INV-REQ-730, INV-AC-1749, INV-Q-6285 A).
+        Entries are ordered by `entryId`. `limit` and `cursor` page the list as
+        `reverseLookup` does; `nextCursor` is absent on the last page. The optional
+        `sourceClass` and `accepted` filters combine with AND.
+      tags: [mapping-packs]
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->rules-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-730, INV-REQ-729]
+      parameters:
+        - name: packId
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+          example: "MAP-0042"
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            maximum: 500
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: sourceClass
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [PRIMARY, SECONDARY, INFERRED]
+            x-extensible-enum: true
+        - name: accepted
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: One page of entries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MappingEntryPage'
+              examples:
+                default:
+                  value:
+                    items:
+                      - { entryId: "ENT-8", internalTaxCode: "SR-ALT", irasCode: "SR", sourceClass: "SECONDARY", accepted: false }
+                      - { entryId: "ENT-9", internalTaxCode: "SR-STD", irasCode: "SR", sourceClass: "PRIMARY", accepted: true }
+                    nextCursor: "ENT-9"
+        default:
+          $ref: '#/components/responses/Error'
     post:
       operationId: mapTaxCode
       summary: Map an unmapped internal tax code into a draft entry
@@ -1114,7 +1210,32 @@ components:
           items:
             type: object
             additionalProperties: true
+        entryCount:
+          type: integer
+          minimum: 0
+          description: >-
+            Number of entries of the pack. Producer-enforced; present on the answer of `getMappingPack` only.
+        nonPrimaryCount:
+          type: integer
+          minimum: 0
+          description: >-
+            Number of entries whose `sourceClass` is SECONDARY or INFERRED. Producer-enforced; present on the answer of `getMappingPack` only.
+        unacceptedNonPrimaryCount:
+          type: integer
+          minimum: 0
+          description: >-
+            Number of those entries whose `accepted` is false, which block sign-off with RUL-007. Producer-enforced; present on the answer of `getMappingPack` only.
       required: [packId, status]
+    MappingEntryPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MappingEntry'
+        nextCursor:
+          type: string
+      required: [items]
     MapTaxCodeRequest:
       type: object
       properties:

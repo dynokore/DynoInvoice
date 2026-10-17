@@ -6,3 +6,5 @@
 ../openapi.yaml#/components/schemas/MapTaxCodeRequest map-tax-code-request-*.json
 ../openapi.yaml#/components/schemas/RegulatoryPack regulatory-pack-*.json
 ../schemas/calendar-pack-contents.schema.json calendar-pack-contents-*.json
+../openapi.yaml#/components/schemas/MappingPack mapping-pack-*.json
+../openapi.yaml#/components/schemas/MappingEntryPage entries-page-*.json

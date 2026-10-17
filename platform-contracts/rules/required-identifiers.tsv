@@ -70,3 +70,12 @@ periodCount	property	openapi.yaml	INV-REQ-1303
 acknowledgePackDelta	operation	openapi.yaml	INV-REQ-2588
 dryRun	operation	openapi.yaml	INV-REQ-772
 approvePack	operation	openapi.yaml	INV-REQ-772
+getMappingPack	operation	openapi.yaml	INV-REQ-730
+listMappingPackEntries	operation	openapi.yaml	INV-REQ-730
+entryCount	property	openapi.yaml	INV-REQ-730
+nonPrimaryCount	property	openapi.yaml	INV-REQ-730
+unacceptedNonPrimaryCount	property	openapi.yaml	INV-REQ-730
+nextCursor	property	openapi.yaml	INV-REQ-730
+sourceClass	query_parameter	openapi.yaml	INV-REQ-730
+accepted	query_parameter	openapi.yaml	INV-REQ-730
+MappingEntryPage.items	schema_property	openapi.yaml	INV-REQ-730

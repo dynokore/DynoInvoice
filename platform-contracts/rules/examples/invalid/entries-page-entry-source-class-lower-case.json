@@ -1,0 +1,11 @@
+{
+ "items": [
+  {
+   "entryId": "ENT-8",
+   "internalTaxCode": "SR-ALT",
+   "irasCode": "SR",
+   "sourceClass": "secondary",
+   "accepted": false
+  }
+ ]
+}
