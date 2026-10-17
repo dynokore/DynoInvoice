@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: payload API
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     Contract-first source of truth for payload (API-01, STK-44). The
     `payload-contract` module generates its server interfaces and DTOs
@@ -40,12 +40,26 @@ paths:
         side-effect free (INV-REQ-325): it has no canonical record yet and
         writes nothing. Register unavailability never blocks it (payload-svc
         `must_not`); it proceeds with a WARN reason instead of BLOCK.
+
+
+        Records nothing, not even the register lookup: the same draft sent
+        twice yields identical verdicts and reasons (INV-REQ-325). When the
+        Check GST Register is unavailable the verdict is WARN, never BLOCK on
+        that ground, and carries the flag `REGISTER_UNAVAILABLE` (INV-REQ-326);
+        the re-check after issuance and PAY-011 raised by it are in the
+        service tasks, not in this contract.
+
+
+        The wrongful GST charge check (PAY-011) is performed by default
+        (INV-REQ-475). It blocks for TYPE_1A and only warns for TYPE_2,
+        TYPE_1B and TYPE_3 (INV-REQ-476). The controls are the same whichever
+        system issues the invoice (INV-REQ-503).
       tags: [pre-issuance]
       x-principal: ingest
       x-timeout: 150
       x-sync-edge: ingestion-svc->payload-svc
       x-error-codes: [PAY-001, PAY-005, PAY-011, PAY-013]
-      x-requirements: [INV-REQ-957, INV-REQ-325]
+      x-requirements: [INV-REQ-957, INV-REQ-325, INV-REQ-326, INV-REQ-475, INV-REQ-476, INV-REQ-503]
       x-operation:
         role: ingest
         scope: entity
@@ -68,6 +82,30 @@ paths:
                   entityRef: "E-001"
                   currency: "SGD"
                   totalIncludingTax: "1090.00"
+              type1aBlock:
+                summary: TYPE_1A draft whose Supplier GSTN is not registered on the invoice date
+                value:
+                  entityRef: "E-001"
+                  currency: "SGD"
+                  totalIncludingTax: "1090.00"
+                  submissionType: "TYPE_1A"
+                  supplierGstn: "M90012345X"
+                  invoiceDate: "2026-03-20"
+                  gstAmount: "90.00"
+                  lines:
+                    - { categoryCode: "S", taxableAmount: "1000.00", gstAmount: "90.00" }
+              type2Warn:
+                summary: TYPE_2 draft with the same finding (warns only)
+                value:
+                  entityRef: "E-001"
+                  currency: "SGD"
+                  totalIncludingTax: "1090.00"
+                  submissionType: "TYPE_2"
+                  supplierGstn: "M90012345X"
+                  invoiceDate: "2026-03-20"
+                  gstAmount: "90.00"
+                  lines:
+                    - { categoryCode: "S", taxableAmount: "1000.00", gstAmount: "90.00" }
       responses:
         '200':
           description: The verdict, with reasons where not a clean PASS.
@@ -78,6 +116,21 @@ paths:
               examples:
                 default:
                   value: { verdict: "PASS", reasons: [] }
+                type1aBlock:
+                  summary: TYPE_1A with a wrongful GST charge (PAY-011) is BLOCK
+                  value:
+                    verdict: "BLOCK"
+                    reasons:
+                      - { code: "PAY-011", message: "Wrongful GST charge: the Supplier GSTN is not registered on the invoice date", field: "supplierGstn", severity: "BLOCK", overridable: false }
+                type2Warn:
+                  summary: TYPE_2 with a wrongful GST charge (PAY-011) is WARN
+                  value:
+                    verdict: "WARN"
+                    reasons:
+                      - { code: "PAY-011", message: "Wrongful GST charge: the Supplier GSTN is not registered on the invoice date", field: "supplierGstn", severity: "WARN", overridable: false }
+                registerUnavailable:
+                  summary: Register unavailable — WARN with the flag, never BLOCK on that ground
+                  value: { verdict: "WARN", reasons: [], flags: ["REGISTER_UNAVAILABLE"] }
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/payload/documents/{docUuid}/versions/{version}/validate:
@@ -94,12 +147,28 @@ paths:
         exception, `422` even though the document itself is recorded by
         canonical-svc as `NOT_SUBMITTABLE` with `ISSUANCE_REFUSED`). Byte-identical
         on repeat (§6.8) — never recomputes totals (payload-svc `must_not`).
+
+
+        A variance of the line sum against the stated total beyond the
+        tolerance gives a 200 with verdict WARN, a reason PAY-004 and the
+        payload built, never a 422; the stated totals are used as stated
+        (INV-REQ-474, INV-REQ-810). When the Check GST Register is unavailable
+        the verdict is WARN with the flag `REGISTER_UNAVAILABLE`, never BLOCK on
+        that ground (INV-REQ-326); the lookup is returned as `registerLookup`
+        and kept against the submission as evidence (INV-REQ-478). The re-check
+        after issuance and PAY-011 raised by it are in the service tasks.
+
+
+        The wrongful GST charge check (PAY-011) is performed by default
+        (INV-REQ-475). It blocks for TYPE_1A and only warns for TYPE_2,
+        TYPE_1B and TYPE_3 (INV-REQ-476). The controls are the same whichever
+        system issues the invoice (INV-REQ-503).
       tags: [validation]
       x-principal: ingest
       x-timeout: 2000
       x-sync-edge: ingestion-svc->payload-svc
       x-error-codes: [PAY-001, PAY-002, PAY-003, PAY-004, PAY-005, PAY-006, PAY-009, PAY-011, PAY-013]
-      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-324]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-324, INV-REQ-326, INV-REQ-474, INV-REQ-475, INV-REQ-476, INV-REQ-478, INV-REQ-810]
       x-operation:
         role: ingest
         scope: entity
@@ -136,6 +205,26 @@ paths:
                     specVersion: "PINT-SG-1.2"
                     customizationId: "SG:PINT:1.2"
                     reasons: []
+                variance:
+                  summary: Line sum differs from the stated total beyond the tolerance — WARN, payload built
+                  value:
+                    verdict: "WARN"
+                    specVersion: "PINT-SG-1.2"
+                    customizationId: "SG:PINT:1.2"
+                    reasons:
+                      - { code: "PAY-004", message: "Line sum differs from the stated total beyond the tolerance", severity: "WARN", overridable: false }
+                registerUnavailable:
+                  summary: Register unavailable — WARN with the flag and the lookup evidence
+                  value:
+                    verdict: "WARN"
+                    specVersion: "PINT-SG-1.2"
+                    customizationId: "SG:PINT:1.2"
+                    reasons: []
+                    flags: ["REGISTER_UNAVAILABLE"]
+                    registerLookup:
+                      queriedValue: "M90012345X 2026-03-20"
+                      outcome: "UNAVAILABLE"
+                      queriedAt: "2026-03-20T03:15:22Z"
         '422':
           description: Validation failed; nothing is sent to the AP (FR-AE.2, API-21's stated exception).
           content:
@@ -290,7 +379,44 @@ components:
           format: decimal
           pattern: '^-?\d{1,17}(\.\d{1,2})?$'
           description: Money as a decimal string (API-12).
+        submissionType:
+          type: string
+          enum: [TYPE_1A, TYPE_1B, TYPE_2, TYPE_3]
+          x-extensible-enum: true
+          description: Same values as `ValidateIssuanceRequest.submissionType`.
+        supplierGstn:
+          type: string
+          maxLength: 20
+        invoiceDate:
+          type: string
+          format: date
+        gstAmount:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+          description: Money as a decimal string (API-12).
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/DraftLine'
       required: [entityRef, currency, totalIncludingTax]
+    DraftLine:
+      type: object
+      properties:
+        categoryCode:
+          type: string
+          maxLength: 20
+        taxableAmount:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+          description: Money as a decimal string (API-12).
+        gstAmount:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+          description: Money as a decimal string (API-12).
+      required: [categoryCode]
     PreIssuanceVerdict:
       type: object
       properties:
@@ -302,6 +428,15 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ReasonItem'
+        flags:
+          type: array
+          description: >-
+            Set when the Check GST Register was unavailable: WARN and never
+            BLOCK on that ground (INV-REQ-326).
+          items:
+            type: string
+            enum: [REGISTER_UNAVAILABLE]
+            x-extensible-enum: true
       required: [verdict, reasons]
     ValidateIssuanceRequest:
       type: object
@@ -329,7 +464,37 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ReasonItem'
+        flags:
+          type: array
+          description: >-
+            Set when the Check GST Register was unavailable: WARN and never
+            BLOCK on that ground (INV-REQ-326).
+          items:
+            type: string
+            enum: [REGISTER_UNAVAILABLE]
+            x-extensible-enum: true
+        registerLookup:
+          $ref: '#/components/schemas/RegisterLookup'
       required: [verdict, reasons]
+    RegisterLookup:
+      type: object
+      description: >-
+        The register lookup kept against the submission as evidence of due
+        diligence (INV-REQ-478).
+      properties:
+        queriedValue:
+          type: string
+        outcome:
+          type: string
+          enum: [VALID, INVALID, UNAVAILABLE]
+          x-extensible-enum: true
+        queriedAt:
+          type: string
+          format: date-time
+        response:
+          type: string
+          maxLength: 2000
+      required: [queriedValue, outcome, queriedAt]
     ReasonItem:
       type: object
       properties:
@@ -339,6 +504,13 @@ components:
           type: string
         message:
           type: string
+        severity:
+          type: string
+          enum: [INFO, WARN, BLOCK]
+          x-extensible-enum: true
+        overridable:
+          type: boolean
+          description: True exactly for a reason whose catalogue disposition is OVERRIDABLE (INV-REQ-500).
       required: [code, message]
     PayloadMetadata:
       type: object

@@ -1,0 +1,27 @@
+# INV-T-6019. Identifiers in backticks in the published behavior and intent of INV-REQ-325, 326, 474, 475, 476, 478, 503, 810
+# (read from Keel). One row per identifier, under the first requirement that names it.
+# Not listed, because they are not payload contract identifiers: tax.approver (role); masterdata-svc, payload-svc,
+# evidence-svc (services); POST /v1/pre-issuance-checks and POST /v1/issuances (ingestion-svc's public routes);
+# 422 and 503 (status codes); networkIssuance (submission contract); netTotal, taxTotal, grossTotal, amountDue
+# (canonical contract, INV-REQ-810: payload never recomputes totals).
+identifier	kind	file	requirement
+supplierGstn	property	openapi.yaml	INV-REQ-325
+invoiceDate	property	openapi.yaml	INV-REQ-325
+gstAmount	property	openapi.yaml	INV-REQ-325
+lines	property	openapi.yaml	INV-REQ-325
+categoryCode	property	openapi.yaml	INV-REQ-325
+severity	property	openapi.yaml	INV-REQ-476
+overridable	property	openapi.yaml	INV-REQ-476
+flags	property	openapi.yaml	INV-REQ-326
+registerLookup	property	openapi.yaml	INV-REQ-478
+queriedValue	property	openapi.yaml	INV-REQ-478
+queriedAt	property	openapi.yaml	INV-REQ-478
+currency	property	openapi.yaml	INV-REQ-810
+REGISTER_UNAVAILABLE	enum_value	openapi.yaml	INV-REQ-326
+UNAVAILABLE	enum_value	openapi.yaml	INV-REQ-478
+TYPE_1A	enum_value	openapi.yaml	INV-REQ-476
+PASS	enum_value	openapi.yaml	INV-REQ-325
+WARN	enum_value	openapi.yaml	INV-REQ-325
+BLOCK	enum_value	openapi.yaml	INV-REQ-325
+checkPreIssuance	operation	openapi.yaml	INV-REQ-325
+validateIssuance	operation	openapi.yaml	INV-REQ-326

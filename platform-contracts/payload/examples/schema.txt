@@ -1,0 +1,3 @@
+../openapi.yaml#/components/schemas/DraftDocument draft-document-*.json
+../openapi.yaml#/components/schemas/RegisterLookup register-lookup-*.json
+../openapi.yaml#/components/schemas/ReasonItem reason-item-*.json
