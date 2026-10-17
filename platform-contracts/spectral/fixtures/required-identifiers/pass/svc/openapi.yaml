@@ -15,22 +15,3 @@ components:
         status:
           type: string
           enum: [ACTIVE, CLOSED]
-        color:
-          type: string
-          enum: [RED]
-        wrap:
-          type: object
-          properties:
-            inner: {type: string}
-        withAllOf:
-          type: object
-      allOf:
-        - properties:
-            viaAllOf: {type: string}
-    Other:
-      type: object
-      properties:
-        status:
-          type: string
-          enum: [ACTIVE, OPEN]
-        extra: {type: string}
