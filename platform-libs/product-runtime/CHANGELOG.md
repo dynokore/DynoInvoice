@@ -8,7 +8,7 @@ train is its own (README.md: "own version and changelog").
 
 ## [1.0.8] - 2026-10-17
 ### Changed
-- Metadata-only release (INV-T-5303; the publish guard refuses a changed POM at a published version): no API or behaviour change; `src/main` and `src/impl` are unchanged. The POMs and module metadata of the publications name service-runtime 8.0.3 and config-resolver 3.0.0.
+- Metadata-only release (INV-T-5303; the publish guard refuses a changed POM at a published version): no API or behaviour change; `src/main` and `src/impl` are unchanged. The POMs and module metadata of the publications name service-runtime 8.0.4 and config-resolver 3.0.0.
 
 ## [1.0.7] - 2026-10-17
 ### Changed
