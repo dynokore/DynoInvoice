@@ -1,7 +1,10 @@
 package com.dynokore.platform.outboxandqueue
 
+import com.dynokore.platform.tenancyjooq.TableClass
 import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantRlsMigration
+import org.jooq.Name
+import org.jooq.impl.DSL
 import java.sql.Connection
 
 /**
@@ -103,6 +106,15 @@ object EventLogSchema {
         require(TOPIC.matches(topic)) { "topic must look like gst.<service>.<event-name>.v<N>, was '$topic'" }
         return SqlIdentifier.require(topic.replace('.', '_').replace('-', '_'), "topic table")
     }
+
+    /**
+     * The tables the event-log jOOQ classes use, by `DSL.name(schema, table)` with their class for tenancy-jooq
+     * (INV-T-4133): each of [topics] is a topic table, tenant data (`TENANT`, [topicDdl]); [EVENTS_MISSING] is a
+     * function over the event log's own tables for the keeper's login, declared `PLATFORM_SCOPED`.
+     */
+    fun jooqTables(topics: Collection<String>): Map<Name, TableClass> =
+        topics.associate { DSL.name(SCHEMA, tableName(it)) to TableClass.TENANT } +
+            (DSL.name(SCHEMA, EVENTS_MISSING) to TableClass.PLATFORM_SCOPED)
 
     /**
      * The event log's tenantless tables, `PLATFORM_SCOPED` (INV-ADR-3968 item 4a, INV-T-4134), by qualified name: each

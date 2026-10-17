@@ -41,15 +41,20 @@ class UnrelayedEventCheckIT {
         val tenants = TenantContextImpl()
         val boundary = TransactionRunnerImpl(TenantAwareDataSource(service.appDataSource()), tenants)
         val scope = TenantScope(tenants, boundary, boundary, OutboxPostgresFixture.WORKLOAD)
+        val dsl = JooqKit.module(SCHEMA, tenants, boundary)
+        val eventLogScope = eventLog.eventLogScope(TenantContextImpl())
+        val eventLogDsl = JooqKit.eventLog(eventLogScope, catalogue)
         val writer =
-            JdbcOutboxWriter(boundary, SCHEMA, "canonical-svc", "canonical-svc-1", catalogue, Clock.systemUTC())
+            JdbcOutboxWriter(dsl, SCHEMA, "canonical-svc", "canonical-svc-1", catalogue, Clock.systemUTC())
         val relay =
             JdbcOutboxRelay(
-                service.runtimeDataSource(),
                 scope,
+                dsl,
                 SCHEMA,
-                PostgresEventBinding(eventLog.eventLogScope(TenantContextImpl())),
+                PostgresEventBinding(eventLogScope, eventLogDsl),
                 Clock.systemUTC(),
+                "background",
+                2,
             )
         val raised = mutableListOf<UnrelayedEvent>()
         val check = newCheck()
@@ -57,11 +62,11 @@ class UnrelayedEventCheckIT {
         /** A check as another instance, or this one after a restart, would build it: no memory of earlier runs. */
         fun newCheck() =
             JdbcUnrelayedEventCheck(
-                service.runtimeDataSource(),
                 scope,
+                dsl,
                 SCHEMA,
                 "canonical-svc",
-                PostgresEventLogPresence(eventLog.eventLogDataSource()),
+                PostgresEventLogPresence(eventLogScope, eventLogDsl),
                 UnrelayedEventSettings(Duration.ofDays(30), margin, batchSize = 2),
                 UnrelayedEventSink { raised += it },
             )
@@ -292,7 +297,7 @@ class UnrelayedEventCheckIT {
             val fault = s.write()
             s.markPublished(fault)
             val calls = mutableListOf<Int>()
-            val real = PostgresEventLogPresence(s.eventLog.eventLogDataSource())
+            val real = PostgresEventLogPresence(s.eventLogScope, s.eventLogDsl)
             val counting =
                 object : EventLogPresence {
                     override fun missing(
@@ -305,8 +310,8 @@ class UnrelayedEventCheckIT {
                 }
             val check =
                 JdbcUnrelayedEventCheck(
-                    s.service.runtimeDataSource(),
                     s.scope,
+                    s.dsl,
                     SCHEMA,
                     "canonical-svc",
                     counting,
@@ -334,7 +339,7 @@ class UnrelayedEventCheckIT {
             val seq = s.write()
             s.drain()
             val id = s.idOf(seq)
-            val presence = PostgresEventLogPresence(s.eventLog.eventLogDataSource())
+            val presence = PostgresEventLogPresence(s.eventLogScope, s.eventLogDsl)
             val answer = presence.missing(topic, listOf(id, "absent-1"))
             assertEquals(setOf("absent-1"), answer.missing)
             assertTrue(
@@ -347,9 +352,14 @@ class UnrelayedEventCheckIT {
             // the id of this topic's event, asked on another topic the caller produces: missing there, nothing leaks
             assertEquals(setOf(id), presence.missing("gst.payload.payload-ready.v1", listOf(id)).missing)
             // a login producing no topic is refused
-            val stranger = PostgresEventLogPresence(s.eventLog.roleDataSource("recon_runtime"))
-            val refused = assertThrows(SQLException::class.java) { stranger.missing(topic, listOf(id)) }
-            assertEquals("42501", refused.sqlState)
+            val strangerScope =
+                s.eventLog.eventLogScope(
+                    TenantContextImpl(),
+                    s.eventLog.roleDataSource("recon_runtime"),
+                )
+            val stranger = PostgresEventLogPresence(strangerScope, JooqKit.eventLog(strangerScope, catalogue))
+            val refused = assertThrows(Exception::class.java) { stranger.missing(topic, listOf(id)) }
+            assertEquals("42501", strangerScope.sqlErrors.sqlStateOf(refused))
             // more than 1,000 ids are refused by the function itself
             s.eventLog.eventLogDataSource().connection.use { c ->
                 val tooMany = c.createArrayOf("text", Array(EventLogSchema.MAX_EVENTS_MISSING + 1) { "id-$it" })

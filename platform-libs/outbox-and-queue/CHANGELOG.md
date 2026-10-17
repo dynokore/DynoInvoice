@@ -6,6 +6,27 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-10-17
+### Changed
+- BREAKING (INV-T-5304, slice 1 of 4 of INV-T-4202; owner ruling INV-Q-4196): `JdbcOutboxWriter`, `JdbcOutboxRelay`,
+  `PostgresEventBinding`, `JdbcEventLogPositions`, `JdbcUnrelayedEventCheck` and `PostgresEventLogPresence` run every
+  statement as jOOQ on a tenancy-jooq `DSLContext` (`OutboxSchema.jooqTables`, `EventLogSchema.jooqTables`) and take
+  it as a constructor argument. `JdbcOutboxWriter` takes the `DSLContext` instead of `CurrentConnection`;
+  `JdbcOutboxRelay` and `JdbcUnrelayedEventCheck` take the `TenantScope` and the `DSLContext` instead of a claim
+  `DataSource`; `JdbcEventLogPositions` and `PostgresEventLogPresence` take the event-log `TenantScope` and the
+  `DSLContext` instead of the event-log `DataSource` (coordinator ruling INV-Q-5614); `PostgresEventBinding` takes the
+  `DSLContext` after its scope and reads the SQLSTATE through the scope's runner (INV-Q-5121); the
+  `EventBindingUnavailable` messages are unchanged.
+- `JdbcOutboxRelay` takes its run-spanning advisory lock in an outer platform transaction and runs the claim read and
+  each row in `TransactionRunner.outsideOpenTransaction` (owner answer INV-Q-5609 (b)); it takes its lane name and
+  size and refuses to start with fewer than 2 permits (`IllegalStateException`).
+### Added
+- `OutboxSchema.OUTBOX_CLAIM_PAGE` and `OUTBOX_CLAIM_PENDING`: sys-owned SECURITY DEFINER functions, created by
+  `OutboxSchema.ddl`, through which the relay and the unrelayed-event check read the claim set (coordinator ruling
+  INV-Q-5612); the claim view stays in the DDL.
+- `TenantScope.sqlErrors`; test fixtures `OutageTransactionRunner` and `EventLogOutage`, and the seam
+  `KillableTransactionRunner.outsideOpenTransaction` (additive).
+
 ## [3.1.1] - 2026-10-16
 ### Changed
 - Metadata only: depends on `tenancy-kernel` 3.1.0 (adds `TransactionRunner.outsideOpenTransaction`, INV-T-5675); version step per ruling INV-Q-5678 (A). No code change.

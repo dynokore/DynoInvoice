@@ -1,6 +1,9 @@
 package com.dynokore.platform.outboxandqueue
 
-import java.sql.SQLException
+import org.jooq.DSLContext
+import org.jooq.JSONB
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 
 /**
  * [EventBinding] over the PostgreSQL event log (INV-REQ-1212; the binding in both forms).
@@ -18,6 +21,7 @@ import java.sql.SQLException
  */
 class PostgresEventBinding(
     private val eventLog: TenantScope,
+    private val dsl: DSLContext,
 ) : EventBinding {
     private val json = EnvelopeJson()
 
@@ -25,30 +29,31 @@ class PostgresEventBinding(
         topic: String,
         envelope: Envelope,
     ) {
-        val topicTable = "${EventLogSchema.SCHEMA}.${EventLogSchema.tableName(topic)}"
+        val topicName = EventLogSchema.tableName(topic)
+        val topicTable = DSL.table(DSL.name(EventLogSchema.SCHEMA, topicName))
         val body = json.write(envelope)
         try {
             eventLog.bindWorkload(envelope.tenant) {
                 eventLog.transactions.inTransaction {
-                    val connection = eventLog.connections.require()
-                    connection.prepareStatement("select pg_advisory_xact_lock(hashtext(?))").use {
-                        it.setString(1, topicTable)
-                        it.execute()
-                    }
-                    connection
-                        .prepareStatement(
-                            "insert into $topicTable (tenant_id, event_id, subject, envelope) values (?, ?, ?, ?::jsonb)",
-                        ).use {
-                            it.setObject(1, envelope.tenant.value)
-                            it.setString(2, envelope.id.value)
-                            it.setString(3, envelope.subject)
-                            it.setString(4, body)
-                            it.executeUpdate()
-                        }
+                    dsl.select(JooqRoutines.advisoryXactLock("${EventLogSchema.SCHEMA}.$topicName")).execute()
+                    dsl
+                        .insertInto(topicTable)
+                        .columns(TENANT_ID, EVENT_ID, SUBJECT, ENVELOPE)
+                        .values(envelope.tenant.value, envelope.id.value, envelope.subject, JSONB.valueOf(body))
+                        .execute()
                 }
             }
-        } catch (failure: SQLException) {
-            throw EventBindingUnavailable("event log refused ${envelope.type}: ${failure.sqlState}", failure)
+        } catch (failure: Exception) {
+            // jOOQ wraps the SQLException; the SQLSTATE is read through the runner (INV-Q-5121)
+            val state = eventLog.sqlErrors.sqlStateOf(failure) ?: throw failure
+            throw EventBindingUnavailable("event log refused ${envelope.type}: $state", failure)
         }
+    }
+
+    companion object {
+        private val TENANT_ID = DSL.field(DSL.name("tenant_id"), SQLDataType.UUID)
+        private val EVENT_ID = DSL.field(DSL.name("event_id"), SQLDataType.CLOB)
+        private val SUBJECT = DSL.field(DSL.name("subject"), SQLDataType.CLOB)
+        private val ENVELOPE = DSL.field(DSL.name("envelope"), SQLDataType.JSONB)
     }
 }

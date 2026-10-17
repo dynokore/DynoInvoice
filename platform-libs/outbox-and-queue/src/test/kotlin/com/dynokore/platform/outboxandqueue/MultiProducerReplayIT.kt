@@ -106,7 +106,15 @@ class MultiProducerReplayIT {
         val syncTx = TransactionRunnerImpl(harness.fixture.runtimeDataSource(), syncTenants)
         val clock = Clock.systemUTC()
         val catalogue = harness.catalogue
-        val writer = JdbcOutboxWriter(syncTx, "evidence", "evidence-svc", "evidence-svc-w", catalogue, clock)
+        val writer =
+            JdbcOutboxWriter(
+                JooqKit.module("evidence", syncTenants, syncTx),
+                "evidence",
+                "evidence-svc",
+                "evidence-svc-w",
+                catalogue,
+                clock,
+            )
         syncTenants.bindPlatform("svc:test/job:probe") {
             syncTx.inTransaction {
                 JdbcConsumerReplay("evidence", syncTx, harness.reader, writer, clock).fullSync(

@@ -42,6 +42,8 @@ sourceSets {
 // Project evaluation order is alphabetical, so tenancy-kernel's `implJar` task would not exist yet.
 evaluationDependsOn(":tenancy-kernel")
 val tenancyKernelImplJar = project(":tenancy-kernel").tasks.named("implJar")
+evaluationDependsOn(":tenancy-jooq")
+val tenancyJooqImplJar = project(":tenancy-jooq").tasks.named("implJar")
 
 dependencies {
     api(project(":tenancy-kernel"))
@@ -49,6 +51,17 @@ dependencies {
     add("implImplementation", files(tenancyKernelImplJar))
     testFixturesApi(files(tenancyKernelImplJar))
     testFixturesApi(testFixtures(project(":tenancy-kernel")))
+
+    // INV-T-5304 (INV-ADR-3968 item 4a, owner ruling INV-Q-4196): the converted classes run every statement as jOOQ on
+    // tenancy-jooq's DSLContext. tenancy-jooq-api brings jOOQ.
+    add("implImplementation", project(":tenancy-jooq"))
+    add("implImplementation", files(tenancyJooqImplJar))
+    testFixturesApi(project(":tenancy-jooq"))
+    testFixturesApi(files(tenancyJooqImplJar))
+    testFixturesApi(testFixtures(project(":tenancy-jooq")))
+    testImplementation(project(":tenancy-jooq"))
+    testImplementation(files(tenancyJooqImplJar))
+    testImplementation(testFixtures(project(":tenancy-jooq")))
 
     // The impl half compiles and runs against the api half's output, in this
     // same project (Gradle's own idiom for a second source set that extends

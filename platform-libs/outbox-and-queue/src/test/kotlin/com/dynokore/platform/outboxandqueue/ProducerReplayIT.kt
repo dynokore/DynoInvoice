@@ -202,7 +202,7 @@ class ProducerReplayIT {
             // A writer whose catalogue has no request topic for the service fails after the head move: nothing stays.
             val withoutRequests = EventCatalogue(s.harness.catalogue.entries())
             val noRequestTopic =
-                JdbcOutboxWriter(kit.boundary, "reconciliation", consumer, "r-1", withoutRequests, clock)
+                JdbcOutboxWriter(kit.dsl, "reconciliation", consumer, "r-1", withoutRequests, clock)
             assertThrows(EmissionNotPermitted::class.java) {
                 kit.inPlatformTx {
                     JdbcConsumerReplay("reconciliation", kit.boundary, s.harness.reader, noRequestTopic, clock)
@@ -373,7 +373,7 @@ class ProducerReplayIT {
             // A writer without the service's request topic fails after the clear, the delete and the head move.
             val withoutRequests = EventCatalogue(s.harness.catalogue.entries())
             val noRequestTopic =
-                JdbcOutboxWriter(s.syncTx, "reconciliation", consumer, "$consumer-w", withoutRequests, clock)
+                JdbcOutboxWriter(s.syncDsl, "reconciliation", consumer, "$consumer-w", withoutRequests, clock)
             val clear = s.readModelClear()
             assertThrows(EmissionNotPermitted::class.java) {
                 s.syncTenants.bindPlatform("svc:test/job:probe") {
@@ -484,8 +484,16 @@ class ProducerReplayIT {
         /** reconciliation-svc's runtime login: its full sync runs here, bound to the platform tenant. */
         val syncTenants = TenantContextImpl()
         val syncTx = TransactionRunnerImpl(harness.fixture.runtimeDataSource(), syncTenants)
+        val syncDsl = JooqKit.module("reconciliation", syncTenants, syncTx)
         val syncWriter =
-            JdbcOutboxWriter(syncTx, "reconciliation", consumer, "$consumer-w", harness.catalogue, clock)
+            JdbcOutboxWriter(
+                JooqKit.module("reconciliation", syncTenants, syncTx),
+                "reconciliation",
+                consumer,
+                "$consumer-w",
+                harness.catalogue,
+                clock,
+            )
 
         fun readModelClear(): ReadModelClear {
             val table = ReadModelTable("version_view", consumer)

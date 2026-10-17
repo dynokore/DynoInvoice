@@ -3,6 +3,7 @@ package com.dynokore.platform.outboxandqueue
 import com.dynokore.platform.tenancykernel.BlankText
 import com.dynokore.platform.tenancykernel.CurrentConnection
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
+import com.dynokore.platform.tenancykernel.SqlErrors
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
@@ -34,6 +35,15 @@ class TenantScope
                 "the workload principal must be not blank and hold no control character (INV-REQ-854 b1, INV-Q-4684)"
             }
         }
+
+        /**
+         * The SQLSTATE reader of [transactions] (INV-Q-5121): jOOQ wraps a SQLException in a DataAccessException, so a
+         * class that reads an SQLSTATE asks the runner (tenancy-kernel's `SqlErrors`).
+         *
+         * @throws IllegalStateException when [transactions] is no [SqlErrors].
+         */
+        val sqlErrors: SqlErrors
+            get() = checkNotNull(transactions as? SqlErrors) { "the TransactionRunner of this scope reads no SQLSTATE" }
 
         /**
          * Binds [tenant] and [actor] for [block]: the reserved `TenantId.PLATFORM` of a platform row or a tenantless

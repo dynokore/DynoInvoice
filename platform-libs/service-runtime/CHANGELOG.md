@@ -6,6 +6,14 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [8.0.5] - 2026-10-17
+### Changed
+- `OutboxAndQueueWiring` (INV-T-5304, outbox-and-queue 4.0.0; coordinator rulings INV-Q-5275, INV-Q-5614): builds the
+  outbox writer, relay, event binding, unrelayed-event check and event-log presence with the module's tenancy-jooq
+  `DSLContext` (private to the bean methods, no bean of the context) or the `TenantScope`; the presence takes the
+  event-log `TenantScope`; the relay gets the background lane's budget and refuses a run under 2 permits (a pool
+  without lanes has no bound). The event binding now needs the `EventCatalogue` bean, whose topics it declares.
+
 ## [8.0.4] - 2026-10-17
 ### Changed
 - `ConfigResolverWiring` builds `JdbcConfigPurge` and `JdbcResolutionRecorder` (config-resolver 3.0.0) with the module's

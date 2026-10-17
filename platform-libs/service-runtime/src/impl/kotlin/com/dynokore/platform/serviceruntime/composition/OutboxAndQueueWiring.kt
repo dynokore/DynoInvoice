@@ -9,6 +9,7 @@ import com.dynokore.platform.outboxandqueue.EventLogLag
 import com.dynokore.platform.outboxandqueue.EventLogPresence
 import com.dynokore.platform.outboxandqueue.EventLogPurge
 import com.dynokore.platform.outboxandqueue.EventLogReader
+import com.dynokore.platform.outboxandqueue.EventLogSchema
 import com.dynokore.platform.outboxandqueue.InboxConsumer
 import com.dynokore.platform.outboxandqueue.JdbcDeadLetterTriage
 import com.dynokore.platform.outboxandqueue.JdbcEventLogPurge
@@ -23,6 +24,7 @@ import com.dynokore.platform.outboxandqueue.JdbcWorkQueue
 import com.dynokore.platform.outboxandqueue.LaneLimits
 import com.dynokore.platform.outboxandqueue.LaneRateLimiter
 import com.dynokore.platform.outboxandqueue.OutboxRelay
+import com.dynokore.platform.outboxandqueue.OutboxSchema
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.PostgresEventBinding
 import com.dynokore.platform.outboxandqueue.PostgresEventLogPresence
@@ -42,12 +44,14 @@ import com.dynokore.platform.serviceruntime.binding.GstProperties
 import com.dynokore.platform.serviceruntime.identity.WorkloadPrincipal
 import com.dynokore.platform.serviceruntime.pool.EventLogGate
 import com.dynokore.platform.serviceruntime.pool.LaneGateHolder
+import com.dynokore.platform.serviceruntime.pool.PoolLane
 import com.dynokore.platform.serviceruntime.staleness.LoggingStalenessBreachSink
 import com.dynokore.platform.serviceruntime.staleness.OnStalenessRules
 import com.dynokore.platform.serviceruntime.staleness.StalenessCheckSchedule
 import com.dynokore.platform.serviceruntime.staleness.StalenessGauges
 import com.dynokore.platform.serviceruntime.staleness.StalenessProperties
 import com.dynokore.platform.serviceruntime.staleness.StalenessRules
+import com.dynokore.platform.tenancyjooq.TenancyJooq
 import com.dynokore.platform.tenancykernel.CurrentConnection
 import com.dynokore.platform.tenancykernel.LaneGate
 import com.dynokore.platform.tenancykernel.TenantAwareDataSource
@@ -55,6 +59,7 @@ import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
 import io.micrometer.core.instrument.MeterRegistry
+import org.jooq.DSLContext
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
@@ -110,18 +115,20 @@ class OutboxAndQueueWiring(
     ): TenantScope = TenantScope(tenants, transactions, connections, principal.value)
 
     @Bean
-    @ConditionalOnBean(CurrentConnection::class, EventCatalogue::class)
+    @ConditionalOnBean(TransactionRunner::class, EventCatalogue::class)
     @ConditionalOnProperty(name = [Props.SERVICE, Props.SCHEMA])
     @ConditionalOnMissingBean(OutboxWriter::class)
+    @Suppress("LongParameterList")
     fun outboxWriter(
-        connections: CurrentConnection,
+        tenants: TenantContext,
+        transactions: TransactionRunner,
         catalogue: EventCatalogue,
         gst: GstProperties,
         modules: ModuleProperties,
         clock: Clock,
     ): JdbcOutboxWriter =
         JdbcOutboxWriter(
-            connections,
+            moduleDsl(modules.requireSchema(), tenants, transactions),
             modules.requireSchema(),
             gst.requireService(),
             gst.requireInstanceId(),
@@ -131,31 +138,50 @@ class OutboxAndQueueWiring(
 
     @Bean
     @ConditionalOnProperty(name = [Props.EVENT_BINDING], havingValue = "postgres", matchIfMissing = true)
-    @ConditionalOnBean(TenantScope::class, DataSource::class)
+    @ConditionalOnBean(TenantScope::class, EventCatalogue::class, DataSource::class)
     @ConditionalOnMissingBean(EventBinding::class)
     fun eventBinding(
         @Qualifier(ServiceDataSources.EVENT_LOG) eventLog: ObjectProvider<DataSource>,
         scope: TenantScope,
-    ): PostgresEventBinding =
+        catalogue: EventCatalogue,
+    ): PostgresEventBinding {
         // The event log shares the application pool: the append joins the relay's row transaction (the same tenant and
         // actor, REQUIRED propagation) and commits with published_at, so a relay run holds at most 2 permits of the
         // background lane (INV-Q-4850). A separate event-log pool (HA) keeps its own transaction on that pool.
-        eventLog.getIfAvailable()?.let {
-            PostgresEventBinding(eventLogScope(handOff(it, eventLogGate.getIfAvailable()), scope))
-        }
-            ?: PostgresEventBinding(scope)
+        val binding =
+            eventLog.getIfAvailable()?.let { eventLogScope(handOff(it, eventLogGate.getIfAvailable()), scope) } ?: scope
+        return PostgresEventBinding(binding, eventLogDsl(binding, topicsOf(catalogue)))
+    }
 
     @Bean
     @ConditionalOnBean(TenantScope::class, EventBinding::class, DataSource::class)
     @ConditionalOnProperty(name = [Props.SCHEMA])
     @ConditionalOnMissingBean(OutboxRelay::class)
     fun outboxRelay(
-        dataSource: DataSource,
         scope: TenantScope,
         binding: EventBinding,
         modules: ModuleProperties,
         clock: Clock,
-    ): JdbcOutboxRelay = JdbcOutboxRelay(application(dataSource), scope, modules.requireSchema(), binding, clock)
+    ): JdbcOutboxRelay {
+        // The relay runs on the background lane and needs 2 of its permits (outer transaction and row transaction,
+        // INV-Q-5609 (b)); a pool without lanes admits every connection, so its lane has no bound.
+        val lane =
+            applicationGate
+                .getIfAvailable()
+                ?.takeIf { it.active }
+                ?.permits()
+                ?.budgets
+                ?.background
+        return JdbcOutboxRelay(
+            scope,
+            moduleDsl(modules.requireSchema(), scope.tenants, scope.transactions),
+            modules.requireSchema(),
+            binding,
+            clock,
+            PoolLane.BACKGROUND.name.lowercase(),
+            lane ?: Int.MAX_VALUE,
+        )
+    }
 
     @Bean
     @ConditionalOnBean(TenantScope::class, DataSource::class)
@@ -288,12 +314,16 @@ class OutboxAndQueueWiring(
 
     /** `eventlog.events_missing` on the event-log DataSource (owner ruling INV-Q-4350 (A)). */
     @Bean
-    @ConditionalOnBean(DataSource::class)
+    @ConditionalOnBean(TenantScope::class, DataSource::class)
     @ConditionalOnMissingBean(EventLogPresence::class)
     fun eventLogPresence(
         @Qualifier(ServiceDataSources.EVENT_LOG) eventLog: ObjectProvider<DataSource>,
         dataSource: DataSource,
-    ): PostgresEventLogPresence = PostgresEventLogPresence(eventLogSource(eventLog, dataSource))
+        scope: TenantScope,
+    ): PostgresEventLogPresence {
+        val eventLogScope = eventLogScope(eventLogSource(eventLog, dataSource), scope)
+        return PostgresEventLogPresence(eventLogScope, eventLogDsl(eventLogScope, emptyList()))
+    }
 
     /**
      * The check of outbox rows marked published whose event never reached the event log (owner rulings INV-Q-4334 (B),
@@ -302,12 +332,11 @@ class OutboxAndQueueWiring(
      * [UnrelayedEventSink] replaces the logging default.
      */
     @Bean
-    @ConditionalOnBean(TenantScope::class, EventLogPresence::class, DataSource::class)
+    @ConditionalOnBean(TenantScope::class, EventLogPresence::class)
     @ConditionalOnProperty(name = [Props.SCHEMA, Props.SERVICE])
     @ConditionalOnMissingBean(UnrelayedEventCheck::class)
     @Suppress("LongParameterList")
     fun unrelayedEventCheck(
-        dataSource: DataSource,
         scope: TenantScope,
         presence: EventLogPresence,
         properties: UnrelayedEventProperties,
@@ -317,8 +346,8 @@ class OutboxAndQueueWiring(
         gst: GstProperties,
     ): JdbcUnrelayedEventCheck =
         JdbcUnrelayedEventCheck(
-            application(dataSource),
             scope,
+            moduleDsl(modules.requireSchema(), scope.tenants, scope.transactions),
             modules.requireSchema(),
             gst.requireService(),
             presence,
@@ -395,6 +424,30 @@ class OutboxAndQueueWiring(
         dataSource: DataSource,
     ): DataSource =
         eventLog.getIfAvailable()?.let { handOff(it, eventLogGate.getIfAvailable()) } ?: application(dataSource)
+
+    /**
+     * The module's DSLContext (INV-T-4133, coordinator ruling INV-Q-5275): tenancy-jooq's factory over the
+     * [TransactionRunner] and [TenantContext] beans, the module's tables named with `DSL.name(schema, table)` and
+     * declared with their class ([OutboxSchema.jooqTables]). It is private to the class that uses it.
+     */
+    private fun moduleDsl(
+        schema: String,
+        tenants: TenantContext,
+        transactions: TransactionRunner,
+    ): DSLContext = TenancyJooq.dslContext(OutboxSchema.jooqTables(schema), tenants, transactions)
+
+    /** The event log's DSLContext over [scope]'s own runner, with the topic tables of [topics] ([EventLogSchema.jooqTables]). */
+    private fun eventLogDsl(
+        scope: TenantScope,
+        topics: Collection<String>,
+    ): DSLContext = TenancyJooq.dslContext(EventLogSchema.jooqTables(topics), scope.tenants, scope.transactions)
+
+    /** Every topic the catalogue publishes to: event topics, replay topics and request topics. */
+    private fun topicsOf(catalogue: EventCatalogue): Set<String> =
+        (
+            catalogue.entries().map { it.topic } + catalogue.replayTopics().map { it.topic } +
+                catalogue.requestTopics().map { it.topic }
+        ).toSet()
 
     companion object {
         /**

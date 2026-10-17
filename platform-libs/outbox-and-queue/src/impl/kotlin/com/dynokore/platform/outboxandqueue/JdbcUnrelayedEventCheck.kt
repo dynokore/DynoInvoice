@@ -2,20 +2,21 @@ package com.dynokore.platform.outboxandqueue
 
 import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantId
-import java.sql.Connection
+import org.jooq.DSLContext
+import org.jooq.Table
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import java.time.Instant
 import java.util.BitSet
-import java.util.UUID
-import javax.sql.DataSource
 
 /**
  * [UnrelayedEventCheck] for one service schema (owner rulings INV-Q-4334 (B) and INV-Q-4350 (A); coordinator ruling
  * INV-Q-4403 (A)). It finds every outbox row whose `published_at` is set but whose event id is not in its topic in the
  * event log.
  *
- * - **Outbox side.** Every run reads the whole outbox across tenants on [claimSource], a connection of the service's
- *   runtime login, through the `<svc>_sys`-owned [OutboxSchema.OUTBOX_CLAIM_VIEW] (`seq`, `tenant_id`, `published_at`
- *   only), in keyset pages of [pageSize] rows on `seq` (the view's key; it exposes no event id), each page verified
+ * - **Outbox side.** Every run reads the whole outbox across tenants, each page in a transaction under the platform
+ *   binding, through the `<svc>_sys`-owned function [OutboxSchema.OUTBOX_CLAIM_PAGE] (`seq`, `tenant_id`,
+ *   `published_at` of the claim view's rows; INV-Q-5612), in keyset pages of [pageSize] rows on `seq` (the view's key; it exposes no event id), each page verified
  *   before the next is read: memory is bounded by one page, the open findings and one bit per verified seq. The topic and event id of each published row not yet verified are read in a transaction bound to its tenant
  *   ([TenantScope.bindWorkload]). No row is skipped by position: a row written or marked by a transaction still open
  *   during one run is invisible or unpublished then, so it is not verified and the next run reads it again.
@@ -32,8 +33,8 @@ import javax.sql.DataSource
  *   ages out with the inbox retention, which is longer than the outbox's content window, so it outlives the row.
  */
 class JdbcUnrelayedEventCheck(
-    private val claimSource: DataSource,
     private val scope: TenantScope,
+    private val dsl: DSLContext,
     schema: String,
     private val service: String,
     private val presence: EventLogPresence,
@@ -41,9 +42,9 @@ class JdbcUnrelayedEventCheck(
     private val sink: UnrelayedEventSink,
     private val pageSize: Int = DEFAULT_PAGE,
 ) : UnrelayedEventCheck {
-    private val outbox = "${SqlIdentifier.require(schema, "schema")}.${OutboxSchema.OUTBOX}"
-    private val inbox = "${SqlIdentifier.require(schema, "schema")}.${OutboxSchema.INBOX}"
-    private val claimView = "${SqlIdentifier.require(schema, "schema")}.${OutboxSchema.OUTBOX_CLAIM_VIEW}"
+    private val schemaName = SqlIdentifier.require(schema, "schema")
+    private val outbox: Table<*> = DSL.table(DSL.name(schemaName, OutboxSchema.OUTBOX))
+    private val inbox: Table<*> = DSL.table(DSL.name(schemaName, OutboxSchema.INBOX))
     private var verified = SeqSet(0)
 
     init {
@@ -55,10 +56,10 @@ class JdbcUnrelayedEventCheck(
     override fun check(): UnrelayedEventCheckResult {
         var stillVerified: SeqSet? = null
         val found = ArrayList<Published>()
-        claimSource.connection.use { claim ->
+        run {
             var after = 0L
             while (true) {
-                val page = page(claim, after)
+                val page = page(after)
                 val published = page.filter { it.publishedAt != null }
                 val kept = stillVerified ?: published.firstOrNull()?.let { SeqSet(it.seq) }?.also { stillVerified = it }
                 val unverified =
@@ -101,45 +102,33 @@ class JdbcUnrelayedEventCheck(
         }
     }
 
-    private fun page(
-        claim: Connection,
-        after: Long,
-    ): List<Claimed> =
-        claim
-            .prepareStatement(
-                "select seq, tenant_id, published_at from $claimView where seq > ? order by seq limit ?",
-            ).use {
-                it.setLong(1, after)
-                it.setInt(2, pageSize)
-                it.executeQuery().use { rows ->
-                    buildList {
-                        while (rows.next()) {
-                            add(
-                                Claimed(
-                                    rows.getLong(1),
-                                    TenantId(rows.getObject(2, UUID::class.java)),
-                                    rows.getTimestamp(3)?.toInstant(),
-                                ),
-                            )
-                        }
+    private fun page(after: Long): List<Claimed> =
+        scope.bindWorkload(TenantId.PLATFORM) {
+            scope.transactions.inTransaction {
+                val claim = OutboxClaimPage(schemaName).call(after, pageSize, false)
+                dsl
+                    .select(claim.seq, claim.tenantId, claim.publishedAt)
+                    .from(claim)
+                    .fetch {
+                        Claimed(
+                            it.get(claim.seq),
+                            TenantId(it.get(claim.tenantId)),
+                            it.get(claim.publishedAt)?.toInstant(),
+                        )
                     }
-                }
             }
+        }
 
     /** Records [row] as raised in the inbox, in its tenant's transaction; true only for the run that records it first. */
     private fun recordRaised(row: Published): Boolean =
         scope.bindWorkload(row.tenant) {
             scope.transactions.inTransaction {
-                val connection = scope.connections.require()
-                connection
-                    .prepareStatement(
-                        "insert into $inbox (consumer, event_id, tenant_id) values (?, ?, ?) on conflict do nothing",
-                    ).use {
-                        it.setString(1, RAISED_CONSUMER)
-                        it.setString(2, row.eventId)
-                        it.setObject(3, row.tenant.value)
-                        it.executeUpdate() == 1
-                    }
+                dsl
+                    .insertInto(inbox)
+                    .columns(CONSUMER, EVENT_ID, TENANT_ID)
+                    .values(RAISED_CONSUMER, row.eventId, row.tenant.value)
+                    .onConflictDoNothing()
+                    .execute() == 1
             }
         }
 
@@ -152,28 +141,19 @@ class JdbcUnrelayedEventCheck(
                     val publishedAt = chunk.associate { it.seq to checkNotNull(it.publishedAt) }
                     scope.bindWorkload(tenant) {
                         scope.transactions.inTransaction {
-                            val connection = scope.connections.require()
-                            connection
-                                .prepareStatement(
-                                    "select seq, topic, id from $outbox where seq = any(?) and published_at is not null",
-                                ).use {
-                                    it.setArray(1, connection.createArrayOf("bigint", publishedAt.keys.toTypedArray()))
-                                    it.executeQuery().use { rows ->
-                                        buildList {
-                                            while (rows.next()) {
-                                                val seq = rows.getLong(1)
-                                                add(
-                                                    Published(
-                                                        seq,
-                                                        tenant,
-                                                        rows.getString(2),
-                                                        rows.getString(3),
-                                                        publishedAt.getValue(seq),
-                                                    ),
-                                                )
-                                            }
-                                        }
-                                    }
+                            dsl
+                                .select(SEQ, TOPIC, ID)
+                                .from(outbox)
+                                .where(SEQ.`in`(publishedAt.keys).and(PUBLISHED_AT.isNotNull))
+                                .fetch {
+                                    val seq = checkNotNull(it.get(SEQ))
+                                    Published(
+                                        seq,
+                                        tenant,
+                                        checkNotNull(it.get(TOPIC)),
+                                        checkNotNull(it.get(ID)),
+                                        publishedAt.getValue(seq),
+                                    )
                                 }
                         }
                     }
@@ -210,5 +190,13 @@ class JdbcUnrelayedEventCheck(
         const val RAISED_CONSUMER = "outbox-unrelayed-event-check"
         const val DEFAULT_PAGE = 1_000
         const val MAX_PAGE = 10_000
+
+        private val SEQ = DSL.field(DSL.name("seq"), SQLDataType.BIGINT)
+        private val TOPIC = DSL.field(DSL.name("topic"), SQLDataType.CLOB)
+        private val ID = DSL.field(DSL.name("id"), SQLDataType.CLOB)
+        private val PUBLISHED_AT = DSL.field(DSL.name("published_at"), SQLDataType.TIMESTAMPWITHTIMEZONE)
+        private val CONSUMER = DSL.field(DSL.name("consumer"), SQLDataType.CLOB)
+        private val EVENT_ID = DSL.field(DSL.name("event_id"), SQLDataType.CLOB)
+        private val TENANT_ID = DSL.field(DSL.name("tenant_id"), SQLDataType.UUID)
     }
 }

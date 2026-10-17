@@ -1,8 +1,11 @@
 package com.dynokore.platform.outboxandqueue
 
+import com.dynokore.platform.tenancyjooq.TableClass
 import com.dynokore.platform.tenancykernel.BlankText
 import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantRlsMigration
+import org.jooq.Name
+import org.jooq.impl.DSL
 
 /**
  * DDL for the tables this module owns in a service's own schema (INV-REQ-1211, INV-REQ-1222):
@@ -51,6 +54,17 @@ object OutboxSchema {
     /** Sys-owned view: the outbox claim columns (`seq`, `tenant_id`, `published_at`) of every tenant's rows. */
     const val OUTBOX_CLAIM_VIEW = "outbox_claim_v"
 
+    /**
+     * Sys-owned function `outbox_claim_page(after_seq bigint, page_size integer, unpublished_only boolean)`: the
+     * [OUTBOX_CLAIM_VIEW] rows (`seq`, `tenant_id`, `published_at`) with `seq > after_seq`, in `seq` order, at most
+     * `page_size`, only unpublished rows when `unpublished_only` (INV-Q-5612). tenancy-jooq reads the view as a
+     * single-tenant table, so the relay and the unrelayed-event check read the claim set through this function.
+     */
+    const val OUTBOX_CLAIM_PAGE = "outbox_claim_page"
+
+    /** Sys-owned function `outbox_claim_pending()`: the count of [OUTBOX_CLAIM_VIEW] rows with `published_at` null. */
+    const val OUTBOX_CLAIM_PENDING = "outbox_claim_pending"
+
     /** Sys-owned view: every dead letter's non-content columns (never `raw`). */
     const val DEAD_LETTER_TRIAGE_VIEW = "event_dead_letter_triage_v"
 
@@ -94,6 +108,22 @@ object OutboxSchema {
         ).map { "$s.$it" }
     }
 
+    /**
+     * The tables this module's jOOQ classes of the outbox side use, by `DSL.name(schema, table)`, with their class for
+     * tenancy-jooq (INV-T-4133): the tenant tables [OUTBOX], [OUTBOX_SEQUENCE] and [INBOX] (`tenant_id` under forced
+     * row-level security), and the two claim functions, which return rows of no tenant table (the sys-owned function
+     * reads every tenant, the function is the grant) and so are declared `PLATFORM_SCOPED`.
+     */
+    fun jooqTables(schema: String): Map<Name, TableClass> {
+        val s = SqlIdentifier.require(schema, "schema")
+        return mapOf(
+            DSL.name(s, OUTBOX) to TableClass.TENANT,
+            DSL.name(s, OUTBOX_SEQUENCE) to TableClass.TENANT,
+            DSL.name(s, INBOX) to TableClass.TENANT,
+            DSL.name(s, OUTBOX_CLAIM_PAGE) to TableClass.PLATFORM_SCOPED,
+        )
+    }
+
     /** `CREATE TABLE` statements for every table in [schema], the grants for [runtimeRole] and the objects of [sysRole]. */
     fun ddl(
         schema: String,
@@ -115,6 +145,7 @@ object OutboxSchema {
             runtimeGrants(schema, runtimeRole),
             sysAccess(schema, sysRole),
             views(schema, runtimeRole, sysRole),
+            claimFunctions(schema, runtimeRole, sysRole),
             outboxPurge(schema, runtimeRole, sysRole),
             inboxPurge(schema, runtimeRole, sysRole),
             deadLetterPurge(schema, runtimeRole, sysRole),
@@ -326,6 +357,46 @@ object OutboxSchema {
             alter view $s.$DEAD_LETTER_TRIAGE_VIEW owner to $sys;
             revoke all on $s.$DEAD_LETTER_TRIAGE_VIEW from public;
             grant select on $s.$DEAD_LETTER_TRIAGE_VIEW to $runtime;
+            revoke create on schema $s from $sys;
+            """.trimIndent()
+    }
+
+    /**
+     * The two claim-read functions (INV-Q-5612, INV-T-3978's pattern): static SQL, `SET search_path = pg_catalog,
+     * <schema>, pg_temp`, EXECUTE revoked from PUBLIC and granted to the runtime login only, owner the sys role. They
+     * read [OUTBOX_CLAIM_VIEW]'s rows, which the sys role owns.
+     */
+    private fun claimFunctions(
+        schema: String,
+        runtimeRole: String,
+        sysRole: String,
+    ): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        val runtime = SqlIdentifier.require(runtimeRole, "runtime role")
+        val sys = SqlIdentifier.require(sysRole, "sys role")
+        return """
+            create function $s.$OUTBOX_CLAIM_PAGE(after_seq bigint, page_size integer, unpublished_only boolean)
+            returns table (seq bigint, tenant_id uuid, published_at timestamptz)
+            language plpgsql stable security definer set search_path = pg_catalog, $s, pg_temp as $$
+            begin
+                return query select v.seq, v.tenant_id, v.published_at from $s.$OUTBOX_CLAIM_VIEW v
+                    where v.seq > after_seq and (not unpublished_only or v.published_at is null)
+                    order by v.seq limit page_size;
+            end
+            $$;
+            create function $s.$OUTBOX_CLAIM_PENDING() returns bigint
+            language plpgsql stable security definer set search_path = pg_catalog, $s, pg_temp as $$
+            begin
+                return (select count(*) from $s.$OUTBOX_CLAIM_VIEW v where v.published_at is null);
+            end
+            $$;
+            grant create on schema $s to $sys;
+            alter function $s.$OUTBOX_CLAIM_PAGE(bigint, integer, boolean) owner to $sys;
+            revoke all on function $s.$OUTBOX_CLAIM_PAGE(bigint, integer, boolean) from public;
+            grant execute on function $s.$OUTBOX_CLAIM_PAGE(bigint, integer, boolean) to $runtime;
+            alter function $s.$OUTBOX_CLAIM_PENDING() owner to $sys;
+            revoke all on function $s.$OUTBOX_CLAIM_PENDING() from public;
+            grant execute on function $s.$OUTBOX_CLAIM_PENDING() to $runtime;
             revoke create on schema $s from $sys;
             """.trimIndent()
     }

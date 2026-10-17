@@ -1,6 +1,7 @@
 package com.dynokore.platform.outboxandqueue
 
 import com.dynokore.platform.tenancykernel.TenantContextImpl
+import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 
@@ -20,7 +21,7 @@ class OutboxHarness(
         catalogue.entries().map { it.copy(recordTopic = false) }.let {
             EventCatalogue(it, catalogue.replayTopics(), catalogue.requestTopics())
         }
-    val eventLogForRelay = FlakyDataSource(fixture.eventLogDataSource())
+    val eventLogForRelay = EventLogOutage()
     val reader = PostgresEventLogReader(fixture.eventLogDataSource(), fixture.eventLogScope(TenantContextImpl()))
     val mapper = ObjectMapper()
 
@@ -33,8 +34,15 @@ class OutboxHarness(
 
     /** An event binding over [eventLogForRelay], bound with its own tenant context and the workload principal. */
     fun binding(): PostgresEventBinding {
-        val scope = fixture.eventLogScope(TenantContextImpl(), eventLogForRelay)
-        return PostgresEventBinding(scope)
+        val scope = outageScope(TenantContextImpl())
+        return PostgresEventBinding(scope, JooqKit.eventLog(scope, catalogue))
+    }
+
+    /** The event-log scope of [tenants] that fails while [eventLogForRelay] is not available. */
+    fun outageScope(tenants: TenantContextImpl): TenantScope {
+        val inner = fixture.eventLogScope(tenants)
+        val runner = OutageTransactionRunner(inner.transactions as TransactionRunnerImpl, eventLogForRelay)
+        return TenantScope(tenants, runner, runner, OutboxPostgresFixture.WORKLOAD)
     }
 
     private val json = EnvelopeJson()

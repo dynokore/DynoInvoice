@@ -1,13 +1,17 @@
 package com.dynokore.platform.outboxandqueue
 
-import com.dynokore.platform.tenancykernel.CurrentConnection
 import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantId
-import java.sql.Connection
-import java.sql.Timestamp
+import org.jooq.DSLContext
+import org.jooq.JSONB
+import org.jooq.Table
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import java.time.Clock
 import java.time.Instant
+import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
+import java.util.UUID
 
 /**
  * [OutboxWriter] over JDBC, writing into the `outbox` table of the service's own schema
@@ -29,7 +33,7 @@ import java.time.temporal.ChronoUnit
  * DEFINER function that inserts it with the change it records (coordinator ruling INV-Q-4254 A).
  */
 class JdbcOutboxWriter(
-    private val connections: CurrentConnection,
+    private val dsl: DSLContext,
     schema: String,
     private val service: String,
     private val instanceId: String,
@@ -38,8 +42,14 @@ class JdbcOutboxWriter(
 ) : OutboxWriter {
     private val guard = EmissionGuard(catalogue, service)
     private val ids = UuidV7()
-    private val outbox = "${SqlIdentifier.require(schema, "schema")}.${OutboxSchema.OUTBOX}"
-    private val counter = "${SqlIdentifier.require(schema, "schema")}.${OutboxSchema.OUTBOX_SEQUENCE}"
+    private val schemaName = SqlIdentifier.require(schema, "schema")
+    private val outbox: Table<*> = DSL.table(DSL.name(schemaName, OutboxSchema.OUTBOX))
+    private val counter: Table<*> = DSL.table(DSL.name(schemaName, OutboxSchema.OUTBOX_SEQUENCE))
+    private val lastValue =
+        DSL.field(
+            DSL.name(schemaName, OutboxSchema.OUTBOX_SEQUENCE, "last_value"),
+            SQLDataType.BIGINT,
+        )
 
     init {
         require(SERVICE.matches(service)) { "service must be a lower-case name like 'submission-svc', was '$service'" }
@@ -51,13 +61,12 @@ class JdbcOutboxWriter(
     ): List<Envelope> {
         if (events.isEmpty()) return emptyList()
         val entries = permitted(events, context)
-        val connection = connections.require()
         val stamped = context.docUuid != null || context.aggregateVersion != null
-        val first = if (stamped) reserveSequence(connection, context, events.size) else null
+        val first = if (stamped) reserveSequence(context, events.size) else null
         val now = clock.instant().truncatedTo(ChronoUnit.MICROS)
         return events.mapIndexed { index, event ->
             val envelope = envelope(event, context, now, first?.plus(index))
-            insert(connection, entries[index].topic, envelope)
+            insert(entries[index].topic, envelope)
             envelope
         }
     }
@@ -133,7 +142,6 @@ class JdbcOutboxWriter(
         require(!tenant.isPlatform || states.all { Envelope.isPlatformType(it.type) }) {
             "a domain event cannot be written under the platform tenant"
         }
-        val connection = connections.require()
         val now = clock.instant().truncatedTo(ChronoUnit.MICROS)
         return states.map { state ->
             val envelope =
@@ -153,7 +161,7 @@ class JdbcOutboxWriter(
                     causation = causation,
                     dataJson = state.dataJson,
                 )
-            insert(connection, topic, envelope)
+            insert(topic, envelope)
             envelope
         }
     }
@@ -165,7 +173,7 @@ class JdbcOutboxWriter(
      */
     fun appendCompleted(
         topic: String,
-        replayId: java.util.UUID,
+        replayId: UUID,
         eventsReplayed: Long,
         correlation: CorrelationId,
         causation: CausationId,
@@ -199,68 +207,84 @@ class JdbcOutboxWriter(
 
     /** Locks the key's counter row and returns the first of [count] consecutive sequence numbers. */
     private fun reserveSequence(
-        connection: Connection,
         context: EventContext,
         count: Int,
     ): Long {
         val wanted = (context.aggregateVersion ?: 1L) + count - 1
-        connection
-            .prepareStatement(
-                """
-                insert into $counter (tenant_id, aggregate_key, last_value) values (?, ?, ?)
-                on conflict (tenant_id, aggregate_key)
-                do update set last_value = greatest($counter.last_value + ?, excluded.last_value)
-                returning last_value
-                """.trimIndent(),
-            ).use { statement ->
-                statement.setObject(1, context.tenant.value)
-                statement.setString(2, context.aggregateKey)
-                statement.setLong(3, wanted)
-                statement.setInt(4, count)
-                statement.executeQuery().use { rows ->
-                    check(rows.next()) { "sequence counter returned no row" }
-                    return rows.getLong(1) - count + 1
-                }
-            }
+        val last =
+            dsl
+                .insertInto(counter)
+                .columns(TENANT_ID, AGGREGATE_KEY, LAST_VALUE)
+                .values(context.tenant.value, context.aggregateKey, wanted)
+                .onConflict(TENANT_ID, AGGREGATE_KEY)
+                .doUpdate()
+                .set(LAST_VALUE, DSL.greatest(lastValue.plus(count), DSL.excluded(LAST_VALUE)))
+                .returning(LAST_VALUE)
+                .fetchOne()
+        check(last != null) { "sequence counter returned no row" }
+        return checkNotNull(last.get(LAST_VALUE)) - count + 1
     }
 
     private fun insert(
-        connection: Connection,
         topic: String,
         envelope: Envelope,
     ) {
-        connection
-            .prepareStatement(
-                """
-                insert into $outbox
-                    (id, topic, type, source, subject, event_time, tenant_id, entity_ref, doc_uuid,
-                     transaction_date, docsequence, instance_id, correlation_id, causation_id, data)
-                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb)
-                """.trimIndent(),
-            ).use { statement ->
-                var column = 0
-
-                fun next() = ++column
-                statement.setString(next(), envelope.id.value)
-                statement.setString(next(), topic)
-                statement.setString(next(), envelope.type)
-                statement.setString(next(), envelope.source)
-                statement.setString(next(), envelope.subject)
-                statement.setTimestamp(next(), Timestamp.from(envelope.time))
-                statement.setObject(next(), envelope.tenant.value)
-                statement.setString(next(), envelope.entity.value)
-                statement.setObject(next(), envelope.docUuid?.value, java.sql.Types.OTHER)
-                statement.setObject(next(), envelope.transactionDate, java.sql.Types.DATE)
-                statement.setObject(next(), envelope.docSequence, java.sql.Types.BIGINT)
-                statement.setString(next(), envelope.instanceId)
-                statement.setString(next(), envelope.correlation.value)
-                statement.setString(next(), envelope.causation.value)
-                statement.setString(next(), envelope.dataJson)
-                statement.executeUpdate()
-            }
+        dsl
+            .insertInto(outbox)
+            .columns(
+                ID,
+                TOPIC,
+                TYPE,
+                SOURCE,
+                SUBJECT,
+                EVENT_TIME,
+                TENANT_ID,
+                ENTITY_REF,
+                DOC_UUID,
+                TRANSACTION_DATE,
+                DOCSEQUENCE,
+                INSTANCE_ID,
+                CORRELATION_ID,
+                CAUSATION_ID,
+                DATA,
+            ).values(
+                envelope.id.value,
+                topic,
+                envelope.type,
+                envelope.source,
+                envelope.subject,
+                envelope.time.atOffset(ZoneOffset.UTC),
+                envelope.tenant.value,
+                envelope.entity.value,
+                envelope.docUuid?.value,
+                envelope.transactionDate,
+                envelope.docSequence,
+                envelope.instanceId,
+                envelope.correlation.value,
+                envelope.causation.value,
+                JSONB.valueOf(envelope.dataJson),
+            ).execute()
     }
 
     private companion object {
         val SERVICE = Regex("^[a-z][a-z-]*$")
+
+        val ID = DSL.field(DSL.name("id"), SQLDataType.CLOB)
+        val TOPIC = DSL.field(DSL.name("topic"), SQLDataType.CLOB)
+        val TYPE = DSL.field(DSL.name("type"), SQLDataType.CLOB)
+        val SOURCE = DSL.field(DSL.name("source"), SQLDataType.CLOB)
+        val SUBJECT = DSL.field(DSL.name("subject"), SQLDataType.CLOB)
+        val EVENT_TIME = DSL.field(DSL.name("event_time"), SQLDataType.TIMESTAMPWITHTIMEZONE)
+        val TENANT_ID = DSL.field(DSL.name("tenant_id"), SQLDataType.UUID)
+        val ENTITY_REF = DSL.field(DSL.name("entity_ref"), SQLDataType.CLOB)
+        val DOC_UUID = DSL.field(DSL.name("doc_uuid"), SQLDataType.UUID)
+        val TRANSACTION_DATE = DSL.field(DSL.name("transaction_date"), SQLDataType.LOCALDATE)
+        val DOCSEQUENCE = DSL.field(DSL.name("docsequence"), SQLDataType.BIGINT)
+        val INSTANCE_ID = DSL.field(DSL.name("instance_id"), SQLDataType.CLOB)
+        val CORRELATION_ID = DSL.field(DSL.name("correlation_id"), SQLDataType.CLOB)
+        val CAUSATION_ID = DSL.field(DSL.name("causation_id"), SQLDataType.CLOB)
+        val DATA = DSL.field(DSL.name("data"), SQLDataType.JSONB)
+        val AGGREGATE_KEY = DSL.field(DSL.name("aggregate_key"), SQLDataType.CLOB)
+        val LAST_VALUE = DSL.field(DSL.name("last_value"), SQLDataType.BIGINT)
     }
 }

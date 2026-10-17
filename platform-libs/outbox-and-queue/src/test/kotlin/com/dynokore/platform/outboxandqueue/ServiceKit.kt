@@ -22,16 +22,21 @@ class ServiceKit(
     val tenants = TenantContextImpl()
     val boundary = KillableTransactionRunner(harness.fixture.appDataSource(), tenants)
     val scope = TenantScope(tenants, boundary, boundary, OutboxPostgresFixture.WORKLOAD)
-    val writer = JdbcOutboxWriter(boundary, schema, service, "$service-1", catalogue, CLOCK)
+    val dsl = JooqKit.module(schema, tenants, boundary)
+    val writer = JdbcOutboxWriter(dsl, schema, service, "$service-1", catalogue, CLOCK)
     val relay =
-        JdbcOutboxRelay(
-            harness.fixture.runtimeDataSource(),
-            TenantScope(tenants, boundary, boundary, OutboxPostgresFixture.WORKLOAD),
-            schema,
-            PostgresEventBinding(harness.fixture.eventLogScope(tenants, harness.eventLogForRelay)),
-            CLOCK,
-            batchSize = 50,
-        )
+        harness.outageScope(tenants).let { eventLog ->
+            JdbcOutboxRelay(
+                scope,
+                dsl,
+                schema,
+                PostgresEventBinding(eventLog, JooqKit.eventLog(eventLog, catalogue)),
+                CLOCK,
+                "background",
+                2,
+                batchSize = 50,
+            )
+        }
 
     // Runs [block] in a transaction of [tenant], as an inbound adapter would after binding it (ARC-21).
     fun <T> inTx(
