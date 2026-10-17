@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://platform-contracts.invoice.internal/service-runtime/schemas/pack-dry-run-sample-recorded-payload.schema.json",
   "title": "PackDryRunSampleRecordedPayload",
-  "description": "Payload of the PackDryRunSampleRecorded platform event (owner ruling INV-Q-4870 B, names pinned by INV-Q-5194; INV-REQ-772 b1, INV-REQ-1303; class: platform): one page of the dry-run sample. The documents array holds at most 500 documents: API-42 limits an event to 1 MB, and 500 documents are at most 148,500 bytes at this schema's maximum string lengths, so a full page stays far below 1 MB. The tenant is the envelope attribute tenantid (API-40). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "description": "Payload of the PackDryRunSampleRecorded platform event (owner ruling INV-Q-4870 B, names pinned by INV-Q-5194; INV-REQ-772 b1, INV-REQ-1303; class: platform): one page of the dry-run sample. The documents array holds at most 500 documents: API-42 limits an event to 1 MB, and 500 documents are at most 148,500 bytes at this schema's maximum string lengths, so a full page stays far below 1 MB. The tenant is the envelope attribute tenantid (API-40). The optional sgdValuesAbsent flag on a document is true only for a document in a foreign currency that has no stated SGD totals (INV-Q-5634 A). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
   "type": "object",
   "properties": {
     "dryRunId": {
@@ -68,6 +68,10 @@
             "format": "decimal",
             "pattern": "^-?\\d{1,17}(\\.\\d{1,2})?$",
             "description": "Signed GST value as a decimal string (API-12)."
+          },
+          "sgdValuesAbsent": {
+            "type": "boolean",
+            "description": "True only for a document in a foreign currency that has no stated SGD totals; taxableValue and gstValue are then the placeholder 0.00, a consumer leaves such an item out of every total and shows it as absent, and a value is never converted (INV-Q-5568 A, INV-Q-5634 A). Absent or false means the values are real."
           }
         },
         "required": [
@@ -78,7 +82,31 @@
           "taxableValue",
           "gstValue"
         ],
-        "additionalProperties": true
+        "additionalProperties": true,
+        "if": {
+          "properties": {
+            "sgdValuesAbsent": {
+              "const": true
+            }
+          },
+          "required": [
+            "sgdValuesAbsent"
+          ]
+        },
+        "then": {
+          "properties": {
+            "taxableValue": {
+              "const": "0.00"
+            },
+            "gstValue": {
+              "const": "0.00"
+            }
+          },
+          "required": [
+            "taxableValue",
+            "gstValue"
+          ]
+        }
       },
       "description": "The documents of the page; at most 500 (API-42, 1 MB event limit; see the schema description)."
     }
