@@ -73,3 +73,9 @@ correction	property	openapi.yaml	INV-REQ-917
 governingFiledAt	property	openapi.yaml	INV-REQ-917
 conflict	property	openapi.yaml	INV-REQ-917
 lateDocuments	property	openapi.yaml	INV-REQ-961
+checkSubmissionBoundary	operation	openapi.yaml	INV-REQ-959
+docUuids	property	openapi.yaml	INV-REQ-959
+submittedCount	property	openapi.yaml	INV-REQ-959
+submittedMembers	property	openapi.yaml	INV-REQ-959
+state	property	openapi.yaml	INV-REQ-959
+BoundaryMember.state.SENT	schema_enum_value	openapi.yaml	INV-REQ-959

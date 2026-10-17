@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: submission API
-  version: 1.2.0
+  version: 1.3.0
   description: >-
     Contract-first source of truth for submission (API-01, STK-44). The
     `submission-contract` module generates its server interfaces and DTOs
@@ -25,6 +25,8 @@ info:
     are `/internal/v1/…`, reachable only by console-bff on a person's behalf
     (API-25 — the callee re-checks writes), rather than through the public
     `/v1/…` surface (INV-REQ-568, INV-REQ-575, INV-REQ-581, INV-T-2858, T14).
+    1.3.0 adds the internal read checkSubmissionBoundary (INV-REQ-959,
+    INV-REQ-1005, INV-REQ-1018, INV-Q-6216); it is additive.
   contact:
     name: submission (see CODEOWNERS)
 servers:
@@ -787,6 +789,64 @@ paths:
                     withdrawnAt: "2026-03-20T03:20:00Z"
         default:
           $ref: '#/components/responses/Error'
+  /internal/v1/submission/boundary-checks:
+    post:
+      operationId: checkSubmissionBoundary
+      summary: Count how many documents of a group have already been submitted
+      description: >-
+        The submission boundary of a group of documents, read before a bulk
+        correction is previewed or applied (INV-REQ-959, INV-REQ-1005,
+        INV-REQ-1018, INV-Q-6216). A document counts as submitted when any of
+        its versions is in a `state` of `BoundaryMember`; READY,
+        AWAITING_PRECEDING, QUEUED, CANCELLED and WITHDRAWN do not count; a
+        docUuid with no version record counts as not submitted. `checkedCount`
+        is the number of distinct docUuids in the request; `submittedCount`
+        equals the length of `submittedMembers`. At most 5,000 documents per
+        call (API-49); a larger request is refused with `413` (API-20
+        envelope). The read changes nothing. Called by console-bff on behalf
+        of an operator.
+      tags: [transactions]
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->submission-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-959, INV-REQ-1005, INV-REQ-1018]
+      x-operation:
+        role: tax.operator
+        scope: entity
+        precondition: >-
+          The request names between 1 and 5,000 Doc UUIDs; a Doc UUID with no
+          version record is counted as not submitted.
+        reversibility: UNDOABLE
+        repeatKey: "none — a read-only call; it changes nothing and may be repeated."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BoundaryCheckRequest'
+            examples:
+              default:
+                value: { docUuids: ["3fa85f64-5717-4562-b3fc-2c963f66afa6"] }
+      responses:
+        '200':
+          description: The submission boundary of the group.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BoundaryCheckResult'
+              examples:
+                default:
+                  value:
+                    checkedCount: 1
+                    submittedCount: 1
+                    submittedMembers:
+                      - docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                        state: "SENT"
+        '413':
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
   /internal/v1/transactions/{docUuid}/versions/{version}/replay:
     post:
       operationId: replaySubmissions
@@ -1207,6 +1267,37 @@ components:
           type: string
           maxLength: 500
       required: [reason]
+    BoundaryCheckRequest:
+      type: object
+      properties:
+        docUuids:
+          type: array
+          minItems: 1
+          maxItems: 5000
+          description: >-
+            At most 5,000 documents per call (API-49); a larger request is
+            refused with `413`.
+          items: { type: string, format: uuid }
+      required: [docUuids]
+    BoundaryCheckResult:
+      type: object
+      properties:
+        checkedCount: { type: integer, minimum: 0 }
+        submittedCount: { type: integer, minimum: 0 }
+        submittedMembers:
+          type: array
+          maxItems: 5000
+          items:
+            $ref: '#/components/schemas/BoundaryMember'
+      required: [checkedCount, submittedCount, submittedMembers]
+    BoundaryMember:
+      type: object
+      properties:
+        docUuid: { type: string, format: uuid }
+        state:
+          type: string
+          enum: [SENT, SENT_UNCONFIRMED, RETRY, DEAD_LETTERED, REJECTED, ACKNOWLEDGED, SUPERSEDED, NETWORK_ISSUED, EXTERNALLY_SUBMITTED]
+      required: [docUuid, state]
     WithdrawResult:
       type: object
       properties:
