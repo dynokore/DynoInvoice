@@ -1,5 +1,9 @@
 package com.dynokore.platform.auditlog
 
+import com.dynokore.platform.outboxandqueue.CausationId
+import com.dynokore.platform.outboxandqueue.CorrelationId
+import com.dynokore.platform.outboxandqueue.EntityRef
+import com.dynokore.platform.tenancykernel.TenantId
 import org.jooq.Table
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
@@ -12,6 +16,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
+import java.time.LocalDate
 import java.util.UUID
 
 /**
@@ -195,6 +200,41 @@ class ModuleApiConsumerContractTest {
             assertEquals(1, h.auditEntries(listOf(tenant)))
             val exported = "select count(*) from submission.outbox where data ->> 'action' = 'exportSupportBundle'"
             assertEquals(1, h.count(exported, listOf(tenant)))
+        }
+    }
+
+    /** A fake `evidence-svc` read: the override register of an entity, written against `-api` types only. */
+    private fun register(
+        listing: OverrideListing,
+        tenant: UUID,
+    ): OverrideListingResult =
+        listing.list(
+            OverrideListQuery(
+                TenantId(tenant),
+                EntityRef("entity-1"),
+                LocalDate.of(2026, 9, 1),
+                LocalDate.of(2026, 9, 30),
+                "auditor-1",
+                CorrelationId("corr-register"),
+                CausationId("cmd-register"),
+            ),
+        )
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `the override register lists the entity's overrides and records the access`(image: String) {
+        AuditHarness(image).use { h ->
+            val tenant = UUID.randomUUID()
+            val doc = UUID.randomUUID()
+            h.asTenant(tenant) { h.overrides.override(h.overrideCommand(tenant, doc)) }
+
+            val listing: OverrideListing = h.overrides
+            val result = h.asTenant(tenant) { register(listing, tenant) }
+
+            assertEquals(listOf(doc), result.dated.map { it.grant.docUuid.value })
+            assertTrue(result.undated.isEmpty())
+            val logged = "select count(*) from submission.outbox where data ->> 'action' = 'listOverrides'"
+            assertEquals(1, h.count(logged, listOf(tenant)))
         }
     }
 }

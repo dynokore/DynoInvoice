@@ -58,8 +58,11 @@ object AuditSchema {
                 reason text not null check (reason !~ '${BlankText.SQL_BLANK}'),
                 granted_at timestamptz not null,
                 audit_event_id text not null,
+                entity_ref text not null,
+                transaction_date date,
                 unique (tenant_id, doc_uuid, document_version, error_code)
             );
+            create index ${OVERRIDE_GRANT}_tenant_entity_date on $s.$OVERRIDE_GRANT (tenant_id, entity_ref, transaction_date);
             comment on column $s.$OVERRIDE_GRANT.reason is 'class: content';
             """.trimIndent()
         val rls = TenantRlsMigration.ddl(schema, OVERRIDE_GRANT, policyName = "${OVERRIDE_GRANT}_tenant_isolation")

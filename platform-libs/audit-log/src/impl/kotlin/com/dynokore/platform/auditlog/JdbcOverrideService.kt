@@ -18,6 +18,7 @@ import java.util.UUID
  * catalogue before the transaction opens, so a refused override touches nothing (INV-AC-2166). The grant
  * row and its `AuditEntryRecorded` are written in one transaction: a rollback leaves neither (INV-AC-2209).
  * Also the [OverrideRegister]: a grant answers for exactly the version it was given for.
+ * And the [OverrideListing]: the register of an entity over a date range, the read audited in its own transaction.
  */
 class JdbcOverrideService(
     private val dsl: DSLContext,
@@ -28,7 +29,8 @@ class JdbcOverrideService(
     private val clock: Clock,
     private val policy: OverridePolicy = OverridePolicy(),
 ) : OverrideService,
-    OverrideRegister {
+    OverrideRegister,
+    OverrideListing {
     // INV-REQ-854 b5 (coordinator ruling INV-Q-4036): the schema enters SQL text only through SqlIdentifier.require.
     private val schemaName = SqlIdentifier.require(schema, "schema")
     private val table: Table<*> = DSL.table(DSL.name(schemaName, AuditSchema.OVERRIDE_GRANT))
@@ -84,6 +86,64 @@ class JdbcOverrideService(
             .where(DOC_UUID.eq(docUuid.value), DOCUMENT_VERSION.eq(documentVersion), ERROR_CODE.eq(code))
             .fetchOne() != null
 
+    override fun list(query: OverrideListQuery): OverrideListingResult {
+        val entry =
+            AuditEntry(
+                actor = query.reader,
+                action = LIST_ACTION,
+                scope = "entity:${query.entity.value}/from:${query.from}/to:${query.to}",
+            )
+        val context =
+            EventContext(
+                tenant = query.tenant,
+                entity = query.entity,
+                docUuid = null,
+                transactionDate = null,
+                aggregateKey = "entity:${query.entity.value}",
+                aggregateVersion = null,
+                correlation = query.correlation,
+                causation = query.causation,
+            )
+        return tx.inTransaction {
+            val rows =
+                dsl
+                    .select(
+                        ID,
+                        DOC_UUID,
+                        DOCUMENT_VERSION,
+                        ERROR_CODE,
+                        ACTOR,
+                        REASON,
+                        GRANTED_AT,
+                        AUDIT_EVENT_ID,
+                        TRANSACTION_DATE,
+                    ).from(table)
+                    .where(
+                        TENANT_ID.eq(query.tenant.value),
+                        ENTITY_REF.eq(query.entity.value),
+                        TRANSACTION_DATE.isNull.or(TRANSACTION_DATE.between(query.from, query.to)),
+                    ).orderBy(TRANSACTION_DATE.asc().nullsLast(), GRANTED_AT.asc(), ID.asc())
+                    .fetch()
+                    .map {
+                        OverrideEntry(
+                            OverrideGrant(
+                                DocUuid(checkNotNull(it.get(DOC_UUID))),
+                                checkNotNull(it.get(DOCUMENT_VERSION)),
+                                checkNotNull(it.get(ERROR_CODE)),
+                                checkNotNull(it.get(ACTOR)),
+                                checkNotNull(it.get(REASON)),
+                                checkNotNull(it.get(GRANTED_AT)).toInstant(),
+                                checkNotNull(it.get(AUDIT_EVENT_ID)),
+                            ),
+                            it.get(TRANSACTION_DATE),
+                        )
+                    }
+            audit.record(entry, context)
+            val (undated, dated) = rows.partition { it.transactionDate == null }
+            OverrideListingResult(dated, undated)
+        }
+    }
+
     private fun refuseIfNotAllowed(command: OverrideCommand) {
         when (errors.dispositionOf(command.code)) {
             null -> throw OverrideRefused(RefusalReason.UNKNOWN_CODE, command.code)
@@ -103,8 +163,19 @@ class JdbcOverrideService(
     ): Boolean =
         dsl
             .insertInto(table)
-            .columns(ID, TENANT_ID, DOC_UUID, DOCUMENT_VERSION, ERROR_CODE, ACTOR, REASON, GRANTED_AT, AUDIT_EVENT_ID)
-            .values(
+            .columns(
+                ID,
+                TENANT_ID,
+                DOC_UUID,
+                DOCUMENT_VERSION,
+                ERROR_CODE,
+                ACTOR,
+                REASON,
+                GRANTED_AT,
+                AUDIT_EVENT_ID,
+                ENTITY_REF,
+                TRANSACTION_DATE,
+            ).values(
                 UUID.randomUUID(),
                 command.tenant.value,
                 grant.docUuid.value,
@@ -114,12 +185,15 @@ class JdbcOverrideService(
                 grant.reason,
                 grant.grantedAt.atOffset(ZoneOffset.UTC),
                 grant.auditEventId,
+                command.entity.value,
+                command.transactionDate,
             ).onConflict(TENANT_ID, DOC_UUID, DOCUMENT_VERSION, ERROR_CODE)
             .doNothing()
             .execute() == 1
 
     private companion object {
         const val ACTION = "override"
+        const val LIST_ACTION = "listOverrides"
 
         val ID = DSL.field(DSL.name("id"), SQLDataType.UUID)
         val TENANT_ID = DSL.field(DSL.name("tenant_id"), SQLDataType.UUID)
@@ -130,6 +204,8 @@ class JdbcOverrideService(
         val REASON = DSL.field(DSL.name("reason"), SQLDataType.CLOB)
         val GRANTED_AT = DSL.field(DSL.name("granted_at"), SQLDataType.TIMESTAMPWITHTIMEZONE)
         val AUDIT_EVENT_ID = DSL.field(DSL.name("audit_event_id"), SQLDataType.CLOB)
+        val ENTITY_REF = DSL.field(DSL.name("entity_ref"), SQLDataType.CLOB)
+        val TRANSACTION_DATE = DSL.field(DSL.name("transaction_date"), SQLDataType.LOCALDATE)
 
         fun scopeOf(command: OverrideCommand) =
             "document:${command.docUuid}/version:${command.documentVersion}/code:${command.code}"
