@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.0.10] - 2026-10-17
+### Changed
+- Metadata-only release (INV-T-4517, version-file scope of the downstream closure of config-resolver 4.0.0 and service-runtime 8.0.6; the publish guard refuses a changed POM at a published version): no API or behaviour change; `src/main` and `src/impl` are unchanged. The POMs and module metadata of the publications name service-runtime 8.0.6 and config-resolver 4.0.0.
+
 ## [1.0.9] - 2026-10-17
 ### Changed
 - Metadata-only release (INV-T-5304, owner ruling INV-Q-5836 A, version-file scope of the downstream closure of outbox-and-queue 4.0.0): no API or behaviour change; `src/main` and `src/impl` are unchanged. The POMs name outbox-and-queue at the stepped version.
