@@ -1,10 +1,9 @@
 package com.dynokore.platform.serviceruntime.composition
 
 import com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration
-import org.springframework.boot.autoconfigure.AutoConfiguration
+import com.dynokore.platform.tenancyjooq.TenancyProbeAutoConfiguration
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.context.annotation.Configurations
-import org.springframework.boot.context.annotation.ImportCandidates
 import org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.DeferredImportSelector
@@ -88,12 +87,18 @@ class WithoutJdbc : DeferredImportSelector {
         sorted(platform() + StandInProductRuntimeConfiguration::class.java)
 }
 
-/** The platform-libs auto-configurations listed in `AutoConfiguration.imports` on the classpath. */
+/**
+ * The platform-libs auto-configurations a service's classpath names in `AutoConfiguration.imports`, as class literals
+ * (no class is loaded by name). [PlatformAutoConfigurationListTest] fails when this list and the imports on the
+ * classpath differ by one name (owner ruling INV-Q-4384 (a), coordinator ruling INV-Q-4786).
+ */
 internal fun platform(): List<Class<*>> =
-    ImportCandidates
-        .load(AutoConfiguration::class.java, Composition::class.java.classLoader)
-        .filter { it.startsWith("com.dynokore.platform.") }
-        .map { Class.forName(it) }
+    listOf(
+        ServiceRuntimeConfiguration::class.java,
+        L1CompositionAutoConfiguration::class.java,
+        TenancyJooqWiring::class.java,
+        TenancyProbeAutoConfiguration::class.java,
+    )
 
 /** In Spring Boot's auto-configuration order (@AutoConfiguration before/after). */
 internal fun sorted(classes: List<Class<*>>): Array<String> =

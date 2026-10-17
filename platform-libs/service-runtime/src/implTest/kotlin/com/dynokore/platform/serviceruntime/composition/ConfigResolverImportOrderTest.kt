@@ -76,7 +76,7 @@ class ConfigResolverImportOrderTest {
             catalogue.asked shouldContainExactly listOf(key)
             // the optional DelegationProbe product-runtime provides reaches the PolicyWriter
             val writer = context.getBean(PolicyWriter::class.java).shouldBeInstanceOf<JdbcPolicyWriter>()
-            writer.delegation() shouldBeSameInstanceAs context.getBean(DelegationProbe::class.java)
+            writer.delegation shouldBeSameInstanceAs context.getBean(DelegationProbe::class.java)
         }
     }
 
@@ -91,7 +91,7 @@ class ConfigResolverImportOrderTest {
             .run { context ->
                 context.startupFailure shouldBe null
                 context.getBeanNamesForType(DelegationProbe::class.java).size shouldBe 0
-                context.getBean(PolicyWriter::class.java).shouldBeInstanceOf<JdbcPolicyWriter>().delegation() shouldBe
+                context.getBean(PolicyWriter::class.java).shouldBeInstanceOf<JdbcPolicyWriter>().delegation shouldBe
                     null
             }
     }
@@ -125,15 +125,5 @@ class ConfigResolverImportOrderTest {
                 context.getBean(PolicyReader::class.java) shouldBeSameInstanceAs own
                 context.getBean(PolicyHistory::class.java).shouldBeInstanceOf<JdbcPolicyHistory>()
             }
-    }
-
-    private companion object {
-        fun JdbcPolicyWriter.delegation(): Any? =
-            JdbcPolicyWriter::class.java
-                .getDeclaredField("delegation")
-                .apply {
-                    isAccessible =
-                        true
-                }.get(this)
     }
 }

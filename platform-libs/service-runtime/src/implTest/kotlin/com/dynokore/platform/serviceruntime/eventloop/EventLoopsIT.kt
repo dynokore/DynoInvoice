@@ -32,6 +32,7 @@ import com.dynokore.platform.outboxandqueue.TestCatalogue
 import com.dynokore.platform.serviceruntime.composition.OutboxAndQueueWiring
 import com.dynokore.platform.serviceruntime.datasource.TEST_LOGIN_REF
 import com.dynokore.platform.serviceruntime.datasource.Tpl18JdbcApplication
+import com.dynokore.platform.serviceruntime.datasource.isPoolClosed
 import com.dynokore.platform.serviceruntime.pool.EventLogGate
 import com.dynokore.platform.serviceruntime.pool.LaneGateHolder
 import com.dynokore.platform.serviceruntime.pool.PermitObserver
@@ -260,7 +261,7 @@ class EventLoopsIT {
             loops.isRunning shouldBe false
             // the call in hand finished and committed before the pool closed
             fx.count(APPLIED, col("consumer").eq("submission-svc")) shouldBe 1
-            pool.unwrap(com.zaxxer.hikari.HikariDataSource::class.java).isClosed shouldBe true
+            isPoolClosed(pool) shouldBe true
         }
         appender.list
             .filter { it.level.isGreaterOrEqual(Level.WARN) }

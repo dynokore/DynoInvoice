@@ -18,6 +18,7 @@ import org.springframework.context.annotation.Import
 import org.springframework.core.type.AnnotationMetadata
 import java.nio.file.Files
 import java.nio.file.Path
+import javax.sql.DataSource
 
 /*
  * INV-T-3913 (P109): a service composed as TPL-18 writes it (`@Import(ServiceRuntimeConfiguration::class,
@@ -86,15 +87,21 @@ fun ApplicationContextRunner.withApplicationPool(setting: (HikariDataSource) -> 
 fun ApplicationContextRunner.withPool(
     poolBean: String,
     setting: (HikariDataSource) -> Unit,
-): ApplicationContextRunner =
-    withBean("testPoolSetting-$poolBean", BeanPostProcessor::class.java, {
+): ApplicationContextRunner {
+    // the post-processor holds the setting by a type that names no HikariCP class (its own class is not exempt)
+    val onPool: (Any) -> Unit = { setting(it as HikariDataSource) }
+    return withBean("testPoolSetting-$poolBean", BeanPostProcessor::class.java, {
         object : BeanPostProcessor {
             override fun postProcessAfterInitialization(
                 bean: Any,
                 beanName: String,
             ): Any {
-                if (beanName == poolBean) setting(bean as HikariDataSource)
+                if (beanName == poolBean) onPool(bean)
                 return bean
             }
         }
     })
+}
+
+/** Whether the application pool [pool] is closed; the HikariCP read sits here, in an exempt-test class (INV-T-4790). */
+fun isPoolClosed(pool: DataSource): Boolean = (pool as HikariDataSource).isClosed

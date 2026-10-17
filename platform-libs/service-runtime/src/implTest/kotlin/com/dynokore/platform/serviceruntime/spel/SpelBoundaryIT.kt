@@ -4,6 +4,7 @@ import com.dynokore.platform.serviceruntime.datasource.SqlConfigurationKeyGuardT
 import com.dynokore.platform.serviceruntime.health.Tpl18WebService
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
@@ -67,7 +68,12 @@ class SpelBoundaryIT {
 
     @Test
     fun `the OnExpressionCondition class name still exists (fails when Spring Boot renames it)`() {
-        Class.forName(SpelBoundaryRecheck.ON_EXPRESSION_CONDITION).simpleName shouldBe "OnExpressionCondition"
+        val name = SpelBoundaryRecheck.ON_EXPRESSION_CONDITION
+        // a lookup of the class file as a resource: the class is not loaded, and a rename leaves no file at the name
+        SpelBoundaryIT::class.java.classLoader
+            .getResource(name.replace('.', '/') + ".class")
+            .shouldNotBeNull()
+        name.substringAfterLast('.') shouldBe "OnExpressionCondition"
     }
 
     @Test

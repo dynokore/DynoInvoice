@@ -3,7 +3,6 @@ package com.dynokore.platform.serviceruntime.pool
 import com.dynokore.platform.serviceruntime.composition.ServiceDataSources
 import com.dynokore.platform.serviceruntime.datasource.tpl18Service
 import com.dynokore.platform.serviceruntime.datasource.withMountedLogin
-import com.dynokore.platform.serviceruntime.pool.LaneGateHolder
 import com.dynokore.platform.serviceruntime.testing.BACKEND_PID
 import com.dynokore.platform.serviceruntime.testing.CATALOG_TABLES
 import com.dynokore.platform.serviceruntime.testing.HeldTransaction
@@ -21,7 +20,6 @@ import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
 import com.zaxxer.hikari.HikariDataSource
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.types.shouldBeInstanceOf
 import org.jooq.DSLContext
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
@@ -29,6 +27,7 @@ import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.api.io.TempDir
+import org.springframework.boot.test.context.assertj.AssertableApplicationContext
 import org.testcontainers.containers.PostgreSQLContainer
 import java.nio.file.Path
 import java.sql.SQLTransientConnectionException
@@ -66,6 +65,21 @@ class PoolLanesIT {
             *properties,
         ).withMountedLogin(mountRoot, PASSWORD)
 
+    // The pool reads and the pool hand-off sit in method bodies of this class, the one that holds the exempt-test line
+    // (INV-T-4790); they return no HikariCP type.
+    private fun lanedAccess(
+        context: AssertableApplicationContext,
+        gate: LanePermits,
+    ): TestDatabase.Access =
+        TestDatabase(postgres.jdbcUrl, emptyMap()).use { db ->
+            db.over(TenantAwareDataSource(context.getBean(DataSource::class.java) as HikariDataSource, gate))
+        }
+
+    private fun applicationPoolMaximum(context: AssertableApplicationContext): Int =
+        (context.getBean(DataSource::class.java) as HikariDataSource).maximumPoolSize
+
+    private fun eventLogPoolMaximum(pool: DataSource): Int = (pool as HikariDataSource).maximumPoolSize
+
     @Test
     fun `a saturated background and reprocessing lane never blocks a request`() {
         service(
@@ -74,14 +88,10 @@ class PoolLanesIT {
             "service-runtime.pool.runs-reprocessing=true",
         ).run { context ->
             context.startupFailure shouldBe null
-            val pool = context.getBean(DataSource::class.java).shouldBeInstanceOf<HikariDataSource>()
             val gate = context.getBean(LaneGateHolder::class.java).permits()
-            val access =
-                TestDatabase(postgres.jdbcUrl, emptyMap()).use { db ->
-                    db.over(TenantAwareDataSource(pool, gate))
-                }
+            val access = lanedAccess(context, gate)
             gate.budgets shouldBe LaneBudgets(4, 2, 1)
-            pool.maximumPoolSize shouldBe 7
+            applicationPoolMaximum(context) shouldBe 7
             // the background lane saturated (2 of 2) and the reprocessing lane (1 of 1), held on other threads
             val held =
                 (1..2).map { take(access, PoolLane.BACKGROUND) } + take(access, PoolLane.REPROCESSING)
@@ -111,12 +121,8 @@ class PoolLanesIT {
     fun `a lane with a budget of 0 is refused, never run on a live lane`() {
         service("access-svc", "service-runtime.pool.profile=minimal").run { context ->
             context.startupFailure shouldBe null
-            val pool = context.getBean(DataSource::class.java).shouldBeInstanceOf<HikariDataSource>()
             val gate = context.getBean(LaneGateHolder::class.java).permits()
-            val access =
-                TestDatabase(postgres.jdbcUrl, emptyMap()).use { db ->
-                    db.over(TenantAwareDataSource(pool, gate))
-                }
+            val access = lanedAccess(context, gate)
             gate.budgets shouldBe LaneBudgets(4, 2, 0)
             val refused =
                 shouldThrow<SQLTransientConnectionException> {
@@ -178,8 +184,8 @@ class PoolLanesIT {
                     context.startupFailure shouldBe null
                     context.getBean(LaneGateHolder::class.java).permits().budgets shouldBe
                         LaneBudgets(7, 3, 0)
-                    val pool = context.getBean(ServiceDataSources.EVENT_LOG, HikariDataSource::class.java)
-                    pool.maximumPoolSize shouldBe LaneBudgets.EVENT_LOG.maximum
+                    val pool = context.getBean(ServiceDataSources.EVENT_LOG, DataSource::class.java)
+                    eventLogPoolMaximum(pool) shouldBe LaneBudgets.EVENT_LOG.maximum
                     TestDatabase(eventLog.jdbcUrl, emptyMap()).use { db ->
                         db.over(pool).asPlatform { backend().second } shouldBe "submission-svc"
                     }

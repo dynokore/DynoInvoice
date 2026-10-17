@@ -59,14 +59,13 @@ class CredentialRotationIT {
 
             service(pg, mountRoot).run { context ->
                 context.startupFailure shouldBe null
-                val appSource = context.getBean(DataSource::class.java)
-                val app = appSource as HikariDataSource
+                val app = context.getBean(DataSource::class.java)
                 // the event-log pool on its own URL takes the application pool's login and credentials provider
-                val eventLog = context.getBean(ServiceDataSources.EVENT_LOG, HikariDataSource::class.java)
-                app.password.shouldBeNull()
-                eventLog.password.shouldBeNull()
+                val eventLog = context.getBean(ServiceDataSources.EVENT_LOG, DataSource::class.java)
+                assertNoPoolPassword(app)
+                assertNoPoolPassword(eventLog)
                 TestDatabase(pg.jdbcUrl, emptyMap()).use { db ->
-                    val pools = listOf(Triple(app, db.over(appSource), APP), Triple(eventLog, db.over(eventLog), APP))
+                    val pools = listOf(Triple(app, db.over(app), APP), Triple(eventLog, db.over(eventLog), APP))
 
                     // each pool holds an open connection, logged in with the first password
                     val open =
@@ -78,7 +77,7 @@ class CredentialRotationIT {
                     // the role password changes; the mounted files are not rewritten yet
                     TenancyProbe.connect(pg.jdbcUrl, APP, first).changeOwnPassword(second)
                     open.forEach { it.user() } // open connections keep working
-                    pools.forEach { (pool, _, _) -> pool.hikariPoolMXBean.softEvictConnections() }
+                    pools.forEach { (pool, _, _) -> softEvict(pool) }
                     // the first password is revoked: a new connection with the file left at it is refused (nothing cached)
                     pools.forEach { (_, access, role) ->
                         val refused = shouldThrow<Exception> { access.asPlatform { } }
@@ -110,7 +109,7 @@ class CredentialRotationIT {
                     // a second rotation, again in the same context
                     TenancyProbe.connect(pg.jdbcUrl, APP, second).changeOwnPassword(third)
                     mount(mountRoot, APP_REF, third)
-                    pools.forEach { (pool, _, _) -> pool.hikariPoolMXBean.softEvictConnections() }
+                    pools.forEach { (pool, _, _) -> softEvict(pool) }
                     pools.forEach { (_, access, role) ->
                         access.asPlatform { select(CURRENT_USER).fetchSingle().value1() } shouldBe role
                     }
@@ -118,6 +117,15 @@ class CredentialRotationIT {
             }
             listOf(first, second, third).forEach { output.all shouldNotContain it }
         }
+    }
+
+    // The pool reads sit in method bodies of this class, the one that holds the exempt-test line (INV-T-4790).
+    private fun assertNoPoolPassword(pool: DataSource) {
+        (pool as HikariDataSource).password.shouldBeNull()
+    }
+
+    private fun softEvict(pool: DataSource) {
+        (pool as HikariDataSource).hikariPoolMXBean.softEvictConnections()
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")

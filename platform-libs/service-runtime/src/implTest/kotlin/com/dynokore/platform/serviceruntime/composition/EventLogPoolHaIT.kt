@@ -58,12 +58,11 @@ class EventLogPoolHaIT {
                         context.getBeanNamesForType(DataSource::class.java).toSet() shouldBe
                             setOf("dataSource", ServiceDataSources.EVENT_LOG)
                         val app = context.getBean(DataSource::class.java)
-                        val pool = context.getBean(ServiceDataSources.EVENT_LOG, HikariDataSource::class.java)
+                        val pool = context.getBean(ServiceDataSources.EVENT_LOG, DataSource::class.java)
                         // the event-log pool does not copy the application pool's connection-init SQL (INV-Q-4542)
                         applicationInitSql shouldBe INIT_SQL
                         copiedInitSql shouldBe null
-                        pool.connectionInitSql shouldBe null
-                        pool.schema shouldBe null
+                        assertNoInitSqlNoSchema(pool)
                         TestDatabase(application.jdbcUrl, CATALOG_TABLES).use { db ->
                             val onApp = db.over(app)
                             val onEventLog = db.over(pool)
@@ -74,7 +73,7 @@ class EventLogPoolHaIT {
                             marker(onEventLog) shouldBe true
                             onEventLog.asPlatform { select(CURRENT_USER).fetchSingle().value1() } shouldBe RUNTIME
                             // minimumIdle 1: the pool keeps an idle connection once started (INV-Q-4348)
-                            (pool.hikariPoolMXBean.idleConnections >= 1) shouldBe true
+                            (idleConnections(pool) >= 1) shouldBe true
                             // maximum 3: a fourth concurrent connection waits and times out
                             val held = (1..3).map { HeldTransaction(onEventLog) }
                             shouldThrow<Exception> { onEventLog.asPlatform { } }
@@ -84,6 +83,15 @@ class EventLogPoolHaIT {
             }
         }
     }
+
+    // The pool reads sit in method bodies of this class, the one that holds the exempt-test line (INV-T-4790).
+    private fun assertNoInitSqlNoSchema(pool: DataSource) {
+        val hikari = pool as HikariDataSource
+        hikari.connectionInitSql shouldBe null
+        hikari.schema shouldBe null
+    }
+
+    private fun idleConnections(pool: DataSource): Int = (pool as HikariDataSource).hikariPoolMXBean.idleConnections
 
     private var applicationPool: HikariDataSource? = null
     private var applicationInitSql: String? = null

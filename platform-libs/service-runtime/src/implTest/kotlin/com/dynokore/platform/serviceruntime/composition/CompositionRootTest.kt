@@ -11,6 +11,7 @@ import com.dynokore.platform.auditlog.LocalAuditWriter
 import com.dynokore.platform.auditlog.OutboxAuditWriter
 import com.dynokore.platform.auditlog.OverrideService
 import com.dynokore.platform.configresolver.ConfigPurge
+import com.dynokore.platform.configresolver.JdbcPolicyWriter
 import com.dynokore.platform.configresolver.PolicyHistory
 import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.configresolver.PolicyWriter
@@ -605,8 +606,7 @@ class CompositionRootTest {
                 if (withPolicyWriter) {
                     // the wired policy writer stages an installation value's audit entry through this bean (INV-Q-4254 A)
                     val writer = context.getBean(PolicyWriter::class.java)
-                    val field = writer.javaClass.getDeclaredField("audit").apply { isAccessible = true }
-                    field.get(writer) shouldBeSameInstanceAs audit
+                    writer.shouldBeInstanceOf<JdbcPolicyWriter>().audit shouldBeSameInstanceAs audit
                 }
                 val stager = audit as AuditStager
                 val entry = AuditEntry("op-1", "putInstallationSetting", "config:VP-78:INSTALLATION", "own")

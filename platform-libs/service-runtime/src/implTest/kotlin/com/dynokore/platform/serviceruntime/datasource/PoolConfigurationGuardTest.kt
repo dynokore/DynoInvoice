@@ -240,12 +240,15 @@ class PoolConfigurationGuardTest {
                 "spring.datasource.url=jdbc:postgresql://db:5432/submission",
                 "spring.datasource.username=submission_runtime",
             )
-        mapOf<String, (HikariDataSource) -> Unit>(
-            "password (set)" to { it.password = "pw-value" },
-            "registerMbeans (set)" to { it.isRegisterMbeans = true },
-            "dataSource (set)" to { it.dataSource = mockk<DataSource>() },
+        mapOf<String, (DataSource) -> Unit>(
+            "password (set)" to { (it as HikariDataSource).password = "pw-value" },
+            "registerMbeans (set)" to { (it as HikariDataSource).isRegisterMbeans = true },
+            "dataSource (set)" to { (it as HikariDataSource).dataSource = mockk<DataSource>() },
             "credentialsProvider (only SecretStoreCredentialsProvider" to
-                { it.credentialsProvider = HikariCredentialsProvider { Credentials.of("x", "pw-value") } },
+                {
+                    (it as HikariDataSource).credentialsProvider =
+                        HikariCredentialsProvider { Credentials.of("x", "pw-value") }
+                },
         ).forEach { (expected, setting) ->
             service
                 .withBean("codeBeforeCheck", BeforePoolCheck::class.java, { BeforePoolCheck(setting) })
@@ -264,7 +267,7 @@ class PoolConfigurationGuardTest {
 
     /** Code that sets the application pool before [PoolConfigurationGuard] runs (PriorityOrdered runs first). */
     private class BeforePoolCheck(
-        private val setting: (HikariDataSource) -> Unit,
+        private val setting: (DataSource) -> Unit,
     ) : BeanPostProcessor,
         PriorityOrdered {
         override fun getOrder(): Int = 0
@@ -273,7 +276,7 @@ class PoolConfigurationGuardTest {
             bean: Any,
             beanName: String,
         ): Any {
-            if (beanName == "dataSource") setting(bean as HikariDataSource)
+            if (beanName == "dataSource") setting(bean as DataSource)
             return bean
         }
     }
@@ -375,6 +378,11 @@ class PoolConfigurationGuardTest {
             }
     }
 
+    // The pool read sits in a method body of this class, the one that holds the exempt-test line (INV-T-4790).
+    private fun assertApplicationName(pool: DataSource) {
+        (pool as HikariDataSource).dataSourceProperties["ApplicationName"] shouldBe "submission-svc"
+    }
+
     @Test
     fun `a TPL-18 service whose event-log URL carries options fails start-up, a plain one starts`() {
         val service =
@@ -388,13 +396,8 @@ class PoolConfigurationGuardTest {
             ).run { context ->
                 context.startupFailure shouldBe null
                 // the service-runtime pools with their ApplicationName <gst.service> pass (INV-Q-4566)
-                val eventLog = context.getBean(ServiceDataSources.EVENT_LOG, HikariDataSource::class.java)
-                eventLog.dataSourceProperties["ApplicationName"] shouldBe "submission-svc"
-                context
-                    .getBean(DataSource::class.java)
-                    .let { it as HikariDataSource }
-                    .dataSourceProperties["ApplicationName"] shouldBe
-                    "submission-svc"
+                assertApplicationName(context.getBean(ServiceDataSources.EVENT_LOG, DataSource::class.java))
+                assertApplicationName(context.getBean(DataSource::class.java))
             }
         service
             .withInitializer(
