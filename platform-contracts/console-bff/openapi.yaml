@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: console-bff API
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     Contract-first source of truth for console-bff (API-01, STK-44). The
     `console-bff-contract` module generates its server interfaces and DTOs
@@ -74,7 +74,9 @@ paths:
         with the entity as a column (FR-AF.27); authorisation is enforced by
         console-bff on this read (FR-AF.4). Served from at most one
         console-bff read model plus at most two synchronous calls
-        (FR-AH.21) — this operation makes none.
+        (FR-AH.21) — this operation makes none. Each item carries the
+        grouping key (`code`, `remediationOwner`), so console-web groups the
+        queue without a further call (INV-REQ-1184).
 
 
         Timeout class (INV-REQ-1204 b7, INV-Q-3476): `console-web ->
@@ -129,6 +131,8 @@ paths:
                         docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
                         state: "OPEN"
                         raisedAt: "2026-04-01T01:00:00Z"
+                        remediationOwner: "Finance"
+                        disposition: "MANUAL"
         default:
           $ref: '#/components/responses/Error'
   /bff/exceptions/{id}/override:
@@ -349,7 +353,23 @@ components:
         raisedAt:
           type: string
           format: date-time
-      required: [exceptionId, entityRef, code, state, raisedAt]
+        remediationOwner:
+          type: string
+          maxLength: 128
+          description: >-
+            The team that owns the group, the routing result of VP-33; by
+            default the error catalogue owner of the code. console-web groups
+            the queue by (`code`, `remediationOwner`) (INV-REQ-1184).
+        disposition:
+          type: string
+          enum: [AUTO_RELEASE, AUTO_RETRY, MANUAL, OVERRIDABLE, TERMINAL]
+          x-extensible-enum: true
+          description: >-
+            The base disposition of the code in the error catalogue. A client
+            renders an override control only when the value equals
+            OVERRIDABLE and renders none for any other or unknown value
+            (INV-REQ-1023).
+      required: [exceptionId, entityRef, code, state, raisedAt, remediationOwner, disposition]
     ExceptionPage:
       type: object
       properties:
