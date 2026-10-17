@@ -9,13 +9,14 @@ import com.dynokore.platform.configresolver.WriteCatalogue.PLATFORM_MAXIMUM
 import com.dynokore.platform.configresolver.WriteHarness.Companion.clockAt
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.tenancykernel.TenantId
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
-import java.sql.SQLException
 import java.time.LocalDate
 import java.util.UUID
 
@@ -290,20 +291,23 @@ class WritePathPostgresIT : WritePathBase() {
                 "and relrowsecurity and relforcerowsecurity"
         assertEquals(1L, h.count(forced))
 
-        fun update(sql: String) =
-            h.app
-                .require()
-                .createStatement()
-                .use { it.executeUpdate(sql) }
-        val seen =
-            h.inTenant(TenantId(UUID.randomUUID())) {
-                h.app.require().createStatement().use { s ->
-                    s.executeQuery("select count(*) from $table").use { it.next().let { _ -> it.getInt(1) } }
-                }
-            }
-        assertEquals(0, seen)
-        assertThrows(SQLException::class.java) { h.inTenant(r.t) { update("update $table set role = 'x'") } }
-        assertThrows(SQLException::class.java) { h.inTenant(r.t) { update("delete from $table") } }
+        val acknowledgements = DSL.table(DSL.name("svc", "config_relaxation_acknowledgement"))
+        val seen = h.count("select count(*) from $table", TenantId(UUID.randomUUID()))
+        assertEquals(0L, seen)
+        val role = DSL.field(DSL.name("role"), SQLDataType.CLOB)
+        assertEquals(
+            "42501",
+            h
+                .refusal {
+                    h.inTenant(r.t) {
+                        h.dsl
+                            .update(acknowledgements)
+                            .set(role, "x")
+                            .execute()
+                    }
+                }.sqlState,
+        )
+        assertEquals("42501", h.refusal { h.inTenant(r.t) { h.dsl.deleteFrom(acknowledgements).execute() } }.sqlState)
         val purged = h.inTenant(r.t) { h.purge().purgeTenant(r.t) }
         assertEquals(1, purged.relaxationAcknowledgements)
         assertEquals(0L, r.acknowledgements())

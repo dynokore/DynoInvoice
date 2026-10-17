@@ -7,9 +7,9 @@ import org.jooq.impl.SQLDataType
 import tools.jackson.databind.ObjectMapper
 
 /**
- * [SelectedOptionsColumns] for jOOQ: the two columns a value is stored in, `option_keys text[]` (catalogue order of
+ * The two columns a value is stored in, `option_keys text[]` (catalogue order of
  * choice) and `option_values jsonb`, an object from option key to that option's typed value, absent when no chosen
- * option is typed (INV-Q-2934). The JDBC [SelectedOptionsColumns] stays for the classes not yet on jOOQ.
+ * option is typed (INV-Q-2934).
  */
 internal class SelectedOptionsJooq(
     private val mapper: ObjectMapper = ObjectMapper(),

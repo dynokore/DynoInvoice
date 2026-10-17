@@ -63,11 +63,16 @@ class PolicyHttpHarness(
         )
     val clock: Clock = Clock.fixed(Instant.parse("2026-10-01T00:00:00Z"), ZoneOffset.UTC)
 
-    /** The tables the tests read through jOOQ: the idempotency keys and the settings, both tenant data. */
+    /** The tables the tests and the policy writer reach through jOOQ: the idempotency keys and config-resolver's tables. */
     private val db =
         TestDatabase(
             fixture.jdbcUrl(),
-            mapOf("$SCHEMA.idempotency_key" to TableClass.TENANT, "$SCHEMA.config_setting" to TableClass.TENANT),
+            mapOf(
+                "$SCHEMA.idempotency_key" to TableClass.TENANT,
+                "$SCHEMA.config_setting" to TableClass.TENANT,
+                "$SCHEMA.config_relaxation_acknowledgement" to TableClass.TENANT,
+                "$SCHEMA.config_installation_setting" to TableClass.PLATFORM_SCOPED,
+            ),
         )
     private val app = db.login(OutboxPostgresFixture.APP, OutboxPostgresFixture.APP_PASSWORD)
     val tenants = db.tenants
@@ -87,7 +92,7 @@ class PolicyHttpHarness(
 
     val real: PolicyWriter =
         JdbcPolicyWriter(
-            tx,
+            dsl,
             Fixtures.catalogue,
             DeploymentForm.SAAS,
             SCHEMA,

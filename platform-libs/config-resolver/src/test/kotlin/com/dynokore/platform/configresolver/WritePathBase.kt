@@ -57,11 +57,11 @@ abstract class WritePathBase {
             on: LocalDate = today,
         ) = h.inTenant(t) { h.reader().resolve(key, scope, on) }
 
-        fun settings() = h.count("select count(*) from svc.config_setting where tenant_id = '$t'")
+        fun settings() = h.count("select count(*) from svc.config_setting where tenant_id = '$t'", t)
 
         fun acknowledgements(extra: String = ""): Long {
             val table = "svc.config_relaxation_acknowledgement"
-            return h.count("select count(*) from $table where tenant_id = '$t' $extra")
+            return h.count("select count(*) from $table where tenant_id = '$t' $extra", t)
         }
 
         fun events() = h.events(t)

@@ -54,7 +54,7 @@ class GstCatalogueModuleApiConsumerContractTest {
 
     private val catalogue: VariationPointCatalogue = GstVariationPointCatalogue("submission-svc")
     private val harness = ConfigHarness("postgres:18")
-    private val reader = JdbcPolicyReader(harness.app, catalogue, DeploymentForm.SAAS, ConfigHarness.SCHEMA)
+    private val reader = JdbcPolicyReader(harness.dsl, catalogue, DeploymentForm.SAAS, ConfigHarness.SCHEMA)
     private val useCase = FakeConsumerUseCase(reader)
     private val march = LocalDate.of(2026, 3, 15)
 

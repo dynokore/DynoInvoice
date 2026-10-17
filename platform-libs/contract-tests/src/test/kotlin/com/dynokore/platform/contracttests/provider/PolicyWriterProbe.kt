@@ -50,11 +50,11 @@ class PolicyWriterProbe(
             }
         val writer =
             JdbcPolicyWriter(
-                connections = harness.app,
+                dsl = harness.dsl,
                 catalogue = WriteCatalogue.catalogue,
                 form = DeploymentForm.SAAS,
                 schema = WriteHarness.SCHEMA,
-                audit = harness.audit(harness.app),
+                audit = harness.audit(),
                 outbox = outbox,
                 clock = WriteHarness.CLOCK,
                 delegation = DelegationProbe { _, _ -> false },

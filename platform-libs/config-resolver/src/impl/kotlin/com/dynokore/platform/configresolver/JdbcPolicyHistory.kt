@@ -1,29 +1,29 @@
 package com.dynokore.platform.configresolver
 
-import com.dynokore.platform.tenancykernel.CurrentConnection
+import org.jooq.DSLContext
 import java.time.LocalDate
 
 /**
- * [PolicyHistory] over the setting tables, on the connection of the caller's open transaction
- * (INV-REQ-1129, INV-AC-1146). In force on a date is what resolution gave on that date (INV-REQ-1243
+ * [PolicyHistory] over the setting tables, through jOOQ's DSL on the DSLContext of tenancy-jooq's factory, in the caller's
+ * open transaction (INV-REQ-1129, INV-AC-1146). In force on a date is what resolution gave on that date (INV-REQ-1243
  * behaviour #5); changed since is every version recorded after the date, on the installation business date,
  * or taking effect after it (ruling INV-Q-3171).
  */
 class JdbcPolicyHistory(
-    private val connections: CurrentConnection,
+    dsl: DSLContext,
     private val catalogue: VariationPointCatalogue,
     form: DeploymentForm,
     schema: String,
 ) : PolicyHistory {
-    private val writes = JdbcSettingWrites(schema)
-    private val reader = JdbcPolicyReader(connections, catalogue, form, schema)
+    private val writes = JdbcSettingWrites(dsl, schema)
+    private val reader = JdbcPolicyReader(dsl, catalogue, form, schema)
 
     override fun versions(
         key: VariationPointKey,
         target: SettingTarget,
     ): List<SettingVersion> {
         catalogue.require(key)
-        return writes.versions(connections.require(), key, target)
+        return writes.versions(key, target)
     }
 
     override fun asOf(
@@ -48,7 +48,7 @@ class JdbcPolicyHistory(
                     scope
                         .chain()
                         .filter { it.level in definition.scopeLevels }
-                        .flatMap { writes.versions(connections.require(), key, scope.target(it.level)) }
+                        .flatMap { writes.versions(key, scope.target(it.level)) }
                         .filter {
                             it.effectiveFrom > date ||
                                 it.recordedAt.atZone(BusinessDate.ZONE).toLocalDate() > date

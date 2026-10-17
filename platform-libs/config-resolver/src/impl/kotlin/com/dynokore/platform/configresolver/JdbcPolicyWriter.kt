@@ -9,19 +9,20 @@ import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
-import com.dynokore.platform.tenancykernel.CurrentConnection
 import com.dynokore.platform.tenancykernel.TenantId
+import org.jooq.DSLContext
 import tools.jackson.databind.DeserializationFeature
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import tools.jackson.databind.node.ObjectNode
-import java.sql.Connection
 import java.time.Clock
 import java.time.LocalDate
 import java.util.UUID
 
 /**
- * [PolicyWriter] on the connection of the caller's open transaction (INV-Q-3115: every write path).
+ * [PolicyWriter] through jOOQ's DSL on the DSLContext of tenancy-jooq's factory, in the caller's open transaction
+ * (INV-Q-3115: every write path). The DSLContext runs on the TransactionRunner whose TenantAwareDataSource holds the lane
+ * gate (INV-Q-4502). [audit] and [delegation] are public read-only properties (INV-Q-5117).
  *
  * Checks, in order, before anything is written (INV-Q-2930): the key (unknown and retired keys throw,
  * planned is refused), the scope level, the setting role (for every source, INV-Q-3169), the reason, rules
@@ -43,25 +44,25 @@ import java.util.UUID
  * @param constraints `null` refuses every value that needs the owning service's check (INV-Q-3167).
  */
 class JdbcPolicyWriter(
-    private val connections: CurrentConnection,
+    dsl: DSLContext,
     private val catalogue: VariationPointCatalogue,
     private val form: DeploymentForm,
     schema: String,
-    private val audit: AuditWriter,
+    val audit: AuditWriter,
     private val outbox: OutboxWriter?,
     private val clock: Clock,
-    private val delegation: DelegationProbe? = null,
+    val delegation: DelegationProbe? = null,
     private val backdating: BackdatingFloor? = null,
     private val constraints: ValueConstraints? = null,
 ) : PolicyWriter {
-    private val store = JdbcSettingStore(schema)
-    private val writes = JdbcSettingWrites(schema)
+    private val store = JdbcSettingStore(dsl, schema)
+    private val writes = JdbcSettingWrites(dsl, schema)
     private val validator = ValueValidator(form)
     private val mapper: JsonMapper =
         JsonMapper.builder().enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS).build()
     private val resolver =
         PrecedenceResolver(catalogue, form) { key, ref, tenant, source, at ->
-            store.find(connections.require(), key, ref, tenant, source, at)
+            store.find(key, ref, tenant, source, at)
         }
     private val bounds = ScopeBounds(catalogue, resolver::resolve)
     private val stagedRows = StagedRows(mapper)
@@ -92,7 +93,6 @@ class JdbcPolicyWriter(
         checkSelection(definition, target, command.selected, command.effectiveFrom)
         checkBounds(definition, command.scope, target, command.selected, command.effectiveFrom)
         val looser = looserOptions(definition, command.selected)
-        val connection = connections.require()
         val relaxation =
             if (looser.isEmpty()) {
                 // A relaxation backs exactly the looser value it acknowledges (INV-Q-3138).
@@ -140,9 +140,9 @@ class JdbcPolicyWriter(
             )
         val event = OutboundEvent(POLICY_CHANGED, policyChanged(version))
         if (target.level == ScopeLevel.INSTALLATION) {
-            return writeInstallation(connection, version, prior, entry, event, context)
+            return writeInstallation(version, prior, entry, event, context)
         }
-        writes.insert(connection, version)
+        writes.insert(version)
         val auditEnvelope = audit.record(entry, context)
         val changed = outbox?.append(listOf(event), context)?.single()
         return PolicyChange(version, prior, auditEnvelope.id.toString(), changed?.id?.toString())
@@ -157,7 +157,6 @@ class JdbcPolicyWriter(
      * actor (`PlatformTenantBinding.bindPlatform(actor)`, INV-Q-3997).
      */
     private fun writeInstallation(
-        connection: Connection,
         version: SettingVersion,
         prior: ResolvedSetting?,
         entry: AuditEntry,
@@ -173,7 +172,6 @@ class JdbcPolicyWriter(
         val changed = outbox?.stage(listOf(event), context)?.single()
         val stored =
             writes.writeInstallation(
-                connection,
                 version,
                 stagedRows.json(staged.envelope),
                 changed?.let { stagedRows.json(it.envelope, it.topic) },
@@ -199,13 +197,12 @@ class JdbcPolicyWriter(
             refuse(key, PolicyRefusal.ACKNOWLEDGER_NOT_ALLOWED, "acknowledging needs one of ${allowed.sorted()}, held")
         }
         val tenant = checkNotNull(target.tenant)
-        val connection = connections.require()
         val relaxation = command.relaxation ?: RelaxationId(UUID.randomUUID())
         val earlier =
             if (command.relaxation == null) {
                 emptyList()
             } else {
-                val rows = writes.acknowledgements(connection, tenant, relaxation)
+                val rows = writes.acknowledgements(tenant, relaxation)
                 if (rows.isEmpty()) refuse(key, PolicyRefusal.RELAXATION_REQUIRED, "no relaxation $relaxation")
                 if (rows.any {
                         !matches(it, key, target, command.selected) ||
@@ -218,7 +215,7 @@ class JdbcPolicyWriter(
                         "relaxation $relaxation is for another value or date",
                     )
                 }
-                if (writes.consumed(connection, tenant, relaxation)) {
+                if (writes.consumed(tenant, relaxation)) {
                     refuse(key, PolicyRefusal.RELAXATION_REQUIRED, "relaxation $relaxation is already used")
                 }
                 if (rows.any {
@@ -250,7 +247,7 @@ class JdbcPolicyWriter(
                         acknowledgedAt = clock.instant(),
                     ),
             )
-        writes.insertAcknowledgement(connection, row)
+        writes.insertAcknowledgement(row)
         val prior = mapper.createObjectNode()
         prior.put("relaxation", relaxation.toString())
         prior.putArray("acknowledgedRoles").apply { earlier.forEach { add(it.acknowledgement.role) } }
@@ -333,7 +330,6 @@ class JdbcPolicyWriter(
     ) {
         if (!bounds.applies(definition)) return
         val key = definition.key
-        val connection = connections.require()
         val limiting =
             bounds.broaderLevels(definition, scope, target.level).map { key to scope.target(it) } +
                 listOfNotNull(definition.installationParameter).map {
@@ -341,7 +337,7 @@ class JdbcPolicyWriter(
                 }
         val later =
             limiting
-                .flatMap { (row, at) -> writes.versions(connection, row, at).map { it.effectiveFrom } }
+                .flatMap { (row, at) -> writes.versions(row, at).map { it.effectiveFrom } }
                 .filter { it > effectiveFrom }
         (listOf(effectiveFrom) + later.distinct().sorted()).forEach { date ->
             val limits =
@@ -488,15 +484,14 @@ class JdbcPolicyWriter(
             command.relaxation
                 ?: refuse(key, PolicyRefusal.RELAXATION_REQUIRED, "a looser option needs ${required.map { it.first }}")
         val tenant = checkNotNull(target.tenant)
-        val connection = connections.require()
-        val rows = writes.acknowledgements(connection, tenant, relaxation)
+        val rows = writes.acknowledgements(tenant, relaxation)
         if (rows.isEmpty() || rows.any { !matches(it, key, target, command.selected) }) {
             refuse(key, PolicyRefusal.RELAXATION_REQUIRED, "relaxation $relaxation does not acknowledge this value")
         }
         if (rows.any { it.acknowledgement.effectiveFrom > command.effectiveFrom }) {
             refuse(key, PolicyRefusal.RELAXATION_REQUIRED, "relaxation $relaxation takes effect after the value")
         }
-        if (writes.consumed(connection, tenant, relaxation)) {
+        if (writes.consumed(tenant, relaxation)) {
             refuse(key, PolicyRefusal.RELAXATION_REQUIRED, "relaxation $relaxation is already used")
         }
         required.forEach { (role, distinct) ->
@@ -526,7 +521,7 @@ class JdbcPolicyWriter(
         if (target.level == ScopeLevel.TENANT || target.level == ScopeLevel.INSTALLATION) {
             refuse(key, PolicyRefusal.BACKDATING_REFUSED, "a ${target.level} value takes effect $today or later")
         }
-        if (writes.hasAny(connections.require(), key, target)) {
+        if (writes.hasAny(key, target)) {
             refuse(key, PolicyRefusal.BACKDATING_REFUSED, "only a scope's first value may be back-dated")
         }
         val floor =

@@ -35,7 +35,7 @@ import java.time.Clock
 
 /**
  * config-resolver's ports (INV-T-2875, INV-Q-3710), when the service embeds its impl half: over the service's
- * schema and its [VariationPointCatalogue], for the deployment form `gst.form`. The policy writer uses the
+ * schema, each on the module's DSLContext of the [TransactionRunner] (INV-T-4517, ruling INV-Q-5275) and its [VariationPointCatalogue], for the deployment form `gst.form`. The policy writer uses the
  * service's [DelegationProbe], [BackdatingFloor] and [ValueConstraints] when it declares them, and its outbox
  * when it has one.
  *
@@ -48,22 +48,38 @@ import java.time.Clock
 @ConditionalOnProperty(name = [Props.SCHEMA])
 class ConfigResolverWiring {
     @Bean
+    @ConditionalOnBean(TransactionRunner::class)
     @ConditionalOnMissingBean(PolicyReader::class)
     fun policyReader(
-        connections: CurrentConnection,
+        transactionRunner: TransactionRunner,
+        tenants: TenantContext,
         catalogue: VariationPointCatalogue,
         gst: GstProperties,
         modules: ModuleProperties,
-    ): JdbcPolicyReader = JdbcPolicyReader(connections, catalogue, gst.configForm(), modules.requireSchema())
+    ): JdbcPolicyReader =
+        JdbcPolicyReader(
+            moduleDsl(transactionRunner, tenants, modules),
+            catalogue,
+            gst.configForm(),
+            modules.requireSchema(),
+        )
 
     @Bean
+    @ConditionalOnBean(TransactionRunner::class)
     @ConditionalOnMissingBean(PolicyHistory::class)
     fun policyHistory(
-        connections: CurrentConnection,
+        transactionRunner: TransactionRunner,
+        tenants: TenantContext,
         catalogue: VariationPointCatalogue,
         gst: GstProperties,
         modules: ModuleProperties,
-    ): JdbcPolicyHistory = JdbcPolicyHistory(connections, catalogue, gst.configForm(), modules.requireSchema())
+    ): JdbcPolicyHistory =
+        JdbcPolicyHistory(
+            moduleDsl(transactionRunner, tenants, modules),
+            catalogue,
+            gst.configForm(),
+            modules.requireSchema(),
+        )
 
     @Bean
     @ConditionalOnBean(TransactionRunner::class)
@@ -86,11 +102,12 @@ class ConfigResolverWiring {
         JdbcResolutionRecorder(moduleDsl(transactionRunner, tenants, modules), modules.requireSchema(), clock)
 
     @Bean
-    @ConditionalOnBean(AuditWriter::class)
+    @ConditionalOnBean(TransactionRunner::class, AuditWriter::class)
     @ConditionalOnMissingBean(PolicyWriter::class)
     @Suppress("LongParameterList")
     fun policyWriter(
-        connections: CurrentConnection,
+        transactionRunner: TransactionRunner,
+        tenants: TenantContext,
         catalogue: VariationPointCatalogue,
         gst: GstProperties,
         modules: ModuleProperties,
@@ -102,7 +119,7 @@ class ConfigResolverWiring {
         clock: Clock,
     ): JdbcPolicyWriter =
         JdbcPolicyWriter(
-            connections,
+            moduleDsl(transactionRunner, tenants, modules),
             catalogue,
             gst.configForm(),
             modules.requireSchema(),

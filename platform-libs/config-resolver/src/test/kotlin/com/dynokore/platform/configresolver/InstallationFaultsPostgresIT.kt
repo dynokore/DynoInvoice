@@ -4,7 +4,6 @@ import com.dynokore.platform.configresolver.ConfigSchema.EventMode
 import com.dynokore.platform.tenancykernel.TenantId
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.TestInstance
@@ -12,7 +11,6 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.Arguments
 import org.junit.jupiter.params.provider.MethodSource
 import tools.jackson.databind.node.ObjectNode
-import java.sql.SQLException
 import java.util.UUID
 
 /**
@@ -44,11 +42,10 @@ class InstallationFaultsPostgresIT {
             val args = h.staged()
             val call = fault(args)
             val counts = h.stored()
-            val refused =
-                assertThrows(SQLException::class.java, { h.callInstallation(call.args, call.tenant, call.actor) }, name)
+            val refused = h.refusal { h.callInstallation(call.args, call.tenant, call.actor) }
             assertEquals(call.state, refused.sqlState, "$name: ${refused.message}")
             val check = checkNotNull(CHECKS[name]) { "no expected check for $name" }
-            assertTrue(refused.message.orEmpty().contains(check), "$name refused by another check: ${refused.message}")
+            assertTrue(refused.message.contains(check), "$name refused by another check: ${refused.message}")
             assertEquals(counts, h.stored(), "$name wrote rows")
         }
         assertEquals(1, h.callInstallation(h.staged()).size, "the unfaulted call writes")

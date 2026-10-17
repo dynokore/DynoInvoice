@@ -7,7 +7,6 @@ import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
-import java.sql.SQLException
 import java.util.UUID
 
 /**
@@ -40,8 +39,8 @@ class BlankValuesPostgresIT {
             call: () -> Unit,
         ) {
             val before = h.stored()
-            val refused = runCatching(call).exceptionOrNull()
-            if (refused !is SQLException || refused.sqlState != state || message !in refused.message.orEmpty()) {
+            val refused = runCatching { h.refusal(call) }.getOrNull()
+            if (refused == null || refused.sqlState != state || message !in refused.message) {
                 missed += "$name: ${refused?.message ?: "accepted"}"
             }
             assertEquals(before, h.stored(), "$name wrote rows")
@@ -71,11 +70,14 @@ class BlankValuesPostgresIT {
     fun `the purges refuse a blank or control actor and delete nothing`(image: String) {
         val h = harness(image)
         val tenant = UUID.randomUUID().toString()
-        h.asAdmin(
-            "insert into svc.config_resolved_value (id, tenant_id, subject_type, subject_ref, vp_key, " +
-                "transaction_date, option_keys, source, resolved_at) values (gen_random_uuid(), '$tenant', " +
-                "'submission', 'doc-1/v1', 'VP-11', current_date, array['A'], 'DEFAULT', now())",
-        )
+        h.ownerProbe.inTenant(TenantId(UUID.fromString(tenant))) {
+            fetchValue(
+                "insert into svc.config_resolved_value (id, tenant_id, subject_type, subject_ref, vp_key, " +
+                    "transaction_date, option_keys, source, resolved_at) values (gen_random_uuid(), ?::uuid, " +
+                    "'submission', 'doc-1/v1', 'VP-11', current_date, array['A'], 'DEFAULT', now()) returning id",
+                tenant,
+            )
+        }
         val purges =
             listOf(
                 "select svc.config_purge_subject('submission', 'doc-1/v1')",
@@ -84,17 +86,16 @@ class BlankValuesPostgresIT {
         val missed =
             purges.flatMap { sql ->
                 NOT_ACTORS.mapNotNull { (name, actor) ->
-                    val refused = runCatching { h.runtime { c -> c.bindAndRun(tenant, actor, sql) } }.exceptionOrNull()
-                    val ok =
-                        refused is SQLException && refused.sqlState == "42501" &&
-                            "app.actor is not set" in refused.message.orEmpty()
+                    val refused = runCatching { h.refusal { h.raw(tenant, actor) { fetchValue(sql) } } }.getOrNull()
+                    val ok = refused != null && refused.sqlState == "42501" && "app.actor is not set" in refused.message
                     "$sql, actor $name".takeUnless { ok }
                 }
             }
         assertEquals(emptyList<String>(), missed)
-        assertEquals(1L, h.count("select count(*) from svc.config_resolved_value where tenant_id = '$tenant'"))
-        h.runtime { c -> c.bindAndRun(tenant, "CASE 5521", purges[0]) }
-        assertEquals(0L, h.count("select count(*) from svc.config_resolved_value where tenant_id = '$tenant'"))
+        val own = TenantId(UUID.fromString(tenant))
+        assertEquals(1L, h.count("select count(*) from svc.config_resolved_value where tenant_id = '$tenant'", own))
+        h.raw(tenant, "CASE 5521") { fetchValue(purges[0]) }
+        assertEquals(0L, h.count("select count(*) from svc.config_resolved_value where tenant_id = '$tenant'", own))
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
@@ -108,12 +109,12 @@ class BlankValuesPostgresIT {
         INSERTS.forEach { insert ->
             insert.columns.forEach { (column, actor) ->
                 (if (actor) NOT_ACTORS else BLANKS).forEach { (name, value) ->
-                    val before = counts(h)
-                    val refused = runCatching { insert.run(h, tenant, column, value) }.exceptionOrNull()
-                    if (refused !is SQLException || refused.sqlState != "23514") {
+                    val before = counts(h, tenant)
+                    val refused = runCatching { h.refusal { insert.run(h, tenant, column, value) } }.getOrNull()
+                    if (refused == null || refused.sqlState != "23514") {
                         missed += "${insert.table}.$column $name"
                     }
-                    assertEquals(before, counts(h), "${insert.table}.$column $name wrote a row")
+                    assertEquals(before, counts(h, tenant), "${insert.table}.$column $name wrote a row")
                 }
                 val accepted = if (actor) VISIBLE_ACTORS else VISIBLE_ACTORS + " \t x \n "
                 accepted.forEach { value ->
@@ -129,7 +130,11 @@ class BlankValuesPostgresIT {
         INSERTS.single { it.table == "config_relaxation_acknowledgement" }.run(h, tenant, "reason", null)
     }
 
-    private fun counts(h: WriteHarness) = INSERTS.map { h.count("select count(*) from svc.${it.table}") }
+    /** The rows of each table that [tenant]'s binding sees (forced RLS; the installation table has no tenant). */
+    private fun counts(
+        h: WriteHarness,
+        tenant: String,
+    ) = INSERTS.map { h.count("select count(*) from svc.${it.table}", TenantId(UUID.fromString(tenant))) }
 
     /** One owner insert of [table] with every probed column valid but [column]; returns the new row's id. */
     private class Insert(
@@ -147,16 +152,13 @@ class BlankValuesPostgresIT {
             value: String?,
         ): UUID {
             val id = UUID.randomUUID()
-            h.owner.connection.use { c ->
-                c.createStatement().use { it.execute("select set_config('app.tenant_id', '$tenant', false)") }
-                c.prepareStatement(sql).use { s ->
-                    s.setObject(1, id)
-                    var i = 2
-                    if (tenanted) s.setString(i++, tenant)
-                    columns.forEach { (name, _) -> s.setString(i++, if (name == column) value else "v-$name") }
-                    s.executeUpdate()
-                }
-            }
+            val binds = mutableListOf<Any?>(id.toString())
+            if (tenanted) binds += tenant
+            columns.forEach { (name, _) -> binds += if (name == column) value else "v-$name" }
+            // The row's tenant is bound as the migration login's own, so forced RLS passes the insert.
+            h.ownerProbe.inTenant(
+                TenantId(UUID.fromString(tenant)),
+            ) { fetchValue("$sql returning id", *binds.toTypedArray()) }
             return id
         }
     }
@@ -164,24 +166,7 @@ class BlankValuesPostgresIT {
     private fun WriteHarness.ownerQuery(
         tenant: String,
         sql: String,
-    ): String? =
-        owner.connection.use { c ->
-            c.createStatement().use { it.execute("select set_config('app.tenant_id', '$tenant', false)") }
-            c.createStatement().use { s -> s.executeQuery(sql).use { if (it.next()) it.getString(1) else null } }
-        }
-
-    private fun java.sql.Connection.bindAndRun(
-        tenant: String,
-        actor: String,
-        sql: String,
-    ) {
-        prepareStatement("select set_config('app.tenant_id', ?, true), set_config('app.actor', ?, true)").use {
-            it.setString(1, tenant)
-            it.setString(2, actor)
-            it.execute()
-        }
-        createStatement().use { it.execute(sql) }
-    }
+    ): String? = ownerProbe.inTenant(TenantId(UUID.fromString(tenant))) { fetchValue(sql) } as String?
 
     private companion object {
         /** Whitespace-only values: ISO controls and the caseId whitespace set (INV-Q-4614), alone and mixed. */

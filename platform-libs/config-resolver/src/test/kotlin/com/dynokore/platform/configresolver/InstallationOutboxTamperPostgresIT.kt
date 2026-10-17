@@ -3,12 +3,10 @@ package com.dynokore.platform.configresolver
 import com.dynokore.platform.tenancykernel.TenantId
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
-import java.sql.SQLException
 
 /**
  * Outbox UPDATE hardening (owner ruling INV-Q-4334 B) after `write_installation_setting`, in outbox mode: the same
@@ -33,26 +31,27 @@ class InstallationOutboxTamperPostgresIT {
         val audit = args.audit.get("id").asString()
         val changed = checkNotNull(args.policyChanged).get("id").asString()
         val rows = listOf(audit, changed)
-        val before = h.count("select count(*) from svc.outbox where id in ('$audit', '$changed') and data ? 'scope'")
+        val before =
+            h.count(
+                "select count(*) from svc.outbox where id in ('$audit', '$changed') and jsonb_exists(data, 'scope')",
+            )
         assertEquals(2L, before)
 
         rows.forEach { id ->
             listOf(
-                "update svc.outbox set data = jsonb_set(data, '{actor}', '\"someone-else\"') where id = '$id'",
-                "update svc.outbox set data = jsonb_set(data, '{scope}', '\"TENANT\"') where id = '$id'",
-                "update svc.outbox set data = '{}' where id = '$id'",
-                "delete from svc.outbox where id = '$id'",
+                "update svc.outbox set data = jsonb_set(data, '{actor}', '\"someone-else\"') " +
+                    "where id = '$id' returning id",
+                "update svc.outbox set data = jsonb_set(data, '{scope}', '\"TENANT\"') where id = '$id' returning id",
+                "update svc.outbox set data = '{}' where id = '$id' returning id",
+                "delete from svc.outbox where id = '$id' returning id",
             ).forEach { sql -> assertEquals("42501", refused(h, sql), sql) }
         }
         assertEquals(1L, h.count("select count(*) from svc.outbox where id = '$audit' and data ->> 'actor' = 'op'"))
 
         rows.forEach { id ->
-            val past = "update svc.outbox set published_at = now() - interval '400 days' where id = '$id'"
+            val past = "update svc.outbox set published_at = now() - interval '400 days' where id = '$id' returning id"
             // A first mark is stored as database time (the passed past time is ignored); a second is refused.
-            h.runtime { c ->
-                bind(c)
-                c.createStatement().use { it.executeUpdate(past) }
-            }
+            h.raw(PLATFORM, "op") { fetchValue(past) }
             assertEquals("42501", refused(h, past), past)
         }
         val aged =
@@ -61,23 +60,12 @@ class InstallationOutboxTamperPostgresIT {
         assertEquals(0L, h.count(aged), "an installation row was given a past published_at")
     }
 
-    private fun bind(c: java.sql.Connection) =
-        c
-            .prepareStatement(
-                "select set_config('app.tenant_id', ?, true), set_config('app.actor', 'op', true)",
-            ).use {
-                it.setString(1, TenantId.PLATFORM.value.toString())
-                it.execute()
-            }
-
     private fun refused(
         h: WriteHarness,
         sql: String,
-    ): String? =
-        assertThrows(SQLException::class.java) {
-            h.runtime { c ->
-                bind(c)
-                c.createStatement().use { it.executeUpdate(sql) }
-            }
-        }.sqlState
+    ): String? = h.refusal { h.raw(PLATFORM, "op") { fetchValue(sql) } }.sqlState
+
+    private companion object {
+        val PLATFORM = TenantId.PLATFORM.value.toString()
+    }
 }

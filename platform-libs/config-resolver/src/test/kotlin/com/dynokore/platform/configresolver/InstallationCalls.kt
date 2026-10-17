@@ -10,11 +10,8 @@ import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.tenancykernel.TenantId
-import org.junit.jupiter.api.Assertions.assertThrows
 import tools.jackson.databind.json.JsonMapper
 import tools.jackson.databind.node.ObjectNode
-import java.sql.Connection
-import java.sql.SQLException
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
@@ -130,23 +127,18 @@ internal fun WriteHarness.callInstallation(
     tenant: String? = TenantId.PLATFORM.value.toString(),
     actor: String? = "op",
 ): List<UUID> =
-    runtime { c ->
-        bind(c, tenant, actor)
-        c
-            .prepareStatement(
-                "select setting_id from svc.write_installation_setting(?, ?, ?::jsonb, ?, ?, ?::jsonb, ?::jsonb)",
-            ).use {
-                it.setString(1, args.vpKey)
-                it.setArray(2, c.createArrayOf("text", args.optionKeys.toTypedArray()))
-                it.setString(3, args.optionValues)
-                it.setObject(4, args.effectiveFrom)
-                it.setString(5, args.reason)
-                it.setString(6, InstallationCalls.mapper.writeValueAsString(args.audit))
-                it.setString(7, args.policyChanged?.let { p -> InstallationCalls.mapper.writeValueAsString(p) })
-                it.executeQuery().use { rows ->
-                    generateSequence { if (rows.next()) rows.getObject(1, UUID::class.java) else null }.toList()
-                }
-            }
+    raw(tenant, actor) {
+        fetchRows(
+            "select setting_id from svc.write_installation_setting(" +
+                "?, ?::text[], ?::jsonb, ?::date, ?, ?::jsonb, ?::jsonb)",
+            args.vpKey,
+            args.optionKeys.toTypedArray(),
+            args.optionValues,
+            args.effectiveFrom,
+            args.reason,
+            InstallationCalls.mapper.writeValueAsString(args.audit),
+            args.policyChanged?.let { p -> InstallationCalls.mapper.writeValueAsString(p) },
+        ).map { it.values.single() as UUID }
     }
 
 /** The SQLSTATE [sql] fails with on a raw runtime-login transaction with [tenant] and [actor] set as given. */
@@ -154,27 +146,7 @@ internal fun WriteHarness.refusedRaw(
     sql: String,
     tenant: String?,
     actor: String?,
-): String? =
-    assertThrows(SQLException::class.java) {
-        runtime { c ->
-            bind(c, tenant, actor)
-            c.createStatement().use { it.execute(sql) }
-        }
-    }.sqlState
-
-/** Sets `app.tenant_id` and `app.actor` for the transaction as given, an absent one as the empty setting. */
-private fun bind(
-    c: Connection,
-    tenant: String?,
-    actor: String?,
-) = c
-    .prepareStatement(
-        "select set_config('app.tenant_id', coalesce(?, ''), true), set_config('app.actor', coalesce(?, ''), true)",
-    ).use {
-        it.setString(1, tenant)
-        it.setString(2, actor)
-        it.execute()
-    }
+): String? = refusal { raw(tenant, actor) { fetchValue(sql) } }.sqlState
 
 /** Rows of every table an installation write touches. */
 internal fun WriteHarness.stored(): List<Long> =
@@ -183,39 +155,3 @@ internal fun WriteHarness.stored(): List<Long> =
         if (mode == EventMode.OUTBOX) count("select count(*) from svc.outbox") else null,
         if (mode == EventMode.NO_OUTBOX) count("select count(*) from svc.audit_entry") else null,
     )
-
-internal fun WriteHarness.execute(sql: String) = app.require().createStatement().use { it.executeUpdate(sql) }
-
-internal fun WriteHarness.asAdmin(sql: String) {
-    admin.connection.use { c -> c.createStatement().use { it.executeUpdate(sql) } }
-}
-
-internal fun WriteHarness.instant(sql: String): Instant =
-    admin.connection.use { c ->
-        c.createStatement().use { s ->
-            s.executeQuery(sql).use {
-                it.next()
-                it.getTimestamp(1).toInstant()
-            }
-        }
-    }
-
-internal fun WriteHarness.text(sql: String): String? =
-    admin.connection.use { c ->
-        c.createStatement().use { s ->
-            s.executeQuery(sql).use {
-                it.next()
-                it.getString(1)
-            }
-        }
-    }
-
-internal fun WriteHarness.bool(sql: String): Boolean =
-    admin.connection.use { c ->
-        c.createStatement().use { s ->
-            s.executeQuery(sql).use {
-                it.next()
-                it.getBoolean(1)
-            }
-        }
-    }

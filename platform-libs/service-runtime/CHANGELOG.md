@@ -6,6 +6,12 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [8.0.6] - 2026-10-17
+### Changed
+- `ConfigResolverWiring` builds `JdbcPolicyReader`, `JdbcPolicyHistory` and `JdbcPolicyWriter` (config-resolver 4.0.0) with the
+  module's DSLContext, as it does the purge and the recorder (INV-T-4517; coordinator ruling INV-Q-5275); their beans are
+  conditional on the `TransactionRunner` bean. The implTest `PolicyHttpHarness` declares config-resolver's other tables.
+
 ## [8.0.5] - 2026-10-17
 ### Changed
 - `OutboxAndQueueWiring` (INV-T-5304, outbox-and-queue 4.0.0; coordinator rulings INV-Q-5275, INV-Q-5614): builds the

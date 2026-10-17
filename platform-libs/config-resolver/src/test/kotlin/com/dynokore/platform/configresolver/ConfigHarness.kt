@@ -59,7 +59,7 @@ class ConfigHarness(
     val dsl: DSLContext = TenancyJooq.dslContext(ConfigTables.declared(SCHEMA), tenants, app)
     private val ownerDsl: DSLContext = TenancyJooq.dslContext(ConfigTables.declared(SCHEMA), tenants, owner)
     val probe: TenancyProbe = TenancyProbe.connect(container.jdbcUrl, "config_app", "config_app_pw")
-    val reader = JdbcPolicyReader(app, TestCatalogue.catalogue, form, SCHEMA)
+    val reader = JdbcPolicyReader(dsl, TestCatalogue.catalogue, form, SCHEMA)
     val recorder = JdbcResolutionRecorder(dsl, SCHEMA, CLOCK)
     val purge = JdbcConfigPurge(dsl, SCHEMA)
 

@@ -6,6 +6,22 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-10-17
+### Changed (breaking)
+- `JdbcSettingStore`, `JdbcSettingWrites`, `JdbcPolicyReader`, `JdbcPolicyHistory` and `JdbcPolicyWriter` take a
+  `DSLContext` (tenancy-jooq's `TenancyJooq.dslContext`, built over the service's `TransactionRunner`) instead of a
+  `CurrentConnection`, and run every statement as jOOQ DSL (INV-T-4517, slice 2 of 2; INV-ADR-3968 item 4c, INV-REQ-854 b8;
+  owner ruling INV-Q-4196). Identifiers are `DSL.name` of the `SqlIdentifier`-validated schema, every value is a bind value,
+  the definer function `write_installation_setting` is a jOOQ function call. Behaviour, lane (the DSLContext runs on the
+  `TransactionRunner` whose `TenantAwareDataSource` holds the lane gate, INV-Q-4502 (A)) and tenant predicates are unchanged.
+- `PolicyReader.resolve(key, scope, at, options: KClass<E>)` becomes `resolve(key, scope, at, options, entries: List<E>)`: the
+  enum constants come from `enumEntries<E>()` of the reified extension, no longer from `Class.getEnumConstants`.
+### Added
+- `JdbcPolicyWriter.audit` and `JdbcPolicyWriter.delegation`: public read-only properties returning the constructor
+  arguments (coordinator ruling INV-Q-5117).
+### Removed
+- `SelectedOptionsColumns` (JDBC); `SelectedOptionsJooq` is the one codec of the two value columns.
+
 ## [3.0.1] - 2026-10-17
 ### Changed
 - Metadata-only release (INV-T-5304, owner ruling INV-Q-5836 A, version-file scope of the downstream closure of outbox-and-queue 4.0.0): no API or behaviour change; `src/main` and `src/impl` are unchanged. The POMs name outbox-and-queue at the stepped version.

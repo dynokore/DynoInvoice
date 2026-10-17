@@ -2,57 +2,81 @@ package com.dynokore.platform.configresolver
 
 import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantId
-import java.sql.Connection
-import java.sql.ResultSet
-import java.sql.Timestamp
+import org.jooq.Converter
+import org.jooq.DSLContext
+import org.jooq.DataType
+import org.jooq.Field
+import org.jooq.Name
+import org.jooq.Record
+import org.jooq.Table
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import java.time.Instant
 import java.time.LocalDate
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
 import java.util.UUID
 
 /**
- * SQL of the write path and of the history, on a given connection. Tenant rows always carry an explicit
- * `tenant_id` predicate as well as RLS (defence in depth, TPL-11).
+ * The write path and the history through jOOQ's DSL on the DSLContext of tenancy-jooq's factory, in the caller's open
+ * transaction. Tenant rows always carry an explicit `tenant_id` predicate as well as RLS (defence in depth, TPL-11).
+ * Identifiers are `DSL.name` of the [SqlIdentifier]-validated schema and constant names; every value is a bind value;
+ * the definer function [ConfigSchema.WRITE_INSTALLATION_SETTING] is a jOOQ function call.
  */
 internal class JdbcSettingWrites(
+    private val dsl: DSLContext,
     schema: String,
-    private val columns: SelectedOptionsColumns = SelectedOptionsColumns(),
+    private val columns: SelectedOptionsJooq = SelectedOptionsJooq(),
 ) {
     private val s = SqlIdentifier.require(schema, "schema")
-    private val settings = "$s.${ConfigSchema.SETTING}"
-    private val installation = "$s.${ConfigSchema.INSTALLATION_SETTING}"
-    private val acknowledgements = "$s.${ConfigSchema.RELAXATION_ACKNOWLEDGEMENT}"
-    private val writeInstallation = "$s.${ConfigSchema.WRITE_INSTALLATION_SETTING}"
+    private val settings: Table<*> = DSL.table(DSL.name(s, ConfigSchema.SETTING))
+    private val installation: Table<*> = DSL.table(DSL.name(s, ConfigSchema.INSTALLATION_SETTING))
+    private val acknowledgements: Table<*> = DSL.table(DSL.name(s, ConfigSchema.RELAXATION_ACKNOWLEDGEMENT))
+    private val writeInstallation: Name = DSL.name(s, ConfigSchema.WRITE_INSTALLATION_SETTING)
+
+    private val id = column("id", SQLDataType.UUID)
+    private val tenantId = column("tenant_id", SQLDataType.UUID)
+    private val entityId = column("entity_id", SQLDataType.CLOB)
+    private val vpKey = column("vp_key", SQLDataType.CLOB)
+    private val scopeLevel = column("scope_level", SQLDataType.CLOB)
+    private val scopeId = column("scope_id", SQLDataType.CLOB)
+    private val source = column("source", SQLDataType.CLOB)
+    private val profileId = column("profile_id", SQLDataType.CLOB)
+    private val profileVersion = column("profile_version", SQLDataType.CLOB)
+    private val effectiveFrom = column("effective_from", SQLDataType.LOCALDATE)
+    private val setBy = column("set_by", SQLDataType.CLOB)
+    private val reason = column("reason", SQLDataType.CLOB)
+    private val recordedAt = column("recorded_at", SQLDataType.TIMESTAMPWITHTIMEZONE)
+    private val relaxationRef = column("relaxation_ref", SQLDataType.UUID)
+    private val relaxationId = column("relaxation_id", SQLDataType.UUID)
+    private val role = column("role", SQLDataType.CLOB)
+    private val principal = column("principal", SQLDataType.CLOB)
+    private val acknowledgedAt = column("acknowledged_at", SQLDataType.TIMESTAMPWITHTIMEZONE)
+    private val seq = column("seq", SQLDataType.BIGINT)
 
     /** Stores a tenant-and-below value; an installation value goes through [writeInstallation]. */
-    fun insert(
-        connection: Connection,
-        version: SettingVersion,
-    ) {
+    fun insert(version: SettingVersion) {
         val target = version.target
         require(target.level != ScopeLevel.INSTALLATION) { "an installation value is written by $writeInstallation" }
-        connection
-            .prepareStatement(
-                "insert into $settings (id, tenant_id, entity_id, vp_key, scope_level, scope_id, option_keys, " +
-                    "option_values, source, profile_id, profile_version, effective_from, set_by, reason, " +
-                    "recorded_at, relaxation_ref) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            ).use {
-                it.setObject(1, version.id)
-                it.setObject(2, checkNotNull(target.tenant).value)
-                it.setString(3, target.entity)
-                it.setString(4, version.key.value)
-                it.setString(5, target.level.name)
-                it.setString(6, target.ref.id)
-                columns.bind(it, connection, 7, 8, version.selected)
-                it.setString(9, version.source.name)
-                it.setString(10, version.profileId)
-                it.setString(11, version.profileVersion)
-                it.setObject(12, version.effectiveFrom)
-                it.setString(13, version.setBy)
-                it.setString(14, version.reason)
-                it.setTimestamp(15, Timestamp.from(version.recordedAt))
-                it.setObject(16, version.relaxation?.value)
-                it.executeUpdate()
-            }
+        dsl
+            .insertInto(settings)
+            .set(id, version.id)
+            .set(tenantId, checkNotNull(target.tenant).value)
+            .set(entityId, target.entity)
+            .set(vpKey, version.key.value)
+            .set(scopeLevel, target.level.name)
+            .set(scopeId, target.ref.id)
+            .set(columns.keys, columns.keysOf(version.selected))
+            .set(columns.values, columns.valuesOf(version.selected))
+            .set(source, version.source.name)
+            .set(profileId, version.profileId)
+            .set(profileVersion, version.profileVersion)
+            .set(effectiveFrom, version.effectiveFrom)
+            .set(setBy, version.setBy)
+            .set(reason, version.reason)
+            .set(recordedAt, version.recordedAt.atOffset(ZoneOffset.UTC))
+            .set(relaxationRef, version.relaxation?.value)
+            .execute()
     }
 
     /**
@@ -62,181 +86,226 @@ internal class JdbcSettingWrites(
      * (coordinator rulings INV-Q-4254 A, INV-Q-4316).
      */
     fun writeInstallation(
-        connection: Connection,
         version: SettingVersion,
         audit: String,
         policyChanged: String?,
     ): StoredInstallation {
         require(version.target.level == ScopeLevel.INSTALLATION) { "not an installation value" }
-        return connection
-            .prepareStatement(
-                "select setting_id, stored_at from $writeInstallation(?, ?, ?, ?, ?, ?::jsonb, ?::jsonb)",
-            ).use {
-                it.setString(1, version.key.value)
-                columns.bind(it, connection, 2, 3, version.selected)
-                it.setObject(4, version.effectiveFrom)
-                it.setString(5, version.reason)
-                it.setString(6, audit)
-                it.setString(7, policyChanged)
-                it.executeQuery().use { rows ->
-                    check(rows.next()) { "the installation write returned no row" }
-                    StoredInstallation(rows.getObject(1, UUID::class.java), rows.getTimestamp(2).toInstant())
-                }
-            }
+        // The function returns one row (setting_id, stored_at): called as a function, its row is one composite value.
+        val stored =
+            dsl
+                .select(
+                    DSL.function(
+                        writeInstallation,
+                        STORED,
+                        DSL.`val`(version.key.value),
+                        DSL.`val`(columns.keysOf(version.selected), columns.keys.dataType),
+                        columns.valuesOf(version.selected),
+                        DSL.`val`(version.effectiveFrom),
+                        DSL.`val`(version.reason),
+                        DSL.`val`(audit).cast(SQLDataType.JSONB),
+                        DSL.`val`(policyChanged, SQLDataType.CLOB).cast(SQLDataType.JSONB),
+                    ),
+                ).fetchOne { it.value1() }
+        return checkNotNull(stored) { "the installation write returned no row" }
     }
 
     /** Every version of [key] at [target], oldest recorded first. */
     fun versions(
-        connection: Connection,
         key: VariationPointKey,
         target: SettingTarget,
     ): List<SettingVersion> =
         if (target.level == ScopeLevel.INSTALLATION) {
-            connection
-                .prepareStatement(
-                    "select id, option_keys, option_values, 'OVERRIDE' as source, null as profile_id, " +
-                        "null as profile_version, effective_from, set_by, reason, recorded_at, null::uuid as " +
-                        "relaxation_ref " +
-                        "from $installation where vp_key = ? order by seq",
-                ).use {
-                    it.setString(1, key.value)
-                    it.executeQuery().use { rows ->
-                        generateSequence { if (rows.next()) version(rows, key, target) else null }.toList()
-                    }
+            dsl
+                .select(id, columns.keys, columns.values, effectiveFrom, setBy, reason, recordedAt)
+                .from(installation)
+                .where(vpKey.eq(key.value))
+                .orderBy(seq)
+                .fetch { row ->
+                    // Installation values are overrides: no profile and no relaxation applies there.
+                    version(row, key, target, SettingSource.OVERRIDE, null, null, null)
                 }
         } else {
-            connection
-                .prepareStatement(
-                    "select id, option_keys, option_values, source, profile_id, profile_version, effective_from, " +
-                        "set_by, " +
-                        "reason, recorded_at, relaxation_ref from $settings where tenant_id = ? and vp_key = ? " +
-                        "and scope_level = ? and scope_id = ? order by seq",
-                ).use {
-                    it.setObject(1, checkNotNull(target.tenant).value)
-                    it.setString(2, key.value)
-                    it.setString(3, target.level.name)
-                    it.setString(4, target.ref.id)
-                    it.executeQuery().use { rows ->
-                        generateSequence { if (rows.next()) version(rows, key, target) else null }.toList()
-                    }
+            dsl
+                .select(
+                    id,
+                    columns.keys,
+                    columns.values,
+                    source,
+                    profileId,
+                    profileVersion,
+                    effectiveFrom,
+                    setBy,
+                    reason,
+                    recordedAt,
+                    relaxationRef,
+                ).from(settings)
+                .where(tenantId.eq(checkNotNull(target.tenant).value))
+                .and(vpKey.eq(key.value))
+                .and(scopeLevel.eq(target.level.name))
+                .and(scopeId.eq(target.ref.id))
+                .orderBy(seq)
+                .fetch { row ->
+                    version(
+                        row,
+                        key,
+                        target,
+                        SettingSource.valueOf(row.get(source)),
+                        row.get(profileId),
+                        row.get(profileVersion),
+                        row.get(relaxationRef),
+                    )
                 }
         }
 
     /** Whether any value of [key] has ever been stored at [target] (the first-value test, INV-Q-3140). */
     fun hasAny(
-        connection: Connection,
         key: VariationPointKey,
         target: SettingTarget,
-    ): Boolean = versions(connection, key, target).isNotEmpty()
+    ): Boolean = versions(key, target).isNotEmpty()
 
     /** Whether a setting already consumed [relaxation] (INV-Q-3138). */
     fun consumed(
-        connection: Connection,
         tenant: TenantId,
         relaxation: RelaxationId,
     ): Boolean =
-        connection
-            .prepareStatement(
-                "select 1 from $settings where tenant_id = ? and relaxation_ref = ?",
-            ).use {
-                it.setObject(1, tenant.value)
-                it.setObject(2, relaxation.value)
-                it.executeQuery().use { rows -> rows.next() }
-            }
+        dsl.fetchExists(
+            dsl
+                .selectOne()
+                .from(settings)
+                .where(tenantId.eq(tenant.value))
+                .and(relaxationRef.eq(relaxation.value)),
+        )
 
-    fun insertAcknowledgement(
-        connection: Connection,
-        row: AcknowledgementRow,
-    ) {
-        connection
-            .prepareStatement(
-                "insert into $acknowledgements (id, relaxation_id, tenant_id, entity_id, vp_key, scope_level, " +
-                    "scope_id, " +
-                    "option_keys, option_values, role, principal, effective_from, reason, acknowledged_at) " +
-                    "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            ).use {
-                it.setObject(1, row.acknowledgement.id)
-                it.setObject(2, row.acknowledgement.relaxation.value)
-                it.setObject(3, checkNotNull(row.target.tenant).value)
-                it.setString(4, row.target.entity)
-                it.setString(5, row.key.value)
-                it.setString(6, row.target.level.name)
-                it.setString(7, row.target.ref.id)
-                columns.bind(it, connection, 8, 9, row.selected)
-                it.setString(10, row.acknowledgement.role)
-                it.setString(11, row.acknowledgement.principal)
-                it.setObject(12, row.acknowledgement.effectiveFrom)
-                it.setString(13, row.reason)
-                it.setTimestamp(14, Timestamp.from(row.acknowledgement.acknowledgedAt))
-                it.executeUpdate()
-            }
+    fun insertAcknowledgement(row: AcknowledgementRow) {
+        dsl
+            .insertInto(acknowledgements)
+            .set(id, row.acknowledgement.id)
+            .set(relaxationId, row.acknowledgement.relaxation.value)
+            .set(tenantId, checkNotNull(row.target.tenant).value)
+            .set(entityId, row.target.entity)
+            .set(vpKey, row.key.value)
+            .set(scopeLevel, row.target.level.name)
+            .set(scopeId, row.target.ref.id)
+            .set(columns.keys, columns.keysOf(row.selected))
+            .set(columns.values, columns.valuesOf(row.selected))
+            .set(role, row.acknowledgement.role)
+            .set(principal, row.acknowledgement.principal)
+            .set(effectiveFrom, row.acknowledgement.effectiveFrom)
+            .set(reason, row.reason)
+            .set(acknowledgedAt, row.acknowledgement.acknowledgedAt.atOffset(ZoneOffset.UTC))
+            .execute()
     }
 
     /** The acknowledgements of [relaxation], in the order given. */
     fun acknowledgements(
-        connection: Connection,
         tenant: TenantId,
         relaxation: RelaxationId,
     ): List<AcknowledgementRow> =
-        connection
-            .prepareStatement(
-                "select id, relaxation_id, entity_id, vp_key, scope_level, scope_id, option_keys, option_values, " +
-                    "role, principal, effective_from, reason, acknowledged_at from $acknowledgements " +
-                    "where tenant_id = ? and relaxation_id = ? order by seq",
-            ).use {
-                it.setObject(1, tenant.value)
-                it.setObject(2, relaxation.value)
-                it.executeQuery().use { rows ->
-                    generateSequence {
-                        if (!rows.next()) {
-                            null
-                        } else {
-                            AcknowledgementRow(
-                                key = VariationPointKey(rows.getString("vp_key")),
-                                target =
-                                    SettingTarget(
-                                        tenant,
-                                        ScopeRef(
-                                            ScopeLevel.valueOf(rows.getString("scope_level")),
-                                            rows.getString("scope_id"),
-                                        ),
-                                        rows.getString("entity_id"),
-                                    ),
-                                selected = columns.read(rows),
-                                reason = rows.getString("reason"),
-                                acknowledgement =
-                                    RelaxationAcknowledgement(
-                                        id = rows.getObject("id", UUID::class.java),
-                                        relaxation = RelaxationId(rows.getObject("relaxation_id", UUID::class.java)),
-                                        role = rows.getString("role"),
-                                        principal = rows.getString("principal"),
-                                        effectiveFrom = rows.getObject("effective_from", LocalDate::class.java),
-                                        acknowledgedAt = rows.getTimestamp("acknowledged_at").toInstant(),
-                                    ),
-                            )
-                        }
-                    }.toList()
-                }
+        dsl
+            .select(
+                id,
+                relaxationId,
+                entityId,
+                vpKey,
+                scopeLevel,
+                scopeId,
+                columns.keys,
+                columns.values,
+                role,
+                principal,
+                effectiveFrom,
+                reason,
+                acknowledgedAt,
+            ).from(acknowledgements)
+            .where(tenantId.eq(tenant.value))
+            .and(relaxationId.eq(relaxation.value))
+            .orderBy(seq)
+            .fetch { row ->
+                AcknowledgementRow(
+                    key = VariationPointKey(row.get(vpKey)),
+                    target =
+                        SettingTarget(
+                            tenant,
+                            ScopeRef(ScopeLevel.valueOf(row.get(scopeLevel)), row.get(scopeId)),
+                            row.get(entityId),
+                        ),
+                    selected = columns.read(row.get(columns.keys), row.get(columns.values)),
+                    reason = row.get(reason),
+                    acknowledgement =
+                        RelaxationAcknowledgement(
+                            id = row.get(id),
+                            relaxation = RelaxationId(row.get(relaxationId)),
+                            role = row.get(role),
+                            principal = row.get(principal),
+                            effectiveFrom = row.get(effectiveFrom),
+                            acknowledgedAt = row.get(acknowledgedAt).toInstant(),
+                        ),
+                )
             }
 
     private fun version(
-        rows: ResultSet,
+        row: Record,
         key: VariationPointKey,
         target: SettingTarget,
+        origin: SettingSource,
+        profile: String?,
+        profileVer: String?,
+        relaxation: UUID?,
     ) = SettingVersion(
-        id = rows.getObject("id", UUID::class.java),
+        id = row.get(id),
         key = key,
         target = target,
-        selected = columns.read(rows),
-        source = SettingSource.valueOf(rows.getString("source")),
-        profileId = rows.getString("profile_id"),
-        profileVersion = rows.getString("profile_version"),
-        effectiveFrom = rows.getObject("effective_from", LocalDate::class.java),
-        setBy = rows.getString("set_by"),
-        reason = rows.getString("reason"),
-        recordedAt = rows.getTimestamp("recorded_at").toInstant(),
-        relaxation = rows.getObject("relaxation_ref", UUID::class.java)?.let { RelaxationId(it) },
+        selected = columns.read(row.get(columns.keys), row.get(columns.values)),
+        source = origin,
+        profileId = profile,
+        profileVersion = profileVer,
+        effectiveFrom = row.get(effectiveFrom),
+        setBy = row.get(setBy),
+        reason = row.get(reason),
+        recordedAt = row.get(recordedAt).toInstant(),
+        relaxation = relaxation?.let { RelaxationId(it) },
     )
+
+    private fun <T> column(
+        name: String,
+        type: DataType<T>,
+    ): Field<T> = DSL.field(DSL.name(name), type)
+
+    private companion object {
+        /** `(setting_id, stored_at)` as the composite text PostgreSQL gives a row value: `(uuid,"2026-10-01 00:00:00+00")`. */
+        val STORED: DataType<StoredInstallation> =
+            SQLDataType.OTHER.asConvertedDataType(
+                object : Converter<Any, StoredInstallation> {
+                    override fun from(database: Any?): StoredInstallation? {
+                        val text = database?.toString() ?: return null
+                        val inner = text.removeSurrounding("(", ")")
+                        val comma = inner.indexOf(',')
+                        check(comma > 0) { "the installation write returned $text, not an id and a time" }
+                        val time = inner.substring(comma + 1).trim().removeSurrounding("\"")
+                        return StoredInstallation(UUID.fromString(inner.substring(0, comma)), instantOf(time))
+                    }
+
+                    override fun to(user: StoredInstallation?): Any? = user?.let { "(${it.id},\"${it.recordedAt}\")" }
+
+                    override fun fromType(): Class<Any> = Any::class.java
+
+                    override fun toType(): Class<StoredInstallation> = StoredInstallation::class.java
+                },
+            )
+
+        /** A timestamptz as PostgreSQL prints it: `2026-10-01 00:00:00.123456+00` (the offset may be `+08` or `+05:30`). */
+        fun instantOf(text: String): Instant {
+            val match = checkNotNull(OFFSET.find(text)) { "no offset in $text" }
+            val sign = match.groupValues[1]
+            val hours = match.groupValues[2]
+            val minutes = match.groupValues[3].ifEmpty { "00" }
+            val local = text.substring(0, match.range.first).replace(' ', 'T')
+            return OffsetDateTime.parse("$local$sign$hours:$minutes").toInstant()
+        }
+
+        val OFFSET = Regex("([+-])(\\d\\d)(?::?(\\d\\d))?$")
+    }
 }
 
 /** The id and database time [JdbcSettingWrites.writeInstallation] gave an installation value. */

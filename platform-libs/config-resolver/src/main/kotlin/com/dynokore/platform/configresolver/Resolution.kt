@@ -4,6 +4,7 @@ import com.dynokore.platform.tenancykernel.TenantId
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.UUID
+import kotlin.enums.enumEntries
 import kotlin.reflect.KClass
 
 /**
@@ -139,6 +140,7 @@ interface PolicyReader {
     /**
      * [resolve] for a single-option variation point, as the owning service's enum (TPL-10).
      *
+     * @param entries the constants of [options] (`enumEntries<E>()`; no reflection looks them up).
      * @throws OptionKeyMismatch when the value is not exactly one constant of [options].
      */
     fun <E : Enum<E>> resolve(
@@ -146,14 +148,15 @@ interface PolicyReader {
         scope: PolicyScope,
         at: LocalDate,
         options: KClass<E>,
+        entries: List<E>,
     ): Resolved<E> {
         val raw = resolve(key, scope, at)
         val only =
             raw.selected.singleOrNull()
-                ?: throw OptionKeyMismatch(key, raw.selected.joinToString { it.key }, options.java.simpleName)
+                ?: throw OptionKeyMismatch(key, raw.selected.joinToString { it.key }, options.simpleName.orEmpty())
         val value =
-            options.java.enumConstants.firstOrNull { it.name == only.key }
-                ?: throw OptionKeyMismatch(key, only.key, options.java.simpleName)
+            entries.firstOrNull { it.name == only.key }
+                ?: throw OptionKeyMismatch(key, only.key, options.simpleName.orEmpty())
         return Resolved(value, raw.source, raw.profileVersion)
     }
 }
@@ -162,7 +165,7 @@ inline fun <reified E : Enum<E>> PolicyReader.resolve(
     key: VariationPointKey,
     scope: PolicyScope,
     at: LocalDate,
-): Resolved<E> = resolve(key, scope, at, E::class)
+): Resolved<E> = resolve(key, scope, at, E::class, enumEntries<E>())
 
 /**
  * The thing a resolved value is recorded on: one document version's record, e.g. a submission (ruling

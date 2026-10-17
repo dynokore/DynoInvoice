@@ -1,8 +1,15 @@
 package com.dynokore.platform.serviceruntime.composition
 
+import com.dynokore.platform.auditlog.AuditWriter
 import com.dynokore.platform.configresolver.ConfigPurge
 import com.dynokore.platform.configresolver.JdbcConfigPurge
+import com.dynokore.platform.configresolver.JdbcPolicyHistory
+import com.dynokore.platform.configresolver.JdbcPolicyReader
+import com.dynokore.platform.configresolver.JdbcPolicyWriter
 import com.dynokore.platform.configresolver.JdbcResolutionRecorder
+import com.dynokore.platform.configresolver.PolicyHistory
+import com.dynokore.platform.configresolver.PolicyReader
+import com.dynokore.platform.configresolver.PolicyWriter
 import com.dynokore.platform.configresolver.ResolutionRecorder
 import com.dynokore.platform.configresolver.VariationPointCatalogue
 import com.dynokore.platform.serviceruntime.binding.GstProperties
@@ -18,7 +25,7 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import java.time.Clock
 
 /**
- * INV-T-5303 (P109): [ConfigResolverWiring] builds the purge and the recorder over the module's DSLContext only when
+ * INV-T-5303 (P109): [ConfigResolverWiring] builds the purge, the recorder and the policy ports over the module's DSLContext only when
  * the context has a [TransactionRunner] (coordinator ruling INV-Q-5275), and a service's own port replaces them.
  */
 class ConfigResolverWiringTest {
@@ -75,5 +82,28 @@ class ConfigResolverWiringTest {
                 context.getBean(ConfigPurge::class.java) shouldBeSameInstanceAs purge
                 context.getBean(ResolutionRecorder::class.java) shouldBeSameInstanceAs recorder
             }
+    }
+
+    @Test
+    fun `with a TransactionRunner the policy reader, history and writer are beans over the module's DSLContext`() {
+        val audit = mockk<AuditWriter>()
+        withRunner.withBean(AuditWriter::class.java, { audit }).run { context ->
+            context.startupFailure shouldBe null
+            context.getBean(PolicyReader::class.java).shouldBeInstanceOf<JdbcPolicyReader>()
+            context.getBean(PolicyHistory::class.java).shouldBeInstanceOf<JdbcPolicyHistory>()
+            val writer = context.getBean(PolicyWriter::class.java).shouldBeInstanceOf<JdbcPolicyWriter>()
+            writer.audit shouldBeSameInstanceAs audit
+            writer.delegation shouldBe null
+        }
+    }
+
+    @Test
+    fun `without a TransactionRunner there is no policy reader, history or writer`() {
+        base.withBean(AuditWriter::class.java, { mockk<AuditWriter>() }).run { context ->
+            context.startupFailure shouldBe null
+            context.getBeanNamesForType(PolicyReader::class.java).size shouldBe 0
+            context.getBeanNamesForType(PolicyHistory::class.java).size shouldBe 0
+            context.getBeanNamesForType(PolicyWriter::class.java).size shouldBe 0
+        }
     }
 }

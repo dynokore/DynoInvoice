@@ -13,8 +13,9 @@ import com.dynokore.platform.configresolver.WriteCatalogue.UNDIRECTED_CROSS
 import com.dynokore.platform.configresolver.WriteCatalogue.UNNAMED_BOUND
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventContext
-import com.dynokore.platform.tenancykernel.CurrentConnection
 import com.dynokore.platform.tenancykernel.TenantId
+import org.jooq.SQLDialect
+import org.jooq.impl.DSL
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
@@ -31,10 +32,9 @@ class WriteValidationTest {
     private val day = LocalDate.of(2026, 10, 1)
     private val tenantScope = PolicyScope.tenant(tenant)
     private val e1 = PolicyScope.entity(tenant, "E1")
-    private val noDatabase =
-        object : CurrentConnection {
-            override fun require() = error("validation never touches the database")
-        }
+
+    /** A DSLContext with no connection: any statement fails, so validation is proved to touch no database. */
+    private val noDatabase = DSL.using(SQLDialect.POSTGRES)
     private val noAudit =
         object : AuditWriter {
             override fun record(

@@ -10,11 +10,12 @@ import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.tenancykernel.TenantId
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotEquals
-import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.TestInstance
@@ -24,10 +25,10 @@ import org.junit.jupiter.params.provider.MethodSource
 import org.junit.jupiter.params.provider.ValueSource
 import tools.jackson.databind.json.JsonMapper
 import tools.jackson.databind.node.ObjectNode
-import java.sql.SQLException
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
+import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
 
@@ -123,10 +124,7 @@ class InstallationWritePostgresIT {
         mode: EventMode,
     ) {
         val h = harness(image, mode)
-        val insert =
-            "insert into svc.config_installation_setting (id, vp_key, option_keys, effective_from, set_by, reason, " +
-                "recorded_at) values (gen_random_uuid(), 'VP-78', array['SMALLER'], current_date, 'op', 'x', now())"
-        val refused = assertThrows(SQLException::class.java) { h.inPlatform("op") { h.execute(insert) } }
+        val refused = h.refusal { h.inPlatform("op") { insertDirect(h) } }
         assertEquals("42501", refused.sqlState)
         listOf("insert", "update", "delete", "truncate").forEach {
             val table = "svc.config_installation_setting"
@@ -168,28 +166,27 @@ class InstallationWritePostgresIT {
         val args = h.staged()
         // The audit row's id is taken already, so its insert fails after the value's (all or none, INV-Q-3931).
         val taken = args.audit.get("id").asString()
-        when (mode) {
-            EventMode.OUTBOX -> {
-                h.asAdmin(
-                    "insert into svc.outbox (id, topic, type, source, subject, event_time, tenant_id, entity_ref, " +
-                        "instance_id, correlation_id, causation_id, data) values ('$taken', 't', 'x', '/gst/x', 's', " +
-                        "now(), '${TenantId.PLATFORM.value}', 'x', 'i', 'c', 'c', '{}')",
-                )
-            }
-
-            EventMode.NO_OUTBOX -> {
-                h.asAdmin(
-                    "insert into svc.audit_entry (id, tenant_id, entity_ref, recorded_at, source, subject, " +
-                        "instance_id, correlation_id, causation_id, actor, action, scope) values ('$taken', " +
-                        "'${TenantId.PLATFORM.value}', 'x', now(), '/gst/x', 's', 'i', 'c', 'c', 'a', 'a', 'a')",
-                )
-            }
-        }
+        h.seedTaken(taken)
         val counts = h.stored()
-        val failure = assertThrows(SQLException::class.java) { h.callInstallation(args) }
+        val failure = h.refusal { h.callInstallation(args) }
         assertEquals("23505", failure.sqlState) // unique_violation, raised after the value's insert
         assertEquals(counts, h.stored())
         assertEquals(1, h.callInstallation(h.staged()).size, "a valid call still writes")
+    }
+
+    /** A direct insert of an installation value as the runtime login, under the platform binding. */
+    private fun insertDirect(h: WriteHarness) {
+        h.dsl
+            .insertInto(DSL.table(DSL.name("svc", "config_installation_setting")))
+            .set(DSL.field(DSL.name("id"), SQLDataType.UUID), UUID.randomUUID())
+            .set(DSL.field(DSL.name("vp_key"), SQLDataType.CLOB), "VP-78")
+            .set(OptionColumns.keys, OptionColumns.keysOf(listOf(SelectedOption("SMALLER"))))
+            .set(OptionColumns.values, OptionColumns.valuesOf(listOf(SelectedOption("SMALLER"))))
+            .set(DSL.field(DSL.name("effective_from"), SQLDataType.LOCALDATE), LocalDate.now())
+            .set(DSL.field(DSL.name("set_by"), SQLDataType.CLOB), "op")
+            .set(DSL.field(DSL.name("reason"), SQLDataType.CLOB), "x")
+            .set(DSL.field(DSL.name("recorded_at"), SQLDataType.TIMESTAMPWITHTIMEZONE), OffsetDateTime.now())
+            .execute()
     }
 
     private fun command(
