@@ -1,17 +1,13 @@
 package com.dynokore.platform.outboxandqueue
 
-import com.dynokore.platform.tenancykernel.TenantAwareDataSource
-import com.dynokore.platform.tenancykernel.TenantContextImpl
-import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
+import com.dynokore.platform.tenancykernel.LaneGate
+import com.dynokore.platform.tenancykernel.LanePermit
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
-import java.lang.reflect.Proxy
-import java.sql.Connection
 import java.util.concurrent.atomic.AtomicInteger
-import javax.sql.DataSource
 
 /**
  * The relay's outer transaction (owner answer INV-Q-5609 (b)): it commits after the last row, rolls back when the
@@ -63,52 +59,34 @@ class RelayTransactionIT {
         OutboxHarness(image).use { harness ->
             val kit = harness.payload
             claim.plant(kit, ROWS)
-            val observed = PeakConnections(harness.fixture.appDataSource())
-            val tenants = TenantContextImpl()
-            val runner = TransactionRunnerImpl(TenantAwareDataSource(observed), tenants)
-            val relay =
-                JdbcOutboxRelay(
-                    TenantScope(tenants, runner, runner, OutboxPostgresFixture.WORKLOAD),
-                    JooqKit.module("payload", tenants, runner),
-                    "payload",
-                    harness.binding(),
-                    ServiceKit.CLOCK,
-                    "background",
-                    2,
-                )
-            assertEquals(ROWS.toLong(), relay.runOnce().published.toLong())
-            assertTrue(observed.peak() in 1..2, "peak connections of the relay thread: ${observed.peak()}")
+            val gate = PeakGate()
+            JooqKit.Access.runtime(harness.fixture, emptyMap(), gate).use { access ->
+                val relay =
+                    JdbcOutboxRelay(
+                        TenantScope(access.tenants, access.runner, access.runner, OutboxPostgresFixture.WORKLOAD),
+                        JooqKit.module("payload", access.tenants, access.runner),
+                        "payload",
+                        harness.binding(),
+                        ServiceKit.CLOCK,
+                        "background",
+                        2,
+                    )
+                assertEquals(ROWS.toLong(), relay.runOnce().published.toLong())
+            }
+            assertTrue(gate.peak() in 1..2, "peak connections of the relay thread: ${gate.peak()}")
         }
     }
 
-    /** Counts the connections taken from [delegate] and not yet closed, and their peak. */
-    private class PeakConnections(
-        delegate: DataSource,
-    ) : DataSource by (
-            Proxy.newProxyInstance(
-                DataSource::class.java.classLoader,
-                arrayOf(DataSource::class.java),
-            ) { _, method, args ->
-                val result = method.invoke(delegate, *(args ?: emptyArray()))
-                if (method.name == "getConnection") counted(result as Connection) else result
-            } as DataSource
-        ) {
+    /** A lane gate that admits every connection and counts those held at once, and their peak. */
+    private class PeakGate : LaneGate {
+        private val held = AtomicInteger()
+        private val highest = AtomicInteger()
+
         fun peak(): Int = highest.get()
 
-        private companion object {
-            val open = AtomicInteger()
-            val highest = AtomicInteger()
-
-            fun counted(connection: Connection): Connection {
-                highest.accumulateAndGet(open.incrementAndGet(), ::maxOf)
-                return Proxy.newProxyInstance(
-                    Connection::class.java.classLoader,
-                    arrayOf(Connection::class.java),
-                ) { _, method, args ->
-                    if (method.name == "close") open.decrementAndGet()
-                    method.invoke(connection, *(args ?: emptyArray()))
-                } as Connection
-            }
+        override fun acquire(): LanePermit {
+            highest.accumulateAndGet(held.incrementAndGet(), ::maxOf)
+            return LanePermit { held.decrementAndGet() }
         }
     }
 
