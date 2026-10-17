@@ -72,7 +72,8 @@ class TablesProvenanceTest {
 
     @Test
     fun `install accepts a declared instance and the guard refuses it`() {
-        val boot = DefaultConfiguration().set(SQLDialect.POSTGRES)
+        val boot = DefaultConfiguration()
+        boot.set(SQLDialect.POSTGRES)
         TenancyJooq.install(boot, TenancyTables.declared(orders), fixture.tenants, fixture.transactions)
         assertNotNull(TenancyJooq.problem(boot))
     }
