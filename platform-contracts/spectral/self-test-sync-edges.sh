@@ -31,5 +31,29 @@ if [ $rc -ne 0 ]; then echo "gst-ci: FAIL — compliant shared-runtime fixture r
 expect_fail star-outside-runtime "x-sync-edge 'console-bff->*' is not an edge of sync-edges.yaml"
 expect_fail star-other-caller "x-sync-edge 'canonical-svc->*' is not an edge of sync-edges.yaml"
 
+# INV-T-6167 (INV-REQ-870, INV-AC-1922): only console-web may call console-bff; nothing may call the gateway.
+F2=fixtures/sync-edge-callee
+run_callee() { python3 check-sync-edges.py "$F2/$1" "$F2/root" 2>&1; }
+for c in ok callee-lookalike; do
+  out=$(run_callee $c.yaml); rc=$?
+  if [ $rc -ne 0 ]; then echo "gst-ci: FAIL — callee fixture '$c' rejected:"; echo "$out"; failed=1; fi
+  case "$out" in *"allowlist check passed"*) ;; *) echo "gst-ci: FAIL — callee fixture '$c' did not print the passing line:"; echo "$out"; failed=1;; esac
+done
+expect_callee_fail() { # case, edge as written
+  out=$(run_callee "$1.yaml"); rc=$?
+  if [ $rc -ne 1 ]; then echo "gst-ci: FAIL — callee fixture '$1' exited $rc, expected 1"; failed=1
+  else case "$out" in *"edge '$2' calls console-bff or the API gateway from a caller other than console-web"*) echo "gst-ci: self-test callee '$1' failed as expected ($2)";;
+       *) echo "gst-ci: FAIL — callee fixture '$1' failed, but not for '$2':"; echo "$out"; failed=1;; esac; fi
+}
+expect_callee_fail pipeline-caller "canonical-svc->console-bff"
+expect_callee_fail any-caller "Any except access-svc->console-bff"
+expect_callee_fail gateway-callee "console-web->API gateway"
+expect_callee_fail gateway-callee-hyphen "canonical-svc->api-gateway"
+expect_callee_fail bff-calls-bff "console-bff->console-bff"
+expect_callee_fail gateway-calls-bff "API gateway->console-bff"
+expect_callee_fail callee-case "canonical-svc->Console-BFF"
+expect_callee_fail caller-lookalike "console-web-svc->console-bff"
+expect_callee_fail caller-lookalike-2 "console-web2->console-bff"
+
 [ "$failed" -eq 0 ] && echo "gst-ci: check-sync-edges.py self-test passed."
 exit $failed

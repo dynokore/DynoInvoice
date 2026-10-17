@@ -1,0 +1,13 @@
+edges:
+  - caller: console-web
+    callee: console-bff
+  - caller: console-bff
+    callee: access-svc
+  - caller: Any except tenancy-svc
+    callee: access-svc
+  - caller: API gateway
+    callee: access-svc
+  - caller: installer
+    callee: tenancy-svc
+  - caller: canonical-svc
+    callee: masterdata-svc

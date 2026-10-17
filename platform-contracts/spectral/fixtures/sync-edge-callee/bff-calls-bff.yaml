@@ -1,0 +1,3 @@
+edges:
+  - caller: console-bff
+    callee: console-bff

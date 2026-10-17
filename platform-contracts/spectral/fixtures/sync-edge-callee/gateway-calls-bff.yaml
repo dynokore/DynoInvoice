@@ -1,0 +1,3 @@
+edges:
+  - caller: API gateway
+    callee: console-bff

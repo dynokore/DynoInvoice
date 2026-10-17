@@ -1,0 +1,3 @@
+edges:
+  - caller: Any except access-svc
+    callee: console-bff

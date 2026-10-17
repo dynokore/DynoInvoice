@@ -1,0 +1,3 @@
+edges:
+  - caller: canonical-svc
+    callee: console-bff

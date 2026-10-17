@@ -1,0 +1,5 @@
+edges:
+  - caller: canonical-svc
+    callee: console-bff-2
+  - caller: canonical-svc
+    callee: api-gateway-2

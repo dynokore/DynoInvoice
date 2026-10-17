@@ -26,6 +26,14 @@ Allowlist callers that are not service identifiers are normalised: "Any except
 <svc>" (the fallback edges) becomes `any`, "API gateway" becomes `api-gateway`
 (lower case, spaces to hyphens), so the operation writes `any->access-svc`.
 
+Before the per-operation checks, the allowlist itself is checked (INV-REQ-870,
+INV-AC-1922): console-bff and the API gateway sit outside the pipeline, so the
+only allowlist edge whose callee is `console-bff` or `api-gateway` (callee
+normalised like the caller: stripped, lower case, spaces to hyphens; compared
+by equality) is console-web -> console-bff. Any other such edge (a pipeline
+service, "Any except <svc>", an installer, the gateway calling console-bff,
+anything calling the gateway) is an error.
+
 Usage: check-sync-edges.py <sync-edges.yaml> <root>
 <root> holds the service directories (the repository root in CI). Exit 0 if
 all pass, 1 otherwise. Needs PyYAML.
@@ -39,6 +47,7 @@ import yaml
 METHODS = ("get", "post", "put", "delete", "patch")
 SHARED_RUNTIME = "service-runtime"
 SHARED_EDGE = "console-bff->*"
+OUTSIDE_PIPELINE = ("console-bff", "api-gateway")
 
 
 def callee_of(service_dir: str) -> str:
@@ -52,6 +61,25 @@ def caller_id(caller: str) -> str:
     return c.lower().replace(" ", "-")
 
 
+def callee_id(callee: str) -> str:
+    return str(callee).strip().lower().replace(" ", "-")
+
+
+def outside_pipeline_errors(edges) -> list:
+    errors = []
+    for e in edges:
+        callee = callee_id(e["callee"])
+        if callee not in OUTSIDE_PIPELINE:
+            continue
+        if caller_id(e["caller"]) == "console-web" and callee == "console-bff":
+            continue
+        errors.append(
+            f"sync-edges.yaml: edge '{e['caller']}->{e['callee']}' calls console-bff or the API gateway "
+            "from a caller other than console-web (INV-REQ-870, INV-AC-1922)"
+        )
+    return errors
+
+
 def main(argv) -> int:
     if len(argv) != 3:
         print(__doc__)
@@ -59,7 +87,7 @@ def main(argv) -> int:
     allow_doc = yaml.safe_load(Path(argv[1]).read_text())
     allowed = {f"{caller_id(e['caller'])}->{e['callee']}" for e in allow_doc["edges"]}
     root = Path(argv[2])
-    errors, n_ops, n_edges = [], 0, 0
+    errors, n_ops, n_edges = outside_pipeline_errors(allow_doc["edges"]), 0, 0
     for f in sorted(root.glob("*/openapi.yaml")):
         svc = f.parent.name
         doc = yaml.safe_load(f.read_text())
