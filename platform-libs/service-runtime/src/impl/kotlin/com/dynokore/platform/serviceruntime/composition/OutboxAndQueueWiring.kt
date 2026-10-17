@@ -236,13 +236,11 @@ class OutboxAndQueueWiring(
     @ConditionalOnProperty(name = [Props.SCHEMA])
     @ConditionalOnMissingBean(DeadLetterTriage::class)
     fun deadLetterTriage(
-        dataSource: DataSource,
         scope: TenantScope,
         modules: ModuleProperties,
         clock: Clock,
     ): JdbcDeadLetterTriage =
         JdbcDeadLetterTriage(
-            application(dataSource),
             scope,
             moduleDsl(modules.requireSchema(), scope.tenants, scope.transactions),
             modules.requireSchema(),

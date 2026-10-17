@@ -1,6 +1,9 @@
 package com.dynokore.platform.outboxandqueue
 
+import com.dynokore.platform.tenancyjooq.TenancyProbe
 import com.dynokore.platform.tenancykernel.TenantId
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.assertThrows
@@ -31,20 +34,15 @@ class RecordTopicIT {
             // No recordTypes wiring: the consumer takes the record topics from the catalogue (fail-safe).
             val record = consumer(harness, scope, "evidence-svc", harness.catalogue)
             val plain = consumer(harness, scope, "plain-svc", harness.sequencedCatalogue)
-            for (name in listOf("evidence-svc", "plain-svc")) {
-                harness.fixture.runAsAdmin(
-                    "insert into evidence.consumer_sequence values " +
-                        "('$name', '/gst/payload-svc', '$doc', '${ServiceKit.TENANT}', 99)",
-                )
-            }
+            seedHeldSequence(harness, doc)
             repeat(2) { emit(harness, kit, doc) }
 
             assertEquals(PollResult(2, 0, 0, 0, 0), record.pollOnce(), "kept although 1, 2 <= held 99")
             assertEquals(PollResult(0, 0, 0, 2, 0), plain.pollOnce(), "the rule a non-record topic keeps")
             val rows = "select count(*) from evidence.consumer_sequence where consumer = 'evidence-svc'"
-            assertEquals(1L, harness.count(rows))
+            assertEquals(1L, harness.countIn(ServiceKit.TENANT, rows))
             val held = "select last_value from evidence.consumer_sequence where consumer = 'evidence-svc'"
-            assertEquals(99L, harness.count(held), "no held-sequence row written or moved")
+            assertEquals(99L, harness.countIn(ServiceKit.TENANT, held), "no held-sequence row written or moved")
 
             // Dead-letter replay: an older record event is applied; the same event id again is a duplicate.
             emit(harness, kit, doc)
@@ -53,7 +51,7 @@ class RecordTopicIT {
             assertEquals(ReplayOutcome.APPLIED, record.applyReplayed(raw, tenant))
             assertEquals(ReplayOutcome.DUPLICATE, record.applyReplayed(raw, tenant))
             assertEquals(PollResult(0, 0, 1, 0, 0), record.pollOnce(), "the live copy is deduped by event id")
-            assertEquals(99L, harness.count(held))
+            assertEquals(99L, harness.countIn(ServiceKit.TENANT, held))
         }
     }
 
@@ -103,16 +101,41 @@ class RecordTopicIT {
         harness.drain(kit.relay)
     }
 
+    /** Both consumers hold sequence 99 of [doc]: seeded by the runtime login bound to the fixture tenant. */
+    private fun seedHeldSequence(
+        harness: OutboxHarness,
+        doc: UUID,
+    ) {
+        JooqKit.Access.runtime(harness.fixture, OutboxSchema.jooqTables("evidence")).use { runtime ->
+            for (name in listOf("evidence-svc", "plain-svc")) {
+                runtime.asTenant(ServiceKit.TENANT) { dsl ->
+                    dsl
+                        .insertInto(
+                            DSL.table(DSL.name("evidence", OutboxSchema.CONSUMER_SEQUENCE)),
+                            DSL.field(DSL.name("consumer"), SQLDataType.CLOB),
+                            DSL.field(DSL.name("source"), SQLDataType.CLOB),
+                            DSL.field(DSL.name("subject"), SQLDataType.CLOB),
+                            DSL.field(DSL.name("tenant_id"), SQLDataType.UUID),
+                            DSL.field(DSL.name("last_value"), SQLDataType.BIGINT),
+                        ).values(
+                            DSL.`val`(name, SQLDataType.CLOB),
+                            DSL.`val`("/gst/payload-svc", SQLDataType.CLOB),
+                            DSL.`val`(doc.toString(), SQLDataType.CLOB),
+                            DSL.`val`(ServiceKit.TENANT, SQLDataType.UUID),
+                            DSL.`val`(99L, SQLDataType.BIGINT),
+                        ).execute()
+                }
+            }
+        }
+    }
+
     private fun lastEnvelope(harness: OutboxHarness): String =
-        harness.fixture.adminDataSource().connection.use {
-            it
-                .createStatement()
-                .executeQuery(
+        TenancyProbe
+            .connect(harness.fixture.jdbcUrl(), OutboxPostgresFixture.APP, OutboxPostgresFixture.APP_PASSWORD)
+            .inTenant(TenantId(ServiceKit.TENANT)) {
+                fetchValue(
                     "select envelope::text from eventlog.gst_platform_audit_entry_recorded_v1 " +
                         "order by log_offset desc limit 1",
-                ).use { rows ->
-                    rows.next()
-                    rows.getString(1)
-                }
-        }
+                ) as String
+            }
 }

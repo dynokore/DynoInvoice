@@ -28,6 +28,49 @@ internal object JooqRoutines {
     fun advisoryXactLock(key: String): Field<Any> =
         DSL.function(DSL.name("pg_catalog", "pg_advisory_xact_lock"), SQLDataType.OTHER, hashtext(key))
 
+    /** `<schema>.consumer_offset_lock(consumer, topic)`: the offset row's `next_offset`, row locked until the transaction ends. */
+    fun consumerOffsetLock(
+        schema: String,
+        consumer: String,
+        topic: String,
+    ): Field<Long> =
+        DSL.function(
+            DSL.name(schema, OutboxSchema.CONSUMER_OFFSET_LOCK),
+            SQLDataType.BIGINT,
+            DSL.`val`(consumer, SQLDataType.CLOB),
+            DSL.`val`(topic, SQLDataType.CLOB),
+        )
+
+    /** `<schema>.consumer_offset_advance(consumer, topic, next_offset)`. */
+    fun consumerOffsetAdvance(
+        schema: String,
+        consumer: String,
+        topic: String,
+        nextOffset: Long,
+    ): Field<Any> =
+        DSL.function(
+            DSL.name(schema, OutboxSchema.CONSUMER_OFFSET_ADVANCE),
+            SQLDataType.OTHER,
+            DSL.`val`(consumer, SQLDataType.CLOB),
+            DSL.`val`(topic, SQLDataType.CLOB),
+            DSL.`val`(nextOffset, SQLDataType.BIGINT),
+        )
+
+    /** `<schema>.consumer_source_seen_record(consumer, producer, source)`. */
+    fun consumerSourceSeenRecord(
+        schema: String,
+        consumer: String,
+        producer: String,
+        source: String,
+    ): Field<Any> =
+        DSL.function(
+            DSL.name(schema, OutboxSchema.CONSUMER_SOURCE_SEEN_RECORD),
+            SQLDataType.OTHER,
+            DSL.`val`(consumer, SQLDataType.CLOB),
+            DSL.`val`(producer, SQLDataType.CLOB),
+            DSL.`val`(source, SQLDataType.CLOB),
+        )
+
     private fun hashtext(key: String): Field<Int> =
         DSL.function(DSL.name("pg_catalog", "hashtext"), SQLDataType.INTEGER, DSL.`val`(key, SQLDataType.CLOB))
 }
@@ -77,6 +120,61 @@ class OutboxClaimPage private constructor(
         )
 }
 
+/** `<schema>.event_dead_letter_triage_page(...)` ([OutboxSchema.DEAD_LETTER_TRIAGE_PAGE]): the eleven non-content columns. */
+class DeadLetterTriagePage private constructor(
+    schema: String,
+    parameters: Array<Field<*>>?,
+) : FunctionTable(schema, OutboxSchema.DEAD_LETTER_TRIAGE_PAGE, parameters) {
+    constructor(schema: String) : this(schema, null)
+
+    val id: Field<Long> = createField(DSL.name("id"), SQLDataType.BIGINT, this)
+    val consumer: Field<String> = createField(DSL.name("consumer"), SQLDataType.CLOB, this)
+    val topic: Field<String> = createField(DSL.name("topic"), SQLDataType.CLOB, this)
+    val logOffset: Field<Long> = createField(DSL.name("log_offset"), SQLDataType.BIGINT, this)
+    val tenantId: Field<UUID> = createField(DSL.name("tenant_id"), SQLDataType.UUID, this)
+    val reason: Field<String> = createField(DSL.name("reason"), SQLDataType.CLOB, this)
+    val status: Field<String> = createField(DSL.name("status"), SQLDataType.CLOB, this)
+    val recordedAt: Field<OffsetDateTime> =
+        createField(DSL.name("recorded_at"), SQLDataType.TIMESTAMPWITHTIMEZONE, this)
+    val resolvedAt: Field<OffsetDateTime> =
+        createField(DSL.name("resolved_at"), SQLDataType.TIMESTAMPWITHTIMEZONE, this)
+    val note: Field<String> = createField(DSL.name("note"), SQLDataType.CLOB, this)
+    val replayedTo: Field<String> = createField(DSL.name("replayed_to"), SQLDataType.CLOB, this)
+
+    @Suppress("LongParameterList")
+    fun call(
+        after: Long,
+        status: String?,
+        ids: Array<Long>?,
+        tenant: UUID?,
+        consumer: String?,
+        topic: String?,
+        failure: String?,
+        from: OffsetDateTime?,
+        before: OffsetDateTime?,
+        withTenant: Boolean,
+        platform: UUID,
+        limit: Int,
+    ): DeadLetterTriagePage =
+        DeadLetterTriagePage(
+            schemaName,
+            arrayOf(
+                DSL.`val`(after, SQLDataType.BIGINT),
+                DSL.`val`(status, SQLDataType.CLOB),
+                DSL.`val`(ids, SQLDataType.BIGINT.array()),
+                DSL.`val`(tenant, SQLDataType.UUID),
+                DSL.`val`(consumer, SQLDataType.CLOB),
+                DSL.`val`(topic, SQLDataType.CLOB),
+                DSL.`val`(failure, SQLDataType.CLOB),
+                DSL.`val`(from, SQLDataType.TIMESTAMPWITHTIMEZONE),
+                DSL.`val`(before, SQLDataType.TIMESTAMPWITHTIMEZONE),
+                DSL.`val`(withTenant, SQLDataType.BOOLEAN),
+                DSL.`val`(platform, SQLDataType.UUID),
+                DSL.`val`(limit, SQLDataType.INTEGER),
+            ),
+        )
+}
+
 /** `eventlog.events_missing(topic, event_ids)` ([EventLogSchema.EVENTS_MISSING]): (`missing` text[], `cutoff`). */
 class EventsMissing private constructor(
     parameters: Array<Field<*>>?,
@@ -101,10 +199,11 @@ class EventsMissing private constructor(
 /**
  * [block] in its own transaction under the platform binding, on a connection of its own even when the caller holds a
  * transaction (owner answer INV-Q-5609 (b)): the claims, the rate-limit counters and the dead-letter triage run
- * outside any tenant (ARC 4.3 step 1a).
+ * outside any tenant (ARC 4.3 step 1a). It is inline so that the frames of its lane-gate call belong to the calling
+ * class, the recipient that asked the pool.
  */
-internal fun <T> TenantScope.platformTransaction(block: () -> T): T =
-    transactions.outsideOpenTransaction { bindWorkload(TenantId.PLATFORM) { transactions.inTransaction(block) } }
+internal inline fun <T> TenantScope.platformTransaction(crossinline block: () -> T): T =
+    transactions.outsideOpenTransaction { bindWorkload(TenantId.PLATFORM) { transactions.inTransaction { block() } } }
 
 /** `<schema>.claim_due(lane, consumer, claimed_at, reclaim_before)` ([QueueSchema.CLAIM_DUE]). */
 class ClaimDue private constructor(

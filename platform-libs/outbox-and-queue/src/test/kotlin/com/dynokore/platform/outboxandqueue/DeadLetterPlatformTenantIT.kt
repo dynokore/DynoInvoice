@@ -1,6 +1,11 @@
 package com.dynokore.platform.outboxandqueue
 
+import com.dynokore.platform.tenancyjooq.TableClass
+import com.dynokore.platform.tenancyjooq.TenancyProbe
 import com.dynokore.platform.tenancykernel.TenantId
+import org.jooq.DSLContext
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
@@ -8,7 +13,6 @@ import org.junit.jupiter.api.Tag
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import java.sql.SQLException
-import java.sql.Types
 import java.util.UUID
 
 /**
@@ -22,25 +26,25 @@ class DeadLetterPlatformTenantIT {
     private val other = UUID.randomUUID()
     private val platform = TenantId.PLATFORM.value
 
+    private val deadLetters = DSL.table(DSL.name("submission", OutboxSchema.DEAD_LETTER))
+    private val letterId = DSL.field(DSL.name("id"), SQLDataType.BIGINT)
+    private val letterTenant = DSL.field(DSL.name("tenant_id"), SQLDataType.UUID)
+
     private fun record(
         harness: OutboxHarness,
         tenant: UUID?,
         raw: String,
     ): Long =
-        harness.fixture.runtimeDataSource().connection.use { c ->
-            c.prepareStatement("select submission.${OutboxSchema.DEAD_LETTER_RECORD}(?, ?, ?, ?, ?, ?)").use {
-                it.setString(1, "submission-svc")
-                it.setString(2, "gst.canonical.canonical-version-created.v1")
-                it.setLong(3, 1)
-                it.setObject(4, tenant, Types.OTHER)
-                it.setString(5, "handler schema mismatch")
-                it.setString(6, raw)
-                it.executeQuery().use { rows ->
-                    rows.next()
-                    rows.getLong(1)
-                }
-            }
-        }
+        JooqKit.recordDeadLetter(
+            harness.fixture,
+            "submission",
+            "submission-svc",
+            "gst.canonical.canonical-version-created.v1",
+            1,
+            tenant,
+            "handler schema mismatch",
+            raw,
+        )
 
     /** The first column of every row [sql] returns in a runtime-login transaction bound to [bound]. */
     private fun bound(
@@ -48,34 +52,46 @@ class DeadLetterPlatformTenantIT {
         bound: UUID,
         sql: String,
     ): List<String?> =
-        harness.fixture.runtimeDataSource().connection.use { c ->
-            c.autoCommit = false
-            try {
-                c.prepareStatement("select set_config('app.tenant_id', ?, true)").use {
-                    it.setString(1, bound.toString())
-                    it.executeQuery().close()
-                }
-                c.createStatement().use { s ->
-                    s.executeQuery(sql).use { rows -> buildList { while (rows.next()) add(rows.getString(1)) } }
-                }
-            } finally {
-                c.rollback()
-            }
-        }
+        TenancyProbe
+            .connect(harness.fixture.jdbcUrl(), OutboxPostgresFixture.APP, OutboxPostgresFixture.APP_PASSWORD)
+            .inTenant(TenantId(bound)) { fetchRows(sql).map { it.values.first()?.toString() } }
 
+    /** The `tenant_id` of letter [id], read by the owner login bound to [expected] (no row fails the test). */
     private fun storedTenant(
         harness: OutboxHarness,
         id: Long,
+        expected: UUID,
     ): String? =
-        harness.fixture.adminDataSource().connection.use { c ->
-            c.prepareStatement("select tenant_id::text from submission.event_dead_letter where id = ?").use {
-                it.setLong(1, id)
-                it.executeQuery().use { rows ->
-                    rows.next()
-                    rows.getString(1)
+        JooqKit.Access
+            .owner(harness.fixture, mapOf(DSL.name("submission", OutboxSchema.DEAD_LETTER) to TableClass.TENANT))
+            .use { owner ->
+                val read = { dsl: DSLContext ->
+                    dsl
+                        .select(letterTenant)
+                        .from(deadLetters)
+                        .where(letterId.eq(id))
+                        .fetchSingle()
+                        .value1()
+                        ?.toString()
                 }
+                val stored =
+                    if (expected == platform) owner.asPlatform(read) else owner.asTenant(expected, read)
+                // look-alike: the same id bound to another tenant returns no row
+                assertEquals(
+                    0,
+                    owner.asTenant(
+                        other,
+                    ) {
+                        it
+                            .selectCount()
+                            .from(deadLetters)
+                            .where(letterId.eq(id))
+                            .fetchSingle()
+                            .value1()
+                    },
+                )
+                stored
             }
-        }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
@@ -85,7 +101,6 @@ class DeadLetterPlatformTenantIT {
         OutboxHarness(image).use { harness ->
             val triage =
                 JdbcDeadLetterTriage(
-                    harness.fixture.runtimeDataSource(),
                     harness.submission.scope,
                     harness.submission.dsl,
                     "submission",
@@ -94,7 +109,7 @@ class DeadLetterPlatformTenantIT {
             val raw = "{\"subject\":\"s-1\"}"
             // (1) a record with tenant T
             val withTenant = record(harness, tenant, raw)
-            assertEquals(tenant.toString(), storedTenant(harness, withTenant))
+            assertEquals(tenant.toString(), storedTenant(harness, withTenant, tenant))
             assertEquals(TenantId(tenant), triage.get(withTenant)?.tenant)
             assertEquals(
                 listOf(raw),
@@ -103,7 +118,7 @@ class DeadLetterPlatformTenantIT {
             // (2) a null tenant, and (3) the platform tenant given explicitly
             listOf(null, platform).forEach { given ->
                 val id = record(harness, given, "{\"another tenant content\":1}")
-                assertEquals(platform.toString(), storedTenant(harness, id))
+                assertEquals(platform.toString(), storedTenant(harness, id, platform))
                 val letter = triage.get(id)
                 assertNull(letter?.tenant)
                 assertNull(letter?.raw)
