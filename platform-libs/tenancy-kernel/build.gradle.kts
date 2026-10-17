@@ -48,6 +48,8 @@ dependencies {
     // same project (Gradle's own idiom for a second source set that extends
     // `main`, e.g. `testImplementation(sourceSets.main.get().output)`).
     add("implImplementation", sourceSets["main"].output)
+    // The migration runner's key write (BindingKeyMigration.writeKeys) is a jOOQ statement (owner ruling INV-Q-4196).
+    add("implImplementation", libs.jooq)
 
     // `test` and `testFixtures` exercise the impl half directly (Testcontainers
     // RLS proof, the consumer contract test) — not only through `-api`.

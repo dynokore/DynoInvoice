@@ -6,6 +6,15 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-10-17
+### Added
+- Signed binding, slice 1 of 9 of INV-T-4156 (INV-Q-5352, owner ruling INV-Q-4121): `BindingKeySource` (main; the
+  current key and the previous key) and `BindingKeyMigration` (impl): `ddl` generates the `<svc>_sys`-owned key table
+  and the STABLE SECURITY DEFINER `bound_tenant()` / `bound_actor()` that verify `app.binding_sig` (layout in
+  README.md "Signed binding") with pgcrypto and return NULL for a missing, forged or expired value; `writeKeys` is the
+  migration runner's jOOQ key write. The impl half now depends on jOOQ. Nothing calls the functions yet; the policies,
+  `TenantRlsMigration` and the runner are unchanged.
+
 ## [3.1.0] - 2026-10-16
 ### Added
 - `TransactionRunner.outsideOpenTransaction(block)` (main; a member with a default body `= block()`, so existing

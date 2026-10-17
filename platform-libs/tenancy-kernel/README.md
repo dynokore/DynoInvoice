@@ -20,3 +20,34 @@ INV-T-3982, coordinator ruling INV-Q-4487) adds `set_config('application_name', 
 the name it gives for the transaction's connection, so pg_stat_activity shows it while the transaction runs and it ends
 at commit or rollback. service-runtime passes one that names the pool lane (`<gst.service>:<lane>`). Without a label,
 or when it gives `null`, the statement is unchanged.
+
+## Signed binding
+
+Hardening on the transaction binding (INV-REQ-854 b7, owner ruling INV-Q-4121; INV-T-4156, slice 1 INV-T-5358).
+Nothing calls these functions yet: `TENANT_PREDICATE` and the runner are unchanged until the later slices.
+
+`BindingKeyMigration.ddl(schema, sysRole, runtimeRole, pgcryptoSchema = "public")` generates, for one schema, to run
+as `<svc>_sys` (the first block refuses any other login and a missing pgcrypto):
+
+- `<schema>.binding_key(slot, secret)`: slot `current` and slot `previous`, no privilege for PUBLIC, so only `<svc>_sys`
+  reads it. `BindingKeyMigration.writeKeys(dsl, schema, BindingKeySource)` is the migration runner's write (a jOOQ
+  upsert; a missing or empty current key throws and writes nothing; no previous key deletes that slot).
+- `<schema>.bound_tenant()` (uuid) and `<schema>.bound_actor()` (text): STABLE `SECURITY DEFINER`, owned by `<svc>_sys`,
+  `search_path = pg_catalog, pg_temp`, pgcrypto called by its qualified name, EXECUTE revoked from PUBLIC and granted
+  to the runtime login only. They return NULL, never an error, for a missing, empty, malformed, forged or expired value.
+  They read `app.binding_sig` only, never `app.tenant_id` or `app.actor`.
+
+`app.binding_sig` is one text value of four fields separated by `.`:
+
+    <tenant>.<actor>.<expiry>.<mac>
+
+| Field | Form |
+| --- | --- |
+| `tenant` | the tenant UUID, lower-case, 36 characters |
+| `actor` | the actor in UTF-8, base64url (RFC 4648 section 5) without padding, so it never contains `.` |
+| `expiry` | seconds since the Unix epoch, decimal, 1 to 12 digits; the value is expired when it is not after `now()` |
+| `mac` | lower-case hex (64 characters) of HMAC-SHA256 over the exact text `<tenant>.<actor>.<expiry>` (the first three fields as transmitted) with the installation binding key |
+
+The MAC is checked against the `current` key and then the `previous` key, so a rotation keeps values signed with the
+previous key valid and a key older than that is refused. A value is read once per statement by a policy through
+`(select bound_tenant())`, never per row.
