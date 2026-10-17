@@ -309,12 +309,29 @@ rules:
   inv-api-31-deprecation-sunset:
     description: API-31 — a deprecated operation declares x-sunset.
     message: "a deprecated operation must declare x-sunset (API-31)"
-    given: "$.paths[*][get,post,put,delete][?(@.deprecated)]"
+    given: "$.paths[*][?(@property.match(/^(get|post|put|delete)$/) && @.deprecated)]"
     severity: error
     formats: ["oas3_1"]
     then:
       field: x-sunset
       function: truthy
+
+  inv-api-31-deprecation-headers:
+    description: API-31 — every response of a deprecated operation declares the Deprecation, Sunset and Link headers.
+    message: "every response of a deprecated operation must declare the Deprecation, Sunset and Link headers (API-31, INV-REQ-824)"
+    given: "$.paths[*][?(@property.match(/^(get|post|put|delete)$/) && @.deprecated)].responses[*]"
+    severity: error
+    formats: ["oas3_1"]
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          required: [headers]
+          properties:
+            headers:
+              type: object
+              required: [Deprecation, Sunset, Link]
 
   # --- API-04: examples --------------------------------------------------------
   inv-api-04-examples:

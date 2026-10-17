@@ -1,0 +1,20 @@
+# Fixture for self-test-deprecation-rule.sh (INV-T-6165, API-31).
+# Nothing here is a deprecated get/post/put/delete operation, so neither API-31
+# rule may report: a path-level parameters entry, an x-get extension property and
+# a get with deprecated: false.
+openapi: 3.1.0
+info: {title: fixture, version: 1.0.0}
+paths:
+  /v1/fixture/lookalike:
+    parameters:
+      - {name: q, in: query, deprecated: true, schema: {type: string}}
+    x-get:
+      operationId: extensionOperation
+      deprecated: true
+      responses:
+        "200": {description: ok}
+    get:
+      operationId: liveQuery
+      deprecated: false
+      responses:
+        "200": {description: ok}

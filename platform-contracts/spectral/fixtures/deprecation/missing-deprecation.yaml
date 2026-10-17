@@ -1,0 +1,15 @@
+# Fixture for self-test-deprecation-rule.sh (INV-T-6165, API-31).
+openapi: 3.1.0
+info: {title: fixture, version: 1.0.0}
+paths:
+  /v1/fixture/old:
+    get:
+      operationId: oldQuery
+      deprecated: true
+      x-sunset: "2027-06-30"
+      responses:
+        "200":
+          description: r
+          headers:
+            Sunset: {description: h, schema: {type: string}}
+            Link: {description: h, schema: {type: string}}

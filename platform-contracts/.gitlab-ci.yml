@@ -393,6 +393,7 @@ sync-edge-rule-self-test:
   script:
     - sh spectral/self-test-sync-edge-rule.sh
     - sh spectral/self-test-workload-rule.sh   # INV-T-4030: x-principal workload accepted/refused
+    - sh spectral/self-test-deprecation-rule.sh   # INV-T-6165: API-31 deprecation headers
 
 lifecycle-states-drift-check:
   # INV-T-2859 (T15) — "generated from model/architecture/lifecycle-states.yaml;
