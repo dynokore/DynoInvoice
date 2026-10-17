@@ -18,7 +18,7 @@ train is its own (README.md: "own version and changelog").
   `consumer_offset`.
 - BREAKING: `JdbcInboxConsumer` takes the `DSLContext` after its `TenantScope` and no claim `DataSource`; its offset
   reads and writes outside the tenant transaction, the dead-letter record, the inbox claim and the sequence statements
-  are jOOQ. The string-built keep-unless-moved helper is gone: the dead-letter offset upsert is one jOOQ statement with bind values that resets
+  are jOOQ. `keepUnlessMoved` is gone: the dead-letter offset upsert is one jOOQ statement with bind values that resets
   attempts, infra_failures, first_infra_failure_at and retry_not_before when the new offset is greater than the stored
   one. `JdbcReplayIntake` takes the `DSLContext` after its `TenantScope` (it builds the inbox consumer).
 - BREAKING: `JdbcDeadLetterTriage` takes the `DSLContext` after its `TenantScope`; the raw read, the replay enqueue and

@@ -7,6 +7,7 @@ import org.jooq.Field
 import org.jooq.Table
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
+import java.sql.Connection
 import java.time.Clock
 import java.time.Instant
 import java.time.OffsetDateTime
@@ -289,9 +290,10 @@ class JdbcInboxConsumer
             record: LogRecord,
             envelope: Envelope,
         ): Step {
-            if (record.offset < lockOffset()) return Step.DUPLICATE
+            val connection = scope.connections.require()
+            if (record.offset < lockOffset(connection)) return Step.DUPLICATE
             val step = apply(envelope)
-            advance(record.offset)
+            advance(connection, record.offset)
             return step
         }
 
@@ -300,7 +302,7 @@ class JdbcInboxConsumer
             if (subscription.trackSources &&
                 envelope.type != ReplayProtocol.REPLAY_COMPLETED
             ) {
-                recordSource(envelope)
+                recordSource(scope.connections.require(), envelope)
             }
             // A record-topic event is deduped by event id only: no docsequence check, no held row (INV-Q-3809).
             val sequence = envelope.docSequence?.takeUnless { envelope.type in recordTypes }
@@ -323,15 +325,48 @@ class JdbcInboxConsumer
                     ?.let { it.get(NEXT_OFFSET) to it.get(RETRY_NOT_BEFORE)?.toInstant() } ?: (FIRST_OFFSET to null)
             }
 
-        // The offset and source-seen tables are `PLATFORM_SCOPED`, which tenancy-jooq writes only under the platform
-        // binding, while the offset moves in the record's tenant transaction (INV-AC-2205): these three calls go through
-        // sys-owned definer routines (INV-Q-5873).
-        private fun lockOffset(): Long =
-            dsl.select(JooqRoutines.consumerOffsetLock(s, consumer, topic)).fetchSingle().value1()
-
-        private fun advance(offset: Long) {
-            dsl.select(JooqRoutines.consumerOffsetAdvance(s, consumer, topic, offset + 1)).fetch()
+        // The offset row is `PLATFORM_SCOPED`, which tenancy-jooq writes only under the platform binding, while the
+        // offset moves in the record's tenant transaction (INV-AC-2205). Until the owner rules on it, these two
+        // statements and `recordSource` stay on the transaction's connection.
+        private fun lockOffset(connection: Connection): Long {
+            connection
+                .prepareStatement(
+                    "insert into ${offsetsName()} (consumer, topic, next_offset) values (?, ?, $FIRST_OFFSET) on conflict do nothing",
+                ).use {
+                    it.setString(1, consumer)
+                    it.setString(2, topic)
+                    it.executeUpdate()
+                }
+            connection
+                .prepareStatement(
+                    "select next_offset from ${offsetsName()} where consumer = ? and topic = ? for update",
+                ).use {
+                    it.setString(1, consumer)
+                    it.setString(2, topic)
+                    it.executeQuery().use { rows ->
+                        check(rows.next()) { "offset row missing" }
+                        return rows.getLong(1)
+                    }
+                }
         }
+
+        private fun advance(
+            connection: Connection,
+            offset: Long,
+        ) {
+            connection
+                .prepareStatement(
+                    "update ${offsetsName()} set next_offset = ?, attempts = 0, infra_failures = 0, " +
+                        "first_infra_failure_at = null, retry_not_before = null where consumer = ? and topic = ?",
+                ).use {
+                    it.setLong(1, offset + 1)
+                    it.setString(2, consumer)
+                    it.setString(3, topic)
+                    it.executeUpdate()
+                }
+        }
+
+        private fun offsetsName() = "$s.${OutboxSchema.CONSUMER_OFFSET}"
 
         private fun claimInbox(envelope: Envelope): Boolean =
             dsl
@@ -347,11 +382,21 @@ class JdbcInboxConsumer
          * INV-Q-3669: the source of an event on an 'every service' topic joins the consumer's seen set (a completion marker
          * from a service never seen changes nothing, so it does not join).
          */
-        private fun recordSource(envelope: Envelope) {
-            dsl
-                .select(
-                    JooqRoutines.consumerSourceSeenRecord(s, consumer, CatalogueEntry.EVERY_SERVICE, envelope.source),
-                ).fetch()
+        private fun recordSource(
+            connection: Connection,
+            envelope: Envelope,
+        ) {
+            connection
+                .prepareStatement(
+                    "insert into $s.${OutboxSchema.CONSUMER_SOURCE_SEEN} (consumer, producer, source) values (?, ?, " +
+                        "?) " +
+                        "on conflict do nothing",
+                ).use {
+                    it.setString(1, consumer)
+                    it.setString(2, CatalogueEntry.EVERY_SERVICE)
+                    it.setString(3, envelope.source)
+                    it.executeUpdate()
+                }
         }
 
         private fun heldSequence(envelope: Envelope): Long =
