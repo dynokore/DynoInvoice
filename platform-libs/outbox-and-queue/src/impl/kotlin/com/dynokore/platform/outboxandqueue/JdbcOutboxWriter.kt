@@ -3,6 +3,7 @@ package com.dynokore.platform.outboxandqueue
 import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantId
 import org.jooq.DSLContext
+import org.jooq.Field
 import org.jooq.JSONB
 import org.jooq.Table
 import org.jooq.impl.DSL
@@ -231,38 +232,24 @@ class JdbcOutboxWriter(
     ) {
         dsl
             .insertInto(outbox)
-            .columns(
-                ID,
-                TOPIC,
-                TYPE,
-                SOURCE,
-                SUBJECT,
-                EVENT_TIME,
-                TENANT_ID,
-                ENTITY_REF,
-                DOC_UUID,
-                TRANSACTION_DATE,
-                DOCSEQUENCE,
-                INSTANCE_ID,
-                CORRELATION_ID,
-                CAUSATION_ID,
-                DATA,
-            ).values(
-                envelope.id.value,
-                topic,
-                envelope.type,
-                envelope.source,
-                envelope.subject,
-                envelope.time.atOffset(ZoneOffset.UTC),
-                envelope.tenant.value,
-                envelope.entity.value,
-                envelope.docUuid?.value,
-                envelope.transactionDate,
-                envelope.docSequence,
-                envelope.instanceId,
-                envelope.correlation.value,
-                envelope.causation.value,
-                JSONB.valueOf(envelope.dataJson),
+            .set(
+                mapOf<Field<*>, Any?>(
+                    ID to envelope.id.value,
+                    TOPIC to topic,
+                    TYPE to envelope.type,
+                    SOURCE to envelope.source,
+                    SUBJECT to envelope.subject,
+                    EVENT_TIME to envelope.time.atOffset(ZoneOffset.UTC),
+                    TENANT_ID to envelope.tenant.value,
+                    ENTITY_REF to envelope.entity.value,
+                    DOC_UUID to envelope.docUuid?.value,
+                    TRANSACTION_DATE to envelope.transactionDate,
+                    DOCSEQUENCE to envelope.docSequence,
+                    INSTANCE_ID to envelope.instanceId,
+                    CORRELATION_ID to envelope.correlation.value,
+                    CAUSATION_ID to envelope.causation.value,
+                    DATA to DSL.`val`(envelope.dataJson, SQLDataType.JSONB),
+                ),
             ).execute()
     }
 
