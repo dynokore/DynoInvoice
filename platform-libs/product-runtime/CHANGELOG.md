@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.0.15] - 2026-10-18
+### Changed
+- Metadata-only release (INV-T-6135, G-DVS): depends on `service-runtime` 8.1.3, whose published module metadata changed; no code change.
+
 ## [1.0.14] - 2026-10-17
 ### Changed
 - Metadata-only release (INV-T-5358, G-DVS): depends on `tenancy-kernel` 3.2.0, whose published module metadata gained a jOOQ dependency; no code change.
