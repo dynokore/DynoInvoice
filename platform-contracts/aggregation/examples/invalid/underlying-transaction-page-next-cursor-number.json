@@ -1,0 +1,1 @@
+{"aggregateId":"AGG-4471","underlyingCount":2,"items":[{"underlyingRef":"BATCH-9001","claimantReference":"CLM-0042","amount":"3.50","transactionRef":"TXN-0001"},{"underlyingRef":"BATCH-9001","claimantReference":"CLM-0043","amount":"4.00","transactionRef":"TXN-0002"}],"nextCursor":7}

@@ -1,1 +1,1 @@
-{"aggregateId":"AGG-4471","underlyingCount":1,"subtotalsByTaxCode":[{"internalTaxCode":"SR-STD","amount":"3.50"}],"items":[{"underlyingRef":"BATCH-9001","claimantReference":"CLM-0042","amount":"3.50"}]}
+{"aggregateId":"AGG-4471","underlyingCount":1,"subtotalsByTaxCode":[{"internalTaxCode":"SR-STD","amount":"3.50"}],"items":[{"underlyingRef":"BATCH-9001","claimantReference":"CLM-0042","transactionRef":"TXN-0001","amount":"3.50"}]}

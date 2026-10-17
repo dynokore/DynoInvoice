@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: aggregation API
-  version: 1.1.0
+  version: 1.2.0
   description: >-
     Contract-first source of truth for aggregation (API-01, STK-44). The
     `aggregation-contract` module generates its server interfaces and DTOs
@@ -106,6 +106,19 @@ paths:
         `provides`). Reads the underlying detail retained for audit,
         minimised, against the aggregate's `underlyingRef` (FR-4.9, §33.9,
         §33.14); claimant references only, never names (FR-AE.73).
+
+        Paged by cursor (API-18, INV-REQ-826). `limit` defaults to 100 and
+        its maximum is 500 (a larger value is refused with 400). `cursor` is
+        opaque and integrity-protected, bound to the principal, filters and
+        sort that produced it, and valid for at least 24 hours (another
+        filter, another principal or an expired cursor is refused with 400).
+        The order is total: the documented sort is `underlyingRef` ascending
+        and then `transactionRef` ascending; `transactionRef` is unique
+        within the aggregate and is the identifier that breaks ties, so no
+        two items compare equal. `nextCursor` is omitted on the last page;
+        there is no offset and no total count. `underlyingCount` is the
+        declared number of retained transactions across all pages, and the
+        retained list is checked against it after the last page.
       tags: [drill-down]
       x-principal: filing-workflow
       x-sync-edge: console-bff->aggregation-svc
@@ -117,9 +130,21 @@ paths:
           in: query
           required: true
           schema: { type: string, maxLength: 40 }
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            maximum: 500
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
       responses:
         '200':
-          description: The aggregate's underlying transactions.
+          description: One page of the aggregate's underlying transactions.
           content:
             application/json:
               schema:
@@ -132,6 +157,8 @@ paths:
                       - underlyingRef: "BATCH-9001"
                         claimantReference: "POS-TERM-04"
                         amount: "1500.00"
+                        transactionRef: "TXN-0001"
+                    nextCursor: "c2VlbjoyMA"
         default:
           $ref: '#/components/responses/Error'
 components:
@@ -223,7 +250,7 @@ components:
         underlyingCount:
           type: integer
           minimum: 0
-          description: Declared number of retained underlying transactions; the retained list is checked against it (INV-REQ-414).
+          description: Declared number of retained underlying transactions across all pages; the retained list is checked against it after the last page (INV-REQ-414).
         isCreditNote:
           type: boolean
           description: True for a credit-note aggregate, document type 381; absent means false (INV-REQ-438).
@@ -254,12 +281,19 @@ components:
             properties:
               underlyingRef: { type: string, maxLength: 256 }
               claimantReference: { type: string, maxLength: 100 }
+              transactionRef:
+                type: string
+                maxLength: 256
+                description: The reference of one retained underlying transaction, unique within the aggregate; the tie-breaker of the page order.
               amount:
                 type: string
                 format: decimal
                 pattern: '^-?\d{1,17}(\.\d{1,2})?$'
                 description: Money as a decimal string (API-12).
-            required: [underlyingRef, amount]
+            required: [underlyingRef, amount, transactionRef]
+        nextCursor:
+          type: string
+          description: Opaque cursor of the next page (API-18); omitted on the last page.
       required: [aggregateId, items]
   responses:
     Error:
