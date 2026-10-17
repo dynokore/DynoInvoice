@@ -38,4 +38,15 @@ class ModuleApiConsumerContractTest {
         TaxPassThroughVerifier.verify(source, emitted.drop(1)).map { it.kind } shouldBe
             listOf(PassThroughViolationKind.DROPPED)
     }
+
+    @Test
+    fun `TriggerCoverage refuses go-live naming the missing class and counts only System classes`() {
+        val entries: Map<TriggerClass, TriggerCoverageEntry> =
+            TriggerClass.entries.associateWith { TriggerCoverageEntry.Mapped("erp") } -
+                TriggerClass.INBOUND_RECORDED
+        TriggerCoverage.evaluate(entries) shouldBe CoverageVerdict.Incomplete(listOf(TriggerClass.INBOUND_RECORDED))
+        val elsewhere = TriggerCoverageEntry.CoveredElsewhere("ev", "a", setOf(TriggerCoverage.ENTITY_ADMIN))
+        TriggerCoverage.evaluate(entries + (TriggerClass.INBOUND_RECORDED to elsewhere)) shouldBe
+            CoverageVerdict.Complete(TriggerClass.entries.toSet() - TriggerClass.INBOUND_RECORDED)
+    }
 }

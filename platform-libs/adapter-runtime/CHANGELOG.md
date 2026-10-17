@@ -6,6 +6,12 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-10-18
+### Added
+- Trigger-class coverage check in the api half (INV-T-6139, INV-Q-6133 option A): `TriggerClass`, `TriggerCoverageEntry`
+  (mapped, waived with reason and review date, covered elsewhere with `entity.admin` acknowledgement), and
+  `TriggerCoverage.evaluate` / `waiversToRepresent` (INV-REQ-788, INV-REQ-953, INV-REQ-1322). Pure; additive API.
+
 ## [2.1.0] - 2026-10-18
 ### Added
 - Upstream adapter contract check in the api half (INV-T-6137, INV-Q-6131 option A): `UpstreamEvent` and its parts,
