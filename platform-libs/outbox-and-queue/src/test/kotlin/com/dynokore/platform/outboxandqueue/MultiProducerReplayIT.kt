@@ -104,11 +104,12 @@ class MultiProducerReplayIT {
     ) {
         val syncTenants = TenantContextImpl()
         val syncTx = TransactionRunnerImpl(harness.fixture.runtimeDataSource(), syncTenants)
+        val syncDsl = JooqKit.module("evidence", syncTenants, syncTx)
         val clock = Clock.systemUTC()
         val catalogue = harness.catalogue
         val writer =
             JdbcOutboxWriter(
-                JooqKit.module("evidence", syncTenants, syncTx),
+                syncDsl,
                 "evidence",
                 "evidence-svc",
                 "evidence-svc-w",
@@ -117,7 +118,7 @@ class MultiProducerReplayIT {
             )
         syncTenants.bindPlatform("svc:test/job:probe") {
             syncTx.inTransaction {
-                JdbcConsumerReplay("evidence", syncTx, harness.reader, writer, clock).fullSync(
+                JdbcConsumerReplay("evidence", syncDsl, harness.reader, writer, clock).fullSync(
                     "evidence-svc",
                     listOf(topic, "gst.payload.payload-ready.v1"),
                     producers.map { ReplayRequest(replayId, it, ReplayMode.FULL_SYNC, null) },
@@ -174,7 +175,7 @@ class MultiProducerReplayIT {
         val evidence = harness.evidence
         val scope = ReplayScope.Tenant(TenantId(ServiceKit.TENANT))
         val clock = Clock.systemUTC()
-        val replay = JdbcConsumerReplay("evidence", evidence.boundary, harness.reader, evidence.writer, clock)
+        val replay = JdbcConsumerReplay("evidence", evidence.dsl, harness.reader, evidence.writer, clock)
         val requests = producers.map { ReplayRequest(replayId, it, ReplayMode.SCOPE, scope) }
         val correlation = CorrelationId("c-$replayId")
         return evidence.inPlatformTx {
@@ -194,8 +195,8 @@ class MultiProducerReplayIT {
                 kit.schema,
                 harness.catalogue,
                 harness.reader,
-                harness.fixture.runtimeDataSource(),
                 kit.scope,
+                kit.dsl,
                 kit.writer,
                 sources,
                 harness.rebuildSink,
@@ -218,7 +219,6 @@ class MultiProducerReplayIT {
             harness.catalogue,
             producer,
             harness.readerFor(harness.fixture.replayLogin("evidence-svc")),
-            harness.fixture.runtimeDataSource(),
             evidence.scope,
             evidence.dsl,
             object : EventHandler {

@@ -73,7 +73,8 @@ INV-Q-3786, INV-Q-4064) runs `JdbcConsumerReplay.fullSync` on the runtime login 
 service's `ReadModelClear` (the read-model tables and their filter values), the delete of the producer's docsequence
 rows across tenants through `full_sync_delete` (the inbox is kept), the head move and the request in one transaction.
 The service's migration creates each read-model table's sys-owned clear function with
-`OutboxSchema.readModelClearFunction(schema, table, runtime, sys, filterColumn?)`.
+`OutboxSchema.readModelClearFunction(schema, table, runtime, sys, filterColumn?)`; with a filter column the function
+takes a `text` argument and converts it to the column's type (a migration re-runs the generated DDL to get it).
 
 From 2.0.0 (INV-T-3978) a service has one runtime login and a NOLOGIN `<svc>_sys`:
 `OutboxSchema.ddl(schema, runtime, sys)` and `QueueSchema.ddl(schema, runtime, sys)`; every cross-tenant read or

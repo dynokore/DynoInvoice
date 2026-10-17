@@ -71,6 +71,51 @@ internal object JooqRoutines {
             DSL.`val`(source, SQLDataType.CLOB),
         )
 
+    /** `<schema>.<function>(cutoff, batch_size)`: one batch of a retention purge function; the number of rows it deleted. */
+    fun purgeExpired(
+        schema: String,
+        function: String,
+        cutoff: OffsetDateTime,
+        batchSize: Int,
+    ): Field<Long> =
+        DSL.function(
+            DSL.name(schema, function),
+            SQLDataType.BIGINT,
+            DSL.`val`(cutoff, SQLDataType.TIMESTAMPWITHTIMEZONE),
+            DSL.`val`(batchSize, SQLDataType.INTEGER),
+        )
+
+    /** `<schema>.<function>(consumer, source)` of [OutboxSchema.FULL_SYNC_DELETE]. */
+    fun fullSyncDelete(
+        schema: String,
+        consumer: String,
+        source: String,
+    ): Field<Any> =
+        DSL.function(
+            DSL.name(schema, OutboxSchema.FULL_SYNC_DELETE),
+            SQLDataType.OTHER,
+            DSL.`val`(consumer, SQLDataType.CLOB),
+            DSL.`val`(source, SQLDataType.CLOB),
+        )
+
+    /**
+     * A read model's clear function ([OutboxSchema.readModelClearFunctionName]). [filter] is bound as text (the
+     * generated function takes `text` and converts it to the filter column's type); a null [filter] calls the
+     * function with no argument.
+     */
+    fun readModelClear(
+        schema: String,
+        table: String,
+        filter: String?,
+    ): Field<Any> {
+        val name = DSL.name(schema, OutboxSchema.readModelClearFunctionName(table))
+        return if (filter == null) {
+            DSL.function(name, SQLDataType.OTHER)
+        } else {
+            DSL.function(name, SQLDataType.OTHER, DSL.`val`(filter, SQLDataType.VARCHAR))
+        }
+    }
+
     private fun hashtext(key: String): Field<Int> =
         DSL.function(DSL.name("pg_catalog", "hashtext"), SQLDataType.INTEGER, DSL.`val`(key, SQLDataType.CLOB))
 }
@@ -231,4 +276,41 @@ class ClaimDue private constructor(
                 DSL.`val`(reclaimBefore, SQLDataType.TIMESTAMPWITHTIMEZONE),
             ),
         )
+}
+
+/** `eventlog.claim(topic, after_offset, limit)` ([EventLogSchema.CLAIM]): (`log_offset`, `tenant_id`, `inserted_at`). */
+class EventLogClaim private constructor(
+    parameters: Array<Field<*>>?,
+) : FunctionTable(EventLogSchema.SCHEMA, EventLogSchema.CLAIM, parameters) {
+    constructor() : this(null)
+
+    val logOffset: Field<Long> = createField(DSL.name("log_offset"), SQLDataType.BIGINT, this)
+    val tenantId: Field<UUID> = createField(DSL.name("tenant_id"), SQLDataType.UUID, this)
+    val insertedAt: Field<OffsetDateTime> =
+        createField(DSL.name("inserted_at"), SQLDataType.TIMESTAMPWITHTIMEZONE, this)
+
+    fun call(
+        topic: String,
+        afterOffset: Long,
+        limit: Int,
+    ): EventLogClaim =
+        EventLogClaim(
+            arrayOf(
+                DSL.`val`(topic, SQLDataType.CLOB),
+                DSL.`val`(afterOffset, SQLDataType.BIGINT),
+                DSL.`val`(limit, SQLDataType.INTEGER),
+            ),
+        )
+}
+
+/** `eventlog.purge_batch()` ([EventLogSchema.PURGE_BATCH]): one row per topic of one purge batch. */
+class EventLogPurgeBatch : FunctionTable(EventLogSchema.SCHEMA, EventLogSchema.PURGE_BATCH, emptyArray()) {
+    val topic: Field<String> = createField(DSL.name("purged_topic"), SQLDataType.CLOB, this)
+    val content: Field<Boolean> = createField(DSL.name("purged_content"), SQLDataType.BOOLEAN, this)
+    val period: Field<org.jooq.types.DayToSecond> =
+        createField(DSL.name("purged_period"), SQLDataType.INTERVALDAYTOSECOND, this)
+    val cutoff: Field<OffsetDateTime> =
+        createField(DSL.name("purged_cutoff"), SQLDataType.TIMESTAMPWITHTIMEZONE, this)
+    val rows: Field<Long> = createField(DSL.name("purged_rows"), SQLDataType.BIGINT, this)
+    val watermark: Field<Long> = createField(DSL.name("purged_watermark"), SQLDataType.BIGINT, this)
 }

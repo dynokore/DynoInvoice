@@ -148,8 +148,7 @@ class OutboxAndQueueWiring(
         // The event log shares the application pool: the append joins the relay's row transaction (the same tenant and
         // actor, REQUIRED propagation) and commits with published_at, so a relay run holds at most 2 permits of the
         // background lane (INV-Q-4850). A separate event-log pool (HA) keeps its own transaction on that pool.
-        val binding =
-            eventLog.getIfAvailable()?.let { eventLogScope(handOff(it, eventLogGate.getIfAvailable()), scope) } ?: scope
+        val binding = eventLogScopeOf(eventLog, scope)
         // No catalogue declares no topic table: a publish then fails until one is declared (INV-Q-5851).
         val topics = catalogue.getIfAvailable()?.let(::topicsOf).orEmpty()
         return PostgresEventBinding(binding, eventLogDsl(binding, topics))
@@ -190,13 +189,14 @@ class OutboxAndQueueWiring(
     @ConditionalOnMissingBean(EventLogReader::class)
     fun eventLogReader(
         @Qualifier(ServiceDataSources.EVENT_LOG) eventLog: ObjectProvider<DataSource>,
-        dataSource: DataSource,
         scope: TenantScope,
-    ): PostgresEventLogReader =
-        PostgresEventLogReader(
-            eventLogSource(eventLog, dataSource),
-            eventLogScope(eventLogSource(eventLog, dataSource), scope),
-        )
+        catalogue: ObjectProvider<EventCatalogue>,
+    ): PostgresEventLogReader {
+        val binding = eventLogScopeOf(eventLog, scope)
+        // No catalogue declares no topic table: a read then fails until one is declared (INV-Q-5851).
+        val topics = catalogue.getIfAvailable()?.let(::topicsOf).orEmpty()
+        return PostgresEventLogReader(binding, eventLogDsl(binding, topics))
+    }
 
     @Bean
     @ConditionalOnBean(TenantScope::class, LaneLimits::class)
@@ -248,25 +248,35 @@ class OutboxAndQueueWiring(
         )
 
     @Bean
-    @ConditionalOnBean(Retention::class, DataSource::class)
+    @ConditionalOnBean(Retention::class, TenantScope::class, DataSource::class)
     @ConditionalOnProperty(name = [Props.SCHEMA])
     @ConditionalOnMissingBean(RetentionPurge::class)
     fun retentionPurge(
-        dataSource: DataSource,
+        scope: TenantScope,
         retention: Retention,
         modules: ModuleProperties,
         clock: Clock,
-    ): JdbcRetentionPurge = JdbcRetentionPurge(application(dataSource), modules.requireSchema(), retention, clock)
+    ): JdbcRetentionPurge =
+        JdbcRetentionPurge(
+            scope,
+            moduleDsl(modules.requireSchema(), scope.tenants, scope.transactions),
+            modules.requireSchema(),
+            retention,
+            clock,
+        )
 
     /** The event-log component's purge (INV-MOD-2748); its retention is the event log's own row (INV-Q-4262). */
     @Bean
-    @ConditionalOnBean(Retention::class, EventCatalogue::class, DataSource::class)
+    @ConditionalOnBean(Retention::class, EventCatalogue::class, TenantScope::class, DataSource::class)
     @ConditionalOnMissingBean(EventLogPurge::class)
     fun eventLogPurge(
         @Qualifier(ServiceDataSources.EVENT_LOG) eventLog: ObjectProvider<DataSource>,
-        dataSource: DataSource,
+        scope: TenantScope,
         catalogue: EventCatalogue,
-    ): JdbcEventLogPurge = JdbcEventLogPurge(eventLogSource(eventLog, dataSource), catalogue)
+    ): JdbcEventLogPurge {
+        val binding = eventLogScopeOf(eventLog, scope)
+        return JdbcEventLogPurge(binding, eventLogDsl(binding, emptyList()), catalogue)
+    }
 
     /**
      * The service's staleness rules (INV-REQ-1165): `service-runtime.staleness.rules` and any [StalenessRule] beans,
@@ -286,13 +296,14 @@ class OutboxAndQueueWiring(
         EventLogLag::class,
         EventCatalogue::class,
         StalenessRules::class,
+        TenantScope::class,
         DataSource::class,
     )
     @ConditionalOnProperty(name = [Props.SCHEMA])
     @ConditionalOnMissingBean(StalenessMonitor::class)
     @Suppress("LongParameterList")
     fun stalenessMonitor(
-        dataSource: DataSource,
+        scope: TenantScope,
         lag: EventLogLag,
         catalogue: EventCatalogue,
         rules: StalenessRules,
@@ -301,7 +312,8 @@ class OutboxAndQueueWiring(
         clock: Clock,
     ): JdbcStalenessMonitor =
         JdbcStalenessMonitor(
-            application(dataSource),
+            scope,
+            moduleDsl(modules.requireSchema(), scope.tenants, scope.transactions),
             lag,
             catalogue,
             modules.requireSchema(),
@@ -431,6 +443,16 @@ class OutboxAndQueueWiring(
         scope: TenantScope,
         inbox: JdbcInboxConsumer,
     ): JdbcReplayDelivery = JdbcReplayDelivery(queue, scope, inbox)
+
+    /**
+     * The scope the event log is read and purged through: its own runner on the separate event-log pool behind that
+     * pool's gate, or else the application [scope], whose pool already holds the lane gate (INV-Q-5243).
+     */
+    private fun eventLogScopeOf(
+        eventLog: ObjectProvider<DataSource>,
+        scope: TenantScope,
+    ): TenantScope =
+        eventLog.getIfAvailable()?.let { eventLogScope(handOff(it, eventLogGate.getIfAvailable()), scope) } ?: scope
 
     /** The application pool as the services' raw users get it: behind the lane gate (INV-Q-5243). */
     private fun application(pool: DataSource): DataSource =

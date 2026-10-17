@@ -2,6 +2,7 @@ package com.dynokore.platform.outboxandqueue
 
 import com.dynokore.platform.tenancyjooq.TableClass
 import com.dynokore.platform.tenancyjooq.TenancyJooq
+import com.dynokore.platform.tenancyjooq.TenancyProbe
 import com.dynokore.platform.tenancykernel.LaneGate
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantContextImpl
@@ -9,6 +10,8 @@ import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TestPoolFixture
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
+import org.jooq.DataType
+import org.jooq.Field
 import org.jooq.Name
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
@@ -75,6 +78,64 @@ object JooqKit {
                 ).fetchSingle()
                 .value1()
         }
+
+    /** One column of an inserted row: its [name], jOOQ [type] and [value], bound as a typed bind value. */
+    open class Col<T>(
+        val name: String,
+        val type: DataType<T>,
+        val value: T?,
+    ) {
+        fun field(): Field<T> = DSL.field(DSL.name(name), type)
+
+        open fun bind(): Field<T> = DSL.`val`(value, type)
+    }
+
+    /** A column set from a jOOQ expression [expr] (a function call), not from a bind value. */
+    class ExprCol<T>(
+        name: String,
+        type: DataType<T>,
+        private val expr: Field<T>,
+    ) : Col<T>(name, type, null) {
+        override fun bind(): Field<T> = expr
+    }
+
+    /** `insert into schema.table (columns) values (binds)` through [dsl]; every value a typed bind (no plain SQL). */
+    fun insert(
+        dsl: DSLContext,
+        schema: String,
+        table: String,
+        vararg columns: Col<*>,
+    ): Int =
+        dsl
+            .insertInto(DSL.table(DSL.name(schema, table)), columns.map { it.field() })
+            .values(columns.map { it.bind() })
+            .execute()
+
+    /**
+     * The SQLSTATE the database gives [sql] run by the login [user] with [tenant] bound (none when null), or null when
+     * the statement is not refused: [sql] must return a row when it succeeds (end an update or delete with
+     * `returning 1`), so a statement that is not refused cannot pass as refused. Run through TenancyProbe (route R5).
+     */
+    fun refusal(
+        fixture: OutboxPostgresFixture,
+        user: String,
+        password: String,
+        sql: String,
+        tenant: UUID? = null,
+    ): String? {
+        val probe = TenancyProbe.connect(fixture.jdbcUrl(), user, password)
+        val failure =
+            runCatching {
+                if (tenant ==
+                    null
+                ) {
+                    probe.unbound { fetchValue(sql) }
+                } else {
+                    probe.inTenant(TenantId(tenant)) { fetchValue(sql) }
+                }
+            }.exceptionOrNull()
+        return sqlState(failure)
+    }
 
     /** The SQLSTATE of the first [SQLException] in the cause chain of [failure], or null. */
     fun sqlState(failure: Throwable?): String? =
@@ -155,6 +216,18 @@ object JooqKit {
                 role: String,
                 tables: Map<Name, TableClass>,
             ) = Access(fixture.jdbcUrl(), role, "${role}_pw", tables, null)
+
+            /** The event log's migration login [OutboxPostgresFixture.MIGRATE], owner of schema `eventlog`. */
+            fun migrate(
+                fixture: OutboxPostgresFixture,
+                tables: Map<Name, TableClass>,
+            ) = Access(
+                fixture.jdbcUrl(),
+                OutboxPostgresFixture.MIGRATE,
+                OutboxPostgresFixture.MIGRATE_PASSWORD,
+                tables,
+                null,
+            )
 
             fun purge(
                 fixture: OutboxPostgresFixture,

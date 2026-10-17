@@ -13,10 +13,8 @@ class TriggerCoverageTest {
     private val review = LocalDate.of(2027, 1, 31)
     private val mapped = Mapped("erp-ar")
 
-    private fun full(
-        vararg over: Pair<TriggerClass, TriggerCoverageEntry>,
-    ): Map<TriggerClass, TriggerCoverageEntry> =
-        all.associateWith { mapped as TriggerCoverageEntry } + over
+    private fun full(vararg over: Pair<TriggerClass, TriggerCoverageEntry>) =
+        all.associateWith<TriggerClass, TriggerCoverageEntry> { mapped } + over
 
     @Test
     fun `exactly the five classes exist in order`() {

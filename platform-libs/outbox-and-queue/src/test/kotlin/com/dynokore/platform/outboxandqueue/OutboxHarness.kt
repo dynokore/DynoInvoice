@@ -28,15 +28,13 @@ class OutboxHarness(
             EventCatalogue(it, catalogue.replayTopics(), catalogue.requestTopics())
         }
     val eventLogForRelay = EventLogOutage()
-    val reader = PostgresEventLogReader(fixture.eventLogDataSource(), fixture.eventLogScope(TenantContextImpl()))
+
+    // lazy: the reader declares the topic tables, which exist once the init block below has created them
+    val reader: PostgresEventLogReader by lazy { fixture.eventLogReader() }
     val mapper = ObjectMapper()
 
     /** A reader on a fixture consumer's own runtime login [login] (its replay topics, INV-Q-3601). */
-    fun readerFor(login: String): PostgresEventLogReader =
-        PostgresEventLogReader(
-            fixture.roleDataSource(login),
-            fixture.eventLogScope(TenantContextImpl(), fixture.roleDataSource(login)),
-        )
+    fun readerFor(login: String): PostgresEventLogReader = fixture.eventLogReaderFor(login)
 
     /** An event binding over [eventLogForRelay], bound with its own tenant context and the workload principal. */
     fun binding(): PostgresEventBinding {
@@ -117,6 +115,22 @@ class OutboxHarness(
         sql: String,
         vararg args: Any,
     ): Long = probe().inTenant(TenantId(tenant)) { (fetchValue(sql, *args) as Number).toLong() }
+
+    /** Every row of [sql], read in a transaction of the runtime login bound to [tenant], as column name to value. */
+    fun rowsIn(
+        tenant: UUID,
+        sql: String,
+        vararg args: Any,
+    ): List<Map<String, Any?>> = probe().inTenant(TenantId(tenant)) { fetchRows(sql, *args) }
+
+    /** Every row of [sql], read by the login [user] with no tenant bound, as column name to value. */
+    fun rowsUnboundAs(
+        user: String,
+        password: String,
+        sql: String,
+        vararg args: Any,
+    ): List<Map<String, Any?>> =
+        TenancyProbe.connect(fixture.jdbcUrl(), user, password).unbound { fetchRows(sql, *args) }
 
     /** The first column of the first row of [sql], read by the runtime login with no tenant bound. */
     fun countUnbound(

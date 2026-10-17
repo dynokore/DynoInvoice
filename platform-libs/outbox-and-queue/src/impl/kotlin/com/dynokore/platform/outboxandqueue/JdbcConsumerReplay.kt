@@ -1,13 +1,14 @@
 package com.dynokore.platform.outboxandqueue
 
-import com.dynokore.platform.tenancykernel.CurrentConnection
 import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantId
-import java.sql.Connection
-import java.sql.ResultSet
-import java.sql.Timestamp
-import java.sql.Types
+import org.jooq.DSLContext
+import org.jooq.Record
+import org.jooq.Table
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import java.time.Clock
+import java.time.ZoneOffset
 import java.util.UUID
 
 /**
@@ -21,18 +22,20 @@ import java.util.UUID
  *   INV-Q-3788 A): one head move and one `ReplayRequested` per producer;
  * - [pending] and [isBehind] answer the operation's repeat rule (INV-Q-3665) and its precondition (EVL-003).
  *
- * [connections] is the app role's current connection (the caller's transaction); [head] reads topic heads and
+ * Every statement is jOOQ on [dsl] (INV-T-5306), which runs in the caller's open transaction; [head] reads topic heads and
  * watermarks through `eventlog.claim` and the watermark rows on the service's runtime login (INV-Q-4264).
  */
 class JdbcConsumerReplay(
     schema: String,
-    private val connections: CurrentConnection,
+    private val dsl: DSLContext,
     private val head: EventLogHead,
     private val outbox: OutboxWriter,
     private val clock: Clock,
 ) {
     private val s = SqlIdentifier.require(schema, "schema")
     private val json = ReplayJson()
+    private val replays: Table<*> = DSL.table(DSL.name(s, OutboxSchema.CONSUMER_REPLAY))
+    private val offsets: Table<*> = DSL.table(DSL.name(s, OutboxSchema.CONSUMER_OFFSET))
 
     /**
      * The pending replay of the ([consumer], [producer]) pair, or `null`. A replay stays pending until its incident
@@ -43,17 +46,11 @@ class JdbcConsumerReplay(
         consumer: String,
         producer: String,
     ): PendingReplay? =
-        connections
-            .require()
-            .prepareStatement(
-                "select replay_id, consumer, producer, mode, scope, topics, requested_at from " +
-                    "$s.${OutboxSchema.CONSUMER_REPLAY} " +
-                    "where consumer = ? and producer = ? and closed_at is null",
-            ).use {
-                it.setString(1, consumer)
-                it.setString(2, producer)
-                it.executeQuery().use { rows -> if (rows.next()) pendingOf(rows) else null }
-            }
+        dsl
+            .select(REPLAY_ID, CONSUMER, PRODUCER, MODE, SCOPE, TOPICS, REQUESTED_AT)
+            .from(replays)
+            .where(CONSUMER.eq(consumer).and(PRODUCER.eq(producer)).and(CLOSED_AT.isNull))
+            .fetchOne(::pendingOf)
 
     /**
      * True when [consumer]'s next position on [topic] (its committed offset plus one; 1 before any) is at or below the
@@ -63,7 +60,7 @@ class JdbcConsumerReplay(
         consumer: String,
         topic: String,
     ): Boolean {
-        val next = nextOffset(connections.require(), consumer, topic, lock = false)
+        val next = nextOffset(consumer, topic, lock = false)
         return next <= head.head(topic, maxOf(next - 1, 0)).watermark
     }
 
@@ -72,15 +69,12 @@ class JdbcConsumerReplay(
         consumer: String,
         replayId: UUID,
     ): List<String> =
-        connections
-            .require()
-            .prepareStatement(
-                "select producer from $s.${OutboxSchema.CONSUMER_REPLAY} where consumer = ? and replay_id = ? order by producer",
-            ).use {
-                it.setString(1, consumer)
-                it.setObject(2, replayId)
-                it.executeQuery().use { rows -> buildList { while (rows.next()) add(rows.getString(1)) } }
-            }
+        dsl
+            .select(PRODUCER)
+            .from(replays)
+            .where(CONSUMER.eq(consumer).and(REPLAY_ID.eq(replayId)))
+            .orderBy(PRODUCER)
+            .fetch(PRODUCER)
 
     /**
      * Moves [consumer]'s position on each of [topics] past its head, records [request] as the pair's pending replay and
@@ -112,16 +106,15 @@ class JdbcConsumerReplay(
     ): List<MovedPosition> {
         require(topics.isNotEmpty()) { "a replay moves at least one topic" }
         requireOneReplay(requests)
-        val connection = connections.require()
         val moved =
             topics.distinct().sorted().map { topic ->
-                val before = nextOffset(connection, consumer, topic, lock = true)
+                val before = nextOffset(consumer, topic, lock = true)
                 // the head is searched from the consumer's committed position (INV-Q-4264)
                 val after = maxOf(before, head.head(topic, maxOf(before - 1, 0)).nextAfterHead)
-                moveTo(connection, consumer, topic, after)
+                moveTo(consumer, topic, after)
                 MovedPosition(topic, before, after)
             }
-        requests.forEach { record(connection, consumer, it, moved.map { m -> m.topic }) }
+        requests.forEach { record(consumer, it, moved.map { m -> m.topic }) }
         outbox.append(
             requests.map { OutboundEvent(ReplayProtocol.REPLAY_REQUESTED, json.writeRequest(it)) },
             EventContext(
@@ -172,17 +165,12 @@ class JdbcConsumerReplay(
         require(requests.first().mode == ReplayMode.FULL_SYNC) { "a full sync request" }
         val producers = requests.map { it.producer }.toSet()
         require(clears.all { it.producer in producers }) { "the clear of a producer not addressed" }
-        val connection = connections.require()
-        clears.flatMap { it.tables }.forEach { clearTable(connection, it) }
+        clears.flatMap { it.tables }.forEach(::clearTable)
         // Each addressee's docsequence rows are deleted, as INV-Q-3603 does per pair (coordinator ruling INV-Q-3843), so
         // its replayed states are applied, not STALE. An 'every service' full sync deletes none (INV-Q-3805): the events
         // on those topics write none, and deleting by source would strip other producers' guards.
         producers.filter { it != CatalogueEntry.EVERY_SERVICE }.forEach { producer ->
-            connection.prepareStatement("select $s.${OutboxSchema.FULL_SYNC_DELETE}(?, ?)").use {
-                it.setString(1, consumer)
-                it.setString(2, "/gst/$producer")
-                it.executeQuery().close()
-            }
+            dsl.select(JooqRoutines.fullSyncDelete(s, consumer, "/gst/$producer")).fetch()
         }
         return request(consumer, topics, requests, correlation, causation)
     }
@@ -191,20 +179,8 @@ class JdbcConsumerReplay(
      * Calls [table]'s sys-owned clear function (`OutboxSchema.readModelClearFunction`) with its filter value as a bound
      * parameter of unspecified type, so the server takes the type of the function's filter column.
      */
-    private fun clearTable(
-        connection: Connection,
-        table: ReadModelTable,
-    ) {
-        val function = "$s.${OutboxSchema.readModelClearFunctionName(table.table)}"
-        val filter = table.filterValue
-        if (filter == null) {
-            connection.prepareStatement("select $function()").use { it.executeQuery().close() }
-        } else {
-            connection.prepareStatement("select $function(?)").use {
-                it.setObject(1, filter, Types.OTHER)
-                it.executeQuery().close()
-            }
-        }
+    private fun clearTable(table: ReadModelTable) {
+        dsl.select(JooqRoutines.readModelClear(s, table.table, table.filterValue)).fetch()
     }
 
     private fun requireOneReplay(requests: List<ReplayRequest>) {
@@ -217,78 +193,78 @@ class JdbcConsumerReplay(
     }
 
     private fun record(
-        connection: Connection,
         consumer: String,
         request: ReplayRequest,
         topics: List<String>,
     ) {
-        connection
-            .prepareStatement(
-                "insert into $s.${OutboxSchema.CONSUMER_REPLAY} (replay_id, consumer, producer, mode, scope, topics, " +
-                    "requested_at) " +
-                    "values (?, ?, ?, ?, ?, ?, ?)",
-            ).use {
-                it.setObject(1, request.replayId)
-                it.setString(2, consumer)
-                it.setString(3, request.producer)
-                it.setString(4, request.mode.name)
-                it.setString(5, request.scope?.let(json::writeScope))
-                it.setArray(6, connection.createArrayOf("text", topics.toTypedArray()))
-                it.setTimestamp(7, Timestamp.from(clock.instant()))
-                it.executeUpdate()
-            }
+        dsl
+            .insertInto(replays)
+            .columns(REPLAY_ID, CONSUMER, PRODUCER, MODE, SCOPE, TOPICS, REQUESTED_AT)
+            .values(
+                request.replayId,
+                consumer,
+                request.producer,
+                request.mode.name,
+                request.scope?.let(json::writeScope),
+                topics.toTypedArray(),
+                clock.instant().atOffset(ZoneOffset.UTC),
+            ).execute()
     }
 
     private fun nextOffset(
-        connection: Connection,
         consumer: String,
         topic: String,
         lock: Boolean,
-    ): Long =
-        connection
-            .prepareStatement(
-                "select next_offset from $s.${OutboxSchema.CONSUMER_OFFSET} where consumer = ? and topic = ?" +
-                    if (lock) " for update" else "",
-            ).use {
-                it.setString(1, consumer)
-                it.setString(2, topic)
-                it.executeQuery().use { rows -> if (rows.next()) rows.getLong(1) else FIRST_OFFSET }
-            }
+    ): Long {
+        val query = dsl.select(NEXT_OFFSET).from(offsets).where(CONSUMER.eq(consumer).and(TOPIC.eq(topic)))
+        return (if (lock) query.forUpdate() else query).fetchOne(NEXT_OFFSET) ?: FIRST_OFFSET
+    }
 
     private fun moveTo(
-        connection: Connection,
         consumer: String,
         topic: String,
         next: Long,
     ) {
-        connection
-            .prepareStatement(
-                "insert into $s.${OutboxSchema.CONSUMER_OFFSET} (consumer, topic, next_offset) values (?, ?, ?) " +
-                    "on conflict (consumer, topic) do update set next_offset = excluded.next_offset, attempts = 0, " +
-                    "infra_failures = 0, first_infra_failure_at = null, retry_not_before = null",
-            ).use {
-                it.setString(1, consumer)
-                it.setString(2, topic)
-                it.setLong(3, next)
-                it.executeUpdate()
-            }
+        dsl
+            .insertInto(offsets)
+            .columns(CONSUMER, TOPIC, NEXT_OFFSET)
+            .values(consumer, topic, next)
+            .onConflict(CONSUMER, TOPIC)
+            .doUpdate()
+            .set(NEXT_OFFSET, DSL.excluded(NEXT_OFFSET))
+            .set(ATTEMPTS, 0)
+            .set(INFRA_FAILURES, 0)
+            .set(FIRST_INFRA_FAILURE_AT, DSL.`val`(null, SQLDataType.TIMESTAMPWITHTIMEZONE))
+            .set(RETRY_NOT_BEFORE, DSL.`val`(null, SQLDataType.TIMESTAMPWITHTIMEZONE))
+            .execute()
     }
 
-    private fun pendingOf(rows: ResultSet): PendingReplay {
-        @Suppress("UNCHECKED_CAST")
-        val topics = (rows.getArray(6).array as Array<String>).toList()
-        return PendingReplay(
-            replayId = rows.getObject(1, UUID::class.java),
-            consumer = rows.getString(2),
-            producer = rows.getString(3),
-            mode = ReplayMode.valueOf(rows.getString(4)),
-            scope = rows.getString(5)?.let(json::readScope),
-            topics = topics,
-            requestedAt = rows.getTimestamp(7).toInstant(),
+    private fun pendingOf(row: Record): PendingReplay =
+        PendingReplay(
+            replayId = row.get(REPLAY_ID),
+            consumer = row.get(CONSUMER),
+            producer = row.get(PRODUCER),
+            mode = ReplayMode.valueOf(row.get(MODE)),
+            scope = row.get(SCOPE)?.let(json::readScope),
+            topics = row.get(TOPICS).toList(),
+            requestedAt = row.get(REQUESTED_AT).toInstant(),
         )
-    }
 
     private companion object {
         const val FIRST_OFFSET = 1L
+        val REPLAY_ID = DSL.field(DSL.name("replay_id"), SQLDataType.UUID.notNull())
+        val CONSUMER = DSL.field(DSL.name("consumer"), SQLDataType.CLOB.notNull())
+        val PRODUCER = DSL.field(DSL.name("producer"), SQLDataType.CLOB.notNull())
+        val MODE = DSL.field(DSL.name("mode"), SQLDataType.CLOB.notNull())
+        val SCOPE = DSL.field(DSL.name("scope"), SQLDataType.CLOB)
+        val TOPICS = DSL.field(DSL.name("topics"), SQLDataType.CLOB.array().notNull())
+        val REQUESTED_AT = DSL.field(DSL.name("requested_at"), SQLDataType.TIMESTAMPWITHTIMEZONE.notNull())
+        val CLOSED_AT = DSL.field(DSL.name("closed_at"), SQLDataType.TIMESTAMPWITHTIMEZONE)
+        val TOPIC = DSL.field(DSL.name("topic"), SQLDataType.CLOB.notNull())
+        val NEXT_OFFSET = DSL.field(DSL.name("next_offset"), SQLDataType.BIGINT.notNull())
+        val ATTEMPTS = DSL.field(DSL.name("attempts"), SQLDataType.INTEGER)
+        val INFRA_FAILURES = DSL.field(DSL.name("infra_failures"), SQLDataType.INTEGER)
+        val FIRST_INFRA_FAILURE_AT = DSL.field(DSL.name("first_infra_failure_at"), SQLDataType.TIMESTAMPWITHTIMEZONE)
+        val RETRY_NOT_BEFORE = DSL.field(DSL.name("retry_not_before"), SQLDataType.TIMESTAMPWITHTIMEZONE)
     }
 }

@@ -284,6 +284,8 @@ class CompositionRootTest {
                 LaneRateLimiter::class,
                 WorkQueue::class,
                 DeadLetterTriage::class,
+                RetentionPurge::class,
+                EventLogPurge::class,
                 StalenessMonitor::class,
                 UnrelayedEventCheck::class,
             ) + INBOX,
@@ -567,7 +569,10 @@ class CompositionRootTest {
                 .getBean(
                     EventLogReader::class.java,
                 ).shouldBeInstanceOf<PostgresEventLogReader>()
-                .backlog("gst.canonical.canonical-version-created.v1", 0)
+                .let { reader ->
+                    // a mocked connection yields no readable result: the test asks which pool the read ran on
+                    runCatching { reader.backlog("gst.canonical.canonical-version-created.v1", 0) }
+                }
             verify { eventLog.connection }
             verify(exactly = 0) { context.getBean("dataSource", DataSource::class.java).connection }
         }
@@ -577,7 +582,10 @@ class CompositionRootTest {
                 .getBean(
                     EventLogReader::class.java,
                 ).shouldBeInstanceOf<PostgresEventLogReader>()
-                .backlog("gst.canonical.canonical-version-created.v1", 0)
+                .let { reader ->
+                    // a mocked connection yields no readable result: the test asks which pool the read ran on
+                    runCatching { reader.backlog("gst.canonical.canonical-version-created.v1", 0) }
+                }
             verify { context.getBean("dataSource", DataSource::class.java).connection }
         }
     }

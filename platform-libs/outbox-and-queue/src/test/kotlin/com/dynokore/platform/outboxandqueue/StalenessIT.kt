@@ -7,6 +7,7 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import java.time.Duration
 import java.time.Instant
+import java.time.OffsetDateTime
 import java.util.UUID
 
 /** INV-AC-2150: the oldest unconsumed event passes its threshold, and not before. The clock is injected. */
@@ -113,23 +114,18 @@ class StalenessIT {
         harness: OutboxHarness,
         offset: Long,
     ): Instant =
-        harness.fixture.adminDataSource().connection.use { connection ->
-            connection.prepareStatement("select inserted_at from $table where log_offset = ?").use {
-                it.setLong(1, offset)
-                it.executeQuery().use { rows ->
-                    rows.next()
-                    rows.getTimestamp(1).toInstant()
-                }
-            }
-        }
+        (
+            harness
+                .rowsIn(ServiceKit.TENANT, "select inserted_at from $table where log_offset = ?", offset)
+                .single()
+                .getValue("inserted_at") as OffsetDateTime
+        ).toInstant()
 
     private fun monitorFor(
         harness: OutboxHarness,
         clock: MutableClock,
         raised: MutableList<StalenessBreach>,
-    ) = JdbcStalenessMonitor(
-        harness.fixture.runtimeDataSource(),
-        harness.reader,
+    ) = harness.fixture.stalenessMonitor(
         harness.catalogue,
         "submission",
         listOf(StalenessRule("submission-svc", TestCatalogue.CANONICAL_VERSION_CREATED, threshold)),

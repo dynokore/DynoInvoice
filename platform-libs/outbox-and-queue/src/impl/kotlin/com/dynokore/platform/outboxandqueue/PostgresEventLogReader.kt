@@ -1,15 +1,15 @@
 package com.dynokore.platform.outboxandqueue
 
 import com.dynokore.platform.tenancykernel.TenantId
-import java.sql.Connection
-import java.sql.SQLException
+import org.jooq.DSLContext
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import java.time.Instant
-import java.util.UUID
-import javax.sql.DataSource
 
 /**
  * [EventLogReader] over the PostgreSQL event log: a consumer's read of its subscribed topics (INV-REQ-1205 b3), on the
- * service's runtime login ([eventLogSource], the event-log DataSource) and nothing else.
+ * service's runtime login (the pool of [eventLog]) and nothing else, as jOOQ on [dsl]: the topic tables, `eventlog.claim`
+ * and the purge watermark declared in [EventLogSchema.jooqTables] (INV-T-5306).
  *
  * - The records after an offset are found across tenants only through `eventlog.claim` (owned by `eventlog_sys`,
  *   [EventLogSchema.CLAIM]), which returns `log_offset`, `tenant_id` and `inserted_at` of the topics the login subscribes
@@ -33,8 +33,8 @@ import javax.sql.DataSource
  * upper bound of the records unconsumed, since offsets of rolled-back inserts and purged rows count.
  */
 class PostgresEventLogReader(
-    private val eventLogSource: DataSource,
     private val eventLog: TenantScope,
+    private val dsl: DSLContext,
 ) : EventLogReader,
     EventLogLag,
     EventLogHead {
@@ -43,24 +43,23 @@ class PostgresEventLogReader(
         afterOffset: Long,
         limit: Int,
     ): List<LogRecord> {
-        val topicTable = "${EventLogSchema.SCHEMA}.${EventLogSchema.tableName(topic)}"
+        val topicTable = DSL.table(DSL.name(EventLogSchema.SCHEMA, EventLogSchema.tableName(topic)))
         try {
-            val (watermark, claimed) = eventLogSource.connection.use { claimBatch(it, topic, afterOffset, limit) }
+            val (watermark, claimed) = eventLog.platformTransaction { claimBatch(topic, afterOffset, limit) }
             if (afterOffset + 1 <= watermark) throw RebuildRequired(topic, afterOffset + 1, watermark)
             val envelopes = HashMap<Long, String>()
             claimed.groupBy({ it.second }, { it.first }).forEach { (tenant, offsets) ->
-                eventLog.bindWorkload(tenant) {
-                    eventLog.transactions.inTransaction {
-                        val connection = eventLog.connections.require()
-                        connection
-                            .prepareStatement(
-                                "select log_offset, envelope::text from $topicTable where log_offset = any(?)",
-                            ).use { statement ->
-                                statement.setArray(1, connection.createArrayOf("bigint", offsets.toTypedArray()))
-                                statement.executeQuery().use { rows ->
-                                    while (rows.next()) envelopes[rows.getLong(1)] = rows.getString(2)
-                                }
-                            }
+                // a connection of its own even when the caller holds a transaction of another tenant
+                eventLog.transactions.outsideOpenTransaction {
+                    eventLog.bindWorkload(tenant) {
+                        eventLog.transactions.inTransaction {
+                            dsl
+                                .select(LOG_OFFSET, ENVELOPE)
+                                .from(topicTable)
+                                .where(LOG_OFFSET.eq(DSL.any(*offsets.toTypedArray())))
+                                .fetch()
+                                .forEach { row -> envelopes[row.get(LOG_OFFSET)] = row.get(ENVELOPE).data() }
+                        }
                     }
                 }
             }
@@ -70,8 +69,8 @@ class PostgresEventLogReader(
                 .takeWhile { it != null }
                 .filterNotNull()
                 .toList()
-        } catch (failure: SQLException) {
-            throw EventBindingUnavailable("event log unreadable for $topic: ${failure.sqlState}", failure)
+        } catch (failure: Exception) {
+            throw unreadable(topic, failure)
         }
     }
 
@@ -80,13 +79,13 @@ class PostgresEventLogReader(
         afterOffset: Long,
     ): LogBacklog {
         try {
-            return eventLogSource.connection.use { connection ->
-                val oldest = next(connection, topic, afterOffset) ?: return@use LogBacklog(0, null)
-                val head = gallop(connection, topic, afterOffset, oldest.first)
+            return eventLog.platformTransaction {
+                val oldest = next(topic, afterOffset) ?: return@platformTransaction LogBacklog(0, null)
+                val head = gallop(topic, afterOffset, oldest.first)
                 LogBacklog(head - afterOffset, oldest.second)
             }
-        } catch (failure: SQLException) {
-            throw EventBindingUnavailable("event log unreadable for $topic: ${failure.sqlState}", failure)
+        } catch (failure: Exception) {
+            throw unreadable(topic, failure)
         }
     }
 
@@ -96,16 +95,29 @@ class PostgresEventLogReader(
     ): TopicHead {
         require(from >= 0) { "a head search starts at an offset of at least 0, was $from" }
         try {
-            return eventLogSource.connection.use { connection ->
-                val watermark = watermark(connection, topic)
+            return eventLog.platformTransaction {
+                val watermark = watermark(topic)
                 val start = maxOf(from, watermark)
-                val first = next(connection, topic, start)
-                val head = if (first == null) start else gallop(connection, topic, start, first.first)
+                val first = next(topic, start)
+                val head = if (first == null) start else gallop(topic, start, first.first)
                 TopicHead(head, watermark)
             }
-        } catch (failure: SQLException) {
-            throw EventBindingUnavailable("event log unreadable for $topic: ${failure.sqlState}", failure)
+        } catch (failure: Exception) {
+            throw unreadable(topic, failure)
         }
+    }
+
+    /**
+     * The failure as the reader reports it: a SQLSTATE found in [failure]'s cause chain (jOOQ wraps the SQLException,
+     * so the runner reads it, INV-Q-5121) makes an [EventBindingUnavailable]; any other failure (a [RebuildRequired],
+     * a lane refusal) is returned as it is.
+     */
+    private fun unreadable(
+        topic: String,
+        failure: Exception,
+    ): Exception {
+        val state = eventLog.sqlErrors.sqlStateOf(failure) ?: return failure
+        return EventBindingUnavailable("event log unreadable for $topic: $state", failure)
     }
 
     /**
@@ -114,7 +126,6 @@ class PostgresEventLogReader(
      * and that bound. About two claims per doubling of the distance from [from] to the head.
      */
     private fun gallop(
-        connection: Connection,
         topic: String,
         from: Long,
         present: Long,
@@ -125,7 +136,7 @@ class PostgresEventLogReader(
         var high: Long // nothing present after it, as far as the search has seen
         while (true) {
             val probe = if (low > Long.MAX_VALUE - step) Long.MAX_VALUE else low + step
-            val found = next(connection, topic, probe)?.first
+            val found = next(topic, probe)?.first
             if (found == null) {
                 high = probe
                 break
@@ -135,7 +146,7 @@ class PostgresEventLogReader(
         }
         while (low < high) {
             val middle = low + (high - low) / 2
-            val found = next(connection, topic, middle)?.first
+            val found = next(topic, middle)?.first
             if (found == null) {
                 high = middle
             } else {
@@ -148,70 +159,60 @@ class PostgresEventLogReader(
 
     /** The first record after [afterOffset] as `claim` returns it: (log_offset, inserted_at), or null when none. */
     private fun next(
-        connection: Connection,
         topic: String,
         afterOffset: Long,
-    ): Pair<Long, Instant>? =
-        connection
-            .prepareStatement(
-                "select log_offset, inserted_at from ${EventLogSchema.SCHEMA}.${EventLogSchema.CLAIM}(?, ?, 1)",
-            ).use { statement ->
-                statement.setString(1, topic)
-                statement.setLong(2, afterOffset)
-                statement.executeQuery().use { rows ->
-                    if (rows.next()) rows.getLong(1) to rows.getTimestamp(2).toInstant() else null
-                }
-            }
+    ): Pair<Long, Instant>? {
+        val claim = EventLogClaim().call(topic, afterOffset, 1)
+        return dsl
+            .select(claim.logOffset, claim.insertedAt)
+            .from(claim)
+            .fetchOne()
+            ?.let { it.get(claim.logOffset) to it.get(claim.insertedAt).toInstant() }
+    }
 
-    private fun watermark(
-        connection: Connection,
-        topic: String,
-    ): Long =
-        connection
-            .prepareStatement("select coalesce(max(watermark), 0) from $WATERMARK where topic_key = ?")
-            .use { statement ->
-                statement.setString(1, EventLogSchema.tableName(topic))
-                statement.executeQuery().use {
-                    it.next()
-                    it.getLong(1)
-                }
-            }
+    private fun watermark(topic: String): Long = dsl.select(watermarkOf(topic)).fetchSingle().value1()
 
     /** The topic's watermark and the claimed (offset, tenant) pairs after [afterOffset], read in one snapshot. */
     private fun claimBatch(
-        connection: Connection,
         topic: String,
         afterOffset: Long,
         limit: Int,
-    ): Pair<Long, List<Pair<Long, TenantId>>> =
-        connection
-            .prepareStatement(
-                """
-                select w.watermark, c.log_offset, c.tenant_id
-                from (select coalesce(max(watermark), 0) as watermark from $WATERMARK where topic_key = ?) w
-                left join lateral ${EventLogSchema.SCHEMA}.${EventLogSchema.CLAIM}(?, ?, ?) c on true
-                order by c.log_offset
-                """.trimIndent(),
-            ).use { statement ->
-                statement.setString(1, EventLogSchema.tableName(topic))
-                statement.setString(2, topic)
-                statement.setLong(3, afterOffset)
-                statement.setInt(4, limit)
-                statement.executeQuery().use { rows ->
-                    var watermark = 0L
-                    val claimed =
-                        buildList {
-                            while (rows.next()) {
-                                watermark = rows.getLong(1)
-                                val offset = rows.getLong(2)
-                                if (!rows.wasNull()) add(offset to TenantId(rows.getObject(3, UUID::class.java)))
-                            }
-                        }
-                    watermark to claimed
+    ): Pair<Long, List<Pair<Long, TenantId>>> {
+        val claim = EventLogClaim().call(topic, afterOffset, limit)
+        val mark = watermarkOf(topic).`as`("watermark")
+        val marked = dsl.select(mark).asTable(DSL.name("w"))
+        val rows =
+            dsl
+                .select(marked.field(mark), claim.logOffset, claim.tenantId)
+                .from(marked)
+                .leftJoin(claim)
+                .on(DSL.trueCondition())
+                .orderBy(claim.logOffset)
+                .fetch()
+        var watermark = 0L
+        val claimed =
+            buildList {
+                for (row in rows) {
+                    watermark = checkNotNull(row.get(0, Long::class.java))
+                    val offset = row.get(claim.logOffset)
+                    if (offset != null) add(offset to TenantId(checkNotNull(row.get(claim.tenantId))))
                 }
             }
+        return watermark to claimed
+    }
+
+    /** `coalesce(max(watermark), 0)` of the topic's rows in the purge watermark table. */
+    private fun watermarkOf(topic: String) =
+        dsl
+            .select(DSL.coalesce(DSL.max(WATERMARK), 0L))
+            .from(DSL.table(DSL.name(EventLogSchema.SCHEMA, EventLogSchema.PURGE_WATERMARK)))
+            .where(TOPIC_KEY.eq(EventLogSchema.tableName(topic)))
+            .asField<Long>()
 
     private companion object {
-        const val WATERMARK = "${EventLogSchema.SCHEMA}.${EventLogSchema.PURGE_WATERMARK}"
+        val LOG_OFFSET = DSL.field(DSL.name("log_offset"), SQLDataType.BIGINT)
+        val ENVELOPE = DSL.field(DSL.name("envelope"), SQLDataType.JSONB)
+        val WATERMARK = DSL.field(DSL.name("watermark"), SQLDataType.BIGINT)
+        val TOPIC_KEY = DSL.field(DSL.name("topic_key"), SQLDataType.CLOB)
     }
 }

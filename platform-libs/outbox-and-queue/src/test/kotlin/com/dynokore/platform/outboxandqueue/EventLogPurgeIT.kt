@@ -1,13 +1,17 @@
 package com.dynokore.platform.outboxandqueue
 
+import com.dynokore.platform.tenancykernel.TenantContextImpl
+import com.dynokore.platform.tenancykernel.TestPoolFixture
+import org.jooq.SQLDialect
+import org.jooq.impl.DSL
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
-import java.sql.SQLException
 import java.time.Duration
 import java.util.UUID
 import java.util.concurrent.CopyOnWriteArrayList
@@ -125,18 +129,14 @@ class EventLogPurgeIT {
             repeat(2) { emit(harness, TestCatalogue.SUBMISSION_ACKNOWLEDGED) }
             age(harness, otherTable, "400")
 
-            // The table refuses a value below 7 days even from its owner.
-            assertThrows(SQLException::class.java) {
-                harness.fixture.runEventLog("update eventlog.retention set eventlog_retention = interval '6 days'")
-            }
-            for (login in listOf(harness.fixture.eventLogDataSource(), harness.fixture.purgeDataSource())) {
-                login.connection.use { connection ->
-                    assertThrows(SQLException::class.java, {
-                        connection.createStatement().use {
-                            it.executeUpdate("update eventlog.retention set eventlog_retention = interval '1 day'")
-                        }
-                    }, "a runtime write of the retention row")
-                }
+            // The table refuses a value below 7 days even from its owner, and no runtime login writes it.
+            val update = "update eventlog.retention set eventlog_retention = interval '%s' returning 1"
+            val migrate = OutboxPostgresFixture.MIGRATE to OutboxPostgresFixture.MIGRATE_PASSWORD
+            val runtime = OutboxPostgresFixture.APP to OutboxPostgresFixture.APP_PASSWORD
+            val purge = OutboxPostgresFixture.PURGE to "eventlog_purge_pw"
+            for ((login, value) in listOf(migrate to "6 days", runtime to "1 day", purge to "1 day")) {
+                val sql = update.format(value)
+                assertNotNull(JooqKit.refusal(harness.fixture, login.first, login.second, sql), "${login.first}: $sql")
             }
 
             // Below 7 days (the CHECK dropped by the superuser, as a damaged installation would have it): nothing.
@@ -180,17 +180,16 @@ class EventLogPurgeIT {
     fun `the purge login only executes purge_batch and holds no elevated attribute`(image: String) {
         OutboxHarness(image).use { harness ->
             emit(harness, TestCatalogue.SUBMISSION_ACKNOWLEDGED)
-            harness.fixture.purgeDataSource().connection.use { purge ->
-                purge.createStatement().use { statement ->
-                    for (sql in listOf(
-                        "select log_offset from $otherTable",
-                        "delete from $otherTable",
-                        "select * from eventlog.claim('$other', 0, 1)",
-                        "insert into eventlog.purge_watermark values ('$otherKey', 99, now())",
-                    )) {
-                        assertThrows(SQLException::class.java, { statement.execute(sql) }, sql)
-                    }
-                }
+            for (sql in listOf(
+                "select log_offset from $otherTable",
+                "delete from $otherTable returning 1",
+                "select * from eventlog.claim('$other', 0, 1)",
+                "insert into eventlog.purge_watermark values ('$otherKey', 99, now()) returning 1",
+            )) {
+                assertNotNull(
+                    JooqKit.refusal(harness.fixture, OutboxPostgresFixture.PURGE, "eventlog_purge_pw", sql),
+                    sql,
+                )
             }
             assertEquals(
                 0,
@@ -212,23 +211,19 @@ class EventLogPurgeIT {
         val sql =
             "select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace " +
                 "where n.nspname = 'eventlog' and p.prosecdef and pg_get_userbyid(p.proowner) = 'eventlog_sys'"
-        return harness.fixture.adminDataSource().connection.use { connection ->
-            connection.createStatement().use { statement ->
-                statement.executeQuery(sql).use { rows -> buildSet { while (rows.next()) add(rows.getString(1)) } }
-            }
-        }
+        return harness
+            .rowsUnboundAs(OutboxPostgresFixture.APP, OutboxPostgresFixture.APP_PASSWORD, sql)
+            .map { it.getValue("proname") as String }
+            .toSet()
     }
 
     /** A subscriber reads its topics' watermarks and cannot write them. */
     private fun assertSubscriberCannotWriteWatermarks(harness: OutboxHarness) {
-        harness.fixture.eventLogDataSource().connection.use { claim ->
-            claim.createStatement().use { statement ->
-                statement.executeQuery("select count(*) from eventlog.purge_watermark").use { it.next() }
-                assertThrows(SQLException::class.java) {
-                    statement.executeUpdate("insert into eventlog.purge_watermark values ('$otherKey', 99, now())")
-                }
-            }
-        }
+        val app = OutboxPostgresFixture.APP
+        val pw = OutboxPostgresFixture.APP_PASSWORD
+        harness.rowsUnboundAs(app, pw, "select count(*) from eventlog.purge_watermark")
+        val insert = "insert into eventlog.purge_watermark values ('$otherKey', 99, now()) returning 1"
+        assertNotNull(JooqKit.refusal(harness.fixture, app, pw, insert))
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
@@ -284,20 +279,21 @@ class EventLogPurgeIT {
             harness.fixture.runAsAdmin(
                 "insert into eventlog.purge_watermark values ('$replayKey', 4, now()), ('$otherKey', 9, now())",
             )
-            assertEquals(mapOf(replayKey to 4L), watermarksAs(harness.fixture.roleDataSource("recon_runtime")))
-            assertEquals(mapOf(otherKey to 9L), watermarksAs(harness.fixture.eventLogDataSource()))
+            assertEquals(mapOf(replayKey to 4L), harness.watermarksAs("recon_runtime", "recon_runtime_pw"))
+            assertEquals(
+                mapOf(otherKey to 9L),
+                harness.watermarksAs(OutboxPostgresFixture.APP, OutboxPostgresFixture.APP_PASSWORD),
+            )
         }
     }
 
-    /** The watermark rows the login of [source] can read. */
-    private fun watermarksAs(source: javax.sql.DataSource): Map<String, Long> =
-        source.connection.use { connection ->
-            connection.createStatement().use { statement ->
-                statement.executeQuery("select topic_key, watermark from eventlog.purge_watermark").use { rows ->
-                    buildMap { while (rows.next()) put(rows.getString(1), rows.getLong(2)) }
-                }
-            }
-        }
+    /** The watermark rows [user] can read. */
+    private fun OutboxHarness.watermarksAs(
+        user: String,
+        password: String,
+    ): Map<String, Long> =
+        rowsUnboundAs(user, password, "select topic_key, watermark from eventlog.purge_watermark")
+            .associate { it["topic_key"] as String to it["watermark"] as Long }
 
     @Test
     fun `a period below 7 days is refused, and so is a topic without a content marker`() {
@@ -307,7 +303,15 @@ class EventLogPurgeIT {
         val unmarked = EventCatalogue(listOf(CatalogueEntry("t.T.v1", other, setOf("submission-svc"))))
         assertThrows(IllegalArgumentException::class.java) {
             // The constructor refuses before any connection is taken: the data source points nowhere.
-            JdbcEventLogPurge(org.postgresql.ds.PGSimpleDataSource(), unmarked)
+            val tenants = TenantContextImpl()
+            TestPoolFixture("jdbc:postgresql://localhost:1/none", "nobody", "none").use { pool ->
+                val runner = pool.runner(tenants)
+                JdbcEventLogPurge(
+                    TenantScope(tenants, runner, runner, OutboxPostgresFixture.WORKLOAD),
+                    DSL.using(SQLDialect.POSTGRES),
+                    unmarked,
+                )
+            }
         }
     }
 
@@ -348,16 +352,16 @@ class EventLogPurgeIT {
         }
     }
 
-    private fun purge(harness: OutboxHarness) = JdbcEventLogPurge(harness.fixture.purgeDataSource(), harness.catalogue)
+    private fun purge(harness: OutboxHarness): JdbcEventLogPurge {
+        val scope = scopeOn(harness, harness.fixture.purgeDataSource())
+        return JdbcEventLogPurge(scope, JooqKit.eventLog(scope, harness.catalogue), harness.catalogue)
+    }
 
     /** The migration step that rewrites the retention row (INV-Q-4262). */
     private fun writeRetention(
         harness: OutboxHarness,
         retention: Retention,
-    ) = harness.fixture
-        .migrateDataSource()
-        .connection
-        .use { EventLogSchema.writeRetention(it, retention) }
+    ) = harness.fixture.writeRetention(retention)
 
     /** A purge result without its cut-off (taken from the database's clock). */
     private fun shape(purged: TopicPurge): List<Any> {
@@ -389,28 +393,18 @@ class EventLogPurgeIT {
         days: String,
     ) = harness.fixture.runAsAdmin("update $table set inserted_at = now() - ($days) * interval '1 day'")
 
+    /** The offsets of [table], whose rows these tests emit under the fixture tenant. */
     private fun offsets(
         harness: OutboxHarness,
         table: String,
     ): List<Long> =
-        harness.fixture.adminDataSource().connection.use { connection ->
-            connection.createStatement().use { statement ->
-                statement.executeQuery("select log_offset from $table order by log_offset").use { rows ->
-                    buildList { while (rows.next()) add(rows.getLong(1)) }
-                }
-            }
-        }
+        harness
+            .rowsIn(ServiceKit.TENANT, "select log_offset from $table order by log_offset")
+            .map { it.getValue("log_offset") as Long }
 
-    private fun watermarks(harness: OutboxHarness): Map<String, Long> {
-        val admin = harness.fixture.adminDataSource()
-        return admin.connection.use { connection ->
-            connection.createStatement().use { statement ->
-                statement.executeQuery("select topic_key, watermark from eventlog.purge_watermark").use { rows ->
-                    buildMap { while (rows.next()) put(rows.getString(1), rows.getLong(2)) }
-                }
-            }
-        }
-    }
+    /** The purge watermarks of every topic, read by the event log's migration login (the schema owner). */
+    private fun watermarks(harness: OutboxHarness): Map<String, Long> =
+        harness.watermarksAs(OutboxPostgresFixture.MIGRATE, OutboxPostgresFixture.MIGRATE_PASSWORD)
 
     private fun nextOffset(
         harness: OutboxHarness,

@@ -2,11 +2,12 @@ package com.dynokore.platform.outboxandqueue
 
 import com.dynokore.platform.tenancykernel.SqlIdentifier
 import org.jooq.DSLContext
-import java.sql.Connection
-import java.sql.Timestamp
+import org.jooq.Table
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import java.time.Clock
+import java.time.ZoneOffset
 import java.util.UUID
-import javax.sql.DataSource
 
 /**
  * The consumer's intake of one replay topic, `gst.<producer>.replay-<consumer>.v1` or, for an 'every service' pair,
@@ -36,16 +37,17 @@ class JdbcReplayIntake
         catalogue: EventCatalogue,
         private val producer: String,
         reader: EventLogReader,
-        private val claimSource: DataSource,
         private val scope: TenantScope,
-        dsl: DSLContext,
+        private val dsl: DSLContext,
         handler: EventHandler,
         private val sink: RebuildRequiredSink,
         private val clock: Clock = Clock.systemUTC(),
     ) : InboxConsumer {
         private val consumer = subscription.consumer
         private val s = SqlIdentifier.require(subscription.schema, "schema")
-        private val replays = "$s.${OutboxSchema.CONSUMER_REPLAY}"
+        private val replays: Table<*> = DSL.table(DSL.name(s, OutboxSchema.CONSUMER_REPLAY))
+        private val markers: Table<*> = DSL.table(DSL.name(s, OutboxSchema.CONSUMER_REPLAY_MARKER))
+        private val seen: Table<*> = DSL.table(DSL.name(s, OutboxSchema.CONSUMER_SOURCE_SEEN))
         private val json = ReplayJson()
         private val inbox =
             JdbcInboxConsumer(
@@ -71,16 +73,12 @@ class JdbcReplayIntake
             for ((replayId, topics) in done) {
                 val now = clock.instant()
                 topics.forEach { sink.close(RebuildRequiredClosed(consumer, it, replayId, now)) }
-                claimSource.connection.use { connection ->
-                    connection
-                        .prepareStatement(
-                            "update $replays set closed_at = ? where replay_id = ? and consumer = ?",
-                        ).use {
-                            it.setTimestamp(1, Timestamp.from(now))
-                            it.setObject(2, replayId)
-                            it.setString(3, consumer)
-                            it.executeUpdate()
-                        }
+                scope.platformTransaction {
+                    dsl
+                        .update(replays)
+                        .set(CLOSED_AT, now.atOffset(ZoneOffset.UTC))
+                        .where(REPLAY_ID.eq(replayId).and(CONSUMER.eq(consumer)))
+                        .execute()
                 }
             }
             return done.size
@@ -88,29 +86,45 @@ class JdbcReplayIntake
 
         /** The completed replays whose incidents are not yet closed: id and topics. */
         private fun completedReplays(): List<Pair<UUID, List<String>>> =
-            claimSource.connection.use { connection ->
-                connection
-                    .prepareStatement(
+            scope.platformTransaction {
+                val r = replays.`as`("r")
+                val o = replays.`as`("o")
+                dsl
+                    .select(replayId("r"), TOPICS)
+                    .from(r)
+                    .where(
                         // A replay addressed to several producers closes once every addressee has completed (INV-Q-3788 A).
-                        "select replay_id, topics from $replays r where consumer = ? and producer = ? " +
-                            "and completed_at is not null and closed_at is null and not exists (select 1 from " +
-                            "$replays o " +
-                            "where o.replay_id = r.replay_id and o.consumer = r.consumer and o.completed_at is null)",
-                    ).use {
-                        it.setString(1, consumer)
-                        it.setString(2, producer)
-                        it.executeQuery().use { rows ->
-                            buildList {
-                                while (rows.next()) {
-                                    @Suppress("UNCHECKED_CAST")
-                                    add(
-                                        rows.getObject(1, UUID::class.java) to
-                                            (rows.getArray(2).array as Array<String>).toList(),
-                                    )
-                                }
-                            }
-                        }
-                    }
+                        CONSUMER
+                            .eq(consumer)
+                            .and(PRODUCER.eq(producer))
+                            .and(COMPLETED_AT.isNotNull)
+                            .and(CLOSED_AT.isNull)
+                            .and(
+                                DSL.notExists(
+                                    DSL
+                                        .selectOne()
+                                        .from(o)
+                                        .where(
+                                            replayId("o")
+                                                .eq(replayId("r"))
+                                                .and(
+                                                    DSL
+                                                        .field(
+                                                            DSL.name("o", "consumer"),
+                                                            SQLDataType.CLOB,
+                                                        ).eq(DSL.field(DSL.name("r", "consumer"), SQLDataType.CLOB)),
+                                                ).and(
+                                                    DSL
+                                                        .field(
+                                                            DSL.name("o", "completed_at"),
+                                                            SQLDataType.TIMESTAMPWITHTIMEZONE,
+                                                        ).isNull,
+                                                ),
+                                        ),
+                                ),
+                            ),
+                    ).fetch()
+                    .map { it.get(replayId("r")) to it.get(TOPICS).toList() }
             }
 
         private inner class MarkerAwareHandler(
@@ -119,78 +133,85 @@ class JdbcReplayIntake
             override fun handle(event: Envelope): HandleOutcome {
                 if (event.type != ReplayProtocol.REPLAY_COMPLETED) return delegate.handle(event)
                 val replayId = json.readCompleted(event.dataJson)
-                val connection = scope.connections.require()
-                if (!lockPending(connection, replayId)) return HandleOutcome.IGNORED
-                connection
-                    .prepareStatement(
-                        "insert into $s.${OutboxSchema.CONSUMER_REPLAY_MARKER} (replay_id, source) values (?, ?) on conflict do nothing",
-                    ).use {
-                        it.setObject(1, replayId)
-                        it.setString(2, event.source)
-                        it.executeUpdate()
+                // The marker is recorded in a platform-bound transaction of its own, whatever tenant the event is
+                // published under (owner ruling on INV-T-5306, keeping the earlier behaviour).
+                val pending =
+                    scope.platformTransaction {
+                        if (!lockPending(replayId)) {
+                            false
+                        } else {
+                            dsl
+                                .insertInto(markers, REPLAY_ID, SOURCE)
+                                .values(
+                                    DSL.`val`(replayId, SQLDataType.UUID),
+                                    DSL.`val`(event.source, SQLDataType.CLOB),
+                                ).onConflictDoNothing()
+                                .execute()
+                            if (complete(replayId)) {
+                                dsl
+                                    .update(replays)
+                                    .set(COMPLETED_AT, clock.instant().atOffset(ZoneOffset.UTC))
+                                    .where(REPLAY_ID.eq(replayId).and(CONSUMER.eq(consumer)).and(PRODUCER.eq(producer)))
+                                    .execute()
+                            }
+                            true
+                        }
                     }
-                if (complete(connection, replayId)) {
-                    val sql =
-                        "update $replays set completed_at = ? where replay_id = ? and consumer = ? and producer = ?"
-                    connection.prepareStatement(sql).use {
-                        it.setTimestamp(1, Timestamp.from(clock.instant()))
-                        it.setObject(2, replayId)
-                        it.setString(3, consumer)
-                        it.setString(4, producer)
-                        it.executeUpdate()
-                    }
-                }
+                if (!pending) return HandleOutcome.IGNORED
                 return HandleOutcome.APPLIED
             }
 
             /** Locks the pending replay [replayId] of this pair; false when there is none. */
-            private fun lockPending(
-                connection: Connection,
-                replayId: UUID,
-            ): Boolean =
-                connection
-                    .prepareStatement(
-                        "select 1 from $replays where replay_id = ? and consumer = ? and producer = ? and completed_at is null for update",
-                    ).use {
-                        it.setObject(1, replayId)
-                        it.setString(2, consumer)
-                        it.setString(3, producer)
-                        it.executeQuery().use { rows -> rows.next() }
-                    }
+            private fun lockPending(replayId: UUID): Boolean =
+                dsl
+                    .selectOne()
+                    .from(replays)
+                    .where(
+                        REPLAY_ID
+                            .eq(
+                                replayId,
+                            ).and(CONSUMER.eq(consumer))
+                            .and(PRODUCER.eq(producer))
+                            .and(COMPLETED_AT.isNull),
+                    ).forUpdate()
+                    .fetchOne() != null
 
             /**
              * A named pair completes on its producer's marker; an 'every service' pair once every source seen has
              * answered (INV-Q-3669).
              */
-            private fun complete(
-                connection: Connection,
-                replayId: UUID,
-            ): Boolean {
-                val markers = markerSources(connection, replayId)
+            private fun complete(replayId: UUID): Boolean {
+                val markers = markerSources(replayId)
                 if (producer != CatalogueEntry.EVERY_SERVICE) return "/gst/$producer" in markers
-                return seenSources(connection).all { it in markers }
+                return seenSources().all { it in markers }
             }
 
-            private fun markerSources(
-                connection: Connection,
-                replayId: UUID,
-            ): Set<String> =
-                connection
-                    .prepareStatement(
-                        "select source from $s.${OutboxSchema.CONSUMER_REPLAY_MARKER} where replay_id = ?",
-                    ).use {
-                        it.setObject(1, replayId)
-                        it.executeQuery().use { rows -> buildSet { while (rows.next()) add(rows.getString(1)) } }
-                    }
+            private fun markerSources(replayId: UUID): Set<String> =
+                dsl
+                    .select(SOURCE)
+                    .from(markers)
+                    .where(REPLAY_ID.eq(replayId))
+                    .fetch(SOURCE)
+                    .toSet()
 
-            private fun seenSources(connection: Connection): Set<String> =
-                connection
-                    .prepareStatement(
-                        "select source from $s.${OutboxSchema.CONSUMER_SOURCE_SEEN} where consumer = ? and producer = ?",
-                    ).use {
-                        it.setString(1, consumer)
-                        it.setString(2, CatalogueEntry.EVERY_SERVICE)
-                        it.executeQuery().use { rows -> buildSet { while (rows.next()) add(rows.getString(1)) } }
-                    }
+            private fun seenSources(): Set<String> =
+                dsl
+                    .select(SOURCE)
+                    .from(seen)
+                    .where(CONSUMER.eq(consumer).and(PRODUCER.eq(CatalogueEntry.EVERY_SERVICE)))
+                    .fetch(SOURCE)
+                    .toSet()
+        }
+
+        private companion object {
+            val REPLAY_ID = DSL.field(DSL.name("replay_id"), SQLDataType.UUID)
+            val CONSUMER = DSL.field(DSL.name("consumer"), SQLDataType.CLOB)
+            val PRODUCER = DSL.field(DSL.name("producer"), SQLDataType.CLOB)
+            val SOURCE = DSL.field(DSL.name("source"), SQLDataType.CLOB)
+            val TOPICS = DSL.field(DSL.name("topics"), SQLDataType.CLOB.array())
+            val COMPLETED_AT = DSL.field(DSL.name("completed_at"), SQLDataType.TIMESTAMPWITHTIMEZONE)
+            val CLOSED_AT = DSL.field(DSL.name("closed_at"), SQLDataType.TIMESTAMPWITHTIMEZONE)
+
+            fun replayId(alias: String) = DSL.field(DSL.name(alias, "replay_id"), SQLDataType.UUID)
         }
     }

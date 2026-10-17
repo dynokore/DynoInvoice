@@ -1,11 +1,12 @@
 package com.dynokore.platform.outboxandqueue
 
+import org.jooq.DSLContext
+import org.jooq.DatePart
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import java.sql.Connection
-import java.sql.SQLException
 import java.time.Duration
-import javax.sql.DataSource
 
 /**
  * [EventLogPurge] over the PostgreSQL event log, run by the event-log component (INV-MOD-2748) on [purgeSource], its
@@ -22,7 +23,8 @@ import javax.sql.DataSource
  * [catalogue] names the topics in the result: a topic's key ([EventLogSchema.tableName]) is mapped back to its name.
  */
 class JdbcEventLogPurge(
-    private val purgeSource: DataSource,
+    private val eventLog: TenantScope,
+    private val dsl: DSLContext,
     catalogue: EventCatalogue,
 ) : EventLogPurge {
     private val names: Map<String, String> =
@@ -46,31 +48,24 @@ class JdbcEventLogPurge(
     override fun purge(): EventLogPurgeRun {
         val totals = LinkedHashMap<String, TopicPurge>()
         try {
-            purgeSource.connection.use { connection ->
-                // Each call is its own transaction whatever the pool defaults to; the deletes and the watermarks of one
-                // call commit together.
-                val wasAutoCommit = connection.autoCommit
-                connection.autoCommit = true
-                try {
-                    do {
-                        val batch = batch(connection)
-                        batch.forEach { purged ->
-                            totals.merge(purged.topic, purged) { first, later ->
-                                later.copy(rows = first.rows + later.rows, period = first.period, cutoff = first.cutoff)
-                            }
-                        }
-                    } while (batch.any { it.rows >= EventLogSchema.PURGE_BATCH_SIZE })
-                } finally {
-                    connection.autoCommit = wasAutoCommit
+            do {
+                // Each call is its own transaction: the deletes and the watermarks of one call commit together.
+                val batch = eventLog.platformTransaction { batch() }
+                batch.forEach { purged ->
+                    totals.merge(purged.topic, purged) { first, later ->
+                        later.copy(rows = first.rows + later.rows, period = first.period, cutoff = first.cutoff)
+                    }
                 }
-            }
-        } catch (failure: SQLException) {
+            } while (batch.any { it.rows >= EventLogSchema.PURGE_BATCH_SIZE })
+        } catch (failure: Exception) {
+            // jOOQ wraps the SQLException; the SQLSTATE is read through the runner (INV-Q-5121)
+            val state = eventLog.sqlErrors.sqlStateOf(failure) ?: throw failure
             LOG
                 .atError()
                 .setMessage("event-log purge failed")
-                .addKeyValue("sql_state", failure.sqlState)
+                .addKeyValue("sql_state", state)
                 .log()
-            throw EventBindingUnavailable("event log not purgeable: ${failure.sqlState}", failure)
+            throw EventBindingUnavailable("event log not purgeable: $state", failure)
         }
         if (totals.isEmpty()) {
             LOG
@@ -96,33 +91,26 @@ class JdbcEventLogPurge(
     }
 
     /** One `purge_batch()` call: one row per topic. */
-    private fun batch(connection: Connection): List<TopicPurge> =
-        connection
-            .prepareStatement(
-                """
-                select purged_topic, purged_content, extract(epoch from purged_period)::bigint, purged_cutoff, purged_rows,
-                    purged_watermark
-                from ${EventLogSchema.SCHEMA}.${EventLogSchema.PURGE_BATCH}()
-                """.trimIndent(),
-            ).use { statement ->
-                statement.executeQuery().use { rows ->
-                    buildList {
-                        while (rows.next()) {
-                            val key = rows.getString(1)
-                            add(
-                                TopicPurge(
-                                    topic = names[key] ?: key,
-                                    contentTopic = rows.getBoolean(2),
-                                    period = Duration.ofSeconds(rows.getLong(3)),
-                                    cutoff = rows.getTimestamp(4).toInstant(),
-                                    rows = rows.getLong(5),
-                                    watermark = rows.getLong(6),
-                                ),
-                            )
-                        }
-                    }
-                }
+    private fun batch(): List<TopicPurge> {
+        val purged = EventLogPurgeBatch()
+        // the period in whole seconds, as the function's interval
+        val seconds = DSL.extract(purged.period, DatePart.EPOCH).cast(SQLDataType.BIGINT)
+        return dsl
+            .select(purged.topic, purged.content, seconds, purged.cutoff, purged.rows, purged.watermark)
+            .from(purged)
+            .fetch()
+            .map { row ->
+                val key = row.get(purged.topic)
+                TopicPurge(
+                    topic = names[key] ?: key,
+                    contentTopic = row.get(purged.content),
+                    period = Duration.ofSeconds(checkNotNull(row.get(seconds))),
+                    cutoff = row.get(purged.cutoff).toInstant(),
+                    rows = row.get(purged.rows),
+                    watermark = row.get(purged.watermark),
+                )
             }
+    }
 
     private companion object {
         val LOG: Logger = LoggerFactory.getLogger(JdbcEventLogPurge::class.java)

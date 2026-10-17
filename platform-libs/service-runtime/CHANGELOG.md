@@ -6,6 +6,13 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [8.1.4] - 2026-10-18
+### Changed
+- `OutboxAndQueueWiring` (INV-T-5306, outbox-and-queue 6.0.0; coordinator ruling INV-Q-5275): builds the event-log
+  reader, the retention purge, the event-log purge and the staleness monitor on the event-log `TenantScope` (and the
+  module's `DSLContext`), so they get no `DataSource` and the lane gate hand-off of these beans is gone. `ConsumerRebuildRuntime` builds the module's `DSLContext` for `JdbcConsumerReplay`
+  (INV-Q-5956).
+
 ## [8.1.3] - 2026-10-18
 ### Changed
 - Metadata-only release (INV-T-6135, G-DVS): depends on `audit-log` 3.1.0, whose published module metadata changed; no code change.

@@ -6,6 +6,29 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.0.0] - 2026-10-17
+### Changed
+- BREAKING (INV-T-5306, slice 3 of 4 of INV-T-4202; owner ruling INV-Q-4196): the event-log reader, purge, staleness
+  monitor and replay classes run every statement as jOOQ on a tenancy-jooq `DSLContext` and take the `TenantScope` (the
+  event-log scope whose `TenantAwareDataSource` holds the lane gate) and the `DSLContext` instead of a `DataSource`:
+  `PostgresEventLogReader(eventLog, dsl)`, `JdbcEventLogPurge(eventLog, dsl, catalogue)`,
+  `JdbcRetentionPurge(scope, dsl, schema, retention, clock, batch)`,
+  `JdbcStalenessMonitor(scope, dsl, lag, catalogue, schema, rules, clock, sink)`; `JdbcReplayIntake` and
+  `JdbcReplayResponder` lose the claim `DataSource` (the claim is a jOOQ routine call in the scope). The SQLSTATE of a
+  failed statement is read through the scope's `sqlErrors` (`sqlStateOf`, INV-Q-5121), so `EventBindingUnavailable`
+  keeps its messages. `JdbcConsumerReplay(schema, dsl, head, outbox, clock)` takes the `DSLContext` in place of the
+  `CurrentConnection` and runs in the caller's open transaction.
+- `JooqRoutines` gains the event-log `claim` and `purge_batch` table functions and the `purge_expired`,
+  `full_sync_delete` and `read_model_clear` routine calls; `EventLogSchema.jooqTables` declares `claim`, `purge_batch`,
+  `purge_watermark` and `retention` (`PLATFORM_SCOPED`) and `EventLogSchema.writeRetention(dsl, retention)` is one jOOQ
+  statement; `OutboxSchema.jooqTables` declares `consumer_replay`, `consumer_replay_marker` and `consumer_source_seen`.
+- The read-model clear function that `OutboxSchema.readModelClearFunction(..., filterColumn)` generates takes `p_value text`
+  and converts it with `v := p_value` into a `<column>%type` variable before the blank check, so the filter reaches the
+  server as a text bind (no custom jOOQ binding); rows deleted and SQLSTATEs are as before. A consumer re-runs the
+  generated DDL; a column-typed overload already in a database stays and is not chosen.
+- Marker writes of `JdbcReplayIntake` go through tenancy-jooq, in a platform-bound transaction of their own, so a
+  `ReplayCompleted` event under any tenant records its marker as before.
+
 ## [5.0.1] - 2026-10-17
 ### Changed
 - Metadata-only release (INV-T-5358, G-DVS): depends on `tenancy-kernel` 3.2.0, whose published module metadata gained a jOOQ dependency; no code change.

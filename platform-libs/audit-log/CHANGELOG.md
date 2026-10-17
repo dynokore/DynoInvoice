@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [3.1.1] - 2026-10-18
+### Changed
+- Metadata-only release (INV-T-5306, G-DVS): depends on `service-runtime` 8.1.4 and `outbox-and-queue` 6.0.0; no code change.
+
 ## [3.1.0] - 2026-10-18
 ### Added
 - `OverrideListing.list(OverrideListQuery): OverrideListingResult`, implemented by `JdbcOverrideService`: the override register of an entity over a transaction-date range (grants with no date are returned in `undated`), the read audited in the same transaction as `listOverrides` (INV-T-6135, INV-REQ-1376, INV-AC-1329, INV-Q-6129 A).

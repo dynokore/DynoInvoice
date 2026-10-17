@@ -1,14 +1,15 @@
 package com.dynokore.platform.outboxandqueue
 
 import com.dynokore.platform.tenancykernel.SqlIdentifier
-import java.sql.Connection
+import org.jooq.DSLContext
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import java.time.Clock
 import java.time.Duration
-import javax.sql.DataSource
 
 /**
  * [StalenessMonitor] for the consumers of one service schema (INV-REQ-1165, INV-AC-2150). For each rule it reads
- * the consumer's offset (the runtime-login connection [offsetSource]; the offset table holds no tenant data)
+ * the consumer's offset (a platform-bound transaction of [scope], the runtime login, as jOOQ on [dsl]; the offset table holds no tenant data)
  * and asks the event log ([EventLogLag], through `eventlog.claim` only, coordinator ruling INV-Q-4264) for the oldest
  * record the consumer has not consumed and the offset lag. The lag is `now - inserted_at` of that
  * record, measured by the injected [Clock]; it is breached only when strictly greater than the threshold. A breach
@@ -18,7 +19,8 @@ import javax.sql.DataSource
  * The metric is returned as plain values: exporting it as a gauge is the composition root's job (service-runtime).
  */
 class JdbcStalenessMonitor(
-    private val offsetSource: DataSource,
+    private val scope: TenantScope,
+    private val dsl: DSLContext,
     private val lag: EventLogLag,
     catalogue: EventCatalogue,
     schema: String,
@@ -31,7 +33,7 @@ class JdbcStalenessMonitor(
         val topic: String,
     )
 
-    private val offsets = "${SqlIdentifier.require(schema, "schema")}.${OutboxSchema.CONSUMER_OFFSET}"
+    private val offsets = DSL.table(DSL.name(SqlIdentifier.require(schema, "schema"), OutboxSchema.CONSUMER_OFFSET))
     private val watched =
         rules.map { rule ->
             val entry = requireNotNull(catalogue.find(rule.eventType)) { "unknown event type ${rule.eventType}" }
@@ -46,16 +48,10 @@ class JdbcStalenessMonitor(
     }
 
     @Synchronized
-    override fun check(): List<ConsumerStaleness> =
-        offsetSource.connection.use { connection ->
-            watched.map { measure(connection, it) }
-        }
+    override fun check(): List<ConsumerStaleness> = scope.platformTransaction { watched.map { measure(it) } }
 
-    private fun measure(
-        connection: Connection,
-        w: Watched,
-    ): ConsumerStaleness {
-        val after = nextOffset(connection, w) - 1
+    private fun measure(w: Watched): ConsumerStaleness {
+        val after = nextOffset(w) - 1
         val backlog = lag.backlog(w.topic, after)
         val now = clock.instant()
         val age =
@@ -83,13 +79,17 @@ class JdbcStalenessMonitor(
         return result
     }
 
-    private fun nextOffset(
-        connection: Connection,
-        w: Watched,
-    ): Long =
-        connection.prepareStatement("select next_offset from $offsets where consumer = ? and topic = ?").use {
-            it.setString(1, w.rule.consumer)
-            it.setString(2, w.topic)
-            it.executeQuery().use { rows -> if (rows.next()) rows.getLong(1) else 1L }
-        }
+    private fun nextOffset(w: Watched): Long =
+        dsl
+            .select(NEXT_OFFSET)
+            .from(offsets)
+            .where(CONSUMER.eq(w.rule.consumer).and(TOPIC.eq(w.topic)))
+            .fetchOne()
+            ?.get(NEXT_OFFSET) ?: 1L
+
+    private companion object {
+        val CONSUMER = DSL.field(DSL.name("consumer"), SQLDataType.CLOB)
+        val TOPIC = DSL.field(DSL.name("topic"), SQLDataType.CLOB)
+        val NEXT_OFFSET = DSL.field(DSL.name("next_offset"), SQLDataType.BIGINT)
+    }
 }

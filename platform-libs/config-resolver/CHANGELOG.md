@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [4.0.6] - 2026-10-18
+### Changed
+- Metadata-only release (INV-T-5306, G-DVS): depends on `service-runtime` 8.1.4 and `outbox-and-queue` 6.0.0; no code change.
+
 ## [4.0.5] - 2026-10-18
 ### Changed
 - Metadata-only release (INV-T-6135, G-DVS): depends on `audit-log` 3.1.0, whose published module metadata changed; no code change.

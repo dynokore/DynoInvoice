@@ -9,6 +9,7 @@ import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.EventLogHead
 import com.dynokore.platform.outboxandqueue.JdbcConsumerReplay
 import com.dynokore.platform.outboxandqueue.MovedPosition
+import com.dynokore.platform.outboxandqueue.OutboxSchema
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.PendingReplay
 import com.dynokore.platform.outboxandqueue.ReadModelClear
@@ -16,6 +17,7 @@ import com.dynokore.platform.outboxandqueue.ReplayJson
 import com.dynokore.platform.outboxandqueue.ReplayMode
 import com.dynokore.platform.outboxandqueue.ReplayRequest
 import com.dynokore.platform.outboxandqueue.TenantScope
+import com.dynokore.platform.tenancyjooq.TenancyJooq
 import com.dynokore.platform.tenancykernel.SqlErrors
 import com.dynokore.platform.tenancykernel.TenantId
 import tools.jackson.databind.ObjectMapper
@@ -76,7 +78,14 @@ class ConsumerRebuildRuntime
             outbox: OutboxWriter,
             val audit: AuditWriter,
         ) {
-            val replay = JdbcConsumerReplay(schema, scope.connections, head, outbox, clock)
+            val replay =
+                JdbcConsumerReplay(
+                    schema,
+                    TenancyJooq.dslContext(OutboxSchema.jooqTables(schema), scope.tenants, scope.transactions),
+                    head,
+                    outbox,
+                    clock,
+                )
 
             /** The operator's command under the platform tenant, bound to the operator's `sub` (INV-Q-4268, INV-T-3981 line 7). */
             fun <T> platformTransaction(

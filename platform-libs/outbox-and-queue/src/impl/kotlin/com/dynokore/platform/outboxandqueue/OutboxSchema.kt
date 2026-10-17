@@ -148,6 +148,9 @@ object OutboxSchema {
             DSL.name(s, DEAD_LETTER) to TableClass.TENANT,
             DSL.name(s, CONSUMER_SEQUENCE) to TableClass.TENANT,
             DSL.name(s, CONSUMER_OFFSET) to TableClass.PLATFORM_SCOPED,
+            DSL.name(s, CONSUMER_REPLAY) to TableClass.PLATFORM_SCOPED,
+            DSL.name(s, CONSUMER_REPLAY_MARKER) to TableClass.PLATFORM_SCOPED,
+            DSL.name(s, CONSUMER_SOURCE_SEEN) to TableClass.PLATFORM_SCOPED,
         ) + QueueSchema.jooqTables(s)
     }
 
@@ -796,7 +799,8 @@ object OutboxSchema {
      * The read-model clear of a full sync (coordinator rulings INV-Q-3786, INV-Q-4064), for the consuming service's own
      * migration, once per read-model [table] its consumer builds: creates the SECURITY DEFINER function
      * `<schema>.<table>_full_sync_clear` ([readModelClearFunctionName]), owned by [sysRole], from a fixed template.
-     * - With [filterColumn], it takes one argument of that column's type and deletes, across every tenant, the rows whose
+     * - With [filterColumn], it takes one `text` argument, converted to that column's type by the server's input
+     *   conversion as an untyped literal is (an invalid value fails with that type's SQLSTATE), and deletes, across every tenant, the rows whose
      *   [filterColumn] equals it; a null or blank argument is refused. Without one, it takes none and deletes every row.
      * - Static SQL, `SET search_path = pg_catalog, <schema>, pg_temp`, EXECUTE revoked from PUBLIC and granted to
      *   [runtimeRole] only. The table's `DELETE` policy and the column `SELECT` of [filterColumn] target [sysRole] only;
@@ -889,23 +893,25 @@ object OutboxSchema {
             grant delete on $s.$t to $sys;
             create policy $selectPolicy on $s.$t for select to $sys using (true);
             grant select ($column) on $s.$t to $sys;
-            create or replace function $s.$name(p_value $s.$t.$column%type) returns bigint
+            create or replace function $s.$name(p_value text) returns bigint
             language plpgsql security definer set search_path = pg_catalog, $s, pg_temp as $$
             declare
                 deleted bigint;
+                v $s.$t.$column%type;
             begin
+                v := p_value;
                 if p_value is null or p_value::text ~ '${BlankText.SQL_BLANK}' then
                     raise exception 'the filter value of $s.$t must not be blank' using errcode = '22023';
                 end if;
-                delete from $s.$t where $column = p_value;
+                delete from $s.$t where $column = v;
                 get diagnostics deleted = row_count;
                 return deleted;
             end
             $$;
             grant create on schema $s to $sys;
-            alter function $s.$name($s.$t.$column%type) owner to $sys;
-            revoke all on function $s.$name($s.$t.$column%type) from public;
-            grant execute on function $s.$name($s.$t.$column%type) to $runtime;
+            alter function $s.$name(text) owner to $sys;
+            revoke all on function $s.$name(text) from public;
+            grant execute on function $s.$name(text) to $runtime;
             revoke create on schema $s from $sys;
             """.trimIndent()
     }

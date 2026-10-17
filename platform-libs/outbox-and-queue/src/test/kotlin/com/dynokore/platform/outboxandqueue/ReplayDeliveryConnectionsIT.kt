@@ -2,6 +2,7 @@ package com.dynokore.platform.outboxandqueue
 
 import com.dynokore.platform.tenancykernel.TenantContextImpl
 import com.dynokore.platform.tenancykernel.TenantId
+import org.jooq.impl.DSL
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertThrows
@@ -214,21 +215,18 @@ class ReplayDeliveryConnectionsIT {
             // three rejected envelopes, one letter each: consumer, topic, replay offset 0, tenant, reason, raw
             assertEquals(3, d.letters())
             val rows =
-                harness.fixture.adminDataSource().connection.use { c ->
-                    c
-                        .prepareStatement(
-                            "select consumer, topic, log_offset, tenant_id, reason, raw " +
-                                "from submission.event_dead_letter order by id",
-                        ).use { st ->
-                            st.executeQuery().use { rs ->
-                                buildList {
-                                    while (rs.next()) {
-                                        add((1..6).map { rs.getObject(it) })
-                                    }
-                                }
-                            }
-                        }
-                }
+                (
+                    listOf(tenantA, tenantB).flatMap {
+                        harness.rowsIn(
+                            it,
+                            "select id, consumer, topic, log_offset, tenant_id, reason, raw " +
+                                "from submission.event_dead_letter",
+                        )
+                    } + platformLetters(harness)
+                ).sortedBy { it.getValue("id") as Long }
+                    .map { row ->
+                        listOf("consumer", "topic", "log_offset", "tenant_id", "reason", "raw").map { row[it] }
+                    }
             val reasons = rows.map { it[4] as String }
             assertEquals(listOf("{not json", incomplete), rows.take(2).map { it[5] })
             assertEquals(listOf(d.consumer, d.topic, 0L), rows.map { it.take(3) }.distinct().single())
@@ -236,6 +234,23 @@ class ReplayDeliveryConnectionsIT {
             assertEquals("replayed envelope is for another tenant", reasons[2])
             assertEquals(tenantB, rows[2][3]) // the letter carries the envelope's own tenant
         }
+    }
+
+    /** The letters of an unreadable envelope, which names no tenant: the platform tenant's, read by the owner login. */
+    private fun platformLetters(harness: OutboxHarness): List<Map<String, Any?>> {
+        val letter = DSL.table(DSL.name("submission", OutboxSchema.DEAD_LETTER))
+        val columns = listOf("id", "consumer", "topic", "log_offset", "tenant_id", "reason", "raw")
+        val fields = columns.map { DSL.field(DSL.name(it)) }
+        return JooqKit.Access
+            .owner(harness.fixture, OutboxSchema.jooqTables("submission"))
+            .single()
+            .asPlatform { dsl ->
+                dsl
+                    .select(fields)
+                    .from(letter)
+                    .fetch()
+                    .map { row -> columns.zip(row.intoList()).toMap() }
+            }
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")

@@ -2,9 +2,11 @@ package com.dynokore.platform.outboxandqueue
 
 import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantId
-import java.sql.Connection
+import org.jooq.DSLContext
+import org.jooq.Table
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import java.time.Clock
-import javax.sql.DataSource
 
 /**
  * The producer side of the replay protocol (INV-REQ-1205 b4; rulings INV-Q-3599, INV-Q-3601, INV-Q-3625, INV-Q-3644,
@@ -25,9 +27,10 @@ import javax.sql.DataSource
  * A request the service cannot answer (not a valid ReplayRequested, from another service than the topic's consumer, or
  * for a pair without a replay topic) is dead-lettered as a consumer's invalid record is, and the run moves on.
  *
- * @param claimSource the service's runtime login outside any tenant transaction: positions, dead letters (through
- *   [OutboxSchema.DEAD_LETTER_RECORD]) and the per-topic transaction advisory lock, held by a transaction that spans
- *   the topic's run (INV-ADR-3968 item 9).
+ * Every statement is jOOQ on [dsl] (INV-T-5306): [scope] is the service's runtime login. Positions, dead letters
+ * (through [OutboxSchema.DEAD_LETTER_RECORD]) and the per-topic transaction advisory lock (a jOOQ function call, held by
+ * a transaction under the platform binding that spans the topic's run, INV-ADR-3968 item 9) each use a connection of
+ * their own, outside any open transaction.
  */
 class JdbcReplayResponder
     @JvmOverloads
@@ -36,8 +39,8 @@ class JdbcReplayResponder
         schema: String,
         private val catalogue: EventCatalogue,
         private val reader: EventLogReader,
-        private val claimSource: DataSource,
         private val scope: TenantScope,
+        private val dsl: DSLContext,
         private val writer: JdbcOutboxWriter,
         sources: Collection<ReplayStateSource>,
         private val sink: RebuildRequiredSink,
@@ -45,7 +48,9 @@ class JdbcReplayResponder
         private val pageSize: Int = DEFAULT_PAGE,
     ) {
         private val s = SqlIdentifier.require(schema, "schema")
-        private val offsets = "$s.${OutboxSchema.CONSUMER_OFFSET}"
+        private val offsets: Table<*> = DSL.table(DSL.name(s, OutboxSchema.CONSUMER_OFFSET))
+        private val inbox: Table<*> = DSL.table(DSL.name(s, OutboxSchema.INBOX))
+        private val storedNext = DSL.field(DSL.name(s, OutboxSchema.CONSUMER_OFFSET, "next_offset"), SQLDataType.BIGINT)
         private val sourcesByType = sources.associateBy { it.eventType }
         private val envelopes = EnvelopeJson()
         private val json = ReplayJson()
@@ -60,20 +65,16 @@ class JdbcReplayResponder
         @Synchronized
         fun runOnce(): List<ReplayAnswer> =
             catalogue.requestTopicsReadBy(service).flatMap { topic ->
-                claimSource.connection.use { lock ->
-                    val wasAutoCommit = lock.autoCommit
-                    lock.autoCommit = false
-                    try {
-                        if (tryLock(lock, topic.topic)) drain(topic) else emptyList()
-                    } finally {
-                        lock.rollback() // ends the lock transaction and with it the lock; it wrote nothing
-                        lock.autoCommit = wasAutoCommit
+                // the lock transaction writes nothing; its end releases the lock
+                scope.bindWorkload(TenantId.PLATFORM) {
+                    scope.transactions.inTransaction {
+                        if (tryLock(topic.topic)) drain(topic) else emptyList()
                     }
                 }
             }
 
         private fun drain(topic: ReplayRequestTopic): List<ReplayAnswer> {
-            val next = claimSource.connection.use { position(it, topic.topic) }
+            val next = position(topic.topic)
             val records =
                 try {
                     reader.read(topic.topic, next - 1, BATCH)
@@ -169,92 +170,80 @@ class JdbcReplayResponder
             complete: () -> Unit,
         ): Boolean =
             inTenant(TenantId.PLATFORM) {
-                val connection = scope.connections.require()
-                if (record.offset < lockOffset(connection, topic)) return@inTenant false
-                val claimed = claimInbox(connection, envelope)
+                if (record.offset < lockOffset(topic)) return@inTenant false
+                val claimed = claimInbox(envelope)
                 if (claimed) complete()
-                advance(connection, topic, record.offset)
+                advance(topic, record.offset)
                 claimed
             }
 
         private fun isDuplicate(envelope: Envelope): Boolean =
             inTenant(TenantId.PLATFORM) {
-                scope.connections
-                    .require()
-                    .prepareStatement(
-                        "select 1 from $s.${OutboxSchema.INBOX} where consumer = ? and event_id = ?",
-                    ).use {
-                        it.setString(1, service)
-                        it.setString(2, envelope.id.value)
-                        it.executeQuery().use { rows -> rows.next() }
-                    }
+                dsl
+                    .selectOne()
+                    .from(inbox)
+                    .where(CONSUMER.eq(service).and(EVENT_ID.eq(envelope.id.value)))
+                    .fetchOne() != null
             }
 
+        /** [block] in a transaction of its own bound to [tenant], on a connection of its own. */
         private fun <T> inTenant(
             tenant: TenantId,
             block: () -> T,
-        ): T = scope.bindWorkload(tenant) { scope.transactions.inTransaction(block) }
-
-        private fun claimInbox(
-            connection: Connection,
-            envelope: Envelope,
-        ): Boolean =
-            connection
-                .prepareStatement(
-                    "insert into $s.${OutboxSchema.INBOX} (consumer, event_id, tenant_id) values (?, ?, ?) on conflict do nothing",
-                ).use {
-                    it.setString(1, service)
-                    it.setString(2, envelope.id.value)
-                    it.setObject(3, envelope.tenant.value)
-                    it.executeUpdate() == 1
-                }
-
-        private fun position(
-            connection: Connection,
-            topic: String,
-        ): Long =
-            connection.prepareStatement("select next_offset from $offsets where consumer = ? and topic = ?").use {
-                it.setString(1, service)
-                it.setString(2, topic)
-                it.executeQuery().use { rows -> if (rows.next()) rows.getLong(1) else FIRST_OFFSET }
+        ): T =
+            scope.transactions.outsideOpenTransaction {
+                scope.bindWorkload(tenant) { scope.transactions.inTransaction(block) }
             }
 
-        private fun lockOffset(
-            connection: Connection,
-            topic: String,
-        ): Long {
-            connection
-                .prepareStatement(
-                    "insert into $offsets (consumer, topic, next_offset) values (?, ?, $FIRST_OFFSET) on conflict do nothing",
-                ).use {
-                    it.setString(1, service)
-                    it.setString(2, topic)
-                    it.executeUpdate()
-                }
-            return connection
-                .prepareStatement(
-                    "select next_offset from $offsets where consumer = ? and topic = ? for update",
-                ).use {
-                    it.setString(1, service)
-                    it.setString(2, topic)
-                    it.executeQuery().use { rows ->
-                        check(rows.next()) { "offset row missing" }
-                        rows.getLong(1)
-                    }
-                }
+        private fun claimInbox(envelope: Envelope): Boolean =
+            dsl
+                .insertInto(inbox, CONSUMER, EVENT_ID, TENANT_ID)
+                .values(
+                    DSL.`val`(service, SQLDataType.CLOB),
+                    DSL.`val`(envelope.id.value, SQLDataType.CLOB),
+                    DSL.`val`(envelope.tenant.value, SQLDataType.UUID),
+                ).onConflictDoNothing()
+                .execute() == 1
+
+        /** The service's position on [topic], in a transaction of its own (the offset table holds no tenant data). */
+        private fun position(topic: String): Long =
+            scope.platformTransaction {
+                dsl
+                    .select(NEXT_OFFSET)
+                    .from(offsets)
+                    .where(CONSUMER.eq(service).and(TOPIC.eq(topic)))
+                    .fetchOne()
+                    ?.get(NEXT_OFFSET) ?: FIRST_OFFSET
+            }
+
+        private fun lockOffset(topic: String): Long {
+            dsl
+                .insertInto(offsets, CONSUMER, TOPIC, NEXT_OFFSET)
+                .values(
+                    DSL.`val`(service, SQLDataType.CLOB),
+                    DSL.`val`(topic, SQLDataType.CLOB),
+                    DSL.`val`(FIRST_OFFSET, SQLDataType.BIGINT),
+                ).onConflictDoNothing()
+                .execute()
+            val row =
+                dsl
+                    .select(NEXT_OFFSET)
+                    .from(offsets)
+                    .where(CONSUMER.eq(service).and(TOPIC.eq(topic)))
+                    .forUpdate()
+                    .fetchOne()
+            return checkNotNull(row) { "offset row missing" }.get(NEXT_OFFSET)
         }
 
         private fun advance(
-            connection: Connection,
             topic: String,
             offset: Long,
         ) {
-            connection.prepareStatement("update $offsets set next_offset = ? where consumer = ? and topic = ?").use {
-                it.setLong(1, offset + 1)
-                it.setString(2, service)
-                it.setString(3, topic)
-                it.executeUpdate()
-            }
+            dsl
+                .update(offsets)
+                .set(NEXT_OFFSET, DSL.`val`(offset + 1, SQLDataType.BIGINT))
+                .where(CONSUMER.eq(service).and(TOPIC.eq(topic)))
+                .execute()
         }
 
         /**
@@ -266,41 +255,44 @@ class JdbcReplayResponder
             record: LogRecord,
             reason: String,
         ) {
-            claimSource.connection.use { connection ->
-                connection.autoCommit = false
-                connection.prepareStatement("select $s.${OutboxSchema.DEAD_LETTER_RECORD}(?, ?, ?, ?, ?, ?)").use {
-                    it.setString(1, service)
-                    it.setString(2, topic)
-                    it.setLong(3, record.offset)
-                    it.setObject(4, envelopes.tenantOf(record.envelopeJson)?.value, java.sql.Types.OTHER)
-                    it.setString(5, reason)
-                    it.setString(6, record.envelopeJson)
-                    it.executeQuery().close()
-                }
-                connection
-                    .prepareStatement(
-                        "insert into $offsets (consumer, topic, next_offset) values (?, ?, ?) " +
-                            "on conflict (consumer, topic) do update set next_offset = greatest($offsets.next_offset, excluded.next_offset)",
-                    ).use {
-                        it.setString(1, service)
-                        it.setString(2, topic)
-                        it.setLong(3, record.offset + 1)
-                        it.executeUpdate()
-                    }
-                connection.commit()
+            scope.platformTransaction {
+                val letter =
+                    DSL.function(
+                        DSL.name(s, OutboxSchema.DEAD_LETTER_RECORD),
+                        SQLDataType.OTHER,
+                        DSL.`val`(service, SQLDataType.CLOB),
+                        DSL.`val`(topic, SQLDataType.CLOB),
+                        DSL.`val`(record.offset, SQLDataType.BIGINT),
+                        DSL.`val`(envelopes.tenantOf(record.envelopeJson)?.value, SQLDataType.UUID),
+                        DSL.`val`(reason, SQLDataType.CLOB),
+                        DSL.`val`(record.envelopeJson, SQLDataType.CLOB),
+                    )
+                dsl.select(letter).fetch()
+                dsl
+                    .insertInto(offsets, CONSUMER, TOPIC, NEXT_OFFSET)
+                    .values(
+                        DSL.`val`(service, SQLDataType.CLOB),
+                        DSL.`val`(topic, SQLDataType.CLOB),
+                        DSL.`val`(record.offset + 1, SQLDataType.BIGINT),
+                    ).onConflict(CONSUMER, TOPIC)
+                    .doUpdate()
+                    .set(NEXT_OFFSET, DSL.greatest(storedNext, DSL.excluded(NEXT_OFFSET)))
+                    .execute()
             }
         }
 
-        private fun tryLock(
-            connection: Connection,
-            topic: String,
-        ): Boolean =
-            connection.prepareStatement("select pg_try_advisory_xact_lock(hashtext(?))").use {
-                it.setString(1, "$s/replay-responder/$topic")
-                it.executeQuery().use { rows -> rows.next() && rows.getBoolean(1) }
-            }
+        /** The per-topic transaction advisory lock, a jOOQ function call; false when another run holds it. */
+        private fun tryLock(topic: String): Boolean {
+            val lock = JooqRoutines.tryAdvisoryXactLock("$s/replay-responder/$topic")
+            return dsl.select(lock).fetchSingle().get(lock) == true
+        }
 
         private companion object {
+            val CONSUMER = DSL.field(DSL.name("consumer"), SQLDataType.CLOB)
+            val TOPIC = DSL.field(DSL.name("topic"), SQLDataType.CLOB)
+            val NEXT_OFFSET = DSL.field(DSL.name("next_offset"), SQLDataType.BIGINT)
+            val EVENT_ID = DSL.field(DSL.name("event_id"), SQLDataType.CLOB)
+            val TENANT_ID = DSL.field(DSL.name("tenant_id"), SQLDataType.UUID)
             const val FIRST_OFFSET = 1L
             const val BATCH = 20
             const val DEFAULT_PAGE = 200

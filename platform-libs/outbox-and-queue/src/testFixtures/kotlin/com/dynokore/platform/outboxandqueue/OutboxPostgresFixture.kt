@@ -1,8 +1,15 @@
 package com.dynokore.platform.outboxandqueue
 
+import com.dynokore.platform.tenancyjooq.TableClass
+import com.dynokore.platform.tenancyjooq.TenancyJooq
+import com.dynokore.platform.tenancyjooq.TenancyProbe
 import com.dynokore.platform.tenancykernel.TenantAwareDataSource
 import com.dynokore.platform.tenancykernel.TenantContextImpl
+import com.dynokore.platform.tenancykernel.TestPoolFixture
 import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
+import org.jooq.DSLContext
+import org.jooq.Name
+import org.jooq.impl.DSL
 import org.postgresql.ds.PGSimpleDataSource
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.utility.DockerImageName
@@ -67,20 +74,78 @@ class OutboxPostgresFixture(
         rules: List<StalenessRule>,
         clock: java.time.Clock,
         sink: StalenessBreachSink,
-    ): JdbcStalenessMonitor =
-        JdbcStalenessMonitor(
-            runtimeDataSource(),
-            PostgresEventLogReader(eventLogDataSource(), eventLogScope(TenantContextImpl())),
+    ): JdbcStalenessMonitor {
+        val scope = eventLogScope(TenantContextImpl())
+        return JdbcStalenessMonitor(
+            scope,
+            TenancyJooq.dslContext(OutboxSchema.jooqTables(schema), scope.tenants, scope.transactions),
+            eventLogReader(),
             catalogue,
             schema,
             rules,
             clock,
             sink,
         )
+    }
 
     /** An event-log reader over this fixture's own pools (route R3); it takes and returns no JDBC type. */
-    fun eventLogReader(): PostgresEventLogReader =
-        PostgresEventLogReader(eventLogDataSource(), eventLogScope(TenantContextImpl()))
+    fun eventLogReader(): PostgresEventLogReader {
+        val scope = eventLogScope(TenantContextImpl())
+        return PostgresEventLogReader(scope, eventLogDsl(scope))
+    }
+
+    /** An event-log reader on a fixture consumer's own login [role] (its replay topics, INV-Q-3601); route R3. */
+    fun eventLogReaderFor(role: String): PostgresEventLogReader {
+        val scope = eventLogScope(TenantContextImpl(), roleDataSource(role))
+        return PostgresEventLogReader(
+            scope,
+            TenancyJooq.dslContext(eventLogTables(role, "${role}_pw"), scope.tenants, scope.transactions),
+        )
+    }
+
+    /**
+     * The event log's DSLContext over [scope]'s own runner with the tables [eventLogTables] finds (route R3): the
+     * topic tables the runtime login can see, and the event log's functions and tenantless tables.
+     */
+    fun eventLogDsl(scope: TenantScope): DSLContext =
+        TenancyJooq.dslContext(eventLogTables(), scope.tenants, scope.transactions)
+
+    /**
+     * The event log's tables as the production wiring declares them ([EventLogSchema.jooqTables]), the topic tables
+     * taken from the catalog as the runtime login [APP] sees it (route R5): a topic table is every `eventlog` table of
+     * that login which is not one of the event log's tenantless tables.
+     */
+    fun eventLogTables(
+        login: String = APP,
+        password: String = APP_PASSWORD,
+    ): Map<Name, TableClass> {
+        val tenantless = EventLogSchema.platformScopedTables().map { it.substringAfter('.') }.toSet()
+        val tables =
+            TenancyProbe.connect(jdbcUrl(), login, password).unbound {
+                fetchRows(
+                    "select table_name from information_schema.tables where table_schema = ?",
+                    EventLogSchema.SCHEMA,
+                ).map { it["table_name"] as String }
+            }
+        return EventLogSchema.jooqTables(emptyList()) +
+            tables.filter { it !in tenantless }.associate { DSL.name(EventLogSchema.SCHEMA, it) to TableClass.TENANT }
+    }
+
+    /**
+     * Writes the event log's retention row as the migration login [MIGRATE] does, with [EventLogSchema.writeRetention]
+     * on its own pool, runner and DSLContext (route R4), in one transaction under the platform binding.
+     */
+    fun writeRetention(retention: Retention = Retention()) {
+        val tenants = TenantContextImpl()
+        val pool = TestPoolFixture(jdbcUrl(), MIGRATE, MIGRATE_PASSWORD, poolName = MIGRATE)
+        try {
+            val runner = pool.runner(tenants, null)
+            val dsl = TenancyJooq.dslContext(EventLogSchema.jooqTables(emptyList()), tenants, runner)
+            tenants.bindPlatform(WORKLOAD) { runner.inTransaction { EventLogSchema.writeRetention(dsl, retention) } }
+        } finally {
+            pool.close()
+        }
+    }
 
     /** The URL of the second database [HA_DATABASE] of the same instance (see [haEventLogInitSql]). */
     fun haEventLogUrl(): String = jdbcUrl().substringBefore("?").substringBeforeLast('/') + "/" + HA_DATABASE
@@ -162,7 +227,7 @@ class OutboxPostgresFixture(
         runEventLog(EventLogSchema.schemaDdl(EVENTLOG_SYS))
         topics.forEach { runEventLog(EventLogSchema.topicDdl(it, EVENTLOG_SYS)) }
         runEventLog(EventLogSchema.functionsDdl(topics, EVENTLOG_SYS, PURGE))
-        migrateDataSource().connection.use { EventLogSchema.writeRetention(it, retention) }
+        writeRetention(retention)
     }
 
     /** The event-log topics [createTopics] creates for [catalogue]. */

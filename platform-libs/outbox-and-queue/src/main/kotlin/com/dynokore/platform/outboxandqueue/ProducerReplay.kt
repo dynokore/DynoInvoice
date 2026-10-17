@@ -187,8 +187,9 @@ data class ReadModelClear(
 }
 
 /**
- * One read-model [table] of a [ReadModelClear]: [filterValue] is the value its clear function deletes by (the function
- * was created with a filter column), or `null` when that function clears the whole table (created without one).
+ * One read-model [table] of a [ReadModelClear]: [filterValue] is the value its clear function deletes by (the
+ * function was created with a filter column; it takes the value as `text` and converts it to the column's type),
+ * or `null` when that function clears the whole table (created without one).
  */
 data class ReadModelTable(
     val table: String,

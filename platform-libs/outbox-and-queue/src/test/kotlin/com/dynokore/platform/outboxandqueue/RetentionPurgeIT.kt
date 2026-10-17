@@ -1,6 +1,11 @@
 package com.dynokore.platform.outboxandqueue
 
+import com.dynokore.platform.tenancykernel.TenantContextImpl
+import org.jooq.DSLContext
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Tag
@@ -8,10 +13,10 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import java.sql.Connection
-import java.sql.SQLException
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
 import java.util.UUID
@@ -25,6 +30,7 @@ class RetentionPurgeIT {
     private val clock = Clock.fixed(now, ZoneOffset.UTC)
     private val tenantA = UUID.fromString("00000000-0000-0000-0000-00000000000a")
     private val tenantB = UUID.fromString("00000000-0000-0000-0000-00000000000b")
+    private val platform = "ffffffff-ffff-ffff-ffff-ffffffffffff"
 
     @Test
     fun `periods default to 30 days and are refused below 7`() {
@@ -44,7 +50,12 @@ class RetentionPurgeIT {
         harness: OutboxHarness,
         retention: Retention,
         batchSize: Int = 1000,
-    ) = JdbcRetentionPurge(harness.fixture.runtimeDataSource(), "payload", retention, clock, batchSize)
+        source: DataSource = harness.fixture.runtimeDataSource(),
+    ): JdbcRetentionPurge {
+        val scope = harness.fixture.eventLogScope(TenantContextImpl(), source)
+        val dsl = JooqKit.module("payload", scope.tenants, scope.transactions)
+        return JdbcRetentionPurge(scope, dsl, "payload", retention, clock, batchSize)
+    }
 
     /** A pool that hands out connections with autocommit off, as Hikari can be configured to. */
     private fun manualCommit(source: DataSource): DataSource =
@@ -52,18 +63,46 @@ class RetentionPurgeIT {
             override fun getConnection(): Connection = source.connection.also { it.autoCommit = false }
         }
 
+    private fun tables() = OutboxSchema.jooqTables("payload")
+
+    private fun at(instant: Instant): OffsetDateTime = OffsetDateTime.ofInstant(instant, ZoneOffset.UTC)
+
+    /**
+     * An outbox row of [tenant] written by the runtime login under that tenant (route R4), with `event_time` 400 days
+     * old from the start, so no superuser rewrite of a published row is needed (publish-once trigger, INV-Q-4334).
+     */
     private fun outbox(
         harness: OutboxHarness,
         id: String,
         tenant: UUID,
         publishedDaysAgo: Long?,
     ) {
-        val published = publishedDaysAgo?.let { "timestamptz '$now' - interval '$it days'" } ?: "null"
-        harness.fixture.runAsAdmin(
-            """insert into payload.outbox (id, topic, type, source, subject, event_time, tenant_id, entity_ref,
-            instance_id, correlation_id, causation_id, data, published_at)
-            values ('$id', 't', 'ty', 's', 'sub', now(), '$tenant', 'e', 'i', 'c', 'c', '{}', $published)""",
-        )
+        val published = publishedDaysAgo?.let { at(now.minus(it, ChronoUnit.DAYS)) }
+        val text = SQLDataType.CLOB
+        JooqKit.Access.runtime(harness.fixture, tables()).single().asTenant(tenant) {
+            JooqKit.insert(
+                it,
+                "payload",
+                OutboxSchema.OUTBOX,
+                JooqKit.Col("id", text, id),
+                JooqKit.Col("topic", text, "t"),
+                JooqKit.Col("type", text, "ty"),
+                JooqKit.Col("source", text, "s"),
+                JooqKit.Col("subject", text, "sub"),
+                JooqKit.Col(
+                    "event_time",
+                    SQLDataType.TIMESTAMPWITHTIMEZONE,
+                    at(Instant.now().minus(400, ChronoUnit.DAYS)),
+                ),
+                JooqKit.Col("tenant_id", SQLDataType.UUID, tenant),
+                JooqKit.Col("entity_ref", text, "e"),
+                JooqKit.Col("instance_id", text, "i"),
+                JooqKit.Col("correlation_id", text, "c"),
+                JooqKit.Col("causation_id", text, "c"),
+                JooqKit.ExprCol("data", SQLDataType.JSONB, DSL.jsonbObject()),
+                JooqKit.Col("published_at", SQLDataType.TIMESTAMPWITHTIMEZONE, published),
+            )
+        }
     }
 
     private fun inbox(
@@ -71,23 +110,28 @@ class RetentionPurgeIT {
         id: String,
         tenant: UUID,
         hoursAgo: Long,
-    ) = harness.fixture.runAsAdmin(
-        "insert into payload.inbox (consumer, event_id, tenant_id, received_at) values " +
-            "('c', '$id', '$tenant', timestamptz '$now' - interval '$hoursAgo hours')",
-    )
+    ) = JooqKit.Access.runtime(harness.fixture, tables()).single().asTenant(tenant) {
+        JooqKit.insert(
+            it,
+            "payload",
+            OutboxSchema.INBOX,
+            JooqKit.Col("consumer", SQLDataType.CLOB, "c"),
+            JooqKit.Col("event_id", SQLDataType.CLOB, id),
+            JooqKit.Col("tenant_id", SQLDataType.UUID, tenant),
+            JooqKit.Col("received_at", SQLDataType.TIMESTAMPWITHTIMEZONE, at(now.minus(hoursAgo, ChronoUnit.HOURS))),
+        )
+    }
 
+    /** The values of [column] in `payload.table`, read per tenant by the runtime login (RLS: own rows only). */
     private fun ids(
         harness: OutboxHarness,
         table: String,
         column: String,
     ): Set<String> =
-        harness.fixture.adminDataSource().connection.use { c ->
-            c.createStatement().use { st ->
-                st.executeQuery("select $column from payload.$table").use { rs ->
-                    buildSet { while (rs.next()) add(rs.getString(1)) }
-                }
-            }
-        }
+        listOf(tenantA, tenantB)
+            .flatMap { tenant -> harness.rowsIn(tenant, "select $column from payload.$table") }
+            .map { it.getValue(column) as String }
+            .toSet()
 
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
@@ -97,13 +141,6 @@ class RetentionPurgeIT {
             outbox(harness, "old-b", tenantB, 40)
             outbox(harness, "recent", tenantA, 29)
             outbox(harness, "unpublished-ancient", tenantA, null)
-            // Rows are never rewritten (publish-once trigger, INV-Q-4334): the administrator ages them with
-            // triggers off for its own session only.
-            harness.fixture.runAsAdmin(
-                "set session_replication_role = replica; " +
-                    "update payload.outbox set event_time = now() - interval '400 days'; " +
-                    "reset session_replication_role",
-            )
             val purge = purger(harness, Retention(), 1)
             assertEquals(PurgeResult(outboxRows = 2, inboxRows = 0), purge.purge())
             assertEquals(setOf("recent", "unpublished-ancient"), ids(harness, "outbox", "id"))
@@ -155,36 +192,29 @@ class RetentionPurgeIT {
             outbox(harness, "unpublished", tenantA, null)
             outbox(harness, "published", tenantA, 1)
             outbox(harness, "expired", tenantB, 40)
-            harness.fixture.runtimeDataSource().connection.use { c ->
-                c.createStatement().use {
-                    assertThrows(SQLException::class.java) { it.executeUpdate("delete from payload.outbox") }
-                }
-                c.createStatement().use {
-                    it.execute("select set_config('app.tenant_id', '$tenantA', false)")
-                    assertThrows(SQLException::class.java) { it.executeUpdate("delete from payload.outbox") }
-                    assertThrows(SQLException::class.java) { it.executeUpdate("delete from payload.inbox") }
-                    assertThrows(SQLException::class.java) { it.executeUpdate("delete from payload.event_dead_letter") }
-                }
-                // The floor is in SQL: a cut-off later than now - 7 days (8 for the inbox) is refused.
-                listOf("outbox_purge_expired", "event_dead_letter_purge_expired").forEach { function ->
-                    assertThrows(SQLException::class.java, {
-                        c.createStatement().use {
-                            it.executeQuery("select payload.$function(now() - interval '6 days', 10)")
-                        }
-                    }, function)
-                }
-                assertThrows(SQLException::class.java) {
-                    c.createStatement().use {
-                        it.executeQuery("select payload.inbox_purge_expired(now() - interval '7 days', 10)")
-                    }
-                }
-                c.createStatement().use {
-                    it.executeQuery("select payload.outbox_purge_expired(now() - interval '7 days', 10)").use { rows ->
-                        rows.next()
-                        assertEquals(1, rows.getLong(1), "only the expired published row, of any tenant")
-                    }
-                }
+            val app = OutboxPostgresFixture.APP
+            val pw = OutboxPostgresFixture.APP_PASSWORD
+
+            fun refused(
+                sql: String,
+                tenant: UUID? = null,
+            ) = assertNotNull(JooqKit.refusal(harness.fixture, app, pw, sql, tenant), sql)
+            refused("delete from payload.outbox returning 1")
+            refused("delete from payload.outbox returning 1", tenantA)
+            refused("delete from payload.inbox returning 1", tenantA)
+            refused("delete from payload.event_dead_letter returning 1", tenantA)
+            // The floor is in SQL: a cut-off later than now - 7 days (8 for the inbox) is refused.
+            listOf("outbox_purge_expired", "event_dead_letter_purge_expired").forEach { function ->
+                refused("select payload.$function(now() - interval '6 days', 10)")
             }
+            refused("select payload.inbox_purge_expired(now() - interval '7 days', 10)")
+            val expired =
+                harness.rowsUnboundAs(
+                    app,
+                    pw,
+                    "select payload.outbox_purge_expired(now() - interval '7 days', 10) as n",
+                )
+            assertEquals(1L, expired.single().getValue("n"), "only the expired published row, of any tenant")
             assertEquals(setOf("unpublished", "published"), ids(harness, "outbox", "id"))
         }
     }
@@ -198,7 +228,7 @@ class RetentionPurgeIT {
             outbox(harness, "old-c", tenantA, 40)
             inbox(harness, "old", tenantA, 40 * 24)
             val pool = manualCommit(harness.fixture.runtimeDataSource())
-            val purge = JdbcRetentionPurge(pool, "payload", Retention(), clock, 2)
+            val purge = purger(harness, Retention(), 2, pool)
             assertEquals(PurgeResult(3, 1), purge.purge())
             assertEquals(emptySet<String>(), ids(harness, "outbox", "id"))
             assertEquals(emptySet<String>(), ids(harness, "inbox", "event_id"))
@@ -211,14 +241,26 @@ class RetentionPurgeIT {
         status: String,
         resolvedDaysAgo: Long?,
     ) {
-        val resolved = resolvedDaysAgo?.let { "timestamptz '$now' - interval '$it days'" } ?: "null"
-        harness.fixture.runAsAdmin(
-            "insert into payload.event_dead_letter " +
-                "(consumer, topic, log_offset, tenant_id, reason, raw, status, resolved_at) " +
-                "values ('c', 't', 1, ${tenant?.let {
-                    "'$it'"
-                } ?: "'ffffffff-ffff-ffff-ffff-ffffffffffff'"}, 'r', '{}', '$status', $resolved)",
-        )
+        val owner = JooqKit.Access.owner(harness.fixture, tables()).single()
+        val text = SQLDataType.CLOB
+        val resolved = resolvedDaysAgo?.let { at(now.minus(it, ChronoUnit.DAYS)) }
+        val letter = { dsl: DSLContext ->
+            JooqKit.insert(
+                dsl,
+                "payload",
+                OutboxSchema.DEAD_LETTER,
+                JooqKit.Col("consumer", text, "c"),
+                JooqKit.Col("topic", text, "t"),
+                JooqKit.Col("log_offset", SQLDataType.BIGINT, 1L),
+                JooqKit.Col("tenant_id", SQLDataType.UUID, tenant ?: UUID.fromString(platform)),
+                JooqKit.Col("reason", text, "r"),
+                JooqKit.Col("raw", text, "{}"),
+                JooqKit.Col("status", text, status),
+                JooqKit.Col("resolved_at", SQLDataType.TIMESTAMPWITHTIMEZONE, resolved),
+            )
+        }
+        // the owner login holds the right to write a resolved letter; a tenantless letter is the platform tenant's
+        if (tenant == null) owner.asPlatform(letter) else owner.asTenant(tenant, letter)
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
@@ -248,19 +290,17 @@ class RetentionPurgeIT {
     ) {
         OutboxHarness(image).use { harness ->
             deadLetter(harness, tenantA, "OPEN", null)
-            harness.fixture.runtimeDataSource().connection.use { c ->
-                c.createStatement().use { s ->
-                    s.execute("select set_config('app.tenant_id', '$tenantA', false)")
-                    assertThrows(SQLException::class.java) { s.executeUpdate("delete from payload.event_dead_letter") }
-                }
-                c.createStatement().use { s ->
-                    val purge = "select payload.event_dead_letter_purge_expired(now() - interval '7 days', 10)"
-                    s.executeQuery(purge).use {
-                        it.next()
-                        assertEquals(0, it.getLong(1))
-                    }
-                }
-            }
+            val app = OutboxPostgresFixture.APP
+            val pw = OutboxPostgresFixture.APP_PASSWORD
+            val sql = "delete from payload.event_dead_letter returning 1"
+            assertNotNull(JooqKit.refusal(harness.fixture, app, pw, sql, tenantA), sql)
+            val purged =
+                harness.rowsUnboundAs(
+                    app,
+                    pw,
+                    "select payload.event_dead_letter_purge_expired(now() - interval '7 days', 10) as n",
+                )
+            assertEquals(0L, purged.single().getValue("n"))
             assertEquals(1L, harness.count("select count(*) from payload.event_dead_letter"))
         }
     }

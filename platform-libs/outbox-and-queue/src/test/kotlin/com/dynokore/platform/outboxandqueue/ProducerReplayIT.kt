@@ -1,21 +1,30 @@
 package com.dynokore.platform.outboxandqueue
 
+import com.dynokore.platform.tenancyjooq.TableClass
+import com.dynokore.platform.tenancyjooq.TenancyJooq
 import com.dynokore.platform.tenancykernel.TenantContextImpl
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TenantRlsMigration
 import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
+import org.jooq.Condition
+import org.jooq.Field
+import org.jooq.Name
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
-import java.sql.SQLException
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
 import java.util.UUID
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -156,7 +165,7 @@ class ProducerReplayIT {
             val sub = s.harness.submission
             val request = replayRequest(ReplayScope.Tenant(tenantA))
             sub.inPlatformTx {
-                JdbcConsumerReplay("submission", sub.boundary, s.harness.reader, sub.writer, clock)
+                JdbcConsumerReplay("submission", sub.dsl, s.harness.reader, sub.writer, clock)
                     .request("submission-svc", listOf(live), request, corr(), cause())
             }
             s.harness.drain(s.harness.submission.relay)
@@ -168,17 +177,22 @@ class ProducerReplayIT {
             val type = TestCatalogue.CANONICAL_VERSION_CREATED
             val replayed = "select count(*) from $submissionReplay where envelope->>'type' = '$type'"
             assertEquals(1L, s.harness.count(replayed))
-            s.harness.fixture.roleDataSource("recon_runtime").connection.use { connection ->
-                assertThrows(SQLException::class.java) {
-                    connection.createStatement().executeQuery("select log_offset from $submissionReplay")
-                }
-            }
+            val refused =
+                JooqKit.refusal(
+                    s.harness.fixture,
+                    "recon_runtime",
+                    "recon_runtime_pw",
+                    "select log_offset from $submissionReplay",
+                )
+            assertNotNull(refused)
             // ...while submission-svc's own login can.
-            s.harness.fixture.roleDataSource("sub_runtime").connection.use { connection ->
-                connection.createStatement().executeQuery("select count(log_offset) from $submissionReplay").use {
-                    assertTrue(it.next())
-                }
-            }
+            val readable =
+                s.harness.rowsUnboundAs(
+                    "sub_runtime",
+                    "sub_runtime_pw",
+                    "select count(log_offset) as n from $submissionReplay",
+                )
+            assertTrue(readable.single().getValue("n") as Long >= 0)
         }
     }
 
@@ -191,7 +205,7 @@ class ProducerReplayIT {
             s.purgeLive()
             assertTrue(s.behindConsumer.pollOnce().rebuildRequired)
             val kit = s.harness.reconciliation
-            val replay = JdbcConsumerReplay("reconciliation", kit.boundary, s.harness.reader, kit.writer, clock)
+            val replay = JdbcConsumerReplay("reconciliation", kit.dsl, s.harness.reader, kit.writer, clock)
 
             assertThrows(IllegalStateException::class.java) {
                 kit.inPlatformTx {
@@ -205,7 +219,7 @@ class ProducerReplayIT {
                 JdbcOutboxWriter(kit.dsl, "reconciliation", consumer, "r-1", withoutRequests, clock)
             assertThrows(EmissionNotPermitted::class.java) {
                 kit.inPlatformTx {
-                    JdbcConsumerReplay("reconciliation", kit.boundary, s.harness.reader, noRequestTopic, clock)
+                    JdbcConsumerReplay("reconciliation", kit.dsl, s.harness.reader, noRequestTopic, clock)
                         .request(consumer, listOf(live), replayRequest(ReplayScope.Tenant(tenantA)), corr(), cause())
                 }
             }
@@ -280,7 +294,7 @@ class ProducerReplayIT {
             assertEquals(2, live.pollOnce().applied)
             val replayId = UUID.randomUUID()
             evidence.inPlatformTx {
-                JdbcConsumerReplay("evidence", evidence.boundary, harness.reader, evidence.writer, clock)
+                JdbcConsumerReplay("evidence", evidence.dsl, harness.reader, evidence.writer, clock)
                     .request("evidence-svc", listOf(audit), everyService(replayId), corr(), cause())
             }
             harness.drain(evidence.relay)
@@ -350,7 +364,7 @@ class ProducerReplayIT {
             val request = ReplayRequest(UUID.randomUUID(), CatalogueEntry.EVERY_SERVICE, ReplayMode.FULL_SYNC, null)
             s.syncTenants.bindPlatform("svc:test/job:probe") {
                 s.syncTx.inTransaction {
-                    JdbcConsumerReplay("reconciliation", s.syncTx, s.harness.reader, s.syncWriter, clock)
+                    JdbcConsumerReplay("reconciliation", s.syncDsl, s.harness.reader, s.syncWriter, clock)
                         .fullSync(consumer, listOf(live), request, null, corr(), cause())
                 }
             }
@@ -378,7 +392,7 @@ class ProducerReplayIT {
             assertThrows(EmissionNotPermitted::class.java) {
                 s.syncTenants.bindPlatform("svc:test/job:probe") {
                     s.syncTx.inTransaction {
-                        JdbcConsumerReplay("reconciliation", s.syncTx, s.harness.reader, noRequestTopic, clock)
+                        JdbcConsumerReplay("reconciliation", s.syncDsl, s.harness.reader, noRequestTopic, clock)
                             .fullSync(
                                 consumer,
                                 listOf(live),
@@ -402,35 +416,27 @@ class ProducerReplayIT {
         val b = tenantB.value
         // The app role cannot delete docsequence rows at all, and bound to one tenant it sees no other tenant's.
         val recon = s.harness.reconciliation
-        assertThrows(SQLException::class.java) {
-            recon.inTx(tenantA.value) {
-                recon.boundary.require().createStatement().use {
-                    it.executeUpdate("delete from reconciliation.consumer_sequence where tenant_id = '$b'")
-                }
-            }
-        }
-        recon.inTx(tenantA.value) {
-            val seen =
-                recon.boundary.require().createStatement().use {
-                    it
-                        .executeQuery("select count(*) from reconciliation.version_view where tenant_id = '$b'")
-                        .use { rows ->
-                            rows.next()
-                            rows.getLong(1)
-                        }
-                }
-            assertEquals(0L, seen)
-        }
+        val app = OutboxPostgresFixture.APP
+        val pw = OutboxPostgresFixture.APP_PASSWORD
+        val delete = "delete from reconciliation.consumer_sequence where tenant_id = '$b' returning 1"
+        assertNotNull(JooqKit.refusal(s.harness.fixture, app, pw, delete, tenantA.value))
+        val seen =
+            s.harness.rowsIn(
+                tenantA.value,
+                "select count(*) as n from reconciliation.version_view where tenant_id = ?",
+                b,
+            )
+        assertEquals(0L, seen.single().getValue("n"))
         // The runtime login, bound to no tenant, sees and deletes no tenant's read-model or docsequence rows directly.
-        s.harness.fixture.runtimeDataSource().connection.use { connection ->
-            connection.createStatement().use {
-                assertEquals(0, it.executeUpdate("delete from reconciliation.version_view"))
-                it.executeQuery("select count(*) from reconciliation.consumer_sequence").use { rows ->
-                    rows.next()
-                    assertEquals(0L, rows.getLong(1))
-                }
-            }
-        }
+        val unbound =
+            s.harness.rowsUnboundAs(
+                app,
+                pw,
+                "with d as (delete from reconciliation.version_view returning 1) select count(*) as n from d",
+            )
+        assertEquals(0L, unbound.single().getValue("n"))
+        val sequences = s.harness.rowsUnboundAs(app, pw, "select count(*) as n from reconciliation.consumer_sequence")
+        assertEquals(0L, sequences.single().getValue("n"))
     }
 
     private fun replayRequest(scope: ReplayScope): ReplayRequest {
@@ -448,12 +454,26 @@ class ProducerReplayIT {
     private fun cause() = CausationId("op-${UUID.randomUUID()}")
 
     /** The canonical producer, the reconciliation consumers and their read models over one harness. */
-    private inner class Scenario(
+    internal inner class Scenario(
         image: String,
     ) : AutoCloseable {
         val harness = OutboxHarness(image)
         private val canonical = harness.canonical
         private val recon = harness.reconciliation
+
+        // the module's DSLContexts with this scenario's own tables declared (tenant tables)
+        private val canonicalDsl =
+            TenancyJooq.dslContext(
+                OutboxSchema.jooqTables("canonical") + (DOC_STATE to TableClass.TENANT),
+                canonical.tenants,
+                canonical.boundary,
+            )
+        private val reconDsl =
+            TenancyJooq.dslContext(
+                OutboxSchema.jooqTables("reconciliation") + (VERSION_VIEW to TableClass.TENANT),
+                recon.tenants,
+                recon.boundary,
+            )
 
         init {
             harness.fixture.run(
@@ -508,7 +528,7 @@ class ProducerReplayIT {
             val clear = readModelClear()
             syncTenants.bindPlatform("svc:test/job:probe") {
                 syncTx.inTransaction {
-                    JdbcConsumerReplay("reconciliation", syncTx, harness.reader, syncWriter, clock)
+                    JdbcConsumerReplay("reconciliation", syncDsl, harness.reader, syncWriter, clock)
                         .fullSync(consumer, listOf(live), request, clear, corr(), cause())
                 }
             }
@@ -523,7 +543,6 @@ class ProducerReplayIT {
                 harness.catalogue,
                 "canonical-svc",
                 harness.readerFor(harness.fixture.replayLogin(consumer)),
-                harness.fixture.runtimeDataSource(),
                 recon.scope,
                 recon.dsl,
                 ViewHandler(consumer),
@@ -537,17 +556,26 @@ class ProducerReplayIT {
             version: Int,
         ) {
             canonical.inTx(tenant.value) {
-                canonical.boundary
-                    .require()
-                    .prepareStatement(
-                        "insert into canonical.doc_state values (?, ?, ?, now()) " +
-                            "on conflict (doc_uuid) do update set version = excluded.version, changed_at = now()",
-                    ).use {
-                        it.setObject(1, tenant.value)
-                        it.setObject(2, doc)
-                        it.setInt(3, version)
-                        it.executeUpdate()
-                    }
+                val docField = DSL.field(DSL.name("doc_uuid"), SQLDataType.UUID)
+                val versionField = DSL.field(DSL.name("version"), SQLDataType.INTEGER)
+                val changedAt = DSL.field(DSL.name("changed_at"), SQLDataType.TIMESTAMPWITHTIMEZONE)
+                canonicalDsl
+                    .insertInto(
+                        DSL.table(DOC_STATE),
+                        DSL.field(DSL.name("tenant_id"), SQLDataType.UUID),
+                        docField,
+                        versionField,
+                        changedAt,
+                    ).values(
+                        DSL.`val`(tenant.value, SQLDataType.UUID),
+                        DSL.`val`(doc, SQLDataType.UUID),
+                        DSL.`val`(version, SQLDataType.INTEGER),
+                        DSL.currentOffsetDateTime(),
+                    ).onConflict(docField)
+                    .doUpdate()
+                    .set(versionField, DSL.excluded(versionField))
+                    .set(changedAt, DSL.currentOffsetDateTime())
+                    .execute()
                 canonical.writer.append(
                     listOf(OutboundEvent(TestCatalogue.CANONICAL_VERSION_CREATED, """{"version":$version}""")),
                     context(tenant, doc, version),
@@ -575,7 +603,7 @@ class ProducerReplayIT {
 
         /** reconciliation-svc's rebuild step: head move and ReplayRequested in one platform transaction. */
         fun request(scope: ReplayScope): UUID {
-            val replay = JdbcConsumerReplay("reconciliation", recon.boundary, harness.reader, recon.writer, clock)
+            val replay = JdbcConsumerReplay("reconciliation", recon.dsl, harness.reader, recon.writer, clock)
             val request = replayRequest(scope)
             recon.inPlatformTx { replay.request(consumer, listOf(live), request, corr(), cause()) }
             return request.replayId
@@ -589,8 +617,8 @@ class ProducerReplayIT {
             "canonical",
             harness.catalogue,
             harness.reader,
-            harness.fixture.runtimeDataSource(),
             canonical.scope,
+            canonical.dsl,
             canonical.writer,
             listOf(CanonicalStates(failAfterPages)),
             harness.rebuildSink,
@@ -600,15 +628,14 @@ class ProducerReplayIT {
 
         /** doc → version of [name]'s read model. */
         fun view(name: String): Map<UUID, Int> =
-            harness.fixture.adminDataSource().connection.use { connection ->
-                val sql = "select doc_uuid, version from reconciliation.version_view where consumer = ?"
-                connection.prepareStatement(sql).use {
-                    it.setString(1, name)
-                    it.executeQuery().use { rows ->
-                        buildMap { while (rows.next()) put(rows.getObject(1, UUID::class.java), rows.getInt(2)) }
-                    }
-                }
-            }
+            listOf(tenantA, tenantB)
+                .flatMap {
+                    harness.rowsIn(
+                        it.value,
+                        "select doc_uuid, version from reconciliation.version_view where consumer = ?",
+                        name,
+                    )
+                }.associate { it.getValue("doc_uuid") as UUID to it.getValue("version") as Int }
 
         override fun close() = harness.close()
 
@@ -635,10 +662,29 @@ class ProducerReplayIT {
             override val eventType = TestCatalogue.CANONICAL_VERSION_CREATED
 
             override fun tenants(): List<TenantId> =
-                harness.fixture.adminDataSource().connection.use { connection ->
-                    val sql = "select distinct tenant_id from canonical.doc_state order by 1"
-                    connection.createStatement().executeQuery(sql).use { rows ->
-                        buildList { while (rows.next()) add(TenantId(rows.getObject(1, UUID::class.java))) }
+                listOf(tenantA, tenantB)
+                    .filter {
+                        harness.rowsIn(it.value, "select 1 as present from canonical.doc_state limit 1").isNotEmpty()
+                    }.sortedBy { it.value }
+
+            private fun scopeFilter(
+                scope: ReplayScope?,
+                docField: Field<UUID>,
+                changedAt: Field<OffsetDateTime>,
+            ): Condition =
+                when (scope) {
+                    is ReplayScope.Entity -> {
+                        DSL.concat(DSL.inline("entity-"), docField.cast(SQLDataType.CLOB)).eq(scope.entity.value)
+                    }
+
+                    is ReplayScope.Period -> {
+                        changedAt
+                            .ge(OffsetDateTime.ofInstant(scope.from, ZoneOffset.UTC))
+                            .and(changedAt.lt(OffsetDateTime.ofInstant(scope.to, ZoneOffset.UTC)))
+                    }
+
+                    else -> {
+                        DSL.noCondition()
                     }
                 }
 
@@ -648,40 +694,31 @@ class ProducerReplayIT {
                 limit: Int,
             ): ReplayPage {
                 if (failAfterPages != null && pages++ >= failAfterPages) error("canonical-svc went down mid-replay")
-                val filter =
-                    when (scope) {
-                        is ReplayScope.Entity -> " and 'entity-' || doc_uuid::text = '${scope.entity.value}'"
-                        is ReplayScope.Period -> " and changed_at >= '${scope.from}' and changed_at < '${scope.to}'"
-                        else -> ""
-                    }
+                val docField = DSL.field(DSL.name("doc_uuid"), SQLDataType.UUID)
+                val changedAt = DSL.field(DSL.name("changed_at"), SQLDataType.TIMESTAMPWITHTIMEZONE)
+                val filter = scopeFilter(scope, docField, changedAt)
+                val versionField = DSL.field(DSL.name("version"), SQLDataType.INTEGER)
                 val states =
-                    canonical.boundary
-                        .require()
-                        .prepareStatement(
-                            "select doc_uuid, version from canonical.doc_state " +
-                                "where doc_uuid::text > ?$filter order by doc_uuid limit ?",
-                        ).use {
-                            it.setString(1, cursor ?: "")
-                            it.setInt(2, limit)
-                            it.executeQuery().use { rows ->
-                                buildList {
-                                    while (rows.next()) {
-                                        val doc = rows.getObject(1, UUID::class.java)
-                                        val version = rows.getInt(2)
-                                        add(
-                                            ReplayedState(
-                                                eventType,
-                                                """{"version":$version}""",
-                                                EntityRef("entity-$doc"),
-                                                doc.toString(),
-                                                version.toLong(),
-                                                DocUuid(doc),
-                                                LocalDate.of(2026, 9, 30),
-                                            ),
-                                        )
-                                    }
-                                }
-                            }
+                    canonicalDsl
+                        .select(docField, versionField)
+                        .from(DSL.table(DOC_STATE))
+                        .where(docField.cast(SQLDataType.CLOB).gt(cursor ?: ""))
+                        .and(filter)
+                        .orderBy(docField)
+                        .limit(limit)
+                        .fetch()
+                        .map { row ->
+                            val doc = row.get(docField)
+                            val version = row.get(versionField)
+                            ReplayedState(
+                                eventType,
+                                """{"version":$version}""",
+                                EntityRef("entity-$doc"),
+                                doc.toString(),
+                                version.toLong(),
+                                DocUuid(doc),
+                                LocalDate.of(2026, 9, 30),
+                            )
                         }
                 return ReplayPage(states, if (states.size == limit) states.last().aggregateKey else null)
             }
@@ -697,21 +734,33 @@ class ProducerReplayIT {
                         .readTree(event.dataJson)
                         .get("version")
                         .asInt()
-                recon.boundary
-                    .require()
-                    .prepareStatement(
-                        "insert into reconciliation.version_view values (?, ?, ?, ?) " +
-                            "on conflict (consumer, doc_uuid) do update set version = excluded.version",
-                    ).use {
-                        it.setString(1, name)
-                        it.setObject(2, event.tenant.value)
-                        it.setObject(3, UUID.fromString(event.subject))
-                        it.setInt(4, version)
-                        it.executeUpdate()
-                    }
+                val consumerField = DSL.field(DSL.name("consumer"), SQLDataType.CLOB)
+                val docField = DSL.field(DSL.name("doc_uuid"), SQLDataType.UUID)
+                val versionField = DSL.field(DSL.name("version"), SQLDataType.INTEGER)
+                reconDsl
+                    .insertInto(
+                        DSL.table(VERSION_VIEW),
+                        consumerField,
+                        DSL.field(DSL.name("tenant_id"), SQLDataType.UUID),
+                        docField,
+                        versionField,
+                    ).values(
+                        DSL.`val`(name, SQLDataType.CLOB),
+                        DSL.`val`(event.tenant.value, SQLDataType.UUID),
+                        DSL.`val`(UUID.fromString(event.subject), SQLDataType.UUID),
+                        DSL.`val`(version, SQLDataType.INTEGER),
+                    ).onConflict(consumerField, docField)
+                    .doUpdate()
+                    .set(versionField, DSL.excluded(versionField))
+                    .execute()
                 return HandleOutcome.APPLIED
             }
         }
+    }
+
+    private companion object {
+        val DOC_STATE: Name = DSL.name("canonical", "doc_state")
+        val VERSION_VIEW: Name = DSL.name("reconciliation", "version_view")
     }
 
     private fun tenantRls(
@@ -739,7 +788,6 @@ private fun evidenceIntake(harness: OutboxHarness) =
         harness.catalogue,
         CatalogueEntry.EVERY_SERVICE,
         harness.readerFor(harness.fixture.replayLogin("evidence-svc")),
-        harness.fixture.runtimeDataSource(),
         harness.evidence.scope,
         harness.evidence.dsl,
         countingHandler(),
@@ -758,8 +806,8 @@ private fun answerEmpty(
             schema,
             harness.catalogue,
             harness.reader,
-            harness.fixture.runtimeDataSource(),
             kit.scope,
+            kit.dsl,
             kit.writer,
             emptyList(),
             harness.rebuildSink,
