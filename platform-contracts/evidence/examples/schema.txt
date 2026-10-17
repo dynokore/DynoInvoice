@@ -1,0 +1,5 @@
+../openapi.yaml#/components/schemas/EvidenceChain evidence-chain-*.json
+../openapi.yaml#/components/schemas/IntegrityStatus integrity-status-*.json
+../openapi.yaml#/components/schemas/RetrievalPending retrieval-pending*.json
+../openapi.yaml#/components/schemas/RetrievalStatus retrieval-status-*.json
+../openapi.yaml#/components/schemas/AuditPackExport audit-pack-export-*.json

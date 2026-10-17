@@ -1,0 +1,24 @@
+# INV-T-5959. Identifiers in backticks in the published behavior and intent of INV-REQ-650, 661, 664, 691, 710, 711,
+# 724, 725 and 1345 (read from Keel), plus the identifiers this task adds. One row per identifier.
+# Not listed, because they are not evidence contract identifiers: auditor, security.officer, platform.engineer,
+# deployment.operator (roles); console-bff, evidence-svc (services); 202, Location and
+# POST /bff/entities/{ref}/audit-pack-exports (console-bff's public contract); counterparty_uen and
+# (entity_id, document_number) (evidence-svc storage indexes, not contract fields).
+# lookupByAcknowledgement (INV-REQ-691) and lookupByCounterparty (INV-REQ-710) are Keel names for operations that this
+# contract publishes as getAcknowledgementChain and reverseLookup; renaming them is breaking, so they are reported
+# as a gap to the owner and are not rows here.
+identifier	kind	file	requirement
+getIntegrityStatus	operation	openapi.yaml	INV-REQ-661
+getEvidenceRetrieval	operation	openapi.yaml	INV-REQ-664
+reproduction	property	openapi.yaml	INV-REQ-1345
+packVersions	property	openapi.yaml	INV-REQ-691
+integrityStatus	property	openapi.yaml	INV-REQ-661
+expectedRetrievalSeconds	property	openapi.yaml	INV-REQ-664
+periodDigest	property	openapi.yaml	INV-REQ-661
+chainLength	property	openapi.yaml	INV-REQ-661
+categoryCode	property	openapi.yaml	INV-REQ-650
+periodRef	property	openapi.yaml	INV-REQ-650
+CANONICAL_VERSION	enum_value	openapi.yaml	INV-REQ-691
+SOURCE_DOCUMENT_REFERENCE	enum_value	openapi.yaml	INV-REQ-691
+VERIFICATION_REPORT	enum_value	openapi.yaml	INV-REQ-650
+NEVER_RUN	enum_value	openapi.yaml	INV-REQ-661

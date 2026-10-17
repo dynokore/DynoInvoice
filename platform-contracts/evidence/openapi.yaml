@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: evidence API
-  version: 1.1.0
+  version: 1.2.0
   description: >-
     Contract-first source of truth for evidence (API-01, STK-44). The
     `evidence-contract` module generates its server interfaces and DTOs
@@ -159,13 +159,21 @@ paths:
         submission. Usable by the auditor role alone; every lookup is
         audit-logged and changes no state (FR-X.11, FR-AA.14, INV-REQ-958).
         Queries only the evidence store's own indexes, never another
-        service (FR-AA.15).
+        service (FR-AA.15). The chain also holds the canonical version and
+        the source document reference, the decision trace carries its
+        pack versions, and the recorded versions are in `reproduction`
+        (INV-REQ-691, INV-REQ-1345). The `auditor` role alone may call it
+        and each lookup is itself audit-logged (INV-REQ-711, INV-REQ-725).
+        Answers 202 when the evidence is in a tier whose expected retrieval
+        time exceeds the interactive limit and 200 otherwise; the client
+        polls `getEvidenceRetrieval` and repeats the lookup when it is READY
+        (INV-REQ-664).
       tags: [lookup]
       x-principal: reporting
       x-sync-edge: console-bff->evidence-svc
       x-timeout: 2000
       x-error-codes: []
-      x-requirements: [INV-REQ-691, INV-REQ-723, INV-REQ-711, INV-REQ-725, INV-REQ-726]
+      x-requirements: [INV-REQ-691, INV-REQ-723, INV-REQ-711, INV-REQ-725, INV-REQ-726, INV-REQ-1345, INV-REQ-664]
       parameters:
         - name: ackId
           in: path
@@ -197,6 +205,12 @@ paths:
                       - kind: DECISION_TRACE
                         recordedAt: "2026-03-20T03:14:50Z"
                         reference: "trace/3fa85f64.../v2"
+        '202':
+          description: The evidence is in a slow storage tier; poll getEvidenceRetrieval.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetrievalPending'
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/evidence/lookup:
@@ -207,13 +221,21 @@ paths:
         Reverse lookup (services.yaml evidence-svc `provides`, capabilities
         "Enquiry lookups"; FR-AA.13, FR-X.10). Returns every related
         submission with its acknowledgement state. Auditor role only,
-        audit-logged, changes no state (FR-X.11, INV-REQ-958).
+        audit-logged, changes no state (FR-X.11, INV-REQ-958). The `auditor`
+        role alone may call it and each lookup is itself audit-logged
+        (INV-REQ-711, INV-REQ-725). Parameters combine with AND: `docUuid`,
+        `documentNumber`, `counterparty`, `dateFrom`/`dateTo`, `periodRef`
+        and `categoryCode` index the archive (INV-REQ-650). Answers 202 when
+        the evidence is in a tier whose expected retrieval time exceeds the
+        interactive limit and 200 otherwise; the client polls
+        `getEvidenceRetrieval` and repeats the lookup when it is READY
+        (INV-REQ-664).
       tags: [lookup]
       x-principal: reporting
       x-sync-edge: console-bff->evidence-svc
       x-timeout: 2000
       x-error-codes: []
-      x-requirements: [INV-REQ-710, INV-REQ-724, INV-REQ-711]
+      x-requirements: [INV-REQ-710, INV-REQ-724, INV-REQ-711, INV-REQ-725, INV-REQ-650, INV-REQ-664]
       parameters:
         - name: counterparty
           in: query
@@ -239,6 +261,24 @@ paths:
           schema:
             type: string
             maxLength: 60
+        - name: docUuid
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: periodRef
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 20
+        - name: categoryCode
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 20
         - name: limit
           in: query
           required: false
@@ -267,6 +307,12 @@ paths:
                         ackId: "IRAS-ACK-2026Q1-E001"
                         acknowledgedAt: "2026-03-20T03:15:21Z"
                         state: "ACKNOWLEDGED"
+        '202':
+          description: The evidence is in a slow storage tier; poll getEvidenceRetrieval.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetrievalPending'
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/evidence/exports:
@@ -555,6 +601,78 @@ paths:
                     releaseConfirmedBy: "identity:USR-004"
         default:
           $ref: '#/components/responses/Error'
+  /internal/v1/evidence/entities/{entityRef}/periods/{periodRef}/integrity-status:
+    get:
+      operationId: getIntegrityStatus
+      summary: Read the evidence integrity status of an entity's period
+      description: >-
+        Per entity and period: last verification run, result, chain length,
+        period digest (INV-REQ-661). Changes no state.
+      tags: [verification]
+      x-principal: reporting
+      x-sync-edge: console-bff->evidence-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-661]
+      parameters:
+        - $ref: '#/components/parameters/EntityRef'
+        - $ref: '#/components/parameters/PeriodRef'
+      responses:
+        '200':
+          description: The integrity status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntegrityStatus'
+              examples:
+                default:
+                  value:
+                    entityRef: "E-001"
+                    periodRef: "2026-Q1"
+                    result: "VERIFIED"
+                    lastRunAt: "2026-04-01T01:00:00Z"
+                    chainLength: 1204
+                    periodDigest: "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/evidence/retrievals/{retrievalId}:
+    get:
+      operationId: getEvidenceRetrieval
+      summary: Read the progress of a cold-tier evidence retrieval
+      description: >-
+        Progress of the retrieval a lookup answered 202 for (INV-REQ-664,
+        INV-Q-5954). The client repeats the lookup when the state is READY.
+        404 for an unknown id.
+      tags: [lookup]
+      x-principal: reporting
+      x-sync-edge: console-bff->evidence-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-664]
+      parameters:
+        - name: retrievalId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The retrieval's state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetrievalStatus'
+              examples:
+                default:
+                  value:
+                    retrievalId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    state: "PENDING"
+                    expectedRetrievalSeconds: 600
+        '404':
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
   /internal/v1/evidence/entities/{entityRef}/periods/{periodRef}/audit-packs:
     post:
       operationId: createAuditPackExport
@@ -565,7 +683,8 @@ paths:
         routing the public `POST /bff/entities/{entityRef}/audit-pack-exports`
         (console-bff/openapi.yaml). A complete audit pack for the prescribed
         accounting period: submitted XML, acknowledgements, reconciliation
-        work-paper and source references (NFR-A.3). Returns immediately with
+        work-paper and source references (NFR-A.3); `contents` lists them,
+        with the verification report (INV-AC-676). Returns immediately with
         the job accepted (console-bff's 2s-per-call budget,
         sync-edges.yaml resilience_policy `console-bff -> any`); the caller
         polls `getAuditPackExport` for readiness.
@@ -972,7 +1091,7 @@ components:
       properties:
         kind:
           type: string
-          enum: [PAYLOAD, ACKNOWLEDGEMENT, DECISION_TRACE, AUDIT_ENTRY]
+          enum: [PAYLOAD, ACKNOWLEDGEMENT, DECISION_TRACE, AUDIT_ENTRY, CANONICAL_VERSION, SOURCE_DOCUMENT_REFERENCE]
           x-extensible-enum: true
         recordedAt:
           type: string
@@ -980,7 +1099,102 @@ components:
         reference:
           type: string
           maxLength: 200
+        packVersions:
+          type: array
+          description: >-
+            The pack identifier and version applied by the decision, present on the
+            DECISION_TRACE item (INV-REQ-691). The service always sends it on that item.
+          items:
+            $ref: '#/components/schemas/PackVersion'
       required: [kind, recordedAt, reference]
+    PackVersion:
+      type: object
+      properties:
+        packIdentifier:
+          type: string
+          maxLength: 100
+        version:
+          type: string
+          maxLength: 40
+      required: [packIdentifier, version]
+    ChainReproduction:
+      type: object
+      description: The versions applied to the submission, recorded so it can be regenerated byte-identically (INV-REQ-1345).
+      properties:
+        mappingTableVersion:
+          type: string
+          maxLength: 40
+        scopeRulesVersion:
+          type: string
+          maxLength: 40
+        schematronVersion:
+          type: string
+          maxLength: 40
+        overrideReleasedBy:
+          type: string
+          maxLength: 100
+          description: The operator who released an override; present when an override was released.
+      required: [mappingTableVersion, scopeRulesVersion, schematronVersion]
+    IntegrityResult:
+      type: string
+      enum: [VERIFIED, FAILED, NEVER_RUN]
+      x-extensible-enum: true
+      description: Result of the last chain verification run for an entity and period (INV-REQ-661).
+    IntegrityStatus:
+      type: object
+      description: 'Per entity and period: last verification run, result, chain length, period digest (INV-REQ-661).'
+      properties:
+        entityRef:
+          type: string
+          maxLength: 40
+        periodRef:
+          type: string
+          maxLength: 20
+        result:
+          $ref: '#/components/schemas/IntegrityResult'
+        lastRunAt:
+          type: string
+          format: date-time
+          description: Absent when `result` is NEVER_RUN.
+        chainLength:
+          type: integer
+          minimum: 0
+        periodDigest:
+          type: string
+          maxLength: 200
+          description: Absent when `result` is NEVER_RUN.
+      required: [entityRef, periodRef, result, chainLength]
+    RetrievalPending:
+      type: object
+      description: The 202 body of a lookup whose evidence is in a slow storage tier (INV-REQ-664, INV-Q-5954).
+      properties:
+        retrievalId:
+          type: string
+          format: uuid
+        expectedRetrievalSeconds:
+          type: integer
+          minimum: 1
+        storageTier:
+          type: string
+          maxLength: 40
+      required: [retrievalId, expectedRetrievalSeconds, storageTier]
+    RetrievalStatus:
+      type: object
+      properties:
+        retrievalId:
+          type: string
+          format: uuid
+        state:
+          type: string
+          enum: [PENDING, READY, FAILED]
+          x-extensible-enum: true
+        expectedRetrievalSeconds:
+          type: integer
+          minimum: 0
+        completedAt:
+          type: string
+          format: date-time
+      required: [retrievalId, state, expectedRetrievalSeconds]
     EvidenceChain:
       type: object
       properties:
@@ -998,6 +1212,12 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/EvidenceChainItem'
+        reproduction:
+          $ref: '#/components/schemas/ChainReproduction'
+          description: Recorded versions applied (INV-REQ-1345). The service always sends it.
+        integrityStatus:
+          $ref: '#/components/schemas/IntegrityResult'
+          description: Integrity status of the chain's entity and period (DEP-007). The service always sends it.
       required: [ackId, docUuid, version, imported, items]
     ReverseLookupItem:
       type: object
@@ -1015,6 +1235,10 @@ components:
         state:
           type: string
           maxLength: 40
+        categoryCode:
+          type: string
+          maxLength: 20
+          description: The GST category code the submission is indexed under (INV-REQ-650). The service always sends it.
       required: [docUuid, version, state]
     ReverseLookupPage:
       type: object
@@ -1025,6 +1249,9 @@ components:
             $ref: '#/components/schemas/ReverseLookupItem'
         nextCursor:
           type: string
+        integrityStatus:
+          $ref: '#/components/schemas/IntegrityResult'
+          description: Integrity status of the evidence the page was read from (DEP-007). The service always sends it.
       required: [items]
     ExportManifest:
       type: object
@@ -1168,6 +1395,20 @@ components:
           format: date-time
         downloadUri:
           type: string
+        contents:
+          type: array
+          description: What the pack holds; present when `status` is READY. The service always sends it.
+          items:
+            type: string
+            enum: [SUBMITTED_XML, ACKNOWLEDGEMENTS, RECONCILIATION_WORK_PAPER, SOURCE_REFERENCES, VERIFICATION_REPORT]
+            x-extensible-enum: true
+        integrityStatus:
+          $ref: '#/components/schemas/IntegrityResult'
+          description: Integrity status of the pack's entity and period (DEP-007). The service always sends it.
+        expectedRetrievalSeconds:
+          type: integer
+          minimum: 0
+          description: Expected retrieval time when the evidence is in a slow tier (INV-REQ-664). The service always sends it.
       required: [packId, entityRef, periodRef, status, requestedAt]
     DeletionResult:
       type: object
