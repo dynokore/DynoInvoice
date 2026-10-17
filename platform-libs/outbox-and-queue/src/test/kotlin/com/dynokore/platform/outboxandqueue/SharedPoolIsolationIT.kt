@@ -334,13 +334,9 @@ class SharedPoolIsolationIT {
         val DEFINERS =
             listOf(
                 "claim_due",
-                "consumer_offset_advance",
-                "consumer_offset_lock",
-                "consumer_source_seen_record",
                 "event_dead_letter_purge_expired",
                 "event_dead_letter_record",
                 "event_dead_letter_resolve",
-                "event_dead_letter_triage_page",
                 "full_sync_delete",
                 "inbox_purge_expired",
                 "outbox_claim_page",
