@@ -6,6 +6,13 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-18
+### Added
+- Obligation clocks: `hardStop`, `capAtHardStop`, `escalationSchedule` (T1, T2 capped at the hard stop, with the facts
+  `t2PulledForward`, `t1NotBeforeT2`, `hardStopPassed`), `responseDeadline` (pack period, tighten-only tenant period)
+  and `noticeDue`. They return facts; the service decides (INV-REQ-572, INV-REQ-1401, INV-REQ-1403, INV-AC-1692,
+  INV-AC-1404, INV-AC-2312; INV-T-6103).
+
 ## [1.1.0] - 2026-10-18
 ### Added
 - Transaction-date period assignment: `PeriodSet.of` (overlap refused), `TransactionTimestamp` (`Explicit`,

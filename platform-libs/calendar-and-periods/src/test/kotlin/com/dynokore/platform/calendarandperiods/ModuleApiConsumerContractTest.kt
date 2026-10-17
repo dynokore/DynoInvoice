@@ -90,4 +90,27 @@ class ModuleApiConsumerContractTest {
         assertEquals(april, (result as PeriodAssignment.Assigned).period)
         assertEquals(d("2026-04-01"), result.boundaryDate)
     }
+
+    @Test
+    fun `submission-svc style acknowledgement timers pull T2 forward to the hard stop`() {
+        val zone = java.time.ZoneId.of("Asia/Singapore")
+        val due = java.time.ZonedDateTime.of(2026, 4, 30, 23, 59, 59, 0, zone)
+        val stop = hardStop(due, java.time.Duration.ofHours(48))
+        val sent = stop.minus(java.time.Duration.ofHours(1))
+
+        val s = escalationSchedule(sent, java.time.Duration.ofMinutes(30), java.time.Duration.ofHours(4), stop)
+
+        assertEquals(stop, s.t2)
+        assertTrue(s.t2PulledForward)
+        assertEquals(sent.plus(java.time.Duration.ofMinutes(30)), s.t1)
+    }
+
+    @Test
+    fun `evidence-svc style request case holds the deadline and prompts the notice as it nears`() {
+        val deadline = responseDeadline(d("2026-03-01"), 30, null)
+
+        assertEquals(d("2026-03-31"), deadline)
+        assertEquals(false, noticeDue(deadline, d("2026-03-23"), 7))
+        assertEquals(true, noticeDue(deadline, d("2026-03-24"), 7))
+    }
 }

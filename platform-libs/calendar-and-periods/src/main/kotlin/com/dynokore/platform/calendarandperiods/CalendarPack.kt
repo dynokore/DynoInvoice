@@ -60,8 +60,8 @@ class BusinessCalendar(
 
 /**
  * The calendar pack input of period generation and due-date derivation: every length, form, due rule, weekend and
- * holiday is data here. [pinnedRule] is set once IRAS answers INV-NOTE-4#row:Q-25: it then applies to every entity
- * and the per-entity rule has no effect (INV-REQ-87 b3).
+ * holiday is data here. [pinnedRule] is set once the tax authority answers INV-NOTE-4#row:Q-25: it then applies to
+ * every entity and the per-entity rule has no effect (INV-REQ-87 b3).
  */
 class CalendarPack(
     val version: String,
