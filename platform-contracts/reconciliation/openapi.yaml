@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: reconciliation API
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     Contract-first source of truth for reconciliation (API-01, STK-44). The
     `reconciliation-contract` module generates its server interfaces and DTOs
@@ -74,11 +74,20 @@ paths:
         envelope; the `503` is retryable, and the client retries the
         same PUT of the same version, the operation's repeatKey
         (INV-REQ-1204 b7, INV-Q-3571).
+
+
+        The filing acknowledgement and `filedAt` are required from every
+        caller (INV-REQ-653 behavior 2). The schema keeps
+        `filingAcknowledgement` optional only so that a 1.0 client
+        validates; an upload without it is refused with `422` and PER-014
+        and nothing is recorded (INV-AC-1715). Each accepted upload is a new
+        immutable version, and an F7 supersedes, for reconciliation, the F5
+        named by `amends` (INV-REQ-653, INV-REQ-655).
       tags: [returns]
       x-principal: filing-workflow
       x-timeout: 3000
-      x-error-codes: []
-      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-651]
+      x-error-codes: [PER-014]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-651, INV-REQ-653, INV-REQ-655]
       x-operation:
         role: filing-workflow
         scope: entity+period
@@ -101,8 +110,10 @@ paths:
               default:
                 value:
                   version: 1
-                  form: "F5"
+                  formType: "F5"
                   filedAt: "2026-04-28T09:00:00Z"
+                  filingAcknowledgement: "IRAS-ACK-2026-0001"
+                  preparer: "Jane Tan"
                   boxes:
                     - box: "1"
                       description: "Total value of standard-rated supplies"
@@ -124,7 +135,10 @@ paths:
                     periodRef: "2026-Q1"
                     version: 1
                     form: "F5"
+                    formType: "F5"
                     filedAt: "2026-04-28T09:00:00Z"
+                    filingReference: "IRAS-REF-0001"
+                    preparer: "Jane Tan"
                     recordedAt: "2026-04-28T09:05:00Z"
         '200':
           description: Idempotent replay of the same version — the original result, unchanged.
@@ -139,8 +153,17 @@ paths:
                     periodRef: "2026-Q1"
                     version: 1
                     form: "F5"
+                    formType: "F5"
                     filedAt: "2026-04-28T09:00:00Z"
+                    filingReference: "IRAS-REF-0001"
+                    preparer: "Jane Tan"
                     recordedAt: "2026-04-28T09:05:00Z"
+        '422':
+          description: The upload carries no filing acknowledgement (PER-014); nothing is recorded.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '../service-runtime/schemas/error-envelope.schema.json'
         '503':
           $ref: '#/components/responses/Error'
         default:
@@ -164,11 +187,20 @@ paths:
         the call times out, the gateway answers `503` with the API-20
         envelope; the `503` is retryable, and the client retries by a
         re-read (a safe GET; INV-REQ-1204 b7, INV-Q-3571).
+
+
+        A period with no uploaded return answers `200` with an empty
+        `boxes`, `unexplainedResidual` "0.00" and `reasons` holding PER-008;
+        no Box is ever compared against zero (INV-REQ-657, INV-AC-669). A
+        new return version triggers a new run without a request, and earlier
+        runs and their work-papers remain immutable (INV-REQ-656,
+        INV-AC-668); `returnVersion` and `returnForm` name the return the
+        reconciliation is against.
       tags: [reconciliation]
       x-principal: reporting
       x-timeout: 3000
-      x-error-codes: []
-      x-requirements: [INV-REQ-631, INV-REQ-632, INV-REQ-633, INV-REQ-981]
+      x-error-codes: [PER-008]
+      x-requirements: [INV-REQ-631, INV-REQ-632, INV-REQ-633, INV-REQ-981, INV-REQ-656, INV-REQ-657]
       parameters:
         - $ref: '#/components/parameters/EntityRef'
         - $ref: '#/components/parameters/PeriodRef'
@@ -313,6 +345,52 @@ paths:
                     attestation:
                       attestedBy: "tax.approver:jane.tan"
                       attestedAt: "2026-04-28T09:30:00Z"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/reconciliation/runs/{runId}/work-paper/export:
+    get:
+      operationId: exportWorkPaper
+      summary: Export a reconciliation run's work-paper to PDF or spreadsheet
+      description: >-
+        Work-paper export (INV-REQ-982, INV-REQ-634, INV-AC-680): produces
+        the PDF or the spreadsheet from an existing reconciliation run. It is
+        a read and is audit-logged. Both formats keep the supporting document
+        list of each variance, itemise each reconciling item per Box with its
+        evidence references, list every relaxed control for the period and
+        name the return version the run reconciles to. `auditor` may call it
+        as `tax.approver` does. `getWorkPaper` keeps its shape.
+      tags: [runs]
+      x-principal: reporting
+      x-sync-edge: console-bff->reconciliation-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-982, INV-REQ-634]
+      x-operation:
+        role: tax.approver
+        scope: entity
+        reversibility: UNDOABLE
+        repeatKey: "(runId, format) — a repeat returns the same export of the same run."
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+        - name: format
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [PDF, SPREADSHEET]
+            x-extensible-enum: true
+      responses:
+        '200':
+          description: The exported work-paper.
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/reconciliation/runs/{runId}/boxes/{box}/annotation:
@@ -469,14 +547,37 @@ components:
           type: string
           enum: [F5, F7, F8]
           x-extensible-enum: true
+        formType:
+          type: string
+          enum: [F5, F7, F8]
+          x-extensible-enum: true
+          description: The return form; exactly one of `form` and `formType` is present (INV-REQ-653).
         filedAt:
           type: string
           format: date-time
+        filingAcknowledgement:
+          type: string
+          maxLength: 128
+          description: The IRAS filing acknowledgement; required from every caller (PER-014 when missing), optional in the schema only so a 1.0 client validates.
+        filingReference:
+          type: string
+          maxLength: 64
+          description: The IRAS filing reference, where shown.
+        preparer:
+          type: string
+          maxLength: 100
+        amends:
+          type: integer
+          minimum: 1
+          description: The version of the return an F7 amends.
         boxes:
           type: array
           items:
             $ref: '#/components/schemas/GstReturnBox'
-      required: [version, form, filedAt, boxes]
+      required: [version, filedAt, boxes]
+      oneOf:
+        - required: [form]
+        - required: [formType]
     GstReturnRecord:
       type: object
       properties:
@@ -490,9 +591,22 @@ components:
           type: string
           enum: [F5, F7, F8]
           x-extensible-enum: true
+        formType:
+          type: string
+          enum: [F5, F7, F8]
+          x-extensible-enum: true
         filedAt:
           type: string
           format: date-time
+        filingReference:
+          type: string
+          maxLength: 64
+        preparer:
+          type: string
+          maxLength: 100
+        amends:
+          type: integer
+          minimum: 1
         recordedAt:
           type: string
           format: date-time
@@ -534,7 +648,30 @@ components:
           type: string
           format: decimal
           pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+        returnVersion:
+          type: integer
+          minimum: 1
+          description: The return version this reconciliation reconciles to. A new return version triggers a new run without a request; earlier runs and their work-papers remain immutable (INV-REQ-656, INV-AC-668).
+        returnForm:
+          type: string
+          enum: [F5, F7, F8]
+          x-extensible-enum: true
+        reasons:
+          type: array
+          description: Why no Box comparison is produced; PER-008 for a period with no uploaded return (INV-REQ-657, INV-AC-669).
+          items:
+            $ref: '#/components/schemas/ReconciliationReason'
       required: [entityRef, periodRef, boxes, unexplainedResidual]
+    ReconciliationReason:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        field:
+          type: string
+      required: [code, message]
     Run:
       type: object
       properties:
@@ -548,6 +685,14 @@ components:
         completedAt:
           type: string
           format: date-time
+        returnVersion:
+          type: integer
+          minimum: 1
+          description: The return version this run reconciles to. A new return version triggers a new run without a request; earlier runs and their work-papers remain immutable (INV-REQ-656, INV-AC-668).
+        returnForm:
+          type: string
+          enum: [F5, F7, F8]
+          x-extensible-enum: true
       required: [runId, entityRef, periodRef, completedAt]
     RunPage:
       type: object
@@ -569,6 +714,14 @@ components:
         preparedAt:
           type: string
           format: date-time
+        returnVersion:
+          type: integer
+          minimum: 1
+          description: The return version this work-paper reconciles to. A new return version triggers a new run without a request; earlier runs and their work-papers remain immutable (INV-REQ-656, INV-AC-668).
+        returnForm:
+          type: string
+          enum: [F5, F7, F8]
+          x-extensible-enum: true
       required: [entityRef, periodRef, preparedAt]
     Attestation:
       type: object

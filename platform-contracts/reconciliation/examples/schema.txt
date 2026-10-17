@@ -1,0 +1,1 @@
+../openapi.yaml#/components/schemas/UploadGstReturnRequest upload-gst-return-request-*.json

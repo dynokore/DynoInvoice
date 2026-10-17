@@ -1,0 +1,13 @@
+# INV-T-6055. Identifiers in backticks in the published behavior and io_contract of INV-REQ-634, 651, 653, 655, 656, 657, 982 (read from Keel), plus the contract names of the done-when.
+identifier	kind	file	requirement
+formType	property	openapi.yaml	INV-REQ-653
+filingAcknowledgement	property	openapi.yaml	INV-REQ-653
+filingReference	property	openapi.yaml	INV-REQ-653
+preparer	property	openapi.yaml	INV-REQ-653
+amends	property	openapi.yaml	INV-REQ-653
+returnVersion	property	openapi.yaml	INV-REQ-656
+returnForm	property	openapi.yaml	INV-REQ-656
+reasons	property	openapi.yaml	INV-REQ-657
+exportWorkPaper	operation	openapi.yaml	INV-REQ-982
+PDF	enum_value	openapi.yaml	INV-REQ-982
+SPREADSHEET	enum_value	openapi.yaml	INV-REQ-982
