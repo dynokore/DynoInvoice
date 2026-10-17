@@ -1,12 +1,15 @@
 package com.dynokore.platform.evidencestore
 
-import com.dynokore.platform.tenancykernel.CurrentConnection
 import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantId
-import java.sql.Timestamp
+import org.jooq.DSLContext
+import org.jooq.Table
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
+import java.time.ZoneOffset
 
 /**
- * [LegalHoldRegistry] over plain JDBC. Unlike [JdbcEvidenceLedger]'s table,
+ * [LegalHoldRegistry] through jOOQ's DSL on the module's [DSLContext] (tenancy-jooq's factory, INV-T-4516). Unlike [JdbcEvidenceLedger]'s table,
  * this one table IS mutable in place: a hold is a control flag, placed and
  * released (FR-D.4 behaviour 2), not evidence — CS-22 governs evidence rows
  * only.
@@ -16,27 +19,14 @@ import java.sql.Timestamp
  * same as [JdbcEvidenceLedger].
  */
 class JdbcLegalHoldRegistry(
-    private val connections: CurrentConnection,
+    private val dsl: DSLContext,
     schema: String,
     table: String,
 ) : LegalHoldRegistry {
-    // INV-REQ-854 b5 (coordinator ruling INV-Q-4036): the names enter SQL text only through SqlIdentifier.require.
+    // INV-REQ-854 b5 (coordinator ruling INV-Q-4036): the names enter SQL only through SqlIdentifier.require.
     private val schemaName = SqlIdentifier.require(schema, "schema")
     private val tableName = SqlIdentifier.require(table, "table")
-
-    private val upsertSql =
-        """
-        insert into $schemaName.$tableName (tenant_id, entity_ref, period_ref, reason, placed_at)
-        values (?, ?, ?, ?, ?)
-        on conflict (tenant_id, entity_ref, period_ref)
-        do update set reason = excluded.reason, placed_at = excluded.placed_at
-        """.trimIndent()
-
-    private val deleteSql =
-        "delete from $schemaName.$tableName where tenant_id = ? and entity_ref = ? and period_ref = ?"
-
-    private val existsSql =
-        "select 1 from $schemaName.$tableName where tenant_id = ? and entity_ref = ? and period_ref = ?"
+    private val holds: Table<*> = DSL.table(DSL.name(schemaName, tableName))
 
     override fun place(
         tenant: TenantId,
@@ -44,14 +34,16 @@ class JdbcLegalHoldRegistry(
         period: PeriodRef,
         hold: LegalHold,
     ) {
-        connections.require().prepareStatement(upsertSql).use { statement ->
-            statement.setObject(1, tenant.value)
-            statement.setString(2, entity.value)
-            statement.setString(3, period.value)
-            statement.setString(4, hold.reason)
-            statement.setTimestamp(5, Timestamp.from(hold.placedAt))
-            statement.executeUpdate()
-        }
+        val placedAt = hold.placedAt.atOffset(ZoneOffset.UTC)
+        dsl
+            .insertInto(holds)
+            .columns(HOLD_TENANT_ID, HOLD_ENTITY_REF, HOLD_PERIOD_REF, HOLD_REASON, HOLD_PLACED_AT)
+            .values(tenant.value, entity.value, period.value, hold.reason, placedAt)
+            .onConflict(HOLD_TENANT_ID, HOLD_ENTITY_REF, HOLD_PERIOD_REF)
+            .doUpdate()
+            .set(HOLD_REASON, hold.reason)
+            .set(HOLD_PLACED_AT, placedAt)
+            .execute()
     }
 
     override fun release(
@@ -59,26 +51,25 @@ class JdbcLegalHoldRegistry(
         entity: EntityRef,
         period: PeriodRef,
     ) {
-        connections.require().prepareStatement(deleteSql).use { statement ->
-            statement.setObject(1, tenant.value)
-            statement.setString(2, entity.value)
-            statement.setString(3, period.value)
-            statement.executeUpdate()
-        }
+        dsl
+            .deleteFrom(holds)
+            .where(HOLD_TENANT_ID.eq(tenant.value), HOLD_ENTITY_REF.eq(entity.value), HOLD_PERIOD_REF.eq(period.value))
+            .execute()
     }
 
     override fun isHeld(
         tenant: TenantId,
         entity: EntityRef,
         period: PeriodRef,
-    ): Boolean {
-        connections.require().prepareStatement(existsSql).use { statement ->
-            statement.setObject(1, tenant.value)
-            statement.setString(2, entity.value)
-            statement.setString(3, period.value)
-            statement.executeQuery().use { rs -> return rs.next() }
-        }
-    }
+    ): Boolean =
+        dsl.fetchExists(
+            holds,
+            DSL.and(
+                HOLD_TENANT_ID.eq(tenant.value),
+                HOLD_ENTITY_REF.eq(entity.value),
+                HOLD_PERIOD_REF.eq(period.value),
+            ),
+        )
 
     companion object {
         /**
@@ -90,3 +81,9 @@ class JdbcLegalHoldRegistry(
                 "placed_at timestamptz not null, primary key (tenant_id, entity_ref, period_ref)"
     }
 }
+
+private val HOLD_TENANT_ID = DSL.field(DSL.name("tenant_id"), SQLDataType.UUID)
+private val HOLD_ENTITY_REF = DSL.field(DSL.name("entity_ref"), SQLDataType.CLOB)
+private val HOLD_PERIOD_REF = DSL.field(DSL.name("period_ref"), SQLDataType.CLOB)
+private val HOLD_REASON = DSL.field(DSL.name("reason"), SQLDataType.CLOB)
+private val HOLD_PLACED_AT = DSL.field(DSL.name("placed_at"), SQLDataType.TIMESTAMPWITHTIMEZONE)

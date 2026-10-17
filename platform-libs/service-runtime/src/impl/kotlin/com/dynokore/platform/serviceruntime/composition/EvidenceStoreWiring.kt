@@ -6,7 +6,12 @@ import com.dynokore.platform.evidencestore.JdbcLegalHoldRegistry
 import com.dynokore.platform.evidencestore.LegalHoldRegistry
 import com.dynokore.platform.evidencestore.ObjectStore
 import com.dynokore.platform.evidencestore.S3ObjectStore
-import com.dynokore.platform.tenancykernel.CurrentConnection
+import com.dynokore.platform.tenancyjooq.TableClass
+import com.dynokore.platform.tenancyjooq.TenancyJooq
+import com.dynokore.platform.tenancykernel.TenantContext
+import com.dynokore.platform.tenancykernel.TransactionRunner
+import org.jooq.DSLContext
+import org.jooq.impl.DSL
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
@@ -25,24 +30,45 @@ import software.amazon.awssdk.services.s3.S3Client
 @ConditionalOnClass(name = ["com.dynokore.platform.evidencestore.JdbcEvidenceLedger"])
 class EvidenceStoreWiring {
     @Bean
-    @ConditionalOnBean(CurrentConnection::class)
+    @ConditionalOnBean(TransactionRunner::class)
     @ConditionalOnProperty(name = [Props.SCHEMA, Props.LEDGER_TABLE])
     @ConditionalOnMissingBean(EvidenceLedger::class)
     fun evidenceLedger(
-        connections: CurrentConnection,
+        transactions: TransactionRunner,
+        tenants: TenantContext,
         modules: ModuleProperties,
-    ): JdbcEvidenceLedger =
-        JdbcEvidenceLedger(connections, modules.requireSchema(), checkNotNull(modules.evidence.ledgerTable))
+    ): JdbcEvidenceLedger {
+        val schema = modules.requireSchema()
+        val table = checkNotNull(modules.evidence.ledgerTable)
+        return JdbcEvidenceLedger(dslFor(schema, table, tenants, transactions), schema, table)
+    }
 
     @Bean
-    @ConditionalOnBean(CurrentConnection::class)
+    @ConditionalOnBean(TransactionRunner::class)
     @ConditionalOnProperty(name = [Props.SCHEMA, Props.LEGAL_HOLD_TABLE])
     @ConditionalOnMissingBean(LegalHoldRegistry::class)
     fun legalHoldRegistry(
-        connections: CurrentConnection,
+        transactions: TransactionRunner,
+        tenants: TenantContext,
         modules: ModuleProperties,
-    ): JdbcLegalHoldRegistry =
-        JdbcLegalHoldRegistry(connections, modules.requireSchema(), checkNotNull(modules.evidence.legalHoldTable))
+    ): JdbcLegalHoldRegistry {
+        val schema = modules.requireSchema()
+        val table = checkNotNull(modules.evidence.legalHoldTable)
+        return JdbcLegalHoldRegistry(dslFor(schema, table, tenants, transactions), schema, table)
+    }
+
+    /**
+     * The module's DSLContext (INV-T-4133, coordinator ruling INV-Q-5275): tenancy-jooq's factory over the
+     * [TransactionRunner] and [TenantContext] beans, the module's table named with `DSL.name(schema, table)` and
+     * declared `TENANT` (it carries `tenant_id` under forced row-level security). It is private to the class that
+     * uses it and is no bean of the context.
+     */
+    private fun dslFor(
+        schema: String,
+        table: String,
+        tenants: TenantContext,
+        transactions: TransactionRunner,
+    ): DSLContext = TenancyJooq.dslContext(mapOf(DSL.name(schema, table) to TableClass.TENANT), tenants, transactions)
 
     /** Its own class, so a service without the AWS SDK never loads a signature naming `S3Client`. */
     @Configuration(proxyBeanMethods = false)

@@ -68,6 +68,8 @@ sourceSets {
 // same-repository project dependency on a task (not just a lazy property) needs.
 evaluationDependsOn(":tenancy-kernel")
 val tenancyKernelImplJar = project(":tenancy-kernel").tasks.named("implJar")
+evaluationDependsOn(":tenancy-jooq")
+val tenancyJooqImplJar = project(":tenancy-jooq").tasks.named("implJar")
 
 dependencies {
     // The impl half compiles and runs against the api half's output, in this
@@ -100,6 +102,13 @@ dependencies {
     add("implImplementation", project(":crypto"))
     add("implImplementation", files(tenancyKernelImplJar))
     testFixturesApi(files(tenancyKernelImplJar))
+    // INV-T-4516 (INV-ADR-3968 item 4a, owner ruling INV-Q-4196): every statement is jOOQ on tenancy-jooq's
+    // DSLContext; tenancy-jooq-api brings jOOQ.
+    add("implImplementation", project(":tenancy-jooq"))
+    add("implImplementation", files(tenancyJooqImplJar))
+    testImplementation(project(":tenancy-jooq"))
+    testImplementation(files(tenancyJooqImplJar))
+    testImplementation(testFixtures(project(":tenancy-jooq")))
     testImplementation(sourceSets["impl"].output)
 
     // Isolation-test fixtures: a real PostgreSQL Testcontainers instance

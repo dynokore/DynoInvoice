@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [8.0.3] - 2026-10-17
+### Changed
+- `EvidenceStoreWiring` (INV-T-4516, evidence-store 2.0.0; coordinator ruling INV-Q-5275) builds `JdbcEvidenceLedger` and `JdbcLegalHoldRegistry` with the module's tenancy-jooq `DSLContext` (`TenancyJooq.dslContext` over the `TransactionRunner` and `TenantContext` beans, the table declared `TENANT`) and no longer takes tenancy-kernel's `CurrentConnection`; the bean conditions are on the `TransactionRunner` bean. The `DSLContext` is private to the bean method, no bean of the context.
+
 ## [8.0.2] - 2026-10-16
 ### Changed
 - `AuditLogWiring` (INV-T-5301, audit-log 3.0.0; coordinator ruling INV-Q-5275) builds `LocalAuditWriter` and `JdbcOverrideService` with the module's tenancy-jooq `DSLContext` (`TenancyJooq.dslContext` over the `TransactionRunner` and `TenantContext` beans, the table declared `TENANT`) and no longer takes tenancy-kernel's `CurrentConnection`; the bean conditions are on the `TransactionRunner` bean. The `DSLContext` is private to the bean method, no bean of the context.

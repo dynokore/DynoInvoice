@@ -1,9 +1,13 @@
 package com.dynokore.platform.evidencestore
 
+import com.dynokore.platform.tenancyjooq.TableClass
+import com.dynokore.platform.tenancyjooq.TenancyJooq
 import com.dynokore.platform.tenancykernel.TenantContextImpl
 import com.dynokore.platform.tenancykernel.TenantId
+import com.dynokore.platform.tenancykernel.TestPoolFixture
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
+import org.jooq.impl.DSL
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Tag
@@ -69,12 +73,12 @@ class ModuleApiConsumerContractTest {
     fun `records chain and export together, and a legal hold overrides an otherwise-elapsed retention period`() {
         val schema = EvidenceStorePostgresFixture.SCHEMA
         EvidenceStorePostgresFixture("postgres:18").use { fixture ->
-            fixture.createTables(fixture.ownerDataSource())
-
             val tenants = TenantContextImpl()
-            val tx = TransactionRunnerImpl(fixture.appDataSource(), tenants)
-            val ledger = JdbcEvidenceLedger(tx, schema, EvidenceStorePostgresFixture.EVIDENCE_TABLE)
-            val holds = JdbcLegalHoldRegistry(tx, schema, EvidenceStorePostgresFixture.LEGAL_HOLD_TABLE)
+            val pool = appPool(fixture)
+            val tx = pool.runner(tenants)
+            val dsl = dslOver(schema, tenants, tx)
+            val ledger = JdbcEvidenceLedger(dsl, schema, EvidenceStorePostgresFixture.EVIDENCE_TABLE)
+            val holds = JdbcLegalHoldRegistry(dsl, schema, EvidenceStorePostgresFixture.LEGAL_HOLD_TABLE)
             val useCase = FakeAuditPeriodCloseout(tx, ledger, holds)
 
             val tenant = TenantId(UUID.randomUUID())
@@ -111,6 +115,28 @@ class ModuleApiConsumerContractTest {
                     useCase.canDeleteWithHold(tenant, entity, period, retention, periodEnd, LocalDate.now())
                 }
             assertFalse(deletableWithHold)
+            pool.close()
         }
     }
+
+    private fun appPool(fixture: EvidenceStorePostgresFixture) =
+        TestPoolFixture(
+            fixture.jdbcUrl(),
+            EvidenceStorePostgresFixture.APP_USER,
+            EvidenceStorePostgresFixture.APP_PASSWORD,
+            poolName = "evidence-contract",
+        )
+
+    private fun dslOver(
+        schema: String,
+        tenants: TenantContextImpl,
+        tx: TransactionRunnerImpl,
+    ) = TenancyJooq.dslContext(
+        mapOf(
+            DSL.name(schema, EvidenceStorePostgresFixture.EVIDENCE_TABLE) to TableClass.TENANT,
+            DSL.name(schema, EvidenceStorePostgresFixture.LEGAL_HOLD_TABLE) to TableClass.TENANT,
+        ),
+        tenants,
+        tx,
+    )
 }
