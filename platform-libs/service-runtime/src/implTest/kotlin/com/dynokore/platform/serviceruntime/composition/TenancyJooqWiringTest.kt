@@ -250,7 +250,11 @@ class TenancyJooqWiringTest {
         fun verifiedTables(): TenancyTables =
             TableClasses
                 .of(
-                    platformScoped = (Tables.SERVICE + Tables.LIBRARY).filter { !it.second }.map { "${Tables.SCHEMA}.${it.first}" },
+                    platformScoped =
+                        (Tables.SERVICE + Tables.LIBRARY)
+                            .filter {
+                                !it.second
+                            }.map { "${Tables.SCHEMA}.${it.first}" },
                 ).verify(FixtureSchema(Tables.SCHEMA, Tables.SERVICE + Tables.LIBRARY))
     }
 
@@ -283,7 +287,8 @@ class TenancyJooqWiringTest {
             tables: TenancyTables,
             tenants: TenantContext,
             runner: TransactionRunner,
-        ): Configuration = TenancyJooq.configure(DefaultConfiguration().set(SQLDialect.POSTGRES), tables, tenants, runner)
+        ): Configuration =
+            TenancyJooq.configure(DefaultConfiguration().set(SQLDialect.POSTGRES), tables, tenants, runner)
     }
 
     @SpringConfiguration(proxyBeanMethods = false)
