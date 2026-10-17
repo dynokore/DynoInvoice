@@ -95,12 +95,35 @@ variables:
         done
       }
       gst_changed_downstream_modules() {
+        all_modules=$(gst_all_modules)
+        # CI-FAST (2026-10-17): GST_ALL_MODULES=true (a manual or scheduled pipeline) tests every module.
+        if [ "${GST_ALL_MODULES:-}" = "true" ]; then
+          echo "$all_modules" | tr '\n' ' '
+          return
+        fi
         base="${CI_MERGE_REQUEST_DIFF_BASE_SHA:-}"
         if [ -z "$base" ]; then
-          base=$(git merge-base origin/main HEAD 2>/dev/null || git rev-parse HEAD~1 2>/dev/null || echo "HEAD")
+          # A branch or main pipeline compares with the commit before the push. merge-base with
+          # origin/main is HEAD itself on main, which gave an empty module set on every main
+          # pipeline (main ran no module test). No usable base: every module (fails closed).
+          before="${CI_COMMIT_BEFORE_SHA:-}"
+          if [ -n "$before" ] && [ "$before" != "0000000000000000000000000000000000000000" ] \
+              && git cat-file -e "${before}^{commit}" 2>/dev/null; then
+            base="$before"
+          elif [ "${CI_COMMIT_BRANCH:-}" != "${CI_DEFAULT_BRANCH:-main}" ] \
+              && base=$(git merge-base origin/main HEAD 2>/dev/null) && [ "$base" != "$(git rev-parse HEAD)" ]; then
+            :
+          else
+            echo "gst-ci: no diff base found, testing every module" >&2
+            echo "$all_modules" | tr '\n' ' '
+            return
+          fi
         fi
-        changed_files=$(git diff --name-only "${base}" HEAD 2>/dev/null || true)
-        all_modules=$(gst_all_modules)
+        changed_files=$(git diff --name-only "${base}" HEAD 2>/dev/null) || {
+          echo "gst-ci: diff against ${base} failed, testing every module" >&2
+          echo "$all_modules" | tr '\n' ' '
+          return
+        }
         if echo "$changed_files" | grep -qE '^(settings\.gradle\.kts|build\.gradle\.kts|gradle/libs\.versions\.toml)$'; then
           echo "$all_modules" | tr '\n' ' '
           return
