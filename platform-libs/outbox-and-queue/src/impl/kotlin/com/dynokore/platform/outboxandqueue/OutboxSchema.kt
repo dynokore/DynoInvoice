@@ -63,6 +63,28 @@ object OutboxSchema {
      */
     const val OUTBOX_CLAIM_PAGE = "outbox_claim_page"
 
+    /**
+     * Sys-owned function `consumer_offset_lock(p_consumer text, p_topic text) returns bigint` (INV-Q-5873): inserts the
+     * offset row `(p_consumer, p_topic, 1)` if missing, then returns its `next_offset` selected `for update`; the row lock
+     * stays until the caller's transaction ends. Raises "offset row missing" when the row is not there.
+     */
+    const val CONSUMER_OFFSET_LOCK = "consumer_offset_lock"
+
+    /**
+     * Sys-owned function `consumer_offset_advance(p_consumer text, p_topic text, p_next_offset bigint)`: sets the next
+     * offset and resets `attempts`, `infra_failures`, `first_infra_failure_at` and `retry_not_before` of that row.
+     */
+    const val CONSUMER_OFFSET_ADVANCE = "consumer_offset_advance"
+
+    /** Sys-owned function `consumer_source_seen_record(p_consumer text, p_producer text, p_source text)`: inserts the row, on conflict nothing. */
+    const val CONSUMER_SOURCE_SEEN_RECORD = "consumer_source_seen_record"
+
+    /**
+     * Sys-owned table function `event_dead_letter_triage_page(...)` (INV-Q-5875): the non-content columns of
+     * [DEAD_LETTER_TRIAGE_VIEW], every tenant's and the platform tenant's letters, filtered and paged by its arguments.
+     */
+    const val DEAD_LETTER_TRIAGE_PAGE = "event_dead_letter_triage_page"
+
     /** Sys-owned function `outbox_claim_pending()`: the count of [OUTBOX_CLAIM_VIEW] rows with `published_at` null. */
     const val OUTBOX_CLAIM_PENDING = "outbox_claim_pending"
 
@@ -122,6 +144,7 @@ object OutboxSchema {
             DSL.name(s, OUTBOX_SEQUENCE) to TableClass.TENANT,
             DSL.name(s, INBOX) to TableClass.TENANT,
             DSL.name(s, OUTBOX_CLAIM_PAGE) to TableClass.PLATFORM_SCOPED,
+            DSL.name(s, DEAD_LETTER_TRIAGE_PAGE) to TableClass.PLATFORM_SCOPED,
             DSL.name(s, DEAD_LETTER) to TableClass.TENANT,
             DSL.name(s, CONSUMER_SEQUENCE) to TableClass.TENANT,
             DSL.name(s, CONSUMER_OFFSET) to TableClass.PLATFORM_SCOPED,
@@ -150,6 +173,8 @@ object OutboxSchema {
             sysAccess(schema, sysRole),
             views(schema, runtimeRole, sysRole),
             claimFunctions(schema, runtimeRole, sysRole),
+            consumerFunctions(schema, runtimeRole, sysRole),
+            triagePage(schema, runtimeRole, sysRole),
             outboxPurge(schema, runtimeRole, sysRole),
             inboxPurge(schema, runtimeRole, sysRole),
             deadLetterPurge(schema, runtimeRole, sysRole),
@@ -335,6 +360,8 @@ object OutboxSchema {
             grant insert on $s.$DEAD_LETTER to $sys;
             grant update (status, resolved_at, note, replayed_to) on $s.$DEAD_LETTER to $sys;
             grant delete on $s.$DEAD_LETTER to $sys;
+            grant select, insert, update on $s.$CONSUMER_OFFSET to $sys;
+            grant insert on $s.$CONSUMER_SOURCE_SEEN to $sys;
             """.trimIndent()
     }
 
@@ -401,6 +428,115 @@ object OutboxSchema {
             alter function $s.$OUTBOX_CLAIM_PENDING() owner to $sys;
             revoke all on function $s.$OUTBOX_CLAIM_PENDING() from public;
             grant execute on function $s.$OUTBOX_CLAIM_PENDING() to $runtime;
+            revoke create on schema $s from $sys;
+            """.trimIndent()
+    }
+
+    /**
+     * The offset lock, the offset advance and the source-seen record (INV-Q-5873): the platform-scoped tables are written
+     * in the record's tenant transaction through these sys-owned definers, so the offset moves atomically with the inbox
+     * row. Static SQL, `SET search_path = pg_catalog, <schema>, pg_temp`, EXECUTE revoked from PUBLIC and granted to the
+     * runtime login only, owner the sys role.
+     */
+    private fun consumerFunctions(
+        schema: String,
+        runtimeRole: String,
+        sysRole: String,
+    ): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        val runtime = SqlIdentifier.require(runtimeRole, "runtime role")
+        val sys = SqlIdentifier.require(sysRole, "sys role")
+        return """
+            create function $s.$CONSUMER_OFFSET_LOCK(p_consumer text, p_topic text) returns bigint
+            language plpgsql volatile security definer set search_path = pg_catalog, $s, pg_temp as $$
+            declare
+                v_next bigint;
+            begin
+                insert into $s.$CONSUMER_OFFSET (consumer, topic, next_offset) values (p_consumer, p_topic, 1)
+                    on conflict do nothing;
+                select o.next_offset into v_next from $s.$CONSUMER_OFFSET o
+                    where o.consumer = p_consumer and o.topic = p_topic for update;
+                if not found then
+                    raise exception 'offset row missing';
+                end if;
+                return v_next;
+            end
+            $$;
+            create function $s.$CONSUMER_OFFSET_ADVANCE(p_consumer text, p_topic text, p_next_offset bigint) returns void
+            language plpgsql volatile security definer set search_path = pg_catalog, $s, pg_temp as $$
+            begin
+                update $s.$CONSUMER_OFFSET set next_offset = p_next_offset, attempts = 0, infra_failures = 0,
+                    first_infra_failure_at = null, retry_not_before = null
+                where consumer = p_consumer and topic = p_topic;
+            end
+            $$;
+            create function $s.$CONSUMER_SOURCE_SEEN_RECORD(p_consumer text, p_producer text, p_source text) returns void
+            language plpgsql volatile security definer set search_path = pg_catalog, $s, pg_temp as $$
+            begin
+                insert into $s.$CONSUMER_SOURCE_SEEN (consumer, producer, source)
+                    values (p_consumer, p_producer, p_source) on conflict do nothing;
+            end
+            $$;
+            grant create on schema $s to $sys;
+            alter function $s.$CONSUMER_OFFSET_LOCK(text, text) owner to $sys;
+            revoke all on function $s.$CONSUMER_OFFSET_LOCK(text, text) from public;
+            grant execute on function $s.$CONSUMER_OFFSET_LOCK(text, text) to $runtime;
+            alter function $s.$CONSUMER_OFFSET_ADVANCE(text, text, bigint) owner to $sys;
+            revoke all on function $s.$CONSUMER_OFFSET_ADVANCE(text, text, bigint) from public;
+            grant execute on function $s.$CONSUMER_OFFSET_ADVANCE(text, text, bigint) to $runtime;
+            alter function $s.$CONSUMER_SOURCE_SEEN_RECORD(text, text, text) owner to $sys;
+            revoke all on function $s.$CONSUMER_SOURCE_SEEN_RECORD(text, text, text) from public;
+            grant execute on function $s.$CONSUMER_SOURCE_SEEN_RECORD(text, text, text) to $runtime;
+            revoke create on schema $s from $sys;
+            """.trimIndent()
+    }
+
+    /**
+     * The dead-letter triage page (INV-Q-5875): the eleven non-content columns of [DEAD_LETTER_TRIAGE_VIEW] (the sys-owned
+     * view reads every tenant's letters, including the platform tenant's), each filter applied only when its argument is
+     * not null, `order by id limit p_limit`; a limit outside 1..[MAX_TRIAGE_LIMIT] is refused. Same shape as
+     * [claimFunctions].
+     */
+    private fun triagePage(
+        schema: String,
+        runtimeRole: String,
+        sysRole: String,
+    ): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        val runtime = SqlIdentifier.require(runtimeRole, "runtime role")
+        val sys = SqlIdentifier.require(sysRole, "sys role")
+        val args = "bigint, text, bigint[], uuid, text, text, text, timestamptz, timestamptz, boolean, uuid, integer"
+        return """
+            create function $s.$DEAD_LETTER_TRIAGE_PAGE(p_after bigint, p_status text, p_ids bigint[], p_tenant uuid,
+                p_consumer text, p_topic text, p_failure text, p_from timestamptz, p_before timestamptz,
+                p_with_tenant boolean, p_platform uuid, p_limit integer)
+            returns table (id bigint, consumer text, topic text, log_offset bigint, tenant_id uuid, reason text,
+                status text, recorded_at timestamptz, resolved_at timestamptz, note text, replayed_to text)
+            language plpgsql stable security definer set search_path = pg_catalog, $s, pg_temp as $$
+            begin
+                if p_limit is null or p_limit < 1 or p_limit > $MAX_TRIAGE_LIMIT then
+                    raise exception 'the triage page limit must be in 1..$MAX_TRIAGE_LIMIT' using errcode = '22023';
+                end if;
+                return query select v.id, v.consumer, v.topic, v.log_offset, v.tenant_id, v.reason, v.status,
+                        v.recorded_at, v.resolved_at, v.note, v.replayed_to
+                    from $s.$DEAD_LETTER_TRIAGE_VIEW v
+                    where v.id > p_after
+                      and (p_status is null or v.status = p_status)
+                      and (p_ids is null or v.id = any(p_ids))
+                      and (p_tenant is null or v.tenant_id = p_tenant)
+                      and (p_consumer is null or v.consumer = p_consumer)
+                      and (p_topic is null or v.topic = p_topic)
+                      and (p_failure is null or starts_with(v.reason, p_failure))
+                      and (p_from is null or v.recorded_at >= p_from)
+                      and (p_before is null or v.recorded_at < p_before)
+                      and (not p_with_tenant or v.tenant_id <> p_platform)
+                    order by v.id limit p_limit;
+            end
+            $$;
+            grant create on schema $s to $sys;
+            alter function $s.$DEAD_LETTER_TRIAGE_PAGE($args) owner to $sys;
+            revoke all on function $s.$DEAD_LETTER_TRIAGE_PAGE($args) from public;
+            grant execute on function $s.$DEAD_LETTER_TRIAGE_PAGE($args) to $runtime;
             revoke create on schema $s from $sys;
             """.trimIndent()
     }
@@ -617,6 +753,7 @@ object OutboxSchema {
 
     private const val DEAD_LETTER_COLUMNS =
         "id, consumer, topic, log_offset, tenant_id, reason, recorded_at, status, resolved_at, note, replayed_to"
+    private const val MAX_TRIAGE_LIMIT = 1000
     private const val CONTENT_FLOOR = "7 days"
     private const val INBOX_FLOOR = "8 days"
 

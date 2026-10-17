@@ -76,7 +76,7 @@ class DeadLetterReplayIT {
     ) {
         val kit = harness.submission
         val scope = kit.scope
-        val triage = JdbcDeadLetterTriage(harness.fixture.runtimeDataSource(), scope, kit.dsl, "submission", clock)
+        val triage = JdbcDeadLetterTriage(scope, kit.dsl, "submission", clock)
 
         fun delivery(
             harness: OutboxHarness,
