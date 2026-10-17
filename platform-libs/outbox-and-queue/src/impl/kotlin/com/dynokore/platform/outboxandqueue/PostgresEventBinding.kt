@@ -38,10 +38,8 @@ class PostgresEventBinding(
                     dsl.select(JooqRoutines.advisoryXactLock("${EventLogSchema.SCHEMA}.$topicName")).execute()
                     dsl
                         .insertInto(topicTable)
-                        .set(TENANT_ID, envelope.tenant.value)
-                        .set(EVENT_ID, envelope.id.value)
-                        .set(SUBJECT, envelope.subject)
-                        .set(ENVELOPE, DSL.`val`(body, SQLDataType.JSONB))
+                        .columns(TENANT_ID, EVENT_ID, SUBJECT, ENVELOPE)
+                        .values(envelope.tenant.value, envelope.id.value, envelope.subject, JSONB.valueOf(body))
                         .execute()
                 }
             }

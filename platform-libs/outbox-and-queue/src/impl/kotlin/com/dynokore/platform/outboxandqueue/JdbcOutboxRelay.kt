@@ -1,6 +1,5 @@
 package com.dynokore.platform.outboxandqueue
 
-import com.dynokore.platform.tenancykernel.LaneRefusedException
 import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantId
 import org.jooq.DSLContext
@@ -34,7 +33,7 @@ import java.util.UUID
  *   (owner answer INV-Q-5609 (b)), so a relay thread holds at most 2 connections (INV-Q-4850, INV-Q-5251). The lock
  *   ends with the outer transaction, so no pooled connection keeps it and the relay works behind a
  *   transaction-mode pooler (INV-ADR-3968 item 9). The relay needs at least 2 permits in its [lane] and refuses to
- *   run with fewer (a [com.dynokore.platform.tenancykernel.LaneRefusedException] from the first `runOnce`).
+ *   start with fewer.
  * - **Outage.** Producers only write the outbox, never call the binding, so they keep
  *   committing while it is down (INV-AC-2185); rows stay unpublished and the next run catches up.
  * - **At-least-once.** A crash after publish and before the `published_at` commit publishes
@@ -60,22 +59,18 @@ class JdbcOutboxRelay(
 
     init {
         require(batchSize in 1..MAX_BATCH) { "batch size must be 1..$MAX_BATCH, was $batchSize" }
+        // the outer transaction holds one connection and a row transaction a second one (INV-Q-5609 (b))
+        check(laneSize >= MIN_LANE_SIZE) {
+            "the relay needs at least $MIN_LANE_SIZE permits in its lane, the $lane lane has $laneSize"
+        }
     }
 
-    override fun runOnce(): RelayOutcome {
-        // the outer transaction holds one connection and a row transaction a second one (INV-Q-5609 (b)); the refusal
-        // is a LaneRefusedException so the event loop logs it as a lane message
-        if (laneSize < MIN_LANE_SIZE) {
-            throw LaneRefusedException(
-                "the ${lane.uppercase()} lane has $laneSize permits, the relay needs at least $MIN_LANE_SIZE",
-            )
-        }
-        return scope.bindWorkload(TenantId.PLATFORM) {
+    override fun runOnce(): RelayOutcome =
+        scope.bindWorkload(TenantId.PLATFORM) {
             scope.transactions.inTransaction {
                 if (tryLock()) publishBatch() else RelayOutcome(published = 0, pending = pending(), stalled = false)
             }
         }
-    }
 
     private fun publishBatch(): RelayOutcome {
         var published = 0

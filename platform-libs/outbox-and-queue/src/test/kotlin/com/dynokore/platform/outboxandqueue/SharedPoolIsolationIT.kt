@@ -339,8 +339,6 @@ class SharedPoolIsolationIT {
                 "event_dead_letter_resolve",
                 "full_sync_delete",
                 "inbox_purge_expired",
-                "outbox_claim_page",
-                "outbox_claim_pending",
                 "outbox_purge_expired",
                 "rm_cache_full_sync_clear",
                 "rm_view_full_sync_clear",

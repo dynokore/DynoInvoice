@@ -1,12 +1,9 @@
 package com.dynokore.platform.outboxandqueue
 
-import com.dynokore.platform.tenancyjooq.TenancyProbe
 import com.dynokore.platform.tenancykernel.TenantAwareDataSource
 import com.dynokore.platform.tenancykernel.TenantContextImpl
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
-import org.jooq.impl.DSL
-import org.jooq.impl.SQLDataType
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -15,9 +12,9 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.Arguments
 import org.junit.jupiter.params.provider.MethodSource
 import org.junit.jupiter.params.provider.ValueSource
+import java.sql.SQLException
 import java.time.Clock
 import java.time.Duration
-import java.time.OffsetDateTime
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.stream.Stream
@@ -80,13 +77,17 @@ class UnrelayedEventCheckIT {
         }
 
         /** Writes one event in [TENANT]'s transaction; returns its outbox seq. */
-        fun write(): Long =
-            scope.bindWorkload(TenantId(TENANT)) {
-                boundary.inTransaction {
-                    append()
-                    lastSeq()
+        fun write(): Long {
+            scope.bindWorkload(TenantId(TENANT)) { boundary.inTransaction { append() } }
+            return service.adminDataSource().connection.use { c ->
+                c.createStatement().use { s ->
+                    s.executeQuery("select max(seq) from $SCHEMA.outbox").use {
+                        it.next()
+                        it.getLong(1)
+                    }
                 }
             }
+        }
 
         /** Appends one event in the current transaction. */
         fun append() {
@@ -111,33 +112,34 @@ class UnrelayedEventCheckIT {
 
         /** Marks [seq] published in the current transaction. */
         fun mark(seq: Long) {
-            assertEquals(
-                1,
-                dsl
-                    .update(OUTBOX)
-                    .set(PUBLISHED_AT, OffsetDateTime.now())
-                    .where(SEQ.eq(seq))
-                    .execute(),
-            )
+            val sql = "update $SCHEMA.outbox set published_at = now() where seq = ?"
+            scope.connections.require().prepareStatement(sql).use {
+                it.setLong(1, seq)
+                assertEquals(1, it.executeUpdate())
+            }
         }
 
         /** The seq of the current transaction's last appended row. */
-        fun lastSeq(): Long = checkNotNull(dsl.select(DSL.max(SEQ)).from(OUTBOX).fetchOne(0, Long::class.java))
+        fun lastSeq(): Long =
+            scope.connections.require().prepareStatement("select max(seq) from $SCHEMA.outbox").use {
+                it.executeQuery().use { rows ->
+                    rows.next()
+                    rows.getLong(1)
+                }
+            }
 
         fun drain() {
             repeat(OutboxHarness.MAX_RUNS) { if (relay.runOnce().pending == 0L) return }
         }
 
         fun idOf(seq: Long): String =
-            scope.bindWorkload(TenantId(TENANT)) {
-                boundary.inTransaction {
-                    checkNotNull(
-                        dsl
-                            .select(ID)
-                            .from(OUTBOX)
-                            .where(SEQ.eq(seq))
-                            .fetchOne(ID),
-                    )
+            service.adminDataSource().connection.use { c ->
+                c.prepareStatement("select id from $SCHEMA.outbox where seq = ?").use {
+                    it.setLong(1, seq)
+                    it.executeQuery().use { r ->
+                        r.next()
+                        r.getString(1)
+                    }
                 }
             }
 
@@ -148,37 +150,21 @@ class UnrelayedEventCheckIT {
             publishedAgo: Duration,
         ) {
             val id = idOf(seq)
-            val log = DSL.name(*topicTable.split('.').toTypedArray())
-            JooqKit.Access.admin(eventLog, JooqKit.platformScoped(topicTable)).single().asPlatform {
-                it
-                    .update(DSL.table(log))
-                    .set(INSERTED_AT, OffsetDateTime.now().minus(insertedAgo))
-                    .where(EVENT_ID.eq(id))
-                    .execute()
-            }
-            // triggers off for this transaction only (a superuser setting, set through set_config)
-            JooqKit.Access.admin(service, JooqKit.platformScoped("$SCHEMA.outbox")).single().asPlatform {
-                it
-                    .select(
-                        DSL.function(
-                            DSL.name("pg_catalog", "set_config"),
-                            SQLDataType.CLOB,
-                            DSL.inline("session_replication_role"),
-                            DSL.inline("replica"),
-                            DSL.inline(true),
-                        ),
-                    ).fetch()
-                it
-                    .update(OUTBOX)
-                    .set(PUBLISHED_AT, OffsetDateTime.now().minus(publishedAgo))
-                    .where(SEQ.eq(seq))
-                    .execute()
-            }
+            eventLog.runAsAdmin(
+                "update $topicTable set inserted_at = now() - interval '${insertedAgo.seconds} seconds' " +
+                    "where event_id = '$id'",
+            )
+            service.runAsAdmin(
+                "set session_replication_role = replica; " +
+                    "update $SCHEMA.outbox set published_at = now() - interval '${publishedAgo.seconds} seconds' " +
+                    "where seq = $seq; " +
+                    "set session_replication_role = origin",
+            )
         }
 
         fun purgeEventLog() {
-            JooqKit.Access.purge(eventLog, emptyMap()).single().asPlatform {
-                it.select(DSL.function(DSL.name("eventlog", "purge_batch"), SQLDataType.OTHER)).fetch()
+            eventLog.purgeDataSource().connection.use { c ->
+                c.createStatement().use { it.executeQuery("select * from eventlog.purge_batch()").close() }
             }
         }
 
@@ -375,31 +361,18 @@ class UnrelayedEventCheckIT {
             val refused = assertThrows(Exception::class.java) { stranger.missing(topic, listOf(id)) }
             assertEquals("42501", strangerScope.sqlErrors.sqlStateOf(refused))
             // more than 1,000 ids are refused by the function itself
-            assertEquals("22023", oversizedAnswer(s.eventLog))
+            s.eventLog.eventLogDataSource().connection.use { c ->
+                val tooMany = c.createArrayOf("text", Array(EventLogSchema.MAX_EVENTS_MISSING + 1) { "id-$it" })
+                c.prepareStatement("select * from eventlog.events_missing(?, ?)").use {
+                    it.setString(1, topic)
+                    it.setArray(2, tooMany)
+                    assertEquals("22023", assertThrows(SQLException::class.java) { it.executeQuery() }.sqlState)
+                }
+            }
             assertCatalogue(s.eventLog)
         } finally {
             s.close()
         }
-    }
-
-    /** The SQLSTATE of `events_missing` asked for more ids than the function takes. */
-    private fun oversizedAnswer(fixture: OutboxPostgresFixture): String? {
-        val tooMany = Array(EventLogSchema.MAX_EVENTS_MISSING + 1) { "id-$it" }
-        val failure =
-            runCatching {
-                JooqKit.Access.runtime(fixture, emptyMap()).single().asPlatform {
-                    it
-                        .select(
-                            DSL.function(
-                                DSL.name("eventlog", "events_missing"),
-                                SQLDataType.OTHER,
-                                DSL.`val`(topic, SQLDataType.CLOB),
-                                DSL.`val`(tooMany, SQLDataType.CLOB.array()),
-                            ),
-                        ).fetch()
-                }
-            }.exceptionOrNull()
-        return JooqKit.sqlState(failure)
     }
 
     /** INV-AC-2175 for `events_missing` and its producer table, read from the catalogue. */
@@ -407,10 +380,11 @@ class UnrelayedEventCheckIT {
         val index = topicTable.substringAfter('.') + "_event_id"
 
         fun list(sql: String): List<String> =
-            TenancyProbe
-                .connect(fixture.jdbcUrl(), OutboxPostgresFixture.APP, OutboxPostgresFixture.APP_PASSWORD)
-                .unbound { fetchRows(sql) }
-                .map { it.values.first() as String }
+            fixture.adminDataSource().connection.use { c ->
+                c.createStatement().use { st ->
+                    st.executeQuery(sql).use { r -> buildList { while (r.next()) add(r.getString(1)) } }
+                }
+            }
         assertEquals(
             listOf("eventlog_sys|true|search_path=pg_catalog, eventlog, pg_temp"),
             list(
@@ -444,12 +418,6 @@ class UnrelayedEventCheckIT {
 
     companion object {
         private const val SCHEMA = "canonical"
-        private val OUTBOX = DSL.table(DSL.name(SCHEMA, "outbox"))
-        private val SEQ = DSL.field(DSL.name("seq"), SQLDataType.BIGINT)
-        private val ID = DSL.field(DSL.name("id"), SQLDataType.CLOB)
-        private val PUBLISHED_AT = DSL.field(DSL.name("published_at"), SQLDataType.TIMESTAMPWITHTIMEZONE)
-        private val INSERTED_AT = DSL.field(DSL.name("inserted_at"), SQLDataType.TIMESTAMPWITHTIMEZONE)
-        private val EVENT_ID = DSL.field(DSL.name("event_id"), SQLDataType.CLOB)
         private val TENANT: UUID = UUID.randomUUID()
 
         @JvmStatic
