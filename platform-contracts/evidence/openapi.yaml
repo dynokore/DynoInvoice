@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: evidence API
-  version: 1.2.0
+  version: 1.3.0
   description: >-
     Contract-first source of truth for evidence (API-01, STK-44). The
     `evidence-contract` module generates its server interfaces and DTOs
@@ -168,6 +168,21 @@ paths:
         time exceeds the interactive limit and 200 otherwise; the client
         polls `getEvidenceRetrieval` and repeats the lookup when it is READY
         (INV-REQ-664).
+
+
+        The chain is paged by cursor (API-18, INV-REQ-826). `limit` defaults
+        to 100 and is at most 500; a larger value is refused with 400.
+        `cursor` is opaque and integrity-protected, bound to the principal,
+        filters and sort that produced it, and valid for at least 24 hours;
+        a cursor of another principal or an expired cursor is refused with
+        400. The order is total: `sequence` ascending, unique within the
+        chain. `nextCursor` is omitted on the last page. There is no offset
+        and no total count. `ackId`, `docUuid`, `version`, `imported`,
+        `reproduction` and `integrityStatus` are sent unchanged on every
+        page. Every page request is a lookup that is audit-logged
+        (INV-REQ-711, INV-REQ-725). The 202 answer (INV-REQ-664) is
+        unchanged and may answer a page request; the client repeats the same
+        request when `getEvidenceRetrieval` reports READY.
       tags: [lookup]
       x-principal: reporting
       x-sync-edge: console-bff->evidence-svc
@@ -181,6 +196,18 @@ paths:
           schema:
             type: string
             maxLength: 100
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            maximum: 500
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
       responses:
         '200':
           description: The submission's complete evidence chain.
@@ -199,12 +226,15 @@ paths:
                       - kind: PAYLOAD
                         recordedAt: "2026-03-20T03:10:00Z"
                         reference: "payload/3fa85f64.../v2.xml"
+                        sequence: 1
                       - kind: ACKNOWLEDGEMENT
                         recordedAt: "2026-03-20T03:15:21Z"
                         reference: "IRAS-ACK-2026Q1-E001"
+                        sequence: 2
                       - kind: DECISION_TRACE
                         recordedAt: "2026-03-20T03:14:50Z"
                         reference: "trace/3fa85f64.../v2"
+                        sequence: 3
         '202':
           description: The evidence is in a slow storage tier; poll getEvidenceRetrieval.
           content:
@@ -1106,7 +1136,13 @@ components:
             DECISION_TRACE item (INV-REQ-691). The service always sends it on that item.
           items:
             $ref: '#/components/schemas/PackVersion'
-      required: [kind, recordedAt, reference]
+        sequence:
+          type: integer
+          minimum: 1
+          description: >-
+            The 1-based position at which evidence-svc appended the record to the chain,
+            unique within the chain, the key of the page order.
+      required: [kind, recordedAt, reference, sequence]
     PackVersion:
       type: object
       properties:
@@ -1212,6 +1248,9 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/EvidenceChainItem'
+        nextCursor:
+          type: string
+          description: Opaque cursor of the next page; omitted on the last page.
         reproduction:
           $ref: '#/components/schemas/ChainReproduction'
           description: Recorded versions applied (INV-REQ-1345). The service always sends it.
