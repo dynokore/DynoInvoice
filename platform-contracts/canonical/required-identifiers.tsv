@@ -35,3 +35,16 @@ DocumentSummary.docUuidSource.SYSTEM	schema_enum_value	openapi.yaml	INV-REQ-431
 DocumentVersion.docUuidSource.ISSUER	schema_enum_value	openapi.yaml	INV-REQ-547
 DocumentVersion.docUuidSource.SUPPLIER	schema_enum_value	openapi.yaml	INV-REQ-431
 DocumentVersion.docUuidSource.SYSTEM	schema_enum_value	openapi.yaml	INV-REQ-431
+confirmPeriodReassignment	operation	openapi.yaml	INV-REQ-706
+listPreparedReassignments	operation	openapi.yaml	INV-REQ-708
+reassignmentId	property	openapi.yaml	INV-REQ-708
+spanStart	property	openapi.yaml	INV-REQ-687
+spanEnd	property	openapi.yaml	INV-REQ-687
+reassignmentStatus	property	openapi.yaml	INV-REQ-708
+affectedCount	property	openapi.yaml	INV-REQ-706
+reasonCodes	property	openapi.yaml	INV-REQ-708
+preparedAt	property	openapi.yaml	INV-REQ-708
+confirmedAt	property	openapi.yaml	INV-REQ-706
+confirmedBy	property	openapi.yaml	INV-REQ-706
+PREPARED	enum_value	openapi.yaml	INV-REQ-708
+CONFIRMED	enum_value	openapi.yaml	INV-REQ-706

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: canonical API
-  version: 1.1.0
+  version: 1.2.0
   description: >-
     Contract-first source of truth for canonical (API-01, STK-44). The
     `canonical-contract` module generates its server interfaces and DTOs
@@ -24,6 +24,8 @@ servers:
 tags:
   - name: documents
     description: The canonical document and its immutable versions (services.yaml canonical-svc).
+  - name: reassignments
+    description: Prepared period reassignments after a filing frequency change (INV-REQ-706, INV-REQ-708).
 paths:
   /internal/v1/canonical/documents:
     post:
@@ -233,10 +235,123 @@ paths:
                     totals: { totalExcludingTax: "1000.00", totalTax: "90.00", totalIncludingTax: "1090.00" }
         default:
           $ref: '#/components/responses/Error'
+  /internal/v1/canonical/entities/{entityRef}/prepared-reassignments:
+    get:
+      operationId: listPreparedReassignments
+      summary: List the prepared period recomputations of an entity
+      description: >-
+        Lists the prepared recomputations of the entity, one per affected span
+        after a filing frequency change (INV-REQ-708, INV-REQ-687). Cursor
+        pagination (API-18); no offset and no total count. A prepared
+        recomputation changes no document.
+      tags: [reassignments]
+      x-principal: reporting
+      x-sync-edge: console-bff->canonical-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-708, INV-REQ-687]
+      parameters:
+        - $ref: '#/components/parameters/EntityRef'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            maximum: 500
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: One page of prepared reassignments.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreparedReassignmentPage'
+              examples:
+                default:
+                  value:
+                    items:
+                      - reassignmentId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                        entityRef: "E-001"
+                        spanStart: "2026-04-01"
+                        spanEnd: "2026-06-30"
+                        reassignmentStatus: PREPARED
+                        affectedCount: 12
+                        reasonCodes: [PER-004]
+                        preparedAt: "2026-04-02T08:00:00Z"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/canonical/entities/{entityRef}/prepared-reassignments/{reassignmentId}/confirmation:
+    post:
+      operationId: confirmPeriodReassignment
+      summary: Confirm a prepared period reassignment, applying the recomputation
+      description: >-
+        On confirmation canonical-svc recomputes `prescribedPeriodRef` for every
+        unsubmitted document whose transaction date falls in the span, creates
+        no new canonical version, does not recompute a document already
+        acknowledged (INV-REQ-706) and emits PeriodReassigned. Before the
+        confirmation nothing is applied and PeriodReassigned is not emitted
+        (INV-REQ-708, INV-AC-750). `submission-svc` recomputes `dueDate` on
+        consuming the event.
+      tags: [reassignments]
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->canonical-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-706, INV-REQ-687, INV-REQ-708]
+      x-operation:
+        role: tax.approver
+        scope: entity
+        precondition: The reassignment is PREPARED.
+        reversibility: IRREVERSIBLE
+        repeatKey: "(entityRef, reassignmentId) — a repeat returns the recorded confirmation unchanged."
+      parameters:
+        - $ref: '#/components/parameters/EntityRef'
+        - $ref: '#/components/parameters/ReassignmentId'
+      responses:
+        '200':
+          description: The confirmed reassignment (`reassignmentStatus` CONFIRMED).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreparedReassignment'
+              examples:
+                default:
+                  value:
+                    reassignmentId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    entityRef: "E-001"
+                    spanStart: "2026-04-01"
+                    spanEnd: "2026-06-30"
+                    reassignmentStatus: CONFIRMED
+                    affectedCount: 12
+                    reasonCodes: [PER-004, PER-005]
+                    preparedAt: "2026-04-02T08:00:00Z"
+                    confirmedAt: "2026-04-03T09:30:00Z"
+                    confirmedBy: "approver-01"
+        default:
+          $ref: '#/components/responses/Error'
 components:
   parameters:
     DocUuid:
       name: docUuid
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    EntityRef:
+      name: entityRef
+      in: path
+      required: true
+      schema:
+        type: string
+        maxLength: 64
+    ReassignmentId:
+      name: reassignmentId
       in: path
       required: true
       schema:
@@ -568,6 +683,55 @@ components:
             SUPPLIER when the pack rule `inboundDocUuidRule` is ADOPT_SUPPLIER and the supplier's UUID was bound,
             SYSTEM when the System generated one (INV-AC-1433). Optional so an older consumer validates (INV-REQ-431).
       required: [docUuid, version, docsequence, documentFunction, scopeVerdict, transactionDate, prescribedPeriodRef]
+    PreparedReassignment:
+      type: object
+      properties:
+        reassignmentId:
+          type: string
+          format: uuid
+        entityRef:
+          type: string
+          maxLength: 64
+        spanStart:
+          type: string
+          format: date
+        spanEnd:
+          type: string
+          format: date
+        reassignmentStatus:
+          type: string
+          enum: [PREPARED, CONFIRMED]
+          x-extensible-enum: true
+        affectedCount:
+          type: integer
+          minimum: 0
+          description: The unsubmitted documents whose transaction date falls in the span.
+        reasonCodes:
+          type: array
+          items:
+            type: string
+            enum: [PER-004, PER-005]
+          description: PER-004 always present; PER-005 present when the change produces a transitional period.
+        preparedAt:
+          type: string
+          format: date-time
+        confirmedAt:
+          type: string
+          format: date-time
+        confirmedBy:
+          type: string
+          description: The verified caller identity, never a request field.
+      required: [reassignmentId, entityRef, spanStart, spanEnd, reassignmentStatus, affectedCount, reasonCodes, preparedAt]
+    PreparedReassignmentPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PreparedReassignment'
+        nextCursor:
+          type: string
+      required: [items]
   responses:
     Error:
       description: Error (API-20 envelope)
