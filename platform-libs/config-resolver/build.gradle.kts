@@ -41,7 +41,6 @@ val tenancyJooqImplJar = project(":tenancy-jooq").tasks.named("implJar")
 val tenancyKernelImplJar = project(":tenancy-kernel").tasks.named("implJar")
 val auditLogImplJar = project(":audit-log").tasks.named("implJar")
 val outboxImplJar = project(":outbox-and-queue").tasks.named("implJar")
-val tenancyJooqImplJar = project(":tenancy-jooq").tasks.named("implJar")
 
 dependencies {
     api(project(":tenancy-kernel"))
