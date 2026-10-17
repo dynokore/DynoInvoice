@@ -2,6 +2,7 @@
 # published behavior and intent are roles and services (integration.engineer, entity.admin, transport-svc), which are not contract elements.
 # Rows hold the contract names of the route, throughput ceiling and entity assignment (INV-REQ-1310, INV-REQ-1317, owner answer INV-Q-4993 B).
 # AccessPointRouteChanged is not a row (INV-Q-5389 A: the checker finds only property keys, operationId values and enum members).
+# INV-T-6254. INV-REQ-424, INV-REQ-426, INV-REQ-552, INV-REQ-553 and INV-REQ-1361 name no backticked identifier of their own: the names come from the ruling of INV-Q-6250.
 # identifier	kind	file	requirement
 acknowledgementRoute	property	openapi.yaml	INV-REQ-1310
 AP_CALLBACK	enum_value	openapi.yaml	INV-REQ-1310
@@ -14,3 +15,13 @@ connectionRef	property	schemas/access-point-route-changed-payload.schema.json	IN
 acknowledgementRoute	property	schemas/access-point-route-changed-payload.schema.json	INV-REQ-1310
 entityRefs	property	schemas/access-point-route-changed-payload.schema.json	INV-Q-4993
 version	property	schemas/access-point-route-changed-payload.schema.json	INV-Q-4872
+submitPackage	operation	openapi.yaml	INV-REQ-424
+SubmitPackageRequest.packageRef	schema_property	openapi.yaml	INV-REQ-424
+SubmitPackageRequest.adapterRef	schema_property	openapi.yaml	INV-REQ-424
+SubmitPackageRequest.documentTypeCode	schema_property	openapi.yaml	INV-REQ-424
+SubmitPackageRequest.members	schema_property	openapi.yaml	INV-REQ-424
+PackageOutcome.packageRef	schema_property	openapi.yaml	INV-REQ-424
+PackageOutcome.outcome	schema_property	openapi.yaml	INV-REQ-424
+PackageOutcome.members	schema_property	openapi.yaml	INV-REQ-424
+PackageOutcome.reasons	schema_property	openapi.yaml	INV-REQ-424
+sizeBytes	property	openapi.yaml	INV-REQ-424

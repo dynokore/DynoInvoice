@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: transport API
-  version: 1.1.0
+  version: 1.2.0
   description: >-
     Contract-first source of truth for transport (API-01, STK-44). The
     `transport-contract` module generates its server interfaces and DTOs
@@ -122,6 +122,95 @@ paths:
               examples:
                 default:
                   value: { docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6", version: 1, outcome: "ACCEPTED" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/transport/packages:
+    post:
+      operationId: submitPackage
+      summary: Submit a bulk package of one to ten same-type documents to IRAS through the AP
+      description: >-
+        The bulk submit API to submission-svc (sync-edges.yaml
+        `submission-svc -> transport-svc`), beside `submitPayload`. A package
+        holds 1 to 10 documents of one invoice type (`documentTypeCode`, the
+        UNCL1001 code all members share: 380 invoices, 381 credit notes) and
+        at most 10 MB in total (INV-REQ-424). The outcome applies to the whole
+        package (INV-REQ-553): on REJECTED or TRANSIENT_FAILURE submission-svc
+        re-splits the package and sends each member alone through
+        `submitPayload`. Acknowledgements still arrive per `docUuid` and
+        `version` as AcknowledgementReceived. Rules the schema language cannot
+        express, enforced by the producer and the consumer: (a) no two members
+        share a `docUuid` (INV-REQ-552); (b) the sum of the members'
+        `sizeBytes` is at most 10000000, 10 MB read as 10 000 000 bytes, and
+        transport-svc refuses a larger sum with 400; (c) a document over the
+        limit is never a member and is never truncated (payload-svc holds it
+        with PAY-010, INV-REQ-426); (d) the mixed-type refusal SUB-009 stays
+        the batcher's own, since a package carries one `documentTypeCode`.
+        Every transmission to a third party is irreversible (§31.3, FR-AC.9).
+      tags: [despatch]
+      x-principal: filing-workflow
+      x-timeout: 30000
+      x-sync-edge: submission-svc->transport-svc
+      x-error-codes: [SUB-001, SUB-002, SUB-003]
+      x-requirements: [INV-REQ-424, INV-REQ-426, INV-REQ-552, INV-REQ-553, INV-REQ-1361]
+      x-operation:
+        role: filing-workflow
+        scope: entity
+        precondition: "Every member payload is built and validated for its Doc UUID and version, and the package follows the split order of INV-REQ-426 (submission-svc's own precondition)."
+        reversibility: IRREVERSIBLE
+        repeatKey: "packageRef — a repeat returns the original package outcome."
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitPackageRequest'
+            examples:
+              default:
+                value:
+                  packageRef: "PKG-0001"
+                  adapterRef: "AP-PRIMARY"
+                  documentTypeCode: "380"
+                  members:
+                    - { docUuid: "3fa85f64-5717-4562-b3fc-2c963f660001", version: 1, payloadRef: "PAY-9001", sizeBytes: 120001 }
+                    - { docUuid: "3fa85f64-5717-4562-b3fc-2c963f660002", version: 1, payloadRef: "PAY-9002", sizeBytes: 120002 }
+                    - { docUuid: "3fa85f64-5717-4562-b3fc-2c963f660003", version: 1, payloadRef: "PAY-9003", sizeBytes: 120003 }
+                    - { docUuid: "3fa85f64-5717-4562-b3fc-2c963f660004", version: 1, payloadRef: "PAY-9004", sizeBytes: 120004 }
+                    - { docUuid: "3fa85f64-5717-4562-b3fc-2c963f660005", version: 1, payloadRef: "PAY-9005", sizeBytes: 120005 }
+                    - { docUuid: "3fa85f64-5717-4562-b3fc-2c963f660006", version: 1, payloadRef: "PAY-9006", sizeBytes: 120006 }
+                    - { docUuid: "3fa85f64-5717-4562-b3fc-2c963f660007", version: 1, payloadRef: "PAY-9007", sizeBytes: 120007 }
+                    - { docUuid: "3fa85f64-5717-4562-b3fc-2c963f660008", version: 1, payloadRef: "PAY-9008", sizeBytes: 120008 }
+                    - { docUuid: "3fa85f64-5717-4562-b3fc-2c963f660009", version: 1, payloadRef: "PAY-9009", sizeBytes: 120009 }
+                    - { docUuid: "3fa85f64-5717-4562-b3fc-2c963f660010", version: 1, payloadRef: "PAY-9010", sizeBytes: 120010 }
+      responses:
+        '202':
+          description: The outcome of the whole package.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackageOutcome'
+              examples:
+                default:
+                  value:
+                    packageRef: "PKG-0001"
+                    outcome: "ACCEPTED"
+                    members:
+                      - { docUuid: "3fa85f64-5717-4562-b3fc-2c963f660001", version: 1 }
+                      - { docUuid: "3fa85f64-5717-4562-b3fc-2c963f660002", version: 1 }
+                      - { docUuid: "3fa85f64-5717-4562-b3fc-2c963f660003", version: 1 }
+                      - { docUuid: "3fa85f64-5717-4562-b3fc-2c963f660004", version: 1 }
+                      - { docUuid: "3fa85f64-5717-4562-b3fc-2c963f660005", version: 1 }
+                      - { docUuid: "3fa85f64-5717-4562-b3fc-2c963f660006", version: 1 }
+                      - { docUuid: "3fa85f64-5717-4562-b3fc-2c963f660007", version: 1 }
+                      - { docUuid: "3fa85f64-5717-4562-b3fc-2c963f660008", version: 1 }
+                      - { docUuid: "3fa85f64-5717-4562-b3fc-2c963f660009", version: 1 }
+                      - { docUuid: "3fa85f64-5717-4562-b3fc-2c963f660010", version: 1 }
+        '400':
+          description: >-
+            The request is malformed, or the sum of the members' `sizeBytes`
+            is over 10000000 (the package is refused, nothing is truncated).
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/transport/network-documents:
@@ -539,6 +628,62 @@ components:
               message: { type: string }
             required: [code, message]
       required: [docUuid, version, outcome]
+    SubmitPackageRequest:
+      type: object
+      description: >-
+        A bulk package of 1 to 10 same-type documents, at most 10 MB in total.
+        Not expressible here and enforced by the producer and the consumer:
+        no two members share a `docUuid`, and the sum of the members'
+        `sizeBytes` is at most 10000000.
+      properties:
+        packageRef: { type: string, minLength: 1, maxLength: 40, description: Assigned by submission-svc. }
+        adapterRef: { type: string, maxLength: 40 }
+        documentTypeCode:
+          type: string
+          pattern: '^38[01]$'
+          description: The one UNCL1001 code all members share, 380 invoices or 381 credit notes.
+        members:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items:
+            type: object
+            properties:
+              docUuid: { type: string, format: uuid }
+              version: { type: integer, minimum: 1 }
+              payloadRef: { type: string, maxLength: 100 }
+              sizeBytes: { type: integer, minimum: 1, maximum: 10000000, description: The byte length of the XML payload. }
+            required: [docUuid, version, payloadRef, sizeBytes]
+      required: [packageRef, adapterRef, documentTypeCode, members]
+    PackageOutcome:
+      type: object
+      description: The outcome of the whole package; it applies to every member.
+      properties:
+        packageRef: { type: string, maxLength: 40 }
+        outcome:
+          type: string
+          enum: [ACCEPTED, REJECTED, TRANSIENT_FAILURE]
+          x-extensible-enum: true
+        members:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items:
+            type: object
+            properties:
+              docUuid: { type: string, format: uuid }
+              version: { type: integer, minimum: 1 }
+            required: [docUuid, version]
+        reasons:
+          type: array
+          items:
+            type: object
+            properties:
+              code: { type: string, pattern: '^[A-Z]{2,10}-[0-9]{3}$' }
+              field: { type: string }
+              message: { type: string }
+            required: [code, message]
+      required: [packageRef, outcome, members]
     ApNotification:
       type: object
       properties:
