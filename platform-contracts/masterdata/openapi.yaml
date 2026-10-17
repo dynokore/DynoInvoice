@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: masterdata API
-  version: 1.2.0
+  version: 1.3.0
   description: >-
     Contract-first source of truth for masterdata (API-01, STK-44). The
     `masterdata-contract` module generates its server interfaces and DTOs
@@ -146,7 +146,7 @@ paths:
                 default:
                   value:
                     register: { status: "REGISTERED", asOf: "2026-03-19" }
-                    rate: { currency: "USD", date: "2026-03-20", source: "MAS", rate: "1.35800000" }
+                    rate: { currency: "USD", date: "2026-03-20", source: "MAS", rate: "1.35800000", provenance: { kind: "IMPORT", loadedAt: "2026-03-20T01:00:00Z", importId: "IMP-204" } }
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/masterdata/entities/{entityRef}/identity-triple:
@@ -526,7 +526,9 @@ paths:
         Import command to console-bff (services.yaml masterdata-svc
         `provides`; SCR-13.4, §35.2). The source must be the one the entity
         elected in tenancy-svc (`electRateSource`); rates are stored and
-        `ReferenceRateLoaded` is emitted.
+        `ReferenceRateLoaded` is emitted. A loaded rate carries `provenance`
+        with kind IMPORT, `loadedAt` and the import's `importId`
+        (INV-REQ-512).
 
 
         Long command (INV-Q-3438 A, INV-Q-3466 A, API-17): an import
@@ -780,7 +782,9 @@ paths:
       description: >-
         Import command to console-bff (services.yaml masterdata-svc
         `provides`; SCR-13.5, §35.2). Fills a gap raised as PAY-013,
-        evidenced, for one currency, date and source.
+        evidenced, for one currency, date and source. The answer carries
+        `provenance` with kind MANUAL, `loadedAt` and the request's
+        `evidenceRef` (INV-REQ-512).
       tags: [import]
       x-principal: filing-workflow
       x-sync-edge: console-bff->masterdata-svc
@@ -813,7 +817,7 @@ paths:
                 $ref: '#/components/schemas/ExchangeRate'
               examples:
                 default:
-                  value: { currency: "USD", date: "2026-03-20", source: "MAS", rate: "1.35800000" }
+                  value: { currency: "USD", date: "2026-03-20", source: "MAS", rate: "1.35800000", provenance: { kind: "MANUAL", loadedAt: "2026-03-20T09:30:00Z", evidenceRef: "EVD-3010" } }
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/masterdata/gap-reports:
@@ -1554,7 +1558,24 @@ components:
           format: decimal
           pattern: '^-?\d{1,17}(\.\d{1,8})?$'
           description: Exchange rate as a decimal string, up to 8 places (API-12).
+        provenance:
+          $ref: '#/components/schemas/RateProvenance'
       required: [currency, date, source, rate]
+    RateProvenance:
+      type: object
+      description: >-
+        How the rate was loaded (INV-REQ-512): kind IMPORT carries the
+        `importId` of the ImportRecord that loaded it, kind MANUAL the
+        `evidenceRef` given to `enterRate`.
+      properties:
+        kind:
+          type: string
+          enum: [MANUAL, IMPORT]
+          x-extensible-enum: true
+        loadedAt: { type: string, format: date-time }
+        importId: { type: string, maxLength: 40 }
+        evidenceRef: { type: string, maxLength: 64 }
+      required: [kind, loadedAt]
     RegisterAndRateResult:
       type: object
       properties:

@@ -9,3 +9,4 @@
 ../openapi.yaml#/components/schemas/ConnectionTestResult connection-test-result-*.json
 ../openapi.yaml#/components/schemas/CounterpartyRequest party-request-*.json
 ../openapi.yaml#/components/schemas/SendCounterpartyRequestBody send-counterparty-request-body-*.json
+../openapi.yaml#/components/schemas/ExchangeRate exchange-rate-*.json
