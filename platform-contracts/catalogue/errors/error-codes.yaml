@@ -1,7 +1,7 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
-# pinned at commit 70e25c6aba57b111e5fd12a86e4b978f6fdb12d6 (2026-10-16), the
-# merge of invoice-docs!37 adding SUB-018 and SUB-019 (INV-T-5412, coordinator ruling INV-Q-5405;
-# previously pinned at 089b718e523e57923eda73ebb148da4b89d6f82a, INV-T-5179).
+# pinned at commit bd93a33d21a7b92f1d9f8278d816d2d6cdb43499 (2026-10-17), the
+# merge of invoice-docs!38 adding PER-014 and PAY-017 (INV-T-6021, coordinator rulings INV-Q-6013, INV-Q-6015;
+# previously pinned at 70e25c6aba57b111e5fd12a86e4b978f6fdb12d6, INV-T-5412).
 #
 # This copy is the generator's (catalogue/generator/) sole input for the
 # gst-catalogue ErrorCode catalogue (STK-61, CS-13). It is never hand-edited:
@@ -307,6 +307,11 @@ error_codes:
   severity: HOLD
   disposition: AUTO_RELEASE when the election is recorded
   owner: Onboarding
+- code: PAY-017
+  condition: 'Override refused: the blocking check named is a code whose disposition is MANUAL or TERMINAL, which is fixed at source and never overridden (HTTP 422; INV-REQ-500, INV-AC-1584, INV-Q-6013)'
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Tax operations
 - code: SUB-001
   condition: Transport timeout or connection failure
   severity: WARN
@@ -473,6 +478,11 @@ error_codes:
   severity: BLOCK
   disposition: MANUAL
   owner: Finance
+- code: PER-014
+  condition: 'Filed GST return uploaded without its filing acknowledgement: uploadGstReturn requires the acknowledgement of the filing, and nothing is recorded (HTTP 422; INV-REQ-653, INV-AC-1715, INV-Q-6015)'
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Tax operations
 - code: DEP-001
   condition: Newer regulatory pack published but not activated; or the control-plane feed unreachable, or no bundle imported,
     for longer than the installation's silence limit (VP-72; extended 25 Sep 2026, Keel INV-Q-2343). Tiers count days to the

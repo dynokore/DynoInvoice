@@ -282,6 +282,7 @@ paths:
       x-operation:
         role: tax.approver
         scope: entity
+        precondition: The alert exists for the entity and is in the state RAISED or already ACKNOWLEDGED (a repeat reports the recorded acknowledgement).
         reversibility: IRREVERSIBLE
         repeatKey: "alertId — a repeat reports the recorded acknowledgement unchanged."
       parameters:
