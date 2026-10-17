@@ -28,6 +28,39 @@
     },
     "transactionDate": { "type": "string", "format": "date" },
     "currency": { "type": "string", "minLength": 3, "maxLength": 3 },
+    "postingTimestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Time the source system posted the document: the field a scheduled pull uses as its watermark (INV-REQ-790). Optional in the schema; a pull that finds it absent is refused by the operation, not by this schema."
+    },
+    "direction": {
+      "type": "string",
+      "enum": ["SALE", "PURCHASE"],
+      "description": "Absent means SALE (INV-REQ-809). A purchase line without inputTaxClaimed is refused with ING-007; the condition is enforced by the receiving service, not by this schema."
+    },
+    "networkReceipt": {
+      "type": "object",
+      "description": "Network receipt of a purchase received over the network (INV-REQ-428). A buyerDisposition outside PENDING, ACCEPTED, REJECTED is refused with 400 and SRT-001. Without supplierDocUuid the receipt is correlated by the fallback key of INV-REQ-429.",
+      "properties": {
+        "peppolMessageId": { "type": "string", "maxLength": 256 },
+        "receivedAt": { "type": "string", "format": "date-time" },
+        "supplierDocUuid": { "type": "string", "format": "uuid" },
+        "supplierEndpointId": { "type": "string", "maxLength": 256 },
+        "supplierDocumentNumber": { "type": "string", "maxLength": 100 },
+        "buyerDisposition": { "type": "string", "enum": ["PENDING", "ACCEPTED", "REJECTED"] }
+      },
+      "required": ["peppolMessageId", "receivedAt", "supplierEndpointId", "supplierDocumentNumber", "buyerDisposition"]
+    },
+    "networkIssuance": {
+      "type": "object",
+      "description": "Network issuance of an issued document (INV-REQ-327). When issuedDocUuid is present canonical-svc binds it as the Doc UUID instead of generating one; a collision with a different commercial document is ING-011.",
+      "properties": {
+        "issuedDocUuid": { "type": "string", "format": "uuid" },
+        "apMessageId": { "type": "string", "maxLength": 256 },
+        "handoffAt": { "type": "string", "format": "date-time" },
+        "customizationId": { "type": "string", "maxLength": 256 }
+      }
+    },
     "counterparty": {
       "type": "object",
       "properties": {
@@ -67,11 +100,24 @@
   "$defs": {
     "party": {
       "type": "object",
+      "description": "A party carrying only partyRef is resolved by masterdata-svc; an unresolved one holds the document at 202 with MDM-001 (INV-REQ-808). providedBy MIGRATED is refused with 400 and SRT-001, since MIGRATED is set only by an import. identifierScheme and identifierValue are enforced by the receiving service where no partyRef is given.",
       "properties": {
         "identifierScheme": { "type": "string", "maxLength": 20 },
-        "identifierValue": { "type": "string", "maxLength": 60 }
-      },
-      "required": ["identifierScheme", "identifierValue"]
+        "identifierValue": { "type": "string", "maxLength": 60 },
+        "partyRef": { "type": "string", "maxLength": 64 },
+        "name": { "type": "string", "maxLength": 256 },
+        "gstn": { "type": "string", "maxLength": 32 },
+        "address": {
+          "type": "object",
+          "properties": {
+            "line1": { "type": "string", "maxLength": 256 },
+            "postalCode": { "type": "string", "maxLength": 20 },
+            "countryCode": { "type": "string", "maxLength": 2 }
+          }
+        },
+        "providedBy": { "type": "string", "enum": ["COUNTERPARTY", "INTERNAL"] },
+        "evidenceRef": { "type": "string", "maxLength": 256 }
+      }
     },
     "line": {
       "type": "object",
@@ -91,13 +137,24 @@
           "pattern": "^-?\\d{1,17}(\\.\\d{1,2})?$",
           "description": "Money as a decimal string, decimal(19,2) (API-12)."
         },
-        "taxCode": { "type": "string", "maxLength": 10 },
+        "taxCode": { "type": "string", "maxLength": 32 },
+        "unitCode": { "type": "string", "maxLength": 16 },
+        "glAccount": { "type": "string", "maxLength": 32 },
+        "businessUnitRef": { "type": "string", "maxLength": 64 },
         "taxAmount": {
           "type": "string",
           "format": "decimal",
           "pattern": "^-?\\d{1,17}(\\.\\d{1,2})?$",
           "description": "Money as a decimal string, decimal(19,2) (API-12)."
-        }
+        },
+        "inputTaxClaimed": {
+          "type": "string",
+          "format": "decimal",
+          "pattern": "^-?\\d{1,17}(\\.\\d{1,2})?$",
+          "description": "Input tax the business intends to claim, decimal(19,2) (INV-REQ-809). A purchase line without it raises ING-007; the condition is enforced by the receiving service, not by this schema."
+        },
+        "apportionmentBasis": { "type": "string", "maxLength": 64 },
+        "mixedUse": { "type": "string", "enum": ["CLAIMABLE_PORTION", "ENTIRE_INVOICE"] }
       },
       "required": ["lineNumber", "lineAmount"]
     },

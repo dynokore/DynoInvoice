@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: ingestion API
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     Contract-first source of truth for ingestion (API-01, STK-44). The
     `ingestion-contract` module generates its server interfaces and DTOs
@@ -99,11 +99,26 @@ paths:
         (API-15, FR-M.3): no `Idempotency-Key` header is required or
         accepted for this resource. `certification` may also call this in a
         non-production workspace only (NFR-S.4, INV-REQ-1377).
+
+        `direction` is `SALE` or `PURCHASE`; absent means `SALE`
+        (INV-REQ-809). A purchase line without `inputTaxClaimed` raises
+        ING-007. The check that `mixedUse` agrees with the entity's elected
+        mode (PER-013) runs after recording, in another service, so PER-013
+        is not listed here. A `counterparty` party may carry only `partyRef`:
+        masterdata-svc resolves it, and an unresolved party holds the
+        document at `202` with MDM-001 (INV-REQ-808). `providedBy` `MIGRATED`
+        is refused with `400` and SRT-001, since `MIGRATED` is set only by an
+        import. The optional `networkReceipt` object (INV-REQ-428) carries a
+        purchase received over the network; a `buyerDisposition` outside
+        `PENDING`, `ACCEPTED`, `REJECTED` is refused with `400` and SRT-001.
+        The optional `networkIssuance` object (INV-REQ-327) carries the
+        issuer's Doc UUID, which canonical-svc binds instead of generating
+        one; a collision with a different commercial document is ING-011.
       tags: [transactions]
       x-principal: ingest
       x-timeout: 3000
-      x-error-codes: [ING-001, ING-002, ING-004, ING-005, ING-009, ING-011, ING-012, ING-016, ING-019]
-      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-805, INV-REQ-806]
+      x-error-codes: [ING-001, ING-002, ING-004, ING-005, ING-007, ING-009, ING-011, ING-012, ING-016, ING-019]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-805, INV-REQ-806, INV-REQ-807, INV-REQ-808, INV-REQ-809, INV-REQ-428, INV-REQ-327]
       x-operation:
         role: ingest
         scope: entity
@@ -164,7 +179,11 @@ paths:
                     transactionDate: "2026-03-20"
                     prescribedPeriodRef: "2026-Q1"
         '200':
-          description: Idempotent replay — the original result, unchanged (FR-M.3, API-15).
+          description: >-
+            Idempotent replay — the original result, unchanged (FR-M.3, API-15).
+            A repeat of the pair (`sourceSystem`, `sourceKey`, `sourceRevision`)
+            is a `200` replay (INV-REQ-806), including a repeat of a call that
+            was answered `202`.
           content:
             application/json:
               schema:
@@ -178,7 +197,12 @@ paths:
                     transactionDate: "2026-03-20"
                     prescribedPeriodRef: "2026-Q1"
         '202':
-          description: Recorded but held or blocked (FR-M.4, API-21) — not an error; the caller does not retry it.
+          description: >-
+            Recorded but held or blocked (FR-M.4, API-21) — not an error. The
+            body carries the `docUuid` and the hold or block reasons: a hold
+            such as MDM-001 or ING-016, or the blocking code the recorded
+            document carries (INV-REQ-807). The caller must not retry it; a
+            repeat of the pair is a `200` replay (INV-REQ-806).
           content:
             application/json:
               schema:
@@ -210,11 +234,20 @@ paths:
         itself is also idempotent on `batchId`. No `Idempotency-Key` header
         for this resource (API-15). At most 10,000 transactions and 50 MB
         (API-49).
+
+        The envelope declares `batchId`, `entityRef`, `periodCovered`,
+        `declaredCount`, `declaredNetTotal` and `declaredTaxTotal`
+        (INV-REQ-811). A batch that carries neither `manifest` nor the three
+        `declared*` properties, or one whose declared count or totals
+        disagree with the actual contents, is refused synchronously with
+        `422` and ING-003 and nothing is recorded. `declaredNetTotal` is
+        compared with the sum of the line amounts and `declaredTaxTotal`
+        with the sum of the tax amounts.
       tags: [batches]
       x-principal: ingest
       x-timeout: 10000
-      x-error-codes: [ING-003, ING-001, ING-002, ING-004, ING-005, ING-009, ING-011, ING-012, ING-016, ING-019]
-      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-811]
+      x-error-codes: [ING-003, ING-001, ING-002, ING-004, ING-005, ING-007, ING-009, ING-011, ING-012, ING-016, ING-019]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-811, INV-REQ-809]
       x-operation:
         role: ingest
         scope: entity
@@ -329,6 +362,9 @@ paths:
         the aggregate to canonical-svc (AD-22). `aggregateType` other than
         `POS`, `STI` or `PCP`, or a contradicting `direction`, is ING-006.
         No `Idempotency-Key` header for this resource (API-15).
+        `description`, `subtotalsByTaxCode`, `underlyingCount` and
+        `underlyingRef` are mandatory for a 1.1 client; a request without
+        them is refused with `400` and SRT-001 (INV-REQ-812).
       tags: [aggregates]
       x-principal: ingest
       x-timeout: 3000
@@ -428,7 +464,7 @@ paths:
       x-principal: ingest
       x-timeout: 5000
       x-error-codes:
-        [ING-001, ING-002, ING-004, ING-005, ING-009, ING-011, ING-012, ING-019, PAY-001, PAY-002, PAY-003, PAY-004, PAY-005,
+        [ING-001, ING-002, ING-004, ING-005, ING-007, ING-009, ING-011, ING-012, ING-019, PAY-001, PAY-002, PAY-003, PAY-004, PAY-005,
           PAY-006, PAY-009, PAY-011, PAY-013]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-324]
       x-operation:
@@ -1023,12 +1059,28 @@ components:
       type: object
       properties:
         batchId: { type: string, maxLength: 64 }
+        entityRef: { type: string, maxLength: 40 }
+        periodCovered:
+          type: string
+          maxLength: 20
+          description: Opaque, calendar-issued period reference, as `PeriodRef` (API-11).
+        declaredCount: { type: integer, minimum: 0 }
+        declaredNetTotal:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+          description: Money as a decimal string (API-12). Compared with the sum of the line amounts (INV-REQ-811).
+        declaredTaxTotal:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+          description: Money as a decimal string (API-12). Compared with the sum of the tax amounts (INV-REQ-811).
         manifest: { $ref: '#/components/schemas/BatchManifest' }
         transactions:
           type: array
           maxItems: 10000
           items: { $ref: '#/components/schemas/TransactionRequest' }
-      required: [batchId, manifest, transactions]
+      required: [batchId, transactions]
     BatchAccepted:
       type: object
       properties:
@@ -1092,6 +1144,15 @@ components:
           type: array
           maxItems: 10000
           items: { $ref: '#/components/schemas/AggregateLine' }
+        description: { type: string, maxLength: 512 }
+        subtotalsByTaxCode:
+          type: array
+          items: { $ref: '#/components/schemas/AggregateLine' }
+        underlyingCount: { type: integer, minimum: 0 }
+        underlyingRef:
+          type: string
+          maxLength: 256
+          description: The batch that delivered the underlying transactions, which the System retains (INV-REQ-812).
       required: [entityRef, aggregateType, direction, periodStart, periodEnd, lines]
     AggregateResult:
       type: object
@@ -1189,7 +1250,24 @@ components:
         feedType:
           type: string
           enum: [PULL, PUSH, FILE_DROP]
-        lookbackMinutes: { type: integer, minimum: 0 }
+        lookbackMinutes:
+          type: integer
+          minimum: 0
+          description: Superseded by `lookbackDays`; a request that carries both is refused with `400` and SRT-001 (INV-REQ-790).
+        lookbackDays:
+          type: integer
+          minimum: 1
+          maximum: 60
+          description: Look-back window re-read by each pull, in days; default 7 (INV-REQ-790, INV-REQ-1295).
+        watermarkField:
+          type: string
+          enum: [postingTimestamp]
+          x-enum-varnames: [POSTING_TIMESTAMP]
+          description: The watermark is the posting timestamp (`postingTimestamp` of the transaction, `posting_timestamp` in INV-REQ-790), never the document date.
+        sourceTimeZone:
+          type: string
+          maxLength: 40
+          description: Zone in which a timestamp without a zone is read; default Asia/Singapore (INV-REQ-790).
       required: [adapterRef, sourceSystem, feedType]
     AdapterConfigResult:
       type: object
