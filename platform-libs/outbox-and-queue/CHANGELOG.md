@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [5.0.1] - 2026-10-17
+### Changed
+- Metadata-only release (INV-T-5358, G-DVS): depends on `tenancy-kernel` 3.2.0, whose published module metadata gained a jOOQ dependency; no code change.
+
 ## [5.0.0] - 2026-10-17
 ### Changed
 - BREAKING (INV-T-5305, slice 2 of 4 of INV-T-4202; owner ruling INV-Q-4196): `JdbcWorkQueue` and `LaneRateLimiter` run

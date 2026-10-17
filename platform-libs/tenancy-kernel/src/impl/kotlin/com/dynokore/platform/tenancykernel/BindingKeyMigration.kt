@@ -18,9 +18,9 @@ object BindingKeyMigration {
     /**
      * The key table, the functions and their grants for [schema], to run as [sysRole] (`<svc>_sys`): the statements
      * make [sysRole] the owner, and the first block refuses to run as any other login. The table is readable by its
-     * owner only; the functions run with the owner's rights, with `search_path = pg_catalog, pg_temp` and pgcrypto
-     * called by its schema-qualified name [pgcryptoSchema], so no schema a caller controls is searched. EXECUTE is
-     * revoked from PUBLIC and granted to [runtimeRole] only.
+     * owner only; the functions run with the owner's rights, with `search_path = pg_catalog, <schema>, pg_temp`
+     * (INV-Q-4038) and pgcrypto called by its schema-qualified name [pgcryptoSchema]; a caller cannot create objects in
+     * either schema. EXECUTE is revoked from PUBLIC and granted to [runtimeRole] only.
      *
      * pgcrypto must be installed in [pgcryptoSchema] before; the first block fails the migration when it is not.
      *
@@ -37,7 +37,7 @@ object BindingKeyMigration {
         val runtime = SqlIdentifier.require(runtimeRole, "runtimeRole")
         val crypto = SqlIdentifier.require(pgcryptoSchema, "pgcryptoSchema")
         return """
-            |DO ${'$'}guard${'$'}
+            |DO $$
             |BEGIN
             |    IF current_user <> '$sys' THEN
             |        RAISE EXCEPTION 'binding functions must be created by $sys, not %', current_user;
@@ -47,22 +47,57 @@ object BindingKeyMigration {
             |        WHERE e.extname = 'pgcrypto' AND n.nspname = '$crypto') THEN
             |        RAISE EXCEPTION 'pgcrypto must be installed in schema $crypto';
             |    END IF;
-            |END ${'$'}guard${'$'};
+            |END $$;
             |CREATE TABLE $s.binding_key (
             |    slot   text  PRIMARY KEY CHECK (slot IN ('$SLOT_CURRENT', '$SLOT_PREVIOUS')),
             |    secret bytea NOT NULL CHECK (length(secret) > 0)
             |);
+            |COMMENT ON TABLE $s.binding_key IS 'platform-scoped: no tenant data';
             |REVOKE ALL ON TABLE $s.binding_key FROM PUBLIC;
             |CREATE FUNCTION $s.binding_verified() RETURNS text[]
-            |    LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS ${'$'}fn${'$'}
-            |${verifyBody(s, crypto)}
-            |${'$'}fn${'$'};
+            |    LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, $s, pg_temp AS $$
+            |DECLARE
+            |    sig    text := nullif(current_setting('app.binding_sig', true), '');
+            |    parts  text[];
+            |    k      record;
+            |    b64    text;
+            |BEGIN
+            |    IF sig IS NULL THEN RETURN NULL; END IF;
+            |    parts := string_to_array(sig, '.');
+            |    IF array_length(parts, 1) IS DISTINCT FROM 4
+            |       OR parts[1] !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            |       OR parts[2] !~ '^[A-Za-z0-9_-]+$'
+            |       OR parts[3] !~ '^[0-9]{1,12}$'
+            |       OR parts[4] !~ '^[0-9a-f]{64}$' THEN
+            |        RETURN NULL;
+            |    END IF;
+            |    IF parts[3]::bigint <= extract(epoch FROM now())::bigint THEN RETURN NULL; END IF;
+            |    FOR k IN SELECT secret FROM $s.binding_key LOOP
+            |        IF encode($crypto.hmac(convert_to(parts[1] || '.' || parts[2] || '.' || parts[3], 'UTF8'),
+            |                               k.secret, 'sha256'), 'hex') = parts[4] THEN
+            |            b64 := translate(parts[2], '-_', '+/');
+            |            b64 := rpad(b64, length(b64) + (4 - length(b64) % 4) % 4, '=');
+            |            RETURN ARRAY[parts[1], convert_from(decode(b64, 'base64'), 'UTF8')];
+            |        END IF;
+            |    END LOOP;
+            |    RETURN NULL;
+            |EXCEPTION WHEN OTHERS THEN
+            |    RETURN NULL;
+            |END;
+            |$$;
             |CREATE FUNCTION $s.bound_tenant() RETURNS uuid
-            |    LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp
-            |    AS ${'$'}fn${'$'}SELECT ($s.binding_verified())[1]::uuid${'$'}fn${'$'};
+            |    LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, $s, pg_temp
+            |    AS $$
+            |    SELECT ($s.binding_verified())[1]::uuid
+            |$$;
             |CREATE FUNCTION $s.bound_actor() RETURNS text
-            |    LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp
-            |    AS ${'$'}fn${'$'}SELECT ($s.binding_verified())[2]${'$'}fn${'$'};
+            |    LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, $s, pg_temp
+            |    AS $$
+            |    SELECT ($s.binding_verified())[2]
+            |$$;
+            |ALTER FUNCTION $s.binding_verified() OWNER TO $sys;
+            |ALTER FUNCTION $s.bound_tenant() OWNER TO $sys;
+            |ALTER FUNCTION $s.bound_actor() OWNER TO $sys;
             |REVOKE ALL ON FUNCTION $s.binding_verified() FROM PUBLIC;
             |REVOKE ALL ON FUNCTION $s.bound_tenant() FROM PUBLIC;
             |REVOKE ALL ON FUNCTION $s.bound_actor() FROM PUBLIC;
@@ -105,39 +140,4 @@ object BindingKeyMigration {
             }
         }
     }
-
-    private fun verifyBody(
-        schema: String,
-        crypto: String,
-    ): String =
-        """
-        |DECLARE
-        |    sig    text := nullif(current_setting('app.binding_sig', true), '');
-        |    parts  text[];
-        |    k      record;
-        |    b64    text;
-        |BEGIN
-        |    IF sig IS NULL THEN RETURN NULL; END IF;
-        |    parts := string_to_array(sig, '.');
-        |    IF array_length(parts, 1) IS DISTINCT FROM 4
-        |       OR parts[1] !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}${'$'}'
-        |       OR parts[2] !~ '^[A-Za-z0-9_-]+${'$'}'
-        |       OR parts[3] !~ '^[0-9]{1,12}${'$'}'
-        |       OR parts[4] !~ '^[0-9a-f]{64}${'$'}' THEN
-        |        RETURN NULL;
-        |    END IF;
-        |    IF parts[3]::bigint <= extract(epoch FROM now())::bigint THEN RETURN NULL; END IF;
-        |    FOR k IN SELECT secret FROM $schema.binding_key LOOP
-        |        IF encode($crypto.hmac(convert_to(parts[1] || '.' || parts[2] || '.' || parts[3], 'UTF8'),
-        |                               k.secret, 'sha256'), 'hex') = parts[4] THEN
-        |            b64 := translate(parts[2], '-_', '+/');
-        |            b64 := rpad(b64, length(b64) + (4 - length(b64) % 4) % 4, '=');
-        |            RETURN ARRAY[parts[1], convert_from(decode(b64, 'base64'), 'UTF8')];
-        |        END IF;
-        |    END LOOP;
-        |    RETURN NULL;
-        |EXCEPTION WHEN OTHERS THEN
-        |    RETURN NULL;
-        |END;
-        """.trimMargin()
 }

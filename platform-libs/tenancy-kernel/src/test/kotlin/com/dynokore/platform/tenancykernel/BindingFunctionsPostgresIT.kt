@@ -133,7 +133,7 @@ class BindingFunctionsPostgresIT {
             assertEquals(SYS, it[1])
             assertEquals(true, it[2])
             assertEquals("s", it[3])
-            assertEquals("{\"search_path=pg_catalog, pg_temp\"}", it[4])
+            assertEquals("{\"search_path=pg_catalog, $SCHEMA, pg_temp\"}", it[4])
         }
     }
 

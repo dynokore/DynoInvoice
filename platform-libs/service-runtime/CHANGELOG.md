@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [8.1.2] - 2026-10-17
+### Changed
+- Metadata-only release (INV-T-5358, G-DVS): depends on `tenancy-kernel` 3.2.0, whose published module metadata gained a jOOQ dependency; no code change.
+
 ## [8.1.1] - 2026-10-17
 ### Changed
 - `OutboxAndQueueWiring` (INV-T-5305, outbox-and-queue 5.0.0; coordinator ruling INV-Q-5275): builds `LaneRateLimiter`,

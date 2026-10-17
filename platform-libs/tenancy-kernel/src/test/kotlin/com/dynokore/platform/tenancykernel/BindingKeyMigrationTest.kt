@@ -17,11 +17,14 @@ class BindingKeyMigrationTest {
     fun `ddl creates stable definer functions with a fixed search_path granted to the runtime login only`() {
         assertTrue(sql.contains("CREATE FUNCTION svc_x.bound_tenant() RETURNS uuid"))
         assertTrue(sql.contains("CREATE FUNCTION svc_x.bound_actor() RETURNS text"))
-        assertTrue(Regex("STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp").findAll(sql).count() == 3)
+        assertTrue(
+            Regex("STABLE SECURITY DEFINER SET search_path = pg_catalog, svc_x, pg_temp").findAll(sql).count() == 3,
+        )
         assertTrue(sql.contains("REVOKE ALL ON FUNCTION svc_x.bound_tenant() FROM PUBLIC;"))
         assertTrue(sql.contains("REVOKE ALL ON TABLE svc_x.binding_key FROM PUBLIC;"))
         assertTrue(sql.contains("GRANT EXECUTE ON FUNCTION svc_x.bound_actor() TO svc_x_app;"))
         assertFalse(sql.contains("TO PUBLIC"))
+        assertTrue(sql.contains("ALTER FUNCTION svc_x.bound_tenant() OWNER TO svc_x_sys;"))
         assertFalse(sql.contains("app.tenant_id"))
         assertFalse(sql.contains("app.actor"))
     }

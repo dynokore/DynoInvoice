@@ -33,7 +33,7 @@ as `<svc>_sys` (the first block refuses any other login and a missing pgcrypto):
   reads it. `BindingKeyMigration.writeKeys(dsl, schema, BindingKeySource)` is the migration runner's write (a jOOQ
   upsert; a missing or empty current key throws and writes nothing; no previous key deletes that slot).
 - `<schema>.bound_tenant()` (uuid) and `<schema>.bound_actor()` (text): STABLE `SECURITY DEFINER`, owned by `<svc>_sys`,
-  `search_path = pg_catalog, pg_temp`, pgcrypto called by its qualified name, EXECUTE revoked from PUBLIC and granted
+  `search_path = pg_catalog, <schema>, pg_temp` (INV-Q-4038), pgcrypto called by its qualified name, EXECUTE revoked from PUBLIC and granted
   to the runtime login only. They return NULL, never an error, for a missing, empty, malformed, forged or expired value.
   They read `app.binding_sig` only, never `app.tenant_id` or `app.actor`.
 
