@@ -26,8 +26,8 @@ import com.dynokore.platform.tenancyjooq.TenancyProbe
 import com.dynokore.platform.tenancykernel.CurrentConnection
 import com.dynokore.platform.tenancykernel.TenantContextImpl
 import com.dynokore.platform.tenancykernel.TenantId
-import com.dynokore.platform.tenancykernel.TransactionRunner
 import com.dynokore.platform.tenancykernel.TestPoolFixture
+import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
 import org.jooq.Field
 import org.jooq.impl.DSL
