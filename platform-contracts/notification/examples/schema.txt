@@ -1,3 +1,5 @@
 ../openapi.yaml#/components/schemas/Alert alert-instance-*.json
 ../openapi.yaml#/components/schemas/AlertPolicyRequest alert-policy-request-*.json
 ../openapi.yaml#/components/schemas/EscalationTier escalation-tier-*.json
+../openapi.yaml#/components/schemas/WebhookPayload webhook-payload-*.json
+../openapi.yaml#/components/schemas/CreateWebhookSubscriptionRequest create-webhook-subscription-request-*.json

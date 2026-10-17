@@ -14,3 +14,13 @@ CHAT_WEBHOOK	enum_value	openapi.yaml	INV-REQ-1113
 READINESS_CHECK_INVOKED	enum_value	openapi.yaml	INV-REQ-79
 RETURN_FIGURES_UPLOADED	enum_value	openapi.yaml	INV-REQ-79
 ACKNOWLEDGED	enum_value	openapi.yaml	INV-REQ-79
+entityRefs	property	openapi.yaml	INV-REQ-820
+eventId	property	openapi.yaml	INV-REQ-821
+responseCode	property	openapi.yaml	INV-REQ-822
+isTest	property	openapi.yaml	INV-REQ-822
+overlapMinutes	property	openapi.yaml	INV-REQ-822
+previousSecretValidUntil	property	openapi.yaml	INV-REQ-822
+testWebhookSubscription	operation	openapi.yaml	INV-REQ-822
+pauseWebhookSubscription	operation	openapi.yaml	INV-REQ-822
+resumeWebhookSubscription	operation	openapi.yaml	INV-REQ-822
+PAUSED	enum_value	openapi.yaml	INV-REQ-822

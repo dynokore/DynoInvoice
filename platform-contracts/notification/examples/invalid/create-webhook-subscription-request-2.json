@@ -1,0 +1,1 @@
+{"url":"https://erp.acme.example/hooks/invoice","events":["document.acknowledged"]}

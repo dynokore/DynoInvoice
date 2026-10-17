@@ -1,0 +1,1 @@
+{"entityRef":"E-001","entityRefs":["E-001"],"url":"https://erp.acme.example/hooks/invoice","events":["document.acknowledged"]}
