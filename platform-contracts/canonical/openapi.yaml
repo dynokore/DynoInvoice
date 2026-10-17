@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: canonical API
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     Contract-first source of truth for canonical (API-01, STK-44). The
     `canonical-contract` module generates its server interfaces and DTOs
@@ -40,12 +40,27 @@ paths:
         result unchanged (INV-REQ-806); a higher sourceRevision for the same
         sourceKey amends the same Doc UUID. Never mutates a version in place
         and never regenerates a Doc UUID on retry (canonical-svc `must_not`).
+
+
+        With `networkIssuance.issuedDocUuid` the UUID is bound in the recording
+        transaction instead of a generated one, and a UUID already bound to a
+        different commercial document is rejected with ING-011 (two postings
+        are the same document when source system and source key are equal,
+        INV-REQ-327). A receipt (`networkReceipt`) carrying a `supplierDocUuid`
+        already bound for the entity becomes a new version of that document
+        (INV-REQ-430); a receipt that carries `PENDING` returns it to a hold
+        with ING-013. A fallback match of more than one document is held with
+        ING-017. The same source key with a higher `sourceRevision` is an
+        amendment under the same Doc UUID, a lower one is `409` with ING-002,
+        and a change of direction, document type or entity is ING-012
+        (INV-REQ-793). A replay answers `200` with the original body,
+        produced by canonical-svc (INV-REQ-1192).
       tags: [documents]
       x-principal: ingest
       x-timeout: 2000
       x-sync-edge: ingestion-svc->canonical-svc
-      x-error-codes: [ING-002, ING-005, ING-011, ING-012, ING-016, ING-019]
-      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-547, INV-REQ-806]
+      x-error-codes: [ING-002, ING-005, ING-011, ING-012, ING-016, ING-019, ING-013, ING-017]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-547, INV-REQ-806, INV-REQ-327, INV-REQ-430, INV-REQ-431, INV-REQ-793, INV-REQ-1192]
       x-operation:
         role: ingest
         scope: entity
@@ -123,8 +138,10 @@ paths:
         '202':
           description: >-
             Recorded but held (FR-M.4, API-21) — rules-svc or masterdata-svc
-            was unavailable (ING-016) and derivation is incomplete; released
-            automatically on recovery.
+            was unavailable (ING-016) and derivation is incomplete, a network
+            receipt awaits buyer acceptance (ING-013), or a fallback match of
+            more than one document needs a decision (ING-017); released
+            automatically on recovery (ING-016) or on acceptance (ING-013).
           content:
             application/json:
               schema:
@@ -391,6 +408,60 @@ components:
             precedingDocumentNumber nor precedingDocumentDate is present; otherwise optional (INV-REQ-561,
             INV-Q-1677, INV-Q-3450, INV-Q-3488); refused with ING-019. Enforced by canonical-svc, not by
             this schema (as for TransactionRequest).
+        direction:
+          type: string
+          enum: [SALE, PURCHASE]
+          description: >-
+            Direction of the document for the entity; absent means SALE. Doc UUID uniqueness is scoped by
+            (entity, direction) (INV-REQ-431, INV-REQ-739). An amendment that changes it is refused with
+            ING-012 (INV-REQ-793).
+        networkIssuance:
+          type: object
+          description: >-
+            Present on an issued document posted in Observe mode; when `issuedDocUuid` is present it is bound
+            as the Doc UUID instead of a generated one (INV-REQ-327). Same shape as TransactionRequest.
+          properties:
+            issuedDocUuid:
+              type: string
+              format: uuid
+              description: The issuer's own Doc UUID (BT-SG 003), bound in the recording transaction; a collision with a different commercial document is ING-011 (INV-REQ-327).
+            apMessageId:
+              type: string
+              description: Access Point message id of the hand-off (INV-REQ-327).
+            handoffAt:
+              type: string
+              format: date-time
+              description: When the issuer handed the document to the network (INV-REQ-327).
+            customizationId:
+              type: string
+              description: Customization id of the issued document (INV-REQ-327).
+        networkReceipt:
+          type: object
+          description: >-
+            Present on a document received from the network (INV-REQ-327, INV-REQ-428). A `supplierDocUuid`
+            already bound for the entity makes the receipt a new version of that document (INV-REQ-430).
+            Same shape as TransactionRequest.
+          properties:
+            peppolMessageId:
+              type: string
+            receivedAt:
+              type: string
+              format: date-time
+            supplierEndpointId:
+              type: string
+            supplierDocumentNumber:
+              type: string
+            buyerDisposition:
+              type: string
+              enum: [PENDING, ACCEPTED, REJECTED]
+              description: >-
+                The buyer's disposition as published in INV-REQ-428. PENDING holds the document with ING-013
+                until the buyer accepts again (INV-REQ-430).
+            supplierDocUuid:
+              type: string
+              format: uuid
+              description: The supplier's Doc UUID; bound as the Doc UUID when the pack rule `inboundDocUuidRule` is ADOPT_SUPPLIER (INV-REQ-431).
+          required: [peppolMessageId, receivedAt, supplierEndpointId, supplierDocumentNumber, buyerDisposition]
       required:
         [tenantId, entityRef, sourceSystem, sourceKey, sourceRevision, documentFunction, transactionDate, currency, lines]
     RecordDocumentResponse:
@@ -414,6 +485,14 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ReasonItem'
+        docUuidSource:
+          type: string
+          enum: [SYSTEM, ISSUER, SUPPLIER]
+          x-extensible-enum: true
+          description: >-
+            Where the Doc UUID came from: ISSUER when `networkIssuance.issuedDocUuid` was bound (INV-AC-1769),
+            SUPPLIER when the pack rule `inboundDocUuidRule` is ADOPT_SUPPLIER and the supplier's UUID was bound,
+            SYSTEM when the System generated one (INV-AC-1433). Optional so an older consumer validates (INV-REQ-431).
       required: [docUuid, version, scopeVerdict, transactionDate, prescribedPeriodRef]
     ReasonItem:
       type: object
@@ -446,6 +525,14 @@ components:
           format: date
         prescribedPeriodRef:
           type: string
+        docUuidSource:
+          type: string
+          enum: [SYSTEM, ISSUER, SUPPLIER]
+          x-extensible-enum: true
+          description: >-
+            Where the Doc UUID came from: ISSUER when `networkIssuance.issuedDocUuid` was bound (INV-AC-1769),
+            SUPPLIER when the pack rule `inboundDocUuidRule` is ADOPT_SUPPLIER and the supplier's UUID was bound,
+            SYSTEM when the System generated one (INV-AC-1433). Optional so an older consumer validates (INV-REQ-431).
       required: [docUuid, currentVersion, documentFunction, scopeVerdict, transactionDate, prescribedPeriodRef]
     DocumentVersion:
       type: object
@@ -472,6 +559,14 @@ components:
           type: string
         totals:
           $ref: '#/components/schemas/Totals'
+        docUuidSource:
+          type: string
+          enum: [SYSTEM, ISSUER, SUPPLIER]
+          x-extensible-enum: true
+          description: >-
+            Where the Doc UUID came from: ISSUER when `networkIssuance.issuedDocUuid` was bound (INV-AC-1769),
+            SUPPLIER when the pack rule `inboundDocUuidRule` is ADOPT_SUPPLIER and the supplier's UUID was bound,
+            SYSTEM when the System generated one (INV-AC-1433). Optional so an older consumer validates (INV-REQ-431).
       required: [docUuid, version, docsequence, documentFunction, scopeVerdict, transactionDate, prescribedPeriodRef]
   responses:
     Error:
