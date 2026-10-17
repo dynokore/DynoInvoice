@@ -57,8 +57,9 @@ private class Postgres(
  * Proves [PackRegistryMigration]'s row-level security and its `register_platform_pack` function against a real
  * PostgreSQL 16, 17 and 18 (CS-19, INV-ADR-3968 items 4a and 6; coordinator ruling INV-Q-4117; INV-T-4137).
  *
- * The roles and schemas come from the superuser init script `db/rulepack-kernel-test-roles.sql`; the generated DDL is
- * applied by Flyway as `rulepack_kernel_migrate`, the `NOSUPERUSER`/`NOBYPASSRLS` migration login that owns the table
+ * The roles and schemas come from the superuser init script `db/rulepack-kernel-test-roles.sql`, followed by the
+ * generated DDL, applied as container init SQL under `SET ROLE rulepack_kernel_migrate`, the
+ * `NOSUPERUSER`/`NOBYPASSRLS` migration login that owns the table
  * and is a member of `rulepack_kernel_sys` (it hands the function over), as every other module's IT migrates. The
  * migrated schema verifies under tenancy-jooq's [TableClasses] with [PackRegistryMigration.referenceTable] declared
  * REFERENCE (coordinator ruling INV-Q-4582). Every assertion runs through tenancy-jooq's [TenancyProbe] logged in as
@@ -71,10 +72,9 @@ class PackRegistryMigrationPostgresIT {
     @ParameterizedTest
     @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `platform rows are written only by register_platform_pack and read by every bound tenant`(image: String) {
-        val container = Postgres(DockerImageName.parse(image)).withInitScript("db/rulepack-kernel-test-roles.sql")
+        val container = Postgres(DockerImageName.parse(image)).withPackRegistryInit()
         container.start()
         try {
-            migrate(container)
             assertTheMigrationRoleOwnsTheTableWithoutPrivilege(container)
             assertTheTableClassCheckOfTheMigratedSchema(container)
             val app = TenancyProbe.connect(container.jdbcUrl, "rulepack_kernel_app", "rulepack_kernel_app_pw")
@@ -407,6 +407,4 @@ class PackRegistryMigrationPostgresIT {
             }
         assertEquals(mapOf("a-by-actor" to "user:a", "platform-scope" to "svc:rules-svc"), stored)
     }
-
-    private fun migrate(container: Postgres) = migratePackRegistry(container.jdbcUrl)
 }

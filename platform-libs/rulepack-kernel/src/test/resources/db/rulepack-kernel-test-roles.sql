@@ -6,7 +6,7 @@
 --   rulepack_kernel_sys     — the NOLOGIN owner of register_platform_pack (`<svc>_sys`, INV-ADR-3968 item 6).
 --   rulepack_kernel_app     — the runtime login: owns nothing and is a member of no role.
 --   rulepack_kernel_other   — a login the function is not granted to.
--- Flyway keeps its history in rulepack_migrations, so rulepack_test holds only the pack registry table.
+-- rulepack_migrations stays an empty schema; rulepack_test holds only the pack registry table.
 CREATE ROLE rulepack_kernel_migrate LOGIN PASSWORD 'rulepack_kernel_migrate_pw' NOSUPERUSER NOBYPASSRLS NOCREATEROLE;
 CREATE ROLE rulepack_kernel_sys NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEROLE;
 GRANT rulepack_kernel_sys TO rulepack_kernel_migrate;

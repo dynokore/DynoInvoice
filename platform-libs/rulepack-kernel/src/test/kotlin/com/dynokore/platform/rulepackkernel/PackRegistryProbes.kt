@@ -2,10 +2,13 @@ package com.dynokore.platform.rulepackkernel
 
 import com.dynokore.platform.tenancyjooq.TenancyProbe
 import com.dynokore.platform.tenancykernel.TenantId
-import org.flywaydb.core.Flyway
 import org.jooq.exception.DataAccessException
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.testcontainers.containers.PostgreSQLContainer
+import org.testcontainers.images.builder.Transferable
+import java.nio.file.Files
+import java.nio.file.Path
 import java.time.LocalDate
 import java.util.UUID
 
@@ -137,24 +140,47 @@ internal fun assertRefusedWith(
 internal const val MIGRATE = "rulepack_kernel_migrate"
 internal const val MIGRATE_PASSWORD = "rulepack_kernel_migrate_pw"
 
-/** Applies the test migrations of `db/pack-registry-it/base` as [MIGRATE], the generated DDL as `packRegistryDdl`. */
-internal fun migratePackRegistry(jdbcUrl: String) {
-    Flyway
-        .configure()
-        .dataSource(jdbcUrl, MIGRATE, MIGRATE_PASSWORD)
-        .schemas("rulepack_migrations")
-        .createSchemas(false)
-        .locations("classpath:db/pack-registry-it/base")
-        .placeholders(
-            mapOf(
-                "packRegistryDdl" to
-                    PackRegistryMigration.ddl(
-                        schema = "rulepack_test",
-                        table = "rule_pack_version",
-                        runtimeRole = "rulepack_kernel_app",
-                        sysRole = "rulepack_kernel_sys",
-                    ),
-            ),
-        ).load()
-        .migrate()
+private const val INIT_SCRIPT_TARGET = "/docker-entrypoint-initdb.d/01-rulepack-kernel.sql"
+private const val ROLES_RESOURCE = "db/rulepack-kernel-test-roles.sql"
+private const val BASE_DIR = "db/pack-registry-it/base"
+private const val PLACEHOLDER = "\${packRegistryDdl}"
+
+/** The generated pack-registry DDL the test migrations receive as `packRegistryDdl`. */
+internal fun packRegistryDdl(): String =
+    PackRegistryMigration.ddl(
+        schema = "rulepack_test",
+        table = "rule_pack_version",
+        runtimeRole = "rulepack_kernel_app",
+        sysRole = "rulepack_kernel_sys",
+    )
+
+private fun resourceText(path: String): String =
+    checkNotNull(PackRegistryMigration::class.java.classLoader.getResourceAsStream(path)) { "missing $path" }
+        .use { it.readBytes().decodeToString() }
+
+/** The files of `db/pack-registry-it/base` in version order (`V<n>__name.sql`). */
+private fun baseFileNames(): List<String> {
+    val dir = Path.of(checkNotNull(PackRegistryMigration::class.java.classLoader.getResource(BASE_DIR)).toURI())
+    return Files.list(dir).use { files ->
+        files
+            .map { it.fileName.toString() }
+            .filter { it.endsWith(".sql") }
+            .toList()
+            .sortedBy { Regex("""V(\d+)__""").find(it)!!.groupValues[1].toInt() }
+    }
 }
+
+/**
+ * The container init script: the superuser role script, then the base migration files in version order with the
+ * placeholder `packRegistryDdl` replaced by [packRegistryDdl], run under `SET ROLE` to [MIGRATE] so that login owns
+ * the objects (route R1 of INV-Q-5245 and INV-Q-5119; no Flyway call).
+ */
+internal fun packRegistryInitScript(): String =
+    resourceText(ROLES_RESOURCE) +
+        "\nSET ROLE $MIGRATE;\n" +
+        baseFileNames().joinToString("\n") { resourceText("$BASE_DIR/$it").replace(PLACEHOLDER, packRegistryDdl()) } +
+        "\nRESET ROLE;\n"
+
+/** Applies the roles and the test migrations as container init SQL, before the container accepts connections. */
+internal fun <C : PostgreSQLContainer<C>> C.withPackRegistryInit(): C =
+    withCopyToContainer(Transferable.of(packRegistryInitScript()), INIT_SCRIPT_TARGET)

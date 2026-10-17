@@ -1,4 +1,4 @@
--- Test only (INV-T-4616). Run by Flyway as rulepack_kernel_migrate, which owns the table. Inserts one tenant row with the
+-- Test only (INV-T-4616). Run as container init SQL under SET ROLE to rulepack_kernel_migrate, which owns the table. Inserts one tenant row with the
 -- BEFORE INSERT trigger disabled, so that only the registered_by CHECK can refuse the row. Called by the owner inside a
 -- transaction that the refusal rolls back, the trigger's disabling with it; a row that passes re-enables the trigger.
 -- SECURITY INVOKER, EXECUTE revoked from PUBLIC: no other role can call it.

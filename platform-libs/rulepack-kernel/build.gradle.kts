@@ -98,11 +98,9 @@ dependencies {
     // RLS policy against the actual database CS-19 targets, not string matching.
     testRuntimeOnly(libs.postgresql)
     testImplementation(libs.testcontainers.postgresql)
-    // PackRegistryMigrationPostgresIT (INV-T-4188): the schema through Flyway, the RLS probes through tenancy-jooq's
+    // PackRegistryMigrationPostgresIT (INV-T-4188): the schema as container init SQL, the RLS probes through tenancy-jooq's
     // TenancyProbe on the runtime login (coordinator ruling INV-Q-4140; owner ruling INV-Q-4196: test code names no
     // JDBC type).
-    testImplementation(libs.flyway.core)
-    testRuntimeOnly(libs.flyway.databasePostgresql)
     testImplementation(testFixtures(project(":tenancy-jooq")))
     // The REFERENCE verification (coordinator ruling INV-Q-4582): tenancy-jooq's TableClasses on the migrated schema.
     // Test source set only; main and impl stay on tenancy-kernel and crypto (INV-MOD-2373 order).

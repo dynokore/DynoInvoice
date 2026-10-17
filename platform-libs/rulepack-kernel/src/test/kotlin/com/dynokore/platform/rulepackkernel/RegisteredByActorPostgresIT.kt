@@ -29,10 +29,9 @@ class RegisteredByActorPostgresIT {
     @ParameterizedTest
     @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `a blank or control actor is refused everywhere and a visible one is stored unchanged`(image: String) {
-        val container = ActorPostgres(DockerImageName.parse(image)).withInitScript("db/rulepack-kernel-test-roles.sql")
+        val container = ActorPostgres(DockerImageName.parse(image)).withPackRegistryInit()
         container.start()
         try {
-            migratePackRegistry(container.jdbcUrl)
             val app = TenancyProbe.connect(container.jdbcUrl, "rulepack_kernel_app", "rulepack_kernel_app_pw")
             val owner = TenancyProbe.connect(container.jdbcUrl, MIGRATE, MIGRATE_PASSWORD)
             val tenant = TenantId(UUID.randomUUID())
