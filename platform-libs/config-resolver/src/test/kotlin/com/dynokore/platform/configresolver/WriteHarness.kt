@@ -151,7 +151,15 @@ class WriteHarness(
     fun installationOutbox(
         connections: CurrentConnection,
         clock: Clock = CLOCK,
-    ): OutboxWriter = JdbcOutboxWriter(connections, SCHEMA, SERVICE, INSTANCE, CATALOGUE, clock)
+    ): OutboxWriter =
+        JdbcOutboxWriter(
+            TenancyJooq.dslContext(OutboxSchema.jooqTables(SCHEMA), tenants, app),
+            SCHEMA,
+            SERVICE,
+            INSTANCE,
+            CATALOGUE,
+            clock,
+        )
 
     /**
      * The service's real audit writer and stager: [OutboxAuditWriter] over [installationOutbox] in outbox mode,
