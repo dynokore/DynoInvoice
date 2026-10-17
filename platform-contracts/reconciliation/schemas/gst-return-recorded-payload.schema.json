@@ -33,6 +33,11 @@
       "type": "string",
       "minLength": 1,
       "description": "IRAS filing reference. Added 26 Sep 2026 (standards review): submission-svc's filing fact needs the same evidence on every path (FR-AF.36)."
+    },
+    "acknowledgementHash": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Hash of the filing acknowledgement. INV-REQ-653 behavior 6: \"The published `GstReturnRecorded` carries the period, form, return version, `filedAt`, the acknowledgement hash and the reference where present\". The published text fixes no algorithm or encoding. Optional, not in required."
     }
   },
   "required": [

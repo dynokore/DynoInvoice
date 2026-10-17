@@ -11,3 +11,8 @@ reasons	property	openapi.yaml	INV-REQ-657
 exportWorkPaper	operation	openapi.yaml	INV-REQ-982
 PDF	enum_value	openapi.yaml	INV-REQ-982
 SPREADSHEET	enum_value	openapi.yaml	INV-REQ-982
+filedAt	property	openapi.yaml	INV-REQ-653
+F5	enum_value	openapi.yaml	INV-REQ-653
+F7	enum_value	openapi.yaml	INV-REQ-653
+F8	enum_value	openapi.yaml	INV-REQ-653
+acknowledgementHash	property	schemas/gst-return-recorded-payload.schema.json	INV-REQ-653

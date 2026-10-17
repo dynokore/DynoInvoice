@@ -543,15 +543,11 @@ components:
         version:
           type: integer
           minimum: 1
-        form:
-          type: string
-          enum: [F5, F7, F8]
-          x-extensible-enum: true
         formType:
           type: string
           enum: [F5, F7, F8]
           x-extensible-enum: true
-          description: The return form; exactly one of `form` and `formType` is present (INV-REQ-653).
+          description: The return form; replaces the 1.0.0 request property `form` (owner ruling INV-Q-6117, option B).
         filedAt:
           type: string
           format: date-time
@@ -574,10 +570,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/GstReturnBox'
-      required: [version, filedAt, boxes]
-      oneOf:
-        - required: [form]
-        - required: [formType]
+      required: [version, formType, filedAt, boxes]
     GstReturnRecord:
       type: object
       properties:
