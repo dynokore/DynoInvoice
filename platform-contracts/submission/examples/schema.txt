@@ -1,0 +1,4 @@
+../openapi.yaml#/components/schemas/SubmissionSummary submission-summary-*.json
+../openapi.yaml#/components/schemas/SubmissionSummaryTotals totals-*.json
+../openapi.yaml#/components/schemas/SentVersusAcknowledgedView sent-versus-acknowledged-view*.json
+../openapi.yaml#/components/schemas/SubmissionExportHeader submission-export-header*.json

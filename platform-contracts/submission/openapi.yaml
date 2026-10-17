@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: submission API
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     Contract-first source of truth for submission (API-01, STK-44). The
     `submission-contract` module generates its server interfaces and DTOs
@@ -13,7 +13,11 @@ info:
     no synchronous callee edge in model/architecture/sync-edges.yaml (it is
     only a caller, to transport-svc). The five public operations below are
     `/v1/…`, routed by the gateway to the `filing-workflow` and `reporting`
-    principals. Two additional operations (withdrawSubmission, replaySubmissions)
+    principals. Three further `reporting` operations (getSubmissionSummary,
+    getSubmissionReconciliation, exportSubmissions) complete the submission
+    list in 1.1.0 (INV-REQ-629, INV-REQ-975 to INV-REQ-979); the list itself
+    has no total count (API-18), so the filtered row count and totals live in
+    getSubmissionSummary. Two additional operations (withdrawSubmission, replaySubmissions)
     are `/internal/v1/…`, reachable only by console-bff on a person's behalf
     (API-25 — the callee re-checks writes), rather than through the public
     `/v1/…` surface (INV-REQ-568, INV-REQ-575, INV-REQ-581, INV-T-2858, T14).
@@ -221,7 +225,16 @@ paths:
       description: >-
         Submission list and tracking reports (services.yaml submission-svc
         capabilities, §35.1). Cursor pagination (API-18); no offset and no
-        total count.
+        total count in the list.
+
+
+        One row per submitted version (INV-REQ-975); a superseded version is
+        included and marked by state SUPERSEDED. The optional filters
+        (INV-REQ-977) all combine with AND, and a cursor is bound to the
+        filters that produced it (API-18): a cursor sent with different
+        filters is rejected. The filtered row count and totals are read from
+        getSubmissionSummary with the same filters; the `bucket` filter is the
+        drill-down of each count of getSubmissionReconciliation (INV-REQ-976).
 
 
         Timeout class (INV-REQ-1204 b7, INV-Q-3476): `API gateway -> any
@@ -234,18 +247,19 @@ paths:
       x-principal: reporting
       x-timeout: 3000
       x-error-codes: []
-      x-requirements: [INV-REQ-1168]
+      x-requirements: [INV-REQ-1168, INV-REQ-629, INV-REQ-975, INV-REQ-977, INV-REQ-979]
       parameters:
         - $ref: '#/components/parameters/EntityRef'
         - $ref: '#/components/parameters/PeriodRef'
-        - name: state
-          in: query
-          required: false
-          schema:
-            type: string
-            enum:
-              [READY, AWAITING_PRECEDING, QUEUED, SENT, SENT_UNCONFIRMED, RETRY, DEAD_LETTERED, REJECTED, CANCELLED,
-                ACKNOWLEDGED, SUPERSEDED, NETWORK_ISSUED, EXTERNALLY_SUBMITTED, WITHDRAWN]
+        - $ref: '#/components/parameters/FilterDirection'
+        - $ref: '#/components/parameters/FilterSubmissionType'
+        - $ref: '#/components/parameters/FilterState'
+        - $ref: '#/components/parameters/FilterCategoryCode'
+        - $ref: '#/components/parameters/FilterCounterparty'
+        - $ref: '#/components/parameters/FilterAmountMin'
+        - $ref: '#/components/parameters/FilterAmountMax'
+        - $ref: '#/components/parameters/FilterAcknowledged'
+        - $ref: '#/components/parameters/FilterBucket'
         - name: sort
           in: query
           required: false
@@ -285,7 +299,215 @@ paths:
                         state: "ACKNOWLEDGED"
                         dueDate: "2026-04-30"
                         totalAmount: "1090.00"
+                        documentNumber: "INV-2026-0042"
+                        documentTypeCode: "380"
+                        direction: "SALE"
+                        counterpartyName: "Acme Pte Ltd"
+                        counterpartyUen: "201912345A"
+                        transactionDate: "2026-03-20"
+                        taxableAmount: "1000.00"
+                        gstAmount: "90.00"
+                        submittedAt: "2026-03-20T03:10:00Z"
+                        acknowledgedAt: "2026-04-20T03:15:21Z"
+                        acknowledgementId: "ACK-0001"
                     nextCursor: "eyJvIjoxMDB9"
+        '503':
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/entities/{entityRef}/periods/{periodRef}/submissions/summary:
+    get:
+      operationId: getSubmissionSummary
+      summary: Read the row count and totals of the submission list for a filter
+      description: >-
+        The row count and the taxable and GST totals of all rows that match
+        the filters, not of one page (INV-REQ-977, INV-REQ-978, INV-AC-2006).
+        The filters are those of listSubmissions and combine with AND. The
+        count lives in this separate resource so that the list keeps API-18's
+        "no total count in the list".
+
+
+        Timeout class (INV-REQ-1204 b7, INV-Q-3476): `API gateway -> any
+        other service's public /v1 operation`, 3 s (x-timeout 3000).
+        When the gateway's circuit breaker for this service is open, or
+        the call times out, the gateway answers `503` with the API-20
+        envelope; the `503` is retryable, and the client retries by a
+        re-read (a safe GET; INV-REQ-1204 b7, INV-Q-3571).
+      tags: [transactions]
+      x-principal: reporting
+      x-timeout: 3000
+      x-error-codes: []
+      x-requirements: [INV-REQ-977, INV-REQ-978]
+      parameters:
+        - $ref: '#/components/parameters/EntityRef'
+        - $ref: '#/components/parameters/PeriodRef'
+        - $ref: '#/components/parameters/FilterDirection'
+        - $ref: '#/components/parameters/FilterSubmissionType'
+        - $ref: '#/components/parameters/FilterState'
+        - $ref: '#/components/parameters/FilterCategoryCode'
+        - $ref: '#/components/parameters/FilterCounterparty'
+        - $ref: '#/components/parameters/FilterAmountMin'
+        - $ref: '#/components/parameters/FilterAmountMax'
+        - $ref: '#/components/parameters/FilterAcknowledged'
+        - $ref: '#/components/parameters/FilterBucket'
+      responses:
+        '200':
+          description: The row count and totals for the filter.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmissionSummaryTotals'
+              examples:
+                default:
+                  value:
+                    rowCount: 12
+                    totalTaxableAmount: "12000.00"
+                    totalGstAmount: "1080.00"
+        '503':
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/entities/{entityRef}/periods/{periodRef}/submissions/reconciliation:
+    get:
+      operationId: getSubmissionReconciliation
+      summary: Read the sent-versus-acknowledged view of a period
+      description: >-
+        Counts and amounts of the documents of the period in five classes
+        (INV-REQ-629, INV-REQ-976): SENT_ACKNOWLEDGED, SENT_NOT_ACKNOWLEDGED
+        (sent without acknowledgement beyond the threshold, SUB-005),
+        REJECTED, DEAD_LETTERED and NEVER_SENT (in scope but never sent).
+        Each class is present once in a response. A document in
+        SENT_NOT_ACKNOWLEDGED is not counted as submitted (INV-AC-672). Each
+        count drills down to the rows behind it through the `bucket` filter of
+        listSubmissions.
+
+
+        Classification of a document that has an ACKNOWLEDGED version and a
+        later version in flight: the default of the open owner question
+        INV-Q-5944 is that the document counts in SENT_ACKNOWLEDGED while an
+        earlier version is ACKNOWLEDGED. The service task revises this if the
+        owner answers otherwise; the response shape does not change with the
+        answer.
+
+
+        Timeout class (INV-REQ-1204 b7, INV-Q-3476): `API gateway -> any
+        other service's public /v1 operation`, 3 s (x-timeout 3000).
+        When the gateway's circuit breaker for this service is open, or
+        the call times out, the gateway answers `503` with the API-20
+        envelope; the `503` is retryable, and the client retries by a
+        re-read (a safe GET; INV-REQ-1204 b7, INV-Q-3571).
+      tags: [transactions]
+      x-principal: reporting
+      x-timeout: 3000
+      x-error-codes: []
+      x-requirements: [INV-REQ-629, INV-REQ-976]
+      parameters:
+        - $ref: '#/components/parameters/EntityRef'
+        - $ref: '#/components/parameters/PeriodRef'
+      responses:
+        '200':
+          description: The five classes with their counts and amounts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SentVersusAcknowledgedView'
+              examples:
+                default:
+                  value:
+                    entityRef: "E-001"
+                    periodRef: "2026-Q1"
+                    buckets:
+                      - { bucket: "SENT_ACKNOWLEDGED", count: 40, totalAmount: "43600.00" }
+                      - { bucket: "SENT_NOT_ACKNOWLEDGED", count: 1, totalAmount: "1090.00" }
+                      - { bucket: "REJECTED", count: 0, totalAmount: "0.00" }
+                      - { bucket: "DEAD_LETTERED", count: 0, totalAmount: "0.00" }
+                      - { bucket: "NEVER_SENT", count: 2, totalAmount: "2180.00" }
+        '503':
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/entities/{entityRef}/periods/{periodRef}/submissions/export:
+    get:
+      operationId: exportSubmissions
+      summary: Export the submission list for a filter as CSV, XLSX or PDF
+      description: >-
+        CSV and XLSX for analysis, PDF for filing (INV-REQ-978). Every export
+        starts with the header block of SubmissionExportHeader (entity, GSTN,
+        period, generated-at, generated-by, filter) and carries a row count
+        and totals that tie back to the screen: the response headers
+        `X-Export-Row-Count`, `X-Export-Total-Taxable-Amount` and
+        `X-Export-Total-Gst-Amount` equal the rowCount, totalTaxableAmount
+        and totalGstAmount that getSubmissionSummary returns for the same
+        filters. CSV, XLSX and PDF of one filter carry equal values there
+        (INV-AC-673). The filters are those of listSubmissions and combine
+        with AND.
+
+
+        Timeout class (INV-REQ-1204 b7, INV-Q-3476): `API gateway -> any
+        other service's public /v1 operation`, 3 s (x-timeout 3000).
+        When the gateway's circuit breaker for this service is open, or
+        the call times out, the gateway answers `503` with the API-20
+        envelope; the `503` is retryable, and the client retries by a
+        re-read (a safe GET; INV-REQ-1204 b7, INV-Q-3571).
+      tags: [transactions]
+      x-principal: reporting
+      x-timeout: 3000
+      x-error-codes: []
+      x-requirements: [INV-REQ-978]
+      parameters:
+        - $ref: '#/components/parameters/EntityRef'
+        - $ref: '#/components/parameters/PeriodRef'
+        - name: format
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [CSV, XLSX, PDF]
+            x-extensible-enum: true
+        - $ref: '#/components/parameters/FilterDirection'
+        - $ref: '#/components/parameters/FilterSubmissionType'
+        - $ref: '#/components/parameters/FilterState'
+        - $ref: '#/components/parameters/FilterCategoryCode'
+        - $ref: '#/components/parameters/FilterCounterparty'
+        - $ref: '#/components/parameters/FilterAmountMin'
+        - $ref: '#/components/parameters/FilterAmountMax'
+        - $ref: '#/components/parameters/FilterAcknowledged'
+        - $ref: '#/components/parameters/FilterBucket'
+      responses:
+        '200':
+          description: The export file.
+          x-header-block:
+            $ref: '#/components/schemas/SubmissionExportHeader'
+          headers:
+            X-Export-Row-Count:
+              required: true
+              schema:
+                type: integer
+                minimum: 0
+            X-Export-Total-Taxable-Amount:
+              required: true
+              schema:
+                $ref: '#/components/schemas/Money'
+            X-Export-Total-Gst-Amount:
+              required: true
+              schema:
+                $ref: '#/components/schemas/Money'
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+              example: "entityRef,gstn,periodRef,generatedAt,generatedBy,filter,rowCount\nE-001,M00000000X,2026-Q1,2026-04-21T01:00:00Z,user-17,direction=PURCHASE,12\n"
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+              example: "(binary XLSX workbook)"
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+              example: "(binary PDF document)"
         '503':
           $ref: '#/components/responses/Error'
         default:
@@ -469,7 +691,86 @@ components:
       schema:
         type: integer
         minimum: 1
+    FilterDirection:
+      name: direction
+      in: query
+      required: false
+      schema:
+        type: string
+        enum: [SALE, PURCHASE]
+        x-extensible-enum: true
+    FilterSubmissionType:
+      name: submissionType
+      in: query
+      required: false
+      schema:
+        type: string
+        enum: [TYPE_1A, TYPE_1B, TYPE_2, TYPE_3]
+        x-extensible-enum: true
+    FilterState:
+      name: state
+      in: query
+      required: false
+      schema:
+        type: string
+        enum:
+          [READY, AWAITING_PRECEDING, QUEUED, SENT, SENT_UNCONFIRMED, RETRY, DEAD_LETTERED, REJECTED, CANCELLED,
+            ACKNOWLEDGED, SUPERSEDED, NETWORK_ISSUED, EXTERNALLY_SUBMITTED, WITHDRAWN]
+    FilterCategoryCode:
+      name: categoryCode
+      in: query
+      required: false
+      schema:
+        type: string
+        maxLength: 20
+    FilterCounterparty:
+      name: counterparty
+      in: query
+      required: false
+      description: Matches a row whose counterpartyUen equals it or whose counterpartyName equals it ignoring case.
+      schema:
+        type: string
+        maxLength: 140
+    FilterAmountMin:
+      name: amountMin
+      in: query
+      required: false
+      description: Lower bound, compared with taxableAmount.
+      schema:
+        $ref: '#/components/schemas/Money'
+    FilterAmountMax:
+      name: amountMax
+      in: query
+      required: false
+      description: Upper bound, compared with taxableAmount.
+      schema:
+        $ref: '#/components/schemas/Money'
+    FilterAcknowledged:
+      name: acknowledged
+      in: query
+      required: false
+      schema:
+        type: boolean
+    FilterBucket:
+      name: bucket
+      in: query
+      required: false
+      description: The drill-down of a count of getSubmissionReconciliation (INV-REQ-976).
+      schema:
+        $ref: '#/components/schemas/ReconciliationBucket'
   schemas:
+    Money:
+      type: string
+      format: decimal
+      pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+      description: Money as a decimal string, SGD (API-12).
+    ReconciliationBucket:
+      type: string
+      enum: [SENT_ACKNOWLEDGED, SENT_NOT_ACKNOWLEDGED, REJECTED, DEAD_LETTERED, NEVER_SENT]
+      x-extensible-enum: true
+      description: >-
+        The five classes of INV-REQ-976. SENT_NOT_ACKNOWLEDGED is sent without
+        acknowledgement beyond the threshold (SUB-005).
     ReadinessTier:
       type: object
       properties:
@@ -614,6 +915,39 @@ components:
           format: decimal
           pattern: '^-?\d{1,17}(\.\d{1,2})?$'
           description: Money as a decimal string (API-12).
+        documentNumber:
+          type: string
+        documentTypeCode:
+          type: string
+          maxLength: 3
+          pattern: '^38[01]$'
+          description: >-
+            The UNCL1001 document type code: 380 (invoice) or 381 (credit
+            note). A pattern, not an enum, as in rules/openapi.yaml: API-09
+            forbids numeric enum members (INV-T-5946 reports this to the owner).
+        direction:
+          type: string
+          enum: [SALE, PURCHASE]
+          x-extensible-enum: true
+        counterpartyName:
+          type: string
+        counterpartyUen:
+          type: string
+        transactionDate:
+          type: string
+          format: date
+        taxableAmount:
+          $ref: '#/components/schemas/Money'
+        gstAmount:
+          $ref: '#/components/schemas/Money'
+        submittedAt:
+          type: string
+          format: date-time
+        acknowledgedAt:
+          type: string
+          format: date-time
+        acknowledgementId:
+          type: string
       required: [docUuid, version, submissionType, state, dueDate]
     SubmissionPage:
       type: object
@@ -625,6 +959,68 @@ components:
         nextCursor:
           type: string
       required: [items]
+    SubmissionSummaryTotals:
+      type: object
+      properties:
+        rowCount:
+          type: integer
+          minimum: 0
+        totalTaxableAmount:
+          $ref: '#/components/schemas/Money'
+        totalGstAmount:
+          $ref: '#/components/schemas/Money'
+      required: [rowCount, totalTaxableAmount, totalGstAmount]
+    ReconciliationBucketTotal:
+      type: object
+      properties:
+        bucket:
+          $ref: '#/components/schemas/ReconciliationBucket'
+        count:
+          type: integer
+          minimum: 0
+        totalAmount:
+          $ref: '#/components/schemas/Money'
+      required: [bucket, count, totalAmount]
+    SentVersusAcknowledgedView:
+      type: object
+      properties:
+        entityRef:
+          type: string
+        periodRef:
+          type: string
+        buckets:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReconciliationBucketTotal'
+      required: [entityRef, periodRef, buckets]
+    SubmissionExportHeader:
+      type: object
+      description: >-
+        The header block every export starts with (INV-REQ-978). CSV, XLSX and
+        PDF of one filter carry equal values (INV-AC-673).
+      properties:
+        entityRef:
+          type: string
+        gstn:
+          type: string
+        periodRef:
+          type: string
+        generatedAt:
+          type: string
+          format: date-time
+        generatedBy:
+          type: string
+        filter:
+          type: object
+          description: The filter parameters used.
+        rowCount:
+          type: integer
+          minimum: 0
+        totalTaxableAmount:
+          $ref: '#/components/schemas/Money'
+        totalGstAmount:
+          $ref: '#/components/schemas/Money'
+      required: [entityRef, gstn, periodRef, generatedAt, generatedBy, filter]
     TransactionStatus:
       type: object
       properties:

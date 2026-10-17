@@ -1,0 +1,37 @@
+# INV-T-5946. Identifiers in backticks in the published behavior and intent of INV-REQ-629, 975, 976, 977, 978, 979
+# (read from Keel). Only INV-REQ-629 and INV-REQ-979 write any: the path `GET /v1/entities/{ref}/periods/{period}/submissions`
+# (a route, not an identifier of a kind below; listSubmissions serves it) and `reporting` (a principal, the x-principal value,
+# not an enum member). The rows below are therefore the operations and the fields the six requirements name in plain text,
+# one row per identifier, under the first requirement that names it.
+identifier	kind	file	requirement
+listSubmissions	operation	openapi.yaml	INV-REQ-979
+getSubmissionSummary	operation	openapi.yaml	INV-REQ-977
+getSubmissionReconciliation	operation	openapi.yaml	INV-REQ-629
+exportSubmissions	operation	openapi.yaml	INV-REQ-978
+documentNumber	property	openapi.yaml	INV-REQ-975
+documentTypeCode	property	openapi.yaml	INV-REQ-975
+direction	property	openapi.yaml	INV-REQ-975
+counterpartyName	property	openapi.yaml	INV-REQ-975
+counterpartyUen	property	openapi.yaml	INV-REQ-975
+transactionDate	property	openapi.yaml	INV-REQ-975
+taxableAmount	property	openapi.yaml	INV-REQ-975
+gstAmount	property	openapi.yaml	INV-REQ-975
+submittedAt	property	openapi.yaml	INV-REQ-975
+acknowledgedAt	property	openapi.yaml	INV-REQ-975
+acknowledgementId	property	openapi.yaml	INV-REQ-975
+SUPERSEDED	enum_value	openapi.yaml	INV-REQ-975
+SENT_ACKNOWLEDGED	enum_value	openapi.yaml	INV-REQ-976
+SENT_NOT_ACKNOWLEDGED	enum_value	openapi.yaml	INV-REQ-976
+REJECTED	enum_value	openapi.yaml	INV-REQ-976
+DEAD_LETTERED	enum_value	openapi.yaml	INV-REQ-976
+NEVER_SENT	enum_value	openapi.yaml	INV-REQ-976
+CSV	enum_value	openapi.yaml	INV-REQ-978
+XLSX	enum_value	openapi.yaml	INV-REQ-978
+PDF	enum_value	openapi.yaml	INV-REQ-978
+rowCount	property	openapi.yaml	INV-REQ-977
+totalTaxableAmount	property	openapi.yaml	INV-REQ-977
+totalGstAmount	property	openapi.yaml	INV-REQ-977
+generatedAt	property	openapi.yaml	INV-REQ-978
+generatedBy	property	openapi.yaml	INV-REQ-978
+gstn	property	openapi.yaml	INV-REQ-978
+filter	property	openapi.yaml	INV-REQ-978

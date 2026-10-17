@@ -1,0 +1,15 @@
+{
+  "entityRef": "E-001",
+  "gstn": "M00000000X",
+  "periodRef": "2026-Q1",
+  "generatedAt": "2026-04-21T01:00:00Z",
+  "filter": {
+    "direction": "PURCHASE",
+    "state": "ACKNOWLEDGED",
+    "amountMin": "1000.00",
+    "amountMax": "5000.00"
+  },
+  "rowCount": 12,
+  "totalTaxableAmount": "12000.00",
+  "totalGstAmount": "1080.00"
+}

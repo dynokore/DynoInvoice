@@ -1,0 +1,30 @@
+{
+  "entityRef": "E-001",
+  "periodRef": "2026-Q1",
+  "buckets": [
+    {
+      "bucket": "REJECTED",
+      "totalAmount": "10.00"
+    },
+    {
+      "bucket": "SENT_NOT_ACKNOWLEDGED",
+      "count": 1,
+      "totalAmount": "10.00"
+    },
+    {
+      "bucket": "REJECTED",
+      "count": 1,
+      "totalAmount": "10.00"
+    },
+    {
+      "bucket": "DEAD_LETTERED",
+      "count": 1,
+      "totalAmount": "10.00"
+    },
+    {
+      "bucket": "NEVER_SENT",
+      "count": 1,
+      "totalAmount": "10.00"
+    }
+  ]
+}
