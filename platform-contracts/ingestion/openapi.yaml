@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: ingestion API
-  version: 1.1.0
+  version: 1.2.0
   description: >-
     Contract-first source of truth for ingestion (API-01, STK-44). The
     `ingestion-contract` module generates its server interfaces and DTOs
@@ -88,6 +88,8 @@ paths:
   /v1/transactions:
     post:
       operationId: submitTransaction
+      parameters:
+        - $ref: '#/components/parameters/TestMode'
       summary: Submit a transaction — counterparty, line and totals fields (SDS §19.2)
       description: >-
         The `1 | ERP | API | Send the transaction` and `5 | ERP | API |
@@ -114,11 +116,25 @@ paths:
         The optional `networkIssuance` object (INV-REQ-327) carries the
         issuer's Doc UUID, which canonical-svc binds instead of generating
         one; a collision with a different commercial document is ING-011.
+
+        The inbound limit is 1 MB per document by default (INV-REQ-2761); an
+        installation may set a smaller limit and never a larger one. The
+        outbound 10 MB IRAS payload limit is a different, fixed limit. A
+        request over the limit in force is refused with `422` and ING-020
+        and nothing is recorded.
+
+        Test mode (INV-REQ-829): a request marked as test with the
+        `X-Test-Mode: true` header, or sent to a non-production workspace,
+        runs the full pipeline and returns results as for live calls; it is
+        counted for nothing and submitted to nothing. In an installation
+        with no paired non-production workspace a header-marked request is
+        refused with `422` and ING-021 and never processed in production
+        (INV-AC-2060, INV-AC-1879).
       tags: [transactions]
       x-principal: ingest
       x-timeout: 3000
-      x-error-codes: [ING-001, ING-002, ING-004, ING-005, ING-007, ING-009, ING-011, ING-012, ING-016, ING-019]
-      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-805, INV-REQ-806, INV-REQ-807, INV-REQ-808, INV-REQ-809, INV-REQ-428, INV-REQ-327]
+      x-error-codes: [ING-001, ING-002, ING-004, ING-005, ING-007, ING-009, ING-011, ING-012, ING-016, ING-019, ING-020, ING-021]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-805, INV-REQ-806, INV-REQ-807, INV-REQ-808, INV-REQ-809, INV-REQ-428, INV-REQ-327, INV-REQ-829, INV-REQ-2761]
       x-operation:
         role: ingest
         scope: entity
@@ -221,6 +237,8 @@ paths:
   /v1/batches:
     post:
       operationId: submitBatch
+      parameters:
+        - $ref: '#/components/parameters/TestMode'
       summary: Submit a manifested batch of transactions (SDS §19.6)
       description: >-
         FR-M.8: the batch manifest (declared count and total) is checked
@@ -235,6 +253,23 @@ paths:
         for this resource (API-15). At most 10,000 transactions and 50 MB
         (API-49).
 
+        The inbound batch limits are 50 MB and 10,000 transactions by
+        default (INV-REQ-2761); an installation may set a smaller limit and
+        never a larger one. The outbound 10 MB IRAS payload limit is a
+        different, fixed limit. A request over the size limit in force, or
+        over a smaller installation count limit, is refused with `422` and
+        ING-020 and nothing is recorded; the schema's `maxItems: 10000` is
+        never relaxed, so a batch of 10,001 transactions is refused with
+        `400` and SRT-001 (INV-AC-2771).
+
+        Test mode (INV-REQ-829): a request marked as test with the
+        `X-Test-Mode: true` header, or sent to a non-production workspace,
+        runs the full pipeline and returns results as for live calls; it is
+        counted for nothing and submitted to nothing. In an installation
+        with no paired non-production workspace a header-marked request is
+        refused with `422` and ING-021 and never processed in production
+        (INV-AC-2060, INV-AC-1879).
+
         The envelope declares `batchId`, `entityRef`, `periodCovered`,
         `declaredCount`, `declaredNetTotal` and `declaredTaxTotal`
         (INV-REQ-811). A batch that carries neither `manifest` nor the three
@@ -246,8 +281,8 @@ paths:
       tags: [batches]
       x-principal: ingest
       x-timeout: 10000
-      x-error-codes: [ING-003, ING-001, ING-002, ING-004, ING-005, ING-007, ING-009, ING-011, ING-012, ING-016, ING-019]
-      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-811, INV-REQ-809]
+      x-error-codes: [ING-003, ING-001, ING-002, ING-004, ING-005, ING-007, ING-009, ING-011, ING-012, ING-016, ING-019, ING-020, ING-021]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-811, INV-REQ-809, INV-REQ-829, INV-REQ-2761]
       x-operation:
         role: ingest
         scope: entity
@@ -352,6 +387,8 @@ paths:
   /v1/aggregates:
     post:
       operationId: submitAggregate
+      parameters:
+        - $ref: '#/components/parameters/TestMode'
       summary: Submit a POS, STI or PCP aggregate (SDS §19.6, FR-M.9)
       description: >-
         High-volume transaction classes collapsed into one aggregate
@@ -365,11 +402,19 @@ paths:
         `description`, `subtotalsByTaxCode`, `underlyingCount` and
         `underlyingRef` are mandatory for a 1.1 client; a request without
         them is refused with `400` and SRT-001 (INV-REQ-812).
+
+        Test mode (INV-REQ-829): a request marked as test with the
+        `X-Test-Mode: true` header, or sent to a non-production workspace,
+        runs the full pipeline and returns results as for live calls; it is
+        counted for nothing and submitted to nothing. In an installation
+        with no paired non-production workspace a header-marked request is
+        refused with `422` and ING-021 and never processed in production
+        (INV-AC-2060, INV-AC-1879).
       tags: [aggregates]
       x-principal: ingest
       x-timeout: 3000
-      x-error-codes: [ING-006, ING-004, ING-014, ING-018]
-      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-812]
+      x-error-codes: [ING-006, ING-004, ING-014, ING-018, ING-021]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-812, INV-REQ-829]
       x-operation:
         role: ingest
         scope: entity
@@ -460,13 +505,27 @@ paths:
         payload-svc (2 s), in sequence; a timeout would push the ERP to
         issue through its own Access Point without the checks
         (FR-AE.84).
+
+        The inbound limit is 1 MB per document by default (INV-REQ-2761); an
+        installation may set a smaller limit and never a larger one. The
+        outbound 10 MB IRAS payload limit is a different, fixed limit. A
+        request over the limit in force is refused with `422` and ING-020
+        and nothing is recorded.
+
+        Test mode (INV-REQ-829): a request marked as test with the
+        `X-Test-Mode: true` header, or sent to a non-production workspace,
+        runs the full pipeline and returns results as for live calls; it is
+        counted for nothing and submitted to nothing. In an installation
+        with no paired non-production workspace a header-marked request is
+        refused with `422` and ING-021 and never processed in production
+        (INV-AC-2060, INV-AC-1879).
       tags: [issuances]
       x-principal: ingest
       x-timeout: 5000
       x-error-codes:
-        [ING-001, ING-002, ING-004, ING-005, ING-007, ING-009, ING-011, ING-012, ING-019, PAY-001, PAY-002, PAY-003, PAY-004, PAY-005,
+        [ING-001, ING-002, ING-004, ING-005, ING-007, ING-009, ING-011, ING-012, ING-019, ING-020, ING-021, PAY-001, PAY-002, PAY-003, PAY-004, PAY-005,
           PAY-006, PAY-009, PAY-011, PAY-013]
-      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-324]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-324, INV-REQ-829, INV-REQ-2761]
       x-operation:
         role: ingest
         scope: entity
@@ -480,6 +539,7 @@ paths:
           original issuance outcome unchanged (FR-M.3 pattern, INV-REQ-324).
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/TestMode'
       requestBody:
         required: true
         content:
@@ -534,6 +594,8 @@ paths:
   /v1/pre-issuance-checks:
     post:
       operationId: checkPreIssuance
+      parameters:
+        - $ref: '#/components/parameters/TestMode'
       summary: Observe-mode pre-issuance check — stateless, side-effect-free, PASS/WARN/BLOCK with reasons (FR-AE.3)
       description: >-
         Calls payload-svc's internal `checkPreIssuance` within a 300 ms P95
@@ -542,11 +604,19 @@ paths:
         (INV-REQ-325): the draft document need not yet be recorded and
         nothing is persisted either way. A safe query — no `Idempotency-Key`
         (API-15 "takes no key").
+
+        Test mode (INV-REQ-829): a request marked as test with the
+        `X-Test-Mode: true` header, or sent to a non-production workspace,
+        runs the full pipeline and returns results as for live calls; it is
+        counted for nothing and submitted to nothing. In an installation
+        with no paired non-production workspace a header-marked request is
+        refused with `422` and ING-021 and never processed in production
+        (INV-AC-2060, INV-AC-1879).
       tags: [issuances]
       x-principal: ingest
       x-timeout: 300
-      x-error-codes: [PAY-001, PAY-005, PAY-011, PAY-013]
-      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-325]
+      x-error-codes: [PAY-001, PAY-005, PAY-011, PAY-013, ING-021]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-325, INV-REQ-829]
       x-operation:
         role: ingest
         scope: entity
@@ -1010,6 +1080,16 @@ components:
       required: true
       description: 'API-15: a UUID, deduplicating an exact request replay for at least 24h.'
       schema: { type: string, format: uuid }
+    TestMode:
+      name: X-Test-Mode
+      in: header
+      required: false
+      description: >-
+        INV-REQ-829: marks the request as a test; it runs the full pipeline,
+        is counted for nothing and is submitted to nothing. Refused with 422
+        and ING-021 where the installation has no paired non-production
+        workspace.
+      schema: { type: string, enum: ['true'], x-enum-varnames: [TRUE] }
     IfMatch:
       name: If-Match
       in: header
@@ -1091,6 +1171,7 @@ components:
           x-extensible-enum: true
         submittedCount: { type: integer }
         acceptedAt: { type: string, format: date-time }
+        testMode: { type: boolean }
       required: [batchId, state, submittedCount, acceptedAt]
     BatchStatus:
       type: object
@@ -1163,6 +1244,7 @@ components:
         periodStart: { type: string, format: date }
         periodEnd: { type: string, format: date }
         recordedAt: { type: string, format: date-time }
+        testMode: { type: boolean }
       required: [aggregateId, entityRef, aggregateType, periodStart, periodEnd, recordedAt]
     DraftDocument:
       type: object

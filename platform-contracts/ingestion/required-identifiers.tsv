@@ -48,3 +48,4 @@ ENTIRE_INVOICE	enum_value	schemas/transaction-request.schema.json	INV-REQ-809
 PENDING	enum_value	schemas/transaction-request.schema.json	INV-REQ-428
 ACCEPTED	enum_value	schemas/transaction-request.schema.json	INV-REQ-428
 REJECTED	enum_value	schemas/transaction-request.schema.json	INV-REQ-428
+testMode	property	openapi.yaml	INV-REQ-829
