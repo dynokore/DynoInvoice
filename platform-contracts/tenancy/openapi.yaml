@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 1.3.0
+  version: 1.4.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -851,6 +851,138 @@ paths:
                     effectiveFrom: "2026-10-01"
         "400":
           $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/entities/{entityRef}/migration-cutover:
+    post:
+      operationId: recordMigrationCutover
+      summary: Record the entity's migration cutover date from the prior solution
+      description: 'One cutover exists per entity. An exact repeat (same cutoverDate) answers 200 with the same record; a different date after one is recorded is refused with 409 and nothing changes. Documents of the entity dated before cutoverDate are the pre-cutover documents (submitted by the prior solution). The date is published as the attribute migrationCutoverDate on EntityProfileChanged with the other entity attributes.'
+      tags:
+      - entities
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->tenancy-svc
+      x-timeout: 2000
+      x-requirements:
+      - INV-REQ-1109
+      - INV-REQ-1110
+      x-error-codes: []
+      x-operation:
+        role: entity.admin
+        scope: entity
+        precondition: The entity is registered and has no migration cutover recorded with a different date
+        reversibility: COMPENSABLE
+        repeatKey: (entityRef, cutoverDate)
+      parameters:
+      - name: entityRef
+        in: path
+        required: true
+        description: The registered entity's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: ENT-3F2A9C
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordMigrationCutoverRequest'
+            examples:
+              default:
+                value:
+                  cutoverDate: "2026-10-01"
+                  priorSolution: LegacyPeppolProvider
+                  approvedBy: identity:USR-009
+                  evidenceRef: EVD-20261001
+      responses:
+        "201":
+          description: Cutover recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MigrationCutoverRecord'
+              examples:
+                default:
+                  value:
+                    entityRef: ENT-3F2A9C
+                    cutoverDate: "2026-10-01"
+                    priorSolution: LegacyPeppolProvider
+                    approvedBy: identity:USR-009
+                    evidenceRef: EVD-20261001
+                    recordedAt: "2026-10-18T09:30:00Z"
+        "200":
+          description: Exact repeat (same cutoverDate); the existing record
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MigrationCutoverRecord'
+              examples:
+                default:
+                  value:
+                    entityRef: ENT-3F2A9C
+                    cutoverDate: "2026-10-01"
+                    priorSolution: LegacyPeppolProvider
+                    approvedBy: identity:USR-009
+                    evidenceRef: EVD-20261001
+                    recordedAt: "2026-10-18T09:30:00Z"
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "409":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+    get:
+      operationId: getMigrationCutover
+      summary: Read the entity's migration cutover record
+      description: Answers the recorded cutover, or 404 when the entity has none.
+      tags:
+      - entities
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->tenancy-svc
+      x-timeout: 2000
+      x-requirements:
+      - INV-REQ-1109
+      - INV-REQ-1110
+      x-error-codes: []
+      parameters:
+      - name: entityRef
+        in: path
+        required: true
+        description: The registered entity's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: ENT-3F2A9C
+      responses:
+        "200":
+          description: The migration cutover record
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MigrationCutoverRecord'
+              examples:
+                default:
+                  value:
+                    entityRef: ENT-3F2A9C
+                    cutoverDate: "2026-10-01"
+                    priorSolution: LegacyPeppolProvider
+                    approvedBy: identity:USR-009
+                    evidenceRef: EVD-20261001
+                    recordedAt: "2026-10-18T09:30:00Z"
         "401":
           $ref: '#/components/responses/Error'
         "403":
@@ -2214,6 +2346,54 @@ components:
         effectiveFrom:
           type: string
           format: date
+    RecordMigrationCutoverRequest:
+      type: object
+      required:
+      - cutoverDate
+      - priorSolution
+      - approvedBy
+      properties:
+        cutoverDate:
+          type: string
+          format: date
+        priorSolution:
+          type: string
+          minLength: 1
+          maxLength: 128
+        approvedBy:
+          type: string
+          maxLength: 128
+        evidenceRef:
+          type: string
+          maxLength: 64
+    MigrationCutoverRecord:
+      type: object
+      required:
+      - entityRef
+      - cutoverDate
+      - priorSolution
+      - approvedBy
+      - recordedAt
+      properties:
+        entityRef:
+          type: string
+          maxLength: 64
+        cutoverDate:
+          type: string
+          format: date
+        priorSolution:
+          type: string
+          minLength: 1
+          maxLength: 128
+        approvedBy:
+          type: string
+          maxLength: 128
+        evidenceRef:
+          type: string
+          maxLength: 64
+        recordedAt:
+          type: string
+          format: date-time
     InstallLicenceRequest:
       type: object
       required:

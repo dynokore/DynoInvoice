@@ -1,0 +1,8 @@
+{
+  "entityRef": "ENT-3F2A9C",
+  "cutoverDate": "2026-10-01",
+  "priorSolution": "LegacyPeppolProvider",
+  "approvedBy": "identity:USR-009",
+  "evidenceRef": "EVD-20261001",
+  "recordedAt": "2026-10-18T09:30:00Z"
+}

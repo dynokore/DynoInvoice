@@ -9,3 +9,5 @@
 ../openapi.yaml#/components/schemas/AppliedOperatingProfileRecord applied-operating-profile-record-*.json
 ../openapi.yaml#/components/schemas/RecordInstallationActionRequest record-installation-action-request-*.json
 ../openapi.yaml#/components/schemas/InstallationActionAck installation-action-ack-*.json
+../openapi.yaml#/components/schemas/RecordMigrationCutoverRequest record-migration-cutover-request-*.json
+../openapi.yaml#/components/schemas/MigrationCutoverRecord migration-cutover-record-*.json

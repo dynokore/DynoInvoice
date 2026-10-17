@@ -1,0 +1,5 @@
+{
+  "cutoverDate": "2026-10-01",
+  "priorSolution": "LegacyPeppolProvider",
+  "approvedBy": "identity:USR-009"
+}
