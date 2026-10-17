@@ -1,7 +1,7 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
-# pinned at commit bd93a33d21a7b92f1d9f8278d816d2d6cdb43499 (2026-10-17), the
-# merge of invoice-docs!38 adding PER-014 and PAY-017 (INV-T-6021, coordinator rulings INV-Q-6013, INV-Q-6015;
-# previously pinned at 70e25c6aba57b111e5fd12a86e4b978f6fdb12d6, INV-T-5412).
+# pinned at commit eef5812372eda3c8d2f549c630291ece6571aedd (2026-10-18), the
+# merge of invoice-docs!39 adding ING-020 and ING-021 (INV-T-6051, coordinator ruling INV-Q-6041;
+# previously pinned at bd93a33d21a7b92f1d9f8278d816d2d6cdb43499, INV-T-6021, and 70e25c6aba57b111e5fd12a86e4b978f6fdb12d6, INV-T-5412).
 #
 # This copy is the generator's (catalogue/generator/) sole input for the
 # gst-catalogue ErrorCode catalogue (STK-61, CS-13). It is never hand-edited:
@@ -110,6 +110,16 @@ error_codes:
   condition: Credit note with neither precedingDocumentNumber nor precedingDocumentDate sent without precedingBlankJustification
     or evidenceRef (FR-8.15; HTTP 400, as ING-009 under INV-Q-1841). Raised by ingestion-svc and canonical-svc. Added 11 Oct
     2026 (Keel INV-REQ-561, INV-API-3458, INV-API-3459, INV-Q-3488)
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Integration
+- code: ING-020
+  condition: 'Inbound request over a size or count limit: a document above the document size limit, or a batch above the batch size limit or above the transaction-count limit the installation set, is refused and nothing is recorded (HTTP 422; INV-REQ-2761, INV-AC-2771, INV-Q-6041)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Integration
+- code: ING-021
+  condition: 'Header-marked test request refused: the installation has no paired non-production workspace, so the request is not processed and nothing is stored in production (HTTP 422; INV-REQ-829, INV-AC-2060, INV-Q-6041)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Integration

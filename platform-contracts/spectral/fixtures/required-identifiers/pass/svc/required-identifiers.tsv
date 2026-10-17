@@ -3,4 +3,11 @@ fooBar	property	openapi.yaml	R-1
 ACTIVE	enum_value	openapi.yaml	R-1
 doThing	operation	openapi.yaml	R-2
 filterCode	query_parameter	openapi.yaml	R-3
-Thing.status.ACTIVE	schema_enum_value	openapi.yaml	R-4
+Thing.fooBar	schema_property	openapi.yaml	R-5
+Thing.status	schema_property	openapi.yaml	R-5
+Other.status	schema_property	openapi.yaml	R-5
+Thing.status.ACTIVE	schema_enum_value	openapi.yaml	R-5
+Other.status.ACTIVE	schema_enum_value	openapi.yaml	R-5
+Thing.status.CLOSED	schema_enum_value	openapi.yaml	R-5
+Other.status.OPEN	schema_enum_value	openapi.yaml	R-5
+Thing.color.RED	schema_enum_value	openapi.yaml	R-5
