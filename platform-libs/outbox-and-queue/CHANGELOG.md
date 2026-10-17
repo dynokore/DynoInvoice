@@ -21,11 +21,16 @@ train is its own (README.md: "own version and changelog").
   are jOOQ. The string-built keep-unless-moved helper is gone: the dead-letter offset upsert is one jOOQ statement with bind values that resets
   attempts, infra_failures, first_infra_failure_at and retry_not_before when the new offset is greater than the stored
   one. `JdbcReplayIntake` takes the `DSLContext` after its `TenantScope` (it builds the inbox consumer).
-- BREAKING: `JdbcDeadLetterTriage` takes the `DSLContext` after its `TenantScope`; the raw read, the replay enqueue and
-  the resolve call are jOOQ.
-- Not converted, pending an owner ruling (reported in the merge request): the offset lock, the offset advance and the
-  consumer-source-seen insert of `JdbcInboxConsumer` (they write `PLATFORM_SCOPED` tables inside the record's tenant
-  transaction) and the triage-view read of `JdbcDeadLetterTriage` (a cross-tenant view with a `tenant_id` column).
+- BREAKING: `JdbcDeadLetterTriage` takes the `DSLContext` after its `TenantScope` and no `DataSource` (the first
+  parameter is gone); the raw read, the replay enqueue and the resolve call are jOOQ.
+- Added to `OutboxSchema.ddl` (coordinator rulings INV-Q-5873, INV-Q-5875): the sys-owned SECURITY DEFINER routines
+  `consumer_offset_lock`, `consumer_offset_advance` and `consumer_source_seen_record` (the offset lock, advance and
+  source-seen insert that `JdbcInboxConsumer` calls inside the record's tenant transaction, so the offset still moves
+  atomically with the inbox row) and the table function `event_dead_letter_triage_page` (the triage read, declared
+  `PLATFORM_SCOPED` in `OutboxSchema.jooqTables`). Each has the fixed `search_path`, EXECUTE revoked from PUBLIC and
+  granted to the runtime login only. The sys role gains `select, insert, update` on `consumer_offset` and `insert` on
+  `consumer_source_seen`; the runtime login keeps its direct grants. A service re-runs the DDL of a new release to get the
+  routines and grants.
 
 ## [4.0.2] - 2026-10-17
 ### Changed

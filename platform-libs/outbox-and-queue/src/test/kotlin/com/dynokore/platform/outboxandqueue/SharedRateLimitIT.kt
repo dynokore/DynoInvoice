@@ -97,7 +97,7 @@ class SharedRateLimitIT {
             assertNotNull(replicas[0].acquire(Lane.REPROCESSING))
             assertEquals(
                 1,
-                harness.count("select count(*) from submission.lane_rate_window where lane = 'REPROCESSING'"),
+                harness.countUnbound("select count(*) from submission.lane_rate_window where lane = 'REPROCESSING'"),
                 "opening a window replaces the ended window's row",
             )
             assertEquals(1, replicas[1].used(Lane.REPROCESSING))
