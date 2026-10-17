@@ -29,7 +29,13 @@ class TablesProvenanceTest {
         )
 
     private fun verifiedConfiguration(): Configuration =
-        fixture.configuration(TableClasses.of(emptyList(), emptyList()).verify(TestSchema))
+        fixture.configuration(
+            TableClasses
+                .of(
+                    platformScoped = listOf("tenancy_kernel_test.countries"),
+                    reference = listOf("tenancy_kernel_test.currencies"),
+                ).verify(TestSchema),
+        )
 
     private fun mixed(
         visit: Configuration,

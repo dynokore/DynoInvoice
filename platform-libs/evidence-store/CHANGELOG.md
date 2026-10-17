@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-10-17
+### Changed
+- Metadata-only release (INV-T-5820, ruling INV-Q-5896 A): depends on `tenancy-jooq` 1.2.0 (the guard refuses a `TenancyTables` not built by `TableClasses.verify`, INV-Q-4821 B); no code change.
+
 ## [2.0.0] - 2026-10-17
 ### Changed
 - BREAKING (INV-T-4516, slice 3 of 3; owner rulings INV-Q-4196 (A), INV-Q-4508 (A)): `JdbcEvidenceLedger` and `JdbcLegalHoldRegistry` run every statement through jOOQ on a `DSLContext` from tenancy-jooq's factory (`TenancyJooq.dslContext`), with the module's table named `DSL.name(schema, table)` and declared `TENANT`; identifiers are `DSL.name(...)` of `SqlIdentifier`-validated names and every value is a bind value; the chain's advisory lock is a jOOQ function call (`pg_advisory_xact_lock(hashtext(?), hashtext(?))`, both keys bind values). Their first constructor parameter is that `DSLContext`; the `CurrentConnection` parameter is gone, so they run on the `TransactionRunner` whose data source holds the lane gate (lane behaviour unchanged, INV-Q-5243). Behaviour is unchanged. `evidence-store` depends on tenancy-jooq.
