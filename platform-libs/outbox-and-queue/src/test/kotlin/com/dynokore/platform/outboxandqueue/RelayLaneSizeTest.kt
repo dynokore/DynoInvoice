@@ -18,8 +18,7 @@ import javax.sql.DataSource
 
 /**
  * The relay holds an outer transaction and a row transaction, so its lane needs at least 2 permits (owner answer
- * INV-Q-5609 (b)): 2 and 3 run, 1 and 0 are refused at the
- * first run with the lane and its size, before any connection is taken.
+ * INV-Q-5609 (b)): 2 and 3 run, 1 and 0 are refused at the first run with the lane and its size, before any connection is taken.
  */
 class RelayLaneSizeTest {
     private val taken = AtomicInteger()

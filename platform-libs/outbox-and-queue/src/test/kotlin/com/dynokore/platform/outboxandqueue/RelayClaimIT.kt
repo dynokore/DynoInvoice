@@ -91,25 +91,18 @@ class RelayClaimIT {
                 assertEquals(false, it["public_grant"])
                 assertEquals(OutboxPostgresFixture.SYS, it["owner"])
             }
-            assertEquals("42501", sqlStateOfClaimAs(fixture.jdbcUrl(), "recon_runtime", "recon_runtime_pw"))
+            val stranger = TenancyProbe.connect(fixture.jdbcUrl(), "recon_runtime", "recon_runtime_pw")
+            val refused =
+                runCatching { stranger.fetchValue("select payload.${OutboxSchema.OUTBOX_CLAIM_PENDING}()") }
+                    .exceptionOrNull()
+            assertEquals(
+                "42501",
+                generateSequence(refused) { it.cause }
+                    .filterIsInstance<java.sql.SQLException>()
+                    .firstOrNull()
+                    ?.sqlState,
+            )
         }
-    }
-
-    private fun sqlStateOfClaimAs(
-        url: String,
-        user: String,
-        password: String,
-    ): String? {
-        val refused =
-            runCatching {
-                TenancyProbe
-                    .connect(
-                        url,
-                        user,
-                        password,
-                    ).fetchValue("select payload.${OutboxSchema.OUTBOX_CLAIM_PENDING}()")
-            }.exceptionOrNull()
-        return generateSequence(refused) { it.cause }.filterIsInstance<java.sql.SQLException>().firstOrNull()?.sqlState
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
