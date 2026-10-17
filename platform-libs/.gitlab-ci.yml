@@ -34,7 +34,7 @@ variables:
   # text checks, and main skips a listed job when the same commit already passed a merge-request pipeline. Not
   # contract-tests: on main it publishes the pacts to the broker, so it always runs.
   GST_SKIP_REPEATS: "true"
-  GST_SKIP_WHEN_VERIFIED_JOBS: "unit-test lint verify-rules split-jars impl-poms"
+  GST_SKIP_WHEN_VERIFIED_JOBS: "unit-test arch-guards lint verify-rules split-jars impl-poms"
   # IMAGE_NAME, HELM_CHART_NAME stay unset: platform-libs ships jars, not a
   # bootable service or a Helm chart.
 
@@ -51,15 +51,6 @@ variables:
         "${CI_API_V4_URL}/projects/225/packages/maven/com/dynokore/gst/build/konsist-rules/${pb_version}/konsist-rules-${pb_version}.pom")
       echo "gst-ci: platform-build registry read, konsist-rules ${pb_version}: HTTP ${code}"
       test "$code" = "200"
-    - |
-      gst_run_if_task_exists() {
-        task_name="$1"; shift
-        if ./gradlew -p "$GRADLE_PROJECT_DIR" help --task "$task_name" >/tmp/gst-task-probe.log 2>&1; then
-          ./gradlew -p "$GRADLE_PROJECT_DIR" "$task_name" "$@"
-        else
-          echo "gst-ci: '$task_name' is not a Gradle task in '$GRADLE_PROJECT_DIR' yet — skipping this step for this repository."
-        fi
-      }
     - |
       # Every module directory that is its own Gradle project (STK-60, one per
       # Wave 1 module), for the changed + downstream computation done-when
@@ -180,12 +171,49 @@ unit-test:
   extends: [.gradle-job, .gst-changed-modules]
   stage: test
   script:
+    - MODULES="$(gst_changed_downstream_modules)"
+    - |
+      if [ -z "$(echo "$MODULES" | tr -d '[:space:]')" ]; then
+        echo "gst-ci: no module changed against the base — nothing to test."
+      else
+        echo "gst-ci: testing changed + downstream modules: $MODULES"
+        TASKS=""
+        PROBE=""
+        for m in $MODULES; do TASKS="$TASKS :$m:test"; PROBE="$PROBE :$m:implTest"; done
+        # implTest (STK-37/STK-38/STK-41, TPL-14) is a second, hand-registered Test task (service-runtime,
+        # adapter-runtime) that plain `test` never runs and `check` is never invoked here to run for us (review
+        # finding on !7). Not every module has it: CI-FAST batch 6 asks Gradle once which modules do
+        # (gst_existing_tasks, platform-build's .gradle-job), instead of one `help --task` run per module.
+        TASKS="$TASKS $(gst_existing_tasks $PROBE)"
+        ./gradlew -p "$GRADLE_PROJECT_DIR" $TASKS --stacktrace
+      fi
+    # CI-FAST batch 6: checkDependencyCatalogUsage and verifyBannedDependencies no longer run here. They are `check`
+    # dependencies, and verify-rules runs every `check` dependency that is not a Test, Detekt or Spotless task.
+  artifacts:
+    when: always
+    reports:
+      junit:
+        # Widened from `test-results/test/` (review finding on !7): implTest's own
+        # results land in `test-results/implTest/`, one directory per Test task.
+        - "**/build/test-results/*/TEST-*.xml"
+    expire_in: 1 week
+
+# CI-FAST batch 6 (owner 2026-10-17): the every-pipeline guards that unit-test ran before the module tests, in their
+# own job, so they run beside the module tests instead of before them. Same rules, runner, cache and repeat skip as
+# unit-test (extends it); still on every merge request and main pipeline, whatever changed, and fail-closed.
+# GST_TEST_FAIL_FAST is off: the negative tests assert the exact set of failing cases.
+arch-guards:
+  extends: unit-test
+  variables:
+    GST_TEST_FAIL_FAST: "false"
+    GRADLE_BUILD_CACHE_POLICY: "pull"   # unit-test pushes the build cache; this smaller run must not overwrite it
+  script:
     - |
       # INV-T-4043 (INV-REQ-854 b5, INV-ADR-3968 item 11; coordinator rulings INV-Q-4040 and INV-T-4043 G1, option a):
       # platform-build's SQL guards (SqlGuards, MigrationLint) scan the production sources of EVERY module, so
       # they run on every merge request and main pipeline, whatever modules changed, not only when
-      # service-runtime (their host) is in the changed + downstream set below. It runs first, so the module tests below
-      # rewrite service-runtime's test reports afterwards and none are lost. Fail-closed: a finding outside
+      # service-runtime (their host) is in unit-test's changed + downstream set. Its own job (CI-FAST batch 6), so its
+      # reports are its own artefact and unit-test's service-runtime run loses none. Fail-closed: a finding outside
       # SqlGuardsTest.PENDING fails this job.
       # INV-T-4715 (coordinator rulings INV-Q-4713 (A), INV-Q-4724 (A)): the Konsist tests that scan the real modules
       # run here too, on every pipeline, whatever changed: L1DependencyOrderTest (its real-scope case checks the L1
@@ -272,35 +300,11 @@ unit-test:
       fi
       rm -f "$results"/TEST-*.xml && cp build/l1-negative-saved/TEST-*.xml "$results"/
       echo "gst-ci: negative test: the layer rules fail service-runtime importing a product-runtime type, as they must"
-    - MODULES="$(gst_changed_downstream_modules)"
-    - |
-      if [ -z "$(echo "$MODULES" | tr -d '[:space:]')" ]; then
-        echo "gst-ci: no module changed against the base — nothing to test."
-      else
-        echo "gst-ci: testing changed + downstream modules: $MODULES"
-        TASKS=""
-        for m in $MODULES; do
-          TASKS="$TASKS :$m:test"
-          # implTest (STK-37/STK-38/STK-41, TPL-14) is a second, hand-registered Test
-          # task (service-runtime, adapter-runtime) that plain `test` never runs and
-          # `check` is never invoked here to run for us (review finding on !7): probed
-          # per module, the same guarded pattern as `gst_run_if_task_exists`, since not
-          # every module has it yet.
-          if ./gradlew -p "$GRADLE_PROJECT_DIR" help --task ":$m:implTest" >/tmp/gst-impltest-probe.log 2>&1; then
-            TASKS="$TASKS :$m:implTest"
-          fi
-        done
-        ./gradlew -p "$GRADLE_PROJECT_DIR" $TASKS --stacktrace
-      fi
-    - gst_run_if_task_exists checkDependencyCatalogUsage --stacktrace
-    - gst_run_if_task_exists verifyBannedDependencies --stacktrace
   artifacts:
     when: always
     reports:
       junit:
-        # Widened from `test-results/test/` (review finding on !7): implTest's own
-        # results land in `test-results/implTest/`, one directory per Test task.
-        - "**/build/test-results/*/TEST-*.xml"
+        - "service-runtime/build/test-results/test/TEST-*.xml"
     expire_in: 1 week
 
 lint:
