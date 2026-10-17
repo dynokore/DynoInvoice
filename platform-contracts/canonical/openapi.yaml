@@ -710,7 +710,7 @@ components:
           type: array
           items:
             type: string
-            enum: [PER-004, PER-005]
+            pattern: '^PER-00[45]$'
           description: PER-004 always present; PER-005 present when the change produces a transitional period.
         preparedAt:
           type: string
