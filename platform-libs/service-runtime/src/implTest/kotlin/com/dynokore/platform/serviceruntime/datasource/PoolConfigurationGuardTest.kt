@@ -25,6 +25,7 @@ import org.springframework.context.support.GenericApplicationContext
 import org.springframework.core.PriorityOrdered
 import org.springframework.core.env.PropertySource
 import java.nio.file.Path
+import java.util.Properties
 import java.util.function.Supplier
 import javax.sql.DataSource
 
@@ -101,8 +102,7 @@ class PoolConfigurationGuardTest {
         ],
     )
     fun `a pool that runs SQL or sets session state is refused, and the value is not printed`(setting: String) {
-        val pool = allowedPool()
-        set(pool, setting)
+        val pool = offendingPool(setting)
         val offending = PoolConfigurationGuard.findOffendingProperties(pool, SERVICE)
         offending.size shouldBe 1
         offending.single() shouldNotContain "evil"
@@ -117,10 +117,6 @@ class PoolConfigurationGuardTest {
         when (setting) {
             "connectionInitSql" -> {
                 pool.connectionInitSql = "set role postgres"
-            }
-
-            "connectionTestQuery" -> {
-                pool.connectionTestQuery = "select 1"
             }
 
             "schema" -> {
@@ -428,6 +424,27 @@ class PoolConfigurationGuardTest {
                 },
             )
         }
+
+    private fun offendingPool(setting: String): HikariConfig =
+        if (setting == "connectionTestQuery") {
+            poolWithTestQuery()
+        } else {
+            allowedPool().also { set(it, setting) }
+        }
+
+    /** The allowed pool plus a connectionTestQuery, bound from properties (INV-Q-5886): no SQL statement setter is called. */
+    private fun poolWithTestQuery(): HikariConfig =
+        HikariConfig(
+            Properties().apply {
+                setProperty("jdbcUrl", "jdbc:postgresql://db:5432/app?sslmode=require")
+                setProperty("username", "submission_runtime")
+                setProperty("maximumPoolSize", "7")
+                setProperty("minimumIdle", "1")
+                setProperty("poolName", "app")
+                setProperty("dataSource.ApplicationName", SERVICE)
+                setProperty("connectionTestQuery", "select 1")
+            },
+        )
 
     private fun allowedPool(): HikariConfig =
         HikariConfig().apply {
