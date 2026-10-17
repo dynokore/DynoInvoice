@@ -149,7 +149,7 @@ class UnrelayedEventCheckIT {
         ) {
             val id = idOf(seq)
             val log = DSL.name(*topicTable.split('.').toTypedArray())
-            JooqKit.Access.admin(eventLog, JooqKit.platformScoped(topicTable)).single().asPlatform {
+            JooqKit.Access(eventLog.adminDataSource(), JooqKit.platformScoped(topicTable)).asPlatform {
                 it
                     .update(DSL.table(log))
                     .set(INSERTED_AT, OffsetDateTime.now().minus(insertedAgo))
@@ -157,7 +157,7 @@ class UnrelayedEventCheckIT {
                     .execute()
             }
             // triggers off for this transaction only (a superuser setting, set through set_config)
-            JooqKit.Access.admin(service, JooqKit.platformScoped("$SCHEMA.outbox")).single().asPlatform {
+            JooqKit.Access(service.adminDataSource(), JooqKit.platformScoped("$SCHEMA.outbox")).asPlatform {
                 it
                     .select(
                         DSL.function(
@@ -177,7 +177,7 @@ class UnrelayedEventCheckIT {
         }
 
         fun purgeEventLog() {
-            JooqKit.Access.purge(eventLog, emptyMap()).single().asPlatform {
+            JooqKit.Access(eventLog.purgeDataSource(), emptyMap()).asPlatform {
                 it.select(DSL.function(DSL.name("eventlog", "purge_batch"), SQLDataType.OTHER)).fetch()
             }
         }
@@ -375,31 +375,26 @@ class UnrelayedEventCheckIT {
             val refused = assertThrows(Exception::class.java) { stranger.missing(topic, listOf(id)) }
             assertEquals("42501", strangerScope.sqlErrors.sqlStateOf(refused))
             // more than 1,000 ids are refused by the function itself
-            assertEquals("22023", oversizedAnswer(s.eventLog))
+            val tooMany = Array(EventLogSchema.MAX_EVENTS_MISSING + 1) { "id-$it" }
+            val oversized =
+                runCatching {
+                    JooqKit.Access(s.eventLog.eventLogDataSource(), emptyMap()).asPlatform {
+                        it
+                            .select(
+                                DSL.function(
+                                    DSL.name("eventlog", "events_missing"),
+                                    SQLDataType.OTHER,
+                                    DSL.`val`(topic, SQLDataType.CLOB),
+                                    DSL.`val`(tooMany, SQLDataType.CLOB.array()),
+                                ),
+                            ).fetch()
+                    }
+                }.exceptionOrNull()
+            assertEquals("22023", JooqKit.sqlState(oversized))
             assertCatalogue(s.eventLog)
         } finally {
             s.close()
         }
-    }
-
-    /** The SQLSTATE of `events_missing` asked for more ids than the function takes. */
-    private fun oversizedAnswer(fixture: OutboxPostgresFixture): String? {
-        val tooMany = Array(EventLogSchema.MAX_EVENTS_MISSING + 1) { "id-$it" }
-        val failure =
-            runCatching {
-                JooqKit.Access.runtime(fixture, emptyMap()).single().asPlatform {
-                    it
-                        .select(
-                            DSL.function(
-                                DSL.name("eventlog", "events_missing"),
-                                SQLDataType.OTHER,
-                                DSL.`val`(topic, SQLDataType.CLOB),
-                                DSL.`val`(tooMany, SQLDataType.CLOB.array()),
-                            ),
-                        ).fetch()
-                }
-            }.exceptionOrNull()
-        return JooqKit.sqlState(failure)
     }
 
     /** INV-AC-2175 for `events_missing` and its producer table, read from the catalogue. */

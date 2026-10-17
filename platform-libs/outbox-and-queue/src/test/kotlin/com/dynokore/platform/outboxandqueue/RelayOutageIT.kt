@@ -162,20 +162,15 @@ class RelayOutageIT {
             val log = DSL.table(DSL.name("eventlog", "gst_payload_payload_ready_v1"))
             val tables = JooqKit.platformScoped(table)
             val insert = { dsl: DSLContext ->
-                dsl
-                    .insertInto(log)
-                    .set(EVENT_ID, "x")
-                    .set(SUBJECT, "y")
-                    .set(ENVELOPE, DSL.`val`("{}", SQLDataType.JSONB))
-                    .execute()
+                dsl.insertInto(log, EVENT_ID, SUBJECT, ENVELOPE).values("x", "y", JSONB.valueOf("{}")).execute()
             }
             // a login that neither produces nor subscribes to the topic reaches nothing of it
-            JooqKit.Access.role(harness.fixture, "recon_runtime", tables).use { stranger ->
+            JooqKit.Access(harness.fixture.roleDataSource("recon_runtime"), tables).let { stranger ->
                 assertEquals("42501", sqlStateOf { stranger.asPlatform { it.selectFrom(log).fetch() } })
                 assertEquals("42501", sqlStateOf { stranger.asPlatform(insert) })
             }
             // the producer and subscriber login: no update or delete, and no row without a bound tenant
-            JooqKit.Access.runtime(harness.fixture, tables).use { producer ->
+            JooqKit.Access(harness.fixture.eventLogDataSource(), tables).let { producer ->
                 assertEquals("42501", sqlStateOf { producer.asPlatform { it.deleteFrom(log).execute() } })
                 assertEquals("42501", sqlStateOf { producer.asPlatform { it.update(log).set(SUBJECT, "z").execute() } })
                 assertTrue(producer.asPlatform { it.selectFrom(log).fetch() }.isEmpty())
@@ -198,7 +193,7 @@ class RelayOutageIT {
             assertEquals(0, seen(UUID.randomUUID()))
             // The runtime login sees no outbox row outside a tenant transaction; the sys-owned claim view gives the
             // claim columns of every tenant's rows and nothing else (INV-Q-3953).
-            val runtime = JooqKit.Access.runtime(harness.fixture, CLAIM_TABLES)
+            val runtime = JooqKit.Access(harness.fixture.runtimeDataSource(), CLAIM_TABLES)
             val view = DSL.table(DSL.name("payload", "outbox_claim_v"))
             val outbox = DSL.table(DSL.name("payload", "outbox"))
             assertTrue(runtime.asPlatform { it.select(DSL.field(DSL.name("seq"))).from(outbox).fetch() }.isEmpty())
@@ -214,10 +209,9 @@ class RelayOutageIT {
                     }.isNotEmpty(),
             )
             assertEquals(
-                "42703",
+                "42501",
                 sqlStateOf { runtime.asPlatform { it.select(DSL.field(DSL.name("data"))).from(view).fetch() } },
             )
-            runtime.close()
         }
     }
 

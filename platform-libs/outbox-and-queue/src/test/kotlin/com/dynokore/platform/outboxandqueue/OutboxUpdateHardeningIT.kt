@@ -1,6 +1,5 @@
 package com.dynokore.platform.outboxandqueue
 
-import com.dynokore.platform.tenancyjooq.TableClass
 import org.jooq.DSLContext
 import org.jooq.JSONB
 import org.jooq.Query
@@ -26,18 +25,44 @@ class OutboxUpdateHardeningIT {
     fun `the runtime login cannot rewrite a row's content or actor, nor delete it`(image: String) {
         OutboxHarness(image).use { harness ->
             val seq = append(harness)
-            rewrites(seq).forEach { (name, statement) ->
-                assertEquals("42501", refusedAsRuntime(harness, statement), name)
-            }
+            listOf<Pair<String, (DSLContext) -> Query>>(
+                "data" to { it.update(OUTBOX).set(DATA, JSONB.valueOf("{\"version\":2}")).where(SEQ.eq(seq)) },
+                "actor" to {
+                    it
+                        .update(OUTBOX)
+                        .set(
+                            DATA,
+                            DSL.function(
+                                DSL.name("pg_catalog", "jsonb_set"),
+                                SQLDataType.JSONB,
+                                DATA,
+                                DSL.cast(DSL.inline("{actor}"), SQLDataType.CLOB.array()),
+                                DSL.inline(JSONB.valueOf("\"someone-else\"")),
+                            ),
+                        ).where(SEQ.eq(seq))
+                },
+                "type" to { it.update(OUTBOX).set(TYPE, "com.dynokore.gst.payload.Other.v1").where(SEQ.eq(seq)) },
+                "topic" to { it.update(OUTBOX).set(TOPIC, "gst.payload.other.v1").where(SEQ.eq(seq)) },
+                "tenant" to { it.update(OUTBOX).set(TENANT_ID, UUID.randomUUID()).where(SEQ.eq(seq)) },
+                "id" to { it.update(OUTBOX).set(ID, "forged").where(SEQ.eq(seq)) },
+                "publish and data" to {
+                    it
+                        .update(OUTBOX)
+                        .set(PUBLISHED_AT, now())
+                        .set(DATA, JSONB.valueOf("{}"))
+                        .where(SEQ.eq(seq))
+                },
+                "delete" to { it.deleteFrom(OUTBOX).where(SEQ.eq(seq)) },
+            ).forEach { (name, statement) -> assertEquals("42501", refusedAsRuntime(harness, statement), name) }
             // The trigger holds even where a privilege would not: the administrator cannot rewrite a row either.
             val admin =
-                JooqKit.Access.admin(harness.fixture, TABLES).use { access ->
+                JooqKit.Access(harness.fixture.adminDataSource(), TABLES).let { access ->
                     runCatching {
-                        access.asTenant(ServiceKit.TENANT) {
+                        access.asPlatform {
                             it
                                 .update(
                                     OUTBOX,
-                                ).set(DATA, json("{}"))
+                                ).set(DATA, JSONB.valueOf("{}"))
                                 .where(SEQ.eq(seq))
                                 .execute()
                         }
@@ -83,36 +108,6 @@ class OutboxUpdateHardeningIT {
         }
     }
 
-    private fun rewrites(seq: Long): List<Pair<String, (DSLContext) -> Query>> =
-        listOf(
-            "data" to { it.update(OUTBOX).set(DATA, json("{\"version\":2}")).where(SEQ.eq(seq)) },
-            "actor" to {
-                it
-                    .update(OUTBOX)
-                    .set(
-                        DATA,
-                        DSL.function(
-                            DSL.name("pg_catalog", "jsonb_set"),
-                            SQLDataType.JSONB,
-                            DATA,
-                            DSL.cast(DSL.inline("{actor}"), SQLDataType.CLOB.array()),
-                            DSL.cast(DSL.inline("\"someone-else\""), SQLDataType.JSONB),
-                        ),
-                    ).where(SEQ.eq(seq))
-            },
-            "type" to { it.update(OUTBOX).set(TYPE, "com.dynokore.gst.payload.Other.v1").where(SEQ.eq(seq)) },
-            "topic" to { it.update(OUTBOX).set(TOPIC, "gst.payload.other.v1").where(SEQ.eq(seq)) },
-            "id" to { it.update(OUTBOX).set(ID, "forged").where(SEQ.eq(seq)) },
-            "publish and data" to {
-                it
-                    .update(OUTBOX)
-                    .set(PUBLISHED_AT, now())
-                    .set(DATA, json("{}"))
-                    .where(SEQ.eq(seq))
-            },
-            "delete" to { it.deleteFrom(OUTBOX).where(SEQ.eq(seq)) },
-        )
-
     private fun append(harness: OutboxHarness): Long {
         val kit = harness.payload
         val doc = UUID.randomUUID()
@@ -133,19 +128,13 @@ class OutboxUpdateHardeningIT {
         value: OffsetDateTime?,
     ) = dsl.update(OUTBOX).set(PUBLISHED_AT, value).where(SEQ.eq(seq))
 
-    private fun json(text: String) = DSL.`val`(text, SQLDataType.JSONB)
-
     private fun now(): OffsetDateTime = OffsetDateTime.now()
 
     /** [block] on the runtime login in one committed transaction bound to the row's tenant. */
     private fun <T> asRuntime(
         harness: OutboxHarness,
         block: (DSLContext) -> T,
-    ): T =
-        JooqKit.Access
-            .runtime(harness.fixture, TABLES)
-            .single()
-            .asTenant(ServiceKit.TENANT, block)
+    ): T = JooqKit.Access(harness.fixture.runtimeDataSource(), TABLES).asTenant(ServiceKit.TENANT, block)
 
     private fun refusedAsRuntime(
         harness: OutboxHarness,
@@ -156,7 +145,7 @@ class OutboxUpdateHardeningIT {
         const val PAYLOAD_READY_TOPIC = "gst.payload.payload-ready.v1"
         const val RECENT = "published_at > now() - interval '1 minute'"
         const val BACKDATE_DAYS = 400L
-        val TABLES = mapOf(DSL.name("payload", "outbox") to TableClass.TENANT)
+        val TABLES = JooqKit.platformScoped("payload.outbox")
         val OUTBOX = DSL.table(DSL.name("payload", "outbox"))
         val SEQ = DSL.field(DSL.name("seq"), SQLDataType.BIGINT)
         val DATA = DSL.field(DSL.name("data"), SQLDataType.JSONB)
