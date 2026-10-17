@@ -392,7 +392,6 @@ paths:
                   value:
                     subscriptionId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
                     entityRef: "E-001"
-                    entityRefs: ["E-001"]
                     url: "https://erp.acme.example/hooks/invoice"
                     events: ["SubmissionAcknowledged", "ReconciliationCompleted"]
                     status: "ACTIVE"
@@ -409,7 +408,6 @@ paths:
                   value:
                     subscriptionId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
                     entityRef: "E-001"
-                    entityRefs: ["E-001"]
                     url: "https://erp.acme.example/hooks/invoice"
                     events: ["SubmissionAcknowledged", "ReconciliationCompleted"]
                     status: "ACTIVE"
@@ -447,7 +445,6 @@ paths:
                   value:
                     - subscriptionId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
                       entityRef: "E-001"
-                      entityRefs: ["E-001"]
                       url: "https://erp.acme.example/hooks/invoice"
                       events: ["SubmissionAcknowledged"]
                       status: "ACTIVE"
@@ -977,15 +974,13 @@ components:
             type: string
             maxLength: 60
       required: [url, events]
-      allOf:
-        - not:
-            required: [entityRef, entityRefs]
-        - not:
-            allOf:
-              - not:
-                  required: [entityRef]
-              - not:
-                  required: [entityRefs]
+      if:
+        required: [entityRef]
+      then:
+        not:
+          required: [entityRefs]
+      else:
+        required: [entityRefs]
       description: >-
         Exactly one of `entityRef` and `entityRefs`. An event of an entity
         outside the subscription's list is not delivered (INV-AC-2038).
@@ -997,12 +992,7 @@ components:
           format: uuid
         entityRef:
           type: string
-          description: >-
-            For a subscription created with `entityRefs`, the first element of
-            `entityRefs` in the order given at creation; otherwise the value
-            given at creation.
         entityRefs:
-          description: The full list; one value for a subscription created with `entityRef`.
           type: array
           minItems: 1
           maxItems: 100
@@ -1023,7 +1013,7 @@ components:
         createdAt:
           type: string
           format: date-time
-      required: [subscriptionId, entityRef, entityRefs, url, events, status, createdAt]
+      required: [subscriptionId, entityRef, url, events, status, createdAt]
     WebhookSubscriptionCreated:
       allOf:
         - $ref: '#/components/schemas/WebhookSubscription'
