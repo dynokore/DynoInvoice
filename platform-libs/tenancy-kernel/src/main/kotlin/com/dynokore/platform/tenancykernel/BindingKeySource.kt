@@ -10,7 +10,7 @@ package com.dynokore.platform.tenancykernel
  * implementation hands out a copy it does not keep using: the migration runner does not clear the arrays.
  */
 interface BindingKeySource {
-    /** The current key; null or empty when none is configured, which fails the migration (it never writes a blank key). */
+    /** The current key; null or empty when none is configured, which fails the migration (no blank key is written). */
     fun currentKey(): ByteArray?
 
     /** The previous key, or null when there is none (first installation, or a rotation that is finished). */

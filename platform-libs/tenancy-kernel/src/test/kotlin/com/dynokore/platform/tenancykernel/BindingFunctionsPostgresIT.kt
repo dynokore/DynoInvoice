@@ -62,7 +62,8 @@ class BindingFunctionsPostgresIT {
         assertEquals(NONE, bound(app, "${valid[0]}.${valid[1]}.${future + 1}.${valid[3]}"), "changed expiry")
         assertEquals(NONE, bound(app, ""), "empty value")
         assertEquals(NONE, bound(app, null), "missing GUC")
-        val (t, a, e, m) = valid
+        val (t, a, e) = valid
+        val m = valid[3]
         val good = sg(actor, future, key1)
         val malformed =
             listOf(
