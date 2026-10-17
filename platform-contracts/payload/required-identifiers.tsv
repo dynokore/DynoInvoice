@@ -25,3 +25,7 @@ WARN	enum_value	openapi.yaml	INV-REQ-325
 BLOCK	enum_value	openapi.yaml	INV-REQ-325
 checkPreIssuance	operation	openapi.yaml	INV-REQ-325
 validateIssuance	operation	openapi.yaml	INV-REQ-326
+overrideValidation	operation	openapi.yaml	INV-REQ-500
+overriddenBy	property	openapi.yaml	INV-REQ-500
+overriddenAt	property	openapi.yaml	INV-REQ-500
+reason	property	openapi.yaml	INV-REQ-500

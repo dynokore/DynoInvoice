@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: payload API
-  version: 1.1.0
+  version: 1.2.0
   description: >-
     Contract-first source of truth for payload (API-01, STK-44). The
     `payload-contract` module generates its server interfaces and DTOs
@@ -242,6 +242,102 @@ paths:
                     docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
         default:
           $ref: '#/components/responses/Error'
+  /internal/v1/payload/documents/{docUuid}/versions/{version}/overrides:
+    post:
+      operationId: overrideValidation
+      summary: Override an OVERRIDABLE blocking validation code for one document version
+      description: >-
+        Releases a blocking check the System adds beyond IRAS's own
+        requirements, for one document and version, with a mandatory reason.
+        The override is per document and version (INV-REQ-330) and is recorded
+        in the immutable audit log with its reason (INV-REQ-500).
+
+
+        A missing or empty `reason` is refused with `400` and SRT-001 and
+        nothing is recorded (INV-AC-1551). An override of a code whose
+        catalogue disposition is MANUAL or TERMINAL (for example PAY-001,
+        PAY-008) is refused with PAY-017 and the document stays blocked
+        (INV-AC-1584). With the override of a PAY-011 block on the Relay path
+        recorded, issuance proceeds on the next `validateIssuance`
+        (INV-REQ-330).
+
+
+        Who approves is INV-REQ-1293 and is not decided here.
+      tags: [validation]
+      x-principal: filing-workflow
+      x-timeout: 2000
+      x-sync-edge: console-bff->payload-svc
+      x-error-codes: [PAY-017]
+      x-requirements: [INV-REQ-500, INV-REQ-330]
+      x-operation:
+        role: tax.approver
+        scope: entity
+        precondition: >-
+          The document version carries the blocking code named, whose
+          catalogue disposition is OVERRIDABLE.
+        reversibility: IRREVERSIBLE
+        repeatKey: >-
+          (docUuid, version, code) — a repeat reports the recorded override
+          unchanged.
+      parameters:
+        - $ref: '#/components/parameters/DocUuid'
+        - $ref: '#/components/parameters/Version'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OverrideValidationRequest'
+            examples:
+              default:
+                value: { code: "PAY-011", reason: "Register lag: the supplier's GST registration was confirmed by IRAS on the phone." }
+      responses:
+        '201':
+          description: The override is recorded (a repeat returns the recorded override unchanged).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationOverride'
+              examples:
+                default:
+                  value:
+                    docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    version: 1
+                    code: "PAY-011"
+                    reason: "Register lag: the supplier's GST registration was confirmed by IRAS on the phone."
+                    overriddenBy: "5b1f7c0e-2d4a-4c55-9a3e-0c1d2e3f4a5b"
+                    overriddenAt: "2026-03-20T03:20:00Z"
+        '400':
+          description: The reason is missing or empty (SRT-001); nothing is recorded (INV-AC-1551).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '../service-runtime/schemas/error-envelope.schema.json'
+              examples:
+                default:
+                  value:
+                    type: "about:blank"
+                    title: "A required field is missing"
+                    status: 400
+                    code: "SRT-001"
+                    correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+        '422':
+          description: The code's disposition is MANUAL or TERMINAL; the override is refused and the document stays blocked (PAY-017, INV-AC-1584).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '../service-runtime/schemas/error-envelope.schema.json'
+              examples:
+                default:
+                  value:
+                    type: "about:blank"
+                    title: "Override refused for a MANUAL or TERMINAL code"
+                    status: 422
+                    code: "PAY-017"
+                    correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+        default:
+          $ref: '#/components/responses/Error'
   /internal/v1/payload/documents/{docUuid}/versions/{version}:
     get:
       operationId: getPayload
@@ -476,6 +572,42 @@ components:
         registerLookup:
           $ref: '#/components/schemas/RegisterLookup'
       required: [verdict, reasons]
+    OverrideValidationRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          maxLength: 20
+          description: The blocking code to override, for example PAY-011.
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          description: Mandatory reason, recorded in the immutable audit log (INV-REQ-500).
+      required: [code, reason]
+    ValidationOverride:
+      type: object
+      properties:
+        docUuid:
+          type: string
+          format: uuid
+        version:
+          type: integer
+          minimum: 1
+        code:
+          type: string
+          maxLength: 20
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        overriddenBy:
+          type: string
+          description: The principal that recorded the override.
+        overriddenAt:
+          type: string
+          format: date-time
+      required: [docUuid, version, code, reason, overriddenBy, overriddenAt]
     RegisterLookup:
       type: object
       description: >-
