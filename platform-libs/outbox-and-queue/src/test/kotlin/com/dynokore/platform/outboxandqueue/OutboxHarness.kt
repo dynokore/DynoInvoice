@@ -1,14 +1,9 @@
 package com.dynokore.platform.outboxandqueue
 
-import com.dynokore.platform.tenancyjooq.TableClass
-import com.dynokore.platform.tenancyjooq.TenancyProbe
 import com.dynokore.platform.tenancykernel.TenantContextImpl
-import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
-import org.jooq.impl.DSL
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
-import java.util.UUID
 
 /**
  * One PostgreSQL container (17 or 18) with the three fixture services' schemas, their state
@@ -106,50 +101,6 @@ class OutboxHarness(
         rebuildSink,
         clock,
     )
-
-    /** A probe on the runtime login (INV-Q-5890 (A)): it reads as `outbox_app` does, never as a superuser. */
-    private fun probe() =
-        TenancyProbe.connect(fixture.jdbcUrl(), OutboxPostgresFixture.APP, OutboxPostgresFixture.APP_PASSWORD)
-
-    /** The first column of the first row of [sql], read in a transaction of the runtime login bound to [tenant]. */
-    fun countIn(
-        tenant: UUID,
-        sql: String,
-        vararg args: Any,
-    ): Long = probe().inTenant(TenantId(tenant)) { (fetchValue(sql, *args) as Number).toLong() }
-
-    /** The first column of the first row of [sql], read by the runtime login with no tenant bound. */
-    fun countUnbound(
-        sql: String,
-        vararg args: Any,
-    ): Long = probe().unbound { (fetchValue(sql, *args) as Number).toLong() }
-
-    /** The dead letters of `schema` stored under the platform tenant, read by the owner login bound to it. */
-    fun platformLetters(schema: String): Long =
-        JooqKit.Access
-            .owner(fixture, mapOf(DSL.name(schema, OutboxSchema.DEAD_LETTER) to TableClass.TENANT))
-            .single()
-            .asPlatform { dsl ->
-                dsl
-                    .selectCount()
-                    .from(
-                        DSL.table(DSL.name(schema, OutboxSchema.DEAD_LETTER)),
-                    ).fetchSingle()
-                    .value1()
-                    .toLong()
-            }
-
-    /** [flags] read through the catalog probe of the runtime login (a catalog read needs no tenant). */
-    fun flagsOf(
-        schema: String,
-        table: String,
-    ): List<Boolean> =
-        probe().unbound {
-            fetchRows(
-                "select relrowsecurity, relforcerowsecurity from pg_class where oid = (?::text)::regclass",
-                "$schema.$table",
-            ).single().values.map { it as Boolean }
-        }
 
     /** `[relrowsecurity, relforcerowsecurity]` of `schema.table`. */
     fun flags(

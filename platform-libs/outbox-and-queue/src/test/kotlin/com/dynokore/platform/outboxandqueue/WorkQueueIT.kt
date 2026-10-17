@@ -70,7 +70,7 @@ class WorkQueueIT {
             seqs.forEach { (partition, expected) ->
                 assertEquals(expected, done.filter { it.first == partition }.map { it.second }, "order of $partition")
             }
-            assertEquals(0, harness.countIn(tenant, "select count(*) from submission.work_queue"))
+            assertEquals(0, harness.count("select count(*) from submission.work_queue"))
         }
     }
 
@@ -186,8 +186,8 @@ class WorkQueueIT {
             assertNull(q.queue.claimNext(), "claimed and not finished: the partition waits")
             q.clock.advance(Duration.ofMinutes(6))
             assertEquals(first, notNull(q.queue.claimNext()).seq, "abandoned claim is reclaimed after the timeout")
-            assertEquals(3, harness.countIn(tenant, "select attempts from submission.work_queue where seq = ?", first))
-            assertEquals(1, harness.countIn(tenant, "select count(*) from submission.work_queue where seq = ?", second))
+            assertEquals(3, harness.count("select attempts from submission.work_queue where seq = ?", first))
+            assertEquals(1, harness.count("select count(*) from submission.work_queue where seq = ?", second))
         }
     }
 

@@ -440,11 +440,8 @@ class JdbcInboxConsumer
             }
         }
 
-        /**
-         * [block] in its own transaction under the platform binding: the offset and the dead letters are no tenant's.
-         * Inline, so the frames of the lane-gate call belong to this class and not to the routines file.
-         */
-        private inline fun <T> platform(crossinline block: () -> T): T = scope.platformTransaction { block() }
+        /** [block] in its own transaction under the platform binding: the offset and the dead letters are no tenant's. */
+        private fun <T> platform(block: () -> T): T = scope.platformTransaction(block)
 
         private fun <T> stored(
             column: String,

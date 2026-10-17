@@ -1,7 +1,5 @@
 package com.dynokore.platform.outboxandqueue
 
-import com.dynokore.platform.tenancyjooq.TenancyProbe
-import com.dynokore.platform.tenancykernel.TenantId
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.params.ParameterizedTest
@@ -130,16 +128,16 @@ class OrderingIT {
         harness: OutboxHarness,
         doc: UUID,
     ): Register =
-        TenancyProbe
-            .connect(harness.fixture.jdbcUrl(), OutboxPostgresFixture.APP, OutboxPostgresFixture.APP_PASSWORD)
-            .inTenant(TenantId(ServiceKit.TENANT)) {
-                val row =
-                    fetchRows(
-                        "select canonical_seen, payload_seen, state from submission.obligation_register " +
-                            "where doc_uuid = ?",
-                        doc,
-                    ).singleOrNull()
-                checkNotNull(row) { "no register entry for $doc" }
-                Register(row["canonical_seen"] as Boolean, row["payload_seen"] as Boolean, row["state"] as String)
-            }
+        harness.fixture.adminDataSource().connection.use { connection ->
+            connection
+                .prepareStatement(
+                    "select canonical_seen, payload_seen, state from submission.obligation_register where doc_uuid = ?",
+                ).use {
+                    it.setObject(1, doc)
+                    it.executeQuery().use { rows ->
+                        check(rows.next()) { "no register entry for $doc" }
+                        Register(rows.getBoolean(1), rows.getBoolean(2), rows.getString(3))
+                    }
+                }
+        }
 }

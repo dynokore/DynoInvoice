@@ -11,7 +11,6 @@ import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
 import org.jooq.Name
 import org.jooq.impl.DSL
-import org.jooq.impl.SQLDataType
 import java.sql.SQLException
 import java.util.UUID
 
@@ -43,38 +42,6 @@ object JooqKit {
     /** `schema.table` names as jOOQ names, each declared PLATFORM_SCOPED (no tenant predicate injected). */
     fun platformScoped(vararg tables: String): Map<Name, TableClass> =
         tables.associate { DSL.name(*it.split('.').toTypedArray()) to TableClass.PLATFORM_SCOPED }
-
-    /**
-     * Records a dead letter through the sys-owned [OutboxSchema.DEAD_LETTER_RECORD] (the runtime login holds EXECUTE),
-     * a jOOQ scalar call under the platform binding the production code uses; a null [tenant] is stored under the
-     * platform tenant. Returns the new letter's id.
-     */
-    fun recordDeadLetter(
-        fixture: OutboxPostgresFixture,
-        schema: String,
-        consumer: String,
-        topic: String,
-        offset: Long,
-        tenant: UUID?,
-        reason: String,
-        raw: String,
-    ): Long =
-        Access.runtime(fixture, OutboxSchema.jooqTables(schema)).single().asPlatform { dsl ->
-            dsl
-                .select(
-                    DSL.function(
-                        DSL.name(schema, OutboxSchema.DEAD_LETTER_RECORD),
-                        SQLDataType.BIGINT,
-                        DSL.`val`(consumer, SQLDataType.CLOB),
-                        DSL.`val`(topic, SQLDataType.CLOB),
-                        DSL.`val`(offset, SQLDataType.BIGINT),
-                        DSL.`val`(tenant, SQLDataType.UUID),
-                        DSL.`val`(reason, SQLDataType.CLOB),
-                        DSL.`val`(raw, SQLDataType.CLOB),
-                    ),
-                ).fetchSingle()
-                .value1()
-        }
 
     /** The SQLSTATE of the first [SQLException] in the cause chain of [failure], or null. */
     fun sqlState(failure: Throwable?): String? =
@@ -135,19 +102,6 @@ object JooqKit {
                 tables: Map<Name, TableClass>,
                 lanes: LaneGate? = null,
             ) = Access(fixture.jdbcUrl(), OutboxPostgresFixture.APP, OutboxPostgresFixture.APP_PASSWORD, tables, lanes)
-
-            /** The owner login [OutboxPostgresFixture.OWNER]: it changes the state the runtime login cannot. */
-            fun owner(
-                fixture: OutboxPostgresFixture,
-                tables: Map<Name, TableClass>,
-                lanes: LaneGate? = null,
-            ) = Access(
-                fixture.jdbcUrl(),
-                OutboxPostgresFixture.OWNER,
-                OutboxPostgresFixture.OWNER_PASSWORD,
-                tables,
-                lanes,
-            )
 
             /** A fixture consumer's own login [role] (password `<role>_pw`). */
             fun role(

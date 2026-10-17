@@ -1,8 +1,6 @@
 package com.dynokore.platform.outboxandqueue
 
 import com.dynokore.platform.tenancykernel.TenantContextImpl
-import org.jooq.impl.DSL
-import org.jooq.impl.SQLDataType
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Tag
@@ -48,11 +46,11 @@ class InboxConsumerIT {
 
             assertEquals(PollResult(applied = 1, ignored = 0, duplicates = 1, stale = 0, deadLettered = 0), result)
             assertEquals(1, transport.calls.size)
-            assertEquals(1, harness.countOf("select count(*) from submission.queue_item where doc_uuid = ?", doc))
-            assertEquals(1, harness.countOf("select count(*) from submission.submission_row where doc_uuid = ?", doc))
+            assertEquals(1, harness.count("select count(*) from submission.queue_item where doc_uuid = ?", doc))
+            assertEquals(1, harness.count("select count(*) from submission.submission_row where doc_uuid = ?", doc))
             assertEquals(
                 1,
-                harness.countOf("select count(*) from submission.inbox where event_id = ?", envelope.id.value),
+                harness.count("select count(*) from submission.inbox where event_id = ?", envelope.id.value),
             )
             assertEquals(0, consumer.pollOnce().total) // the offset moved past both records
         }
@@ -77,8 +75,8 @@ class InboxConsumerIT {
                     clock,
                 )
             assertThrows(ProcessKilled::class.java) { firstRun.pollOnce() }
-            assertEquals(0, harness.countOf("select count(*) from reconciliation.ack_read_model"))
-            assertEquals(0, harness.countOf("select count(*) from reconciliation.inbox"))
+            assertEquals(0, harness.count("select count(*) from reconciliation.ack_read_model"))
+            assertEquals(0, harness.count("select count(*) from reconciliation.inbox"))
 
             val restarted = harness.reconciliation
             val secondRun =
@@ -94,9 +92,9 @@ class InboxConsumerIT {
             assertEquals(1, secondRun.pollOnce().applied)
             assertEquals(
                 1,
-                harness.countOf("select ack_count from reconciliation.ack_read_model where doc_uuid = ?", doc),
+                harness.count("select ack_count from reconciliation.ack_read_model where doc_uuid = ?", doc),
             )
-            assertEquals(1, harness.countOf("select count(*) from reconciliation.inbox"))
+            assertEquals(1, harness.count("select count(*) from reconciliation.inbox"))
             assertEquals(0, secondRun.pollOnce().total)
         }
     }
@@ -105,23 +103,10 @@ class InboxConsumerIT {
     @ValueSource(strings = ["postgres:17", "postgres:18"])
     fun `a malformed record goes to dead letter and the consumer carries on`(image: String) {
         OutboxHarness(image).use { harness ->
-            val badTenant = UUID.randomUUID()
-            val logTables = EventLogSchema.jooqTables(setOf(PAYLOAD_READY_TOPIC))
-            JooqKit.Access.runtime(harness.fixture, logTables).single().asTenant(badTenant) { dsl ->
-                dsl
-                    .insertInto(
-                        DSL.table(DSL.name(EventLogSchema.SCHEMA, EventLogSchema.tableName(PAYLOAD_READY_TOPIC))),
-                        DSL.field(DSL.name("tenant_id"), SQLDataType.UUID),
-                        DSL.field(DSL.name("event_id"), SQLDataType.CLOB),
-                        DSL.field(DSL.name("subject"), SQLDataType.CLOB),
-                        DSL.field(DSL.name("envelope"), SQLDataType.JSONB),
-                    ).values(
-                        DSL.`val`(badTenant, SQLDataType.UUID),
-                        DSL.`val`("bad", SQLDataType.CLOB),
-                        DSL.`val`("s", SQLDataType.CLOB),
-                        DSL.`val`("{\"specversion\":\"1.0\"}", SQLDataType.JSONB),
-                    ).execute()
-            }
+            harness.fixture.runAsAdmin(
+                "insert into eventlog.gst_payload_payload_ready_v1 (tenant_id, event_id, subject, envelope) " +
+                    "values ('${UUID.randomUUID()}', 'bad', 's', '{\"specversion\":\"1.0\"}')",
+            )
             val kit = harness.submission
             val consumer =
                 harness.consumer(
@@ -133,7 +118,7 @@ class InboxConsumerIT {
                 )
 
             assertEquals(1, consumer.pollOnce().deadLettered)
-            assertEquals(1, harness.platformLetters("submission"))
+            assertEquals(1, harness.count("select count(*) from submission.event_dead_letter"))
             assertEquals(0, consumer.pollOnce().total)
         }
     }
@@ -151,12 +136,6 @@ class InboxConsumerIT {
         }
         harness.drain(producer.relay)
     }
-
-    /** [OutboxHarness.countIn] for the fixture tenant, whose events these tests emit. */
-    private fun OutboxHarness.countOf(
-        sql: String,
-        vararg args: Any,
-    ) = countIn(ServiceKit.TENANT, sql, *args)
 
     private companion object {
         const val PAYLOAD_READY_TOPIC = "gst.payload.payload-ready.v1"
