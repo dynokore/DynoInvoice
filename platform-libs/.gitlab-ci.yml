@@ -30,6 +30,11 @@ include:
 
 variables:
   MAVEN_PUBLISH: "true"
+  # CI-FAST, owner rulings 2026-10-17 (platform-build ci/stages.gitlab-ci.yml): docs-only merge requests run only the
+  # text checks, and main skips a listed job when the same commit already passed a merge-request pipeline. Not
+  # contract-tests: on main it publishes the pacts to the broker, so it always runs.
+  GST_SKIP_REPEATS: "true"
+  GST_SKIP_WHEN_VERIFIED_JOBS: "unit-test lint verify-rules split-jars impl-poms"
   # IMAGE_NAME, HELM_CHART_NAME stay unset: platform-libs ships jars, not a
   # bootable service or a Helm chart.
 
@@ -301,6 +306,9 @@ contract-tests:
   extends: [.gradle-job, .gst-changed-modules]
   tags: [inv-arm64]
   stage: test
+  rules:
+    - !reference [.gst-docs-only-skip, rules]
+    - when: on_success
   script:
     - ./gradlew -p "$GRADLE_PROJECT_DIR" :contract-tests:check --stacktrace
     - |
@@ -328,6 +336,9 @@ split-jars:
   extends: [.gradle-job, .gst-changed-modules]
   tags: [inv-arm64]
   stage: test
+  rules:
+    - !reference [.gst-docs-only-skip, rules]
+    - when: on_success
   script:
     - ./gradlew -p "$GRADLE_PROJECT_DIR" verifySplitJars --continue --stacktrace
     - |
@@ -355,6 +366,9 @@ impl-poms:
   extends: [.gradle-job, .gst-changed-modules]
   tags: [inv-arm64]
   stage: test
+  rules:
+    - !reference [.gst-docs-only-skip, rules]
+    - when: on_success
   script:
     - ./gradlew -p "$GRADLE_PROJECT_DIR" verifyImplPoms --continue --stacktrace
     - |
@@ -487,6 +501,7 @@ publish-guard-dry-run:
     MAVEN_REGISTRY_PROJECT_ID: "$CI_PROJECT_ID"
     GST_PUBLISH_STAGE: "${CI_PROJECT_DIR}/.gst-publish-stage"
   rules:
+    - !reference [.gst-docs-only-skip, rules]
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   script:
     - ci/bom-version.sh
@@ -657,6 +672,7 @@ bom-verify:
   tags: [inv-arm64]
   stage: verify
   rules:
+    - !reference [.gst-docs-only-skip, rules]
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   script:
     - ci/bom-version.sh
