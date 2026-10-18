@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: canonical API
-  version: 1.7.0
+  version: 1.8.0
   description: >-
     Contract-first source of truth for canonical (API-01, STK-44). The
     `canonical-contract` module generates its server interfaces and DTOs
@@ -73,6 +73,15 @@ paths:
         `postingTimestamp` and lacks it, or whose `sourceTimeZone` is not an
         IANA zone id, is refused with `400` and SRT-001 and nothing is
         recorded.
+
+
+        The network markers are mutually exclusive facts of the path
+        (INV-Q-6999). A request that carries more than one of
+        `networkIssuance`, `networkReceipt` and `relayIssuance` (with
+        `relayIssuance` counted when true), `networkIssuance` with
+        `direction` PURCHASE, or `networkReceipt` with `direction` SALE or
+        with no `direction`, is refused with `400` and SRT-001 and nothing is
+        recorded. canonical-svc never picks between the markers.
       tags: [documents]
       x-principal: ingest
       x-timeout: 2000
@@ -644,6 +653,50 @@ components:
             means false. A caller of any other path does not set it.
       required:
         [tenantId, entityRef, sourceSystem, sourceKey, sourceRevision, documentFunction, transactionDate, currency, lines]
+      allOf:
+        # INV-Q-6999 A: the network markers are mutually exclusive facts of the path; a marker counts as carried
+        # when its property is present (relayIssuance only when true, because absent means false).
+        # R1: networkIssuance and networkReceipt together.
+        - if:
+            required: [networkIssuance]
+          then:
+            not:
+              required: [networkReceipt]
+        # R2: networkIssuance and relayIssuance true together.
+        - if:
+            required: [networkIssuance]
+          then:
+            not:
+              required: [relayIssuance]
+              properties:
+                relayIssuance:
+                  const: true
+        # R3: networkReceipt and relayIssuance true together.
+        - if:
+            required: [networkReceipt]
+          then:
+            not:
+              required: [relayIssuance]
+              properties:
+                relayIssuance:
+                  const: true
+        # R4: networkIssuance with direction PURCHASE.
+        - if:
+            required: [direction]
+            properties:
+              direction:
+                const: PURCHASE
+          then:
+            not:
+              required: [networkIssuance]
+        # R5: networkReceipt with direction SALE or with no direction (absent means SALE, INV-Q-6041).
+        - if:
+            required: [networkReceipt]
+          then:
+            required: [direction]
+            properties:
+              direction:
+                const: PURCHASE
     RecordDocumentResponse:
       type: object
       properties:
