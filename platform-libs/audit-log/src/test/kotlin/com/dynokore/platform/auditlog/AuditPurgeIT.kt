@@ -224,7 +224,7 @@ class AuditPurgeIT {
         assertEquals(1L, p.countAll("select count(*) from controlplane.audit_entry"))
     }
 
-    /** The precondition (INV-Q-6586): on a schema without the binding functions the purge raises and changes nothing. */
+    /** The precondition (INV-Q-6586): without the binding functions the purge raises and changes nothing. */
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
     fun `a schema without the binding functions makes the purge raise and change nothing`(image: String) {
