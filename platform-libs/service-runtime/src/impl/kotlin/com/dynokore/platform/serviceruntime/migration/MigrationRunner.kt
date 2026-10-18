@@ -1,10 +1,21 @@
 package com.dynokore.platform.serviceruntime.migration
 
+import com.dynokore.platform.serviceruntime.binding.BindingAutoConfiguration
+import com.dynokore.platform.serviceruntime.composition.JobProperties
+import com.dynokore.platform.serviceruntime.composition.ModuleProperties
 import com.dynokore.platform.serviceruntime.datasource.DatabaseCredentialsConfiguration
+import com.dynokore.platform.tenancykernel.SqlIdentifier
+import org.slf4j.LoggerFactory
 import org.springframework.boot.WebApplicationType
+import org.springframework.boot.autoconfigure.ImportAutoConfiguration
 import org.springframework.boot.builder.SpringApplicationBuilder
+import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.ApplicationContextInitializer
 import org.springframework.context.ConfigurableApplicationContext
+import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Configuration
+import org.springframework.context.annotation.Import
+import org.springframework.core.env.Environment
 import org.springframework.core.env.MapPropertySource
 
 /**
