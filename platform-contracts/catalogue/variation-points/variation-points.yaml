@@ -499,7 +499,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1272; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-12
   requirement: INV-REQ-1273
-  revision: 4659d836-43df-4eb5-8c9a-e683dca7e99d
+  revision: 44835310-3b6d-4e1e-849c-945b85261e8a
   title: "The client hears of a filing fact recorded by the agent by immediate notice by default, or by a notice it must acknowledge, or by daily digest, and the notice never delays the effect"
   class: POLICY
   class_modifiers: []
@@ -648,7 +648,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1276, tighten_only; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-16
   requirement: INV-REQ-1277
-  revision: e68ea381-7444-4a34-9b6e-0b278cb1fd9f
+  revision: 886fd2dd-87c2-4e5e-b187-c7c8da8e22ed
   title: "The filer of record is prompted to record the filing fact when the verdict first becomes ready and 3 days before the due date by default; prompts cannot be disabled and the last is at least 1 day before"
   class: PARAMETER
   class_modifiers: []
@@ -2611,7 +2611,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1323: \"the second option is the looser one\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; acknowledged_by: VP-62 tax.approver, plus client.signatory under delegation: INV-Q-181, INV-Q-2349, INV-Q-3134; for INV-T-3148"
 - id: VP-63
   requirement: INV-REQ-1401
-  revision: 3cea210e-095c-460a-b4d5-78084ff274bf
+  revision: ef97f713-2226-4476-87f9-fbe555da410d
   title: "An individual's access or correction request is answered within the pack default of 30 days from receipt, or a shorter tenant period"
   class: PARAMETER
   class_modifiers:
@@ -2638,15 +2638,44 @@ variation_points:
     options:
       - key: "PACK_DEFAULT_30D"
         strictness: "DEFAULT"
+        typed_value:
+          type: "record"
+          fields:
+            responseDays:
+              type: "duration"
+              unit: "calendar days"
+              min: 30
+              max: 30
+              default: 30
+              direction: "DOWN_STRICTER"
+            noticeLeadDays:
+              type: "duration"
+              unit: "calendar days"
+              min: 7
+              max: 29
+              default: 7
+              direction: "UP_STRICTER"
       - key: "SHORTER"
         strictness: "STRICTER"
         typed_value:
-          type: "duration"
-          unit: "calendar days"
-          min: 1
-          max: "the pack default (30 calendar days in the current pack)"
-          direction: "DOWN_STRICTER"
-    basis: "Owner ruling (2026-10-11) on INV-Q-3057, recommended option (A) accepted; INV-REQ-1401; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
+          type: "record"
+          fields:
+            responseDays:
+              type: "duration"
+              unit: "calendar days"
+              min: 1
+              max: 30
+              default: 30
+              direction: "DOWN_STRICTER"
+            noticeLeadDays:
+              type: "duration"
+              unit: "calendar days"
+              min: 7
+              max: 29
+              default: 7
+              direction: "UP_STRICTER"
+    cross_scope: "Single scope (TENANT). A SHORTER value is written with its responseDays: a write without it is refused and nothing is stored. The period is never longer than 30 calendar days (law, fixed); a tenant may shorten it and may lengthen noticeLeadDays (an earlier prompt), never the other way; the minimum 7 of noticeLeadDays is what makes the lead tighten-only (INV-Q-6836 A)."
+    basis: "Owner ruling (2026-10-11) on INV-Q-3057, recommended option (A) accepted; INV-REQ-1401; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; numbers of the row in the catalogue and read with the policy reader, notice lead default 7 calendar days: Coordinator ruling (owner delegation 2026-10-18) INV-Q-6836 (A); for INV-T-6840"
 - id: VP-64
   requirement: INV-REQ-1547
   revision: dd66e16e-2c2a-44c0-a9ce-8c8b938a408e
