@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/rules/schemas/scenario-pack-rendition-wording.schema.json",
+  "title": "ScenarioPackRenditionWording",
+  "description": "The rendition wording section of the Scenario pack contents (INV-REQ-1032, INV-REQ-1033, INV-REQ-647, INV-REQ-648): per scenario and document class, the wording the rendition must carry, each with its citation. The sample check reads its expectations from this list. An empty requiredWording states that nothing is required for the pair. A (scenario, submissionType) pair appears at most once in renditionWording; the service checks this, because JSON Schema cannot express it. The exact text \"Tax Invoice\" is refused on TYPE_1A and TYPE_1B (INV-REQ-647). The Scenario pack's other sections are not in this file. A consumer ignores any property this schema does not name (API-41, FR-K.4); no object of this schema sets additionalProperties to false. Within a major version this schema is additive-only.",
+  "type": "object",
+  "properties": {
+    "renditionWording": {
+      "type": "array",
+      "description": "Required rendition wording, one entry per (scenario, submissionType) pair.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "scenario": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "The scenario the entry applies to."
+          },
+          "submissionType": {
+            "type": "string",
+            "enum": [
+              "TYPE_1A",
+              "TYPE_1B",
+              "TYPE_2",
+              "TYPE_3"
+            ],
+            "description": "The document class the entry applies to."
+          },
+          "requiredWording": {
+            "type": "array",
+            "maxItems": 20,
+            "description": "The wording required for the pair; empty means nothing is required.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "description": "The exact wording the rendition must carry."
+                },
+                "citation": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300,
+                  "description": "The source that requires the wording."
+                }
+              },
+              "required": [
+                "text",
+                "citation"
+              ]
+            }
+          }
+        },
+        "required": [
+          "scenario",
+          "submissionType",
+          "requiredWording"
+        ],
+        "if": {
+          "properties": {
+            "submissionType": {
+              "enum": [
+                "TYPE_1A",
+                "TYPE_1B"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "submissionType"
+          ]
+        },
+        "then": {
+          "properties": {
+            "requiredWording": {
+              "items": {
+                "type": "object",
+                "not": {
+                  "properties": {
+                    "text": {
+                      "const": "Tax Invoice"
+                    }
+                  },
+                  "required": [
+                    "text"
+                  ]
+                }
+              },
+              "type": "array"
+            }
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "renditionWording"
+  ]
+}

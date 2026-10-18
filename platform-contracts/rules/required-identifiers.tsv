@@ -11,6 +11,7 @@
 #   line fields of the canonical and ingestion contracts: inputTaxClaimed, taxAmount;
 #   operations of other services' contracts: goLive, bulkResolve, replaySubmissions, withdrawConsent, deleteAtRetentionEnd;
 #   armPack (INV-REQ-1166, 962): the rules contract's existing operationId is armRegulatoryPack, unchanged by this task.
+#   INV-T-6327 (INV-REQ-1033, 648, INV-AC-1858): roles tax.operator, entity.admin; event EvidenceArtefactRecorded (service-runtime's event); none is an element of the Scenario pack rendition wording schema.
 # Enum members shared by several properties (CLAIMABLE_PORTION, ENTIRE_INVOICE, BILL_FOR_PAYMENT ...) are one row each.
 identifier	kind	file	requirement
 documentFunction	property	openapi.yaml	INV-REQ-371
@@ -85,3 +86,6 @@ valuesAbsentCount	property	openapi.yaml	INV-REQ-1020
 CODE_CHANGED	enum_value	openapi.yaml	INV-REQ-1020
 NEWLY_REFUSED	enum_value	openapi.yaml	INV-REQ-1020
 NEWLY_ACCEPTED	enum_value	openapi.yaml	INV-REQ-1020
+renditionWording	property	schemas/scenario-pack-rendition-wording.schema.json	INV-REQ-1032
+requiredWording	property	schemas/scenario-pack-rendition-wording.schema.json	INV-REQ-1032
+citation	property	schemas/scenario-pack-rendition-wording.schema.json	INV-REQ-1032

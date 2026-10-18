@@ -10,3 +10,4 @@
 ../openapi.yaml#/components/schemas/MappingEntryPage entries-page-*.json
 ../openapi.yaml#/components/schemas/DryRunResult dry-run-result-*.json
 ../openapi.yaml#/components/schemas/DryRunChangeTypeTotal dry-run-change-type-total-*.json
+../schemas/scenario-pack-rendition-wording.schema.json scenario-pack-rendition-wording-*.json

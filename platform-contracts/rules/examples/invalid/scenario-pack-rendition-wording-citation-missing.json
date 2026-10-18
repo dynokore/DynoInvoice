@@ -1,0 +1,13 @@
+{
+  "renditionWording": [
+    {
+      "scenario": "STANDARD",
+      "submissionType": "TYPE_2",
+      "requiredWording": [
+        {
+          "text": "Tax Invoice"
+        }
+      ]
+    }
+  ]
+}

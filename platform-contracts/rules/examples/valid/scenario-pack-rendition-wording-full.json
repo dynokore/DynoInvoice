@@ -1,0 +1,29 @@
+{
+  "renditionWording": [
+    {
+      "scenario": "STANDARD",
+      "submissionType": "TYPE_2",
+      "requiredWording": [
+        {
+          "text": "Tax Invoice",
+          "citation": "Singapore GST regulation, rendition wording"
+        }
+      ]
+    },
+    {
+      "scenario": "BUYER_CREATED",
+      "submissionType": "TYPE_3",
+      "requiredWording": [
+        {
+          "text": "Buyer Created Tax Invoice – Approved by Comptroller of GST",
+          "citation": "Singapore GST regulation, rendition wording"
+        }
+      ]
+    },
+    {
+      "scenario": "STANDARD",
+      "submissionType": "TYPE_1A",
+      "requiredWording": []
+    }
+  ]
+}
