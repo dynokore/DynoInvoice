@@ -112,6 +112,12 @@ object ConfigSchema {
      * `OutboxSchema.ddl` ([EventMode.OUTBOX]), or audit-log's `AuditSchema.auditEntryDdl` and `purgeDdl`
      * ([EventMode.NO_OUTBOX]).
      *
+     * Precondition (coordinator rulings INV-Q-6586, INV-Q-6663): this DDL does not create `<schema>.bound_tenant()` and
+     * `<schema>.bound_actor()`, runs no role switch and never runs tenancy-kernel's `BindingKeyMigration.ddl`, which
+     * runs only as `<svc>_sys`. The schema must already hold both functions, created once per schema as `<svc>_sys`
+     * before this DDL (who runs it in an installation is INV-Q-6580). On a schema without them the DDL applies and
+     * every function below raises (SQLSTATE 42883) and changes nothing.
+     *
      * [runtimeRole] (`<svc>_runtime`) gets `SELECT` and `INSERT` on the tenant tables, `SELECT` on
      * `config_installation_setting` and EXECUTE on the functions; [sysRole] (`<svc>_sys`) owns the functions and holds
      * `INSERT` on `config_installation_setting` and `DELETE` on the tenant tables, under their tenant policy.
@@ -121,8 +127,8 @@ object ConfigSchema {
      * outbox-and-queue's `OutboxWriter.stage`), each as a JSON object of its outbox columns (`id`, `type`, `source`,
      * `subject`, `tenant_id`, `entity_ref`, `instance_id`, `correlation_id`, `causation_id`, `data`, and `topic` for
      * `PolicyChanged`). Before any insert it refuses, with nothing written:
-     * - SQLSTATE 42501: an unset `app.actor`; a bound tenant other than the platform tenant; an audit actor other than
-     *   `app.actor`;
+     * - SQLSTATE 42501: an unbound actor; a bound tenant other than the platform tenant; an audit actor other than
+     *   the bound actor;
      * - SQLSTATE 22023: a missing value argument, option values naming an unselected option, a row of another shape;
      *   a tenant or entity other than the platform's; a type or topic other than `AuditEntryRecorded` and
      *   `PolicyChanged` on their topics; an id that is not a version-7 UUID; a source not `/gst/<service>`; a subject
@@ -134,7 +140,7 @@ object ConfigSchema {
      * Then it inserts the value (id `gen_random_uuid()`, `set_by` the actor), the audit entry and the `PolicyChanged`,
      * every row at one `clock_timestamp()` (a staged time is never taken), the doc fields and `docsequence` null.
      *
-     * [PURGE_SUBJECT] and [PURGE_TENANT] (INV-Q-2938) refuse an unset `app.actor`, an unbound or platform tenant, and
+     * [PURGE_SUBJECT] and [PURGE_TENANT] (INV-Q-2938) refuse an unbound actor, an unbound or platform tenant, and
      * (purge of a tenant) a tenant other than the bound one (SQLSTATE 42501); the application checks the operation
      * before it calls them.
      */
@@ -346,7 +352,7 @@ object ConfigSchema {
                 returns table (setting_id uuid, stored_at timestamptz)
             language plpgsql security definer set search_path = pg_catalog, $s, pg_temp as $$
             declare
-                v_actor text := current_setting('app.actor', true);
+                v_actor text := (select $s.bound_actor());
                 v_mode constant text := $s.$INSTALLATION_MODE();
                 v_subject text;
                 v_value jsonb;
@@ -356,9 +362,9 @@ object ConfigSchema {
                 v_now timestamptz;
             begin
                 if v_actor is null or v_actor ~ '${BlankText.SQL_NOT_ACTOR}' then
-                    raise exception 'app.actor is not set: an installation value records its actor' using errcode = '42501';
+                    raise exception 'the bound actor is not set: an installation value records its actor' using errcode = '42501';
                 end if;
-                if current_setting('app.tenant_id', true) is distinct from '$PLATFORM' then
+                if (select $s.bound_tenant()) is distinct from '$PLATFORM'::uuid then
                     raise exception 'an installation value is written under the platform tenant only' using errcode = '42501';
                 end if;
                 if p_vp_key is null or p_option_keys is null or p_effective_from is null or p_reason is null
@@ -443,7 +449,7 @@ object ConfigSchema {
 
                 v_data := p_audit -> 'data';
                 if jsonb_typeof(v_data -> 'actor') is distinct from 'string' or v_data ->> 'actor' is distinct from v_actor then
-                    raise exception 'the audit entry actor is not app.actor' using errcode = '42501';
+                    raise exception 'the audit entry actor is not the bound actor' using errcode = '42501';
                 end if;
                 if jsonb_typeof(v_data -> 'priorState') is distinct from 'object' then
                     raise exception 'the audit entry has no prior state object (INV-REQ-2588 b2, INV-AC-2229)'
@@ -535,12 +541,12 @@ object ConfigSchema {
             create function $s.$PURGE_SUBJECT(p_subject_type text, p_subject_ref text) returns bigint
             language plpgsql security definer set search_path = pg_catalog, $s, pg_temp as $$
             declare
-                v_actor text := current_setting('app.actor', true);
-                v_tenant uuid := nullif(current_setting('app.tenant_id', true), '')::uuid;
+                v_actor text := (select $s.bound_actor());
+                v_tenant uuid := (select $s.bound_tenant());
                 v_deleted bigint;
             begin
                 if v_actor is null or v_actor ~ '${BlankText.SQL_NOT_ACTOR}' then
-                    raise exception 'app.actor is not set: a purge records its actor' using errcode = '42501';
+                    raise exception 'the bound actor is not set: a purge records its actor' using errcode = '42501';
                 end if;
                 if v_tenant is null or v_tenant = '$PLATFORM'::uuid then
                     raise exception 'a purge runs in a transaction of the tenant concerned' using errcode = '42501';
@@ -575,14 +581,14 @@ object ConfigSchema {
                 returns table (resolved_values bigint, settings bigint, relaxation_acknowledgements bigint)
             language plpgsql security definer set search_path = pg_catalog, $s, pg_temp as $$
             declare
-                v_actor text := current_setting('app.actor', true);
-                v_tenant uuid := nullif(current_setting('app.tenant_id', true), '')::uuid;
+                v_actor text := (select $s.bound_actor());
+                v_tenant uuid := (select $s.bound_tenant());
                 v_resolved bigint;
                 v_settings bigint;
                 v_acknowledgements bigint;
             begin
                 if v_actor is null or v_actor ~ '${BlankText.SQL_NOT_ACTOR}' then
-                    raise exception 'app.actor is not set: a purge records its actor' using errcode = '42501';
+                    raise exception 'the bound actor is not set: a purge records its actor' using errcode = '42501';
                 end if;
                 if v_tenant is null or v_tenant = '$PLATFORM'::uuid or p_tenant is distinct from v_tenant then
                     raise exception 'a tenant is purged only in its own transaction' using errcode = '42501';
@@ -617,7 +623,7 @@ object ConfigSchema {
             create function $s.$OPTION_VALUE_MAXIMUM(p_vp_key text, p_option_key text) returns numeric
             language plpgsql stable security definer set search_path = pg_catalog, $s, pg_temp as $$
             declare
-                v_tenant uuid := nullif(current_setting('app.tenant_id', true), '')::uuid;
+                v_tenant uuid := (select $s.bound_tenant());
             begin
                 if v_tenant is distinct from '$PLATFORM'::uuid then
                     raise exception 'the installation-wide maximum is read in a platform transaction'

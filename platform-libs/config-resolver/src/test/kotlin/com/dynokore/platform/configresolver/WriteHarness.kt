@@ -77,20 +77,21 @@ data class StoredEvent(
 class WriteHarness(
     image: String,
     val mode: EventMode = EventMode.OUTBOX,
+    withBindingFunctions: Boolean = true,
 ) : AutoCloseable {
     private val container =
         WritePostgres(DockerImageName.parse(image))
             .withCopyToContainer(Transferable.of(rolesScript()), "/docker-entrypoint-initdb.d/00-config-roles.sql")
             .withCopyToContainer(
-                Transferable.of(schemaScript(mode)),
+                Transferable.of(schemaScript(mode, withBindingFunctions)),
                 "/docker-entrypoint-initdb.d/10-config-schema.sql",
             ).also { it.start() }
 
     val tenants = TenantContextImpl()
     private val appPool = TestPoolFixture(container.jdbcUrl, RUNTIME, "config_app_pw", poolName = "write-app")
     private val ownerPool = TestPoolFixture(container.jdbcUrl, OWNER, "config_owner_pw", poolName = "write-owner")
-    val app = appPool.runner(tenants)
-    private val ownerRunner = ownerPool.runner(tenants)
+    val app = appPool.runner(tenants, keys = SignedBindingFixture.KEYS)
+    private val ownerRunner = ownerPool.runner(tenants, keys = SignedBindingFixture.KEYS)
 
     /** The module's tables, the fixture `test_event` and the outbox and local audit tables the tests seed and read. */
     private val tables =
@@ -266,20 +267,22 @@ class WriteHarness(
     fun bool(sql: String): Boolean = ownerProbe.unbound { fetchValue(sql) } as Boolean
 
     /**
-     * Binds [tenant] and [actor] as given on the runtime login (an absent one as the empty setting, which the
-     * transaction runner would refuse) and runs [block] in that one transaction; commits when it returns.
+     * Binds [tenant] and [actor] as given on the runtime login, signed with [key] (an absent one as the empty setting,
+     * which the transaction runner would refuse) and runs [block] in that one transaction; commits when it returns.
      */
     fun <T> raw(
         tenant: String?,
         actor: String?,
+        key: ByteArray = SignedBindingFixture.KEY,
         block: TenancyProbe.() -> T,
     ): T =
         appProbe.unbound {
             fetchValue(
                 "select set_config('app.tenant_id', coalesce(?, ''), true), " +
-                    "set_config('app.actor', coalesce(?, ''), true)",
+                    "set_config('app.actor', coalesce(?, ''), true), set_config('app.binding_sig', ?, true)",
                 tenant,
                 actor,
+                SignedBindingFixture.sign(tenant, actor, key),
             )
             block()
         }
@@ -427,6 +430,9 @@ class WriteHarness(
 
     companion object {
         const val SCHEMA = "svc"
+
+        /** A second schema with the binding functions under another key: the look-alike of the probes. */
+        const val OTHER_SCHEMA = "svc_other"
         const val TEST_EVENT = "test_event"
         const val OUTBOX = "outbox"
         const val OWNER = "config_owner"
@@ -462,7 +468,10 @@ class WriteHarness(
             }.readText()
 
         /** The tables and functions, as `config_owner` creates them in [mode]; run after the roles. */
-        private fun schemaScript(mode: EventMode): String {
+        private fun schemaScript(
+            mode: EventMode,
+            withBindingFunctions: Boolean,
+        ): String {
             val tables =
                 when (mode) {
                     EventMode.OUTBOX -> {
@@ -474,7 +483,10 @@ class WriteHarness(
                             AuditSchema.purgeDdl(SCHEMA, RUNTIME, SYS, SERVICE)
                     }
                 }
-            return "SET ROLE $OWNER;\n$tables\n${ConfigSchema.ddl(SCHEMA, RUNTIME, SYS, mode)}\n" +
+            return SignedBindingFixture.script(SCHEMA, SYS, RUNTIME, withFunctions = withBindingFunctions) + "\n" +
+                "CREATE SCHEMA $OTHER_SCHEMA AUTHORIZATION $OWNER;\n" +
+                SignedBindingFixture.script(OTHER_SCHEMA, SYS, RUNTIME, SignedBindingFixture.FORGED_KEY) +
+                "\nSET ROLE $OWNER;\n$tables\n${ConfigSchema.ddl(SCHEMA, RUNTIME, SYS, mode)}\n" +
                 "create table $SCHEMA.$TEST_EVENT (\n" +
                 "    seq bigint generated always as identity primary key,\n" +
                 "    kind text not null, type text not null, tenant_id uuid not null, entity_ref text not null,\n" +

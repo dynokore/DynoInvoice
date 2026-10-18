@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.0.28] - 2026-10-19
+### Changed
+- Metadata-only release (INV-T-5362, G-DVS): depends on `config-resolver` 5.0.0, whose published module metadata changed; no code change.
+
 ## [1.0.27] - 2026-10-19
 ### Changed
 - Metadata-only release (INV-T-5363, G-DVS): depends on `outbox-and-queue` 6.1.4, whose published module metadata changed; no code change.

@@ -121,13 +121,14 @@ private fun json(
         set("data", InstallationCalls.mapper.readTree(envelope.dataJson))
     }
 
-/** Calls the function on a raw runtime-login transaction with [tenant] and [actor] set as given; commits. */
+/** Calls the function on a raw runtime-login transaction, [tenant] and [actor] bound as given, signed with [key]. */
 internal fun WriteHarness.callInstallation(
     args: InstallationArgs,
     tenant: String? = TenantId.PLATFORM.value.toString(),
     actor: String? = "op",
+    key: ByteArray = SignedBindingFixture.KEY,
 ): List<UUID> =
-    raw(tenant, actor) {
+    raw(tenant, actor, key) {
         fetchRows(
             "select setting_id from svc.write_installation_setting(" +
                 "?, ?::text[], ?::jsonb, ?::date, ?, ?::jsonb, ?::jsonb)",

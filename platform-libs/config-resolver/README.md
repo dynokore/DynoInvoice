@@ -12,6 +12,17 @@ Precedence-ordered configuration resolution with effective dates and resolved-va
 
 Released on its own version with its own changelog. Services consume it only as a published artefact (FR-L.6).
 
+## What 5.0.0 changes (INV-T-5362, BREAKING)
+
+- `write_installation_setting`, `config_purge_subject`, `config_purge_tenant` and `config_option_value_maximum` read
+  the tenant and actor from `<schema>.bound_tenant()` and `<schema>.bound_actor()`, the signed binding of
+  tenancy-kernel (INV-REQ-854 b7), and no longer from transaction settings. A refusal for an unset actor reads
+  `the bound actor is not set: ...` (INV-Q-6588), with the same SQLSTATE.
+- Precondition (INV-Q-6586, INV-Q-6663): `ConfigSchema.ddl` does not create those two functions and switches no role.
+  The schema must already hold them, created once per schema as `<svc>_sys` by tenancy-kernel's
+  `BindingKeyMigration.ddl`, before this module's DDL. Without them the DDL applies and each function raises (SQLSTATE
+  42883). Who runs the generator in an installation is INV-Q-6580.
+
 ## What 2.0.0 changes (INV-T-3983)
 
 - One runtime login per service and a NOLOGIN `<svc>_sys` (INV-REQ-1189 b2, INV-ADR-3968; INV-Q-3931,

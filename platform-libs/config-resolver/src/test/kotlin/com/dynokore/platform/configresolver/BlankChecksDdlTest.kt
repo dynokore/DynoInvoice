@@ -19,7 +19,7 @@ class BlankChecksDdlTest {
         assertEquals(2, ddl.split("set_by text not null check (set_by !~ $actor)").size - 1)
         assertEquals(1, ddl.split("principal text not null check (principal !~ $actor)").size - 1)
         assertEquals(3, ddl.split("if v_actor is null or v_actor ~ $actor then").size - 1)
-        assertEquals(3, ddl.split("v_actor text := current_setting('app.actor', true);").size - 1)
+        assertEquals(3, ddl.split("v_actor text := (select svc.bound_actor());").size - 1)
         listOf("scope_id", "reason", "subject_ref", "role").forEach {
             assertFalse(ddl.split("$it text not null check ($it !~ $blank)").size < 2, it)
         }

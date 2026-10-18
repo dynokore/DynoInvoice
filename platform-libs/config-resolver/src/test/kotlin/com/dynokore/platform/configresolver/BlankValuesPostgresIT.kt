@@ -12,9 +12,9 @@ import java.util.UUID
 /**
  * INV-T-4616 (coordinator rulings INV-Q-4614 (A), INV-Q-4622 (A)): every blank check of config-resolver's functions
  * and CHECKs uses tenancy-kernel's shared definition. A whitespace-only value (ISO controls and the caseId whitespace
- * set) is refused through each function argument, each `app.actor` read and each CHECK (by a direct insert as the
- * owner), with the function's own error and nothing written; an actor holding a control character is refused the same
- * way; a value with a visible character is stored unchanged. PostgreSQL 16, 17 and 18.
+ * set) is refused through each function argument, each read of the bound actor and each CHECK (by a direct insert as
+ * the owner), with the function's own error and nothing written; an actor holding a control character is refused
+ * the same way; a value with a visible character is stored unchanged. PostgreSQL 16, 17 and 18.
  */
 @Tag("integration")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -46,7 +46,11 @@ class BlankValuesPostgresIT {
             assertEquals(before, h.stored(), "$name wrote rows")
         }
         NOT_ACTORS.forEach { (name, actor) ->
-            probe("actor $name", "42501", "app.actor is not set") { h.callInstallation(h.staged(), actor = actor) }
+            probe(
+                "actor $name",
+                "42501",
+                "the bound actor is not set",
+            ) { h.callInstallation(h.staged(), actor = actor) }
         }
         BLANKS.forEach { (name, value) ->
             probe("reason $name", "22023", "are required") { h.callInstallation(h.staged().copy(reason = value)) }
@@ -87,7 +91,9 @@ class BlankValuesPostgresIT {
             purges.flatMap { sql ->
                 NOT_ACTORS.mapNotNull { (name, actor) ->
                     val refused = runCatching { h.refusal { h.raw(tenant, actor) { fetchValue(sql) } } }.getOrNull()
-                    val ok = refused != null && refused.sqlState == "42501" && "app.actor is not set" in refused.message
+                    val ok =
+                        refused != null && refused.sqlState == "42501" &&
+                            "the bound actor is not set" in refused.message
                     "$sql, actor $name".takeUnless { ok }
                 }
             }

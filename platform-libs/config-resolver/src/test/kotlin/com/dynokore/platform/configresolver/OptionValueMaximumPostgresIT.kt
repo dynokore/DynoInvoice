@@ -146,7 +146,12 @@ class OptionValueMaximumPostgresIT {
             sql: String,
         ) = h.refused {
             h.probe.unbound {
-                fetchValue("select set_config('app.tenant_id', ?, true)", tenant.orEmpty())
+                fetchValue(
+                    "select set_config('app.tenant_id', ?, true), set_config('app.actor', 'probe', true), " +
+                        "set_config('app.binding_sig', ?, true)",
+                    tenant.orEmpty(),
+                    SignedBindingFixture.sign(tenant, "probe"),
+                )
                 fetchValue(sql)
             }
         }

@@ -72,7 +72,7 @@ class ConfigPurgePostgresIT {
         assertEquals(1L, settings(b))
     }
 
-    /** Runs [sql] in one probe transaction with `app.tenant_id` and `app.actor` as given; its refusal's SQLSTATE. */
+    /** Runs [sql] in one probe transaction with the tenant and actor bound and signed as given; its SQLSTATE. */
     private fun refusedRaw(
         h: ConfigHarness,
         sql: String,
@@ -82,9 +82,11 @@ class ConfigPurgePostgresIT {
         h.refused {
             h.probe.unbound {
                 fetchValue(
-                    "select set_config('app.tenant_id', ?, true), set_config('app.actor', ?, true)",
+                    "select set_config('app.tenant_id', ?, true), set_config('app.actor', ?, true), " +
+                        "set_config('app.binding_sig', ?, true)",
                     tenant.orEmpty(),
                     actor.orEmpty(),
+                    SignedBindingFixture.sign(tenant, actor),
                 )
                 fetchRows(sql)
             }

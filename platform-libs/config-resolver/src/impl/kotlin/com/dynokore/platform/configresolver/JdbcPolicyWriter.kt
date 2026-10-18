@@ -152,7 +152,7 @@ class JdbcPolicyWriter(
      * An installation value is written only by [ConfigSchema.WRITE_INSTALLATION_SETTING] (INV-ADR-3968 item 6, owner
      * ruling INV-Q-3931): its audit entry and, where the service has an outbox, its `PolicyChanged` are staged
      * through their owning modules ([AuditStager], [OutboxWriter.stage]) and passed to the function, which checks
-     * them against the value and `app.actor` and writes all three or none, stamping the id, actor and database time
+     * them against the value and the bound actor and writes all three or none, stamping the id, actor and database time
      * itself (coordinator rulings INV-Q-4254 A, INV-Q-4316). The caller binds the platform tenant with the setting
      * actor (`PlatformTenantBinding.bindPlatform(actor)`, INV-Q-3997).
      */

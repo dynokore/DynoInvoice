@@ -54,8 +54,8 @@ class ConfigHarness(
     private val appPool = TestPoolFixture(container.jdbcUrl, "config_app", "config_app_pw", poolName = "config-app")
     private val ownerPool =
         TestPoolFixture(container.jdbcUrl, "config_owner", "config_owner_pw", poolName = "config-owner")
-    val app = appPool.runner(tenants)
-    private val owner = ownerPool.runner(tenants)
+    val app = appPool.runner(tenants, keys = SignedBindingFixture.KEYS)
+    private val owner = ownerPool.runner(tenants, keys = SignedBindingFixture.KEYS)
     val dsl: DSLContext = TenancyJooq.dslContext(ConfigTables.declared(SCHEMA), tenants, app)
     private val ownerDsl: DSLContext = TenancyJooq.dslContext(ConfigTables.declared(SCHEMA), tenants, owner)
     val probe: TenancyProbe = TenancyProbe.connect(container.jdbcUrl, "config_app", "config_app_pw")
@@ -183,7 +183,8 @@ class ConfigHarness(
 
         /** The tables, as the migration login `config_owner` creates them; run by the image's init, after the roles. */
         private fun schemaScript(): String =
-            "SET ROLE config_owner;\n" +
+            SignedBindingFixture.script(SCHEMA, "config_sys", "config_app") + "\n" +
+                "SET ROLE config_owner;\n" +
                 OutboxSchema.ddl(SCHEMA, "config_app", "config_sys") + "\n" +
                 ConfigSchema.ddl(SCHEMA, "config_app", "config_sys") + "\n" +
                 "RESET ROLE;\n"

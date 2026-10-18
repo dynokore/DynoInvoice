@@ -90,7 +90,7 @@ class InstallationFaultsPostgresIT {
                 "actor unset" to { a -> FaultCall(a, "42501", actor = null) },
                 "unbound tenant" to { a -> FaultCall(a, "42501", tenant = null) },
                 "a tenant bound" to { a -> FaultCall(a, "42501", tenant = UUID.randomUUID().toString()) },
-                "audit actor not app.actor" to { a -> FaultCall(a, "42501", actor = "someone-else") },
+                "audit actor not the bound actor" to { a -> FaultCall(a, "42501", actor = "someone-else") },
                 "audit tenant" to audited("tenant_id", "\"${UUID.randomUUID()}\""),
                 "audit entity" to audited("entity_ref", "\"E1\""),
                 "audit type" to audited("type", "\"${JdbcPolicyWriter.POLICY_CHANGED}\""),
@@ -156,10 +156,11 @@ class InstallationFaultsPostgresIT {
         /** The check each fault must be refused by: its message, so a fault caught by an earlier check fails. */
         private val CHECKS =
             mapOf(
-                "actor unset" to "app.actor is not set",
-                "unbound tenant" to "under the platform tenant only",
+                "actor unset" to "the bound actor is not set",
+                // a signed binding carries the tenant and the actor together: without a tenant the actor is unbound too
+                "unbound tenant" to "the bound actor is not set",
                 "a tenant bound" to "under the platform tenant only",
-                "audit actor not app.actor" to "audit entry actor is not app.actor",
+                "audit actor not the bound actor" to "audit entry actor is not the bound actor",
                 "audit tenant" to "audit entry row is not under the platform tenant and entity",
                 "audit entity" to "audit entry row is not under the platform tenant and entity",
                 "audit type" to "audit entry row has type",
