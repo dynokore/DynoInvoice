@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: submission API
-  version: 1.6.0
+  version: 1.7.0
   description: >-
     Contract-first source of truth for submission (API-01, STK-44). The
     `submission-contract` module generates its server interfaces and DTOs
@@ -30,6 +30,9 @@ info:
     1.6.0 adds the internal write overrideFilingGate and the optional
     ReadinessStatus.filingOverride, and confirmFiling answers 422 (PER-001)
     in the mode BLOCKING (INV-REQ-72, INV-Q-6737); it is additive.
+    1.7.0 declares the refusals of withdrawSubmission (400 SRT-001, 403
+    SRT-004, 404 SRT-005, 409 SUB-021; INV-REQ-568, INV-REQ-581, INV-Q-6942);
+    it is additive.
   contact:
     name: submission (see CODEOWNERS)
 servers:
@@ -769,11 +772,23 @@ paths:
         1A document can never be withdrawn once issued, because IRAS already
         holds it. Called by console-bff on behalf of an operator (INV-T-2858,
         T14).
+
+
+        The refusals apply in this order, the first that applies wins: no
+        document with the Doc UUID, `404` and SRT-005; a caller whose role is
+        not `tax.approver`, `403` and SRT-004; a missing, blank or longer
+        than 500 characters `reason`, `400` and SRT-001; a current version
+        already WITHDRAWN is a no-op repeat answered `200` with the recorded
+        result; a version sent to the Access Point (a transmitted version, an
+        issued Type 1A document or a REJECTED version) or a current version
+        that is CANCELLED or NOT_SUBMITTABLE, `409` and SUB-021; a refusal
+        changes nothing; `withdrawDocument` is the console operation this one
+        serves (INV-Q-6942).
       tags: [transactions]
       x-principal: filing-workflow
       x-sync-edge: console-bff->submission-svc
       x-timeout: 2000
-      x-error-codes: []
+      x-error-codes: [SRT-001, SRT-004, SRT-005, SUB-021]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-568, INV-REQ-581]
       x-operation:
         role: tax.approver
@@ -808,6 +823,18 @@ paths:
                     state: "WITHDRAWN"
                     reason: "Upstream ERP reversed the document before issue"
                     withdrawnAt: "2026-03-20T03:20:00Z"
+        '400':
+          description: SRT-001 — the reason is missing, blank or longer than 500 characters; nothing is changed.
+          $ref: '#/components/responses/Error'
+        '403':
+          description: SRT-004 — the caller's role is not tax.approver; nothing is changed.
+          $ref: '#/components/responses/Error'
+        '404':
+          description: SRT-005 — no document with the Doc UUID.
+          $ref: '#/components/responses/Error'
+        '409':
+          description: SUB-021 — a version was sent to the Access Point, or the current version is CANCELLED or NOT_SUBMITTABLE; nothing is changed.
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/entities/{entityRef}/periods/{periodRef}/filing-gate-overrides:
