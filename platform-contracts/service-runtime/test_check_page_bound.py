@@ -82,14 +82,14 @@ class PageBoundProbes(unittest.TestCase):
         p.write_text("".join(l for l in p.read_text().splitlines(True) if "pack-dry-run-sample-recorded" not in l))
         self.failed("e")
 
-    def test_ci_line_in_schema_sample_validation_only(self):
+    def test_ci_line_in_contract_rules_only(self):
         text = (ROOT / ".gitlab-ci.yml").read_text()
-        self.assertEqual(self.job_lines(text, LINE), ["schema-sample-validation"])
+        self.assertEqual(self.job_lines(text, LINE), ["contract-rules"])
 
     def test_ci_line_in_another_job_does_not_count(self):
         text = (ROOT / ".gitlab-ci.yml").read_text().replace(f"    - {LINE}\n", "")
         text = text.replace("asyncapi-validate:\n", f"asyncapi-validate:\n  script:\n    - {LINE}\n", 1)
-        self.assertNotEqual(self.job_lines(text, LINE), ["schema-sample-validation"])
+        self.assertNotEqual(self.job_lines(text, LINE), ["contract-rules"])
 
     def test_ci_line_removed_from_the_job_fails(self):
         text = (ROOT / ".gitlab-ci.yml").read_text().replace(f"    - {LINE}\n", "")

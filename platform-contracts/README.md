@@ -105,8 +105,8 @@ Four Gradle tasks, wired into `check`:
   read — not checked, named as a follow-up rather than guessed at (see
   `catalogue/variation-points/README.md`).
 
-Built and published via `gradle -p catalogue <task>` (`catalogue-compile`,
-`catalogue-verify`, `catalogue-publish` in `.gitlab-ci.yml`) rather than through
+Built and published via `gradle -p catalogue <task>` (`catalogue-verify`,
+`catalogue-publish` in `.gitlab-ci.yml`) rather than through
 the shared `ci/build.gitlab-ci.yml`/`ci/publish.gitlab-ci.yml` templates, which
 invoke `./gradlew` — this repository still commits no wrapper (unchanged from
 T5). The publish job reuses those templates' Maven-registry *conventions*
@@ -121,7 +121,7 @@ platform-build that does not exist yet (ci/README.md, platform-build).
   `asyncapi.yaml` (API standard rules named `inv-api-nn`; the FR-AC.1/FR-AC.19
   `x-operation` rules are `inv-fr-ac1-*`).
 - `asyncapi-validate` — the AsyncAPI CLI's own schema validation.
-- `breaking-change-self-test` — proves the gate itself works, against the
+- `tool-self-tests` (check `breaking-change-self-test`) — proves the gate itself works, against the
   fixtures in `spectral/fixtures/`, independent of whether any real contract
   changed in a given pipeline.
 - `oasdiff-breaking-gate` / `asyncapi-breaking-gate` — merge-request pipelines

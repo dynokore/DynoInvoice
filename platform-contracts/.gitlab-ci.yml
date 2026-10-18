@@ -1,3 +1,4 @@
+
 # .gitlab-ci.yml — INV-T-2849 (T5); catalogue-* jobs added by INV-T-2851 (T7),
 # extended for VariationPoint by INV-T-2852 (T8) (catalogue-publish's second curl only
 # — T8's own drift check is not CI-wired, see catalogue/variation-points/README.md)
@@ -28,15 +29,209 @@ variables:
   OASDIFF_IMAGE: "tufin/oasdiff@sha256:0286f138545a39010525df6c1bea67ffafacb384ef800effffa63bbd04718ce5"
   ASYNCAPI_CLI_IMAGE: "asyncapi/cli@sha256:2240534054590b3d41d691fdf88e1f7a1e581b9cc4fb1d4af65ca93434aa681b"
 
-catalogue-compile:
-  stage: build
-  image: "$GRADLE_IMAGE"
-  cache:
-    key: "gradle-catalogue-$CI_PROJECT_ID"
-    paths:
-      - .gradle-cache/caches
+# CI-FAST batch 7 (coordinator, owner request 2026-10-18: fewer, cheaper jobs for small agent merge requests):
+# - Every check job sets `needs: []`, so no check waits for an earlier stage. The publish jobs keep waiting for
+#   every check.
+# - Small checks that share an image run in one job (contract-rules, invoice-docs-checks, tool-self-tests,
+#   spectral-rule-self-tests). Every check in such a job runs even when an earlier one fails; the log names each
+#   failed check ("gst-ci: FAILED <check>") and the job fails at the end. The former job name of each check is
+#   its check name, so a log search for it still finds it.
+# - In a merge-request pipeline the tool self-tests and the catalogue build run only when their inputs change
+#   (.gst-mr-only-on-*). Main and tag pipelines always run them.
+# - A main push pipeline skips a check job whose commit already passed a merge-request pipeline
+#   (.gst-skip-verified): merges are fast-forward, so it is the same commit. The publish jobs and
+#   invoice-docs-checks (its inputs live outside this repository) and catalogue-verify (Keel acceptance
+#   results come from the main run itself, Keel R77) always run in full.
+.gst-skip-verified:
+  before_script:
+    - |
+      if [ "$CI_PIPELINE_SOURCE" = "push" ] && [ "${CI_COMMIT_BRANCH:-}" = "$CI_DEFAULT_BRANCH" ]; then
+        gst_u="$CI_API_V4_URL/projects/$CI_PROJECT_ID/pipelines?sha=$CI_COMMIT_SHA&status=success&source=merge_request_event&per_page=20"
+        if command -v curl >/dev/null 2>&1; then
+          gst_j=$(curl -sf --max-time 30 -H "JOB-TOKEN: $CI_JOB_TOKEN" "$gst_u") || gst_j=""
+        else
+          gst_j=$(wget -q -O - -T 30 --header "JOB-TOKEN: $CI_JOB_TOKEN" "$gst_u") || gst_j=""
+        fi
+        case "$gst_j" in
+          *"\"sha\":\"$CI_COMMIT_SHA\""*)
+            echo "gst-ci: $CI_JOB_NAME skipped: commit $CI_COMMIT_SHORT_SHA already passed a merge-request pipeline"
+            exit 0 ;;
+        esac
+        echo "gst-ci: no successful merge-request pipeline found for $CI_COMMIT_SHORT_SHA, $CI_JOB_NAME runs in full"
+      fi
+
+.gst-checks:
+  # gst_check NAME CMD...: runs CMD, records NAME when it fails; gst_checks_done fails the job if any failed.
   script:
-    - gradle -p catalogue compileKotlin compileTestKotlin --stacktrace
+    - |
+      gst_failed=""
+      gst_check() { gst_name=$1; shift; echo "gst-ci: == $gst_name"; if "$@"; then echo "gst-ci: ok $gst_name"; else echo "gst-ci: FAILED $gst_name"; gst_failed="$gst_failed $gst_name"; fi; }
+      gst_checks_done() { if [ -n "$gst_failed" ]; then echo "gst-ci: failed checks:$gst_failed"; return 1; fi; echo "gst-ci: all checks passed"; }
+
+.gst-mr-only-on-spectral:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes: ["spectral/**/*", ".gitlab-ci.yml"]
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    - when: on_success
+
+.gst-mr-only-on-tools:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes: ["spectral/**/*", "catalogue/variation-points/**/*", "ci/**/*", ".gitlab-ci.yml"]
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    - when: on_success
+
+.gst-mr-only-on-catalogue:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes: ["catalogue/**/*", ".gitlab-ci.yml"]
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    - when: on_success
+
+contract-rules:
+  # The content checks of this repository's own files (no other repository read):
+  # schema-sample-validation (INV-T-2850 T6 and API-04; INV-T-4909 samples may test an OpenAPI schema),
+  # required-identifiers-check (INV-T-4909, INV-Q-4874: every <service>/required-identifiers.tsv row is found as
+  # a whole token in that service's file), forbidden-properties-check (INV-T-4910, INV-Q-4902: no response or event
+  # schema of access/ carries a listed secret property), event-log-topics-drift-check (INV-T-2855 T11: topics.yaml
+  # regenerated from every asyncapi.yaml shows no drift; INV-T-3386 generator unittests). The page-bound check
+  # (service-runtime/check-page-bound.py) stays a line of its own (service-runtime/test_check_page_bound.py).
+  stage: verify
+  needs: []
+  image:
+    name: "$OASDIFF_IMAGE"
+    entrypoint: [""]
+  before_script:
+    - !reference [.gst-skip-verified, before_script]
+    - apk add --no-cache python3 py3-yaml
+  script:
+    - python3 service-runtime/check-page-bound.py
+    - !reference [.gst-checks, script]
+    - >
+      gst_check schema-sample-validation python3 spectral/validate-schema-samples.py
+      service-runtime/schemas/cloud-event-envelope.schema.json spectral/fixtures/schema-samples/cloud-event-envelope
+      service-runtime/schemas/error-envelope.schema.json spectral/fixtures/schema-samples/error-envelope
+    - gst_check schema-sample-validation-discover python3 spectral/validate-schema-samples.py --discover .
+    - gst_check required-identifiers-check python3 spectral/check-required-identifiers.py .
+    - gst_check forbidden-properties-check python3 spectral/check-forbidden-properties.py access/
+    - gst_check event-log-topics-drift-check python3 event-log/generate-topics.py . --check event-log/topics.yaml
+    - gst_check event-log-generator-tests python3 -m unittest discover -s event-log -p 'test_*.py' -v
+    - gst_checks_done
+
+invoice-docs-checks:
+  # The checks that read invoice-docs, from one fetch (cloned with gitlab-ci-token:$CI_JOB_TOKEN; invoice-docs is
+  # not anonymously readable). They run in full on main too: invoice-docs main moves on its own.
+  # - sync-edge-allowlist-check (INV-T-2850 API-08): every x-sync-edge of every service's openapi.yaml is an edge of
+  #   invoice-docs model/architecture/sync-edges.yaml on main, its callee is the owning service, and every
+  #   /internal/v1 operation has one (no exemptions; read on every run, never vendored).
+  # - x-timeout-check (INV-T-3431, INV-Q-3429 A, INV-REQ-1232 b4, INV-REQ-1204): every operation's x-timeout is a
+  #   figure of its edge's INV-NOTE-3 section 36.6 row (sync-edges.yaml resilience_policy on main). Public operations,
+  #   edges without a row and rows without a figure are listed as unchecked.
+  # - lifecycle-states-drift-check (INV-T-2859 T15): submission/schemas/lifecycle-states.schema.json is regenerated
+  #   from invoice-docs main model/architecture/lifecycle-states.yaml and must equal the committed file.
+  # - catalogue-drift-check (INV-T-2851 T7): the data of the vendored catalogue/errors/error-codes.yaml (from
+  #   `error_codes:` on; the header comments differ) equals invoice-docs model/architecture/error-codes.yaml at the
+  #   commit its header pins; a main that has moved past the pin is reported without failing (re-vendor in its own
+  #   merge request, AGT-11).
+  stage: verify
+  needs: []
+  image:
+    name: "$OASDIFF_IMAGE"
+    entrypoint: [""]
+  before_script:
+    - apk add --no-cache python3 py3-yaml git
+  script:
+    - !reference [.gst-checks, script]
+    - >
+      git clone -q --depth 1
+      "${CI_SERVER_PROTOCOL}://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}:${CI_SERVER_PORT}/invoice/invoice-docs.git"
+      /tmp/invoice-docs
+    - >
+      echo "gst-ci: invoice-docs main $(git -C /tmp/invoice-docs rev-parse --short HEAD)"
+    - gst_check sync-edge-allowlist-check python3 spectral/check-sync-edges.py /tmp/invoice-docs/model/architecture/sync-edges.yaml .
+    - gst_check x-timeout-check python3 spectral/check-timeouts.py /tmp/invoice-docs/model/architecture/sync-edges.yaml .
+    - >
+      gst_check lifecycle-states-drift-check python3 submission/schemas/generate-lifecycle-states.py
+      /tmp/invoice-docs/model/architecture/lifecycle-states.yaml
+      --check submission/schemas/lifecycle-states.schema.json
+    - |
+      gst_catalogue_drift() {
+        PIN=$(grep -oE 'pinned at commit [0-9a-f]{7,40}' catalogue/errors/error-codes.yaml | awk '{print $NF}')
+        if [ -z "$PIN" ]; then echo "gst-ci: could not read the pinned commit SHA from catalogue/errors/error-codes.yaml's header"; return 1; fi
+        echo "gst-ci: vendored error-codes.yaml pinned at invoice-docs commit ${PIN}"
+        git -C /tmp/invoice-docs fetch -q --depth 1 origin "${PIN}" || return 1
+        git -C /tmp/invoice-docs show FETCH_HEAD:model/architecture/error-codes.yaml > /tmp/pinned-error-codes.yaml || return 1
+        MAIN_HEAD=$(git -C /tmp/invoice-docs rev-parse HEAD)
+        if [ "$MAIN_HEAD" != "$PIN" ]; then
+          echo "gst-ci: NOTICE invoice-docs main (${MAIN_HEAD}) has moved past the pin (${PIN}) for model/architecture/error-codes.yaml; this does not fail the job; re-vendor catalogue/errors/error-codes.yaml in its own merge request (AGT-11) to pick up the design change."
+        else
+          echo "gst-ci: invoice-docs main is still at the pinned commit."
+        fi
+        sed -n '/^error_codes:/,$p' catalogue/errors/error-codes.yaml > /tmp/vendored-body.yaml
+        sed -n '/^error_codes:/,$p' /tmp/pinned-error-codes.yaml > /tmp/pinned-body.yaml
+        if ! diff -u /tmp/pinned-body.yaml /tmp/vendored-body.yaml; then
+          echo "gst-ci: catalogue/errors/error-codes.yaml has drifted from invoice-docs' model/architecture/error-codes.yaml at the pinned commit ${PIN}; see the diff above."
+          return 1
+        fi
+        echo "gst-ci: catalogue/errors/error-codes.yaml matches invoice-docs at the pinned commit."
+      }
+    - gst_check catalogue-drift-check gst_catalogue_drift
+    - gst_checks_done
+
+tool-self-tests:
+  # The self-tests of this repository's own check tools (lesson P20: a check is proved to fire, against fixtures):
+  # breaking-change-self-test (the oasdiff/asyncapi gates; INV-T-3491 normalize-extensible-enum.py),
+  # contract-check-self-tests (API-08 allowlist, examples, x-timeout INV-T-3431, required identifiers INV-T-4909,
+  # forbidden properties INV-T-4910), catalogue-vendor-tool-tests (INV-T-3377: catalogue/variation-points
+  # check-drift.py installation-parameter rows, INV-Q-3202, P57) and publish-jobs-test (INV-T-5317: the publish jobs
+  # keep the immutable-release guard). In a merge request they run only when a tool, a fixture or this file changes.
+  stage: verify
+  needs: []
+  extends: .gst-mr-only-on-tools
+  image:
+    name: "$OASDIFF_IMAGE"
+    entrypoint: [""]
+  before_script:
+    - !reference [.gst-skip-verified, before_script]
+    - apk add --no-cache python3 py3-yaml
+  script:
+    - !reference [.gst-checks, script]
+    - gst_check breaking-change-self-test sh spectral/self-test-fixtures.sh
+    - gst_check self-test-sync-edges sh spectral/self-test-sync-edges.sh
+    - gst_check self-test-schema-samples sh spectral/self-test-schema-samples.sh
+    - gst_check self-test-timeouts sh spectral/self-test-timeouts.sh
+    - gst_check self-test-required-identifiers sh spectral/self-test-required-identifiers.sh
+    - gst_check self-test-forbidden-properties sh spectral/self-test-forbidden-properties.sh
+    - gst_check catalogue-vendor-tool-tests python3 -m unittest discover -s catalogue/variation-points -p 'test_*.py' -v
+    - gst_check publish-jobs-test python3 -m unittest discover -s ci/tests -p '*_test.py' -v
+    - gst_checks_done
+
+spectral-rule-self-tests:
+  # Proves the Spectral rules fire (lesson P20): sync-edge-rule-self-test (inv-api-08-x-sync-edge; INV-T-4030
+  # inv-api-02-x-principal-workload-restricted; INV-T-6165 API-31 deprecation headers), envelope-rule-self-test
+  # (INV-T-2850 T6 inv-api-40-message-references-envelope) and money-rule-self-test (INV-T-2855 T11
+  # inv-api-12-money-format against AsyncAPI and standalone event schemas; INV-T-6047 enum casing). In a merge
+  # request they run only when spectral/ or this file changes.
+  stage: verify
+  needs: []
+  extends: .gst-mr-only-on-spectral
+  image:
+    name: "$SPECTRAL_IMAGE"
+    entrypoint: [""]
+  before_script:
+    - !reference [.gst-skip-verified, before_script]
+  script:
+    - !reference [.gst-checks, script]
+    - gst_check sync-edge-rule-self-test sh spectral/self-test-sync-edge-rule.sh
+    - gst_check workload-rule-self-test sh spectral/self-test-workload-rule.sh
+    - gst_check deprecation-rule-self-test sh spectral/self-test-deprecation-rule.sh
+    - gst_check envelope-rule-self-test sh spectral/self-test-message-envelope-rule.sh
+    - gst_check money-rule-self-test sh spectral/self-test-money-rule.sh
+    - gst_checks_done
 
 catalogue-verify:
   # STK-67 (detekt/ktlint through Spotless) and the two INV-T-2851 acceptance checks
@@ -45,7 +240,12 @@ catalogue-verify:
   # by default, and gst.catalogue-generator wires checkCatalogueStability and
   # checkBlockDispositionCauses into it too (catalogue/generator's own
   # gst.catalogue-generator.gradle.kts).
+  # CI-FAST batch 7: the separate catalogue-compile job is gone (check compiles); in a merge request this job runs
+  # only when catalogue/ or this file changes. It never skips on main: Keel takes acceptance results only from the
+  # main pipeline's own run on the merge commit (Keel R77), so the main push pipeline produces this job's JUnit XML.
   stage: verify
+  needs: []
+  extends: .gst-mr-only-on-catalogue
   image: "$GRADLE_IMAGE"
   cache:
     key: "gradle-catalogue-$CI_PROJECT_ID"
@@ -61,67 +261,6 @@ catalogue-verify:
     paths:
       - "catalogue/**/build/reports/"
     expire_in: 1 week
-
-catalogue-drift-check:
-  # INV-T-2851 (T7) reviewer should-fix (MR !6 discussion) — the vendored
-  # catalogue/errors/error-codes.yaml is pinned to an invoice-docs commit (its own
-  # header comment names the SHA) but nothing verified this copy still matches
-  # invoice-docs at that commit. Both INV-AC-2170 and INV-AC-2173 operate purely on
-  # the vendored copy, so a silent hand-edit or a bad re-vendor would never be
-  # caught otherwise.
-  #
-  # Same pattern as lifecycle-states-drift-check just below (error-codes.yaml ->
-  # ErrorCode is CS-13's own "same shape" example): clones invoice-docs with
-  # gitlab-ci-token:$CI_JOB_TOKEN, same URL/protocol/token variables. It differs
-  # from that job in one necessary way: the vendored copy is pinned to one specific
-  # commit, not the branch tip (AGT-11 re-vendors it deliberately, in its own merge
-  # request), so this fetches that one commit directly
-  # (`git fetch --depth 1 origin <sha>`) instead of `git clone --depth 1` (`clone
-  # --branch` does not accept an arbitrary commit SHA). Fails if the committed
-  # vendored copy's data (everything from `error_codes:` on — both copies carry
-  # their own, differently worded header comment above that line, which is not
-  # part of the contract) differs from invoice-docs' model/architecture/error-codes.yaml
-  # at the pinned commit. Also fetches invoice-docs main and reports — without
-  # failing the job — when it has moved past the pin, so a stale vendor is a visible
-  # follow-up, not silent drift.
-  stage: verify
-  image:
-    name: "$OASDIFF_IMAGE"
-    entrypoint: [""]
-  before_script:
-    - apk add --no-cache git
-  script:
-    - >
-      PIN=$(grep -oE 'pinned at commit [0-9a-f]{7,40}' catalogue/errors/error-codes.yaml | awk '{print $NF}')
-    - >
-      test -n "$PIN" ||
-      (echo "gst-ci: could not read the pinned commit SHA from catalogue/errors/error-codes.yaml's header" && exit 1)
-    - >
-      echo "gst-ci: vendored error-codes.yaml pinned at invoice-docs commit ${PIN}"
-    - mkdir /tmp/invoice-docs-pinned
-    - git -C /tmp/invoice-docs-pinned init -q
-    - >
-      git -C /tmp/invoice-docs-pinned remote add origin
-      "${CI_SERVER_PROTOCOL}://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}:${CI_SERVER_PORT}/invoice/invoice-docs.git"
-    - git -C /tmp/invoice-docs-pinned fetch --depth 1 origin "${PIN}"
-    - >
-      git -C /tmp/invoice-docs-pinned show FETCH_HEAD:model/architecture/error-codes.yaml
-      > /tmp/pinned-error-codes.yaml
-    - git -C /tmp/invoice-docs-pinned fetch --depth 1 origin main
-    - >
-      MAIN_HEAD=$(git -C /tmp/invoice-docs-pinned rev-parse FETCH_HEAD);
-      if [ "$MAIN_HEAD" != "$PIN" ]; then
-        echo "gst-ci: NOTICE invoice-docs main (${MAIN_HEAD}) has moved past the pin (${PIN}) for model/architecture/error-codes.yaml — this does not fail the job; re-vendor catalogue/errors/error-codes.yaml in its own merge request (AGT-11) to pick up the design change.";
-      else
-        echo "gst-ci: invoice-docs main is still at the pinned commit.";
-      fi
-    - sed -n '/^error_codes:/,$p' catalogue/errors/error-codes.yaml > /tmp/vendored-body.yaml
-    - sed -n '/^error_codes:/,$p' /tmp/pinned-error-codes.yaml > /tmp/pinned-body.yaml
-    - >
-      diff -u /tmp/pinned-body.yaml /tmp/vendored-body.yaml
-      || (echo "gst-ci: catalogue/errors/error-codes.yaml has drifted from invoice-docs' model/architecture/error-codes.yaml at the pinned commit ${PIN} — see the diff above." && exit 1)
-    - >
-      echo "gst-ci: catalogue/errors/error-codes.yaml matches invoice-docs at the pinned commit."
 
 # INV-T-5317 (coordinator ruling INV-Q-5313): a published version is never replaced. Nothing here uploads by
 # itself: Gradle publishes only into a staging directory (ci/release/stage-publish.init.gradle of platform-build, so
@@ -207,6 +346,12 @@ publish-guard-dry-run:
     GST_GENERIC_MANIFEST: "${CI_PROJECT_DIR}/.gst-generic-manifest"
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  cache:
+    # CI-FAST batch 7: reuse the catalogue dependency cache, read only.
+    key: "gradle-catalogue-$CI_PROJECT_ID"
+    policy: pull
+    paths:
+      - .gradle-cache/caches
   script:
     - rm -f "$GST_GENERIC_MANIFEST"
     - !reference [.catalogue-stage, script]
@@ -218,9 +363,12 @@ publish-guard-dry-run:
 
 spectral-lint:
   stage: verify
+  needs: []
   image:
     name: "$SPECTRAL_IMAGE"
     entrypoint: [""]
+  before_script:
+    - !reference [.gst-skip-verified, before_script]
   script:
     - |
       failed=0
@@ -237,9 +385,12 @@ spectral-lint:
 
 asyncapi-validate:
   stage: verify
+  needs: []
   image:
     name: "$ASYNCAPI_CLI_IMAGE"
     entrypoint: [""]
+  before_script:
+    - !reference [.gst-skip-verified, before_script]
   script:
     - |
       failed=0
@@ -249,233 +400,9 @@ asyncapi-validate:
       done
       exit $failed
 
-catalogue-vendor-tool-tests:
-  # INV-T-3377 review must-fix: the unittests of catalogue/variation-points/check-drift.py's
-  # installation-parameter row derivation (INV-Q-3202, P57; fail-closed cases). Stdlib-only,
-  # so it reuses catalogue-drift-check's pinned OASDIFF_IMAGE + python3 like the jobs below.
-  stage: verify
-  image:
-    name: "$OASDIFF_IMAGE"
-    entrypoint: [""]
-  before_script:
-    - apk add --no-cache python3
-  script:
-    - python3 -m unittest discover -s catalogue/variation-points -p 'test_*.py' -v
-
-breaking-change-self-test:
-  stage: verify
-  image:
-    name: "$OASDIFF_IMAGE"
-    entrypoint: [""]
-  before_script:
-    - apk add --no-cache python3 py3-yaml   # INV-T-3491 gate fix: normalize-extensible-enum.py
-  script:
-    - sh spectral/self-test-fixtures.sh
-
-schema-sample-validation:
-  # INV-T-2850 (T6) — "schema validation tests with valid and invalid
-  # samples pass". Dependency-free (spectral/validate-schema-samples.py is
-  # stdlib-only), so it reuses the already-pinned OASDIFF_IMAGE + python3
-  # rather than pinning a new image.
-  stage: verify
-  image:
-    name: "$OASDIFF_IMAGE"
-    entrypoint: [""]
-  before_script:
-    - apk add --no-cache python3 py3-yaml   # INV-T-4909: samples may test an OpenAPI schema (…/openapi.yaml#/components/schemas/X)
-  script:
-    - >
-      python3 spectral/validate-schema-samples.py
-      service-runtime/schemas/cloud-event-envelope.schema.json spectral/fixtures/schema-samples/cloud-event-envelope
-      service-runtime/schemas/error-envelope.schema.json spectral/fixtures/schema-samples/error-envelope
-    # INV-T-2850 follow-up (API-04): every service's examples/valid must pass and
-    # examples/invalid must fail the schema named in <service>/examples/schema.txt.
-    - python3 spectral/validate-schema-samples.py --discover .
-    - python3 service-runtime/check-page-bound.py
-
-sync-edge-allowlist-check:
-  # INV-T-2850 follow-up (API-08): every x-sync-edge of every service's openapi.yaml
-  # is an edge of invoice-docs model/architecture/sync-edges.yaml, its callee is the
-  # owning service, and every /internal/v1 operation has one (no exemptions). The allowlist is read
-  # from invoice-docs main on every run (never vendored, so it cannot go stale);
-  # a clone with gitlab-ci-token:$CI_JOB_TOKEN, as lifecycle-states-drift-check does.
-  stage: verify
-  image:
-    name: "$OASDIFF_IMAGE"
-    entrypoint: [""]
-  before_script:
-    - apk add --no-cache python3 py3-yaml git
-  script:
-    - >
-      git clone --depth 1
-      "${CI_SERVER_PROTOCOL}://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}:${CI_SERVER_PORT}/invoice/invoice-docs.git"
-      /tmp/invoice-docs
-    - >
-      echo "gst-ci: sync-edges.yaml from invoice-docs $(git -C /tmp/invoice-docs rev-parse --short HEAD)"
-    - >
-      python3 spectral/check-sync-edges.py
-      /tmp/invoice-docs/model/architecture/sync-edges.yaml .
-
-x-timeout-check:
-  # INV-T-3431 (INV-Q-3429 A, INV-REQ-1232 b4, INV-REQ-1204): every operation's
-  # x-timeout is a figure of its edge's INV-NOTE-3 §36.6 row, read from invoice-docs
-  # model/architecture/sync-edges.yaml `resilience_policy` on main on every run
-  # (never vendored), cloned with gitlab-ci-token:$CI_JOB_TOKEN as
-  # sync-edge-allowlist-check does. Public operations, edges without a row and rows
-  # without a figure are listed as unchecked; the operations reserved for
-  # INV-T-3491 are listed as deferred (see the TODO in the script).
-  stage: verify
-  image:
-    name: "$OASDIFF_IMAGE"
-    entrypoint: [""]
-  before_script:
-    - apk add --no-cache python3 py3-yaml git
-  script:
-    - >
-      git clone --depth 1
-      "${CI_SERVER_PROTOCOL}://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}:${CI_SERVER_PORT}/invoice/invoice-docs.git"
-      /tmp/invoice-docs
-    - >
-      echo "gst-ci: resilience_policy from invoice-docs $(git -C /tmp/invoice-docs rev-parse --short HEAD)"
-    - >
-      python3 spectral/check-timeouts.py
-      /tmp/invoice-docs/model/architecture/sync-edges.yaml .
-
-contract-check-self-tests:
-  # INV-T-2850 follow-up (lesson P20): proves the API-08 allowlist check and the
-  # examples check fire (negative fixtures under spectral/fixtures/); INV-T-3431
-  # adds the x-timeout check's self-test.
-  stage: verify
-  image:
-    name: "$OASDIFF_IMAGE"
-    entrypoint: [""]
-  before_script:
-    - apk add --no-cache python3 py3-yaml
-  script:
-    - sh spectral/self-test-sync-edges.sh
-    - sh spectral/self-test-schema-samples.sh
-    - sh spectral/self-test-timeouts.sh   # INV-T-3431: proves check-timeouts.py fires
-    - sh spectral/self-test-required-identifiers.sh   # INV-T-4909: proves check-required-identifiers.py fires
-    - sh spectral/self-test-forbidden-properties.sh   # INV-T-4910: proves check-forbidden-properties.py fires
-
-required-identifiers-check:
-  # INV-T-4909 (INV-Q-4874): fails closed when a contract lacks an identifier its requirements name.
-  # Every <service>/required-identifiers.tsv row (identifier, kind, file, requirement key) must be
-  # found, as a whole token, in that service's own file (spectral/check-required-identifiers.py).
-  stage: verify
-  image:
-    name: "$OASDIFF_IMAGE"
-    entrypoint: [""]
-  before_script:
-    - apk add --no-cache python3 py3-yaml
-  script:
-    - python3 spectral/check-required-identifiers.py .
-
-forbidden-properties-check:
-  # INV-T-4910 (INV-Q-4902): no response or event schema of access/ carries a listed secret property
-  # (access/forbidden-properties.tsv: passcode); the request that carries the entered passcode is allowed.
-  stage: verify
-  image:
-    name: "$OASDIFF_IMAGE"
-    entrypoint: [""]
-  before_script:
-    - apk add --no-cache python3 py3-yaml
-  script:
-    - python3 spectral/check-forbidden-properties.py access/
-
-sync-edge-rule-self-test:
-  # INV-T-2850 follow-up (lesson P20): proves Spectral rule inv-api-08-x-sync-edge fires.
-  # INV-T-4030: also proves inv-api-02-x-principal-workload-restricted (API-23/API-25).
-  stage: verify
-  image:
-    name: "$SPECTRAL_IMAGE"
-    entrypoint: [""]
-  script:
-    - sh spectral/self-test-sync-edge-rule.sh
-    - sh spectral/self-test-workload-rule.sh   # INV-T-4030: x-principal workload accepted/refused
-    - sh spectral/self-test-deprecation-rule.sh   # INV-T-6165: API-31 deprecation headers
-
-lifecycle-states-drift-check:
-  # INV-T-2859 (T15) — "generated from model/architecture/lifecycle-states.yaml;
-  # drift check passes": submission/schemas/lifecycle-states.schema.json is
-  # generated from that invoice-docs design record (SDS §33.2, FR-AE.9), the
-  # same shape CS-13 already uses for error-codes.yaml -> ErrorCode; this
-  # repository has no Kotlin generator to run instead, so the check
-  # regenerates the schema from a fresh clone of invoice-docs and fails if it
-  # differs from the committed file. Reuses the already-pinned OASDIFF_IMAGE +
-  # python3 (dependency-free script, mirrors schema-sample-validation).
-  #
-  # invoice-docs is not anonymously readable (confirmed while authoring this
-  # job — a plain `git clone http://.../invoice-docs.git` asks for a
-  # username), so this clones with `gitlab-ci-token:$CI_JOB_TOKEN`, the same
-  # mechanism platform-libs's sibling-checkout jobs use for platform-build
-  # (INV-T-2860). That needs invoice/invoice-docs's CI/CD "Token Access"
-  # allowlist to include invoice/platform-contracts — a Maintainer action,
-  # named here as a follow-up (AGT-24) rather than assumed; until it is
-  # granted this job fails at the clone step with a clear message, not
-  # silently.
-  stage: verify
-  image:
-    name: "$OASDIFF_IMAGE"
-    entrypoint: [""]
-  before_script:
-    - apk add --no-cache python3 git
-  script:
-    - >
-      git clone --depth 1
-      "${CI_SERVER_PROTOCOL}://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}:${CI_SERVER_PORT}/invoice/invoice-docs.git"
-      /tmp/invoice-docs
-    - >
-      python3 submission/schemas/generate-lifecycle-states.py
-      /tmp/invoice-docs/model/architecture/lifecycle-states.yaml
-      --check submission/schemas/lifecycle-states.schema.json
-
-envelope-rule-self-test:
-  # INV-T-2850 (T6) — proves inv-api-40-message-references-envelope itself
-  # works, against isolated fixtures, the same way breaking-change-self-test
-  # proves the breaking-change gate works.
-  stage: verify
-  image:
-    name: "$SPECTRAL_IMAGE"
-    entrypoint: [""]
-  script:
-    - sh spectral/self-test-message-envelope-rule.sh
-
-money-rule-self-test:
-  # INV-T-2855 (T11), coordinator-authorised scope extension — proves
-  # inv-api-12-money-format itself works against an AsyncAPI document and a
-  # standalone event JSON Schema document, not only an OpenAPI one (the gap
-  # that let T10 slip a JSON-`number`-typed money field past CI, fixed by
-  # hand in 60d98fe), the same way envelope-rule-self-test proves T6's rule
-  # works.
-  stage: verify
-  image:
-    name: "$SPECTRAL_IMAGE"
-    entrypoint: [""]
-  script:
-    - sh spectral/self-test-money-rule.sh
-
-event-log-topics-drift-check:
-  # INV-T-2855 (T11) — "event-log/topics.yaml derived from every
-  # asyncapi.yaml ...; generator check shows no drift": regenerates
-  # topics.yaml in memory from every committed */asyncapi.yaml and fails if
-  # it differs from the committed file (same shape as
-  # lifecycle-states-drift-check, but entirely within this repository — no
-  # sibling checkout needed). Dependency-free (event-log/generate-topics.py
-  # is stdlib-only), so it reuses the already-pinned OASDIFF_IMAGE + python3.
-  stage: verify
-  image:
-    name: "$OASDIFF_IMAGE"
-    entrypoint: [""]
-  before_script:
-    - apk add --no-cache python3
-  script:
-    - python3 event-log/generate-topics.py . --check event-log/topics.yaml
-    # INV-T-3386: the generator's own unittests (content_topic marker copied; a topic lacking it fails).
-    - python3 -m unittest discover -s event-log -p 'test_*.py' -v
-
 oasdiff-breaking-gate:
   stage: verify
+  needs: []
   image:
     name: "$OASDIFF_IMAGE"
     entrypoint: [""]
@@ -488,6 +415,7 @@ oasdiff-breaking-gate:
 
 asyncapi-breaking-gate:
   stage: verify
+  needs: []
   image:
     name: "$ASYNCAPI_CLI_IMAGE"
     entrypoint: [""]
@@ -520,6 +448,7 @@ contracts-codegen-compile:
   # platform-build's main tip and echo (without failing the job) how far the pin has
   # fallen behind, so a stale pin is a visible follow-up, not silent.
   stage: verify
+  needs: []
   image: "$GRADLE_IMAGE"
   variables:
     PLATFORM_BUILD_REF: "218934eae564ed643a48209d6b40f644402ac7ba" # main: adds gst.contract-server/-client/-event-types (INV-T-2847) + its CVE/signature-verification follow-ups; MR !6 & !7 fix failing modules
@@ -527,6 +456,8 @@ contracts-codegen-compile:
     key: "gradle-codegen-self-test-$CI_PROJECT_ID"
     paths:
       - .gradle-cache/caches
+  before_script:
+    - !reference [.gst-skip-verified, before_script]
   script:
     - mkdir -p /tmp/platform-build-pinned
     - git -C /tmp/platform-build-pinned init -q
@@ -569,14 +500,3 @@ bundle-publish:
     paths:
       - build/distributions/
     expire_in: 1 month
-
-publish-jobs-test:
-  # INV-T-5317: fails closed when catalogue-publish, bundle-publish or publish-guard-dry-run lose the immutable-release guard.
-  stage: verify
-  image:
-    name: "$OASDIFF_IMAGE"
-    entrypoint: [""]
-  before_script:
-    - apk add --no-cache python3 py3-yaml
-  script:
-    - python3 -m unittest discover -s ci/tests -p '*_test.py' -v
