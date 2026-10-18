@@ -39,6 +39,9 @@ pluginManagement {
         // pacts to the Pact Broker (gst.pact, STK-40; INV-Q-3305, INV-T-3373).
         id("gst.kotlin-base") version platformBuildVersion
         id("gst.pact") version platformBuildVersion
+        // service-runtime's persistence tests use records generated from a fixture migration (INV-T-4224, STK-15;
+        // ARC-03 allows a platform-libs test source set only).
+        id("gst.jooq-codegen") version platformBuildVersion
     }
 }
 

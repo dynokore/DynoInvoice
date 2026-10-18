@@ -6,6 +6,25 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [9.1.0] - 2026-10-18
+### Added
+- The jOOQ convenience layer (INV-T-4224; INV-ADR-3968 items 4a and 4c, INV-REQ-854 b8; owner ruling INV-Q-4214, coordinator
+  ruling INV-Q-4217). API (`service-runtime-api`, package `persistence`): `AggregateStore` (`load`, `insert`, `insertAll`,
+  `update(before, after)` with `UpdateOutcome`, `delete` with `DeleteOutcome`; a stale version is `Conflict`, never retried or
+  thrown; `insertAll` and `appendAll` insert row by row, one INSERT per row, no batch: INV-Q-6730; version rule INV-Q-6770: `insert`, `insertAll`, `append` and `appendAll` store the version they are given, `update` stores `before.version + 1`, a negative version is refused before any statement) and `LedgerAppender` (`append`, `appendAll` only). Implementation: `PersistenceLayer` (a lazy bean) makes both over
+  the service's one `DSLContext` and refuses at construction a DSLContext without tenancy-jooq's listeners, a table without
+  a numeric `version` record-version column, a table in the protected set (`audit_entry`, `override_grant`, the evidence
+  ledger table), a table declared in `inv.persistence.append-only-tables`, and a table with only some of the four audit
+  columns.
+- `AuditColumnRecordListener`, registered on the service's `Configuration`: for a table with `created_at`, `created_by`,
+  `updated_at` and `updated_by`, an insert sets all four and an update sets `updated_*`, from the service `Clock` and the
+  transaction's bound actor; a caller-set actor that differs, a changed `created_*` on update, or no bound actor is refused.
+- `inv.persistence.append-only-tables` is validated at start-up (blank, malformed or repeated entries fail, naming the entry).
+### Changed
+- The `DSLContext` wiring sets `executeWithOptimisticLocking`, `executeWithOptimisticLockingExcludeUnversioned` and
+  `updateRecordVersion` on and `updatablePrimaryKeys` off, and registers the audit-column listener, through tenancy-jooq 1.3.0
+  (no other `Configuration` is created).
+
 ## [9.0.0] - 2026-10-19
 ### Changed
 - Breaking (INV-T-6757, INV-Q-6751, INV-REQ-817): the `MessageDelivery` port is reworked. `MessageChannel` is `EMAIL` and `SMS` (`MAIL` and `WEBHOOK` removed); `MessageDelivery` is no longer a `fun interface` and declares `channel`, `send` and `status(deliveryId): DeliveryStatus`; `OutboundMessage` is `(channel, to, templateId, templateVersion, content)` with `MessageContent` (`LinkContent`, `PasscodeContent`) and no free-text body, and refuses SMS with a link (the SMS channel carries passcodes only, INV-REQ-2762); new `DeliveryState` (`QUEUED`, `SENT`, `DELIVERED`, `BOUNCED`, `FAILED`) and `DeliveryStatus(deliveryId, state, reason)`. No implementation ships here.

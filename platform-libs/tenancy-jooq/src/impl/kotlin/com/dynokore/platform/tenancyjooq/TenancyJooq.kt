@@ -6,6 +6,7 @@ import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.Configuration
 import org.jooq.DSLContext
 import org.jooq.Name
+import org.jooq.RecordListener
 import org.jooq.SQLDialect
 import org.jooq.impl.DefaultConfiguration
 
@@ -23,12 +24,16 @@ object TenancyJooq {
      *
      * @param transactionRunner tenancy-kernel's runner; it must also be the [CurrentConnection] of the open
      *   transaction (tenancy-kernel's `TransactionRunnerImpl` is both).
+     * @param recordListeners RecordListeners the derived configuration registers (INV-T-4224: service-runtime's
+     *   audit-column listener); they run on the records of statements that tenancy-jooq's listeners guard.
      */
+    @JvmOverloads
     fun configure(
         configuration: Configuration,
         tables: TenancyTables,
         tenants: TenantContext,
         transactionRunner: TransactionRunner,
+        recordListeners: List<RecordListener> = emptyList(),
     ): Configuration {
         val currentConnection =
             requireNotNull(transactionRunner as? CurrentConnection) {
@@ -44,6 +49,7 @@ object TenancyJooq {
             .derive(TenantConnectionProvider(transactionRunner, currentConnection))
             .deriveAppending(TenantPredicateInjector(tables, tenants))
             .deriveAppending(TenantStatementCheck(tables, tenants))
+            .deriveAppending(*recordListeners.toTypedArray())
     }
 
     /**
@@ -51,17 +57,24 @@ object TenancyJooq {
      * connection provider, VisitListener and ExecuteListener on that object, for a caller that is handed a mutable
      * `DefaultConfiguration` (Spring Boot's `DefaultConfigurationCustomizer`) and may not call a listener setter itself.
      */
+    @JvmOverloads
     fun install(
         configuration: DefaultConfiguration,
         tables: TenancyTables,
         tenants: TenantContext,
         transactionRunner: TransactionRunner,
+        recordListeners: List<RecordListener> = emptyList(),
     ) {
-        val owned = configure(configuration, tables, tenants, transactionRunner)
+        val owned = configure(configuration, tables, tenants, transactionRunner, recordListeners)
         configuration.set(owned.connectionProvider())
         configuration.set(*owned.visitListenerProviders())
         configuration.set(*owned.executeListenerProviders())
+        configuration.set(*owned.recordListenerProviders())
     }
+
+    /** The RecordListeners registered on [configuration] (INV-T-4224), in order. */
+    fun recordListeners(configuration: Configuration): List<RecordListener> =
+        configuration.recordListenerProviders().map { it.provide() }
 
     /**
      * Why [configuration] is not tenancy-jooq's (INV-Q-5105), or null when it is: its connection provider is

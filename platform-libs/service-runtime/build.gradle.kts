@@ -29,7 +29,16 @@ import gst.build.Layer
 
 plugins {
     id("gst.library")
+    id("gst.jooq-codegen")
     `maven-publish`
+}
+
+// INV-T-4224 (STK-15): the persistence tests' tables, records and POJOs are generated from the fixture migration under
+// src/implTest/resources/db/migration (the default directory), never hand-written.
+gstJooqCodegen {
+    sourceSet = "implTest"
+    schema = "pers"
+    packageName = "com.dynokore.platform.serviceruntime.persistence.jooq"
 }
 
 gstLibrary {

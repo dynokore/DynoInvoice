@@ -28,12 +28,27 @@ internal object OwnedSettings {
             { to, from -> to.setExecuteLogging(from.isExecuteLogging) },
             { to, from -> to.setExecuteLoggingSQLExceptions(from.isExecuteLoggingSQLExceptions) },
             { to, from -> to.setFetchWarnings(from.isFetchWarnings) },
+            // INV-T-4224: record-level optimistic locking changes only the version predicate of a record's own
+            // UPDATE and DELETE, never a table's identity or the tenant predicate
+            { to, from -> to.setExecuteWithOptimisticLocking(from.isExecuteWithOptimisticLocking) },
+            {
+                to,
+                from,
+                ->
+                to.setExecuteWithOptimisticLockingExcludeUnversioned(
+                    from.isExecuteWithOptimisticLockingExcludeUnversioned,
+                )
+            },
+            { to, from -> to.setUpdateRecordVersion(from.isUpdateRecordVersion) },
+            { to, from -> to.setUpdatablePrimaryKeys(from.isUpdatablePrimaryKeys) },
         )
 
     /** The names of [CONSUMER_SETTINGS], for the refusal's message. */
     private const val CONSUMER_SETTING_NAMES =
         "queryTimeout, maxRows, largeMaxRows, fetchSize, batchSize, queryPoolable, executeLogging, " +
-            "executeLoggingSQLExceptions, fetchWarnings"
+            "executeLoggingSQLExceptions, fetchWarnings, " +
+            "executeWithOptimisticLocking, executeWithOptimisticLockingExcludeUnversioned, updateRecordVersion, " +
+            "updatablePrimaryKeys"
 
     /**
      * jOOQ fills an empty render mapping and empty lists into a configuration's settings on first use; empty, they

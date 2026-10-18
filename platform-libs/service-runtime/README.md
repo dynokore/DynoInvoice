@@ -120,6 +120,43 @@ flight, `tenancy/binding-key-previous`. The key is the UTF-8 bytes of the secret
 creates the current secret as 32 random bytes written as 64 hexadecimal characters. A missing current secret builds
 the runners unsigned and logs one warning naming the secret (until INV-T-4156 makes it a start-up failure).
 
+## jOOQ convenience layer (INV-T-4224; INV-ADR-3968 items 4a and 4c, INV-REQ-854 b8, owner ruling INV-Q-4214)
+
+Simple aggregate CRUD on generated records goes through the layer; every other query uses the jOOQ DSL on the service's
+`DSLContext`. API in `service-runtime-api` (package `com.dynokore.platform.serviceruntime.persistence`), implementation in
+the impl half, built by the lazy `PersistenceLayer` bean: `layer.aggregates(TABLE, Pojo::class.java)` and
+`layer.ledger(TABLE, Pojo::class.java)`.
+
+- **`AggregateStore<P, I>`** for a table with a numeric `version` column that is its jOOQ record version (generate it as
+  such): `load(id)`; `insert(pojo)` (stores the version it is given: a new aggregate has version 0, a negative version is refused before any SQL); `insertAll(pojos)` one INSERT statement per row in list order, no batch (a refused row stops the call; the caller's transaction rolls back every row unless the caller catches the exception and commits); `update(before, after)` stores `before.version + 1` (`after.version` is ignored) and writes only the columns
+  whose values differ plus `version + 1` under `WHERE id = ? AND version = before.version` (`Updated(version)`,
+  `Unchanged` when the two are equal and no statement ran, or `Conflict`); `delete(pojo)` by id and version (`Deleted` or
+  `Conflict`). A stale version, a deleted row or another tenant's row is `Conflict`: nothing is retried and nothing is
+  thrown (CS-54).
+- **`LedgerAppender<P>`** offers `append` and `appendAll` only (`appendAll` inserts row by row like `insertAll`; for a table with a jOOQ record version both store the version they are given), for an append-only table (CS-22).
+- **Settings.** The `DSLContext` wiring sets `executeWithOptimisticLocking`, `executeWithOptimisticLockingExcludeUnversioned`
+  and `updateRecordVersion` on and `updatablePrimaryKeys` off, and registers `AuditColumnRecordListener`, on the one
+  `Configuration` of the tenant predicate section; no other `Configuration` is created.
+- **Audit columns, opt-in by name.** A table with `created_at`, `created_by`, `updated_at` and `updated_by` (all four; a table
+  with only some is refused at construction) gets all four on insert and `updated_*` on update, from the service `Clock` and
+  the transaction's bound actor. A `created_by` or `updated_by` the caller set that is not the actor, a changed `created_at`
+  or `created_by` on update, and an insert with no bound actor are refused (`AuditColumnViolation`). A POJO whose
+  `created_by` is not nullable must carry the bound actor's value. A table without the columns is untouched.
+- **Refused at construction** (`IllegalArgumentException`): a `DSLContext` that is not the service's (no tenancy-jooq
+  listeners, or without the settings and the listener above); for `AggregateStore`, a table without a `version` column or a
+  single-column primary key, a table in INV-ADR-3968 item 11's protected set (`audit_entry`, `override_grant`, the evidence
+  ledger table `service-runtime.modules.evidence.ledger-table`; any schema, exact name), and a table the service declares
+  append-only in `inv.persistence.append-only-tables` (`schema.table`, list).
+- **`inv.persistence.append-only-tables`** is a list of exact `schema.table` names. Start-up fails, naming the entry, when an
+  entry is blank, is not two lower-case identifiers (tenancy-kernel's `SqlIdentifier`) joined by one dot, or repeats another.
+  `AggregateStore` refuses a table whose schema-qualified name equals an entry. A well-formed entry that matches no table
+  does nothing: it is not an error, and a look-alike (`other.ledger`, `fixture.ledger_2`) is not matched.
+- **Tenancy.** Every statement runs on the service `DSLContext` inside a `TransactionRunner` transaction with a binding; a
+  call outside one is refused before SQL. The layer sets no tenant predicate: tenancy-jooq's injects and checks it, so
+  `load` of another tenant's id is null, `update` and `delete` of its row are `Conflict`, and an insert of a POJO with
+  another tenant's `tenant_id` is refused before execution. The layer has no `java.sql`/`javax.sql` import, statement call
+  or plain-SQL query part (`verifyRawSqlPlacement`, `SqlGuardsTest`).
+
 ## Database credentials (INV-T-3913; STK-29, INV-REQ-1231, ruling INV-Q-3909)
 
 Every database password is read through `SecretStore` (STK-29: mounted files only, never a property or an environment

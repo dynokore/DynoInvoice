@@ -6,6 +6,15 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-18
+### Added
+- `TenancyJooq.configure` and `install` take RecordListeners (default none) and `TenancyJooq.recordListeners` lists a
+  configuration's (INV-T-4224: service-runtime's audit-column listener).
+### Changed
+- The jOOQ settings a consumer may change now include `executeWithOptimisticLocking`,
+  `executeWithOptimisticLockingExcludeUnversioned`, `updateRecordVersion` and `updatablePrimaryKeys` (INV-T-4224): they change
+  only the version predicate of a record's own UPDATE and DELETE, never a table's identity or the tenant predicate.
+
 ## [1.2.3] - 2026-10-18
 ### Changed
 - Signed binding, slice 8 of 9 of INV-T-4156 (INV-T-5365, INV-Q-5352, INV-Q-5354 (A)): `TenancyProbe.inTenant` and `TenancyJooqFixture` sign the tenant binding through tenancy-kernel's `SignedBinding`; test fixtures only, no change to the main or impl code.
