@@ -738,7 +738,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3053, recommended option (A) accepted; INV-REQ-1278; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-18
   requirement: INV-REQ-1279
-  revision: 0a47cf2c-ccb9-4ec5-b3e7-551084417fe7
+  revision: fb0492a5-9dce-4b76-968d-eac29dae9c0b
   title: "The safety margin before a due date is the calendar-pack default, or larger, and the latest despatch never falls after the due date minus the margin"
   class: PARAMETER
   class_modifiers:
@@ -1014,7 +1014,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3055, recommended option (A) accepted; INV-REQ-1285; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-25
   requirement: INV-REQ-1286
-  revision: 98794c3e-8236-437e-a5dc-3be26c02ccd2
+  revision: 6a8d89cd-dc5d-40c3-bec7-b5f9bb025bba
   title: "Every entity elects its Type 1A issuance mode — Relay, Observe or None — with a second confirmation, before go-live"
   class: POLICY
   class_modifiers: []
@@ -2009,7 +2009,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3061, recommended option (A) accepted; INV-REQ-1309; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-49
   requirement: INV-REQ-1310
-  revision: 619abf59-e224-4d57-8f78-b91e8c39dcf5
+  revision: e0d8997e-cd5c-4663-bf56-bf82201b7d1e
   title: "An AP connection used in Observe mode must elect how acknowledgements arrive: AP callback, polling, or import of the AP's or IRSP's report"
   class: POLICY
   class_modifiers: []
@@ -2145,7 +2145,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1312: \"never later than the mandatory date\" (Keel states no minimum); conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-52
   requirement: INV-REQ-1313
-  revision: 840aa6aa-48f1-492d-9308-bc7136be1ad8
+  revision: fd5f55bb-4eb2-40f0-a58d-906aef3b3dcf
   title: "A private installation elects its platform at qualification: customer Kubernetes, the only option while the supplied appliance is deferred until demand is shown"
   class: POLICY
   class_modifiers: []
@@ -2184,7 +2184,7 @@ variation_points:
         refused: "electing VP-52 in a SaaS installation (tenancy-svc); in SaaS the row is not offered, so must_be_elected applies in the private form only"
 - id: VP-53
   requirement: INV-REQ-1314
-  revision: 5965c6f7-e35f-41da-8917-0e11d32aac7f
+  revision: e2451503-1a02-42c2-a50d-b4aa74e9e2f0
   title: "An entity records every GST scheme it applies; pending the scheme question only four flows block with RUL-004 — ACMT recipient accounting, ACMT overseas-client purchases, AMCS self-accounting and Cash Accounting purchases — and missing or contradicted counterparty scheme data blocks with RUL-011"
   class: POLICY
   class_modifiers: []
@@ -3043,7 +3043,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-2468, INV-AC-2498 (30 accepted, 31 refused); PARAMETER without tighten-only, so no LOOSER (G5 option A); the option is 'a longer limit', so nothing below 7; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-73
   requirement: INV-REQ-2756
-  revision: 63f406f1-afb6-4454-a2d8-bdf988032704
+  revision: 5b58ddcb-c785-42c2-8f20-1810e63af8ac
   title: "Landing screen for a person holding several roles defaults to the role order of UI inventory §4.1, until the person chooses"
   class: POLICY
   class_modifiers: []
