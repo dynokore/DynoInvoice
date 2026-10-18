@@ -183,6 +183,10 @@ unit-test:
   extends: [.gradle-job, .gst-changed-modules]
   stage: test
   script:
+    # Keel answer 2026-10-18 (KEEL-RULE-2969, KEEL-RULE-4402, KEEL-BUG-9565): changed-only test selection is for local
+    # and merge-request runs. On main every module is tested, because keel-report takes the latest main run as the
+    # repository's complete set of acceptance results (a main commit that touched no module reported nothing).
+    - if [ "${CI_COMMIT_BRANCH:-}" = "$CI_DEFAULT_BRANCH" ]; then GST_ALL_MODULES=true; fi
     - MODULES="$(gst_changed_downstream_modules)"
     - |
       if [ -z "$(echo "$MODULES" | tr -d '[:space:]')" ]; then
