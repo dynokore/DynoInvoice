@@ -11,19 +11,23 @@ import java.time.temporal.TemporalAdjusters
 // Despatch windows (INV-REQ-169, INV-REQ-73, INV-REQ-1281, INV-REQ-1296): pure functions that return facts; the
 // embedding service decides. Every input is an argument and the library reads no time source.
 
+private const val HOURS_PER_DAY = 24L
+private const val HOURS_PER_WEEK = 168L
+private const val MAX_RUNS_PER_DAY = 24
+
 /** The despatch (or extraction) window of a setting: continuous, a daily batch or a weekly batch. */
 enum class BatchWindow(
     val interval: Duration,
 ) {
     CONTINUOUS(Duration.ZERO),
-    DAILY(Duration.ofHours(24)),
-    WEEKLY(Duration.ofHours(168)),
+    DAILY(Duration.ofHours(HOURS_PER_DAY)),
+    WEEKLY(Duration.ofHours(HOURS_PER_WEEK)),
 }
 
 /** The interval of an extraction run [runsPerDay] times a day: 24 hours divided by the runs; 2 to 24 runs only. */
 fun severalDailyInterval(runsPerDay: Int): Duration {
-    require(runsPerDay in 2..24) { "runsPerDay must be 2 to 24: $runsPerDay" }
-    return Duration.ofHours(24).dividedBy(runsPerDay.toLong())
+    require(runsPerDay in 2..MAX_RUNS_PER_DAY) { "runsPerDay must be 2 to 24: $runsPerDay" }
+    return Duration.ofHours(HOURS_PER_DAY).dividedBy(runsPerDay.toLong())
 }
 
 /**
