@@ -61,6 +61,16 @@ class RebaseCheckTest(unittest.TestCase):
         only, reason = self.decide(*self.scenario("ci/tool.py"))
         self.assertFalse(only); self.assertIn("aggregate", reason)
 
+    def test_real_aggregate_list_covers_shared_inputs(self):
+        # Every service spec $refs service-runtime/schemas; catalogue-verify is one Gradle build of catalogue/.
+        import re
+        ci = open(os.path.join(os.path.dirname(__file__), "..", "..", ".gitlab-ci.yml")).read()
+        paths = re.search(r'GST_REBASE_AGGREGATE_PATHS: "([^"]*)"', ci).group(1)
+        for shared in ("service-runtime/schemas/error-envelope.schema.json", "catalogue/generator/Gen.kt"):
+            self.setUp()
+            only, reason = self.decide(*self.scenario(shared), GST_REBASE_AGGREGATE_PATHS=paths)
+            self.assertFalse(only, shared); self.assertIn("aggregate", reason)
+
     def test_changed_merge_request_runs_in_full(self):
         old, new_base, head = self.scenario("b/y.yaml")
         head2 = self.commit("a/x.yaml", "x3\n", "mr round 2")

@@ -40,7 +40,7 @@ variables:
   ASYNCAPI_CLI_IMAGE: "asyncapi/cli@sha256:2240534054590b3d41d691fdf88e1f7a1e581b9cc4fb1d4af65ca93434aa681b"
   # CI-FAST plan item A3 (owner ruling 2026-10-18, option b), see gst-rebase-check below.
   GST_REBASE_SKIP_JOBS: "contract-rules tool-self-tests spectral-rule-self-tests spectral-lint asyncapi-validate catalogue-verify"
-  GST_REBASE_AGGREGATE_PATHS: ".gitlab-ci.yml ci/* gradle/* *.gradle.kts *gradle.properties *.lockfile spectral/* codegen-self-test/* event-log/topics.yaml catalogue/errors/* submission/schemas/lifecycle-states.schema.json"
+  GST_REBASE_AGGREGATE_PATHS: ".gitlab-ci.yml ci/* gradle/* *.gradle.kts *gradle.properties *.lockfile spectral/* codegen-self-test/* event-log/topics.yaml catalogue/* service-runtime/* submission/schemas/lifecycle-states.schema.json"
 
 # CI-FAST batch 7 (coordinator, owner request 2026-10-18: fewer, cheaper jobs for small agent merge requests):
 # - Every check job sets `needs: []`, so no check waits for an earlier stage. The publish jobs keep waiting for
