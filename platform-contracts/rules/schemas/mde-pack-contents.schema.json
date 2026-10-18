@@ -97,6 +97,28 @@
             "minItems": 1,
             "uniqueItems": true
           },
+          "bindingStatus": {
+            "type": "string",
+            "description": "Whether the binding of the row is provisional (INV-REQ-491 behavior 2). A row is PROVISIONAL only while an answer that can change its binding is open; the answer arrives as a pack release that sets the row CONFIRMED. The marker is per row. Absent means CONFIRMED.",
+            "enum": [
+              "CONFIRMED",
+              "PROVISIONAL"
+            ]
+          },
+          "provisionalReference": {
+            "type": "string",
+            "description": "The open question that makes the row PROVISIONAL; present only when bindingStatus is PROVISIONAL.",
+            "minLength": 1
+          },
+          "sourceClass": {
+            "type": "string",
+            "description": "The source class of the entry (INV-REQ-727, INV-REQ-774). Every entry carries a class, and a pack with an entry lacking a citation or class is refused by rules-svc at import and at dry run (INV-AC-1727). An entry without this property is never read as PRIMARY. The property is optional only because a property is never made required within a major version (API-41, FR-K.4).",
+            "enum": [
+              "PRIMARY",
+              "SECONDARY",
+              "INFERRED"
+            ]
+          },
           "sourceReference": {
             "type": "string",
             "description": "The source reference of the row.",
@@ -149,6 +171,30 @@
           "specifications"
         ],
         "allOf": [
+          {
+            "if": {
+              "properties": {
+                "bindingStatus": {
+                  "const": "PROVISIONAL"
+                }
+              },
+              "required": [
+                "bindingStatus"
+              ]
+            },
+            "then": {
+              "required": [
+                "provisionalReference"
+              ]
+            },
+            "else": {
+              "not": {
+                "required": [
+                  "provisionalReference"
+                ]
+              }
+            }
+          },
           {
             "if": {
               "properties": {

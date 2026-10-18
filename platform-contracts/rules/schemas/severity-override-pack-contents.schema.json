@@ -35,6 +35,15 @@
             "description": "The Business Term ID of the IRAS MDE that is the subject of the rule.",
             "pattern": "^(IBT-[0-9]{3}(-[0-9]+)?|BT-SG-[0-9]{3})$"
           },
+          "sourceClass": {
+            "type": "string",
+            "description": "The source class of the entry (INV-REQ-727, INV-REQ-774). Every entry carries a class, and a pack with an entry lacking a citation or class is refused by rules-svc at import and at dry run (INV-AC-1727). An entry without this property is never read as PRIMARY. The property is optional only because a property is never made required within a major version (API-41, FR-K.4).",
+            "enum": [
+              "PRIMARY",
+              "SECONDARY",
+              "INFERRED"
+            ]
+          },
           "sourceReference": {
             "type": "string",
             "description": "The citation of the escalation.",

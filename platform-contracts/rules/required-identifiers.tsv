@@ -15,6 +15,7 @@
 #   INV-T-6456 (INV-REQ-480, 486): the backticked names C5UID, cac:AdditionalDocumentReference, cac:ContractDocumentReference, sgdtotal-excl-gst, sgdtotal-incl-gst are pack content of the later seed-content task, not elements of the MDE pack contents schema.
 #   INV-T-6464 (INV-REQ-498, INV-AC-522): `fatal` and `warning` are flag values of the Schematron rule sets (INV-REQ-471) and `IBT-022` is a Business Term ID; none is an element of the severity override pack contents schema, they are pack content of the MDE pack and of the severity override seed content.
 #   INV-T-6482 (INV-REQ-2429, INV-AC-2431): `regulatory.author` is a role; `NA`, `TXNA`, `DS`, `OS`, `SRRC` and `SRCA-C` are IRAS category codes, seed content of the code catalogue pack, not elements of the schema (`NA` is also the literal of the `annexERate` pattern, not an enum member); `0` is a sample value of `submissionRate`.
+#   INV-T-6484 (INV-REQ-491, 774, 727): the purchase codes TX, IM, ME, IGDS, TXCA, TXNA, TXRC-TS, TX-ESS, TXRC-ESS, IM-ESS, TX-N33, TXRC-N33, IM-N33, TX-RE, TXRC-RE, IM-RE, ZP, BL, EP, OP, NR and NA, DS, OS, SRRC, SRCA-C are IRAS category codes, seed content, not elements of the schemas; payload-svc is a service; source_class and source_citation are snake_case names of the pack manifest and content (API-09), carried as sourceClass and sourceReference; content/ is a pack directory.
 # Enum members shared by several properties (CLAIMABLE_PORTION, ENTIRE_INVOICE, BILL_FOR_PAYMENT ...) are one row each.
 identifier	kind	file	requirement
 documentFunction	property	openapi.yaml	INV-REQ-371
@@ -130,12 +131,24 @@ TYPE_1A	enum_value	schemas/mde-pack-contents.schema.json	INV-REQ-480
 TYPE_1B	enum_value	schemas/mde-pack-contents.schema.json	INV-REQ-480
 TYPE_2	enum_value	schemas/mde-pack-contents.schema.json	INV-REQ-480
 TYPE_3	enum_value	schemas/mde-pack-contents.schema.json	INV-REQ-480
+bindingStatus	property	schemas/mde-pack-contents.schema.json	INV-REQ-491
+provisionalReference	property	schemas/mde-pack-contents.schema.json	INV-REQ-491
+CONFIRMED	enum_value	schemas/mde-pack-contents.schema.json	INV-REQ-491
+PROVISIONAL	enum_value	schemas/mde-pack-contents.schema.json	INV-REQ-491
+sourceClass	property	schemas/mde-pack-contents.schema.json	INV-REQ-774
+PRIMARY	enum_value	schemas/mde-pack-contents.schema.json	INV-REQ-774
+SECONDARY	enum_value	schemas/mde-pack-contents.schema.json	INV-REQ-774
+INFERRED	enum_value	schemas/mde-pack-contents.schema.json	INV-REQ-774
 escalations	property	schemas/severity-override-pack-contents.schema.json	INV-REQ-499
 ruleId	property	schemas/severity-override-pack-contents.schema.json	INV-REQ-499
 specificationVersions	property	schemas/severity-override-pack-contents.schema.json	INV-REQ-499
 businessTermId	property	schemas/severity-override-pack-contents.schema.json	INV-REQ-499
 sourceReference	property	schemas/severity-override-pack-contents.schema.json	INV-REQ-499
 rationale	property	schemas/severity-override-pack-contents.schema.json	INV-REQ-499
+sourceClass	property	schemas/severity-override-pack-contents.schema.json	INV-REQ-774
+PRIMARY	enum_value	schemas/severity-override-pack-contents.schema.json	INV-REQ-774
+SECONDARY	enum_value	schemas/severity-override-pack-contents.schema.json	INV-REQ-774
+INFERRED	enum_value	schemas/severity-override-pack-contents.schema.json	INV-REQ-774
 complete	property	schemas/code-catalogue-pack-contents.schema.json	INV-REQ-2429
 codes	property	schemas/code-catalogue-pack-contents.schema.json	INV-REQ-2429
 code	property	schemas/code-catalogue-pack-contents.schema.json	INV-REQ-2429
