@@ -55,6 +55,7 @@ confirmedBy	property	openapi.yaml	INV-REQ-706
 PREPARED	enum_value	openapi.yaml	INV-REQ-708
 CONFIRMED	enum_value	openapi.yaml	INV-REQ-706
 documentNumber	property	openapi.yaml	INV-REQ-714
+buyerInvoiceRefs	property	openapi.yaml	INV-REQ-696
 notSubmittableReason	property	openapi.yaml	INV-REQ-432
 BUYER_REJECTED	enum_value	openapi.yaml	INV-REQ-432
 ISSUANCE_REFUSED	enum_value	openapi.yaml	INV-REQ-432
@@ -62,6 +63,8 @@ NETTED_INTO_REVISION	enum_value	openapi.yaml	INV-REQ-432
 NOT_SUBMITTABLE	enum_value	openapi.yaml	INV-REQ-432
 RecordDocumentRequest.documentNumber	schema_property	openapi.yaml	INV-REQ-714
 DocumentVersion.documentNumber	schema_property	openapi.yaml	INV-REQ-714
+RecordDocumentRequest.buyerInvoiceRefs	schema_property	openapi.yaml	INV-REQ-696
+DocumentVersion.buyerInvoiceRefs	schema_property	openapi.yaml	INV-REQ-696
 RecordDocumentResponse.notSubmittableReason	schema_property	openapi.yaml	INV-REQ-432
 DocumentSummary.notSubmittableReason	schema_property	openapi.yaml	INV-REQ-432
 DocumentVersion.notSubmittableReason	schema_property	openapi.yaml	INV-REQ-432
@@ -75,6 +78,7 @@ DocumentVersion.notSubmittableReason.BUYER_REJECTED	schema_enum_value	openapi.ya
 DocumentVersion.notSubmittableReason.ISSUANCE_REFUSED	schema_enum_value	openapi.yaml	INV-REQ-432
 DocumentVersion.notSubmittableReason.NETTED_INTO_REVISION	schema_enum_value	openapi.yaml	INV-REQ-432
 documentNumber	property	schemas/canonical-version-created-payload.schema.json	INV-REQ-714
+buyerInvoiceRefs	property	schemas/canonical-version-created-payload.schema.json	INV-REQ-696
 precedingDocUuid	property	openapi.yaml	INV-REQ-709
 precedingDocUuid	property	schemas/canonical-version-created-payload.schema.json	INV-REQ-709
 DocumentVersion.precedingDocUuid	schema_property	openapi.yaml	INV-REQ-709

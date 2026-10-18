@@ -1,0 +1,1 @@
+{"tenantId":"3fa85f64-5717-4562-b3fc-2c963f66afa6","entityRef":"E-001","sourceSystem":"ERP","sourceKey":"INV-0001","sourceRevision":1,"documentFunction":"INVOICE","transactionDate":"2026-03-20","currency":"SGD","lines":[{"lineNumber":1,"description":"Consulting","quantity":1,"unitPrice":"100.00","lineAmount":"100.00","taxCode":"SR","taxAmount":"9.00"}],"buyerInvoiceRefs":[]}

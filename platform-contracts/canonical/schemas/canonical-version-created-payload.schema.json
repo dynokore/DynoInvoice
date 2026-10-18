@@ -643,6 +643,36 @@
             "classification"
           ],
           "additionalProperties": true
+        },
+        "buyerInvoiceRefs": {
+          "type": "object",
+          "description": "The references of the self-billing invoices the customer issued that this document derives from (INV-REQ-696, INV-Q-7045). Required for a SALE document of an entity that the Scope pack's self-billing assignment (INV-REQ-416) puts on the Type 2 side, a condition canonical-svc enforces by refusing the record request with 400 and SRT-001, not this schema; otherwise optional. Wrapped with its FR-AE.72 classification (INV-Q-6268).",
+          "properties": {
+            "value": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 50,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "description": "The references of the self-billing invoices the customer issued."
+            },
+            "classification": {
+              "type": "string",
+              "enum": [
+                "NONE"
+              ],
+              "description": "The FR-AE.72 data classification tag for this content field."
+            }
+          },
+          "required": [
+            "value",
+            "classification"
+          ],
+          "additionalProperties": true
         }
       },
       "required": [

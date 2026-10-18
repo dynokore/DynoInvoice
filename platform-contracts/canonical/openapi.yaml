@@ -82,12 +82,17 @@ paths:
         `direction` PURCHASE, or `networkReceipt` with `direction` SALE or
         with no `direction`, is refused with `400` and SRT-001 and nothing is
         recorded. canonical-svc never picks between the markers.
+
+        A SALE document of an entity that the Scope pack's self-billing
+        assignment (INV-REQ-416) puts on the Type 2 side must carry
+        `buyerInvoiceRefs`; a request without it is refused with `400` and
+        SRT-001 and nothing is recorded (INV-REQ-696, INV-Q-7045).
       tags: [documents]
       x-principal: ingest
       x-timeout: 2000
       x-sync-edge: ingestion-svc->canonical-svc
       x-error-codes: [ING-002, ING-005, ING-011, ING-012, ING-016, ING-019, ING-013, ING-017, PER-009, PER-011]
-      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-547, INV-REQ-806, INV-REQ-327, INV-REQ-430, INV-REQ-431, INV-REQ-793, INV-REQ-1192, INV-REQ-714, INV-REQ-432, INV-REQ-67, INV-REQ-68]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-547, INV-REQ-806, INV-REQ-327, INV-REQ-430, INV-REQ-431, INV-REQ-793, INV-REQ-1192, INV-REQ-714, INV-REQ-432, INV-REQ-67, INV-REQ-68, INV-REQ-696]
       x-operation:
         role: ingest
         scope: entity
@@ -651,6 +656,20 @@ components:
             Set only by ingestion-svc when it records the document through requestIssuance, so that canonical-svc
             publishes the network path RELAY_ISSUANCE in routingFacts of CanonicalVersionCreated (INV-Q-6988). Absent
             means false. A caller of any other path does not set it.
+        buyerInvoiceRefs:
+          type: array
+          minItems: 1
+          maxItems: 50
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+            maxLength: 128
+          description: >-
+            The references of the self-billing invoices the customer issued that this document derives from
+            (INV-REQ-696, INV-Q-7045). Required for a SALE document of an entity that the Scope pack's
+            self-billing assignment (INV-REQ-416) puts on the Type 2 side, a condition canonical-svc enforces by
+            refusing the record request with 400 and SRT-001, not this schema; otherwise optional.
       required:
         [tenantId, entityRef, sourceSystem, sourceKey, sourceRevision, documentFunction, transactionDate, currency, lines]
       allOf:
@@ -868,6 +887,20 @@ components:
           type: boolean
           description: >-
             The caller's declaration that supplier and customer agreed not to adjust the GST charged on the original invoice and the conditions for doing so are met. Allowed only when documentFunction is CREDIT_NOTE; any other combination is a contract violation, refused with 400 and SRT-001. Absent means false. The System does not verify the conditions and never infers the marker (INV-REQ-693, INV-Q-6639).
+        buyerInvoiceRefs:
+          type: array
+          minItems: 1
+          maxItems: 50
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+            maxLength: 128
+          description: >-
+            The references of the self-billing invoices the customer issued that this document derives from
+            (INV-REQ-696, INV-Q-7045). Required for a SALE document of an entity that the Scope pack's
+            self-billing assignment (INV-REQ-416) puts on the Type 2 side, a condition canonical-svc enforces by
+            refusing the record request with 400 and SRT-001, not this schema; otherwise optional.
       required: [docUuid, version, docsequence, documentFunction, scopeVerdict, transactionDate, prescribedPeriodRef]
     PreparedReassignment:
       type: object
