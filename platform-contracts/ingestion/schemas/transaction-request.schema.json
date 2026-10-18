@@ -117,6 +117,14 @@
       "items": { "type": "string", "minLength": 1, "maxLength": 512 },
       "description": "Pointers to supporting documents such as bills of lading, never content: neither transmitted nor embedded (INV-REQ-649)."
     },
+    "nettedCreditNoteKeys": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 128 },
+      "description": "The sourceKey values of the credit notes, posted by the same entityRef and sourceSystem, that this revised invoice nets. Allowed only when documentFunction is INVOICE; any other combination is a contract violation, refused with 400 and SRT-001. The System never infers a netting: the ERP declares it. It has an effect only while the original has not been transmitted (INV-Q-6614, INV-REQ-558)."
+    },
     "sourceDocumentRef": {
       "type": "string",
       "maxLength": 512,
@@ -124,6 +132,8 @@
     }
   },
   "required": ["entityRef", "sourceSystem", "sourceKey", "sourceRevision", "documentFunction", "transactionDate", "currency", "lines"],
+  "if": { "required": ["nettedCreditNoteKeys"] },
+  "then": { "properties": { "documentFunction": { "const": "INVOICE" } } },
   "$defs": {
     "party": {
       "type": "object",

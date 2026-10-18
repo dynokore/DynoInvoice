@@ -7,6 +7,7 @@
 # ADJUSTMENT and NOT_A_BILL (members of the caller vocabulary of INV-REQ-371, not members of this schema; INV-Q-6507
 # decides); POST /v1/transactions, POST /v1/batches and POST /v1/aggregates (paths, not identifiers); canonical-svc,
 # aggregation-svc, payload-svc and evidence-svc (services); tenant.admin (a role); 400 (an HTTP status code).
+# INV-T-6626. Rows for INV-REQ-558 (read from Keel). Its backticked `NETTED_INTO_REVISION` (rows in the canonical table) and `inputTaxClaimed` (row above) already have rows; the lifecycle states and `ACKNOWLEDGED` named by INV-REQ-559 belong to the submission contract, and `CREDIT_NOTE`, `SUBMITTABLE`, `NOT_SUBMITTABLE` and `PRE_OBLIGATION` are not named by this task's requirements.
 identifier	kind	file	requirement
 declaredCount	property	openapi.yaml	INV-REQ-811
 declaredNetTotal	property	openapi.yaml	INV-REQ-811
@@ -82,3 +83,5 @@ sourceDocumentRef	property	schemas/transaction-request.schema.json	INV-REQ-1319
 SALE	enum_value	schemas/transaction-request.schema.json	INV-REQ-805
 PURCHASE	enum_value	schemas/transaction-request.schema.json	INV-REQ-805
 BILL_FOR_PAYMENT	enum_value	schemas/transaction-request.schema.json	INV-REQ-805
+nettedCreditNoteKeys	property	schemas/transaction-request.schema.json	INV-REQ-558
+INVOICE	enum_value	schemas/transaction-request.schema.json	INV-REQ-558

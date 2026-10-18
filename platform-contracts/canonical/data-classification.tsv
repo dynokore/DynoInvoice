@@ -31,6 +31,7 @@ openapi.yaml	RecordDocumentRequest.lines	NONE
 openapi.yaml	RecordDocumentRequest.declaredTotals	NONE
 openapi.yaml	RecordDocumentRequest.precedingDocumentNumber	NONE
 openapi.yaml	RecordDocumentRequest.precedingDocumentDate	NONE
+openapi.yaml	RecordDocumentRequest.nettedCreditNoteKeys	NONE
 openapi.yaml	RecordDocumentRequest.precedingBlankJustification	NONE
 openapi.yaml	RecordDocumentRequest.evidenceRef	NONE
 openapi.yaml	RecordDocumentRequest.direction	NONE
@@ -67,6 +68,9 @@ openapi.yaml	DocumentVersion.docUuidSource	NONE
 openapi.yaml	DocumentVersion.documentNumber	NONE
 openapi.yaml	DocumentVersion.notSubmittableReason	NONE
 openapi.yaml	DocumentVersion.precedingDocUuid	NONE
+openapi.yaml	DocumentVersion.nettedCreditNoteKeys	NONE
+openapi.yaml	DocumentVersion.nettedCreditNoteDocUuids	NONE
+openapi.yaml	DocumentVersion.nettedByDocUuid	NONE
 openapi.yaml	PreparedReassignment.reassignmentId	NONE
 openapi.yaml	PreparedReassignment.entityRef	NONE
 openapi.yaml	PreparedReassignment.spanStart	NONE
@@ -81,6 +85,8 @@ openapi.yaml	PreparedReassignmentPage.items	IDENTIFYING
 openapi.yaml	PreparedReassignmentPage.nextCursor	NONE
 schemas/canonical-version-created-payload.schema.json	docUuid	NONE
 schemas/canonical-version-created-payload.schema.json	precedingDocUuid	NONE
+schemas/canonical-version-created-payload.schema.json	nettedCreditNoteDocUuids	NONE
+schemas/canonical-version-created-payload.schema.json	nettedByDocUuid	NONE
 schemas/canonical-version-created-payload.schema.json	version	NONE
 schemas/canonical-version-created-payload.schema.json	docsequence	NONE
 schemas/canonical-version-created-payload.schema.json	transactionDate	NONE
@@ -95,6 +101,7 @@ schemas/canonical-version-created-payload.schema.json	canonicalDocument.lines	NO
 schemas/canonical-version-created-payload.schema.json	canonicalDocument.taxSubtotals	NONE
 schemas/canonical-version-created-payload.schema.json	canonicalDocument.totals	NONE
 schemas/canonical-version-created-payload.schema.json	canonicalDocument.precedingDocumentNumber	NONE
+schemas/canonical-version-created-payload.schema.json	canonicalDocument.nettedCreditNoteKeys	NONE
 schemas/canonical-version-created-payload.schema.json	canonicalDocument.precedingDocumentDate	NONE
 schemas/canonical-version-created-payload.schema.json	canonicalDocument.precedingBlankJustification	NONE
 schemas/canonical-version-created-payload.schema.json	canonicalDocument.evidenceRef	NONE

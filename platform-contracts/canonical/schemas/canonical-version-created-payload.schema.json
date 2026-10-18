@@ -15,6 +15,18 @@
       "format": "uuid",
       "description": "Set by canonical-svc only on a credit note whose precedingDocumentNumber is populated and which resolved to exactly one document of the same entity, direction and issuer, with that number and, when precedingDocumentDate is populated, that transaction date. Absent when none or several match, and on a credit note with blank preceding fields. Read by submission-svc for the credit-note hold (INV-REQ-709, INV-Q-6311). Optional so an older consumer validates."
     },
+    "nettedCreditNoteDocUuids": {
+      "type": "array",
+      "maxItems": 50,
+      "uniqueItems": true,
+      "items": { "type": "string", "format": "uuid" },
+      "description": "Set by canonical-svc on the version of a revised invoice for the keys of nettedCreditNoteKeys that already name a recorded credit note of the same entity. Written only when the version is created (a version is never edited), so it may be absent. Read by submission-svc for the decision of INV-Q-6623 and INV-Q-6614 (INV-REQ-558). Optional so an older consumer validates."
+    },
+    "nettedByDocUuid": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Set by canonical-svc on the version of a credit note when a recorded revised invoice whose current version lists the credit note's sourceKey exists. Written only when the version is created (a version is never edited), so it may be absent. Read by submission-svc for the decision of INV-Q-6623 and INV-Q-6614 (INV-REQ-558). Optional so an older consumer validates."
+    },
     "version": {
       "type": "integer",
       "minimum": 1,
@@ -340,6 +352,32 @@
               "type": "string",
               "maxLength": 64,
               "description": "The preceding invoice number."
+            },
+            "classification": {
+              "type": "string",
+              "enum": [
+                "NONE"
+              ],
+              "description": "The FR-AE.72 data classification tag for this content field."
+            }
+          },
+          "required": [
+            "value",
+            "classification"
+          ],
+          "additionalProperties": true
+        },
+        "nettedCreditNoteKeys": {
+          "type": "object",
+          "description": "The sourceKey values of the credit notes that this revised invoice nets, as declared by the ERP (INV-Q-6614, INV-REQ-558). Optional. Wrapped with its FR-AE.72 classification (INV-NOTE-3 \u00a720.2).",
+          "properties": {
+            "value": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 50,
+              "uniqueItems": true,
+              "items": { "type": "string", "minLength": 1, "maxLength": 128 },
+              "description": "The sourceKey values of the netted credit notes."
             },
             "classification": {
               "type": "string",

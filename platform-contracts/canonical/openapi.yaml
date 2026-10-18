@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: canonical API
-  version: 1.4.0
+  version: 1.5.0
   description: >-
     Contract-first source of truth for canonical (API-01, STK-44). The
     `canonical-contract` module generates its server interfaces and DTOs
@@ -538,6 +538,17 @@ components:
             precedingDocumentNumber nor precedingDocumentDate is present; otherwise optional (INV-REQ-561,
             INV-Q-1677, INV-Q-3450, INV-Q-3488); refused with ING-019. Enforced by canonical-svc, not by
             this schema (as for TransactionRequest).
+        nettedCreditNoteKeys:
+          type: array
+          minItems: 1
+          maxItems: 50
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+            maxLength: 128
+          description: >-
+            The `sourceKey` values of the credit notes, posted by the same `entityRef` and `sourceSystem`, that this revised invoice nets. Allowed only when `documentFunction` is INVOICE (stated here as for the other conditional rules; a request that breaks it is refused with `400` and SRT-001 by ingestion-svc). The System never infers a netting: the ERP declares it. It has an effect only while the original has not been transmitted (INV-Q-6614, INV-REQ-558).
         direction:
           type: string
           enum: [SALE, PURCHASE]
@@ -736,6 +747,31 @@ components:
           format: uuid
           description: >-
             Set by canonical-svc only on a credit note whose `precedingDocumentNumber` is populated and which resolved to exactly one document of the same entity, direction and issuer, with that number and, when `precedingDocumentDate` is populated, that transaction date. Absent when none or several match, and on a credit note with blank preceding fields. Read by submission-svc for the credit-note hold (INV-REQ-709, INV-Q-6311). Optional so an older consumer validates.
+        nettedCreditNoteKeys:
+          type: array
+          minItems: 1
+          maxItems: 50
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+            maxLength: 128
+          description: >-
+            Echo of the request's `nettedCreditNoteKeys`, the `sourceKey` values of the credit notes, posted by the same `entityRef` and `sourceSystem`, that this revised invoice nets (INV-Q-6614, INV-REQ-558). Optional so an older consumer validates.
+        nettedCreditNoteDocUuids:
+          type: array
+          maxItems: 50
+          uniqueItems: true
+          items:
+            type: string
+            format: uuid
+          description: >-
+            Set by canonical-svc on the version of a revised invoice for the keys of `nettedCreditNoteKeys` that already name a recorded credit note of the same entity. Written only when the version is created (a version is never edited), so it may be absent. Read by submission-svc for the decision of INV-Q-6623 and INV-Q-6614 (INV-REQ-558). Optional so an older consumer validates.
+        nettedByDocUuid:
+          type: string
+          format: uuid
+          description: >-
+            Set by canonical-svc on the version of a credit note when a recorded revised invoice whose current version lists the credit note's `sourceKey` exists. Written only when the version is created (a version is never edited), so it may be absent. Read by submission-svc for the decision of INV-Q-6623 and INV-Q-6614 (INV-REQ-558). Optional so an older consumer validates.
       required: [docUuid, version, docsequence, documentFunction, scopeVerdict, transactionDate, prescribedPeriodRef]
     PreparedReassignment:
       type: object

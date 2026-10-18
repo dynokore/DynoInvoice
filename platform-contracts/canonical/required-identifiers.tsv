@@ -2,6 +2,7 @@
 # INV-T-6313. Rows for INV-REQ-709 (read from Keel). INV-REQ-709 and INV-AC-752 name the backticked AWAITING_PRECEDING, ACKNOWLEDGED and QUEUED, which are lifecycle states owned by the submission contract (submission/schemas/lifecycle-states.schema.json), not elements of this contract.
 # INV-T-6274. Rows for INV-REQ-714 and INV-REQ-432 (read from Keel). INV-REQ-714 names no backticked identifier; INV-REQ-432 names buyerDisposition, PENDING and REJECTED (rows above), NOT_SUBMITTABLE and BUYER_REJECTED (new rows) and HOLD, which is a severity of the error catalogue and not an element of this contract (the catalogue contract owns it).
 # INV-T-6049. Contract identifiers named in the published behavior of INV-REQ-547, 327, 430, 431, 793 and 1192 (read from Keel), plus INV-REQ-428 for the receipt fields.
+# INV-T-6626. Rows for INV-REQ-558 (read from Keel). Its backticked `NETTED_INTO_REVISION` already has rows above; the lifecycle states and `ACKNOWLEDGED` named by INV-REQ-559 belong to the submission contract, and `CREDIT_NOTE`, `SUBMITTABLE`, `NOT_SUBMITTABLE` and `PRE_OBLIGATION` are not named by this task's requirements.
 identifier	kind	file	requirement
 docUuidSource	property	openapi.yaml	INV-REQ-431
 direction	property	openapi.yaml	INV-REQ-431
@@ -78,3 +79,13 @@ DocumentVersion.precedingDocUuid	schema_property	openapi.yaml	INV-REQ-709
 NONE	enum_value	schemas/canonical-version-created-payload.schema.json	INV-REQ-883
 IDENTIFYING	enum_value	schemas/canonical-version-created-payload.schema.json	INV-REQ-883
 SENSITIVE	enum_value	schemas/canonical-version-created-payload.schema.json	INV-REQ-883
+nettedCreditNoteKeys	property	openapi.yaml	INV-REQ-558
+nettedCreditNoteKeys	property	schemas/canonical-version-created-payload.schema.json	INV-REQ-558
+nettedCreditNoteDocUuids	property	openapi.yaml	INV-REQ-558
+nettedCreditNoteDocUuids	property	schemas/canonical-version-created-payload.schema.json	INV-REQ-558
+nettedByDocUuid	property	openapi.yaml	INV-REQ-558
+nettedByDocUuid	property	schemas/canonical-version-created-payload.schema.json	INV-REQ-558
+RecordDocumentRequest.nettedCreditNoteKeys	schema_property	openapi.yaml	INV-REQ-558
+DocumentVersion.nettedCreditNoteKeys	schema_property	openapi.yaml	INV-REQ-558
+DocumentVersion.nettedCreditNoteDocUuids	schema_property	openapi.yaml	INV-REQ-558
+DocumentVersion.nettedByDocUuid	schema_property	openapi.yaml	INV-REQ-558

@@ -1,0 +1,89 @@
+{
+  "entityRef": "E-001",
+  "sourceSystem": "erp-acme",
+  "sourceKey": "INV-2026-000123",
+  "sourceRevision": 1,
+  "documentFunction": "INVOICE",
+  "transactionDate": "2026-03-20",
+  "currency": "SGD",
+  "counterparty": {
+    "supplier": {
+      "identifierScheme": "UEN",
+      "identifierValue": "201912345A"
+    },
+    "buyer": {
+      "identifierScheme": "UEN",
+      "identifierValue": "201954321B"
+    }
+  },
+  "lines": [
+    {
+      "lineNumber": 1,
+      "description": "Consulting services",
+      "quantity": 1,
+      "unitPrice": "1000.00",
+      "lineAmount": "1000.00",
+      "taxCode": "SR",
+      "taxAmount": "90.00"
+    }
+  ],
+  "declaredTotals": {
+    "totalExcludingTax": "1000.00",
+    "totalTax": "90.00",
+    "totalIncludingTax": "1090.00"
+  },
+  "documentKind": "TAX_INVOICE",
+  "nettedCreditNoteKeys": [
+    "CN-0",
+    "CN-1",
+    "CN-2",
+    "CN-3",
+    "CN-4",
+    "CN-5",
+    "CN-6",
+    "CN-7",
+    "CN-8",
+    "CN-9",
+    "CN-10",
+    "CN-11",
+    "CN-12",
+    "CN-13",
+    "CN-14",
+    "CN-15",
+    "CN-16",
+    "CN-17",
+    "CN-18",
+    "CN-19",
+    "CN-20",
+    "CN-21",
+    "CN-22",
+    "CN-23",
+    "CN-24",
+    "CN-25",
+    "CN-26",
+    "CN-27",
+    "CN-28",
+    "CN-29",
+    "CN-30",
+    "CN-31",
+    "CN-32",
+    "CN-33",
+    "CN-34",
+    "CN-35",
+    "CN-36",
+    "CN-37",
+    "CN-38",
+    "CN-39",
+    "CN-40",
+    "CN-41",
+    "CN-42",
+    "CN-43",
+    "CN-44",
+    "CN-45",
+    "CN-46",
+    "CN-47",
+    "CN-48",
+    "CN-49",
+    "CN-50"
+  ]
+}
