@@ -1,0 +1,422 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/rules/schemas/scope-pack-contents.schema.json",
+  "title": "ScopePackContents",
+  "description": "The artefact.contents of a RulePackStaged payload whose packType is exactly scope (INV-REQ-658, INV-REQ-493, INV-REQ-496, INV-REQ-504, INV-REQ-738): the classification table, the line verdict per category code, the approved exchange-rate sources with their bases, the default exchange-rate tolerance and the provisional intra-group rule. Rules JSON Schema cannot express, checked by rules-svc at the pack dry run (INV-REQ-471) and by the seed content test, not here: the key (upstreamFunction, upstreamKind, signOfTotal) is unique across classificationTable; categoryCode is unique across lineScopeRules and every code of the Code catalogue appears (a missing code is never read as IN_SCOPE); sourceId is unique across exchangeRateSources; an entry with sourceClass INFERRED among exchangeRateSources blocks mapping sign-off with RUL-007 (INV-REQ-504); registration boundary logic is engine code, not contents. No row is written here: the rows are seed content, and the sample values are test data. A consumer ignores any property this schema does not name (API-41, FR-K.4); no object of this schema sets additionalProperties to false. Within a major version this schema is additive-only.",
+  "type": "object",
+  "properties": {
+    "classificationTable": {
+      "type": "array",
+      "description": "The classification table (INV-REQ-658).",
+      "items": {
+        "type": "object",
+        "description": "One row of the classification table: (upstreamFunction, upstreamKind, signOfTotal) maps to (documentFunction, documentTypeCode, signNormalised).",
+        "properties": {
+          "upstreamFunction": {
+            "type": "string",
+            "description": "The function the upstream system gives the document.",
+            "enum": [
+              "BILL_FOR_PAYMENT",
+              "ADJUSTMENT",
+              "NOT_A_BILL"
+            ]
+          },
+          "upstreamKind": {
+            "type": "string",
+            "description": "The upstream document kind, as the upstream system names it.",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "signOfTotal": {
+            "type": "string",
+            "description": "The sign of the document total.",
+            "enum": [
+              "POSITIVE",
+              "NEGATIVE",
+              "ZERO"
+            ]
+          },
+          "documentFunction": {
+            "type": "string",
+            "description": "The classification result.",
+            "enum": [
+              "BILL_FOR_PAYMENT",
+              "ADJUSTMENT",
+              "NOT_A_BILL"
+            ]
+          },
+          "documentTypeCode": {
+            "type": "string",
+            "description": "The document type code of the result (380 or 381). Absent exactly when documentFunction is NOT_A_BILL.",
+            "pattern": "^38[01]$"
+          },
+          "signNormalised": {
+            "type": "boolean",
+            "description": "Whether the amounts are sign-normalised."
+          },
+          "sourceClass": {
+            "type": "string",
+            "description": "The source class of the entry (INV-REQ-727).",
+            "enum": [
+              "PRIMARY",
+              "SECONDARY",
+              "INFERRED"
+            ]
+          },
+          "sourceReference": {
+            "type": "string",
+            "description": "The citation of the entry.",
+            "minLength": 1
+          },
+          "ruleStatus": {
+            "type": "string",
+            "description": "CONFIRMED or PROVISIONAL; absent means CONFIRMED.",
+            "enum": [
+              "CONFIRMED",
+              "PROVISIONAL"
+            ]
+          },
+          "provisionalReference": {
+            "type": "string",
+            "description": "The Keel question or ruling that makes the entry provisional.",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "upstreamFunction",
+          "upstreamKind",
+          "signOfTotal",
+          "documentFunction",
+          "signNormalised",
+          "sourceClass",
+          "sourceReference"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "documentFunction": {
+                  "const": "NOT_A_BILL"
+                }
+              },
+              "required": [
+                "documentFunction"
+              ]
+            },
+            "then": {
+              "not": {
+                "required": [
+                  "documentTypeCode"
+                ]
+              }
+            },
+            "else": {
+              "required": [
+                "documentTypeCode"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "ruleStatus": {
+                  "const": "PROVISIONAL"
+                }
+              },
+              "required": [
+                "ruleStatus"
+              ]
+            },
+            "then": {
+              "required": [
+                "provisionalReference"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "ruleStatus": {
+                  "const": "CONFIRMED"
+                }
+              },
+              "required": [
+                "ruleStatus"
+              ]
+            },
+            "then": {
+              "not": {
+                "required": [
+                  "provisionalReference"
+                ]
+              }
+            }
+          },
+          {
+            "if": {
+              "not": {
+                "required": [
+                  "ruleStatus"
+                ]
+              }
+            },
+            "then": {
+              "not": {
+                "required": [
+                  "provisionalReference"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "minItems": 1,
+      "maxItems": 200
+    },
+    "lineScopeRules": {
+      "type": "array",
+      "description": "The line verdict per category code (INV-REQ-493, INV-REQ-496).",
+      "items": {
+        "type": "object",
+        "description": "The line verdict of one category code.",
+        "properties": {
+          "categoryCode": {
+            "type": "string",
+            "description": "A category code of the Code catalogue.",
+            "pattern": "^[A-Z][A-Z0-9]{0,9}(-[A-Z0-9]{1,9})?$"
+          },
+          "lineVerdict": {
+            "type": "string",
+            "description": "The verdict of a line with the category code.",
+            "enum": [
+              "IN_SCOPE",
+              "OUT_OF_SCOPE",
+              "EXCLUDED_TXN"
+            ]
+          },
+          "sourceClass": {
+            "type": "string",
+            "description": "The source class of the entry (INV-REQ-727).",
+            "enum": [
+              "PRIMARY",
+              "SECONDARY",
+              "INFERRED"
+            ]
+          },
+          "sourceReference": {
+            "type": "string",
+            "description": "The citation of the entry.",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "categoryCode",
+          "lineVerdict",
+          "sourceClass",
+          "sourceReference"
+        ]
+      },
+      "minItems": 1,
+      "maxItems": 500
+    },
+    "exchangeRateSources": {
+      "type": "array",
+      "description": "The approved exchange-rate sources (INV-REQ-504).",
+      "items": {
+        "type": "object",
+        "description": "An approved exchange-rate source.",
+        "properties": {
+          "sourceId": {
+            "type": "string",
+            "description": "The identifier of the source.",
+            "pattern": "^[A-Za-z][A-Za-z0-9._-]{0,39}$"
+          },
+          "name": {
+            "type": "string",
+            "description": "The name of the source.",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "bases": {
+            "type": "array",
+            "description": "The rate bases the source is approved for.",
+            "items": {
+              "type": "string",
+              "description": "A rate basis.",
+              "pattern": "^[A-Za-z][A-Za-z0-9._-]{0,39}$"
+            },
+            "minItems": 1,
+            "maxItems": 10,
+            "uniqueItems": true
+          },
+          "sourceClass": {
+            "type": "string",
+            "description": "The source class of the entry (INV-REQ-727).",
+            "enum": [
+              "PRIMARY",
+              "SECONDARY",
+              "INFERRED"
+            ]
+          },
+          "sourceReference": {
+            "type": "string",
+            "description": "The citation of the entry.",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "sourceId",
+          "name",
+          "bases",
+          "sourceClass",
+          "sourceReference"
+        ]
+      },
+      "minItems": 1,
+      "maxItems": 50
+    },
+    "exchangeRateTolerance": {
+      "type": "object",
+      "description": "The default exchange-rate tolerance.",
+      "properties": {
+        "value": {
+          "type": "string",
+          "description": "The tolerance as a decimal string.",
+          "pattern": "^[0-9]{1,3}(\\.[0-9]{1,4})?$"
+        },
+        "unit": {
+          "type": "string",
+          "description": "The unit of the value, for example percent.",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "sourceClass": {
+          "type": "string",
+          "description": "The source class of the entry (INV-REQ-727).",
+          "enum": [
+            "PRIMARY",
+            "SECONDARY",
+            "INFERRED"
+          ]
+        },
+        "sourceReference": {
+          "type": "string",
+          "description": "The citation of the entry.",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "value",
+        "unit",
+        "sourceClass",
+        "sourceReference"
+      ]
+    },
+    "intraGroupRule": {
+      "type": "object",
+      "description": "The intra-group rule (INV-REQ-738).",
+      "properties": {
+        "treatment": {
+          "type": "string",
+          "description": "The treatment of an intra-group document: PASS_THROUGH scopes it by its own category code, as for a third party.",
+          "enum": [
+            "PASS_THROUGH"
+          ]
+        },
+        "sourceClass": {
+          "type": "string",
+          "description": "The source class of the entry (INV-REQ-727).",
+          "enum": [
+            "PRIMARY",
+            "SECONDARY",
+            "INFERRED"
+          ]
+        },
+        "sourceReference": {
+          "type": "string",
+          "description": "The citation of the entry.",
+          "minLength": 1
+        },
+        "ruleStatus": {
+          "type": "string",
+          "description": "CONFIRMED or PROVISIONAL; absent means CONFIRMED.",
+          "enum": [
+            "CONFIRMED",
+            "PROVISIONAL"
+          ]
+        },
+        "provisionalReference": {
+          "type": "string",
+          "description": "The Keel question or ruling that makes the entry provisional.",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "treatment",
+        "sourceClass",
+        "sourceReference"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "ruleStatus": {
+                "const": "PROVISIONAL"
+              }
+            },
+            "required": [
+              "ruleStatus"
+            ]
+          },
+          "then": {
+            "required": [
+              "provisionalReference"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "ruleStatus": {
+                "const": "CONFIRMED"
+              }
+            },
+            "required": [
+              "ruleStatus"
+            ]
+          },
+          "then": {
+            "not": {
+              "required": [
+                "provisionalReference"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "not": {
+              "required": [
+                "ruleStatus"
+              ]
+            }
+          },
+          "then": {
+            "not": {
+              "required": [
+                "provisionalReference"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "required": [
+    "classificationTable",
+    "lineScopeRules",
+    "exchangeRateSources",
+    "exchangeRateTolerance",
+    "intraGroupRule"
+  ]
+}

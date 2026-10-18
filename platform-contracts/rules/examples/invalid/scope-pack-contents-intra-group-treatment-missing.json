@@ -1,0 +1,43 @@
+{
+  "classificationTable": [
+    {
+      "upstreamFunction": "ADJUSTMENT",
+      "upstreamKind": "TEST_KIND",
+      "signOfTotal": "POSITIVE",
+      "documentFunction": "ADJUSTMENT",
+      "documentTypeCode": "380",
+      "signNormalised": false,
+      "sourceClass": "PRIMARY",
+      "sourceReference": "test data"
+    }
+  ],
+  "lineScopeRules": [
+    {
+      "categoryCode": "SR",
+      "lineVerdict": "IN_SCOPE",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "test data"
+    }
+  ],
+  "exchangeRateSources": [
+    {
+      "sourceId": "SRC1",
+      "name": "Test source",
+      "bases": [
+        "MID"
+      ],
+      "sourceClass": "PRIMARY",
+      "sourceReference": "test data"
+    }
+  ],
+  "exchangeRateTolerance": {
+    "value": "1.5",
+    "unit": "percent",
+    "sourceClass": "PRIMARY",
+    "sourceReference": "test data"
+  },
+  "intraGroupRule": {
+    "sourceClass": "PRIMARY",
+    "sourceReference": "test data"
+  }
+}

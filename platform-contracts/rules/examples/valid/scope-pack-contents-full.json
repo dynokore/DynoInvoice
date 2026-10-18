@@ -1,0 +1,80 @@
+{
+  "classificationTable": [
+    {
+      "upstreamFunction": "ADJUSTMENT",
+      "upstreamKind": "DEBIT_NOTE",
+      "signOfTotal": "POSITIVE",
+      "documentFunction": "ADJUSTMENT",
+      "documentTypeCode": "380",
+      "signNormalised": false,
+      "sourceClass": "SECONDARY",
+      "sourceReference": "test data",
+      "ruleStatus": "PROVISIONAL",
+      "provisionalReference": "INV-Q-1467"
+    },
+    {
+      "upstreamFunction": "ADJUSTMENT",
+      "upstreamKind": "INVOICE",
+      "signOfTotal": "NEGATIVE",
+      "documentFunction": "ADJUSTMENT",
+      "documentTypeCode": "381",
+      "signNormalised": true,
+      "sourceClass": "PRIMARY",
+      "sourceReference": "test data"
+    },
+    {
+      "upstreamFunction": "BILL_FOR_PAYMENT",
+      "upstreamKind": "PRO_FORMA",
+      "signOfTotal": "POSITIVE",
+      "documentFunction": "NOT_A_BILL",
+      "signNormalised": false,
+      "sourceClass": "PRIMARY",
+      "sourceReference": "test data"
+    }
+  ],
+  "lineScopeRules": [
+    {
+      "categoryCode": "SR",
+      "lineVerdict": "IN_SCOPE",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "test data"
+    },
+    {
+      "categoryCode": "DS",
+      "lineVerdict": "EXCLUDED_TXN",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "test data"
+    },
+    {
+      "categoryCode": "OS",
+      "lineVerdict": "OUT_OF_SCOPE",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "test data"
+    }
+  ],
+  "exchangeRateSources": [
+    {
+      "sourceId": "SRC1",
+      "name": "Test source",
+      "bases": [
+        "MID",
+        "BUY"
+      ],
+      "sourceClass": "INFERRED",
+      "sourceReference": "test data"
+    }
+  ],
+  "exchangeRateTolerance": {
+    "value": "1.5",
+    "unit": "percent",
+    "sourceClass": "PRIMARY",
+    "sourceReference": "test data"
+  },
+  "intraGroupRule": {
+    "treatment": "PASS_THROUGH",
+    "sourceClass": "INFERRED",
+    "sourceReference": "test data",
+    "ruleStatus": "PROVISIONAL",
+    "provisionalReference": "INV-Q-2835"
+  }
+}

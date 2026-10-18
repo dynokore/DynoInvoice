@@ -19,6 +19,7 @@
 #   INV-T-6512 (INV-REQ-416, 417, 1805, 2433, 2444, 2447, 2439, 2440, 2441, 2443, INV-AC-1438, 1666, 1816, 2502, 2505, 2535): the scheme tags A3PL, ACMT, AISS, AMCS, ARCS, MES, ACMT_RECIPIENT_ACCOUNTING, ACMT_OVERSEAS_CLIENT_PURCHASE and AMCS_SELF_ACCOUNTING are seed content values of tag and scheme, not elements of the schema; NA, TXNA, SR, TX, ZR, ZP, DS, ME, ES33, ESN33 are IRAS category codes, seed content; 0 is a sample value of rate; approvedSchemes, CanonicalParty.approvedSchemes, arcsGstChargeAgreed, effectiveFrom, effectiveTo, evidenceRef and resolveMasterData belong to the masterdata and canonical contracts; scenario is the packType value of RulePackStaged (rule-pack-staged-payload.schema.json), not an element of the handlers schema; tax.approver is a role; canonical-svc, masterdata-svc, payload-svc, rules-svc and service-runtime are services.
 #   INV-T-6563 (INV-REQ-1117, 1279, 774, 80): tax.approver and tenant.admin are roles; CalendarPack is a library type of calendar-and-periods; content/ is a pack directory; submission-svc is a service; source_class and source_citation are snake_case names of the pack manifest and content (API-09), carried as sourceClass and sourceReference; PRIMARY, SECONDARY and INFERRED are rows.
 # Enum members shared by several properties (CLAIMABLE_PORTION, ENTIRE_INVOICE, BILL_FOR_PAYMENT ...) are one row each.
+#   INV-T-6503 (INV-REQ-658, 493, 496, 504, 738, INV-AC-1717, 513, 514, 1510, 761): `tax.approver` is a role; `DS`, `OS`, `SRRC` and `SR` are IRAS category codes, seed content, not elements of the Scope pack contents schema; `sameGroup` and `sameTenant` are counterparty flags of the rules and masterdata contracts, not elements of this schema.
 identifier	kind	file	requirement
 documentFunction	property	openapi.yaml	INV-REQ-371
 documentKind	property	openapi.yaml	INV-REQ-371
@@ -239,3 +240,41 @@ sourceClass	property	schemas/scenario-pack-rendition-wording.schema.json	INV-REQ
 PRIMARY	enum_value	schemas/scenario-pack-rendition-wording.schema.json	INV-REQ-774
 SECONDARY	enum_value	schemas/scenario-pack-rendition-wording.schema.json	INV-REQ-774
 INFERRED	enum_value	schemas/scenario-pack-rendition-wording.schema.json	INV-REQ-774
+classificationTable	property	schemas/scope-pack-contents.schema.json	INV-REQ-658
+upstreamFunction	property	schemas/scope-pack-contents.schema.json	INV-REQ-658
+upstreamKind	property	schemas/scope-pack-contents.schema.json	INV-REQ-658
+signOfTotal	property	schemas/scope-pack-contents.schema.json	INV-REQ-658
+documentFunction	property	schemas/scope-pack-contents.schema.json	INV-REQ-658
+signNormalised	property	schemas/scope-pack-contents.schema.json	INV-REQ-658
+documentTypeCode	property	schemas/scope-pack-contents.schema.json	INV-REQ-658
+ruleStatus	property	schemas/scope-pack-contents.schema.json	INV-REQ-658
+provisionalReference	property	schemas/scope-pack-contents.schema.json	INV-REQ-658
+lineScopeRules	property	schemas/scope-pack-contents.schema.json	INV-REQ-493
+categoryCode	property	schemas/scope-pack-contents.schema.json	INV-REQ-493
+lineVerdict	property	schemas/scope-pack-contents.schema.json	INV-REQ-493
+exchangeRateSources	property	schemas/scope-pack-contents.schema.json	INV-REQ-504
+sourceId	property	schemas/scope-pack-contents.schema.json	INV-REQ-504
+name	property	schemas/scope-pack-contents.schema.json	INV-REQ-504
+bases	property	schemas/scope-pack-contents.schema.json	INV-REQ-504
+sourceClass	property	schemas/scope-pack-contents.schema.json	INV-REQ-504
+sourceReference	property	schemas/scope-pack-contents.schema.json	INV-REQ-504
+exchangeRateTolerance	property	schemas/scope-pack-contents.schema.json	INV-REQ-504
+value	property	schemas/scope-pack-contents.schema.json	INV-REQ-504
+unit	property	schemas/scope-pack-contents.schema.json	INV-REQ-504
+intraGroupRule	property	schemas/scope-pack-contents.schema.json	INV-REQ-738
+treatment	property	schemas/scope-pack-contents.schema.json	INV-REQ-738
+BILL_FOR_PAYMENT	enum_value	schemas/scope-pack-contents.schema.json	INV-REQ-658
+ADJUSTMENT	enum_value	schemas/scope-pack-contents.schema.json	INV-REQ-658
+NOT_A_BILL	enum_value	schemas/scope-pack-contents.schema.json	INV-REQ-658
+POSITIVE	enum_value	schemas/scope-pack-contents.schema.json	INV-REQ-658
+NEGATIVE	enum_value	schemas/scope-pack-contents.schema.json	INV-REQ-658
+ZERO	enum_value	schemas/scope-pack-contents.schema.json	INV-REQ-658
+CONFIRMED	enum_value	schemas/scope-pack-contents.schema.json	INV-REQ-658
+PROVISIONAL	enum_value	schemas/scope-pack-contents.schema.json	INV-REQ-658
+IN_SCOPE	enum_value	schemas/scope-pack-contents.schema.json	INV-REQ-493
+OUT_OF_SCOPE	enum_value	schemas/scope-pack-contents.schema.json	INV-REQ-493
+EXCLUDED_TXN	enum_value	schemas/scope-pack-contents.schema.json	INV-REQ-493
+PRIMARY	enum_value	schemas/scope-pack-contents.schema.json	INV-REQ-504
+SECONDARY	enum_value	schemas/scope-pack-contents.schema.json	INV-REQ-504
+INFERRED	enum_value	schemas/scope-pack-contents.schema.json	INV-REQ-504
+PASS_THROUGH	enum_value	schemas/scope-pack-contents.schema.json	INV-REQ-738
