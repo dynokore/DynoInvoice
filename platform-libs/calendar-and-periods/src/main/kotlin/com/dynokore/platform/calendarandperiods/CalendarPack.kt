@@ -95,6 +95,9 @@ class CalendarPack(
                 "calendar pack $version has no window of frequency ${frequency.code} on $date",
             )
 
+    /** An immutable copy of the windows of [frequency], earliest first; empty when the pack has none. */
+    fun windowsOf(frequency: FilingFrequency): List<StandardWindow> = java.util.List.copyOf(windowsByFrequency[frequency].orEmpty())
+
     fun dueRuleFor(returnForm: String): DueRule =
         dueRules[returnForm]
             ?: throw CalendarPackCoverageException("calendar pack $version has no due rule for return form $returnForm")

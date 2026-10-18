@@ -113,4 +113,25 @@ class ModuleApiConsumerContractTest {
         assertEquals(false, noticeDue(deadline, d("2026-03-23"), 7))
         assertEquals(true, noticeDue(deadline, d("2026-03-24"), 7))
     }
+
+    @Test
+    fun `submission-svc style despatcher sends a weekly-window document at once when the margin falls first`() {
+        val due = java.time.ZonedDateTime.of(2026, 4, 30, 0, 0, 0, 0, java.time.ZoneOffset.UTC)
+        val ready = java.time.ZonedDateTime.of(2026, 4, 18, 9, 0, 0, 0, java.time.ZoneOffset.UTC)
+        val stop = hardStop(due, java.time.Duration.ofDays(10))
+
+        val sent = despatchAt(ready.toInstant(), nextWindowOpening(ready, BatchWindow.WEEKLY), stop)
+
+        assertEquals(DespatchReason.IMMEDIATE_MARGIN, sent.reason)
+        assertEquals(ready.toInstant(), sent.at)
+    }
+
+    @Test
+    fun `ingestion-svc style setting check refuses weekly extraction plus weekly despatch beyond the gap`() {
+        val gap = shortestGap(Fixtures.pack(), Fixtures.monthly)
+        val margin = java.time.Duration.ofDays(10)
+
+        assertEquals(false, weeklyWindowFits(BatchWindow.WEEKLY.interval, BatchWindow.WEEKLY.interval, gap, margin))
+        assertEquals(true, weeklyWindowFits(BatchWindow.DAILY.interval, BatchWindow.CONTINUOUS.interval, gap, margin))
+    }
 }

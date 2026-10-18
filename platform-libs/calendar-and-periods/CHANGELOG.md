@@ -6,6 +6,13 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-18
+### Added
+- Despatch windows: `BatchWindow`, `severalDailyInterval`, `nextWindowOpening`, `despatchAt` (with `Despatch` and
+  `DespatchReason`; a document whose hard stop falls before the next opening goes at once), `weeklyWindowFits`,
+  `shortestGap` and `CalendarPack.windowsOf`. All inputs are arguments; the library reads no time source (INV-REQ-169,
+  INV-REQ-73, INV-AC-179, INV-AC-190, INV-AC-198, INV-AC-204, INV-AC-2267; INV-T-6417).
+
 ## [1.2.0] - 2026-10-18
 ### Added
 - Obligation clocks: `hardStop`, `capAtHardStop`, `escalationSchedule` (T1, T2 capped at the hard stop, with the facts
