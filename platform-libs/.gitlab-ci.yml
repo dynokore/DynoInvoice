@@ -620,15 +620,38 @@ maven-publish:
       # bytes fails the job before any upload (INV-T-5316, coordinator ruling INV-Q-5313). The BOM is staged only
       # when ci/bom-version.sh decided BOM_ACTION=publish; the read-back below verifies it in every case.
       grep -q . build/publications.txt || { echo "gst-ci: no publications listed (P20/P28)"; exit 1; }
+      # CI-FAST (2026-10-18): a publication of a module outside the changed and downstream set
+      # (gst_changed_downstream_modules) whose version is already in the registry is not staged again, so the
+      # stage and the guard cost grow with the change, not with the module count. Every changed or downstream
+      # module, and every version the registry lacks, is still staged and guarded. Fails closed: when nothing
+      # would be staged, every publication is staged as before.
+      gst_stage_mods=" $(gst_changed_downstream_modules) "
+      gst_pom_code() {
+        curl -s -o /dev/null -w '%{http_code}' --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
+          "${CI_API_V4_URL}/projects/${MAVEN_REGISTRY_PROJECT_ID}/packages/maven/com/dynokore/platform/$1/$2/$1-$2.pom"
+      }
+      gst_published_unchanged() {
+        mod=$(printf '%s' "$1" | cut -d: -f2)
+        case "$gst_stage_mods" in *" $mod "*) return 1 ;; esac
+        [ "$(gst_pom_code "$2" "$3")" = "200" ]
+      }
       tasks=""
+      all_tasks=""
       while read -r path pub artifact version; do
         if [ "$artifact" = "platform-libs-bom" ] && [ "$BOM_ACTION" != "publish" ]; then
           echo "gst-ci: ${artifact}:${version} not staged (BOM_ACTION=${BOM_ACTION})"
         else
           cap="$(printf '%s' "$pub" | cut -c1 | tr '[:lower:]' '[:upper:]')$(printf '%s' "$pub" | cut -c2-)"
-          tasks="$tasks ${path}:publish${cap}PublicationToGstStageRepository"
+          task="${path}:publish${cap}PublicationToGstStageRepository"
+          all_tasks="$all_tasks $task"
+          if gst_published_unchanged "$path" "$artifact" "$version"; then
+            echo "gst-ci: ${artifact}:${version} not staged (module unchanged, version already in the registry)"
+          else
+            tasks="$tasks $task"
+          fi
         fi
       done < build/publications.txt
+      [ -n "$tasks" ] || tasks="$all_tasks"
       [ -n "$tasks" ] || { echo "gst-ci: nothing to stage (P20/P28)"; exit 1; }
       ./gradlew $tasks $bom_args -I "$GST_RELEASE_DIR/stage-publish.init.gradle" -PgstStageDir="$GST_PUBLISH_STAGE" --stacktrace
     - !reference [.gst-publish-upload, script]
