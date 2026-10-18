@@ -1,7 +1,7 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
-# pinned at commit 2ce12f2af225eefd10848bc4b47f38216a1ea611 (2026-10-18), the
-# merge of invoice-docs!40 adding SUB-020 (INV-T-6425, coordinator ruling INV-Q-6421;
-# previously pinned at eef5812372eda3c8d2f549c630291ece6571aedd, INV-T-6051, bd93a33d21a7b92f1d9f8278d816d2d6cdb43499, INV-T-6021, and 70e25c6aba57b111e5fd12a86e4b978f6fdb12d6, INV-T-5412).
+# pinned at commit 941e5f99446f1b8d0686579a14d58539566cb041 (2026-10-18), the
+# merge of invoice-docs!41 adding PAY-018 (INV-T-6647, coordinator ruling INV-Q-6639;
+# previously pinned at 2ce12f2af225eefd10848bc4b47f38216a1ea611, INV-T-6425, eef5812372eda3c8d2f549c630291ece6571aedd, INV-T-6051, bd93a33d21a7b92f1d9f8278d816d2d6cdb43499, INV-T-6021, and 70e25c6aba57b111e5fd12a86e4b978f6fdb12d6, INV-T-5412).
 #
 # This copy is the generator's (catalogue/generator/) sole input for the
 # gst-catalogue ErrorCode catalogue (STK-61, CS-13). It is never hand-edited:
@@ -322,6 +322,11 @@ error_codes:
   severity: BLOCK
   disposition: MANUAL
   owner: Tax operations
+- code: PAY-018
+  condition: Credit note issued without GST adjustment carries a line category code other than SR
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Finance
 - code: SUB-001
   condition: Transport timeout or connection failure
   severity: WARN
