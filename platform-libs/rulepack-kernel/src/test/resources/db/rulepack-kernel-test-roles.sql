@@ -12,5 +12,8 @@ CREATE ROLE rulepack_kernel_sys NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEROLE;
 GRANT rulepack_kernel_sys TO rulepack_kernel_migrate;
 CREATE ROLE rulepack_kernel_app LOGIN PASSWORD 'rulepack_kernel_app_pw' NOSUPERUSER NOBYPASSRLS;
 CREATE ROLE rulepack_kernel_other LOGIN PASSWORD 'rulepack_kernel_other_pw' NOSUPERUSER NOBYPASSRLS;
+CREATE EXTENSION IF NOT EXISTS pgcrypto SCHEMA public;
 CREATE SCHEMA rulepack_test AUTHORIZATION rulepack_kernel_migrate;
+-- A second schema with its own pack registry and its own binding key (INV-T-5364 look-alike probe).
+CREATE SCHEMA rulepack_other AUTHORIZATION rulepack_kernel_migrate;
 CREATE SCHEMA rulepack_migrations AUTHORIZATION rulepack_kernel_migrate;

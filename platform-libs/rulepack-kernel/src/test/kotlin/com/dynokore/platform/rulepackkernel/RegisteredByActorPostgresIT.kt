@@ -37,7 +37,7 @@ class RegisteredByActorPostgresIT {
             val tenant = TenantId(UUID.randomUUID())
             assertTheFunctionAndTheTriggerRefuse(app, tenant)
             assertTheCheckRefusesOnItsOwn(owner, tenant)
-            assertEquals(0L, app.inTenant(tenant) { fetchValue(COUNT, "probe-%") })
+            assertEquals(0L, app.inSigned(tenant) { fetchValue(COUNT, "probe-%") })
             assertAVisibleActorIsStoredUnchanged(app, tenant)
             assertAWhitespaceOnlyPackFieldIsRefused(app)
         } finally {
@@ -53,13 +53,13 @@ class RegisteredByActorPostgresIT {
             NOT_ACTORS.flatMapIndexed { i, (name, actor) ->
                 val viaFunction =
                     refusedForActor {
-                        app.inTenant(TenantId.PLATFORM, actor = actor) {
+                        app.inSigned(TenantId.PLATFORM, actor = actor) {
                             register(packId = "probe-fn-$i", version = "5.0.$i")
                         }
                     }
                 val viaInsert =
                     refusedForActor {
-                        app.inTenant(tenant, actor = actor) {
+                        app.inSigned(tenant, actor = actor) {
                             insertRow(tenant, "probe-row-$i", version = "6.0.$i", registeredBy = actor)
                         }
                     }
@@ -77,7 +77,7 @@ class RegisteredByActorPostgresIT {
             NOT_ACTORS.mapIndexedNotNull { i, (name, actor) ->
                 val refused =
                     runCatching {
-                        owner.inTenant(tenant) {
+                        owner.inSigned(tenant) {
                             fetchValue(
                                 "select rulepack_test.insert_bypassing_the_actor_trigger(?, ?, ?::uuid, ?)",
                                 "probe-check-$i",
@@ -94,7 +94,8 @@ class RegisteredByActorPostgresIT {
         val enabled =
             owner.unbound {
                 fetchValue(
-                    "select tgenabled::text from pg_trigger where tgname = 'rule_pack_version_registered_by_insert'",
+                    "select tgenabled::text from pg_trigger where tgname = 'rule_pack_version_registered_by_insert' " +
+                        "and tgrelid = 'rulepack_test.rule_pack_version'::regclass",
                 )
             }
         assertEquals("O", enabled, "the trigger is enabled again")
@@ -105,12 +106,12 @@ class RegisteredByActorPostgresIT {
         tenant: TenantId,
     ) {
         VISIBLE_ACTORS.forEachIndexed { i, actor ->
-            app.inTenant(TenantId.PLATFORM, actor = actor) { register(packId = "visible-fn-$i", version = "8.0.$i") }
-            app.inTenant(tenant, actor = actor) {
+            app.inSigned(TenantId.PLATFORM, actor = actor) { register(packId = "visible-fn-$i", version = "8.0.$i") }
+            app.inSigned(tenant, actor = actor) {
                 insertRow(tenant, "visible-row-$i", version = "9.0.$i", registeredBy = actor)
             }
             val stored =
-                app.inTenant(tenant) {
+                app.inSigned(tenant) {
                     fetchRows(
                         "select registered_by from rulepack_test.rule_pack_version where pack_id in (?, ?)",
                         "visible-fn-$i",
@@ -124,21 +125,21 @@ class RegisteredByActorPostgresIT {
     private fun assertAWhitespaceOnlyPackFieldIsRefused(app: TenancyProbe) {
         BLANKS.forEachIndexed { i, (_, value) ->
             assertRefusedWith("not blank") {
-                app.inTenant(TenantId.PLATFORM, actor = OPERATOR) { register(packId = value, version = "10.0.$i") }
+                app.inSigned(TenantId.PLATFORM, actor = OPERATOR) { register(packId = value, version = "10.0.$i") }
             }
             assertRefusedWith("not blank") {
-                app.inTenant(TenantId.PLATFORM, actor = OPERATOR) { register(packId = "p-$i", version = value) }
+                app.inSigned(TenantId.PLATFORM, actor = OPERATOR) { register(packId = "p-$i", version = value) }
             }
         }
     }
 
-    /** True when [block] is refused because `app.actor` is unset or not a valid actor. */
+    /** True when [block] is refused because the bound actor is unset or not a valid actor. */
     private fun refusedForActor(block: () -> Unit): Boolean =
         try {
             block()
             false
         } catch (refused: DataAccessException) {
-            "app.actor is not set" in refused.message.orEmpty()
+            "the bound actor is not set" in refused.message.orEmpty()
         }
 
     private companion object {

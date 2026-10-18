@@ -49,6 +49,10 @@ sourceSets {
 // project's own `implJar` output at the same commit, the same technique evidence-store uses for
 // tenancy-kernel's impl half. Evaluation is forced so that `implJar` task exists when read here.
 evaluationDependsOn(":crypto")
+// tenancy-kernel's own impl half (`BindingKeyMigration`), which the tests only (not the module's impl) use to create the
+// signed-binding functions the DDL expects (INV-T-5364, INV-Q-6663); evaluated first so its `implJar` task exists.
+evaluationDependsOn(":tenancy-kernel")
+val tenancyKernelImplJar = project(":tenancy-kernel").tasks.named("implJar")
 val cryptoImplJar = project(":crypto").tasks.named("implJar")
 
 dependencies {
@@ -81,6 +85,9 @@ dependencies {
 
     testImplementation(sourceSets["impl"].output)
     testImplementation(project(":tenancy-kernel"))
+    // The signing helper (`SignedBinding`) and `BindingSignature` of tenancy-kernel (INV-T-5364).
+    testImplementation(testFixtures(project(":tenancy-kernel")))
+    testImplementation(files(tenancyKernelImplJar))
     testImplementation(project(":crypto"))
     testImplementation(files(cryptoImplJar))
     testImplementation(libs.bouncycastle.bcprov)

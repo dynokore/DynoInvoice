@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-10-18
+### Changed
+- BREAKING: `PackRegistryMigration.ddl` reads the tenant and the actor only through the signed binding of tenancy-kernel: its policies and the `register_platform_pack` and `registered_by` trigger functions use `(select <schema>.bound_tenant())` and `(select <schema>.bound_actor())`, and the DDL needs those two functions in the schema before it runs. It does not create them and issues no role switch: run tenancy-kernel's `BindingKeyMigration.ddl` once per schema as the `<svc>_sys` login first (who runs it in an installation is INV-Q-6580, unanswered). On a schema without them the DDL raises SQLSTATE 42883 at the first policy that names `bound_tenant()` and creates nothing. A holder declares `<schema>.binding_key` as platform-scoped in its `TableClasses`, and a session with no valid `app.binding_sig` sees and writes nothing. The refusal message that named `app.actor` as unset now reads `the bound actor is not set: ...`, same SQLSTATE (INV-Q-5352, INV-Q-6663, INV-Q-6588, slice 7 of 9 of INV-T-4156). Services stay off this version until INV-T-4156 (INV-Q-5356 A).
+
 ## [2.0.9] - 2026-10-18
 ### Changed
 - Metadata-only release (INV-T-5359, G-DVS): depends on `tenancy-kernel` 3.3.0, whose published module metadata changed; no code change.

@@ -38,11 +38,11 @@ class PackRegistryMigrationTest {
     }
 
     @Test
-    fun `row-level security is enabled, forced and keyed on app_tenant_id only`() {
+    fun `row-level security is enabled, forced and keyed on the signed tenant binding only`() {
         assertTrue(ddl.contains("ALTER TABLE rules.rule_pack_version ENABLE ROW LEVEL SECURITY;"))
         assertTrue(ddl.contains("ALTER TABLE rules.rule_pack_version FORCE ROW LEVEL SECURITY;"))
         val platform = "'${TenantId.PLATFORM}'::uuid"
-        val bound = "nullif(current_setting('app.tenant_id', true), '')::uuid"
+        val bound = "(select rules.bound_tenant())"
         val own = "(tenant_id = $bound AND tenant_id <> $platform)"
         assertTrue(
             ddl.contains(
@@ -54,6 +54,19 @@ class PackRegistryMigrationTest {
         assertTrue(ddl.contains("FOR UPDATE USING $own WITH CHECK $own;"))
         assertTrue(ddl.contains("FOR DELETE USING $own;"))
         assertTrue(ddl.contains("FOR INSERT TO rules_sys WITH CHECK (tenant_id = $platform);"))
+    }
+
+    @Test
+    fun `no policy and no function reads the unsigned tenant or actor, the DDL creates none of them`() {
+        assertFalse(ddl.contains("current_setting('app.tenant_id'"), "an unsigned tenant read is left")
+        assertFalse(ddl.contains("current_setting('app.actor'"), "an unsigned actor read is left")
+        assertEquals(0, Regex("""current_setting\('app\.(tenant_id|actor)'""").findAll(ddl).count())
+        assertTrue(ddl.contains("(select rules.bound_tenant())"), "the policies call the schema's function")
+        // look-alike: another schema's functions are never named in this schema's DDL
+        assertFalse(ddl.contains("other.bound_tenant"))
+        val other = PackRegistryMigration.ddl("other", "rule_pack_version", "rules_app", "rules_sys")
+        assertFalse(other.contains("rules.bound_tenant"))
+        assertTrue(other.contains("(select other.bound_tenant())"))
     }
 
     @Test
@@ -79,7 +92,8 @@ class PackRegistryMigrationTest {
         val signature = "rules.register_platform_pack(${PackRegistryMigration.REGISTER_PLATFORM_PACK_ARGUMENTS})"
         assertTrue(ddl.contains("CREATE FUNCTION rules.register_platform_pack(p_id uuid,"))
         assertTrue(ddl.contains("SECURITY DEFINER SET search_path = pg_catalog, rules, pg_temp AS"))
-        assertTrue(ddl.contains("current_setting('app.actor', true)"))
+        assertTrue(ddl.contains("v_actor text := (select rules.bound_actor());"))
+        assertTrue(ddl.contains("IF (select rules.bound_tenant()) IS DISTINCT FROM '${TenantId.PLATFORM}'::uuid THEN"))
         assertTrue(ddl.contains("ALTER FUNCTION $signature OWNER TO rules_sys;"))
         assertTrue(ddl.contains("REVOKE EXECUTE ON FUNCTION $signature FROM PUBLIC;"))
         assertTrue(ddl.contains("GRANT EXECUTE ON FUNCTION $signature TO rules_app;"))

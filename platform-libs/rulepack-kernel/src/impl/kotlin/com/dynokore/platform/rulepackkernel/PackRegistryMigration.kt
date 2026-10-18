@@ -16,8 +16,9 @@ import com.dynokore.platform.tenancykernel.TenantId
  * carries the reserved platform tenant [TenantId.PLATFORM] (owner ruling INV-Q-2927 D; coordinator ruling
  * INV-Q-4117). A [PackVersion] with no tenant is stored as a platform row.
  *
- * Row-level security, enabled and forced, keyed on the transaction's `app.tenant_id` only (INV-REQ-854 b1; no other
- * session setting widens it, INV-ADR-3968 alternatives):
+ * Row-level security, enabled and forced, keyed on the transaction's signed tenant binding only (INV-REQ-854 b1, b7;
+ * read through `<schema>.bound_tenant()` of tenancy-kernel's `BindingKeyMigration`, which this DDL does not run;
+ * no other session setting widens it, INV-ADR-3968 alternatives):
  * - SELECT: the bound tenant's rows plus the platform rows; nothing when no tenant is bound. Under the platform
  *   binding that is the platform rows.
  * - INSERT, UPDATE, DELETE: only the bound tenant's own rows, never a platform row, so under the platform binding
@@ -25,10 +26,11 @@ import com.dynokore.platform.tenancykernel.TenantId
  *   runtime login `INSERT, SELECT` only; the policy refuses a platform-row write even where a grant would allow it.
  * - Platform rows are inserted only by [REGISTER_PLATFORM_PACK], a SECURITY DEFINER function owned by the NOLOGIN
  *   `<svc>_sys` role (INV-ADR-3968 item 6): static SQL, `SET search_path = pg_catalog, <schema>, pg_temp`, EXECUTE
- *   revoked from PUBLIC and granted to the runtime login only, the actor taken from `app.actor` (refused when unset,
+ *   revoked from PUBLIC and granted to the runtime login only, the actor taken from the signed actor binding
+ *   (`<schema>.bound_actor()`; refused when unset,
  *   blank or holding a control character, nothing written) and stored as the row's `registered_by`, every argument
  *   validated inside. Its own policy lets the sys role insert a platform row and nothing else.
- * - Every row's `registered_by` is the registering principal, the transaction's `app.actor` at insert, and never
+ * - Every row's `registered_by` is the registering principal, the transaction's bound actor at insert, and never
  *   changes afterwards (owner ruling INV-Q-4580 (B)): a BEFORE INSERT trigger refuses any other value, a BEFORE
  *   UPDATE trigger any change.
  *
@@ -74,6 +76,12 @@ object PackRegistryMigration {
      * role must be a member of it (it needs SET ROLE on it for `ALTER FUNCTION ... OWNER TO`, as every module's
      * `<svc>_sys`-owned function); [runtimeRole] is the service's runtime login.
      *
+     * Precondition (coordinator ruling INV-Q-6663): this DDL does not create the signed-binding functions and issues no
+     * role switch. The schema must already hold `<schema>.bound_tenant()` and `<schema>.bound_actor()`, from
+     * tenancy-kernel's `BindingKeyMigration.ddl` run once per schema as the sys login, before this DDL; on a schema
+     * without them the first policy that names `bound_tenant()` raises (SQLSTATE 42883) and nothing is created. Who runs
+     * `BindingKeyMigration.ddl` in an installation is INV-Q-6580 (owner, unanswered).
+     *
      * @throws IllegalArgumentException if [schema], [table], a role or a name derived from [table] is not a plain
      *   lower-case SQL identifier of at most 63 characters (spliced into DDL text, so every name goes through
      *   [SqlIdentifier.require], INV-REQ-854 b5), or if the two roles are the same.
@@ -96,8 +104,8 @@ object PackRegistryMigration {
         val update = SqlIdentifier.require("${t}_tenant_update", "policy")
         val delete = SqlIdentifier.require("${t}_tenant_delete", "policy")
         val register = SqlIdentifier.require("${t}_platform_register", "policy")
-        // The bound tenant: absent or blank binds nothing, so no row matches.
-        val boundTenant = "nullif(current_setting('app.tenant_id', true), '')::uuid"
+        // The bound tenant: an absent, forged or expired signed binding binds nothing, so no row matches.
+        val boundTenant = "(select $s.bound_tenant())"
         val ownRow = "(tenant_id = $boundTenant AND tenant_id <> '$PLATFORM'::uuid)"
         val tableDdl =
             """
@@ -136,7 +144,7 @@ object PackRegistryMigration {
 
     /**
      * `registered_by` is the registering principal (owner ruling INV-Q-4580 (B)): a BEFORE INSERT trigger refuses a row
-     * whose `registered_by` is not the transaction's `app.actor` (an unset actor, or one that is blank or holds a
+     * whose `registered_by` is not the transaction's bound actor (an unset actor, or one that is blank or holds a
      * control character, [BlankText.SQL_NOT_ACTOR], refuses every insert), and a BEFORE UPDATE trigger refuses any
      * change to it, so it is fixed at insert as the actor of `write_installation_setting`'s audit entry is
      * (INV-T-3983). Static SQL, fixed search_path, EXECUTE revoked from PUBLIC (a trigger function's EXECUTE is checked
@@ -154,10 +162,10 @@ object PackRegistryMigration {
         |CREATE FUNCTION $s.$stampFunction() RETURNS trigger
         |LANGUAGE plpgsql SET search_path = pg_catalog, $s, pg_temp AS $$
         |DECLARE
-        |    v_actor text := current_setting('app.actor', true);
+        |    v_actor text := (select $s.bound_actor());
         |BEGIN
         |    IF v_actor IS NULL OR v_actor ~ '${BlankText.SQL_NOT_ACTOR}' THEN
-        |        RAISE EXCEPTION 'app.actor is not set: a pack row records its registering principal'
+        |        RAISE EXCEPTION 'the bound actor is not set: a pack row records its registering principal'
         |            USING ERRCODE = '42501';
         |    END IF;
         |    IF NEW.registered_by IS DISTINCT FROM v_actor THEN
@@ -202,14 +210,14 @@ object PackRegistryMigration {
             |    RETURNS uuid
             |LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, $s, pg_temp AS $$
             |DECLARE
-            |    v_actor text := current_setting('app.actor', true);
+            |    v_actor text := (select $s.bound_actor());
             |BEGIN
-            |    IF current_setting('app.tenant_id', true) IS DISTINCT FROM '$PLATFORM' THEN
+            |    IF (select $s.bound_tenant()) IS DISTINCT FROM '$PLATFORM'::uuid THEN
             |        RAISE EXCEPTION 'a platform pack is registered under the platform tenant only'
             |            USING ERRCODE = '42501';
             |    END IF;
             |    IF v_actor IS NULL OR v_actor ~ '${BlankText.SQL_NOT_ACTOR}' THEN
-            |        RAISE EXCEPTION 'app.actor is not set: a platform pack records its actor' USING ERRCODE = '42501';
+            |        RAISE EXCEPTION 'the bound actor is not set: a platform pack records its actor' USING ERRCODE = '42501';
             |    END IF;
             |    IF p_id IS NULL OR p_effective_from IS NULL OR p_manifest IS NULL OR p_checksums IS NULL
             |        OR p_signature IS NULL OR p_contents IS NULL
