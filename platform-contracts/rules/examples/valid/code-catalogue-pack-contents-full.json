@@ -1,0 +1,31 @@
+{
+  "complete": true,
+  "codes": [
+    {
+      "code": "SR",
+      "group": "SUPPLY_STANDARD_RATED",
+      "side": "SUPPLY",
+      "annexERate": "9",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "test data p1"
+    },
+    {
+      "code": "NA",
+      "group": "SUPPLY_STANDARD_RATED",
+      "side": "SUPPLY",
+      "annexERate": "NA",
+      "submissionRate": "0",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "test data p2",
+      "description": "test description"
+    },
+    {
+      "code": "TX",
+      "group": "PURCHASE_STANDARD_RATED",
+      "side": "PURCHASE",
+      "annexERate": "9",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "test data p3"
+    }
+  ]
+}

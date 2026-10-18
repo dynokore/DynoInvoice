@@ -1,0 +1,13 @@
+{
+  "complete": false,
+  "codes": [
+    {
+      "code": "SR",
+      "group": "PURCHASE_INPUT_TAX_ATTRIBUTION",
+      "side": "SUPPLY",
+      "annexERate": "9",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "test data"
+    }
+  ]
+}

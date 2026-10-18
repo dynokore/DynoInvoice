@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/rules/schemas/code-catalogue-pack-contents.schema.json",
+  "title": "CodeCataloguePackContents",
+  "description": "The artefact.contents of a RulePackStaged payload whose packType is exactly code-catalogue (INV-REQ-2429, INV-REQ-418, INV-REQ-774): the GST category code catalogue, one entry per code of the five R1 Annex E groups, carrying the Annex E group, the side, the Annex E rate, the submission rate where R1 gives one, the source class and the citation, and the completeness flag. Rules JSON Schema cannot express, checked by rules-svc at the pack dry run and by the seed content test, not here: code is unique across codes; a code outside the pack is never submitted (RUL-006) and a mapping entry naming one is refused at sign-off (RUL-009); the catalogue defines codes, not scope; the rate of a transaction is resolved by transaction date (INV-REQ-684), not read from annexERate; that every entry of the Annex E catalogue is PRIMARY and complete is true is seed content. No entry is written here; the 35 entries are seed content read from R1 Annex E printed pages 79 to 83. A consumer ignores any property this schema does not name (API-41, FR-K.4); no object of this schema sets additionalProperties to false. Within a major version this schema is additive-only.",
+  "type": "object",
+  "properties": {
+    "complete": {
+      "type": "boolean",
+      "description": "The completeness flag of the catalogue (INV-REQ-418): true when the catalogue is built from R1 Annex E in full."
+    },
+    "codes": {
+      "type": "array",
+      "description": "The catalogue entries, one per code.",
+      "minItems": 1,
+      "maxItems": 500,
+      "items": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "The IRAS category code as R1 Annex E prints it.",
+            "pattern": "^[A-Z][A-Z0-9]{0,9}(-[A-Z0-9]{1,9})?$"
+          },
+          "group": {
+            "type": "string",
+            "description": "The Annex E group of the code.",
+            "enum": [
+              "SUPPLY_STANDARD_RATED",
+              "SUPPLY_ZERO_RATED_EXEMPT_OUT_OF_SCOPE",
+              "PURCHASE_STANDARD_RATED",
+              "PURCHASE_INPUT_TAX_ATTRIBUTION",
+              "PURCHASE_ZERO_RATED_NON_REPORTABLE"
+            ]
+          },
+          "side": {
+            "type": "string",
+            "description": "The side of the code: SUPPLY for the supply groups, PURCHASE for the purchase groups.",
+            "enum": [
+              "SUPPLY",
+              "PURCHASE"
+            ]
+          },
+          "annexERate": {
+            "type": "string",
+            "description": "The rate Annex E prints for the code, a decimal string, or the literal NA where Annex E gives none. Informational: the rate of a transaction is resolved by transaction date (INV-REQ-684).",
+            "pattern": "^(NA|[0-9]{1,3}(\\.[0-9]{1,4})?)$"
+          },
+          "submissionRate": {
+            "type": "string",
+            "description": "The submission rate where R1 gives one (for example 0 for NA and TXNA, R1 section 11.19), a decimal string.",
+            "pattern": "^[0-9]{1,3}(\\.[0-9]{1,4})?$"
+          },
+          "sourceClass": {
+            "type": "string",
+            "description": "The source class of the entry.",
+            "enum": [
+              "PRIMARY",
+              "SECONDARY",
+              "INFERRED"
+            ]
+          },
+          "sourceReference": {
+            "type": "string",
+            "description": "The citation of the entry, the Annex E page.",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string",
+            "description": "The wording of the code.",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "code",
+          "group",
+          "side",
+          "annexERate",
+          "sourceClass",
+          "sourceReference"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "group": {
+                  "enum": [
+                    "SUPPLY_STANDARD_RATED",
+                    "SUPPLY_ZERO_RATED_EXEMPT_OUT_OF_SCOPE"
+                  ]
+                }
+              },
+              "required": [
+                "group"
+              ]
+            },
+            "then": {
+              "properties": {
+                "side": {
+                  "const": "SUPPLY"
+                }
+              },
+              "required": [
+                "side"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "group": {
+                  "enum": [
+                    "PURCHASE_STANDARD_RATED",
+                    "PURCHASE_INPUT_TAX_ATTRIBUTION",
+                    "PURCHASE_ZERO_RATED_NON_REPORTABLE"
+                  ]
+                }
+              },
+              "required": [
+                "group"
+              ]
+            },
+            "then": {
+              "properties": {
+                "side": {
+                  "const": "PURCHASE"
+                }
+              },
+              "required": [
+                "side"
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "required": [
+    "complete",
+    "codes"
+  ]
+}

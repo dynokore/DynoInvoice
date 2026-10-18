@@ -1,0 +1,13 @@
+{
+  "complete": false,
+  "codes": [
+    {
+      "code": "SR",
+      "group": "supply_standard_rated",
+      "side": "SUPPLY",
+      "annexERate": "9",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "test data"
+    }
+  ]
+}

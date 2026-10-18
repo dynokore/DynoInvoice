@@ -14,6 +14,7 @@
 #   INV-T-6327 (INV-REQ-1033, 648, INV-AC-1858): roles tax.operator, entity.admin; event EvidenceArtefactRecorded (service-runtime's event); none is an element of the Scenario pack rendition wording schema.
 #   INV-T-6456 (INV-REQ-480, 486): the backticked names C5UID, cac:AdditionalDocumentReference, cac:ContractDocumentReference, sgdtotal-excl-gst, sgdtotal-incl-gst are pack content of the later seed-content task, not elements of the MDE pack contents schema.
 #   INV-T-6464 (INV-REQ-498, INV-AC-522): `fatal` and `warning` are flag values of the Schematron rule sets (INV-REQ-471) and `IBT-022` is a Business Term ID; none is an element of the severity override pack contents schema, they are pack content of the MDE pack and of the severity override seed content.
+#   INV-T-6482 (INV-REQ-2429, INV-AC-2431): `regulatory.author` is a role; `NA`, `TXNA`, `DS`, `OS`, `SRRC` and `SRCA-C` are IRAS category codes, seed content of the code catalogue pack, not elements of the schema (`NA` is also the literal of the `annexERate` pattern, not an enum member); `0` is a sample value of `submissionRate`.
 # Enum members shared by several properties (CLAIMABLE_PORTION, ENTIRE_INVOICE, BILL_FOR_PAYMENT ...) are one row each.
 identifier	kind	file	requirement
 documentFunction	property	openapi.yaml	INV-REQ-371
@@ -135,3 +136,23 @@ specificationVersions	property	schemas/severity-override-pack-contents.schema.js
 businessTermId	property	schemas/severity-override-pack-contents.schema.json	INV-REQ-499
 sourceReference	property	schemas/severity-override-pack-contents.schema.json	INV-REQ-499
 rationale	property	schemas/severity-override-pack-contents.schema.json	INV-REQ-499
+complete	property	schemas/code-catalogue-pack-contents.schema.json	INV-REQ-2429
+codes	property	schemas/code-catalogue-pack-contents.schema.json	INV-REQ-2429
+code	property	schemas/code-catalogue-pack-contents.schema.json	INV-REQ-2429
+group	property	schemas/code-catalogue-pack-contents.schema.json	INV-REQ-2429
+side	property	schemas/code-catalogue-pack-contents.schema.json	INV-REQ-2429
+annexERate	property	schemas/code-catalogue-pack-contents.schema.json	INV-REQ-2429
+sourceClass	property	schemas/code-catalogue-pack-contents.schema.json	INV-REQ-2429
+sourceReference	property	schemas/code-catalogue-pack-contents.schema.json	INV-REQ-2429
+submissionRate	property	schemas/code-catalogue-pack-contents.schema.json	INV-REQ-2429
+description	property	schemas/code-catalogue-pack-contents.schema.json	INV-REQ-2429
+SUPPLY_STANDARD_RATED	enum_value	schemas/code-catalogue-pack-contents.schema.json	INV-REQ-2429
+SUPPLY_ZERO_RATED_EXEMPT_OUT_OF_SCOPE	enum_value	schemas/code-catalogue-pack-contents.schema.json	INV-REQ-2429
+PURCHASE_STANDARD_RATED	enum_value	schemas/code-catalogue-pack-contents.schema.json	INV-REQ-2429
+PURCHASE_INPUT_TAX_ATTRIBUTION	enum_value	schemas/code-catalogue-pack-contents.schema.json	INV-REQ-2429
+PURCHASE_ZERO_RATED_NON_REPORTABLE	enum_value	schemas/code-catalogue-pack-contents.schema.json	INV-REQ-2429
+SUPPLY	enum_value	schemas/code-catalogue-pack-contents.schema.json	INV-REQ-2429
+PURCHASE	enum_value	schemas/code-catalogue-pack-contents.schema.json	INV-REQ-2429
+PRIMARY	enum_value	schemas/code-catalogue-pack-contents.schema.json	INV-REQ-2429
+SECONDARY	enum_value	schemas/code-catalogue-pack-contents.schema.json	INV-REQ-2429
+INFERRED	enum_value	schemas/code-catalogue-pack-contents.schema.json	INV-REQ-2429
