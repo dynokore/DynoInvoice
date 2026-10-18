@@ -74,7 +74,7 @@ class SharedPoolIsolationIT {
     ): T =
         fixture.runtimeDataSource().connection.use { connection ->
             if (tenant != null) {
-                connection.createStatement().use { it.execute("select set_config('app.tenant_id', '$tenant', false)") }
+                SigningFixture.bind(connection, tenant, transactionLocal = false)
             }
             block(connection)
         }
@@ -273,7 +273,9 @@ class SharedPoolIsolationIT {
             assertEquals(SYS, row[1], row.toString())
             assertEquals("search_path=pg_catalog, $SCHEMA, pg_temp", row[2], row.toString())
             // The owner's own entry and the runtime login; never PUBLIC (an entry without a grantee name).
-            assertEquals(setOf(APP, SYS), row[3].split(';').map { it.substringBefore('=') }.toSet(), row.toString())
+            // binding_verified is the binding functions' helper: EXECUTE for the owner only.
+            val grantees = if (row[0] == "binding_verified") setOf(SYS) else setOf(APP, SYS)
+            assertEquals(grantees, row[3].split(';').map { it.substringBefore('=') }.toSet(), row.toString())
         }
         // The only other function is the publish-once trigger's (INV-Q-4334): invoker rights, fixed search_path, no
         // EXECUTE for PUBLIC.
@@ -333,6 +335,9 @@ class SharedPoolIsolationIT {
             )
         val DEFINERS =
             listOf(
+                "binding_verified", // the binding functions (INV-T-4156), created by tenancy-kernel's generator
+                "bound_actor",
+                "bound_tenant",
                 "claim_due",
                 "consumer_offset_advance",
                 "consumer_offset_lock",

@@ -37,6 +37,7 @@ class RelayLaneSizeTest {
                         return LanePermit {}
                     }
                 },
+                keys = SigningFixture.keys(),
             )
         return JdbcOutboxRelay(
             TenantScope(tenants, runner, runner, "svc:test"),

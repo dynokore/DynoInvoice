@@ -32,10 +32,7 @@ class KillableTransactionRunner(
         val tenant = tenants.current()
         val connection = dataSource.connection
         connection.autoCommit = false
-        connection.prepareStatement("select set_config('app.tenant_id', ?, true)").use {
-            it.setString(1, tenant.toString())
-            it.execute()
-        }
+        SigningFixture.bind(connection, tenant.value, tenants.currentActor() ?: OutboxPostgresFixture.WORKLOAD)
         bound.set(connection)
         try {
             val result = block()

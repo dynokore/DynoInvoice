@@ -41,7 +41,7 @@ class UnrelayedEventCheckIT {
         val eventLog: OutboxPostgresFixture,
     ) {
         val tenants = TenantContextImpl()
-        val boundary = TransactionRunnerImpl(service.appDataSource(), tenants)
+        val boundary = TransactionRunnerImpl(service.appDataSource(), tenants, null, SigningFixture.keys())
         val scope = TenantScope(tenants, boundary, boundary, OutboxPostgresFixture.WORKLOAD)
         val dsl = JooqKit.module(SCHEMA, tenants, boundary)
         val eventLogScope = eventLog.eventLogScope(TenantContextImpl())

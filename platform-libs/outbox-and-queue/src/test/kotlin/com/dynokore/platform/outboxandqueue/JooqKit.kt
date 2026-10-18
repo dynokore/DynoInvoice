@@ -155,7 +155,7 @@ object JooqKit {
     ) : AutoCloseable {
         val tenants = TenantContextImpl()
         private val pool = TestPoolFixture(url, user, password, poolName = user)
-        val runner = pool.runner(tenants, lanes)
+        val runner = pool.runner(tenants, lanes, keys = SigningFixture.keys())
         val dsl: DSLContext = TenancyJooq.dslContext(tables, tenants, runner)
         private var closeAfterUse = false
 

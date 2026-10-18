@@ -95,3 +95,11 @@ Not in 1.1.0: delivery retry with backoff, inbox retention (added in 1.3.0: `Ret
 see `JdbcRetentionPurge`), rate limits shared across worker processes
 (added in 1.7.0, see below), exporting the staleness metric and raising the incident (the composition root's sink), and scheduling of the
 loops (service-runtime).
+
+## Signed binding precondition (INV-T-5363, slice 6 of INV-T-4156)
+
+`OutboxSchema.ddl` and `QueueSchema.ddl` neither create `<schema>.bound_tenant()` and `<schema>.bound_actor()` nor
+switch role (coordinator rulings INV-Q-6586, INV-Q-6663); the module has no function that reads the binding. From
+INV-T-4156 on, a schema that holds this module's tables must also hold the two functions, created once per schema by
+tenancy-kernel's `BindingKeyMigration.ddl` as the sys login before this module's DDL (who runs it is INV-Q-6580). The
+tests do that in `SigningFixture`.

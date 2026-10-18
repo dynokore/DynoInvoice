@@ -503,7 +503,8 @@ class ProducerReplayIT {
 
         /** reconciliation-svc's runtime login: its full sync runs here, bound to the platform tenant. */
         val syncTenants = TenantContextImpl()
-        val syncTx = TransactionRunnerImpl(harness.fixture.runtimeDataSource(), syncTenants)
+        val syncTx =
+            TransactionRunnerImpl(harness.fixture.runtimeDataSource(), syncTenants, null, SigningFixture.keys())
         val syncDsl = JooqKit.module("reconciliation", syncTenants, syncTx)
         val syncWriter =
             JdbcOutboxWriter(

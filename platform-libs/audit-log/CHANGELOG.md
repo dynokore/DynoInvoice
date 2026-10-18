@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [4.0.3] - 2026-10-19
+### Changed
+- Metadata-only release (INV-T-5363, G-DVS): depends on `outbox-and-queue` 6.1.4, whose published module metadata changed; no code change.
+
 ## [4.0.2] - 2026-10-18
 ### Changed
 - Metadata-only release (INV-T-4224, G-DVS): depends on `tenancy-jooq` 1.3.0, whose published module metadata changed; no code change.

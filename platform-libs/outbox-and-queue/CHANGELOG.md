@@ -6,6 +6,11 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.1.4] - 2026-10-19
+### Changed
+- Test fixtures and tests run under the signed tenant binding (INV-T-5363, slice 6 of INV-T-4156, INV-Q-5352, INV-Q-6663): every runner built in the module's sources signs `app.binding_sig`, and the plain-connection binds sign. Comments name the tenant binding of tenancy-kernel instead of `app.tenant_id`. No behaviour or API change.
+- Precondition from INV-T-4156 on: a schema that holds this module's tables must also hold `bound_tenant()` and `bound_actor()`, created once per schema by tenancy-kernel's `BindingKeyMigration.ddl` as the sys login before this module's DDL (INV-Q-6586; who runs it is INV-Q-6580). The module's DDL neither creates them nor switches role; the tests create them in `SigningFixture`.
+
 ## [6.1.3] - 2026-10-18
 ### Changed
 - Metadata-only release (INV-T-4224, G-DVS): depends on `tenancy-jooq` 1.3.0, whose published module metadata changed; no code change.

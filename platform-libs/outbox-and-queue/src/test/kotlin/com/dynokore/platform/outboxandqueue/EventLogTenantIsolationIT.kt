@@ -228,10 +228,7 @@ class EventLogTenantIsolationIT {
         connection: Connection,
         tenant: UUID,
     ) {
-        connection.prepareStatement("select set_config('app.tenant_id', ?, true)").use {
-            it.setString(1, tenant.toString())
-            it.execute()
-        }
+        SigningFixture.bind(connection, tenant)
     }
 
     private fun audit(who: String) = OutboundEvent(TestCatalogue.AUDIT_ENTRY_RECORDED, """{"who":"$who"}""")

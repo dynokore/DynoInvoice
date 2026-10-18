@@ -200,7 +200,16 @@ class EventLogPurgeIT {
             )
             val sysNoLogin = "select count(*) from pg_roles where rolname = 'eventlog_sys' and not rolcanlogin"
             assertEquals(1, harness.count(sysNoLogin))
-            val definers = setOf("claim", "purge_batch", "record_position", "events_missing")
+            val definers =
+                setOf(
+                    "claim",
+                    "purge_batch",
+                    "record_position",
+                    "events_missing",
+                    "binding_verified",
+                    "bound_tenant",
+                    "bound_actor", // the binding functions (INV-T-4156)
+                )
             assertEquals(definers, definers(harness), "each owned by eventlog_sys")
             assertSubscriberCannotWriteWatermarks(harness)
         }
@@ -305,7 +314,7 @@ class EventLogPurgeIT {
             // The constructor refuses before any connection is taken: the data source points nowhere.
             val tenants = TenantContextImpl()
             TestPoolFixture("jdbc:postgresql://localhost:1/none", "nobody", "none").use { pool ->
-                val runner = pool.runner(tenants)
+                val runner = pool.runner(tenants, keys = SigningFixture.keys())
                 JdbcEventLogPurge(
                     TenantScope(tenants, runner, runner, OutboxPostgresFixture.WORKLOAD),
                     DSL.using(SQLDialect.POSTGRES),

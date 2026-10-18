@@ -9,8 +9,8 @@ import org.jooq.impl.DSL
 /**
  * DDL for the partition-ordered queue (INV-REQ-540, INV-REQ-1072): one `work_queue` table in a service's own
  * schema. It is tenant data, so it carries the mandatory `tenant_id` and tenancy-kernel's forced row-level
- * security keyed on `app.tenant_id`; the runtime login `<svc>_runtime` enqueues, reads the payload, completes and
- * releases under that tenant policy only. Finding and claiming work across tenants is the NOLOGIN `<svc>_sys`'s,
+ * security keyed on the tenant binding of tenancy-kernel; the runtime login `<svc>_runtime` enqueues, reads the
+ * payload, completes and releases under that tenant policy only. Finding and claiming work across tenants is the NOLOGIN `<svc>_sys`'s,
  * reached only through its SECURITY DEFINER function [CLAIM_DUE] (static SQL, `SET search_path = pg_catalog,
  * <schema>, pg_temp`, EXECUTE for the runtime login only; owner rulings INV-Q-3951, INV-Q-3953, INV-ADR-3968): it returns the
  * claim columns of one claimed item, never its payload, and takes its partition lock with
@@ -62,6 +62,13 @@ object QueueSchema {
         )
     }
 
+    /**
+     * `CREATE TABLE` statements for the queue tables in [schema], the grants for [runtimeRole] and the objects of [sysRole].
+     *
+     * Precondition (coordinator rulings INV-Q-6586, INV-Q-6663): this DDL neither creates `bound_tenant()` and
+     * `bound_actor()` nor switches role. From INV-T-4156 on the schema must already hold them, from tenancy-kernel's
+     * `BindingKeyMigration.ddl` run once per schema as the sys login before this DDL; who runs it is INV-Q-6580.
+     */
     fun ddl(
         schema: String,
         runtimeRole: String,

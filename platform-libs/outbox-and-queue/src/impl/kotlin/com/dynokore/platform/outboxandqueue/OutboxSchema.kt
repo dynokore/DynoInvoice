@@ -15,8 +15,8 @@ import org.jooq.impl.DSL
  *
  * One runtime login per service (INV-REQ-1189 b2, INV-ADR-3968; owner rulings INV-Q-3951, INV-Q-3953):
  * - Tenant tables ([OUTBOX], [OUTBOX_SEQUENCE], [INBOX], [CONSUMER_SEQUENCE], [DEAD_LETTER]) carry the mandatory
- *   `tenant_id` and tenancy-kernel's forced row-level security keyed on `app.tenant_id` ([TenantRlsMigration.ddl],
- *   INV-REQ-854). The runtime login `<svc>_runtime` works on them under that tenant policy only; no permissive
+ *   `tenant_id` and tenancy-kernel's forced row-level security keyed on the tenant binding of tenancy-kernel
+ *   ([TenantRlsMigration.ddl], INV-REQ-854). The runtime login `<svc>_runtime` works on them under that tenant policy only; no permissive
  *   `USING (true)` policy ever targets it.
  * - Every cross-tenant operation targets the NOLOGIN `<svc>_sys` only, and is reached only through objects
  *   `<svc>_sys` owns: the column-limited claim views [OUTBOX_CLAIM_VIEW] and
@@ -154,7 +154,13 @@ object OutboxSchema {
         ) + QueueSchema.jooqTables(s)
     }
 
-    /** `CREATE TABLE` statements for every table in [schema], the grants for [runtimeRole] and the objects of [sysRole]. */
+    /**
+     * `CREATE TABLE` statements for every table in [schema], the grants for [runtimeRole] and the objects of [sysRole].
+     *
+     * Precondition (coordinator rulings INV-Q-6586, INV-Q-6663): this DDL neither creates `bound_tenant()` and
+     * `bound_actor()` nor switches role. From INV-T-4156 on the schema must already hold them, from tenancy-kernel's
+     * `BindingKeyMigration.ddl` run once per schema as the sys login before this DDL; who runs it is INV-Q-6580.
+     */
     fun ddl(
         schema: String,
         runtimeRole: String,

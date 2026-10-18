@@ -142,7 +142,7 @@ class OutboxPostgresFixture(
         val tenants = TenantContextImpl()
         val pool = TestPoolFixture(jdbcUrl(), MIGRATE, MIGRATE_PASSWORD, poolName = MIGRATE)
         try {
-            val runner = pool.runner(tenants, null)
+            val runner = pool.runner(tenants, null, keys = SigningFixture.keys())
             val dsl = TenancyJooq.dslContext(EventLogSchema.jooqTables(emptyList()), tenants, runner)
             tenants.bindPlatform(WORKLOAD) { runner.inTransaction { EventLogSchema.writeRetention(dsl, retention) } }
         } finally {
@@ -227,7 +227,7 @@ class OutboxPostgresFixture(
         source: DataSource = runtimePool(),
         principal: String = WORKLOAD,
     ): TenantScope {
-        val transactions = TransactionRunnerImpl(source, tenants)
+        val transactions = TransactionRunnerImpl(source, tenants, null, SigningFixture.keys())
         return TenantScope(tenants, transactions, transactions, principal)
     }
 
@@ -239,6 +239,7 @@ class OutboxPostgresFixture(
         schema: String,
         extraDdl: String = "",
     ) {
+        runAsAdmin(SigningFixture.provisioning(schema, SYS, APP))
         run(OutboxSchema.ddl(schema, APP, SYS) + "\n" + extraDdl)
     }
 
@@ -254,6 +255,7 @@ class OutboxPostgresFixture(
         retention: Retention = Retention(),
     ) {
         val topics = eventLogTopics(catalogue)
+        runAsAdmin(SigningFixture.provisioning(EventLogSchema.SCHEMA, EVENTLOG_SYS, APP))
         runEventLog(EventLogSchema.schemaDdl(EVENTLOG_SYS))
         topics.forEach { runEventLog(EventLogSchema.topicDdl(it, EVENTLOG_SYS)) }
         runEventLog(EventLogSchema.functionsDdl(topics, EVENTLOG_SYS, PURGE))
@@ -277,8 +279,8 @@ class OutboxPostgresFixture(
     }
 
     /**
-     * Records, for every row inserted into [table] (`schema.table`) from now on, the transaction's `app.actor` (the
-     * actor tenancy-kernel bound, INV-REQ-854 b1), so a test can read it back with [capturedActors]; forgets what an
+     * Records, for every row inserted into [table] (`schema.table`) from now on, the transaction's bound actor (the
+     * actor tenancy-kernel's tenant binding signed, INV-REQ-854 b1, read through the schema's `bound_actor()`), so a test can read it back with [capturedActors]; forgets what an
      * earlier call captured on [table].
      */
     fun captureActors(table: String) {
@@ -287,8 +289,10 @@ class OutboxPostgresFixture(
             create table if not exists public.captured_actor (seq bigserial primary key, tbl text not null, actor text);
             create or replace function public.capture_actor() returns trigger language plpgsql security definer
                 set search_path = pg_catalog, public as ${'$'}${'$'}
+            declare bound text;
             begin
-                insert into public.captured_actor (tbl, actor) values (tg_table_schema || '.' || tg_table_name, current_setting('app.actor', true));
+                execute format('select %I.bound_actor()', tg_table_schema) into bound;
+                insert into public.captured_actor (tbl, actor) values (tg_table_schema || '.' || tg_table_name, bound);
                 return null;
             end ${'$'}${'$'};
             delete from public.captured_actor where tbl = '$table';
@@ -298,7 +302,7 @@ class OutboxPostgresFixture(
         )
     }
 
-    /** The `app.actor` of each row inserted into [table] since [captureActors], in insert order. */
+    /** The bound actor of each row inserted into [table] since [captureActors], in insert order. */
     fun capturedActors(table: String): List<String?> =
         adminDataSource().connection.use { connection ->
             connection.prepareStatement("select actor from public.captured_actor where tbl = ? order by seq").use {
@@ -394,7 +398,9 @@ class OutboxPostgresFixture(
         fun serviceInitSql(
             schema: String,
             extraDdl: String = "",
-        ): String = OutboxSchema.ddl(schema, APP, SYS) + "\n" + extraDdl
+        ): String =
+            SigningFixture.provisioning(schema, SYS, APP) + "\nSET ROLE $OWNER;\n" +
+                OutboxSchema.ddl(schema, APP, SYS) + "\n" + extraDdl
 
         /**
          * The event log for [catalogue] as init SQL, as [createTopics] builds it: it switches to the event log's
@@ -405,7 +411,8 @@ class OutboxPostgresFixture(
             retention: Retention = Retention(),
         ): String =
             buildString {
-                append("RESET ROLE;\nSET ROLE $MIGRATE;\n")
+                append(SigningFixture.provisioning(EventLogSchema.SCHEMA, EVENTLOG_SYS, APP)).append('\n')
+                append("SET ROLE $MIGRATE;\n")
                 append(eventLogBody(catalogue, retention))
                 append("RESET ROLE;\nSET ROLE $OWNER;\n")
             }
@@ -422,7 +429,9 @@ class OutboxPostgresFixture(
         ): String =
             buildString {
                 append("RESET ROLE;\ncreate database $HA_DATABASE;\n\\connect $HA_DATABASE\n")
-                append("create schema ${EventLogSchema.SCHEMA} authorization $MIGRATE;\nSET ROLE $MIGRATE;\n")
+                append("create schema ${EventLogSchema.SCHEMA} authorization $MIGRATE;\n")
+                append(SigningFixture.provisioning(EventLogSchema.SCHEMA, EVENTLOG_SYS, APP)).append('\n')
+                append("SET ROLE $MIGRATE;\n")
                 append(eventLogBody(catalogue, retention))
                 append("RESET ROLE;\n")
             }
@@ -451,7 +460,7 @@ class OutboxPostgresFixture(
 
         /**
          * Init SQL that records, for every row inserted into each of [tables] (`schema.table`, which must exist by
-         * then), the transaction's `app.actor` (the actor tenancy-kernel bound, INV-REQ-854 b1) in
+         * then), the transaction's bound actor (the actor tenancy-kernel's tenant binding signed, INV-REQ-854 b1; read through the schema's `bound_actor()`) in
          * `public.captured_actor`, so a test can read it back (INV-Q-5119: the trigger is container provisioning).
          * It runs as the superuser for the capture table and function, then as the owner for the triggers.
          */
@@ -467,10 +476,12 @@ class OutboxPostgresFixture(
                         "language plpgsql security definer\n",
                 )
                 append("    set search_path = pg_catalog, public as ${'$'}${'$'}\n")
+                append("declare bound text;\n")
                 append("begin\n")
+                append("    execute format('select %I.bound_actor()', tg_table_schema) into bound;\n")
                 append(
                     "    insert into public.captured_actor (tbl, actor) values " +
-                        "(tg_table_schema || '.' || tg_table_name, current_setting('app.actor', true));\n",
+                        "(tg_table_schema || '.' || tg_table_name, bound);\n",
                 )
                 append("    return null;\n")
                 append("end ${'$'}${'$'};\n")

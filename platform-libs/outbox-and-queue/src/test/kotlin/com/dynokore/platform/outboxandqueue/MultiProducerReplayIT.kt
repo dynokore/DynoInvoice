@@ -103,7 +103,8 @@ class MultiProducerReplayIT {
         producers: List<String>,
     ) {
         val syncTenants = TenantContextImpl()
-        val syncTx = TransactionRunnerImpl(harness.fixture.runtimeDataSource(), syncTenants)
+        val syncTx =
+            TransactionRunnerImpl(harness.fixture.runtimeDataSource(), syncTenants, null, SigningFixture.keys())
         val syncDsl = JooqKit.module("evidence", syncTenants, syncTx)
         val clock = Clock.systemUTC()
         val catalogue = harness.catalogue

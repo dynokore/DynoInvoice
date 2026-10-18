@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [9.1.1] - 2026-10-19
+### Changed
+- Metadata-only release (INV-T-5363, G-DVS): depends on `outbox-and-queue` 6.1.4, whose published module metadata changed; no code change.
+
 ## [9.1.0] - 2026-10-18
 ### Added
 - The jOOQ convenience layer (INV-T-4224; INV-ADR-3968 items 4a and 4c, INV-REQ-854 b8; owner ruling INV-Q-4214, coordinator

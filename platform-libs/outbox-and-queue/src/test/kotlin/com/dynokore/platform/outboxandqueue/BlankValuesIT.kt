@@ -132,10 +132,7 @@ class BlankValuesIT {
         sql: String,
         arguments: List<String>,
     ): Long {
-        c.prepareStatement("select set_config('app.tenant_id', ?, true)").use {
-            it.setString(1, tenant.toString())
-            it.execute()
-        }
+        SigningFixture.bind(c, tenant)
         return c.prepareStatement(sql).use { s ->
             arguments.forEachIndexed { i, value -> s.setString(i + 1, value) }
             s.executeQuery().use { rs ->
