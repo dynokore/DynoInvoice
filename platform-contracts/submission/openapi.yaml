@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: submission API
-  version: 1.3.0
+  version: 1.4.0
   description: >-
     Contract-first source of truth for submission (API-01, STK-44). The
     `submission-contract` module generates its server interfaces and DTOs
@@ -63,6 +63,10 @@ paths:
         point in the variation-point catalogue; this contract copies no value
         set. The service always sends `checkId` too: each invocation appends
         one record (INV-REQ-951), read through listReadinessChecks.
+
+
+        While a rendition finding of the entity is open, the response carries
+        it in `entityFindings`, advisory only (INV-REQ-648, INV-Q-6323).
 
 
         Timeout class (INV-REQ-1204 b7, INV-Q-3476): `API gateway -> any
@@ -1138,7 +1142,27 @@ components:
           minLength: 1
         outcomeValues:
           $ref: '#/components/schemas/OutcomeValues'
+        entityFindings:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/EntityFinding'
+          description: >-
+            Present only while a finding of the entity is open (the open
+            rendition finding of INV-REQ-648, INV-AC-674). It is advisory:
+            `ready` and `tiers` never depend on it.
       required: [entityRef, periodRef, ready, tiers, computedAt]
+    EntityFinding:
+      type: object
+      properties:
+        code:
+          type: string
+          pattern: ^[A-Z]{3}-[0-9]{3}$
+          description: A code of catalogue/errors/error-codes.yaml, for example PAY-014.
+        raisedAt:
+          type: string
+          format: date-time
+      required: [code, raisedAt]
     DrainResult:
       type: object
       properties:
