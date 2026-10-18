@@ -1,0 +1,1 @@
+{ "verdict": "BLOCK", "reasons": [{ "code": "PAY-001", "message": "Schematron rule failed", "severity": "BLOCK", "overridable": false }], "packVersions": [{ "packType": "severity-override", "version": "1.0.0" }, { "packType": "business-rules", "version": "2.3.1" }] }

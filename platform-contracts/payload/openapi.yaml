@@ -170,7 +170,7 @@ paths:
       x-timeout: 2000
       x-sync-edge: ingestion-svc->payload-svc
       x-error-codes: [PAY-001, PAY-002, PAY-003, PAY-004, PAY-005, PAY-006, PAY-009, PAY-011, PAY-013]
-      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-324, INV-REQ-326, INV-REQ-474, INV-REQ-475, INV-REQ-476, INV-REQ-478, INV-REQ-810]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-324, INV-REQ-326, INV-REQ-474, INV-REQ-475, INV-REQ-476, INV-REQ-478, INV-REQ-499, INV-REQ-810]
       x-operation:
         role: ingest
         scope: entity
@@ -207,6 +207,8 @@ paths:
                     specVersion: "PINT-SG-1.2"
                     customizationId: "SG:PINT:1.2"
                     reasons: []
+                    packVersions:
+                      - { packType: "severity-override", version: "1.0.0" }
                 variance:
                   summary: Line sum differs from the stated total beyond the tolerance — WARN, payload built
                   value:
@@ -700,7 +702,31 @@ components:
             x-extensible-enum: true
         registerLookup:
           $ref: '#/components/schemas/RegisterLookup'
+        packVersions:
+          type: array
+          minItems: 1
+          maxItems: 20
+          description: >-
+            The pack versions the verdict was computed from, one item per pack;
+            no two items share a packType (producer-enforced). For a validation
+            that ran Layer 1 an item with packType `severity-override` carries
+            the version of the severity override pack applied (INV-REQ-499).
+          items:
+            $ref: '#/components/schemas/AppliedPackVersion'
       required: [verdict, reasons]
+    AppliedPackVersion:
+      type: object
+      properties:
+        packType:
+          type: string
+          minLength: 1
+          maxLength: 40
+          description: A pack type name, for example severity-override.
+        version:
+          type: string
+          minLength: 1
+          maxLength: 32
+      required: [packType, version]
     OverrideValidationRequest:
       type: object
       properties:

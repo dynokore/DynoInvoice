@@ -48,3 +48,8 @@ RenditionSampleResult.result.PASSED	schema_enum_value	openapi.yaml	INV-AC-681
 RenditionSampleResult.result.FAILED	schema_enum_value	openapi.yaml	INV-AC-681
 open	property	schemas/rendition-finding-changed-payload.schema.json	INV-REQ-648
 sequence	property	schemas/rendition-finding-changed-payload.schema.json	INV-REQ-648
+ValidationResult.packVersions	schema_property	openapi.yaml	INV-REQ-499
+AppliedPackVersion.packType	schema_property	openapi.yaml	INV-REQ-499
+AppliedPackVersion.version	schema_property	openapi.yaml	INV-REQ-499
+packVersions	property	schemas/payload-rejected-payload.schema.json	INV-REQ-499
+packType	property	schemas/payload-rejected-payload.schema.json	INV-REQ-499

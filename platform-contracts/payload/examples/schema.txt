@@ -6,3 +6,6 @@
 ../openapi.yaml#/components/schemas/RecordRenditionSampleRequest record-rendition-sample-request-*.json
 ../openapi.yaml#/components/schemas/RenditionSampleResult rendition-sample-result-*.json
 ../schemas/rendition-finding-changed-payload.schema.json rendition-finding-changed-*.json
+../openapi.yaml#/components/schemas/AppliedPackVersion applied-pack-version-*.json
+../openapi.yaml#/components/schemas/ValidationResult validation-result-*.json
+../schemas/payload-rejected-payload.schema.json payload-rejected-*.json

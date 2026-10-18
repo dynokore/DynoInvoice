@@ -24,6 +24,32 @@
       "type": "object",
       "description": "The payload-build validation trace (opaque to this envelope; interpreted by console-bff and notification-svc).",
       "additionalProperties": true
+    },
+    "packVersions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 20,
+      "description": "The pack versions a blocked verdict was computed from (the record of a BLOCK result, which the 422 error envelope of validateIssuance does not carry), one item per pack; no two items share a packType (producer-enforced). For a validation that ran Layer 1 an item with packType severity-override carries the version of the severity override pack applied (INV-REQ-499).",
+      "items": {
+        "type": "object",
+        "properties": {
+          "packType": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40,
+            "description": "A pack type name, for example severity-override."
+          },
+          "version": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          }
+        },
+        "required": [
+          "packType",
+          "version"
+        ]
+      }
     }
   },
   "required": [
