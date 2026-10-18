@@ -3,10 +3,12 @@ package com.dynokore.platform.serviceruntime.composition
 import com.dynokore.platform.auditlog.AuditWriter
 import com.dynokore.platform.configresolver.ConfigPurge
 import com.dynokore.platform.configresolver.JdbcConfigPurge
+import com.dynokore.platform.configresolver.JdbcOptionValueMaximum
 import com.dynokore.platform.configresolver.JdbcPolicyHistory
 import com.dynokore.platform.configresolver.JdbcPolicyReader
 import com.dynokore.platform.configresolver.JdbcPolicyWriter
 import com.dynokore.platform.configresolver.JdbcResolutionRecorder
+import com.dynokore.platform.configresolver.OptionValueMaximum
 import com.dynokore.platform.configresolver.PolicyHistory
 import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.configresolver.PolicyWriter
@@ -82,6 +84,33 @@ class ConfigResolverWiringTest {
                 context.getBean(ConfigPurge::class.java) shouldBeSameInstanceAs purge
                 context.getBean(ResolutionRecorder::class.java) shouldBeSameInstanceAs recorder
             }
+    }
+
+    @Test
+    fun `with a TransactionRunner the option value maximum is a bean`() {
+        withRunner.run { context ->
+            context.startupFailure shouldBe null
+            context.getBean("optionValueMaximum").shouldBeInstanceOf<JdbcOptionValueMaximum>()
+            context.getBeansOfType(OptionValueMaximum::class.java).size shouldBe 1
+        }
+    }
+
+    @Test
+    fun `without a TransactionRunner there is no option value maximum`() {
+        base.run { context ->
+            context.startupFailure shouldBe null
+            context.containsBean("optionValueMaximum") shouldBe false
+            context.getBeanNamesForType(OptionValueMaximum::class.java).size shouldBe 0
+        }
+    }
+
+    @Test
+    fun `a service's own option value maximum replaces the default`() {
+        val maximum = mockk<OptionValueMaximum>()
+        withRunner.withBean(OptionValueMaximum::class.java, { maximum }).run { context ->
+            context.startupFailure shouldBe null
+            context.getBean(OptionValueMaximum::class.java) shouldBeSameInstanceAs maximum
+        }
     }
 
     @Test

@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [4.1.0] - 2026-10-18
+### Added
+- `OptionValueMaximum` port with `JdbcOptionValueMaximum`, and the sys-owned function `config_option_value_maximum` (`ConfigSchema.OPTION_VALUE_MAXIMUM`): the largest numeric member of an option's stored value over every tenant and scope, readable in a platform transaction only (INV-T-6538; INV-Q-6529 A, INV-Q-6527 A). `ConfigSchema.ddl` gives the sys role `select` on nine columns of `config_setting` and a select-only policy. A service embeds the function by a Flyway migration of its own.
+
 ## [4.0.10] - 2026-10-18
 ### Changed
 - Metadata-only release (INV-T-5361, G-DVS): depends on `audit-log` 4.0.0, whose published module metadata changed; no code change.

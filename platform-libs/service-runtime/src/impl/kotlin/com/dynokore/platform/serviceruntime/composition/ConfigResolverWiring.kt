@@ -7,10 +7,12 @@ import com.dynokore.platform.configresolver.ConfigTables
 import com.dynokore.platform.configresolver.DelegationProbe
 import com.dynokore.platform.configresolver.DeploymentForm
 import com.dynokore.platform.configresolver.JdbcConfigPurge
+import com.dynokore.platform.configresolver.JdbcOptionValueMaximum
 import com.dynokore.platform.configresolver.JdbcPolicyHistory
 import com.dynokore.platform.configresolver.JdbcPolicyReader
 import com.dynokore.platform.configresolver.JdbcPolicyWriter
 import com.dynokore.platform.configresolver.JdbcResolutionRecorder
+import com.dynokore.platform.configresolver.OptionValueMaximum
 import com.dynokore.platform.configresolver.PolicyHistory
 import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.configresolver.PolicyWriter
@@ -89,6 +91,16 @@ class ConfigResolverWiring {
         tenants: TenantContext,
         modules: ModuleProperties,
     ): JdbcConfigPurge = JdbcConfigPurge(moduleDsl(transactionRunner, tenants, modules), modules.requireSchema())
+
+    @Bean
+    @ConditionalOnBean(TransactionRunner::class)
+    @ConditionalOnMissingBean(OptionValueMaximum::class)
+    fun optionValueMaximum(
+        transactionRunner: TransactionRunner,
+        tenants: TenantContext,
+        modules: ModuleProperties,
+    ): JdbcOptionValueMaximum =
+        JdbcOptionValueMaximum(moduleDsl(transactionRunner, tenants, modules), modules.requireSchema())
 
     @Bean
     @ConditionalOnBean(TransactionRunner::class)

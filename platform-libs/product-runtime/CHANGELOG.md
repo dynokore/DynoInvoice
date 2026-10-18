@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.0.22] - 2026-10-18
+### Changed
+- Metadata-only release (INV-T-6538, G-DVS): depends on `service-runtime` 8.2.0 and `config-resolver` 4.1.0, whose published module metadata changed; no code change.
+
 ## [1.0.21] - 2026-10-18
 ### Changed
 - Metadata-only release (INV-T-5361, G-DVS): depends on `audit-log` 4.0.0, whose published module metadata changed; no code change.

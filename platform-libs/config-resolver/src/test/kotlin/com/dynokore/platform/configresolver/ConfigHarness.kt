@@ -62,6 +62,10 @@ class ConfigHarness(
     val reader = JdbcPolicyReader(dsl, TestCatalogue.catalogue, form, SCHEMA)
     val recorder = JdbcResolutionRecorder(dsl, SCHEMA, CLOCK)
     val purge = JdbcConfigPurge(dsl, SCHEMA)
+    val maximum = JdbcOptionValueMaximum(dsl, SCHEMA)
+
+    /** A probe on the migration login, which is a member of `config_sys`: `set_config('role', 'config_sys', true)`. */
+    val ownerProbe: TenancyProbe = TenancyProbe.connect(container.jdbcUrl, "config_owner", "config_owner_pw")
 
     private val setting: Table<*> = DSL.table(DSL.name(SCHEMA, ConfigSchema.SETTING))
     private val installationSetting: Table<*> = DSL.table(DSL.name(SCHEMA, ConfigSchema.INSTALLATION_SETTING))

@@ -51,6 +51,13 @@ object ConfigSchema {
      */
     const val PURGE_TENANT = "config_purge_tenant"
 
+    /**
+     * `config_option_value_maximum(vp_key, option_key)`: the largest numeric member of the value stored for the option
+     * over every tenant and scope, as a number only; refuses unless the bound tenant is the platform tenant
+     * (INV-T-6538, INV-Q-6529 A, INV-Q-6527 A). A service embeds it by a Flyway migration of its own.
+     */
+    const val OPTION_VALUE_MAXIMUM = "config_option_value_maximum"
+
     /** `config_installation_mode()`: the [EventMode] [ddl] fixed, read by [WRITE_INSTALLATION_SETTING]. */
     const val INSTALLATION_MODE = "config_installation_mode"
 
@@ -153,6 +160,7 @@ object ConfigSchema {
             writeInstallationSetting(schema, runtimeRole, sysRole),
             purgeSubject(schema, runtimeRole, sysRole),
             purgeTenant(schema, runtimeRole, sysRole),
+            optionValueMaximum(schema, runtimeRole, sysRole),
         ).joinToString("\n")
     }
 
@@ -281,7 +289,10 @@ object ConfigSchema {
             grant select on $s.$INSTALLATION_SETTING to $runtime;
             grant insert on $s.$INSTALLATION_SETTING to $sys;
             grant select (tenant_id, subject_type, subject_ref) on $s.$RESOLVED_VALUE to $sys;
-            grant select (tenant_id) on $s.$SETTING, $s.$RELAXATION_ACKNOWLEDGEMENT to $sys;
+            grant select (tenant_id) on $s.$RELAXATION_ACKNOWLEDGEMENT to $sys;
+            grant select (tenant_id, vp_key, scope_level, scope_id, source, option_keys, option_values, effective_from, seq)
+                on $s.$SETTING to $sys;
+            create policy ${SETTING}_sys_select on $s.$SETTING for select to $sys using (true);
             grant delete on $s.$SETTING, $s.$RESOLVED_VALUE, $s.$RELAXATION_ACKNOWLEDGEMENT to $sys;
             """.trimIndent()
     }
@@ -589,6 +600,75 @@ object ConfigSchema {
             alter function $s.$PURGE_TENANT(uuid) owner to $sys;
             revoke all on function $s.$PURGE_TENANT(uuid) from public;
             grant execute on function $s.$PURGE_TENANT(uuid) to $runtime;
+            revoke create on schema $s from $sys;
+            """.trimIndent()
+    }
+
+    @Suppress("LongMethod") // one static function body, kept whole so it can be read as the database runs it
+    private fun optionValueMaximum(
+        schema: String,
+        runtimeRole: String,
+        sysRole: String,
+    ): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        val runtime = SqlIdentifier.require(runtimeRole, "runtime role")
+        val sys = SqlIdentifier.require(sysRole, "sys role")
+        return """
+            create function $s.$OPTION_VALUE_MAXIMUM(p_vp_key text, p_option_key text) returns numeric
+            language plpgsql stable security definer set search_path = pg_catalog, $s, pg_temp as $$
+            declare
+                v_tenant uuid := nullif(current_setting('app.tenant_id', true), '')::uuid;
+            begin
+                if v_tenant is distinct from '$PLATFORM'::uuid then
+                    raise exception 'the installation-wide maximum is read in a platform transaction'
+                        using errcode = '42501';
+                end if;
+                if p_vp_key is null or p_vp_key !~ '^VP-[0-9]{2,3}$' then
+                    raise exception 'the variation point key is required' using errcode = '22023';
+                end if;
+                if p_option_key is null or p_option_key ~ '${BlankText.SQL_BLANK}' then
+                    raise exception 'the option key is required' using errcode = '22023';
+                end if;
+                return (
+                    with scoped as (
+                        select tenant_id, scope_level, scope_id, source, option_keys, option_values, effective_from, seq,
+                            bool_or(source = 'OVERRIDE') over (partition by tenant_id, scope_level, scope_id)
+                                as has_override
+                        from $s.$SETTING
+                        where vp_key = p_vp_key
+                    ), chosen as (
+                        select * from scoped where source = 'OVERRIDE' or not has_override
+                    ), ranked as (
+                        select *,
+                            row_number() over (
+                                partition by tenant_id, scope_level, scope_id, effective_from <= current_date
+                                order by effective_from desc, seq desc) as rank_in_force,
+                            row_number() over (
+                                partition by tenant_id, scope_level, scope_id, effective_from
+                                order by seq desc) as rank_on_date
+                        from chosen
+                    ), counted as (
+                        select option_values -> p_option_key as member
+                        from ranked
+                        where p_option_key = any (option_keys)
+                            and case when effective_from <= current_date then rank_in_force else rank_on_date end = 1
+                    )
+                    select max(
+                        case jsonb_typeof(member)
+                            when 'number' then (member #>> '{}')::numeric
+                            when 'object' then (
+                                select max((e.value #>> '{}')::numeric)
+                                from jsonb_each(member) as e
+                                where jsonb_typeof(e.value) = 'number')
+                        end)
+                    from counted
+                );
+            end
+            $$;
+            grant create on schema $s to $sys;
+            alter function $s.$OPTION_VALUE_MAXIMUM(text, text) owner to $sys;
+            revoke all on function $s.$OPTION_VALUE_MAXIMUM(text, text) from public;
+            grant execute on function $s.$OPTION_VALUE_MAXIMUM(text, text) to $runtime;
             revoke create on schema $s from $sys;
             """.trimIndent()
     }

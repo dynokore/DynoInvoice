@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [8.2.0] - 2026-10-18
+### Added
+- `ConfigResolverWiring` binds `OptionValueMaximum` (`JdbcOptionValueMaximum`) over the module's DSLContext when a `TransactionRunner` exists, replaceable by a service's own bean (INV-T-6538, INV-Q-6611; config-resolver 4.1.0).
+
 ## [8.1.9] - 2026-10-18
 ### Changed
 - Metadata-only release (INV-T-5361, G-DVS): depends on `audit-log` 4.0.0, whose published module metadata changed; no code change.

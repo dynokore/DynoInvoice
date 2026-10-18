@@ -89,5 +89,11 @@ Released on its own version with its own changelog. Services consume it only as 
   first write wins (INV-REQ-1068 b2, INV-AC-2093, INV-Q-2938).
 - `ConfigPurge`: `purgeSubject` and `purgeTenant` for the owning service's retention (VP-43) and tenant
   offboarding (INV-Q-2938); from 2.0.0 through sys-owned functions on the runtime login.
+- `OptionValueMaximum.maximum(key, option)`: the installation-wide maximum of an option's numeric value (the largest
+  numeric member of the value stored over every tenant and scope; `null` when none), for evidence-svc's retention
+  figure (INV-T-6538). It reads through the sys-owned function `config_option_value_maximum` (`ConfigSchema.OPTION_VALUE_MAXIMUM`),
+  which refuses unless the bound tenant is the platform tenant (42501) and returns a number only. `JdbcOptionValueMaximum`
+  implements it. A service embeds the new function by a new Flyway migration of its own, with the sys role's column
+  grants and select-only policy on `config_setting` that `ConfigSchema.ddl` now carries; an applied migration is never edited.
 - `ConfigSchema.ddl(schema, appRole, platformRole, purgeRole)` (2.0.0: `ddl(schema, runtimeRole, sysRole, mode)`):
   the three tables, for the service's own Flyway migration (TPL-12).
