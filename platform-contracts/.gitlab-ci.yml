@@ -35,6 +35,7 @@ include:
       ac_pattern: 'INV-AC-\d+(?!\d)'
 
 variables:
+  GST_GRADLE_CACHE_POLICY: "pull"   # CI-FAST B3: catalogue-verify and contracts-codegen-compile set pull-push on main
   SPECTRAL_IMAGE: "stoplight/spectral@sha256:a07aa4455367b9501b574423b684ab0ef3ee42556089013583318ec015249050"
   OASDIFF_IMAGE: "tufin/oasdiff@sha256:0286f138545a39010525df6c1bea67ffafacb384ef800effffa63bbd04718ce5"
   ASYNCAPI_CLI_IMAGE: "asyncapi/cli@sha256:2240534054590b3d41d691fdf88e1f7a1e581b9cc4fb1d4af65ca93434aa681b"
@@ -300,8 +301,22 @@ catalogue-verify:
   needs: !reference [.gst-rebase-needs, needs]
   extends: .gst-mr-only-on-catalogue
   image: "$GRADLE_IMAGE"
+  tags: [inv-arm64]   # CI-FAST D1: the Gradle jobs run on runner 91 (arm64), as libs/build do
+  # CI-FAST B3: only the main pipeline pushes this cache (about 70 s of archiving per run); merge-request
+  # pipelines pull it. The cache is not separated per branch protection, so merge requests read main's copy.
+  # The rules repeat .gst-mr-only-on-catalogue (a job's rules replace the extended ones) with the main rule first.
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      variables:
+        GST_GRADLE_CACHE_POLICY: pull-push
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes: ["catalogue/**/*", ".gitlab-ci.yml"]
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    - when: on_success
   cache:
     key: "gradle-catalogue-$CI_PROJECT_ID"
+    policy: "$GST_GRADLE_CACHE_POLICY"
     paths:
       - .gradle-cache/caches
   before_script:
@@ -394,6 +409,7 @@ publish-guard-dry-run:
   # uploads. No allow_failure: a failure blocks the merge.
   stage: publish
   image: "$GRADLE_IMAGE"
+  tags: [inv-arm64]   # CI-FAST D1: the Gradle jobs run on runner 91 (arm64), as libs/build do
   needs: []
   variables:
     MAVEN_REGISTRY_PROJECT_ID: "$CI_PROJECT_ID"
@@ -506,10 +522,19 @@ contracts-codegen-compile:
   stage: verify
   needs: []
   image: "$GRADLE_IMAGE"
+  tags: [inv-arm64]   # CI-FAST D1: the Gradle jobs run on runner 91 (arm64), as libs/build do
   variables:
     PLATFORM_BUILD_REF: "218934eae564ed643a48209d6b40f644402ac7ba" # main: adds gst.contract-server/-client/-event-types (INV-T-2847) + its CVE/signature-verification follow-ups; MR !6 & !7 fix failing modules
+  # CI-FAST B3: only the main pipeline pushes this cache (about 70 s of archiving per run); merge-request
+  # pipelines pull it. The cache is not separated per branch protection, so merge requests read main's copy.
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      variables:
+        GST_GRADLE_CACHE_POLICY: pull-push
+    - when: on_success
   cache:
     key: "gradle-codegen-self-test-$CI_PROJECT_ID"
+    policy: "$GST_GRADLE_CACHE_POLICY"
     paths:
       - .gradle-cache/caches
   before_script:
