@@ -1,0 +1,14 @@
+# gradle/libs.versions.toml — gateway-authz's own version catalogue (STK-01 §1, STK §1b(a)).
+#
+# Every consuming repository keeps its own catalogue (platform-libs' header); gst.kotlin-base's
+# `checkDependencyCatalogUsage` enforces that every dependency goes through an alias here.
+
+[versions]
+# The gst.* convention plugins (platform-build's registry, project 225); a published release, 0.18.0 or later (INV-Q-4811).
+platformBuild = "0.21.0"
+# STK-05: Spring Boot 4.1.x, the same patch platform-libs builds service-runtime against; also the Spring Boot
+# Gradle plugin's version (settings.gradle.kts).
+springBoot = "4.1.1"
+
+[libraries]
+springBoot-dependencies = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "springBoot" }

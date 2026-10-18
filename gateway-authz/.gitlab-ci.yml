@@ -1,0 +1,13 @@
+# .gitlab-ci.yml — gateway-authz (INV-T-6522, INV-ADR-4051).
+#
+# platform-build's shared CI templates (ci/README.md), as every Kotlin repository: build, unit tests, lint, Semgrep,
+# Trivy and the licence checks. No IMAGE_NAME is set and ci/image.gitlab-ci.yml and ci/publish.gitlab-ci.yml are not
+# included: the image, SBOM, image scan, signature and publish jobs come with INV-T-4056. The convention plugins and
+# platform-libs come from their package registries with the job token (settings.gradle.kts).
+
+include:
+  - project: 'invoice/platform-build'
+    ref: main
+    file:
+      - 'ci/stages.gitlab-ci.yml'   # always first: stages, workflow rules, shared variables
+      - 'ci/build.gitlab-ci.yml'    # compile, unit tests, coverage, lint, Semgrep, Trivy
