@@ -542,15 +542,9 @@ object EventLogSchema {
     private fun purgeBranch(topic: Topic): String {
         val topicKey = SqlIdentifier.require(tableName(topic.name), "topic table")
         val content = if (topic.contentTopic) "true" else "false"
-        // Pack period if marked, else content window, else event-log retention (literals, so the SQL guard checks them).
-        val period =
-            if (topic.retainedWhileResolvable) {
-                "v_pack"
-            } else if (topic.contentTopic) {
-                "v_content"
-            } else {
-                "v_retention"
-            }
+        // Pack period if marked, else content window, else event-log retention (plain ifs, so the SQL guard checks them).
+        val unmarked = if (topic.contentTopic) "v_content" else "v_retention"
+        val period = if (topic.retainedWhileResolvable) "v_pack" else unmarked
         val position = if (topic.record) READ_RECORD_POSITION else NO_RECORD_POSITION
         return """
             purged_topic := '$topicKey';
@@ -711,15 +705,9 @@ object EventLogSchema {
 
     private fun eventsMissingBranch(topic: Topic): String {
         val topicKey = SqlIdentifier.require(tableName(topic.name), "topic table")
-        // Pack period if marked, else content window, else event-log retention (literals, so the SQL guard checks them).
-        val period =
-            if (topic.retainedWhileResolvable) {
-                "v_pack"
-            } else if (topic.contentTopic) {
-                "v_content"
-            } else {
-                "v_retention"
-            }
+        // Pack period if marked, else content window, else event-log retention (plain ifs, so the SQL guard checks them).
+        val unmarked = if (topic.contentTopic) "v_content" else "v_retention"
+        val period = if (topic.retainedWhileResolvable) "v_pack" else unmarked
         return """
             elsif v_key = '$topicKey' then
                 cutoff := now() - $period;
