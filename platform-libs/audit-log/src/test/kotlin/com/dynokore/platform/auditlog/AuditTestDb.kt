@@ -95,11 +95,11 @@ internal class AuditTestDb(
                     dsl
                         .select(
                             DSL.function(
-                                "set_config",
+                                DSL.name("pg_catalog", "set_config"),
                                 String::class.java,
-                                DSL.inline("app.binding_sig"),
+                                DSL.`val`("app.binding_sig"),
                                 DSL.`val`(signature),
-                                DSL.inline(true),
+                                DSL.`val`(true),
                             ),
                         ).fetch()
                 }

@@ -218,20 +218,7 @@ class AuditPurgeIT {
         assertEquals("42501", p.db.tx.sqlStateOf(delete))
         val young =
             assertThrows(DataAccessException::class.java) {
-                p.call(
-                    PurgeCall(
-                        p.yearsAgo(4),
-                        "raw",
-                        p
-                            .stage()
-                            .envelope.id.value,
-                        "/gst/control-plane-svc",
-                        "s",
-                        "i",
-                        "c",
-                        "c",
-                    ),
-                )
+                p.call(PurgeCall.of(p.stage(), p.yearsAgo(4)).copy(reason = "raw"))
             }
         assertEquals("22023", p.db.tx.sqlStateOf(young))
         assertEquals(1L, p.countAll("select count(*) from controlplane.audit_entry"))
