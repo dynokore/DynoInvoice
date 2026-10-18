@@ -1,0 +1,11 @@
+# INV-T-6448. Personal-data class of every unit of the two service-runtime payload contract files (INV-REQ-883, INV-AC-1915; coordinator ruling INV-Q-6441 option A). Checked by spectral/check-data-classification.py.
+file	unit	class
+schemas/audit-entry-recorded-payload.schema.json	actor	IDENTIFYING
+schemas/audit-entry-recorded-payload.schema.json	action	NONE
+schemas/audit-entry-recorded-payload.schema.json	scope	NONE
+schemas/audit-entry-recorded-payload.schema.json	callingSystem	NONE
+schemas/audit-entry-recorded-payload.schema.json	reason	NONE
+schemas/audit-entry-recorded-payload.schema.json	priorState	IDENTIFYING
+schemas/evidence-artefact-recorded-payload.schema.json	artefactType	NONE
+schemas/evidence-artefact-recorded-payload.schema.json	reference	NONE
+schemas/evidence-artefact-recorded-payload.schema.json	hash	NONE
