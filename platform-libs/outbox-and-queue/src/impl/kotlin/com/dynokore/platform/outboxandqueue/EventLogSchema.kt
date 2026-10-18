@@ -539,18 +539,12 @@ object EventLogSchema {
     /** Any other topic has no position to respect. */
     private const val NO_RECORD_POSITION = "v_position := null;"
 
-    /** The retention variable of [topic]: the pack period if marked, else the content window, else the event-log one. */
-    private fun periodVariable(topic: Topic): String =
-        when {
-            topic.retainedWhileResolvable -> "v_pack"
-            topic.contentTopic -> "v_content"
-            else -> "v_retention"
-        }
-
     private fun purgeBranch(topic: Topic): String {
         val topicKey = SqlIdentifier.require(tableName(topic.name), "topic table")
         val content = if (topic.contentTopic) "true" else "false"
-        val period = periodVariable(topic)
+        // Pack period if marked, else content window, else event-log retention (literals, so the SQL guard checks them).
+        val period =
+            if (topic.retainedWhileResolvable) "v_pack" else if (topic.contentTopic) "v_content" else "v_retention"
         val position = if (topic.record) READ_RECORD_POSITION else NO_RECORD_POSITION
         return """
             purged_topic := '$topicKey';
@@ -711,7 +705,9 @@ object EventLogSchema {
 
     private fun eventsMissingBranch(topic: Topic): String {
         val topicKey = SqlIdentifier.require(tableName(topic.name), "topic table")
-        val period = periodVariable(topic)
+        // Pack period if marked, else content window, else event-log retention (literals, so the SQL guard checks them).
+        val period =
+            if (topic.retainedWhileResolvable) "v_pack" else if (topic.contentTopic) "v_content" else "v_retention"
         return """
             elsif v_key = '$topicKey' then
                 cutoff := now() - $period;
