@@ -36,7 +36,7 @@ expect_req_fail() {
 }
 for c in fail-request-category-code fail-request-mixed-case fail-request-underscore fail-reserved-required \
          fail-reserved-no-prefix fail-reserved-other-schema fail-enum-member fail-shared-schema \
-         fail-inline-request fail-parameter fail-allof fail-external-ref; do
+         fail-inline-request fail-no-operation-id fail-parameter fail-allof fail-external-ref; do
   expect_req_fail "$c" "is forbidden in a request schema"
 done
 expect_req_fail fail-reserved-required "(reserved item must be optional and start with Reserved:)"

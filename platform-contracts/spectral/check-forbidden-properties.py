@@ -265,7 +265,7 @@ class RequestWalk:
                 continue
             ops = [("", item.get("parameters"))]
             for method, op in item.items():
-                if isinstance(op, dict) and "operationId" in op:
+                if isinstance(op, dict):  # deny by default: an operation without operationId is walked too
                     ops.append((method, op))
             for method, op in ops:
                 if method == "":
