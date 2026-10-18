@@ -34,10 +34,14 @@ fun nextWindowOpening(
     after: ZonedDateTime,
     window: BatchWindow,
 ): Instant? {
+    val step = if (window == BatchWindow.DAILY) 1L else 7L
+
     fun firstAtOrAfter(startDay: LocalDate): Instant {
         val opening = startDay.atStartOfDay(after.zone).toInstant()
-        return if (opening < after.toInstant()) startDay.plusDays(if (window == BatchWindow.DAILY) 1 else 7).atStartOfDay(after.zone).toInstant() else opening
+        if (opening >= after.toInstant()) return opening
+        return startDay.plusDays(step).atStartOfDay(after.zone).toInstant()
     }
+
     return when (window) {
         BatchWindow.CONTINUOUS -> null
         BatchWindow.DAILY -> firstAtOrAfter(after.toLocalDate())
@@ -103,7 +107,9 @@ fun shortestGap(
 ): Duration {
     val windows = pack.windowsOf(frequency)
     if (windows.isEmpty()) {
-        throw CalendarPackCoverageException("calendar pack ${pack.version} has no window of frequency ${frequency.code}")
+        throw CalendarPackCoverageException(
+            "calendar pack ${pack.version} has no window of frequency ${frequency.code}",
+        )
     }
     val days =
         windows.minOf { w ->

@@ -96,7 +96,8 @@ class CalendarPack(
             )
 
     /** An immutable copy of the windows of [frequency], earliest first; empty when the pack has none. */
-    fun windowsOf(frequency: FilingFrequency): List<StandardWindow> = java.util.List.copyOf(windowsByFrequency[frequency].orEmpty())
+    fun windowsOf(frequency: FilingFrequency): List<StandardWindow> =
+        java.util.List.copyOf(windowsByFrequency[frequency].orEmpty())
 
     fun dueRuleFor(returnForm: String): DueRule =
         dueRules[returnForm]
