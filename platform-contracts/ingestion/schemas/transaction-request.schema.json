@@ -24,7 +24,7 @@
     "documentNumber": {
       "type": "string",
       "maxLength": 100,
-      "description": "Required when documentFunction is BILL_FOR_PAYMENT (ING-009); otherwise omitted (API-14)."
+      "description": "Required when documentFunction is BILL_FOR_PAYMENT (ING-009); for every other documentFunction it carries the number issued to the customer (IBT-001, INV-REQ-714) when the source system holds it, and the source system's internal reference is never sent as the number; ingestion-svc forwards it unchanged as the canonical documentNumber (INV-T-6274)."
     },
     "transactionDate": { "type": "string", "format": "date" },
     "currency": { "type": "string", "minLength": 3, "maxLength": 3 },
