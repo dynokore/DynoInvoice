@@ -166,9 +166,9 @@ class AuditPurgeIT {
     }
 
     /**
-     * A forged `app.binding_sig` gets the refusal the unbound case gets (INV-T-5361, INV-REQ-854 b7): the runner signs
-     * under a key the schema does not hold, so `bound_actor()` is NULL, and the purge refuses with 42501 and deletes
-     * nothing. Look-alike: a binding that is valid for `controlplane` does not pass the same function of another schema.
+     * A forged `app.binding_sig` gets the refusal the unbound case gets (INV-T-5361, INV-REQ-854 b7): the runner
+     * signs under a key the schema does not hold, so `bound_actor()` is NULL, and the purge refuses with 42501 and
+     * deletes nothing. Look-alike: a binding valid for `controlplane` does not pass the function of another schema.
      */
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
@@ -205,12 +205,19 @@ class AuditPurgeIT {
             ),
         )
         assertEquals(
-            listOf("purge_audit_entries|$SYS|search_path=pg_catalog, controlplane, pg_temp|$APP,$SYS"),
+            listOf(
+                // The binding functions of tenancy-kernel's BindingKeyMigration; only the verifier is closed to $APP.
+                "binding_verified|$SYS|$PATH|$SYS",
+                "bound_actor|$SYS|$PATH|$APP,$SYS",
+                "bound_tenant|$SYS|$PATH|$APP,$SYS",
+                "purge_audit_entries|$SYS|$PATH|$APP,$SYS",
+            ),
             p.db.strings(
                 "select p.proname || '|' || pg_get_userbyid(p.proowner) || '|' || array_to_string(p.proconfig, ';') " +
                     "|| '|' || (select string_agg(distinct split_part(a::text, '=', 1), ',' " +
                     "order by split_part(a::text, '=', 1)) from unnest(p.proacl) a) " +
-                    "from pg_proc p where p.pronamespace = 'controlplane'::regnamespace and p.prosecdef order by p.proname",
+                    "from pg_proc p where p.pronamespace = 'controlplane'::regnamespace and p.prosecdef " +
+                    "order by p.proname",
             ),
         )
         assertEquals(
@@ -219,13 +226,26 @@ class AuditPurgeIT {
         )
 
         p.seed(PLATFORM, p.yearsAgo(7))
-        val delete = assertThrows(DataAccessException::class.java) { p.raw("delete from controlplane.audit_entry") }
+        val delete =
+            assertThrows(DataAccessException::class.java) {
+                p.bound { deleteFrom(DSL.table(DSL.name(SCHEMA, "audit_entry"))).execute() }
+            }
         assertEquals("42501", p.db.tx.sqlStateOf(delete))
         val young =
             assertThrows(DataAccessException::class.java) {
-                p.raw(
-                    "select controlplane.purge_audit_entries(now() - interval '4 years', 'raw', " +
-                        "'${p.stage().envelope.id.value}'::uuid, '/gst/control-plane-svc', 's', 'i', 'c', 'c')",
+                p.call(
+                    PurgeCall(
+                        p.yearsAgo(4),
+                        "raw",
+                        p
+                            .stage()
+                            .envelope.id.value,
+                        "/gst/control-plane-svc",
+                        "s",
+                        "i",
+                        "c",
+                        "c",
+                    ),
                 )
             }
         assertEquals("22023", p.db.tx.sqlStateOf(young))
@@ -371,7 +391,7 @@ class AuditPurgeIT {
             return db.signed(id, "operator-9", signature = signature) { purge(call) }
         }
 
-        /** Calls the function as in [call] on the runner of a key the schema does not hold, so the binding is forged. */
+        /** Calls the function as in [call], by default on a runner whose key the schema does not hold (a forgery). */
         fun forgedCall(
             call: PurgeCall,
             schema: String = SCHEMA,
@@ -382,20 +402,29 @@ class AuditPurgeIT {
             call: PurgeCall,
             schema: String = SCHEMA,
         ): Long =
-            fetchValue(
-                "select $schema.purge_audit_entries(?::timestamptz, ?, ?::uuid, ?, ?, ?, ?, ?)",
-                at(call.cutOff),
-                call.reason,
-                UUID.fromString(call.entryId),
-                call.source,
-                call.subject,
-                call.instanceId,
-                call.correlationId,
-                call.causationId,
-            ) as Long
+            select(
+                DSL.function(
+                    DSL.name(schema, "purge_audit_entries"),
+                    Long::class.java,
+                    DSL.`val`(at(call.cutOff)),
+                    DSL.`val`(call.reason),
+                    DSL.`val`(UUID.fromString(call.entryId)),
+                    DSL.`val`(call.source),
+                    DSL.`val`(call.subject),
+                    DSL.`val`(call.instanceId),
+                    DSL.`val`(call.correlationId),
+                    DSL.`val`(call.causationId),
+                ),
+            ).fetchSingle().value1()
 
-        /** Runs [sql] as the runtime login under the platform tenant and an actor. */
-        fun raw(sql: String) = db.signed(TenantId.PLATFORM, "operator-9") { fetch(sql) }
+        /** Runs [block] as the runtime login under the platform tenant and a signed actor. */
+        fun <T> bound(block: DSLContext.() -> T): T =
+            db.signed(
+                TenantId.PLATFORM,
+                "operator-9",
+                tables = mapOf("$SCHEMA.audit_entry" to TableClass.TENANT),
+                block = block,
+            )
 
         /** The rows of [sql] under the platform tenant's RLS binding. */
         fun platformRows(
@@ -415,6 +444,7 @@ class AuditPurgeIT {
     private companion object {
         const val SCHEMA = "controlplane"
         const val OTHER = "otherplane"
+        const val PATH = "search_path=pg_catalog, controlplane, pg_temp"
         const val OTHER_FILL = 3
         const val SCOPE = "platform (control-plane-svc audit_entry)"
         const val DAY = 86_400L

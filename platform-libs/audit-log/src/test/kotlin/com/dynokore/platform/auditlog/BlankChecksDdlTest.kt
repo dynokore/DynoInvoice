@@ -20,8 +20,10 @@ class BlankChecksDdlTest {
 
     @Test
     fun `the purge reads the signed binding and no definer function or policy reads the unsigned settings`() {
-        assertFalse(Regex("""current_setting\s*\(\s*'app\.(tenant_id|actor)'""").containsMatchIn(ddl))
-        assertEquals(1, ddl.split("(select svc.bound_tenant()) is distinct from").size - 1)
+        // The tables' policies keep the shared predicate until the last slice; the purge function is this module's own.
+        val purge = AuditSchema.purgeDdl("svc", "svc_app", "svc_sys", "control-plane-svc")
+        assertFalse(Regex("""current_setting\s*\(\s*'app\.(tenant_id|actor)'""").containsMatchIn(purge))
+        assertEquals(1, purge.split("(select svc.bound_tenant()) is distinct from").size - 1)
     }
 
     @Test

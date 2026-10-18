@@ -10,6 +10,7 @@ import com.dynokore.platform.outboxandqueue.OutboxPostgresFixture.Companion.SYS
 import com.dynokore.platform.tenancyjooq.TableClass
 import com.dynokore.platform.tenancykernel.SignedBinding
 import com.dynokore.platform.tenancykernel.TenantId
+import org.jooq.impl.DSL
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Tag
@@ -217,13 +218,16 @@ class BlankValuesIT {
             "operator-9",
             signature = SignedBinding.value(SignedBinding.key(), TenantId.PLATFORM, actor),
         ) {
-            fetchValue(
-                "select $SCHEMA.purge_audit_entries(?::timestamptz, ?, ?::uuid, ?, ?, ?, ?, ?)",
-                ZonedDateTime.now(ZoneOffset.UTC).minusYears(6).toOffsetDateTime(),
-                arguments[0],
-                UUID.fromString(arguments[1]),
-                *arguments.drop(2).toTypedArray(),
-            )
+            select(
+                DSL.function(
+                    DSL.name(SCHEMA, "purge_audit_entries"),
+                    Long::class.java,
+                    DSL.`val`(ZonedDateTime.now(ZoneOffset.UTC).minusYears(6).toOffsetDateTime()),
+                    DSL.`val`(arguments[0]),
+                    DSL.`val`(UUID.fromString(arguments[1])),
+                    *arguments.drop(2).map { DSL.`val`(it) }.toTypedArray(),
+                ),
+            ).fetchSingle().value1()
         }
 
         /** Inserts one row as the owner, [column] set to [value] and every other probed column valid. */

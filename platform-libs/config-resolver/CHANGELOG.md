@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [4.0.10] - 2026-10-18
+### Changed
+- Metadata-only release (INV-T-5361, G-DVS): depends on `audit-log` 3.2.0, whose published module metadata changed; no code change.
+
 ## [4.0.9] - 2026-10-18
 ### Changed
 - Metadata-only release (INV-T-5359, G-DVS): depends on `tenancy-kernel` 3.3.0, whose published module metadata changed; no code change.

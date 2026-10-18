@@ -75,21 +75,34 @@ internal class AuditTestDb(
         )
 
     /**
-     * Runs [block] on the runtime login in one transaction bound to [tenant] and [actor] that [runner] signs. A non-null
-     * [signature] replaces `app.binding_sig` after the runner's first statement (a value signed for another actor, or
-     * a forgery), so a test reaches a binding the runner itself never signs.
+     * Runs [block] on the runtime login in one transaction bound to [tenant] and [actor] that [runner] signs. A
+     * non-null [signature] replaces `app.binding_sig` after the runner's first statement (a value signed for another
+     * actor, or a forgery), so a test reaches a binding the runner itself never signs. [tables] are the tables
+     * [block] touches.
      */
     fun <T> signed(
         tenant: TenantId,
         actor: String,
         runner: TransactionRunner = tx,
         signature: String? = null,
+        tables: Map<String, TableClass> = emptyMap(),
         block: DSLContext.() -> T,
     ): T {
-        val dsl = dsl(runner, emptyMap())
+        val dsl = dsl(runner, tables)
         val run = {
             runner.inTransaction {
-                if (signature != null) dsl.fetchValue("select set_config('app.binding_sig', ?, true)", signature)
+                if (signature != null) {
+                    dsl
+                        .select(
+                            DSL.function(
+                                "set_config",
+                                String::class.java,
+                                DSL.inline("app.binding_sig"),
+                                DSL.`val`(signature),
+                                DSL.inline(true),
+                            ),
+                        ).fetch()
+                }
                 dsl.block()
             }
         }
@@ -179,8 +192,8 @@ internal class AuditTestDb(
 
         /**
          * Init SQL that gives [schema] the key table and `bound_tenant()` / `bound_actor()` of [BindingKeyMigration]
-         * (slice 1 of INV-T-4156), created by [sys] with the key of [SignedBinding.key] ([fill]), to run before the module's own
-         * DDL by the superuser of the fixture's init script (`reset role` first).
+         * (slice 1 of INV-T-4156), created by [sys] with the key of [SignedBinding.key] ([fill]), to run before the
+         * module's own DDL by the superuser of the fixture's init script (`reset role` first).
          */
         fun bindingInit(
             schema: String,
@@ -192,7 +205,8 @@ internal class AuditTestDb(
             return "create extension if not exists pgcrypto schema public;\n" +
                 "grant usage, create on schema $schema to $sys;\nset role $sys;\n" +
                 BindingKeyMigration.ddl(schema, sys, runtime) + "\n" +
-                "insert into $schema.binding_key (slot, secret) values ('current', decode('$key', 'hex'));\nreset role;\n"
+                "insert into $schema.binding_key (slot, secret) values ('current', decode('$key', 'hex'));\n" +
+                "reset role;\n"
         }
     }
 }
