@@ -82,3 +82,11 @@ BoundaryMember.state.SENT	schema_enum_value	openapi.yaml	INV-REQ-959
 # INV-T-6331. `tax.operator` in INV-REQ-648 is a role and not an element of this contract.
 entityFindings	property	openapi.yaml	INV-REQ-648
 ReadinessStatus.entityFindings	schema_property	openapi.yaml	INV-REQ-648
+# INV-T-6716 (INV-Q-6704 A). The rows of READY and NOT_READY for openapi.yaml already exist under INV-REQ-951; the rows below are for the payload schema.
+filingDateRecorded	property	openapi.yaml	INV-REQ-918
+ReadinessStatus.filingDateRecorded	schema_property	openapi.yaml	INV-REQ-918
+lateDocumentCount	property	schemas/readiness-changed-payload.schema.json	INV-REQ-916
+recordedByAgent	property	schemas/readiness-changed-payload.schema.json	INV-REQ-1273
+filingFact	property	schemas/readiness-changed-payload.schema.json	INV-REQ-918
+READY	enum_value	schemas/readiness-changed-payload.schema.json	INV-REQ-918
+NOT_READY	enum_value	schemas/readiness-changed-payload.schema.json	INV-REQ-918

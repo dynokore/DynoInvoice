@@ -9,3 +9,4 @@
 ../openapi.yaml#/components/schemas/BoundaryCheckResult boundary-check-result-*.json
 ../openapi.yaml#/components/schemas/BoundaryCheckRequest boundary-check-request-*.json
 ../openapi.yaml#/components/schemas/EntityFinding entity-finding-*.json
+../schemas/readiness-changed-payload.schema.json readiness-changed-*.json

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: submission API
-  version: 1.4.0
+  version: 1.5.0
   description: >-
     Contract-first source of truth for submission (API-01, STK-44). The
     `submission-contract` module generates its server interfaces and DTOs
@@ -67,6 +67,9 @@ paths:
 
         While a rendition finding of the entity is open, the response carries
         it in `entityFindings`, advisory only (INV-REQ-648, INV-Q-6323).
+
+
+        The service always sends `filingDateRecorded`; false is the readiness fact "filing date not recorded" (INV-REQ-918, INV-Q-6704).
 
 
         Timeout class (INV-REQ-1204 b7, INV-Q-3476): `API gateway -> any
@@ -1151,6 +1154,12 @@ components:
             Present only while a finding of the entity is open (the open
             rendition finding of INV-REQ-648, INV-AC-674). It is advisory:
             `ready` and `tiers` never depend on it.
+        filingDateRecorded:
+          type: boolean
+          description: >-
+            The service always sends it. False is the fact "filing date not
+            recorded" (INV-REQ-918): no filing fact is recorded for the
+            period. True means a filing fact is recorded for the period.
       required: [entityRef, periodRef, ready, tiers, computedAt]
     EntityFinding:
       type: object

@@ -1,0 +1,15 @@
+{
+  "entityRef": "E-001",
+  "period": "2026Q1",
+  "verdict": "READY",
+  "countsByState": {
+    "ACKNOWLEDGED": 3,
+    "HELD": 2
+  },
+  "filingFact": {
+    "filedAt": "2026-04-20T02:00:00Z",
+    "filingReference": "IRAS-2026-0001",
+    "recorder": "agent-17",
+    "conflictFlag": false
+  }
+}

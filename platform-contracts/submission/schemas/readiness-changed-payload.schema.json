@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://platform-contracts.invoice.internal/submission/schemas/readiness-changed-payload.schema.json",
   "title": "ReadinessChangedPayload",
-  "description": "Payload of the ReadinessChanged event (catalogued in model/architecture/events.yaml, INV-NOTE-3 \u00a719.8; class: domain). Authored by INV-T-2854 (T10). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "description": "Payload of the ReadinessChanged event (catalogued in model/architecture/events.yaml, INV-NOTE-3 \u00a719.8; class: domain). Authored by INV-T-2854 (T10). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required. An event for a period with no recorded filing date carries no filingFact (INV-REQ-918, INV-Q-6704).",
   "type": "object",
   "properties": {
     "entityRef": {
@@ -17,7 +17,12 @@
     "verdict": {
       "type": "string",
       "minLength": 1,
-      "description": "The period readiness verdict."
+      "description": "The period readiness verdict: READY or NOT_READY.",
+      "enum": [
+        "READY",
+        "NOT_READY"
+      ],
+      "x-extensible-enum": true
     },
     "countsByState": {
       "type": "object",
@@ -46,6 +51,15 @@
         "conflictFlag": {
           "type": "boolean",
           "description": "Set when two filing facts for the same period disagree."
+        },
+        "lateDocumentCount": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "The number of documents the recording made late (SUB-010, INV-REQ-916). The service always sends it."
+        },
+        "recordedByAgent": {
+          "type": "boolean",
+          "description": "True when an agent recorded the fact for the client (INV-REQ-1273). The service always sends it."
         }
       },
       "required": [
@@ -61,8 +75,7 @@
     "entityRef",
     "period",
     "verdict",
-    "countsByState",
-    "filingFact"
+    "countsByState"
   ],
   "additionalProperties": true
 }

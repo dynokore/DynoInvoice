@@ -1,0 +1,9 @@
+{
+  "entityRef": "E-001",
+  "period": "2026Q1",
+  "verdict": "READY",
+  "countsByState": {
+    "ACKNOWLEDGED": 3,
+    "HELD": 2
+  }
+}
