@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: ingestion API
-  version: 1.2.0
+  version: 1.3.0
   description: >-
     Contract-first source of truth for ingestion (API-01, STK-44). The
     `ingestion-contract` module generates its server interfaces and DTOs
@@ -401,7 +401,10 @@ paths:
         No `Idempotency-Key` header for this resource (API-15).
         `description`, `subtotalsByTaxCode`, `underlyingCount` and
         `underlyingRef` are mandatory for a 1.1 client; a request without
-        them is refused with `400` and SRT-001 (INV-REQ-812).
+        them is refused with `400` and SRT-001 (INV-REQ-812). The reserved
+        line property `categoryCode` is refused with `400` and SRT-001 when
+        it is non-empty, because the System decides the category code
+        (INV-BR-1843).
 
         Test mode (INV-REQ-829): a request marked as test with the
         `X-Test-Mode: true` header, or sent to a non-production workspace,
@@ -444,8 +447,7 @@ paths:
                   periodStart: "2026-03-01"
                   periodEnd: "2026-03-31"
                   lines:
-                    - categoryCode: "SR"
-                      taxCode: "SR"
+                    - taxCode: "SR"
                       count: 4200
                       amountExcludingTax: "84000.00"
                       taxAmount: "7560.00"
@@ -495,7 +497,10 @@ paths:
         though the document **is** recorded, as `NOT_SUBMITTABLE`
         (`ISSUANCE_REFUSED`), with `docUuid` in the body. Not in API-15's
         named exemption list, so (unlike transactions/batches/aggregates)
-        this resource requires the `Idempotency-Key` header.
+        this resource requires the `Idempotency-Key` header. The reserved
+        property `submissionType` is refused with `400` and SRT-001 when it
+        is non-empty, because the System decides the submission type
+        (INV-BR-1843).
 
 
         Timeout class (INV-REQ-1204 b7, INV-Q-3476): the issuance class
@@ -556,7 +561,6 @@ paths:
                   documentFunction: "INVOICE"
                   transactionDate: "2026-03-20"
                   currency: "SGD"
-                  submissionType: "TYPE_1A"
                   lines: [{ lineNumber: 1, lineAmount: "1090.00" }]
       responses:
         '200':
@@ -1191,7 +1195,12 @@ components:
     AggregateLine:
       type: object
       properties:
-        categoryCode: { type: string, maxLength: 20 }
+        categoryCode:
+          type: string
+          maxLength: 20
+          description: >-
+            Reserved: the System decides the category code (INV-BR-1843), so a caller sends none. A non-empty value is
+            refused with `400` and SRT-001. The line is identified by its internal `taxCode` (INV-REQ-812).
         taxCode: { type: string, maxLength: 10 }
         count: { type: integer, minimum: 0 }
         amountExcludingTax:
@@ -1202,7 +1211,7 @@ components:
           type: string
           format: decimal
           pattern: '^-?\d{1,17}(\.\d{1,2})?$'
-      required: [categoryCode, count, amountExcludingTax]
+      required: [count, amountExcludingTax]
     AggregateRequest:
       type: object
       properties:
@@ -1278,8 +1287,11 @@ components:
             submissionType:
               type: string
               enum: [TYPE_1A, TYPE_1B, TYPE_2, TYPE_3]
-              description: model/architecture/submission-types.yaml's 1A/1B/2/3 (API-09 UPPER_SNAKE_CASE).
-          required: [submissionType]
+              description: >-
+                Reserved: the System decides the submission type (INV-BR-1843), so a caller sends none. A non-empty
+                value is refused with `400` and SRT-001. The line is identified by its internal `taxCode`
+                (INV-REQ-812). The values are model/architecture/submission-types.yaml's 1A/1B/2/3 (API-09
+                UPPER_SNAKE_CASE).
     IssuanceResult:
       type: object
       properties:

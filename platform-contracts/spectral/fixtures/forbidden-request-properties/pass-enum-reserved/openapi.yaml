@@ -1,0 +1,35 @@
+openapi: 3.1.0
+info: {title: fixture, version: 1.0.0}
+paths:
+  /v1/things:
+    post:
+      operationId: postThing
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ThingRequest'}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ThingResponse'}
+components:
+  schemas:
+    DraftThing:
+      type: object
+      properties:
+        mode:
+          type: string
+          description: 'Reserved: the System decides it.'
+          enum: [RESUBMISSION, KEEP]
+    ThingRequest:
+      type: object
+      properties:
+        draft:
+          type: object
+          $ref: '#/components/schemas/DraftThing'
+    ThingResponse:
+      type: object
+      properties:
+        linkRef: {type: string}

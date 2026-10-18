@@ -1,3 +1,7 @@
+# INV-T-6499: rows for the backticked names of INV-REQ-804, INV-REQ-794, INV-AC-2030 that this contract carries
+# (documentFunction, sourceKey, sourceRevision, taxAmount). Not rows, and why: internalTaxCode (the contract spelling is
+# taxCode, owner ruling INV-Q-6113); documentKind (added by the contract task under INV-Q-6496); the services
+# canonical-svc, ingestion-svc and submission-svc (not identifiers of this contract).
 identifier	kind	file	requirement
 declaredCount	property	openapi.yaml	INV-REQ-811
 declaredNetTotal	property	openapi.yaml	INV-REQ-811
@@ -49,3 +53,7 @@ PENDING	enum_value	schemas/transaction-request.schema.json	INV-REQ-428
 ACCEPTED	enum_value	schemas/transaction-request.schema.json	INV-REQ-428
 REJECTED	enum_value	schemas/transaction-request.schema.json	INV-REQ-428
 testMode	property	openapi.yaml	INV-REQ-829
+documentFunction	property	schemas/transaction-request.schema.json	INV-REQ-804
+sourceKey	property	schemas/transaction-request.schema.json	INV-REQ-794
+sourceRevision	property	schemas/transaction-request.schema.json	INV-REQ-794
+taxAmount	property	schemas/transaction-request.schema.json	INV-REQ-804

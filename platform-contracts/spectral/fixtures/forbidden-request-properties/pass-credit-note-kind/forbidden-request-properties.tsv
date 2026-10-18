@@ -1,0 +1,15 @@
+# ingestion/forbidden-request-properties.tsv — INV-T-6499, checked by spectral/check-forbidden-properties.py --requests
+# Names a request schema of this contract must not ask a caller for (INV-REQ-804 behavior 2: no request field carries an
+# IRAS category code, a submission type or a scope verdict; INV-AC-1859). resubmission and RESUBMISSION come from
+# INV-AC-2030 (no field or enum value classifies an amendment as resubmission or credit note; an amendment is only a
+# sourceRevision under the same sourceKey, INV-REQ-794).
+# reserved_in names the components.schemas entry where the published contract still carries the item as an optional
+# property whose description starts with Reserved: (INV-Q-6490); a non-empty value is refused by the System.
+# There is deliberately no row for CREDIT_NOTE, INVOICE or DEBIT_NOTE: they name the kind of a document. Operations
+# that classify an amendment are not name-checkable and stay with review.
+kind	name	reserved_in
+property	categoryCode	AggregateLine
+property	submissionType	IssuanceRequest
+property	scopeVerdict	
+property	resubmission	
+enum_value	RESUBMISSION	

@@ -1,0 +1,6 @@
+kind	name	reserved_in
+property	categoryCode	AggregateLine
+property	submissionType	IssuanceRequest
+property	scopeVerdict	
+property	resubmission	
+enum_value	RESUBMISSION	

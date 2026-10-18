@@ -1,0 +1,24 @@
+openapi: 3.1.0
+info: {title: fixture, version: 1.0.0}
+paths:
+  /v1/things:
+    post:
+      operationId: postThing
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/Thing'}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Thing'}
+components:
+  schemas:
+    Thing:
+      type: object
+      properties:
+        submissionType:
+          type: string
+          description: 'Reserved: the System decides it.'

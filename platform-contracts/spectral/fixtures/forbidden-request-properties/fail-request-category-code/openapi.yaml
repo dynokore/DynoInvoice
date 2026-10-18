@@ -1,0 +1,27 @@
+openapi: 3.1.0
+info: {title: fixture, version: 1.0.0}
+paths:
+  /v1/things:
+    post:
+      operationId: postThing
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ThingRequest'}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ThingResponse'}
+components:
+  schemas:
+    ThingRequest:
+      type: object
+      properties:
+        categoryCode:
+          type: string
+    ThingResponse:
+      type: object
+      properties:
+        linkRef: {type: string}

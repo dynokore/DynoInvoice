@@ -15,6 +15,21 @@ The request that carries the entered secret is allowed. A name that merely conta
 Exit 1 on: a missing or empty table, an unreadable contract file, or a finding. Every finding names
 the file, the schema and the property.
 Usage: check-forbidden-properties.py <service-dir> [<service-dir> ...]
+
+Option --requests (INV-T-6499, INV-REQ-804, INV-AC-1859, INV-AC-2030): checks the request side instead.
+A directory holds `forbidden-request-properties.tsv` (header `kind`, `name`, `reserved_in`; tab
+separated; blank lines and lines starting with `#` ignored; `reserved_in` may be empty; kind is
+`property` or `enum_value`). A name equal, ignoring case, underscores and hyphens, to a listed name of
+the row's kind, found as a property key or a parameter `name` (kind property) or as an `enum` member
+(kind enum_value) in a request schema of `<dir>/openapi.yaml`, is a finding. A request schema is every
+schema reachable from a requestBody or a parameters entry of any operation (inline, `#/components/...`
+references, allOf, oneOf, anyOf, items, properties, relative-file `$ref`s read whole); a schema also
+reached by a response is still a request schema (deny by default). A finding is excused only when the
+row's `reserved_in` equals the enclosing `components.schemas` entry, the property is in no `required`
+list of that schema and its `description` starts with `Reserved:` (for an enum member: the description
+of the property that holds the enum). Exit 1 on: a missing table, a table with no rows, a row of any
+other kind, an unreadable contract file, or a finding. Without the option the behaviour above is
+unchanged.
 Standard library plus PyYAML.
 """
 from __future__ import annotations
@@ -127,7 +142,170 @@ def check_dir(d: Path) -> list[str]:
     return findings
 
 
+REQ_TABLE = "forbidden-request-properties.tsv"
+REQ_KINDS = ("property", "enum_value")
+RESERVED_HINT = " (reserved item must be optional and start with Reserved:)"
+
+
+def read_request_table(d: Path) -> tuple[list[tuple[str, str, str]], list[str]]:
+    table = d / REQ_TABLE
+    if not table.is_file():
+        return [], [f"{d}: {REQ_TABLE} is missing"]
+    lines = [ln for ln in table.read_text().splitlines() if ln.strip() and not ln.lstrip().startswith("#")]
+    if not lines or [c.strip() for c in lines[0].split("\t")] != ["kind", "name", "reserved_in"]:
+        return [], [f"{table}: the header must be kind, name, reserved_in (tab separated)"]
+    rows, errors = [], []
+    for ln in lines[1:]:
+        cells = [c.strip() for c in ln.split("\t")]
+        cells += [""] * (3 - len(cells))
+        if len(cells) > 3 or cells[0] not in REQ_KINDS or not cells[1]:
+            errors.append(f"{table}: bad row '{ln}' (kind must be one of {', '.join(REQ_KINDS)}; name is required)")
+        else:
+            rows.append((cells[0], norm(cells[1]), cells[2]))
+    if not rows and not errors:
+        errors.append(f"{table}: the table has no rows")
+    return rows, errors
+
+
+class RequestWalk:
+    """Walks every schema reachable from the requests of one openapi.yaml."""
+
+    def __init__(self, d: Path, rows: list[tuple[str, str, str]]):
+        self.d = d
+        self.rows = rows
+        self.findings: list[str] = []
+        self.seen: set[tuple[str, str]] = set()
+        self.docs: dict[Path, object] = {}
+
+    def doc(self, path: Path):
+        if path not in self.docs:
+            self.docs[path] = load(path)
+        return self.docs[path]
+
+    def check_name(self, file, schema, kind, name, entry, holder, required) -> None:
+        """entry: the enclosing components.schemas name or None; holder: the node whose description counts."""
+        hits = [r for r in self.rows if r[0] == kind and r[1] == norm(str(name))]
+        if not hits:
+            return
+        by_name = any(r[2] and r[2] == entry for r in hits)
+        desc = holder.get("description") if isinstance(holder, dict) else None
+        if by_name and norm(str(name)) not in required and isinstance(desc, str) and desc.startswith("Reserved:"):
+            return
+        what = "property" if kind == "property" else "enum member"
+        self.findings.append(f"{file}: {schema}: {what} '{name}' is forbidden in a request schema"
+                             + (RESERVED_HINT if by_name else ""))
+
+    def required_of(self, node) -> set[str]:
+        out: set[str] = set()
+        if isinstance(node, dict):
+            req = node.get("required")
+            if isinstance(req, list):
+                out.update(norm(str(x)) for x in req)
+            for v in node.values():
+                out |= self.required_of(v)
+        elif isinstance(node, list):
+            for v in node:
+                out |= self.required_of(v)
+        return out
+
+    def resolve(self, ref: str, file: Path):
+        target, _, frag = ref.partition("#")
+        path = file if not target else (file.parent / target)
+        doc = self.doc(path)
+        node = doc
+        for part in [p for p in frag.split("/") if p]:
+            node = node[part.replace("~1", "/").replace("~0", "~")]
+        return path, frag, node
+
+    def walk(self, node, file: Path, label: str, entry, holder, required: set[str]) -> None:
+        if isinstance(node, list):
+            for item in node:
+                self.walk(item, file, label, entry, holder, required)
+            return
+        if not isinstance(node, dict):
+            return
+        ref = node.get("$ref")
+        if isinstance(ref, str):
+            self.follow(ref, file)
+        if isinstance(node.get("name"), str) and "in" in node:
+            self.check_name(file, label, "property", node["name"], entry, node, required)
+        for key, value in node.items():
+            if key == "properties" and isinstance(value, dict):
+                for pname, pnode in value.items():
+                    self.check_name(file, label, "property", pname, entry, pnode, required)
+                    self.walk(pnode, file, label, entry, pnode, required)
+            elif key == "enum" and isinstance(value, list):
+                for member in value:
+                    self.check_name(file, label, "enum_value", member, entry, holder or node, required)
+            elif key != "$ref":
+                self.walk(value, file, label, entry, holder, required)
+
+    def follow(self, ref: str, file: Path) -> None:
+        try:
+            path, frag, node = self.resolve(ref, file)
+        except (OSError, ValueError, KeyError, TypeError, yaml.YAMLError) as e:
+            self.findings.append(f"{file}: cannot resolve $ref '{ref}': {e}")
+            return
+        key = (str(path), frag)
+        if key in self.seen:
+            return
+        self.seen.add(key)
+        parts = [p for p in frag.split("/") if p]
+        if len(parts) == 3 and parts[:2] == ["components", "schemas"]:
+            self.walk(node, path, f"components.schemas.{parts[2]}", parts[2], None, self.required_of(node))
+        elif not frag:
+            self.walk(node, path, path.name, None, None, self.required_of(node))
+        else:
+            self.walk(node, path, f"{path.name}#{frag}", None, None, self.required_of(node))
+
+    def run(self, openapi: Path) -> None:
+        doc = self.doc(openapi)
+        for pth, item in (doc.get("paths") or {}).items():
+            if not isinstance(item, dict):
+                continue
+            ops = [("", item.get("parameters"))]
+            for method, op in item.items():
+                if isinstance(op, dict) and "operationId" in op:
+                    ops.append((method, op))
+            for method, op in ops:
+                if method == "":
+                    holders = [(f"{pth} parameters", op)]
+                else:
+                    holders = [(f"{pth} {method} requestBody", op.get("requestBody")),
+                               (f"{pth} {method} parameters", op.get("parameters"))]
+                for label, part in holders:
+                    if part is not None:
+                        self.walk(part, openapi, label, None, None, self.required_of(part))
+
+
+def request_findings(d: Path) -> list[str]:
+    rows, errors = read_request_table(d)
+    if errors:
+        return errors
+    openapi = d / "openapi.yaml"
+    if not openapi.is_file():
+        return [f"{d}: cannot read a contract file: {openapi} is missing"]
+    w = RequestWalk(d, rows)
+    try:
+        w.run(openapi)
+    except (OSError, ValueError, yaml.YAMLError, AttributeError, KeyError, TypeError) as e:
+        w.findings.append(f"{d}: cannot read a contract file: {e}")
+    return w.findings
+
+
 def main(argv: list[str]) -> int:
+    if "--requests" in argv[1:]:
+        dirs = [a for a in argv[1:] if a != "--requests"]
+        if not dirs:
+            print(__doc__)
+            return 1
+        findings = [f for a in dirs for f in request_findings(Path(a))]
+        for f in findings:
+            print(f"gst-ci: FAIL {f}")
+        if findings:
+            return 1
+        print(f"gst-ci: forbidden-request-properties OK — {', '.join(dirs)}")
+        return 0
     if len(argv) < 2:
         print(__doc__)
         return 1

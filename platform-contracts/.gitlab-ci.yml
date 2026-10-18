@@ -152,7 +152,8 @@ contract-rules:
   # schema-sample-validation (INV-T-2850 T6 and API-04; INV-T-4909 samples may test an OpenAPI schema),
   # required-identifiers-check (INV-T-4909, INV-Q-4874: every <service>/required-identifiers.tsv row is found as
   # a whole token in that service's file), forbidden-properties-check (INV-T-4910, INV-Q-4902: no response or event
-  # schema of access/ carries a listed secret property), event-log-topics-drift-check (INV-T-2855 T11: topics.yaml
+  # schema of access/ carries a listed secret property), forbidden-request-properties-check
+  # (INV-T-6499, INV-REQ-804: no request schema of ingestion/ asks for a category code, submission type or scope verdict), event-log-topics-drift-check (INV-T-2855 T11: topics.yaml
   # regenerated from every asyncapi.yaml shows no drift; INV-T-3386 generator unittests). The page-bound check
   # (service-runtime/check-page-bound.py) stays a line of its own (service-runtime/test_check_page_bound.py).
   stage: verify
@@ -170,6 +171,7 @@ contract-rules:
     - gst_check schema-sample-validation-discover python3 spectral/validate-schema-samples.py --discover .
     - gst_check required-identifiers-check python3 spectral/check-required-identifiers.py .
     - gst_check forbidden-properties-check python3 spectral/check-forbidden-properties.py access/
+    - gst_check forbidden-request-properties-check python3 spectral/check-forbidden-properties.py --requests ingestion/
     - gst_check data-classification-check python3 spectral/check-data-classification.py canonical evidence service-runtime
     - gst_check event-log-topics-drift-check python3 event-log/generate-topics.py . --check event-log/topics.yaml
     - gst_check event-log-generator-tests python3 -m unittest discover -s event-log -p 'test_*.py' -v
