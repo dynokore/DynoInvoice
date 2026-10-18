@@ -34,3 +34,17 @@ canonicalVersion	property	openapi.yaml	INV-REQ-591
 packVersions	property	openapi.yaml	INV-REQ-591
 builtSha256	property	openapi.yaml	INV-REQ-591
 identicalToBuilt	property	openapi.yaml	INV-REQ-591
+# INV-T-6329. tax.operator and entity.admin are roles, and EvidenceArtefactRecorded is service-runtime's event; none is an element of this contract.
+recordRenditionSample	operation	openapi.yaml	INV-REQ-1033
+RecordRenditionSampleRequest.scenario	schema_property	openapi.yaml	INV-REQ-1033
+RecordRenditionSampleRequest.submissionType	schema_property	openapi.yaml	INV-REQ-1033
+RecordRenditionSampleRequest.sampleContent	schema_property	openapi.yaml	INV-REQ-1033
+RenditionSampleResult.result	schema_property	openapi.yaml	INV-REQ-1033
+RenditionSampleResult.textFound	schema_property	openapi.yaml	INV-REQ-1033
+RenditionSampleResult.missingWording	schema_property	openapi.yaml	INV-REQ-1033
+RenditionSampleResult.findingCode	schema_property	openapi.yaml	INV-REQ-1033
+RenditionSampleResult.sampleSha256	schema_property	openapi.yaml	INV-REQ-1033
+RenditionSampleResult.result.PASSED	schema_enum_value	openapi.yaml	INV-AC-681
+RenditionSampleResult.result.FAILED	schema_enum_value	openapi.yaml	INV-AC-681
+open	property	schemas/rendition-finding-changed-payload.schema.json	INV-REQ-648
+sequence	property	schemas/rendition-finding-changed-payload.schema.json	INV-REQ-648

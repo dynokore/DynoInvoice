@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: payload events
-  version: 1.1.0
+  version: 1.2.0
   description: >-
     Every event payload produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -41,6 +41,11 @@ channels:
     messages:
       PayloadRejected:
         $ref: '#/components/messages/PayloadRejected'
+  payloadRenditionFindingChanged:
+    address: 'gst.payload.rendition-finding-changed.v1'
+    messages:
+      RenditionFindingChanged:
+        $ref: '#/components/messages/RenditionFindingChanged'
   payloadExampleHappened:
     address: 'gst.payload.example-happened.v1'
     messages:
@@ -62,6 +67,13 @@ operations:
       $ref: '#/channels/payloadPayloadRejected'
     messages:
       - $ref: '#/channels/payloadPayloadRejected/messages/PayloadRejected'
+  publishRenditionFindingChanged:
+    action: send
+    description: RenditionFindingChanged — the entity's PAY-014 rendition finding opened or closed (INV-Q-6323).
+    channel:
+      $ref: '#/channels/payloadRenditionFindingChanged'
+    messages:
+      - $ref: '#/channels/payloadRenditionFindingChanged/messages/RenditionFindingChanged'
   publishExampleHappened:
     action: send
     description: Placeholder operation (INV-T-2849 scaffold) — replace with a real one.
@@ -110,6 +122,18 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/payload-rejected-payload.schema.json'
+    RenditionFindingChanged:
+      name: com.dynokore.gst.payload.RenditionFindingChanged.v1
+      title: RenditionFindingChanged
+      summary: The entity's PAY-014 rendition finding opened or closed.
+      description: >-
+        Event RenditionFindingChanged (INV-Q-6323 option A, INV-REQ-648; class: domain). Emitted by:
+        payload-svc. Consumed by: submission-svc. Delivery: At-least-once; consumers order by `sequence`
+        and ignore a lower value than the one already applied. Payload: entityRef, open (true while the
+        entity's PAY-014 finding is open), code (PAY-014), sequence, changedAt.
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/rendition-finding-changed-payload.schema.json'
     ExampleHappened:
       name: com.dynokore.gst.payload.ExampleHappened.v1
       title: ExampleHappened

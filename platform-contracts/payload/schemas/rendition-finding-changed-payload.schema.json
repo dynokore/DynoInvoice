@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/payload/schemas/rendition-finding-changed-payload.schema.json",
+  "title": "RenditionFindingChangedPayload",
+  "description": "Payload of the RenditionFindingChanged event (class: domain). Coordinator ruling INV-Q-6323 option A, INV-REQ-648: the entity's PAY-014 rendition finding opened (open true) or closed (open false); the finding is the entity's, not a document's. At-least-once delivery; consumers order by sequence, which rises by one step per change of the entity's finding. Within a major version this schema is additive-only (API-41).",
+  "type": "object",
+  "properties": {
+    "entityRef": {
+      "type": "string",
+      "maxLength": 40,
+      "description": "The entity the finding is raised against."
+    },
+    "open": {
+      "type": "boolean",
+      "description": "True while the entity's PAY-014 finding is open."
+    },
+    "code": {
+      "type": "string",
+      "const": "PAY-014",
+      "description": "The finding code."
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Per-entity monotonic sequence of finding changes; consumers order by it."
+    },
+    "changedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the finding changed."
+    }
+  },
+  "required": [
+    "entityRef",
+    "open",
+    "code",
+    "sequence",
+    "changedAt"
+  ],
+  "additionalProperties": true
+}

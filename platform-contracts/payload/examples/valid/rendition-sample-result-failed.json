@@ -1,0 +1,1 @@
+{ "entityRef": "ENT-0001", "scenario": "SELF_BILLING", "submissionType": "TYPE_2", "sampleSha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08", "result": "FAILED", "textFound": true, "missingWording": ["Buyer Created Tax Invoice"], "checkedAt": "2026-03-20T03:20:00Z", "packVersion": "2026.1", "findingCode": "PAY-014" }

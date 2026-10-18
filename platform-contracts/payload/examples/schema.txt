@@ -3,3 +3,6 @@
 ../openapi.yaml#/components/schemas/ReasonItem reason-item-*.json
 ../schemas/payload-ready-payload.schema.json payload-ready-*.json
 ../openapi.yaml#/components/schemas/RegeneratedPayload regenerated-payload-*.json
+../openapi.yaml#/components/schemas/RecordRenditionSampleRequest record-rendition-sample-request-*.json
+../openapi.yaml#/components/schemas/RenditionSampleResult rendition-sample-result-*.json
+../schemas/rendition-finding-changed-payload.schema.json rendition-finding-changed-*.json

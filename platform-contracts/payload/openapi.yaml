@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: payload API
-  version: 1.3.0
+  version: 1.4.0
   description: >-
     Contract-first source of truth for payload (API-01, STK-44). The
     `payload-contract` module generates its server interfaces and DTOs
@@ -28,6 +28,8 @@ tags:
     description: Full validation and Relay-mode pre-issuance verdict for a recorded canonical version (§33.1, §33.3).
   - name: queries
     description: Payload, rendition and regeneration reads for console-bff (INV-REQ-1168).
+  - name: rendition
+    description: The entity's rendition sample check and its PAY-014 finding (INV-REQ-1033, INV-REQ-813).
 paths:
   /internal/v1/payload/pre-issuance-checks:
     post:
@@ -338,6 +340,112 @@ paths:
                     docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
         default:
           $ref: '#/components/responses/Error'
+  /internal/v1/payload/entities/{entityRef}/rendition-samples:
+    post:
+      operationId: recordRenditionSample
+      summary: Check one sample PDF of an off-network rendition and record the result against the entity
+      description: >-
+        `tax.operator` uploads one sample PDF per call, for one scenario and
+        submission type, at onboarding and every quarter. payload-svc extracts
+        the text and checks the wording the Scenario pack lists for that
+        (scenario, submissionType) pair, in the pack effective on the day of
+        the call (INV-REQ-1033, INV-REQ-813, INV-REQ-1032; INV-Q-6321 option A).
+
+
+        The check rules: the extracted text and the required wording are
+        normalised, then compared case-sensitively; no dash folding is done
+        (an en dash and a hyphen are different characters); "Tax Invoice" is
+        never required for TYPE_1A and TYPE_1B; a sample with no extractable
+        text fails every required wording (`textFound` false).
+
+
+        PAY-014 is the entity's finding, not an error response: a failed check
+        is a `201` with `result` FAILED and `findingCode` PAY-014, and the
+        finding is raised against the entity, not against documents
+        (INV-AC-681, INV-AC-1858, INV-AC-674). The finding stays open while
+        the latest sample of any (scenario, submissionType) pair has failed.
+
+
+        A missing or invalid field is refused with `400` and SRT-001. An
+        unknown entity, or a (scenario, submissionType) pair the pack does not
+        list, is refused with `404` and SRT-005; nothing is recorded.
+      tags: [rendition]
+      x-principal: filing-workflow
+      x-timeout: 2000
+      x-sync-edge: console-bff->payload-svc
+      x-error-codes: [SRT-005]
+      x-requirements: [INV-REQ-1033, INV-REQ-813, INV-REQ-1032]
+      x-operation:
+        role: tax.operator
+        scope: entity
+        precondition: >-
+          The entity exists and the Scenario pack effective on the day of the
+          call lists the (scenario, submissionType) pair.
+        reversibility: COMPENSABLE
+        repeatKey: >-
+          (entityRef, sampleSha256, scenario, submissionType) — a repeat
+          returns the recorded result unchanged.
+      parameters:
+        - $ref: '#/components/parameters/EntityRef'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordRenditionSampleRequest'
+            examples:
+              default:
+                value: { scenario: "SELF_BILLING", submissionType: "TYPE_2", sampleContent: "JVBERi0xLjQK" }
+      responses:
+        '201':
+          description: The sample is checked and the result is recorded (a repeat returns the recorded result unchanged).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RenditionSampleResult'
+              examples:
+                default:
+                  value:
+                    entityRef: "ENT-0001"
+                    scenario: "SELF_BILLING"
+                    submissionType: "TYPE_2"
+                    sampleSha256: "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+                    result: "FAILED"
+                    textFound: true
+                    missingWording: ["Buyer Created Tax Invoice"]
+                    checkedAt: "2026-03-20T03:20:00Z"
+                    packVersion: "2026.1"
+                    findingCode: "PAY-014"
+        '400':
+          description: A required field is missing or invalid (SRT-001); nothing is recorded.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '../service-runtime/schemas/error-envelope.schema.json'
+              examples:
+                default:
+                  value:
+                    type: "about:blank"
+                    title: "A required field is missing"
+                    status: 400
+                    code: "SRT-001"
+                    correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+        '404':
+          description: The entity is unknown, or the pack does not list the (scenario, submissionType) pair (SRT-005); nothing is recorded.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '../service-runtime/schemas/error-envelope.schema.json'
+              examples:
+                default:
+                  value:
+                    type: "about:blank"
+                    title: "Not found"
+                    status: 404
+                    code: "SRT-005"
+                    correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+        default:
+          $ref: '#/components/responses/Error'
   /internal/v1/payload/documents/{docUuid}/versions/{version}:
     get:
       operationId: getPayload
@@ -459,6 +567,13 @@ paths:
           $ref: '#/components/responses/Error'
 components:
   parameters:
+    EntityRef:
+      name: entityRef
+      in: path
+      required: true
+      schema:
+        type: string
+        maxLength: 40
     DocUuid:
       name: docUuid
       in: path
@@ -685,6 +800,64 @@ components:
           type: string
           format: date-time
       required: [docUuid, version, specVersion, customizationId, verdict, builtAt]
+    RecordRenditionSampleRequest:
+      type: object
+      description: One sample PDF of an off-network rendition, for one scenario and submission type (INV-REQ-1033).
+      properties:
+        scenario:
+          type: string
+          maxLength: 64
+        submissionType:
+          type: string
+          enum: [TYPE_1A, TYPE_1B, TYPE_2, TYPE_3]
+          x-extensible-enum: true
+        sampleContent:
+          type: string
+          contentEncoding: base64
+          maxLength: 14000000
+          description: The sample PDF, base64-encoded.
+      required: [scenario, submissionType, sampleContent]
+    RenditionSampleResult:
+      type: object
+      description: The recorded result of one sample check, against the entity (INV-REQ-1033, INV-AC-681).
+      properties:
+        entityRef:
+          type: string
+          maxLength: 40
+        scenario:
+          type: string
+          maxLength: 64
+        submissionType:
+          type: string
+          enum: [TYPE_1A, TYPE_1B, TYPE_2, TYPE_3]
+          x-extensible-enum: true
+        sampleSha256:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+        result:
+          type: string
+          enum: [PASSED, FAILED]
+          x-extensible-enum: true
+        textFound:
+          type: boolean
+          description: False when no text could be extracted from the sample; every required wording is then missing.
+        missingWording:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            maxLength: 200
+        checkedAt:
+          type: string
+          format: date-time
+        packVersion:
+          type: string
+          maxLength: 16
+        findingCode:
+          type: string
+          const: PAY-014
+          description: Present exactly when `result` is FAILED; the finding is the entity's, not a document's.
+      required: [entityRef, scenario, submissionType, sampleSha256, result, textFound, missingWording, checkedAt, packVersion]
     RenditionStatus:
       type: object
       properties:

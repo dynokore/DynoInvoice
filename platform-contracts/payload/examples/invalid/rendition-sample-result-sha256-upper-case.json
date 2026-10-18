@@ -1,0 +1,1 @@
+{ "entityRef": "ENT-0001", "scenario": "STANDARD", "submissionType": "TYPE_2", "sampleSha256": "9F86D081884C7D659A2FEAA0C55AD015A3BF4F1B2B0B822CD15D6C15B0F00A08", "result": "PASSED", "textFound": true, "missingWording": [], "checkedAt": "2026-03-20T03:20:00Z", "packVersion": "2026.1" }
