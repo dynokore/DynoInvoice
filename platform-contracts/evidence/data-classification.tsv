@@ -120,3 +120,17 @@ openapi.yaml	EvidenceAnnotation.reason	IDENTIFYING
 openapi.yaml	EvidenceAnnotation.annotatedBy	IDENTIFYING
 openapi.yaml	EvidenceAnnotation.annotatedAt	NONE
 openapi.yaml	EvidenceAnnotation.sequence	NONE
+openapi.yaml	OpenPrivacyCaseRequest.subjectRef	IDENTIFYING
+openapi.yaml	OpenPrivacyCaseRequest.requestKind	NONE
+openapi.yaml	OpenPrivacyCaseRequest.receivedOn	NONE
+openapi.yaml	OpenPrivacyCaseRequest.requestReference	IDENTIFYING
+openapi.yaml	ClosePrivacyCaseRequest.outcome	NONE
+openapi.yaml	ClosePrivacyCaseRequest.basis	IDENTIFYING
+openapi.yaml	PrivacyCase.requestKind	NONE
+openapi.yaml	PrivacyCase.requestReference	IDENTIFYING
+openapi.yaml	PrivacyCase.receivedOn	NONE
+openapi.yaml	PrivacyCase.responseDeadline	NONE
+openapi.yaml	PrivacyCase.deadlinePeriodDays	NONE
+openapi.yaml	PrivacyCase.closedAt	NONE
+openapi.yaml	PrivacyCase.outcome	NONE
+openapi.yaml	PrivacyCase.basis	IDENTIFYING

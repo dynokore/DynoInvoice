@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: evidence API
-  version: 1.5.0
+  version: 1.6.0
   description: >-
     Contract-first source of truth for evidence (API-01, STK-44). The
     `evidence-contract` module generates its server interfaces and DTOs
@@ -51,6 +51,8 @@ info:
 
     `appendEvidenceAnnotation` and `getEvidenceAnnotation` carry the evidence
     annotation of a privacy correction (INV-REQ-886, INV-Q-6828 A).
+    `openPrivacyCase` and `closePrivacyCase` open and close the privacy
+    request case with its tracked deadline (INV-REQ-1403, INV-Q-6834).
   contact:
     name: evidence (see CODEOWNERS)
 servers:
@@ -1021,6 +1023,178 @@ paths:
                     recordedAt: "2026-04-01T02:00:00Z"
         default:
           $ref: '#/components/responses/Error'
+  /internal/v1/evidence/cases:
+    post:
+      operationId: openPrivacyCase
+      summary: Open a privacy request case with its statutory deadline
+      description: >-
+        INV-REQ-1403, INV-Q-6834 A, INV-NOTE-7 SCR-32.1. Opens the case of an
+        access or correction request from an individual. The caller supplies
+        no deadline and no period: evidence-svc computes `responseDeadline`
+        once, when the case is opened, as the receipt date plus the period
+        (the tenant's shorter period if set, else the pack default;
+        INV-REQ-1403 behavior 2), and stores it together with
+        `deadlinePeriodDays`. No operation of this contract changes it.
+        `closePrivacyCase` and `getCase` complete the case. A repeat of the
+        same `requestReference` with the same `subjectRef`, `requestKind` and
+        `receivedOn` returns the original case.
+      tags: [privacy]
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->evidence-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-1403]
+      x-operation:
+        role: security.officer
+        scope: tenant
+        precondition: "A request from an individual has been received."
+        reversibility: UNDOABLE
+        repeatKey: "requestReference — a repeat of the same request returns the original case, unchanged."
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: 'API-15: a UUID, deduplicating an exact request replay for at least 24h.'
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpenPrivacyCaseRequest'
+            examples:
+              default:
+                value:
+                  subjectRef: "SUBJ-88213"
+                  requestKind: "ACCESS"
+                  receivedOn: "2026-03-01"
+                  requestReference: "REQ-2026-0042"
+      responses:
+        '201':
+          description: The case was opened.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrivacyCase'
+              examples:
+                default:
+                  value:
+                    caseId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    subjectRef: "SUBJ-88213"
+                    status: "OPEN"
+                    openedAt: "2026-03-01T09:00:00Z"
+                    requestKind: "ACCESS"
+                    requestReference: "REQ-2026-0042"
+                    receivedOn: "2026-03-01"
+                    responseDeadline: "2026-03-31"
+                    deadlinePeriodDays: 30
+        '200':
+          description: The `requestReference` is held by a case with the same `subjectRef`, `requestKind` and `receivedOn` — the original case, unchanged.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrivacyCase'
+              examples:
+                default:
+                  value:
+                    caseId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    subjectRef: "SUBJ-88213"
+                    status: "OPEN"
+                    openedAt: "2026-03-01T09:00:00Z"
+                    requestKind: "ACCESS"
+                    requestReference: "REQ-2026-0042"
+                    receivedOn: "2026-03-01"
+                    responseDeadline: "2026-03-31"
+                    deadlinePeriodDays: 30
+        '409':
+          description: The `requestReference` is held by a case with another `subjectRef`, `requestKind` or `receivedOn`.
+          $ref: '#/components/responses/Error'
+        '422':
+          description: The same Idempotency-Key was used with a different body (API-15), or `receivedOn` is later than the day of the call.
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/evidence/cases/{caseId}/closure:
+    post:
+      operationId: closePrivacyCase
+      summary: Close a privacy request case with its outcome and basis
+      description: >-
+        INV-REQ-1403, INV-NOTE-7 SCR-32.4. Records the outcome and the basis
+        and sets the status CLOSED. The deadline of the case is not changed.
+        Reopen is the compensation named in INV-NOTE-7; no reopen operation
+        exists in this version.
+      tags: [privacy]
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->evidence-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-1403]
+      x-operation:
+        role: security.officer
+        scope: tenant
+        precondition: "The actions on the request are complete."
+        reversibility: COMPENSABLE
+        repeatKey: "caseId — a repeat with the same outcome and basis returns the case, unchanged; reopen to correct."
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: 'API-15: a UUID, deduplicating an exact request replay for at least 24h.'
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClosePrivacyCaseRequest'
+            examples:
+              default:
+                value:
+                  outcome: "ANSWERED"
+                  basis: "The individual was sent the personal data held, as requested."
+      responses:
+        '200':
+          description: The case is CLOSED.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrivacyCase'
+              examples:
+                default:
+                  value:
+                    caseId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    subjectRef: "SUBJ-88213"
+                    status: "CLOSED"
+                    openedAt: "2026-03-01T09:00:00Z"
+                    requestKind: "ACCESS"
+                    requestReference: "REQ-2026-0042"
+                    receivedOn: "2026-03-01"
+                    responseDeadline: "2026-03-31"
+                    deadlinePeriodDays: 30
+                    closedAt: "2026-03-20T10:00:00Z"
+                    outcome: "ANSWERED"
+                    basis: "The individual was sent the personal data held, as requested."
+        '404':
+          description: No case has the `caseId`.
+          $ref: '#/components/responses/Error'
+        '409':
+          description: The case is CLOSED with another outcome or basis, or was not opened by `openPrivacyCase`.
+          $ref: '#/components/responses/Error'
+        '422':
+          description: The same Idempotency-Key was used with a different body (API-15).
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
   /internal/v1/evidence/cases/{caseId}/annotations:
     post:
       operationId: appendEvidenceAnnotation
@@ -1479,7 +1653,73 @@ components:
           format: date-time
         subjectAccessExport:
           $ref: '#/components/schemas/SubjectAccessExport'
+        requestKind:
+          type: string
+          enum: [ACCESS, CORRECTION]
+          description: Present exactly when the case was opened by `openPrivacyCase`.
+        requestReference:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Present exactly when the case was opened by `openPrivacyCase`.
+        receivedOn:
+          type: string
+          format: date
+          description: Present exactly when the case was opened by `openPrivacyCase`.
+        responseDeadline:
+          type: string
+          format: date
+          description: Present exactly when the case was opened by `openPrivacyCase`; `receivedOn` plus `deadlinePeriodDays` calendar days.
+        deadlinePeriodDays:
+          type: integer
+          minimum: 1
+          description: Present exactly when the case was opened by `openPrivacyCase`.
+        closedAt:
+          type: string
+          format: date-time
+          description: Present exactly when the status is CLOSED on a case opened by `openPrivacyCase`.
+        outcome:
+          type: string
+          enum: [ANSWERED, REFUSED]
+          description: Present exactly when the status is CLOSED on a case opened by `openPrivacyCase`.
+        basis:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: Present exactly when the status is CLOSED on a case opened by `openPrivacyCase`.
       required: [caseId, subjectRef, status, openedAt]
+      description: A case opened by `recordSecurityCase` has none of requestKind, requestReference, receivedOn, responseDeadline, deadlinePeriodDays, closedAt, outcome and basis.
+    OpenPrivacyCaseRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        subjectRef:
+          type: string
+          minLength: 1
+          maxLength: 60
+        requestKind:
+          type: string
+          enum: [ACCESS, CORRECTION]
+        receivedOn:
+          type: string
+          format: date
+        requestReference:
+          type: string
+          minLength: 1
+          maxLength: 100
+      required: [subjectRef, requestKind, receivedOn, requestReference]
+    ClosePrivacyCaseRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        outcome:
+          type: string
+          enum: [ANSWERED, REFUSED]
+        basis:
+          type: string
+          minLength: 1
+          maxLength: 500
+      required: [outcome, basis]
     PlaceLegalHoldRequest:
       type: object
       properties:

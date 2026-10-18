@@ -6,3 +6,6 @@
 ../openapi.yaml#/components/schemas/MaxEvidenceRetention max-evidence-retention-*.json
 ../openapi.yaml#/components/schemas/AppendEvidenceAnnotationRequest append-evidence-annotation-request-*.json
 ../openapi.yaml#/components/schemas/EvidenceAnnotation evidence-annotation-*.json
+../openapi.yaml#/components/schemas/OpenPrivacyCaseRequest open-privacy-case-request-*.json
+../openapi.yaml#/components/schemas/ClosePrivacyCaseRequest close-privacy-case-request-*.json
+../openapi.yaml#/components/schemas/PrivacyCase privacy-case-*.json

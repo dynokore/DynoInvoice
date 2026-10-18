@@ -36,3 +36,26 @@ EvidenceChainItem.kind.ANNOTATION	schema_enum_value	openapi.yaml	INV-REQ-886
 correctedField	property	openapi.yaml	INV-REQ-886
 AppendEvidenceAnnotationRequest.correctedField	schema_property	openapi.yaml	INV-REQ-886
 EvidenceAnnotation.annotatedBy	schema_property	openapi.yaml	INV-REQ-886
+# INV-T-6838. INV-REQ-1403 and INV-AC-1404 carry no backticked name; the rows below are identifiers this task adds.
+openPrivacyCase	operation	openapi.yaml	INV-REQ-1403
+closePrivacyCase	operation	openapi.yaml	INV-REQ-1403
+requestKind	property	openapi.yaml	INV-REQ-1403
+requestReference	property	openapi.yaml	INV-REQ-1403
+receivedOn	property	openapi.yaml	INV-REQ-1403
+responseDeadline	property	openapi.yaml	INV-REQ-1403
+deadlinePeriodDays	property	openapi.yaml	INV-REQ-1403
+closedAt	property	openapi.yaml	INV-REQ-1403
+outcome	property	openapi.yaml	INV-REQ-1403
+basis	property	openapi.yaml	INV-REQ-1403
+ACCESS	enum_value	openapi.yaml	INV-REQ-1403
+CORRECTION	enum_value	openapi.yaml	INV-REQ-1403
+ANSWERED	enum_value	openapi.yaml	INV-REQ-1403
+REFUSED	enum_value	openapi.yaml	INV-REQ-1403
+PrivacyCase.responseDeadline	schema_property	openapi.yaml	INV-REQ-1403
+PrivacyCase.deadlinePeriodDays	schema_property	openapi.yaml	INV-REQ-1403
+OpenPrivacyCaseRequest.requestReference	schema_property	openapi.yaml	INV-REQ-1403
+ClosePrivacyCaseRequest.basis	schema_property	openapi.yaml	INV-REQ-1403
+OpenPrivacyCaseRequest.requestKind.ACCESS	schema_enum_value	openapi.yaml	INV-REQ-1403
+OpenPrivacyCaseRequest.requestKind.CORRECTION	schema_enum_value	openapi.yaml	INV-REQ-1403
+ClosePrivacyCaseRequest.outcome.ANSWERED	schema_enum_value	openapi.yaml	INV-REQ-1403
+ClosePrivacyCaseRequest.outcome.REFUSED	schema_enum_value	openapi.yaml	INV-REQ-1403
