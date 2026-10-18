@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: rules API
-  version: 1.4.0
+  version: 1.5.0
   description: >-
     Contract-first source of truth for rules (API-01, STK-44). The
     `rules-contract` module generates its server interfaces and DTOs
@@ -51,7 +51,8 @@ paths:
         The scenario pack's handler returns the category code, the rate and
         the IBT-022 statement, or a RUL-004/RUL-011 verdict (FR-AE.89); for
         self-billing the party-to-type assignment is also a scenario-pack
-        decision here (FR-T.2). rules-svc persists no decision trace itself
+        decision here (FR-T.2); the result carries it as `selfBillingAssignment` (INV-Q-6988).
+        rules-svc persists no decision trace itself
         (must_not) — the caller carries it to evidence-svc (AD-24).
       tags: [evaluation]
       x-principal: ingest
@@ -1181,6 +1182,13 @@ components:
           type: string
           enum: [CLAIMABLE_PORTION, ENTIRE_INVOICE]
           description: The line's mixed-use indicator, purchases only (INV-REQ-370 b7).
+        direction:
+          type: string
+          enum: [SALE, PURCHASE]
+          description: >-
+            The direction of the document for the entity, used only to choose the self-billing party
+            (INV-REQ-416); absent means SALE, as on the canonical record request. The caller is
+            canonical-svc, which passes the direction it recorded.
       required: [entityRef, transactionDate, internalTaxCode]
     EvaluationResult:
       type: object
@@ -1245,6 +1253,25 @@ components:
           description: >-
             The catalogue code of a refusal, the RUL code of a block (INV-REQ-777). Present with
             `severity` when the evaluation refuses and absent otherwise (enforced by rules-svc).
+        selfBillingAssignment:
+          type: object
+          description: >-
+            Present only when the line's mapping entry carries the scheme tag SELF_BILLING. The pair
+            is the one the scenario pack of the version resolved by transaction date holds for the
+            party the request's `direction` selects: PURCHASE selects `customerCumIssuer` and SALE
+            selects `supplierCumRecipient` (INV-REQ-415, INV-REQ-416). The pack's `sourceClass` and
+            `sourceReference` are not copied. canonical-svc copies the object unread to `routingFacts`
+            of CanonicalVersionCreated; the lines of one document select the same party object, so
+            they carry the same pair. Nothing downstream holds or re-derives the assignment
+            (INV-REQ-416, INV-Q-6988).
+          properties:
+            direction:
+              type: string
+              enum: [SALE, PURCHASE]
+            submissionType:
+              type: string
+              enum: [TYPE_1A, TYPE_1B, TYPE_2, TYPE_3]
+          required: [direction, submissionType]
       required: [scopeVerdict]
     PackVersionApplied:
       type: object

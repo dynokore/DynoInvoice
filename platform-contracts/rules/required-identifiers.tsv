@@ -281,3 +281,15 @@ PASS_THROUGH	enum_value	schemas/scope-pack-contents.schema.json	INV-REQ-738
 # INV-T-6643 (INV-REQ-694): PAY-009 is a catalogue code (BLOCK, MANUAL, Finance), not an identifier of this contract.
 cancellation	property	openapi.yaml	INV-REQ-694
 cancellation	property	schemas/scope-pack-contents.schema.json	INV-REQ-694
+# INV-T-6997 (INV-REQ-415, INV-REQ-416, INV-AC-452, INV-AC-1438): `TX` and `SR` (INV-REQ-415) are IRAS category codes, seed content, not elements of this contract; INV-REQ-416 and INV-AC-1438 name no backticked identifier.
+direction	property	openapi.yaml	INV-REQ-416
+selfBillingAssignment	property	openapi.yaml	INV-REQ-416
+submissionType	property	openapi.yaml	INV-REQ-416
+EvaluateDocumentRequest.direction	schema_property	openapi.yaml	INV-REQ-416
+EvaluationResult.selfBillingAssignment	schema_property	openapi.yaml	INV-REQ-416
+SALE	enum_value	openapi.yaml	INV-REQ-416
+PURCHASE	enum_value	openapi.yaml	INV-REQ-416
+TYPE_1A	enum_value	openapi.yaml	INV-REQ-416
+TYPE_1B	enum_value	openapi.yaml	INV-REQ-416
+TYPE_2	enum_value	openapi.yaml	INV-REQ-416
+TYPE_3	enum_value	openapi.yaml	INV-REQ-416

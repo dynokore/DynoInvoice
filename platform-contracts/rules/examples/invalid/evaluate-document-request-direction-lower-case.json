@@ -1,0 +1,13 @@
+{
+ "entityRef": "E-001",
+ "transactionDate": "2026-03-20",
+ "internalTaxCode": "SR-STD",
+ "documentFunction": "BILL_FOR_PAYMENT",
+ "documentKind": "DEBIT_NOTE",
+ "precedingDocumentNumber": "INV-100",
+ "precedingDocumentDate": "2026-02-01",
+ "lineSign": "NEGATIVE",
+ "apportionmentMode": "CLAIMABLE_PORTION",
+ "mixedUse": "ENTIRE_INVOICE",
+ "direction": "purchase"
+}

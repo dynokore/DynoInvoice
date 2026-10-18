@@ -1,0 +1,18 @@
+{
+ "scopeVerdict": "EXCLUDED_TXN",
+ "documentFunction": "NOT_A_BILL",
+ "documentTypeCode": "380",
+ "signNormalised": false,
+ "packVersionsApplied": [
+  {
+   "packType": "SCOPE",
+   "version": "2026.3"
+  }
+ ],
+ "severity": "BLOCK",
+ "code": "RUL-004",
+ "selfBillingAssignment": {
+  "direction": "PURCHASE",
+  "submissionType": "TYPE_3"
+ }
+}
