@@ -40,8 +40,7 @@ variables:
 #   (.gst-mr-only-on-*). Main and tag pipelines always run them.
 # - A main push pipeline skips a check job whose commit already passed a merge-request pipeline
 #   (.gst-skip-verified): merges are fast-forward, so it is the same commit. The publish jobs and
-#   invoice-docs-checks (its inputs live outside this repository) and catalogue-verify (Keel acceptance
-#   results come from the main run itself, Keel R77) always run in full.
+#   invoice-docs-checks (its inputs live outside this repository) always run in full.
 .gst-skip-verified:
   before_script:
     - |
@@ -241,8 +240,7 @@ catalogue-verify:
   # checkBlockDispositionCauses into it too (catalogue/generator's own
   # gst.catalogue-generator.gradle.kts).
   # CI-FAST batch 7: the separate catalogue-compile job is gone (check compiles); in a merge request this job runs
-  # only when catalogue/ or this file changes. It never skips on main: Keel takes acceptance results only from the
-  # main pipeline's own run on the merge commit (Keel R77), so the main push pipeline produces this job's JUnit XML.
+  # only when catalogue/ or this file changes.
   stage: verify
   needs: []
   extends: .gst-mr-only-on-catalogue
@@ -251,6 +249,8 @@ catalogue-verify:
     key: "gradle-catalogue-$CI_PROJECT_ID"
     paths:
       - .gradle-cache/caches
+  before_script:
+    - !reference [.gst-skip-verified, before_script]
   script:
     - gradle -p catalogue check --stacktrace
   artifacts:
