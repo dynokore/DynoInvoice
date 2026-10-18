@@ -22,3 +22,8 @@ CANONICAL_VERSION	enum_value	openapi.yaml	INV-REQ-691
 SOURCE_DOCUMENT_REFERENCE	enum_value	openapi.yaml	INV-REQ-691
 VERIFICATION_REPORT	enum_value	openapi.yaml	INV-REQ-650
 NEVER_RUN	enum_value	openapi.yaml	INV-REQ-661
+# INV-T-6534. Not identifiers of this file, from the published INV-REQ-1304: `tenant.admin` (a role), `setPolicy` (an
+# operation of the service-runtime contract), `structuredSubmissions`, `acknowledgementsAndTraces` and
+# `sourceDocumentReferences` (properties of the VP-43 value in the catalogue).
+getMaxEvidenceRetention	operation	openapi.yaml	INV-REQ-3767
+maxRetention	property	openapi.yaml	INV-REQ-3767

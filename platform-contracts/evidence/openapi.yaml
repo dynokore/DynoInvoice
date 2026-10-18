@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: evidence API
-  version: 1.3.0
+  version: 1.4.0
   description: >-
     Contract-first source of truth for evidence (API-01, STK-44). The
     `evidence-contract` module generates its server interfaces and DTOs
@@ -28,8 +28,10 @@ info:
     `getAcknowledgementChain` and `reverseLookup`; "export … queries" is
     `getEvidenceExport` (offboarding); "verification … queries" is
     `getIntegrityReport`; "privacy … queries" is `getCase`; "retention …
-    commands" is `deleteAtRetentionEnd` (the INV-REQ-1010 named operation)
-    and `setRetentionJustification` (INV-NOTE-7 §7 SCR-30.4); "legal-hold
+    commands" is `deleteAtRetentionEnd` (the INV-REQ-1010 named operation),
+    the evidence contract's retention command; retention periods are set
+    with `setPolicy` of the service-runtime contract for the variation
+    point VP-43, served by evidence-svc; "legal-hold
     commands" is `placeLegalHold` / `releaseLegalHold`; "the audit-pack
     resource of §19.7" is `createAuditPackExport` / `getAuditPackExport`,
     the internal half of the public
@@ -1015,57 +1017,39 @@ paths:
                     recordedAt: "2026-04-01T02:00:00Z"
         default:
           $ref: '#/components/responses/Error'
-  /internal/v1/evidence/tenants/{tenantId}/retention-justification:
-    put:
-      operationId: setRetentionJustification
-      summary: Set the retention period and justification beyond five years
+  /internal/v1/evidence/retention/maximum:
+    get:
+      operationId: getMaxEvidenceRetention
+      summary: Read the installation's longest VP-43 evidence retention
       description: >-
-        Retention commands (services.yaml evidence-svc `provides`,
-        "retention … commands"; INV-NOTE-7 §7 SCR-30.4, NFR-S.5, VP-43).
+        INV-REQ-3767, INV-Q-6529 A. Returns one figure: the longest VP-43
+        retention across every retention tier at any tenant or entity scope
+        of the data plane. A tenant with no setting counts at the 5-year
+        default (INV-REQ-1304). Only control-plane-svc may call it, by its
+        workload identity (FR-AH.6). It changes no state. When a setting
+        cannot be read the answer is `503` with the error envelope and
+        never a partial figure (INV-Q-3263).
       tags: [retention]
-      x-principal: filing-workflow
-      x-sync-edge: console-bff->evidence-svc
+      x-principal: reporting
+      x-sync-edge: control-plane-svc->evidence-svc
       x-timeout: 2000
       x-error-codes: []
-      x-requirements: [INV-REQ-957, INV-REQ-1010]
-      x-operation:
-        role: tenant.admin
-        scope: tenant
-        precondition: "The requested retention period exceeds five years."
-        reversibility: UNDOABLE
-        repeatKey: "(tenantId, tier) — a repeat returns the existing retention period and justification, unchanged."
-      parameters:
-        - name: tenantId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RetentionJustificationRequest'
-            examples:
-              default:
-                value:
-                  tier: "SEVEN_YEARS"
-                  justification: "Sector regulator requires seven-year retention (MAS Notice 626)."
+      x-requirements: [INV-REQ-3767]
       responses:
         '200':
-          description: The retention period with its justification.
+          description: The longest VP-43 evidence retention.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RetentionJustification'
+                $ref: '#/components/schemas/MaxEvidenceRetention'
               examples:
                 default:
                   value:
-                    tenantId: "5e0b8a0e-2c4d-4b8f-9a61-0d3c7f1e2b44"
-                    tier: "SEVEN_YEARS"
-                    justification: "Sector regulator requires seven-year retention (MAS Notice 626)."
-                    setAt: "2026-04-01T02:00:00Z"
+                    maxRetention: "P10Y"
+        '403':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
 components:
@@ -1528,30 +1512,18 @@ components:
           type: string
           format: date-time
       required: [caseId, reviewReference, auditLogEntryIds, outcome, breachAssessmentOpened, recordedAt]
-    RetentionJustificationRequest:
+    MaxEvidenceRetention:
       type: object
+      description: >-
+        The longest VP-43 evidence retention as one ISO-8601 duration in
+        years (INV-REQ-3767). The service sends no other property: no tenant
+        identifier, count or other value.
       properties:
-        tier:
+        maxRetention:
           type: string
-          maxLength: 40
-        justification:
-          type: string
-          maxLength: 2000
-      required: [tier, justification]
-    RetentionJustification:
-      type: object
-      properties:
-        tenantId:
-          type: string
-          format: uuid
-        tier:
-          type: string
-        justification:
-          type: string
-        setAt:
-          type: string
-          format: date-time
-      required: [tenantId, tier, justification, setAt]
+          maxLength: 12
+          pattern: '^P[0-9]{1,3}(\.[0-9]{1,2})?Y$'
+      required: [maxRetention]
   responses:
     Error:
       description: Error (API-20 envelope)

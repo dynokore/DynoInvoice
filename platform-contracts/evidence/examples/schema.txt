@@ -3,3 +3,4 @@
 ../openapi.yaml#/components/schemas/RetrievalPending retrieval-pending*.json
 ../openapi.yaml#/components/schemas/RetrievalStatus retrieval-status-*.json
 ../openapi.yaml#/components/schemas/AuditPackExport audit-pack-export-*.json
+../openapi.yaml#/components/schemas/MaxEvidenceRetention max-evidence-retention-*.json

@@ -106,11 +106,6 @@ openapi.yaml	SecurityCase.auditLogEntryIds	NONE
 openapi.yaml	SecurityCase.outcome	NONE
 openapi.yaml	SecurityCase.breachAssessmentOpened	NONE
 openapi.yaml	SecurityCase.recordedAt	NONE
-openapi.yaml	RetentionJustificationRequest.tier	NONE
-openapi.yaml	RetentionJustificationRequest.justification	NONE
-openapi.yaml	RetentionJustification.tenantId	NONE
-openapi.yaml	RetentionJustification.tier	NONE
-openapi.yaml	RetentionJustification.justification	NONE
-openapi.yaml	RetentionJustification.setAt	NONE
 schemas/evidence-integrity-failed-payload.schema.json	range	NONE
 schemas/evidence-integrity-failed-payload.schema.json	failingRecord	IDENTIFYING
+openapi.yaml	MaxEvidenceRetention.maxRetention	NONE
