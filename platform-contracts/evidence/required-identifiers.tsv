@@ -33,6 +33,8 @@ appendEvidenceAnnotation	operation	openapi.yaml	INV-REQ-886
 getEvidenceAnnotation	operation	openapi.yaml	INV-REQ-886
 ANNOTATION	enum_value	openapi.yaml	INV-REQ-886
 EvidenceChainItem.kind.ANNOTATION	schema_enum_value	openapi.yaml	INV-REQ-886
+BUYER_INVOICE_REFERENCE	enum_value	openapi.yaml	INV-REQ-696
+EvidenceChainItem.kind.BUYER_INVOICE_REFERENCE	schema_enum_value	openapi.yaml	INV-REQ-696
 correctedField	property	openapi.yaml	INV-REQ-886
 AppendEvidenceAnnotationRequest.correctedField	schema_property	openapi.yaml	INV-REQ-886
 EvidenceAnnotation.annotatedBy	schema_property	openapi.yaml	INV-REQ-886

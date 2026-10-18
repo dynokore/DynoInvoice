@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: evidence API
-  version: 1.7.0
+  version: 1.8.0
   description: >-
     Contract-first source of truth for evidence (API-01, STK-44). The
     `evidence-contract` module generates its server interfaces and DTOs
@@ -180,6 +180,9 @@ paths:
         pack versions, and the recorded versions are in `reproduction`
         (INV-REQ-691, INV-REQ-1345). The `auditor` role alone may call it
         and each lookup is itself audit-logged (INV-REQ-711, INV-REQ-725).
+        The chain also holds the buyer-created invoice references of a
+        self-billing supplier-cum-recipient's document, and this lookup and
+        the audit pack export produce them on request (INV-AC-741).
         Answers 202 when the evidence is in a tier whose expected retrieval
         time exceeds the interactive limit and 200 otherwise; the client
         polls `getEvidenceRetrieval` and repeats the lookup when it is READY
@@ -1533,9 +1536,12 @@ components:
       properties:
         kind:
           type: string
-          enum: [PAYLOAD, ACKNOWLEDGEMENT, DECISION_TRACE, AUDIT_ENTRY, CANONICAL_VERSION, SOURCE_DOCUMENT_REFERENCE, ANNOTATION]
+          enum: [PAYLOAD, ACKNOWLEDGEMENT, DECISION_TRACE, AUDIT_ENTRY, CANONICAL_VERSION, SOURCE_DOCUMENT_REFERENCE, ANNOTATION, BUYER_INVOICE_REFERENCE]
           description: >-
             For ANNOTATION the `reference` is the `annotationId` (INV-REQ-886).
+            For BUYER_INVOICE_REFERENCE the `reference` is one entry of
+            `buyerInvoiceRefs` of the canonical version (INV-REQ-696), one item
+            per entry, appended by evidence-svc.
           x-extensible-enum: true
         recordedAt:
           type: string
