@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: canonical API
-  version: 1.3.0
+  version: 1.4.0
   description: >-
     Contract-first source of truth for canonical (API-01, STK-44). The
     `canonical-contract` module generates its server interfaces and DTOs
@@ -731,6 +731,11 @@ components:
             ISSUANCE_REFUSED or NETTED_INTO_REVISION (INV-REQ-432). BUYER_REJECTED is set when a received document's
             `buyerDisposition` is REJECTED. Other causes keep their `reasons` items and set none. Optional so an
             older consumer validates.
+        precedingDocUuid:
+          type: string
+          format: uuid
+          description: >-
+            Set by canonical-svc only on a credit note whose `precedingDocumentNumber` is populated and which resolved to exactly one document of the same entity, direction and issuer, with that number and, when `precedingDocumentDate` is populated, that transaction date. Absent when none or several match, and on a credit note with blank preceding fields. Read by submission-svc for the credit-note hold (INV-REQ-709, INV-Q-6311). Optional so an older consumer validates.
       required: [docUuid, version, docsequence, documentFunction, scopeVerdict, transactionDate, prescribedPeriodRef]
     PreparedReassignment:
       type: object

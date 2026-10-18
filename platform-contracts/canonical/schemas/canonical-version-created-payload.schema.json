@@ -10,6 +10,11 @@
       "format": "uuid",
       "description": "The document's Doc UUID."
     },
+    "precedingDocUuid": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Set by canonical-svc only on a credit note whose precedingDocumentNumber is populated and which resolved to exactly one document of the same entity, direction and issuer, with that number and, when precedingDocumentDate is populated, that transaction date. Absent when none or several match, and on a credit note with blank preceding fields. Read by submission-svc for the credit-note hold (INV-REQ-709, INV-Q-6311). Optional so an older consumer validates."
+    },
     "version": {
       "type": "integer",
       "minimum": 1,
