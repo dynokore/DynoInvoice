@@ -12,7 +12,7 @@
 # together as one train (konsist-rules/build.gradle.kts); pinned to match the
 # sibling checkout's current version until STK-71's registry takes cross-project
 # publish/consume (settings.gradle.kts, ci/README.md's "package registry" note).
-platformBuild = "0.20.2"
+platformBuild = "0.20.0"
 junit = "6.1.3"
 # tenancy-kernel (INV-T-2861 / T17): RLS proved against real PostgreSQL
 # (STK-14, STK-15) via Testcontainers, never H2 (banned-dependencies.yaml).
