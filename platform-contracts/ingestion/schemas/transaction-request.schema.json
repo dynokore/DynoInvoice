@@ -94,6 +94,33 @@
       "type": "string",
       "maxLength": 256,
       "description": "Reference to the business's other documentary evidence that GST was accounted for on the original supplies, for a blank-linked credit note (INV-REQ-561). Required, together with precedingBlankJustification, when documentFunction is CREDIT_NOTE and neither precedingDocumentNumber nor precedingDocumentDate is present; otherwise optional; refused with ING-019 (INV-REQ-561, INV-Q-1677, INV-Q-3450, INV-Q-3488). The condition is enforced by the receiving service, not by this schema (as documentNumber states ING-009)."
+    },
+    "documentKind": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32,
+      "description": "The upstream system's own name for the document, the middle key of the classification table (INV-REQ-658). Free text with no value set; retained for audit and never used for any other decision (INV-REQ-800 b3). A request without it is refused with 400 and SRT-001 by ingestion-svc (the io_contract marks it required; a property is never made required within a major version) (INV-Q-6496)."
+    },
+    "replacesReceiptNumber": {
+      "type": "string",
+      "maxLength": 64,
+      "description": "The receipt number of the simplified tax invoice that this full invoice replaces (INV-REQ-440). Optional; aggregation-svc excludes the receipt by this number, or the full invoice is flagged ING-014 if the receipt's aggregate was already transmitted."
+    },
+    "notes": {
+      "type": "string",
+      "maxLength": 1024,
+      "description": "Free-text note of the source document (INV-REQ-805)."
+    },
+    "attachmentRefs": {
+      "type": "array",
+      "maxItems": 50,
+      "items": { "type": "string", "minLength": 1, "maxLength": 512 },
+      "description": "Pointers to supporting documents such as bills of lading, never content: neither transmitted nor embedded (INV-REQ-649)."
+    },
+    "sourceDocumentRef": {
+      "type": "string",
+      "maxLength": 512,
+      "description": "Reference to the source document in the tenant's document store (INV-REQ-1319). Required for Types 2 and 3 once the entity is live; the condition is enforced by the receiving service, not by this schema."
     }
   },
   "required": ["entityRef", "sourceSystem", "sourceKey", "sourceRevision", "documentFunction", "transactionDate", "currency", "lines"],

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: ingestion API
-  version: 1.3.0
+  version: 1.4.0
   description: >-
     Contract-first source of truth for ingestion (API-01, STK-44). The
     `ingestion-contract` module generates its server interfaces and DTOs
@@ -101,6 +101,8 @@ paths:
         (API-15, FR-M.3): no `Idempotency-Key` header is required or
         accepted for this resource. `certification` may also call this in a
         non-production workspace only (NFR-S.4, INV-REQ-1377).
+        A request without `documentKind` is refused with `400` and
+        SRT-001 (INV-REQ-805, INV-Q-6496).
 
         `direction` is `SALE` or `PURCHASE`; absent means `SALE`
         (INV-REQ-809). A purchase line without `inputTaxClaimed` raises
@@ -489,6 +491,8 @@ paths:
       operationId: requestIssuance
       summary: Request Relay-mode network issuance (SDS §33.1, FR-AE.2)
       description: >-
+        A request without `documentKind` is refused with `400` and
+        SRT-001 (INV-REQ-805, INV-Q-6496).
         Records the document (as `submitTransaction` does, forwarding to
         canonical-svc), then calls payload-svc's internal `validateIssuance`
         (sync-edges.yaml `ingestion-svc -> payload-svc`) for full validation

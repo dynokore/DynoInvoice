@@ -2,6 +2,11 @@
 # (documentFunction, sourceKey, sourceRevision, taxAmount). Not rows, and why: internalTaxCode (the contract spelling is
 # taxCode, owner ruling INV-Q-6113); documentKind (added by the contract task under INV-Q-6496); the services
 # canonical-svc, ingestion-svc and submission-svc (not identifiers of this contract).
+# INV-T-6501: rows for the backticked names of INV-REQ-805, INV-REQ-649, INV-REQ-440, INV-REQ-1319 and INV-AC-1860,
+# INV-AC-1813, INV-AC-458, INV-AC-2307 that this contract carries (INV-Q-6496, INV-Q-6515 A). Not rows, and why:
+# ADJUSTMENT and NOT_A_BILL (members of the caller vocabulary of INV-REQ-371, not members of this schema; INV-Q-6507
+# decides); POST /v1/transactions, POST /v1/batches and POST /v1/aggregates (paths, not identifiers); canonical-svc,
+# aggregation-svc, payload-svc and evidence-svc (services); tenant.admin (a role); 400 (an HTTP status code).
 identifier	kind	file	requirement
 declaredCount	property	openapi.yaml	INV-REQ-811
 declaredNetTotal	property	openapi.yaml	INV-REQ-811
@@ -57,3 +62,23 @@ documentFunction	property	schemas/transaction-request.schema.json	INV-REQ-804
 sourceKey	property	schemas/transaction-request.schema.json	INV-REQ-794
 sourceRevision	property	schemas/transaction-request.schema.json	INV-REQ-794
 taxAmount	property	schemas/transaction-request.schema.json	INV-REQ-804
+documentKind	property	schemas/transaction-request.schema.json	INV-REQ-805
+notes	property	schemas/transaction-request.schema.json	INV-REQ-805
+sourceSystem	property	schemas/transaction-request.schema.json	INV-REQ-805
+sourceKey	property	schemas/transaction-request.schema.json	INV-REQ-805
+sourceRevision	property	schemas/transaction-request.schema.json	INV-REQ-805
+documentFunction	property	schemas/transaction-request.schema.json	INV-REQ-805
+documentNumber	property	schemas/transaction-request.schema.json	INV-REQ-805
+transactionDate	property	schemas/transaction-request.schema.json	INV-REQ-805
+currency	property	schemas/transaction-request.schema.json	INV-REQ-805
+counterparty	property	schemas/transaction-request.schema.json	INV-REQ-805
+lines	property	schemas/transaction-request.schema.json	INV-REQ-805
+declaredTotals	property	schemas/transaction-request.schema.json	INV-REQ-805
+precedingDocumentNumber	property	schemas/transaction-request.schema.json	INV-REQ-805
+precedingDocumentDate	property	schemas/transaction-request.schema.json	INV-REQ-805
+replacesReceiptNumber	property	schemas/transaction-request.schema.json	INV-REQ-440
+attachmentRefs	property	schemas/transaction-request.schema.json	INV-REQ-649
+sourceDocumentRef	property	schemas/transaction-request.schema.json	INV-REQ-1319
+SALE	enum_value	schemas/transaction-request.schema.json	INV-REQ-805
+PURCHASE	enum_value	schemas/transaction-request.schema.json	INV-REQ-805
+BILL_FOR_PAYMENT	enum_value	schemas/transaction-request.schema.json	INV-REQ-805
