@@ -60,12 +60,25 @@ paths:
         and a change of direction, document type or entity is ING-012
         (INV-REQ-793). A replay answers `200` with the original body,
         produced by canonical-svc (INV-REQ-1192).
+
+
+        The transaction date is the document date, except that a purchase on
+        the entity's elected posting-date basis, and a document with no
+        invoice, take the posting date in Singapore time (INV-BR-93). A
+        purchase recorded before the entity has elected its purchase
+        transaction date basis is held with PER-011, and a document whose
+        transaction date no period record covers is held with PER-009; both
+        are answered `202`, release by themselves and are re-derived on
+        release (INV-REQ-67, INV-REQ-68). A request that needs
+        `postingTimestamp` and lacks it, or whose `sourceTimeZone` is not an
+        IANA zone id, is refused with `400` and SRT-001 and nothing is
+        recorded.
       tags: [documents]
       x-principal: ingest
       x-timeout: 2000
       x-sync-edge: ingestion-svc->canonical-svc
-      x-error-codes: [ING-002, ING-005, ING-011, ING-012, ING-016, ING-019, ING-013, ING-017]
-      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-547, INV-REQ-806, INV-REQ-327, INV-REQ-430, INV-REQ-431, INV-REQ-793, INV-REQ-1192, INV-REQ-714, INV-REQ-432]
+      x-error-codes: [ING-002, ING-005, ING-011, ING-012, ING-016, ING-019, ING-013, ING-017, PER-009, PER-011]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-547, INV-REQ-806, INV-REQ-327, INV-REQ-430, INV-REQ-431, INV-REQ-793, INV-REQ-1192, INV-REQ-714, INV-REQ-432, INV-REQ-67, INV-REQ-68]
       x-operation:
         role: ingest
         scope: entity
@@ -146,8 +159,13 @@ paths:
             Recorded but held (FR-M.4, API-21) — rules-svc or masterdata-svc
             was unavailable (ING-016) and derivation is incomplete, a network
             receipt awaits buyer acceptance (ING-013), or a fallback match of
-            more than one document needs a decision (ING-017); released
-            automatically on recovery (ING-016) or on acceptance (ING-013).
+            more than one document needs a decision (ING-017), a purchase
+            arrived before the entity elected its purchase transaction date
+            basis (PER-011), or no period record covers the transaction date
+            (PER-009); released automatically on recovery (ING-016), on
+            acceptance (ING-013), when the election is recorded (PER-011) or
+            when the period is generated (PER-009), and re-derived on release
+            (INV-REQ-67, INV-REQ-68).
           content:
             application/json:
               schema:
@@ -560,6 +578,17 @@ components:
             Direction of the document for the entity; absent means SALE. Doc UUID uniqueness is scoped by
             (entity, direction) (INV-REQ-431, INV-REQ-739). An amendment that changes it is refused with
             ING-012 (INV-REQ-793).
+        postingTimestamp:
+          type: string
+          maxLength: 40
+          description: >-
+            The time the source system posted the document, an ISO 8601 date-time whose offset is optional; it is read in `sourceTimeZone` when it has none. Needed only where the posting date dates the document (a PURCHASE on the posting-date basis, or a document with no invoice); a request that needs it and lacks it is refused with `400` and SRT-001 and nothing is recorded. The processing date never stands in (INV-REQ-76, INV-REQ-67).
+        sourceTimeZone:
+          type: string
+          maxLength: 64
+          default: Asia/Singapore
+          description: >-
+            The IANA zone id the source connection declares, in which a `postingTimestamp` without an offset is read; the assumption is recorded in the decision trace. An id that is not a zone is refused with `400` and SRT-001 (INV-REQ-68).
         networkIssuance:
           type: object
           description: >-

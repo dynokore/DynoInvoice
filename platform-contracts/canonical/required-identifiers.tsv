@@ -116,3 +116,14 @@ relayIssuance	property	openapi.yaml	INV-REQ-415
 RecordDocumentRequest.relayIssuance	schema_property	openapi.yaml	INV-REQ-415
 SALE	enum_value	openapi.yaml	INV-REQ-411
 PURCHASE	enum_value	openapi.yaml	INV-REQ-411
+# INV-T-6937. Rows for INV-REQ-67, INV-REQ-68, INV-AC-195 and INV-AC-2269 (read from Keel). Backticked names that are not rows of this file: `canonical-svc`, `submission-svc`, `tenancy-svc` (services), `entity.admin`, `tax.approver`, `tenant.admin` (roles), `recordElection` (tenancy contract), `dueDate`, `confirmFiling`, `GstReturnRecorded` (submission contract), `PeriodExtended`, `PeriodDueDateChanged` (tenancy events), `PeriodReassigned` (canonical events, already in this contract) and `document.transaction_date`, `submission.due_date` (storage columns, not contract identifiers).
+postingTimestamp	property	openapi.yaml	INV-REQ-67
+sourceTimeZone	property	openapi.yaml	INV-REQ-68
+transactionDate	property	openapi.yaml	INV-REQ-68
+prescribedPeriodRef	property	openapi.yaml	INV-REQ-68
+RecordDocumentRequest.postingTimestamp	schema_property	openapi.yaml	INV-REQ-67
+RecordDocumentRequest.sourceTimeZone	schema_property	openapi.yaml	INV-REQ-68
+RecordDocumentRequest.transactionDate	schema_property	openapi.yaml	INV-REQ-68
+DocumentVersion.prescribedPeriodRef	schema_property	openapi.yaml	INV-REQ-68
+recordDocument.PER-011	operation_error_code	openapi.yaml	INV-REQ-67
+recordDocument.PER-009	operation_error_code	openapi.yaml	INV-REQ-68

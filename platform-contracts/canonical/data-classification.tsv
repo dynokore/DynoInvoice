@@ -36,6 +36,8 @@ openapi.yaml	RecordDocumentRequest.gstNotAdjusted	NONE
 openapi.yaml	RecordDocumentRequest.precedingBlankJustification	NONE
 openapi.yaml	RecordDocumentRequest.evidenceRef	NONE
 openapi.yaml	RecordDocumentRequest.direction	NONE
+openapi.yaml	RecordDocumentRequest.postingTimestamp	NONE
+openapi.yaml	RecordDocumentRequest.sourceTimeZone	NONE
 openapi.yaml	RecordDocumentRequest.networkIssuance	NONE
 openapi.yaml	RecordDocumentRequest.networkReceipt	NONE
 openapi.yaml	RecordDocumentResponse.docUuid	NONE
