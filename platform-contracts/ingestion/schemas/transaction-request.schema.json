@@ -40,7 +40,7 @@
     },
     "networkReceipt": {
       "type": "object",
-      "description": "Network receipt of a purchase received over the network (INV-REQ-428). A buyerDisposition outside PENDING, ACCEPTED, REJECTED is refused with 400 and SRT-001. Without supplierDocUuid the receipt is correlated by the fallback key of INV-REQ-429.",
+      "description": "Network receipt of a purchase received over the network (INV-REQ-428). A buyerDisposition outside PENDING, ACCEPTED, REJECTED is refused with 400 and SRT-001. A request that carries networkReceipt together with networkIssuance, or with direction SALE or no direction, is refused with 400 and SRT-001 (INV-Q-6999). Without supplierDocUuid the receipt is correlated by the fallback key of INV-REQ-429.",
       "properties": {
         "peppolMessageId": { "type": "string", "maxLength": 256 },
         "receivedAt": { "type": "string", "format": "date-time" },
@@ -53,7 +53,7 @@
     },
     "networkIssuance": {
       "type": "object",
-      "description": "Network issuance of an issued document (INV-REQ-327). When issuedDocUuid is present canonical-svc binds it as the Doc UUID instead of generating one; a collision with a different commercial document is ING-011.",
+      "description": "Network issuance of an issued document (INV-REQ-327). When issuedDocUuid is present canonical-svc binds it as the Doc UUID instead of generating one; a collision with a different commercial document is ING-011. A request that carries networkIssuance together with networkReceipt, or with direction PURCHASE, is refused with 400 and SRT-001 (INV-Q-6999).",
       "properties": {
         "issuedDocUuid": { "type": "string", "format": "uuid" },
         "apMessageId": { "type": "string", "maxLength": 256 },
@@ -144,6 +144,18 @@
     {
       "if": { "required": ["gstNotAdjusted"] },
       "then": { "properties": { "documentFunction": { "const": "CREDIT_NOTE" } } }
+    },
+    {
+      "if": { "required": ["networkIssuance"] },
+      "then": { "not": { "required": ["networkReceipt"] } }
+    },
+    {
+      "if": { "required": ["direction"], "properties": { "direction": { "const": "PURCHASE" } } },
+      "then": { "not": { "required": ["networkIssuance"] } }
+    },
+    {
+      "if": { "required": ["networkReceipt"] },
+      "then": { "required": ["direction"], "properties": { "direction": { "const": "PURCHASE" } } }
     }
   ],
   "$defs": {
