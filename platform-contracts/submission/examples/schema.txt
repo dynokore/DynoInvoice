@@ -10,3 +10,5 @@
 ../openapi.yaml#/components/schemas/BoundaryCheckRequest boundary-check-request-*.json
 ../openapi.yaml#/components/schemas/EntityFinding entity-finding-*.json
 ../schemas/readiness-changed-payload.schema.json readiness-changed-*.json
+../openapi.yaml#/components/schemas/FilingGateOverrideRequest filing-gate-override-request-*.json
+../openapi.yaml#/components/schemas/FilingGateOverride filing-gate-override-record-*.json

@@ -90,3 +90,10 @@ recordedByAgent	property	schemas/readiness-changed-payload.schema.json	INV-REQ-1
 filingFact	property	schemas/readiness-changed-payload.schema.json	INV-REQ-918
 READY	enum_value	schemas/readiness-changed-payload.schema.json	INV-REQ-918
 NOT_READY	enum_value	schemas/readiness-changed-payload.schema.json	INV-REQ-918
+# INV-T-6739 (INV-Q-6737 A). Identifiers overrideFilingGate, filingOverride, ReadinessStatus.filingOverride, overriddenBy, overriddenAt, reason; a row that already exists under another requirement is not added twice.
+overrideFilingGate	operation	openapi.yaml	INV-REQ-72
+filingOverride	property	openapi.yaml	INV-REQ-72
+ReadinessStatus.filingOverride	schema_property	openapi.yaml	INV-REQ-72
+overriddenBy	property	openapi.yaml	INV-REQ-500
+overriddenAt	property	openapi.yaml	INV-REQ-500
+reason	property	openapi.yaml	INV-REQ-500

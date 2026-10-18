@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: submission API
-  version: 1.5.0
+  version: 1.6.0
   description: >-
     Contract-first source of truth for submission (API-01, STK-44). The
     `submission-contract` module generates its server interfaces and DTOs
@@ -27,6 +27,9 @@ info:
     `/v1/…` surface (INV-REQ-568, INV-REQ-575, INV-REQ-581, INV-T-2858, T14).
     1.3.0 adds the internal read checkSubmissionBoundary (INV-REQ-959,
     INV-REQ-1005, INV-REQ-1018, INV-Q-6216); it is additive.
+    1.6.0 adds the internal write overrideFilingGate and the optional
+    ReadinessStatus.filingOverride, and confirmFiling answers 422 (PER-001)
+    in the mode BLOCKING (INV-REQ-72, INV-Q-6737); it is additive.
   contact:
     name: submission (see CODEOWNERS)
 servers:
@@ -343,10 +346,18 @@ paths:
         on every other POST: 1.0.0 declares no key, and requiring one
         would break 1.0.0 callers (API-03), as INV-Q-3551 ruled for
         deleteAtRetentionEnd.
+
+
+        In the mode BLOCKING (VP-14) the call is refused with `422` and
+        PER-001, and nothing is recorded, unless the latest recorded
+        readiness check of the period has the verdict READY or an override
+        is recorded for exactly that check (`overrideFilingGate`); with no
+        recorded check it is refused. In the mode ADVISORY it is never
+        refused for readiness (INV-REQ-72, INV-Q-6737).
       tags: [readiness]
       x-principal: filing-workflow
       x-timeout: 3000
-      x-error-codes: []
+      x-error-codes: [PER-001]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-655, INV-REQ-914, INV-REQ-917, INV-REQ-961]
       x-operation:
         role: filing-workflow
@@ -396,6 +407,9 @@ paths:
                       count: 1
                       docUuids: ["3fa85f64-5717-4562-b3fc-2c963f66afa6"]
         '400':
+          $ref: '#/components/responses/Error'
+        '422':
+          description: In the mode BLOCKING the latest readiness check is not READY and no override is recorded for it, or no check is recorded (PER-001); nothing is recorded (INV-REQ-72, INV-Q-6737).
           $ref: '#/components/responses/Error'
         '503':
           $ref: '#/components/responses/Error'
@@ -796,6 +810,89 @@ paths:
                     withdrawnAt: "2026-03-20T03:20:00Z"
         default:
           $ref: '#/components/responses/Error'
+  /internal/v1/entities/{entityRef}/periods/{periodRef}/filing-gate-overrides:
+    post:
+      operationId: overrideFilingGate
+      summary: Record an override of the blocking filing gate for a period's latest readiness check
+      description: >-
+        In the mode BLOCKING (VP-14) the filing call `confirmFiling` is
+        refused with PER-001 while the latest readiness check of the period
+        is NOT_READY; this call records the override that releases it, with a
+        mandatory reason (INV-REQ-72, INV-REQ-1275, INV-Q-6737). Called by
+        console-bff on behalf of a person: only a person with tax.approver
+        through console-bff may record it, not a machine principal
+        (INV-REQ-1293).
+
+
+        A missing or empty `reason` is refused with `400` and SRT-001 and
+        nothing is recorded. An unknown `checkId`, a check whose verdict is
+        READY, or a period whose gate is ADVISORY (no block to override) is
+        refused with `404` and SRT-005. A check that is no longer the latest
+        is refused with `409` and SRT-008 (the caller re-reads and decides
+        again). The override and its reason, actor and verdict are written
+        to the immutable audit log (INV-REQ-500, INV-Q-6737). A later check,
+        READY or NOT_READY, makes an earlier override unusable.
+
+
+        Who approves (a second approver, VP-32) is INV-REQ-1293 and is not
+        decided here.
+      tags: [readiness]
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->submission-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-72, INV-REQ-1275, INV-REQ-500]
+      x-operation:
+        role: tax.approver
+        scope: entity
+        precondition: >-
+          The period's gate (VP-14) is BLOCKING and the named check is the
+          latest check of the period and its verdict is NOT_READY.
+        reversibility: IRREVERSIBLE
+        repeatKey: >-
+          (entityRef, periodRef, checkId) — a repeat reports the recorded
+          override unchanged.
+      parameters:
+        - $ref: '#/components/parameters/EntityRef'
+        - $ref: '#/components/parameters/PeriodRef'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FilingGateOverrideRequest'
+            examples:
+              default:
+                value:
+                  checkId: "chk-2026Q1-0001"
+                  reason: "Two held documents are being corrected by the supplier; filing on the due date."
+      responses:
+        '201':
+          description: The override is recorded (a repeat returns the recorded override unchanged).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FilingGateOverride'
+              examples:
+                default:
+                  value:
+                    entityRef: "E-001"
+                    periodRef: "2026-Q1"
+                    checkId: "chk-2026Q1-0001"
+                    verdict: "NOT_READY"
+                    reason: "Two held documents are being corrected by the supplier; filing on the due date."
+                    overriddenBy: "5b1f7c0e-2d4a-4c55-9a3e-0c1d2e3f4a5b"
+                    overriddenAt: "2026-04-28T08:55:00Z"
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
   /internal/v1/submission/boundary-checks:
     post:
       operationId: checkSubmissionBoundary
@@ -1160,7 +1257,50 @@ components:
             The service always sends it. False is the fact "filing date not
             recorded" (INV-REQ-918): no filing fact is recorded for the
             period. True means a filing fact is recorded for the period.
+        filingOverride:
+          $ref: '#/components/schemas/FilingGateOverride'
+          description: >-
+            The service sends it only while an override for the returned
+            `checkId` is recorded (overrideFilingGate, INV-REQ-72,
+            INV-Q-6737).
       required: [entityRef, periodRef, ready, tiers, computedAt]
+    FilingGateOverrideRequest:
+      type: object
+      properties:
+        checkId:
+          type: string
+          minLength: 1
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          description: Mandatory reason, recorded in the immutable audit log (INV-REQ-500).
+      required: [checkId, reason]
+    FilingGateOverride:
+      type: object
+      properties:
+        entityRef:
+          type: string
+        periodRef:
+          type: string
+        checkId:
+          type: string
+          minLength: 1
+        verdict:
+          type: string
+          enum: [READY, NOT_READY]
+          x-extensible-enum: true
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        overriddenBy:
+          type: string
+          description: The verified caller identity, never a request field.
+        overriddenAt:
+          type: string
+          format: date-time
+      required: [entityRef, periodRef, checkId, verdict, reason, overriddenBy, overriddenAt]
     EntityFinding:
       type: object
       properties:
