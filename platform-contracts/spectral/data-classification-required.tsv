@@ -10,3 +10,4 @@ service-runtime	schemas/evidence-artefact-recorded-payload.schema.json
 submission	schemas/submission-despatched-payload.schema.json
 submission	schemas/submission-acknowledged-payload.schema.json
 service-runtime	schemas/privacy-notice-due-payload.schema.json
+submission	schemas/submission-type-decided-payload.schema.json

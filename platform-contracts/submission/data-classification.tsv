@@ -8,3 +8,7 @@ schemas/submission-acknowledged-payload.schema.json	docUuid	NONE
 schemas/submission-acknowledged-payload.schema.json	version	NONE
 schemas/submission-acknowledged-payload.schema.json	acknowledgementId	NONE
 schemas/submission-acknowledged-payload.schema.json	timestamp	NONE
+schemas/submission-type-decided-payload.schema.json	docUuid	NONE
+schemas/submission-type-decided-payload.schema.json	version	NONE
+schemas/submission-type-decided-payload.schema.json	docsequence	NONE
+schemas/submission-type-decided-payload.schema.json	submissionType	NONE
