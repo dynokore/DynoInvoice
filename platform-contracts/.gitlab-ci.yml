@@ -23,6 +23,16 @@ include:
     file:
       - 'ci/stages.gitlab-ci.yml'
       - 'ci/publish.gitlab-ci.yml'   # INV-T-5317: the hidden .gst-publish-* and .gst-guard-* sections (its own jobs stay off: MAVEN_PUBLISH "false", IMAGE_NAME and HELM_CHART_NAME empty)
+  # Keel request 2026-10-18 (keel-report-junit, CI-FAST plan item E1): the keel-report job of stage .post reads the
+  # JUnit XML catalogue-verify leaves as artifacts on the main push pipeline and reports the INV-AC numbers in the
+  # testcase names to Keel. Main only (the template's own rule), so merge-request pipelines are unchanged.
+  - project: 'keel/tooling'
+    ref: main
+    file: 'keel-report-junit.yml'
+    inputs:
+      runner_tags: [inv-arm64]
+      junit_paths: 'catalogue/**/build/test-results/test/TEST-*.xml'
+      ac_pattern: 'INV-AC-\d+(?!\d)'
 
 variables:
   SPECTRAL_IMAGE: "stoplight/spectral@sha256:a07aa4455367b9501b574423b684ab0ef3ee42556089013583318ec015249050"
@@ -261,6 +271,7 @@ catalogue-verify:
         - "catalogue/**/build/test-results/test/TEST-*.xml"
     paths:
       - "catalogue/**/build/reports/"
+      - "catalogue/**/build/test-results/test/TEST-*.xml"   # read by keel-report (E1); reports:junit is not passed to later jobs
     expire_in: 1 week
 
 # INV-T-5317 (coordinator ruling INV-Q-5313): a published version is never replaced. Nothing here uploads by
