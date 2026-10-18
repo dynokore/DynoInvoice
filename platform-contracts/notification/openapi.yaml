@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: notification API
-  version: 1.7.0
+  version: 1.8.0
   description: >-
     Contract-first source of truth for notification (API-01, STK-44). The
     `notification-contract` module generates its server interfaces and DTOs
@@ -269,7 +269,9 @@ paths:
         an alert of the class DEADLINE with the trigger
         FILING_FACT_NOT_RECORDED, raised when the period first becomes ready
         and on the configured days before the due date (INV-REQ-918,
-        INV-REQ-1277).
+        INV-REQ-1277). A privacy notice is an alert of the class SECURITY with
+        the trigger PRIVACY_NOTICE_DUE, raised once per case when the notice
+        falls due, without tiers (INV-REQ-1403, INV-REQ-1113).
       tags: [alerts]
       x-principal: reporting
       x-sync-edge: console-bff->notification-svc
@@ -1124,6 +1126,10 @@ components:
           format: uuid
         entityRef:
           type: string
+          description: >-
+            The alert of a whole tenant, such as a privacy notice, holds the
+            reserved tenant-wide reference
+            `00000000-0000-0000-0000-000000000000`.
         alertClass:
           type: string
           enum: [COVERAGE, DEADLINE, BACKLOG, MISSING_ACKNOWLEDGEMENT, PACK_STALENESS, SECURITY]
@@ -1137,8 +1143,15 @@ components:
           format: date-time
         trigger:
           type: string
-          enum: [DUE_DATE_THRESHOLD, READINESS_CHECK_INVOKED, RETURN_FIGURES_UPLOADED, PAST_DUE, FILING_FACT_NOT_RECORDED]
+          enum: [DUE_DATE_THRESHOLD, READINESS_CHECK_INVOKED, RETURN_FIGURES_UPLOADED, PAST_DUE, FILING_FACT_NOT_RECORDED, PRIVACY_NOTICE_DUE]
           x-extensible-enum: true
+        caseId:
+          type: string
+          format: uuid
+          description: >-
+            The privacy request case of the evidence contract
+            (`PrivacyCase.caseId`); sent exactly when `trigger` is
+            PRIVACY_NOTICE_DUE (INV-REQ-1403).
         currentTier:
           type: integer
           minimum: 1

@@ -53,3 +53,6 @@ bounced	property	openapi.yaml	INV-REQ-819
 FAILED	enum_value	openapi.yaml	INV-REQ-819
 MessageDelivery.state.FAILED	schema_enum_value	openapi.yaml	INV-REQ-819
 alertId	query_parameter	openapi.yaml	INV-REQ-819
+PRIVACY_NOTICE_DUE	enum_value	openapi.yaml	INV-REQ-1403
+Alert.trigger.PRIVACY_NOTICE_DUE	schema_enum_value	openapi.yaml	INV-REQ-1403
+Alert.caseId	schema_property	openapi.yaml	INV-REQ-1403
