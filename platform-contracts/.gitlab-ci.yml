@@ -170,6 +170,16 @@ contract-rules:
       service-runtime/schemas/error-envelope.schema.json spectral/fixtures/schema-samples/error-envelope
     - gst_check schema-sample-validation-discover python3 spectral/validate-schema-samples.py --discover .
     - gst_check required-identifiers-check python3 spectral/check-required-identifiers.py .
+    # required-identifiers-ratchet (INV-T-6937, INV-Q-7027 A): on merge requests, a row of a */required-identifiers.tsv
+    # at the diff base must still be a row at the head. An empty or unfetchable base sha fails; it never skips.
+    - |
+      gst_ratchet() {
+        if [ "$CI_PIPELINE_SOURCE" != "merge_request_event" ]; then echo "gst-ci: the required-identifiers ratchet needs a merge request; not run here"; return 0; fi
+        [ -n "$CI_MERGE_REQUEST_DIFF_BASE_SHA" ] || { echo "gst-ci: CI_MERGE_REQUEST_DIFF_BASE_SHA is empty"; return 1; }
+        git cat-file -e "$CI_MERGE_REQUEST_DIFF_BASE_SHA^{commit}" 2>/dev/null || git fetch --quiet origin "$CI_MERGE_REQUEST_DIFF_BASE_SHA" || return 1
+        python3 spectral/check-required-identifiers.py --base "$CI_MERGE_REQUEST_DIFF_BASE_SHA" .
+      }
+    - gst_check required-identifiers-ratchet gst_ratchet
     - gst_check forbidden-properties-check python3 spectral/check-forbidden-properties.py access/
     - gst_check forbidden-request-properties-check python3 spectral/check-forbidden-properties.py --requests ingestion/
     - gst_check data-classification-check python3 spectral/check-data-classification.py canonical evidence service-runtime submission
