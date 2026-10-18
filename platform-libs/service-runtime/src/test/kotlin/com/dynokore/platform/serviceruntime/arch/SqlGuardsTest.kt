@@ -194,24 +194,36 @@ class SqlGuardsTest {
         assertThrows(AssertionError::class.java) { GuardViolation.assertNone(found, "fixture") }
     }
 
-    /** CS-50: the 0.10.0 rules still fail on a fixture (JDBC in a test source set, a table without tenant_id). */
+    /**
+     * CS-50: the 0.10.0 rules still fail on a fixture (Spring JDBC in a production source set, a table without
+     * tenant_id). Spring JDBC in a test source set is no finding (owner rule of 2026-10-17).
+     */
     @Test
-    fun `would fail on JDBC in a test source set or a table without a tenant column`(
+    fun `would fail on JDBC in a production source set or a table without a tenant column`(
         @TempDir dir: File,
     ) {
+        val main = File(dir, "fixture-module/src/main/kotlin").apply { mkdirs() }
+        File(main, "Offender.kt").writeText(
+            "package com.dynokore.platform.fixture\n" +
+                "import org.springframework.jdbc.core.JdbcTemplate\n" +
+                "class Offender(private val template: JdbcTemplate)\n",
+        )
         val test = File(dir, "fixture-module/src/test/kotlin").apply { mkdirs() }
         File(test, "OffenderTest.kt").writeText(
             "package com.dynokore.platform.fixture\n" +
-                "import javax.sql.DataSource\n" +
-                "class OffenderTest(private val dataSource: DataSource)\n",
+                "import org.springframework.jdbc.core.JdbcTemplate\n" +
+                "class OffenderTest(private val template: JdbcTemplate)\n",
         )
         val migrations = File(dir, "fixture-module/src/main/resources/db/migration").apply { mkdirs() }
         File(migrations, "V1__tenantless.sql").writeText("CREATE TABLE fixture.t (id uuid PRIMARY KEY);\n")
 
         val scope = Konsist.scopeFromExternalDirectory(dir.absolutePath)
         val found = RawSqlPlacement.findViolations(scope) + MigrationLint.findViolations(dir, scope)
-        assertTrue(found.any { it.rule == "jdbc" && it.location.endsWith("OffenderTest.kt") }) {
-            "RawSqlPlacement missed the test fixture: $found"
+        assertTrue(found.any { it.rule == "jdbc" && it.location.endsWith("Offender.kt") }) {
+            "RawSqlPlacement missed the production fixture: $found"
+        }
+        assertTrue(found.none { it.rule == "jdbc" && it.location.endsWith("OffenderTest.kt") }) {
+            "RawSqlPlacement reported Spring JDBC in a test source set: $found"
         }
         assertTrue(found.any { it.rule == "tenant-column" && it.location.endsWith("V1__tenantless.sql") }) {
             "MigrationLint's tenant-column rule missed the fixture: $found"

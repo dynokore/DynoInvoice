@@ -5,7 +5,7 @@
 biz.aQute.bnd:biz.aQute.bnd.annotation:7.1.0=implCompileClasspath,implTestCompileClasspath
 ch.qos.logback:logback-classic:1.5.38=implCompileClasspath,implRuntimeClasspath,implTestCompileClasspath,implTestRuntimeClasspath
 ch.qos.logback:logback-core:1.5.38=implCompileClasspath,implRuntimeClasspath,implTestCompileClasspath,implTestRuntimeClasspath
-com.dynokore.gst.build:konsist-rules:0.11.0=implTestCompileClasspath,implTestRuntimeClasspath,testCompileClasspath,testRuntimeClasspath
+com.dynokore.gst.build:konsist-rules:0.20.2=implTestCompileClasspath,implTestRuntimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.fasterxml.jackson.core:jackson-annotations:2.22=implCompileClasspath,implRuntimeClasspath,implTestCompileClasspath,implTestRuntimeClasspath
 com.github.ben-manes.caffeine:caffeine:2.9.3=detekt
 com.github.curious-odd-man:rgxgen:2.0=implTestCompileClasspath,implTestRuntimeClasspath,testCompileClasspath,testRuntimeClasspath
