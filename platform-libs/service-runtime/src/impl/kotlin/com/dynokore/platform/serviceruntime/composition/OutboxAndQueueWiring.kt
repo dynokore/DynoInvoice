@@ -41,6 +41,7 @@ import com.dynokore.platform.outboxandqueue.UnrelayedEventCheck
 import com.dynokore.platform.outboxandqueue.UnrelayedEventSink
 import com.dynokore.platform.outboxandqueue.WorkQueue
 import com.dynokore.platform.serviceruntime.binding.GstProperties
+import com.dynokore.platform.serviceruntime.binding.InstallationBindingKey
 import com.dynokore.platform.serviceruntime.identity.WorkloadPrincipal
 import com.dynokore.platform.serviceruntime.pool.EventLogGate
 import com.dynokore.platform.serviceruntime.pool.LaneGateHolder
@@ -88,6 +89,7 @@ import javax.sql.DataSource
 class OutboxAndQueueWiring(
     private val applicationGate: ObjectProvider<LaneGateHolder>,
     private val eventLogGate: ObjectProvider<EventLogGate>,
+    private val bindingKey: ObjectProvider<InstallationBindingKey>,
 ) {
     /**
      * The service's typed workload principal (owner ruling INV-Q-4344 (b)): built from the required `gst.service` and
@@ -451,7 +453,10 @@ class OutboxAndQueueWiring(
         eventLog: ObjectProvider<DataSource>,
         scope: TenantScope,
     ): TenantScope =
-        eventLog.getIfAvailable()?.let { eventLogScope(handOff(it, eventLogGate.getIfAvailable()), scope) } ?: scope
+        eventLog.getIfAvailable()?.let {
+            eventLogScope(handOff(it, eventLogGate.getIfAvailable()), scope, bindingKey.getIfAvailable())
+        }
+            ?: scope
 
     /**
      * The module's DSLContext (INV-T-4133, coordinator ruling INV-Q-5275): tenancy-jooq's factory over the
@@ -496,8 +501,9 @@ class OutboxAndQueueWiring(
         private fun eventLogScope(
             eventLog: DataSource,
             scope: TenantScope,
+            bindingKey: InstallationBindingKey?,
         ): TenantScope {
-            val transactions = TransactionRunnerImpl(eventLog, scope.tenants)
+            val transactions = TransactionRunnerImpl(eventLog, scope.tenants, null, bindingKey?.source)
             return TenantScope(scope.tenants, transactions, transactions, scope.workloadPrincipal, scope.platform)
         }
     }

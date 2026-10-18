@@ -1,5 +1,7 @@
 package com.dynokore.platform.serviceruntime.composition
 
+import com.dynokore.platform.serviceruntime.binding.InstallationBindingKey
+import com.dynokore.platform.serviceruntime.binding.SecretStore
 import com.dynokore.platform.serviceruntime.pool.LaneGateHolder
 import com.dynokore.platform.serviceruntime.pool.PoolLanes
 import com.dynokore.platform.tenancykernel.ConnectionLabel
@@ -34,6 +36,12 @@ class TenancyKernelWiring {
     @ConditionalOnMissingBean(TenantContext::class)
     fun tenantContext(): TenantContextImpl = TenantContextImpl()
 
+    /** The binding key read through [SecretStore] (INV-T-5360); one warning at start when the current secret is missing. */
+    @Bean
+    @ConditionalOnMissingBean(InstallationBindingKey::class)
+    fun installationBindingKey(secrets: ObjectProvider<SecretStore>): InstallationBindingKey =
+        InstallationBindingKey.of(secrets.getIfAvailable())
+
     @Bean
     @ConditionalOnBean(DataSource::class)
     @ConditionalOnMissingBean(TransactionRunner::class)
@@ -42,6 +50,7 @@ class TenancyKernelWiring {
         tenants: TenantContext,
         environment: Environment,
         gate: ObjectProvider<LaneGateHolder>,
+        bindingKey: InstallationBindingKey,
     ): TransactionRunnerImpl {
         val lanes = gate.getIfAvailable()?.takeIf { it.active }
         return TransactionRunnerImpl(
@@ -56,6 +65,7 @@ class TenancyKernelWiring {
             } else {
                 environment.getProperty("gst.service")?.takeIf { it.isNotBlank() }?.let { laneLabel(it) }
             },
+            bindingKey.source,
         )
     }
 

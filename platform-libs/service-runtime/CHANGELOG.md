@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [8.3.0] - 2026-10-18
+### Added
+- The transaction runners (application pool in `TenancyKernelWiring`, event-log pool in `OutboxAndQueueWiring`) sign the tenant binding with the installation key read through `SecretStore` (INV-T-5360, slice 3 of INV-T-4156, INV-Q-5352): `SecretStoreBindingKeySource` is tenancy-kernel's `BindingKeySource` over the secrets `tenancy/binding-key-current` and `tenancy/binding-key-previous` (constants `SecretStoreBindingKeySource.CURRENT` and `.PREVIOUS`; the key is the UTF-8 bytes of the value with no decoding, INV-Q-6576; a blank or white-space-only value is no key; README "Binding key"). It reads at every transaction start and caches nothing, so a rotated secret needs no restart. A missing previous key is accepted. While the key parameter is optional, a missing current secret (or no `SecretStore`) builds the runners unsigned and logs one warning naming `tenancy/binding-key-current`; INV-T-4156 turns that into a start-up failure. `OutboxAndQueueWiring` takes a third constructor parameter, `ObjectProvider<InstallationBindingKey>`.
+
 ## [8.2.0] - 2026-10-18
 ### Added
 - `ConfigResolverWiring` binds `OptionValueMaximum` (`JdbcOptionValueMaximum`) over the module's DSLContext when a `TransactionRunner` exists, replaceable by a service's own bean (INV-T-6538, INV-Q-6611; config-resolver 4.1.0).

@@ -111,6 +111,15 @@ provided for a service that has it.
   connection provider, VisitListeners or last ExecuteListener are not tenancy-jooq's, such as `DSL.using(dataSource)`.
   service-runtime creates no JdbcTemplate, NamedParameterJdbcTemplate, TransactionTemplate or transaction manager.
 
+## Binding key (INV-T-5360; INV-REQ-854 b7, ruling INV-Q-6576)
+
+The transaction runners sign the tenant binding with the key read through `SecretStore` at every transaction start
+(no cache; a rotated secret needs no restart). Secrets: `tenancy/binding-key-current` and, while a rotation is in
+flight, `tenancy/binding-key-previous`. The key is the UTF-8 bytes of the secret value, with no decoding by
+`SecretStoreBindingKeySource`, the one converter. A blank or white-space-only value counts as no key. The installer
+creates the current secret as 32 random bytes written as 64 hexadecimal characters. A missing current secret builds
+the runners unsigned and logs one warning naming the secret (until INV-T-4156 makes it a start-up failure).
+
 ## Database credentials (INV-T-3913; STK-29, INV-REQ-1231, ruling INV-Q-3909)
 
 Every database password is read through `SecretStore` (STK-29: mounted files only, never a property or an environment

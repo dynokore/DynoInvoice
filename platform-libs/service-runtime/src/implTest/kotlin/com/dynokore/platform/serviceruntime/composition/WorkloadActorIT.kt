@@ -3,6 +3,7 @@ package com.dynokore.platform.serviceruntime.composition
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventBinding
 import com.dynokore.platform.serviceruntime.binding.GstProperties
+import com.dynokore.platform.serviceruntime.binding.InstallationBindingKey
 import com.dynokore.platform.serviceruntime.identity.WorkloadPrincipal
 import com.dynokore.platform.serviceruntime.jobs.JobEntityScope
 import com.dynokore.platform.serviceruntime.jobs.JobsHarness
@@ -40,6 +41,7 @@ class WorkloadActorIT {
                 OutboxAndQueueWiring(
                     gates.getBeanProvider(LaneGateHolder::class.java),
                     gates.getBeanProvider(EventLogGate::class.java),
+                    gates.getBeanProvider(InstallationBindingKey::class.java),
                 )
             val replica = h.replica("svc-1", MutableClock(Instant.now()))
             val scope = wiring.tenantScope(replica.tenants, replica.tx, replica.tx, wiring.workloadPrincipal(gst()))
