@@ -1,0 +1,51 @@
+{
+  "windows": {
+    "MONTHLY": [
+      {
+        "start": "2027-01-01",
+        "end": "2027-01-31",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2027-02-01",
+        "end": "2027-02-28",
+        "returnForm": "F5"
+      }
+    ]
+  },
+  "finalReturnForm": "F8",
+  "dueRules": {
+    "F5": {
+      "monthsAfterEnd": 1,
+      "endOfMonth": true,
+      "daysAfterEnd": 0
+    },
+    "F8": {
+      "monthsAfterEnd": 0,
+      "endOfMonth": false,
+      "daysAfterEnd": 30
+    }
+  },
+  "weekend": [
+    "SATURDAY",
+    "SUNDAY"
+  ],
+  "holidays": [
+    "2027-01-01",
+    "2027-02-06"
+  ],
+  "alertThresholds": {
+    "MONTHLY": [
+      5,
+      -1
+    ],
+    "QUARTERLY": [
+      10,
+      5
+    ]
+  },
+  "safetyMargin": {
+    "value": 10,
+    "unit": "DAYS"
+  }
+}

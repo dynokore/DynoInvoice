@@ -45,6 +45,15 @@
                   "minLength": 1,
                   "maxLength": 300,
                   "description": "The source that requires the wording."
+                },
+                "sourceClass": {
+                  "type": "string",
+                  "enum": [
+                    "PRIMARY",
+                    "SECONDARY",
+                    "INFERRED"
+                  ],
+                  "description": "The source class of the wording: PRIMARY, SECONDARY or INFERRED (INV-REQ-774)."
                 }
               },
               "required": [
