@@ -21,7 +21,7 @@ hit() { printf '%s\n' "$2" | grep -E "(^|[[:space:]])$1([[:space:]]|\$)"; }
 d=fixtures/pagination
 # Each refused fixture holds one list operation and the rule must report it exactly once.
 for fx in bare-array missing-limit missing-cursor limit-default-101 limit-maximum-501 limit-string \
-  cursor-integer lookalike-params path-param-no-paging without-items-required \
+  cursor-integer lookalike-params items-not-array path-param-no-paging without-items-required \
   next-cursor-required next-cursor-integer; do
   out=$(lint $d/$fx.yaml)
   hits=$(hit $rule "$out" | grep -c .)
@@ -29,12 +29,6 @@ for fx in bare-array missing-limit missing-cursor limit-default-101 limit-maximu
   if [ "$hits" -eq 1 ] && [ "$on_list" -eq 1 ]; then echo "gst-ci: self-test $fx refused by $rule as expected"
   else echo "gst-ci: FAIL — $fx: expected $rule exactly once, on the list operation (hits=$hits, on list=$on_list):"; echo "$out"; failed=1; fi
 done
-# items-not-array: by the task's own definition an object whose `items` is not an array is
-# not a list operation, so condition (2) `items` is an array can never fail on a selected
-# operation (GAP reported in the MR). Pinned here as "not reported" until the owner rules.
-out=$(lint $d/items-not-array.yaml)
-if [ -z "$(hit $rule "$out")" ]; then echo "gst-ci: self-test items-not-array not selected as a list operation, as the rule text defines"
-else echo "gst-ci: FAIL — items-not-array unexpectedly reported by $rule:"; echo "$out"; failed=1; fi
 # The accepted document also holds one refused control list operation (fixture/control):
 # the rule must fire exactly once, on the control operation only.
 out=$(lint $d/paged-ok.yaml)

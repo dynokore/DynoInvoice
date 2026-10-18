@@ -308,8 +308,8 @@ rules:
   # --- API-18: cursor pagination ---------------------------------------------------
   # INV-REQ-826, INV-AC-1876; owner ruling INV-Q-6163 A (no exception list). A list
   # operation is a GET whose 200 application/json schema is an array, or an object
-  # whose `items` property is an array. It declares the query parameters `limit`
-  # (integer, default 100, maximum 500) and `cursor` (string) and returns an object
+  # that declares an `items` property (of any type, INV-Q-6382).
+  # A list operation declares the query parameters `limit` (integer, default 100, maximum 500) and `cursor` (string) and returns an object
   # whose required `items` is an array and whose optional `nextCursor` is a string.
   # Names are compared by equality. One `schema` function: the `if` selects the list
   # operations, the `then` holds both conditions, so a non-list GET is never reported.
@@ -357,12 +357,6 @@ rules:
                                       properties:
                                         type: object
                                         required: ["items"]
-                                        properties:
-                                          items:
-                                            type: object
-                                            required: ["type"]
-                                            properties:
-                                              type: {const: array}
           then:
             required: ["parameters", "responses"]
             properties:
