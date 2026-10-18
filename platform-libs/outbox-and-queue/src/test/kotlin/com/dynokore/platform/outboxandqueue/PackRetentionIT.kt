@@ -139,7 +139,8 @@ class PackRetentionIT {
                 1L,
                 harness.count(
                     "select count(*) from information_schema.columns " +
-                        "where table_schema = 'eventlog' and table_name = 'retention' and column_name = 'pack_retention'",
+                        "where table_schema = 'eventlog' and table_name = 'retention' " +
+                        "and column_name = 'pack_retention'",
                 ),
             )
         }
