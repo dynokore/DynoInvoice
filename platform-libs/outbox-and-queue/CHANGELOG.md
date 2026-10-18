@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.1.1] - 2026-10-18
+### Changed
+- Metadata-only release (INV-T-5359, G-DVS): depends on `tenancy-kernel` 3.3.0, whose published module metadata changed; no code change.
+
 ## [6.1.0] - 2026-10-18
 ### Added
 - INV-T-6291 (coordinator ruling INV-Q-6281, option A, owner delegation 2026-10-18; INV-REQ-1210, INV-REQ-1205): the event

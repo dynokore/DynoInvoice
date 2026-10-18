@@ -1,6 +1,8 @@
 package com.dynokore.platform.tenancykernel
 
 import com.zaxxer.hikari.HikariDataSource
+import java.time.Clock
+import java.time.Duration
 import javax.sql.DataSource
 
 /**
@@ -34,13 +36,20 @@ class TestPoolFixture(
         pool.poolName = poolName
     }
 
-    /** A runner on this pool; [lanes] gates the connections and [label] names each transaction (INV-Q-4487). */
+    /**
+     * A runner on this pool; [lanes] gates the connections and [label] names each transaction (INV-Q-4487). With
+     * [keys] every transaction runs under a signed binding (see [SignedBinding]), expiring after [transactionTimeout].
+     */
     @JvmOverloads
     fun runner(
         tenants: TenantContext,
         lanes: LaneGate? = null,
         label: ConnectionLabel? = null,
-    ): TransactionRunnerImpl = TransactionRunnerImpl(TenantAwareDataSource(pool, lanes), tenants, label)
+        keys: BindingKeySource? = null,
+        transactionTimeout: Duration = Duration.ofSeconds(30),
+        clock: Clock = Clock.systemUTC(),
+    ): TransactionRunnerImpl =
+        TransactionRunnerImpl(TenantAwareDataSource(pool, lanes), tenants, label, keys, transactionTimeout, clock)
 
     /** The pool as a `DataSource` (gated by [lanes]), for a Spring context that needs the bean; tests take no connection from it. */
     @JvmOverloads

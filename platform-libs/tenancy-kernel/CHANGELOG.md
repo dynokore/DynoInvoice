@@ -6,6 +6,14 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-10-18
+### Added
+- Signed binding, slice 2 of 9 of INV-T-4156 (INV-Q-5352, INV-Q-5354 (A), owner ruling INV-Q-4121): `TransactionRunnerImpl`
+  takes optional `keys: BindingKeySource` (default none: no signature, the unsigned path is unchanged), `transactionTimeout`
+  (default 30 s) and `clock`. With a key source the first statement also sets `app.binding_sig` as a bind parameter,
+  expiring no later than the transaction start plus the timeout. `BindingSignature` (impl) signs; testFixtures gain
+  `SignedBinding` and `TestPoolFixture.runner(keys, transactionTimeout, clock)`. Nothing reads the signature in a policy yet.
+
 ## [3.2.0] - 2026-10-17
 ### Added
 - Signed binding, slice 1 of 9 of INV-T-4156 (INV-Q-5352, owner ruling INV-Q-4121): `BindingKeySource` (main; the

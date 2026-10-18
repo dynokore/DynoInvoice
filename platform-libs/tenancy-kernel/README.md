@@ -24,7 +24,11 @@ or when it gives `null`, the statement is unchanged.
 ## Signed binding
 
 Hardening on the transaction binding (INV-REQ-854 b7, owner ruling INV-Q-4121; INV-T-4156, slice 1 INV-T-5358).
-Nothing calls these functions yet: `TENANT_PREDICATE` and the runner are unchanged until the later slices.
+`TENANT_PREDICATE` is unchanged until the later slices. Slice 2 (INV-T-5359): `TransactionRunnerImpl(..., keys:
+BindingKeySource? = null, transactionTimeout = 30 s, clock)` signs with `BindingSignature` when `keys` is set and sets
+`app.binding_sig` in the same first statement as the tenant and the actor, as a bind parameter only; the expiry is the
+transaction start plus `transactionTimeout`, rounded down to whole seconds. Without `keys` no signature is set. The
+testFixtures helper is `SignedBinding`.
 
 `BindingKeyMigration.ddl(schema, sysRole, runtimeRole, pgcryptoSchema = "public")` generates, for one schema, to run
 as `<svc>_sys` (the first block refuses any other login and a missing pgcrypto):

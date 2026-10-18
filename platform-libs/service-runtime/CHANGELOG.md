@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [8.1.8] - 2026-10-18
+### Changed
+- Metadata-only release (INV-T-5359, G-DVS): depends on `tenancy-kernel` 3.3.0, whose published module metadata changed; no code change.
+
 ## [8.1.7] - 2026-10-18
 ### Changed
 - Moved `MigrationRunnerConfiguration` into a file of its own name and removed two unused HikariCP imports from `JobCommandHttpIT` (INV-T-6393); no behaviour change, the compiled source-file attribute of the moved class changes.
