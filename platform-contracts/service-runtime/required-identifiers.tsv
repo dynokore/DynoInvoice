@@ -52,3 +52,10 @@ transactionDate	property	schemas/pack-dry-run-sample-recorded-payload.schema.jso
 precedingDocumentDate	property	schemas/pack-dry-run-sample-recorded-payload.schema.json	INV-Q-5194
 sgdValuesAbsent	property	schemas/pack-dry-run-sample-recorded-payload.schema.json	INV-Q-5634
 callingSystem	property	schemas/audit-entry-recorded-payload.schema.json	INV-REQ-587
+caseId	property	schemas/privacy-notice-due-payload.schema.json	INV-REQ-1403
+requestKind	property	schemas/privacy-notice-due-payload.schema.json	INV-REQ-1403
+receivedOn	property	schemas/privacy-notice-due-payload.schema.json	INV-REQ-1403
+responseDeadline	property	schemas/privacy-notice-due-payload.schema.json	INV-REQ-1403
+noticeLeadDays	property	schemas/privacy-notice-due-payload.schema.json	INV-REQ-1403
+ACCESS	enum_value	schemas/privacy-notice-due-payload.schema.json	INV-REQ-1403
+CORRECTION	enum_value	schemas/privacy-notice-due-payload.schema.json	INV-REQ-1403

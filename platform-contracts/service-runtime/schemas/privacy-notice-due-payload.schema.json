@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/service-runtime/schemas/privacy-notice-due-payload.schema.json",
+  "title": "PrivacyNoticeDuePayload",
+  "description": "Payload of the PrivacyNoticeDue platform event (class: platform; INV-REQ-1403, INV-AC-1404, INV-Q-6851 option A). evidence-svc emits it once per case when the notice to the individual falls due. Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "caseId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The privacy request case."
+    },
+    "requestKind": {
+      "type": "string",
+      "description": "The kind of request.",
+      "enum": [
+        "ACCESS",
+        "CORRECTION"
+      ],
+      "x-extensible-enum": true
+    },
+    "receivedOn": {
+      "type": "string",
+      "format": "date",
+      "description": "The date the request was received."
+    },
+    "responseDeadline": {
+      "type": "string",
+      "format": "date",
+      "description": "The case response deadline."
+    },
+    "noticeLeadDays": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "How many days before the deadline the notice falls due."
+    }
+  },
+  "required": [
+    "caseId",
+    "requestKind",
+    "receivedOn",
+    "responseDeadline",
+    "noticeLeadDays"
+  ],
+  "additionalProperties": true
+}

@@ -343,6 +343,15 @@ topics:
       - every service
     subscribers:
       []
+  - topic: gst.platform.privacy-notice-due.v1
+    event_type: com.dynokore.gst.platform.PrivacyNoticeDue.v1
+    content_topic: false
+    record_topic: false
+    retained_while_resolvable: false
+    producers:
+      - evidence-svc
+    subscribers:
+      - notification-svc
   - topic: gst.reconciliation.gst-return-recorded.v1
     event_type: com.dynokore.gst.reconciliation.GstReturnRecorded.v1
     content_topic: false
@@ -839,6 +848,7 @@ replay_topics:
     event_types:
       - com.dynokore.gst.evidence.EvidenceIntegrityFailed.v1
       - com.dynokore.gst.platform.ConnectionStatusChanged.v1
+      - com.dynokore.gst.platform.PrivacyNoticeDue.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false

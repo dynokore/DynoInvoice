@@ -9,3 +9,8 @@ schemas/audit-entry-recorded-payload.schema.json	priorState	IDENTIFYING
 schemas/evidence-artefact-recorded-payload.schema.json	artefactType	NONE
 schemas/evidence-artefact-recorded-payload.schema.json	reference	NONE
 schemas/evidence-artefact-recorded-payload.schema.json	hash	NONE
+schemas/privacy-notice-due-payload.schema.json	caseId	NONE
+schemas/privacy-notice-due-payload.schema.json	requestKind	NONE
+schemas/privacy-notice-due-payload.schema.json	receivedOn	NONE
+schemas/privacy-notice-due-payload.schema.json	responseDeadline	NONE
+schemas/privacy-notice-due-payload.schema.json	noticeLeadDays	NONE
