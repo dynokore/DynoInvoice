@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: notification API
-  version: 1.4.0
+  version: 1.5.0
   description: >-
     Contract-first source of truth for notification (API-01, STK-44). The
     `notification-contract` module generates its server interfaces and DTOs
@@ -230,7 +230,11 @@ paths:
       summary: List an entity's alerts, with state
       description: >-
         Alert instances raised by event consumption (INV-REQ-79,
-        INV-REQ-1113). Filter by `alertClass` and `state`.
+        INV-REQ-1113). Filter by `alertClass` and `state`. A filing prompt is
+        an alert of the class DEADLINE with the trigger
+        FILING_FACT_NOT_RECORDED, raised when the period first becomes ready
+        and on the configured days before the due date (INV-REQ-918,
+        INV-REQ-1277).
       tags: [alerts]
       x-principal: reporting
       x-sync-edge: console-bff->notification-svc
@@ -969,7 +973,7 @@ components:
           format: date-time
         trigger:
           type: string
-          enum: [DUE_DATE_THRESHOLD, READINESS_CHECK_INVOKED, RETURN_FIGURES_UPLOADED, PAST_DUE]
+          enum: [DUE_DATE_THRESHOLD, READINESS_CHECK_INVOKED, RETURN_FIGURES_UPLOADED, PAST_DUE, FILING_FACT_NOT_RECORDED]
           x-extensible-enum: true
         currentTier:
           type: integer

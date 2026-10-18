@@ -24,3 +24,5 @@ testWebhookSubscription	operation	openapi.yaml	INV-REQ-822
 pauseWebhookSubscription	operation	openapi.yaml	INV-REQ-822
 resumeWebhookSubscription	operation	openapi.yaml	INV-REQ-822
 PAUSED	enum_value	openapi.yaml	INV-REQ-822
+FILING_FACT_NOT_RECORDED	enum_value	openapi.yaml	INV-REQ-918
+Alert.trigger.FILING_FACT_NOT_RECORDED	schema_enum_value	openapi.yaml	INV-REQ-918
