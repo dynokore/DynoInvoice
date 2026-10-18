@@ -1,0 +1,6 @@
+{
+  "entityRef": "E-0001",
+  "documentNumber": "INV-100",
+  "acknowledgementRef": "ACK-LEGACY-0001",
+  "priorSolution": "LegacyBill 7"
+}

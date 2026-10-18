@@ -9,3 +9,4 @@
 ../openapi.yaml#/components/schemas/OpenPrivacyCaseRequest open-privacy-case-request-*.json
 ../openapi.yaml#/components/schemas/ClosePrivacyCaseRequest close-privacy-case-request-*.json
 ../openapi.yaml#/components/schemas/PrivacyCase privacy-case-*.json
+../schemas/prior-submission-evidence-imported-payload.schema.json prior-submission-evidence-imported-payload-*.json

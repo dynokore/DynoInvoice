@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: evidence events
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     Every event evidence produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -33,6 +33,11 @@ channels:
     messages:
       EvidenceIntegrityFailed:
         $ref: '#/components/messages/EvidenceIntegrityFailed'
+  evidencePriorSubmissionEvidenceImported:
+    address: 'gst.evidence.prior-submission-evidence-imported.v1'
+    messages:
+      PriorSubmissionEvidenceImported:
+        $ref: '#/components/messages/PriorSubmissionEvidenceImported'
   evidenceExampleHappened:
     address: 'gst.evidence.example-happened.v1'
     messages:
@@ -46,6 +51,13 @@ operations:
       $ref: '#/channels/evidenceEvidenceIntegrityFailed'
     messages:
       - $ref: '#/channels/evidenceEvidenceIntegrityFailed/messages/EvidenceIntegrityFailed'
+  publishPriorSubmissionEvidenceImported:
+    action: send
+    description: PriorSubmissionEvidenceImported — one event per record newly imported by importPriorEvidence (INV-REQ-1109).
+    channel:
+      $ref: '#/channels/evidencePriorSubmissionEvidenceImported'
+    messages:
+      - $ref: '#/channels/evidencePriorSubmissionEvidenceImported/messages/PriorSubmissionEvidenceImported'
   publishExampleHappened:
     action: send
     description: Placeholder operation (INV-T-2849 scaffold) — replace with a real one.
@@ -67,6 +79,19 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/evidence-integrity-failed-payload.schema.json'
+    PriorSubmissionEvidenceImported:
+      name: com.dynokore.gst.evidence.PriorSubmissionEvidenceImported.v1
+      title: PriorSubmissionEvidenceImported
+      summary: A record of prior submission evidence was newly imported (INV-REQ-1109).
+      description: >-
+        Event PriorSubmissionEvidenceImported (INV-REQ-1109; class: domain). Emitted by: evidence-svc. Consumed by: submission-svc.
+        Delivery: At-least-once. One event per record newly imported by importPriorEvidence, written in the
+        transaction that stores the record, with the record's entity; none for a record that was already imported.
+        The payload holds no personal data and no Doc UUID. submission-svc keeps (entityRef, documentNumber,
+        transactionDate) in its own read model to decide the match of INV-REQ-1109 behavior 3.
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/prior-submission-evidence-imported-payload.schema.json'
     ExampleHappened:
       name: com.dynokore.gst.evidence.ExampleHappened.v1
       title: ExampleHappened

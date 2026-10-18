@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/evidence/schemas/prior-submission-evidence-imported-payload.schema.json",
+  "title": "PriorSubmissionEvidenceImportedPayload",
+  "description": "Payload of the PriorSubmissionEvidenceImported event (INV-REQ-1109; class: domain). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "entityRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "description": "The entity the imported record belongs to."
+    },
+    "documentNumber": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "description": "Document number the prior solution submitted."
+    },
+    "transactionDate": {
+      "type": "string",
+      "format": "date",
+      "description": "Transaction date of the document the prior solution submitted."
+    },
+    "acknowledgementRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "description": "Acknowledgement reference the prior solution received."
+    },
+    "priorSolution": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Name of the prior solution."
+    }
+  },
+  "required": [
+    "entityRef",
+    "documentNumber",
+    "transactionDate",
+    "acknowledgementRef",
+    "priorSolution"
+  ],
+  "additionalProperties": true
+}

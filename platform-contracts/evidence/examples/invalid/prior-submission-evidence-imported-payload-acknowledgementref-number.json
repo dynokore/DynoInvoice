@@ -1,0 +1,7 @@
+{
+  "entityRef": "E-0001",
+  "documentNumber": "INV-100",
+  "transactionDate": "2026-02-27",
+  "acknowledgementRef": 5,
+  "priorSolution": "LegacyBill 7"
+}

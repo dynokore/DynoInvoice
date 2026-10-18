@@ -59,3 +59,8 @@ OpenPrivacyCaseRequest.requestKind.ACCESS	schema_enum_value	openapi.yaml	INV-REQ
 OpenPrivacyCaseRequest.requestKind.CORRECTION	schema_enum_value	openapi.yaml	INV-REQ-1403
 ClosePrivacyCaseRequest.outcome.ANSWERED	schema_enum_value	openapi.yaml	INV-REQ-1403
 ClosePrivacyCaseRequest.outcome.REFUSED	schema_enum_value	openapi.yaml	INV-REQ-1403
+entityRef	property	schemas/prior-submission-evidence-imported-payload.schema.json	INV-REQ-1109
+documentNumber	property	schemas/prior-submission-evidence-imported-payload.schema.json	INV-REQ-1109
+transactionDate	property	schemas/prior-submission-evidence-imported-payload.schema.json	INV-REQ-1109
+acknowledgementRef	property	schemas/prior-submission-evidence-imported-payload.schema.json	INV-REQ-1109
+priorSolution	property	schemas/prior-submission-evidence-imported-payload.schema.json	INV-REQ-1109
