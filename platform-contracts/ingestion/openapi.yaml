@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: ingestion API
-  version: 1.6.0
+  version: 1.7.0
   description: >-
     Contract-first source of truth for ingestion (API-01, STK-44). The
     `ingestion-contract` module generates its server interfaces and DTOs
@@ -10,6 +10,10 @@ info:
     scaffold (INV-T-2856, T12). Versioned by URI major (`/v1`), additive
     within it, with a new major running alongside the old one for at least
     the supported-version window (API-03, FR-AG.37, INV-REQ-823).
+
+    A zone-less `postingTimestamp` is accepted and read in the source
+    connection's declared zone, default `Asia/Singapore` (INV-Q-6951,
+    INV-REQ-790).
 
 
     Public and internal APIs (API standard §1 and §15). The seven resources

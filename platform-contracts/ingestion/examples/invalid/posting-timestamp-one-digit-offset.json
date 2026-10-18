@@ -1,0 +1,43 @@
+{
+  "entityRef": "E-001",
+  "sourceSystem": "erp-acme",
+  "sourceKey": "BILL-2026-000047",
+  "sourceRevision": 1,
+  "documentFunction": "INVOICE",
+  "transactionDate": "2026-03-20",
+  "currency": "SGD",
+  "counterparty": {
+    "supplier": {
+      "identifierScheme": "UEN",
+      "identifierValue": "201912345A"
+    },
+    "buyer": {
+      "identifierScheme": "UEN",
+      "identifierValue": "201954321B"
+    }
+  },
+  "lines": [
+    {
+      "lineNumber": 1,
+      "description": "Consulting services",
+      "quantity": 1,
+      "unitPrice": "1000.00",
+      "lineAmount": "1000.00",
+      "taxCode": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+      "taxAmount": "90.00",
+      "inputTaxClaimed": "90.00",
+      "apportionmentBasis": "turnover",
+      "mixedUse": "CLAIMABLE_PORTION",
+      "unitCode": "EA",
+      "glAccount": "6100-01",
+      "businessUnitRef": "BU-SALES"
+    }
+  ],
+  "declaredTotals": {
+    "totalExcludingTax": "1000.00",
+    "totalTax": "90.00",
+    "totalIncludingTax": "1090.00"
+  },
+  "direction": "PURCHASE",
+  "postingTimestamp": "2026-03-31T23:30:00+8:00"
+}
