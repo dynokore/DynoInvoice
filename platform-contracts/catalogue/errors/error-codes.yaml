@@ -1,7 +1,7 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
-# pinned at commit 6f41d974d4dbd96deae8987c8055adb1a3aeb9c0 (2026-10-19), the
-# merge of invoice-docs!43 adding SUB-021 (INV-T-6945, coordinator ruling INV-Q-6942 A;
-# previously pinned at 941e5f99446f1b8d0686579a14d58539566cb041, INV-T-6647, INV-Q-6639, 2ce12f2af225eefd10848bc4b47f38216a1ea611, INV-T-6425, eef5812372eda3c8d2f549c630291ece6571aedd, INV-T-6051, bd93a33d21a7b92f1d9f8278d816d2d6cdb43499, INV-T-6021, and 70e25c6aba57b111e5fd12a86e4b978f6fdb12d6, INV-T-5412).
+# pinned at commit 9950238cf97e3bb38626a21006bb8b854a02a054 (2026-10-19), the
+# merge of invoice-docs!45 adding SUB-022 (INV-T-7036, coordinator ruling INV-Q-7001 A;
+# previously pinned at 6f41d974d4dbd96deae8987c8055adb1a3aeb9c0, INV-T-6945, INV-Q-6942, 941e5f99446f1b8d0686579a14d58539566cb041, INV-T-6647, INV-Q-6639, 2ce12f2af225eefd10848bc4b47f38216a1ea611, INV-T-6425, eef5812372eda3c8d2f549c630291ece6571aedd, INV-T-6051, bd93a33d21a7b92f1d9f8278d816d2d6cdb43499, INV-T-6021, and 70e25c6aba57b111e5fd12a86e4b978f6fdb12d6, INV-T-5412).
 #
 # This copy is the generator's (catalogue/generator/) sole input for the
 # gst-catalogue ErrorCode catalogue (STK-61, CS-13). It is never hand-edited:
@@ -435,6 +435,11 @@ error_codes:
   severity: BLOCK
   disposition: TERMINAL
   owner: Tax operations
+- code: SUB-022
+  condition: "A document version is held in submission-svc because its submission type cannot be decided: the routing facts of the version contradict each other, the self-billing direction does not match the direction of the document, or the facts are missing (reason CONTRADICTORY_FACTS, SELF_BILLING_DIRECTION_MISMATCH or FACTS_MISSING in the detail); no SubmissionTypeDecided is published and nothing is routed until a new canonical version with corrected facts arrives (HOLD; INV-REQ-415, INV-Q-7001)"
+  severity: HOLD
+  disposition: AUTO_RELEASE on a new canonical version of the document whose routing facts are corrected
+  owner: Platform
 - code: PER-001
   condition: Period contains unsubmitted in-scope documents at readiness check
   severity: BLOCK
