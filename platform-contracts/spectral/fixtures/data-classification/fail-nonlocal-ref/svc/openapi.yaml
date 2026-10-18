@@ -1,0 +1,10 @@
+openapi: 3.0.3
+components:
+  schemas:
+    Item:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          $ref: other.yaml#/X

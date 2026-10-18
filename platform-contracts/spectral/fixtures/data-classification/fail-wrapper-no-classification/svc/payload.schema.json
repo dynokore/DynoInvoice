@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "$defs": {
+    "DataClass": {
+      "type": "string",
+      "enum": [
+        "NONE",
+        "IDENTIFYING",
+        "SENSITIVE"
+      ]
+    }
+  },
+  "properties": {
+    "docUuid": {
+      "type": "string"
+    },
+    "doc": {
+      "type": "object",
+      "properties": {
+        "a": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "string"
+            },
+            "classification": {
+              "type": "string",
+              "enum": [
+                "NONE"
+              ]
+            }
+          },
+          "required": [
+            "value",
+            "classification"
+          ]
+        },
+        "b": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "value",
+            "classification"
+          ]
+        }
+      }
+    }
+  }
+}

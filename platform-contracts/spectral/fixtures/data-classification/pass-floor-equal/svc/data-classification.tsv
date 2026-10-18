@@ -1,0 +1,6 @@
+file	unit	class
+openapi.yaml	Party.pid	IDENTIFYING
+openapi.yaml	Holder.p	IDENTIFYING
+payload.schema.json	docUuid	NONE
+payload.schema.json	doc.a	NONE
+payload.schema.json	doc.b	NONE

@@ -1,3 +1,4 @@
+# INV-T-6443. Rows for INV-REQ-883 and INV-AC-1915 (read from Keel): the three backticked class names, found as members of $defs.DataClass.
 # INV-T-6313. Rows for INV-REQ-709 (read from Keel). INV-REQ-709 and INV-AC-752 name the backticked AWAITING_PRECEDING, ACKNOWLEDGED and QUEUED, which are lifecycle states owned by the submission contract (submission/schemas/lifecycle-states.schema.json), not elements of this contract.
 # INV-T-6274. Rows for INV-REQ-714 and INV-REQ-432 (read from Keel). INV-REQ-714 names no backticked identifier; INV-REQ-432 names buyerDisposition, PENDING and REJECTED (rows above), NOT_SUBMITTABLE and BUYER_REJECTED (new rows) and HOLD, which is a severity of the error catalogue and not an element of this contract (the catalogue contract owns it).
 # INV-T-6049. Contract identifiers named in the published behavior of INV-REQ-547, 327, 430, 431, 793 and 1192 (read from Keel), plus INV-REQ-428 for the receipt fields.
@@ -74,3 +75,6 @@ documentNumber	property	schemas/canonical-version-created-payload.schema.json	IN
 precedingDocUuid	property	openapi.yaml	INV-REQ-709
 precedingDocUuid	property	schemas/canonical-version-created-payload.schema.json	INV-REQ-709
 DocumentVersion.precedingDocUuid	schema_property	openapi.yaml	INV-REQ-709
+NONE	enum_value	schemas/canonical-version-created-payload.schema.json	INV-REQ-883
+IDENTIFYING	enum_value	schemas/canonical-version-created-payload.schema.json	INV-REQ-883
+SENSITIVE	enum_value	schemas/canonical-version-created-payload.schema.json	INV-REQ-883

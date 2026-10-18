@@ -170,6 +170,7 @@ contract-rules:
     - gst_check schema-sample-validation-discover python3 spectral/validate-schema-samples.py --discover .
     - gst_check required-identifiers-check python3 spectral/check-required-identifiers.py .
     - gst_check forbidden-properties-check python3 spectral/check-forbidden-properties.py access/
+    - gst_check data-classification-check python3 spectral/check-data-classification.py canonical
     - gst_check event-log-topics-drift-check python3 event-log/generate-topics.py . --check event-log/topics.yaml
     - gst_check event-log-generator-tests python3 -m unittest discover -s event-log -p 'test_*.py' -v
     - gst_checks_done
@@ -255,6 +256,7 @@ tool-self-tests:
     - gst_check self-test-timeouts sh spectral/self-test-timeouts.sh
     - gst_check self-test-required-identifiers sh spectral/self-test-required-identifiers.sh
     - gst_check self-test-forbidden-properties sh spectral/self-test-forbidden-properties.sh
+    - gst_check self-test-data-classification sh spectral/self-test-data-classification.sh
     - gst_check catalogue-vendor-tool-tests python3 -m unittest discover -s catalogue/variation-points -p 'test_*.py' -v
     - gst_check publish-jobs-test python3 -m unittest discover -s ci/tests -p '*_test.py' -v
     - gst_checks_done

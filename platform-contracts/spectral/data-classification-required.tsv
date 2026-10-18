@@ -1,0 +1,4 @@
+directory	file
+canonical	openapi.yaml
+canonical	schemas/canonical-version-created-payload.schema.json
+canonical	schemas/decision-trace-recorded-payload.schema.json

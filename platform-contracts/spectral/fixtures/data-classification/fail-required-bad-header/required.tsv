@@ -1,0 +1,3 @@
+dir	file
+svc	openapi.yaml
+svc	payload.schema.json

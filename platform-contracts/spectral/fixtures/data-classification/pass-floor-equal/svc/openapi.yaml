@@ -1,0 +1,13 @@
+openapi: 3.0.3
+components:
+  schemas:
+    Party:
+      type: object
+      properties:
+        pid:
+          type: string
+    Holder:
+      type: object
+      properties:
+        p:
+          $ref: '#/components/schemas/Party'

@@ -1,0 +1,4 @@
+directory	file
+svc	openapi.yaml
+svc	payload.schema.json
+ghost	openapi.yaml

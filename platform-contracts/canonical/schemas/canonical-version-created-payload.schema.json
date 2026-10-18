@@ -80,6 +80,9 @@
             },
             "classification": {
               "type": "string",
+              "enum": [
+                "NONE"
+              ],
               "description": "The FR-AE.72 data classification tag for this content field."
             }
           },
@@ -99,6 +102,9 @@
             },
             "classification": {
               "type": "string",
+              "enum": [
+                "NONE"
+              ],
               "description": "The FR-AE.72 data classification tag for this content field."
             }
           },
@@ -134,6 +140,9 @@
             },
             "classification": {
               "type": "string",
+              "enum": [
+                "IDENTIFYING"
+              ],
               "description": "The FR-AE.72 data classification tag for this content field."
             }
           },
@@ -198,6 +207,9 @@
             },
             "classification": {
               "type": "string",
+              "enum": [
+                "NONE"
+              ],
               "description": "The FR-AE.72 data classification tag for this content field."
             }
           },
@@ -242,6 +254,9 @@
             },
             "classification": {
               "type": "string",
+              "enum": [
+                "NONE"
+              ],
               "description": "The FR-AE.72 data classification tag for this content field."
             }
           },
@@ -305,6 +320,9 @@
             },
             "classification": {
               "type": "string",
+              "enum": [
+                "NONE"
+              ],
               "description": "The FR-AE.72 data classification tag for this content field."
             }
           },
@@ -325,6 +343,9 @@
             },
             "classification": {
               "type": "string",
+              "enum": [
+                "NONE"
+              ],
               "description": "The FR-AE.72 data classification tag for this content field."
             }
           },
@@ -345,6 +366,9 @@
             },
             "classification": {
               "type": "string",
+              "enum": [
+                "NONE"
+              ],
               "description": "The FR-AE.72 data classification tag for this content field."
             }
           },
@@ -365,6 +389,9 @@
             },
             "classification": {
               "type": "string",
+              "enum": [
+                "NONE"
+              ],
               "description": "The FR-AE.72 data classification tag for this content field."
             }
           },
@@ -385,6 +412,9 @@
             },
             "classification": {
               "type": "string",
+              "enum": [
+                "NONE"
+              ],
               "description": "The FR-AE.72 data classification tag for this content field."
             }
           },
@@ -407,6 +437,9 @@
             },
             "classification": {
               "type": "string",
+              "enum": [
+                "NONE"
+              ],
               "description": "The FR-AE.72 data classification tag for this content field."
             }
           },
@@ -428,6 +461,9 @@
             },
             "classification": {
               "type": "string",
+              "enum": [
+                "NONE"
+              ],
               "description": "The FR-AE.72 data classification tag for this content field."
             }
           },
@@ -448,6 +484,9 @@
             },
             "classification": {
               "type": "string",
+              "enum": [
+                "NONE"
+              ],
               "description": "The FR-AE.72 data classification tag for this content field."
             }
           },
@@ -469,6 +508,9 @@
             },
             "classification": {
               "type": "string",
+              "enum": [
+                "NONE"
+              ],
               "description": "The FR-AE.72 data classification tag for this content field."
             }
           },
@@ -501,5 +543,16 @@
     "traceReference",
     "canonicalDocument"
   ],
-  "additionalProperties": true
+  "additionalProperties": true,
+  "$defs": {
+    "DataClass": {
+      "type": "string",
+      "enum": [
+        "NONE",
+        "IDENTIFYING",
+        "SENSITIVE"
+      ],
+      "description": "The personal-data class of a content field (INV-REQ-883, INV-AC-1915, FR-AE.72): NONE, IDENTIFYING or SENSITIVE. Each canonicalDocument wrapper pins its own class as a one-member enum of these values; the registry canonical/data-classification.tsv holds the same class per unit (check-data-classification)."
+    }
+  }
 }
