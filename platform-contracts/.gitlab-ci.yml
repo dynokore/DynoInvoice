@@ -172,7 +172,7 @@ contract-rules:
     - gst_check required-identifiers-check python3 spectral/check-required-identifiers.py .
     - gst_check forbidden-properties-check python3 spectral/check-forbidden-properties.py access/
     - gst_check forbidden-request-properties-check python3 spectral/check-forbidden-properties.py --requests ingestion/
-    - gst_check data-classification-check python3 spectral/check-data-classification.py canonical evidence service-runtime
+    - gst_check data-classification-check python3 spectral/check-data-classification.py canonical evidence service-runtime submission
     - gst_check event-log-topics-drift-check python3 event-log/generate-topics.py . --check event-log/topics.yaml
     - gst_check event-log-generator-tests python3 -m unittest discover -s event-log -p 'test_*.py' -v
     - gst_checks_done

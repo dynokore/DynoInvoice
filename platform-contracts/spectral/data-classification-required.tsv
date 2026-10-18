@@ -6,3 +6,5 @@ evidence	openapi.yaml
 evidence	schemas/evidence-integrity-failed-payload.schema.json
 service-runtime	schemas/audit-entry-recorded-payload.schema.json
 service-runtime	schemas/evidence-artefact-recorded-payload.schema.json
+submission	schemas/submission-despatched-payload.schema.json
+submission	schemas/submission-acknowledged-payload.schema.json

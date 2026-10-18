@@ -1,0 +1,10 @@
+# INV-T-6450. Personal-data class of every unit of the two submission payload contract files (INV-REQ-883, INV-AC-1915; coordinator ruling INV-Q-6441 option A). Checked by spectral/check-data-classification.py.
+file	unit	class
+schemas/submission-despatched-payload.schema.json	docUuid	NONE
+schemas/submission-despatched-payload.schema.json	version	NONE
+schemas/submission-despatched-payload.schema.json	attemptNumber	NONE
+schemas/submission-despatched-payload.schema.json	payloadSha256	NONE
+schemas/submission-acknowledged-payload.schema.json	docUuid	NONE
+schemas/submission-acknowledged-payload.schema.json	version	NONE
+schemas/submission-acknowledged-payload.schema.json	acknowledgementId	NONE
+schemas/submission-acknowledged-payload.schema.json	timestamp	NONE
