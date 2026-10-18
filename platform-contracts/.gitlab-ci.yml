@@ -38,6 +38,9 @@ variables:
   SPECTRAL_IMAGE: "stoplight/spectral@sha256:a07aa4455367b9501b574423b684ab0ef3ee42556089013583318ec015249050"
   OASDIFF_IMAGE: "tufin/oasdiff@sha256:0286f138545a39010525df6c1bea67ffafacb384ef800effffa63bbd04718ce5"
   ASYNCAPI_CLI_IMAGE: "asyncapi/cli@sha256:2240534054590b3d41d691fdf88e1f7a1e581b9cc4fb1d4af65ca93434aa681b"
+  # CI-FAST plan item A3 (owner ruling 2026-10-18, option b), see gst-rebase-check below.
+  GST_REBASE_SKIP_JOBS: "contract-rules tool-self-tests spectral-rule-self-tests spectral-lint asyncapi-validate catalogue-verify"
+  GST_REBASE_AGGREGATE_PATHS: ".gitlab-ci.yml ci/* gradle/* *.gradle.kts *gradle.properties *.lockfile spectral/* codegen-self-test/* event-log/topics.yaml catalogue/errors/* submission/schemas/lifecycle-states.schema.json"
 
 # CI-FAST batch 7 (coordinator, owner request 2026-10-18: fewer, cheaper jobs for small agent merge requests):
 # - Every check job sets `needs: []`, so no check waits for an earlier stage. The publish jobs keep waiting for
@@ -52,8 +55,47 @@ variables:
 #   (.gst-skip-verified): merges are fast-forward, so it is the same commit. The publish jobs and
 #   invoice-docs-checks (its inputs live outside this repository) and catalogue-verify (Keel acceptance
 #   results come from the main run itself, Keel R77) always run in full.
+# CI-FAST plan item A3 (owner ruling 2026-10-18, option b: stay fast-forward; after a rebase whose new target commits
+# and the merge request's changes touch disjoint paths and no aggregate or generated file, run only the integration
+# set). gst-rebase-check (ci/rebase_check.py, tests in ci/tests/rebase_check_test.py) sets GST_REBASE_ONLY=true when
+# an earlier pipeline of the merge request passed on the same change and the rebase brought in only other, non-aggregate
+# files (GST_REBASE_AGGREGATE_PATHS). Then each job in GST_REBASE_SKIP_JOBS ends at once (.gst-rebase-skip). The
+# integration set always runs: invoice-docs-checks (drift), the oasdiff and asyncapi breaking gates,
+# contracts-codegen-compile and publish-guard-dry-run (a version the target branch just published must not be reused).
+# Any doubt or error in the check means a full run. Main and tag pipelines are not affected.
+gst-rebase-check:
+  stage: .pre
+  needs: []
+  image: "$GRADLE_IMAGE"
+  rules:
+    - !reference [.gst-docs-only-skip, rules]
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  variables:
+    GIT_DEPTH: "500"
+  cache: []
+  before_script: []
+  script:
+    - python3 ci/rebase_check.py rebase.env || echo "GST_REBASE_ONLY=false" > rebase.env
+  artifacts:
+    reports:
+      dotenv: rebase.env
+
+.gst-rebase-needs:
+  needs:
+    - job: gst-rebase-check
+      optional: true
+
+.gst-rebase-skip:
+  before_script:
+    - |
+      if [ "${GST_REBASE_ONLY:-}" = "true" ] && case " ${GST_REBASE_SKIP_JOBS:-} " in *" $CI_JOB_NAME "*) true ;; *) false ;; esac; then
+        echo "gst-ci: $CI_JOB_NAME skipped: rebase only (see job gst-rebase-check), the same change passed this job before"
+        exit 0
+      fi
+
 .gst-skip-verified:
   before_script:
+    - !reference [.gst-rebase-skip, before_script]
     - |
       if [ "$CI_PIPELINE_SOURCE" = "push" ] && [ "${CI_COMMIT_BRANCH:-}" = "$CI_DEFAULT_BRANCH" ]; then
         gst_u="$CI_API_V4_URL/projects/$CI_PROJECT_ID/pipelines?sha=$CI_COMMIT_SHA&status=success&source=merge_request_event&per_page=20"
@@ -111,7 +153,7 @@ contract-rules:
   # regenerated from every asyncapi.yaml shows no drift; INV-T-3386 generator unittests). The page-bound check
   # (service-runtime/check-page-bound.py) stays a line of its own (service-runtime/test_check_page_bound.py).
   stage: verify
-  needs: []
+  needs: !reference [.gst-rebase-needs, needs]
   image:
     name: "$OASDIFF_IMAGE"
     entrypoint: [""]
@@ -200,14 +242,14 @@ tool-self-tests:
   # check-drift.py installation-parameter rows, INV-Q-3202, P57) and publish-jobs-test (INV-T-5317: the publish jobs
   # keep the immutable-release guard). In a merge request they run only when a tool, a fixture or this file changes.
   stage: verify
-  needs: []
+  needs: !reference [.gst-rebase-needs, needs]
   extends: .gst-mr-only-on-tools
   image:
     name: "$OASDIFF_IMAGE"
     entrypoint: [""]
   before_script:
     - !reference [.gst-skip-verified, before_script]
-    - apk add --no-cache python3 py3-yaml
+    - apk add --no-cache python3 py3-yaml git   # git: ci/tests/rebase_check_test.py builds throwaway repositories
   script:
     - !reference [.gst-checks, script]
     - gst_check breaking-change-self-test sh spectral/self-test-fixtures.sh
@@ -227,7 +269,7 @@ spectral-rule-self-tests:
   # inv-api-12-money-format against AsyncAPI and standalone event schemas; INV-T-6047 enum casing). In a merge
   # request they run only when spectral/ or this file changes.
   stage: verify
-  needs: []
+  needs: !reference [.gst-rebase-needs, needs]
   extends: .gst-mr-only-on-spectral
   image:
     name: "$SPECTRAL_IMAGE"
@@ -255,13 +297,15 @@ catalogue-verify:
   # only when catalogue/ or this file changes. It never skips on main: Keel takes acceptance results only from the
   # main pipeline's own run on the merge commit (Keel R77), so the main push pipeline produces this job's JUnit XML.
   stage: verify
-  needs: []
+  needs: !reference [.gst-rebase-needs, needs]
   extends: .gst-mr-only-on-catalogue
   image: "$GRADLE_IMAGE"
   cache:
     key: "gradle-catalogue-$CI_PROJECT_ID"
     paths:
       - .gradle-cache/caches
+  before_script:
+    - !reference [.gst-rebase-skip, before_script]
   script:
     - gradle -p catalogue check --stacktrace
   artifacts:
@@ -375,7 +419,7 @@ publish-guard-dry-run:
 
 spectral-lint:
   stage: verify
-  needs: []
+  needs: !reference [.gst-rebase-needs, needs]
   image:
     name: "$SPECTRAL_IMAGE"
     entrypoint: [""]
@@ -397,7 +441,7 @@ spectral-lint:
 
 asyncapi-validate:
   stage: verify
-  needs: []
+  needs: !reference [.gst-rebase-needs, needs]
   image:
     name: "$ASYNCAPI_CLI_IMAGE"
     entrypoint: [""]
