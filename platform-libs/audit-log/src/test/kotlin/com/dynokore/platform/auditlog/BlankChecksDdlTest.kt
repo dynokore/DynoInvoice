@@ -19,10 +19,16 @@ class BlankChecksDdlTest {
     }
 
     @Test
+    fun `the purge reads the signed binding and no definer function or policy reads the unsigned settings`() {
+        assertFalse(Regex("""current_setting\s*\(\s*'app\.(tenant_id|actor)'""").containsMatchIn(ddl))
+        assertEquals(1, ddl.split("(select svc.bound_tenant()) is distinct from").size - 1)
+    }
+
+    @Test
     fun `actors use the shared actor rule and other text the shared blank rule`() {
         assertEquals(2, ddl.split("actor text not null check (actor !~ $actor)").size - 1)
         assertEquals(1, ddl.split("if v_actor is null or v_actor ~ $actor then").size - 1)
-        assertEquals(1, ddl.split("v_actor text := current_setting('app.actor', true);").size - 1)
+        assertEquals(1, ddl.split("v_actor text := (select svc.bound_actor());").size - 1)
         listOf("reason", "action", "scope").forEach {
             assertFalse(ddl.split("$it text not null check ($it !~ $blank)").size < 2, it)
         }

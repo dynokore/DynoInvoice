@@ -8,7 +8,10 @@ import com.dynokore.platform.outboxandqueue.OutboxPostgresFixture
 import com.dynokore.platform.outboxandqueue.OutboxPostgresFixture.Companion.APP
 import com.dynokore.platform.outboxandqueue.OutboxPostgresFixture.Companion.SYS
 import com.dynokore.platform.tenancyjooq.TableClass
+import com.dynokore.platform.tenancykernel.SignedBinding
 import com.dynokore.platform.tenancykernel.TenantId
+import com.dynokore.platform.tenancykernel.TransactionRunner
+import org.jooq.DSLContext
 import org.jooq.exception.DataAccessException
 import org.jooq.impl.DSL
 import org.junit.jupiter.api.AfterAll
@@ -35,7 +38,7 @@ import java.util.stream.Stream
  * The audited purge of `audit_entry` ([AuditSchema.purgeDdl]; INV-T-3984, INV-API-3822) on PostgreSQL 17 and 18, for a
  * fixture `control-plane-svc` (schema `controlplane`, runtime login `outbox_app`, NOLOGIN `outbox_sys`). The purge
  * entry is staged through [LocalAuditWriter.stage] (coordinator ruling INV-Q-4277) and the function is called as the
- * runtime login under `bindPlatform(actor)`, which sets `app.actor` (INV-Q-3997).
+ * runtime login under `bindPlatform(actor)`, which tenancy-kernel's runner signs (INV-Q-3997, INV-T-5361).
  */
 @Tag("integration")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -162,6 +165,31 @@ class AuditPurgeIT {
         assertEquals(seeded, p.countAll("select count(*) from controlplane.audit_entry"))
     }
 
+    /**
+     * A forged `app.binding_sig` gets the refusal the unbound case gets (INV-T-5361, INV-REQ-854 b7): the runner signs
+     * under a key the schema does not hold, so `bound_actor()` is NULL, and the purge refuses with 42501 and deletes
+     * nothing. Look-alike: a binding that is valid for `controlplane` does not pass the same function of another schema.
+     */
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `a forged binding signature is refused like the unbound case, and one schema's binding does not pass another's`(
+        image: String,
+    ) {
+        val p = purge(image)
+        p.seed(PLATFORM, p.yearsAgo(7))
+        val good = PurgeCall.of(p.stage(), p.yearsAgo(6))
+        val unbound = assertThrows(DataAccessException::class.java) { p.call(good, unsetActor = true) }
+        val forged = assertThrows(DataAccessException::class.java) { p.forgedCall(good) }
+        val otherSchema = assertThrows(DataAccessException::class.java) { p.forgedCall(good, OTHER, p.db.tx) }
+        listOf(unbound, forged, otherSchema).forEach {
+            assertEquals("42501", p.db.tx.sqlStateOf(it), it.message)
+            assertTrue("app.actor is not set" in it.message.orEmpty(), it.message)
+        }
+        assertEquals(1L, p.countAll("select count(*) from controlplane.audit_entry"))
+        // The control: the same call under the schema's own key passes.
+        assertEquals(1L, p.call(good))
+    }
+
     @ParameterizedTest(name = "{displayName}[{0}]")
     @ValueSource(strings = ["postgres:17", "postgres:18"])
     fun `the runtime login holds only SELECT and INSERT, cannot delete, and raw SQL cannot pass the floor`(
@@ -182,7 +210,7 @@ class AuditPurgeIT {
                 "select p.proname || '|' || pg_get_userbyid(p.proowner) || '|' || array_to_string(p.proconfig, ';') " +
                     "|| '|' || (select string_agg(distinct split_part(a::text, '=', 1), ',' " +
                     "order by split_part(a::text, '=', 1)) from unnest(p.proacl) a) " +
-                    "from pg_proc p where p.pronamespace = 'controlplane'::regnamespace and p.prosecdef",
+                    "from pg_proc p where p.pronamespace = 'controlplane'::regnamespace and p.prosecdef order by p.proname",
             ),
         )
         assertEquals(
@@ -249,11 +277,18 @@ class AuditPurgeIT {
             OutboxPostgresFixture(
                 image,
                 "reset role;\ncreate schema $SCHEMA authorization outbox_owner;\n" +
-                    "grant usage on schema $SCHEMA to $APP;\nset role outbox_owner;\n" +
+                    "grant usage on schema $SCHEMA to $APP;\n" + AuditTestDb.bindingInit(SCHEMA, APP, SYS) +
+                    "set role outbox_owner;\n" +
                     AuditSchema.auditEntryDdl(SCHEMA, APP) + "\n" +
-                    AuditSchema.purgeDdl(SCHEMA, APP, SYS, "control-plane-svc") + "\n" + extraInit,
+                    AuditSchema.purgeDdl(SCHEMA, APP, SYS, "control-plane-svc") + "\n" + extraInit + "\n" +
+                    // A second schema with its own key and the same functions: the look-alike of the forgery sample.
+                    "reset role;\ncreate schema $OTHER authorization outbox_owner;\n" +
+                    "grant usage on schema $OTHER to $APP;\n" +
+                    AuditTestDb.bindingInit(OTHER, APP, SYS, fill = OTHER_FILL) +
+                    "set role outbox_owner;\n" + AuditSchema.auditEntryDdl(OTHER, APP) + "\n" +
+                    AuditSchema.purgeDdl(OTHER, APP, SYS, "control-plane-svc"),
             )
-        val db = AuditTestDb(fixture)
+        val db = AuditTestDb(fixture, SignedBinding.keys())
         val tenants = db.tenants
         private val ownerDsl = db.dsl(db.ownerTx, mapOf("$SCHEMA.audit_entry" to TableClass.TENANT))
         private val seeded = mutableSetOf(PLATFORM)
@@ -329,25 +364,38 @@ class AuditPurgeIT {
             unsetActor: Boolean = false,
         ): Long {
             seeded += tenant ?: PLATFORM
-            // The runner never binds a blank actor; the probe sets app.actor itself, so the function's check refuses.
-            val actor = if (unsetActor) "" else "operator-9"
-            return db.app.inTenant(tenant?.let { TenantId(it) } ?: TenantId.PLATFORM, actor) {
-                fetchValue(
-                    "select $SCHEMA.purge_audit_entries(?::timestamptz, ?, ?::uuid, ?, ?, ?, ?, ?)",
-                    at(call.cutOff),
-                    call.reason,
-                    UUID.fromString(call.entryId),
-                    call.source,
-                    call.subject,
-                    call.instanceId,
-                    call.correlationId,
-                    call.causationId,
-                ) as Long
-            }
+            val id = tenant?.let { TenantId(it) } ?: TenantId.PLATFORM
+            // The runner never binds a blank actor; a value signed for the blank actor replaces its own, so the
+            // function's check refuses.
+            val signature = if (unsetActor) SignedBinding.value(SignedBinding.key(), id, "") else null
+            return db.signed(id, "operator-9", signature = signature) { purge(call) }
         }
 
+        /** Calls the function as in [call] on the runner of a key the schema does not hold, so the binding is forged. */
+        fun forgedCall(
+            call: PurgeCall,
+            schema: String = SCHEMA,
+            runner: TransactionRunner = db.forgedTx,
+        ): Long = db.signed(TenantId.PLATFORM, "operator-9", runner) { purge(call, schema) }
+
+        private fun DSLContext.purge(
+            call: PurgeCall,
+            schema: String = SCHEMA,
+        ): Long =
+            fetchValue(
+                "select $schema.purge_audit_entries(?::timestamptz, ?, ?::uuid, ?, ?, ?, ?, ?)",
+                at(call.cutOff),
+                call.reason,
+                UUID.fromString(call.entryId),
+                call.source,
+                call.subject,
+                call.instanceId,
+                call.correlationId,
+                call.causationId,
+            ) as Long
+
         /** Runs [sql] as the runtime login under the platform tenant and an actor. */
-        fun raw(sql: String) = db.app.inTenant(TenantId.PLATFORM, "operator-9") { fetchRows(sql) }
+        fun raw(sql: String) = db.signed(TenantId.PLATFORM, "operator-9") { fetch(sql) }
 
         /** The rows of [sql] under the platform tenant's RLS binding. */
         fun platformRows(
@@ -366,6 +414,8 @@ class AuditPurgeIT {
 
     private companion object {
         const val SCHEMA = "controlplane"
+        const val OTHER = "otherplane"
+        const val OTHER_FILL = 3
         const val SCOPE = "platform (control-plane-svc audit_entry)"
         const val DAY = 86_400L
         val PLATFORM: UUID = TenantId.PLATFORM.value

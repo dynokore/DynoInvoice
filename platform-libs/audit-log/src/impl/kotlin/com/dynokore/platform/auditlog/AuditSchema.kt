@@ -134,15 +134,17 @@ object AuditSchema {
      * `DELETE`, its `SELECT` and `DELETE` policies admit only rows older than [LEGAL_FLOOR], and a restrictive
      * `DELETE` policy holds every delete of [sysRole] to that age, whatever tenant is bound.
      *
-     * The caller binds the reserved platform tenant and its actor (`PlatformTenantBinding.bindPlatform(actor)`, which
-     * sets `app.actor`), stages the purge's entry through [AuditStager.stage] and passes its envelope fields
-     * (coordinator ruling INV-Q-4277, the pattern of INV-Q-4254 A). In one transaction the function then:
-     * 1. refuses (SQLSTATE 42501) when `app.actor` is unset or the bound tenant is not the platform tenant;
+     * The caller binds the reserved platform tenant and its actor (`PlatformTenantBinding.bindPlatform(actor)`), which
+     * tenancy-kernel's transaction runner signs; the function reads the signed binding through the schema's
+     * `bound_tenant()` and `bound_actor()` (INV-REQ-854 b7; `BindingKeyMigration.ddl` creates them in the same
+     * schema, owned by [sysRole], before this function runs), stages the purge's entry through [AuditStager.stage]
+     * and passes its envelope fields (coordinator ruling INV-Q-4277, the pattern of INV-Q-4254 A). In one transaction the function then:
+     * 1. refuses (SQLSTATE 42501) when the bound actor is unset (also for a missing, forged or expired signature) or the bound tenant is not the platform tenant;
      * 2. refuses (SQLSTATE 22023) a cut-off later than now minus [LEGAL_FLOOR], a blank reason, subject, instance,
      *    correlation or causation, a source other than `/gst/<service>`, and an entry id that is not a version-7 UUID
      *    or is already present;
      * 3. writes the purge's own entry first, under the platform tenant and entity, recorded at the database's
-     *    `clock_timestamp()` (no caller passes a time, coordinator ruling INV-Q-4316), with the actor from `app.actor`,
+     *    `clock_timestamp()` (no caller passes a time, coordinator ruling INV-Q-4316), with the bound actor,
      *    action [PURGE_ACTION], scope `platform (<service> audit_entry)`, the caller's reason, and as prior state
      *    the cut-off, the row count and the oldest and newest `recorded_at` of the rows to be deleted (no prior
      *    state when there are none, INV-REQ-2588 b6);
@@ -183,7 +185,7 @@ object AuditSchema {
             language plpgsql security definer set search_path = pg_catalog, $s, pg_temp as $$
             declare
                 v_service constant text := replace('$svc', '_', '-');
-                v_actor text := current_setting('app.actor', true);
+                v_actor text := (select $s.bound_actor());
                 v_rows bigint;
                 v_oldest timestamptz;
                 v_newest timestamptz;
@@ -192,7 +194,7 @@ object AuditSchema {
                 if v_actor is null or v_actor ~ '${BlankText.SQL_NOT_ACTOR}' then
                     raise exception 'app.actor is not set: the purge records its actor' using errcode = '42501';
                 end if;
-                if current_setting('app.tenant_id', true) is distinct from '$PLATFORM' then
+                if (select $s.bound_tenant()) is distinct from '$PLATFORM'::uuid then
                     raise exception 'the purge runs under the platform tenant only' using errcode = '42501';
                 end if;
                 if p_cut_off is null or p_cut_off > now() - interval '$LEGAL_FLOOR' then

@@ -8,6 +8,7 @@ import com.dynokore.platform.outboxandqueue.OutboxPostgresFixture
 import com.dynokore.platform.outboxandqueue.OutboxPostgresFixture.Companion.APP
 import com.dynokore.platform.outboxandqueue.OutboxPostgresFixture.Companion.SYS
 import com.dynokore.platform.tenancyjooq.TableClass
+import com.dynokore.platform.tenancykernel.SignedBinding
 import com.dynokore.platform.tenancykernel.TenantId
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -24,7 +25,7 @@ import java.util.UUID
 /**
  * INV-T-4616 (coordinator rulings INV-Q-4614 (A), INV-Q-4622 (A)): `purge_audit_entries` and every CHECK of
  * audit-log's tables use tenancy-kernel's shared blank and actor definitions. Whitespace-only values (ISO controls and
- * the caseId whitespace set) are refused through each argument and the `app.actor` read with the function's own error,
+ * the caseId whitespace set) are refused through each argument and the bound-actor read with the function's own error,
  * and by each CHECK on a direct insert as the owner; an actor holding a control character is refused the same way;
  * nothing is written or deleted. A value with a visible character is stored unchanged. PostgreSQL 16, 17 and 18.
  */
@@ -134,12 +135,13 @@ class BlankValuesIT {
             OutboxPostgresFixture(
                 image,
                 "reset role;\ncreate schema $SCHEMA authorization outbox_owner;\n" +
-                    "grant usage on schema $SCHEMA to $APP;\nset role outbox_owner;\n" +
+                    "grant usage on schema $SCHEMA to $APP;\n" + AuditTestDb.bindingInit(SCHEMA, APP, SYS) +
+                    "set role outbox_owner;\n" +
                     AuditSchema.auditEntryDdl(SCHEMA, APP) + "\n" +
                     AuditSchema.purgeDdl(SCHEMA, APP, SYS, "control-plane-svc") + "\n" +
                     AuditSchema.ddl(SCHEMA, APP),
             )
-        val db = AuditTestDb(fixture)
+        val db = AuditTestDb(fixture, SignedBinding.keys())
         val tenants = db.tenants
         private val ownerDsl =
             db.dsl(
@@ -206,11 +208,15 @@ class BlankValuesIT {
             )
         }
 
-        /** Calls the purge as the runtime login with the platform tenant and [actor] set by `set_config`. */
+        /** Calls the purge as the runtime login with the platform tenant and a binding signed for [actor]. */
         fun rawPurge(
             actor: String,
             arguments: List<String>,
-        ) = db.app.inTenant(TenantId.PLATFORM, actor) {
+        ) = db.signed(
+            TenantId.PLATFORM,
+            "operator-9",
+            signature = SignedBinding.value(SignedBinding.key(), TenantId.PLATFORM, actor),
+        ) {
             fetchValue(
                 "select $SCHEMA.purge_audit_entries(?::timestamptz, ?, ?::uuid, ?, ?, ?, ?, ?)",
                 ZonedDateTime.now(ZoneOffset.UTC).minusYears(6).toOffsetDateTime(),

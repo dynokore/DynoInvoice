@@ -4,6 +4,9 @@ import com.dynokore.platform.outboxandqueue.OutboxPostgresFixture
 import com.dynokore.platform.tenancyjooq.TableClass
 import com.dynokore.platform.tenancyjooq.TenancyJooq
 import com.dynokore.platform.tenancyjooq.TenancyProbe
+import com.dynokore.platform.tenancykernel.BindingKeyMigration
+import com.dynokore.platform.tenancykernel.BindingKeySource
+import com.dynokore.platform.tenancykernel.SignedBinding
 import com.dynokore.platform.tenancykernel.TenantContextImpl
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TestPoolFixture
@@ -23,6 +26,7 @@ import javax.sql.DataSource
  */
 internal class AuditTestDb(
     val fixture: OutboxPostgresFixture,
+    keys: BindingKeySource? = null,
 ) : AutoCloseable {
     val tenants = TenantContextImpl()
     private val appPool =
@@ -41,13 +45,20 @@ internal class AuditTestDb(
         )
 
     /** The runtime login's runner; it reads an SQLSTATE through `sqlStateOf`. */
-    val tx: TransactionRunnerImpl = appPool.runner(tenants)
+    val tx: TransactionRunnerImpl = appPool.runner(tenants, keys = keys)
 
     /** The runtime login's data source, for a runner of the fixture. */
     val appDataSource: DataSource = appPool.dataSource()
 
     /** The schema owner's runner. */
-    val ownerTx: TransactionRunnerImpl = ownerPool.runner(tenants)
+    val ownerTx: TransactionRunnerImpl = ownerPool.runner(tenants, keys = keys)
+
+    /** The runtime login's runner under a key the schema does not hold: every binding it signs is forged. */
+    val forgedTx: TransactionRunnerImpl =
+        appPool.runner(
+            tenants,
+            keys = SignedBinding.keys(SignedBinding.key(FORGED_FILL)),
+        )
 
     /** The runtime login as a probe: a catalog read, or a read of tenant rows under RLS alone. */
     val app: TenancyProbe =
@@ -62,6 +73,28 @@ internal class AuditTestDb(
             tenants,
             runner,
         )
+
+    /**
+     * Runs [block] on the runtime login in one transaction bound to [tenant] and [actor] that [runner] signs. A non-null
+     * [signature] replaces `app.binding_sig` after the runner's first statement (a value signed for another actor, or
+     * a forgery), so a test reaches a binding the runner itself never signs.
+     */
+    fun <T> signed(
+        tenant: TenantId,
+        actor: String,
+        runner: TransactionRunner = tx,
+        signature: String? = null,
+        block: DSLContext.() -> T,
+    ): T {
+        val dsl = dsl(runner, emptyMap())
+        val run = {
+            runner.inTransaction {
+                if (signature != null) dsl.fetchValue("select set_config('app.binding_sig', ?, true)", signature)
+                dsl.block()
+            }
+        }
+        return if (tenant.isPlatform) tenants.bindPlatform(actor, run) else tenants.bind(tenant, actor, run)
+    }
 
     /** The sum over [bound] of the one-number [sql], each read under that tenant's RLS binding. */
     fun count(
@@ -139,5 +172,27 @@ internal class AuditTestDb(
         appPool.close()
         ownerPool.close()
         fixture.close()
+    }
+
+    companion object {
+        private const val FORGED_FILL = 2
+
+        /**
+         * Init SQL that gives [schema] the key table and `bound_tenant()` / `bound_actor()` of [BindingKeyMigration]
+         * (slice 1 of INV-T-4156), created by [sys] with the key of [SignedBinding.key] ([fill]), to run before the module's own
+         * DDL by the superuser of the fixture's init script (`reset role` first).
+         */
+        fun bindingInit(
+            schema: String,
+            runtime: String,
+            sys: String,
+            fill: Int = 1,
+        ): String {
+            val key = SignedBinding.key(fill).joinToString("") { "%02x".format(it) }
+            return "create extension if not exists pgcrypto schema public;\n" +
+                "grant usage, create on schema $schema to $sys;\nset role $sys;\n" +
+                BindingKeyMigration.ddl(schema, sys, runtime) + "\n" +
+                "insert into $schema.binding_key (slot, secret) values ('current', decode('$key', 'hex'));\nreset role;\n"
+        }
     }
 }

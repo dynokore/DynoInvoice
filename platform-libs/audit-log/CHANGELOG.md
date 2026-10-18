@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-10-18
+### Changed
+- `purge_audit_entries` (`AuditSchema.purgeDdl`) reads the signed binding: the actor through `(select <schema>.bound_actor())` and the tenant through `(select <schema>.bound_tenant())` instead of `app.actor` and `app.tenant_id` (INV-T-5361, slice 4 of INV-T-4156, INV-Q-5352; INV-REQ-854 b7). A missing, forged or expired `app.binding_sig` gets the refusal an unset actor gets (SQLSTATE 42501). The schema must hold tenancy-kernel's `BindingKeyMigration.ddl` functions, owned by the sys role, before the function runs. The tables' policies are unchanged until the last slice.
+
 ## [3.1.4] - 2026-10-18
 ### Changed
 - Metadata-only release (INV-T-5359, G-DVS): depends on `tenancy-kernel` 3.3.0, whose published module metadata changed; no code change.
