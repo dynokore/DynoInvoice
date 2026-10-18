@@ -1,6 +1,7 @@
 package com.dynokore.platform.calendarandperiods
 
 import java.time.DayOfWeek
+import java.time.Duration
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -70,6 +71,8 @@ class CalendarPack(
     val dueRules: Map<String, DueRule>,
     val calendar: BusinessCalendar,
     val pinnedRule: NonBusinessDayRule?,
+    alertThresholds: Map<FilingFrequency, List<Int>> = emptyMap(),
+    safetyMargin: Duration? = null,
 ) {
     private val windowsByFrequency: Map<FilingFrequency, List<StandardWindow>> =
         windows.mapValues { (_, list) ->
@@ -79,6 +82,31 @@ class CalendarPack(
             }
             sorted
         }
+
+    private val alertThresholdsByFrequency: Map<FilingFrequency, List<Int>> =
+        alertThresholds.mapValues { (frequency, days) ->
+            val code = frequency.code
+            require(windowsByFrequency[frequency].orEmpty().isNotEmpty()) {
+                "calendar pack $version has alert thresholds for frequency $code, which has no window"
+            }
+            require(
+                days.isNotEmpty(),
+            ) { "calendar pack $version has an empty alert threshold list for frequency $code" }
+            require(days.size <= MAX_ALERT_THRESHOLDS) {
+                "calendar pack $version has more than $MAX_ALERT_THRESHOLDS alert thresholds for frequency $code"
+            }
+            require(days.all { it in 0..MAX_ALERT_THRESHOLD_DAYS }) {
+                "calendar pack $version has an alert threshold outside 0..$MAX_ALERT_THRESHOLD_DAYS days " +
+                    "for frequency $code"
+            }
+            require(days.zipWithNext().all { (a, b) -> a > b }) {
+                "calendar pack $version has alert thresholds that are not strictly descending for frequency $code"
+            }
+            java.util.List.copyOf(days)
+        }
+
+    private val safetyMargin: Duration? =
+        safetyMargin?.also { require(!it.isNegative) { "calendar pack $version has a negative safety margin" } }
 
     init {
         require(version.isNotBlank()) { "a calendar pack has a version" }
@@ -99,6 +127,20 @@ class CalendarPack(
     fun windowsOf(frequency: FilingFrequency): List<StandardWindow> =
         java.util.List.copyOf(windowsByFrequency[frequency].orEmpty())
 
+    /**
+     * An immutable copy of the default alert thresholds of [frequency]: days before the due date, first alert first
+     * (INV-REQ-1117). A coverage failure when the pack has none for it.
+     */
+    fun defaultAlertThresholds(frequency: FilingFrequency): List<Int> =
+        alertThresholdsByFrequency[frequency]?.let { java.util.List.copyOf(it) }
+            ?: throw CalendarPackCoverageException(
+                "calendar pack $version has no alert thresholds for frequency ${frequency.code}",
+            )
+
+    /** The pack's default safety margin before a due date (INV-REQ-1279). A coverage failure when it has none. */
+    fun defaultSafetyMargin(): Duration =
+        safetyMargin ?: throw CalendarPackCoverageException("calendar pack $version has no safety margin")
+
     fun dueRuleFor(returnForm: String): DueRule =
         dueRules[returnForm]
             ?: throw CalendarPackCoverageException("calendar pack $version has no due rule for return form $returnForm")
@@ -106,6 +148,9 @@ class CalendarPack(
     /** The rule that applies: the pack's pinned one, else the entity's. */
     fun effectiveRule(entityRule: NonBusinessDayRule): NonBusinessDayRule = pinnedRule ?: entityRule
 }
+
+private const val MAX_ALERT_THRESHOLDS = 10
+private const val MAX_ALERT_THRESHOLD_DAYS = 365
 
 /** A filing due date and what the non-business-day rule did to it (INV-REQ-87). */
 data class DerivedDueDate(

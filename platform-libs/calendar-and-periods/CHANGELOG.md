@@ -6,6 +6,14 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-18
+### Added
+- `CalendarPack` carries the optional `alertThresholds` (days before the due date per filing frequency, first alert
+  first, strictly descending, at most 10 items of 0..365, a frequency with a window) and `safetyMargin` (a non-negative
+  `Duration`), read by `defaultAlertThresholds(frequency)` and `defaultSafetyMargin()`; a missing value is a
+  `CalendarPackCoverageException`. Existing calls compile unchanged (INV-Q-6554, INV-REQ-1117, INV-REQ-1279,
+  INV-AC-109, INV-AC-203, INV-AC-2265; INV-T-6565).
+
 ## [1.3.0] - 2026-10-18
 ### Added
 - Despatch windows: `BatchWindow`, `severalDailyInterval`, `nextWindowOpening`, `despatchAt` (with `Despatch` and

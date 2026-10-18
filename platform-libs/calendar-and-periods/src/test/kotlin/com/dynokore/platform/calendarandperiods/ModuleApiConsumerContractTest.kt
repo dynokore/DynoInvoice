@@ -134,4 +134,23 @@ class ModuleApiConsumerContractTest {
         assertEquals(false, weeklyWindowFits(BatchWindow.WEEKLY.interval, BatchWindow.WEEKLY.interval, gap, margin))
         assertEquals(true, weeklyWindowFits(BatchWindow.DAILY.interval, BatchWindow.CONTINUOUS.interval, gap, margin))
     }
+
+    @Test
+    fun `notification-svc style alert check reads the thresholds and the margin of the pack`() {
+        val base = Fixtures.pack()
+        val pack =
+            CalendarPack(
+                base.version,
+                mapOf(Fixtures.monthly to base.windowsOf(Fixtures.monthly)),
+                base.finalReturnForm,
+                base.dueRules,
+                base.calendar,
+                null,
+                mapOf(Fixtures.monthly to listOf(5, 2)),
+                java.time.Duration.ofDays(3),
+            )
+
+        assertEquals(listOf(5, 2), pack.defaultAlertThresholds(Fixtures.monthly))
+        assertEquals(java.time.Duration.ofDays(3), pack.defaultSafetyMargin())
+    }
 }

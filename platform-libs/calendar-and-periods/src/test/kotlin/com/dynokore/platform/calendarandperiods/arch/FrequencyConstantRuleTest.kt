@@ -31,6 +31,10 @@ class FrequencyConstantRuleTest {
             "CalendarPack.kt:windowContaining" to "looks up the pack's window holding a date for a frequency",
             "CalendarPack.kt:frequency" to "parameter of windowContaining and windowsOf",
             "CalendarPack.kt:windowsOf" to "read accessor: an immutable copy of the pack's windows of a frequency",
+            "CalendarPack.kt:alertThresholds" to
+                "the pack's own data per frequency: days, no length is computed in code",
+            "CalendarPack.kt:alertThresholdsByFrequency" to "validated copy of the pack's own data per frequency",
+            "CalendarPack.kt:defaultAlertThresholds" to "read accessor: the pack's own data of a frequency, no length",
             "DespatchWindows.kt:shortestGap" to "least window-end-to-due-date gap of a frequency, read from pack data",
             "DespatchWindows.kt:frequency" to "parameter of shortestGap: selects the pack's windows, no length",
         )
