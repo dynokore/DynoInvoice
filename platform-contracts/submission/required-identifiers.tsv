@@ -107,7 +107,11 @@ TYPE_2	enum_value	schemas/submission-type-decided-payload.schema.json	INV-REQ-41
 TYPE_3	enum_value	schemas/submission-type-decided-payload.schema.json	INV-REQ-415
 # INV-T-6947. Backticked names of INV-REQ-581, INV-AC-1774, INV-AC-1775, INV-AC-1776 that are not rows: `withdrawDocument` is the console
 # operation (INV-NOTE-7 SCR-04.7) served by withdrawSubmission, owned by the console catalogue; `tax.approver` and `tax.operator` are
-# roles, owned by the role registry. They are not identifiers of a kind below.
+# roles, owned by the role registry. They are identifiers of no kind of this table.
 withdrawSubmission	operation	openapi.yaml	INV-REQ-581
 WITHDRAWN	enum_value	openapi.yaml	INV-REQ-581
 SENT	enum_value	openapi.yaml	INV-REQ-568
+withdrawSubmission.SRT-001	operation_error_code	openapi.yaml	INV-REQ-581
+withdrawSubmission.SRT-004	operation_error_code	openapi.yaml	INV-REQ-581
+withdrawSubmission.SRT-005	operation_error_code	openapi.yaml	INV-REQ-581
+withdrawSubmission.SUB-021	operation_error_code	openapi.yaml	INV-REQ-568
