@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [9.2.0] - 2026-10-19
+### Added
+- `StaleAggregate(aggregate, version)` in `service-runtime-api`, package `persistence` (ARC-19, INV-Q-6969, INV-AC-6973): the exception an adapter throws when `AggregateStore.update` or `delete` reports `Conflict`; the store never throws it. A blank aggregate name or a negative version is refused.
+
 ## [9.1.2] - 2026-10-19
 ### Changed
 - Metadata-only release (INV-T-5362, G-DVS): depends on `config-resolver` 5.0.0, whose published module metadata changed; no code change.

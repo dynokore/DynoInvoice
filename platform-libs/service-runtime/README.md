@@ -133,6 +133,7 @@ the impl half, built by the lazy `PersistenceLayer` bean: `layer.aggregates(TABL
   `Unchanged` when the two are equal and no statement ran, or `Conflict`); `delete(pojo)` by id and version (`Deleted` or
   `Conflict`). A stale version, a deleted row or another tenant's row is `Conflict`: nothing is retried and nothing is
   thrown (CS-54).
+  An adapter throws `StaleAggregate(aggregateName, before.version)` (same package, ARC-19, SRT-008) when `update` or `delete` reports `Conflict`; the store never throws it.
 - **`LedgerAppender<P>`** offers `append` and `appendAll` only (`appendAll` inserts row by row like `insertAll`; for a table with a jOOQ record version both store the version they are given), for an append-only table (CS-22).
 - **Settings.** The `DSLContext` wiring sets `executeWithOptimisticLocking`, `executeWithOptimisticLockingExcludeUnversioned`
   and `updateRecordVersion` on and `updatablePrimaryKeys` off, and registers `AuditColumnRecordListener`, on the one
