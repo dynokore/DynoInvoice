@@ -149,19 +149,34 @@ class TransactionRunnerImpl
         ) {
             val name = label?.current()
             // whole literals only, so the SQL guard traces each one (INV-Q-4036)
-            val sql =
-                if (signature == null) {
-                    if (name == null) {
-                        "select set_config('app.tenant_id', ?, true), set_config('app.actor', ?, true)"
-                    } else {
-                        "select set_config('app.tenant_id', ?, true), set_config('app.actor', ?, true), set_config('application_name', ?, true)"
+            // whole literals passed straight to prepareStatement, so the SQL guard traces each one (INV-Q-4036)
+            val prepared =
+                when {
+                    signature == null && name == null -> {
+                        connection.prepareStatement(
+                            "select set_config('app.tenant_id', ?, true), set_config('app.actor', ?, true)",
+                        )
                     }
-                } else if (name == null) {
-                    "select set_config('app.tenant_id', ?, true), set_config('app.actor', ?, true), set_config('app.binding_sig', ?, true)"
-                } else {
-                    "select set_config('app.tenant_id', ?, true), set_config('app.actor', ?, true), set_config('app.binding_sig', ?, true), set_config('application_name', ?, true)"
+
+                    signature == null -> {
+                        connection.prepareStatement(
+                            "select set_config('app.tenant_id', ?, true), set_config('app.actor', ?, true), set_config('application_name', ?, true)",
+                        )
+                    }
+
+                    name == null -> {
+                        connection.prepareStatement(
+                            "select set_config('app.tenant_id', ?, true), set_config('app.actor', ?, true), set_config('app.binding_sig', ?, true)",
+                        )
+                    }
+
+                    else -> {
+                        connection.prepareStatement(
+                            "select set_config('app.tenant_id', ?, true), set_config('app.actor', ?, true), set_config('app.binding_sig', ?, true), set_config('application_name', ?, true)",
+                        )
+                    }
                 }
-            connection.prepareStatement(sql).use { statement ->
+            prepared.use { statement ->
                 var index = 1
                 statement.setString(index++, tenant.toString())
                 statement.setString(index++, actor)
