@@ -183,7 +183,7 @@ class AuditPurgeIT {
         val otherSchema = assertThrows(DataAccessException::class.java) { p.forgedCall(good, OTHER, p.db.tx) }
         listOf(unbound, forged, otherSchema).forEach {
             assertEquals("42501", p.db.tx.sqlStateOf(it), it.message)
-            assertTrue("app.actor is not set" in it.message.orEmpty(), it.message)
+            assertTrue("the bound actor is not set" in it.message.orEmpty(), it.message)
         }
         assertEquals(1L, p.countAll("select count(*) from controlplane.audit_entry"))
         // The control: the same call under the schema's own key passes.
@@ -222,6 +222,44 @@ class AuditPurgeIT {
             }
         assertEquals("22023", p.db.tx.sqlStateOf(young))
         assertEquals(1L, p.countAll("select count(*) from controlplane.audit_entry"))
+    }
+
+    /** The precondition (INV-Q-6586): on a schema without the binding functions the purge raises and changes nothing. */
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `a schema without the binding functions makes the purge raise and change nothing`(image: String) {
+        val p = purge(image)
+        val bare = p.db.dsl(p.db.ownerTx, mapOf("$BARE.audit_entry" to TableClass.TENANT))
+        p.db.ownerInsert(
+            bare,
+            TenantId.PLATFORM,
+            BARE,
+            "audit_entry",
+            mapOf(
+                "id" to UUID.randomUUID(),
+                "tenant_id" to PLATFORM,
+                "entity_ref" to "e",
+                "recorded_at" to p.at(p.yearsAgo(7)),
+                "source" to "/gst/control-plane-svc",
+                "subject" to "s",
+                "instance_id" to "i",
+                "correlation_id" to "c",
+                "causation_id" to "c",
+                "actor" to "operator-1",
+                "action" to "grantRole",
+                "scope" to "x",
+            ),
+        )
+        val count = "select count(*) from $BARE.audit_entry"
+        val purges = "$count where action = '${AuditSchema.PURGE_ACTION}'"
+        val before = p.db.count(count, listOf(PLATFORM))
+        val failure =
+            assertThrows(DataAccessException::class.java) {
+                p.forgedCall(PurgeCall.of(p.stage(), p.yearsAgo(6)), BARE, p.db.tx)
+            }
+        assertEquals("42883", p.db.tx.sqlStateOf(failure), failure.message)
+        assertEquals(before, p.db.count(count, listOf(PLATFORM)))
+        assertEquals(0L, p.db.count(purges, listOf(PLATFORM)))
     }
 
     /** The definer functions of the schema: the purge and tenancy-kernel's binding functions, all owned by $SYS. */
@@ -298,7 +336,12 @@ class AuditPurgeIT {
                     "grant usage on schema $OTHER to $APP;\n" +
                     AuditTestDb.bindingInit(OTHER, APP, SYS, fill = OTHER_FILL) +
                     "set role outbox_owner;\n" + AuditSchema.auditEntryDdl(OTHER, APP) + "\n" +
-                    AuditSchema.purgeDdl(OTHER, APP, SYS, "control-plane-svc"),
+                    AuditSchema.purgeDdl(OTHER, APP, SYS, "control-plane-svc") + "\n" +
+                    // A third schema with the table and the purge but not the binding functions (INV-Q-6586).
+                    "reset role;\ncreate schema $BARE authorization outbox_owner;\n" +
+                    "grant usage on schema $BARE to $APP;\nset role outbox_owner;\n" +
+                    AuditSchema.auditEntryDdl(BARE, APP) + "\n" +
+                    AuditSchema.purgeDdl(BARE, APP, SYS, "control-plane-svc"),
             )
         val db = AuditTestDb(fixture, SignedBinding.keys())
         val tenants = db.tenants
@@ -436,6 +479,7 @@ class AuditPurgeIT {
     private companion object {
         const val SCHEMA = "controlplane"
         const val OTHER = "otherplane"
+        const val BARE = "bareplane"
         const val PATH = "search_path=pg_catalog, controlplane, pg_temp"
         const val OTHER_FILL = 3
         const val SCOPE = "platform (control-plane-svc audit_entry)"

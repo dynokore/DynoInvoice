@@ -61,7 +61,7 @@ class BlankValuesIT {
             }
             assertEquals(before, f.platformEntries(), "$name wrote or deleted")
         }
-        NOT_ACTORS.forEach { (name, actor) -> probe("actor $name", "app.actor is not set", "42501", actor) }
+        NOT_ACTORS.forEach { (name, actor) -> probe("actor $name", "the bound actor is not set", "42501", actor) }
         BLANKS.forEach { (name, value) ->
             probe("reason $name", "needs a reason", "22023") { it.with(REASON, value) }
             listOf(SUBJECT, INSTANCE, CORRELATION, CAUSATION).forEach { index ->

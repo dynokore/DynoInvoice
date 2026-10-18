@@ -136,10 +136,13 @@ object AuditSchema {
      *
      * The caller binds the reserved platform tenant and its actor (`PlatformTenantBinding.bindPlatform(actor)`), which
      * tenancy-kernel's transaction runner signs; the function reads the signed binding through the schema's
-     * `bound_tenant()` and `bound_actor()` (INV-REQ-854 b7; `BindingKeyMigration.ddl` creates them in the same
-     * schema, owned by [sysRole], before this function runs), stages the purge's entry through [AuditStager.stage]
-     * and passes its envelope fields (coordinator ruling INV-Q-4277, the pattern of INV-Q-4254 A). In one transaction the function then:
-     * 1. refuses (SQLSTATE 42501) when the bound actor is unset (also for a missing, forged or expired signature) or the bound tenant is not the platform tenant;
+     * `bound_tenant()` and `bound_actor()` (INV-REQ-854 b7), stages the purge's entry through
+     * [AuditStager.stage] and passes its envelope fields (coordinator ruling INV-Q-4277, the pattern of INV-Q-4254 A).
+     * Precondition (coordinator ruling INV-Q-6586): this DDL does not create those functions. The schema must already
+     * hold them, from tenancy-kernel's `BindingKeyMigration.ddl` run once per schema as the sys login; on a schema
+     * without them the call raises (SQLSTATE 42883) and changes nothing. In one transaction the function then:
+     * 1. refuses (SQLSTATE 42501) when the bound actor is unset (also for a missing, forged or expired signature) or
+     *    the bound tenant is not the platform tenant;
      * 2. refuses (SQLSTATE 22023) a cut-off later than now minus [LEGAL_FLOOR], a blank reason, subject, instance,
      *    correlation or causation, a source other than `/gst/<service>`, and an entry id that is not a version-7 UUID
      *    or is already present;
@@ -192,7 +195,7 @@ object AuditSchema {
                 v_deleted bigint;
             begin
                 if v_actor is null or v_actor ~ '${BlankText.SQL_NOT_ACTOR}' then
-                    raise exception 'app.actor is not set: the purge records its actor' using errcode = '42501';
+                    raise exception 'the bound actor is not set: the purge records its actor' using errcode = '42501';
                 end if;
                 if (select $s.bound_tenant()) is distinct from '$PLATFORM'::uuid then
                     raise exception 'the purge runs under the platform tenant only' using errcode = '42501';
