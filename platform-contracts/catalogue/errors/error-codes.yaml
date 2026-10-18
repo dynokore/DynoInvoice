@@ -1,7 +1,7 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
-# pinned at commit eef5812372eda3c8d2f549c630291ece6571aedd (2026-10-18), the
-# merge of invoice-docs!39 adding ING-020 and ING-021 (INV-T-6051, coordinator ruling INV-Q-6041;
-# previously pinned at bd93a33d21a7b92f1d9f8278d816d2d6cdb43499, INV-T-6021, and 70e25c6aba57b111e5fd12a86e4b978f6fdb12d6, INV-T-5412).
+# pinned at commit 2ce12f2af225eefd10848bc4b47f38216a1ea611 (2026-10-18), the
+# merge of invoice-docs!40 adding SUB-020 (INV-T-6425, coordinator ruling INV-Q-6421;
+# previously pinned at eef5812372eda3c8d2f549c630291ece6571aedd, INV-T-6051, bd93a33d21a7b92f1d9f8278d816d2d6cdb43499, INV-T-6021, and 70e25c6aba57b111e5fd12a86e4b978f6fdb12d6, INV-T-5412).
 #
 # This copy is the generator's (catalogue/generator/) sole input for the
 # gst-catalogue ErrorCode catalogue (STK-61, CS-13). It is never hand-edited:
@@ -420,6 +420,11 @@ error_codes:
   severity: BLOCK
   disposition: MANUAL
   owner: Platform
+- code: SUB-020
+  condition: "A newer MONETARY version supersedes a version that was never transmitted, after a Type 2 rendition of the document was already issued: the customer's rendition may differ from what IRAS receives (WARN; INV-REQ-580, INV-REQ-579, INV-Q-6421)"
+  severity: WARN
+  disposition: MANUAL
+  owner: Tax operations
 - code: PER-001
   condition: Period contains unsubmitted in-scope documents at readiness check
   severity: BLOCK
