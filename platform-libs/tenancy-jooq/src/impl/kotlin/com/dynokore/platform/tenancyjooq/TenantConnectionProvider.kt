@@ -8,7 +8,7 @@ import java.sql.SQLException
 
 /**
  * The only connection a tenancy-jooq DSLContext uses: tenancy-kernel's current transaction connection, whose
- * `app.tenant_id` and `app.actor` the transaction runner set. No binding, no open transaction, or a binding that
+ * tenant and actor settings the transaction runner set. No binding, no open transaction, or a binding that
  * differs from the open transaction's (a nested binding mismatch, INV-Q-3997) is refused.
  */
 internal class TenantConnectionProvider(

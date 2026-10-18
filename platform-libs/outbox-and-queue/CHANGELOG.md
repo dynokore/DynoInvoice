@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.1.2] - 2026-10-18
+### Changed
+- Metadata-only release (INV-T-5365, G-DVS): depends on `tenancy-jooq` 1.2.3, whose published module metadata changed; no code change.
+
 ## [6.1.1] - 2026-10-18
 ### Changed
 - Metadata-only release (INV-T-5359, G-DVS): depends on `tenancy-kernel` 3.3.0, whose published module metadata changed; no code change.

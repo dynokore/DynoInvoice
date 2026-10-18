@@ -21,3 +21,8 @@ CREATE SCHEMA evidence_store_test AUTHORIZATION evidence_store_owner;
 GRANT USAGE ON SCHEMA evidence_store_test TO evidence_store_app;
 ALTER DEFAULT PRIVILEGES FOR ROLE evidence_store_owner IN SCHEMA evidence_store_test
     GRANT SELECT, INSERT ON TABLES TO evidence_store_app;
+
+-- The sys login of the signed binding (INV-T-4156): the NOLOGIN owner of the binding key table and functions
+-- `bound_tenant()` and `bound_actor()` that the fixture creates before its first policy; pgcrypto verifies the signature.
+CREATE ROLE evidence_store_sys NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEROLE;
+CREATE EXTENSION IF NOT EXISTS pgcrypto SCHEMA public;

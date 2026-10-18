@@ -27,10 +27,21 @@ class TenancyProbeTest {
         assertEquals(
             Tenants.A.toString(),
             probe.inTenant(Tenants.A) {
-                fetchValue("select current_setting('app.tenant_id', true)")
+                fetchValue("select current_setting(?, true)", TENANT_SETTING)
             },
         )
-        assertEquals("", probe.unbound { fetchValue("select coalesce(current_setting('app.tenant_id', true), '')") })
+        assertTrue(
+            probe
+                .inTenant(Tenants.A) { fetchValue("select current_setting('app.binding_sig', true)") }
+                .toString()
+                .startsWith("${Tenants.A}."),
+        )
+        assertEquals(
+            "",
+            probe.unbound {
+                fetchValue("select coalesce(current_setting(?, true), '')", TENANT_SETTING)
+            },
+        )
     }
 
     @Test
@@ -49,5 +60,10 @@ class TenancyProbeTest {
             assertTrue(entries.any { it.endsWith("TableClasses.class") || it.endsWith("TenancyJooq.class") }, jar.name)
             assertEquals(emptyList<String>(), entries.filter { "TenancyProbe" in it }, jar.name)
         }
+    }
+
+    private companion object {
+        /** The tenant setting the runner binds, passed as a bind value. */
+        const val TENANT_SETTING = "app.tenant_id"
     }
 }

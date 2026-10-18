@@ -51,10 +51,10 @@ class EvidenceLedgerPostgresIT {
             )
 
         /** The runtime application role: `NOSUPERUSER`, `NOBYPASSRLS`, owns no table (S2-05). */
-        val tx: TransactionRunnerImpl = appPool.runner(tenants)
+        val tx: TransactionRunnerImpl = appPool.runner(tenants, keys = fixture.keys)
 
         /** The migration/owner role: it still holds UPDATE/DELETE on its own tables. */
-        val ownerTx: TransactionRunnerImpl = ownerPool.runner(tenants)
+        val ownerTx: TransactionRunnerImpl = ownerPool.runner(tenants, keys = fixture.keys)
         val appDsl: DSLContext = dsl(tx)
         val ownerDsl: DSLContext = dsl(ownerTx)
         val ledger = JdbcEvidenceLedger(appDsl, SCHEMA, EVIDENCE_TABLE)

@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.2.3] - 2026-10-18
+### Changed
+- Signed binding, slice 8 of 9 of INV-T-4156 (INV-T-5365, INV-Q-5352, INV-Q-5354 (A)): `TenancyProbe.inTenant` and `TenancyJooqFixture` sign the tenant binding through tenancy-kernel's `SignedBinding`; test fixtures only, no change to the main or impl code.
+
 ## [1.2.2] - 2026-10-18
 ### Changed
 - Metadata-only release (INV-T-5359, G-DVS): depends on `tenancy-kernel` 3.3.0, whose published module metadata changed; no code change.

@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.0.4] - 2026-10-18
+### Changed
+- Signed binding, slice 8 of 9 of INV-T-4156 (INV-T-5365, INV-Q-5352, INV-Q-5354 (A)): `EvidenceStorePostgresFixture` hands out a `keys` source from tenancy-kernel's `SignedBinding` and the Postgres integration test builds its runners with it; test code only.
+
 ## [2.0.3] - 2026-10-18
 ### Changed
 - Metadata-only release (INV-T-5359, G-DVS): depends on `tenancy-kernel` 3.3.0, whose published module metadata changed; no code change.

@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [4.0.1] - 2026-10-18
+### Changed
+- Metadata-only release (INV-T-5365, G-DVS): depends on `tenancy-jooq` 1.2.3, whose published module metadata changed; no code change.
+
 ## [4.0.0] - 2026-10-18
 ### Changed
 - **BREAKING** (INV-T-5361, slice 4 of INV-T-4156, INV-Q-5352, INV-Q-6592): `purge_audit_entries` (`AuditSchema.purgeDdl`) reads the signed binding, the actor through `(select <schema>.bound_actor())` and the tenant through `(select <schema>.bound_tenant())`, instead of `app.actor` and `app.tenant_id` (INV-REQ-854 b7). It refuses callers it served before: a missing, forged or expired `app.binding_sig` gets the refusal an unset actor gets (SQLSTATE 42501), and the refusal text is now `the bound actor is not set: the purge records its actor`.

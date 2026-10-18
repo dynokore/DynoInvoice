@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [8.3.1] - 2026-10-18
+### Changed
+- Metadata-only release (INV-T-5365, G-DVS): depends on `tenancy-jooq` 1.2.3, whose published module metadata changed; no code change.
+
 ## [8.3.0] - 2026-10-18
 ### Added
 - The transaction runners (application pool in `TenancyKernelWiring`, event-log pool in `OutboxAndQueueWiring`) sign the tenant binding with the installation key read through `SecretStore` (INV-T-5360, slice 3 of INV-T-4156, INV-Q-5352): `SecretStoreBindingKeySource` is tenancy-kernel's `BindingKeySource` over the secrets `tenancy/binding-key-current` and `tenancy/binding-key-previous` (constants `SecretStoreBindingKeySource.CURRENT` and `.PREVIOUS`; the key is the UTF-8 bytes of the value with no decoding, INV-Q-6576; a blank or white-space-only value is no key; README "Binding key"). It reads at every transaction start and caches nothing, so a rotated secret needs no restart. A missing previous key is accepted. While the key parameter is optional, a missing current secret (or no `SecretStore`) builds the runners unsigned and logs one warning naming `tenancy/binding-key-current`; INV-T-4156 turns that into a start-up failure. `OutboxAndQueueWiring` takes a third constructor parameter, `ObjectProvider<InstallationBindingKey>`.
@@ -17,6 +21,7 @@ train is its own (README.md: "own version and changelog").
 ## [8.1.9] - 2026-10-18
 ### Changed
 - Metadata-only release (INV-T-5361, G-DVS): depends on `audit-log` 4.0.0, whose published module metadata changed; no code change.
+- Also depends on a changed upstream release (INV-T-5365, G-DVS): `tenancy-jooq` 1.2.3, whose published module metadata changed; no code change.
 
 ## [8.1.8] - 2026-10-18
 ### Changed

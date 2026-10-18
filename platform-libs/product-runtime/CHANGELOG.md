@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.0.24] - 2026-10-18
+### Changed
+- Metadata-only release (INV-T-5365, G-DVS): depends on `service-runtime` 8.3.1, whose published module metadata changed; no code change.
+
 ## [1.0.23] - 2026-10-18
 ### Changed
 - Metadata-only release (INV-T-5360, G-DVS): depends on `service-runtime` 8.3.0, whose published module metadata changed; no code change.
@@ -17,6 +21,7 @@ train is its own (README.md: "own version and changelog").
 ## [1.0.21] - 2026-10-18
 ### Changed
 - Metadata-only release (INV-T-5361, G-DVS): depends on `audit-log` 4.0.0, whose published module metadata changed; no code change.
+- Also depends on a changed upstream release (INV-T-5365, G-DVS): `service-runtime` 8.1.9, whose published module metadata changed; no code change.
 
 ## [1.0.20] - 2026-10-18
 ### Changed

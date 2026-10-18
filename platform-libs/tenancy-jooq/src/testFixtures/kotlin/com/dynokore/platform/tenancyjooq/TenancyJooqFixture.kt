@@ -2,6 +2,7 @@ package com.dynokore.platform.tenancyjooq
 
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.PostgresProbeFixture
+import com.dynokore.platform.tenancykernel.SignedBinding
 import com.dynokore.platform.tenancykernel.TenantAwareDataSource
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantContextImpl
@@ -21,7 +22,8 @@ import javax.sql.DataSource
 /**
  * tenancy-jooq's own test harness (test fixtures, so its tests name no JDBC type; owner ruling INV-Q-4196): a
  * PostgreSQL [image] with tenancy-kernel's owner and runtime roles, the [migrations] applied by Flyway as the owner,
- * tenancy-kernel's tenant context and transaction runner on the runtime login, a [TenancyProbe] on the same login, and
+ * tenancy-kernel's tenant context and transaction runner on the runtime login (signing its binding with
+ * [SignedBinding], INV-T-4156), a [TenancyProbe] on the same login, and
  * a log of every statement the runtime login's connections prepare or execute.
  */
 internal class TenancyJooqFixture(
@@ -58,7 +60,8 @@ internal class TenancyJooqFixture(
     val probe: TenancyProbe
 
     init {
-        runnerImpl = TransactionRunnerImpl(logging(runtimePool()), contextImpl)
+        runnerImpl =
+            TransactionRunnerImpl(logging(runtimePool()), contextImpl, label = null, keys = SignedBinding.keys())
         probe = TenancyProbe.over(runtimePool())
     }
 

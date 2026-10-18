@@ -1,5 +1,6 @@
 package com.dynokore.platform.tenancyjooq
 
+import com.dynokore.platform.tenancykernel.SignedBinding
 import com.dynokore.platform.tenancykernel.TenantId
 import org.jooq.SQLDialect
 import org.jooq.impl.DSL
@@ -49,8 +50,8 @@ class TenancyProbe internal constructor(
 
     /**
      * Runs [block] in one transaction bound to [tenant] and [actor] the way tenancy-kernel's transaction runner binds
-     * it (`set_config('app.tenant_id', ..., true)` and `set_config('app.actor', ..., true)` first); commits when it
-     * returns and rolls back when it throws.
+     * it (tenant, actor and the signed binding first, signed through tenancy-kernel's [SignedBinding]); commits when
+     * it returns and rolls back when it throws.
      */
     fun <T> inTenant(
         tenant: TenantId,
@@ -61,9 +62,11 @@ class TenancyProbe internal constructor(
             DSL
                 .using(connection, SQLDialect.POSTGRES)
                 .fetch(
-                    "select set_config('app.tenant_id', ?, true), set_config('app.actor', ?, true)",
+                    "select set_config('app.tenant_id', ?, true), set_config('app.actor', ?, true), " +
+                        "set_config('app.binding_sig', ?, true)",
                     tenant.toString(),
                     actor,
+                    SignedBinding.value(SignedBinding.key(), tenant, actor),
                 )
             log.info("probe [{}] bound tenant {} and actor {}", caller(), tenant, actor)
             block()
