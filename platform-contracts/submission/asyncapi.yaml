@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: submission events
-  version: 1.1.0
+  version: 1.2.0
   description: >-
     Every event submission produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -47,6 +47,11 @@ channels:
     messages:
       ReadinessChanged:
         $ref: '#/components/messages/ReadinessChanged'
+  submissionSubmissionTypeDecided:
+    address: 'gst.submission.submission-type-decided.v1'
+    messages:
+      SubmissionTypeDecided:
+        $ref: '#/components/messages/SubmissionTypeDecided'
   submissionExampleHappened:
     address: 'gst.submission.example-happened.v1'
     messages:
@@ -84,6 +89,13 @@ operations:
       $ref: '#/channels/submissionReadinessChanged'
     messages:
       - $ref: '#/channels/submissionReadinessChanged/messages/ReadinessChanged'
+  publishSubmissionTypeDecided:
+    action: send
+    description: SubmissionTypeDecided — the submission type submission-svc decided, for payload-svc (INV-Q-6990 A).
+    channel:
+      $ref: '#/channels/submissionSubmissionTypeDecided'
+    messages:
+      - $ref: '#/channels/submissionSubmissionTypeDecided/messages/SubmissionTypeDecided'
   publishExampleHappened:
     action: send
     description: Placeholder operation (INV-T-2849 scaffold) — replace with a real one.
@@ -144,6 +156,17 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/readiness-changed-payload.schema.json'
+    SubmissionTypeDecided:
+      name: com.dynokore.gst.submission.SubmissionTypeDecided.v1
+      title: SubmissionTypeDecided
+      summary: SubmissionTypeDecided — the submission type decided by submission-svc (INV-Q-6990 A).
+      description: >-
+        Domain event giving payload-svc the submission type that submission-svc decided (derivation step 9),
+        so that payload-svc never re-derives it (INV-REQ-416) (INV-REQ-415, INV-Q-6990 A).
+        Emitted by: submission-svc. Consumed by: payload-svc. Delivery: At-least-once.
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/submission-type-decided-payload.schema.json'
     ExampleHappened:
       name: com.dynokore.gst.submission.ExampleHappened.v1
       title: ExampleHappened

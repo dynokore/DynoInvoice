@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/submission/schemas/submission-type-decided-payload.schema.json",
+  "title": "SubmissionTypeDecidedPayload",
+  "description": "Payload of the SubmissionTypeDecided event (class: domain), which gives payload-svc the submission type that submission-svc decided (derivation step 9), so that payload-svc never re-derives it (INV-REQ-416) and canonical-svc never knows it (INV-REQ-479); INV-Q-6990 A. Dedupe key: docUuid plus version (FR-M.12). Within a major version this schema is additive-only (API-41): a field is never removed, renamed, retyped or made required. A version with no decided type has no event (INV-Q-7001). The submissionType spelling is TYPE_1A, TYPE_1B, TYPE_2, TYPE_3; the PayloadReady payload spells the type 1A, 1B, 2, 3 and the boundary mapping lives in payload-svc.",
+  "type": "object",
+  "properties": {
+    "docUuid": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The document's Doc UUID."
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The canonical/payload/submission version number the type was decided for."
+    },
+    "docsequence": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The per-document monotonic sequence (INV-REQ-1221), duplicated in the payload alongside the envelope's own docsequence extension attribute."
+    },
+    "submissionType": {
+      "type": "string",
+      "enum": [
+        "TYPE_1A",
+        "TYPE_1B",
+        "TYPE_2",
+        "TYPE_3"
+      ],
+      "description": "The submission type decided by submission-svc (INV-REQ-415)."
+    }
+  },
+  "required": [
+    "docUuid",
+    "version",
+    "docsequence",
+    "submissionType"
+  ],
+  "additionalProperties": true
+}

@@ -97,3 +97,11 @@ ReadinessStatus.filingOverride	schema_property	openapi.yaml	INV-REQ-72
 overriddenBy	property	openapi.yaml	INV-REQ-500
 overriddenAt	property	openapi.yaml	INV-REQ-500
 reason	property	openapi.yaml	INV-REQ-500
+docUuid	property	schemas/submission-type-decided-payload.schema.json	INV-REQ-415
+version	property	schemas/submission-type-decided-payload.schema.json	INV-REQ-415
+docsequence	property	schemas/submission-type-decided-payload.schema.json	INV-REQ-415
+submissionType	property	schemas/submission-type-decided-payload.schema.json	INV-REQ-415
+TYPE_1A	enum_value	schemas/submission-type-decided-payload.schema.json	INV-REQ-415
+TYPE_1B	enum_value	schemas/submission-type-decided-payload.schema.json	INV-REQ-415
+TYPE_2	enum_value	schemas/submission-type-decided-payload.schema.json	INV-REQ-415
+TYPE_3	enum_value	schemas/submission-type-decided-payload.schema.json	INV-REQ-415

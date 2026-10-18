@@ -459,6 +459,15 @@ topics:
     subscribers:
       - console-bff
       - notification-svc
+  - topic: gst.submission.submission-type-decided.v1
+    event_type: com.dynokore.gst.submission.SubmissionTypeDecided.v1
+    content_topic: false
+    record_topic: false
+    retained_while_resolvable: false
+    producers:
+      - submission-svc
+    subscribers:
+      - payload-svc
   - topic: gst.tenancy.entity-profile-changed.v1
     event_type: com.dynokore.gst.tenancy.EntityProfileChanged.v1
     content_topic: false
@@ -1293,6 +1302,17 @@ replay_topics:
       - submission-svc
     subscribers:
       - notification-svc
+  - topic: gst.submission.replay-payload.v1
+    event_types:
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+      - com.dynokore.gst.submission.SubmissionTypeDecided.v1
+    content_topic: false
+    record_topic: false
+    retained_while_resolvable: false
+    producers:
+      - submission-svc
+    subscribers:
+      - payload-svc
   - topic: gst.submission.replay-reconciliation.v1
     event_types:
       - com.dynokore.gst.platform.ReplayCompleted.v1
@@ -1603,6 +1623,7 @@ replay_request_topics:
       - canonical-svc
       - masterdata-svc
       - rules-svc
+      - submission-svc
   - topic: gst.reconciliation.replay-requested.v1
     event_types:
       - com.dynokore.gst.platform.ReplayRequested.v1
