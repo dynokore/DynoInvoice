@@ -27,14 +27,26 @@ include:
       - 'ci/build.gitlab-ci.yml'    # compile, unit tests, lint, Semgrep, Trivy
       - 'ci/image.gitlab-ci.yml'    # unused here (no IMAGE_NAME) but harmless to include (ci/README.md)
       - 'ci/publish.gitlab-ci.yml'  # Maven publish
+  # Keel request 2026-10-18 (keel-report-junit, CI-FAST plan item E1): the keel-report job of stage .post reads the
+  # JUnit XML of unit-test from the main push pipeline and reports the INV-AC numbers in the testcase names to Keel.
+  # Main only (the template's own rule), so merge-request pipelines are unchanged.
+  - project: 'keel/tooling'
+    ref: main
+    file: 'keel-report-junit.yml'
+    inputs:
+      runner_tags: [inv-arm64]
+      junit_paths: '**/build/test-results/*/TEST-*.xml'
+      ac_pattern: 'INV-AC-\d+(?!\d)'
 
 variables:
   MAVEN_PUBLISH: "true"
   # CI-FAST, owner rulings 2026-10-17 (platform-build ci/stages.gitlab-ci.yml): docs-only merge requests run only the
   # text checks, and main skips a listed job when the same commit already passed a merge-request pipeline. Not
-  # contract-tests: on main it publishes the pacts to the broker, so it always runs.
+  # contract-tests: on main it publishes the pacts to the broker, so it always runs. Not unit-test either: Keel takes
+  # acceptance results only from the main pipeline's own run on the merge commit (Keel R77), so on main unit-test
+  # runs and leaves the JUnit XML that keel-report reads.
   GST_SKIP_REPEATS: "true"
-  GST_SKIP_WHEN_VERIFIED_JOBS: "unit-test arch-guards lint verify-rules split-jars impl-poms"
+  GST_SKIP_WHEN_VERIFIED_JOBS: "arch-guards lint verify-rules split-jars impl-poms"
   # IMAGE_NAME, HELM_CHART_NAME stay unset: platform-libs ships jars, not a
   # bootable service or a Helm chart.
 
@@ -196,6 +208,8 @@ unit-test:
         # Widened from `test-results/test/` (review finding on !7): implTest's own
         # results land in `test-results/implTest/`, one directory per Test task.
         - "**/build/test-results/*/TEST-*.xml"
+    paths:
+      - "**/build/test-results/*/TEST-*.xml"   # read by keel-report (E1); reports:junit is not passed to later jobs
     expire_in: 1 week
 
 # CI-FAST batch 6 (owner 2026-10-17): the every-pipeline guards that unit-test ran before the module tests, in their
