@@ -4,135 +4,159 @@
       <verify-metadata>true</verify-metadata>
       <verify-signatures>true</verify-signatures>
       <key-servers enabled="false"/>
-      <ignored-keys>
-         <ignored-key id="012579464D01C06A" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="02216ED811210DAA" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="0374CF2E8DD1BDFD" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="07D3516820BCF6B1" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="0CC0B712FEE75827" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="0D49734800E3AA0C" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="0DA8A5EC02D11EAD" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="0E325BECB6962A24" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="0E91C2DE43B72BB1" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="10C81B79DBFF09EA" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="1364C5E2DF3E99C5" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="153E7A3C2B4E5118" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="15C71C0A4E0B8EDD" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="17A27CE7A60FF5F0" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="18D239B1CBCD2236" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="1983F53632921972" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="21871D2A9AB66A31" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="21A24B3F8B0F594A" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="25ECEFD55FCEB2F9" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="2642156411CCE8B3" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="2B172E3E156466E8" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="2C7B12F2A511E325" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="2D0E1FB8FE4B68B4" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="2F45F85CDF082E68" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="305F296EAC47556B" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="31D2D79DF7E85DD3" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="340B090F727518D8" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="36D4E9618F3ADAB5" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="379CE192D401AB61" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="38EE757D69184620" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="3967D4EDA591B991" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="3AD93C3C677A106E" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="3D002DBC5EA9615F" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="3D12CA2AC19F3181" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="3D5839A2262CBBFB" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="4083A52B1E69FF28" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="436902AF59EDF60E" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="43C2E6B56905B362" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="4406B84C1661DCD1" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="479D601F3A7B5C1A" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="4A51A45B944FFD51" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="4DB5EA09F2E3C800" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="502001558D63CB9A" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="530AA5F25C25011F" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="54A43F3254868410" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="56E73BA9A0B592D0" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="586654072EAD6677" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="59A252FB1199D873" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="5B05CCDE140C2876" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="5D95290D111CF7FF" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="5F69AD087600B22C" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="6425559C47CC79C4" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="66B50994442D2D40" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="66D68DAA073BE985" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="66F8E4860BF74983" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="689CBE64F4BC997F" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="6A0975F8B1127B83" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="6A65176A0FB1CD0B" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="6B1B008864323B92" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="700E4F39BC05364B" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="704514F6556102E5" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="72385FF0AF338D52" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="72475FD306B9CAB7" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="76E0008D166740A8" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="7905DE25C78AD456" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="79752DB6C966F0B8" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="7C25280EAE63EBE5" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="7EB97D110DFADD60" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="8118B3BCDB1A5000" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="85911F425EC61B51" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="86FDC7E2A11262CB" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="87A7F75A6A8BA5FC" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="8EA48D105232855D" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="90D5CE79E1DE6A2C" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="928FBF39003C0425" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="9757D7E7E06DD2AC" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="991EFB94DB91127D" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="995EFBF4A3D20BEB" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="9A259C7EE636C5ED" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="9C6404EBCE3E4464" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="9E31AB27445478DB" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="9EB80E92EB2135B1" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="A0A930DE873C2462" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="A1AE06236CA2BA62" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="A41F13C999945293" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="A4B9C195907CB45B" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="A6EA2E2BF22E0543" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="ABE9F3126BB741C1" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="AC107B386692DADD" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="AECDB81D38EA9C89" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="B0F3710FA64900E7" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="B16698A4ADF4D638" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="B263D126C8A7E813" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="B59D3D0F9F9C8684" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="B5A9E81B565E89E0" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="BA9255C2CA445309" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="BAC30622339994C4" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="BCF4173966770193" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="BFFC9B54721244AD" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="C2148900BCD3C2AF" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="C25EC7B4882FAE47" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="C485C5A843FADB15" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="C809CA3C41BA6E96" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="CA80D1F0EB6CA4BA" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="D364ABAA39A47320" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="D3FA67D522C55256" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="D44C1D8DB1606F22" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="D908A43FB7EC07AC" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="D9C565AA72BA2FDD" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="DB901B24CAD38BC4" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="E16AB52D79FD224F" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="E2F38302C8075E3D" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="E7D88DB8427DE651" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="EC67236259ADC5BD" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="F0D0AE433308B042" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="F0D228D8FF31B515" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="F1F111AF65925306" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="F2A01147D830C125" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="F3D1600878E85A3D" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="F461A32102C936BB" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="F4C0FE6A926F14D8" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="F5C81DE10A0B8ECC" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="F6D4A1D411E9D1AE" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="F8052E4E1BD0DB31" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="F95ADD0A28D2F139" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="FA5C18CFB74EC7C6" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-         <ignored-key id="FEAA650EB6DA6579" reason="Signing key not in a committed keyring (key servers are off); the artefact is pinned by a SHA-256 checked against the published checksum"/>
-      </ignored-keys>
+      <trusted-keys>
+         <trusted-key id="015479E1055341431B4545AB72475FD306B9CAB7" group="com.googlecode.javaewah" name="JavaEWAH" version="1.2.3"/>
+         <trusted-key id="03C123038C20AAE9E286C857479D601F3A7B5C1A" group="^com[.]github[.]ajalt($|([.].*))" regex="true"/>
+         <trusted-key id="077E8893A6DCC33DD4A4D5B256E73BA9A0B592D0" group="org.apache.logging.log4j" name="log4j-bom"/>
+         <trusted-key id="0785B3EFF60B1B1BEA94E0BB7C25280EAE63EBE5" group="^org[.]apache[.]httpcomponents($|([.].*))" regex="true"/>
+         <trusted-key id="07A4FA67A8222F1B39F9EDAEF8052E4E1BD0DB31" group="^org[.]neo4j($|([.].*))" regex="true"/>
+         <trusted-key id="09939C73246B4BA7444CAA453D002DBC5EA9615F" group="dev.drewhamilton.poko"/>
+         <trusted-key id="0B1B71E813C226033B16D8C5F0D228D8FF31B515" group="^io[.]zipkin($|([.].*))" regex="true"/>
+         <trusted-key id="0CC641C3A62453AB390066C4A41F13C999945293" group="commons-collections" name="commons-collections" version="3.2.2"/>
+         <trusted-key id="0D35D3F60078655126908E8AF3D1600878E85A3D" group="io.netty"/>
+         <trusted-key id="0F07D1201BDDAB67CFB84EB479752DB6C966F0B8" group="com.google.android" name="annotations" version="4.1.1.4"/>
+         <trusted-key id="144219B604DDE6A2383FA0EE9C6404EBCE3E4464" group="com.github.zafarkhaja" name="java-semver" version="0.10.2"/>
+         <trusted-key id="147B691A19097624902F4EA9689CBE64F4BC997F" group="org.mockito" name="mockito-bom"/>
+         <trusted-key id="184454FAD8697760F3E00D2E4A51A45B944FFD51" group="org.apache.tika"/>
+         <trusted-key id="19BEAB2D799C020F17C69126B16698A4ADF4D638" group="org.checkerframework" name="checker-qual"/>
+         <trusted-key id="1A55F091AD28C07F831FA44D7905DE25C78AD456" group="com.google.protobuf"/>
+         <trusted-key id="1BD97A6A154E7810EE0BC832E2F38302C8075E3D" group="org.gradle.toolchains" name="foojay-resolver" version="1.0.0"/>
+         <trusted-key id="1D2C7EF8ADA0F794B58C7C63436902AF59EDF60E" group="dev.equo.ide" name="solstice" version="1.8.2"/>
+         <trusted-key id="1D85469D8559C2E1DF5F925131D2D79DF7E85DD3" group="org.jcommander" name="jcommander" version="1.85"/>
+         <trusted-key id="1F47744C9B6E14F2049C2857F1F111AF65925306" group="io.github.classgraph" name="classgraph" version="4.8.184"/>
+         <trusted-key id="1F6774B9D58C5EA6BF84D534704514F6556102E5" group="io.swagger"/>
+         <trusted-key id="2518174F4111F02779592A6F9757D7E7E06DD2AC" group="io.prometheus"/>
+         <trusted-key id="28118C070CB22A0175A2E8D43D12CA2AC19F3181">
+            <trusting group="^com[.]fasterxml($|([.].*))" regex="true"/>
+            <trusting group="^tools[.]jackson($|([.].*))" regex="true"/>
+         </trusted-key>
+         <trusted-key id="2820DE9F95EC4043E616B735FA5C18CFB74EC7C6" group="com.diffplug.spotless"/>
+         <trusted-key id="28417C95E8906D108392822354A43F3254868410" group="org.apache.artemis"/>
+         <trusted-key id="28AB6EB572779C2AD196BE22D44C1D8DB1606F22" group="com.github.joschi.jackson" name="jackson-datatype-threetenbp" version="2.18.2"/>
+         <trusted-key id="29BEA2A645F2D6CED7FB12E02B172E3E156466E8" group="org.apache.maven.resolver"/>
+         <trusted-key id="2DB4F1EF0FA761ECC4EA935C86FDC7E2A11262CB">
+            <trusting group="commons-beanutils"/>
+            <trusting group="commons-cli"/>
+            <trusting group="commons-logging"/>
+            <trusting group="org.apache.commons"/>
+         </trusted-key>
+         <trusted-key id="2E3A1AFFE42B5F53AF19F780BCF4173966770193" group="org.jetbrains" name="annotations" version="13.0"/>
+         <trusted-key id="2E92113263FC31C74CCBAAB20E91C2DE43B72BB1" group="org.ec4j.core"/>
+         <trusted-key id="2FC53E6B1F681184F4CCD637F5C81DE10A0B8ECC">
+            <trusting group="org.snakeyaml"/>
+            <trusting group="org.yaml"/>
+         </trusted-key>
+         <trusted-key id="32118CF76C9EC5D918E54967CA80D1F0EB6CA4BA" group="org.codehaus.mojo"/>
+         <trusted-key id="33FD4BFD33554634053D73C0C2148900BCD3C2AF" group="^org[.]jetbrains($|([.].*))" regex="true"/>
+         <trusted-key id="34441E504A937F43EB0DAEF96A65176A0FB1CD0B" group="org.apache.groovy"/>
+         <trusted-key id="3690C240CE51B4670D30AD1C38EE757D69184620" group="org.tukaani" name="xz" version="1.9"/>
+         <trusted-key id="373578B889B9D636A93509DFEC67236259ADC5BD" group="io.github.compress4j" name="compress4j" version="2.1.2"/>
+         <trusted-key id="37C5181BF2066135E771E6DCB263D126C8A7E813" group="com.vdurmont" name="semver4j" version="3.1.0"/>
+         <trusted-key id="3C9A036491949AF8FE42A640F4C0FE6A926F14D8" group="com.github.java-json-tools"/>
+         <trusted-key id="3CA154339EDB344CA831FC65FEAA650EB6DA6579" group="org.atteo"/>
+         <trusted-key id="3E61D8C230332482009D7F0EDB901B24CAD38BC4" group="^io[.]swagger($|([.].*))" regex="true"/>
+         <trusted-key id="3F05DDA9F317301E927136D417A27CE7A60FF5F0" group="io.opentelemetry" name="opentelemetry-bom"/>
+         <trusted-key id="4008F9DFF7DBC968F35F9E712642156411CCE8B3" group="com.vladsch.flexmark"/>
+         <trusted-key id="41CD49B4EF5876F9E9F691DABAC30622339994C4" group="org.jspecify" name="jspecify" version="1.0.0"/>
+         <trusted-key id="42F1F5F3531B34660A81F7B05D95290D111CF7FF" group="com.googlecode.libphonenumber"/>
+         <trusted-key id="47504B76CF89C15C0512D9AFE16AB52D79FD224F" group="com.google.api.grpc" name="proto-google-common-protos" version="2.51.0"/>
+         <trusted-key id="475F3B8E59E6E63AA78067482C7B12F2A511E325" group="org.slf4j"/>
+         <trusted-key id="477E62A656AD5475A1882855C809CA3C41BA6E96" group="jakarta.validation" name="jakarta.validation-api" version="2.0.2"/>
+         <trusted-key id="4797B4F5DCC46CEA61059071A1AE06236CA2BA62" group="com.diffplug.durian" name="durian-swt.os" version="4.3.0"/>
+         <trusted-key id="47EB6836245D2D40E89DFB4136D4E9618F3ADAB5" group="io.github.oshai" name="kotlin-logging-jvm"/>
+         <trusted-key id="47FF105DF431FF5416B821FEAECDB81D38EA9C89" group="org.commonmark"/>
+         <trusted-key id="48B086A7D843CFA258E83286928FBF39003C0425">
+            <trusting group="io.micrometer"/>
+            <trusting group="io.projectreactor"/>
+            <trusting group="io.spring.gradle"/>
+            <trusting group="^org[.]springframework($|([.].*))" regex="true"/>
+         </trusted-key>
+         <trusted-key id="4BDE772C338BA540E1057D0C8EA48D105232855D" group="com.github.jknack"/>
+         <trusted-key id="4F7E32D440EF90A83011A8FC6425559C47CC79C4" group="javax.mail"/>
+         <trusted-key id="517B94F8D0A46317A28D8AB30DA8A5EC02D11EAD" group="net.sf.jopt-simple" name="jopt-simple" version="5.0.4"/>
+         <trusted-key id="59A8E169739301FD48139CA00E325BECB6962A24" group="jakarta.annotation" name="jakarta.annotation-api" version="3.0.0"/>
+         <trusted-key id="5DA0DA74CADE10E6DDE646611983F53632921972" group="io.hotmoka" name="toml4j" version="0.7.3"/>
+         <trusted-key id="5F6C2148AD4911FE308110E5F0D0AE433308B042" group="dev.detekt"/>
+         <trusted-key id="5FF31904EDB5FA70567E9C1425ECEFD55FCEB2F9" group="dk.brics.automaton" name="automaton" version="1.11-8"/>
+         <trusted-key id="60200AC4AE761F1614D6C46766D68DAA073BE985">
+            <trusting group="ch.qos.logback"/>
+            <trusting group="org.slf4j"/>
+         </trusted-key>
+         <trusted-key id="635EE627345F3C1DD422B2E207D3516820BCF6B1" group="com.github.ben-manes.caffeine" name="caffeine"/>
+         <trusted-key id="63F7CE108FF68EAD4E8282BFA0A930DE873C2462">
+            <trusting group="io.pact.plugin.driver"/>
+            <trusting group="^au[.]com[.]dius[.]pact($|([.].*))" regex="true"/>
+         </trusted-key>
+         <trusted-key id="6D2CEFAF48CADC28E644B22BBA9255C2CA445309" group="com.samskivert" name="jmustache" version="1.16"/>
+         <trusted-key id="6DD3B8C64EF75253BEB2C53AD908A43FB7EC07AC" group="jakarta.activation" name="jakarta.activation-api" version="2.1.3"/>
+         <trusted-key id="6E7F910017655622A899639EE7D88DB8427DE651">
+            <trusting group="com.github.docker-java"/>
+            <trusting group="org.testcontainers"/>
+         </trusted-key>
+         <trusted-key id="6F538074CCEBF35F28AF9B066A0975F8B1127B83" group="org.jetbrains.kotlin"/>
+         <trusted-key id="716EE302674CDBB2E660E1B44DB5EA09F2E3C800" group="^org[.]eclipse[.]jetty($|([.].*))" regex="true"/>
+         <trusted-key id="7616EB882DAF57A11477AAF559A252FB1199D873" group="com.google.code.findbugs" name="jsr305" version="3.0.2"/>
+         <trusted-key id="7C669810892CBD3148FA92995B05CCDE140C2876" group="org.eclipse.jgit"/>
+         <trusted-key id="7C7271B83AAE727A2941690666F8E4860BF74983" group="org.jooq"/>
+         <trusted-key id="7D90CFFEC86BA5513FE48B9943C2E6B56905B362" group="com.michael-bull.kotlin-result"/>
+         <trusted-key id="80F6D6B0D90C6747753344CAB5A9E81B565E89E0" group="org.tomlj" name="tomlj" version="1.0.0"/>
+         <trusted-key id="84789D24DF77A32433CE1F079EB80E92EB2135B1" group="^org[.]apache($|([.].*))" regex="true"/>
+         <trusted-key id="8569C95CADC508B09FE90F3002216ED811210DAA" group="io.github.detekt.sarif4k"/>
+         <trusted-key id="86C0144909739E0EE3D1B545305F296EAC47556B" group="org.postgresql" name="postgresql" version="42.7.14"/>
+         <trusted-key id="8756C4F765C9AC3CB6B85D62379CE192D401AB61">
+            <trusting group="com.diffplug.durian"/>
+            <trusting group="com.github.ajalt"/>
+            <trusting group="org.rnorth.duct-tape"/>
+         </trusted-key>
+         <trusted-key id="890A711ECEFC9F46E7DC9A004083A52B1E69FF28" group="com.github.mifmif" name="generex" version="1.0.2"/>
+         <trusted-key id="8E3A02905A1AE67E7B0F9ACD3967D4EDA591B991">
+            <trusting group="io.ktor"/>
+            <trusting group="org.jetbrains.kotlinx"/>
+         </trusted-key>
+         <trusted-key id="90493B3B543CB717F9DD6EEE10C81B79DBFF09EA" group="com.github.curious-odd-man" name="rgxgen" version="1.4"/>
+         <trusted-key id="9E3044071B758EBCB7E45673700E4F39BC05364B" group="org.eclipse.platform" name="org.eclipse.osgi" version="3.24.300"/>
+         <trusted-key id="A33A0B49A4C1AB590B0A4DDC1364C5E2DF3E99C5" group="org.reactivestreams" name="reactive-streams" version="1.0.3"/>
+         <trusted-key id="A59A3A16F87A0AE92F080DBFC25EC7B4882FAE47" group="org.openjdk.nashorn" name="nashorn-core" version="15.4"/>
+         <trusted-key id="A5BD02B93E7A40482EB1D66A5F69AD087600B22C" group="org.ow2.asm"/>
+         <trusted-key id="A9789342F598AD5B1175EF357EB97D110DFADD60" group="com.googlecode.concurrent-trees" name="concurrent-trees" version="2.6.1"/>
+         <trusted-key id="AA70C7C433D501636392EC02153E7A3C2B4E5118" group="org.eclipse.ee4j" name="project"/>
+         <trusted-key id="AA782B04ABD9E36CF3096037B59D3D0F9F9C8684" group="org.apache.cxf"/>
+         <trusted-key id="ADBC987D1A7B91DB6B0AAA81995EFBF4A3D20BEB" group="com.pinterest.ktlint"/>
+         <trusted-key id="AE81EA0BD1BE2997053CC6C50D49734800E3AA0C" group="org.openapitools"/>
+         <trusted-key id="B02335AA54CCF21E52BBF9ABD9C565AA72BA2FDD" group="io.grpc"/>
+         <trusted-key id="B41089A2DA79B0FA5810252872385FF0AF338D52">
+            <trusting group="joda-time"/>
+            <trusting group="org.threeten"/>
+         </trusted-key>
+         <trusted-key id="BDB5FA4FE719D787FB3D3197F6D4A1D411E9D1AE" group="com.google.guava"/>
+         <trusted-key id="C3259D20DAEC4ACE6D57CC83340B090F727518D8" group="com.google.j2objc" name="j2objc-annotations" version="3.1"/>
+         <trusted-key id="C6F7D1C804C821F49AF3BFC13AD93C3C677A106E" group="io.perfmark" name="perfmark-api" version="0.27.0"/>
+         <trusted-key id="C7BE5BCC9FEC15518CFDA882B0F3710FA64900E7" group="com.google.code.gson"/>
+         <trusted-key id="D421D1DF4570BFB13E485D0BF95ADD0A28D2F139" group="org.projectlombok" name="lombok" version="1.18.38"/>
+         <trusted-key id="D477D51812E692011DB11E66A6EA2E2BF22E0543" group="io.github.java-diff-utils"/>
+         <trusted-key id="D54A395B5CF3F86EB45F6E426B1B008864323B92" group="org.antlr"/>
+         <trusted-key id="DBD744ACE7ADE6AA50DD591F66B50994442D2D40" group="^com[.]squareup($|([.].*))" regex="true"/>
+         <trusted-key id="E38B70EEE47BC2C621D7F090502001558D63CB9A" group="io.prometheus"/>
+         <trusted-key id="E77417AC194160A3FABD04969A259C7EE636C5ED" group="com.google.errorprone"/>
+         <trusted-key id="E7DC75FC24FB3C8DFE8086AD3D5839A2262CBBFB" group="org.jetbrains.kotlinx"/>
+         <trusted-key id="E9AF5293C334C7C0B583227D2F45F85CDF082E68" group="org.mozilla" name="rhino" version="1.7.15.1"/>
+         <trusted-key id="EE0CA873074092F806F59B65D364ABAA39A47320" group="com.google.errorprone"/>
+         <trusted-key id="EF6AD6684034B0CB67A9B5714406B84C1661DCD1" group="io.r2dbc"/>
+         <trusted-key id="F4DD59C90148BDC52BEB90A4530AA5F25C25011F">
+            <trusting group="commons-codec"/>
+            <trusting group="commons-io"/>
+            <trusting group="org.apache.commons"/>
+         </trusted-key>
+         <trusted-key id="F79157DB93697AA32CD4C46CC485C5A843FADB15" group="org.flywaydb"/>
+         <trusted-key id="FA77DCFEF2EE6EB2DEBEDD2C012579464D01C06A" group="org.apache" name="apache"/>
+         <trusted-key id="FA7929F83AD44C4590F6CC6815C71C0A4E0B8EDD" group="net.java.dev.jna"/>
+         <trusted-key id="FC411CD3CB7DCB0ABC9801058118B3BCDB1A5000" group="jakarta.xml.bind"/>
+         <trusted-key id="FEB9209F2F2F3F4664841E55AC107B386692DADD">
+            <trusting group="com.amazonaws"/>
+            <trusting group="software.amazon.awssdk"/>
+         </trusted-key>
+         <trusted-key id="FF6E2C001948C5F2F38B0CC385911F425EC61B51" group="org.junit" name="junit-bom"/>
+      </trusted-keys>
    </configuration>
    <components>
       <component group="au.com.dius.pact" name="provider" version="4.6.21">
@@ -272,10 +296,10 @@
       </component>
       <component group="com.dynokore.gst.build" name="build-logic" version="0.21.0">
          <artifact name="build-logic-0.21.0.jar">
-            <sha256 value="4e1d5afc91bcf769b990a65c4b043312d3ec5429f5d083f675ddda8bfbcb1829" origin="Generated by Gradle"/>
+            <sha256 value="4e1d5afc91bcf769b990a65c4b043312d3ec5429f5d083f675ddda8bfbcb1829" origin="Generated by Gradle" reason="Artifact is not signed"/>
          </artifact>
          <artifact name="build-logic-0.21.0.module">
-            <sha256 value="31437a8edc312cd6bb8a40100962628f2aa11abbce7d96417ba3689539a81e00" origin="Generated by Gradle"/>
+            <sha256 value="31437a8edc312cd6bb8a40100962628f2aa11abbce7d96417ba3689539a81e00" origin="Generated by Gradle" reason="Artifact is not signed"/>
          </artifact>
       </component>
       <component group="com.fasterxml" name="oss-parent" version="61">
@@ -847,6 +871,7 @@
       </component>
       <component group="com.google.guava" name="guava-parent" version="26.0-android">
          <artifact name="guava-parent-26.0-android.pom">
+            <pgp value="694621A7227D8D5289699830ABE9F3126BB741C1"/>
             <sha256 value="f8698ab46ca996ce889c1afc8ca4f25eb8ac6b034dc898d4583742360016cc04" origin="Generated by Gradle"/>
          </artifact>
       </component>
@@ -1063,6 +1088,7 @@
       </component>
       <component group="com.querydsl" name="querydsl-bom" version="5.1.0">
          <artifact name="querydsl-bom-5.1.0.pom">
+            <pgp value="57312C37B064EE0FDAB0130490D5CE79E1DE6A2C"/>
             <sha256 value="8853dce132c9ece4c295c7f4d4f3c2832eee0d7d44930870c0666fa72043ca56" origin="Generated by Gradle"/>
          </artifact>
       </component>
@@ -1097,6 +1123,7 @@
       </component>
       <component group="com.sun.mail" name="all" version="1.5.0-b01">
          <artifact name="all-1.5.0-b01.pom">
+            <pgp value="4F7E32D440EF90A83011A8FC6425559C47CC79C4"/>
             <sha256 value="0fb0b898c3c4943b2ab63e655bcedca8ea1063ab6f2143469966268a55fb9c72" origin="Generated by Gradle"/>
          </artifact>
       </component>
@@ -1243,6 +1270,7 @@
       </component>
       <component group="commons-codec" name="commons-codec" version="1.19.0">
          <artifact name="commons-codec-1.19.0.pom">
+            <pgp value="2DB4F1EF0FA761ECC4EA935C86FDC7E2A11262CB"/>
             <sha256 value="e0f3269fa23de0c83130c5659f5f9514cc5422c0bcdf45f2eae004a78b9fca34" origin="Generated by Gradle"/>
          </artifact>
       </component>
@@ -1264,6 +1292,7 @@
       </component>
       <component group="commons-io" name="commons-io" version="2.21.0">
          <artifact name="commons-io-2.21.0.pom">
+            <pgp value="2DB4F1EF0FA761ECC4EA935C86FDC7E2A11262CB"/>
             <sha256 value="ae47795e721803ec8ff1deed74be28a811a02713bd5a3ab0ac67c2b58cb635ab" origin="Generated by Gradle"/>
          </artifact>
       </component>
@@ -1527,7 +1556,7 @@
       </component>
       <component group="gst.bootstrap" name="gst.bootstrap.gradle.plugin" version="0.21.0">
          <artifact name="gst.bootstrap.gradle.plugin-0.21.0.pom">
-            <sha256 value="28eeaf0a82248584dc9162261972298774eb94def6cc6d528886a7a632b3a376" origin="Generated by Gradle"/>
+            <sha256 value="28eeaf0a82248584dc9162261972298774eb94def6cc6d528886a7a632b3a376" origin="Generated by Gradle" reason="Artifact is not signed"/>
          </artifact>
       </component>
       <component group="io.github.classgraph" name="classgraph" version="4.8.184">
@@ -1897,6 +1926,7 @@
       </component>
       <component group="io.rsocket" name="rsocket-bom" version="1.1.5">
          <artifact name="rsocket-bom-1.1.5.pom">
+            <pgp value="9B32CBC0F3F6BA4C13D611FC21871D2A9AB66A31"/>
             <sha256 value="0a4e1375cc8c14ecfe31221940681798ef8a7b8af6e8968e363f15c0ed478c3f" origin="Generated by Gradle"/>
          </artifact>
       </component>
@@ -2089,10 +2119,10 @@
       </component>
       <component group="javax.activation" name="activation" version="1.1">
          <artifact name="activation-1.1.jar">
-            <sha256 value="2881c79c9d6ef01c58e62beea13e9d1ac8b8baa16f2fc198ad6e6776defdcdd3" origin="Generated by Gradle"/>
+            <sha256 value="2881c79c9d6ef01c58e62beea13e9d1ac8b8baa16f2fc198ad6e6776defdcdd3" origin="Generated by Gradle" reason="Artifact is not signed"/>
          </artifact>
          <artifact name="activation-1.1.pom">
-            <sha256 value="d490e540a11504b9d71718b1c85fef7b3de6802361290824539b076d58faa8a0" origin="Generated by Gradle"/>
+            <sha256 value="d490e540a11504b9d71718b1c85fef7b3de6802361290824539b076d58faa8a0" origin="Generated by Gradle" reason="Artifact is not signed"/>
          </artifact>
       </component>
       <component group="javax.mail" name="mail" version="1.5.0-b01">
@@ -2105,10 +2135,10 @@
       </component>
       <component group="javax.validation" name="validation-api" version="1.1.0.Final">
          <artifact name="validation-api-1.1.0.Final.jar">
-            <sha256 value="f39d7ba7253e35f5ac48081ec1bc28c5df9b32ac4b7db20853e5a8e76bf7b0ed" origin="Generated by Gradle"/>
+            <sha256 value="f39d7ba7253e35f5ac48081ec1bc28c5df9b32ac4b7db20853e5a8e76bf7b0ed" origin="Generated by Gradle" reason="Artifact is not signed"/>
          </artifact>
          <artifact name="validation-api-1.1.0.Final.pom">
-            <sha256 value="b8634911e6cbe6c14b30bd06e3837d7e6928fc7e1c96278dec61708b6aaee21c" origin="Generated by Gradle"/>
+            <sha256 value="b8634911e6cbe6c14b30bd06e3837d7e6928fc7e1c96278dec61708b6aaee21c" origin="Generated by Gradle" reason="Artifact is not signed"/>
          </artifact>
       </component>
       <component group="joda-time" name="joda-time" version="2.12.7">
@@ -2121,6 +2151,7 @@
       </component>
       <component group="net.java" name="jvnet-parent" version="1">
          <artifact name="jvnet-parent-1.pom">
+            <pgp value="2BCBDD0F23EA1CAFCC11D4860374CF2E8DD1BDFD"/>
             <sha256 value="281440811268e65d9e266b3cc898297e214e04f09740d0386ceeb4a8923d63bf" origin="Generated by Gradle"/>
          </artifact>
       </component>
@@ -2181,6 +2212,7 @@
       </component>
       <component group="org.apache" name="apache" version="16">
          <artifact name="apache-16.pom">
+            <pgp value="0CDE80149711EB46DFF17AE421A24B3F8B0F594A"/>
             <sha256 value="9f85ff2fd7d6cb3097aa47fb419ee7f0ebe869109f98aba9f4eca3f49e74a40e" origin="Generated by Gradle"/>
          </artifact>
       </component>
@@ -2226,6 +2258,7 @@
       </component>
       <component group="org.apache.activemq" name="activemq-bom" version="6.2.9">
          <artifact name="activemq-bom-6.2.9.pom">
+            <pgp value="C8FFDCEEEEFACB320FB87B6587A7F75A6A8BA5FC"/>
             <sha256 value="58d6066427076cdf112a6806d21d44d4055ec4638de50ce90c64c5212060c0ca" origin="Generated by Gradle"/>
          </artifact>
       </component>
@@ -2241,6 +2274,7 @@
       </component>
       <component group="org.apache.cassandra" name="java-driver-bom" version="4.19.3">
          <artifact name="java-driver-bom-4.19.3.pom">
+            <pgp value="F43BD1DCA7D5F5AFF5BBEC1EA4B9C195907CB45B"/>
             <sha256 value="3c22d6c861b59c2e44f7fe727c69d931691c6162a51294af646df2623c3e3ef0" origin="Generated by Gradle"/>
          </artifact>
       </component>
@@ -2285,6 +2319,7 @@
       </component>
       <component group="org.apache.commons" name="commons-parent" version="39">
          <artifact name="commons-parent-39.pom">
+            <pgp value="808D78B17A5A2D7C3668E31FBFFC9B54721244AD"/>
             <sha256 value="87cd27e1a02a5c3eb6d85059ce98696bb1b44c2b8b650f0567c86df60fa61da7" origin="Generated by Gradle"/>
          </artifact>
       </component>
@@ -2516,6 +2551,7 @@
       </component>
       <component group="org.apache.pulsar" name="pulsar-bom" version="4.2.4">
          <artifact name="pulsar-bom-4.2.4.pom">
+            <pgp value="C663D2F64DA2CA09DB28D9ABD3FA67D522C55256"/>
             <sha256 value="faa58e6c199e52e0eb762b7b66822110ad576eaf8cadf6e14c1fab133cf70e10" origin="Generated by Gradle"/>
          </artifact>
       </component>
@@ -2534,6 +2570,7 @@
       </component>
       <component group="org.assertj" name="assertj-bom" version="3.27.7">
          <artifact name="assertj-bom-3.27.7.pom">
+            <pgp value="BE685132AFD2740D9095F9040CC0B712FEE75827"/>
             <sha256 value="1c09f6c04c905e1e5cdb22d5dfa5f11a496e19e881de0850b523ed53a0519f5b" origin="Generated by Gradle"/>
          </artifact>
       </component>
@@ -2581,6 +2618,7 @@
       </component>
       <component group="org.codehaus.mojo" name="mojo-parent" version="84">
          <artifact name="mojo-parent-84.pom">
+            <pgp value="84789D24DF77A32433CE1F079EB80E92EB2135B1"/>
             <sha256 value="2fe510618b2f60fcd5f2fb82bc4b2c2c344048d74f30be719fcb86829ee8ac30" origin="Generated by Gradle"/>
          </artifact>
       </component>
@@ -2622,6 +2660,7 @@
       </component>
       <component group="org.eclipse.jetty" name="jetty-bom" version="11.0.26">
          <artifact name="jetty-bom-11.0.26.pom">
+            <pgp value="5989BAF76217B843D66BE55B2D0E1FB8FE4B68B4"/>
             <sha256 value="232a9fd682e5c5bc82c1a463ef434c806240e62f5c1f9a167c0ad69d15d9fd64" origin="Generated by Gradle"/>
          </artifact>
       </component>
@@ -2679,6 +2718,7 @@
       </component>
       <component group="org.glassfish.jersey" name="jersey-bom" version="4.0.2">
          <artifact name="jersey-bom-4.0.2.pom">
+            <pgp value="0B743A794876D3C78AB542A118D239B1CBCD2236"/>
             <sha256 value="1233e0d0e57d7d20b311de46364f611782d096a324a4fb4acc40c55157a182e7" origin="Generated by Gradle"/>
          </artifact>
       </component>
@@ -2692,11 +2732,12 @@
       </component>
       <component group="org.gradle.toolchains.foojay-resolver-convention" name="org.gradle.toolchains.foojay-resolver-convention.gradle.plugin" version="1.0.0">
          <artifact name="org.gradle.toolchains.foojay-resolver-convention.gradle.plugin-1.0.0.pom">
-            <sha256 value="f133249a18754ae6a1d2701d00d849b1afba7b0683ddb5fc1b18a70071cec2fa" origin="Generated by Gradle"/>
+            <sha256 value="f133249a18754ae6a1d2701d00d849b1afba7b0683ddb5fc1b18a70071cec2fa" origin="Generated by Gradle" reason="Artifact is not signed"/>
          </artifact>
       </component>
       <component group="org.infinispan" name="infinispan-bom" version="16.1.4">
          <artifact name="infinispan-bom-16.1.4.pom">
+            <pgp value="F5FEBA84EB26C56457B2CF819E31AB27445478DB"/>
             <sha256 value="aeabde04eca66e1ac30f9df3cc36c9b07a25a37c52043b33418e274ce5a23616" origin="Generated by Gradle"/>
          </artifact>
       </component>
@@ -3103,9 +3144,6 @@
          <artifact name="kotlin-stdlib-2.4.20.module">
             <sha256 value="afb28052ac6c3d605c0f661816ea653e073eb039682fed35bfa6cdc704c0911c" origin="Generated by Gradle"/>
          </artifact>
-         <artifact name="kotlin-stdlib-2.4.20.pom">
-            <sha256 value="bd69b382dba8e2b7ae3846375eb2f1389017eb908987277051ae4e3acec8c938" origin="Generated by Gradle"/>
-         </artifact>
       </component>
       <component group="org.jetbrains.kotlin" name="kotlin-stdlib-common" version="2.2.21">
          <artifact name="kotlin-stdlib-common-2.2.21.module">
@@ -3476,6 +3514,7 @@
       </component>
       <component group="org.mongodb" name="mongodb-driver-bom" version="5.8.1">
          <artifact name="mongodb-driver-bom-5.8.1.pom">
+            <pgp value="1A75005E142192223D6A7C3B76E0008D166740A8"/>
             <sha256 value="48926ddfeb33ad57a4ae6e03821600e69dc8e470e95e53ed8ce9b20a2df39ace" origin="Generated by Gradle"/>
          </artifact>
       </component>
@@ -3536,6 +3575,7 @@
       </component>
       <component group="org.ow2" name="ow2" version="1.5.1">
          <artifact name="ow2-1.5.1.pom">
+            <pgp value="10F3C7A02ECA55E502BADCF3991EFB94DB91127D"/>
             <sha256 value="321ddbb7ee6fe4f53dea6b4cd6db74154d6bfa42391c1f763b361b9f485acf05" origin="Generated by Gradle"/>
          </artifact>
       </component>
@@ -3618,6 +3658,7 @@
       </component>
       <component group="org.seleniumhq.selenium" name="selenium-bom" version="4.43.0">
          <artifact name="selenium-bom-4.43.0.pom">
+            <pgp value="328B1E61822CF53DB1EA7C47F461A32102C936BB"/>
             <sha256 value="5e4f359f35628282770c29398d342c2665ebb1ed66d390b8c37d925a1ea8a6a6" origin="Generated by Gradle"/>
          </artifact>
       </component>
@@ -3688,16 +3729,18 @@
       </component>
       <component group="org.sonatype.oss" name="oss-parent" version="5">
          <artifact name="oss-parent-5.pom">
+            <pgp value="2BCBDD0F23EA1CAFCC11D4860374CF2E8DD1BDFD"/>
             <sha256 value="1678d4120a585d8a630131aeec4c524d928398583b7eab616ee7d5a87f520d3d" origin="Generated by Gradle"/>
          </artifact>
       </component>
       <component group="org.sonatype.oss" name="oss-parent" version="7">
          <artifact name="oss-parent-7.pom">
-            <sha256 value="b51f8867c92b6a722499557fc3a1fdea77bdf9ef574722fe90ce436a29559454" origin="Generated by Gradle"/>
+            <sha256 value="b51f8867c92b6a722499557fc3a1fdea77bdf9ef574722fe90ce436a29559454" origin="Generated by Gradle" reason="Artifact is not signed"/>
          </artifact>
       </component>
       <component group="org.sonatype.oss" name="oss-parent" version="9">
          <artifact name="oss-parent-9.pom">
+            <pgp value="44FBDBBC1A00FE414F1C1873586654072EAD6677"/>
             <sha256 value="fb40265f982548212ff82e362e59732b2187ec6f0d80182885c14ef1f982827a" origin="Generated by Gradle"/>
          </artifact>
       </component>
@@ -3732,7 +3775,7 @@
       </component>
       <component group="org.springframework.boot" name="org.springframework.boot.gradle.plugin" version="4.1.1">
          <artifact name="org.springframework.boot.gradle.plugin-4.1.1.pom">
-            <sha256 value="d78007dde3f83063d97031d076b266641409a2985fcc289ec88a7171ed8c85d2" origin="Generated by Gradle"/>
+            <sha256 value="d78007dde3f83063d97031d076b266641409a2985fcc289ec88a7171ed8c85d2" origin="Generated by Gradle" reason="Artifact is not signed"/>
          </artifact>
       </component>
       <component group="org.springframework.boot" name="spring-boot-buildpack-platform" version="4.1.1">
@@ -3821,6 +3864,7 @@
       </component>
       <component group="org.testcontainers" name="testcontainers-bom" version="1.21.3">
          <artifact name="testcontainers-bom-1.21.3.pom">
+            <pgp value="2655176F748FD83725B4805FF2A01147D830C125"/>
             <sha256 value="2ce717226d1d67b5b1df9707ed98022a366ac892d9e496c5f0173f1ab78a0965" origin="Generated by Gradle"/>
          </artifact>
       </component>
