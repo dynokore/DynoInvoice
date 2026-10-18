@@ -1,0 +1,112 @@
+{
+  "selfBillingAssignment": {
+    "customerCumIssuer": {
+      "direction": "PURCHASE",
+      "submissionType": "TYPE_3",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-NOTE-2 section 25.1.3"
+    },
+    "supplierCumRecipient": {
+      "direction": "SALE",
+      "submissionType": "TYPE_2",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-NOTE-2 section 25.1.3"
+    }
+  },
+  "schemeTagSides": [
+    {
+      "tag": "A3PL",
+      "side": "SUPPLY",
+      "handling": "HANDLED",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "INV-NOTE-2 section 14"
+    },
+    {
+      "tag": "A3PL",
+      "side": "PURCHASE",
+      "handling": "HANDLED",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "INV-NOTE-2 section 14"
+    },
+    {
+      "tag": "SWS",
+      "side": "SUPPLY",
+      "handling": "HANDLED",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "INV-NOTE-2 section 14"
+    },
+    {
+      "tag": "AMCS_SELF_ACCOUNTING",
+      "side": "PURCHASE",
+      "handling": "PENDING_QUESTION",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "INV-NOTE-2 section 14",
+      "pendingReference": "INV-NOTE-4 Q-4"
+    },
+    {
+      "tag": "CASH_ACCOUNTING",
+      "side": "PURCHASE",
+      "handling": "PENDING_QUESTION",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "INV-NOTE-2 section 14",
+      "pendingReference": "INV-NOTE-4 Q-4"
+    }
+  ],
+  "treatments": [
+    {
+      "tag": "A3PL",
+      "side": "SUPPLY",
+      "categoryCode": "NA",
+      "rateBasis": "FIXED",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "INV-NOTE-2 section 14",
+      "rate": "0",
+      "counterpartyApprovedUnder": [
+        "MES",
+        "AISS",
+        "ACMT",
+        "A3PL"
+      ],
+      "ibt022Statement": "Supply under the Approved Third Party Logistics scheme."
+    },
+    {
+      "tag": "ARCS",
+      "side": "SUPPLY",
+      "categoryCode": "NA",
+      "rateBasis": "FIXED",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "INV-NOTE-2 section 14",
+      "rate": "0",
+      "writtenAgreement": "NOT_AGREED"
+    },
+    {
+      "tag": "ARCS",
+      "side": "SUPPLY",
+      "categoryCode": "SR",
+      "rateBasis": "PREVAILING",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "INV-NOTE-2 section 14",
+      "writtenAgreement": "AGREED"
+    }
+  ],
+  "approvableSchemes": [
+    {
+      "scheme": "MES",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "INV-REQ-2433"
+    },
+    {
+      "scheme": "A3PL",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "INV-REQ-2433"
+    }
+  ],
+  "supplyDateBasis": [
+    {
+      "tag": "CASH_ACCOUNTING",
+      "dateBasis": "INVOICE_DATE",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-REQ-2443"
+    }
+  ]
+}

@@ -14,3 +14,4 @@
 ../schemas/mde-pack-contents.schema.json mde-pack-contents-*.json
 ../schemas/severity-override-pack-contents.schema.json severity-override-pack-contents-*.json
 ../schemas/code-catalogue-pack-contents.schema.json code-catalogue-pack-contents-*.json
+../schemas/scenario-pack-handlers.schema.json scenario-pack-handlers-*.json

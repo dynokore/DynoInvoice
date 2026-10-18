@@ -1,0 +1,365 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/rules/schemas/scenario-pack-handlers.schema.json",
+  "title": "ScenarioPackHandlers",
+  "description": "The handlers sections of the Scenario pack contents (INV-REQ-416, INV-REQ-417, INV-REQ-1805, INV-REQ-2433, INV-REQ-2444, INV-REQ-2447, INV-REQ-2443): the artefact.contents of a RulePackStaged payload whose packType is exactly scenario. The sibling file scenario-pack-rendition-wording.schema.json describes the rendition wording section: the contents object of a Scenario pack is valid against both files, and each file ignores the properties of the other. Each entry carries a sourceClass and a sourceReference (INV-REQ-727). Rules a JSON Schema cannot express are checked by rules-svc at the pack dry run and by the seed content test, not here: (tag, side) is unique in schemeTagSides; the key (tag, side, the set counterpartyApprovedUnder, writtenAgreement) is unique in treatments; every treatment names a (tag, side) that schemeTagSides lists as HANDLED; every scheme in counterpartyApprovedUnder is in approvableSchemes; a tag that no row of schemeTagSides lists is refused at mapping authoring (fail closed); a HANDLED (tag, side) with no treatment follows the general rules; an entry whose sourceClass is INFERRED blocks the mapping sign-off that depends on it with RUL-007 (INV-REQ-728); a line whose counterparty has no matching status gets RUL-011 and a line under a PENDING_QUESTION row gets RUL-004, both engine codes. A consumer ignores any property this schema does not name (API-41, FR-K.4); no object of this schema sets additionalProperties to false. Within a major version this schema is additive-only.",
+  "type": "object",
+  "properties": {
+    "selfBillingAssignment": {
+      "type": "object",
+      "description": "The self-billing party-to-type assignment (INV-REQ-416), two named objects so that both parties are present by construction.",
+      "properties": {
+        "customerCumIssuer": {
+          "$ref": "#/$defs/party"
+        },
+        "supplierCumRecipient": {
+          "$ref": "#/$defs/party"
+        }
+      },
+      "required": [
+        "customerCumIssuer",
+        "supplierCumRecipient"
+      ]
+    },
+    "schemeTagSides": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {
+        "$ref": "#/$defs/schemeTagSide"
+      },
+      "description": "Per scheme tag, the sides it may be used on and whether the pair is handled (INV-REQ-2444)."
+    },
+    "treatments": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 300,
+      "items": {
+        "$ref": "#/$defs/treatment"
+      },
+      "description": "The treatments the scheme handlers decide (INV-REQ-1805, INV-REQ-2447)."
+    },
+    "approvableSchemes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "items": {
+        "$ref": "#/$defs/approvableScheme"
+      },
+      "description": "The schemes a counterparty approved status may name (INV-REQ-2433)."
+    },
+    "supplyDateBasis": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 20,
+      "items": {
+        "$ref": "#/$defs/supplyDateBasisRow"
+      },
+      "description": "Optional adopted readings of the date of transaction (INV-REQ-2443)."
+    }
+  },
+  "required": [
+    "selfBillingAssignment",
+    "schemeTagSides",
+    "treatments",
+    "approvableSchemes"
+  ],
+  "$defs": {
+    "sourceClass": {
+      "type": "string",
+      "enum": [
+        "PRIMARY",
+        "SECONDARY",
+        "INFERRED"
+      ],
+      "description": "The source class of the entry (INV-REQ-727). An INFERRED entry blocks the mapping sign-off that depends on it with RUL-007 (INV-REQ-728); the check is rules-svc's."
+    },
+    "sourceReference": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "description": "The citation of the entry: the source that supports it."
+    },
+    "tag": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]{1,39}$",
+      "description": "A scheme tag or scheme name. A string and not an enum, because a scheme IRAS adds is a pack release (INV-REQ-2433)."
+    },
+    "side": {
+      "type": "string",
+      "enum": [
+        "SUPPLY",
+        "PURCHASE"
+      ],
+      "description": "The side of a transaction the entry applies to."
+    },
+    "party": {
+      "type": "object",
+      "description": "The assignment for one self-billing party (INV-REQ-416): the direction recorded and the submission type.",
+      "properties": {
+        "direction": {
+          "type": "string",
+          "enum": [
+            "SALE",
+            "PURCHASE"
+          ],
+          "description": "The direction recorded for the party."
+        },
+        "submissionType": {
+          "type": "string",
+          "enum": [
+            "TYPE_1A",
+            "TYPE_1B",
+            "TYPE_2",
+            "TYPE_3"
+          ],
+          "description": "The submission type decided for the party."
+        },
+        "sourceClass": {
+          "$ref": "#/$defs/sourceClass"
+        },
+        "sourceReference": {
+          "$ref": "#/$defs/sourceReference"
+        }
+      },
+      "required": [
+        "direction",
+        "submissionType",
+        "sourceClass",
+        "sourceReference"
+      ]
+    },
+    "schemeTagSide": {
+      "type": "object",
+      "description": "One side a scheme tag may be used on, handled or pending an open question (INV-REQ-2444).",
+      "properties": {
+        "tag": {
+          "$ref": "#/$defs/tag"
+        },
+        "side": {
+          "$ref": "#/$defs/side"
+        },
+        "handling": {
+          "type": "string",
+          "enum": [
+            "HANDLED",
+            "PENDING_QUESTION"
+          ],
+          "description": "HANDLED: a handler treats the pair. PENDING_QUESTION: the flow is blocked with RUL-004 pending an open question."
+        },
+        "pendingReference": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300,
+          "description": "The open question the pair waits for. Present exactly when handling is PENDING_QUESTION."
+        },
+        "sourceClass": {
+          "$ref": "#/$defs/sourceClass"
+        },
+        "sourceReference": {
+          "$ref": "#/$defs/sourceReference"
+        }
+      },
+      "required": [
+        "tag",
+        "side",
+        "handling",
+        "sourceClass",
+        "sourceReference"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "handling": {
+                "const": "PENDING_QUESTION"
+              }
+            },
+            "required": [
+              "handling"
+            ]
+          },
+          "then": {
+            "required": [
+              "pendingReference"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "handling": {
+                "const": "HANDLED"
+              }
+            },
+            "required": [
+              "handling"
+            ]
+          },
+          "then": {
+            "not": {
+              "required": [
+                "pendingReference"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "treatment": {
+      "type": "object",
+      "description": "The treatment a handler decides for a (tag, side) pair (INV-REQ-1805): category code, rate and IBT-022 statement.",
+      "properties": {
+        "tag": {
+          "$ref": "#/$defs/tag"
+        },
+        "side": {
+          "$ref": "#/$defs/side"
+        },
+        "categoryCode": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9]{0,9}(-[A-Z0-9]{1,9})?$",
+          "description": "The category code returned; the pattern of the Code catalogue code."
+        },
+        "rateBasis": {
+          "type": "string",
+          "enum": [
+            "FIXED",
+            "PREVAILING"
+          ],
+          "description": "FIXED: the rate is the property rate. PREVAILING: the prevailing rate applies and rate is absent."
+        },
+        "counterpartyApprovedUnder": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/tag"
+          },
+          "description": "The schemes of which the counterparty must hold an approved status for this treatment to apply."
+        },
+        "writtenAgreement": {
+          "type": "string",
+          "enum": [
+            "AGREED",
+            "NOT_AGREED"
+          ],
+          "description": "Whether a written agreement is recorded for the counterparty."
+        },
+        "rate": {
+          "type": "string",
+          "pattern": "^[0-9]{1,3}(\\.[0-9]{1,6})?$",
+          "description": "The rate as a decimal string. Present exactly when rateBasis is FIXED."
+        },
+        "ibt022Statement": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "description": "The statement written into IBT-022; the bound of EvaluationResult.ibt022Statement."
+        },
+        "sourceClass": {
+          "$ref": "#/$defs/sourceClass"
+        },
+        "sourceReference": {
+          "$ref": "#/$defs/sourceReference"
+        }
+      },
+      "required": [
+        "tag",
+        "side",
+        "categoryCode",
+        "rateBasis",
+        "sourceClass",
+        "sourceReference"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "rateBasis": {
+                "const": "FIXED"
+              }
+            },
+            "required": [
+              "rateBasis"
+            ]
+          },
+          "then": {
+            "required": [
+              "rate"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "rateBasis": {
+                "const": "PREVAILING"
+              }
+            },
+            "required": [
+              "rateBasis"
+            ]
+          },
+          "then": {
+            "not": {
+              "required": [
+                "rate"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "approvableScheme": {
+      "type": "object",
+      "description": "A scheme a counterparty status may name (INV-REQ-2433).",
+      "properties": {
+        "scheme": {
+          "$ref": "#/$defs/tag"
+        },
+        "sourceClass": {
+          "$ref": "#/$defs/sourceClass"
+        },
+        "sourceReference": {
+          "$ref": "#/$defs/sourceReference"
+        }
+      },
+      "required": [
+        "scheme",
+        "sourceClass",
+        "sourceReference"
+      ]
+    },
+    "supplyDateBasisRow": {
+      "type": "object",
+      "description": "The adopted reading of the date of transaction for a scheme (INV-REQ-2443).",
+      "properties": {
+        "tag": {
+          "$ref": "#/$defs/tag"
+        },
+        "dateBasis": {
+          "type": "string",
+          "enum": [
+            "INVOICE_DATE",
+            "PAYMENT_DATE"
+          ],
+          "description": "The date the date of transaction follows."
+        },
+        "sourceClass": {
+          "$ref": "#/$defs/sourceClass"
+        },
+        "sourceReference": {
+          "$ref": "#/$defs/sourceReference"
+        }
+      },
+      "required": [
+        "tag",
+        "dateBasis",
+        "sourceClass",
+        "sourceReference"
+      ]
+    }
+  }
+}
