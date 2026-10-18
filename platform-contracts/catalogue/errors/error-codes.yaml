@@ -1,7 +1,7 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
-# pinned at commit 941e5f99446f1b8d0686579a14d58539566cb041 (2026-10-18), the
-# merge of invoice-docs!41 adding PAY-018 (INV-T-6647, coordinator ruling INV-Q-6639;
-# previously pinned at 2ce12f2af225eefd10848bc4b47f38216a1ea611, INV-T-6425, eef5812372eda3c8d2f549c630291ece6571aedd, INV-T-6051, bd93a33d21a7b92f1d9f8278d816d2d6cdb43499, INV-T-6021, and 70e25c6aba57b111e5fd12a86e4b978f6fdb12d6, INV-T-5412).
+# pinned at commit 6f41d974d4dbd96deae8987c8055adb1a3aeb9c0 (2026-10-19), the
+# merge of invoice-docs!43 adding SUB-021 (INV-T-6945, coordinator ruling INV-Q-6942 A;
+# previously pinned at 941e5f99446f1b8d0686579a14d58539566cb041, INV-T-6647, INV-Q-6639, 2ce12f2af225eefd10848bc4b47f38216a1ea611, INV-T-6425, eef5812372eda3c8d2f549c630291ece6571aedd, INV-T-6051, bd93a33d21a7b92f1d9f8278d816d2d6cdb43499, INV-T-6021, and 70e25c6aba57b111e5fd12a86e4b978f6fdb12d6, INV-T-5412).
 #
 # This copy is the generator's (catalogue/generator/) sole input for the
 # gst-catalogue ErrorCode catalogue (STK-61, CS-13). It is never hand-edited:
@@ -429,6 +429,11 @@ error_codes:
   condition: "A newer MONETARY version supersedes a version that was never transmitted, after a Type 2 rendition of the document was already issued: the customer's rendition may differ from what IRAS receives (WARN; INV-REQ-580, INV-REQ-579, INV-Q-6421)"
   severity: WARN
   disposition: MANUAL
+  owner: Tax operations
+- code: SUB-021
+  condition: "Withdrawal refused: a version of the document was already sent to the Access Point (an issued Type 1A document and a version rejected by the Access Point or IRAS included), or its current version is terminal; nothing is changed (HTTP 409; INV-REQ-581, INV-REQ-568, INV-AC-1774)"
+  severity: BLOCK
+  disposition: TERMINAL
   owner: Tax operations
 - code: PER-001
   condition: Period contains unsubmitted in-scope documents at readiness check
