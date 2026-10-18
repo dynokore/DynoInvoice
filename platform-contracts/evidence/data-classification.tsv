@@ -134,3 +134,17 @@ openapi.yaml	PrivacyCase.deadlinePeriodDays	NONE
 openapi.yaml	PrivacyCase.closedAt	NONE
 openapi.yaml	PrivacyCase.outcome	NONE
 openapi.yaml	PrivacyCase.basis	IDENTIFYING
+openapi.yaml	PriorSubmissionRecord.documentNumber	NONE
+openapi.yaml	PriorSubmissionRecord.transactionDate	NONE
+openapi.yaml	PriorSubmissionRecord.acknowledgementRef	NONE
+openapi.yaml	PriorSubmissionRecord.priorDocUuid	NONE
+openapi.yaml	ImportPriorEvidenceRequest.priorSolution	NONE
+openapi.yaml	ImportPriorEvidenceRequest.records	NONE
+openapi.yaml	PriorEvidenceImportResult.entityRef	NONE
+openapi.yaml	PriorEvidenceImportResult.priorSolution	NONE
+openapi.yaml	PriorEvidenceImportResult.importedCount	NONE
+openapi.yaml	PriorEvidenceImportResult.alreadyImportedCount	NONE
+openapi.yaml	PriorEvidenceImportResult.importedAt	NONE
+openapi.yaml	PriorEvidenceImportResult.importedBy	IDENTIFYING
+openapi.yaml	EvidenceChain.importedGaps	NONE
+openapi.yaml	ReverseLookupItem.imported	NONE

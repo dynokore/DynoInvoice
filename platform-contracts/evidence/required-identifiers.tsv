@@ -64,3 +64,13 @@ documentNumber	property	schemas/prior-submission-evidence-imported-payload.schem
 transactionDate	property	schemas/prior-submission-evidence-imported-payload.schema.json	INV-REQ-1109
 acknowledgementRef	property	schemas/prior-submission-evidence-imported-payload.schema.json	INV-REQ-1109
 priorSolution	property	schemas/prior-submission-evidence-imported-payload.schema.json	INV-REQ-1109
+# INV-T-6889. Backticked names of INV-REQ-1109, 1112, 954, 1110 and INV-AC-2107, 2108, 2110, 1046 carried by this contract: importPriorEvidence, importedGaps and the enum members above. Not carried: `evidence-svc` and `submission-svc` (services, no contract identifier), `EXTERNALLY_SUBMITTED` (lifecycle state of the submission contract, carried by the submission match task of INV-Q-6887), `recordMigrationCutover`, `getMigrationCutover` and `migrationCutoverDate` (tenancy contract, INV-T-6238); there is no other.
+importPriorEvidence	operation	openapi.yaml	INV-REQ-1109
+priorSolution	property	openapi.yaml	INV-REQ-1109
+acknowledgementRef	property	openapi.yaml	INV-REQ-1109
+alreadyImportedCount	property	openapi.yaml	INV-REQ-1109
+PriorSubmissionRecord.acknowledgementRef	schema_property	openapi.yaml	INV-REQ-1109
+importedGaps	property	openapi.yaml	INV-REQ-954
+EvidenceChain.importedGaps	schema_property	openapi.yaml	INV-REQ-954
+DECISION_TRACE	enum_value	openapi.yaml	INV-REQ-954
+PACK_VERSION	enum_value	openapi.yaml	INV-REQ-954

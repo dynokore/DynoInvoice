@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: evidence API
-  version: 1.6.0
+  version: 1.7.0
   description: >-
     Contract-first source of truth for evidence (API-01, STK-44). The
     `evidence-contract` module generates its server interfaces and DTOs
@@ -53,6 +53,12 @@ info:
     annotation of a privacy correction (INV-REQ-886, INV-Q-6828 A).
     `openPrivacyCase` and `closePrivacyCase` open and close the privacy
     request case with its tracked deadline (INV-REQ-1403, INV-Q-6834).
+
+
+    `importPriorEvidence` takes the prior submission evidence of an entity
+    that migrates from another solution, and the enquiry responses mark it
+    imported with `importedGaps` (INV-Q-6887, INV-REQ-1109, INV-REQ-1112,
+    INV-REQ-954).
   contact:
     name: evidence (see CODEOWNERS)
 servers:
@@ -71,6 +77,8 @@ tags:
     description: Privacy case records and subject-access exports (§33.14, NFR-S.6).
   - name: retention
     description: Legal hold and controlled deletion at retention end (FR-D.1–D.4, INV-REQ-1010, INV-REQ-1011).
+  - name: migration
+    description: Evidence imported from a prior solution when an entity migrates (INV-REQ-1109, INV-REQ-1112, INV-REQ-954).
 paths:
   /v1/certification-reports:
     post:
@@ -191,6 +199,15 @@ paths:
         (INV-REQ-711, INV-REQ-725). The 202 answer (INV-REQ-664) is
         unchanged and may answer a page request; the client repeats the same
         request when `getEvidenceRetrieval` reports READY.
+
+
+        An imported record (`importPriorEvidence`) has the items
+        ACKNOWLEDGEMENT (its reference is the `acknowledgementRef`) and
+        SOURCE_DOCUMENT_REFERENCE (its reference is the document number),
+        `version` 1, `docUuid` the `priorDocUuid` when the record has one
+        and otherwise the nil UUID 00000000-0000-0000-0000-000000000000,
+        and no DECISION_TRACE item. Its chain has `imported` true and
+        `importedGaps` (INV-REQ-954, INV-AC-1046).
       tags: [lookup]
       x-principal: reporting
       x-sync-edge: console-bff->evidence-svc
@@ -298,7 +315,7 @@ paths:
           required: false
           schema:
             type: string
-            maxLength: 60
+            maxLength: 100
         - name: docUuid
           in: query
           required: false
@@ -361,7 +378,9 @@ paths:
         Offboarding export (services.yaml evidence-svc `provides`, "export …
         queries"; capabilities "Audit pack and offboarding export"). A
         self-describing, bulk-exportable manifest scoped to the tenant
-        (FR-9.15, FR-D.7). Changes no state (INV-REQ-958). Blocked with
+        (FR-9.15, FR-D.7). Items of imported evidence are marked imported and
+        carry the two gaps `importedGaps` names (INV-REQ-954). Changes no
+        state (INV-REQ-958). Blocked with
         DEP-007 when evidence chain verification has failed for the range
         (INV-NOTE-3 §21.2 raising points; INV-REQ-662) — this is the
         offboarding export the condition names, including an
@@ -725,7 +744,9 @@ paths:
         with the verification report (INV-AC-676). Returns immediately with
         the job accepted (console-bff's 2s-per-call budget,
         sync-edges.yaml resilience_policy `console-bff -> any`); the caller
-        polls `getAuditPackExport` for readiness.
+        polls `getAuditPackExport` for readiness. Items of imported evidence
+        are marked imported and carry the two gaps `importedGaps` names
+        (INV-REQ-954).
       tags: [exports]
       x-principal: filing-workflow
       x-sync-edge: console-bff->evidence-svc
@@ -1021,6 +1042,95 @@ paths:
                     outcome: "CREDENTIALS_ROTATED"
                     breachAssessmentOpened: false
                     recordedAt: "2026-04-01T02:00:00Z"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/evidence/entities/{entityRef}/prior-evidence:
+    post:
+      operationId: importPriorEvidence
+      summary: Import the prior submission evidence of an entity migrating from another solution
+      description: >-
+        Takes the document numbers and acknowledgement references that the
+        prior solution already submitted for the entity, and retains them
+        marked imported (INV-REQ-1109, INV-REQ-1112, INV-REQ-954; ruling
+        INV-Q-6887 A). The call is all-or-nothing: a refused call records
+        nothing. A record is identified by (`entityRef`, `documentNumber`,
+        `transactionDate`). A record already imported with the same
+        `acknowledgementRef` is left unchanged and counted in
+        `alreadyImportedCount`. A record already imported with a different
+        `acknowledgementRef` refuses the whole call with 409; imported
+        evidence is never overwritten. Each record is filed in the retention
+        partition of the period of its `transactionDate` and held under the
+        same retention rule as the evidence the System produced, for the rest
+        of the statutory period (INV-REQ-1112); `deleteAtRetentionEnd` is the
+        only way it is removed. The chain is served by
+        `getAcknowledgementChain` under the prior `acknowledgementRef` with
+        `imported` true and `importedGaps`. For every record newly imported
+        the service publishes the event PriorSubmissionEvidenceImported in
+        the same transaction (INV-T-6891). The operation does not call
+        submission-svc and does not read the cutover date.
+      tags: [migration]
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->evidence-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-1109, INV-REQ-1112, INV-REQ-954]
+      x-operation:
+        role: entity.admin
+        scope: entity
+        precondition: "The entity is migrating from the named prior solution and the records are those the prior solution submitted for it."
+        reversibility: IRREVERSIBLE
+        repeatKey: "(entityRef, documentNumber, transactionDate) per record — a repeat with the same acknowledgementRef changes nothing and is counted in alreadyImportedCount; a different acknowledgementRef refuses the call with 409."
+      parameters:
+        - $ref: '#/components/parameters/EntityRef'
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: 'API-15: a UUID, deduplicating an exact request replay for at least 24h.'
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportPriorEvidenceRequest'
+            examples:
+              default:
+                value:
+                  priorSolution: "LegacyInvoiceNow"
+                  records:
+                    - documentNumber: "INV-100"
+                      transactionDate: "2026-02-27"
+                      acknowledgementRef: "ACK-LEGACY-0001"
+      responses:
+        '201':
+          description: The records were imported.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PriorEvidenceImportResult'
+              examples:
+                default:
+                  value:
+                    entityRef: "ENT-1"
+                    priorSolution: "LegacyInvoiceNow"
+                    importedCount: 1
+                    alreadyImportedCount: 0
+                    importedAt: "2026-10-19T02:00:00Z"
+                    importedBy: "op-7"
+        '200':
+          description: Exact replay of the Idempotency-Key — the original result, unchanged.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PriorEvidenceImportResult'
+        '400':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/evidence/cases:
@@ -1555,9 +1665,19 @@ components:
         nextCursor:
           type: string
           description: Opaque cursor of the next page; omitted on the last page.
+        importedGaps:
+          type: array
+          uniqueItems: true
+          description: >-
+            Sent, with both members, exactly when `imported` is true and omitted otherwise. It is the
+            statement that the chain lacks the decision trace and the pack version (INV-REQ-954, INV-AC-1046).
+          items:
+            type: string
+            enum: [DECISION_TRACE, PACK_VERSION]
+            x-extensible-enum: true
         reproduction:
           $ref: '#/components/schemas/ChainReproduction'
-          description: Recorded versions applied (INV-REQ-1345). The service always sends it.
+          description: Recorded versions applied (INV-REQ-1345). The service always sends it except on the chain of imported evidence.
         integrityStatus:
           $ref: '#/components/schemas/IntegrityResult'
           description: Integrity status of the chain's entity and period (DEP-007). The service always sends it.
@@ -1578,6 +1698,9 @@ components:
         state:
           type: string
           maxLength: 40
+        imported:
+          type: boolean
+          description: True for imported evidence, omitted otherwise (INV-REQ-954).
       required: [docUuid, version, state]
     ReverseLookupPage:
       type: object
@@ -1877,6 +2000,65 @@ components:
           type: boolean
           description: Opens the breach assessment when true (NFR-S.12).
       required: [reviewReference, auditLogEntryIds, outcome, personalDataExposed]
+    PriorSubmissionRecord:
+      type: object
+      additionalProperties: false
+      properties:
+        documentNumber:
+          type: string
+          minLength: 1
+          maxLength: 100
+        transactionDate:
+          type: string
+          format: date
+        acknowledgementRef:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: The reference the prior solution received, served as the `ackId` of the imported chain.
+        priorDocUuid:
+          type: string
+          format: uuid
+          description: >-
+            The Doc UUID the prior solution used. Without it the chain has the nil UUID
+            00000000-0000-0000-0000-000000000000 as `docUuid`.
+      required: [documentNumber, transactionDate, acknowledgementRef]
+    ImportPriorEvidenceRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        priorSolution:
+          type: string
+          minLength: 1
+          maxLength: 128
+        records:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/PriorSubmissionRecord'
+      required: [priorSolution, records]
+    PriorEvidenceImportResult:
+      type: object
+      properties:
+        entityRef:
+          type: string
+        priorSolution:
+          type: string
+        importedCount:
+          type: integer
+          minimum: 0
+        alreadyImportedCount:
+          type: integer
+          minimum: 0
+        importedAt:
+          type: string
+          format: date-time
+        importedBy:
+          type: string
+          maxLength: 100
+          description: The verified caller identity, never a request field.
+      required: [entityRef, priorSolution, importedCount, alreadyImportedCount, importedAt, importedBy]
     SecurityCase:
       type: object
       properties:
