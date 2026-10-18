@@ -198,7 +198,15 @@ class Tpl16ServiceCompositionTest {
         @Bean
         fun eventCatalogue(): EventCatalogue =
             EventCatalogue(
-                listOf(CatalogueEntry("SubmissionFailed", "submission", setOf("submission-svc"), contentTopic = false)),
+                listOf(
+                    CatalogueEntry(
+                        "SubmissionFailed",
+                        "submission",
+                        setOf("submission-svc"),
+                        contentTopic = false,
+                        retainedWhileResolvable = false,
+                    ),
+                ),
             )
 
         @Bean

@@ -169,6 +169,7 @@ class CompositionRootTest {
                                 "submission",
                                 setOf("submission-svc"),
                                 contentTopic = false,
+                                retainedWhileResolvable = false,
                             ),
                             auditCatalogueEntry,
                         ),
@@ -745,6 +746,7 @@ private val auditCatalogueEntry =
         "gst.platform.audit-entry-recorded.v1",
         setOf(CatalogueEntry.EVERY_SERVICE),
         false,
+        retainedWhileResolvable = false,
     )
 
 /** The context JdbcPolicyWriter builds for an installation value (config-resolver InstallationCalls). */

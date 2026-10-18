@@ -324,7 +324,13 @@ class JobsHarness
             private fun entry(
                 type: String,
                 topic: String,
-            ) = CatalogueEntry(type, topic, setOf(CatalogueEntry.EVERY_SERVICE))
+            ) = CatalogueEntry(
+                type,
+                topic,
+                setOf(CatalogueEntry.EVERY_SERVICE),
+                false,
+                retainedWhileResolvable = false,
+            )
 
             val CATALOGUE =
                 EventCatalogue(

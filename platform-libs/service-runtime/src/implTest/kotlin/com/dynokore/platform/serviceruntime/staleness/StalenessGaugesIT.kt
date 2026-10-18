@@ -135,8 +135,13 @@ class StalenessGaugesIT {
         val CATALOGUE =
             EventCatalogue(
                 listOf(
-                    CatalogueEntry(CANONICAL, CANONICAL_TOPIC, setOf("canonical-svc")),
-                    CatalogueEntry(POLICY, "gst.platform.policy-changed.v1", setOf(CatalogueEntry.EVERY_SERVICE)),
+                    CatalogueEntry(CANONICAL, CANONICAL_TOPIC, setOf("canonical-svc"), retainedWhileResolvable = false),
+                    CatalogueEntry(
+                        POLICY,
+                        "gst.platform.policy-changed.v1",
+                        setOf(CatalogueEntry.EVERY_SERVICE),
+                        retainedWhileResolvable = false,
+                    ),
                 ),
             )
     }

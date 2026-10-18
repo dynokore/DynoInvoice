@@ -36,7 +36,12 @@ class StalenessWiringTest {
             ).withBean(EventCatalogue::class.java, {
                 EventCatalogue(
                     listOf(
-                        CatalogueEntry(CANONICAL, "gst.canonical.canonical-version-created.v1", setOf("canonical-svc")),
+                        CatalogueEntry(
+                            CANONICAL,
+                            "gst.canonical.canonical-version-created.v1",
+                            setOf("canonical-svc"),
+                            retainedWhileResolvable = false,
+                        ),
                     ),
                 )
             })

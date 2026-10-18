@@ -127,12 +127,14 @@ class PolicyHttpHarness(
                         setOf(CatalogueEntry.EVERY_SERVICE),
                         false,
                         true,
+                        retainedWhileResolvable = false,
                     ),
                     CatalogueEntry(
                         JdbcPolicyWriter.POLICY_CHANGED,
                         "gst.platform.policy-changed.v1",
                         setOf(CatalogueEntry.EVERY_SERVICE),
                         false,
+                        retainedWhileResolvable = false,
                     ),
                 ),
             )
