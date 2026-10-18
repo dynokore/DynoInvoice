@@ -3,6 +3,7 @@
 # INV-T-6274. Rows for INV-REQ-714 and INV-REQ-432 (read from Keel). INV-REQ-714 names no backticked identifier; INV-REQ-432 names buyerDisposition, PENDING and REJECTED (rows above), NOT_SUBMITTABLE and BUYER_REJECTED (new rows) and HOLD, which is a severity of the error catalogue and not an element of this contract (the catalogue contract owns it).
 # INV-T-6049. Contract identifiers named in the published behavior of INV-REQ-547, 327, 430, 431, 793 and 1192 (read from Keel), plus INV-REQ-428 for the receipt fields.
 # INV-T-6626. Rows for INV-REQ-558 (read from Keel). Its backticked `NETTED_INTO_REVISION` already has rows above; the lifecycle states and `ACKNOWLEDGED` named by INV-REQ-559 belong to the submission contract, and `CREDIT_NOTE`, `SUBMITTABLE`, `NOT_SUBMITTABLE` and `PRE_OBLIGATION` are not named by this task's requirements.
+# INV-T-6645. Rows for INV-REQ-693 (read from Keel). Its backticked `SR` is an IRAS category code, seed content, not an identifier of this contract.
 identifier	kind	file	requirement
 docUuidSource	property	openapi.yaml	INV-REQ-431
 direction	property	openapi.yaml	INV-REQ-431
@@ -89,3 +90,7 @@ RecordDocumentRequest.nettedCreditNoteKeys	schema_property	openapi.yaml	INV-REQ-
 DocumentVersion.nettedCreditNoteKeys	schema_property	openapi.yaml	INV-REQ-558
 DocumentVersion.nettedCreditNoteDocUuids	schema_property	openapi.yaml	INV-REQ-558
 DocumentVersion.nettedByDocUuid	schema_property	openapi.yaml	INV-REQ-558
+gstNotAdjusted	property	openapi.yaml	INV-REQ-693
+gstNotAdjusted	property	schemas/canonical-version-created-payload.schema.json	INV-REQ-693
+RecordDocumentRequest.gstNotAdjusted	schema_property	openapi.yaml	INV-REQ-693
+DocumentVersion.gstNotAdjusted	schema_property	openapi.yaml	INV-REQ-693

@@ -32,6 +32,7 @@ openapi.yaml	RecordDocumentRequest.declaredTotals	NONE
 openapi.yaml	RecordDocumentRequest.precedingDocumentNumber	NONE
 openapi.yaml	RecordDocumentRequest.precedingDocumentDate	NONE
 openapi.yaml	RecordDocumentRequest.nettedCreditNoteKeys	NONE
+openapi.yaml	RecordDocumentRequest.gstNotAdjusted	NONE
 openapi.yaml	RecordDocumentRequest.precedingBlankJustification	NONE
 openapi.yaml	RecordDocumentRequest.evidenceRef	NONE
 openapi.yaml	RecordDocumentRequest.direction	NONE
@@ -71,6 +72,7 @@ openapi.yaml	DocumentVersion.precedingDocUuid	NONE
 openapi.yaml	DocumentVersion.nettedCreditNoteKeys	NONE
 openapi.yaml	DocumentVersion.nettedCreditNoteDocUuids	NONE
 openapi.yaml	DocumentVersion.nettedByDocUuid	NONE
+openapi.yaml	DocumentVersion.gstNotAdjusted	NONE
 openapi.yaml	PreparedReassignment.reassignmentId	NONE
 openapi.yaml	PreparedReassignment.entityRef	NONE
 openapi.yaml	PreparedReassignment.spanStart	NONE
@@ -104,6 +106,7 @@ schemas/canonical-version-created-payload.schema.json	canonicalDocument.precedin
 schemas/canonical-version-created-payload.schema.json	canonicalDocument.nettedCreditNoteKeys	NONE
 schemas/canonical-version-created-payload.schema.json	canonicalDocument.precedingDocumentDate	NONE
 schemas/canonical-version-created-payload.schema.json	canonicalDocument.precedingBlankJustification	NONE
+schemas/canonical-version-created-payload.schema.json	canonicalDocument.gstNotAdjusted	NONE
 schemas/canonical-version-created-payload.schema.json	canonicalDocument.evidenceRef	NONE
 schemas/canonical-version-created-payload.schema.json	canonicalDocument.taxCurrencyCode	NONE
 schemas/canonical-version-created-payload.schema.json	canonicalDocument.exchangeRate	NONE

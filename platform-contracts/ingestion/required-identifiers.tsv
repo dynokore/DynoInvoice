@@ -8,6 +8,7 @@
 # decides); POST /v1/transactions, POST /v1/batches and POST /v1/aggregates (paths, not identifiers); canonical-svc,
 # aggregation-svc, payload-svc and evidence-svc (services); tenant.admin (a role); 400 (an HTTP status code).
 # INV-T-6626. Rows for INV-REQ-558 (read from Keel). Its backticked `NETTED_INTO_REVISION` (rows in the canonical table) and `inputTaxClaimed` (row above) already have rows; the lifecycle states and `ACKNOWLEDGED` named by INV-REQ-559 belong to the submission contract, and `CREDIT_NOTE`, `SUBMITTABLE`, `NOT_SUBMITTABLE` and `PRE_OBLIGATION` are not named by this task's requirements.
+# INV-T-6645. Rows for INV-REQ-693 (read from Keel). Its backticked `SR` is an IRAS category code, seed content, not an identifier of this contract.
 identifier	kind	file	requirement
 declaredCount	property	openapi.yaml	INV-REQ-811
 declaredNetTotal	property	openapi.yaml	INV-REQ-811
@@ -85,3 +86,4 @@ PURCHASE	enum_value	schemas/transaction-request.schema.json	INV-REQ-805
 BILL_FOR_PAYMENT	enum_value	schemas/transaction-request.schema.json	INV-REQ-805
 nettedCreditNoteKeys	property	schemas/transaction-request.schema.json	INV-REQ-558
 INVOICE	enum_value	schemas/transaction-request.schema.json	INV-REQ-558
+gstNotAdjusted	property	schemas/transaction-request.schema.json	INV-REQ-693
