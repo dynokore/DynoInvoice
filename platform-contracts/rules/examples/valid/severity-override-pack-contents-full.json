@@ -1,0 +1,22 @@
+{
+  "escalations": [
+    {
+      "ruleId": "TEST-R-001",
+      "specificationVersions": [
+        "v1",
+        "v2"
+      ],
+      "businessTermId": "IBT-047",
+      "sourceReference": "test data",
+      "rationale": "test data"
+    },
+    {
+      "ruleId": "TEST-R-002",
+      "specificationVersions": [
+        "v1"
+      ],
+      "businessTermId": "BT-SG-001",
+      "sourceReference": "test data"
+    }
+  ]
+}

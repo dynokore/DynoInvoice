@@ -12,3 +12,4 @@
 ../openapi.yaml#/components/schemas/DryRunChangeTypeTotal dry-run-change-type-total-*.json
 ../schemas/scenario-pack-rendition-wording.schema.json scenario-pack-rendition-wording-*.json
 ../schemas/mde-pack-contents.schema.json mde-pack-contents-*.json
+../schemas/severity-override-pack-contents.schema.json severity-override-pack-contents-*.json

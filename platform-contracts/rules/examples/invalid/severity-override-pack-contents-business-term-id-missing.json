@@ -1,0 +1,11 @@
+{
+  "escalations": [
+    {
+      "ruleId": "TEST-R-001",
+      "specificationVersions": [
+        "v1"
+      ],
+      "sourceReference": "test data"
+    }
+  ]
+}

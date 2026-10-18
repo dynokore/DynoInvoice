@@ -1,0 +1,12 @@
+{
+  "escalations": [
+    {
+      "ruleId": "BAD ID",
+      "specificationVersions": [
+        "v1"
+      ],
+      "businessTermId": "IBT-047",
+      "sourceReference": "test data"
+    }
+  ]
+}
