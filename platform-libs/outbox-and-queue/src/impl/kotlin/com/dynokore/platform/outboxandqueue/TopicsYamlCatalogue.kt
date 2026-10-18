@@ -4,7 +4,9 @@ package com.dynokore.platform.outboxandqueue
  * Reads the event catalogue from platform-contracts' generated `event-log/topics.yaml`. Three sections:
  * - `topics`: one entry per event topic: `topic`, `event_type`, `producers`, `subscribers`, from INV-T-3386
  *   `content_topic: true|false` (INV-REQ-1205 b4; an entry without it gets [CatalogueEntry.contentTopic] `null`) and
- *   from INV-T-3606 `record_topic` ([CatalogueEntry.recordTopic], INV-Q-3809);
+ *   from INV-T-3606 `record_topic` ([CatalogueEntry.recordTopic], INV-Q-3809) and `retained_while_resolvable: true|false`
+ *   (INV-REQ-1210, INV-Q-6281; an entry without it gets [CatalogueEntry.retainedWhileResolvable] `null`, a replay topic
+ *   without it is refused);
  * - `replay_topics` (INV-T-3606): one per (producer, subscriber) pair, with `event_types`, exactly one producer and
  *   one subscriber ([ReplayTopic]);
  * - `replay_request_topics` (INV-T-3606): one per consumer, with `event_types`, the consumer as its one producer and
@@ -27,6 +29,7 @@ object TopicsYamlCatalogue {
         val subscribers = mutableSetOf<String>()
         var content: Boolean? = null
         var record = false
+        var retained: Boolean? = null
     }
 
     /** Parses [text] into an [EventCatalogue]; throws [IllegalArgumentException] on a malformed entry. */
@@ -73,6 +76,15 @@ object TopicsYamlCatalogue {
                     list = null
                 }
 
+                line.startsWith("retained_while_resolvable:") -> {
+                    val value = line.removePrefix("retained_while_resolvable:").trim()
+                    entry.retained =
+                        requireNotNull(value.toBooleanStrictOrNull()) {
+                            "topic ${entry.topic} has retained_while_resolvable '$value', expected true or false"
+                        }
+                    list = null
+                }
+
                 line.startsWith("record_topic:") -> {
                     val value = line.removePrefix("record_topic:").trim()
                     entry.record =
@@ -113,7 +125,14 @@ object TopicsYamlCatalogue {
     private fun eventEntry(entry: Entry): CatalogueEntry {
         val eventType = requireNotNull(entry.type) { "topic ${entry.topic} has no event_type" }
         require(entry.producers.isNotEmpty()) { "topic ${entry.topic} has no producer" }
-        return CatalogueEntry(eventType, entry.topic, entry.producers.toSet(), entry.content, entry.record)
+        return CatalogueEntry(
+            eventType,
+            entry.topic,
+            entry.producers.toSet(),
+            entry.content,
+            entry.record,
+            entry.retained,
+        )
     }
 
     private fun replayTopic(entry: Entry): ReplayTopic {
@@ -125,6 +144,7 @@ object TopicsYamlCatalogue {
             entry.producers.single(),
             entry.subscribers.single(),
             requireNotNull(entry.content) { "replay topic ${entry.topic} has no content_topic" },
+            requireNotNull(entry.retained) { "replay topic ${entry.topic} has no retained_while_resolvable" },
         )
     }
 

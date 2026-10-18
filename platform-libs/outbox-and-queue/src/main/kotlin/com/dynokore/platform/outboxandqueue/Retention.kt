@@ -16,26 +16,39 @@ import java.time.Duration
  * - [inboxRetention]: an inbox row can only matter while its event could still be redelivered, so it is deleted once
  *   `received_at` is older than the longest period any topic keeps, `max(contentWindow, eventLogRetention)`, plus
  *   [INBOX_MARGIN]. The inbox has no topic column, so this one value serves every topic: an inbox row never expires
- *   while its event is still in the log, whichever of the two periods is longer.
+ *   while its event is still in the log, whichever of the two periods is longer. [packArtefactRetention] is not in it:
+ *   a pack handler is idempotent on packIdentifier and version.
+ * - [packArtefactRetention]: how long the event log keeps a topic marked `retained_while_resolvable` (INV-REQ-1210,
+ *   INV-Q-6281), so a pack holder can refill its cache from the topic. Default and floor 1827 days, the longest span of
+ *   five calendar years (INV-REQ-635); a longer value is accepted.
  */
-data class Retention(
-    val contentWindow: Duration = DEFAULT,
-    val eventLogRetention: Duration = DEFAULT,
-) {
-    init {
-        require(contentWindow >= FLOOR) { "content window must be at least $FLOOR, was $contentWindow" }
-        require(eventLogRetention >= FLOOR) { "event-log retention must be at least $FLOOR, was $eventLogRetention" }
-    }
+data class Retention
+    @JvmOverloads
+    constructor(
+        val contentWindow: Duration = DEFAULT,
+        val eventLogRetention: Duration = DEFAULT,
+        val packArtefactRetention: Duration = PACK_ARTEFACT_FLOOR,
+    ) {
+        init {
+            require(contentWindow >= FLOOR) { "content window must be at least $FLOOR, was $contentWindow" }
+            require(eventLogRetention >= FLOOR) {
+                "event-log retention must be at least $FLOOR, was $eventLogRetention"
+            }
+            require(packArtefactRetention >= PACK_ARTEFACT_FLOOR) {
+                "pack artefact retention must be at least $PACK_ARTEFACT_FLOOR, was $packArtefactRetention"
+            }
+        }
 
-    /** The age past which an inbox row is deleted: the longest topic period plus [INBOX_MARGIN]. */
-    val inboxRetention: Duration get() = maxOf(contentWindow, eventLogRetention) + INBOX_MARGIN
+        /** The age past which an inbox row is deleted: the longest topic period plus [INBOX_MARGIN]. */
+        val inboxRetention: Duration get() = maxOf(contentWindow, eventLogRetention) + INBOX_MARGIN
 
-    companion object {
-        val DEFAULT: Duration = Duration.ofDays(30)
-        val FLOOR: Duration = Duration.ofDays(7)
-        val INBOX_MARGIN: Duration = Duration.ofDays(1)
+        companion object {
+            val DEFAULT: Duration = Duration.ofDays(30)
+            val FLOOR: Duration = Duration.ofDays(7)
+            val PACK_ARTEFACT_FLOOR: Duration = Duration.ofDays(1827)
+            val INBOX_MARGIN: Duration = Duration.ofDays(1)
+        }
     }
-}
 
 /** Rows deleted by one [RetentionPurge.purge] run. */
 data class PurgeResult(

@@ -131,10 +131,14 @@ class OutboxPostgresFixture(
     }
 
     /**
-     * Writes the event log's retention row as the migration login [MIGRATE] does, with [EventLogSchema.writeRetention]
+     * Writes the event log's retention row as the migration login [MIGRATE] does: [EventLogSchema.retentionUpgradeDdl]
+     * on a plain connection, then [EventLogSchema.writeRetention]
      * on its own pool, runner and DSLContext (route R4), in one transaction under the platform binding.
      */
     fun writeRetention(retention: Retention = Retention()) {
+        java.sql.DriverManager.getConnection(jdbcUrl(), MIGRATE, MIGRATE_PASSWORD).use { connection ->
+            connection.createStatement().use { it.execute(EventLogSchema.retentionUpgradeDdl()) }
+        }
         val tenants = TenantContextImpl()
         val pool = TestPoolFixture(jdbcUrl(), MIGRATE, MIGRATE_PASSWORD, poolName = MIGRATE)
         try {
@@ -362,11 +366,19 @@ class OutboxPostgresFixture(
                         setOf(APP),
                         rows.any { it.contentTopic == true },
                         if (record) APP else null,
+                        rows.any { it.retainedWhileResolvable == true },
                     )
                 }
             val replays =
                 catalogue.replayTopics().map {
-                    EventLogSchema.Topic(it.topic, setOf(APP), setOf(replayLoginOf(it.subscriber)), it.contentTopic)
+                    EventLogSchema.Topic(
+                        it.topic,
+                        setOf(APP),
+                        setOf(replayLoginOf(it.subscriber)),
+                        it.contentTopic,
+                        null,
+                        it.retainedWhileResolvable,
+                    )
                 }
             val requests =
                 catalogue.requestTopics().map { EventLogSchema.Topic(it.topic, setOf(APP), setOf(APP), false) }
@@ -426,11 +438,13 @@ class OutboxPostgresFixture(
                 append(EventLogSchema.functionsDdl(topics, EVENTLOG_SYS, PURGE)).append('\n')
                 append(
                     "insert into ${EventLogSchema.SCHEMA}.${EventLogSchema.RETENTION} " +
-                        "(id, content_window, eventlog_retention, updated_at) values (true, " +
+                        "(id, content_window, eventlog_retention, pack_retention, updated_at) values (true, " +
                         "${retention.contentWindow.seconds} * interval '1 second', " +
-                        "${retention.eventLogRetention.seconds} * interval '1 second', now()) " +
+                        "${retention.eventLogRetention.seconds} * interval '1 second', " +
+                        "${retention.packArtefactRetention.seconds} * interval '1 second', now()) " +
                         "on conflict (id) do update set content_window = excluded.content_window, " +
-                        "eventlog_retention = excluded.eventlog_retention, updated_at = excluded.updated_at;\n",
+                        "eventlog_retention = excluded.eventlog_retention, " +
+                        "pack_retention = excluded.pack_retention, updated_at = excluded.updated_at;\n",
                 )
             }
         }

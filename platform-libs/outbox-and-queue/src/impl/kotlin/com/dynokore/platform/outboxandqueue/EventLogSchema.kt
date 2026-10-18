@@ -79,7 +79,8 @@ object EventLogSchema {
 
     /**
      * One topic of topics.yaml as the event-log migration sees it: the runtime logins that produce and subscribe to it,
-     * its `content_topic` marker (content window or event-log retention), and for a record topic the [keeper], the one
+     * its `content_topic` marker (content window or event-log retention), its `retained_while_resolvable` marker (the
+     * pack artefact retention, INV-REQ-1210, INV-Q-6281; never together with `content_topic`), and for a record topic the [keeper], the one
      * subscriber whose committed position holds the purge back (evidence-svc's runtime login, INV-Q-3627).
      */
     data class Topic(
@@ -88,8 +89,12 @@ object EventLogSchema {
         val subscribers: Set<String>,
         val contentTopic: Boolean,
         val keeper: String? = null,
+        val retainedWhileResolvable: Boolean = false,
     ) {
         init {
+            require(!(contentTopic && retainedWhileResolvable)) {
+                "topic $name is marked both content_topic and retained_while_resolvable"
+            }
             tableName(name)
             (producers + subscribers).forEach { SqlIdentifier.require(it, "runtime login") }
             if (keeper != null) {
@@ -171,6 +176,8 @@ object EventLogSchema {
                 id boolean primary key default true check (id),
                 content_window interval not null check (content_window >= interval '7 days'),
                 eventlog_retention interval not null check (eventlog_retention >= interval '7 days'),
+                pack_retention interval not null default interval '1827 days'
+                    check (pack_retention >= interval '1827 days'),
                 updated_at timestamptz not null default now()
             );
             comment on table $SCHEMA.$RETENTION is 'platform-scoped: no tenant data';
@@ -291,9 +298,21 @@ object EventLogSchema {
     }
 
     /**
+     * The DDL the migration runs at every install and upgrade, before [writeRetention] (INV-T-6291): adds the
+     * `pack_retention` column to a retention table created before it existed, with the default and check of
+     * [schemaDdl]; a no-op where the column exists. Run as the schema owner, like [schemaDdl].
+     */
+    fun retentionUpgradeDdl(): String =
+        "alter table $SCHEMA.$RETENTION add column if not exists pack_retention interval not null " +
+            "default interval '1827 days' check (pack_retention >= interval '1827 days')"
+
+    /**
      * The migration step that writes the retention row from the installation profile with bound parameters, re-applied
      * at every install and upgrade (coordinator ruling INV-Q-4262): [Retention.contentWindow] for content topics and
-     * [Retention.eventLogRetention] for the others, each at least 7 days ([Retention] refuses less; default 30 days).
+     * [Retention.eventLogRetention] for the others, each at least 7 days ([Retention] refuses less; default 30 days), and
+     * [Retention.packArtefactRetention] for a topic marked `retained_while_resolvable` (at least 1827 days). The
+     * column exists once [retentionUpgradeDdl] has run; the migration runs it just before this step, as a tenancy-jooq
+     * context runs no DDL.
      */
     fun writeRetention(
         dsl: DSLContext,
@@ -302,6 +321,7 @@ object EventLogSchema {
         val table = DSL.table(DSL.name(SCHEMA, RETENTION))
         val contentWindow = DSL.field(DSL.name("content_window"), SQLDataType.INTERVALDAYTOSECOND)
         val eventLogRetention = DSL.field(DSL.name("eventlog_retention"), SQLDataType.INTERVALDAYTOSECOND)
+        val packRetention = DSL.field(DSL.name("pack_retention"), SQLDataType.INTERVALDAYTOSECOND)
         val updatedAt = DSL.field(DSL.name("updated_at"), SQLDataType.TIMESTAMPWITHTIMEZONE)
         dsl
             .insertInto(
@@ -309,16 +329,19 @@ object EventLogSchema {
                 DSL.field(DSL.name("id"), SQLDataType.BOOLEAN),
                 contentWindow,
                 eventLogRetention,
+                packRetention,
                 updatedAt,
             ).values(
                 DSL.`val`(true, SQLDataType.BOOLEAN),
                 DSL.`val`(DayToSecond.valueOf(retention.contentWindow), SQLDataType.INTERVALDAYTOSECOND),
                 DSL.`val`(DayToSecond.valueOf(retention.eventLogRetention), SQLDataType.INTERVALDAYTOSECOND),
+                DSL.`val`(DayToSecond.valueOf(retention.packArtefactRetention), SQLDataType.INTERVALDAYTOSECOND),
                 DSL.currentOffsetDateTime(),
             ).onConflict(DSL.field(DSL.name("id")))
             .doUpdate()
             .set(contentWindow, DSL.excluded(contentWindow))
             .set(eventLogRetention, DSL.excluded(eventLogRetention))
+            .set(packRetention, DSL.excluded(packRetention))
             .set(updatedAt, DSL.excluded(updatedAt))
             .execute()
     }
@@ -457,7 +480,8 @@ object EventLogSchema {
     /**
      * [PURGE_BATCH]: reads the retention row and, when it is missing or a value is below 7 days, deletes nothing and
      * raises a warning (no row returned). Otherwise, per topic, deletes up to [PURGE_BATCH_SIZE] rows inserted before
-     * `now() - <period>` (the content window for a content topic, the event-log retention for any other), lowest offsets
+     * `now() - <period>` (the content window for a content topic, the pack artefact retention for a topic marked
+     * `retained_while_resolvable`, the event-log retention for any other), lowest offsets
      * first and, on a record topic, none above the keeper's recorded position; raises the topic's watermark to the
      * highest offset deleted (never lowers it) in the same transaction; and returns one row per topic.
      */
@@ -472,19 +496,21 @@ object EventLogSchema {
             """
             drop function if exists $SCHEMA.$PURGE_BATCH();
             create function $SCHEMA.$PURGE_BATCH()
-            returns table (purged_topic text, purged_content boolean, purged_period interval, purged_cutoff timestamptz,
+            returns table (purged_topic text, purged_content boolean, purged_retained boolean, purged_period interval, purged_cutoff timestamptz,
                 purged_rows bigint, purged_watermark bigint)
             language plpgsql security definer set search_path = pg_catalog, $SCHEMA, pg_temp as $$
             declare
                 v_content interval;
                 v_retention interval;
+                v_pack interval;
                 v_position bigint;
                 v_max bigint;
             begin
-                select r.content_window, r.eventlog_retention into v_content, v_retention
+                select r.content_window, r.eventlog_retention, r.pack_retention into v_content, v_retention, v_pack
                 from $SCHEMA.$RETENTION r where r.id;
-                if not found or v_content is null or v_retention is null
-                    or v_content < interval '7 days' or v_retention < interval '7 days' then
+                if not found or v_content is null or v_retention is null or v_pack is null
+                    or v_content < interval '7 days' or v_retention < interval '7 days'
+                    or v_pack < interval '1827 days' then
                     raise warning 'event-log retention is missing or below 7 days: nothing is purged (INV-Q-4262)';
                     return;
                 end if;
@@ -513,14 +539,23 @@ object EventLogSchema {
     /** Any other topic has no position to respect. */
     private const val NO_RECORD_POSITION = "v_position := null;"
 
+    /** The retention variable of [topic]: the pack period if marked, else the content window, else the event-log one. */
+    private fun periodVariable(topic: Topic): String =
+        when {
+            topic.retainedWhileResolvable -> "v_pack"
+            topic.contentTopic -> "v_content"
+            else -> "v_retention"
+        }
+
     private fun purgeBranch(topic: Topic): String {
         val topicKey = SqlIdentifier.require(tableName(topic.name), "topic table")
         val content = if (topic.contentTopic) "true" else "false"
-        val period = if (topic.contentTopic) "v_content" else "v_retention"
+        val period = periodVariable(topic)
         val position = if (topic.record) READ_RECORD_POSITION else NO_RECORD_POSITION
         return """
             purged_topic := '$topicKey';
             purged_content := $content;
+            purged_retained := ${if (topic.retainedWhileResolvable) "true" else "false"};
             purged_period := $period;
             purged_cutoff := now() - $period;
             $position
@@ -606,9 +641,9 @@ object EventLogSchema {
     /**
      * [EVENTS_MISSING]: refuses a malformed topic, a null array or one of more than [MAX_EVENTS_MISSING] ids (`22023`);
      * refuses (`42501`) unless `session_user` produces the topic ([PRODUCER]); refuses (`55000`) without a retention
-     * row of at least 7 days. Otherwise returns one row: the distinct given ids (nulls ignored) not present in the
-     * topic, and the topic's retention cut-off, `now()` less its period (the content window for a content topic, the
-     * event-log retention for any other), the same cut-off [PURGE_BATCH] deletes before. Nothing else of the topic.
+     * row of at least 7 days (1827 for the pack column). Otherwise returns one row: the distinct given ids (nulls ignored) not present in the
+     * topic, and the topic's retention cut-off, `now()` less its period (the content window for a content topic, the pack
+     * artefact retention for a marked topic, the event-log retention for any other), the same cut-off [PURGE_BATCH] deletes before. Nothing else of the topic.
      */
     private fun eventsMissingFunction(
         topics: List<Topic>,
@@ -627,6 +662,7 @@ object EventLogSchema {
                 v_key text;
                 v_content interval;
                 v_retention interval;
+                v_pack interval;
             begin
                 if p_topic is null or p_topic !~ '^[a-z][a-z0-9.-]*$' or p_event_ids is null
                     or coalesce(cardinality(p_event_ids), 0) > $MAX_EVENTS_MISSING then
@@ -639,10 +675,11 @@ object EventLogSchema {
                 ) then
                     raise exception 'events_missing is open to the producers of a topic only' using errcode = '42501';
                 end if;
-                select r.content_window, r.eventlog_retention into v_content, v_retention
+                select r.content_window, r.eventlog_retention, r.pack_retention into v_content, v_retention, v_pack
                 from $SCHEMA.$RETENTION r where r.id;
-                if not found or v_content is null or v_retention is null
-                    or v_content < interval '7 days' or v_retention < interval '7 days' then
+                if not found or v_content is null or v_retention is null or v_pack is null
+                    or v_content < interval '7 days' or v_retention < interval '7 days'
+                    or v_pack < interval '1827 days' then
                     raise exception 'event-log retention is missing or below 7 days (INV-Q-4262)' using errcode = '55000';
                 end if;
                 if false then
@@ -674,7 +711,7 @@ object EventLogSchema {
 
     private fun eventsMissingBranch(topic: Topic): String {
         val topicKey = SqlIdentifier.require(tableName(topic.name), "topic table")
-        val period = if (topic.contentTopic) "v_content" else "v_retention"
+        val period = periodVariable(topic)
         return """
             elsif v_key = '$topicKey' then
                 cutoff := now() - $period;

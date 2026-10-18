@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [8.1.6] - 2026-10-18
+### Changed
+- Metadata-only release (INV-T-6291, G-DVS): depends on `outbox-and-queue` 6.1.0; no code change.
+
 ## [8.1.5] - 2026-10-18
 ### Changed
 - `OutboxAndQueueWiring` (INV-T-4202, slice 4 of 4; owner ruling INV-Q-4196): `eventLogPresence` runs on the event-log

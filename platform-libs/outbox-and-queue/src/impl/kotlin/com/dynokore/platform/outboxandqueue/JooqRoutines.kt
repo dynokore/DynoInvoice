@@ -307,6 +307,7 @@ class EventLogClaim private constructor(
 class EventLogPurgeBatch : FunctionTable(EventLogSchema.SCHEMA, EventLogSchema.PURGE_BATCH, emptyArray()) {
     val topic: Field<String> = createField(DSL.name("purged_topic"), SQLDataType.CLOB, this)
     val content: Field<Boolean> = createField(DSL.name("purged_content"), SQLDataType.BOOLEAN, this)
+    val retained: Field<Boolean> = createField(DSL.name("purged_retained"), SQLDataType.BOOLEAN, this)
     val period: Field<org.jooq.types.DayToSecond> =
         createField(DSL.name("purged_period"), SQLDataType.INTERVALDAYTOSECOND, this)
     val cutoff: Field<OffsetDateTime> =

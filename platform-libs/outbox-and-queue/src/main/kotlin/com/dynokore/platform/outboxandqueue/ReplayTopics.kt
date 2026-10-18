@@ -24,6 +24,7 @@ data class ReplayTopic(
     val producer: String,
     val subscriber: String,
     val contentTopic: Boolean,
+    val retainedWhileResolvable: Boolean = false,
 ) {
     init {
         require(ReplayProtocol.REPLAY_COMPLETED in eventTypes) { "replay topic $topic does not carry ReplayCompleted" }

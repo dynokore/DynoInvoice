@@ -42,6 +42,15 @@ class JdbcEventLogPurge(
             requireNotNull(markers.singleOrNull()) {
                 "topic $topic carries no single content_topic marker in topics.yaml, was $markers (INV-REQ-1205 b4)"
             }
+            val retained = entries.map { it.retainedWhileResolvable }.toSet()
+            val retainedMarker =
+                requireNotNull(retained.singleOrNull()) {
+                    "topic $topic carries no single retained_while_resolvable marker in topics.yaml, was $retained " +
+                        "(INV-REQ-1210)"
+                }
+            require(!(retainedMarker && markers.single() == true)) {
+                "topic $topic is marked both content_topic and retained_while_resolvable (INV-REQ-1210)"
+            }
         }
     }
 
@@ -81,6 +90,7 @@ class JdbcEventLogPurge(
                 .setMessage("event-log purge run")
                 .addKeyValue("topic", it.topic)
                 .addKeyValue("content_topic", it.contentTopic)
+                .addKeyValue("retained_while_resolvable", it.retainedWhileResolvable)
                 .addKeyValue("period", it.period)
                 .addKeyValue("cutoff", it.cutoff)
                 .addKeyValue("rows", it.rows)
@@ -96,8 +106,15 @@ class JdbcEventLogPurge(
         // the period in whole seconds, as the function's interval
         val seconds = DSL.extract(purged.period, DatePart.EPOCH).cast(SQLDataType.BIGINT)
         return dsl
-            .select(purged.topic, purged.content, seconds, purged.cutoff, purged.rows, purged.watermark)
-            .from(purged)
+            .select(
+                purged.topic,
+                purged.content,
+                purged.retained,
+                seconds,
+                purged.cutoff,
+                purged.rows,
+                purged.watermark,
+            ).from(purged)
             .fetch()
             .map { row ->
                 val key = row.get(purged.topic)
@@ -108,6 +125,7 @@ class JdbcEventLogPurge(
                     cutoff = row.get(purged.cutoff).toInstant(),
                     rows = row.get(purged.rows),
                     watermark = row.get(purged.watermark),
+                    retainedWhileResolvable = row.get(purged.retained),
                 )
             }
     }

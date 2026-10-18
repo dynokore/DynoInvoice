@@ -6,6 +6,23 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.1.0] - 2026-10-18
+### Added
+- INV-T-6291 (coordinator ruling INV-Q-6281, option A, owner delegation 2026-10-18; INV-REQ-1210, INV-REQ-1205): the event
+  log keeps a topic marked `retained_while_resolvable: true` in `event-log/topics.yaml` for a third period,
+  `Retention.packArtefactRetention` (last constructor argument, default and floor 1827 days; the two-argument form
+  remains). `CatalogueEntry.retainedWhileResolvable` (`Boolean?`) and `ReplayTopic.retainedWhileResolvable` are read by
+  `TopicsYamlCatalogue` like `content_topic` (a replay topic without the line is refused). `TopicPurge` reports
+  `retainedWhileResolvable`; `EventLogSchema.Topic` gains it; the retention table gains `pack_retention`
+  (`EventLogSchema.retentionUpgradeDdl()` adds it to an existing installation and must run at every install and upgrade
+  before `writeRetention`, which writes the third value); `purge_batch()` and `events_missing()` choose the pack period
+  for a marked topic and treat a row with `pack_retention` null or below 1827 days like a missing row.
+  `inboxRetention` and `UnrelayedEventSettings.forRetention` are unchanged.
+- Deployment order: `JdbcEventLogPurge` refuses, naming the topic, a topic without one `retained_while_resolvable`
+  marker and a topic marked both `content_topic` and `retained_while_resolvable`, so a service composition root that
+  loads a `topics.yaml` without the line fails at start. INV-T-6287 (platform-contracts) must be published in the
+  contracts bundle before a service takes this version.
+
 ## [6.0.1] - 2026-10-18
 ### Changed
 - INV-T-4202: the test fixtures build their pools through tenancy-kernel's `TestPoolFixture` (new `runtimePool`, `purgePool`, `rolePool`; `eventLogScope` takes a pooled, tenant-aware source); no production code change.

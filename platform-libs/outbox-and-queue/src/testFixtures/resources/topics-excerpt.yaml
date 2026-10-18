@@ -1,8 +1,9 @@
-# Excerpt of platform-contracts event-log/topics.yaml (710bed2): the entries these tests use. Regenerate by copying entries, never hand-edit.
+# Excerpt of platform-contracts event-log/topics.yaml (710bed2): the entries these tests use. Regenerate by copying entries, never hand-edit. The RulePackStaged entry carries the retained_while_resolvable marker as INV-T-6287 writes it (INV-Q-6281).
 topics:
   - topic: gst.canonical.canonical-version-created.v1
     event_type: com.dynokore.gst.canonical.CanonicalVersionCreated.v1
     content_topic: true
+    retained_while_resolvable: false
     record_topic: false
     producers:
       - canonical-svc
@@ -15,6 +16,7 @@ topics:
   - topic: gst.payload.payload-ready.v1
     event_type: com.dynokore.gst.payload.PayloadReady.v1
     content_topic: true
+    retained_while_resolvable: false
     record_topic: false
     producers:
       - payload-svc
@@ -24,6 +26,7 @@ topics:
   - topic: gst.platform.audit-entry-recorded.v1
     event_type: com.dynokore.gst.platform.AuditEntryRecorded.v1
     content_topic: false
+    retained_while_resolvable: false
     record_topic: true
     producers:
       - every service
@@ -32,6 +35,7 @@ topics:
   - topic: gst.submission.submission-acknowledged.v1
     event_type: com.dynokore.gst.submission.SubmissionAcknowledged.v1
     content_topic: false
+    retained_while_resolvable: false
     record_topic: false
     producers:
       - submission-svc
@@ -45,6 +49,7 @@ topics:
   - topic: gst.submission.submission-despatched.v1
     event_type: com.dynokore.gst.submission.SubmissionDespatched.v1
     content_topic: false
+    retained_while_resolvable: false
     record_topic: false
     producers:
       - submission-svc
@@ -55,6 +60,7 @@ topics:
   - topic: gst.submission.submission-failed.v1
     event_type: com.dynokore.gst.submission.SubmissionFailed.v1
     content_topic: false
+    retained_while_resolvable: false
     record_topic: false
     producers:
       - submission-svc
@@ -64,6 +70,7 @@ topics:
   - topic: gst.platform.evidence-artefact-recorded.v1
     event_type: com.dynokore.gst.platform.EvidenceArtefactRecorded.v1
     content_topic: false
+    retained_while_resolvable: false
     record_topic: false
     producers:
       - access-svc
@@ -72,12 +79,22 @@ topics:
       - rules-svc
     subscribers:
       - evidence-svc
+  - topic: gst.rules.rule-pack-staged.v1
+    event_type: com.dynokore.gst.rules.RulePackStaged.v1
+    content_topic: false
+    retained_while_resolvable: true
+    record_topic: false
+    producers:
+      - rules-svc
+    subscribers:
+      - payload-svc
 replay_topics:
   - topic: gst.access.replay-evidence.v1
     event_types:
       - com.dynokore.gst.platform.EvidenceArtefactRecorded.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
+    retained_while_resolvable: false
     record_topic: false
     producers:
       - access-svc
@@ -89,6 +106,7 @@ replay_topics:
       - com.dynokore.gst.canonical.PeriodReassigned.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: true
+    retained_while_resolvable: false
     record_topic: false
     producers:
       - canonical-svc
@@ -102,6 +120,7 @@ replay_topics:
       - com.dynokore.gst.canonical.PeriodReassigned.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: true
+    retained_while_resolvable: false
     record_topic: false
     producers:
       - canonical-svc
@@ -112,6 +131,7 @@ replay_topics:
       - com.dynokore.gst.platform.EvidenceArtefactRecorded.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
+    retained_while_resolvable: false
     record_topic: false
     producers:
       - masterdata-svc
@@ -123,6 +143,7 @@ replay_topics:
       - com.dynokore.gst.platform.EvidenceArtefactRecorded.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: true
+    retained_while_resolvable: false
     record_topic: false
     producers:
       - payload-svc
@@ -133,6 +154,7 @@ replay_topics:
       - com.dynokore.gst.platform.AuditEntryRecorded.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
+    retained_while_resolvable: false
     record_topic: false
     producers:
       - every service
@@ -143,6 +165,7 @@ replay_topics:
       - com.dynokore.gst.platform.EvidenceArtefactRecorded.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
+    retained_while_resolvable: false
     record_topic: false
     producers:
       - rules-svc
@@ -153,6 +176,7 @@ replay_request_topics:
     event_types:
       - com.dynokore.gst.platform.ReplayRequested.v1
     content_topic: false
+    retained_while_resolvable: false
     record_topic: false
     producers:
       - evidence-svc
@@ -168,6 +192,7 @@ replay_request_topics:
     event_types:
       - com.dynokore.gst.platform.ReplayRequested.v1
     content_topic: false
+    retained_while_resolvable: false
     record_topic: false
     producers:
       - reconciliation-svc
@@ -179,6 +204,7 @@ replay_request_topics:
     event_types:
       - com.dynokore.gst.platform.ReplayRequested.v1
     content_topic: false
+    retained_while_resolvable: false
     record_topic: false
     producers:
       - submission-svc
