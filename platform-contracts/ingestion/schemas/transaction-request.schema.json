@@ -133,6 +133,14 @@
       "type": "string",
       "maxLength": 512,
       "description": "Reference to the source document in the tenant's document store (INV-REQ-1319). Required for Types 2 and 3 once the entity is live; the condition is enforced by the receiving service, not by this schema."
+    },
+    "buyerInvoiceRefs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 128 },
+      "description": "The references (numbers) the customer gave the self-billing invoices that this document derives from (INV-REQ-696). Required for a SALE document of an entity that the Scope pack's self-billing assignment puts on the Type 2 side, a condition canonical-svc enforces by refusing the record request with 400 and SRT-001, not this schema; otherwise optional. Never transmitted to the network: it is retained as evidence (BUYER_INVOICE_REFERENCE) (INV-Q-7045)."
     }
   },
   "required": ["entityRef", "sourceSystem", "sourceKey", "sourceRevision", "documentFunction", "transactionDate", "currency", "lines"],

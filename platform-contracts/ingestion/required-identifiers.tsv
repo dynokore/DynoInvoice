@@ -87,3 +87,4 @@ BILL_FOR_PAYMENT	enum_value	schemas/transaction-request.schema.json	INV-REQ-805
 nettedCreditNoteKeys	property	schemas/transaction-request.schema.json	INV-REQ-558
 INVOICE	enum_value	schemas/transaction-request.schema.json	INV-REQ-558
 gstNotAdjusted	property	schemas/transaction-request.schema.json	INV-REQ-693
+buyerInvoiceRefs	property	schemas/transaction-request.schema.json	INV-REQ-696

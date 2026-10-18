@@ -1,0 +1,89 @@
+{
+  "entityRef": "E-001",
+  "sourceSystem": "erp-acme",
+  "sourceKey": "INV-2026-000123",
+  "sourceRevision": 1,
+  "documentFunction": "INVOICE",
+  "transactionDate": "2026-03-20",
+  "currency": "SGD",
+  "counterparty": {
+    "supplier": {
+      "identifierScheme": "UEN",
+      "identifierValue": "201912345A"
+    },
+    "buyer": {
+      "identifierScheme": "UEN",
+      "identifierValue": "201954321B"
+    }
+  },
+  "lines": [
+    {
+      "lineNumber": 1,
+      "description": "Consulting services",
+      "quantity": 1,
+      "unitPrice": "1000.00",
+      "lineAmount": "1000.00",
+      "taxCode": "SR",
+      "taxAmount": "90.00"
+    }
+  ],
+  "declaredTotals": {
+    "totalExcludingTax": "1000.00",
+    "totalTax": "90.00",
+    "totalIncludingTax": "1090.00"
+  },
+  "documentKind": "TAX_INVOICE",
+  "buyerInvoiceRefs": [
+    "SB-0000",
+    "SB-0001",
+    "SB-0002",
+    "SB-0003",
+    "SB-0004",
+    "SB-0005",
+    "SB-0006",
+    "SB-0007",
+    "SB-0008",
+    "SB-0009",
+    "SB-0010",
+    "SB-0011",
+    "SB-0012",
+    "SB-0013",
+    "SB-0014",
+    "SB-0015",
+    "SB-0016",
+    "SB-0017",
+    "SB-0018",
+    "SB-0019",
+    "SB-0020",
+    "SB-0021",
+    "SB-0022",
+    "SB-0023",
+    "SB-0024",
+    "SB-0025",
+    "SB-0026",
+    "SB-0027",
+    "SB-0028",
+    "SB-0029",
+    "SB-0030",
+    "SB-0031",
+    "SB-0032",
+    "SB-0033",
+    "SB-0034",
+    "SB-0035",
+    "SB-0036",
+    "SB-0037",
+    "SB-0038",
+    "SB-0039",
+    "SB-0040",
+    "SB-0041",
+    "SB-0042",
+    "SB-0043",
+    "SB-0044",
+    "SB-0045",
+    "SB-0046",
+    "SB-0047",
+    "SB-0048",
+    "SB-0049",
+    "SB-0050"
+  ]
+}

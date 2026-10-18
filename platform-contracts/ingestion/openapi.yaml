@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: ingestion API
-  version: 1.8.0
+  version: 1.9.0
   description: >-
     Contract-first source of truth for ingestion (API-01, STK-44). The
     `ingestion-contract` module generates its server interfaces and DTOs
@@ -133,6 +133,12 @@ paths:
         without GST adjustment; it is allowed on a CREDIT_NOTE only and any
         other `documentFunction` is refused with `400` and SRT-001
         (INV-REQ-693).
+        The optional `buyerInvoiceRefs` array carries the references the
+        customer gave the self-billing invoices a document derives from; it
+        is required for a SALE document of an entity that the Scope pack's
+        self-billing assignment puts on the Type 2 side, and canonical-svc
+        refuses a request without it with `400` and SRT-001 (INV-REQ-696,
+        INV-Q-7045).
 
         The inbound limit is 1 MB per document by default (INV-REQ-2761); an
         installation may set a smaller limit and never a larger one. The
