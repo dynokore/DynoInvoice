@@ -1,0 +1,18 @@
+{
+ "packRef": "MAP-0042",
+ "changedCount": 2,
+ "changeTypeTotals": [
+  {
+   "changeType": "CODE_CHANGED",
+   "documentCount": 1,
+   "taxableValue": "100.00",
+   "gstValue": "9.00"
+  },
+  {
+   "changeType": "NEWLY_REFUSED",
+   "documentCount": 1,
+   "taxableValue": "100.00",
+   "gstValue": "9.00"
+  }
+ ]
+}

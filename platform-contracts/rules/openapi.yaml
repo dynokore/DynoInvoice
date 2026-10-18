@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: rules API
-  version: 1.2.0
+  version: 1.3.0
   description: >-
     Contract-first source of truth for rules (API-01, STK-44). The
     `rules-contract` module generates its server interfaces and DTOs
@@ -910,6 +910,25 @@ paths:
         that delta exists (INV-AC-2077).
 
 
+        Totals by change type (INV-REQ-1020, INV-AC-1997, INV-Q-6283 A):
+        `changeTypeTotals` is present on every `result` of `getDryRun` and on
+        the `200` answer of `dryRun`. These rules are enforced by the producer
+        (rules-svc) and are not expressible in the schema: the items come in
+        the order CODE_CHANGED, NEWLY_REFUSED, NEWLY_ACCEPTED, one per type; a
+        changed document is one whose outcome under the candidate pack differs
+        from its outcome under the current pack, an outcome being the category
+        code or, when the evaluation refuses, its catalogue `code` and
+        `severity`, and a refusal is a severity of BLOCK or HOLD (WARN is not
+        a refusal); the type is NEWLY_REFUSED when the new outcome is a
+        refusal and the old one is not, NEWLY_ACCEPTED when the old outcome is
+        a refusal and the new one is not, and CODE_CHANGED when both or
+        neither are refusals and a code differs; every changed document has
+        exactly one type, so the three `documentCount` values add up to
+        `changedCount`; `taxableValue` and `gstValue` are sums over the
+        documents of that type that leave out each document flagged
+        `sgdValuesAbsent`, and `valuesAbsentCount` counts those documents.
+
+
         Long command (INV-Q-3438 A, INV-Q-3466 A, API-17): a dry run
         finished within x-timeout returns `200` with `DryRunResult`; one
         that is not returns `202` with `Location` and `Retry-After` pointing
@@ -955,13 +974,27 @@ paths:
                 default:
                   value:
                     packRef: "MAP-0042"
-                    changedCount: 3
+                    changedCount: 4
                     sample:
                       - docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
                         oldCategoryCode: "ZR"
                         newCategoryCode: "SR"
                         taxableValue: "1000.00"
                         gstValue: "90.00"
+                    changeTypeTotals:
+                      - changeType: "CODE_CHANGED"
+                        documentCount: 3
+                        taxableValue: "3000.00"
+                        gstValue: "270.00"
+                      - changeType: "NEWLY_REFUSED"
+                        documentCount: 1
+                        taxableValue: "500.00"
+                        gstValue: "45.00"
+                        valuesAbsentCount: 0
+                      - changeType: "NEWLY_ACCEPTED"
+                        documentCount: 0
+                        taxableValue: "0.00"
+                        gstValue: "0.00"
         '202':
           description: >-
             The dry run did not finish within x-timeout and continues
@@ -997,6 +1030,25 @@ paths:
         SUCCEEDED, and `error` the API-20 envelope only when FAILED. Readable
         only by the principal that started the dry run, and kept at least 7
         days (API-17).
+
+
+        Totals by change type (INV-REQ-1020, INV-AC-1997, INV-Q-6283 A):
+        `changeTypeTotals` is present on every `result` of `getDryRun` and on
+        the `200` answer of `dryRun`. These rules are enforced by the producer
+        (rules-svc) and are not expressible in the schema: the items come in
+        the order CODE_CHANGED, NEWLY_REFUSED, NEWLY_ACCEPTED, one per type; a
+        changed document is one whose outcome under the candidate pack differs
+        from its outcome under the current pack, an outcome being the category
+        code or, when the evaluation refuses, its catalogue `code` and
+        `severity`, and a refusal is a severity of BLOCK or HOLD (WARN is not
+        a refusal); the type is NEWLY_REFUSED when the new outcome is a
+        refusal and the old one is not, NEWLY_ACCEPTED when the old outcome is
+        a refusal and the new one is not, and CODE_CHANGED when both or
+        neither are refusals and a code differs; every changed document has
+        exactly one type, so the three `documentCount` values add up to
+        `changedCount`; `taxableValue` and `gstValue` are sums over the
+        documents of that type that leave out each document flagged
+        `sgdValuesAbsent`, and `valuesAbsentCount` counts those documents.
       tags: [mapping-packs, regulatory-packs]
       x-principal: filing-workflow
       x-sync-edge: console-bff->rules-svc
@@ -1029,13 +1081,27 @@ paths:
                     completedAt: "2026-03-20T03:17:42Z"
                     result:
                       packRef: "MAP-0042"
-                      changedCount: 3
+                      changedCount: 4
                       sample:
                         - docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
                           oldCategoryCode: "ZR"
                           newCategoryCode: "SR"
                           taxableValue: "1000.00"
                           gstValue: "90.00"
+                      changeTypeTotals:
+                        - changeType: "CODE_CHANGED"
+                          documentCount: 3
+                          taxableValue: "3000.00"
+                          gstValue: "270.00"
+                        - changeType: "NEWLY_REFUSED"
+                          documentCount: 1
+                          taxableValue: "500.00"
+                          gstValue: "45.00"
+                          valuesAbsentCount: 0
+                        - changeType: "NEWLY_ACCEPTED"
+                          documentCount: 0
+                          taxableValue: "0.00"
+                          gstValue: "0.00"
         default:
           $ref: '#/components/responses/Error'
 components:
@@ -1436,7 +1502,63 @@ components:
                 pattern: '^-?\d{1,17}(\.\d{1,2})?$'
                 description: Money as a decimal string (API-12).
             required: [docUuid, oldCategoryCode, newCategoryCode, taxableValue, gstValue]
+        changeTypeTotals:
+          type: array
+          minItems: 3
+          maxItems: 3
+          items:
+            $ref: '#/components/schemas/DryRunChangeTypeTotal'
+          description: >-
+            Summary by change type, one item per type in the order CODE_CHANGED,
+            NEWLY_REFUSED, NEWLY_ACCEPTED (INV-REQ-1020, INV-Q-6283 A). Optional
+            in the schema so a 1.1 body stays valid; the producer always sets it.
+            Totals by change type (INV-REQ-1020, INV-AC-1997, INV-Q-6283 A):
+            `changeTypeTotals` is present on every `result` of `getDryRun` and on
+            the `200` answer of `dryRun`. These rules are enforced by the producer
+            (rules-svc) and are not expressible in the schema: the items come in
+            the order CODE_CHANGED, NEWLY_REFUSED, NEWLY_ACCEPTED, one per type; a
+            changed document is one whose outcome under the candidate pack differs
+            from its outcome under the current pack, an outcome being the category
+            code or, when the evaluation refuses, its catalogue `code` and
+            `severity`, and a refusal is a severity of BLOCK or HOLD (WARN is not
+            a refusal); the type is NEWLY_REFUSED when the new outcome is a
+            refusal and the old one is not, NEWLY_ACCEPTED when the old outcome is
+            a refusal and the new one is not, and CODE_CHANGED when both or
+            neither are refusals and a code differs; every changed document has
+            exactly one type, so the three `documentCount` values add up to
+            `changedCount`; `taxableValue` and `gstValue` are sums over the
+            documents of that type that leave out each document flagged
+            `sgdValuesAbsent`, and `valuesAbsentCount` counts those documents.
       required: [packRef, changedCount]
+    DryRunChangeTypeTotal:
+      type: object
+      description: >-
+        Total of one change type in a dry-run result (INV-REQ-1020,
+        INV-AC-1997). The producer enforces the type definitions and the
+        sums, see `DryRunResult.changeTypeTotals`.
+      properties:
+        changeType:
+          type: string
+          enum: [CODE_CHANGED, NEWLY_REFUSED, NEWLY_ACCEPTED]
+          x-extensible-enum: true
+        documentCount:
+          type: integer
+          minimum: 0
+        taxableValue:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+          description: Money as a decimal string (API-12); sum over the documents of this type, leaving out those flagged `sgdValuesAbsent`.
+        gstValue:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+          description: Money as a decimal string (API-12); sum over the documents of this type, leaving out those flagged `sgdValuesAbsent`.
+        valuesAbsentCount:
+          type: integer
+          minimum: 0
+          description: Number of documents of this type flagged `sgdValuesAbsent`, left out of both sums.
+      required: [changeType, documentCount, taxableValue, gstValue]
     RulesDryRunStatus:
       type: object
       description: >-

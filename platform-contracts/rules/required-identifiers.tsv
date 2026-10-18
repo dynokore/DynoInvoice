@@ -79,3 +79,9 @@ nextCursor	property	openapi.yaml	INV-REQ-730
 sourceClass	query_parameter	openapi.yaml	INV-REQ-730
 accepted	query_parameter	openapi.yaml	INV-REQ-730
 MappingEntryPage.items	schema_property	openapi.yaml	INV-REQ-730
+changeTypeTotals	property	openapi.yaml	INV-REQ-1020
+documentCount	property	openapi.yaml	INV-REQ-1020
+valuesAbsentCount	property	openapi.yaml	INV-REQ-1020
+CODE_CHANGED	enum_value	openapi.yaml	INV-REQ-1020
+NEWLY_REFUSED	enum_value	openapi.yaml	INV-REQ-1020
+NEWLY_ACCEPTED	enum_value	openapi.yaml	INV-REQ-1020
