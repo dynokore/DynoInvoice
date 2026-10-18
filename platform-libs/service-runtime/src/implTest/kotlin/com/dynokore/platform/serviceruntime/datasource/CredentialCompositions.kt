@@ -3,19 +3,13 @@ package com.dynokore.platform.serviceruntime.datasource
 import com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration
 import com.dynokore.platform.serviceruntime.composition.DefaultServiceSchema
 import com.dynokore.platform.serviceruntime.composition.StandInProductRuntimeConfiguration
-import com.dynokore.platform.serviceruntime.composition.platform
-import com.dynokore.platform.serviceruntime.composition.sorted
 import com.zaxxer.hikari.HikariDataSource
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.springframework.beans.factory.config.BeanPostProcessor
-import org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration
-import org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.context.annotation.Configuration
-import org.springframework.context.annotation.DeferredImportSelector
 import org.springframework.context.annotation.Import
-import org.springframework.core.type.AnnotationMetadata
 import java.nio.file.Files
 import java.nio.file.Path
 import javax.sql.DataSource
@@ -34,14 +28,6 @@ import javax.sql.DataSource
     DefaultServiceSchema::class,
 )
 class Tpl18JdbcApplication
-
-class WithJdbcAndFlyway : DeferredImportSelector {
-    override fun selectImports(importingClassMetadata: AnnotationMetadata): Array<String> =
-        sorted(
-            platform() + DataSourceAutoConfiguration::class.java + FlywayAutoConfiguration::class.java +
-                StandInProductRuntimeConfiguration::class.java,
-        )
-}
 
 /** The TPL-16 properties every service sets, over [Tpl18JdbcApplication]. */
 fun tpl18Service(): ApplicationContextRunner =

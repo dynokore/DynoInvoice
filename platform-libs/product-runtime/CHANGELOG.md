@@ -6,10 +6,6 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
-## [1.0.19] - 2026-10-18
-### Changed
-- Metadata-only release (INV-T-6393, G-DVS): depends on `service-runtime` 8.1.7; no code change.
-
 ## [1.0.18] - 2026-10-18
 ### Changed
 - Metadata-only release (INV-T-6291, G-DVS): depends on `outbox-and-queue` 6.1.0 and `service-runtime` 8.1.6; no code change.
