@@ -8,7 +8,7 @@ train is its own (README.md: "own version and changelog").
 
 ## [8.1.7] - 2026-10-18
 ### Changed
-- Moved `MigrationRunnerConfiguration` and the test class `WithJdbcAndFlyway` into files of their own name and removed two unused HikariCP imports from `JobCommandHttpIT` (INV-T-6393); no behaviour change, the compiled source-file attribute changes.
+- Moved `MigrationRunnerConfiguration` into a file of its own name and removed two unused HikariCP imports from `JobCommandHttpIT` (INV-T-6393); no behaviour change, the compiled source-file attribute of the moved class changes.
 
 ## [8.1.6] - 2026-10-18
 ### Changed

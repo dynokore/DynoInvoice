@@ -151,6 +151,8 @@ tasks.test {
     suiteDefaults()
     (options as JUnitPlatformOptions).excludeTags("broken-fixture")
     filter { excludeTestsMatching("com.dynokore.platform.contracttests.provider.*") }
+    // The consumer pacts are an output: a FROM-CACHE hit must restore build/pacts for providerVerification.
+    outputs.dir(layout.buildDirectory.dir("pacts")).withPropertyName("pacts")
 }
 
 val providerVerification =
@@ -161,6 +163,10 @@ val providerVerification =
         classpath = sourceSets["test"].runtimeClasspath
         suiteDefaults()
         dependsOn(tasks.test)
+        inputs
+            .dir(layout.buildDirectory.dir("pacts"))
+            .withPropertyName("pacts")
+            .withPathSensitivity(PathSensitivity.RELATIVE)
         filter {
             includeTestsMatching("com.dynokore.platform.contracttests.provider.*")
             excludeTestsMatching("*BrokerTest")
