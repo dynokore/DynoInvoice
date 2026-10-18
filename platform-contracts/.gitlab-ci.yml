@@ -37,6 +37,8 @@ include:
 variables:
   GST_GRADLE_CACHE_POLICY: "pull"   # CI-FAST B3: catalogue-verify and contracts-codegen-compile set pull-push on main
   SPECTRAL_IMAGE: "stoplight/spectral@sha256:a07aa4455367b9501b574423b684ab0ef3ee42556089013583318ec015249050"
+  # CI-FAST B1: python3, py3-yaml, git, curl, check-jsonschema, pyyaml preinstalled (platform-build ci/tool-images/), pinned by digest
+  CI_TOOLS_IMAGE: "${INV_REGISTRY}/invoice/ci-tools@sha256:0afee6fd728592d5beafc3a0c82e9007782bddf92f6e31e07f9ebe22d88f3008"
   OASDIFF_IMAGE: "tufin/oasdiff@sha256:0286f138545a39010525df6c1bea67ffafacb384ef800effffa63bbd04718ce5"
   ASYNCAPI_CLI_IMAGE: "asyncapi/cli@sha256:2240534054590b3d41d691fdf88e1f7a1e581b9cc4fb1d4af65ca93434aa681b"
   # CI-FAST plan item A3 (owner ruling 2026-10-18, option b), see gst-rebase-check below.
@@ -155,12 +157,9 @@ contract-rules:
   # (service-runtime/check-page-bound.py) stays a line of its own (service-runtime/test_check_page_bound.py).
   stage: verify
   needs: !reference [.gst-rebase-needs, needs]
-  image:
-    name: "$OASDIFF_IMAGE"
-    entrypoint: [""]
+  image: "$CI_TOOLS_IMAGE"
   before_script:
     - !reference [.gst-skip-verified, before_script]
-    - apk add --no-cache python3 py3-yaml
   script:
     - python3 service-runtime/check-page-bound.py
     - !reference [.gst-checks, script]
@@ -192,11 +191,8 @@ invoice-docs-checks:
   #   merge request, AGT-11).
   stage: verify
   needs: []
-  image:
-    name: "$OASDIFF_IMAGE"
-    entrypoint: [""]
+  image: "$CI_TOOLS_IMAGE"
   before_script:
-    - apk add --no-cache python3 py3-yaml git
   script:
     - !reference [.gst-checks, script]
     - >
