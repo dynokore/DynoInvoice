@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.0.1] - 2026-10-18
+### Changed
+- INV-T-4202: the test fixtures build their pools through tenancy-kernel's `TestPoolFixture` (new `runtimePool`, `purgePool`, `rolePool`; `eventLogScope` takes a pooled, tenant-aware source); no production code change.
+
 ## [6.0.0] - 2026-10-17
 ### Changed
 - BREAKING (INV-T-5306, slice 3 of 4 of INV-T-4202; owner ruling INV-Q-4196): the event-log reader, purge, staleness
