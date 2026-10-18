@@ -305,6 +305,126 @@ rules:
       field: nullable
       function: falsy
 
+  # --- API-18: cursor pagination ---------------------------------------------------
+  # INV-REQ-826, INV-AC-1876; owner ruling INV-Q-6163 A (no exception list). A list
+  # operation is a GET whose 200 application/json schema is an array, or an object
+  # whose `items` property is an array. It declares the query parameters `limit`
+  # (integer, default 100, maximum 500) and `cursor` (string) and returns an object
+  # whose required `items` is an array and whose optional `nextCursor` is a string.
+  # Names are compared by equality. One `schema` function: the `if` selects the list
+  # operations, the `then` holds both conditions, so a non-list GET is never reported.
+  # Limit of the rule: a list returned in an array property with another name (for
+  # example `periods`) is not detected; every list of the 16 contracts uses `items`.
+  inv-api-18-cursor-pagination:
+    description: API-18 — every list operation pages by cursor with limit and cursor and returns {items, nextCursor}.
+    message: "a list operation must declare the query parameters limit (default 100, maximum 500) and cursor and return an object with items and an optional nextCursor (API-18, INV-REQ-826)"
+    given: "$.paths[*].get"
+    severity: error
+    formats: ["oas3_1"]
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          if:
+            required: ["responses"]
+            properties:
+              responses:
+                type: object
+                required: ["200"]
+                properties:
+                  "200":
+                    type: object
+                    required: ["content"]
+                    properties:
+                      content:
+                        type: object
+                        required: ["application/json"]
+                        properties:
+                          application/json:
+                            type: object
+                            required: ["schema"]
+                            properties:
+                              schema:
+                                anyOf:
+                                  - type: object
+                                    required: ["type"]
+                                    properties:
+                                      type: {const: array}
+                                  - type: object
+                                    required: ["properties"]
+                                    properties:
+                                      properties:
+                                        type: object
+                                        required: ["items"]
+                                        properties:
+                                          items:
+                                            type: object
+                                            required: ["type"]
+                                            properties:
+                                              type: {const: array}
+          then:
+            required: ["parameters", "responses"]
+            properties:
+              parameters:
+                type: array
+                allOf:
+                  - contains:
+                      type: object
+                      required: ["name", "in", "schema"]
+                      properties:
+                        name: {const: limit}
+                        in: {const: query}
+                        schema:
+                          type: object
+                          required: ["type", "default", "maximum"]
+                          properties:
+                            type: {const: integer}
+                            default: {const: 100}
+                            maximum: {const: 500}
+                  - contains:
+                      type: object
+                      required: ["name", "in", "schema"]
+                      properties:
+                        name: {const: cursor}
+                        in: {const: query}
+                        schema:
+                          type: object
+                          required: ["type"]
+                          properties:
+                            type: {const: string}
+              responses:
+                properties:
+                  "200":
+                    properties:
+                      content:
+                        properties:
+                          application/json:
+                            properties:
+                              schema:
+                                type: object
+                                required: ["type", "required", "properties"]
+                                properties:
+                                  type: {const: object}
+                                  required:
+                                    type: array
+                                    contains: {const: items}
+                                    not: {contains: {const: nextCursor}}
+                                  properties:
+                                    type: object
+                                    required: ["items"]
+                                    properties:
+                                      items:
+                                        type: object
+                                        required: ["type"]
+                                        properties:
+                                          type: {const: array}
+                                      nextCursor:
+                                        type: object
+                                        required: ["type"]
+                                        properties:
+                                          type: {const: string}
+
   # --- API-31: deprecation headers -----------------------------------------------
   inv-api-31-deprecation-sunset:
     description: API-31 — a deprecated operation declares x-sunset.

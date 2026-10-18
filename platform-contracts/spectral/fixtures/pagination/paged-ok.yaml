@@ -1,0 +1,66 @@
+# Fixture for self-test-pagination-rule.sh (accepted: paged list; the `periods` collection is a documented limit of the rule)
+openapi: 3.1.0
+info: {title: fixture, version: 1.0.0}
+paths:
+  /v1/fixture/things:
+    get:
+      operationId: listThings
+      parameters:
+        - {name: limit, in: query, schema: {type: integer, default: 100, maximum: 500}}
+        - {name: cursor, in: query, schema: {type: string}}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: {type: array, items: {type: string}}
+                  nextCursor: {type: string}
+  /v1/fixture/things/{id}:
+    get:
+      operationId: getThing
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id]
+                properties:
+                  id: {type: string}
+  /v1/fixture/periods:
+    get:
+      operationId: getPeriods
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [periods]
+                properties:
+                  periods: {type: array, items: {type: string}}
+  # Control list operation (refused: no limit): proves the rule ran on this document,
+  # so the accepted operations above passing is not a missing or renamed rule.
+  /v1/fixture/control:
+    get:
+      operationId: controlList
+      parameters:
+        - {name: cursor, in: query, schema: {type: string}}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: {type: array, items: {type: string}}

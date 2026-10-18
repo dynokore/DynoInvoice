@@ -1,0 +1,21 @@
+# Fixture for self-test-pagination-rule.sh
+openapi: 3.1.0
+info: {title: fixture, version: 1.0.0}
+paths:
+  /v1/fixture/things:
+    get:
+      operationId: listThings
+      parameters:
+        - {name: limit, in: query, schema: {type: integer, default: 100, maximum: 500}}
+        - {name: cursor, in: query, schema: {type: string}}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, nextCursor]
+                properties:
+                  items: {type: array, items: {type: string}}
+                  nextCursor: {type: string}
