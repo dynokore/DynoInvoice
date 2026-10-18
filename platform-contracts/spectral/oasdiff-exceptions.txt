@@ -33,3 +33,8 @@ GET /internal/v1/tenancy/entities/{entityRef}/periods removed the required prope
 # becomes the page object {items, nextCursor}, permitted within v1 on INV-Q-3569's reasoning: no train is
 # published and no consumer is deployed.
 GET /internal/v1/notification/entities/{entityRef}/alert-policies the response's body `type` changed from `array<object>` to `object` for status `200`
+#
+# INV-Q-6163 (owner, 2026-10-18; INV-T-6178): listWebhookSubscriptions pages by cursor (API-18); the response
+# array becomes the page object {items, nextCursor}, permitted within v1 on INV-Q-3569's reasoning: no train is
+# published and no consumer is deployed.
+GET /internal/v1/notification/webhook-subscriptions the response's body `type` changed from `array<object>` to `object` for status `200`

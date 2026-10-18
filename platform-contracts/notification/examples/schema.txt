@@ -4,3 +4,4 @@
 ../openapi.yaml#/components/schemas/WebhookPayload webhook-payload-*.json
 ../openapi.yaml#/components/schemas/CreateWebhookSubscriptionRequest create-webhook-subscription-request-*.json
 ../openapi.yaml#/components/schemas/AlertPolicyPage alert-policy-page-*.json
+../openapi.yaml#/components/schemas/WebhookSubscriptionPage webhook-subscription-page-*.json
