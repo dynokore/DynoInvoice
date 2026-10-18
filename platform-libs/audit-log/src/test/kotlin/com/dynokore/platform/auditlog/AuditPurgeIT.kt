@@ -204,22 +204,7 @@ class AuditPurgeIT {
                     "where grantee = '$APP' and table_schema = 'controlplane' and table_name = 'audit_entry'",
             ),
         )
-        assertEquals(
-            listOf(
-                // The binding functions of tenancy-kernel's BindingKeyMigration; only the verifier is closed to $APP.
-                "binding_verified|$SYS|$PATH|$SYS",
-                "bound_actor|$SYS|$PATH|$APP,$SYS",
-                "bound_tenant|$SYS|$PATH|$APP,$SYS",
-                "purge_audit_entries|$SYS|$PATH|$APP,$SYS",
-            ),
-            p.db.strings(
-                "select p.proname || '|' || pg_get_userbyid(p.proowner) || '|' || array_to_string(p.proconfig, ';') " +
-                    "|| '|' || (select string_agg(distinct split_part(a::text, '=', 1), ',' " +
-                    "order by split_part(a::text, '=', 1)) from unnest(p.proacl) a) " +
-                    "from pg_proc p where p.pronamespace = 'controlplane'::regnamespace and p.prosecdef " +
-                    "order by p.proname",
-            ),
-        )
+        assertDefinerFunctions(p)
         assertEquals(
             listOf("false"),
             p.db.strings("select has_schema_privilege('$SYS', 'controlplane', 'CREATE')::text"),
@@ -250,6 +235,26 @@ class AuditPurgeIT {
             }
         assertEquals("22023", p.db.tx.sqlStateOf(young))
         assertEquals(1L, p.countAll("select count(*) from controlplane.audit_entry"))
+    }
+
+    /** The definer functions of the schema: the purge and tenancy-kernel's binding functions, all owned by $SYS. */
+    private fun assertDefinerFunctions(p: Purge) {
+        assertEquals(
+            listOf(
+                // The binding functions of tenancy-kernel's BindingKeyMigration; only the verifier is closed to $APP.
+                "binding_verified|$SYS|$PATH|$SYS",
+                "bound_actor|$SYS|$PATH|$APP,$SYS",
+                "bound_tenant|$SYS|$PATH|$APP,$SYS",
+                "purge_audit_entries|$SYS|$PATH|$APP,$SYS",
+            ),
+            p.db.strings(
+                "select p.proname || '|' || pg_get_userbyid(p.proowner) || '|' || array_to_string(p.proconfig, ';') " +
+                    "|| '|' || (select string_agg(distinct split_part(a::text, '=', 1), ',' " +
+                    "order by split_part(a::text, '=', 1)) from unnest(p.proacl) a) " +
+                    "from pg_proc p where p.pronamespace = 'controlplane'::regnamespace and p.prosecdef " +
+                    "order by p.proname",
+            ),
+        )
     }
 
     fun refusals(): Stream<Arguments> =
