@@ -148,3 +148,8 @@ openapi.yaml	PriorEvidenceImportResult.importedAt	NONE
 openapi.yaml	PriorEvidenceImportResult.importedBy	IDENTIFYING
 openapi.yaml	EvidenceChain.importedGaps	NONE
 openapi.yaml	ReverseLookupItem.imported	NONE
+schemas/prior-submission-evidence-imported-payload.schema.json	entityRef	NONE
+schemas/prior-submission-evidence-imported-payload.schema.json	documentNumber	NONE
+schemas/prior-submission-evidence-imported-payload.schema.json	transactionDate	NONE
+schemas/prior-submission-evidence-imported-payload.schema.json	acknowledgementRef	NONE
+schemas/prior-submission-evidence-imported-payload.schema.json	priorSolution	NONE

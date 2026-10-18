@@ -4,6 +4,7 @@ canonical	schemas/canonical-version-created-payload.schema.json
 canonical	schemas/decision-trace-recorded-payload.schema.json
 evidence	openapi.yaml
 evidence	schemas/evidence-integrity-failed-payload.schema.json
+evidence	schemas/prior-submission-evidence-imported-payload.schema.json
 service-runtime	schemas/audit-entry-recorded-payload.schema.json
 service-runtime	schemas/evidence-artefact-recorded-payload.schema.json
 submission	schemas/submission-despatched-payload.schema.json
