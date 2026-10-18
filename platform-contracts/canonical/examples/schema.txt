@@ -1,2 +1,4 @@
 ../openapi.yaml#/components/schemas/PreparedReassignment prepared-reassignment-*.json
 ../openapi.yaml#/components/schemas/DocumentVersion document-version-*.json
+../schemas/canonical-version-created-payload.schema.json canonical-version-created-*.json
+../openapi.yaml#/components/schemas/RecordDocumentRequest record-document-request-*.json

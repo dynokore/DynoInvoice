@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: canonical API
-  version: 1.6.0
+  version: 1.7.0
   description: >-
     Contract-first source of truth for canonical (API-01, STK-44). The
     `canonical-contract` module generates its server interfaces and DTOs
@@ -607,6 +607,12 @@ components:
               format: uuid
               description: The supplier's Doc UUID; bound as the Doc UUID when the pack rule `inboundDocUuidRule` is ADOPT_SUPPLIER (INV-REQ-431).
           required: [peppolMessageId, receivedAt, supplierEndpointId, supplierDocumentNumber, buyerDisposition]
+        relayIssuance:
+          type: boolean
+          description: >-
+            Set only by ingestion-svc when it records the document through requestIssuance, so that canonical-svc
+            publishes the network path RELAY_ISSUANCE in routingFacts of CanonicalVersionCreated (INV-Q-6988). Absent
+            means false. A caller of any other path does not set it.
       required:
         [tenantId, entityRef, sourceSystem, sourceKey, sourceRevision, documentFunction, transactionDate, currency, lines]
     RecordDocumentResponse:

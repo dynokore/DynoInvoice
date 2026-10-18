@@ -116,3 +116,5 @@ schemas/decision-trace-recorded-payload.schema.json	docUuid	NONE
 schemas/decision-trace-recorded-payload.schema.json	version	NONE
 schemas/decision-trace-recorded-payload.schema.json	traceReference	NONE
 schemas/decision-trace-recorded-payload.schema.json	decisionTrace	IDENTIFYING
+openapi.yaml	RecordDocumentRequest.relayIssuance	NONE
+schemas/canonical-version-created-payload.schema.json	routingFacts	NONE

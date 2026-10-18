@@ -4,6 +4,7 @@
 # INV-T-6049. Contract identifiers named in the published behavior of INV-REQ-547, 327, 430, 431, 793 and 1192 (read from Keel), plus INV-REQ-428 for the receipt fields.
 # INV-T-6626. Rows for INV-REQ-558 (read from Keel). Its backticked `NETTED_INTO_REVISION` already has rows above; the lifecycle states and `ACKNOWLEDGED` named by INV-REQ-559 belong to the submission contract, and `CREDIT_NOTE`, `SUBMITTABLE`, `NOT_SUBMITTABLE` and `PRE_OBLIGATION` are not named by this task's requirements.
 # INV-T-6645. Rows for INV-REQ-693 (read from Keel). Its backticked `SR` is an IRAS category code, seed content, not an identifier of this contract.
+# INV-T-6995. Rows for INV-REQ-415, 408, 373, 319, 406 and INV-REQ-411 (read from Keel). networkIssuance, networkReceipt, issuedDocUuid, apMessageId, handoffAt and customizationId already have rows above. NETWORK_ISSUED is a lifecycle state of the submission contract (submission/schemas/lifecycle-states.schema.json); submission-svc, canonical-svc and payload-svc are services; integration.engineer is a role; TX and SR are IRAS category codes (seed content): none is an element of this contract.
 identifier	kind	file	requirement
 docUuidSource	property	openapi.yaml	INV-REQ-431
 direction	property	openapi.yaml	INV-REQ-431
@@ -94,3 +95,24 @@ gstNotAdjusted	property	openapi.yaml	INV-REQ-693
 gstNotAdjusted	property	schemas/canonical-version-created-payload.schema.json	INV-REQ-693
 RecordDocumentRequest.gstNotAdjusted	schema_property	openapi.yaml	INV-REQ-693
 DocumentVersion.gstNotAdjusted	schema_property	openapi.yaml	INV-REQ-693
+routingFacts	property	schemas/canonical-version-created-payload.schema.json	INV-REQ-415
+networkPath	property	schemas/canonical-version-created-payload.schema.json	INV-REQ-415
+counterpartyOnNetwork	property	schemas/canonical-version-created-payload.schema.json	INV-REQ-415
+debitNote	property	schemas/canonical-version-created-payload.schema.json	INV-REQ-415
+selfBillingAssignment	property	schemas/canonical-version-created-payload.schema.json	INV-REQ-415
+direction	property	schemas/canonical-version-created-payload.schema.json	INV-REQ-415
+submissionType	property	schemas/canonical-version-created-payload.schema.json	INV-REQ-415
+ISSUED_VIA_NETWORK	enum_value	schemas/canonical-version-created-payload.schema.json	INV-REQ-415
+RECEIVED_VIA_NETWORK	enum_value	schemas/canonical-version-created-payload.schema.json	INV-REQ-415
+RELAY_ISSUANCE	enum_value	schemas/canonical-version-created-payload.schema.json	INV-REQ-415
+NOT_ON_NETWORK	enum_value	schemas/canonical-version-created-payload.schema.json	INV-REQ-415
+SALE	enum_value	schemas/canonical-version-created-payload.schema.json	INV-REQ-415
+PURCHASE	enum_value	schemas/canonical-version-created-payload.schema.json	INV-REQ-415
+TYPE_1A	enum_value	schemas/canonical-version-created-payload.schema.json	INV-REQ-415
+TYPE_1B	enum_value	schemas/canonical-version-created-payload.schema.json	INV-REQ-415
+TYPE_2	enum_value	schemas/canonical-version-created-payload.schema.json	INV-REQ-415
+TYPE_3	enum_value	schemas/canonical-version-created-payload.schema.json	INV-REQ-415
+relayIssuance	property	openapi.yaml	INV-REQ-415
+RecordDocumentRequest.relayIssuance	schema_property	openapi.yaml	INV-REQ-415
+SALE	enum_value	openapi.yaml	INV-REQ-411
+PURCHASE	enum_value	openapi.yaml	INV-REQ-411

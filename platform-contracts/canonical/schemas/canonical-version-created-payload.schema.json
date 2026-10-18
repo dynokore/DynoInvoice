@@ -78,6 +78,70 @@
       "minLength": 1,
       "description": "Opaque reference to the underlying decision/evidence trace, resolvable by evidence-svc."
     },
+    "routingFacts": {
+      "type": "object",
+      "description": "The facts submission-svc needs at derivation step 9 (INV-REQ-415, INV-REQ-408, INV-REQ-373, INV-REQ-319; INV-Q-6988 option A). Set by canonical-svc, read by submission-svc only. It is not a submission type (INV-REQ-479): the routing rule lives in submission-svc. Optional so an older producer validates.",
+      "properties": {
+        "direction": {
+          "type": "string",
+          "enum": [
+            "SALE",
+            "PURCHASE"
+          ],
+          "description": "The direction of the document as recorded."
+        },
+        "networkPath": {
+          "type": "string",
+          "enum": [
+            "ISSUED_VIA_NETWORK",
+            "RECEIVED_VIA_NETWORK",
+            "RELAY_ISSUANCE",
+            "NOT_ON_NETWORK"
+          ],
+          "description": "ISSUED_VIA_NETWORK when the record request carried networkIssuance, RECEIVED_VIA_NETWORK when it carried networkReceipt, RELAY_ISSUANCE when the document was recorded through requestIssuance, NOT_ON_NETWORK otherwise."
+        },
+        "counterpartyOnNetwork": {
+          "type": "boolean",
+          "description": "The onNetwork of the masterdata Reachability. Absent when no lookup was made, which routes the document off the network (INV-REQ-319)."
+        },
+        "debitNote": {
+          "type": "boolean",
+          "description": "True when the document function is DEBIT_NOTE. Absent means false."
+        },
+        "selfBillingAssignment": {
+          "type": "object",
+          "description": "The party-to-type assignment of a self-billed document, copied by canonical-svc from the rules result without reading its fields (INV-REQ-415).",
+          "properties": {
+            "direction": {
+              "type": "string",
+              "enum": [
+                "SALE",
+                "PURCHASE"
+              ]
+            },
+            "submissionType": {
+              "type": "string",
+              "enum": [
+                "TYPE_1A",
+                "TYPE_1B",
+                "TYPE_2",
+                "TYPE_3"
+              ]
+            }
+          },
+          "required": [
+            "direction",
+            "submissionType"
+          ],
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "direction",
+        "networkPath"
+      ],
+      "additionalProperties": true
+    },
     "canonicalDocument": {
       "type": "object",
       "description": "The canonical version itself (INV-NOTE-3 \u00a720.2 to \u00a720.5; content added 25 Sep 2026, AD-30). payload-svc builds its projection from this, reconciliation-svc its Box read model (FR-Z.16), evidence-svc its retained copy (FR-AA.15) and console-bff its search index (SCR-03.1); submission-svc reads docUuid/version/docsequence only, not this object. Kept for the content window only (FR-AH.9). Every content field below carries its FR-AE.72 classification, as a {value, classification} pair.",
