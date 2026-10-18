@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: notification API
-  version: 1.6.0
+  version: 1.7.0
   description: >-
     Contract-first source of truth for notification (API-01, STK-44). The
     `notification-contract` module generates its server interfaces and DTOs
@@ -42,6 +42,11 @@ info:
     (INV-Q-6747), and the sole-operator acknowledgement properties of the
     alert policy, `accountablePerson` and `acknowledgementEffectiveFrom`
     among them (INV-Q-6745).
+
+
+    Message delivery records carry the template version, the recipient
+    reference, the alert, the bounce and the failure, and an alert shows its
+    bounce (INV-Q-6749, INV-REQ-819).
   contact:
     name: notification (see CODEOWNERS)
 servers:
@@ -895,13 +900,15 @@ paths:
         Delivery-status queries (services.yaml notification-svc
         `provides`); message delivery through the MessageDelivery binding,
         with templates, delivery tracking and bounce escalation (§35.6).
-        Never carries invoice content (notification-svc `must_not`).
+        Never carries invoice content (notification-svc `must_not`). A message
+        never carries invoice content, and a bounce is read with `state`
+        BOUNCED and `alertId`.
       tags: [deliveries]
       x-principal: reporting
       x-sync-edge: console-bff->notification-svc
       x-timeout: 2000
       x-error-codes: []
-      x-requirements: []
+      x-requirements: [INV-REQ-817, INV-REQ-818, INV-REQ-819]
       parameters:
         - name: entityRef
           in: query
@@ -915,6 +922,19 @@ paths:
           schema:
             type: string
             enum: [EMAIL, SMS]
+            x-extensible-enum: true
+        - name: alertId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [QUEUED, SENT, DELIVERED, BOUNCED, FAILED]
             x-extensible-enum: true
         - name: limit
           in: query
@@ -1093,6 +1113,11 @@ components:
       required: [entityRef, alertClass, recipients, channels, updatedAt]
     Alert:
       type: object
+      description: >-
+        After a bounce of the only recipient of a DEADLINE alert that is not
+        acknowledged, the service raises `currentTier` by one when the policy
+        has a next tier (INV-AC-1872); in every other case the tier does not
+        move.
       properties:
         alertId:
           type: string
@@ -1128,6 +1153,12 @@ components:
           type: string
           format: date-time
           description: Sent only in the state SNOOZED (INV-REQ-1114).
+        bounced:
+          type: boolean
+          description: >-
+            Always sent by the service; true while at least one delivery of
+            the alert is in the state BOUNCED. An alert shows its bounce with
+            the alert (INV-REQ-819 behavior 3).
       required: [alertId, entityRef, alertClass, state, raisedAt]
     SnoozeAlertRequest:
       type: object
@@ -1345,6 +1376,11 @@ components:
       required: [items]
     MessageDelivery:
       type: object
+      description: >-
+        The service sends `templateVersion` and `recipient` always,
+        `bouncedAt` only in the state BOUNCED and `failureReason` only in the
+        states BOUNCED and FAILED. A FAILED delivery is a failed hand-over to
+        the channel and no bounce.
       properties:
         messageId:
           type: string
@@ -1359,11 +1395,30 @@ components:
           type: string
         state:
           type: string
-          enum: [QUEUED, SENT, DELIVERED, BOUNCED]
+          enum: [QUEUED, SENT, DELIVERED, BOUNCED, FAILED]
           x-extensible-enum: true
         sentAt:
           type: string
           format: date-time
+        templateVersion:
+          type: string
+          minLength: 1
+          maxLength: 40
+        recipient:
+          type: string
+          maxLength: 100
+          description: The recipient reference as written in the alert policy, never an address.
+        alertId:
+          type: string
+          format: uuid
+          description: The alert the message carried, absent for a message that carried none.
+        bouncedAt:
+          type: string
+          format: date-time
+        failureReason:
+          type: string
+          maxLength: 200
+          description: Never invoice content.
       required: [messageId, entityRef, channel, template, state]
     MessageDeliveryPage:
       type: object

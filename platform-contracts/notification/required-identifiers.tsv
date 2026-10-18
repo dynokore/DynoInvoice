@@ -42,3 +42,14 @@ AlertPolicy.accountablePerson	schema_property	openapi.yaml	INV-REQ-1115
 AlertPolicy.acknowledgementEffectiveFrom	schema_property	openapi.yaml	INV-REQ-1115
 AlertPolicy.acknowledgementRecordedBy	schema_property	openapi.yaml	INV-REQ-1115
 AlertPolicy.acknowledgementRecordedAt	schema_property	openapi.yaml	INV-REQ-1115
+# INV-T-6755. The backticked names of INV-REQ-817 and 818 are MessageDelivery (the binding of the library task INV-Q-6751 names; the schema of that name has no row kind), SecretStore, ingestion-svc, notification-svc, transport-svc (bindings and services, no contract identifiers) and MessageRequested (an event of the access contract, access/asyncapi.yaml, whose rows belong to the access contract). INV-REQ-819 and the criteria INV-AC-841 and INV-AC-1872 name only MessageDelivery. The other identifiers of the notification contract are in the rows of INV-T-6017, INV-T-6061 and INV-T-6718 and of the sibling task on alert policy.
+MessageDelivery.templateVersion	schema_property	openapi.yaml	INV-REQ-818
+MessageDelivery.recipient	schema_property	openapi.yaml	INV-REQ-819
+MessageDelivery.alertId	schema_property	openapi.yaml	INV-REQ-819
+MessageDelivery.bouncedAt	schema_property	openapi.yaml	INV-REQ-819
+MessageDelivery.failureReason	schema_property	openapi.yaml	INV-REQ-819
+Alert.bounced	schema_property	openapi.yaml	INV-REQ-819
+bounced	property	openapi.yaml	INV-REQ-819
+FAILED	enum_value	openapi.yaml	INV-REQ-819
+MessageDelivery.state.FAILED	schema_enum_value	openapi.yaml	INV-REQ-819
+alertId	query_parameter	openapi.yaml	INV-REQ-819

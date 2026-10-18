@@ -7,3 +7,4 @@
 ../openapi.yaml#/components/schemas/WebhookSubscriptionPage webhook-subscription-page-*.json
 ../openapi.yaml#/components/schemas/SnoozeAlertRequest snooze-alert-request-*.json
 ../openapi.yaml#/components/schemas/AlertPolicy alert-policy-record-*.json
+../openapi.yaml#/components/schemas/MessageDelivery message-delivery-*.json
