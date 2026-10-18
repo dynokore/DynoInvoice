@@ -50,7 +50,7 @@ class RetentionPurgeIT {
         harness: OutboxHarness,
         retention: Retention,
         batchSize: Int = 1000,
-        source: DataSource = harness.fixture.runtimeDataSource(),
+        source: DataSource = harness.fixture.runtimePool(),
     ): JdbcRetentionPurge {
         val scope = harness.fixture.eventLogScope(TenantContextImpl(), source)
         val dsl = JooqKit.module("payload", scope.tenants, scope.transactions)
@@ -227,7 +227,7 @@ class RetentionPurgeIT {
             outbox(harness, "old-b", tenantB, 40)
             outbox(harness, "old-c", tenantA, 40)
             inbox(harness, "old", tenantA, 40 * 24)
-            val pool = manualCommit(harness.fixture.runtimeDataSource())
+            val pool = manualCommit(harness.fixture.runtimePool())
             val purge = purger(harness, Retention(), 2, pool)
             assertEquals(PurgeResult(3, 1), purge.purge())
             assertEquals(emptySet<String>(), ids(harness, "outbox", "id"))

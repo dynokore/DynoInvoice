@@ -1,7 +1,6 @@
 package com.dynokore.platform.outboxandqueue
 
 import com.dynokore.platform.tenancyjooq.TenancyProbe
-import com.dynokore.platform.tenancykernel.TenantAwareDataSource
 import com.dynokore.platform.tenancykernel.TenantContextImpl
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
@@ -42,7 +41,7 @@ class UnrelayedEventCheckIT {
         val eventLog: OutboxPostgresFixture,
     ) {
         val tenants = TenantContextImpl()
-        val boundary = TransactionRunnerImpl(TenantAwareDataSource(service.appDataSource()), tenants)
+        val boundary = TransactionRunnerImpl(service.appDataSource(), tenants)
         val scope = TenantScope(tenants, boundary, boundary, OutboxPostgresFixture.WORKLOAD)
         val dsl = JooqKit.module(SCHEMA, tenants, boundary)
         val eventLogScope = eventLog.eventLogScope(TenantContextImpl())
@@ -369,7 +368,7 @@ class UnrelayedEventCheckIT {
             val strangerScope =
                 s.eventLog.eventLogScope(
                     TenantContextImpl(),
-                    s.eventLog.roleDataSource("recon_runtime"),
+                    s.eventLog.rolePool("recon_runtime"),
                 )
             val stranger = PostgresEventLogPresence(strangerScope, JooqKit.eventLog(strangerScope, catalogue))
             val refused = assertThrows(Exception::class.java) { stranger.missing(topic, listOf(id)) }

@@ -90,7 +90,7 @@ class EventLogPurgeIT {
             )
             assertEquals(listOf(1L, 2L, 3L, 4L), offsets(harness, auditTable))
 
-            val positions = positionsOn(harness, harness.fixture.eventLogDataSource())
+            val positions = positionsOn(harness, harness.fixture.runtimePool())
             assertEquals(2L, positions.record(audit, 2))
             assertEquals(2L, positions.record(audit, 1), "a position never moves back")
             assertEquals(
@@ -109,11 +109,11 @@ class EventLogPurgeIT {
             harness.fixture.runAsAdmin(
                 "grant execute on function eventlog.record_position(text, bigint) to recon_runtime",
             )
-            val strangerScope = scopeOn(harness, harness.fixture.roleDataSource("recon_runtime"))
+            val strangerScope = scopeOn(harness, harness.fixture.rolePool("recon_runtime"))
             val stranger = JdbcEventLogPositions(strangerScope, JooqKit.eventLog(strangerScope, harness.catalogue))
             val refused = assertThrows(EventBindingUnavailable::class.java) { stranger.record(audit, 4) }
             assertEquals("42501", strangerScope.sqlErrors.sqlStateOf(checkNotNull(refused.cause)))
-            val purgeLogin = positionsOn(harness, harness.fixture.purgeDataSource())
+            val purgeLogin = positionsOn(harness, harness.fixture.purgePool())
             assertThrows(EventBindingUnavailable::class.java) { purgeLogin.record(audit, 4) }
             val position = "select position from eventlog.record_position where topic_key = ?"
             assertEquals(2L, harness.count(position, auditKey))
@@ -353,7 +353,7 @@ class EventLogPurgeIT {
     }
 
     private fun purge(harness: OutboxHarness): JdbcEventLogPurge {
-        val scope = scopeOn(harness, harness.fixture.purgeDataSource())
+        val scope = scopeOn(harness, harness.fixture.purgePool())
         return JdbcEventLogPurge(scope, JooqKit.eventLog(scope, harness.catalogue), harness.catalogue)
     }
 

@@ -3,7 +3,6 @@ package com.dynokore.platform.outboxandqueue
 import com.dynokore.platform.tenancyjooq.TableClass
 import com.dynokore.platform.tenancyjooq.TenancyJooq
 import com.dynokore.platform.tenancyjooq.TenancyProbe
-import com.dynokore.platform.tenancykernel.TenantAwareDataSource
 import com.dynokore.platform.tenancykernel.TenantContextImpl
 import com.dynokore.platform.tenancykernel.TestPoolFixture
 import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
@@ -96,7 +95,7 @@ class OutboxPostgresFixture(
 
     /** An event-log reader on a fixture consumer's own login [role] (its replay topics, INV-Q-3601); route R3. */
     fun eventLogReaderFor(role: String): PostgresEventLogReader {
-        val scope = eventLogScope(TenantContextImpl(), roleDataSource(role))
+        val scope = eventLogScope(TenantContextImpl(), rolePool(role))
         return PostgresEventLogReader(
             scope,
             TenancyJooq.dslContext(eventLogTables(role, "${role}_pw"), scope.tenants, scope.transactions),
@@ -161,8 +160,35 @@ class OutboxPostgresFixture(
     /** DDL-only owner role. */
     fun ownerDataSource(): DataSource = dataSourceFor("outbox_owner", "outbox_owner_pw")
 
-    /** A service's runtime role (outbox, inbox, state tables), wrapped in tenancy-kernel's [TenantAwareDataSource]. */
-    fun appDataSource(): DataSource = TenantAwareDataSource(dataSourceFor(APP, "outbox_app_pw"))
+    /**
+     * A service's runtime role (outbox, inbox, state tables) on a pool of tenancy-kernel's [TestPoolFixture], behind its
+     * `TenantAwareDataSource` (the one test pool, owner ruling INV-Q-4508 (A)).
+     */
+    fun appDataSource(): DataSource = runtimePool()
+
+    /** The runtime login's pooled, tenant-aware DataSource: the one the event-log scope and the runners are built on. */
+    fun runtimePool(): DataSource = pooled(APP, "outbox_app_pw")
+
+    /** The purge login's pooled, tenant-aware DataSource. */
+    fun purgePool(): DataSource = pooled(PURGE, "eventlog_purge_pw")
+
+    /** The pooled, tenant-aware DataSource of the login [role] (password `<role>_pw`). */
+    fun rolePool(role: String): DataSource = pooled(role, "${role}_pw")
+
+    private fun pooled(
+        user: String,
+        password: String,
+    ): DataSource =
+        pools
+            .getOrPut(user) {
+                TestPoolFixture(
+                    container.jdbcUrl,
+                    user,
+                    password,
+                    maximumPoolSize = POOL_MAXIMUM,
+                    poolName = "outbox-$user",
+                )
+            }.dataSource()
 
     /**
      * The same runtime login, unwrapped: the connections the relay, work queue, consumers, triage and purge use
@@ -189,15 +215,15 @@ class OutboxPostgresFixture(
     fun purgeDataSource(): DataSource = dataSourceFor(PURGE, "eventlog_purge_pw")
 
     /**
-     * A [TenantScope] over the event log's own transactions on [source] (its own [TransactionRunnerImpl], as the
+     * A [TenantScope] over the event log's own transactions on [source] (a pooled, tenant-aware DataSource such as [runtimePool]) (its own [TransactionRunnerImpl], as the
      * service-runtime wiring builds it), binding [tenants] with the workload principal [principal].
      */
     fun eventLogScope(
         tenants: TenantContextImpl,
-        source: DataSource = eventLogDataSource(),
+        source: DataSource = runtimePool(),
         principal: String = WORKLOAD,
     ): TenantScope {
-        val transactions = TransactionRunnerImpl(TenantAwareDataSource(source), tenants)
+        val transactions = TransactionRunnerImpl(source, tenants)
         return TenantScope(tenants, transactions, transactions, principal)
     }
 
@@ -292,12 +318,15 @@ class OutboxPostgresFixture(
     }
 
     override fun close() {
+        pools.values.forEach { it.close() }
         try {
             container.stop()
         } finally {
             if (script != null) Files.deleteIfExists(script)
         }
     }
+
+    private val pools = mutableMapOf<String, TestPoolFixture>()
 
     private fun dataSourceFor(
         user: String,
@@ -312,6 +341,8 @@ class OutboxPostgresFixture(
     companion object {
         /** The init script is read by the container's postgres user: mode 0644 (a temp file is 0600). */
         private const val READABLE = 420
+
+        private const val POOL_MAXIMUM = 20
 
         const val OWNER = "outbox_owner"
         const val HA_DATABASE = "ha_log"
