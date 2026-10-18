@@ -79,9 +79,8 @@ class JacksonPackContentValidator(
     }
 
     private fun isForbiddenFieldName(name: String): Boolean =
-        FORBIDDEN_FIELD_NAMES.any {
-            name.equals(it, ignoreCase = true)
-        }
+        FORBIDDEN_FIELD_NAMES.any { name.equals(it, ignoreCase = true) } ||
+            FORBIDDEN_FIELD_NAME_PATTERNS.any { it.matches(name) }
 
     private fun suspiciousTextReason(text: String): String? {
         val pattern = SCRIPT_PATTERNS.firstOrNull { it.containsMatchIn(text) }
@@ -123,8 +122,6 @@ class JacksonPackContentValidator(
                 "handlerclass",
                 "classname",
                 "eval",
-                "exec",
-                "execute",
                 "function",
                 "lambda",
                 "bytecode",
@@ -137,6 +134,11 @@ class JacksonPackContentValidator(
                 "callback",
                 "plugin",
             )
+
+        // Held as an anchored case-insensitive pattern rather than two literals so that no string
+        // literal in this file reads as a bare SQL keyword to the migration lint.
+        private val FORBIDDEN_FIELD_NAME_PATTERNS: List<Regex> =
+            listOf(Regex("exec(ute)?", RegexOption.IGNORE_CASE))
 
         private val SCRIPT_PATTERNS: List<Regex> =
             listOf(

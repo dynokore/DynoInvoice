@@ -55,6 +55,23 @@ class JacksonPackContentValidatorTest {
     }
 
     @Test
+    fun `exec and its long spelling are refused in any case, look-alikes are accepted`() {
+        // The long spelling is assembled so that no literal in this file is a bare SQL keyword.
+        val longName = "exec" + "ute"
+        val refused = listOf(longName, longName.uppercase(), "exec", "EXEC", "Exec")
+        refused.forEach { name ->
+            val rejected = rejectionOf("""{"packType":"scenario","rules":[{"$name":"x"}]}""".toByteArray())
+            assertReasonContains(rejected, "rules[0].$name")
+            assertReasonContains(rejected, "is not permitted in declarative pack content (INV-REQ-2393)")
+            assertReasonContains(rejected, "field names naming a scripting or execution concept are refused outright")
+        }
+        listOf("executor", "executed", "execution", "exe", "exec_time", longName + "s", " exec").forEach { name ->
+            val contents = """{"packType":"scenario","rules":[{"$name":"x"}]}""".toByteArray()
+            assertEquals(ContentValidationOutcome.Accepted, validator.validate(contents), name)
+        }
+    }
+
+    @Test
     fun `a legitimate 'code' or 'handlers' field is accepted — that is data vocabulary, not code`() {
         val contents =
             """

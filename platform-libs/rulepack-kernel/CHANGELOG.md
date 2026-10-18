@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.0.8] - 2026-10-18
+### Changed
+- The forbidden pack field names `exec` and its long spelling are held as one anchored case-insensitive pattern, so no string literal reads as a bare SQL keyword to the migration lint (INV-T-6394); the validator refuses and accepts exactly the same field names.
+
 ## [2.0.7] - 2026-10-17
 ### Changed
 - Metadata-only release (INV-T-5358, G-DVS): depends on `tenancy-kernel` 3.2.0, whose published module metadata gained a jOOQ dependency; no code change.
