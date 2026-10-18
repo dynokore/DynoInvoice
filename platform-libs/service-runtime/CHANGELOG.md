@@ -6,6 +6,13 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [8.1.5] - 2026-10-18
+### Changed
+- `OutboxAndQueueWiring` (INV-T-4202, slice 4 of 4; owner ruling INV-Q-4196): `eventLogPresence` runs on the event-log
+  `TenantScope` like the reader and the binding, so no outbox-and-queue bean is handed a `DataSource` any more; the
+  raw-user hand-off helpers (`application`, `eventLogSource`) are gone. The Companion `handOff` stays only for the HA
+  event-log pool's runner and `EventLoopsIT`.
+
 ## [8.1.4] - 2026-10-18
 ### Changed
 - `OutboxAndQueueWiring` (INV-T-5306, outbox-and-queue 6.0.0; coordinator ruling INV-Q-5275): builds the event-log

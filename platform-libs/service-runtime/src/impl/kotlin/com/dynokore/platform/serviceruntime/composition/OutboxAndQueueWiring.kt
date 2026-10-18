@@ -349,10 +349,9 @@ class OutboxAndQueueWiring(
     @ConditionalOnMissingBean(EventLogPresence::class)
     fun eventLogPresence(
         @Qualifier(ServiceDataSources.EVENT_LOG) eventLog: ObjectProvider<DataSource>,
-        dataSource: DataSource,
         scope: TenantScope,
     ): PostgresEventLogPresence {
-        val eventLogScope = eventLogScope(eventLogSource(eventLog, dataSource), scope)
+        val eventLogScope = eventLogScopeOf(eventLog, scope)
         return PostgresEventLogPresence(eventLogScope, eventLogDsl(eventLogScope, emptyList()))
     }
 
@@ -453,17 +452,6 @@ class OutboxAndQueueWiring(
         scope: TenantScope,
     ): TenantScope =
         eventLog.getIfAvailable()?.let { eventLogScope(handOff(it, eventLogGate.getIfAvailable()), scope) } ?: scope
-
-    /** The application pool as the services' raw users get it: behind the lane gate (INV-Q-5243). */
-    private fun application(pool: DataSource): DataSource =
-        handOff(pool, applicationGate.getIfAvailable()?.takeIf { it.active })
-
-    /** The pool the event log lives on: the HA pool behind its own admit-all gate, or else the application pool. */
-    private fun eventLogSource(
-        eventLog: ObjectProvider<DataSource>,
-        dataSource: DataSource,
-    ): DataSource =
-        eventLog.getIfAvailable()?.let { handOff(it, eventLogGate.getIfAvailable()) } ?: application(dataSource)
 
     /**
      * The module's DSLContext (INV-T-4133, coordinator ruling INV-Q-5275): tenancy-jooq's factory over the
