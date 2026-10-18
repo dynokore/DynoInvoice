@@ -80,6 +80,10 @@
             "type": "string",
             "description": "The Keel question or ruling that makes the entry provisional.",
             "minLength": 1
+          },
+          "cancellation": {
+            "type": "boolean",
+            "description": "True marks the document kind of this row as an invoice cancellation, the credit note that must tally with its original (INV-REQ-694, INV-REQ-379); absent means false; nothing else decides it."
           }
         },
         "required": [
@@ -166,6 +170,32 @@
                   "provisionalReference"
                 ]
               }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "cancellation": {
+                  "const": true
+                }
+              },
+              "required": [
+                "cancellation"
+              ]
+            },
+            "then": {
+              "properties": {
+                "documentFunction": {
+                  "const": "ADJUSTMENT"
+                },
+                "documentTypeCode": {
+                  "const": "381"
+                }
+              },
+              "required": [
+                "documentFunction",
+                "documentTypeCode"
+              ]
             }
           }
         ]

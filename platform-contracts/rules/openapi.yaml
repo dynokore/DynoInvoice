@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: rules API
-  version: 1.3.0
+  version: 1.4.0
   description: >-
     Contract-first source of truth for rules (API-01, STK-44). The
     `rules-contract` module generates its server interfaces and DTOs
@@ -1221,6 +1221,12 @@ components:
         signNormalised:
           type: boolean
           description: The classification table's sign-normalisation result (INV-REQ-659 b2).
+        cancellation:
+          type: boolean
+          description: >-
+            True only when the classification table row applied to this document has `cancellation`
+            true, so payload-svc compares the credit note with its original; absent means false; set
+            by rules-svc, never by the caller (INV-REQ-694).
         packVersionsApplied:
           type: array
           description: One item per pack type the evaluation applied (INV-REQ-771 b2).

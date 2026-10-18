@@ -278,3 +278,6 @@ PRIMARY	enum_value	schemas/scope-pack-contents.schema.json	INV-REQ-504
 SECONDARY	enum_value	schemas/scope-pack-contents.schema.json	INV-REQ-504
 INFERRED	enum_value	schemas/scope-pack-contents.schema.json	INV-REQ-504
 PASS_THROUGH	enum_value	schemas/scope-pack-contents.schema.json	INV-REQ-738
+# INV-T-6643 (INV-REQ-694): PAY-009 is a catalogue code (BLOCK, MANUAL, Finance), not an identifier of this contract.
+cancellation	property	openapi.yaml	INV-REQ-694
+cancellation	property	schemas/scope-pack-contents.schema.json	INV-REQ-694
