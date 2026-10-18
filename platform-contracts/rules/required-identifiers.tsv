@@ -12,6 +12,7 @@
 #   operations of other services' contracts: goLive, bulkResolve, replaySubmissions, withdrawConsent, deleteAtRetentionEnd;
 #   armPack (INV-REQ-1166, 962): the rules contract's existing operationId is armRegulatoryPack, unchanged by this task.
 #   INV-T-6327 (INV-REQ-1033, 648, INV-AC-1858): roles tax.operator, entity.admin; event EvidenceArtefactRecorded (service-runtime's event); none is an element of the Scenario pack rendition wording schema.
+#   INV-T-6456 (INV-REQ-480, 486): the backticked names C5UID, cac:AdditionalDocumentReference, cac:ContractDocumentReference, sgdtotal-excl-gst, sgdtotal-incl-gst are pack content of the later seed-content task, not elements of the MDE pack contents schema.
 # Enum members shared by several properties (CLAIMABLE_PORTION, ENTIRE_INVOICE, BILL_FOR_PAYMENT ...) are one row each.
 identifier	kind	file	requirement
 documentFunction	property	openapi.yaml	INV-REQ-371
@@ -89,3 +90,41 @@ NEWLY_ACCEPTED	enum_value	openapi.yaml	INV-REQ-1020
 renditionWording	property	schemas/scenario-pack-rendition-wording.schema.json	INV-REQ-1032
 requiredWording	property	schemas/scenario-pack-rendition-wording.schema.json	INV-REQ-1032
 citation	property	schemas/scenario-pack-rendition-wording.schema.json	INV-REQ-1032
+rows	property	schemas/mde-pack-contents.schema.json	INV-REQ-480
+businessTermId	property	schemas/mde-pack-contents.schema.json	INV-REQ-480
+canonicalSource	property	schemas/mde-pack-contents.schema.json	INV-REQ-480
+dataType	property	schemas/mde-pack-contents.schema.json	INV-REQ-480
+documentTypeCodes	property	schemas/mde-pack-contents.schema.json	INV-REQ-480
+submissionTypes	property	schemas/mde-pack-contents.schema.json	INV-REQ-480
+irasStatus	property	schemas/mde-pack-contents.schema.json	INV-REQ-480
+sourceReference	property	schemas/mde-pack-contents.schema.json	INV-REQ-480
+specifications	property	schemas/mde-pack-contents.schema.json	INV-REQ-480
+specificationVersion	property	schemas/mde-pack-contents.schema.json	INV-REQ-480
+pintCardinality	property	schemas/mde-pack-contents.schema.json	INV-REQ-480
+syntaxPath	property	schemas/mde-pack-contents.schema.json	INV-REQ-480
+maxLength	property	schemas/mde-pack-contents.schema.json	INV-REQ-480
+permittedValues	property	schemas/mde-pack-contents.schema.json	INV-REQ-480
+requiredInScenarios	property	schemas/mde-pack-contents.schema.json	INV-REQ-480
+aggregateDefaults	property	schemas/mde-pack-contents.schema.json	INV-REQ-480
+aggregateType	property	schemas/mde-pack-contents.schema.json	INV-REQ-480
+literal	property	schemas/mde-pack-contents.schema.json	INV-REQ-480
+STRING	enum_value	schemas/mde-pack-contents.schema.json	INV-REQ-480
+INTEGER	enum_value	schemas/mde-pack-contents.schema.json	INV-REQ-480
+DECIMAL	enum_value	schemas/mde-pack-contents.schema.json	INV-REQ-480
+DATE	enum_value	schemas/mde-pack-contents.schema.json	INV-REQ-480
+CODE	enum_value	schemas/mde-pack-contents.schema.json	INV-REQ-480
+IDENTIFIER	enum_value	schemas/mde-pack-contents.schema.json	INV-REQ-480
+MANDATORY	enum_value	schemas/mde-pack-contents.schema.json	INV-REQ-480
+MANDATORY_IN_SCENARIOS	enum_value	schemas/mde-pack-contents.schema.json	INV-REQ-480
+NOT_MDE	enum_value	schemas/mde-pack-contents.schema.json	INV-REQ-480
+ZERO_OR_ONE	enum_value	schemas/mde-pack-contents.schema.json	INV-REQ-480
+EXACTLY_ONE	enum_value	schemas/mde-pack-contents.schema.json	INV-REQ-480
+ZERO_OR_MORE	enum_value	schemas/mde-pack-contents.schema.json	INV-REQ-480
+ONE_OR_MORE	enum_value	schemas/mde-pack-contents.schema.json	INV-REQ-480
+POS	enum_value	schemas/mde-pack-contents.schema.json	INV-REQ-480
+STI	enum_value	schemas/mde-pack-contents.schema.json	INV-REQ-480
+PCP	enum_value	schemas/mde-pack-contents.schema.json	INV-REQ-480
+TYPE_1A	enum_value	schemas/mde-pack-contents.schema.json	INV-REQ-480
+TYPE_1B	enum_value	schemas/mde-pack-contents.schema.json	INV-REQ-480
+TYPE_2	enum_value	schemas/mde-pack-contents.schema.json	INV-REQ-480
+TYPE_3	enum_value	schemas/mde-pack-contents.schema.json	INV-REQ-480

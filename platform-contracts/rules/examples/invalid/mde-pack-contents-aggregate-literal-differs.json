@@ -1,0 +1,31 @@
+{
+  "rows": [
+    {
+      "businessTermId": "IBT-046",
+      "canonicalSource": "line.taxRate",
+      "dataType": "DECIMAL",
+      "documentTypeCodes": [
+        "380"
+      ],
+      "submissionTypes": [
+        "TYPE_2"
+      ],
+      "irasStatus": "MANDATORY",
+      "sourceReference": "test data",
+      "specifications": [
+        {
+          "specificationVersion": "v1",
+          "pintCardinality": "EXACTLY_ONE",
+          "syntaxPath": "/Invoice/cbc:ID"
+        }
+      ]
+    }
+  ],
+  "aggregateDefaults": [
+    {
+      "aggregateType": "POS",
+      "businessTermId": "IBT-046",
+      "literal": "PCP"
+    }
+  ]
+}

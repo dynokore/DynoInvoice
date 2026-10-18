@@ -1,0 +1,294 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/rules/schemas/mde-pack-contents.schema.json",
+  "title": "MdePackContents",
+  "description": "The artefact.contents of a RulePackStaged payload whose packType is exactly mde (INV-REQ-480, INV-REQ-483, INV-REQ-486, INV-REQ-412): the MDE binding table, one row per Business Term ID, with both cardinalities (PINT-SG cardinality per specification version, IRAS MDE status) and the syntax path per specification version. Rules JSON Schema cannot express, tested by the consumers: businessTermId is unique across rows; specificationVersion is unique within one row; the stricter of the two (INV-REQ-483) is the Layer 2 check of payload-svc, which requires every row whose irasStatus is MANDATORY, or MANDATORY_IN_SCENARIOS in a listed scenario, for the document's type code and submission type, whatever pintCardinality says; a transaction that is both POS and STI takes POS, applied by canonical-svc (INV-REQ-412 behavior 1). No row content is written here; the rows are pack content. irasStatus and pintCardinality are vocabularies of this contract, not field mappings. A consumer ignores any property this schema does not name (API-41, FR-K.4); no object of this schema sets additionalProperties to false. Within a major version this schema is additive-only.",
+  "type": "object",
+  "properties": {
+    "rows": {
+      "type": "array",
+      "minItems": 1,
+      "description": "The binding table rows.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "businessTermId": {
+            "type": "string",
+            "description": "The Business Term ID of the MDE.",
+            "pattern": "^(IBT-[0-9]{3}(-[0-9]+)?|BT-SG-[0-9]{3})$"
+          },
+          "canonicalSource": {
+            "type": "string",
+            "description": "The canonical source field the term is read from.",
+            "minLength": 1
+          },
+          "dataType": {
+            "type": "string",
+            "description": "The data type of the term.",
+            "enum": [
+              "STRING",
+              "INTEGER",
+              "DECIMAL",
+              "DATE",
+              "CODE",
+              "IDENTIFIER"
+            ]
+          },
+          "maxLength": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Maximum length of the value."
+          },
+          "documentTypeCodes": {
+            "type": "array",
+            "description": "The document type codes the row applies to. A pattern, not an enum, because API-09 forbids numeric enum members.",
+            "items": {
+              "type": "string",
+              "description": "A document type code.",
+              "pattern": "^38[01]$"
+            },
+            "minItems": 1,
+            "maxItems": 2,
+            "uniqueItems": true
+          },
+          "submissionTypes": {
+            "type": "array",
+            "description": "The submission types the row applies to.",
+            "items": {
+              "type": "string",
+              "description": "A submission type.",
+              "enum": [
+                "TYPE_1A",
+                "TYPE_1B",
+                "TYPE_2",
+                "TYPE_3"
+              ]
+            },
+            "minItems": 1,
+            "maxItems": 4,
+            "uniqueItems": true
+          },
+          "irasStatus": {
+            "type": "string",
+            "description": "The IRAS MDE status of the term.",
+            "enum": [
+              "MANDATORY",
+              "MANDATORY_IN_SCENARIOS",
+              "NOT_MDE"
+            ]
+          },
+          "requiredInScenarios": {
+            "type": "array",
+            "description": "The scenarios in which the term is required; present only when irasStatus is MANDATORY_IN_SCENARIOS.",
+            "items": {
+              "type": "string",
+              "description": "A scenario name.",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "permittedValues": {
+            "type": "array",
+            "description": "The permitted value set.",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "sourceReference": {
+            "type": "string",
+            "description": "The source reference of the row.",
+            "minLength": 1
+          },
+          "specifications": {
+            "type": "array",
+            "description": "The binding per specification version, with the PINT-SG cardinality of that version.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "specificationVersion": {
+                  "type": "string",
+                  "description": "The specification version.",
+                  "minLength": 1
+                },
+                "pintCardinality": {
+                  "type": "string",
+                  "description": "The PINT-SG cardinality in this specification version.",
+                  "enum": [
+                    "ZERO_OR_ONE",
+                    "EXACTLY_ONE",
+                    "ZERO_OR_MORE",
+                    "ONE_OR_MORE"
+                  ]
+                },
+                "syntaxPath": {
+                  "type": "string",
+                  "description": "The syntax path the term is bound to in this specification version.",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "specificationVersion",
+                "pintCardinality",
+                "syntaxPath"
+              ]
+            },
+            "minItems": 1
+          }
+        },
+        "required": [
+          "businessTermId",
+          "canonicalSource",
+          "dataType",
+          "documentTypeCodes",
+          "submissionTypes",
+          "irasStatus",
+          "sourceReference",
+          "specifications"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "irasStatus": {
+                  "const": "MANDATORY_IN_SCENARIOS"
+                }
+              },
+              "required": [
+                "irasStatus"
+              ]
+            },
+            "then": {
+              "required": [
+                "requiredInScenarios"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "irasStatus": {
+                  "enum": [
+                    "MANDATORY",
+                    "NOT_MDE"
+                  ]
+                }
+              },
+              "required": [
+                "irasStatus"
+              ]
+            },
+            "then": {
+              "not": {
+                "required": [
+                  "requiredInScenarios"
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    "aggregateDefaults": {
+      "type": "array",
+      "description": "The aggregate literals: per aggregate type, the literal written to the business term.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "aggregateType": {
+            "type": "string",
+            "description": "The aggregate type.",
+            "enum": [
+              "POS",
+              "STI",
+              "PCP"
+            ]
+          },
+          "businessTermId": {
+            "type": "string",
+            "description": "The Business Term ID the literal is written to.",
+            "pattern": "^(IBT-[0-9]{3}(-[0-9]+)?|BT-SG-[0-9]{3})$"
+          },
+          "literal": {
+            "type": "string",
+            "description": "The literal; equals aggregateType.",
+            "enum": [
+              "POS",
+              "STI",
+              "PCP"
+            ]
+          }
+        },
+        "required": [
+          "aggregateType",
+          "businessTermId",
+          "literal"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "aggregateType": {
+                  "const": "POS"
+                }
+              },
+              "required": [
+                "aggregateType"
+              ]
+            },
+            "then": {
+              "properties": {
+                "literal": {
+                  "const": "POS"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "aggregateType": {
+                  "const": "STI"
+                }
+              },
+              "required": [
+                "aggregateType"
+              ]
+            },
+            "then": {
+              "properties": {
+                "literal": {
+                  "const": "STI"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "aggregateType": {
+                  "const": "PCP"
+                }
+              },
+              "required": [
+                "aggregateType"
+              ]
+            },
+            "then": {
+              "properties": {
+                "literal": {
+                  "const": "PCP"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "required": [
+    "rows"
+  ]
+}

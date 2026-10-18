@@ -1,0 +1,45 @@
+{
+  "rows": [
+    {
+      "businessTermId": "IBT-022",
+      "canonicalSource": "document.reason",
+      "dataType": "CODE",
+      "maxLength": 10,
+      "permittedValues": [
+        "A",
+        "B"
+      ],
+      "documentTypeCodes": [
+        "381"
+      ],
+      "submissionTypes": [
+        "TYPE_1A",
+        "TYPE_2"
+      ],
+      "irasStatus": "MANDATORY_IN_SCENARIOS",
+      "requiredInScenarios": [
+        "SCHEME_X"
+      ],
+      "sourceReference": "test data",
+      "specifications": [
+        {
+          "specificationVersion": "v1",
+          "pintCardinality": "ZERO_OR_ONE",
+          "syntaxPath": "/CreditNote/cbc:Note"
+        },
+        {
+          "specificationVersion": "v2",
+          "pintCardinality": "EXACTLY_ONE",
+          "syntaxPath": "/CreditNote/cac:Other"
+        }
+      ]
+    }
+  ],
+  "aggregateDefaults": [
+    {
+      "aggregateType": "POS",
+      "businessTermId": "IBT-022",
+      "literal": "POS"
+    }
+  ]
+}
