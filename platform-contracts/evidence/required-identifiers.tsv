@@ -27,3 +27,12 @@ NEVER_RUN	enum_value	openapi.yaml	INV-REQ-661
 # `sourceDocumentReferences` (properties of the VP-43 value in the catalogue).
 getMaxEvidenceRetention	operation	openapi.yaml	INV-REQ-3767
 maxRetention	property	openapi.yaml	INV-REQ-3767
+# INV-T-6830. The only backticked name of INV-REQ-886 is `console-bff`, a service and no contract identifier; the rows
+# below are identifiers this task adds.
+appendEvidenceAnnotation	operation	openapi.yaml	INV-REQ-886
+getEvidenceAnnotation	operation	openapi.yaml	INV-REQ-886
+ANNOTATION	enum_value	openapi.yaml	INV-REQ-886
+EvidenceChainItem.kind.ANNOTATION	schema_enum_value	openapi.yaml	INV-REQ-886
+correctedField	property	openapi.yaml	INV-REQ-886
+AppendEvidenceAnnotationRequest.correctedField	schema_property	openapi.yaml	INV-REQ-886
+EvidenceAnnotation.annotatedBy	schema_property	openapi.yaml	INV-REQ-886

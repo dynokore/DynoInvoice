@@ -109,3 +109,14 @@ openapi.yaml	SecurityCase.recordedAt	NONE
 schemas/evidence-integrity-failed-payload.schema.json	range	NONE
 schemas/evidence-integrity-failed-payload.schema.json	failingRecord	IDENTIFYING
 openapi.yaml	MaxEvidenceRetention.maxRetention	NONE
+openapi.yaml	AppendEvidenceAnnotationRequest.ackId	NONE
+openapi.yaml	AppendEvidenceAnnotationRequest.correctedField	NONE
+openapi.yaml	AppendEvidenceAnnotationRequest.reason	IDENTIFYING
+openapi.yaml	EvidenceAnnotation.annotationId	NONE
+openapi.yaml	EvidenceAnnotation.caseId	NONE
+openapi.yaml	EvidenceAnnotation.ackId	NONE
+openapi.yaml	EvidenceAnnotation.correctedField	NONE
+openapi.yaml	EvidenceAnnotation.reason	IDENTIFYING
+openapi.yaml	EvidenceAnnotation.annotatedBy	IDENTIFYING
+openapi.yaml	EvidenceAnnotation.annotatedAt	NONE
+openapi.yaml	EvidenceAnnotation.sequence	NONE

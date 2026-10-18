@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: evidence API
-  version: 1.4.0
+  version: 1.5.0
   description: >-
     Contract-first source of truth for evidence (API-01, STK-44). The
     `evidence-contract` module generates its server interfaces and DTOs
@@ -47,6 +47,10 @@ info:
     (model/architecture/error-codes.yaml has no such prefix) — every
     operation below declares `x-error-codes: []`; also flagged as an
     architecture gap.
+
+
+    `appendEvidenceAnnotation` and `getEvidenceAnnotation` carry the evidence
+    annotation of a privacy correction (INV-REQ-886, INV-Q-6828 A).
   contact:
     name: evidence (see CODEOWNERS)
 servers:
@@ -1017,6 +1021,146 @@ paths:
                     recordedAt: "2026-04-01T02:00:00Z"
         default:
           $ref: '#/components/responses/Error'
+  /internal/v1/evidence/cases/{caseId}/annotations:
+    post:
+      operationId: appendEvidenceAnnotation
+      summary: Append the annotation of a privacy correction to the evidence chain of an acknowledgement
+      description: >-
+        INV-REQ-886, INV-Q-6828 A. Evidence is never modified: the annotation
+        is appended as one new chain item of kind ANNOTATION, and earlier
+        items keep their content and sequence. The annotation holds no
+        corrected value and no previous value, only the name of the corrected
+        field and a reason. The actor is the verified caller, never a request
+        field. The item lands in the chain of the `ackId` with the next
+        sequence. console-bff calls this operation after the masterdata change
+        of `correctPersonalData` and retries it with the same
+        `Idempotency-Key` until it lands.
+      tags: [privacy]
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->evidence-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-886]
+      x-operation:
+        role: security.officer
+        scope: entity
+        precondition: "The privacy case is OPEN."
+        reversibility: COMPENSABLE
+        repeatKey: "(caseId, Idempotency-Key) — a repeat with the same body returns the original annotation, unchanged; a further correction is a further annotation, and an annotation is never removed."
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: 'API-15: a UUID, deduplicating an exact request replay for at least 24h.'
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppendEvidenceAnnotationRequest'
+            examples:
+              default:
+                value:
+                  ackId: "IRAS-ACK-2026Q1-E001"
+                  correctedField: "counterpartyName"
+                  reason: "Misspelt name corrected at the request of the individual."
+      responses:
+        '201':
+          description: The annotation was appended.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvidenceAnnotation'
+              examples:
+                default:
+                  value:
+                    annotationId: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                    caseId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    ackId: "IRAS-ACK-2026Q1-E001"
+                    correctedField: "counterpartyName"
+                    reason: "Misspelt name corrected at the request of the individual."
+                    annotatedBy: "op-7"
+                    annotatedAt: "2026-04-01T02:00:00Z"
+                    sequence: 7
+        '200':
+          description: Exact replay — the original annotation, unchanged.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvidenceAnnotation'
+              examples:
+                default:
+                  value:
+                    annotationId: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                    caseId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    ackId: "IRAS-ACK-2026Q1-E001"
+                    correctedField: "counterpartyName"
+                    reason: "Misspelt name corrected at the request of the individual."
+                    annotatedBy: "op-7"
+                    annotatedAt: "2026-04-01T02:00:00Z"
+                    sequence: 7
+        '404':
+          description: No chain has the `ackId`, or no case has the `caseId`.
+          $ref: '#/components/responses/Error'
+        '409':
+          description: The case is not OPEN.
+          $ref: '#/components/responses/Error'
+        '422':
+          description: The same Idempotency-Key was used with a different body (API-15).
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/evidence/annotations/{annotationId}:
+    get:
+      operationId: getEvidenceAnnotation
+      summary: Read one evidence annotation
+      description: >-
+        INV-REQ-886, INV-Q-6828 A. Returns the annotation that an
+        ANNOTATION chain item references by `annotationId`. It changes no state.
+      tags: [privacy]
+      x-principal: reporting
+      x-sync-edge: console-bff->evidence-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-886]
+      parameters:
+        - name: annotationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The annotation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvidenceAnnotation'
+              examples:
+                default:
+                  value:
+                    annotationId: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                    caseId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    ackId: "IRAS-ACK-2026Q1-E001"
+                    correctedField: "counterpartyName"
+                    reason: "Misspelt name corrected at the request of the individual."
+                    annotatedBy: "op-7"
+                    annotatedAt: "2026-04-01T02:00:00Z"
+                    sequence: 7
+        '404':
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
   /internal/v1/evidence/retention/maximum:
     get:
       operationId: getMaxEvidenceRetention
@@ -1105,7 +1249,9 @@ components:
       properties:
         kind:
           type: string
-          enum: [PAYLOAD, ACKNOWLEDGEMENT, DECISION_TRACE, AUDIT_ENTRY, CANONICAL_VERSION, SOURCE_DOCUMENT_REFERENCE]
+          enum: [PAYLOAD, ACKNOWLEDGEMENT, DECISION_TRACE, AUDIT_ENTRY, CANONICAL_VERSION, SOURCE_DOCUMENT_REFERENCE, ANNOTATION]
+          description: >-
+            For ANNOTATION the `reference` is the `annotationId` (INV-REQ-886).
           x-extensible-enum: true
         recordedAt:
           type: string
@@ -1512,6 +1658,53 @@ components:
           type: string
           format: date-time
       required: [caseId, reviewReference, auditLogEntryIds, outcome, breachAssessmentOpened, recordedAt]
+    AppendEvidenceAnnotationRequest:
+      type: object
+      additionalProperties: false
+      description: >-
+        The annotation of a privacy correction (INV-REQ-886). It carries no
+        corrected value and no previous value.
+      properties:
+        ackId:
+          type: string
+          minLength: 1
+          maxLength: 100
+        correctedField:
+          type: string
+          minLength: 1
+          maxLength: 100
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+      required: [ackId, correctedField, reason]
+    EvidenceAnnotation:
+      type: object
+      properties:
+        annotationId:
+          type: string
+          format: uuid
+        caseId:
+          type: string
+          format: uuid
+        ackId:
+          type: string
+        correctedField:
+          type: string
+        reason:
+          type: string
+        annotatedBy:
+          type: string
+          maxLength: 100
+          description: The verified caller identity, never a request field.
+        annotatedAt:
+          type: string
+          format: date-time
+        sequence:
+          type: integer
+          minimum: 1
+          description: The position at which the item was appended to the chain of `ackId`.
+      required: [annotationId, caseId, ackId, correctedField, reason, annotatedBy, annotatedAt, sequence]
     MaxEvidenceRetention:
       type: object
       description: >-
