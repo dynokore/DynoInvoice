@@ -5,3 +5,5 @@
 ../openapi.yaml#/components/schemas/CreateWebhookSubscriptionRequest create-webhook-subscription-request-*.json
 ../openapi.yaml#/components/schemas/AlertPolicyPage alert-policy-page-*.json
 ../openapi.yaml#/components/schemas/WebhookSubscriptionPage webhook-subscription-page-*.json
+../openapi.yaml#/components/schemas/SnoozeAlertRequest snooze-alert-request-*.json
+../openapi.yaml#/components/schemas/AlertPolicy alert-policy-record-*.json

@@ -26,3 +26,19 @@ resumeWebhookSubscription	operation	openapi.yaml	INV-REQ-822
 PAUSED	enum_value	openapi.yaml	INV-REQ-822
 FILING_FACT_NOT_RECORDED	enum_value	openapi.yaml	INV-REQ-918
 Alert.trigger.FILING_FACT_NOT_RECORDED	schema_enum_value	openapi.yaml	INV-REQ-918
+# INV-T-6753. The only backticked name of INV-REQ-1114 and INV-REQ-1115 (and of INV-AC-2114, 2115, 103, 185) is `notification-svc`, a service and no contract identifier. The identifiers of the other requirements of the notification contract are in the rows of INV-T-6017, INV-T-6061 and INV-T-6718 and of the sibling task on message delivery of this breakdown.
+snoozeAlert	operation	openapi.yaml	INV-REQ-1114
+snoozeUntil	property	openapi.yaml	INV-REQ-1114
+SnoozeAlertRequest.snoozeUntil	schema_property	openapi.yaml	INV-REQ-1114
+snoozedUntil	property	openapi.yaml	INV-REQ-1114
+Alert.snoozedUntil	schema_property	openapi.yaml	INV-REQ-1114
+SNOOZED	enum_value	openapi.yaml	INV-REQ-1114
+Alert.state.SNOOZED	schema_enum_value	openapi.yaml	INV-REQ-1114
+soleOperatorAcknowledgement	property	openapi.yaml	INV-REQ-1115
+AlertPolicy.soleOperatorAcknowledgement	schema_property	openapi.yaml	INV-REQ-1115
+AlertPolicyRequest.accountablePerson	schema_property	openapi.yaml	INV-REQ-1115
+AlertPolicyRequest.acknowledgementEffectiveFrom	schema_property	openapi.yaml	INV-REQ-1115
+AlertPolicy.accountablePerson	schema_property	openapi.yaml	INV-REQ-1115
+AlertPolicy.acknowledgementEffectiveFrom	schema_property	openapi.yaml	INV-REQ-1115
+AlertPolicy.acknowledgementRecordedBy	schema_property	openapi.yaml	INV-REQ-1115
+AlertPolicy.acknowledgementRecordedAt	schema_property	openapi.yaml	INV-REQ-1115

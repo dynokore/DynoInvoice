@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: notification API
-  version: 1.5.0
+  version: 1.6.0
   description: >-
     Contract-first source of truth for notification (API-01, STK-44). The
     `notification-contract` module generates its server interfaces and DTOs
@@ -30,11 +30,18 @@ info:
     `deleteWebhookSubscription`; "webhook commands" is `replayWebhookDelivery`;
     "delivery-status queries" is `listWebhookDeliveries` and
     `listMessageDeliveries`. Alert-instance listing and acknowledgement are
-    `listAlerts` and `acknowledgeAlert` (INV-REQ-79, INV-REQ-1113). No
+    `listAlerts`, `acknowledgeAlert` and `snoozeAlert` (INV-REQ-79,
+    INV-REQ-1113, INV-REQ-1114). No
     catalogue error code exists yet under a NOT- prefix
     (model/architecture/error-codes.yaml has no such prefix) — every
     operation below declares `x-error-codes: []`; also flagged as an
     architecture gap.
+
+
+    Version 1.6.0 adds the operation `snoozeAlert` and the state SNOOZED
+    (INV-Q-6747), and the sole-operator acknowledgement properties of the
+    alert policy, `accountablePerson` and `acknowledgementEffectiveFrom`
+    among them (INV-Q-6745).
   contact:
     name: notification (see CODEOWNERS)
 servers:
@@ -44,7 +51,7 @@ tags:
   - name: policies
     description: Alert policies per entity and class, with escalation tiers (§33.13, FR-AE.67).
   - name: alerts
-    description: Alert instances and their acknowledgement (INV-REQ-79, INV-REQ-1113).
+    description: Alert instances, their acknowledgement and their bounded snooze (INV-REQ-79, INV-REQ-1113, INV-REQ-1114).
   - name: webhooks
     description: Customer webhook subscriptions, signing, retries, dead-letter and replay (§35.6).
   - name: deliveries
@@ -87,11 +94,30 @@ paths:
         on the class SECURITY, which reaches every recipient at once without
         tiers (INV-AC-2384), and the same for ACC-004, which goes to the link's
         sender only.
+
+
+        Recipients and the sole-operator acknowledgement (INV-Q-6745, INV-AC-2115):
+        a blank entry of `recipients` is refused with POL-013; fewer than two
+        distinct recipients without `soleOperatorAcknowledgement` true is
+        refused with POL-014; `soleOperatorAcknowledgement` true without
+        `accountablePerson` is refused with POL-013; an
+        `acknowledgementEffectiveFrom` before the business date is refused with
+        POL-022. The service records the author from the verified caller
+        identity, never from the request, and sends the five acknowledgement
+        properties of `AlertPolicy` while an acknowledgement is recorded and
+        none otherwise.
+
+
+        Disabling (INV-Q-6747, INV-AC-103, INV-AC-185): an empty `channels`
+        list on the class DEADLINE or COVERAGE disables the class and is
+        refused with POL-015; an empty `channels` list on the other four
+        classes (BACKLOG, MISSING_ACKNOWLEDGEMENT, PACK_STALENESS, SECURITY)
+        is accepted.
       tags: [policies]
       x-principal: filing-workflow
       x-sync-edge: console-bff->notification-svc
       x-timeout: 2000
-      x-error-codes: [POL-008, POL-013, POL-015]
+      x-error-codes: [POL-008, POL-013, POL-014, POL-015, POL-022]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-1113, INV-REQ-1114, INV-REQ-1115, INV-REQ-1117]
       x-operation:
         role: tenant.admin
@@ -151,9 +177,13 @@ paths:
         '422':
           description: >-
             Refused with the API-20 envelope: POL-008 (threshold looser than
-            the calendar-pack default), POL-015 (disabling the class DEADLINE
-            or COVERAGE) or POL-013 (escalation tiers on the class SECURITY or
-            on ACC-004).
+            the calendar-pack default), POL-015 (an empty `channels` list on
+            the class DEADLINE or COVERAGE, which disables the class), POL-013
+            (escalation tiers on the class SECURITY or on ACC-004, a blank
+            entry of `recipients`, or `soleOperatorAcknowledgement` true
+            without `accountablePerson`), POL-014 (fewer than two distinct
+            recipients without `soleOperatorAcknowledgement` true) or POL-022
+            (`acknowledgementEffectiveFrom` before the business date).
           content:
             application/problem+json:
               schema:
@@ -255,7 +285,7 @@ paths:
           required: false
           schema:
             type: string
-            enum: [RAISED, ACKNOWLEDGED]
+            enum: [RAISED, ACKNOWLEDGED, SNOOZED]
             x-extensible-enum: true
         - name: limit
           in: query
@@ -307,7 +337,7 @@ paths:
       x-operation:
         role: tax.approver
         scope: entity
-        precondition: The alert exists for the entity and is in the state RAISED or already ACKNOWLEDGED (a repeat reports the recorded acknowledgement).
+        precondition: The alert exists for the entity and is in the state RAISED, SNOOZED or already ACKNOWLEDGED (a repeat reports the recorded acknowledgement; an acknowledgement ends a snooze).
         reversibility: IRREVERSIBLE
         repeatKey: "alertId — a repeat reports the recorded acknowledgement unchanged."
       parameters:
@@ -335,6 +365,89 @@ paths:
                     raisedAt: "2026-04-22T00:00:00Z"
                     acknowledgedAt: "2026-04-23T01:00:00Z"
                     acknowledgedBy: "tax.approver:jane.tan"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/notification/entities/{entityRef}/alerts/{alertId}/snoozes:
+    post:
+      operationId: snoozeAlert
+      summary: Snooze an alert until a bounded time
+      description: >-
+        Snoozes one alert until `snoozeUntil`; a snoozed alert is not escalated
+        before `snoozedUntil` (INV-REQ-79, INV-REQ-1113, INV-REQ-1114). A
+        repeat with the same `snoozeUntil` reports the alert unchanged.
+
+
+        Bounds (INV-Q-6747, INV-AC-2114), each a 422 with the API-20 envelope
+        and POL-013: `snoozeUntil` not after the request time; `snoozeUntil`
+        later than the request time plus 7 days; for the classes DEADLINE and
+        COVERAGE, `snoozeUntil` later than the due date of the alert's period
+        minus the safety margin (INV-REQ-1279). A bound itself is accepted.
+        When the hard stop of a DEADLINE or COVERAGE alert cannot be
+        determined, the snooze is refused with POL-014.
+      tags: [alerts]
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->notification-svc
+      x-timeout: 2000
+      x-error-codes: [POL-013, POL-014]
+      x-requirements: [INV-REQ-79, INV-REQ-1113, INV-REQ-1114]
+      x-operation:
+        role: any human role named as a recipient of the alert's policy (INV-NOTE-7 SCR-00.6)
+        scope: entity
+        precondition: The alert exists for the entity and is in the state RAISED or SNOOZED (a snooze of a snoozed alert replaces its time).
+        reversibility: COMPENSABLE
+        repeatKey: "(alertId, snoozeUntil) — a repeat reports the alert unchanged."
+      parameters:
+        - $ref: '#/components/parameters/EntityRef'
+        - name: alertId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SnoozeAlertRequest'
+            examples:
+              default:
+                value:
+                  snoozeUntil: "2026-04-24T00:00:00Z"
+      responses:
+        '200':
+          description: The alert, snoozed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Alert'
+              examples:
+                default:
+                  value:
+                    alertId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    entityRef: "E-001"
+                    alertClass: "DEADLINE"
+                    state: "SNOOZED"
+                    raisedAt: "2026-04-22T00:00:00Z"
+                    snoozedUntil: "2026-04-24T00:00:00Z"
+        '422':
+          description: >-
+            Refused with the API-20 envelope: POL-013 (`snoozeUntil` not in the
+            future, later than 7 days, or, for DEADLINE and COVERAGE, later than
+            the due date minus the safety margin) or POL-014 (the hard stop
+            cannot be determined).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '../service-runtime/schemas/error-envelope.schema.json'
+              examples:
+                beyondMargin:
+                  value:
+                    type: "about:blank"
+                    title: "Snooze past the due date minus the safety margin"
+                    status: 422
+                    code: "POL-013"
+                    correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/notification/webhook-subscriptions:
@@ -906,6 +1019,15 @@ components:
         soleOperatorAcknowledgement:
           type: boolean
           description: Recorded when fewer than two recipients are named (FR-AE.69).
+        accountablePerson:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: The accountable person the acknowledgement names; required when `soleOperatorAcknowledgement` is true (INV-Q-6745).
+        acknowledgementEffectiveFrom:
+          type: string
+          format: date
+          description: The date the acknowledgement takes effect; not before the business date (INV-Q-6745).
       required: [recipients, channels]
     AlertPolicy:
       type: object
@@ -948,6 +1070,23 @@ components:
           maximum: 365
           readOnly: true
           description: The default first-alert days of the entity's filing frequency, from the calendar pack (INV-REQ-1117).
+        soleOperatorAcknowledgement:
+          type: boolean
+          description: Sent, with the four properties that follow, while a sole-operator acknowledgement is recorded, and none of the five otherwise (INV-REQ-1115).
+        accountablePerson:
+          type: string
+          description: The accountable person the acknowledgement names; sent with the other four acknowledgement properties or not at all.
+        acknowledgementEffectiveFrom:
+          type: string
+          format: date
+          description: The date the acknowledgement takes effect; sent with the other four acknowledgement properties or not at all.
+        acknowledgementRecordedBy:
+          type: string
+          description: The verified caller identity that recorded the acknowledgement, never a request field; sent with the other four acknowledgement properties or not at all.
+        acknowledgementRecordedAt:
+          type: string
+          format: date-time
+          description: When the acknowledgement was recorded; sent with the other four acknowledgement properties or not at all.
         updatedAt:
           type: string
           format: date-time
@@ -966,7 +1105,7 @@ components:
           x-extensible-enum: true
         state:
           type: string
-          enum: [RAISED, ACKNOWLEDGED]
+          enum: [RAISED, ACKNOWLEDGED, SNOOZED]
           x-extensible-enum: true
         raisedAt:
           type: string
@@ -985,7 +1124,19 @@ components:
           format: date-time
         acknowledgedBy:
           type: string
+        snoozedUntil:
+          type: string
+          format: date-time
+          description: Sent only in the state SNOOZED (INV-REQ-1114).
       required: [alertId, entityRef, alertClass, state, raisedAt]
+    SnoozeAlertRequest:
+      type: object
+      properties:
+        snoozeUntil:
+          type: string
+          format: date-time
+          description: Until when the alert is snoozed; bounded as the operation `snoozeAlert` describes (INV-REQ-1114).
+      required: [snoozeUntil]
     AlertPage:
       type: object
       properties:
