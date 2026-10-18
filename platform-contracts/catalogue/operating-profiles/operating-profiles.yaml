@@ -209,13 +209,13 @@ operating_profiles:
         explicit_default: true
 - id: PRF-7
   requirement: INV-REQ-1258
-  revision: c80a57f9-03aa-4e1a-bd1a-fecbbf17f916
+  revision: 777e090a-94f4-4176-a06d-9d69cdb6e68c
   name: "Regulated private installation"
   title: "The regulated private installation profile sets customer OIDC, SCIM, monthly reviews, two-hour break-glass, a second override approver always, 7-year retention with justification and no production samples"
   profile:
-    version: 2
+    version: 3
     status: "planned"
-    basis: "Coordinator ruling (HIGH, owner rule 2026-10-11): INV-Q-3283 option A (version), INV-Q-3285 option A (typed values beside the unchanged behavior text, as io_contract.catalogue, INV-CS-3045); keys from the live VP catalogue; for INV-T-3277; VP-08 typed and version raised to 2 by owner ruling INV-Q-3320 (A′, 2026-10-11): the default pair with a 2 h window, stricter than the 4 h default (tighten-only)"
+    basis: "Coordinator ruling (HIGH, owner rule 2026-10-11): INV-Q-3283 option A (version), INV-Q-3285 option A (typed values beside the unchanged behavior text, as io_contract.catalogue, INV-CS-3045); keys from the live VP catalogue; for INV-T-3277; VP-08 typed and version raised to 2 by owner ruling INV-Q-3320 (A′, 2026-10-11): the default pair with a 2 h window, stricter than the 4 h default (tighten-only); VP-43 typed as a record of three durations of 7 years and version raised to 3: Coordinator ruling (owner delegation 2026-10-18) INV-Q-6527"
     values:
       VP-01:
         requirement: "INV-REQ-1262"
@@ -249,9 +249,20 @@ operating_profiles:
         text: "7 years with justification"
         option: "LONGER"
         typed_value:
-          type: "duration"
-          unit: "years"
-          value: 7
+          type: "record"
+          fields:
+            acknowledgementsAndTraces:
+              type: "duration"
+              unit: "years"
+              value: 7
+            sourceDocumentReferences:
+              type: "duration"
+              unit: "years"
+              value: 7
+            structuredSubmissions:
+              type: "duration"
+              unit: "years"
+              value: 7
         at_apply: "the justification text"
       VP-44:
         requirement: "INV-REQ-1305"

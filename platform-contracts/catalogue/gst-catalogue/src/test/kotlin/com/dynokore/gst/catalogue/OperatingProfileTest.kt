@@ -53,12 +53,12 @@ class OperatingProfileTest {
             changes.map { it.variationPoint to it.kind },
         )
         assertTrue(OperatingProfiles.differences(v1, v1.map { it.copy(text = "reworded") }).isEmpty())
-        // INV-AC-2231: PRF-7 v2 against the previous snapshot's v1 shows VP-08 only; the others are unchanged.
+        // INV-AC-2231: PRF-7 v3 against the previous snapshot's v2 shows VP-43 only; the others are unchanged.
         val prf7 = OperatingProfile.PRF_7
-        assertEquals(2, prf7.version)
-        assertEquals(1, prf7.previousVersion)
+        assertEquals(3, prf7.version)
+        assertEquals(2, prf7.previousVersion)
         assertEquals(
-            listOf(VariationPoint.VP_08 to ProfileChangeKind.CHANGED),
+            listOf(VariationPoint.VP_43 to ProfileChangeKind.CHANGED),
             prf7.changesFromPrevious.map { it.variationPoint to it.kind },
         )
         val others = OperatingProfile.entries.filter { it != prf7 }

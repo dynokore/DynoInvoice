@@ -1730,7 +1730,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1303 (the last complete period, or the last 2 to 4 periods; never less than one complete period); single-scope PARAMETER without tighten-only, and no source says a larger sample is stricter, so NEUTRAL with no direction (G5 option A, as VP-19, VP-34); conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-43
   requirement: INV-REQ-1304
-  revision: 509276a3-a50a-4040-831a-a604f2fb108a
+  revision: 7aac43e0-e351-4abf-8066-c83ec6f1f183
   title: "Evidence is retained 5 years by default, or longer with a recorded justification, and never shorter"
   class: PARAMETER
   class_modifiers: []
@@ -1761,14 +1761,31 @@ variation_points:
       - key: "LONGER"
         strictness: "STRICTER"
         typed_value:
-          type: "duration"
-          unit: "years"
-          min: 5
-          max: null
-          default: 5
-          direction: "UP_STRICTER"
+          type: "record"
           requires: "justification text"
-    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1304: \"never shorter than 5 years\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
+          fields:
+            structuredSubmissions:
+              type: "duration"
+              unit: "years"
+              min: 5
+              max: null
+              default: 5
+              direction: "UP_STRICTER"
+            sourceDocumentReferences:
+              type: "duration"
+              unit: "years"
+              min: 5
+              max: null
+              default: 5
+              direction: "UP_STRICTER"
+            acknowledgementsAndTraces:
+              type: "duration"
+              unit: "years"
+              min: 5
+              max: null
+              default: 5
+              direction: "UP_STRICTER"
+    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1304: \"never shorter than 5 years\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; per-tier record of three durations and the single writer setPolicy: Coordinator ruling (owner delegation 2026-10-18) INV-Q-6527"
 - id: VP-44
   requirement: INV-REQ-1305
   revision: 3d175231-5a6b-4d5f-ab82-f22ebcbc6e8c
