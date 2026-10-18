@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [9.0.0] - 2026-10-19
+### Changed
+- Breaking (INV-T-6757, INV-Q-6751, INV-REQ-817): the `MessageDelivery` port is reworked. `MessageChannel` is `EMAIL` and `SMS` (`MAIL` and `WEBHOOK` removed); `MessageDelivery` is no longer a `fun interface` and declares `channel`, `send` and `status(deliveryId): DeliveryStatus`; `OutboundMessage` is `(channel, to, templateId, templateVersion, content)` with `MessageContent` (`LinkContent`, `PasscodeContent`) and no free-text body, and refuses SMS with a link (the SMS channel carries passcodes only, INV-REQ-2762); new `DeliveryState` (`QUEUED`, `SENT`, `DELIVERED`, `BOUNCED`, `FAILED`) and `DeliveryStatus(deliveryId, state, reason)`. No implementation ships here.
+
 ## [8.3.1] - 2026-10-18
 ### Changed
 - Metadata-only release (INV-T-5365, G-DVS): depends on `tenancy-jooq` 1.2.3, whose published module metadata changed; no code change.
