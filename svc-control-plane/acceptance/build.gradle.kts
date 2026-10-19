@@ -12,9 +12,16 @@ dependencies {
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platformLauncher)
     testImplementation(libs.kotest.assertionsCore)
+    testImplementation(libs.platform.konsistRules)
+    testImplementation(libs.konsist)
 }
 
-tasks.withType<Test> { useJUnitPlatform() }
+tasks.withType<Test> {
+    dependsOn(":control-plane-contract:generateContractServer")
+    useJUnitPlatform()
+    // The repository root: the tests scan the sources and migrations of the five modules.
+    systemProperty("gst.repo.root", rootProject.layout.projectDirectory.asFile.path)
+}
 
 application { mainClass.set("com.dynokore.gst.controlPlane.acceptance.gates.GateMain") }
 

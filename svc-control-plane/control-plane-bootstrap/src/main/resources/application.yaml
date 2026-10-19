@@ -1,0 +1,44 @@
+# control-plane-bootstrap/src/main/resources/application.yaml (TPL-16)
+spring:
+  threads.virtual.enabled: true                     # STK-03
+  main.lazy-initialization: false                   # STK-06
+  # One DataSource, declared only here and in the Helm values: Spring Boot's `dataSource`, the service's one bounded HikariCP
+  # pool (STK-17, INV-REQ-1230 b1). No code names or builds a DataSource
+  datasource:
+    username: controlplane_runtime                  # the one runtime LOGIN: NOSUPERUSER, NOBYPASSRLS, owns no table, a member of no role
+    hikari:                                         # maximum-pool-size is not set: service-runtime sizes it as the sum of the lanes (STK-17)
+      minimum-idle: 1
+      idle-timeout: 60000
+      max-lifetime: 1800000
+  flyway:
+    schemas: controlplane
+    default-schema: controlplane
+    user: controlplane_migrate                      # read only by the migration Job's MigrationRunner (TPL-12, ARC-20)
+service-runtime:
+  modules.schema: controlplane
+  idempotency.schema: controlplane
+  workload-identity.audience: control-plane-svc
+  pool:
+    runs-reprocessing: false
+  datasource.credential: db/controlplane_runtime    # a SecretRef under this service's secret mount (STK-29, CS-24)
+inv.tenancy.platform-scoped-tables:                 # INV-ADR-3968 item 4a: the registry is platform data, no tenant column
+  - controlplane.pack_version
+  - controlplane.pack_author
+  - controlplane.signing_record
+  - controlplane.pack_staging_record
+management:
+  server.port: 8081                                 # API-33: health, metrics and diagnostics only on the management port
+  endpoints.web:
+    base-path: /
+    exposure.include: health,prometheus,diagnostics
+    path-mapping.prometheus: metrics
+  endpoint.health:
+    status.order: DOWN,OUT_OF_SERVICE,DEGRADED,UP,UNKNOWN
+    status.http-mapping: { DEGRADED: 200, DOWN: 503, OUT_OF_SERVICE: 503 }
+    group:
+      live.include: livenessState
+      ready.include: readinessState,vault,db,eventLog
+logging.structured.format.console: ecs              # STK-35
+gst:
+  service: control-plane-svc
+  db.event-log-url: ${GST_EVENT_LOG_DB_URL:}

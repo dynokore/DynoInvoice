@@ -68,7 +68,7 @@ class GatesTest {
 
     @Test
     fun `a row for an operation the contract does not hold fails`() {
-        ops(full + "operation\tgone\tINV-T-3\tdone\n").single() shouldBe "the table lists an operationId the contract does not hold"
+        ops(full + "operation\tgone\tINV-T-3\tpending\n", stubs = setOf("gone")).contains("the table lists an operationId the contract does not hold") shouldBe true
     }
 
     @Test

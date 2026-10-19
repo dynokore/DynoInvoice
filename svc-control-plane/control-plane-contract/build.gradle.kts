@@ -4,6 +4,7 @@
 
 plugins {
     id("gst.contract-server")
+    `java-library`
 }
 
 val contractsBundle by configurations.creating {
@@ -79,10 +80,12 @@ contractServer {
 }
 
 dependencies {
-    implementation(platform(libs.springBoot.dependencies))
-    implementation(libs.spring.web)
-    implementation(libs.jackson.databind)
-    implementation(libs.jackson.moduleKotlin)
-    implementation("jakarta.validation:jakarta.validation-api")
-    implementation("io.swagger.core.v3:swagger-annotations")
+    api(platform(libs.springBoot.dependencies))
+    api(libs.spring.web)
+    api(libs.spring.context)
+    api(libs.jackson.databind)
+    api(libs.jackson.annotations)
+    api(libs.jackson.moduleKotlin)
+    api(libs.jakarta.validationApi)
+    api(libs.swagger.annotations)
 }

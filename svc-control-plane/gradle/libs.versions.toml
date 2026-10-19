@@ -20,6 +20,7 @@ mockk = "1.14.11"
 konsist = "0.17.3"
 jsonSchemaValidator = "3.0.8"
 snakeyaml = "2.7"
+swaggerAnnotations = "2.2.55"
 
 [libraries]
 platform-bom = { module = "com.dynokore.platform:platform-libs-bom", version.ref = "platformLibsBom" }
@@ -64,3 +65,10 @@ mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 konsist = { module = "com.lemonappdev:konsist", version.ref = "konsist" }
 testcontainers-core = { module = "org.testcontainers:testcontainers", version.ref = "testcontainers" }
 testcontainers-postgresql = { module = "org.testcontainers:postgresql", version.ref = "testcontainers" }
+swagger-annotations = { module = "io.swagger.core.v3:swagger-annotations", version.ref = "swaggerAnnotations" }
+jakarta-validationApi = { module = "jakarta.validation:jakarta.validation-api" }
+jackson-annotations = { module = "com.fasterxml.jackson.core:jackson-annotations" }
+jakarta-servletApi = { module = "jakarta.servlet:jakarta.servlet-api" }
+slf4j-api = { module = "org.slf4j:slf4j-api" }
+springBoot-starterJdbc = { module = "org.springframework.boot:spring-boot-starter-jdbc" }
+springBoot-starterFlyway = { module = "org.springframework.boot:spring-boot-starter-flyway" }

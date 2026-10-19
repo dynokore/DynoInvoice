@@ -134,3 +134,6 @@ internal object SourceText {
         return out.toString()
     }
 }
+
+/** Source text with comments and string literals removed, for rules that look for code only. */
+fun stripForRule(source: String): String = SourceText.stripComments(source).replace(Regex("\"(?:[^\"\\\\\\n]|\\\\.)*\""), "\"\"")
