@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.1.0] - 2026-10-20
+### Added
+- `TenancyErrorCode` (TNC-001 Tenant not created, TNC-002 Short code already used, TNC-003 Short code fixed) and `Problems.renderTenancy`, beside `PolicyErrorCode` (INV-T-7557; coordinator ruling INV-Q-7553 A); pinned error catalogue refreshed to platform-contracts 4b8924e8 (INV-T-7556).
+
 ## [10.0.2] - 2026-10-19
 ### Changed
 - detekt type-resolution findings fixed (platform-build 0.21.0, INV-Q-4629); no behaviour or API change; TenancyJooqWiring uses the tenancy-jooq 1.4.0 `verify(List)` overload (INV-Q-7401)

@@ -163,6 +163,20 @@ object Problems {
         correlationId: String,
     ): StoredResponse = coded(code.httpStatus, code.title, null, correlationId, code.code, "TERMINAL", code.owner.text)
 
+    /**
+     * The TNC refusal [code] as a complete response (INV-Q-7553 A): status 409, the headers of [render] for a non-429
+     * code (`Content-Type: application/problem+json`, no `Retry-After`) and the API-20 envelope, with [detail] as a
+     * client error carries it (API-22).
+     */
+    fun renderTenancy(
+        code: TenancyErrorCode,
+        correlationId: String,
+        detail: String? = null,
+    ): ProblemResponse {
+        val response = coded(code.httpStatus, code.title, detail, correlationId, code.code, "TERMINAL", code.owner.text)
+        return ProblemResponse(response.status, mapOf(CONTENT_TYPE_HEADER to CONTENT_TYPE), response.body)
+    }
+
     fun contractViolation(
         detail: String,
         correlationId: String,

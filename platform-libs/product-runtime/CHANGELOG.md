@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-10-20
+### Changed
+- Metadata-only release (INV-T-7557, G-DVS): depends on `service-runtime` 10.1.0, whose published module metadata changed; no code change.
+
 ## [1.2.0] - 2026-10-20
 ### Changed
 - `gst-catalogue` pin raised from 1.14.0 to 1.28.0, whose POM declares the company licence (INV-Q-7529, INV-T-7531); the POMs of 1.14.0 and 1.15.0 declare none and cannot be corrected. Locks and verification metadata regenerated; no code change.

@@ -1,7 +1,9 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
-# pinned at commit 089b718e523e57923eda73ebb148da4b89d6f82a (2026-10-15), the
-# merge of invoice-docs!34 adding POL-001..POL-024 (INV-T-5179, coordinator ruling INV-Q-5172;
-# previously pinned at 1231ff2186f1b77906b97125212c0ff298268f40, INV-T-4055).
+# pinned at commit 419a4ccccdd369dbfd5ada56c4f84e5da8aaa039 (2026-10-20), the merge of invoice-docs INV-T-7555 adding TNC-001 to TNC-003 (INV-T-7556, coordinator ruling INV-Q-7553 A);
+# previously pinned at cbe941f4bca53b9387023c8e05b49c112197c4bb, the merge of invoice-docs!49 naming the resolving event in MDM-001 (INV-T-7287, coordinator ruling INV-Q-7282 A);
+# previously pinned at b9bccfac02575f08d1be26a921424dcf194a90a8, the
+# merge of invoice-docs!47 adding PER-015 (INV-T-7242, coordinator ruling INV-Q-7237 A;
+# previously pinned at 19bca9b9ff9935f988692f67e0c167abbad131eb, INV-T-7175, INV-Q-7173, 9950238cf97e3bb38626a21006bb8b854a02a054, INV-T-7036, INV-Q-7001, 6f41d974d4dbd96deae8987c8055adb1a3aeb9c0, INV-T-6945, INV-Q-6942, 941e5f99446f1b8d0686579a14d58539566cb041, INV-T-6647, INV-Q-6639, 2ce12f2af225eefd10848bc4b47f38216a1ea611, INV-T-6425, eef5812372eda3c8d2f549c630291ece6571aedd, INV-T-6051, bd93a33d21a7b92f1d9f8278d816d2d6cdb43499, INV-T-6021, and 70e25c6aba57b111e5fd12a86e4b978f6fdb12d6, INV-T-5412).
 #
 # This copy is the generator's (catalogue/generator/) sole input for the
 # gst-catalogue ErrorCode catalogue (STK-61, CS-13). It is never hand-edited:
@@ -113,10 +115,20 @@ error_codes:
   severity: BLOCK
   disposition: TERMINAL
   owner: Integration
+- code: ING-020
+  condition: 'Inbound request over a size or count limit: a document above the document size limit, or a batch above the batch size limit or above the transaction-count limit the installation set, is refused and nothing is recorded (HTTP 422; INV-REQ-2761, INV-AC-2771, INV-Q-6041)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Integration
+- code: ING-021
+  condition: 'Header-marked test request refused: the installation has no paired non-production workspace, so the request is not processed and nothing is stored in production (HTTP 422; INV-REQ-829, INV-AC-2060, INV-Q-6041)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Integration
 - code: MDM-001
   condition: Counterparty unresolved from partyRef
   severity: HOLD
-  disposition: AUTO_RELEASE
+  disposition: AUTO_RELEASE on counterparty resolution
   owner: Finance
 - code: MDM-002
   condition: Counterparty UEN absent and scheme not NONE
@@ -307,6 +319,21 @@ error_codes:
   severity: HOLD
   disposition: AUTO_RELEASE when the election is recorded
   owner: Onboarding
+- code: PAY-017
+  condition: 'Override refused: the blocking check named is a code whose disposition is MANUAL or TERMINAL, which is fixed at source and never overridden (HTTP 422; INV-REQ-500, INV-AC-1584, INV-Q-6013)'
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Tax operations
+- code: PAY-018
+  condition: Credit note issued without GST adjustment carries a line category code other than SR
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Finance
+- code: PAY-019
+  condition: "A document version is held in payload-svc because its canonical version carries no identityTriple (senderId, supplierId, supplierGstn), so the Sender ID, Supplier ID (IBT-030) and Supplier GSTN (IBT-031) cannot be written; no payload is built until a new canonical version of the document carries identityTriple (HOLD; INV-REQ-699, INV-Q-7142)"
+  severity: HOLD
+  disposition: AUTO_RELEASE on a new canonical version of the document that carries identityTriple
+  owner: Platform
 - code: SUB-001
   condition: Transport timeout or connection failure
   severity: WARN
@@ -394,6 +421,32 @@ error_codes:
   severity: BLOCK
   disposition: MANUAL
   owner: Tax operations
+# SUB-018, SUB-019: setConnectionEntities refusals (INV-Q-5405, INV-REQ-827 b1 and b2)
+- code: SUB-018
+  condition: 'Entity already assigned to another AP connection of the tenant: setConnectionEntities names an entity that is on the entityRefs of a different connection of the same tenant; nothing is recorded or published (HTTP 422)'
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Platform
+- code: SUB-019
+  condition: 'Removal refused: setConnectionEntities would remove from the connection an entity that is in Observe mode today, or an entity with no issuance-mode replica row (fail closed); nothing is recorded or published (HTTP 422)'
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Platform
+- code: SUB-020
+  condition: "A newer MONETARY version supersedes a version that was never transmitted, after a Type 2 rendition of the document was already issued: the customer's rendition may differ from what IRAS receives (WARN; INV-REQ-580, INV-REQ-579, INV-Q-6421)"
+  severity: WARN
+  disposition: MANUAL
+  owner: Tax operations
+- code: SUB-021
+  condition: "Withdrawal refused: a version of the document was already sent to the Access Point (an issued Type 1A document and a version rejected by the Access Point or IRAS included), or its current version is terminal; nothing is changed (HTTP 409; INV-REQ-581, INV-REQ-568, INV-AC-1774)"
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Tax operations
+- code: SUB-022
+  condition: "A document version is held in submission-svc because its submission type cannot be decided: the routing facts of the version contradict each other, the self-billing direction does not match the direction of the document, or the facts are missing (reason CONTRADICTORY_FACTS, SELF_BILLING_DIRECTION_MISMATCH or FACTS_MISSING in the detail); no SubmissionTypeDecided is published and nothing is routed until a new canonical version with corrected facts arrives (HOLD; INV-REQ-415, INV-Q-7001)"
+  severity: HOLD
+  disposition: AUTO_RELEASE on a new canonical version of the document whose routing facts are corrected
+  owner: Platform
 - code: PER-001
   condition: Period contains unsubmitted in-scope documents at readiness check
   severity: BLOCK
@@ -462,6 +515,16 @@ error_codes:
   severity: BLOCK
   disposition: MANUAL
   owner: Finance
+- code: PER-014
+  condition: 'Filed GST return uploaded without its filing acknowledgement: uploadGstReturn requires the acknowledgement of the filing, and nothing is recorded (HTTP 422; INV-REQ-653, INV-AC-1715, INV-Q-6015)'
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Tax operations
+- code: PER-015
+  condition: 'Variance annotation refused: the variance class is not one a person may assign (TIMING_DIFFERENCE, NO_INVOICE_REQUIRED, INPUT_TAX_NOT_CLAIMED, ERROR_CORRECTED_VIA_F5, OUTSIDE_BY_RULE); nothing is recorded (HTTP 422; INV-REQ-633, INV-Q-7237)'
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Tax operations
 - code: DEP-001
   condition: Newer regulatory pack published but not activated; or the control-plane feed unreachable, or no bundle imported,
     for longer than the installation's silence limit (VP-72; extended 25 Sep 2026, Keel INV-Q-2343). Tiers count days to the
@@ -797,3 +860,18 @@ error_codes:
   severity: BLOCK
   disposition: TERMINAL
   owner: The setting role of the variation point
+- code: TNC-001
+  condition: 'Tenant not created: the contractReference is already recorded for another tenantRef, or the tenantRef is already recorded under another contractReference; nothing is created or changed (HTTP 409; INV-Q-3573, INV-Q-7553)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: TNC-002
+  condition: 'Short code already used: another entity or business unit of the tenant already uses the code; nothing is recorded or changed (HTTP 409; INV-REQ-850 b7, INV-Q-7553)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: tenant.admin
+- code: TNC-003
+  condition: 'Short code fixed: the code of the business unit was already used in an aggregate number, so it cannot change; nothing is changed (HTTP 409; INV-REQ-850 b7, INV-REQ-436, INV-Q-7553)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: tenant.admin
