@@ -1,7 +1,7 @@
 package com.dynokore.gst.tenancy.bootstrap
 
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.BUSINESS_UNIT
-import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.REGISTERED_ENTITY
+import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.ENTITY
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.SHORT_CODE
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.TENANT
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.TENANT_GROUP
@@ -111,20 +111,20 @@ object Rows {
     ) {
         val tenantId = tenant.value
         dsl
-            .insertInto(REGISTERED_ENTITY)
-            .set(REGISTERED_ENTITY.ID, id)
-            .set(REGISTERED_ENTITY.TENANT_ID, tenantId)
-            .set(REGISTERED_ENTITY.REF, ref)
-            .set(REGISTERED_ENTITY.GROUP_ID, group)
-            .set(REGISTERED_ENTITY.LEGAL_NAME, "Entity $ref")
-            .set(REGISTERED_ENTITY.CONSTITUTION, "COMPANY")
-            .set(REGISTERED_ENTITY.UEN, uen)
-            .set(REGISTERED_ENTITY.GSTN, gstn)
-            .set(REGISTERED_ENTITY.CODE, code)
-            .set(REGISTERED_ENTITY.LIFECYCLE_STATE, state)
-            .set(REGISTERED_ENTITY.GO_LIVE_DATE, goLive)
-            .set(REGISTERED_ENTITY.STRUCTURE_VERSION, 1L)
-            .set(REGISTERED_ENTITY.CREATED_AT, now())
+            .insertInto(ENTITY)
+            .set(ENTITY.ID, id)
+            .set(ENTITY.TENANT_ID, tenantId)
+            .set(ENTITY.REF, ref)
+            .set(ENTITY.GROUP_ID, group)
+            .set(ENTITY.LEGAL_NAME, "Entity $ref")
+            .set(ENTITY.CONSTITUTION, "COMPANY")
+            .set(ENTITY.UEN, uen)
+            .set(ENTITY.GSTN, gstn)
+            .set(ENTITY.CODE, code)
+            .set(ENTITY.LIFECYCLE_STATE, state)
+            .set(ENTITY.GO_LIVE_DATE, goLive)
+            .set(ENTITY.STRUCTURE_VERSION, 1L)
+            .set(ENTITY.CREATED_AT, now())
             .execute()
         shortCode(dsl, tenantId, code, "ENTITY", id)
     }

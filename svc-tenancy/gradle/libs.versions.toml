@@ -4,7 +4,7 @@
 # The platform modules are versioned by platform-libs-bom: a service bumps `platformLibsBom` only.
 
 [versions]
-platformBuild = "0.21.0"
+platformBuild = "0.22.2"
 platformLibsBom = "0.97.0"
 springBoot = "4.1.1"
 jooq = "3.21.9"
@@ -20,7 +20,7 @@ swaggerAnnotations = "2.2.55"
 jsonSchemaValidator = "3.0.8"
 # The published platform-contracts bundle tenancy-contract generates from (a main build including INV-T-4909 and
 # INV-T-3298); bumped deliberately, like platform-libs' product-runtime does.
-platformContractsBundle = "0.0.0-dev+206f60b3"
+platformContractsBundle = "0.0.0-dev+b518325d"
 gstCatalogue = "1.14.0"
 
 [libraries]

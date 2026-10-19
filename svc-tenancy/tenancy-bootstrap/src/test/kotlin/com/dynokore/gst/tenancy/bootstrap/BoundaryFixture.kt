@@ -1,5 +1,6 @@
 package com.dynokore.gst.tenancy.bootstrap
 
+import com.dynokore.platform.tenancykernel.BindingKeyMigration
 import com.dynokore.platform.tenancykernel.SqlIdentifier
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
@@ -27,7 +28,7 @@ object BoundaryFixture {
             connection.autoCommit = true
             val script = connection.createStatement()
             runFile(roles)
-            script.execute("CREATE SCHEMA IF NOT EXISTS tenancy")
+            runFile(bindingFunctions())
             Files.list(migrationsDir).use { files ->
                 files.filter { it.fileName.toString().endsWith(".sql") }.sorted().forEach { runFile(it) }
             }
@@ -40,6 +41,24 @@ object BoundaryFixture {
                     "VALUES ('current', convert_to('${TestSecrets.BINDING_KEY}', 'UTF8'))",
             )
         }
+    }
+
+    /**
+     * The signed-binding functions of the schema, installed before the migrations as the installation does and as the
+     * jOOQ codegen does (INV-Q-7418): the migrations never create them, so the text is tenancy-kernel's own.
+     */
+    private fun bindingFunctions(): Path {
+        val file = Files.createTempDirectory("tenancy-binding").resolve("binding-functions.sql")
+        val ddl = BindingKeyMigration.ddl("tenancy", "tenancy_sys", "tenancy_runtime")
+        Files.writeString(
+            file,
+            "CREATE EXTENSION IF NOT EXISTS pgcrypto SCHEMA public;\n" +
+                "CREATE SCHEMA IF NOT EXISTS tenancy AUTHORIZATION tenancy_sys;\n" +
+                "SET ROLE tenancy_sys;\n$ddl\nRESET ROLE;\n",
+        )
+        file.toFile().deleteOnExit()
+        file.parent.toFile().deleteOnExit()
+        return file
     }
 
     /** Runs a SQL file as the container's superuser through psql, stopping at the first error. */
@@ -142,7 +161,7 @@ object BoundaryFixture {
                 .prepareStatement(
                     "select 'tenant', count(*) from tenancy.tenant union all " +
                         "select 'tenant_group', count(*) from tenancy.tenant_group union all " +
-                        "select 'registered_entity', count(*) from tenancy.registered_entity union all " +
+                        "select 'entity', count(*) from tenancy.entity union all " +
                         "select 'business_unit', count(*) from tenancy.business_unit union all " +
                         "select 'short_code', count(*) from tenancy.short_code",
                 ).use { s ->

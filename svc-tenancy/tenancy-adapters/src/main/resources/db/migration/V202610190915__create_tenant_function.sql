@@ -1,0 +1,86 @@
+-- V202610190915: the one route that writes tenancy.tenant (INV-Q-7468 A; INV-REQ-854 behavior 2: a write the policy must
+-- refuse to the runtime login is made only by a definer function owned by the sys role). Run by tenancy_migrate.
+-- createTenant runs under the reserved platform binding and createWorkspace (INV-T-4932) under the production tenant's
+-- binding with the pairing; the function checks which binding the session holds. tenant_isolation stays as it is.
+SET lock_timeout = '5s';
+
+-- Policies for the sys role only (the precedent of config-resolver ConfigSchema.kt): none targets the runtime login. The
+-- select policy lets the function read an existing tenant row to answer a repeat or a conflict.
+CREATE POLICY tenant_sys_insert ON tenancy.tenant FOR INSERT TO tenancy_sys WITH CHECK (true);
+CREATE POLICY tenant_sys_select ON tenancy.tenant FOR SELECT TO tenancy_sys USING (true);
+GRANT USAGE ON SCHEMA tenancy TO tenancy_sys;
+GRANT SELECT, INSERT ON tenancy.tenant TO tenancy_sys;
+GRANT USAGE ON SEQUENCE tenancy.structure_version_seq TO tenancy_sys;
+
+CREATE FUNCTION tenancy.create_tenant(
+    p_tenant_id                uuid,
+    p_ref                      text,
+    p_legal_name               text,
+    p_plan_ref                 text,
+    p_contract_reference       text,
+    p_paired_production_tenant uuid)
+RETURNS TABLE (
+    outcome                text,
+    out_tenant_id          uuid,
+    out_ref                text,
+    out_legal_name         text,
+    out_plan_ref           text,
+    out_contract_reference text,
+    out_structure_version  bigint,
+    out_created_at         timestamptz)
+    LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, tenancy, pg_temp AS $$
+DECLARE
+    platform constant uuid := 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+    bound    uuid := tenancy.bound_tenant();
+    found_row tenancy.tenant%ROWTYPE;
+BEGIN
+    -- 22023 is the adapter's 400, 42501 its 403.
+    IF p_tenant_id IS NULL OR p_tenant_id = platform THEN
+        RAISE EXCEPTION 'the tenant id is not creatable' USING ERRCODE = '22023';
+    END IF;
+    IF p_ref IS NULL OR length(p_ref) NOT BETWEEN 1 AND 64
+       OR p_legal_name IS NULL OR length(p_legal_name) NOT BETWEEN 1 AND 200
+       OR p_plan_ref IS NULL OR length(p_plan_ref) NOT BETWEEN 1 AND 64
+       OR p_contract_reference IS NULL OR length(p_contract_reference) NOT BETWEEN 1 AND 64 THEN
+        RAISE EXCEPTION 'a tenant field is missing or too long' USING ERRCODE = '22023';
+    END IF;
+    IF p_paired_production_tenant IS NULL THEN
+        IF bound IS DISTINCT FROM platform THEN
+            RAISE EXCEPTION 'a tenant is created under the platform binding' USING ERRCODE = '42501';
+        END IF;
+    ELSE
+        IF bound IS DISTINCT FROM p_paired_production_tenant THEN
+            RAISE EXCEPTION 'a sibling is created under its production tenant''s binding' USING ERRCODE = '42501';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM tenancy.tenant t WHERE t.tenant_id = p_paired_production_tenant) THEN
+            RAISE EXCEPTION 'the paired production tenant does not exist' USING ERRCODE = '22023';
+        END IF;
+    END IF;
+
+    SELECT * INTO found_row FROM tenancy.tenant t WHERE t.tenant_id = p_tenant_id;
+    IF FOUND THEN
+        IF found_row.contract_reference = p_contract_reference AND found_row.ref = p_ref THEN
+            RETURN QUERY SELECT 'repeat'::text, found_row.tenant_id, found_row.ref, found_row.legal_name,
+                found_row.plan_ref, found_row.contract_reference, found_row.structure_version, found_row.created_at;
+        ELSE
+            RETURN QUERY SELECT 'conflict'::text, NULL::uuid, NULL::text, NULL::text, NULL::text, NULL::text,
+                NULL::bigint, NULL::timestamptz;
+        END IF;
+        RETURN;
+    END IF;
+    IF EXISTS (SELECT 1 FROM tenancy.tenant t WHERE t.contract_reference = p_contract_reference OR t.ref = p_ref) THEN
+        RETURN QUERY SELECT 'conflict'::text, NULL::uuid, NULL::text, NULL::text, NULL::text, NULL::text,
+            NULL::bigint, NULL::timestamptz;
+        RETURN;
+    END IF;
+    INSERT INTO tenancy.tenant AS t (tenant_id, ref, legal_name, plan_ref, contract_reference, structure_version, created_at)
+    VALUES (p_tenant_id, p_ref, p_legal_name, p_plan_ref, p_contract_reference, nextval('tenancy.structure_version_seq'), now())
+    RETURNING * INTO found_row;
+    RETURN QUERY SELECT 'created'::text, found_row.tenant_id, found_row.ref, found_row.legal_name,
+        found_row.plan_ref, found_row.contract_reference, found_row.structure_version, found_row.created_at;
+END;
+$$;
+
+ALTER FUNCTION tenancy.create_tenant(uuid, text, text, text, text, uuid) OWNER TO tenancy_sys;
+REVOKE ALL ON FUNCTION tenancy.create_tenant(uuid, text, text, text, text, uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION tenancy.create_tenant(uuid, text, text, text, text, uuid) TO tenancy_runtime;

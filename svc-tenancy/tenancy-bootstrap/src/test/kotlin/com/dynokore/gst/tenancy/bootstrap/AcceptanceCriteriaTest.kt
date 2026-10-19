@@ -1,7 +1,7 @@
 package com.dynokore.gst.tenancy.bootstrap
 
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.BUSINESS_UNIT
-import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.REGISTERED_ENTITY
+import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.ENTITY
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.SHORT_CODE
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.TENANT
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.TENANT_GROUP
@@ -111,11 +111,11 @@ class AcceptanceCriteriaTest {
         /** The member's own UEN and the GSTN of its group. */
         fun memberIdentity(entity: UUID): Pair<String?, String?> =
             dsl
-                .select(REGISTERED_ENTITY.UEN, TENANT_GROUP.GSTN)
-                .from(REGISTERED_ENTITY)
+                .select(ENTITY.UEN, TENANT_GROUP.GSTN)
+                .from(ENTITY)
                 .join(TENANT_GROUP)
-                .on(TENANT_GROUP.ID.eq(REGISTERED_ENTITY.GROUP_ID))
-                .where(REGISTERED_ENTITY.ID.eq(entity))
+                .on(TENANT_GROUP.ID.eq(ENTITY.GROUP_ID))
+                .where(ENTITY.ID.eq(entity))
                 .fetchSingle()
                 .let { it.value1() to it.value2() }
 
@@ -197,7 +197,7 @@ class AcceptanceCriteriaTest {
                     listOf(
                         env.dsl.selectFrom(TENANT).fetch(TENANT.TENANT_ID),
                         env.dsl.selectFrom(TENANT_GROUP).fetch(TENANT_GROUP.TENANT_ID),
-                        env.dsl.selectFrom(REGISTERED_ENTITY).fetch(REGISTERED_ENTITY.TENANT_ID),
+                        env.dsl.selectFrom(ENTITY).fetch(ENTITY.TENANT_ID),
                         env.dsl.selectFrom(BUSINESS_UNIT).fetch(BUSINESS_UNIT.TENANT_ID),
                         env.dsl.selectFrom(SHORT_CODE).fetch(SHORT_CODE.TENANT_ID),
                     )
@@ -230,7 +230,7 @@ class AcceptanceCriteriaTest {
             val (only, _) = env.structure()
             assertThat(env.inTenant(only) { env.dsl.selectFrom(TENANT).fetch(TENANT.TENANT_ID) })
                 .containsExactly(only.value)
-            assertThat(env.inTenant(other) { env.dsl.selectFrom(REGISTERED_ENTITY).fetch() }).isEmpty()
+            assertThat(env.inTenant(other) { env.dsl.selectFrom(ENTITY).fetch() }).isEmpty()
         }
     }
 
@@ -241,8 +241,8 @@ class AcceptanceCriteriaTest {
             val read =
                 env.inTenant(tenant) {
                     env.dsl
-                        .selectFrom(REGISTERED_ENTITY)
-                        .where(REGISTERED_ENTITY.GROUP_ID.eq(group.group))
+                        .selectFrom(ENTITY)
+                        .where(ENTITY.GROUP_ID.eq(group.group))
                         .fetch()
                 }
             assertThat(read.map { it.uen }).containsExactlyInAnyOrder("UEN-A", "UEN-B")
@@ -300,8 +300,8 @@ class AcceptanceCriteriaTest {
             val read =
                 env.inTenant(tenant) {
                     env.dsl
-                        .selectFrom(REGISTERED_ENTITY)
-                        .where(REGISTERED_ENTITY.ID.eq(division))
+                        .selectFrom(ENTITY)
+                        .where(ENTITY.ID.eq(division))
                         .fetchSingle()
                 }
             assertThat(read.uen).isEqualTo("U-P")
@@ -320,7 +320,7 @@ class AcceptanceCriteriaTest {
             val states =
                 env.inTenant(tenant) {
                     env.dsl
-                        .selectFrom(REGISTERED_ENTITY)
+                        .selectFrom(ENTITY)
                         .fetch()
                         .associate { it.id to (it.lifecycleState to it.goLiveDate) }
                 }

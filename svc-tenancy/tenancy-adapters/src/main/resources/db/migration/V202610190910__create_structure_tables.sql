@@ -38,7 +38,7 @@ CREATE TABLE tenancy.tenant_group (
 
 -- One GST registration. A GST-group member carries its own UEN and sits under the group's GSTN; a division carries the
 -- parent UEN and its own division GSTN in gstn (INV-AC-346, INV-AC-347, INV-AC-1814).
-CREATE TABLE tenancy.registered_entity (
+CREATE TABLE tenancy.entity (
     id                uuid        PRIMARY KEY,
     tenant_id         uuid        NOT NULL,
     ref               text        NOT NULL CHECK (length(ref) BETWEEN 1 AND 64),
@@ -74,7 +74,7 @@ CREATE TABLE tenancy.business_unit (
     version           bigint      NOT NULL DEFAULT 1,
     UNIQUE (ref),
     UNIQUE (tenant_id, code),
-    FOREIGN KEY (tenant_id, entity_id) REFERENCES tenancy.registered_entity (tenant_id, id)
+    FOREIGN KEY (tenant_id, entity_id) REFERENCES tenancy.entity (tenant_id, id)
 );
 
 -- One code namespace per tenant across entities and business units (INV-REQ-850 b7): the primary key refuses a duplicate
@@ -89,7 +89,7 @@ CREATE TABLE tenancy.short_code (
     UNIQUE (tenant_id, node_id)
 );
 
-CREATE INDEX registered_entity_group ON tenancy.registered_entity (tenant_id, group_id);
+CREATE INDEX entity_group ON tenancy.entity (tenant_id, group_id);
 CREATE INDEX business_unit_entity ON tenancy.business_unit (tenant_id, entity_id);
 
 ALTER TABLE tenancy.tenant ENABLE ROW LEVEL SECURITY;
@@ -104,9 +104,9 @@ CREATE POLICY tenant_isolation ON tenancy.tenant_group
     USING      (tenant_id = (select tenancy.bound_tenant()))
     WITH CHECK (tenant_id = (select tenancy.bound_tenant()));
 
-ALTER TABLE tenancy.registered_entity ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tenancy.registered_entity FORCE ROW LEVEL SECURITY;
-CREATE POLICY tenant_isolation ON tenancy.registered_entity
+ALTER TABLE tenancy.entity ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tenancy.entity FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON tenancy.entity
     USING      (tenant_id = (select tenancy.bound_tenant()))
     WITH CHECK (tenant_id = (select tenancy.bound_tenant()));
 
@@ -122,6 +122,6 @@ CREATE POLICY tenant_isolation ON tenancy.short_code
     USING      (tenant_id = (select tenancy.bound_tenant()))
     WITH CHECK (tenant_id = (select tenancy.bound_tenant()));
 
-GRANT SELECT, INSERT, UPDATE ON tenancy.tenant, tenancy.tenant_group, tenancy.registered_entity, tenancy.business_unit TO tenancy_runtime;
+GRANT SELECT, INSERT, UPDATE ON tenancy.tenant, tenancy.tenant_group, tenancy.entity, tenancy.business_unit TO tenancy_runtime;
 GRANT SELECT, INSERT ON tenancy.short_code TO tenancy_runtime;
 GRANT USAGE ON SEQUENCE tenancy.structure_version_seq TO tenancy_runtime;

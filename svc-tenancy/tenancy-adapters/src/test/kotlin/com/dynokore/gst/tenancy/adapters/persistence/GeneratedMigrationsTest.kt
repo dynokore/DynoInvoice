@@ -2,7 +2,6 @@ package com.dynokore.gst.tenancy.adapters.persistence
 
 import com.dynokore.platform.outboxandqueue.OutboxSchema
 import com.dynokore.platform.serviceruntime.http.IdempotencySchema
-import com.dynokore.platform.tenancykernel.BindingKeyMigration
 import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantRlsMigration
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -36,13 +35,6 @@ class GeneratedMigrationsTest {
     }
 
     @Test
-    fun `the binding migration runs the generated binding functions as the sys role`() {
-        val text = migration("V202610190900__create_binding_functions.sql")
-        assertTrue(BindingKeyMigration.ddl("tenancy", "tenancy_sys", "tenancy_runtime").trim() in text)
-        assertTrue("set role tenancy_sys;" in text && "reset role;" in text)
-    }
-
-    @Test
     fun `the idempotency migration is the DDL service-runtime generates for the tenancy schema`() {
         val expected = IdempotencySchema.ddl("tenancy", "tenancy_runtime", "tenancy_sys").trim()
         assertEquals(expected, body(migration("V202610190940__create_idempotency.sql")))
@@ -52,7 +44,7 @@ class GeneratedMigrationsTest {
     fun `every service table carries the generated tenant policy`() {
         val file = "V202610190910__create_structure_tables.sql"
         val text = migration(file)
-        listOf("tenant", "tenant_group", "registered_entity", "business_unit", "short_code").forEach { name ->
+        listOf("tenant", "tenant_group", "entity", "business_unit", "short_code").forEach { name ->
             val table = SqlIdentifier.require(name, "table")
             assertTrue(TenantRlsMigration.ddl("tenancy", table, "tenant_isolation") in text, "$file: $table")
             assertTrue("CREATE TABLE tenancy.$table (" in text, "$file: $table")

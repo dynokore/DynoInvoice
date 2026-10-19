@@ -4,10 +4,19 @@ plugins {
     id("gst.jooq-codegen")
 }
 
+// The jars that hold tenancy-kernel's BindingKeyMigration: the codegen installs the signed-binding functions of the schema
+// in its throwaway container before the migrations (INV-Q-7418), as the fixture does in an environment.
+val bindingKernel: Configuration by configurations.creating {
+    isCanBeConsumed = false
+}
+
 // STK-15: the records are generated from the Flyway migrations (src/main/resources/db/migration) applied to PostgreSQL.
 gstJooqCodegen {
     initScripts.from("src/integrationTest/resources/roles.sql")
     schema = "tenancy"
+    bindingSource.from(bindingKernel)
+    bindingSysRole = "tenancy_sys"
+    bindingRuntimeRole = "tenancy_runtime"
 }
 
 dependencies {
@@ -30,6 +39,8 @@ dependencies {
     implementation(libs.jackson.databind)
     implementation(libs.jackson.moduleKotlin)
     implementation(libs.jooq)
+    bindingKernel(platform(libs.platform.bom))
+    bindingKernel(libs.platform.tenancyKernel.impl)
 
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
