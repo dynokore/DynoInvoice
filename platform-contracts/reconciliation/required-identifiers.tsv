@@ -1,4 +1,5 @@
 # INV-T-6055. Identifiers in backticks in the published behavior and io_contract of INV-REQ-634, 651, 653, 655, 656, 657, 982 (read from Keel), plus the contract names of the done-when.
+# INV-T-7243. Rows added for INV-REQ-631, 632 and 633 (read from Keel). Backticked names of these requirements without a row: CanonicalVersionCreated, GstReturnRecorded, SubmissionAcknowledged (events, owned by the event contracts and asyncapi.yaml); NOT_SUBMITTABLE, scopeVerdict and notSubmittableReason (owned by the rules and canonical contracts, not by this file); tax.approver, agent.operator and FILE_GST_RETURN (a role and a permission); PRIMARY (a return-mapping pack basis, owned by the pack contract); VarianceClass (a schema name, not a property or member).
 identifier	kind	file	requirement
 formType	property	openapi.yaml	INV-REQ-653
 filingAcknowledgement	property	openapi.yaml	INV-REQ-653
@@ -16,3 +17,16 @@ F5	enum_value	openapi.yaml	INV-REQ-653
 F7	enum_value	openapi.yaml	INV-REQ-653
 F8	enum_value	openapi.yaml	INV-REQ-653
 acknowledgementHash	property	schemas/gst-return-recorded-payload.schema.json	INV-REQ-653
+TIMING_DIFFERENCE	enum_value	openapi.yaml	INV-REQ-632
+NO_INVOICE_REQUIRED	enum_value	openapi.yaml	INV-REQ-632
+INPUT_TAX_NOT_CLAIMED	enum_value	openapi.yaml	INV-REQ-632
+ERROR_CORRECTED_VIA_F5	enum_value	openapi.yaml	INV-REQ-632
+EXCLUDED_TXN	enum_value	openapi.yaml	INV-REQ-632
+PRE_OBLIGATION	enum_value	openapi.yaml	INV-REQ-632
+OUTSIDE_BY_RULE	enum_value	openapi.yaml	INV-REQ-632
+BUYER_REJECTED	enum_value	openapi.yaml	INV-REQ-632
+UNEXPLAINED	enum_value	openapi.yaml	INV-REQ-632
+varianceClass	property	openapi.yaml	INV-REQ-632
+unmappedLines	property	openapi.yaml	INV-REQ-631
+annotateVariance	operation	openapi.yaml	INV-REQ-633
+annotateVariance.PER-015	operation_error_code	openapi.yaml	INV-REQ-633

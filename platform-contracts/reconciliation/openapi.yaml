@@ -406,7 +406,7 @@ paths:
       x-principal: filing-workflow
       x-sync-edge: console-bff->reconciliation-svc
       x-timeout: 2000
-      x-error-codes: []
+      x-error-codes: [PER-015]
       x-requirements: [INV-REQ-957, INV-REQ-1010]
       x-operation:
         role: tax.approver
@@ -448,6 +448,12 @@ paths:
                     varianceClass: "TIMING_DIFFERENCE"
                     references: ["s3://reconciliation/E-001/2026-Q1/schedule.pdf"]
                     annotatedAt: "2026-04-28T09:20:00Z"
+        '422':
+          description: The variance class is not one a person may assign (PER-015); nothing is recorded.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '../service-runtime/schemas/error-envelope.schema.json'
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/reconciliation/runs/{runId}/attestation:
@@ -622,10 +628,36 @@ components:
           format: decimal
           pattern: '^-?\d{1,17}(\.\d{1,2})?$'
         varianceClass:
-          type: string
-          maxLength: 60
-          description: A first-class category of amendment-taxonomy.yaml's variance classification, or UNEXPLAINED.
+          $ref: '#/components/schemas/VarianceClass'
       required: [box, submittedAmount, filedAmount, variance]
+    VarianceClass:
+      type: string
+      maxLength: 60
+      enum: [TIMING_DIFFERENCE, NO_INVOICE_REQUIRED, INPUT_TAX_NOT_CLAIMED, ERROR_CORRECTED_VIA_F5, EXCLUDED_TXN, PRE_OBLIGATION, OUTSIDE_BY_RULE, BUYER_REJECTED, UNEXPLAINED]
+      x-extensible-enum: true
+      description: >-
+        The vocabulary of the variance class of a Box (INV-REQ-632, INV-REQ-633;
+        INV-Q-7237 A). The first eight members are categories of the difference
+        taxonomy; UNEXPLAINED is the absence of a category. reconciliation-svc
+        derives EXCLUDED_TXN, PRE_OBLIGATION, OUTSIDE_BY_RULE and BUYER_REJECTED
+        from the documents in its read model; a person assigns TIMING_DIFFERENCE,
+        NO_INVOICE_REQUIRED, INPUT_TAX_NOT_CLAIMED, ERROR_CORRECTED_VIA_F5 or
+        OUTSIDE_BY_RULE with annotateVariance. UNEXPLAINED is never assigned by a person.
+    UnmappedLine:
+      type: object
+      properties:
+        docUuid:
+          type: string
+          format: uuid
+        version:
+          type: integer
+          minimum: 1
+        lineNumber:
+          type: integer
+          minimum: 1
+        taxCode:
+          type: string
+      required: [docUuid, version, lineNumber, taxCode]
     Reconciliation:
       type: object
       properties:
@@ -654,6 +686,11 @@ components:
           description: Why no Box comparison is produced; PER-008 for a period with no uploaded return (INV-REQ-657, INV-AC-669).
           items:
             $ref: '#/components/schemas/ReconciliationReason'
+        unmappedLines:
+          type: array
+          description: Lines of a submitted document that no return-mapping pack entry maps. They are counted in no Box and are never dropped (INV-Q-7239 A).
+          items:
+            $ref: '#/components/schemas/UnmappedLine'
       required: [entityRef, periodRef, boxes, unexplainedResidual]
     ReconciliationReason:
       type: object
@@ -747,6 +784,11 @@ components:
             type: string
         attestation:
           $ref: '#/components/schemas/Attestation'
+        unmappedLines:
+          type: array
+          description: Lines of a submitted document that no return-mapping pack entry maps. They are counted in no Box and are never dropped (INV-Q-7239 A).
+          items:
+            $ref: '#/components/schemas/UnmappedLine'
       required: [runId, header, boxes, unexplainedResidual, supportingDocuments]
     AnnotateVarianceRequest:
       type: object
@@ -754,7 +796,11 @@ components:
         varianceClass:
           type: string
           maxLength: 60
-          description: A first-class category of amendment-taxonomy.yaml's variance classification, or UNEXPLAINED.
+          description: >-
+            The class a person assigns to the whole unexplained residual of the Box in this run:
+            one of TIMING_DIFFERENCE, NO_INVOICE_REQUIRED, INPUT_TAX_NOT_CLAIMED,
+            ERROR_CORRECTED_VIA_F5 or OUTSIDE_BY_RULE. Any other value is refused with PER-015.
+            An absent value leaves the Box residual unexplained; UNEXPLAINED is never assigned by a person.
         references:
           type: array
           minItems: 1
@@ -772,6 +818,9 @@ components:
           type: string
         varianceClass:
           type: string
+          description: >-
+            The class a person assigned: one of TIMING_DIFFERENCE, NO_INVOICE_REQUIRED,
+            INPUT_TAX_NOT_CLAIMED, ERROR_CORRECTED_VIA_F5 or OUTSIDE_BY_RULE.
         references:
           type: array
           items:
