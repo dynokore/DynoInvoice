@@ -38,10 +38,8 @@ import java.util.UUID
  * The acceptance criteria of INV-T-4925 at the service boundary: the real application context over a real PostgreSQL
  * with forced row-level security and the signed binding. Test names carry the criterion key (acKeyCoverage).
  *
- * The operations createTenant, createEntity, getEntityStructure and the group and business-unit operations are not
- * implemented yet (they wait for the contract of INV-T-7381 and the rulings of the open gaps), so the rows are written
- * through jOOQ under a bound tenant, which is what the storage-layer criteria assert; the criteria whose decisive step
- * is an API call carry no test here (see the merge request, "Not done").
+ * The storage-layer criteria are asserted here with rows written through jOOQ under a bound tenant; the operations
+ * themselves (createTenant, createGroup, createEntity, business units, getEntityStructure) are tested in OperationsTest.
  */
 class AcceptanceCriteriaTest {
     private val other = TenantId(UUID.randomUUID())
