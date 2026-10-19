@@ -59,3 +59,11 @@ responseDeadline	property	schemas/privacy-notice-due-payload.schema.json	INV-REQ
 noticeLeadDays	property	schemas/privacy-notice-due-payload.schema.json	INV-REQ-1403
 ACCESS	enum_value	schemas/privacy-notice-due-payload.schema.json	INV-REQ-1403
 CORRECTION	enum_value	schemas/privacy-notice-due-payload.schema.json	INV-REQ-1403
+alertRef	property	schemas/accreditation-alert-raised-payload.schema.json	INV-REQ-1365
+taskRef	property	schemas/accreditation-alert-raised-payload.schema.json	INV-REQ-1365
+reason	property	schemas/accreditation-alert-raised-payload.schema.json	INV-REQ-1365
+raisedAt	property	schemas/accreditation-alert-raised-payload.schema.json	INV-REQ-1365
+releaseRef	property	schemas/accreditation-alert-raised-payload.schema.json	INV-REQ-1365
+currentUntil	property	schemas/accreditation-alert-raised-payload.schema.json	INV-REQ-1365
+ACCREDITATION_LAPSED	enum_value	schemas/accreditation-alert-raised-payload.schema.json	INV-REQ-1365
+REASSESSMENT_NEEDED	enum_value	schemas/accreditation-alert-raised-payload.schema.json	INV-REQ-1365

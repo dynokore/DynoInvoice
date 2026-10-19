@@ -1,14 +1,14 @@
 asyncapi: 3.0.0
 info:
   title: service-runtime shared event components
-  version: 1.5.0
+  version: 1.6.0
   description: >-
     Not a service: holds the CloudEvents envelope every other directory's
     asyncapi.yaml references (API-40, ./schemas/cloud-event-envelope.schema.json)
     rather than redeclaring its own copy, and the platform event class
     (FR-AH.15, AD-27, AD-31) — AuditEntryRecorded, JobRunRecorded,
     PolicyChanged, PackReadinessAcknowledged, ConnectionStatusChanged,
-    EvidenceArtefactRecorded, JobRegistered, PrivacyNoticeDue — whose schema is owned by `service-runtime`
+    EvidenceArtefactRecorded, JobRegistered, PrivacyNoticeDue, AccreditationAlertRaised — whose schema is owned by `service-runtime`
     alone rather than by any one producer (STK-61, INV-REQ-1226 b1-b2,
     INV-ADR-285; INV-T-2853/T9's "T11 authors the three platform events
     once under service-runtime/" follow-up, extended by INV-T-2855/T11 to
@@ -66,6 +66,12 @@ channels:
     messages:
       PrivacyNoticeDue:
         $ref: '#/components/messages/PrivacyNoticeDue'
+
+  platformAccreditationAlertRaised:
+    address: 'gst.platform.accreditation-alert-raised.v1'
+    messages:
+      AccreditationAlertRaised:
+        $ref: '#/components/messages/AccreditationAlertRaised'
 
   platformConnectionStatusChanged:
     address: 'gst.platform.connection-status-changed.v1'
@@ -136,6 +142,14 @@ operations:
       $ref: '#/channels/platformPrivacyNoticeDue'
     messages:
       - $ref: '#/channels/platformPrivacyNoticeDue/messages/PrivacyNoticeDue'
+
+  publishAccreditationAlertRaised:
+    action: send
+    description: AccreditationAlertRaised — a release train that changes what accreditation covered opens an accreditation task and raises an alert to operators (INV-REQ-1365, INV-Q-7336).
+    channel:
+      $ref: '#/channels/platformAccreditationAlertRaised'
+    messages:
+      - $ref: '#/channels/platformAccreditationAlertRaised/messages/AccreditationAlertRaised'
 
   publishConnectionStatusChanged:
     action: send
@@ -255,6 +269,20 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/privacy-notice-due-payload.schema.json'
+
+    AccreditationAlertRaised:
+      name: com.dynokore.gst.platform.AccreditationAlertRaised.v1
+      title: AccreditationAlertRaised
+      summary: AccreditationAlertRaised
+      description: >-
+        An accreditation alert is raised when a release train that changes what accreditation covered
+        opens an accreditation task (INV-REQ-1365, INV-AC-2340, INV-Q-7316, INV-Q-7336). Class: platform.
+        Written under the platform tenant with the platform entity because the platform is not a tenant
+        (INV-REQ-1226 b7). Emitted by: control-plane-svc. Consumed by: notification-svc. Delivery:
+        At-least-once. One event per alertRef. The payload carries no invoice content.
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/accreditation-alert-raised-payload.schema.json'
 
     ConnectionStatusChanged:
       name: com.dynokore.gst.platform.ConnectionStatusChanged.v1

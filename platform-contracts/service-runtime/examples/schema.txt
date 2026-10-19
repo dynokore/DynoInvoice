@@ -7,3 +7,4 @@
 ../schemas/pack-dry-run-sample-recorded-payload.schema.json pack-dry-run-sample-recorded-payload-*.json
 ../schemas/audit-entry-recorded-payload.schema.json audit-entry-recorded-payload-*.json
 ../schemas/privacy-notice-due-payload.schema.json privacy-notice-due-payload-*.json
+../schemas/accreditation-alert-raised-payload.schema.json accreditation-alert-raised-payload-*.json

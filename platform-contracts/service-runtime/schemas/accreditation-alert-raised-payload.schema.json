@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/service-runtime/schemas/accreditation-alert-raised-payload.schema.json",
+  "title": "AccreditationAlertRaisedPayload",
+  "description": "Payload of the AccreditationAlertRaised platform event (class: platform; INV-REQ-1365, INV-AC-2340, INV-Q-7316, INV-Q-7336 option A). control-plane-svc emits it once per alertRef when it opens an accreditation task. Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "alertRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "The alert; one event is emitted per alertRef."
+    },
+    "taskRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "The tracked accreditation task opened for the release train."
+    },
+    "reason": {
+      "type": "string",
+      "description": "Why the alert is raised.",
+      "enum": [
+        "ACCREDITATION_LAPSED",
+        "REASSESSMENT_NEEDED"
+      ],
+      "x-extensible-enum": true
+    },
+    "raisedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the alert was raised."
+    },
+    "releaseRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "The release train concerned, when there is one."
+    },
+    "currentUntil": {
+      "type": "string",
+      "format": "date",
+      "description": "The date until which the current accreditation holds, when known."
+    }
+  },
+  "required": [
+    "alertRef",
+    "taskRef",
+    "reason",
+    "raisedAt"
+  ],
+  "additionalProperties": true
+}
