@@ -2,6 +2,7 @@ package com.dynokore.gst.tenancy.bootstrap
 
 import com.dynokore.gst.tenancy.adapters.http.ApiRefusal
 import com.dynokore.gst.tenancy.adapters.http.EntitiesController
+import com.dynokore.gst.tenancy.adapters.http.TenancyRefusal
 import com.dynokore.gst.tenancy.adapters.http.TenantsController
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.SHORT_CODE
 import com.dynokore.gst.tenancy.application.structure.StructureCommands
@@ -15,6 +16,7 @@ import com.dynokore.gst.tenancy.contract.model.RegisterBusinessUnitRequest
 import com.dynokore.gst.tenancy.contract.model.UpdateBusinessUnitRequest
 import com.dynokore.gst.tenancy.domain.TenantRefs
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
+import com.dynokore.platform.serviceruntime.http.TenancyErrorCode
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
@@ -101,6 +103,12 @@ class OperationsTest {
         }
     }
 
+    private fun tenancyRefusal(block: () -> Unit): TenancyErrorCode {
+        val thrown = runCatching(block).exceptionOrNull()
+        assertThat(thrown).isInstanceOf(TenancyRefusal::class.java)
+        return (thrown as TenancyRefusal).code
+    }
+
     private fun refusal(block: () -> Unit): ClosedErrorCode {
         val thrown = runCatching(block).exceptionOrNull()
         assertThat(thrown).isInstanceOf(ApiRefusal::class.java)
@@ -124,8 +132,8 @@ class OperationsTest {
                     tenantRef = UUID.randomUUID().toString(),
                 )
             assertThat(
-                refusal { env.tenantsApi.createTenant(UUID.randomUUID(), other) },
-            ).isEqualTo(ClosedErrorCode.STALE_AGGREGATE)
+                tenancyRefusal { env.tenantsApi.createTenant(UUID.randomUUID(), other) },
+            ).isEqualTo(TenancyErrorCode.TENANT_NOT_CREATED)
         }
     }
 
@@ -137,8 +145,8 @@ class OperationsTest {
             val first = env.entity(tenant, group, "201912345A")
             assertThat(first.node!!.code).isEqualTo("201912345A")
             assertThat(first.lifecycleState).isEqualTo(EntityResponse.LifecycleState.DRAFT)
-            val duplicate = refusal { env.entity(tenant, group, "201912345A") }
-            assertThat(duplicate).isEqualTo(ClosedErrorCode.STALE_AGGREGATE)
+            val duplicate = tenancyRefusal { env.entity(tenant, group, "201912345A") }
+            assertThat(duplicate).isEqualTo(TenancyErrorCode.SHORT_CODE_ALREADY_USED)
             assertThat(env.entity(tenant, group, "201912345A", "ALT1").node!!.code).isEqualTo("ALT1")
             assertThat(
                 refusal { env.entity(tenant, group, null, "ABCDEFGHIJK") },
@@ -166,10 +174,10 @@ class OperationsTest {
                 ).isEqualTo("BU1")
                 val clash = unit.copy(name = "Second", code = "SHARED1")
                 assertThat(
-                    refusal {
+                    tenancyRefusal {
                         env.entitiesApi.registerBusinessUnit(UUID.randomUUID(), clash)
                     },
-                ).isEqualTo(ClosedErrorCode.STALE_AGGREGATE)
+                ).isEqualTo(TenancyErrorCode.SHORT_CODE_ALREADY_USED)
             }
         }
     }
@@ -200,6 +208,39 @@ class OperationsTest {
                     }
                 },
             ).isEqualTo(1)
+        }
+    }
+
+    @Test
+    fun `a business unit code used in an aggregate number is refused with TNC-003`() {
+        run { env ->
+            val tenant = env.newTenant()
+            val entity = env.entity(tenant, env.group(tenant), "HOST1")
+            env.inTenant(tenant) {
+                val unit =
+                    env.entitiesApi
+                        .registerBusinessUnit(
+                            UUID.randomUUID(),
+                            RegisterBusinessUnitRequest(tenant.value.toString(), entity.entityRef, "Outlet", "FIXBU1"),
+                        ).body!!
+                BoundaryFixture.asSuperuser { connection ->
+                    connection.createStatement().use {
+                        it.execute(
+                            "UPDATE tenancy.short_code SET used_in_aggregate_number = true " +
+                                "WHERE code = 'FIXBU1' AND tenant_id = '${tenant.value}'",
+                        )
+                    }
+                }
+                val code =
+                    tenancyRefusal {
+                        env.entitiesApi.updateBusinessUnit(
+                            unit.businessUnitRef,
+                            UUID.randomUUID(),
+                            UpdateBusinessUnitRequest("Outlet", "FIXBU2"),
+                        )
+                    }
+                assertThat(code).isEqualTo(TenancyErrorCode.SHORT_CODE_FIXED)
+            }
         }
     }
 

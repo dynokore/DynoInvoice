@@ -2,6 +2,7 @@ package com.dynokore.gst.tenancy.adapters.http
 
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.serviceruntime.http.Problems
+import com.dynokore.platform.serviceruntime.http.TenancyErrorCode
 import com.dynokore.platform.serviceruntime.logging.CorrelationContext
 import org.springframework.http.HttpHeaders
 import org.springframework.http.ResponseEntity
@@ -15,6 +16,12 @@ import java.util.UUID
  */
 class ApiRefusal(
     val code: ClosedErrorCode,
+    val detail: String? = null,
+) : RuntimeException("${code.code}: ${detail ?: code.title}")
+
+/** A business-conflict refusal with its tenancy catalogue code (TNC-001..003), rendered by `Problems.renderTenancy`. */
+class TenancyRefusal(
+    val code: TenancyErrorCode,
     val detail: String? = null,
 ) : RuntimeException("${code.code}: ${detail ?: code.title}")
 
@@ -33,6 +40,19 @@ class ApiRefusalAdvice {
         problem.headers.forEach { (name, value) -> headers.add(name, value) }
         return ResponseEntity.status(problem.status).headers(headers).body(problem.body)
     }
+
+    @ExceptionHandler(TenancyRefusal::class)
+    fun refuse(refusal: TenancyRefusal): ResponseEntity<String> {
+        val problem =
+            Problems.renderTenancy(
+                refusal.code,
+                CorrelationContext.currentCorrelationId()?.value ?: UUID.randomUUID().toString(),
+                refusal.detail,
+            )
+        val headers = HttpHeaders()
+        problem.headers.forEach { (name, value) -> headers.add(name, value) }
+        return ResponseEntity.status(problem.status).headers(headers).body(problem.body)
+    }
 }
 
 /** The refusals the tenancy operations share (SRT-001 for a malformed request, SRT-005 for an absent node). */
@@ -40,9 +60,8 @@ internal fun invalid(message: String): Nothing = throw ApiRefusal(ClosedErrorCod
 
 internal fun notFound(): Nothing = throw ApiRefusal(ClosedErrorCode.NOT_FOUND)
 
-/**
- * The contract answers 409 for a conflict with the tenant's state. The closed service-runtime set has no code for a
- * business conflict and the contract lists none (`x-error-codes: []`); STALE_AGGREGATE is the one 409 the set holds
- * until the catalogue gains a tenancy code (reported as a gap in the merge request).
- */
-internal fun conflict(message: String): Nothing = throw ApiRefusal(ClosedErrorCode.STALE_AGGREGATE, message)
+/** The contract answers 409 for a conflict with the tenant's state; the code is a TNC catalogue code (INV-Q-7553 A). */
+internal fun conflict(
+    code: TenancyErrorCode,
+    message: String,
+): Nothing = throw TenancyRefusal(code, message)

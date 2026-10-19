@@ -17,7 +17,9 @@ import com.dynokore.gst.tenancy.contract.model.MoveBusinessUnitRequest
 import com.dynokore.gst.tenancy.contract.model.RegisterBusinessUnitRequest
 import com.dynokore.gst.tenancy.contract.model.StructureNode
 import com.dynokore.gst.tenancy.contract.model.UpdateBusinessUnitRequest
+import com.dynokore.gst.tenancy.domain.CodeRefusal
 import com.dynokore.gst.tenancy.domain.TenantRefs
+import com.dynokore.platform.serviceruntime.http.TenancyErrorCode
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import org.springframework.http.HttpStatus
@@ -134,7 +136,14 @@ open class EntitiesController(
         when (outcome) {
             is StructureOutcome.Done -> outcome.value
             StructureOutcome.NotFound -> notFound()
-            is StructureOutcome.Conflict -> conflict("the short code is in use or fixed by an aggregate number")
+            is StructureOutcome.Conflict -> shortCodeConflict(outcome.reason)
             is StructureOutcome.Invalid -> invalid("the short code must be 1 to 10 characters of A-Z and 0-9")
+        }
+
+    private fun shortCodeConflict(reason: CodeRefusal): Nothing =
+        if (reason == CodeRefusal.USED_IN_AGGREGATE_NUMBER) {
+            conflict(TenancyErrorCode.SHORT_CODE_FIXED, "the short code is fixed by an aggregate number")
+        } else {
+            conflict(TenancyErrorCode.SHORT_CODE_ALREADY_USED, "the short code is already used in the tenant")
         }
 }

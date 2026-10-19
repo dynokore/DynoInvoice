@@ -9,6 +9,7 @@ import com.dynokore.gst.tenancy.contract.model.CreateTenantRequest
 import com.dynokore.gst.tenancy.contract.model.TenantResponse
 import com.dynokore.gst.tenancy.domain.TenantRefs
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
+import com.dynokore.platform.serviceruntime.http.TenancyErrorCode
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.RestController
@@ -47,9 +48,20 @@ open class TenantsController(
         val stored =
             try {
                 when (val outcome = createTenant.handle(requested)) {
-                    is TenantCreation.Created -> outcome.tenant
-                    is TenantCreation.Repeated -> outcome.tenant
-                    TenantCreation.Conflict -> conflict("the tenant or its contract reference is already recorded")
+                    is TenantCreation.Created -> {
+                        outcome.tenant
+                    }
+
+                    is TenantCreation.Repeated -> {
+                        outcome.tenant
+                    }
+
+                    TenantCreation.Conflict -> {
+                        conflict(
+                            TenancyErrorCode.TENANT_NOT_CREATED,
+                            "the tenant or its contract reference is already recorded",
+                        )
+                    }
                 }
             } catch (e: TenantRefused) {
                 if (e.invalid) invalid("the tenant is refused") else throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
