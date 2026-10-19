@@ -39,7 +39,8 @@ import java.util.UUID
  * with forced row-level security and the signed binding. Test names carry the criterion key (acKeyCoverage).
  *
  * The storage-layer criteria are asserted here with rows written through jOOQ under a bound tenant; the operations
- * themselves (createTenant, createGroup, createEntity, business units, getEntityStructure) are tested in OperationsTest.
+ * themselves (createTenant, createGroup, createEntity, business units, getEntityStructure) are tested in
+ * OperationsTest.
  */
 class AcceptanceCriteriaTest {
     private val other = TenantId(UUID.randomUUID())

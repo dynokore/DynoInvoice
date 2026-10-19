@@ -183,7 +183,8 @@ class OperationsTest {
             BoundaryFixture.asSuperuser { connection ->
                 connection.createStatement().use {
                     it.execute(
-                        "UPDATE tenancy.short_code SET used_in_aggregate_number = true WHERE code = 'FIXED1' AND tenant_id = '${tenant.value}'",
+                        "UPDATE tenancy.short_code SET used_in_aggregate_number = true " +
+                            "WHERE code = 'FIXED1' AND tenant_id = '${tenant.value}'",
                     )
                 }
             }

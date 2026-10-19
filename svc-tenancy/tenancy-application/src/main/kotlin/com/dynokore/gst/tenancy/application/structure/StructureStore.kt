@@ -45,7 +45,8 @@ data class CodeUse(
     val usedInAggregateNumber: Boolean,
 )
 
-/** The groups of the bound tenant. Row-level security shows only that tenant's rows; every method runs in the caller's transaction. */
+/** The groups of the bound tenant. Row-level security shows only that tenant's rows; every method runs in the
+ * caller's transaction. */
 interface GroupStore {
     fun group(ref: String): GroupRecord?
 

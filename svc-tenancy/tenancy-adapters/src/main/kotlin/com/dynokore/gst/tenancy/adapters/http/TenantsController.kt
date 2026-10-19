@@ -15,7 +15,8 @@ import org.springframework.web.bind.annotation.RestController
 import java.util.UUID
 
 /**
- * TPL-08. createTenant (scope platform, caller control-plane-svc): the tenant is recorded under the `tenantRef` sent, or
+ * TPL-08. createTenant (scope platform, caller control-plane-svc): the tenant is recorded under the `tenantRef` sent,
+ * or
  * under the ref derived from the contract reference; a repeat of the same tenant and contract returns the original
  * (INV-Q-7466 A, INV-Q-7468 A).
  */
