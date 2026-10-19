@@ -46,6 +46,7 @@ springBoot-dependencies = { module = "org.springframework.boot:spring-boot-depen
 springBoot-starterWeb = { module = "org.springframework.boot:spring-boot-starter-web" }
 springBoot-starterActuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }
 springBoot-starterJdbc = { module = "org.springframework.boot:spring-boot-starter-jdbc" }
+springBoot-starterTest = { module = "org.springframework.boot:spring-boot-starter-test" }
 springBoot-test = { module = "org.springframework.boot:spring-boot-test" }
 springBoot-autoconfigure = { module = "org.springframework.boot:spring-boot-autoconfigure" }
 springWeb = { module = "org.springframework:spring-web" }
