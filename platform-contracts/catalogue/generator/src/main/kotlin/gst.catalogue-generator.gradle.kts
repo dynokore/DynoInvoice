@@ -1,6 +1,7 @@
 import gst.catalogue.BlockDispositionChecker
 import gst.catalogue.CatalogueArtefact
 import gst.catalogue.ErrorCodeYamlParser
+import gst.catalogue.HoldReleaseChecker
 import gst.catalogue.KotlinEmitter
 import gst.catalogue.MustBeElectedAvailabilityChecker
 import gst.catalogue.NonWaivableFloorChecker
@@ -308,6 +309,40 @@ sourceSets {
     }
 }
 
+val checkHoldReleaseEvents =
+    tasks.register("checkHoldReleaseEvents") {
+        group = "verification"
+        description = "INV-REQ-1181: every HOLD code names its resolving event (INV-Q-7282 A)."
+        inputs.file(sourceYaml)
+        val reportFile = layout.buildDirectory.file("reports/catalogue/hold-release.txt")
+        outputs.file(reportFile)
+        doLast {
+            val rows = ErrorCodeYamlParser.parse(sourceYaml)
+            val result = HoldReleaseChecker.check(rows)
+            val report =
+                buildString {
+                    appendLine("INV-REQ-1181 — HOLD resolving-event check")
+                    appendLine()
+                    appendLine("HOLD rows checked (${result.checked.size}):")
+                    result.checked.forEach { appendLine("  - $it") }
+                    if (result.violations.isNotEmpty()) {
+                        appendLine()
+                        appendLine("Violations (${result.violations.size}):")
+                        result.violations.forEach { appendLine("  - $it") }
+                    }
+                }
+            val out = reportFile.get().asFile
+            out.parentFile.mkdirs()
+            out.writeText(report)
+            if (!result.passed) {
+                throw org.gradle.api.GradleException(
+                    "INV-REQ-1181: ${result.violations.size} HOLD violation(s):\n" +
+                        result.violations.joinToString("\n") { "  - $it" },
+                )
+            }
+        }
+    }
+
 tasks.named("compileKotlin") {
     dependsOn(generateErrorCodeCatalogue, generateVariationPointCatalogue, generateOperatingProfileCatalogue)
 }
@@ -316,6 +351,7 @@ tasks.named("check") {
     dependsOn(
         checkCatalogueStability,
         checkBlockDispositionCauses,
+        checkHoldReleaseEvents,
         checkMustBeElectedAvailability,
         checkNonWaivableFloor,
         checkVariationPointFields,

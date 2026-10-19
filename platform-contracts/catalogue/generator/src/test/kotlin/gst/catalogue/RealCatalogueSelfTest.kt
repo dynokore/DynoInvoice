@@ -39,6 +39,21 @@ class RealCatalogueSelfTest {
     }
 
     @Test
+    fun `INV-REQ-1181 every HOLD code names its resolving event in the real catalogue`() {
+        val rows = ErrorCodeYamlParser.parse(vendoredFile)
+        val result = HoldReleaseChecker.check(rows)
+        assertTrue(result.passed, "HOLD violations:\n" + result.violations.joinToString("\n"))
+        val byCode = rows.associateBy { it.code }
+        listOf("MDM-001", "PAY-013", "SUB-011", "ING-016", "PER-011", "PER-012", "PAY-016").forEach { code ->
+            val row = byCode.getValue(code)
+            assertTrue(row.severity == Severity.HOLD, "$code should be HOLD")
+            assertTrue(row.disposition == Disposition.AUTO_RELEASE, "$code should be AUTO_RELEASE")
+        }
+        val manual = byCode.getValue("ING-017")
+        assertTrue(manual.severity == Severity.HOLD && manual.disposition == Disposition.MANUAL)
+    }
+
+    @Test
     fun `the catalogue artefact renders and reads back without loss`() {
         val rows = ErrorCodeYamlParser.parse(vendoredFile)
         val commit = ErrorCodeYamlParser.readPinnedCommit(vendoredFile)
