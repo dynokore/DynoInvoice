@@ -1,0 +1,26 @@
+# .gitlab-ci.yml — svc-control-plane (INV-T-4984).
+#
+# Uses platform-build's shared CI templates (ci/README.md): compile, unit and integration tests, lint, Semgrep, Trivy,
+# then the image (bootBuildImage with the Paketo digest pins, SBOM, scan) and its publish to Nexus. Dependency
+# verification is strict in the template; a build with `--dependency-verification off` fails there (STK-72).
+
+include:
+  - project: 'invoice/platform-build'
+    ref: main
+    file:
+      - 'ci/stages.gitlab-ci.yml'   # always first: stages, workflow rules, shared variables
+      - 'ci/build.gitlab-ci.yml'    # compile, unit+integration tests, lint, Semgrep, Trivy
+      - 'ci/image.gitlab-ci.yml'    # bootBuildImage, SBOM, image scan, sign, provenance
+      - 'ci/publish.gitlab-ci.yml'  # image publish
+  # The keel-report job of stage .post reads the JUnit XML of unit-test from the main push pipeline and reports the
+  # INV-AC numbers in the testcase names to Keel (as platform-libs does).
+  - project: 'keel/tooling'
+    ref: main
+    file: 'keel-report-junit.yml'
+    inputs:
+      runner_tags: [inv-arm64]
+      junit_paths: '**/build/test-results/*/TEST-*.xml'
+      ac_pattern: 'INV-AC-\d+(?!\d)'
+
+variables:
+  IMAGE_NAME: "svc-control-plane"
