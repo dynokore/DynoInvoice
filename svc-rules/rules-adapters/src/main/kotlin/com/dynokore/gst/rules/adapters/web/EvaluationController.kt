@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.RestController
 /**
  * The evaluation API of the rules contract (TPL-08). Every operation answers 501 until the task that implements it
  * (operations.tsv) overrides it: the generated interface's default is the 501 stub, so a contract operation is
- * never missing from the running service and never silently half-done.
+ * never missing from the running service and never silently half-done. Open, because Spring proxies a controller.
  */
 @RestController
-class EvaluationController : EvaluationApi
+open class EvaluationController : EvaluationApi

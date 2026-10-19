@@ -29,10 +29,23 @@ dependencies {
     implementation(libs.springBoot.starterActuator)
     implementation(libs.springBoot.starterJdbc)
     runtimeOnly(libs.postgresql)
+    // The image also runs service-runtime's MigrationRunner, the migration Job's entry point (TPL-12, ARC-20).
+    runtimeOnly(libs.springBoot.flyway)
+    runtimeOnly(libs.springBoot.jooq)
+    runtimeOnly(libs.flyway.core)
+    runtimeOnly(libs.flyway.databasePostgresql)
 
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.springBoot.test)
+    testImplementation(libs.testcontainers.postgresql) // real PostgreSQL only (STK-14, STK-15); H2 is banned
+    // TenancyProbe, tenancy-jooq's test fixture: the only raw-SQL place in tests (CS-18); the published test-fixtures variant
+    testImplementation(libs.platform.tenancyJooq.api) {
+        capabilities { requireCapability("com.dynokore.platform:tenancy-jooq-test-fixtures") }
+    }
+    testImplementation(libs.platform.tenancyKernel.api) {
+        capabilities { requireCapability("com.dynokore.platform:tenancy-kernel-test-fixtures") } // SignedBinding, which TenancyProbe signs with
+    }
     testImplementation(libs.assertj.core) // AssertableApplicationContext extends AssertJ's AssertProvider
     testImplementation(libs.jooq)
     testImplementation(libs.kotest.assertionsCore)
