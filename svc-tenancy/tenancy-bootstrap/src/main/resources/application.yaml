@@ -39,8 +39,7 @@ gst:
   db.event-log-url: ${GST_EVENT_LOG_DB_URL:}
 inv:
   tenancy:
-    # the installation binding key and the installation facts hold no tenant data; their migrations carry the comment
-    # 'platform-scoped: no tenant data' (TableClasses.verify, INV-ADR-3968 item 4a)
+    # the installation facts hold no tenant data; their migration carries the comment 'platform-scoped: no tenant data'
+    # (TableClasses.verify, INV-ADR-3968 item 4a). The binding key table is installed by tenancy-kernel, not generated.
     platform-scoped-tables:
-      - tenancy.binding_key
       - tenancy.installation_fact
