@@ -2,6 +2,7 @@ package com.dynokore.platform.productruntime
 
 import com.dynokore.platform.outboxandqueue.EventLogPresence
 import com.dynokore.platform.outboxandqueue.TenantScope
+import com.dynokore.platform.serviceruntime.binding.InstallationBindingKey
 import com.dynokore.platform.serviceruntime.pool.PoolLane
 import com.dynokore.platform.serviceruntime.pool.PoolLanes
 import com.dynokore.platform.tenancykernel.TenantContext
@@ -65,6 +66,7 @@ class AutoConfigurationOnlyLaneBehaviourIT {
         return ApplicationContextRunner()
             .withUserConfiguration(AutoConfigurationOnlyApplication::class.java)
             .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
+            .withBean(InstallationBindingKey::class.java, { FixedBindingKeySource.installationBindingKey() })
             .withBean("internalRestClientBuilder", RestClient.Builder::class.java, { RestClient.builder() })
             .withPropertyValues(
                 "gst.service=submission-svc",
@@ -119,7 +121,12 @@ class AutoConfigurationOnlyLaneBehaviourIT {
                 // the pool starts on this first use; the probe counts its housekeeping passes from here (INV-T-5668)
                 HousekeepingPassProbe("event-log").use { housekeeping ->
                     useEventLog(context.getBean(EventLogPresence::class.java))
-                    eventually { sessionsOf(eventLog) } shouldBe 1
+                    // Hikari refills a pool of minimumIdle 1 when its only connection is borrowed, so for a moment the
+                    // probe's connection and a refill connection both exist; the refill retires at the first
+                    // housekeeping pass after the idle timeout (60 s). Poll until the count settles at 1, bounded by the
+                    // deadline of the pass window, instead of reading it once (the race is in how long the probe holds
+                    // the connection, which grew with the signed binding, INV-T-4156).
+                    settlesAt(1, HOUSEKEEPING_DEADLINE_MS) { sessionsOf(eventLog) } shouldBe 1
                     (sessionsOf(postgres) <= MINIMAL_POOL_MAXIMUM) shouldBe true
                     // minimumIdle 1 keeps the connection open past the pool's idle timeout (60 s); a pool of
                     // minimumIdle 0 retires it at the next housekeeping run after that, so the count would drop to 0.
@@ -210,6 +217,21 @@ class AutoConfigurationOnlyLaneBehaviourIT {
         runCatching { presence.missing("probe-topic", listOf("probe-event")) }.exceptionOrNull().shouldNotBeNull()
     }
 
+    /** The first value of [read] equal to [expected] within [deadlineMs], polled every second; else the last value read. */
+    private fun settlesAt(
+        expected: Int,
+        deadlineMs: Long,
+        read: () -> Int,
+    ): Int {
+        val end = System.nanoTime() + deadlineMs * NANOS_PER_MILLI
+        var last = read()
+        while (last != expected && System.nanoTime() < end) {
+            Thread.sleep(1000)
+            last = read()
+        }
+        return last
+    }
+
     /** The value of [read] once it has stopped changing for a second, or after [HOLD_SECONDS]. */
     private fun eventually(read: () -> Int): Int {
         var last = read()
@@ -243,6 +265,7 @@ class AutoConfigurationOnlyLaneBehaviourIT {
         const val LOGIN_REF = "db-test-login"
         const val TIMEOUT_MS = 1000L
         const val HOLD_SECONDS = 20L
+        const val NANOS_PER_MILLI = 1_000_000L
         const val WINDOW_MS = 100_000L
 
         // HikariCP's housekeeper: first pass 100 ms after the pool starts, then 30 s after each pass ends (the library

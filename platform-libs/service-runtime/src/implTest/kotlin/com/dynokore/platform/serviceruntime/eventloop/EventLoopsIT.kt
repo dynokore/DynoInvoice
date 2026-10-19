@@ -32,6 +32,7 @@ import com.dynokore.platform.outboxandqueue.TestCatalogue
 import com.dynokore.platform.serviceruntime.composition.OutboxAndQueueWiring
 import com.dynokore.platform.serviceruntime.datasource.TEST_LOGIN_REF
 import com.dynokore.platform.serviceruntime.datasource.Tpl18JdbcApplication
+import com.dynokore.platform.serviceruntime.datasource.bindingKeyInitializer
 import com.dynokore.platform.serviceruntime.datasource.isPoolClosed
 import com.dynokore.platform.serviceruntime.pool.EventLogGate
 import com.dynokore.platform.serviceruntime.pool.LaneGateHolder
@@ -695,6 +696,7 @@ class EventLoopsIT {
             Files.writeString(mount.resolve(TEST_LOGIN_REF), "outbox_app_pw\n")
             val context =
                 SpringApplicationBuilder(Tpl18JdbcApplication::class.java, configuration)
+                    .initializers(bindingKeyInitializer)
                     .web(WebApplicationType.NONE)
                     .properties(
                         "spring.datasource.url=$url",

@@ -6,6 +6,14 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-10-19
+### Changed
+- BREAKING (INV-T-4156 last slice; INV-Q-5352, INV-Q-5354 (A), owner ruling INV-Q-4121): `TransactionRunnerImpl` takes `keys: BindingKeySource` with no default
+  and a runner built without one is refused at construction; the constructors without a key are gone. Every transaction signs `app.binding_sig`.
+- BREAKING: `TenantRlsMigration.ddl` policies use `tenant_id = (select <schema>.bound_tenant())`; `<schema>.bound_tenant()` ([BindingKeyMigration.ddl]) must exist before the policy.
+- `<schema>.bound_tenant()` is one plpgsql function (INV-Q-6959; INV-Q-5352): the MAC is checked first against the key table, with no exception block, no loop and no call to `binding_verified()`; same results for all 27 probe values on PostgreSQL 16, 17 and 18. A value binds only if its actor decodes to well-formed UTF-8 without NUL.
+- Test fixtures: `TestPoolFixture.runner` requires `keys`; `PostgresProbeFixture` installs the binding functions and `SignedBinding.key()` in `tenancy_kernel_test`.
+
 ## [3.3.0] - 2026-10-18
 ### Added
 - Signed binding, slice 2 of 9 of INV-T-4156 (INV-Q-5352, INV-Q-5354 (A), owner ruling INV-Q-4121): `TransactionRunnerImpl`

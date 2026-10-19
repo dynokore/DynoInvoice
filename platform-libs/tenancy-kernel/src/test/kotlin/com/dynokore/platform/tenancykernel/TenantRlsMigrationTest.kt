@@ -1,5 +1,7 @@
 package com.dynokore.platform.tenancykernel
 
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -12,7 +14,9 @@ class TenantRlsMigrationTest {
         assertTrue(ddl.contains("ALTER TABLE submission.filing_fact ENABLE ROW LEVEL SECURITY;"))
         assertTrue(ddl.contains("ALTER TABLE submission.filing_fact FORCE ROW LEVEL SECURITY;"))
         assertTrue(ddl.contains("CREATE POLICY tenant_isolation ON submission.filing_fact"))
-        assertTrue(ddl.contains("tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid"))
+        assertTrue(ddl.contains("tenant_id = (select submission.bound_tenant())"))
+        assertFalse(ddl.contains("current_setting"), "the policy reads the signed binding only")
+        assertEquals(2, ddl.split("(select submission.bound_tenant())").size - 1, "USING and WITH CHECK")
         // Both USING and WITH CHECK carry the predicate (CS-19): a policy with only USING still lets
         // a write insert a foreign tenant_id, checked only on the next read.
         assertTrue(ddl.contains("USING"))

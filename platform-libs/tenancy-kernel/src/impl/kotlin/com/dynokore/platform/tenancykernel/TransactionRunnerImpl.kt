@@ -21,10 +21,11 @@ import javax.sql.DataSource
  * opening a second one, and is refused with `IllegalStateException` before any
  * statement when its binding (tenant, actor) differs from the outer one's.
  *
- * With a [keys] source (INV-REQ-854 b7, INV-Q-4121, INV-Q-5354 (A)) the same first statement also sets
- * `app.binding_sig`, the signed binding of [BindingSignature], as a bind parameter and never as text. Its expiry is
- * the transaction start plus [transactionTimeout], rounded down to whole seconds. Without [keys] (the default) no
- * signature is set. A source with no current key is refused before any statement.
+ * The same first statement also sets `app.binding_sig` (INV-REQ-854 b7, INV-Q-4121, INV-Q-5354 (A)), the signed
+ * binding of [BindingSignature], as a bind parameter and never as text. Its expiry is the transaction start plus
+ * [transactionTimeout], rounded down to whole seconds. [keys] has no default and is required: a runner built without
+ * one is refused at construction (INV-T-4156), because every RLS policy reads the binding through `bound_tenant()`.
+ * A source with no current key is refused before any statement.
  */
 class TransactionRunnerImpl
     constructor(
@@ -42,14 +43,10 @@ class TransactionRunnerImpl
             val DEFAULT_TRANSACTION_TIMEOUT: Duration = Duration.ofSeconds(30)
         }
 
-        /** No label and no signature: the unsigned path of every caller before INV-T-5359. */
-        constructor(dataSource: DataSource, tenants: TenantContext) : this(dataSource, tenants, null, null)
-
-        /** A label and no signature, the form with a trailing lambda `TransactionRunnerImpl(ds, tenants) { name }`. */
-        constructor(dataSource: DataSource, tenants: TenantContext, label: ConnectionLabel?) :
-            this(dataSource, tenants, label, null)
-
         init {
+            requireNotNull(keys) {
+                "A TransactionRunnerImpl needs a BindingKeySource (INV-REQ-854 b7, INV-Q-5354 (A)): an unsigned runner binds nothing."
+            }
             require(
                 !transactionTimeout.isNegative && !transactionTimeout.isZero,
             ) { "The transaction timeout must be positive." }
@@ -117,12 +114,12 @@ class TransactionRunnerImpl
             }
         }
 
-        /** The `app.binding_sig` value for this transaction, or null when no [keys] source is set. */
+        /** The `app.binding_sig` value for this transaction. */
         private fun signedBinding(
             tenant: TenantId,
             actor: String,
-        ): String? {
-            val source = keys ?: return null
+        ): String {
+            val source = checkNotNull(keys)
             val key =
                 source.currentKey()?.takeIf { it.isNotEmpty() }
                     ?: throw IllegalStateException(
@@ -138,49 +135,33 @@ class TransactionRunnerImpl
 
         /**
          * The first statement of the transaction: one `select`, every setting transaction-local (`true`), so each ends
-         * at commit or rollback: the tenant, the actor, `app.binding_sig` when a key source signs (a bind parameter
+         * at commit or rollback: the tenant, the actor, `app.binding_sig` (a bind parameter
          * only), and the [label]'s `application_name` when it gives one (INV-Q-4487).
          */
         private fun bindSettings(
             connection: Connection,
             tenant: TenantId,
             actor: String,
-            signature: String?,
+            signature: String,
         ) {
             val name = label?.current()
             // whole literals only, so the SQL guard traces each one (INV-Q-4036)
             // whole literals passed straight to prepareStatement, so the SQL guard traces each one (INV-Q-4036)
             val prepared =
-                when {
-                    signature == null && name == null -> {
-                        connection.prepareStatement(
-                            "select set_config('app.tenant_id', ?, true), set_config('app.actor', ?, true)",
-                        )
-                    }
-
-                    signature == null -> {
-                        connection.prepareStatement(
-                            "select set_config('app.tenant_id', ?, true), set_config('app.actor', ?, true), set_config('application_name', ?, true)",
-                        )
-                    }
-
-                    name == null -> {
-                        connection.prepareStatement(
-                            "select set_config('app.tenant_id', ?, true), set_config('app.actor', ?, true), set_config('app.binding_sig', ?, true)",
-                        )
-                    }
-
-                    else -> {
-                        connection.prepareStatement(
-                            "select set_config('app.tenant_id', ?, true), set_config('app.actor', ?, true), set_config('app.binding_sig', ?, true), set_config('application_name', ?, true)",
-                        )
-                    }
+                if (name == null) {
+                    connection.prepareStatement(
+                        "select set_config('app.tenant_id', ?, true), set_config('app.actor', ?, true), set_config('app.binding_sig', ?, true)",
+                    )
+                } else {
+                    connection.prepareStatement(
+                        "select set_config('app.tenant_id', ?, true), set_config('app.actor', ?, true), set_config('app.binding_sig', ?, true), set_config('application_name', ?, true)",
+                    )
                 }
             prepared.use { statement ->
                 var index = 1
                 statement.setString(index++, tenant.toString())
                 statement.setString(index++, actor)
-                if (signature != null) statement.setString(index++, signature)
+                statement.setString(index++, signature)
                 if (name != null) statement.setString(index, name)
                 statement.execute()
             }

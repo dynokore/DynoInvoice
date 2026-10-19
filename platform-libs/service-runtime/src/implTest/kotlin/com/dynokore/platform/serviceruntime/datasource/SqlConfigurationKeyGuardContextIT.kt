@@ -2,6 +2,7 @@ package com.dynokore.platform.serviceruntime.datasource
 
 import com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration
 import com.dynokore.platform.serviceruntime.datasource.SqlConfigurationKeyGuardTest.Companion.TPL_16
+import com.dynokore.platform.serviceruntime.datasource.bindingKeyInitializer
 import com.dynokore.platform.serviceruntime.health.Tpl18WebService
 import com.dynokore.platform.serviceruntime.migration.MigrationRunner
 import com.zaxxer.hikari.HikariDataSource
@@ -316,7 +317,10 @@ class SqlConfigurationKeyGuardContextIT {
         }
     }
 
-    private fun service() = SpringApplicationBuilder(Tpl18WebService::class.java).web(WebApplicationType.SERVLET)
+    private fun service() =
+        SpringApplicationBuilder(
+            Tpl18WebService::class.java,
+        ).web(WebApplicationType.SERVLET).initializers(bindingKeyInitializer)
 
     // As ManagementPortIT: command-line arguments, no database (the TPL-16 database keys are present and unused).
     private fun arguments(secrets: Path): Array<String> =

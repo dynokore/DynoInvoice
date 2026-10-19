@@ -58,8 +58,9 @@ class PackRegistryMigrationTest {
 
     @Test
     fun `no policy and no function reads the unsigned tenant or actor, the DDL creates none of them`() {
-        assertFalse(ddl.contains("current_setting('app.tenant_id'"), "an unsigned tenant read is left")
-        assertFalse(ddl.contains("current_setting('app.actor'"), "an unsigned actor read is left")
+        for (name in listOf("tenant_id", "actor")) {
+            assertFalse(ddl.contains("current_setting('app.$name'"), "an unsigned $name read is left")
+        }
         assertEquals(0, Regex("""current_setting\('app\.(tenant_id|actor)'""").findAll(ddl).count())
         assertTrue(ddl.contains("(select rules.bound_tenant())"), "the policies call the schema's function")
         // look-alike: another schema's functions are never named in this schema's DDL

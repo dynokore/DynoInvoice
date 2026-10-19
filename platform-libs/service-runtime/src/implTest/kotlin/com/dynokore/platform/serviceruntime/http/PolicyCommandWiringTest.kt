@@ -5,6 +5,7 @@ import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.jobs.JobCommands
 import com.dynokore.platform.serviceruntime.policy.PolicyRoleResolver
+import com.dynokore.platform.tenancykernel.SignedBinding
 import com.dynokore.platform.tenancykernel.TenantContextImpl
 import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
 import io.kotest.matchers.shouldBe
@@ -28,7 +29,7 @@ class PolicyCommandWiringTest {
 
     /** Never asked for a connection: the wiring is built, no request reaches the store. */
     private val dataSource = mockk<DataSource>()
-    private val tx = TransactionRunnerImpl(dataSource, tenants)
+    private val tx = TransactionRunnerImpl(dataSource, tenants, null, SignedBinding.keys())
     private val scope = TenantScope(tenants, tx, tx, "svc:wiring-test")
     private val writer = mockk<PolicyWriter>()
     private val jobs = mockk<JobCommands>()

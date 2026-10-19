@@ -13,6 +13,7 @@ import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.productruntime.catalogue.GstVariationPointCatalogue
+import com.dynokore.platform.serviceruntime.binding.InstallationBindingKey
 import com.dynokore.platform.serviceruntime.composition.L1CompositionAutoConfiguration
 import com.dynokore.platform.serviceruntime.http.IdempotencyStore
 import com.dynokore.platform.serviceruntime.http.JobCommandServlet
@@ -58,6 +59,7 @@ class AutoConfigurationOnlyOrderTest {
         ApplicationContextRunner()
             .withUserConfiguration(AutoConfigurationOnlyApplication::class.java)
             .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
+            .withBean(InstallationBindingKey::class.java, { FixedBindingKeySource.installationBindingKey() })
             .withBean("internalRestClientBuilder", RestClient.Builder::class.java, { RestClient.builder() })
             .withPropertyValues(
                 "gst.service=submission-svc",
@@ -92,6 +94,7 @@ class AutoConfigurationOnlyOrderTest {
     private val tpl16 =
         ApplicationContextRunner()
             .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
+            .withBean(InstallationBindingKey::class.java, { FixedBindingKeySource.installationBindingKey() })
             .withPropertyValues(
                 "spring.datasource.url=jdbc:postgresql://localhost:5432/submission",
                 "spring.datasource.username=submission_app",

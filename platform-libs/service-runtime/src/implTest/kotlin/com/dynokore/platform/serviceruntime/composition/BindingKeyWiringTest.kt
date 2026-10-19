@@ -5,6 +5,7 @@ import com.dynokore.platform.serviceruntime.binding.InstallationBindingKey
 import com.dynokore.platform.serviceruntime.binding.SecretStore
 import com.dynokore.platform.serviceruntime.binding.SecretStoreBindingKeySource
 import com.dynokore.platform.tenancykernel.TransactionRunner
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -35,7 +36,7 @@ class BindingKeyWiringTest {
         val store = FakeSecretStore().apply { put(current, "key-one") }
         runner(store).run { ctx ->
             ctx.getBean(TransactionRunner::class.java).shouldNotBeNull()
-            val source = ctx.getBean(InstallationBindingKey::class.java).source.shouldNotBeNull()
+            val source = ctx.getBean(InstallationBindingKey::class.java).source
             source.currentKey()!!.decodeToString() shouldBe "key-one"
             source.previousKey().shouldBeNull() // a missing previous key is accepted
 
@@ -47,37 +48,33 @@ class BindingKeyWiringTest {
     }
 
     @Test
-    fun `a start without the current secret builds an unsigned runner and warns once naming the secret`(
-        output: CapturedOutput,
-    ) {
+    fun `a start without the current secret fails naming the secret and no value`() {
         runner(FakeSecretStore().apply { put(previous, "only-previous-value") }).run { ctx ->
-            ctx.getBean(TransactionRunner::class.java).shouldNotBeNull()
-            ctx.getBean(InstallationBindingKey::class.java).source.shouldBeNull()
+            val failure = ctx.startupFailure.shouldNotBeNull()
+            generateSequence<Throwable>(failure) { it.cause }.joinToString { it.message.orEmpty() } shouldContain
+                current.value
+            generateSequence<Throwable>(failure) { it.cause }
+                .joinToString { it.message.orEmpty() } shouldNotContain "only-previous-value"
         }
-        val warnings = output.all.lines().filter { it.contains("WARN") && it.contains("binding key") }
-        warnings.size shouldBe 1
-        warnings.single() shouldContain current.value
-        output.all shouldNotContain "only-previous-value"
     }
 
     @Test
-    fun `a start with no SecretStore at all is unsigned and warns naming the secret`(output: CapturedOutput) {
+    fun `a start with no SecretStore at all fails naming the secret`() {
         runner(null).run { ctx ->
-            ctx.getBean(InstallationBindingKey::class.java).source.shouldBeNull()
+            val failure = ctx.startupFailure.shouldNotBeNull()
+            generateSequence<Throwable>(failure) { it.cause }.joinToString { it.message.orEmpty() } shouldContain
+                current.value
         }
-        output.all shouldContain current.value
     }
 
     @Test
     fun `the secret name appears in the log but the value never does`(output: CapturedOutput) {
         val store = FakeSecretStore().apply { put(current, "sup3r-secret-value") }
         runner(store).run { ctx ->
-            val source = ctx.getBean(InstallationBindingKey::class.java).source.shouldNotBeNull()
+            val source = ctx.getBean(InstallationBindingKey::class.java).source
             source.currentKey().shouldNotBeNull()
             source.toString() shouldContain current.value
         }
-        InstallationBindingKey.of(FakeSecretStore()) // a missing current secret logs its name
-        output.all shouldContain current.value
         output.all shouldNotContain "sup3r-secret-value"
         // look-alike: a log line that does carry the value fails the same assertion
         val leaked = "warn sup3r-secret-value"
@@ -107,7 +104,7 @@ class BindingKeyWiringTest {
             store.put(previous, blank)
             source.currentKey().shouldBeNull()
             source.previousKey().shouldBeNull()
-            InstallationBindingKey.of(store).source.shouldBeNull()
+            shouldThrow<IllegalStateException> { InstallationBindingKey.of(store) }
         }
     }
 }

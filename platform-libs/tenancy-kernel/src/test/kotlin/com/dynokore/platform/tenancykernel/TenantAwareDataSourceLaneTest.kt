@@ -43,7 +43,7 @@ class TenantAwareDataSourceLaneTest {
                 connectionTimeoutMillis = timeoutMillis,
             ).use { pool ->
                 val tenants = TenantContextImpl()
-                body(tenants, pool.runner(tenants, gate))
+                body(tenants, pool.runner(tenants, gate, keys = SignedBinding.keys()))
             }
         }
 

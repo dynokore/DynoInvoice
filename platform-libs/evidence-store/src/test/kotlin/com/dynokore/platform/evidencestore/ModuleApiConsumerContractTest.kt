@@ -75,7 +75,7 @@ class ModuleApiConsumerContractTest {
         EvidenceStorePostgresFixture("postgres:18").use { fixture ->
             val tenants = TenantContextImpl()
             val pool = appPool(fixture)
-            val tx = pool.runner(tenants)
+            val tx = pool.runner(tenants, keys = fixture.keys)
             val dsl = dslOver(schema, tenants, tx)
             val ledger = JdbcEvidenceLedger(dsl, schema, EvidenceStorePostgresFixture.EVIDENCE_TABLE)
             val holds = JdbcLegalHoldRegistry(dsl, schema, EvidenceStorePostgresFixture.LEGAL_HOLD_TABLE)

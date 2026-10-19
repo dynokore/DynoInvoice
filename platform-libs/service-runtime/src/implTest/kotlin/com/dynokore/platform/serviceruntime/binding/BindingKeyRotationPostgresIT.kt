@@ -74,7 +74,7 @@ class BindingKeyRotationPostgresIT {
         sys: TestPoolFixture,
         source: SecretStoreBindingKeySource,
     ) {
-        val tx = sys.runner(tenants)
+        val tx = sys.runner(tenants, keys = SignedBinding.keys())
         tenants.bind(tenant, "migration") {
             tx.inTransaction { BindingKeyMigration.writeKeys(DSL.using(tx.require()), SCHEMA, source) }
         }
@@ -93,7 +93,7 @@ class BindingKeyRotationPostgresIT {
         app: TestPoolFixture,
         key: ByteArray,
     ): Boolean {
-        val unsigned = app.runner(tenants)
+        val unsigned = app.runner(tenants, keys = SignedBinding.keys())
         val value = SignedBinding.value(key, tenant, actor, Instant.now())
         return tenants.bind(tenant, actor) {
             unsigned.inTransaction {

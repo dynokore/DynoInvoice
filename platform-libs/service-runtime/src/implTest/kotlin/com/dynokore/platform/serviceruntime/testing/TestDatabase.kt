@@ -4,6 +4,7 @@ import com.dynokore.platform.outboxandqueue.SigningFixture
 import com.dynokore.platform.tenancyjooq.TableClass
 import com.dynokore.platform.tenancyjooq.TenancyJooq
 import com.dynokore.platform.tenancyjooq.TenancyTables
+import com.dynokore.platform.tenancykernel.BindingKeySource
 import com.dynokore.platform.tenancykernel.LaneGate
 import com.dynokore.platform.tenancykernel.TenantContextImpl
 import com.dynokore.platform.tenancykernel.TenantId
@@ -30,6 +31,8 @@ import javax.sql.DataSource
 class TestDatabase(
     private val url: String,
     tables: Map<String, TableClass>,
+    /** The key every runner signs with; it must be the one the database holds (default: the outbox fixture's). */
+    private val keys: BindingKeySource = SigningFixture.keys(),
 ) : AutoCloseable {
     val tenants = TenantContextImpl()
     val tenancyTables: TenancyTables =
@@ -47,7 +50,7 @@ class TestDatabase(
     ): Access {
         val pool = TestPoolFixture(url, user, password, maximumPoolSize, 0, connectionTimeoutMillis, user)
         pools += pool
-        val runner = pool.runner(tenants, lanes, keys = SigningFixture.keys())
+        val runner = pool.runner(tenants, lanes, keys = keys)
         val dsl =
             TenancyJooq.configure(DefaultConfiguration().set(SQLDialect.POSTGRES), tenancyTables, tenants, runner).dsl()
         return Access(this, runner, dsl, pool.dataSource(lanes))
@@ -55,7 +58,7 @@ class TestDatabase(
 
     /** A runner and DSLContext over a pool the test did not build (a service's own pool, a bean of its context). */
     fun over(dataSource: DataSource): Access {
-        val runner = TransactionRunnerImpl(dataSource, tenants, null, SigningFixture.keys())
+        val runner = TransactionRunnerImpl(dataSource, tenants, null, keys)
         val dsl =
             TenancyJooq.configure(DefaultConfiguration().set(SQLDialect.POSTGRES), tenancyTables, tenants, runner).dsl()
         return Access(this, runner, dsl, dataSource)

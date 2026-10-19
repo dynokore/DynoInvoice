@@ -115,7 +115,7 @@ class TransactionRunnerSeamTest {
                 } as DataSource,
                 gate,
             )
-        val runner = TransactionRunnerImpl(dataSource, tenants)
+        val runner = TransactionRunnerImpl(dataSource, tenants, null, SignedBinding.keys())
         val tenantA = TenantId(UUID.randomUUID())
         val tenantB = TenantId(UUID.randomUUID())
 
@@ -277,7 +277,7 @@ class TransactionRunnerSeamTest {
     @Test
     fun `9 look-alikes the seam of another runner or thread clears nothing here`() {
         val a = Fixture()
-        val b = TransactionRunnerImpl(a.dataSource, a.tenants)
+        val b = TransactionRunnerImpl(a.dataSource, a.tenants, null, SignedBinding.keys())
         a.asA {
             a.runner.inTransaction {
                 val token = a.runner.transactionToken()
@@ -402,7 +402,7 @@ class TransactionRunnerSeamTest {
                 connectionTimeoutMillis = 500,
             ).use { pool ->
                 val tenants = TenantContextImpl()
-                val runner = pool.runner(tenants)
+                val runner = pool.runner(tenants, keys = SignedBinding.keys())
                 val a = TenantId(UUID.randomUUID())
                 val b = TenantId(UUID.randomUUID())
                 tenants.bind(a, "actor") {

@@ -36,7 +36,7 @@ class TenancyKernelWiring {
     @ConditionalOnMissingBean(TenantContext::class)
     fun tenantContext(): TenantContextImpl = TenantContextImpl()
 
-    /** The binding key read through [SecretStore] (INV-T-5360); one warning at start when the current secret is missing. */
+    /** The binding key read through [SecretStore] (INV-T-5360); start-up fails when the current secret is missing (INV-T-4156). */
     @Bean
     @ConditionalOnMissingBean(InstallationBindingKey::class)
     fun installationBindingKey(secrets: ObjectProvider<SecretStore>): InstallationBindingKey =

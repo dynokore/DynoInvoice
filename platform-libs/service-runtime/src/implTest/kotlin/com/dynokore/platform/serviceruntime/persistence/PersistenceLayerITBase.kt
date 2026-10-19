@@ -4,6 +4,7 @@ import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.AppenderBase
+import com.dynokore.platform.outboxandqueue.SigningFixture
 import com.dynokore.platform.serviceruntime.datasource.tpl18Service
 import com.dynokore.platform.serviceruntime.datasource.withMountedLogin
 import com.dynokore.platform.serviceruntime.persistence.jooq.Pers
@@ -155,6 +156,8 @@ abstract class PersistenceLayerITBase(
                     "create schema pers;\nset search_path to pers;\n",
                 ).append(migration).append("\nreset search_path;\n")
                 append("grant usage on schema pers to pers_rt;\n")
+                append("create role pers_sys nologin;\n")
+                append(SigningFixture.provisioning("pers", "pers_sys", "pers_rt")).append('\n')
                 tables.forEach { table ->
                     append("grant select, insert, update, delete on pers.$table to pers_rt;\n")
                     if (rls) {
@@ -162,8 +165,8 @@ abstract class PersistenceLayerITBase(
                         append("alter table pers.$table force row level security;\n")
                         append(
                             "create policy tenant_isolation on pers.$table " +
-                                "using (tenant_id = current_setting('app.tenant_id')::uuid) " +
-                                "with check (tenant_id = current_setting('app.tenant_id')::uuid);\n",
+                                "using (tenant_id = (select pers.bound_tenant())) " +
+                                "with check (tenant_id = (select pers.bound_tenant()));\n",
                         )
                     }
                 }

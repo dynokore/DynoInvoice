@@ -6,6 +6,7 @@ import com.dynokore.platform.serviceruntime.replica.OperatorSessionKeysChanged
 import com.dynokore.platform.serviceruntime.testing.TestDatabase
 import com.dynokore.platform.tenancyjooq.TableClass
 import com.dynokore.platform.tenancykernel.PostgresProbeFixture
+import com.dynokore.platform.tenancykernel.SignedBinding
 import com.dynokore.platform.tenancykernel.TenantId
 import com.nimbusds.jose.JWSAlgorithm
 import com.nimbusds.jose.JWSHeader
@@ -41,7 +42,13 @@ class OperatorSessionTenantRowsIT {
     fun `a valid operator session reads only its tenant's rows`(image: String) {
         PostgresProbeFixture(image).use { fixture ->
             // the runtime login's pool and a DSLContext from tenancy-jooq's factory over the probe table (TENANT)
-            val db = TestDatabase(fixture.jdbcUrl(), mapOf("tenancy_kernel_test.probe" to TableClass.TENANT))
+            // the probe schema holds SignedBinding's default key
+            val db =
+                TestDatabase(
+                    fixture.jdbcUrl(),
+                    mapOf("tenancy_kernel_test.probe" to TableClass.TENANT),
+                    SignedBinding.keys(),
+                )
             val app = db.login(PostgresProbeFixture.APP, PostgresProbeFixture.APP_PASSWORD)
             val probe = DSL.table(DSL.name("tenancy_kernel_test", "probe"))
             val idCol = DSL.field(DSL.name("id"), SQLDataType.UUID)

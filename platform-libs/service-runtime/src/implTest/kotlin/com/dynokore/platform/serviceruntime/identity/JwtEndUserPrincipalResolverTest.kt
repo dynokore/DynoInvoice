@@ -5,6 +5,7 @@ import com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration
 import com.dynokore.platform.serviceruntime.binding.IdentityProvider
 import com.dynokore.platform.serviceruntime.binding.OidcIssuer
 import com.dynokore.platform.serviceruntime.composition.L1CompositionAutoConfiguration
+import com.dynokore.platform.serviceruntime.datasource.withBindingKey
 import com.dynokore.platform.serviceruntime.replica.AuthorityChanged
 import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
@@ -168,6 +169,7 @@ class JwtEndUserPrincipalResolverTest {
         val runner =
             ApplicationContextRunner()
                 .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
+                .withBindingKey()
                 .withConfiguration(
                     AutoConfigurations.of(
                         ServiceRuntimeConfiguration::class.java,

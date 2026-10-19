@@ -69,6 +69,8 @@ class EvidenceStorePostgresFixture(
                 }.readText()
             return roles + "\n" +
                 bindingInit(SCHEMA, SignedBinding.key(), SYS_ROLE, APP_USER) +
+                // FORCE ROW LEVEL SECURITY applies the policy to the table owner too, which needs the function
+                "GRANT EXECUTE ON FUNCTION $SCHEMA.bound_tenant() TO $OWNER_USER;\n" +
                 "\nSET ROLE $OWNER_USER;\n" +
                 "create table $SCHEMA.$EVIDENCE_TABLE (${JdbcEvidenceLedger.COLUMNS});\n" +
                 EvidenceLedgerSchema.trailerDdl(SCHEMA, EVIDENCE_TABLE, APP_USER) + "\n" +

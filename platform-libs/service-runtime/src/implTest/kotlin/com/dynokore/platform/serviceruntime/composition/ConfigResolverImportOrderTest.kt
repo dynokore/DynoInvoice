@@ -12,6 +12,7 @@ import com.dynokore.platform.configresolver.PolicyWriter
 import com.dynokore.platform.configresolver.ResolutionRecorder
 import com.dynokore.platform.configresolver.UnknownVariationPoint
 import com.dynokore.platform.configresolver.VariationPointKey
+import com.dynokore.platform.serviceruntime.datasource.withBindingKey
 import com.dynokore.platform.tenancykernel.CurrentConnection
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
@@ -38,6 +39,7 @@ class ConfigResolverImportOrderTest {
     private val service =
         ApplicationContextRunner()
             .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
+            .withBindingKey()
             .withBean(
                 "dataSource",
                 DataSource::class.java,

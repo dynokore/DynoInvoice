@@ -1,6 +1,7 @@
 package com.dynokore.platform.serviceruntime.spel
 
 import com.dynokore.platform.serviceruntime.datasource.SqlConfigurationKeyGuardTest.Companion.TPL_16
+import com.dynokore.platform.serviceruntime.datasource.bindingKeyInitializer
 import com.dynokore.platform.serviceruntime.health.Tpl18WebService
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContain
@@ -170,7 +171,11 @@ class SpelBoundaryIT {
         vararg extra: String,
         environment: StandardEnvironment? = null,
     ): String {
-        val builder = SpringApplicationBuilder(Tpl18WebService::class.java, probe).web(WebApplicationType.SERVLET)
+        val builder =
+            SpringApplicationBuilder(
+                Tpl18WebService::class.java,
+                probe,
+            ).web(WebApplicationType.SERVLET).initializers(bindingKeyInitializer)
         environment?.let(builder::environment)
         val failure = shouldThrow<Exception> { builder.run(*arguments(secrets), *extra).close() }
         return generateSequence<Throwable>(failure) { it.cause }.joinToString(" | ") { it.message.orEmpty() }
@@ -187,7 +192,10 @@ class SpelBoundaryIT {
             )
         }
 
-    private fun service() = SpringApplicationBuilder(Tpl18WebService::class.java).web(WebApplicationType.SERVLET)
+    private fun service() =
+        SpringApplicationBuilder(
+            Tpl18WebService::class.java,
+        ).web(WebApplicationType.SERVLET).initializers(bindingKeyInitializer)
 
     // As SqlConfigurationKeyGuardContextIT: command-line arguments, no database (the TPL-16 keys are present and unused).
     private fun arguments(secrets: Path): Array<String> =

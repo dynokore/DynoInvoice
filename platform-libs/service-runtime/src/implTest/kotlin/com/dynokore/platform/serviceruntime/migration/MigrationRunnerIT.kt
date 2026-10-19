@@ -4,6 +4,7 @@ import com.dynokore.platform.serviceruntime.composition.JobProperties
 import com.dynokore.platform.serviceruntime.composition.ModuleProperties
 import com.dynokore.platform.serviceruntime.datasource.CredentialRotationIT.Companion.mount
 import com.dynokore.platform.serviceruntime.datasource.Tpl18JdbcApplication
+import com.dynokore.platform.serviceruntime.datasource.withBindingKey
 import com.dynokore.platform.serviceruntime.datasource.withMountedLogin
 import com.dynokore.platform.serviceruntime.jobs.JobSchema
 import com.dynokore.platform.serviceruntime.testing.PG_NAMESPACE
@@ -12,6 +13,7 @@ import com.dynokore.platform.serviceruntime.testing.TestDatabase
 import com.dynokore.platform.serviceruntime.testing.createLoginSql
 import com.dynokore.platform.serviceruntime.testing.startPostgres
 import com.dynokore.platform.tenancyjooq.TableClass
+import com.dynokore.platform.tenancykernel.BindingKeyMigration
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -67,6 +69,24 @@ class MigrationRunnerIT {
                 .shouldNotBeNull()
                 .use { String(it.readAllBytes(), Charsets.UTF_8) }
         resource shouldBe JobSchema.ddl("ledger", "submission_runtime", "submission_sys")
+    }
+
+    /**
+     * `V0_1__Binding.sql` creates the signed-binding key table and functions of `ledger` before the job tables, whose
+     * policies read `ledger.bound_tenant()` (INV-T-4156): the sys role runs [BindingKeyMigration.ddl], then the test key.
+     */
+    @Test
+    fun `the committed binding migration is BindingKeyMigration ddl for ledger byte for byte`() {
+        val resource =
+            javaClass.classLoader
+                .getResourceAsStream("db/migration-it/V0_1__Binding.sql")
+                .shouldNotBeNull()
+                .use { String(it.readAllBytes(), Charsets.UTF_8) }
+        resource shouldBe
+            "grant usage, create on schema ledger to submission_sys;\nset role submission_sys;\n" +
+            BindingKeyMigration.ddl("ledger", "submission_sys", "submission_runtime") +
+            "\ninsert into ledger.binding_key (slot, secret) values ('current', decode(repeat('05', 32), 'hex'));\n" +
+            "reset role;"
     }
 
     // The placeholder tests of the job-retention callback (coordinator ruling INV-Q-5255), moved from
@@ -126,7 +146,10 @@ class MigrationRunnerIT {
             createLoginSql(MIGRATE, migrate) +
                 createLoginSql(RUNTIME, "runtime-pw") +
                 "create role $SYS nologin;\ngrant $SYS to $MIGRATE;\n" +
-                "do \$\$ begin execute format('grant create on database %I to $MIGRATE', current_database()); end \$\$;\n"
+                "do \$\$ begin execute format('grant create on database %I to $MIGRATE', current_database()); " +
+                "end \$\$;\n" +
+                // pgcrypto for the binding functions of V0_1__Binding.sql, a database-level object (INV-T-4156)
+                "create extension if not exists pgcrypto schema public;\n"
         startPostgres(image, roles).use { pg ->
             mount(mountRoot, MIGRATE_REF, migrate)
             val database =
@@ -140,6 +163,7 @@ class MigrationRunnerIT {
             // the service: service-runtime's defaults turn Flyway off, so its context starts and migrates nothing
             ApplicationContextRunner()
                 .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
+                .withBindingKey()
                 .withUserConfiguration(Tpl18JdbcApplication::class.java)
                 .withPropertyValues(
                     *database,

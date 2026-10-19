@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-10-19
+### Changed
+- Metadata-only release (INV-Q-5337, G-DVS): depends on `tenancy-kernel` 4.0.0, whose published module metadata changed; no code change.
+
 ## [1.3.0] - 2026-10-18
 ### Added
 - `TenancyJooq.configure` and `install` take RecordListeners (default none) and `TenancyJooq.recordListeners` lists a

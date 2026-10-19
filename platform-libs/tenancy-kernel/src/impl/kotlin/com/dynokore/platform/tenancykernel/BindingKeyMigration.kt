@@ -15,6 +15,30 @@ object BindingKeyMigration {
     private const val SLOT_CURRENT = "current"
     private const val SLOT_PREVIOUS = "previous"
 
+    /** The signed body `<tenant>.<actor>.<expiry>` in one pattern, applied after the MAC comparison (INV-Q-7088 (a)). */
+    private const val BODY_SHAPE =
+        "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.[A-Za-z0-9_-]+\\.[0-9]{1,12}$"
+
+    /** Hex of ASCII bytes 01 to 7F: the fast path before the full RFC 3629 test (INV-Q-7088 (b)); it accepts no NUL byte. */
+    private const val ASCII_NO_NUL_HEX = "^(0[1-9a-f]|[1-7][0-9a-f])*$"
+
+    /**
+     * Hex of a byte string that is well-formed UTF-8 (RFC 3629: no overlong form, no surrogate, nothing above
+     * U+10FFFF) without a NUL byte: the check `bound_tenant()` makes on the decoded actor part without an exception
+     * clause. Every branch starts with a different lead byte, so the pattern does not backtrack.
+     */
+    private const val UTF8_NO_NUL_HEX =
+        "^(" +
+            "0[1-9a-f]|[1-7][0-9a-f]" +
+            "|(c[2-9a-f]|d[0-9a-f])[89ab][0-9a-f]" +
+            "|e0[ab][0-9a-f][89ab][0-9a-f]" +
+            "|(e[1-9a-c]|e[ef])[89ab][0-9a-f][89ab][0-9a-f]" +
+            "|ed[89][0-9a-f][89ab][0-9a-f]" +
+            "|f0[9ab][0-9a-f]([89ab][0-9a-f]){2}" +
+            "|f[1-3]([89ab][0-9a-f]){3}" +
+            "|f48[0-9a-f]([89ab][0-9a-f]){2}" +
+            ")*\$"
+
     /**
      * The key table, the functions and their grants for [schema], to run as [sysRole] (`<svc>_sys`): the statements
      * make [sysRole] the owner, and the first block refuses to run as any other login. The table is readable by its
@@ -86,9 +110,28 @@ object BindingKeyMigration {
             |END;
             |$$;
             |CREATE FUNCTION $s.bound_tenant() RETURNS uuid
-            |    LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, $s, pg_temp
-            |    AS $$
-            |    SELECT ($s.binding_verified())[1]::uuid
+            |    LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, $s, pg_temp AS $$
+            |DECLARE
+            |    sig    text := current_setting('app.binding_sig', true);
+            |    body   text;
+            |    actor  text;
+            |    hexb   text;
+            |BEGIN
+            |    IF sig IS NULL OR length(sig) < 70 OR substr(sig, length(sig) - 64, 1) <> '.' THEN RETURN NULL; END IF;
+            |    body := left(sig, length(sig) - 65);
+            |    IF NOT EXISTS (
+            |        SELECT 1 FROM $s.binding_key k
+            |        WHERE encode($crypto.hmac(convert_to(body, 'UTF8'), k.secret, 'sha256'), 'hex') = right(sig, 64)
+            |    ) THEN RETURN NULL; END IF;
+            |    IF body !~ '$BODY_SHAPE' THEN RETURN NULL; END IF;
+            |    actor := split_part(body, '.', 2);
+            |    IF length(actor) % 4 = 1 THEN RETURN NULL; END IF;
+            |    IF split_part(body, '.', 3)::bigint <= extract(epoch FROM now())::bigint THEN RETURN NULL; END IF;
+            |    actor := translate(actor, '-_', '+/');
+            |    hexb := encode(decode(rpad(actor, length(actor) + (4 - length(actor) % 4) % 4, '='), 'base64'), 'hex');
+            |    IF hexb !~ '$ASCII_NO_NUL_HEX' AND hexb !~ '$UTF8_NO_NUL_HEX' THEN RETURN NULL; END IF;
+            |    RETURN left(body, 36)::uuid;
+            |END;
             |$$;
             |CREATE FUNCTION $s.bound_actor() RETURNS text
             |    LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, $s, pg_temp

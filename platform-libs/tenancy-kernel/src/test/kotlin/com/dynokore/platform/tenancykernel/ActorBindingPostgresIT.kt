@@ -45,7 +45,7 @@ class ActorBindingPostgresIT {
 
     private fun assertBothSettingsSetFromTheBinding(pool: DataSource) {
         val tenants = TenantContextImpl()
-        val tx = TransactionRunnerImpl(pool, tenants)
+        val tx = TransactionRunnerImpl(pool, tenants, null, SignedBinding.keys())
         val user = tenants.bind(tenantA, "user-a") { tx.inTransaction { settings(tx.require()) } }
         assertEquals(Settings(tenantA.toString(), "user-a"), user)
         val platform = tenants.bindPlatform("svc:test/job:probe") { tx.inTransaction { settings(tx.require()) } }
@@ -54,7 +54,7 @@ class ActorBindingPostgresIT {
 
     private fun assertNothingSurvivesCommitOrRollback(pool: DataSource) {
         val tenants = TenantContextImpl()
-        val tx = TransactionRunnerImpl(pool, tenants)
+        val tx = TransactionRunnerImpl(pool, tenants, null, SignedBinding.keys())
 
         tenants.bind(tenantA, "user-a") { tx.inTransaction { insert(tx.require(), tenantA, "committed") } }
         assertEquals(Settings(null, null), nextBorrowerSees(pool), "after commit")
@@ -72,7 +72,7 @@ class ActorBindingPostgresIT {
 
     private fun assertNestedMismatchIsRefusedBeforeAnyStatement(pool: DataSource) {
         val tenants = TenantContextImpl()
-        val tx = TransactionRunnerImpl(pool, tenants)
+        val tx = TransactionRunnerImpl(pool, tenants, null, SignedBinding.keys())
         val mismatches: List<(() -> Unit) -> Unit> =
             listOf(
                 { block -> tenants.bind(tenantB, "user-a", block) }, // other tenant
@@ -108,7 +108,7 @@ class ActorBindingPostgresIT {
         val before = slot.checkouts
         val real = TenantContextImpl()
         // Nothing bound: refused before a connection is even taken.
-        val unbound = TransactionRunnerImpl(counting, real)
+        val unbound = TransactionRunnerImpl(counting, real, null, SignedBinding.keys())
         assertThrows(IllegalStateException::class.java) { unbound.inTransaction { } }
         // A foreign TenantContext answering no actor, a blank one or one with a control character: refused before SQL.
         listOf(null, "", " ", "\t", "\u00A0", "\uFEFF", "a\tb", "x\u0000", "x\u001B[0m").forEach { answer ->
@@ -127,7 +127,7 @@ class ActorBindingPostgresIT {
             var ran = false
             val refused =
                 assertThrows(IllegalStateException::class.java) {
-                    TransactionRunnerImpl(counting, foreign).inTransaction { ran = true }
+                    TransactionRunnerImpl(counting, foreign, null, SignedBinding.keys()).inTransaction { ran = true }
                 }
             assertTrue("actor" in refused.message.orEmpty(), "actor $answer: ${refused.message}")
             assertFalse(ran)
@@ -166,14 +166,15 @@ class ActorBindingPostgresIT {
     private fun nextBorrowerSees(pool: DataSource): Settings = pool.connection.use { settings(it) }
 
     private fun settings(connection: Connection): Settings =
-        connection.createStatement().use { statement ->
-            statement
-                .executeQuery(
-                    "select nullif(current_setting('app.tenant_id', true), '') as t, " +
-                        "nullif(current_setting('app.actor', true), '') as a",
-                ).use { rs ->
+        connection
+            .prepareStatement(
+                "select nullif(current_setting(?, true), '') as t, nullif(current_setting(?, true), '') as a",
+            ).use {
+                it.setString(1, "app.tenant_id")
+                it.setString(2, "app.actor")
+                it.executeQuery().use { rs ->
                     rs.next()
                     Settings(rs.getString("t"), rs.getString("a"))
                 }
-        }
+            }
 }

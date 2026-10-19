@@ -39,7 +39,7 @@ class ModuleApiConsumerContractTest {
             val app = PostgresProbeFixture.APP
             TestPoolFixture(fixture.jdbcUrl(), app, PostgresProbeFixture.APP_PASSWORD).use { pool ->
                 val tenants = TenantContextImpl()
-                pool.runner(tenants)
+                pool.runner(tenants, keys = SignedBinding.keys())
                 val hangingLicence =
                     NonBlockingLicenceCheck(
                         delegate =

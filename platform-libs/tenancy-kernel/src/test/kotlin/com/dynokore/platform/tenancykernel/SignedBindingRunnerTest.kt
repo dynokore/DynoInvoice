@@ -101,13 +101,15 @@ class SignedBindingRunnerTest {
     ) = tenants.bind(tenant, "user-a") { runner.inTransaction { } }
 
     @Test
-    fun `no key source sets no signature, whatever the label`() {
+    fun `a runner built without a key source is refused at construction, whatever the label`() {
         for (label in listOf<ConnectionLabel?>(null, ConnectionLabel { "svc:lane" })) {
             val ds = Recorder()
-            val tenants = TenantContextImpl()
-            run(TransactionRunnerImpl(ds, tenants, label), tenants)
-            assertFalse(ds.sql.single().contains("binding_sig"), ds.sql.toString())
-            assertEquals(if (label == null) 2 else 3, ds.params.size)
+            val failure =
+                assertThrows(IllegalArgumentException::class.java) {
+                    TransactionRunnerImpl(ds, TenantContextImpl(), label, null)
+                }
+            assertTrue(failure.message!!.contains("BindingKeySource"), failure.message)
+            assertEquals(0, ds.connections)
         }
     }
 

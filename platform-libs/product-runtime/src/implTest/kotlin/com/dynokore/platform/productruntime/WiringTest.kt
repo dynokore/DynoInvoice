@@ -16,6 +16,7 @@ import com.dynokore.platform.productruntime.feed.AuthorityFeedHandler
 import com.dynokore.platform.productruntime.feed.PolicyFeed
 import com.dynokore.platform.productruntime.feed.StructureFeedHandler
 import com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration
+import com.dynokore.platform.serviceruntime.binding.InstallationBindingKey
 import com.dynokore.platform.serviceruntime.events.PlatformEventTypes
 import com.dynokore.platform.serviceruntime.replica.AuthorityFallback
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
@@ -142,6 +143,7 @@ class WiringTest {
         ApplicationContextRunner()
             .withUserConfiguration(Tpl18Bootstrap::class.java)
             .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
+            .withBean(InstallationBindingKey::class.java, { FixedBindingKeySource.installationBindingKey() })
             .withBean("internalRestClientBuilder", RestClient.Builder::class.java, { RestClient.builder() })
             .withPropertyValues(
                 "gst.service=submission-svc",

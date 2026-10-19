@@ -24,10 +24,10 @@ or when it gives `null`, the statement is unchanged.
 ## Signed binding
 
 Hardening on the transaction binding (INV-REQ-854 b7, owner ruling INV-Q-4121; INV-T-4156, slice 1 INV-T-5358).
-`TENANT_PREDICATE` is unchanged until the later slices. Slice 2 (INV-T-5359): `TransactionRunnerImpl(..., keys:
-BindingKeySource? = null, transactionTimeout = 30 s, clock)` signs with `BindingSignature` when `keys` is set and sets
+`TENANT_PREDICATE` is now `tenant_id = (select <schema>.bound_tenant())` (INV-T-4156 last slice). Slice 2 (INV-T-5359): `TransactionRunnerImpl(..., keys:
+BindingKeySource, transactionTimeout = 30 s, clock)` signs with `BindingSignature` and sets
 `app.binding_sig` in the same first statement as the tenant and the actor, as a bind parameter only; the expiry is the
-transaction start plus `transactionTimeout`, rounded down to whole seconds. Without `keys` no signature is set. The
+transaction start plus `transactionTimeout`, rounded down to whole seconds. `keys` has no default: a runner built without a key is refused at construction (INV-T-4156). The
 testFixtures helper is `SignedBinding`.
 
 `BindingKeyMigration.ddl(schema, sysRole, runtimeRole, pgcryptoSchema = "public")` generates, for one schema, to run
@@ -40,6 +40,7 @@ as `<svc>_sys` (the first block refuses any other login and a missing pgcrypto):
   `search_path = pg_catalog, <schema>, pg_temp` (INV-Q-4038), pgcrypto called by its qualified name, EXECUTE revoked from PUBLIC and granted
   to the runtime login only. They return NULL, never an error, for a missing, empty, malformed, forged or expired value.
   They read `app.binding_sig` only, never `app.tenant_id` or `app.actor`.
+  `bound_tenant()` is one plpgsql function that checks the MAC before anything else and has no exception block, no loop and no call to another function; both functions return NULL for an actor part that does not decode to well-formed UTF-8 without a NUL byte.
 
 `app.binding_sig` is one text value of four fields separated by `.`:
 

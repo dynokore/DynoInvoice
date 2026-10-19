@@ -64,6 +64,7 @@ import com.dynokore.platform.serviceruntime.binding.MountedFileSecretStore
 import com.dynokore.platform.serviceruntime.binding.SecretStore
 import com.dynokore.platform.serviceruntime.connection.ConnectionStatusReporter
 import com.dynokore.platform.serviceruntime.connection.OutboxConnectionStatusReporter
+import com.dynokore.platform.serviceruntime.datasource.withBindingKey
 import com.dynokore.platform.serviceruntime.events.EvidenceArtefactRecorder
 import com.dynokore.platform.serviceruntime.http.IdempotencyKeyPurgeJob
 import com.dynokore.platform.serviceruntime.http.IdempotencyStore
@@ -123,6 +124,7 @@ class CompositionRootTest {
     private val base =
         ApplicationContextRunner()
             .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
+            .withBindingKey()
             .withConfiguration(
                 AutoConfigurations.of(
                     ServiceRuntimeConfiguration::class.java,

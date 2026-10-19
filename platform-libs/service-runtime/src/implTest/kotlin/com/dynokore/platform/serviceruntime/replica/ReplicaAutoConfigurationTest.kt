@@ -2,6 +2,7 @@ package com.dynokore.platform.serviceruntime.replica
 
 import com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration
 import com.dynokore.platform.serviceruntime.composition.L1CompositionAutoConfiguration
+import com.dynokore.platform.serviceruntime.datasource.withBindingKey
 import com.dynokore.platform.serviceruntime.resilience.Deadline
 import com.dynokore.platform.serviceruntime.resilience.ResilienceProperties
 import com.dynokore.platform.tenancykernel.TenantId
@@ -21,6 +22,7 @@ class ReplicaAutoConfigurationTest {
     private val contextRunner =
         ApplicationContextRunner()
             .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
+            .withBindingKey()
             .withConfiguration(
                 AutoConfigurations.of(
                     ServiceRuntimeConfiguration::class.java,

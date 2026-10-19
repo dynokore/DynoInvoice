@@ -35,7 +35,13 @@ class ApplicationNameLabelPostgresIT {
     private fun assertLabelEndsWithTheTransaction(pool: DataSource) {
         val own = pool.connection.use { it.idleName() }
         val tenants = TenantContextImpl()
-        val tx = TransactionRunnerImpl(pool, tenants) { "submission-svc:background" }
+        val tx =
+            TransactionRunnerImpl(
+                pool,
+                tenants,
+                ConnectionLabel { "submission-svc:background" },
+                SignedBinding.keys(),
+            )
 
         val during = tenants.bind(tenant, "user-a") { tx.inTransaction { tx.require().applicationName() } }
         assertEquals("submission-svc:background", during, "during the transaction")
@@ -56,7 +62,10 @@ class ApplicationNameLabelPostgresIT {
     private fun assertNoLabelLeavesTheNameAlone(pool: DataSource) {
         val own = pool.connection.use { it.idleName() }
         val tenants = TenantContextImpl()
-        listOf(TransactionRunnerImpl(pool, tenants), TransactionRunnerImpl(pool, tenants) { null }).forEach { tx ->
+        listOf(
+            TransactionRunnerImpl(pool, tenants, null, SignedBinding.keys()),
+            TransactionRunnerImpl(pool, tenants, ConnectionLabel { null }, SignedBinding.keys()),
+        ).forEach { tx ->
             assertEquals(own, tenants.bind(tenant, "user-a") { tx.inTransaction { tx.require().applicationName() } })
         }
     }

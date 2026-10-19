@@ -1,6 +1,7 @@
 package com.dynokore.platform.serviceruntime.composition
 
 import com.dynokore.platform.serviceruntime.datasource.tpl18Service
+import com.dynokore.platform.serviceruntime.datasource.withBindingKey
 import com.dynokore.platform.tenancyjooq.TableClass
 import com.dynokore.platform.tenancyjooq.TableClasses
 import com.dynokore.platform.tenancyjooq.TenancyJooq
@@ -96,6 +97,7 @@ class TenancyJooqWiringTest {
     fun `a service without a database needs no Schema bean and defines no DSLContext (INV-Q-4815)`() {
         ApplicationContextRunner()
             .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
+            .withBindingKey()
             .withUserConfiguration(Tpl18WithoutDataSourceApplication::class.java)
             .withPropertyValues(
                 "service-runtime.workload-identity.audience=submission-svc",

@@ -26,7 +26,7 @@ import javax.sql.DataSource
 @Tag("integration")
 class TenancyKernelPostgresIT {
     @ParameterizedTest(name = "{0}")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `RLS isolation and pooled-connection cleanup hold`(image: String) {
         PostgresProbeFixture(image).use { fixture ->
             val tenantA = TenantId(UUID.randomUUID())
@@ -38,6 +38,7 @@ class TenancyKernelPostgresIT {
             assertForeignTenantWriteIsRefused(fixture, tenantA, tenantB)
             assertLeakedContextNeverCrossesAPooledConnection(fixture, tenantA, tenantB)
             assertPlatformRowsAreIsolatedLikeAnyTenant(fixture, tenantA)
+            assertSetConfigOfAnotherTenantBindsNothing(fixture, tenantA, tenantB)
         }
     }
 
@@ -56,21 +57,67 @@ class TenancyKernelPostgresIT {
         }
     }
 
-    /** CS-19 "V-10": unset or blank `app.tenant_id` matches no row — fail-closed, not fail-open. */
+    /**
+     * CS-19 "V-10": no signed binding matches no row — fail-closed, not fail-open. A tenant set by hand with
+     * `set_config` binds nothing either (INV-REQ-854 b7): the policy reads `bound_tenant()`, which verifies it.
+     */
     private fun assertFailsClosedWithNoTenantBound(fixture: PostgresProbeFixture) {
+        val tenants = TenantContextImpl()
+        val tx = TransactionRunnerImpl(app(fixture), tenants, null, SignedBinding.keys())
         val app = app(fixture)
         val tenant = TenantId(UUID.randomUUID())
-        app.connection.use { connection ->
-            connection.autoCommit = false
-            val setTenant = "select set_config('app.tenant_id', '${tenant.value}', true)"
-            connection.createStatement().use { it.execute(setTenant) }
-            insertProbe(connection, ProbeRow(UUID.randomUUID(), tenant, "fail-closed-probe"))
-            connection.commit()
+        tenants.bind(tenant, "test-actor") {
+            tx.inTransaction { insertProbe(tx.require(), ProbeRow(UUID.randomUUID(), tenant, "fail-closed-probe")) }
         }
         // A fresh connection with nothing bound at all (no set_config call this time).
         app.connection.use { connection ->
             val rows = selectProbes(connection)
             assertTrue(rows.isEmpty(), "expected no rows visible with no tenant bound, got $rows")
+        }
+        // The tenant set by hand, with no signature: still nothing.
+        app.connection.use { connection ->
+            connection.autoCommit = false
+            connection.prepareStatement("select set_config('app.tenant_id', ?, true)").use {
+                it.setString(1, tenant.value.toString())
+                it.execute()
+            }
+            val rows = selectProbes(connection)
+            connection.rollback()
+            assertTrue(rows.isEmpty(), "a hand-set app.tenant_id must bind nothing, got $rows")
+        }
+    }
+
+    /**
+     * Inside a signed transaction of tenant A, `set_config` of tenant B or of the platform tenant binds nothing: the
+     * policy still answers A (INV-REQ-854 b7).
+     */
+    private fun assertSetConfigOfAnotherTenantBindsNothing(
+        fixture: PostgresProbeFixture,
+        tenantA: TenantId,
+        tenantB: TenantId,
+    ) {
+        val tenants = TenantContextImpl()
+        val tx = TransactionRunnerImpl(app(fixture), tenants, null, SignedBinding.keys())
+        tenants.bind(tenantB, "test-actor") {
+            tx.inTransaction { insertProbe(tx.require(), ProbeRow(UUID.randomUUID(), tenantB, "b-hand-set")) }
+        }
+        tenants.bindPlatform("svc:test/job:probe") {
+            tx.inTransaction {
+                insertProbe(tx.require(), ProbeRow(UUID.randomUUID(), TenantId.PLATFORM, "platform-hand-set"))
+            }
+        }
+        for (other in listOf(tenantB.value, TenantId.PLATFORM.value)) {
+            val seen =
+                tenants.bind(tenantA, "test-actor") {
+                    tx.inTransaction {
+                        tx.require().prepareStatement("select set_config('app.tenant_id', ?, true)").use {
+                            it.setString(1, other.toString())
+                            it.execute()
+                        }
+                        selectProbes(tx.require()).map { it.value }
+                    }
+                }
+            assertFalse("b-hand-set" in seen || "platform-hand-set" in seen, "set_config($other) bound: $seen")
         }
     }
 
@@ -83,7 +130,7 @@ class TenancyKernelPostgresIT {
         tenantA: TenantId,
     ) {
         val tenants = TenantContextImpl()
-        val tx = TransactionRunnerImpl(app(fixture), tenants)
+        val tx = TransactionRunnerImpl(app(fixture), tenants, null, SignedBinding.keys())
 
         fun insert(
             tenant: TenantId,
@@ -106,7 +153,7 @@ class TenancyKernelPostgresIT {
         tenantB: TenantId,
     ) {
         val tenants = TenantContextImpl()
-        val tx = TransactionRunnerImpl(app(fixture), tenants)
+        val tx = TransactionRunnerImpl(app(fixture), tenants, null, SignedBinding.keys())
 
         tenants.bind(tenantB, "test-actor") {
             tx.inTransaction {
@@ -131,7 +178,7 @@ class TenancyKernelPostgresIT {
         tenantB: TenantId,
     ) {
         val tenants = TenantContextImpl()
-        val tx = TransactionRunnerImpl(app(fixture), tenants)
+        val tx = TransactionRunnerImpl(app(fixture), tenants, null, SignedBinding.keys())
 
         val refused =
             assertThrows(SQLException::class.java) {
@@ -181,7 +228,7 @@ class TenancyKernelPostgresIT {
         SingleSlotDataSource(jdbcUrl, PostgresProbeFixture.APP, PostgresProbeFixture.APP_PASSWORD).use { slot ->
             val pooled = TenantAwareDataSource(slot.dataSource)
             val tenants = TenantContextImpl()
-            val tx = TransactionRunnerImpl(pooled, tenants)
+            val tx = TransactionRunnerImpl(pooled, tenants, null, SignedBinding.keys())
 
             tenants.bind(tenantA, "test-actor") { tx.inTransaction { currentSetting(tx.require()) } }
 
@@ -213,22 +260,15 @@ class TenancyKernelPostgresIT {
         connection: java.sql.Connection,
         name: String,
     ): String? =
-        connection.createStatement().use { statement ->
-            statement.executeQuery("select nullif(current_setting('$name', true), '') as t").use { rs ->
+        connection.prepareStatement("select nullif(current_setting(?, true), '') as t").use { statement ->
+            statement.setString(1, name)
+            statement.executeQuery().use { rs ->
                 rs.next()
                 rs.getString("t")
             }
         }
 
-    private fun currentSetting(connection: java.sql.Connection): String {
-        val currentTenantSetting = "select nullif(current_setting('app.tenant_id', true), '') as t"
-        return connection.createStatement().use { statement ->
-            statement.executeQuery(currentTenantSetting).use { rs ->
-                rs.next()
-                rs.getString("t")
-            }
-        }
-    }
+    private fun currentSetting(connection: java.sql.Connection): String? = currentSettingOf(connection, "app.tenant_id")
 
     /** The runtime login's pool, wrapped as a service wires it ([TenantAwareDataSource]). */
     private fun app(fixture: PostgresProbeFixture): DataSource =

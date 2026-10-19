@@ -22,7 +22,7 @@ import java.util.UUID
 import javax.sql.DataSource
 
 /**
- * INV-T-5359 (INV-REQ-854 b7, INV-Q-4121): a transaction the runner signs, on PostgreSQL 17 and 18. `bound_tenant()`
+ * INV-T-5359 (INV-REQ-854 b7, INV-Q-4121): a transaction the runner signs, on PostgreSQL 16, 17, 18. `bound_tenant()`
  * and `bound_actor()` answer the bound tenant and actor; a changed `app.tenant_id` (other or platform tenant) or a
  * signature changed in one character never moves them to another tenant; the statement text holds neither the
  * signature nor the key; an expired value gives NULL.
@@ -35,7 +35,7 @@ class SignedBindingPostgresIT {
     private val tenants = TenantContextImpl()
 
     @ParameterizedTest(name = "{0}")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `the signed binding is what the functions answer, and nothing in the transaction changes it`(image: String) {
         val provisioning = SignedBinding.provisioning(SCHEMA, SYS, SYS_PW, PostgresProbeFixture.APP)
         PostgresProbeFixture(image, initSql = provisioning).use { fixture ->
@@ -46,7 +46,7 @@ class SignedBindingPostgresIT {
                     PostgresProbeFixture.APP_PASSWORD,
                     maximumPoolSize = 1,
                 ).use { app ->
-                    val sysTx = sys.runner(tenants)
+                    val sysTx = sys.runner(tenants, keys = SignedBinding.keys(key))
                     tenants.bind(tenant, "migration") {
                         sysTx.inTransaction {
                             BindingKeyMigration.writeKeys(
@@ -97,12 +97,7 @@ class SignedBindingPostgresIT {
     private fun assertStatementLog(app: TestPoolFixture) {
         val log = Log()
         val runner =
-            TransactionRunnerImpl(
-                TenantAwareDataSource(log.wrap(app.dataSource())),
-                tenants,
-                null,
-                SignedBinding.keys(key),
-            )
+            signingRunner(app, log)
         val sig =
             tenants.bind(tenant, actor) {
                 runner.inTransaction {
@@ -114,7 +109,8 @@ class SignedBindingPostgresIT {
 
         // look-alike: a scratch statement that inlines the signature and the key must fail the same assertion
         val scratch = Log()
-        val scratchRunner = TransactionRunnerImpl(TenantAwareDataSource(scratch.wrap(app.dataSource())), tenants)
+        val scratchRunner =
+            signingRunner(app, scratch)
         tenants.bind(tenant, actor) {
             scratchRunner.inTransaction {
                 DSL.using(scratchRunner.require()).fetch("select set_config('app.binding_sig', '$sig', true)")
@@ -122,7 +118,8 @@ class SignedBindingPostgresIT {
         }
         assertThrows(AssertionError::class.java) { assertCleanLog(scratch, sig) }
         val scratchKey = Log()
-        val keyRunner = TransactionRunnerImpl(TenantAwareDataSource(scratchKey.wrap(app.dataSource())), tenants)
+        val keyRunner =
+            signingRunner(app, scratchKey)
         tenants.bind(tenant, actor) {
             keyRunner.inTransaction {
                 DSL.using(keyRunner.require()).fetch("select '${hex(key)}'")
@@ -130,6 +127,11 @@ class SignedBindingPostgresIT {
         }
         assertThrows(AssertionError::class.java) { assertCleanLog(scratchKey, sig) }
     }
+
+    private fun signingRunner(
+        app: TestPoolFixture,
+        log: Log,
+    ) = TransactionRunnerImpl(TenantAwareDataSource(log.wrap(app.dataSource())), tenants, null, SignedBinding.keys(key))
 
     private fun assertCleanLog(
         log: Log,

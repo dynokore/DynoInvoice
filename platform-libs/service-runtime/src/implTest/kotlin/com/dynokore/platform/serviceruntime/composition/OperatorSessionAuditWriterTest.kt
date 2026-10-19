@@ -6,6 +6,7 @@ import com.dynokore.platform.auditlog.LocalAuditWriter
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration
+import com.dynokore.platform.serviceruntime.datasource.withBindingKey
 import com.dynokore.platform.serviceruntime.identity.CurrentOperatorSession
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
@@ -152,6 +153,7 @@ class OperatorSessionAuditWriterTest {
         val base =
             ApplicationContextRunner()
                 .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
+                .withBindingKey()
                 .withConfiguration(
                     AutoConfigurations.of(
                         ServiceRuntimeConfiguration::class.java,

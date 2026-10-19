@@ -2,6 +2,7 @@ package com.dynokore.platform.serviceruntime.pool
 
 import com.dynokore.platform.serviceruntime.composition.ServiceDataSources
 import com.dynokore.platform.serviceruntime.datasource.Tpl18JdbcApplication
+import com.dynokore.platform.serviceruntime.datasource.withBindingKey
 import com.dynokore.platform.serviceruntime.pool.LaneGateHolder
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -69,6 +70,7 @@ class LaneBudgetsTest {
         val service =
             ApplicationContextRunner()
                 .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
+                .withBindingKey()
                 .withUserConfiguration(Tpl18JdbcApplication::class.java)
                 .withPropertyValues(
                     "service-runtime.workload-identity.audience=submission-svc",

@@ -8,10 +8,14 @@ package com.dynokore.platform.tenancykernel
  * would leave the owning role itself unbound by its own policy).
  *
  * The policy predicate is fixed platform-wide:
- * `tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid` —
- * unset or blank resolves to `NULL`, so a connection with nothing bound (a
- * leaked or missing [TransactionRunner] context) matches no row, ever
- * (fail-closed, CS-19 "V-10").
+ * `tenant_id = (select <schema>.bound_tenant())` (INV-REQ-854 b7, owner ruling
+ * INV-Q-4121; INV-T-4156) — the function verifies the signed `app.binding_sig`
+ * and returns `NULL` for a missing, forged or expired value, so a connection with
+ * nothing bound (a leaked or missing [TransactionRunner] context), or one whose
+ * `app.tenant_id` was set by hand, matches no row, ever (fail-closed, CS-19
+ * "V-10"). The sub-select makes it an InitPlan, evaluated once per statement.
+ * `<schema>.bound_tenant()` ([BindingKeyMigration.ddl]) must exist before the
+ * policy is created.
  *
  * A service's own Flyway migration still declares the table itself
  * (`tenant_id uuid NOT NULL` — no default, TPL-12) and its own grants; this
@@ -46,10 +50,8 @@ object TenantRlsMigration {
             |ALTER TABLE $schemaName.$tableName ENABLE ROW LEVEL SECURITY;
             |ALTER TABLE $schemaName.$tableName FORCE ROW LEVEL SECURITY;
             |CREATE POLICY $policy ON $schemaName.$tableName
-            |    USING      ($TENANT_PREDICATE)
-            |    WITH CHECK ($TENANT_PREDICATE);
+            |    USING      (tenant_id = (select $schemaName.bound_tenant()))
+            |    WITH CHECK (tenant_id = (select $schemaName.bound_tenant()));
             """.trimMargin()
     }
-
-    private const val TENANT_PREDICATE = "tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid"
 }

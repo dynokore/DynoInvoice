@@ -48,6 +48,85 @@ class BindingFunctionsPostgresIT {
         }
     }
 
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
+    fun `the twenty-seven probe values bind exactly what the table says`(image: String) {
+        PostgresProbeFixture(image, initSql = provisioning()).use { fixture ->
+            pool(fixture, SYS, SYS_PW).use { sys ->
+                pool(fixture, PostgresProbeFixture.APP, PostgresProbeFixture.APP_PASSWORD).use { app ->
+                    writeKeys(sys, key1, key0)
+                    for ((name, value, expected) in probeTable()) {
+                        assertEquals(expected, bound(app, value), name)
+                    }
+                }
+            }
+        }
+    }
+
+    private data class Probe(
+        val name: String,
+        val value: String?,
+        val expected: Pair<UUID?, String?>,
+    )
+
+    /** P1 to P27 of INV-T-4156 item 2; the keys are key1 (current) and key0 (previous). */
+    private fun probeTable(): List<Probe> {
+        val t = tenant.toString()
+        val a = b64("user-1")
+        val valid = sg("user-1", future, key1)
+        val mac = valid.substringAfterLast('.')
+        val platform = UUID(-1L, -1L)
+        val ok = tenant to "user-1"
+
+        fun raw(
+            tenantField: String,
+            actorField: String,
+            expiry: Long,
+        ) = signRaw(tenantField, actorField, expiry, key1)
+        return listOf(
+            Probe("P1 current key", valid, ok),
+            Probe("P2 previous key", sg("user-1", future, key0), ok),
+            Probe("P3 key in neither slot", sg("user-1", future, key2), NONE),
+            Probe("P4 expired one second ago", sg("user-1", now - 1, key1), NONE),
+            Probe("P5 expires now", sg("user-1", now, key1), NONE),
+            Probe("P6 never set", null, NONE),
+            Probe("P7 empty", "", NONE),
+            Probe("P8 three parts", signTextRaw("$t.$a", key1), NONE),
+            Probe("P9 five parts", signTextRaw("$t.$a.$future.x", key1), NONE),
+            Probe("P10 tenant not a uuid", raw("not-a-uuid", a, future), NONE),
+            Probe("P11 actor outside base64url", raw(t, "ab+c", future), NONE),
+            Probe("P12 expiry of thirteen digits", raw(t, a, 1_000_000_000_000L), NONE),
+            Probe("P13 upper-case MAC", valid.substringBeforeLast('.') + "." + mac.uppercase(), NONE),
+            Probe("P14 63-character MAC", valid.dropLast(1), NONE),
+            Probe("P15 trailing .x", "$valid.x", NONE),
+            Probe("P16 platform tenant", signRaw(platform.toString(), a, future, key1), platform to "user-1"),
+            Probe("P17 non-ASCII actor", sg("zo\u00eb", future, key1), tenant to "zo\u00eb"),
+            Probe("P18 upper-case tenant", raw(t.uppercase(), a, future), NONE),
+            Probe("P19 largest expiry", raw(t, a, 999_999_999_999L), ok),
+            Probe("P20 base64 length 1 mod 4", raw(t, "a", future), NONE),
+            Probe("P21 byte FF", raw(t, "_w", future), NONE),
+            Probe("P22 byte 00", raw(t, "AA", future), NONE),
+            Probe("P23 surrogate", raw(t, "7aCA", future), NONE),
+            Probe("P24 truncated sequence", raw(t, "ww", future), NONE),
+            Probe("P25 overlong", raw(t, "wIA", future), NONE),
+            Probe("P26 four-byte character", raw(t, "8J-YgA", future), tenant to "\uD83D\uDE00"),
+            Probe("P27 lenient trailing bits", raw(t, "Zh", future), tenant to "f"),
+        )
+    }
+
+    /** A value whose MAC is valid over [text] exactly as given. */
+    private fun signTextRaw(
+        text: String,
+        key: ByteArray,
+    ): String {
+        val mac =
+            Mac.getInstance("HmacSHA256").run {
+                init(SecretKeySpec(key, "HmacSHA256"))
+                doFinal(text.toByteArray()).joinToString("") { "%02x".format(it) }
+            }
+        return "$text.$mac"
+    }
+
     private fun assertVerification(app: TestPoolFixture) {
         val actor = "user-ä/1.2"
         assertEquals(tenant to actor, bound(app, sg(actor, future, key1)), "valid")
@@ -166,7 +245,8 @@ class BindingFunctionsPostgresIT {
         sig: String?,
     ): Pair<UUID?, String?> =
         inTx(login) { dsl ->
-            if (sig != null) setSig(dsl, sig)
+            // the runner has set a valid signature: a missing value is the setting reset, as on a fresh connection
+            if (sig != null) setSig(dsl, sig) else dsl.execute("reset app.binding_sig")
             val r = dsl.fetchOne("select $SCHEMA.bound_tenant(), $SCHEMA.bound_actor()")!!
             (r.get(0) as UUID?) to (r.get(1) as String?)
         }
@@ -199,7 +279,7 @@ class BindingFunctionsPostgresIT {
         block: (DSLContext) -> T,
     ): T {
         val tenants = TenantContextImpl()
-        val tx = pool.runner(tenants)
+        val tx = pool.runner(tenants, keys = SignedBinding.keys())
         return tenants.bind(TenantId(tenant), "it") { tx.inTransaction { block(DSL.using(tx.require())) } }
     }
 
@@ -212,7 +292,7 @@ class BindingFunctionsPostgresIT {
     private fun provisioning(): String =
         """
         RESET ROLE;
-        CREATE EXTENSION pgcrypto SCHEMA public;
+        CREATE EXTENSION IF NOT EXISTS pgcrypto SCHEMA public;
         CREATE ROLE $SYS LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD '$SYS_PW';
         CREATE ROLE $OTHER LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD '$OTHER_PW';
         CREATE SCHEMA $SCHEMA AUTHORIZATION $SYS;

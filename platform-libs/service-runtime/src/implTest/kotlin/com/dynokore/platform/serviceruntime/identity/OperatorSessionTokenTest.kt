@@ -6,6 +6,7 @@ import com.dynokore.platform.serviceruntime.binding.IdentityProvider
 import com.dynokore.platform.serviceruntime.binding.OidcIssuer
 import com.dynokore.platform.serviceruntime.composition.L1CompositionAutoConfiguration
 import com.dynokore.platform.serviceruntime.composition.OperatorSessionAuditWriter
+import com.dynokore.platform.serviceruntime.datasource.withBindingKey
 import com.dynokore.platform.serviceruntime.replica.AuthorityChanged
 import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
@@ -291,6 +292,7 @@ class OperatorSessionTokenTest {
     fun `the wired resolver verifies against the context's authority replica`() {
         ApplicationContextRunner()
             .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
+            .withBindingKey()
             .withBean(IdentityProvider::class.java, { IdentityProvider { OidcIssuer(issuer, "$issuer/jwks") } })
             .withConfiguration(
                 AutoConfigurations.of(

@@ -29,6 +29,27 @@ class BindingKeyMigrationTest {
         assertFalse(sql.contains("app.actor"))
     }
 
+    @Test
+    fun `bound_tenant is one function body without an exception block, a loop or a call to another function`() {
+        val body = functionText(sql, "svc_x.bound_tenant()")
+        for (word in listOf("EXCEPTION", "LOOP", "binding_verified")) {
+            assertFalse(body.contains(word), "bound_tenant() text holds $word")
+        }
+        assertTrue(body.contains("binding_key"), "the text reads the key table")
+        // look-alike: bound_actor() may call binding_verified() and is not asserted
+        assertTrue(functionText(sql, "svc_x.bound_actor()").contains("binding_verified"))
+    }
+
+    /** The text between `CREATE FUNCTION [name]` and the next `$$;`. */
+    private fun functionText(
+        ddl: String,
+        name: String,
+    ): String {
+        val start = ddl.indexOf("CREATE FUNCTION $name")
+        check(start >= 0) { "no function $name" }
+        return ddl.substring(start, ddl.indexOf("$" + "$;", start))
+    }
+
     @ParameterizedTest(name = "[{index}] {0}")
     @ValueSource(strings = ["Svc", "svc;drop", "svc x", "", "svc\"", "1svc"])
     fun `ddl refuses a name that is not a plain lower-case identifier`(bad: String) {

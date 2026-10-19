@@ -6,6 +6,7 @@ import com.dynokore.platform.outboxandqueue.CatalogueEntry
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.TenantScope
+import com.dynokore.platform.serviceruntime.datasource.withBindingKey
 import com.dynokore.platform.serviceruntime.http.IdempotencyStore
 import com.dynokore.platform.serviceruntime.http.JobCommandServlet
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
@@ -43,6 +44,7 @@ class Tpl16ServiceCompositionTest {
     private val service =
         ApplicationContextRunner()
             .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
+            .withBindingKey()
             .withPropertyValues(
                 // TPL-16 application.yaml: the application role, lazily pooled (no connection at start)
                 "spring.datasource.url=jdbc:postgresql://localhost:5432/submission",

@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [4.0.5] - 2026-10-19
+### Changed
+- Metadata-only release (INV-Q-5337, G-DVS): depends on `tenancy-kernel` 4.0.0, whose published module metadata changed; no code change.
+
 ## [4.0.4] - 2026-10-19
 ### Changed
 - Metadata-only release (INV-T-7098, INV-Q-5337, G-DVS): depends on `outbox-and-queue` 6.1.5, whose published module metadata changed; no code change.

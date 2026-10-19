@@ -42,13 +42,13 @@ revoke all on ledger.job_retention from public;
 ALTER TABLE ledger.job_run ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ledger.job_run FORCE ROW LEVEL SECURITY;
 CREATE POLICY job_run_tenant_isolation ON ledger.job_run
-    USING      (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid)
-    WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
+    USING      (tenant_id = (select ledger.bound_tenant()))
+    WITH CHECK (tenant_id = (select ledger.bound_tenant()));
 ALTER TABLE ledger.job_pause ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ledger.job_pause FORCE ROW LEVEL SECURITY;
 CREATE POLICY job_pause_tenant_isolation ON ledger.job_pause
-    USING      (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid)
-    WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
+    USING      (tenant_id = (select ledger.bound_tenant()))
+    WITH CHECK (tenant_id = (select ledger.bound_tenant()));
 grant usage on schema ledger to submission_runtime;
 grant select, insert, update on ledger.shedlock to submission_runtime;
 grant select, insert, update on ledger.job_run to submission_runtime;

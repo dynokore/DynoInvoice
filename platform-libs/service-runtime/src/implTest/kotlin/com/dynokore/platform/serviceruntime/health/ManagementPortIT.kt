@@ -2,6 +2,8 @@ package com.dynokore.platform.serviceruntime.health
 
 import com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration
 import com.dynokore.platform.serviceruntime.composition.StandInProductRuntimeConfiguration
+import com.dynokore.platform.serviceruntime.datasource.bindingKeyInitializer
+import com.dynokore.platform.serviceruntime.datasource.withBindingKey
 import com.dynokore.platform.serviceruntime.identity.WorkloadToken
 import com.dynokore.platform.serviceruntime.identity.WorkloadTokenVerifier
 import com.dynokore.platform.serviceruntime.identity.WorkloadVerification
@@ -72,6 +74,7 @@ class ManagementPortIT {
                 "--$key=$value"
             }
         return SpringApplicationBuilder(Tpl18WebService::class.java)
+            .initializers(bindingKeyInitializer)
             .web(WebApplicationType.SERVLET)
             .run(*arguments.toTypedArray())
             .also(running::add)
@@ -163,6 +166,7 @@ class ManagementPortIT {
     fun `start-up fails when the management port equals the application port`() {
         ApplicationContextRunner()
             .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
+            .withBindingKey()
             .withUserConfiguration(ServiceRuntimeConfiguration::class.java)
             .withPropertyValues("service-runtime.workload-identity.audience=submission-svc")
             .let { runner ->
@@ -229,6 +233,7 @@ class ManagementPortIT {
     private fun guardRunner() =
         ApplicationContextRunner()
             .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
+            .withBindingKey()
             .withUserConfiguration(ServiceRuntimeConfiguration::class.java)
             .withPropertyValues("service-runtime.workload-identity.audience=submission-svc")
 

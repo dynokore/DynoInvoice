@@ -1,6 +1,8 @@
 package com.dynokore.platform.serviceruntime.datasource
 
+import com.dynokore.platform.outboxandqueue.SigningFixture
 import com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration
+import com.dynokore.platform.serviceruntime.binding.InstallationBindingKey
 import com.dynokore.platform.serviceruntime.composition.DefaultServiceSchema
 import com.dynokore.platform.serviceruntime.composition.StandInProductRuntimeConfiguration
 import com.dynokore.platform.serviceruntime.composition.platform
@@ -12,6 +14,8 @@ import org.springframework.beans.factory.config.BeanPostProcessor
 import org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration
 import org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
+import org.springframework.context.ApplicationContextInitializer
+import org.springframework.context.ConfigurableApplicationContext
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.DeferredImportSelector
 import org.springframework.context.annotation.Import
@@ -47,6 +51,7 @@ class WithJdbcAndFlyway : DeferredImportSelector {
 fun tpl18Service(): ApplicationContextRunner =
     ApplicationContextRunner()
         .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
+        .withBindingKey()
         .withUserConfiguration(Tpl18JdbcApplication::class.java)
         .withPropertyValues(
             "service-runtime.workload-identity.audience=submission-svc",
@@ -105,3 +110,16 @@ fun ApplicationContextRunner.withPool(
 
 /** Whether the application pool [pool] is closed; the HikariCP read sits here, in an exempt-test class (INV-T-4790). */
 fun isPoolClosed(pool: DataSource): Boolean = (pool as HikariDataSource).isClosed
+
+/**
+ * The installation binding key of a test composition (INV-T-4156): start-up fails without one, so a test supplies the
+ * fixture key that its database holds (`SigningFixture.provisioning`). BindingKeyWiringTest covers the SecretStore path.
+ */
+fun ApplicationContextRunner.withBindingKey(): ApplicationContextRunner =
+    withBean(InstallationBindingKey::class.java, { InstallationBindingKey(SigningFixture.keys()) })
+
+/** The same key for a context started by `SpringApplicationBuilder`: `builder.initializers(bindingKeyInitializer)`. */
+val bindingKeyInitializer: ApplicationContextInitializer<ConfigurableApplicationContext> =
+    ApplicationContextInitializer { context ->
+        context.beanFactory.registerSingleton("installationBindingKey", InstallationBindingKey(SigningFixture.keys()))
+    }

@@ -38,14 +38,15 @@ class TestPoolFixture(
 
     /**
      * A runner on this pool; [lanes] gates the connections and [label] names each transaction (INV-Q-4487). With
-     * [keys] every transaction runs under a signed binding (see [SignedBinding]), expiring after [transactionTimeout].
+     * [keys] (required, INV-T-4156) every transaction runs under a signed binding (see [SignedBinding]), expiring after
+     * [transactionTimeout].
      */
     @JvmOverloads
     fun runner(
         tenants: TenantContext,
         lanes: LaneGate? = null,
         label: ConnectionLabel? = null,
-        keys: BindingKeySource? = null,
+        keys: BindingKeySource?,
         transactionTimeout: Duration = Duration.ofSeconds(30),
         clock: Clock = Clock.systemUTC(),
     ): TransactionRunnerImpl =

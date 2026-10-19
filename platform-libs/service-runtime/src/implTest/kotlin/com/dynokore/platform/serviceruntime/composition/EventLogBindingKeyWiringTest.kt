@@ -6,11 +6,13 @@ import com.dynokore.platform.serviceruntime.binding.InstallationBindingKey
 import com.dynokore.platform.serviceruntime.binding.SecretStoreBindingKeySource
 import com.dynokore.platform.serviceruntime.pool.EventLogGate
 import com.dynokore.platform.serviceruntime.pool.LaneGateHolder
+import com.dynokore.platform.tenancykernel.SignedBinding
 import com.dynokore.platform.tenancykernel.TenantContextImpl
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
-import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Test
@@ -46,7 +48,7 @@ class EventLogBindingKeyWiringTest {
                 gates.getBeanProvider(EventLogGate::class.java),
                 provider,
             )
-        val appTx = TransactionRunnerImpl(mockk<DataSource>(), tenants)
+        val appTx = TransactionRunnerImpl(mockk<DataSource>(), tenants, null, SignedBinding.keys())
         val app = TenantScope(tenants, appTx, appTx, "svc:test")
         val eventLog = mockk<ObjectProvider<DataSource>>()
         every { eventLog.getIfAvailable() } returns pool
@@ -68,8 +70,8 @@ class EventLogBindingKeyWiringTest {
     }
 
     @Test
-    fun `without a key the event-log runner is unsigned`() {
-        statements(InstallationBindingKey(null)).filter { it.contains("app.binding_sig") }.shouldBeEmpty()
-        statements(null).filter { it.contains("app.binding_sig") }.shouldBeEmpty()
+    fun `without a key the event-log runner is refused at construction`() {
+        val failure = shouldThrow<java.lang.reflect.InvocationTargetException> { statements(null) }
+        failure.targetException.shouldBeInstanceOf<IllegalArgumentException>()
     }
 }

@@ -5,6 +5,7 @@ import com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration
 import com.dynokore.platform.serviceruntime.binding.IdentityProvider
 import com.dynokore.platform.serviceruntime.binding.OidcIssuer
 import com.dynokore.platform.serviceruntime.composition.L1CompositionAutoConfiguration
+import com.dynokore.platform.serviceruntime.datasource.withBindingKey
 import com.dynokore.platform.serviceruntime.http.IdempotencyStore
 import com.dynokore.platform.serviceruntime.http.JobCommandServlet
 import com.dynokore.platform.serviceruntime.jobs.JobCommands
@@ -63,6 +64,7 @@ class LocalTokenVerificationTest {
     private val runner =
         ApplicationContextRunner()
             .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
+            .withBindingKey()
             .withConfiguration(
                 AutoConfigurations.of(
                     ServiceRuntimeConfiguration::class.java,

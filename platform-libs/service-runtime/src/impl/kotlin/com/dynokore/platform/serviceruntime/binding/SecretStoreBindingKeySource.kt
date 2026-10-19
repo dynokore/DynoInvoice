@@ -1,8 +1,6 @@
 package com.dynokore.platform.serviceruntime.binding
 
 import com.dynokore.platform.tenancykernel.BindingKeySource
-import org.slf4j.Logger
-import org.slf4j.LoggerFactory
 
 /**
  * tenancy-kernel's [BindingKeySource] over the [SecretStore] (INV-T-5360, INV-REQ-854 b7; coordinator rulings
@@ -46,24 +44,21 @@ class SecretStoreBindingKeySource(
 }
 
 /**
- * The runner's key source, or none: [source] is null when no [SecretStore] is bound or the current secret is missing.
- * Then the transaction runners are built unsigned (the key parameter is optional until INV-T-4156, which turns this
- * into a start-up failure) and [of] logs one warning that names the secret, never a value.
+ * The runner's key source (INV-T-4156, INV-Q-5354 (A)). [of] fails when no [SecretStore] is bound or the current secret
+ * is missing, so the service does not start: every RLS policy reads the signed binding, and a runner without a key
+ * would bind nothing. The message names the secret, never a value.
  */
 class InstallationBindingKey(
-    val source: BindingKeySource?,
+    val source: BindingKeySource,
 ) {
     companion object {
-        private val log: Logger = LoggerFactory.getLogger(InstallationBindingKey::class.java)
-
         fun of(secrets: SecretStore?): InstallationBindingKey {
-            val source = secrets?.let { SecretStoreBindingKeySource(it) }
-            if (source == null || source.currentKey() == null) {
-                log.warn(
-                    "the current binding key secret '{}' is not available: the transaction runner signs no tenant binding",
-                    SecretStoreBindingKeySource.CURRENT,
-                )
-                return InstallationBindingKey(null)
+            checkNotNull(secrets) {
+                "no SecretStore is bound: the installation binding key '${SecretStoreBindingKeySource.CURRENT}' cannot be read"
+            }
+            val source = SecretStoreBindingKeySource(secrets)
+            check(source.currentKey() != null) {
+                "the current binding key secret '${SecretStoreBindingKeySource.CURRENT}' is not available"
             }
             return InstallationBindingKey(source)
         }

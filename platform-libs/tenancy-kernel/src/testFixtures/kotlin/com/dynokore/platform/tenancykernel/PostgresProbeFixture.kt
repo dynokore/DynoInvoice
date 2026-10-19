@@ -19,7 +19,10 @@ private class Postgres(
  * It names no `java.sql`, `javax.sql` or `org.postgresql` type (coordinator ruling INV-Q-5208): a test builds its pool
  * from [jdbcUrl] and the login strings through [TestPoolFixture]. The probe table `tenancy_kernel_test.probe` is
  * created at container start by the init script: the roles script, `SET ROLE` to the owner, the table and the text of
- * [TenantRlsMigration.ddl], generated here and never a static copy.
+ * [TenantRlsMigration.ddl], generated here and never a static copy. The policy reads `bound_tenant()` (INV-T-4156), so
+ * the script first installs pgcrypto, the binding functions of [BindingKeyMigration.ddl] in the same schema and the
+ * key `SignedBinding.key()` as current: a runner built with `SignedBinding.keys()` sees its own tenant's rows, any
+ * other runner sees none.
  *
  * One instance per test class, started once and stopped in [close]; a test class typically wants one per PostgreSQL
  * version under test (`@ParameterizedTest` over `postgres:17` and `postgres:18`, the done-when's own matrix), so this is
@@ -63,6 +66,13 @@ class PostgresProbeFixture(
     /** The probe table this module's own tests exercise the RLS mechanism against, as the owner role. */
     private fun probeTableScript(initSql: String): String =
         """
+        CREATE EXTENSION IF NOT EXISTS pgcrypto SCHEMA public;
+        CREATE ROLE $PROBE_SYS NOLOGIN NOSUPERUSER NOBYPASSRLS;
+        GRANT USAGE, CREATE ON SCHEMA tenancy_kernel_test TO $PROBE_SYS;
+        SET ROLE $PROBE_SYS;
+        ${BindingKeyMigration.ddl("tenancy_kernel_test", PROBE_SYS, APP)}
+        INSERT INTO tenancy_kernel_test.binding_key (slot, secret) VALUES ('current', decode('$PROBE_KEY_HEX', 'hex'));
+        RESET ROLE;
         SET ROLE $OWNER;
         CREATE TABLE tenancy_kernel_test.probe (
             id        uuid PRIMARY KEY,
@@ -88,5 +98,11 @@ class PostgresProbeFixture(
          */
         const val APP = "tenancy_kernel_app"
         const val APP_PASSWORD = "tenancy_kernel_app_pw"
+
+        /** Owns `tenancy_kernel_test.binding_key` and the binding functions the probe table's policy reads (INV-T-4156). */
+        private const val PROBE_SYS = "tenancy_kernel_probe_sys"
+
+        /** The key the probe schema holds as current: [SignedBinding.key] with its default fill, so `SignedBinding.keys()` verifies. */
+        private val PROBE_KEY_HEX = SignedBinding.key().joinToString("") { "%02x".format(it) }
     }
 }

@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.1.6] - 2026-10-19
+### Changed
+- Metadata-only release (INV-Q-5337, G-DVS): depends on `tenancy-kernel` 4.0.0, whose published module metadata changed; no code change.
+
 ## [6.1.5] - 2026-10-19
 ### Changed
 - The generated topic DDL now grants EXECUTE on `eventlog.bound_tenant()` to the topic's producer and subscriber logins (INV-Q-7092, INV-T-7098); without it the signed tenant predicate fails with SQLSTATE 42501 for those logins. No API change.
