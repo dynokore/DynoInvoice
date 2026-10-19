@@ -82,6 +82,38 @@ class ArchitectureTest {
         assert(!Regex("""\bClock\b""").containsMatchIn(stripComments(commented)))
     }
 
+    // ---- raw SQL probes, on a planted adapters file ----
+
+    private fun adaptersFixture(
+        dir: File,
+        body: String,
+    ): KoScope {
+        File(dir, "adapters").mkdirs()
+        File(dir, "adapters/Planted.kt").writeText("package com.dynokore.gst.rules.adapters\n$body\n")
+        return Konsist.scopeFromExternalDirectory(dir.absolutePath)
+    }
+
+    @Test
+    fun `a JdbcTemplate in the adapters is a finding of the placement rule`(
+        @TempDir dir: File,
+    ) {
+        val planted =
+            adaptersFixture(
+                dir,
+                "import org.springframework.jdbc.core.JdbcTemplate\n" +
+                    "class Planted(val t: JdbcTemplate) { fun q() = t.queryForList(\"select 1\") }",
+            )
+        check(RawSqlPlacement.findViolations(planted).isNotEmpty()) { "JdbcTemplate was not found" }
+    }
+
+    @Test
+    fun `a javax sql DataSource constructor parameter in the adapters is no finding`(
+        @TempDir dir: File,
+    ) {
+        val planted = adaptersFixture(dir, "import javax.sql.DataSource\nclass Planted(val d: DataSource)")
+        check(RawSqlPlacement.findViolations(planted).isEmpty()) { "a DataSource type mention was refused" }
+    }
+
     // ---- layer rule probes, on planted files in a temp tree (the repository is never touched) ----
 
     private fun fixture(
