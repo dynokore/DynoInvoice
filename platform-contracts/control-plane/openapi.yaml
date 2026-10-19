@@ -875,6 +875,7 @@ paths:
       x-operation:
         role: release.manager
         scope: platform
+        precondition: None
         reversibility: COMPENSABLE
         repeatKey: (imdaReference, currentUntil) — no-op if already recorded
       parameters:
