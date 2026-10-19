@@ -6,6 +6,7 @@ plugins {
 }
 
 dependencies {
+    implementation(platform(libs.springBoot.dependencies))
     implementation(libs.snakeyaml)
 
     testImplementation(platform(libs.junit.bom))

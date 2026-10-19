@@ -101,3 +101,21 @@ dependencies {
     api(libs.jakarta.validationApi)
     api(libs.swagger.annotations)
 }
+
+// The contract documents ship as resources (gst/contracts/tenancy/...): the service builds its event catalogue from the
+// asyncapi document, and the gates and the payload tests read the same files the code was generated from.
+val contractResources = layout.buildDirectory.dir("contract-resources")
+val stageContractResources =
+    tasks.register<Sync>("stageContractResources") {
+        from(stagedRepo.map { it.dir(".bundle/tenancy") }) {
+            include("openapi.yaml", "asyncapi.yaml", "schemas/**")
+            into("gst/contracts/tenancy")
+        }
+        from(stagedRepo.map { it.dir(".bundle/service-runtime/schemas") }) {
+            include("error-envelope.schema.json", "cloud-event-envelope.schema.json")
+            into("gst/contracts/service-runtime/schemas")
+        }
+        into(contractResources)
+    }
+sourceSets.main { resources.srcDir(contractResources) }
+tasks.named("processResources") { dependsOn(stageContractResources) }
