@@ -44,3 +44,10 @@ allprojects {
         }
     }
 }
+
+// Every module runs JUnit Jupiter (STK-38); the convention plugins leave the test framework to the module.
+subprojects {
+    tasks.withType<Test>().configureEach {
+        useJUnitPlatform()
+    }
+}
