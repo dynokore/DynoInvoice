@@ -1618,7 +1618,7 @@ components:
         periodDigest:
           type: string
           maxLength: 200
-          description: Absent when `result` is NEVER_RUN.
+          description: "The period digest of the latest return recorded for the period: `sha256:` and 64 lower-case hex characters. Absent when `result` is NEVER_RUN and when no return is recorded for the period."
       required: [entityRef, periodRef, result, chainLength]
     RetrievalPending:
       type: object
