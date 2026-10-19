@@ -44,5 +44,29 @@ expect_req_fail fail-reserved-no-prefix "(reserved item must be optional and sta
 expect_req_fail fail-no-table "forbidden-request-properties.tsv is missing"
 expect_req_fail fail-empty-table "the table has no rows"
 expect_req_fail fail-bad-kind "bad row"
+# --table / --discover (INV-T-7286, INV-REQ-1030, INV-Q-7280 A): the shared score table over discovered directories.
+S=fixtures/forbidden-score-properties
+T=forbidden-score-properties.tsv
+for c in pass-clean pass-request-only; do
+  out=$(python3 check-forbidden-properties.py --table "$T" --discover "$S/$c" 2>&1) || { echo "gst-ci: FAIL — '$c' rejected:"; echo "$out"; failed=1; }
+done
+expect_score_fail() { # case expected-message args...
+  c=$1; msg=$2; shift 2
+  out=$(python3 check-forbidden-properties.py "$@" 2>&1); rc=$?
+  if [ $rc -eq 0 ]; then echo "gst-ci: FAIL — '$c' fixture was accepted"; failed=1
+  else case "$out" in *"$msg"*) echo "gst-ci: self-test '$c' failed as expected ($msg)";;
+       *) echo "gst-ci: FAIL — '$c' failed, but not with '$msg':"; echo "$out"; failed=1;; esac; fi
+}
+expect_score_fail fail-response-camel "property 'complianceScore' is forbidden" --table "$T" --discover "$S/fail-response-camel"
+expect_score_fail fail-response-snake "property 'compliance_score' is forbidden" --table "$T" --discover "$S/fail-response-snake"
+expect_score_fail fail-response-pascal "property 'ComplianceScore' is forbidden" --table "$T" --discover "$S/fail-response-pascal"
+expect_score_fail fail-response-bare "property 'score' is forbidden" --table "$T" --discover "$S/fail-response-bare"
+expect_score_fail fail-event-schema "x.schema.json: x.schema.json: property 'healthPercent' is forbidden" --table "$T" --discover "$S/fail-event-schema"
+expect_score_fail fail-discovered-unlisted "svc-b/asyncapi.yaml: asyncapi.yaml: property 'healthIndex' is forbidden" --table "$T" --discover "$S/fail-discovered-unlisted"
+expect_score_fail fail-no-table "the table is missing" --table "$S/fail-no-table/table.tsv" --discover "$S/fail-no-table"
+expect_score_fail fail-empty-table "the table has no rows" --table "$S/fail-empty-table/table.tsv" --discover "$S/fail-empty-table"
+expect_score_fail fail-no-contract-dir "no contract directory found under" --table "$T" --discover "$S/fail-no-contract-dir"
+expect_score_fail fail-discover-without-table "--discover needs --table" --discover "$S/fail-discover-without-table"
+expect_score_fail fail-table-with-requests "--table cannot be combined with --requests" --table "$T" --requests "$S/fail-table-with-requests"
 [ "$failed" -eq 0 ] && echo "gst-ci: check-forbidden-properties.py self-test passed."
 exit $failed

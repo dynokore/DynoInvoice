@@ -16,6 +16,13 @@ Exit 1 on: a missing or empty table, an unreadable contract file, or a finding. 
 the file, the schema and the property.
 Usage: check-forbidden-properties.py <service-dir> [<service-dir> ...]
 
+Options --table FILE and --discover ROOT (INV-T-7286, INV-REQ-1030, INV-Q-7280 A): `--table FILE` takes the
+names of every directory checked from FILE (same row format; the per-directory table is not read; a missing
+FILE or one with no row exits 1). `--discover ROOT` checks every direct subdirectory of ROOT that holds an
+openapi.yaml, an asyncapi.yaml or a schemas/ directory with a *.json file (sorted by name), plus any directory
+given as an argument; none found exits 1. `--discover` needs `--table`; `--table` cannot be combined with
+`--requests`. The success line names every directory checked.
+
 Option --requests (INV-T-6499, INV-REQ-804, INV-AC-1859, INV-AC-2030): checks the request side instead.
 A directory holds `forbidden-request-properties.tsv` (header `kind`, `name`, `reserved_in`; tab
 separated; blank lines and lines starting with `#` ignored; `reserved_in` may be empty; kind is
@@ -121,15 +128,22 @@ def event_findings(path: Path, forbidden: set[str]) -> list[str]:
             for where, prop in found if norm(prop) in forbidden]
 
 
-def check_dir(d: Path) -> list[str]:
-    table = d / "forbidden-properties.tsv"
-    if not table.is_file():
-        return [f"{d}: forbidden-properties.tsv is missing"]
+def read_names(table: Path) -> set[str]:
     names = {norm(ln.split("\t")[0].strip()) for ln in table.read_text().splitlines()
              if ln.strip() and not ln.lstrip().startswith("#")}
     names.discard("")
-    if not names:
-        return [f"{table}: the table has no rows"]
+    return names
+
+
+def check_dir(d: Path, names: set[str] | None = None) -> list[str]:
+    """names: the shared table (--table); None reads <d>/forbidden-properties.tsv."""
+    if names is None:
+        table = d / "forbidden-properties.tsv"
+        if not table.is_file():
+            return [f"{d}: forbidden-properties.tsv is missing"]
+        names = read_names(table)
+        if not names:
+            return [f"{table}: the table has no rows"]
     findings: list[str] = []
     try:
         if (d / "openapi.yaml").is_file():
@@ -293,7 +307,68 @@ def request_findings(d: Path) -> list[str]:
     return w.findings
 
 
+def is_contract_dir(d: Path) -> bool:
+    return (d / "openapi.yaml").is_file() or (d / "asyncapi.yaml").is_file() \
+        or any((d / "schemas").glob("*.json"))
+
+
+def discover(root: Path) -> list[Path]:
+    return sorted((d for d in root.iterdir() if d.is_dir() and is_contract_dir(d)), key=lambda d: d.name)
+
+
+def shared_table_run(argv: list[str]) -> int:
+    args = argv[1:]
+    table = root = None
+    dirs: list[str] = []
+    i = 0
+    while i < len(args):
+        if args[i] in ("--table", "--discover"):
+            if i + 1 >= len(args):
+                print(f"gst-ci: FAIL {args[i]} needs a value")
+                return 1
+            if args[i] == "--table":
+                table = Path(args[i + 1])
+            else:
+                root = Path(args[i + 1])
+            i += 2
+        else:
+            dirs.append(args[i])
+            i += 1
+    if root is not None and table is None:
+        print("gst-ci: FAIL --discover needs --table")
+        return 1
+    if not table.is_file():
+        print(f"gst-ci: FAIL {table}: the table is missing")
+        return 1
+    names = read_names(table)
+    if not names:
+        print(f"gst-ci: FAIL {table}: the table has no rows")
+        return 1
+    checked = [Path(a) for a in dirs]
+    if root is not None:
+        found = discover(root) if root.is_dir() else []
+        if not found and not checked:
+            print(f"gst-ci: FAIL no contract directory found under {root}")
+            return 1
+        checked = found + [d for d in checked if d not in found]
+    if not checked:
+        print(__doc__)
+        return 1
+    findings = [f for d in checked for f in check_dir(d, names)]
+    for f in findings:
+        print(f"gst-ci: FAIL {f}")
+    if findings:
+        return 1
+    print(f"gst-ci: forbidden-properties OK — {', '.join(str(d) for d in checked)}")
+    return 0
+
+
 def main(argv: list[str]) -> int:
+    if "--table" in argv[1:] or "--discover" in argv[1:]:
+        if "--requests" in argv[1:] and "--table" in argv[1:]:
+            print("gst-ci: FAIL --table cannot be combined with --requests")
+            return 1
+        return shared_table_run(argv)
     if "--requests" in argv[1:]:
         dirs = [a for a in argv[1:] if a != "--requests"]
         if not dirs:

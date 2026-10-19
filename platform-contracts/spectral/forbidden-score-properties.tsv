@@ -1,0 +1,17 @@
+# INV-REQ-1030, INV-Q-7280 A: no compliance score, percentage or health figure in a response or event schema.
+# Matched by check-forbidden-properties.py --table: the whole property name equals a name below, ignoring
+# case, underscores and hyphens (scoredAt, matchScore and compliancePercentageThreshold pass).
+# The bare names percent and percentage are not listed: PINT-SG and the canonical document carry tax and allowance percentages.
+complianceScore
+compliancePercentage
+compliancePercent
+complianceRating
+healthScore
+healthPercentage
+healthPercent
+healthIndex
+readinessScore
+readinessPercentage
+readinessPercent
+score
+rating

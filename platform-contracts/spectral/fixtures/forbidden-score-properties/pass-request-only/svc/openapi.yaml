@@ -1,0 +1,26 @@
+openapi: 3.1.0
+info: {title: fixture, version: 1.0.0}
+paths:
+  /v1/x:
+    post:
+      operationId: postX
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/XRequest'}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/XResponse'}
+components:
+  schemas:
+    XRequest:
+      type: object
+      properties:
+        complianceScore: {type: number}
+    XResponse:
+      type: object
+      properties:
+        id: {type: string}
