@@ -370,6 +370,7 @@ topics:
       - reconciliation-svc
     subscribers:
       - submission-svc
+      - evidence-svc
   - topic: gst.reconciliation.reconciliation-completed.v1
     event_type: com.dynokore.gst.reconciliation.ReconciliationCompleted.v1
     content_topic: false
@@ -1124,6 +1125,17 @@ replay_topics:
       - reconciliation-svc
     subscribers:
       - console-bff
+  - topic: gst.reconciliation.replay-evidence.v1
+    event_types:
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+      - com.dynokore.gst.reconciliation.GstReturnRecorded.v1
+    content_topic: false
+    record_topic: false
+    retained_while_resolvable: false
+    producers:
+      - reconciliation-svc
+    subscribers:
+      - evidence-svc
   - topic: gst.reconciliation.replay-notification.v1
     event_types:
       - com.dynokore.gst.platform.ReplayCompleted.v1
@@ -1563,6 +1575,7 @@ replay_request_topics:
       - every service
       - masterdata-svc
       - payload-svc
+      - reconciliation-svc
       - rules-svc
       - submission-svc
   - topic: gst.ingestion.replay-requested.v1

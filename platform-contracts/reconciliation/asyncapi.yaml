@@ -75,7 +75,7 @@ components:
       summary: GstReturnRecorded — catalogued in model/architecture/events.yaml (§19.8).
       description: >-
         Catalogued event GstReturnRecorded (model/architecture/events.yaml, INV-NOTE-3 §19.8, INV-REQ-815;
-        class: domain). Emitted by: reconciliation-svc. Consumed by: submission-svc. Delivery: At-least-once.
+        class: domain). Emitted by: reconciliation-svc. Consumed by: submission-svc, evidence-svc. Delivery: At-least-once.
         Payload (catalogue text): entityRef, period, form, return version, filedAt, IRAS filing reference
         (FR-AF.36). Filing reference added 26 Sep 2026 (standards review): submission-svc's filing fact
         needs the same evidence on every path (FR-AF.36). Authored by INV-T-2854 (T10).
