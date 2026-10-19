@@ -238,6 +238,7 @@ object EventLogSchema {
         return """
             grant usage on schema $SCHEMA to ${producerLogins.joinToString(", ")};
             grant insert on $SCHEMA.$topicKey to ${producerLogins.joinToString(", ")};
+            grant execute on function $SCHEMA.bound_tenant() to ${producerLogins.joinToString(", ")};
             """.trimIndent()
     }
 
@@ -247,6 +248,7 @@ object EventLogSchema {
         return """
             grant usage on schema $SCHEMA to ${subscriberLogins.joinToString(", ")};
             grant select on $SCHEMA.$topicKey to ${subscriberLogins.joinToString(", ")};
+            grant execute on function $SCHEMA.bound_tenant() to ${subscriberLogins.joinToString(", ")};
             """.trimIndent()
     }
 

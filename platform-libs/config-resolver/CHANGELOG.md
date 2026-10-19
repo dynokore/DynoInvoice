@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [5.0.1] - 2026-10-19
+### Changed
+- Metadata-only release (INV-T-7098, INV-Q-5337, G-DVS): depends on `outbox-and-queue` 6.1.5, whose published module metadata changed; no code change.
+
 ## [5.0.0] - 2026-10-19
 ### Changed
 - BREAKING (INV-T-5362, slice 5 of INV-T-4156; INV-Q-5352, INV-Q-6663): `write_installation_setting`, `config_purge_subject` and `config_purge_tenant` read the tenant and actor from `<schema>.bound_tenant()` and `<schema>.bound_actor()` (the signed binding of tenancy-kernel), no longer from `app.tenant_id` and `app.actor`. `ConfigSchema.ddl` neither runs `BindingKeyMigration.ddl` nor switches role: the schema must already hold `<schema>.bound_tenant()` and `<schema>.bound_actor()`, created once per schema as `<svc>_sys`, before this module's DDL runs (who runs it in an installation is INV-Q-6580). A refusal that named `app.actor` as unset now reads `the bound actor is not set: ...` (INV-Q-6588); the SQLSTATE is unchanged. Comments name the tenant binding of tenancy-kernel.

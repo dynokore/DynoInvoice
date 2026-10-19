@@ -14,7 +14,7 @@ import java.util.UUID
  * and the statements a test uses where it binds a plain connection itself.
  */
 object SigningFixture {
-    private val key = SignedBinding.key(5)
+    private val key = SignedBinding.key()
 
     /** The fixture's key source: the runners of the fixture and of the tests sign with it. */
     fun keys(): BindingKeySource = SignedBinding.keys(key)

@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [9.2.1] - 2026-10-19
+### Changed
+- Metadata-only release (INV-T-7098, INV-Q-5337, G-DVS): depends on `outbox-and-queue` 6.1.5, whose published module metadata changed; no code change.
+
 ## [9.2.0] - 2026-10-19
 ### Added
 - `StaleAggregate(aggregate, version)` in `service-runtime-api`, package `persistence` (ARC-19, INV-Q-6969, INV-AC-6973): the exception an adapter throws when `AggregateStore.update` or `delete` reports `Conflict`; the store never throws it. A blank aggregate name or a negative version is refused.

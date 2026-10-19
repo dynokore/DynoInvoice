@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.1.5] - 2026-10-19
+### Changed
+- The generated topic DDL now grants EXECUTE on `eventlog.bound_tenant()` to the topic's producer and subscriber logins (INV-Q-7092, INV-T-7098); without it the signed tenant predicate fails with SQLSTATE 42501 for those logins. No API change.
+
 ## [6.1.4] - 2026-10-19
 ### Changed
 - Test fixtures and tests run under the signed tenant binding (INV-T-5363, slice 6 of INV-T-4156, INV-Q-5352, INV-Q-6663): every runner built in the module's sources signs `app.binding_sig`, and the plain-connection binds sign. Comments name the tenant binding of tenancy-kernel instead of `app.tenant_id`. No behaviour or API change.
