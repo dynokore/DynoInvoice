@@ -156,7 +156,9 @@ contract-rules:
   # schema of any contract directory has a property named like a compliance score, percentage or health figure), forbidden-request-properties-check
   # (INV-T-6499, INV-REQ-804: no request schema of ingestion/ asks for a category code, submission type or scope verdict), event-log-topics-drift-check (INV-T-2855 T11: topics.yaml
   # regenerated from every asyncapi.yaml shows no drift; INV-T-3386 generator unittests), error-code-catalogue-check
-  # (INV-T-6947, INV-Q-7062 A: every x-error-codes member of every contract is a code of the catalogue). The page-bound check
+  # (INV-T-6947, INV-Q-7062 A: every x-error-codes member of every contract is a code of the catalogue),
+  # audited-operations-check (INV-T-7365, INV-Q-7360: catalogue/audited-operations.tsv maps each audited operation name of
+  # INV-REQ-2588 to operations of the contracts). The page-bound check
   # (service-runtime/check-page-bound.py) stays a line of its own (service-runtime/test_check_page_bound.py).
   stage: verify
   needs: !reference [.gst-rebase-needs, needs]
@@ -183,6 +185,7 @@ contract-rules:
       }
     - gst_check required-identifiers-ratchet gst_ratchet
     - gst_check error-code-catalogue-check python3 spectral/check-error-code-catalogue.py .
+    - gst_check audited-operations-check python3 spectral/check-audited-operations.py .
     - gst_check forbidden-properties-check python3 spectral/check-forbidden-properties.py access/
     - gst_check compliance-score-check python3 spectral/check-forbidden-properties.py --table spectral/forbidden-score-properties.tsv --discover .
     - gst_check forbidden-request-properties-check python3 spectral/check-forbidden-properties.py --requests ingestion/
@@ -252,7 +255,7 @@ tool-self-tests:
   # The self-tests of this repository's own check tools (lesson P20: a check is proved to fire, against fixtures):
   # breaking-change-self-test (the oasdiff/asyncapi gates; INV-T-3491 normalize-extensible-enum.py),
   # contract-check-self-tests (API-08 allowlist, examples, x-timeout INV-T-3431, required identifiers INV-T-4909,
-  # forbidden properties INV-T-4910, error-code catalogue INV-T-6947), catalogue-vendor-tool-tests (INV-T-3377: catalogue/variation-points
+  # forbidden properties INV-T-4910, error-code catalogue INV-T-6947, audited operations INV-T-7365), catalogue-vendor-tool-tests (INV-T-3377: catalogue/variation-points
   # check-drift.py installation-parameter rows, INV-Q-3202, P57) and publish-jobs-test (INV-T-5317: the publish jobs
   # keep the immutable-release guard). In a merge request they run only when a tool, a fixture or this file changes.
   stage: verify
@@ -272,6 +275,7 @@ tool-self-tests:
     - gst_check self-test-timeouts sh spectral/self-test-timeouts.sh
     - gst_check self-test-required-identifiers sh spectral/self-test-required-identifiers.sh
     - gst_check self-test-error-code-catalogue sh spectral/self-test-error-code-catalogue.sh
+    - gst_check self-test-audited-operations sh spectral/self-test-audited-operations.sh
     - gst_check self-test-forbidden-properties sh spectral/self-test-forbidden-properties.sh
     - gst_check self-test-data-classification sh spectral/self-test-data-classification.sh
     - gst_check catalogue-vendor-tool-tests python3 -m unittest discover -s catalogue/variation-points -p 'test_*.py' -v
