@@ -56,3 +56,14 @@ alertId	query_parameter	openapi.yaml	INV-REQ-819
 PRIVACY_NOTICE_DUE	enum_value	openapi.yaml	INV-REQ-1403
 Alert.trigger.PRIVACY_NOTICE_DUE	schema_enum_value	openapi.yaml	INV-REQ-1403
 Alert.caseId	schema_property	openapi.yaml	INV-REQ-1403
+# INV-Q-7316. The platform alert class ACCREDITATION, its two triggers, the references of the event AccreditationAlertRaised and the two operations that read and acknowledge it.
+ACCREDITATION	enum_value	openapi.yaml	INV-REQ-1365
+ACCREDITATION_LAPSED	enum_value	openapi.yaml	INV-REQ-1365
+REASSESSMENT_NEEDED	enum_value	openapi.yaml	INV-REQ-1365
+Alert.alertClass.ACCREDITATION	schema_enum_value	openapi.yaml	INV-REQ-1365
+Alert.trigger.ACCREDITATION_LAPSED	schema_enum_value	openapi.yaml	INV-REQ-1365
+Alert.trigger.REASSESSMENT_NEEDED	schema_enum_value	openapi.yaml	INV-REQ-1365
+Alert.alertRef	schema_property	openapi.yaml	INV-REQ-1365
+Alert.taskRef	schema_property	openapi.yaml	INV-REQ-1365
+listPlatformAlerts	operation	openapi.yaml	INV-REQ-1365
+acknowledgePlatformAlert	operation	openapi.yaml	INV-REQ-1365

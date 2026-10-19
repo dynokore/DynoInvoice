@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: notification API
-  version: 1.8.0
+  version: 1.9.0
   description: >-
     Contract-first source of truth for notification (API-01, STK-44). The
     `notification-contract` module generates its server interfaces and DTOs
@@ -47,6 +47,13 @@ info:
     Message delivery records carry the template version, the recipient
     reference, the alert, the bounce and the failure, and an alert shows its
     bounce (INV-Q-6749, INV-REQ-819).
+
+
+    Version 1.9.0 adds the alert class ACCREDITATION, the triggers
+    ACCREDITATION_LAPSED and REASSESSMENT_NEEDED, and the operations
+    `listPlatformAlerts` and `acknowledgePlatformAlert`, which read and
+    acknowledge the platform alerts of accreditation currency (INV-Q-7316,
+    INV-REQ-1365).
   contact:
     name: notification (see CODEOWNERS)
 servers:
@@ -372,6 +379,118 @@ paths:
                     raisedAt: "2026-04-22T00:00:00Z"
                     acknowledgedAt: "2026-04-23T01:00:00Z"
                     acknowledgedBy: "tax.approver:jane.tan"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/notification/platform/alerts:
+    get:
+      operationId: listPlatformAlerts
+      summary: List the platform alerts of accreditation currency
+      description: >-
+        Read: the alerts of the class ACCREDITATION, which concern the product
+        and no tenant (INV-Q-7316, INV-REQ-1365, INV-REQ-1113). Readable by
+        `release.manager` at platform scope. Filter by `state`. The order is
+        `raisedAt` descending, then `alertId` ascending. `nextCursor` is
+        omitted on the last page. A `limit` outside 1 to 500, or a cursor from
+        another query, is refused with 400. An alert of an entity is never
+        listed here (`listAlerts` lists those).
+      tags: [alerts]
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->notification-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-1365, INV-REQ-1113]
+      parameters:
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [RAISED, ACKNOWLEDGED]
+            x-extensible-enum: true
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 100
+            maximum: 500
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: One page of platform alerts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertPage'
+              examples:
+                default:
+                  value:
+                    items:
+                      - alertId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                        entityRef: "ffffffff-ffff-ffff-ffff-ffffffffffff"
+                        alertClass: "ACCREDITATION"
+                        state: "RAISED"
+                        raisedAt: "2026-10-19T00:00:00Z"
+                        trigger: "ACCREDITATION_LAPSED"
+                        alertRef: "accreditation-lapsed-2026-10"
+                        taskRef: "TASK-2026-0042"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/notification/platform/alerts/{alertId}/acknowledgements:
+    post:
+      operationId: acknowledgePlatformAlert
+      summary: Acknowledge a platform alert of accreditation currency
+      description: >-
+        Records the acknowledgement of one alert of the class ACCREDITATION
+        (INV-Q-7316, INV-REQ-1365, INV-REQ-1113). A repeat reports the
+        recorded acknowledgement unchanged. An `alertId` that is not an alert
+        of the class ACCREDITATION is refused with 404. The acknowledgement
+        does not conclude the tracked task (`concludeAccreditationTask` of
+        control-plane does).
+      tags: [alerts]
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->notification-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-1365, INV-REQ-1113]
+      x-operation:
+        role: release.manager
+        scope: platform
+        precondition: The alert exists, has the class ACCREDITATION and is in the state RAISED or already ACKNOWLEDGED (a repeat reports the recorded acknowledgement).
+        reversibility: IRREVERSIBLE
+        repeatKey: "alertId — a repeat reports the recorded acknowledgement unchanged."
+      parameters:
+        - name: alertId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The alert, acknowledged.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Alert'
+              examples:
+                default:
+                  value:
+                    alertId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    entityRef: "ffffffff-ffff-ffff-ffff-ffffffffffff"
+                    alertClass: "ACCREDITATION"
+                    state: "ACKNOWLEDGED"
+                    raisedAt: "2026-10-19T00:00:00Z"
+                    trigger: "ACCREDITATION_LAPSED"
+                    alertRef: "accreditation-lapsed-2026-10"
+                    taskRef: "TASK-2026-0042"
+                    acknowledgedAt: "2026-10-19T01:00:00Z"
+                    acknowledgedBy: "release.manager:jane.tan"
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/notification/entities/{entityRef}/alerts/{alertId}/snoozes:
@@ -1129,11 +1248,19 @@ components:
           description: >-
             The alert of a whole tenant, such as a privacy notice, holds the
             reserved tenant-wide reference
-            `00000000-0000-0000-0000-000000000000`.
+            `00000000-0000-0000-0000-000000000000`. The alert of accreditation
+            currency concerns the product and no tenant and holds the reserved
+            platform reference `ffffffff-ffff-ffff-ffff-ffffffffffff`.
         alertClass:
           type: string
-          enum: [COVERAGE, DEADLINE, BACKLOG, MISSING_ACKNOWLEDGEMENT, PACK_STALENESS, SECURITY]
+          enum: [COVERAGE, DEADLINE, BACKLOG, MISSING_ACKNOWLEDGEMENT, PACK_STALENESS, SECURITY, ACCREDITATION]
           x-extensible-enum: true
+          description: >-
+            For the class ACCREDITATION no entity holds a policy; its alert
+            goes to the holders of `release.manager` by e-mail, every
+            recipient at once, without tiers; it is read and acknowledged
+            through `listPlatformAlerts` and `acknowledgePlatformAlert` only
+            (INV-Q-7316, INV-REQ-1365).
         state:
           type: string
           enum: [RAISED, ACKNOWLEDGED, SNOOZED]
@@ -1143,7 +1270,7 @@ components:
           format: date-time
         trigger:
           type: string
-          enum: [DUE_DATE_THRESHOLD, READINESS_CHECK_INVOKED, RETURN_FIGURES_UPLOADED, PAST_DUE, FILING_FACT_NOT_RECORDED, PRIVACY_NOTICE_DUE]
+          enum: [DUE_DATE_THRESHOLD, READINESS_CHECK_INVOKED, RETURN_FIGURES_UPLOADED, PAST_DUE, FILING_FACT_NOT_RECORDED, PRIVACY_NOTICE_DUE, ACCREDITATION_LAPSED, REASSESSMENT_NEEDED]
           x-extensible-enum: true
         caseId:
           type: string
@@ -1152,6 +1279,21 @@ components:
             The privacy request case of the evidence contract
             (`PrivacyCase.caseId`); sent exactly when `trigger` is
             PRIVACY_NOTICE_DUE (INV-REQ-1403).
+        alertRef:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: >-
+            The `alertRef` of the event `AccreditationAlertRaised`; sent
+            exactly when `alertClass` is ACCREDITATION, one alert per
+            `alertRef` (INV-REQ-1365).
+        taskRef:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: >-
+            The `taskRef` of the event `AccreditationAlertRaised`; sent
+            exactly when `alertClass` is ACCREDITATION (INV-REQ-1365).
         currentTier:
           type: integer
           minimum: 1

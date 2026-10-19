@@ -8,3 +8,4 @@
 ../openapi.yaml#/components/schemas/SnoozeAlertRequest snooze-alert-request-*.json
 ../openapi.yaml#/components/schemas/AlertPolicy alert-policy-record-*.json
 ../openapi.yaml#/components/schemas/MessageDelivery message-delivery-*.json
+../openapi.yaml#/components/schemas/AlertPage alert-page-*.json
