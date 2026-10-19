@@ -37,7 +37,8 @@ class ArchitectureTest {
         file.writeText("package $root.domain\n\n$importLine\n\nclass Probe\n")
         // every layer of the rule needs at least one file
         modules.filter { it != "domain" }.forEach { layer ->
-            File(file.parentFile.parentFile, "$layer/Probe.kt").also { it.parentFile.mkdirs() }
+            File(file.parentFile.parentFile, "$layer/Probe.kt")
+                .also { it.parentFile.mkdirs() }
                 .writeText("package $root.$layer\n\nclass Probe\n")
         }
         try {
@@ -52,14 +53,18 @@ class ArchitectureTest {
     fun `a jOOQ import in the domain fails the rule`() = assertDomainRule("import org.jooq.DSLContext", refused = true)
 
     @Test
-    fun `a Spring import in the domain fails the rule`() = assertDomainRule("import org.springframework.stereotype.Component", refused = true)
+    fun `a Spring import in the domain fails the rule`() =
+        assertDomainRule("import org.springframework.stereotype.Component", refused = true)
 
     @Test
-    fun `a java sql Timestamp import in the domain passes the rule`() = assertDomainRule("import java.sql.Timestamp", refused = false)
+    fun `a java sql Timestamp import in the domain passes the rule`() =
+        assertDomainRule("import java.sql.Timestamp", refused = false)
 
     @Test
-    fun `a java sql SQLException import in the domain passes the rule`() = assertDomainRule("import java.sql.SQLException", refused = false)
+    fun `a java sql SQLException import in the domain passes the rule`() =
+        assertDomainRule("import java.sql.SQLException", refused = false)
 
     @Test
-    fun `a javax sql import in the domain passes the rule`() = assertDomainRule("import javax.sql.DataSource", refused = false)
+    fun `a javax sql import in the domain passes the rule`() =
+        assertDomainRule("import javax.sql.DataSource", refused = false)
 }

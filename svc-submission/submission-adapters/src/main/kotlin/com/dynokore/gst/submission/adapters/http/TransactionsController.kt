@@ -8,4 +8,4 @@ import org.springframework.web.bind.annotation.RestController
  * answers 501 until the task named for it in `operations.tsv` overrides its method.
  */
 @RestController
-class TransactionsController : TransactionsApi
+open class TransactionsController : TransactionsApi

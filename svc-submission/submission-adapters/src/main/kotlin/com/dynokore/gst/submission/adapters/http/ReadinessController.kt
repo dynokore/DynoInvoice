@@ -8,4 +8,4 @@ import org.springframework.web.bind.annotation.RestController
  * task named for it in `operations.tsv` overrides its method: the generated interface's default is NOT_IMPLEMENTED.
  */
 @RestController
-class ReadinessController : ReadinessApi
+open class ReadinessController : ReadinessApi

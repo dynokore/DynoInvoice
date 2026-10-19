@@ -32,6 +32,10 @@ platform-tenancyKernel-api = { module = "com.dynokore.platform:tenancy-kernel-ap
 platform-tenancyKernel-impl = { module = "com.dynokore.platform:tenancy-kernel" }
 platform-outboxAndQueue-api = { module = "com.dynokore.platform:outbox-and-queue-api" }
 platform-outboxAndQueue-impl = { module = "com.dynokore.platform:outbox-and-queue" }
+platform-auditLog-api = { module = "com.dynokore.platform:audit-log-api" }
+platform-auditLog-impl = { module = "com.dynokore.platform:audit-log" }
+platform-configResolver-api = { module = "com.dynokore.platform:config-resolver-api" }
+platform-configResolver-impl = { module = "com.dynokore.platform:config-resolver" }
 platform-serviceRuntime-api = { module = "com.dynokore.platform:service-runtime-api" }
 platform-serviceRuntime-impl = { module = "com.dynokore.platform:service-runtime" }
 platform-productRuntime-api = { module = "com.dynokore.platform:product-runtime-api" }
@@ -42,9 +46,12 @@ gstCatalogue = { module = "com.dynokore.gst:gst-catalogue", version.ref = "gstCa
 platformContracts-bundle = { module = "platform-contracts-bundle:platform-contracts", version.ref = "platformContractsBundle" }
 springBoot-dependencies = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "springBoot" }
 springBoot-starterWeb = { module = "org.springframework.boot:spring-boot-starter-web" }
+springBoot-starterJdbc = { module = "org.springframework.boot:spring-boot-starter-jdbc" }
+springBoot-starterJooq = { module = "org.springframework.boot:spring-boot-starter-jooq" }
 springBoot-starterActuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }
 springBoot-starterValidation = { module = "org.springframework.boot:spring-boot-starter-validation" }
 swagger-annotations = { module = "io.swagger.core.v3:swagger-annotations-jakarta", version.ref = "swaggerAnnotations" }
+assertj-core = { module = "org.assertj:assertj-core" }
 snakeyaml = { module = "org.yaml:snakeyaml" }
 springBoot-test = { module = "org.springframework.boot:spring-boot-test" }
 springBoot-autoconfigure = { module = "org.springframework.boot:spring-boot-autoconfigure" }

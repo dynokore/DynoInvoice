@@ -15,14 +15,16 @@ object OperationsStubs {
     private val objenesis = ObjenesisStd(false)
 
     fun stubs(controllers: List<Class<*>>): Set<String> =
-        controllers.flatMap { controller ->
-            val instance = objenesis.newInstance(controller)
-            controller.methods
-                .filter { it.declaringClass != Any::class.java && !Modifier.isStatic(it.modifiers) && !it.isSynthetic }
-                .filter { ResponseEntity::class.java.isAssignableFrom(it.returnType) }
-                .filter { answers501(instance, it) }
-                .map { it.name }
-        }.toSet()
+        controllers
+            .flatMap { controller ->
+                val instance = objenesis.newInstance(controller)
+                controller.methods
+                    .filter { it.declaringClass != Any::class.java && !Modifier.isStatic(it.modifiers) }
+                    .filter { !it.isSynthetic }
+                    .filter { ResponseEntity::class.java.isAssignableFrom(it.returnType) }
+                    .filter { answers501(instance, it) }
+                    .map { it.name }
+            }.toSet()
 
     private fun answers501(
         instance: Any,
@@ -33,13 +35,21 @@ object OperationsStubs {
         return response.statusCode.value() == 501
     }
 
+    private val SIMPLE: Map<Class<*>, Any> =
+        mapOf(
+            String::class.java to "x",
+            Int::class.javaPrimitiveType!! to 0,
+            Int::class.javaObjectType to 0,
+            Long::class.javaPrimitiveType!! to 0L,
+            Long::class.javaObjectType to 0L,
+            Boolean::class.javaPrimitiveType!! to false,
+            Boolean::class.javaObjectType to false,
+            Double::class.javaPrimitiveType!! to 0.0,
+            Double::class.javaObjectType to 0.0,
+        )
+
     private fun placeholder(type: Class<*>): Any? =
-        when {
-            type == String::class.java -> "x"
-            type == Int::class.javaPrimitiveType || type == Int::class.javaObjectType -> 0
-            type == Long::class.javaPrimitiveType || type == Long::class.javaObjectType -> 0L
-            type == Boolean::class.javaPrimitiveType || type == Boolean::class.javaObjectType -> false
-            type == Double::class.javaPrimitiveType || type == Double::class.javaObjectType -> 0.0
+        SIMPLE[type] ?: when {
             type.isEnum -> type.enumConstants.first()
             List::class.java.isAssignableFrom(type) -> emptyList<Any>()
             Map::class.java.isAssignableFrom(type) -> emptyMap<Any, Any>()

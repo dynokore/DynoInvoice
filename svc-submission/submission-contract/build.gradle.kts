@@ -27,7 +27,11 @@ dependencies {
 // is staged while this project is configured, once per bundle version (the marker file).
 fun stageContracts() {
     val version = libs.versions.platformContractsBundle.get()
-    val root = layout.buildDirectory.dir("contracts-repo").get().asFile
+    val root =
+        layout.buildDirectory
+            .dir("contracts-repo")
+            .get()
+            .asFile
     val marker = File(root, ".bundle-version")
     if (marker.isFile && marker.readText() == version) return
     root.deleteRecursively()

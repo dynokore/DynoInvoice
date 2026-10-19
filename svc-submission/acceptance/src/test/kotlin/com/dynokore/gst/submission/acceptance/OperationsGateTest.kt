@@ -40,7 +40,12 @@ class OperationsGateTest {
 
     @Test
     fun `an operation added to a copy of the contract is missing from the table`() {
-        val extra = openapi.replaceFirst("paths:", "paths:\n  /v1/probe:\n    get:\n      operationId: probeOperation\n      responses:\n        '200':\n          description: ok")
+        val extra =
+            openapi.replaceFirst(
+                "paths:",
+                "paths:\n  /v1/probe:\n    get:\n      operationId: probeOperation\n" +
+                    "      responses:\n        '200':\n          description: ok",
+            )
         run(spec = extra) shouldContain "operation probeOperation: in the contract, missing from operations.tsv"
     }
 

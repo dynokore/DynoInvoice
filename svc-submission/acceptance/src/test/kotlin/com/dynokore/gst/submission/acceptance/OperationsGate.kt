@@ -23,11 +23,13 @@ object OperationsGate {
 
     fun contractOperations(openapi: String): Set<String> {
         val paths = (Yaml().load<Map<String, Any?>>(openapi)["paths"] as? Map<*, *>).orEmpty()
-        return paths.values.filterIsInstance<Map<*, *>>().flatMap { item ->
-            item.entries
-                .filter { (it.key as? String)?.lowercase() in HTTP_METHODS }
-                .mapNotNull { ((it.value as? Map<*, *>)?.get("operationId")) as? String }
-        }.toSet()
+        return paths.values
+            .filterIsInstance<Map<*, *>>()
+            .flatMap { item ->
+                item.entries
+                    .filter { (it.key as? String)?.lowercase() in HTTP_METHODS }
+                    .mapNotNull { ((it.value as? Map<*, *>)?.get("operationId")) as? String }
+            }.toSet()
     }
 
     fun contractChannels(asyncapi: String): Set<String> {
@@ -47,6 +49,26 @@ object OperationsGate {
         }
     }
 
+    private fun rowFindings(
+        row: Row,
+        operations: Set<String>,
+        channels: Set<String>,
+        stubs: Set<String>,
+        doneTasks: Set<String>,
+    ): List<String> {
+        val findings = mutableListOf<String>()
+        if (row.kind != "operation" && row.kind != "channel") findings += "unknown kind '${row.kind}' for '${row.id}'"
+        if (row.task != UNASSIGNED && !TASK_KEY.matches(row.task)) {
+            findings += "${row.kind} ${row.id}: task '${row.task}' is neither an INV-T key nor exactly $UNASSIGNED"
+        }
+        val known = if (row.kind == "channel") row.id in channels else row.kind == "operation" && row.id in operations
+        if (!known) findings += "${row.kind} ${row.id}: not in the contract"
+        if (row.kind == "operation" && row.task in doneTasks && row.id in stubs) {
+            findings += "operation ${row.id}: task ${row.task} is done but the operation still answers 501"
+        }
+        return findings
+    }
+
     /**
      * @param stubs the operationIds that still answer 501 (no override of the generated interface's default)
      * @param doneTasks the task keys that are done
@@ -59,28 +81,19 @@ object OperationsGate {
         doneTasks: Set<String>,
     ): List<String> {
         val rows = parse(tsv)
-        val findings = mutableListOf<String>()
         val operations = contractOperations(openapi)
         val channels = contractChannels(asyncapi)
-        rows.groupBy { it.kind to it.id }.filter { it.value.size > 1 }.keys
+        val findings = mutableListOf<String>()
+        rows
+            .groupBy { it.kind to it.id }
+            .filter { it.value.size > 1 }
+            .keys
             .forEach { findings += "duplicate row for ${it.first} ${it.second}" }
-        rows.forEach { row ->
-            if (row.kind != "operation" && row.kind != "channel") findings += "unknown kind '${row.kind}' for '${row.id}'"
-            if (row.task != UNASSIGNED && !TASK_KEY.matches(row.task)) {
-                findings += "${row.kind} ${row.id}: task '${row.task}' is neither an INV-T key nor exactly $UNASSIGNED"
-            }
-            val known = if (row.kind == "channel") row.id in channels else row.kind == "operation" && row.id in operations
-            if (!known) findings += "${row.kind} ${row.id}: not in the contract"
-            if (row.kind == "operation" && row.task in doneTasks && row.id in stubs) {
-                findings += "operation ${row.id}: task ${row.task} is done but the operation still answers 501"
-            }
-        }
-        val listed = rows.map { it.kind to it.id }.toSet()
+        rows.forEach { findings += rowFindings(it, operations, channels, stubs, doneTasks) }
         (operations - rows.filter { it.kind == "operation" }.map { it.id }.toSet())
             .forEach { findings += "operation $it: in the contract, missing from operations.tsv" }
         (channels - rows.filter { it.kind == "channel" }.map { it.id }.toSet())
             .forEach { findings += "channel $it: in the contract, missing from operations.tsv" }
-        check(listed.size <= rows.size)
         return findings
     }
 }

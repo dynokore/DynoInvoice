@@ -5,8 +5,7 @@
 -- Precondition (QueueSchema.ddl KDoc, coordinator rulings INV-Q-6586 and INV-Q-6663): submission.bound_tenant() and
 -- submission.bound_actor() already exist in the schema, installed once per schema by the sys login from
 -- tenancy-kernel's BindingKeyMigration.ddl; this file does not run that generator and does not switch role.
-create schema if not exists submission;
-
+-- The schema itself is created by Flyway (the `schemas` setting) or by the installer, owned by submission_migrate.
 create table submission.submission (
     id uuid primary key,
     tenant_id uuid not null,

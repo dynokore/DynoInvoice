@@ -8,6 +8,8 @@ dependencies {
     implementation(project(":submission-domain"))
     implementation(libs.platform.tenancyKernel.api)
     implementation(libs.platform.outboxAndQueue.api)
+    implementation(libs.platform.auditLog.api)
+    implementation(libs.platform.configResolver.api)
     implementation(libs.platform.serviceRuntime.api)
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)

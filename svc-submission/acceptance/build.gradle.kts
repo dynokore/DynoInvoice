@@ -23,9 +23,30 @@ tasks.withType<Test>().configureEach {
 
 // OperationsGateTest reads the pinned contract documents staged by submission-contract and the table at the root.
 tasks.withType<Test>().configureEach {
-    val contractDir = project(":submission-contract").layout.buildDirectory.dir(
-        "contracts-repo/platform-contracts/submission/${libs.versions.platformContractsBundle.get()}",
-    )
+    val contractDir =
+        project(":submission-contract").layout.buildDirectory.dir(
+            "contracts-repo/platform-contracts/submission/${libs.versions.platformContractsBundle.get()}",
+        )
     systemProperty("gst.contract.dir", contractDir.get().asFile.path)
     systemProperty("gst.root.dir", rootProject.projectDir.path)
 }
+
+// acKeyCoverage (INV-T-5964): fails closed over the JUnit XML of every module's test tasks; see AcKeyCoverage.kt.
+tasks.named<Test>("test") {
+    exclude("**/AcKeyCoverageGate*")
+}
+
+val acKeyCoverage =
+    tasks.register<Test>("acKeyCoverage") {
+        group = "verification"
+        description =
+            "Every wave 3 row of ac-keys.tsv has an executed test named by its key, and no test names a key outside the table."
+        testClassesDirs = sourceSets["test"].output.classesDirs
+        classpath = sourceSets["test"].runtimeClasspath
+        include("**/AcKeyCoverageGate*")
+        // after every test task of the build (all modules), whose XML it reads
+        dependsOn(rootProject.subprojects.map { "${it.path}:test" })
+        outputs.upToDateWhen { false }
+    }
+
+tasks.named("check") { dependsOn(acKeyCoverage) }

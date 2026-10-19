@@ -10,6 +10,12 @@ pluginManagement {
             ?.groupValues
             ?.get(1)
             ?: error("gradle/libs.versions.toml has no platformBuild version")
+    val springBootVersion =
+        Regex("""(?m)^springBoot\s*=\s*"([^"]+)"""")
+            .find(settings.settingsDir.resolve("gradle/libs.versions.toml").readText())
+            ?.groupValues
+            ?.get(1)
+            ?: error("gradle/libs.versions.toml has no springBoot version")
     repositories {
         maven {
             name = "platformBuildRegistry"
@@ -33,6 +39,8 @@ pluginManagement {
         id("gst.bootstrap") version platformBuildVersion
         id("gst.contract-server") version platformBuildVersion
         id("gst.jooq-codegen") version platformBuildVersion
+        // the Spring Boot Gradle plugin gst.bootstrap hooks bootBuildImage onto (STK-53); the Boot version of the catalogue.
+        id("org.springframework.boot") version springBootVersion
     }
 }
 
