@@ -1,0 +1,27 @@
+# .gitlab-ci.yml — svc-submission (INV-T-5964).
+#
+# platform-build's shared templates (ci/README.md): compile, unit tests, lint, verify-rules, the dependency
+# verification gate (STK-72, INV-T-4300), Semgrep and Trivy, and the image pipeline (bootBuildImage on the Paketo pins,
+# SBOM, scan, signature, provenance, publish to the Nexus registry). The convention plugins and konsist-rules are
+# consumed as published artefacts from platform-build's package registry (settings.gradle.kts) at the catalogue's
+# `platformBuild` version, with the job token.
+include:
+  - project: 'invoice/platform-build'
+    ref: main
+    file:
+      - 'ci/stages.gitlab-ci.yml' # always first: stages, workflow rules, shared variables
+      - 'ci/build.gitlab-ci.yml' # compile, unit tests, lint, verify-rules, Semgrep, Trivy
+      - 'ci/image.gitlab-ci.yml' # bootBuildImage, SBOM, image scan, sign, provenance, reproducibility
+      - 'ci/publish.gitlab-ci.yml' # image publish
+  # The keel-report job reads the JUnit XML of unit-test from the main pipeline and reports the INV-AC numbers in the
+  # testcase names to Keel (the same wiring as platform-libs).
+  - project: 'keel/tooling'
+    ref: main
+    file: 'keel-report-junit.yml'
+    inputs:
+      runner_tags: [inv-arm64]
+      junit_paths: '**/build/test-results/*/TEST-*.xml'
+      ac_pattern: 'INV-AC-\d+(?!\d)'
+
+variables:
+  IMAGE_NAME: "svc-submission"

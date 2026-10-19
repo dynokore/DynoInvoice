@@ -39,7 +39,7 @@ object SubmissionContext {
                 "gst.bindings.secret-store.mount-root=$mountRoot",
             )
 
-    /** Over the Testcontainers database: the runtime login's password and the binding key come from a mounted secret store. */
+    /** Over the Testcontainers database; the login password and the binding key come from a mounted secret store. */
     fun online(mountRoot: Path): ApplicationContextRunner {
         secrets(mountRoot)
         return base(mountRoot).withPropertyValues("spring.datasource.url=${SubmissionDb.jdbcUrl}")

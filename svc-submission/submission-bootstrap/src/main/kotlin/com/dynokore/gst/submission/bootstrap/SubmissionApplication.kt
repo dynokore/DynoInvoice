@@ -1,5 +1,6 @@
 package com.dynokore.gst.submission.bootstrap
 
+import com.dynokore.gst.submission.adapters.AdaptersPackage
 import com.dynokore.platform.productruntime.ProductRuntimeConfiguration
 import com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration
 import org.springframework.boot.autoconfigure.SpringBootApplication
@@ -12,7 +13,8 @@ import org.springframework.context.annotation.Import
  * Spring Boot's `dataSource` from `spring.datasource.*` (application.yaml), the `submission_runtime` login.
  */
 @SpringBootApplication(
-    scanBasePackages = ["com.dynokore.gst.submission.adapters", "com.dynokore.gst.submission.bootstrap"],
+    // classes, not package names: platform-build's raw-SQL placement gate keeps no String attribute of this annotation
+    scanBasePackageClasses = [AdaptersPackage::class, SubmissionApplication::class],
 )
 @Import(
     ServiceRuntimeConfiguration::class, // L1 composition root: bindings of section 12.1, TransactionRunner
@@ -20,6 +22,8 @@ import org.springframework.context.annotation.Import
 )
 class SubmissionApplication
 
+// The spread copies the command line once, at start-up.
+@Suppress("SpreadOperator")
 fun main(args: Array<String>) {
     runApplication<SubmissionApplication>(*args)
 }

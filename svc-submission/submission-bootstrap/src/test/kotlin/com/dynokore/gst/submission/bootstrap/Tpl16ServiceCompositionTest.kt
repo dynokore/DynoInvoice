@@ -25,8 +25,13 @@ class Tpl16ServiceCompositionTest {
     ) {
         SubmissionContext.offline(dir).run { context ->
             context.startupFailure.shouldBeNull()
-            listOf(TransactionRunner::class, CurrentConnection::class, TenantScope::class, OutboxWriter::class, WorkQueue::class)
-                .forEach { context.getBean(it.java) }
+            listOf(
+                TransactionRunner::class,
+                CurrentConnection::class,
+                TenantScope::class,
+                OutboxWriter::class,
+                WorkQueue::class,
+            ).forEach { context.getBean(it.java) }
             context.getBeanNamesForType(DataSource::class.java).toList() shouldBe listOf("dataSource")
             context.getBean(TenantScope::class.java).workloadPrincipal shouldBe "svc:submission-svc"
             catalogueTypes(context) shouldBe SubmissionEvents.entries.map { it.eventType }.toSet()
@@ -41,10 +46,15 @@ class Tpl16ServiceCompositionTest {
             val environment = context.environment
             environment.getProperty("management.server.port") shouldBe "8081"
             environment.getProperty("management.endpoint.health.group.live.include") shouldBe "livenessState"
-            environment.getProperty("management.endpoints.web.exposure.include") shouldBe "health,prometheus,diagnostics"
+            environment.getProperty("management.endpoints.web.exposure.include") shouldBe
+                "health,prometheus,diagnostics"
         }
     }
 
     private fun catalogueTypes(context: ApplicationContext): Set<String> =
-        context.getBean(EventCatalogue::class.java).entries().map { it.eventType }.toSet()
+        context
+            .getBean(EventCatalogue::class.java)
+            .entries()
+            .map { it.eventType }
+            .toSet()
 }

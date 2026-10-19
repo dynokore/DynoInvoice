@@ -1,17 +1,18 @@
 package com.dynokore.gst.submission.adapters
 
-import com.dynokore.platform.tenancykernel.BindingKeyMigration
 import org.flywaydb.core.Flyway
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.utility.DockerImageName
+import org.testcontainers.utility.MountableFile
 import java.sql.Connection
 import java.sql.DriverManager
 
 /**
  * A PostgreSQL 18 database with the roles of INV-AC-2175, the signed-binding functions of the schema and the Flyway
- * migrations of this module applied by `submission_migrate` (TPL-12, TPL-14). The binding functions are installed
- * here, as a test helper, by the sys login (coordinator rulings INV-Q-6586 and INV-Q-6663): the migrations do not run
- * the generator.
+ * migrations of this module applied by `submission_migrate` (TPL-12, TPL-14). The roles (`db/roles.sql`) and the
+ * binding functions (`db/provision.sql`, installed by the sys login as the installer does; coordinator rulings
+ * INV-Q-6586 and INV-Q-6663) are SQL files the postgres image runs as superuser when it initialises. This class holds
+ * no SQL text: the migrations do not run the binding generator.
  */
 object SubmissionDb {
     const val SCHEMA = "submission"
@@ -21,16 +22,28 @@ object SubmissionDb {
     const val MIGRATE_PASSWORD = "submission_migrate_pw"
     const val RUNTIME_PASSWORD = "submission_runtime_pw"
 
+    /** The value of the `tenancy/binding-key-current` secret: the key is its UTF-8 bytes (service-runtime README). */
+    const val BINDING_SECRET = "submission-test-binding-key-0001"
+
     /** postgres:18 pinned by digest, as platform-libs' testcontainers-pins table pins it (INV-T-5604). */
     private const val IMAGE = "postgres:18@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336"
+    private const val INIT_DIRECTORY = "/docker-entrypoint-initdb.d/"
 
-    // Started once per JVM. A failed start or provisioning is kept and rethrown, never retried (a retry would start
+    // Started once per JVM. A failed start or migration is kept and rethrown, never retried (a retry would start
     // another container per access), and the container is stopped.
     private val started: Result<PostgreSQLContainer<*>> by lazy {
         runCatching {
-            val postgres = PostgreSQLContainer(DockerImageName.parse(IMAGE).asCompatibleSubstituteFor("postgres"))
+            val postgres =
+                PostgreSQLContainer(DockerImageName.parse(IMAGE).asCompatibleSubstituteFor("postgres"))
+                    .withCopyFileToContainer(
+                        MountableFile.forClasspathResource("db/roles.sql"),
+                        "${INIT_DIRECTORY}00-roles.sql",
+                    ).withCopyFileToContainer(
+                        MountableFile.forClasspathResource("db/provision.sql"),
+                        "${INIT_DIRECTORY}01-provision.sql",
+                    )
             postgres.start()
-            runCatching { postgres.provision() }.onFailure { postgres.stop() }.getOrThrow()
+            runCatching { migrate(postgres) }.onFailure { postgres.stop() }.getOrThrow()
             postgres
         }
     }
@@ -42,9 +55,6 @@ object SubmissionDb {
     /** The installation key the runners sign with and the schema's `bound_tenant()` verifies. */
     val bindingKey: ByteArray = BINDING_SECRET.toByteArray(Charsets.UTF_8)
 
-    /** The value of the `tenancy/binding-key-current` secret: the key is its UTF-8 bytes (service-runtime README). */
-    const val BINDING_SECRET = "submission-test-binding-key-0001"
-
     fun superuser(): Connection = DriverManager.getConnection(container.jdbcUrl, container.username, container.password)
 
     fun connect(
@@ -52,27 +62,10 @@ object SubmissionDb {
         password: String,
     ): Connection = DriverManager.getConnection(container.jdbcUrl, user, password)
 
-    private fun resource(name: String): String =
-        checkNotNull(SubmissionDb::class.java.getResource(name)) { "missing resource $name" }.readText()
-
-    private fun PostgreSQLContainer<*>.provision() {
-        val hex = bindingKey.joinToString("") { "%02x".format(it) }
-        DriverManager.getConnection(jdbcUrl, username, password).use { connection ->
-            connection.createStatement().use { statement ->
-                statement.execute(resource("/db/roles.sql"))
-                statement.execute("create schema $SCHEMA authorization $MIGRATE")
-                statement.execute("create extension if not exists pgcrypto schema public")
-                statement.execute("grant usage on schema $SCHEMA to $RUNTIME")
-                statement.execute("grant usage, create on schema $SCHEMA to $SYS")
-                statement.execute("set role $SYS")
-                statement.execute(BindingKeyMigration.ddl(SCHEMA, SYS, RUNTIME))
-                statement.execute("insert into $SCHEMA.binding_key (slot, secret) values ('current', decode('$hex', 'hex'))")
-                statement.execute("reset role")
-                statement.execute("revoke create on schema $SCHEMA from $SYS")
-            }
-        }
-        Flyway.configure()
-            .dataSource(jdbcUrl, MIGRATE, MIGRATE_PASSWORD)
+    private fun migrate(postgres: PostgreSQLContainer<*>) {
+        Flyway
+            .configure()
+            .dataSource(postgres.jdbcUrl, MIGRATE, MIGRATE_PASSWORD)
             .schemas(SCHEMA)
             .defaultSchema(SCHEMA)
             .locations("classpath:db/migration")

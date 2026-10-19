@@ -81,12 +81,25 @@ class EventPayloadContractTest {
     fun `the payload of each published channel conforms to its AsyncAPI schema`(): List<DynamicTest> =
         channels().map { (address, message) ->
             dynamicTest("channel $address") {
-                val sample = checkNotNull(samples[message]) { "channel $address (message $message) has no sample payload" }
+                val sample =
+                    checkNotNull(samples[message]) { "channel $address (message $message) has no sample payload" }
                 errors(message, sample).shouldBeEmpty()
-                val required: List<String> = mapper.readTree(schemaFile(message).readText()).get("required").toList().map { it.asString() }
+                val required: List<String> =
+                    mapper
+                        .readTree(
+                            schemaFile(message).readText(),
+                        ).get("required")
+                        .toList()
+                        .map {
+                            it.asString()
+                        }
                 required.shouldNotBeEmpty()
                 required.forEach { property ->
-                    val without = mapper.readTree(sample).also { (it as tools.jackson.databind.node.ObjectNode).remove(property) }
+                    val without =
+                        mapper
+                            .readTree(
+                                sample,
+                            ).also { (it as tools.jackson.databind.node.ObjectNode).remove(property) }
                     errors(message, without.toString()).shouldNotBeEmpty()
                 }
             }

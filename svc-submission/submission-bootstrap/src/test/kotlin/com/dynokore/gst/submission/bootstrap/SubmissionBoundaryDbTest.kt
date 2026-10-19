@@ -13,7 +13,6 @@ import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.QueueEntry
 import com.dynokore.platform.outboxandqueue.TenantScope
-import com.dynokore.platform.outboxandqueue.WorkQueue as WorkQueuePort
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.assertions.throwables.shouldThrow
@@ -24,6 +23,7 @@ import org.junit.jupiter.api.io.TempDir
 import org.springframework.context.ApplicationContext
 import java.nio.file.Path
 import java.util.UUID
+import com.dynokore.platform.outboxandqueue.WorkQueue as WorkQueuePort
 
 /**
  * The service boundary against a real database (P109): the full TPL-18 context over the `submission_runtime` login.
@@ -63,7 +63,8 @@ class SubmissionBoundaryDbTest {
         failAfter: Boolean,
     ) = scope.bind(TenantId(tenant), actor) {
         runner.inTransaction {
-            dsl.insertInto(Submission.SUBMISSION_)
+            dsl
+                .insertInto(Submission.SUBMISSION_)
                 .set(Submission.SUBMISSION_.ID, docUuid)
                 .set(Submission.SUBMISSION_.TENANT_ID, tenant)
                 .set(Submission.SUBMISSION_.STATE, "QUEUED")
@@ -134,7 +135,12 @@ class SubmissionBoundaryDbTest {
     ) = run(dir) { boundary ->
         val tenant = UUID.randomUUID()
         shouldThrow<EmissionNotPermitted> { boundary.emit(tenant, "com.dynokore.gst.submission.Invented.v1") }
-        shouldThrow<EmissionNotPermitted> { boundary.emit(tenant, "com.dynokore.gst.canonical.CanonicalVersionCreated.v1") }
+        shouldThrow<EmissionNotPermitted> {
+            boundary.emit(
+                tenant,
+                "com.dynokore.gst.canonical.CanonicalVersionCreated.v1",
+            )
+        }
         boundary.outboxRows(tenant) shouldBe 0
     }
 

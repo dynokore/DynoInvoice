@@ -3,6 +3,7 @@ package com.dynokore.gst.submission.adapters
 import gst.build.konsist.MigrationLint
 import gst.build.konsist.RawSqlPlacement
 import gst.build.konsist.SqlGuards
+import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.io.File
 
@@ -24,5 +25,33 @@ class SqlRulesTest {
     @Test
     fun `the production sources pass the raw SQL placement rules`() {
         RawSqlPlacement.assertPlacement()
+    }
+}
+
+/** Probes of the migration lint (INV-T-4135): each scratch migration is linted as text and never committed. */
+class MigrationLintProbeTest {
+    private fun violations(sql: String) = MigrationLint.lint("probe.sql", listOf(1 to sql))
+
+    @Test
+    fun `a table without a tenant column is a finding`() {
+        violations("create table submission.probe (id uuid primary key);").isNotEmpty() shouldBe true
+    }
+
+    @Test
+    fun `a nullable tenant column is a finding`() {
+        violations("create table submission.probe (id uuid primary key, tenant_id uuid);").isNotEmpty() shouldBe true
+    }
+
+    @Test
+    fun `a table with a not null tenant column passes the column rule`() {
+        violations("create table submission.probe (id uuid primary key, tenant_id uuid not null);") shouldBe emptyList()
+    }
+
+    @Test
+    fun `a platform scoped table is declared by its comment`() {
+        violations(
+            "create table submission.probe (id uuid primary key); " +
+                "comment on table submission.probe is 'platform-scoped: no tenant data';",
+        ) shouldBe emptyList()
     }
 }

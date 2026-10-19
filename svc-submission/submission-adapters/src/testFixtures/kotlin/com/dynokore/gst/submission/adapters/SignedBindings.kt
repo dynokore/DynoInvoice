@@ -28,15 +28,16 @@ object SignedBindings {
         actor: String = ACTOR,
         signature: String = signed(tenant, actor),
     ) {
-        connection.prepareStatement(
-            "select set_config('app.tenant_id', ?, true), set_config('app.actor', ?, true), " +
-                "set_config('app.binding_sig', ?, true)",
-        ).use {
-            it.setString(1, tenant.toString())
-            it.setString(2, actor)
-            it.setString(3, signature)
-            it.execute()
-        }
+        connection
+            .prepareStatement(
+                "select set_config('app.tenant_id', ?, true), set_config('app.actor', ?, true), " +
+                    "set_config('app.binding_sig', ?, true)",
+            ).use {
+                it.setString(1, tenant.toString())
+                it.setString(2, actor)
+                it.setString(3, signature)
+                it.execute()
+            }
     }
 
     private const val SECONDS = 30L
