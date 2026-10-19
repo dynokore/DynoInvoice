@@ -1,4 +1,4 @@
-package com.dynokore.gst.controlplane.domain.pack
+package com.dynokore.gst.controlPlane.domain.pack
 
 /** SHA-256 as 64 lower-case hex characters (the `packContentHash` of the feed index schema). */
 @JvmInline

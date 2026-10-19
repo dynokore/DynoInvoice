@@ -1,4 +1,4 @@
-package com.dynokore.gst.controlplane.domain.pack
+package com.dynokore.gst.controlPlane.domain.pack
 
 /** The identity that performed an operation: the token's `sub`, never a request field (INV-REQ-2590 b2). */
 @JvmInline

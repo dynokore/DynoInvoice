@@ -1,9 +1,9 @@
-package com.dynokore.gst.controlplane.application.pack
+package com.dynokore.gst.controlPlane.application.pack
 
-import com.dynokore.gst.controlplane.domain.pack.ContentHash
-import com.dynokore.gst.controlplane.domain.pack.PackRef
-import com.dynokore.gst.controlplane.domain.pack.RegulatoryPack
-import com.dynokore.gst.controlplane.domain.pack.StagingEvidence
+import com.dynokore.gst.controlPlane.domain.pack.ContentHash
+import com.dynokore.gst.controlPlane.domain.pack.PackRef
+import com.dynokore.gst.controlPlane.domain.pack.RegulatoryPack
+import com.dynokore.gst.controlPlane.domain.pack.StagingEvidence
 
 /** The operator roles of INV-NOTE-3 §22.2. */
 object OperatorRole {

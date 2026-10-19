@@ -1,4 +1,4 @@
-package com.dynokore.gst.controlplane.domain.pack
+package com.dynokore.gst.controlPlane.domain.pack
 
 import java.time.Instant
 
