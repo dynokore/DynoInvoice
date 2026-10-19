@@ -483,7 +483,7 @@ class WriteHarness(
                             AuditSchema.purgeDdl(SCHEMA, RUNTIME, SYS, SERVICE)
                     }
                 }
-            return SignedBindingFixture.script(SCHEMA, SYS, RUNTIME, withFunctions = withBindingFunctions) + "\n" +
+            return SignedBindingFixture.script(SCHEMA, SYS, RUNTIME) + "\n" +
                 "CREATE SCHEMA $OTHER_SCHEMA AUTHORIZATION $OWNER;\n" +
                 SignedBindingFixture.script(OTHER_SCHEMA, SYS, RUNTIME, SignedBindingFixture.FORGED_KEY) +
                 "\nSET ROLE $OWNER;\n$tables\n${ConfigSchema.ddl(SCHEMA, RUNTIME, SYS, mode)}\n" +
@@ -492,8 +492,21 @@ class WriteHarness(
                 "    kind text not null, type text not null, tenant_id uuid not null, entity_ref text not null,\n" +
                 "    data jsonb not null);\n" +
                 "grant select, insert on $SCHEMA.$TEST_EVENT to $RUNTIME;\n" +
-                "RESET ROLE;\n"
+                "RESET ROLE;\n" + removedBindingFunctions(withBindingFunctions)
         }
+
+        /**
+         * The policies name `$SCHEMA.bound_tenant()`, so the functions must exist while the DDL runs; when the test
+         * wants them absent they are renamed afterwards (the init script runs as the superuser), and the definer
+         * functions, whose text still names them, raise 42883 at the call.
+         */
+        private fun removedBindingFunctions(withBindingFunctions: Boolean): String =
+            if (withBindingFunctions) {
+                ""
+            } else {
+                "ALTER FUNCTION $SCHEMA.bound_tenant() RENAME TO bound_tenant_removed;\n" +
+                    "ALTER FUNCTION $SCHEMA.bound_actor() RENAME TO bound_actor_removed;\n"
+            }
 
         private const val TEST_EVENTS =
             "select kind, type, tenant_id, entity_ref, data::text from svc.test_event where tenant_id = ? order by seq"
