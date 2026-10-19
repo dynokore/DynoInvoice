@@ -62,7 +62,17 @@ class StructureCommands(
                     structureVersion = store.nextStructureVersion(),
                 )
             store.insertGroup(group)
-            publisher.publish(change(tenant, group.ref, NodeType.GROUP, ChangeType.CREATED, tenantRef, null, groupNode(group, tenantRef)))
+            publisher.publish(
+                change(
+                    tenant,
+                    group.ref,
+                    NodeType.GROUP,
+                    ChangeType.CREATED,
+                    tenantRef,
+                    null,
+                    groupNode(group, tenantRef),
+                ),
+            )
             StructureOutcome.Done(group)
         }
 
@@ -95,7 +105,9 @@ class StructureCommands(
                     structureVersion = store.nextStructureVersion(),
                 )
             store.insertEntity(entity)
-            publisher.publish(change(tenant, entity.ref, NodeType.ENTITY, ChangeType.CREATED, group.ref, null, entityNode(entity)))
+            publisher.publish(
+                change(tenant, entity.ref, NodeType.ENTITY, ChangeType.CREATED, group.ref, null, entityNode(entity)),
+            )
             StructureOutcome.Done(entity)
         }
 
@@ -124,7 +136,18 @@ class StructureCommands(
                     structureVersion = store.nextStructureVersion(),
                 )
             store.insertBusinessUnit(unit)
-            publisher.publish(change(tenant, entity.ref, NodeType.BUSINESS_UNIT, ChangeType.CREATED, entity.ref, null, unitNode(unit), unit.ref))
+            publisher.publish(
+                change(
+                    tenant,
+                    entity.ref,
+                    NodeType.BUSINESS_UNIT,
+                    ChangeType.CREATED,
+                    entity.ref,
+                    null,
+                    unitNode(unit),
+                    unit.ref,
+                ),
+            )
             StructureOutcome.Done(unit)
         }
 
@@ -141,7 +164,16 @@ class StructureCommands(
             store.moveBusinessUnit(unit.ref, target.ref, version)
             val moved = unit.copy(entityRef = target.ref, structureVersion = version)
             publisher.publish(
-                change(tenant, target.ref, NodeType.BUSINESS_UNIT, ChangeType.MOVED, target.ref, unit.entityRef, unitNode(moved), unit.ref),
+                change(
+                    tenant,
+                    target.ref,
+                    NodeType.BUSINESS_UNIT,
+                    ChangeType.MOVED,
+                    target.ref,
+                    unit.entityRef,
+                    unitNode(moved),
+                    unit.ref,
+                ),
             )
             StructureOutcome.Done(moved)
         }
@@ -154,7 +186,11 @@ class StructureCommands(
     ): StructureOutcome<BusinessUnitRecord> =
         tx.inTransaction {
             val unit = store.businessUnit(unitRef) ?: return@inTransaction StructureOutcome.NotFound
-            if (unit.name == name && unit.code == code) return@inTransaction StructureOutcome.Done(unit, repeated = true)
+            if (unit.name == name &&
+                unit.code == code
+            ) {
+                return@inTransaction StructureOutcome.Done(unit, repeated = true)
+            }
             val newCode =
                 when (val outcome = changedCode(unit.code, code)) {
                     is CodeOutcome.Refused -> return@inTransaction refused(outcome.reason)
@@ -164,7 +200,16 @@ class StructureCommands(
             store.updateBusinessUnit(unit.ref, name, newCode.value, version)
             val updated = unit.copy(name = name, code = newCode.value, structureVersion = version)
             publisher.publish(
-                change(tenant, unit.entityRef, NodeType.BUSINESS_UNIT, ChangeType.UPDATED, unit.entityRef, null, unitNode(updated), unit.ref),
+                change(
+                    tenant,
+                    unit.entityRef,
+                    NodeType.BUSINESS_UNIT,
+                    ChangeType.UPDATED,
+                    unit.entityRef,
+                    null,
+                    unitNode(updated),
+                    unit.ref,
+                ),
             )
             StructureOutcome.Done(updated)
         }
@@ -189,7 +234,17 @@ class StructureCommands(
             val version = store.nextStructureVersion()
             store.updateEntityCode(entity.ref, newCode.value, version)
             val updated = entity.copy(code = newCode.value, structureVersion = version)
-            publisher.publish(change(tenant, entity.ref, NodeType.ENTITY, ChangeType.UPDATED, entity.groupRef, null, entityNode(updated)))
+            publisher.publish(
+                change(
+                    tenant,
+                    entity.ref,
+                    NodeType.ENTITY,
+                    ChangeType.UPDATED,
+                    entity.groupRef,
+                    null,
+                    entityNode(updated),
+                ),
+            )
             StructureOutcome.Done(updated)
         }
 
@@ -254,4 +309,11 @@ fun entityNode(entity: EntityRecord) =
     )
 
 fun unitNode(unit: BusinessUnitRecord) =
-    StructureNodeState(NodeType.BUSINESS_UNIT, unit.entityRef, unit.retired, unit.name, unit.code, unit.structureVersion)
+    StructureNodeState(
+        NodeType.BUSINESS_UNIT,
+        unit.entityRef,
+        unit.retired,
+        unit.name,
+        unit.code,
+        unit.structureVersion,
+    )

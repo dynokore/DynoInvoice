@@ -5,14 +5,8 @@ import com.dynokore.gst.tenancy.application.structure.NewBusinessUnit
 import com.dynokore.gst.tenancy.application.structure.NewEntity
 import com.dynokore.gst.tenancy.application.structure.NewGroup
 import com.dynokore.gst.tenancy.application.structure.StructureCommands
-import com.dynokore.gst.tenancy.application.structure.StructureNodeState
 import com.dynokore.gst.tenancy.application.structure.StructureOutcome
 import com.dynokore.gst.tenancy.application.structure.StructureQueries
-import com.dynokore.gst.tenancy.application.structure.StructureView
-import com.dynokore.gst.tenancy.application.structure.entityNode
-import com.dynokore.gst.tenancy.application.structure.BusinessUnitRecord
-import com.dynokore.gst.tenancy.application.structure.EntityRecord
-import com.dynokore.gst.tenancy.application.structure.GroupRecord
 import com.dynokore.gst.tenancy.contract.api.EntitiesApi
 import com.dynokore.gst.tenancy.contract.model.BusinessUnitResponse
 import com.dynokore.gst.tenancy.contract.model.CreateEntityRequest
@@ -49,7 +43,11 @@ open class EntitiesController(
     ): ResponseEntity<GroupResponse> {
         val tenant = boundTenant(createGroupRequest.tenantRef)
         val request =
-            NewGroup(createGroupRequest.name, GroupKind.valueOf(createGroupRequest.groupKind.name), createGroupRequest.gstn)
+            NewGroup(
+                createGroupRequest.name,
+                GroupKind.valueOf(createGroupRequest.groupKind.name),
+                createGroupRequest.gstn,
+            )
         val group = respond(commands.createGroup(tenant, createGroupRequest.tenantRef, request))
         return ResponseEntity.status(HttpStatus.CREATED).body(groupResponse(group, createGroupRequest.tenantRef))
     }
@@ -92,7 +90,8 @@ open class EntitiesController(
         idempotencyKey: UUID,
         moveBusinessUnitRequest: MoveBusinessUnitRequest,
     ): ResponseEntity<BusinessUnitResponse> {
-        val unit = respond(commands.moveBusinessUnit(tenants.current(), businessUnitRef, moveBusinessUnitRequest.toEntityRef))
+        val unit =
+            respond(commands.moveBusinessUnit(tenants.current(), businessUnitRef, moveBusinessUnitRequest.toEntityRef))
         return ResponseEntity.ok(unitResponse(unit, tenantRef()))
     }
 
@@ -119,7 +118,12 @@ open class EntitiesController(
     }
 
     private fun boundTenant(tenantRef: String): TenantId {
-        val id = runCatching { TenantRefs.idOf(tenantRef) }.getOrElse { invalid("tenantRef is not a usable tenant reference") }
+        val id =
+            runCatching {
+                TenantRefs.idOf(
+                    tenantRef,
+                )
+            }.getOrElse { invalid("tenantRef is not a usable tenant reference") }
         if (id != tenants.current()) notFound()
         return id
     }
@@ -133,44 +137,4 @@ open class EntitiesController(
             is StructureOutcome.Conflict -> conflict("the short code is in use or fixed by an aggregate number")
             is StructureOutcome.Invalid -> invalid("the short code must be 1 to 10 characters of A-Z and 0-9")
         }
-
-    private fun groupResponse(
-        group: GroupRecord,
-        tenantRef: String,
-    ) = GroupResponse(
-        group.ref,
-        tenantRef,
-        group.name,
-        GroupResponse.GroupKind.valueOf(group.kind.name),
-        group.gstn,
-    )
-
-    private fun unitResponse(
-        unit: BusinessUnitRecord,
-        tenantRef: String,
-    ) = BusinessUnitResponse(unit.ref, tenantRef, unit.entityRef, unit.name, unit.code)
-
-    private fun entityResponse(entity: EntityRecord) =
-        EntityResponse(
-            entity.ref,
-            entity.legalName,
-            EntityResponse.LifecycleState.valueOf(entity.lifecycleState),
-            nodeOf(entityNode(entity)),
-        )
-
-    private fun viewResponse(view: StructureView) =
-        EntityResponse(view.ref, view.name, EntityResponse.LifecycleState.valueOf(view.lifecycleState), nodeOf(view.node))
-
-    private fun nodeOf(node: StructureNodeState) =
-        StructureNode(
-            StructureNode.Kind.valueOf(node.kind.name),
-            node.retired,
-            node.name,
-            emptyList(),
-            node.structureVersion,
-            node.parentRef,
-            node.code,
-            node.uen,
-            node.gstn,
-        )
 }

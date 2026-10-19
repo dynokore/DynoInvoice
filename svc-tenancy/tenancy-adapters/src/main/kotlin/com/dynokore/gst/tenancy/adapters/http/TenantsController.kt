@@ -29,7 +29,12 @@ open class TenantsController(
         createTenantRequest: CreateTenantRequest,
     ): ResponseEntity<TenantResponse> {
         val ref = createTenantRequest.tenantRef ?: TenantRefs.refOfContract(createTenantRequest.contractReference)
-        val id = runCatching { TenantRefs.idOf(ref) }.getOrElse { invalid("tenantRef is not a usable tenant reference") }
+        val id =
+            runCatching {
+                TenantRefs.idOf(
+                    ref,
+                )
+            }.getOrElse { invalid("tenantRef is not a usable tenant reference") }
         val requested =
             TenantRecord(
                 id.value,
@@ -48,6 +53,9 @@ open class TenantsController(
             } catch (e: TenantRefused) {
                 if (e.invalid) invalid("the tenant is refused") else throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
             }
-        return ResponseEntity.status(HttpStatus.CREATED).body(TenantResponse(stored.ref, stored.legalName, stored.planRef))
+        return ResponseEntity
+            .status(
+                HttpStatus.CREATED,
+            ).body(TenantResponse(stored.ref, stored.legalName, stored.planRef))
     }
 }

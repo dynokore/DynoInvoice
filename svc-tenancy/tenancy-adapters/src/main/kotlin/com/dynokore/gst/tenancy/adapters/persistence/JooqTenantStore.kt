@@ -34,7 +34,14 @@ class JooqTenantStore(
                 DSL.`val`(tenant.contractReference),
                 DSL.`val`(null, SQLDataType.UUID),
             )
-        val answer: JSONB = refusedAsException { dsl.select(call).fetchSingle().value1().column("create_tenant") }
+        val answer: JSONB =
+            refusedAsException {
+                dsl
+                    .select(call)
+                    .fetchSingle()
+                    .value1()
+                    .column("create_tenant")
+            }
         val json = mapper.readTree(answer.data())
         return when (val outcome = json.get("outcome").asString()) {
             "created" -> TenantCreation.Created(record(json))
@@ -72,7 +79,10 @@ class JooqTenantStore(
         try {
             block()
         } catch (e: org.jooq.exception.DataAccessException) {
-            val state = generateSequence<Throwable>(e) { it.cause }.filterIsInstance<SQLException>().firstOrNull()?.sqlState
+            val state =
+                generateSequence<Throwable>(
+                    e,
+                ) { it.cause }.filterIsInstance<SQLException>().firstOrNull()?.sqlState
             when (state) {
                 INVALID -> throw TenantRefused(invalid = true, "create_tenant refused its arguments")
                 FORBIDDEN -> throw TenantRefused(invalid = false, "create_tenant refused the binding")

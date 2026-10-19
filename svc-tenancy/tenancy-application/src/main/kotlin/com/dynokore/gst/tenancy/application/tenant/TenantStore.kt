@@ -51,5 +51,6 @@ class CreateTenant(
     private val store: TenantStore,
     private val actor: String,
 ) {
-    fun handle(tenant: TenantRecord): TenantCreation = platform.bindPlatform(actor) { tx.inTransaction { store.create(tenant) } }
+    fun handle(tenant: TenantRecord): TenantCreation =
+        platform.bindPlatform(actor) { tx.inTransaction { store.create(tenant) } }
 }

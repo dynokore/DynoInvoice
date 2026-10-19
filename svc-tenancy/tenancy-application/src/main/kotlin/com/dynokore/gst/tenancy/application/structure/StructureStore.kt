@@ -45,17 +45,17 @@ data class CodeUse(
     val usedInAggregateNumber: Boolean,
 )
 
-/**
- * The tenancy store of one bound tenant: row-level security shows only that tenant's rows, so a node of another tenant
- * is simply absent. Every method runs in the caller's transaction.
- */
-interface StructureStore {
+/** The groups of the bound tenant. Row-level security shows only that tenant's rows; every method runs in the caller's transaction. */
+interface GroupStore {
     fun group(ref: String): GroupRecord?
 
     fun groupByName(name: String): GroupRecord?
 
     fun insertGroup(group: GroupRecord)
+}
 
+/** The registered entities of the bound tenant. */
+interface EntityStore {
     fun entity(ref: String): EntityRecord?
 
     fun draftEntity(
@@ -65,6 +65,15 @@ interface StructureStore {
 
     fun insertEntity(entity: EntityRecord)
 
+    fun updateEntityCode(
+        ref: String,
+        code: String,
+        structureVersion: Long,
+    )
+}
+
+/** The business units of the bound tenant. */
+interface BusinessUnitStore {
     fun businessUnit(ref: String): BusinessUnitRecord?
 
     fun businessUnitByCode(
@@ -86,15 +95,19 @@ interface StructureStore {
         code: String,
         structureVersion: Long,
     )
+}
 
-    fun updateEntityCode(
-        ref: String,
-        code: String,
-        structureVersion: Long,
-    )
-
+/** The short-code register and the one structure-version sequence of the bound tenant. */
+interface CodeRegister {
     fun codes(): List<CodeUse>
 
     /** The next value of the one structure-version sequence (INV-API-3327), taken in the changing transaction. */
     fun nextStructureVersion(): Long
 }
+
+/** The tenancy store of one bound tenant: a node of another tenant is simply absent. */
+interface StructureStore :
+    GroupStore,
+    EntityStore,
+    BusinessUnitStore,
+    CodeRegister
