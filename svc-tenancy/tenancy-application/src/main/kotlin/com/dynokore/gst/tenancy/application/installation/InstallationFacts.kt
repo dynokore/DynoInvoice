@@ -2,7 +2,10 @@ package com.dynokore.gst.tenancy.application.installation
 
 import java.time.Instant
 
-/** One installation fact: release train and supported window, backup-target verification, platform VP-52 (INV-Q-4898). */
+/**
+ * One installation fact: release train and supported window, backup-target verification, platform VP-52
+ * (INV-Q-4898).
+ */
 data class InstallationFact(
     val key: String,
     val value: String,

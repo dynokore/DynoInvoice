@@ -4,7 +4,7 @@
 # The platform modules are versioned by platform-libs-bom: a service bumps `platformLibsBom` only.
 
 [versions]
-platformBuild = "0.20.2"
+platformBuild = "0.21.0"
 platformLibsBom = "0.97.0"
 springBoot = "4.1.1"
 jooq = "3.21.9"

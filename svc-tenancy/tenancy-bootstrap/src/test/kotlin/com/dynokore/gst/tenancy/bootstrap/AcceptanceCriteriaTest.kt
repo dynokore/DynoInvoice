@@ -74,6 +74,51 @@ class AcceptanceCriteriaTest {
             return tenant to inTenant(tenant) { Rows.structure(dsl, tenant, suffix, code) }
         }
 
+        /** A GST group with the given GSTN and two member entities with UENs UEN-A and UEN-B. */
+        fun gstGroup(gstn: String): Pair<TenantId, Members> {
+            val tenant = TenantId(UUID.randomUUID())
+            val members = Members(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID())
+            val suffix = UUID.randomUUID().toString().take(8)
+            inTenant(tenant) {
+                Rows.tenant(dsl, tenant, suffix)
+                Rows.group(dsl, tenant, members.group, "group-$suffix", "GST_GROUP", gstn)
+                Rows.entity(
+                    dsl,
+                    tenant,
+                    members.group,
+                    members.first,
+                    "a-$suffix",
+                    "A$suffix".take(10).uppercase(),
+                    "LIVE",
+                    null,
+                    "UEN-A",
+                )
+                Rows.entity(
+                    dsl,
+                    tenant,
+                    members.group,
+                    members.second,
+                    "b-$suffix",
+                    "B$suffix".take(10).uppercase(),
+                    "LIVE",
+                    null,
+                    "UEN-B",
+                )
+            }
+            return tenant to members
+        }
+
+        /** The member's own UEN and the GSTN of its group. */
+        fun memberIdentity(entity: UUID): Pair<String?, String?> =
+            dsl
+                .select(REGISTERED_ENTITY.UEN, TENANT_GROUP.GSTN)
+                .from(REGISTERED_ENTITY)
+                .join(TENANT_GROUP)
+                .on(TENANT_GROUP.ID.eq(REGISTERED_ENTITY.GROUP_ID))
+                .where(REGISTERED_ENTITY.ID.eq(entity))
+                .fetchSingle()
+                .let { it.value1() to it.value2() }
+
         fun change(
             tenant: TenantId,
             node: String,
@@ -90,6 +135,12 @@ class AcceptanceCriteriaTest {
             StructureNodeState(NodeType.ENTITY, null, false, "Entity", "E1", version),
         )
     }
+
+    private class Members(
+        val group: UUID,
+        val first: UUID,
+        val second: UUID,
+    )
 
     private fun unique() = UUID.randomUUID().toString().take(8)
 
@@ -209,6 +260,81 @@ class AcceptanceCriteriaTest {
             assertThat(env.inTenant(only) { env.dsl.selectFrom(TENANT).fetch(TENANT.TENANT_ID) })
                 .containsExactly(only.value)
             assertThat(env.inTenant(other) { env.dsl.selectFrom(REGISTERED_ENTITY).fetch() }).isEmpty()
+        }
+    }
+
+    @Test
+    fun `INV-AC-1814 a group record holds the group GSTN and links two member entities with their own UENs`() {
+        run { _, env ->
+            val (tenant, group) = env.gstGroup("M2-1814-${unique()}")
+            val read =
+                env.inTenant(tenant) {
+                    env.dsl
+                        .selectFrom(REGISTERED_ENTITY)
+                        .where(REGISTERED_ENTITY.GROUP_ID.eq(group.group))
+                        .fetch()
+                }
+            assertThat(read.map { it.uen }).containsExactlyInAnyOrder("UEN-A", "UEN-B")
+            assertThat(read.map { it.id }).containsExactlyInAnyOrder(group.first, group.second)
+            val groupRows = env.inTenant(tenant) { env.dsl.fetchCount(TENANT_GROUP) }
+            assertThat(groupRows).isEqualTo(1)
+        }
+    }
+
+    @Test
+    fun `INV-AC-346 a member of a group transmitting per entity is served with its own UEN and the group GSTN`() {
+        run { _, env ->
+            val gstn = "M2-346-${unique()}"
+            val (tenant, group) = env.gstGroup(gstn)
+            val row = env.inTenant(tenant) { env.memberIdentity(group.first) }
+            assertThat(row).isEqualTo("UEN-A" to gstn)
+        }
+    }
+
+    @Test
+    fun `INV-AC-767 the members of a group are served with each member UEN and the one group GSTN`() {
+        run { _, env ->
+            val gstn = "M2-767-${unique()}"
+            val (tenant, group) = env.gstGroup(gstn)
+            val rows = env.inTenant(tenant) { listOf(group.first, group.second).map { env.memberIdentity(it) } }
+            assertThat(rows).containsExactly("UEN-A" to gstn, "UEN-B" to gstn)
+        }
+    }
+
+    @Test
+    fun `INV-AC-347 a division carries the parent UEN and its own division GSTN`() {
+        run { _, env ->
+            val tenant = TenantId(UUID.randomUUID())
+            val group = UUID.randomUUID()
+            val parent = UUID.randomUUID()
+            val division = UUID.randomUUID()
+            val code = unique().take(5).uppercase().replace('-', 'X')
+            env.inTenant(tenant) {
+                Rows.tenant(env.dsl, tenant, unique())
+                Rows.group(env.dsl, tenant, group, "div-${unique()}", "DIVISIONAL", null)
+                Rows.entity(env.dsl, tenant, group, parent, "parent-${unique()}", code, "LIVE", null, "U-P", null)
+                Rows.entity(
+                    env.dsl,
+                    tenant,
+                    group,
+                    division,
+                    "division-${unique()}",
+                    "${code}D",
+                    "LIVE",
+                    null,
+                    "U-P",
+                    "G-D",
+                )
+            }
+            val read =
+                env.inTenant(tenant) {
+                    env.dsl
+                        .selectFrom(REGISTERED_ENTITY)
+                        .where(REGISTERED_ENTITY.ID.eq(division))
+                        .fetchSingle()
+                }
+            assertThat(read.uen).isEqualTo("U-P")
+            assertThat(read.gstn).isEqualTo("G-D")
         }
     }
 

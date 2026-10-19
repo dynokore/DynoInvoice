@@ -38,27 +38,8 @@ object Rows {
         val entity = UUID.randomUUID()
         val unit = UUID.randomUUID()
         val tenantId = tenant.value
-        dsl
-            .insertInto(TENANT)
-            .set(TENANT.TENANT_ID, tenantId)
-            .set(TENANT.REF, "tenant-$suffix")
-            .set(TENANT.LEGAL_NAME, "Tenant $suffix")
-            .set(TENANT.PLAN_REF, "plan-$suffix")
-            .set(TENANT.CONTRACT_REFERENCE, "contract-$suffix")
-            .set(TENANT.STRUCTURE_VERSION, 1L)
-            .set(TENANT.CREATED_AT, now())
-            .execute()
-        dsl
-            .insertInto(TENANT_GROUP)
-            .set(TENANT_GROUP.ID, group)
-            .set(TENANT_GROUP.TENANT_ID, tenantId)
-            .set(TENANT_GROUP.REF, "group-$suffix")
-            .set(TENANT_GROUP.NAME, "Group $suffix")
-            .set(TENANT_GROUP.KIND, "GST_GROUP")
-            .set(TENANT_GROUP.GSTN, "M2-0000001-$suffix".take(20))
-            .set(TENANT_GROUP.STRUCTURE_VERSION, 1L)
-            .set(TENANT_GROUP.CREATED_AT, now())
-            .execute()
+        Rows.tenant(dsl, tenant, suffix)
+        Rows.group(dsl, tenant, group, "group-$suffix", "GST_GROUP", "M2-0000001-$suffix".take(20))
         entity(dsl, tenant, group, entity, "entity-$suffix", code, "LIVE", LocalDate.of(2028, 4, 1))
         dsl
             .insertInto(BUSINESS_UNIT)
@@ -75,6 +56,45 @@ object Rows {
         return Structure(tenant, group, entity, unit)
     }
 
+    fun tenant(
+        dsl: DSLContext,
+        tenant: TenantId,
+        suffix: String,
+    ) {
+        dsl
+            .insertInto(TENANT)
+            .set(TENANT.TENANT_ID, tenant.value)
+            .set(TENANT.REF, "tenant-$suffix")
+            .set(TENANT.LEGAL_NAME, "Tenant $suffix")
+            .set(TENANT.PLAN_REF, "plan-$suffix")
+            .set(TENANT.CONTRACT_REFERENCE, "contract-$suffix")
+            .set(TENANT.STRUCTURE_VERSION, 1L)
+            .set(TENANT.CREATED_AT, now())
+            .execute()
+    }
+
+    /** A group of the given kind and GSTN under the tenant. */
+    fun group(
+        dsl: DSLContext,
+        tenant: TenantId,
+        id: UUID,
+        ref: String,
+        kind: String,
+        gstn: String?,
+    ) {
+        dsl
+            .insertInto(TENANT_GROUP)
+            .set(TENANT_GROUP.ID, id)
+            .set(TENANT_GROUP.TENANT_ID, tenant.value)
+            .set(TENANT_GROUP.REF, ref)
+            .set(TENANT_GROUP.NAME, "Group $ref")
+            .set(TENANT_GROUP.KIND, kind)
+            .set(TENANT_GROUP.GSTN, gstn)
+            .set(TENANT_GROUP.STRUCTURE_VERSION, 1L)
+            .set(TENANT_GROUP.CREATED_AT, now())
+            .execute()
+    }
+
     @Suppress("LongParameterList")
     fun entity(
         dsl: DSLContext,
@@ -85,6 +105,8 @@ object Rows {
         code: String,
         state: String,
         goLive: LocalDate?,
+        uen: String = "UEN-$code",
+        gstn: String? = null,
     ) {
         val tenantId = tenant.value
         dsl
@@ -95,8 +117,8 @@ object Rows {
             .set(REGISTERED_ENTITY.GROUP_ID, group)
             .set(REGISTERED_ENTITY.LEGAL_NAME, "Entity $ref")
             .set(REGISTERED_ENTITY.CONSTITUTION, "COMPANY")
-            .set(REGISTERED_ENTITY.UEN, "UEN-$code")
-            .set(REGISTERED_ENTITY.GSTN, null as String?)
+            .set(REGISTERED_ENTITY.UEN, uen)
+            .set(REGISTERED_ENTITY.GSTN, gstn)
             .set(REGISTERED_ENTITY.CODE, code)
             .set(REGISTERED_ENTITY.LIFECYCLE_STATE, state)
             .set(REGISTERED_ENTITY.GO_LIVE_DATE, goLive)
