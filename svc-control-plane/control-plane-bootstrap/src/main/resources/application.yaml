@@ -39,7 +39,7 @@ management:
     status.http-mapping: { DEGRADED: 200, DOWN: 503, OUT_OF_SERVICE: 503 }
     group:
       live.include: livenessState
-      ready.include: readinessState,vault,db,eventLog
+      ready.include: readinessState,vault,db,eventLoops
 logging.structured.format.console: ecs              # STK-35
 gst:
   service: control-plane-svc

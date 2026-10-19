@@ -17,12 +17,19 @@ object GateMain {
                 "operations" -> {
                     val contract = dir("--contract")
                     val sources = dir("--adapters").walkTopDown().filter { it.isFile }.toList()
+                    val table = File(dir("--table"), OperationsGate.NAME).takeIf { it.isFile }?.readText()
+                    val code = OperationsGate.Code(OperationsGate.overrides(sources), OperationsGate.stubs(sources))
                     OperationsGate.check(
                         File(contract, "openapi.yaml").readText(),
                         File(contract, "asyncapi.yaml").readText(),
-                        File(dir("--table"), OperationsGate.NAME).takeIf { it.isFile }?.readText(),
-                        OperationsGate.Code(OperationsGate.overrides(sources), OperationsGate.stubs(sources)),
-                    )
+                        table,
+                        code,
+                    ) +
+                        DoneTasksGate.check(
+                            File(dir("--table"), DoneTasksGate.NAME).takeIf { it.isFile }?.readText(),
+                            table,
+                            code,
+                        )
                 }
 
                 "ac-keys" -> {

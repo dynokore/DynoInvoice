@@ -14,6 +14,8 @@ import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import org.springframework.boot.health.actuate.endpoint.CompositeHealthDescriptor
+import org.springframework.boot.health.actuate.endpoint.HealthEndpoint
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import java.nio.file.Files
@@ -52,9 +54,6 @@ class CompositionTest {
                 "control-plane.signing.alias=pack-signing",
                 "control-plane.signing.pin-secret=signing/pin",
                 "control-plane.signing.certificate-secret=signing/certificate",
-                // GAP-HEALTH-EVENTLOG: no library registers the `eventLog` health contributor that TPL-16 names in
-                // the ready group (service-runtime has `vault` and `eventLoops`); narrowed here, yaml asserted below
-                "management.endpoint.health.group.ready.include=readinessState,vault",
                 *extra,
             )
     }
@@ -87,9 +86,26 @@ class CompositionTest {
     }
 
     @Test
-    fun `the management port and the health groups of TPL-16 are configured`() {
+    fun `the management port of TPL-16 is configured`() {
         val yaml = checkNotNull(javaClass.getResourceAsStream("/application.yaml")).readBytes().toString(Charsets.UTF_8)
         yaml shouldContain "port: 8081"
-        yaml shouldContain "ready.include: readinessState,vault,db,eventLog"
+    }
+
+    @Test
+    fun `the ready group is the loaded key and reports exactly the components named in it`(
+        @TempDir mount: Path,
+    ) {
+        runner(mount).run { context ->
+            context.startupFailure shouldBe null
+            val key = context.environment.getProperty(READY_KEY).shouldNotBeNull()
+            key shouldBe "readinessState,vault,db,eventLoops"
+            val ready = context.getBean(HealthEndpoint::class.java).healthForPath("ready")
+            ready.shouldNotBeNull()
+            checkNotNull((ready as CompositeHealthDescriptor).components).keys shouldBe key.split(",").toSet()
+        }
+    }
+
+    private companion object {
+        const val READY_KEY = "management.endpoint.health.group.ready.include"
     }
 }
