@@ -40,6 +40,16 @@ allprojects {
     }
 }
 
+// Plugin-classpath CVE fix (same constraint as certification-kit's build.gradle.kts, INV-T-4298): the Spring Boot
+// plugin (rules-bootstrap) brings Jackson 3.1.5 onto the buildscript classpath, which carries HIGH CVEs
+// (CVE-2026-89407, -89425, -68497, -91776, -91777). A constraint adds nothing where the module does not use the plugin.
+subprojects {
+    buildscript.dependencies.constraints {
+        add("classpath", "tools.jackson.core:jackson-core:3.1.7")
+        add("classpath", "tools.jackson.core:jackson-databind:3.1.7")
+    }
+}
+
 // Resolves every resolvable configuration of every project, so one
 // `./gradlew resolveAndLockAll --write-locks` writes every gradle.lockfile.
 allprojects {

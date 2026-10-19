@@ -110,6 +110,8 @@ sourceSets {
 tasks.named("processResources") { dependsOn(stageContractResources) }
 
 dependencies {
+    // platform-libs-bom constrains Tomcat (CVE-2026-65182, -65905, -68525) and Jackson (3.2.3) above the Spring Boot BOM.
+    implementation(platform(libs.platform.bom))
     implementation(platform(libs.springBoot.dependencies))
     implementation(libs.springBoot.starterWeb)
     implementation(libs.springBoot.starterValidation)
