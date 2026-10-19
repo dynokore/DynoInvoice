@@ -85,7 +85,10 @@ dependencies {
     integrationTestImplementation(libs.testcontainers.postgresql)
     integrationTestImplementation(libs.jooq)
     integrationTestImplementation(libs.postgresql)
-    integrationTestImplementation(testFixtures(libs.platform.tenancyJooq))
+    // TenancyProbe: tenancy-jooq publishes its test fixtures as the capability tenancy-jooq-test-fixtures of tenancy-jooq-api.
+    integrationTestImplementation(libs.platform.tenancyJooq.api) {
+        capabilities { requireCapability("com.dynokore.platform:tenancy-jooq-test-fixtures") }
+    }
     integrationTestImplementation(libs.platform.crypto)
 
 }
