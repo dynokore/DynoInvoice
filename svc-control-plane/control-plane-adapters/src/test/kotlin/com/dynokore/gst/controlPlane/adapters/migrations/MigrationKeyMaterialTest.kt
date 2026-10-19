@@ -25,8 +25,8 @@ class MigrationKeyMaterialTest {
     fun `a planted key is found in every disguise`() {
         listOf(
             "-- -----BEGIN PRIVATE KEY-----\nMIIB\n-----END PRIVATE KEY-----",
-            "insert into t values ('${"A".repeat(64)}');",
-            "insert into t values ('${"0123456789abcdef".repeat(4)}');",
+            "insert into t values ('AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA');",
+            "insert into t values ('0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef');",
             "create table t (signing_key text);",
             "create table t (private_key bytea);",
             "create table t (key_material bytea);",

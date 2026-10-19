@@ -81,7 +81,7 @@ class GatesTest {
     fun `a missing, empty or malformed table fails`() {
         ops(null).single() shouldBe "the table is missing or empty"
         ops("").single() shouldBe "the table is missing or empty"
-        ops(full + "operation\topA\tINV-T-1\tdone\n").map { it }.contains("listed twice") shouldBe true
+        ops(full + "operation\topA\tINV-T-1\tdone\n").contains("listed twice") shouldBe true
         ops(full.replace("INV-T-2", "T2")).contains("task 'T2' is not an INV-T-<n> key") shouldBe true
         ops(full.replace("pending", "later")).contains("state 'later' is not done or pending") shouldBe true
         ops(full + "tool\tx\tINV-T-3\tdone\n").contains("kind 'tool' is not operation or channel") shouldBe true

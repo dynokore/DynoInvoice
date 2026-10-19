@@ -35,7 +35,11 @@ object OperationsGate {
     /** The channel keys of the AsyncAPI document (the channel id of the table). */
     fun contractChannels(asyncapi: String): Set<String> {
         val root = Yaml().load<Map<String, Any?>>(asyncapi)
-        return (root["channels"] as? Map<*, *>)?.keys?.filterIsInstance<String>()?.toSet() ?: emptySet()
+        return (root["channels"] as? Map<*, *>)
+            ?.keys
+            ?.filterIsInstance<String>()
+            ?.toSet()
+            .orEmpty()
     }
 
     /** The functions the adapters' main sources override (an operation is implemented only if one overrides it). */

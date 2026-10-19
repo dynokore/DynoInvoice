@@ -42,6 +42,7 @@ import java.util.UUID
  * runs in a transaction bound to the reserved platform tenant, by an operator token that has no tenant.
  */
 @RestController
+@Suppress("LongParameterList") // one constructor-injected controller; each parameter is one collaborator (TPL-18)
 class PacksController(
     private val principals: EndUserPrincipalResolver,
     private val platform: PlatformTenantBinding,

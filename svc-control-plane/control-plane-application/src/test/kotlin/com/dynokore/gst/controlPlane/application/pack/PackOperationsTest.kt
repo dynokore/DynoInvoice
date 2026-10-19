@@ -16,6 +16,7 @@ import java.security.MessageDigest
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
+import java.util.Locale
 
 class PackOperationsTest {
     private val clock = Clock.fixed(Instant.parse("2026-10-12T08:30:00Z"), ZoneOffset.UTC)
@@ -48,7 +49,11 @@ class PackOperationsTest {
     private val publish = PublishPack(repository, roles, staging, hasher, { released += it.ref }, clock)
 
     private fun sha(text: String) =
-        MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
+        MessageDigest
+            .getInstance(
+                "SHA-256",
+            ).digest(text.toByteArray())
+            .joinToString("") { "%02x".format(Locale.ROOT, it) }
 
     private fun authorAs(actor: String) =
         AuthorRegulatoryPackCommand(

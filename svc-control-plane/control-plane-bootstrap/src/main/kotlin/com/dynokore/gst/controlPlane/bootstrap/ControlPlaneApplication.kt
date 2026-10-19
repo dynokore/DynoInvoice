@@ -13,6 +13,7 @@ import org.springframework.context.annotation.Import
 @Import(ServiceRuntimeConfiguration::class, ProductRuntimeConfiguration::class)
 class ControlPlaneApplication
 
+@Suppress("SpreadOperator") // the Spring Boot entry point passes its arguments through
 fun main(args: Array<String>) {
     runApplication<ControlPlaneApplication>(*args)
 }

@@ -10,6 +10,7 @@ import java.time.Instant
  * decided here, in the aggregate, not by the caller. A published version is never changed or withdrawn; a correction is
  * a new version that supersedes it.
  */
+@Suppress("LongParameterList") // the aggregate state is one record; copy() names the changed fields
 class RegulatoryPack private constructor(
     val ref: PackRef,
     val type: PackType,
