@@ -115,3 +115,7 @@ withdrawSubmission.SRT-001	operation_error_code	openapi.yaml	INV-REQ-581
 withdrawSubmission.SRT-004	operation_error_code	openapi.yaml	INV-REQ-581
 withdrawSubmission.SRT-005	operation_error_code	openapi.yaml	INV-REQ-581
 withdrawSubmission.SUB-021	operation_error_code	openapi.yaml	INV-REQ-568
+resolveAmendmentHold	operation	openapi.yaml	INV-REQ-2588
+ResolveAmendmentHoldRequest.decision	schema_property	openapi.yaml	INV-REQ-2588
+ResolveAmendmentHoldRequest.evidenceRef	schema_property	openapi.yaml	INV-REQ-2588
+AmendmentHoldResolution.holdReleased	schema_property	openapi.yaml	INV-REQ-2588

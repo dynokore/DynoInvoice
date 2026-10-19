@@ -61,7 +61,7 @@ acknowledgePackDelta	acknowledgePackDelta	rules	-
 activatePack	activateMappingPack	rules	-
 activatePack	armRegulatoryPack	rules	-
 importMappingSpreadsheet	importMappingSpreadsheet	rules	-
-resolveAmendmentHold	UNCONTRACTED	submission	-
+resolveAmendmentHold	resolveAmendmentHold	submission	-
 withdrawDocument	withdrawSubmission	submission	-
 answerQuestionnaire	answerQuestionnaire	tenancy	-
 changeFilingFrequency	changeFilingFrequency	tenancy	-

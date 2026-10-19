@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: submission API
-  version: 1.7.0
+  version: 1.8.0
   description: >-
     Contract-first source of truth for submission (API-01, STK-44). The
     `submission-contract` module generates its server interfaces and DTOs
@@ -837,6 +837,87 @@ paths:
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
+  /internal/v1/transactions/{docUuid}/amendment-holds/{holdId}/resolution:
+    post:
+      operationId: resolveAmendmentHold
+      summary: Record the decision that resolves an amendment hold on a document
+      description: >-
+        `tax.approver` records the decision on an open amendment hold
+        (SUB-015 or SUB-016): resubmit as a new version, or require a credit
+        note; the hold is released or kept (INV-REQ-579 behavior 3,
+        INV-NOTE-7 §7 row `resolveAmendmentHold`, SCR-04.6). The decision is
+        irreversible once the resulting version transmits. Called by
+        console-bff on behalf of an operator. The operation writes an audit
+        entry in the same transaction as the decision (INV-REQ-2588).
+
+
+        The refusals apply in this order, the first that applies wins: no
+        document with the Doc UUID, or no open hold with the id, `404` and
+        SRT-005; a caller whose role is not `tax.approver`, `403` and
+        SRT-004; a missing `decision`, a `decision` outside the enum, or a
+        missing `evidenceRef` where the decision records a keying-error
+        correction, `400` and SRT-001; a repeat for the same Doc UUID and
+        hold id is answered `200` with the recorded resolution unchanged; a
+        refusal changes nothing.
+      tags: [transactions]
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->submission-svc
+      x-timeout: 2000
+      x-error-codes: [SRT-001, SRT-004, SRT-005]
+      x-requirements: [INV-REQ-957, INV-REQ-2588]
+      x-operation:
+        role: tax.approver
+        scope: entity
+        precondition: >-
+          A hold SUB-015 or SUB-016 is open on this document (INV-NOTE-7 §7 row resolveAmendmentHold).
+        reversibility: IRREVERSIBLE
+        repeatKey: "(docUuid, holdId) — a repeat returns the recorded resolution unchanged."
+      parameters:
+        - $ref: '#/components/parameters/DocUuid'
+        - name: holdId
+          in: path
+          required: true
+          description: The id of the amendment hold being resolved.
+          schema:
+            type: string
+            maxLength: 64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResolveAmendmentHoldRequest'
+            examples:
+              default:
+                value:
+                  decision: "RESUBMIT_NEW_VERSION"
+                  evidenceRef: "EVD-2026-0412"
+      responses:
+        '200':
+          description: The recorded resolution of the hold.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AmendmentHoldResolution'
+              examples:
+                default:
+                  value:
+                    docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    holdId: "HOLD-0001"
+                    decision: "RESUBMIT_NEW_VERSION"
+                    holdReleased: true
+                    resolvedAt: "2026-03-20T03:20:00Z"
+        '400':
+          description: SRT-001 — the decision is missing or not allowed, or the evidence reference is missing for a keying-error correction; nothing is changed.
+          $ref: '#/components/responses/Error'
+        '403':
+          description: SRT-004 — the caller's role is not tax.approver; nothing is changed.
+          $ref: '#/components/responses/Error'
+        '404':
+          description: SRT-005 — no document with the Doc UUID, or no open hold with the id.
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
   /internal/v1/entities/{entityRef}/periods/{periodRef}/filing-gate-overrides:
     post:
       operationId: overrideFilingGate
@@ -1514,6 +1595,41 @@ components:
           type: string
           format: date-time
       required: [docUuid, state, reason, withdrawnAt]
+    ResolveAmendmentHoldRequest:
+      type: object
+      properties:
+        decision:
+          type: string
+          enum: [RESUBMIT_NEW_VERSION, CREDIT_NOTE_REQUIRED]
+          x-extensible-enum: true
+        evidenceRef:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: >-
+            The evidence reference. It is mandatory for the keying-error
+            correction (INV-REQ-579 behavior 3), which the service enforces
+            with `400` and SRT-001; the schema cannot express the condition.
+      required: [decision]
+    AmendmentHoldResolution:
+      type: object
+      properties:
+        docUuid:
+          type: string
+          format: uuid
+        holdId:
+          type: string
+          maxLength: 64
+        decision:
+          type: string
+          enum: [RESUBMIT_NEW_VERSION, CREDIT_NOTE_REQUIRED]
+          x-extensible-enum: true
+        holdReleased:
+          type: boolean
+        resolvedAt:
+          type: string
+          format: date-time
+      required: [docUuid, holdId, decision, holdReleased, resolvedAt]
     ReplayResult:
       type: object
       properties:
