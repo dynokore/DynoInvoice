@@ -1,0 +1,299 @@
+package com.dynokore.gst.tenancy.bootstrap
+
+import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.BUSINESS_UNIT
+import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.REGISTERED_ENTITY
+import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.SHORT_CODE
+import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.TENANT
+import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.TENANT_GROUP
+import com.dynokore.gst.tenancy.application.installation.InstallationFact
+import com.dynokore.gst.tenancy.application.installation.InstallationFactRepository
+import com.dynokore.gst.tenancy.application.structure.ChangeType
+import com.dynokore.gst.tenancy.application.structure.NodeType
+import com.dynokore.gst.tenancy.application.structure.StructureChange
+import com.dynokore.gst.tenancy.application.structure.StructureChangePublisher
+import com.dynokore.gst.tenancy.application.structure.StructureNodeState
+import com.dynokore.platform.productruntime.ProductEventTypes
+import com.dynokore.platform.productruntime.feed.StructureFeedHandler
+import com.dynokore.platform.serviceruntime.replica.Lookup
+import com.dynokore.platform.serviceruntime.replica.StructureNode
+import com.dynokore.platform.serviceruntime.replica.StructureReplica
+import com.dynokore.platform.serviceruntime.resilience.Deadline
+import com.dynokore.platform.tenancykernel.TenantContext
+import com.dynokore.platform.tenancykernel.TenantId
+import com.dynokore.platform.tenancykernel.TransactionRunner
+import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
+import org.jooq.DSLContext
+import org.junit.jupiter.api.Test
+import org.springframework.boot.test.context.assertj.AssertableWebApplicationContext
+import org.springframework.core.env.EnumerablePropertySource
+import java.time.Clock
+import java.time.Duration
+import java.time.Instant
+import java.time.LocalDate
+import java.time.OffsetDateTime
+import java.util.UUID
+
+/**
+ * The acceptance criteria of INV-T-4925 at the service boundary: the real application context over a real PostgreSQL
+ * with forced row-level security and the signed binding. Test names carry the criterion key (acKeyCoverage).
+ *
+ * The operations createTenant, createEntity, getEntityStructure and the group and business-unit operations are not
+ * implemented yet (they wait for the contract of INV-T-7381 and the rulings of the open gaps), so the rows are written
+ * through jOOQ under a bound tenant, which is what the storage-layer criteria assert; the criteria whose decisive step
+ * is an API call carry no test here (see the merge request, "Not done").
+ */
+class AcceptanceCriteriaTest {
+    private val other = TenantId(UUID.randomUUID())
+
+    private fun run(block: (AssertableWebApplicationContext, Env) -> Unit) {
+        BoundaryFixture.runner().run { context ->
+            context.startupFailure?.let { throw it }
+            block(context, Env(context))
+        }
+    }
+
+    private class Env(
+        val context: AssertableWebApplicationContext,
+    ) {
+        val tenants: TenantContext = context.getBean(TenantContext::class.java)
+        val tx: TransactionRunner = context.getBean(TransactionRunner::class.java)
+        val dsl: DSLContext = context.getBean(DSLContext::class.java)
+        val captured: CapturedEvents = context.getBean(CapturedEvents::class.java)
+        val publisher: StructureChangePublisher = context.getBean(StructureChangePublisher::class.java)
+
+        fun <T> inTenant(
+            tenant: TenantId,
+            block: () -> T,
+        ): T = tenants.bind(tenant, "user:test") { tx.inTransaction(block) }
+
+        /** A tenant with one group, one entity and one business unit, under the tenant's binding. */
+        fun structure(tenant: TenantId = TenantId(UUID.randomUUID())): Pair<TenantId, Structure> {
+            val suffix = UUID.randomUUID().toString().take(8)
+            val code = suffix.take(5).uppercase().replace('-', 'X')
+            return tenant to inTenant(tenant) { Rows.structure(dsl, tenant, suffix, code) }
+        }
+
+        fun change(
+            tenant: TenantId,
+            node: String,
+            type: ChangeType,
+            version: Long,
+        ) = StructureChange(
+            tenant.value,
+            node,
+            NodeType.ENTITY,
+            node,
+            type,
+            null,
+            null,
+            StructureNodeState(NodeType.ENTITY, null, false, "Entity", "E1", version),
+        )
+    }
+
+    private fun unique() = UUID.randomUUID().toString().take(8)
+
+    @Test
+    fun `INV-AC-1714 a business unit row without a registered entity is rejected by the storage layer`() {
+        run { _, env ->
+            val (tenant, structure) = env.structure()
+            val columns =
+                BoundaryFixture.pairs(
+                    "select table_name, is_nullable from information_schema.columns " +
+                        "where table_schema = 'tenancy' and column_name = 'entity_id'",
+                )
+            assertThat(columns).isNotEmpty().allSatisfy { assertThat(it.second).describedAs(it.first).isEqualTo("NO") }
+            // the application session: a row without entity_id never reaches the table
+            assertThatThrownBy {
+                env.inTenant(tenant) {
+                    env.dsl
+                        .insertInto(BUSINESS_UNIT)
+                        .set(BUSINESS_UNIT.ID, UUID.randomUUID())
+                        .set(BUSINESS_UNIT.TENANT_ID, tenant.value)
+                        .set(BUSINESS_UNIT.REF, "orphan-${unique()}")
+                        .set(BUSINESS_UNIT.NAME, "Orphan")
+                        .set(BUSINESS_UNIT.CODE, "ORPHAN")
+                        .set(BUSINESS_UNIT.STRUCTURE_VERSION, 1L)
+                        .set(BUSINESS_UNIT.CREATED_AT, OffsetDateTime.now())
+                        .execute()
+                }
+            }.hasMessageContaining("entity_id")
+            // the storage layer itself, as the superuser who bypasses row-level security
+            val columnsOfUnit = "(id, tenant_id, ref, name, code, structure_version, created_at"
+            assertThatThrownBy {
+                BoundaryFixture.execute(
+                    "insert into tenancy.business_unit $columnsOfUnit) values " +
+                        "(gen_random_uuid(), '${tenant.value}', 'orphan-${unique()}', 'x', 'ORPHAN2', 1, now())",
+                )
+            }.hasMessageContaining("entity_id")
+            // an entity of another tenant is no entity of this one
+            assertThatThrownBy {
+                BoundaryFixture.execute(
+                    "insert into tenancy.business_unit $columnsOfUnit, entity_id) values " +
+                        "(gen_random_uuid(), '${other.value}', 'cross-${unique()}', 'x', 'CROSS', 1, now(), " +
+                        "'${structure.entity}')",
+                )
+            }.hasMessageContaining("violates foreign key")
+        }
+    }
+
+    @Test
+    fun `INV-AC-2041 per-entity tables carry a non-nullable entity reference and none is keyed by group or tenant`() {
+        val nullable =
+            BoundaryFixture.pairs(
+                "select table_name, column_name from information_schema.columns where table_schema = 'tenancy' " +
+                    "and column_name in ('entity_id', 'group_id') and is_nullable = 'YES'",
+            )
+        assertThat(nullable).isEmpty()
+        // keys that are exactly {tenant_id} or {group_id}: only the tenant table's own key may be one (exact equality)
+        val keys =
+            BoundaryFixture.pairs(
+                "select cl.relname, array_to_string(array_agg(a.attname order by a.attname), ',') " +
+                    "from pg_constraint k join pg_class cl on cl.oid = k.conrelid " +
+                    "join pg_namespace n on n.oid = cl.relnamespace " +
+                    "join pg_attribute a on a.attrelid = k.conrelid and a.attnum = any (k.conkey) " +
+                    "where n.nspname = 'tenancy' and k.contype in ('p', 'u') group by k.oid, cl.relname",
+            )
+        assertThat(keys.filter { it.second == "tenant_id" || it.second == "group_id" })
+            .containsExactly("tenant" to "tenant_id")
+    }
+
+    @Test
+    fun `INV-AC-1900 a query without the tenant predicate returns no other tenant's rows`() {
+        run { _, env ->
+            val (one, _) = env.structure()
+            val (two, _) = env.structure()
+            val seen =
+                env.inTenant(one) {
+                    listOf(
+                        env.dsl.selectFrom(TENANT).fetch(TENANT.TENANT_ID),
+                        env.dsl.selectFrom(TENANT_GROUP).fetch(TENANT_GROUP.TENANT_ID),
+                        env.dsl.selectFrom(REGISTERED_ENTITY).fetch(REGISTERED_ENTITY.TENANT_ID),
+                        env.dsl.selectFrom(BUSINESS_UNIT).fetch(BUSINESS_UNIT.TENANT_ID),
+                        env.dsl.selectFrom(SHORT_CODE).fetch(SHORT_CODE.TENANT_ID),
+                    )
+                }
+            seen.forEach { assertThat(it.toSet()).isEqualTo(setOf(one.value)) }
+            // a session without a tenant returns nothing, on every tenant table
+            BoundaryFixture.asRuntime { c ->
+                listOf("tenant", "tenant_group", "registered_entity", "business_unit", "short_code").forEach { table ->
+                    c.createStatement().use { s ->
+                        s.executeQuery("select count(*) from tenancy.$table").use {
+                            it.next()
+                            assertThat(it.getLong(1)).describedAs(table).isZero()
+                        }
+                    }
+                }
+            }
+            // and a row written for another tenant is refused
+            assertThatThrownBy { env.inTenant(one) { Rows.structure(env.dsl, two, unique(), "ZZ1") } }
+                .hasMessageContaining("not the bound tenant")
+        }
+    }
+
+    @Test
+    fun `INV-AC-2069 the installation runs tenant-scoped with no tenancy switch and a record carries the tenant`() {
+        run { _, env ->
+            // no property of the packaged configuration names tenancy except the reviewed list (exact names)
+            val allowed = setOf("inv.tenancy.platform-scoped-tables[0]", "inv.tenancy.platform-scoped-tables[1]")
+            val names =
+                env.context.environment.propertySources
+                    .filterIsInstance<EnumerablePropertySource<*>>()
+                    .filter { it.name.contains("application") }
+                    .flatMap { it.propertyNames.toList() }
+            assertThat(names).isNotEmpty()
+            assertThat(names.filter { it.contains("tenan", ignoreCase = true) && it !in allowed }).isEmpty()
+            assertThat(names.filter { it in allowed }).hasSameSizeAs(allowed)
+            // the installation holds one tenant; its record carries the identifier and no other binding sees it
+            val (only, _) = env.structure()
+            assertThat(env.inTenant(only) { env.dsl.selectFrom(TENANT).fetch(TENANT.TENANT_ID) })
+                .containsExactly(only.value)
+            assertThat(env.inTenant(other) { env.dsl.selectFrom(REGISTERED_ENTITY).fetch() }).isEmpty()
+        }
+    }
+
+    @Test
+    fun `INV-AC-1898 entities of one tenant hold different go-live dates and lifecycle states`() {
+        run { _, env ->
+            val (tenant, structure) = env.structure()
+            val trading = UUID.randomUUID()
+            env.inTenant(tenant) {
+                Rows.entity(env.dsl, tenant, structure.group, trading, "trading-${unique()}", "TRAD1", "DRAFT", null)
+            }
+            val states =
+                env.inTenant(tenant) {
+                    env.dsl
+                        .selectFrom(REGISTERED_ENTITY)
+                        .fetch()
+                        .associate { it.id to (it.lifecycleState to it.goLiveDate) }
+                }
+            assertThat(states[structure.entity]).isEqualTo("LIVE" to LocalDate.of(2028, 4, 1))
+            assertThat(states[trading]).isEqualTo("DRAFT" to null)
+        }
+    }
+
+    @Test
+    fun `INV-AC-1896 the four levels are distinct records and a structure change reaches the replica`() {
+        run { ctx, env ->
+            val (tenant, structure) = env.structure()
+            val ids = setOf(tenant.value, structure.group, structure.entity, structure.businessUnit)
+            assertThat(ids).hasSize(4)
+            val moved = structure.businessUnit.toString()
+            env.captured.envelopes.clear()
+            env.inTenant(tenant) { env.publisher.publish(env.change(tenant, moved, ChangeType.MOVED, 3)) }
+            val envelope = env.captured.envelopes.single()
+            assertThat(envelope.type).isEqualTo(ProductEventTypes.ORGANISATION_STRUCTURE_CHANGED)
+            // the replica applies exactly what the service published
+            ctx.getBean(StructureFeedHandler::class.java).handle(envelope)
+            val lookup = ctx.getBean(StructureReplica::class.java).node(tenant, moved, deadline())
+            assertThat(lookup).isInstanceOf(Lookup.Local::class.java)
+            assertThat((lookup as Lookup.Local<StructureNode>).value.structureVersion).isEqualTo(3)
+        }
+    }
+
+    @Test
+    fun `an event published in a rolled-back command transaction leaves no outbox row`() {
+        run { _, env ->
+            val tenant = TenantId(UUID.randomUUID())
+            val node = UUID.randomUUID().toString()
+            assertThatThrownBy {
+                env.inTenant(tenant) {
+                    env.publisher.publish(env.change(tenant, node, ChangeType.CREATED, 1))
+                    error("command failed")
+                }
+            }.hasMessageContaining("command failed")
+            assertThat(BoundaryFixture.number("select count(*) from tenancy.outbox where data::text like '%$node%'"))
+                .isZero()
+        }
+    }
+
+    @Test
+    fun `INV-TS-3328 a replica fed only by the events serves a read with no tenancy-svc call`() {
+        run { _, env ->
+            val tenant = TenantId(UUID.randomUUID())
+            val node = UUID.randomUUID().toString()
+            env.captured.envelopes.clear()
+            env.inTenant(tenant) { env.publisher.publish(env.change(tenant, node, ChangeType.CREATED, 1)) }
+            val replica = StructureReplica(Clock.systemUTC()) // no fallback: nothing can call tenancy-svc
+            StructureFeedHandler(replica).handle(env.captured.envelopes.single())
+            assertThat(replica.node(tenant, node, deadline())).isInstanceOf(Lookup.Local::class.java)
+        }
+    }
+
+    @Test
+    fun `an installation fact is written and read back through the repository`() {
+        run { ctx, _ ->
+            val repository = ctx.getBean(InstallationFactRepository::class.java)
+            val key = "release-train-${unique()}"
+            val at = Instant.parse("2026-10-19T08:00:00Z")
+            repository.put(InstallationFact(key, "2026.4", at))
+            assertThat(repository.find(key)).isEqualTo(InstallationFact(key, "2026.4", at))
+            repository.put(InstallationFact(key, "2026.5", at))
+            assertThat(repository.find(key)?.value).isEqualTo("2026.5")
+            assertThat(repository.all().map { it.key }).contains(key)
+            assertThat(repository.find("absent-${unique()}")).isNull()
+        }
+    }
+
+    private fun deadline() = Deadline.after(Duration.ofMillis(500), Clock.systemUTC())
+}

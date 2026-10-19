@@ -1,7 +1,7 @@
 // tenancy-bootstrap — the Spring Boot application and its composition root (TPL-01, TPL-16, TPL-18).
 plugins {
     id("gst.bootstrap")
-    alias(libs.plugins.springBoot)
+    id("org.springframework.boot")
 }
 
 dependencies {

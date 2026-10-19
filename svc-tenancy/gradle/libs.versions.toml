@@ -69,6 +69,3 @@ slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4jSimple" 
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
 junit-platformLauncher = { module = "org.junit.platform:junit-platform-launcher" }
-
-[plugins]
-springBoot = { id = "org.springframework.boot", version.ref = "springBoot" }

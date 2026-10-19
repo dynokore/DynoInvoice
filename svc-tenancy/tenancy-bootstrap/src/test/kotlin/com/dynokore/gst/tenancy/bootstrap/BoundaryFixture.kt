@@ -35,7 +35,8 @@ object BoundaryFixture {
             script.execute("GRANT CONNECT ON DATABASE $database TO tenancy_runtime")
             script.execute("GRANT USAGE ON SCHEMA tenancy TO tenancy_runtime")
             script.execute(
-                "INSERT INTO tenancy.binding_key (slot, secret) VALUES ('current', convert_to('${TestSecrets.BINDING_KEY}', 'UTF8'))",
+                "INSERT INTO tenancy.binding_key (slot, secret) " +
+                    "VALUES ('current', convert_to('${TestSecrets.BINDING_KEY}', 'UTF8'))",
             )
         }
     }
@@ -46,7 +47,15 @@ object BoundaryFixture {
         container.copyFileToContainer(MountableFile.forHostPath(file), target)
         val result =
             container.execInContainer(
-                "psql", "-v", "ON_ERROR_STOP=1", "-U", container.username, "-d", container.databaseName, "-f", target,
+                "psql",
+                "-v",
+                "ON_ERROR_STOP=1",
+                "-U",
+                container.username,
+                "-d",
+                container.databaseName,
+                "-f",
+                target,
             )
         check(result.exitCode == 0) { "$file failed: ${result.stderr}" }
     }
@@ -54,6 +63,32 @@ object BoundaryFixture {
     /** A superuser connection, for the assertions that must see every row. */
     fun <T> asSuperuser(block: (java.sql.Connection) -> T): T =
         DriverManager.getConnection(container.jdbcUrl, container.username, container.password).use(block)
+
+    /** Rows of two text columns, read as the superuser. */
+    fun pairs(sql: String): List<Pair<String, String>> =
+        asSuperuser { c ->
+            c.createStatement().use { s ->
+                s.executeQuery(sql).use { rs ->
+                    generateSequence { if (rs.next()) rs.getString(1) to rs.getString(2) else null }.toList()
+                }
+            }
+        }
+
+    /** One number, read as the superuser. */
+    fun number(sql: String): Long =
+        asSuperuser { c ->
+            c.createStatement().use { s ->
+                s.executeQuery(sql).use {
+                    it.next()
+                    it.getLong(1)
+                }
+            }
+        }
+
+    /** Runs one statement as the superuser. */
+    fun execute(sql: String) {
+        asSuperuser { c -> c.createStatement().use { it.execute(sql) } }
+    }
 
     /** A connection as the runtime login with nothing bound: forced row-level security hides every row. */
     fun <T> asRuntime(block: (java.sql.Connection) -> T): T =
@@ -63,7 +98,7 @@ object BoundaryFixture {
         WebApplicationContextRunner()
             .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
             .withInitializer(ConfigDataApplicationContextInitializer())
-            .withUserConfiguration(TenancyApplication::class.java)
+            .withUserConfiguration(BoundaryTestConfiguration::class.java, TenancyApplication::class.java)
             .withPropertyValues(
                 "spring.datasource.url=${container.jdbcUrl}",
                 "spring.datasource.username=tenancy_runtime",

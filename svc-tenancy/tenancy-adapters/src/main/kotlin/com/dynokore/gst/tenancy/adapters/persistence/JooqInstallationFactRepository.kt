@@ -3,8 +3,7 @@ package com.dynokore.gst.tenancy.adapters.persistence
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.INSTALLATION_FACT
 import com.dynokore.gst.tenancy.application.installation.InstallationFact
 import com.dynokore.gst.tenancy.application.installation.InstallationFactRepository
-import com.dynokore.platform.tenancykernel.TenantContext
-import com.dynokore.platform.tenancykernel.TenantId
+import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
 import java.time.ZoneOffset
@@ -14,11 +13,11 @@ import java.time.ZoneOffset
  * not tenant data, so no tenant owns them (the table carries no tenant column and no row-level-security policy).
  */
 class PlatformScope(
-    private val tenants: TenantContext,
+    private val platform: PlatformTenantBinding,
     private val tx: TransactionRunner,
     private val actor: String,
 ) {
-    fun <T> run(block: () -> T): T = tenants.bind(TenantId.PLATFORM, actor) { tx.inTransaction(block) }
+    fun <T> run(block: () -> T): T = platform.bindPlatform(actor) { tx.inTransaction(block) }
 }
 
 /** INV-Q-4898: the one installation-fact table, written by INV-T-3290 and the entitlement task through this class. */

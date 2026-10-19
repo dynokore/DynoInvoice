@@ -6,6 +6,7 @@ import com.dynokore.gst.tenancy.adapters.persistence.PlatformScope
 import com.dynokore.gst.tenancy.application.installation.InstallationFactRepository
 import com.dynokore.gst.tenancy.application.structure.StructureChangePublisher
 import com.dynokore.platform.outboxandqueue.OutboxWriter
+import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
@@ -23,7 +24,7 @@ class UseCases {
     fun platformScope(
         tenants: TenantContext,
         tx: TransactionRunner,
-    ): PlatformScope = PlatformScope(tenants, tx, "tenancy-svc")
+    ): PlatformScope = PlatformScope(tenants as PlatformTenantBinding, tx, "tenancy-svc")
 
     @Bean
     fun installationFactRepository(

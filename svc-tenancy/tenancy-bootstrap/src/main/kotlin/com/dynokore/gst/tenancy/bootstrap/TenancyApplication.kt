@@ -7,7 +7,10 @@ import org.springframework.boot.SpringApplication
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.context.annotation.Import
 
-/** TPL-18: the composition root. All wiring lives here, in [ServiceDefaults] and [UseCases]; application and domain stay annotation-free. */
+/**
+ * TPL-18: the composition root. All wiring lives here, in [ServiceDefaults] and [UseCases]; application and domain
+ * stay annotation-free.
+ */
 @SpringBootApplication(scanBasePackageClasses = [AdaptersRoot::class, TenancyApplication::class])
 @Import(
     ServiceRuntimeConfiguration::class, // L1 composition root: bindings of section 12.1, TransactionRunner, replicas
