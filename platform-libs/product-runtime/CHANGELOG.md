@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-20
+### Changed
+- `gst-catalogue` pin raised from 1.14.0 to 1.28.0, whose POM declares the company licence (INV-Q-7529, INV-T-7531); the POMs of 1.14.0 and 1.15.0 declare none and cannot be corrected. Locks and verification metadata regenerated; no code change.
+
 ## [1.1.1] - 2026-10-19
 ### Changed
 - detekt type-resolution findings fixed (platform-build 0.21.0, INV-Q-4629); no behaviour or API change
