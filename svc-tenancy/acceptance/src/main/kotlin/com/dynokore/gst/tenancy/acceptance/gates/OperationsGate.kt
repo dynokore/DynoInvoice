@@ -74,10 +74,19 @@ object OperationsGate {
             .flatMap { pattern.findAll(SourceText.stripComments(it.readText())).map { m -> m.groupValues[1] }.toList() }
             .toSet()
 
-    /** What the code answers: which operations are overridden and which of those call `notImplemented`. */
+    /**
+     * What the code answers: which operations are overridden, which of those call `notImplemented`, and the test
+     * classes that exist (a done channel needs its payload-schema test class).
+     */
     data class Code(
         val implemented: Set<String>,
         val stubbed: Set<String>,
+        val testClasses: Set<String> = emptySet(),
+    )
+
+    private data class Contract(
+        val operations: Set<String>,
+        val channels: Set<String>,
     )
 
     fun check(
@@ -85,13 +94,13 @@ object OperationsGate {
         asyncapi: String,
         table: String?,
         code: Code,
-        testClasses: Set<String> = emptySet(),
         assigned: (kind: String, name: String) -> String? = { kind, name -> Assignments.of(kind)[name] },
     ): List<Finding> {
         val parsed = table?.let(Tsv::rows) ?: return listOf(Finding(NAME, NAME, "the table is missing or empty"))
         val (header, rows) = parsed
         val operations = contractOperations(openapi)
         val channels = contractChannels(asyncapi)
+        val contract = Contract(operations, channels)
         val findings = ArrayList<Finding>()
         if (header != HEADER) findings += Finding(NAME, "header", "expected columns $HEADER, found $header")
         val seen = HashSet<List<String>>()
@@ -100,7 +109,7 @@ object OperationsGate {
                 if (row.size == HEADER.size &&
                     row.none { it.isEmpty() }
                 ) {
-                    rowFindings(row, seen, operations, channels, code, testClasses, assigned)
+                    rowFindings(row, seen, contract, code, assigned)
                 } else {
                     listOf(malformed(row))
                 }
@@ -130,10 +139,8 @@ object OperationsGate {
     private fun rowFindings(
         row: List<String>,
         seen: MutableSet<List<String>>,
-        operations: Set<String>,
-        channels: Set<String>,
+        contract: Contract,
         code: Code,
-        testClasses: Set<String>,
         assigned: (String, String) -> String?,
     ): List<Finding> {
         val id = row[0]
@@ -151,16 +158,14 @@ object OperationsGate {
         if (state != "done" && state != "pending") out += Finding(NAME, id, "state '$state' is not done or pending")
         when (kind) {
             "operation" -> {
-                out += operationFindings(id, task, state, operations, code)
+                out += operationFindings(id, task, state, contract.operations, code)
             }
 
             "channel" -> {
-                if (id !in
-                    channels
-                ) {
+                if (id !in contract.channels) {
                     out += Finding(NAME, id, "the table lists a channel the contract does not hold")
                 }
-                if (state == "done" && id + PAYLOAD_TEST_SUFFIX !in testClasses) {
+                if (state == "done" && id + PAYLOAD_TEST_SUFFIX !in code.testClasses) {
                     out += Finding(NAME, id, "task $task is done but no test class ${id + PAYLOAD_TEST_SUFFIX} exists")
                 }
             }

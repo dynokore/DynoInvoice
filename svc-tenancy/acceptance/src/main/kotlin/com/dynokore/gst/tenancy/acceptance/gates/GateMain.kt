@@ -22,8 +22,11 @@ object GateMain {
                         File(contract, "openapi.yaml").readText(),
                         File(contract, "asyncapi.yaml").readText(),
                         File(dir("--table"), OperationsGate.NAME).takeIf { it.isFile }?.readText(),
-                        OperationsGate.Code(OperationsGate.overrides(sources), OperationsGate.stubs(sources)),
-                        OperationsGate.classNames(tests),
+                        OperationsGate.Code(
+                            OperationsGate.overrides(sources),
+                            OperationsGate.stubs(sources),
+                            OperationsGate.classNames(tests),
+                        ),
                     )
                 }
 

@@ -3,6 +3,7 @@ package com.dynokore.gst.tenancy.adapters.persistence
 import com.dynokore.platform.outboxandqueue.OutboxSchema
 import com.dynokore.platform.serviceruntime.http.IdempotencySchema
 import com.dynokore.platform.tenancykernel.BindingKeyMigration
+import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantRlsMigration
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -51,7 +52,8 @@ class GeneratedMigrationsTest {
     fun `every service table carries the generated tenant policy`() {
         val file = "V202610190910__create_structure_tables.sql"
         val text = migration(file)
-        listOf("tenant", "tenant_group", "registered_entity", "business_unit", "short_code").forEach { table ->
+        listOf("tenant", "tenant_group", "registered_entity", "business_unit", "short_code").forEach { name ->
+            val table = SqlIdentifier.require(name, "table")
             assertTrue(TenantRlsMigration.ddl("tenancy", table, "tenant_isolation") in text, "$file: $table")
             assertTrue("CREATE TABLE tenancy.$table (" in text, "$file: $table")
         }

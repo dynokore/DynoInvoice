@@ -14,8 +14,8 @@ import tools.jackson.databind.node.ObjectNode
  * TPL-05: maps a structure change to the contract event OrganisationStructureChanged (INV-API-3327) and appends it
  * through outbox-and-queue, in the command transaction the caller holds (CS-17). The payload is the
  * `organisation-structure-changed-payload` schema of platform-contracts; the payload-schema test class of the
- * channel validates it against that schema. The emission guard refuses the type unless the catalogue lists tenancy-svc as its
- * producer.
+ * channel validates it against that schema. The emission guard refuses the type unless the catalogue lists
+ * tenancy-svc as its producer.
  */
 class OrganisationStructureChangedOutbox(
     private val outbox: OutboxWriter,

@@ -74,6 +74,7 @@ object Rows {
     }
 
     /** A group of the given kind and GSTN under the tenant. */
+    @Suppress("LongParameterList")
     fun group(
         dsl: DSLContext,
         tenant: TenantId,

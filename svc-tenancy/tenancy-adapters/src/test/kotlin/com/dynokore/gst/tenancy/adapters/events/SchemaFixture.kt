@@ -4,6 +4,7 @@ import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
+import com.networknt.schema.Error
 import com.networknt.schema.InputFormat
 import com.networknt.schema.Schema
 import com.networknt.schema.SchemaRegistry
@@ -23,7 +24,7 @@ internal object SchemaFixture {
     fun errors(
         schema: Schema,
         payload: String,
-    ) = schema.validate(payload, InputFormat.JSON)
+    ): List<Error> = schema.validate(payload, InputFormat.JSON)
 }
 
 internal class RecordingOutbox : OutboxWriter {

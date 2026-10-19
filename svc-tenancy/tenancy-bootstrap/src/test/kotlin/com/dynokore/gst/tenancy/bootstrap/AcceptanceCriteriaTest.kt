@@ -149,10 +149,7 @@ class AcceptanceCriteriaTest {
         run { _, env ->
             val (tenant, structure) = env.structure()
             val columns =
-                BoundaryFixture.pairs(
-                    "select table_name, is_nullable from information_schema.columns " +
-                        "where table_schema = 'tenancy' and column_name = 'entity_id'",
-                )
+                BoundaryFixture.entityColumns()
             assertThat(columns).isNotEmpty().allSatisfy { assertThat(it.second).describedAs(it.first).isEqualTo("NO") }
             // the application session: a row without entity_id never reaches the table
             assertThatThrownBy {
@@ -170,41 +167,22 @@ class AcceptanceCriteriaTest {
                 }
             }.hasMessageContaining("entity_id")
             // the storage layer itself, as the superuser who bypasses row-level security
-            val columnsOfUnit = "(id, tenant_id, ref, name, code, structure_version, created_at"
-            assertThatThrownBy {
-                BoundaryFixture.execute(
-                    "insert into tenancy.business_unit $columnsOfUnit) values " +
-                        "(gen_random_uuid(), '${tenant.value}', 'orphan-${unique()}', 'x', 'ORPHAN2', 1, now())",
-                )
-            }.hasMessageContaining("entity_id")
+            assertThatThrownBy { BoundaryFixture.insertBusinessUnit(tenant.value, "ORPHAN2", null) }
+                .hasMessageContaining("entity_id")
             // an entity of another tenant is no entity of this one
-            assertThatThrownBy {
-                BoundaryFixture.execute(
-                    "insert into tenancy.business_unit $columnsOfUnit, entity_id) values " +
-                        "(gen_random_uuid(), '${other.value}', 'cross-${unique()}', 'x', 'CROSS', 1, now(), " +
-                        "'${structure.entity}')",
-                )
-            }.hasMessageContaining("violates foreign key")
+            assertThatThrownBy { BoundaryFixture.insertBusinessUnit(other.value, "CROSS", structure.entity) }
+                .hasMessageContaining("violates foreign key")
         }
     }
 
     @Test
     fun `INV-AC-2041 per-entity tables carry a non-nullable entity reference and none is keyed by group or tenant`() {
         val nullable =
-            BoundaryFixture.pairs(
-                "select table_name, column_name from information_schema.columns where table_schema = 'tenancy' " +
-                    "and column_name in ('entity_id', 'group_id') and is_nullable = 'YES'",
-            )
+            BoundaryFixture.nullableScopeColumns()
         assertThat(nullable).isEmpty()
         // keys that are exactly {tenant_id} or {group_id}: only the tenant table's own key may be one (exact equality)
         val keys =
-            BoundaryFixture.pairs(
-                "select cl.relname, array_to_string(array_agg(a.attname order by a.attname), ',') " +
-                    "from pg_constraint k join pg_class cl on cl.oid = k.conrelid " +
-                    "join pg_namespace n on n.oid = cl.relnamespace " +
-                    "join pg_attribute a on a.attrelid = k.conrelid and a.attnum = any (k.conkey) " +
-                    "where n.nspname = 'tenancy' and k.contype in ('p', 'u') group by k.oid, cl.relname",
-            )
+            BoundaryFixture.keyColumns()
         assertThat(keys.filter { it.second == "tenant_id" || it.second == "group_id" })
             .containsExactly("tenant" to "tenant_id")
     }
@@ -226,16 +204,9 @@ class AcceptanceCriteriaTest {
                 }
             seen.forEach { assertThat(it.toSet()).isEqualTo(setOf(one.value)) }
             // a session without a tenant returns nothing, on every tenant table
-            BoundaryFixture.asRuntime { c ->
-                listOf("tenant", "tenant_group", "registered_entity", "business_unit", "short_code").forEach { table ->
-                    c.createStatement().use { s ->
-                        s.executeQuery("select count(*) from tenancy.$table").use {
-                            it.next()
-                            assertThat(it.getLong(1)).describedAs(table).isZero()
-                        }
-                    }
-                }
-            }
+            val counts = BoundaryFixture.unboundRowCounts()
+            assertThat(counts.map { it.first }).hasSize(5)
+            counts.forEach { assertThat(it.second).describedAs(it.first).isZero() }
             // and a row written for another tenant is refused
             assertThatThrownBy { env.inTenant(one) { Rows.structure(env.dsl, two, unique(), "ZZ1") } }
                 .hasMessageContaining("not the bound tenant")
@@ -388,8 +359,7 @@ class AcceptanceCriteriaTest {
                     error("command failed")
                 }
             }.hasMessageContaining("command failed")
-            assertThat(BoundaryFixture.number("select count(*) from tenancy.outbox where data::text like '%$node%'"))
-                .isZero()
+            assertThat(BoundaryFixture.outboxRowsMentioning(node)).isZero()
         }
     }
 

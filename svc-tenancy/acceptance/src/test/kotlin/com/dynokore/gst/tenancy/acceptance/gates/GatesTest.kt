@@ -38,7 +38,7 @@ class GatesTest {
         spec: String = openapi,
         classes: Set<String> = setOf("ChanOnePayloadSchemaTest"),
     ) = OperationsGate
-        .check(spec, asyncapi, table, OperationsGate.Code(implemented, stubs), classes) { _, name -> assignedTo[name] }
+        .check(spec, asyncapi, table, OperationsGate.Code(implemented, stubs, classes)) { _, name -> assignedTo[name] }
         .map { it.message }
 
     @Test
@@ -121,8 +121,13 @@ class GatesTest {
         OperationsGate.classNames(listOf(File(dir, "A.kt"))) shouldBe setOf("RealPayloadSchemaTest")
     }
 
-    @Test
-    fun `the ruled assignment is enforced by equality on the real names`() {
+    private data class Ruled(
+        val spec: String,
+        val async: String,
+        val table: String,
+    )
+
+    private fun ruled(): Ruled {
         val ops = Assignments.operations
         val channels = Assignments.channels
         val spec =
@@ -134,6 +139,13 @@ class GatesTest {
             header +
                 ops.entries.joinToString("") { "${it.key}\toperation\t${it.value}\tpending\n" } +
                 channels.entries.joinToString("") { "${it.key}\tchannel\t${it.value}\tpending\n" }
+
+        return Ruled(spec, async, table)
+    }
+
+    @Test
+    fun `the ruled assignment is enforced by equality on the real names`() {
+        val (spec, async, table) = ruled()
 
         fun run(
             t: String,
@@ -163,9 +175,22 @@ class GatesTest {
         run(table.replace("listPeriodRecords", "listPeriodRecord")).map { it.first }.toSet() shouldBe
             setOf("listPeriodRecords", "listPeriodRecord")
         run(table + "createTenant\toperation\tINV-T-4925\tpending\n").single().second shouldBe "listed twice"
-        run(table, spec.replace("moveBusinessUnit", "moveBusinessunit")).map { it.first }.toSet() shouldBe
+    }
+
+    @Test
+    fun `a renamed or added contract name is a finding`() {
+        val (spec, async, table) = ruled()
+
+        fun run(s: String) = OperationsGate.check(s, async, table, OperationsGate.Code(emptySet(), emptySet()))
+        run(spec).shouldBeEmpty()
+        run(spec.replace("moveBusinessUnit", "moveBusinessunit")).map { it.subject }.toSet() shouldBe
             setOf("moveBusinessUnit", "moveBusinessunit")
-        run(table, spec + "\n  /extra:\n    post: { operationId: extraOp }").single().first shouldBe "extraOp"
+        run(spec + "\n  /extra:\n    post: { operationId: extraOp }").single().subject shouldBe "extraOp"
+    }
+
+    @Test
+    fun `a done channel needs its exact payload-schema test class`() {
+        val (spec, async, table) = ruled()
         val done =
             table.replace(
                 "PeriodExtended\tchannel\tINV-T-4930\tpending",
@@ -177,7 +202,7 @@ class GatesTest {
             setOf("PeriodDueDateChangedPayloadSchemaTest"),
         )) {
             OperationsGate
-                .check(spec, async, done, OperationsGate.Code(emptySet(), emptySet()), classes)
+                .check(spec, async, done, OperationsGate.Code(emptySet(), emptySet(), classes))
                 .single()
                 .subject shouldBe "PeriodExtended"
         }
@@ -186,8 +211,7 @@ class GatesTest {
                 spec,
                 async,
                 done,
-                OperationsGate.Code(emptySet(), emptySet()),
-                setOf("PeriodExtendedPayloadSchemaTest"),
+                OperationsGate.Code(emptySet(), emptySet(), setOf("PeriodExtendedPayloadSchemaTest")),
             ).shouldBeEmpty()
         OperationsGate
             .check(spec, "$async\n    Unknown: { payload: {} }", table, OperationsGate.Code(emptySet(), emptySet()))

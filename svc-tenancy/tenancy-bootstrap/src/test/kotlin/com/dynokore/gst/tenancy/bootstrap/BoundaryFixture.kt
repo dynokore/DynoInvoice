@@ -10,6 +10,7 @@ import org.testcontainers.utility.MountableFile
 import java.nio.file.Files
 import java.nio.file.Path
 import java.sql.DriverManager
+import java.util.UUID
 
 /** One PostgreSQL with the service schema migrated as the installation does, and the context runner over it. */
 object BoundaryFixture {
@@ -64,31 +65,92 @@ object BoundaryFixture {
     fun <T> asSuperuser(block: (java.sql.Connection) -> T): T =
         DriverManager.getConnection(container.jdbcUrl, container.username, container.password).use(block)
 
-    /** Rows of two text columns, read as the superuser. */
-    fun pairs(sql: String): List<Pair<String, String>> =
+    /** The nullability of every `entity_id` column of the tenancy schema: (table, is_nullable). */
+    fun entityColumns(): List<Pair<String, String>> =
         asSuperuser { c ->
-            c.createStatement().use { s ->
-                s.executeQuery(sql).use { rs ->
-                    generateSequence { if (rs.next()) rs.getString(1) to rs.getString(2) else null }.toList()
-                }
-            }
+            c
+                .prepareStatement(
+                    "select table_name, is_nullable from information_schema.columns " +
+                        "where table_schema = 'tenancy' and column_name = 'entity_id'",
+                ).use { s -> s.executeQuery().use(::textPairs) }
         }
 
-    /** One number, read as the superuser. */
-    fun number(sql: String): Long =
+    /** The (table, column) pairs of `entity_id` or `group_id` columns that are nullable. */
+    fun nullableScopeColumns(): List<Pair<String, String>> =
         asSuperuser { c ->
-            c.createStatement().use { s ->
-                s.executeQuery(sql).use {
+            c
+                .prepareStatement(
+                    "select table_name, column_name from information_schema.columns where table_schema = 'tenancy' " +
+                        "and column_name in ('entity_id', 'group_id') and is_nullable = 'YES'",
+                ).use { s -> s.executeQuery().use(::textPairs) }
+        }
+
+    /** Every primary or unique key of the tenancy schema: (table, comma-joined sorted columns). */
+    fun keyColumns(): List<Pair<String, String>> =
+        asSuperuser { c ->
+            c
+                .prepareStatement(
+                    "select cl.relname, array_to_string(array_agg(a.attname order by a.attname), ',') " +
+                        "from pg_constraint k join pg_class cl on cl.oid = k.conrelid " +
+                        "join pg_namespace n on n.oid = cl.relnamespace " +
+                        "join pg_attribute a on a.attrelid = k.conrelid and a.attnum = any (k.conkey) " +
+                        "where n.nspname = 'tenancy' and k.contype in ('p', 'u') group by k.oid, cl.relname",
+                ).use { s -> s.executeQuery().use(::textPairs) }
+        }
+
+    private fun textPairs(rs: java.sql.ResultSet): List<Pair<String, String>> =
+        generateSequence { if (rs.next()) rs.getString(1) to rs.getString(2) else null }.toList()
+
+    /** Outbox rows whose payload mentions [text], read as the superuser. */
+    fun outboxRowsMentioning(text: String): Long =
+        asSuperuser { c ->
+            c.prepareStatement("select count(*) from tenancy.outbox where data::text like ?").use { s ->
+                s.setString(1, "%$text%")
+                s.executeQuery().use {
                     it.next()
                     it.getLong(1)
                 }
             }
         }
 
-    /** Runs one statement as the superuser. */
-    fun execute(sql: String) {
-        asSuperuser { c -> c.createStatement().use { it.execute(sql) } }
+    /** A business unit row written straight to the table as the superuser, with or without its entity. */
+    fun insertBusinessUnit(
+        tenant: UUID,
+        code: String,
+        entity: UUID?,
+    ) {
+        asSuperuser { c ->
+            c
+                .prepareStatement(
+                    "insert into tenancy.business_unit " +
+                        "(id, tenant_id, ref, name, code, structure_version, created_at, entity_id) " +
+                        "values (gen_random_uuid(), ?, ?, 'x', ?, 1, now(), ?)",
+                ).use { s ->
+                    s.setObject(1, tenant)
+                    s.setString(2, "row-$code")
+                    s.setString(3, code)
+                    s.setObject(4, entity)
+                    s.executeUpdate()
+                }
+        }
     }
+
+    /** Row counts of the five tenant tables as a runtime session with no tenant bound: (table, count). */
+    fun unboundRowCounts(): List<Pair<String, Long>> =
+        asRuntime { c ->
+            c
+                .prepareStatement(
+                    "select 'tenant', count(*) from tenancy.tenant union all " +
+                        "select 'tenant_group', count(*) from tenancy.tenant_group union all " +
+                        "select 'registered_entity', count(*) from tenancy.registered_entity union all " +
+                        "select 'business_unit', count(*) from tenancy.business_unit union all " +
+                        "select 'short_code', count(*) from tenancy.short_code",
+                ).use { s ->
+                    s.executeQuery().use { rs ->
+                        generateSequence { if (rs.next()) rs.getString(1) to rs.getLong(2) else null }.toList()
+                    }
+                }
+        }
 
     /** A connection as the runtime login with nothing bound: forced row-level security hides every row. */
     fun <T> asRuntime(block: (java.sql.Connection) -> T): T =
