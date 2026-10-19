@@ -1492,7 +1492,8 @@ paths:
       x-requirements:
       - FR-AC.1
       - FR-G.11
-      x-error-codes: []
+      x-error-codes:
+      - TNC-001
       x-sync-edge: control-plane-svc->tenancy-svc
       x-operation:
         role: control-plane-svc
@@ -1964,7 +1965,8 @@ paths:
       x-timeout: 2000
       x-requirements:
       - FR-G.1
-      x-error-codes: []
+      x-error-codes:
+      - TNC-002
       x-operation:
         role: entity.admin
         scope: tenant
@@ -2010,7 +2012,9 @@ paths:
       x-timeout: 2000
       x-requirements:
       - FR-G.1
-      x-error-codes: []
+      x-error-codes:
+      - TNC-002
+      - TNC-003
       x-operation:
         role: entity.admin
         scope: tenant
