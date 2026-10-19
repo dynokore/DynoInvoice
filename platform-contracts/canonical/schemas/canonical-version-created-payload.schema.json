@@ -51,6 +51,15 @@
       "minLength": 1,
       "description": "The document/line scope verdict this version carries (services.yaml 'document scope verdict')."
     },
+    "notSubmittableReason": {
+      "type": "string",
+      "enum": [
+        "BUYER_REJECTED",
+        "ISSUANCE_REFUSED",
+        "NETTED_INTO_REVISION"
+      ],
+      "description": "Why this version is not submittable. Set by canonical-svc only when scopeVerdict is NOT_SUBMITTABLE for one of these causes; same members and meaning as the notSubmittableReason property of the canonical API. Optional so that an older consumer validates. A consumer that finds NOT_SUBMITTABLE without it classifies the variance as unexplained."
+    },
     "appliedPackVersions": {
       "type": "array",
       "description": "The rule pack versions applied to derive this canonical version.",

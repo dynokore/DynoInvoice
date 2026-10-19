@@ -98,6 +98,7 @@ schemas/canonical-version-created-payload.schema.json	docsequence	NONE
 schemas/canonical-version-created-payload.schema.json	transactionDate	NONE
 schemas/canonical-version-created-payload.schema.json	prescribedPeriodRef	NONE
 schemas/canonical-version-created-payload.schema.json	scopeVerdict	NONE
+schemas/canonical-version-created-payload.schema.json	notSubmittableReason	NONE
 schemas/canonical-version-created-payload.schema.json	appliedPackVersions	NONE
 schemas/canonical-version-created-payload.schema.json	traceReference	NONE
 schemas/canonical-version-created-payload.schema.json	canonicalDocument.documentTypeCode	NONE

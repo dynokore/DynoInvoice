@@ -149,7 +149,12 @@ Party.address	schema_property	openapi.yaml	INV-REQ-485
 Line.unitCode	schema_property	openapi.yaml	INV-REQ-485
 RecordDocumentRequest.invoiceNote	schema_property	openapi.yaml	INV-REQ-485
 # INV-T-7147. Rows for INV-REQ-699 (read from Keel). INV-REQ-699, INV-REQ-698 and INV-AC-742 have no other backticked name in their published text; the ruling sentence of INV-REQ-699 backticks exactly these four (INV-Q-7142 A).
+# INV-T-7230. Rows for INV-REQ-632 (read from Keel), INV-Q-7224 A. Its backticked NOT_SUBMITTABLE, EXCLUDED_TXN and PRE_OBLIGATION are values of scopeVerdict, a free string (rules contract), not members of this contract; CanonicalVersionCreated is an event, not a schema element.
 identityTriple	property	schemas/canonical-version-created-payload.schema.json	INV-REQ-699
 senderId	property	schemas/canonical-version-created-payload.schema.json	INV-REQ-699
 supplierId	property	schemas/canonical-version-created-payload.schema.json	INV-REQ-699
 supplierGstn	property	schemas/canonical-version-created-payload.schema.json	INV-REQ-699
+notSubmittableReason	property	schemas/canonical-version-created-payload.schema.json	INV-REQ-632
+BUYER_REJECTED	enum_value	schemas/canonical-version-created-payload.schema.json	INV-REQ-632
+ISSUANCE_REFUSED	enum_value	schemas/canonical-version-created-payload.schema.json	INV-REQ-632
+NETTED_INTO_REVISION	enum_value	schemas/canonical-version-created-payload.schema.json	INV-REQ-632
