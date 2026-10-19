@@ -26,6 +26,8 @@ dependencies {
     runtimeOnly(libs.platform.crypto)
     // the LocalAuditWriter bean of service-runtime's AuditLogWiring (a service without an outbox, INV-Q-2958)
     runtimeOnly(libs.platform.auditLog)
+    // the platform-scoped tables of config-resolver's ConfigSchema, read by service-runtime's TenancyJooqWiring
+    runtimeOnly(libs.platform.configResolver)
     runtimeOnly(libs.postgresql)
 
     testImplementation(platform(libs.junit.bom))
