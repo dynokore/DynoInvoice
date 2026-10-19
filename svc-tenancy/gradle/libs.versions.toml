@@ -1,0 +1,62 @@
+# gradle/libs.versions.toml — svc-tenancy's version catalogue (INV-T-4925; STK-01 §1, TPL-01).
+#
+# Every dependency goes through an alias, never a literal coordinate (gst.kotlin-base's checkDependencyCatalogUsage).
+# The platform modules are versioned by platform-libs-bom: a service bumps `platformLibsBom` only.
+
+[versions]
+platformBuild = "0.20.2"
+platformLibsBom = "0.97.0"
+springBoot = "4.1.1"
+jooq = "3.21.9"
+flyway = "12.4.0"
+postgresql = "42.7.14"
+testcontainers = "1.21.4"
+junit = "6.1.3"
+jackson = "3.2.3"
+slf4jSimple = "2.0.16"
+# The published platform-contracts bundle tenancy-contract generates from (a main build including INV-T-4909 and
+# INV-T-3298); bumped deliberately, like platform-libs' product-runtime does.
+platformContractsBundle = "0.0.0-dev+206f60b3"
+gstCatalogue = "1.14.0"
+
+[libraries]
+platform-bom = { module = "com.dynokore.platform:platform-libs-bom", version.ref = "platformLibsBom" }
+platform-konsistRules = { module = "com.dynokore.gst.build:konsist-rules", version.ref = "platformBuild" }
+platform-serviceRuntime-api = { module = "com.dynokore.platform:service-runtime-api" }
+platform-serviceRuntime-impl = { module = "com.dynokore.platform:service-runtime" }
+platform-tenancyKernel-api = { module = "com.dynokore.platform:tenancy-kernel-api" }
+platform-tenancyKernel-impl = { module = "com.dynokore.platform:tenancy-kernel" }
+platform-tenancyJooq-api = { module = "com.dynokore.platform:tenancy-jooq-api" }
+platform-tenancyJooq-impl = { module = "com.dynokore.platform:tenancy-jooq" }
+platform-outboxAndQueue-api = { module = "com.dynokore.platform:outbox-and-queue-api" }
+platform-outboxAndQueue-impl = { module = "com.dynokore.platform:outbox-and-queue" }
+platform-auditLog-api = { module = "com.dynokore.platform:audit-log-api" }
+platform-auditLog-impl = { module = "com.dynokore.platform:audit-log" }
+platform-configResolver-api = { module = "com.dynokore.platform:config-resolver-api" }
+platform-configResolver-impl = { module = "com.dynokore.platform:config-resolver" }
+platform-productRuntime-api = { module = "com.dynokore.platform:product-runtime-api" }
+platform-productRuntime-impl = { module = "com.dynokore.platform:product-runtime" }
+platformContracts-bundle = { module = "platform-contracts-bundle:platform-contracts", version.ref = "platformContractsBundle" }
+gstCatalogue = { module = "com.dynokore.gst:gst-catalogue", version.ref = "gstCatalogue" }
+springBoot-dependencies = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "springBoot" }
+springBoot-starterWeb = { module = "org.springframework.boot:spring-boot-starter-web" }
+springBoot-starterActuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }
+springBoot-starterJdbc = { module = "org.springframework.boot:spring-boot-starter-jdbc" }
+springBoot-test = { module = "org.springframework.boot:spring-boot-test" }
+springBoot-autoconfigure = { module = "org.springframework.boot:spring-boot-autoconfigure" }
+springWeb = { module = "org.springframework:spring-web" }
+jakarta-validationApi = { module = "jakarta.validation:jakarta.validation-api" }
+jooq = { module = "org.jooq:jooq", version.ref = "jooq" }
+flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
+flyway-databasePostgresql = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway" }
+postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
+testcontainers-postgresql = { module = "org.testcontainers:postgresql", version.ref = "testcontainers" }
+jackson-databind = { module = "tools.jackson.core:jackson-databind", version.ref = "jackson" }
+jackson-moduleKotlin = { module = "tools.jackson.module:jackson-module-kotlin" }
+slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4jSimple" }
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
+junit-platformLauncher = { module = "org.junit.platform:junit-platform-launcher" }
+
+[plugins]
+springBoot = { id = "org.springframework.boot", version.ref = "springBoot" }

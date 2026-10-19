@@ -1,0 +1,11 @@
+.gradle/
+.gradle-cache/
+.kotlin/
+*.hprof
+
+# Gradle output directories only, one per module (STK-60: one directory per
+# module), plus the root and the BOM.
+/build/
+/*/build/
+
+/*/build/
