@@ -60,7 +60,10 @@ class AuthorityChangedOutbox(
         return root
     }
 
-    private companion object {
-        val ISO: DateTimeFormatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME
+    companion object {
+        /** The asyncapi channel this class publishes (operations.tsv lists it). */
+        const val CHANNEL = "accessAuthorityChanged"
+
+        private val ISO: DateTimeFormatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME
     }
 }
