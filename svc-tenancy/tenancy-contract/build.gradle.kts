@@ -2,7 +2,10 @@
 //
 // The pinned platform-contracts bundle is laid out as a build-local Maven repository (as platform-libs'
 // product-runtime does, INV-Q-3852), from which gst.contract-server resolves `platform-contracts:tenancy:+`.
-plugins { id("gst.contract-server") }
+plugins {
+    id("gst.contract-server")
+    `java-library`
+}
 
 val contractsBundle by configurations.creating {
     isCanBeConsumed = false
@@ -11,11 +14,6 @@ val contractsBundle by configurations.creating {
 
 dependencies {
     contractsBundle(variantOf(libs.platformContracts.bundle) { artifactType("zip") })
-    implementation(platform(libs.springBoot.dependencies))
-    implementation(libs.springBoot.starterWeb)
-    implementation(libs.jakarta.validationApi)
-    implementation(libs.jackson.databind)
-    implementation(libs.jackson.moduleKotlin)
 }
 
 /** The services whose contracts this module stages (tenancy and the service-runtime documents its $refs reach). */
@@ -92,3 +90,14 @@ fun stageService(
 stageContracts()
 
 contractServer { generatorSource("platform-contracts:tenancy:openapi.yaml") }
+
+dependencies {
+    api(platform(libs.springBoot.dependencies))
+    api(libs.springWeb)
+    api(libs.spring.context)
+    api(libs.jackson.databind)
+    api(libs.jackson.annotations)
+    api(libs.jackson.moduleKotlin)
+    api(libs.jakarta.validationApi)
+    api(libs.swagger.annotations)
+}

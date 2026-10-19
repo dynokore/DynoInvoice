@@ -17,6 +17,7 @@ slf4jSimple = "2.0.16"
 kotest = "6.2.5"
 konsist = "0.17.3"
 snakeyaml = "2.7"
+swaggerAnnotations = "2.2.55"
 jsonSchemaValidator = "3.0.8"
 # The published platform-contracts bundle tenancy-contract generates from (a main build including INV-T-4909 and
 # INV-T-3298); bumped deliberately, like platform-libs' product-runtime does.
@@ -61,6 +62,9 @@ kotest-assertionsCore = { module = "io.kotest:kotest-assertions-core", version.r
 konsist = { module = "com.lemonappdev:konsist", version.ref = "konsist" }
 snakeyaml = { module = "org.yaml:snakeyaml", version.ref = "snakeyaml" }
 jsonSchemaValidator = { module = "com.networknt:json-schema-validator", version.ref = "jsonSchemaValidator" }
+spring-context = { module = "org.springframework:spring-context" }
+jackson-annotations = { module = "com.fasterxml.jackson.core:jackson-annotations" }
+swagger-annotations = { module = "io.swagger.core.v3:swagger-annotations", version.ref = "swaggerAnnotations" }
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4jSimple" }
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }

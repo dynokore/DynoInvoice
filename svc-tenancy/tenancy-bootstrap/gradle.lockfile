@@ -64,6 +64,7 @@ io.micrometer:micrometer-core:1.17.1=compileClasspath,productionRuntimeClasspath
 io.micrometer:micrometer-jakarta9:1.17.1=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 io.micrometer:micrometer-observation:1.17.1=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 io.r2dbc:r2dbc-spi:1.0.0.RELEASE=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+io.swagger.core.v3:swagger-annotations:2.2.55=productionRuntimeClasspath,runtimeClasspath,testRuntimeClasspath
 jakarta.annotation:jakarta.annotation-api:3.0.0=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 jakarta.servlet:jakarta.servlet-api:6.1.0=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 jakarta.validation:jakarta.validation-api:3.1.1=productionRuntimeClasspath,runtimeClasspath,testRuntimeClasspath

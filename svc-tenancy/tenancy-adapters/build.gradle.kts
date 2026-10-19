@@ -30,7 +30,10 @@ dependencies {
 
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
-    testImplementation(libs.platform.konsistRules)
+    testImplementation(libs.platform.serviceRuntime.impl)
+    testImplementation(libs.kotest.assertionsCore)
+    testImplementation(libs.snakeyaml)
+    testImplementation(libs.jsonSchemaValidator)
     testImplementation(libs.testcontainers.postgresql)
     testImplementation(libs.flyway.core)
     testImplementation(libs.flyway.databasePostgresql)
