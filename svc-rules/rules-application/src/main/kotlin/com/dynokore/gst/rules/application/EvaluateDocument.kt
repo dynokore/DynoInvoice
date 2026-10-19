@@ -49,13 +49,15 @@ class EvaluateDocument(
 ) {
     fun handle(command: EvaluateCommand): EvaluateResult =
         when (val resolution = resolver.resolve(packTypes, command.tenant, command.dates)) {
-            is PackResolution.NoPackEffective ->
+            is PackResolution.NoPackEffective -> {
                 EvaluateResult.Refused(resolution.code, resolution.packType, resolution.date)
+            }
 
-            is PackResolution.Resolved ->
+            is PackResolution.Resolved -> {
                 when (val outcome = InFlightEvaluation(resolution.binding, command.inputs).complete(evaluator)) {
                     is EvaluationOutcome.Decided -> EvaluateResult.Decided(outcome.evaluation)
                     EvaluationOutcome.NoRuleFired -> EvaluateResult.NoRuleFired
                 }
+            }
         }
 }

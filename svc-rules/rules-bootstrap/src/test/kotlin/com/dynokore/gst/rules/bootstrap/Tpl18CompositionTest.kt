@@ -66,7 +66,8 @@ class Tpl18CompositionTest {
             context.getBean(EvaluateDocument::class.java)
             context.getBean(PackEventEmitter::class.java)
             context.getBean(OutboxWriter::class.java)
-            context.getBeansOfType(Schema::class.java).values.map { it.name } shouldContainExactlyInAnyOrder listOf("rules")
+            context.getBeansOfType(Schema::class.java).values.map { it.name } shouldContainExactlyInAnyOrder
+                listOf("rules")
             context.getBean(EventCatalogue::class.java).entries().map { it.eventType } shouldContainExactlyInAnyOrder
                 RulesEventCatalogue.TOPICS.keys.toList()
         }

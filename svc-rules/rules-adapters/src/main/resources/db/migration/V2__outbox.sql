@@ -1,6 +1,8 @@
--- V2__outbox.sql (TPL-12; INV-T-4965). Generated: OutboxSchema.ddl("rules", "rules_runtime", "rules_sys") of
--- outbox-and-queue, committed as text; MigrationDdlTest fails when it differs. Events leave only through this
--- outbox in the command's transaction (ARC-05). Run as rules_migrate; PRECONDITION: rules.bound_tenant() and
+-- V2__outbox.sql (TPL-12; INV-T-4965). Generated: OutboxSchema.ddl("rules", "rules_runtime",
+-- "rules_sys") of outbox-and-queue, committed as text; MigrationDdlTest fails when it differs.
+-- Events leave only through this outbox in the command's transaction (ARC-05).
+-- Run as rules_migrate;
+-- PRECONDITION: rules.bound_tenant() and
 -- rules.bound_actor() exist (tenancy-kernel BindingKeyMigration, owner question INV-Q-6580).
 create table rules.outbox (
     seq bigint generated always as identity primary key,

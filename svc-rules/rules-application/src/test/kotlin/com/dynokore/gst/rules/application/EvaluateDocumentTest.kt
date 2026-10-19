@@ -45,13 +45,24 @@ class EvaluateDocumentTest {
         )
 
     private fun command(date: LocalDate) =
-        EvaluateCommand(null, ResolutionDates(TransactionDate(date)), EvaluationInputs.of(mapOf("internalTaxCode" to "SR-STD")))
+        EvaluateCommand(
+            null,
+            ResolutionDates(TransactionDate(date)),
+            EvaluationInputs.of(mapOf("internalTaxCode" to "SR-STD")),
+        )
 
     @Test
     fun `INV-AC-1723 a document dated 20 June evaluated on 15 July is bound to v1 and v1 is returned to record`() {
-        val uc = useCase(mapping("v1", LocalDate.of(2026, 1, 1), LocalDate.of(2026, 7, 1)), mapping("v2", LocalDate.of(2026, 7, 1)))
-        val decided = uc.handle(command(LocalDate.of(2026, 6, 20))).shouldBeInstanceOf<EvaluateResult.Decided>().evaluation
-        decided.packVersionsApplied.single().version.value shouldBe "v1"
+        val uc =
+            useCase(
+                mapping("v1", LocalDate.of(2026, 1, 1), LocalDate.of(2026, 7, 1)),
+                mapping("v2", LocalDate.of(2026, 7, 1)),
+            )
+        val result = uc.handle(command(LocalDate.of(2026, 6, 20)))
+        val decided = result.shouldBeInstanceOf<EvaluateResult.Decided>().evaluation
+        decided.packVersionsApplied
+            .single()
+            .version.value shouldBe "v1"
     }
 
     @Test
@@ -61,10 +72,17 @@ class EvaluateDocumentTest {
     }
 
     @Test
-    fun `INV-AC-2105 a backfilled document of last November is decided by the November version and its trace names it`() {
-        val uc = useCase(mapping("2025.11", LocalDate.of(2025, 1, 1), LocalDate.of(2026, 1, 1)), mapping("2026.1", LocalDate.of(2026, 1, 1)))
-        val decided = uc.handle(command(LocalDate.of(2025, 11, 14))).shouldBeInstanceOf<EvaluateResult.Decided>().evaluation
-        decided.trace.steps.single().packVersion.value shouldBe "2025.11"
+    fun `INV-AC-2105 a backfilled November document is decided by the November version and the trace names it`() {
+        val uc =
+            useCase(
+                mapping("2025.11", LocalDate.of(2025, 1, 1), LocalDate.of(2026, 1, 1)),
+                mapping("2026.1", LocalDate.of(2026, 1, 1)),
+            )
+        val result = uc.handle(command(LocalDate.of(2025, 11, 14)))
+        val decided = result.shouldBeInstanceOf<EvaluateResult.Decided>().evaluation
+        decided.trace.steps
+            .single()
+            .packVersion.value shouldBe "2025.11"
     }
 
     @Test

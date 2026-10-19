@@ -27,7 +27,9 @@ class ArchitectureTest {
 
     /** The generated server interfaces and DTOs: the contract layer (TPL-01), built before this module's tests run. */
     private fun contractScope(): KoScope =
-        Konsist.scopeFromExternalDirectory(File(root, "rules-contract/build/generated/contract-server/src/main/kotlin").path)
+        Konsist.scopeFromExternalDirectory(
+            File(root, "rules-contract/build/generated/contract-server/src/main/kotlin").path,
+        )
 
     @Test
     fun `the five modules keep ARC-03 and the module direction of ARC section 2-2`() {
@@ -49,12 +51,14 @@ class ArchitectureTest {
         MigrationLint.assertMigrations(File(root, "rules-adapters"), scopeOf("rules-adapters"))
     }
 
-    /** Resolution never reads the clock (INV-REQ-770, INV-REQ-1089): no `Clock` and no `now()` in the resolution path. */
+    /**
+     * Resolution never reads the clock (INV-REQ-770, INV-REQ-1089): no `Clock` and no `now()` in the resolution path.
+     */
     @Test
     fun `the resolution path names no Clock and calls no now`() {
         val files =
-            File(root, "rules-domain/src/main/kotlin/com/dynokore/gst/rules/domain/resolution").walkTopDown().filter { it.extension == "kt" }
-        val clockUse = Regex("""\b(Clock|LocalDate\.now|LocalDateTime\.now|Instant\.now|ZonedDateTime\.now|OffsetDateTime\.now|System\.currentTimeMillis)\b""")
+            File(root, "$DOMAIN_MAIN/resolution").walkTopDown().filter { it.extension == "kt" }
+        val clockUse = CLOCK_USE
         val offenders =
             files
                 .filter { file -> clockUse.containsMatchIn(stripComments(file.readText())) }
@@ -62,8 +66,9 @@ class ArchitectureTest {
                 .toList()
         check(offenders.isEmpty()) { "INV-REQ-770: the resolution path reads the clock in $offenders" }
         // the adapter that answers resolution queries has no clock either
-        val lookup = File(root, "rules-adapters/src/main/kotlin/com/dynokore/gst/rules/adapters/persistence/ArmedPackLookup.kt")
-        check(!clockUse.containsMatchIn(stripComments(lookup.readText()))) { "INV-REQ-770: ArmedPackLookup reads the clock" }
+        val lookup = File(root, "rules-adapters/src/main/kotlin/$PACKAGE_DIR/adapters/persistence/ArmedPackLookup.kt")
+        val lookupText = stripComments(lookup.readText())
+        check(!clockUse.containsMatchIn(lookupText)) { "INV-REQ-770: ArmedPackLookup reads the clock" }
     }
 
     @Test
@@ -73,7 +78,8 @@ class ArchitectureTest {
                 stripComments("class R(private val clock: java.time.Clock) { fun d() = LocalDate.now() }"),
             ),
         )
-        assert(!Regex("""\bClock\b""").containsMatchIn(stripComments("// Clock in a comment\n/* LocalDate.now() */ class R")))
+        val commented = "// Clock in a comment\n/* LocalDate.now() */ class R"
+        assert(!Regex("""\bClock\b""").containsMatchIn(stripComments(commented)))
     }
 
     // ---- layer rule probes, on planted files in a temp tree (the repository is never touched) ----
@@ -84,7 +90,8 @@ class ArchitectureTest {
     ): KoScope {
         File(dir, "domain").mkdirs()
         File(dir, "application").mkdirs()
-        File(dir, "domain/Planted.kt").writeText("package com.dynokore.gst.rules.domain\n$domainImport\nclass Planted\n")
+        File(dir, "domain/Planted.kt")
+            .writeText("package com.dynokore.gst.rules.domain\n$domainImport\nclass Planted\n")
         File(dir, "application/Use.kt").writeText("package com.dynokore.gst.rules.application\nclass Use\n")
         listOf("adapters", "bootstrap", "contract").forEach { layer ->
             File(dir, layer).mkdirs()
@@ -98,7 +105,7 @@ class ArchitectureTest {
         @TempDir dir: File,
     ) {
         assertThrows(KoAssertionFailedException::class.java) {
-            ArchitectureRules.assertServiceModuleDirection("com.dynokore.gst.rules", fixture(dir, "import org.jooq.DSLContext"))
+            ArchitectureRules.assertServiceModuleDirection(ROOT_PACKAGE, fixture(dir, "import org.jooq.DSLContext"))
         }
     }
 
@@ -118,10 +125,11 @@ class ArchitectureTest {
     fun `java sql and javax sql imports in the domain pass the layer rule`(
         @TempDir dir: File,
     ) {
-        listOf("java.sql.Timestamp", "java.sql.SQLException", "java.sql.Connection", "javax.sql.DataSource").forEach { type ->
+        val types = listOf("java.sql.Timestamp", "java.sql.SQLException", "java.sql.Connection", "javax.sql.DataSource")
+        types.forEach { type ->
             File(dir, type).mkdirs()
             assertDoesNotThrow {
-                ArchitectureRules.assertServiceModuleDirection("com.dynokore.gst.rules", fixture(File(dir, type), "import $type"))
+                ArchitectureRules.assertServiceModuleDirection(ROOT_PACKAGE, fixture(File(dir, type), "import $type"))
             }
         }
     }
@@ -130,10 +138,25 @@ class ArchitectureTest {
     fun `look-alike imports are told apart by prefix`(
         @TempDir dir: File,
     ) {
-        // not a framework: a package that merely contains the word, and the org.jooqx look-alike is also refused by prefix
+        // not a framework: a package that merely contains the word, and the org.jooqx look-alike is also refused by
+        // prefix
         assertDoesNotThrow {
-            ArchitectureRules.assertServiceModuleDirection("com.dynokore.gst.rules", fixture(dir, "import com.example.springframework.Thing"))
+            ArchitectureRules.assertServiceModuleDirection(
+                ROOT_PACKAGE,
+                fixture(dir, "import com.example.springframework.Thing"),
+            )
         }
+    }
+
+    private companion object {
+        const val ROOT_PACKAGE = "com.dynokore.gst.rules"
+        const val PACKAGE_DIR = "com/dynokore/gst/rules"
+        const val DOMAIN_MAIN = "rules-domain/src/main/kotlin/$PACKAGE_DIR/domain"
+        val CLOCK_USE =
+            Regex(
+                """\b(Clock|LocalDate\.now|LocalDateTime\.now|Instant\.now|ZonedDateTime\.now|""" +
+                    """OffsetDateTime\.now|System\.currentTimeMillis)\b""",
+            )
     }
 
     private fun stripComments(source: String): String =

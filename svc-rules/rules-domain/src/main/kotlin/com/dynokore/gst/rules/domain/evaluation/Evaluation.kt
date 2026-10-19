@@ -21,7 +21,10 @@ class EvaluationInputs private constructor(
     }
 }
 
-/** What a rule that fired decided. A [terminal] result ends the evaluation (INV-REQ-775: no hidden state between rules). */
+/**
+ * What a rule that fired decided. A [terminal] result ends the evaluation (INV-REQ-775: no hidden state between
+ * rules).
+ */
 data class RuleResult(
     val verdict: String,
     val terminal: Boolean = false,
@@ -68,19 +71,17 @@ class Evaluator(
     ): EvaluationOutcome {
         val steps = mutableListOf<TraceStep>()
         var verdict: String? = null
-        for (rule in rules) {
-            val applied = binding.appliedFor(rule.packType) ?: continue
-            val result = rule.evaluate(inputs) ?: continue
-            steps +=
-                TraceStep(
-                    ruleId = rule.ruleId,
-                    packId = applied.packId,
-                    packVersion = applied.version,
-                    inputs = inputs.values,
-                    verdict = result.verdict,
-                )
-            verdict = result.verdict
-            if (result.terminal) break
+        val pending = rules.iterator()
+        var ended = false
+        while (!ended && pending.hasNext()) {
+            val rule = pending.next()
+            val applied = binding.appliedFor(rule.packType)
+            val result = if (applied == null) null else rule.evaluate(inputs)
+            if (applied != null && result != null) {
+                steps += TraceStep(rule.ruleId, applied.packId, applied.version, inputs.values, result.verdict)
+                verdict = result.verdict
+                ended = result.terminal
+            }
         }
         val decided = verdict ?: return EvaluationOutcome.NoRuleFired
         return EvaluationOutcome.Decided(Evaluation(decided, DecisionTrace(steps.toList()), binding.applied))
@@ -89,7 +90,8 @@ class Evaluator(
 
 /**
  * An evaluation that has started (INV-REQ-1167): it holds the binding resolved at its start and completes under that
- * binding whatever is armed meanwhile. Only a new [InFlightEvaluation], made from a fresh resolution, sees a newer pack.
+ * binding whatever is armed meanwhile. Only a new [InFlightEvaluation], made from a fresh resolution, sees a newer
+ * pack.
  */
 class InFlightEvaluation(
     private val binding: PackBinding,

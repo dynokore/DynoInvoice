@@ -14,7 +14,8 @@ import java.util.UUID
  * The mapping pack and regulatory pack APIs of the rules contract (TPL-08); 501 until the task that implements an
  * operation (operations.tsv) overrides it.
  *
- * The contract tags `dryRun` and `getDryRun` with both tags, so the generator puts them in both interfaces with the same
+ * The contract tags `dryRun` and `getDryRun` with both tags, so the generator puts them in both interfaces with the
+ * same
  * mapping. One controller must therefore implement both interfaces (two controllers would map the same path twice and
  * Spring MVC refuses to start), and Kotlin requires it to restate those two operations. They are stated here as the
  * explicit 501 and nowhere else; the operations gate (operations.tsv) reads such a body as a stub.

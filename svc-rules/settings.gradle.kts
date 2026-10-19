@@ -32,6 +32,7 @@ pluginManagement {
     }
     plugins {
         // TPL-01: the five architectural modules' convention plugins, at the catalogue's platformBuild version.
+        id("gst.kotlin-base") version platformBuildVersion
         id("gst.contract-server") version platformBuildVersion
         id("gst.domain") version platformBuildVersion
         id("gst.application") version platformBuildVersion
@@ -77,7 +78,7 @@ if (!gradle.startParameter.isWriteDependencyLocks) {
         }
     check(lockLines == listOf("empty=incomingCatalogForLibs0")) {
         "STK-72: settings-gradle.lockfile must exist and hold exactly 'empty=incomingCatalogForLibs0' " +
-            "(found ${lockLines ?: "no file"}); regenerate it as README.md, \"Dependency locking and verification\" says"
+            "(found ${lockLines ?: "no file"}); regenerate it as README.md says"
     }
 }
 

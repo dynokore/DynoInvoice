@@ -43,19 +43,25 @@ class ArmedPackLookup(
                     PACK_REGISTRY.EFFECTIVE_FROM.desc(),
                 ).limit(1)
                 .fetchOne() ?: return null
-        val owner = row.tenantId!!
+        val owner = column(row.tenantId, "tenant_id")
         return PackVersion(
             PackManifest(
-                packId = PackId(row.packId!!),
+                packId = PackId(column(row.packId, "pack_id")),
                 packType = packType,
-                version = PackVersionLabel(row.packVersion!!),
-                effectiveFrom = row.effectiveFrom!!,
+                version = PackVersionLabel(column(row.packVersion, "pack_version")),
+                effectiveFrom = column(row.effectiveFrom, "effective_from"),
                 effectiveTo = row.effectiveTo,
-                minEngineVersion = row.minEngineVersion!!,
+                minEngineVersion = column(row.minEngineVersion, "min_engine_version"),
             ),
             tenant = if (owner == TenantId.PLATFORM.value) null else TenantId(owner),
         )
     }
+
+    /** The generated record types every column as nullable; the migration declares these ones NOT NULL. */
+    private fun <T : Any> column(
+        value: T?,
+        name: String,
+    ): T = checkNotNull(value) { "pack_registry.$name is NOT NULL in the schema but came back null" }
 
     private companion object {
         const val ARMED = "ARMED"

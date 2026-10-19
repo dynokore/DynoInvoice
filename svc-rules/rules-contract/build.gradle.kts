@@ -3,7 +3,8 @@
 // Generated from platform-contracts/rules/ (openapi.yaml, asyncapi.yaml, schemas/), never hand-written (TPL-01 §2.1):
 // gst.contract-server generates the Spring server interfaces and DTOs from openapi.yaml; the AsyncAPI document and the
 // payload and pack-content schemas of the pinned bundle are staged beside them as resources
-// (`contract/asyncapi.yaml`, `contract/schemas/*.schema.json`) so the service's gates and its per-channel payload tests
+// (`contract/openapi.yaml`, `contract/asyncapi.yaml`, `contract/schemas/*.schema.json`) so the service's gates and
+// its per-channel payload tests
 // read the same bytes the contract task INV-T-4911 settled. The contract is supplemented upstream, never here.
 
 plugins {
@@ -91,10 +92,11 @@ contractServer {
 val stageContractResources =
     tasks.register<Sync>("stageContractResources") {
         group = "contract"
-        description = "Stages asyncapi.yaml and schemas/ of the pinned platform-contracts bundle as module resources."
+        description =
+            "Stages openapi.yaml, asyncapi.yaml and schemas/ of the pinned bundle as module resources."
         val bundleRules = stagedRepo.map { it.dir(".bundle/$bundleService") }
         from(bundleRules) {
-            include("asyncapi.yaml", "schemas/*.json")
+            include("openapi.yaml", "asyncapi.yaml", "schemas/*.json")
         }
         into(layout.buildDirectory.dir("generated/contract-resources/contract"))
     }

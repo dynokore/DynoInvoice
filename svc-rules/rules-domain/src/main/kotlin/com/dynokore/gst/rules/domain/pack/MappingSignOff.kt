@@ -22,7 +22,10 @@ object MappingSignOff {
         acceptedEntryIds: Set<String> = emptySet(),
     ): Outcome {
         val blocking =
-            entries.filter { it.sourceClass != SourceClass.PRIMARY && it.entryId !in acceptedEntryIds }.map { it.entryId }
+            entries
+                .filter {
+                    it.sourceClass != SourceClass.PRIMARY && it.entryId !in acceptedEntryIds
+                }.map { it.entryId }
         return if (blocking.isEmpty()) Outcome.SignedOff else Outcome.Blocked(ErrorCode.RUL_007, blocking)
     }
 }

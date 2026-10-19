@@ -26,8 +26,14 @@ class PublishedChannelsTest {
         val event =
             mapper.map(
                 PackEvent.RulePackStaged(
-                    "scope-pack", "SCOPE", "2026.4", LocalDate.of(2026, 4, 1), "1.0.0",
-                    mapOf("packType" to "SCOPE"), mapOf("content/scope.json" to "sha256:ab"), "c2ln",
+                    "scope-pack",
+                    "SCOPE",
+                    "2026.4",
+                    LocalDate.of(2026, 4, 1),
+                    "1.0.0",
+                    mapOf("packType" to "SCOPE"),
+                    mapOf("content/scope.json" to "sha256:ab"),
+                    "c2ln",
                 ),
             )
         event.type shouldBe ContractFiles.message("rulesRulePackStaged").first
@@ -59,7 +65,11 @@ class PublishedChannelsTest {
     @Test
     fun `a payload that breaks its schema is reported, so the checks above can fail`() {
         ContractFiles.errors("rulesRulePackActivated", """{"packIdentifier":"p"}""").shouldNotBeEmpty()
-        ContractFiles.errors("rulesPackCurrencyChanged", """{"depCode":"DEP-001","status":"raised"}""").shouldNotBeEmpty()
+        ContractFiles
+            .errors(
+                "rulesPackCurrencyChanged",
+                """{"depCode":"DEP-001","status":"raised"}""",
+            ).shouldNotBeEmpty()
     }
 
     @Test
@@ -78,6 +88,8 @@ class PublishedChannelsTest {
         RulesEventCatalogue.TOPICS.keys.forEach { guard.require(it) }
         shouldThrow<EmissionNotPermitted> { guard.require("com.dynokore.gst.rules.NotCatalogued.v1") }
         shouldThrow<EmissionNotPermitted> { guard.require(ContractFiles.message("rulesExampleHappened").first) }
-        shouldThrow<EmissionNotPermitted> { EmissionGuard(RulesEventCatalogue.catalogue(), "payload-svc").require(RulesEventCatalogue.RULE_PACK_STAGED) }
+        shouldThrow<EmissionNotPermitted> {
+            EmissionGuard(RulesEventCatalogue.catalogue(), "payload-svc").require(RulesEventCatalogue.RULE_PACK_STAGED)
+        }
     }
 }

@@ -23,13 +23,21 @@ internal object ContractFiles {
     /** Channel name to address (`gst.rules.rule-pack-staged.v1`), for every channel of the document. */
     @Suppress("UNCHECKED_CAST")
     val channelAddresses: Map<String, String> =
-        (asyncApi["channels"] as Map<String, Map<String, Any?>>).mapValues { (_, channel) -> channel["address"] as String }
+        (asyncApi["channels"] as Map<String, Map<String, Any?>>).mapValues { (_, channel) ->
+            channel["address"] as String
+        }
 
     /** The message `name` (the CloudEvents type) and the payload schema file of the one message on [channel]. */
     @Suppress("UNCHECKED_CAST")
     fun message(channel: String): Pair<String, String> {
-        val messageRef = ((asyncApi["channels"] as Map<String, Map<String, Any?>>).getValue(channel)["messages"] as Map<String, Map<String, String>>)
-            .values.single().getValue("\$ref")
+        val messageRef =
+            (
+                (asyncApi["channels"] as Map<String, Map<String, Any?>>).getValue(
+                    channel,
+                )["messages"] as Map<String, Map<String, String>>
+            ).values
+                .single()
+                .getValue("\$ref")
         val message = (asyncApi["components"] as Map<String, Any?>)["messages"] as Map<String, Map<String, Any?>>
         val definition = message.getValue(messageRef.substringAfterLast('/'))
         val payloadRef = (definition["payload"] as Map<String, String>).getValue("\$ref")
