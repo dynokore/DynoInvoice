@@ -6,6 +6,12 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-19
+### Added
+- `HardenedXml`: the one place that builds the DOM, SAX, StAX and Transformer factories, with document type
+  declarations and external entities off (CS-25, INV-Q-7068); tests refuse an XXE and a billion-laughs payload, and
+  a gate allows factory construction in that file only.
+
 ## [1.0.0] - 2026-10-18
 ### Added
 - `SpecVersion`, `ReleaseOrder`, `AcceptanceEntry` and `AcceptanceCalendar`: the accepted versions on a date, oldest
