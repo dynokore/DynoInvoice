@@ -38,6 +38,7 @@ import jakarta.servlet.http.HttpServletRequest
 import org.jooq.DSLContext
 import org.jooq.Schema
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import tools.jackson.databind.ObjectMapper
@@ -60,14 +61,17 @@ class UseCases {
      * published nowhere): every `authorise` answers DENY and no event carries an action. Fail closed.
      */
     @Bean
+    @ConditionalOnMissingBean
     fun permissionMatrix(): PermissionMatrix = PermissionMatrix.EMPTY
 
     /** No grant manager is recognised until the permission catalogue is ruled (fail closed): grantRole and revokeGrant answer 403. */
     @Bean
+    @ConditionalOnMissingBean
     fun grantManagerCheck(): GrantManagerCheck = GrantManagerCheck.DENY_ALL
 
     /** Consent records belong to INV-T-4939; until then no consent is live, so a consent-derived grant covers nothing. */
     @Bean
+    @ConditionalOnMissingBean
     fun consentCheck(): ConsentCheck = ConsentCheck { false }
 
     @Bean
@@ -86,11 +90,12 @@ class UseCases {
 
     @Bean
     fun authorise(
+        tx: TransactionRunner,
         grants: GrantRepository,
         directory: EntityDirectory,
         matrix: PermissionMatrix,
         clock: Clock,
-    ) = Authorise(grants, directory, matrix, clock)
+    ) = Authorise(tx, grants, directory, matrix, clock)
 
     @Bean
     fun grantRoleUseCase(

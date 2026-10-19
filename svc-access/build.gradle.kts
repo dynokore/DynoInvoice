@@ -15,6 +15,7 @@ buildscript {
 }
 
 plugins {
+    base // root `check` and `build` lifecycle tasks, which the repository gates hang on
     // One declaration with the version for every module (Gradle loads the plugin once, not per subproject).
     id("org.springframework.boot") version "4.1.1" apply false
 }
@@ -44,3 +45,6 @@ allprojects {
         }
     }
 }
+
+// Repository gates (INV-T-4934).
+apply(from = "gradle/gates/ac-key-coverage.gradle.kts")

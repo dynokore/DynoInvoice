@@ -8,6 +8,7 @@ import com.dynokore.gst.access.domain.grant.IdentityRef
 import com.dynokore.gst.access.domain.grant.Target
 import com.dynokore.gst.access.domain.role.Permission
 import com.dynokore.gst.access.domain.role.PermissionMatrix
+import com.dynokore.platform.tenancykernel.TransactionRunner
 import java.time.Clock
 
 /**
@@ -16,6 +17,7 @@ import java.time.Clock
  * A target whose entity is unknown to the structure is denied (fail closed).
  */
 class Authorise(
+    private val tx: TransactionRunner,
     private val grants: GrantRepository,
     private val directory: EntityDirectory,
     private val matrix: PermissionMatrix,
@@ -27,14 +29,9 @@ class Authorise(
         target: Target,
     ): Decision {
         val membership = directory.membership(target.entity) ?: return Decision.Deny(UNKNOWN_ENTITY)
-        return AuthorisationPolicy.decide(
-            grants.findByIdentity(principal),
-            permission,
-            target,
-            membership,
-            matrix,
-            clock.instant(),
-        )
+        // a live read of the grant table in one transaction under the bound tenant; nothing is kept between calls
+        val held = tx.inTransaction { grants.findByIdentity(principal) }
+        return AuthorisationPolicy.decide(held, permission, target, membership, matrix, clock.instant())
     }
 
     companion object {
