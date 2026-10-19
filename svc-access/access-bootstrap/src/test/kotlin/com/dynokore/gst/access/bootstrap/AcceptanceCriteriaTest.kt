@@ -219,6 +219,17 @@ class AcceptanceCriteriaTest {
         }
 
     @Test
+    fun `INV-AC-925 a deployment operator is refused invoice content but may export the support bundle`() =
+        run { _, env ->
+            env.entity(tenantA, "ENT-OP")
+            env.grant(tenantA, "IDN-OPERATOR", "deployment.operator", "entity:ENT-OP")
+
+            fun decision(permission: String) = env.decide(tenantA, "IDN-OPERATOR", permission, "ENT-OP").decision
+            assertThat(decision("doc.view.content")).isEqualTo(DENY)
+            assertThat(decision("support.bundle.export")).isEqualTo(ALLOW)
+        }
+
+    @Test
     fun `INV-AC-1899 a consent-derived grant reaches only the client whose consent is live`() =
         run { _, env ->
             env.entity(tenantA, "CLIENT-A")

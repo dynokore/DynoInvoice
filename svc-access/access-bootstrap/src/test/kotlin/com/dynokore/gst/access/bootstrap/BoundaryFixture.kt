@@ -57,6 +57,8 @@ object FixtureMatrix {
     val ANNOTATE = Permission("doc.annotate")
     val APPROVE = Permission("pack.approve")
     val EDIT_PROFILE = Permission("profile.edit")
+    val VIEW_CONTENT = Permission("doc.view.content")
+    val EXPORT_SUPPORT_BUNDLE = Permission("support.bundle.export")
 
     val matrix =
         PermissionMatrix(
@@ -68,6 +70,8 @@ object FixtureMatrix {
                     PermissionDefinition(ANNOTATE, PermissionKind.WRITE),
                     PermissionDefinition(APPROVE, PermissionKind.WRITE),
                     PermissionDefinition(EDIT_PROFILE, PermissionKind.WRITE),
+                    PermissionDefinition(VIEW_CONTENT, PermissionKind.READ),
+                    PermissionDefinition(EXPORT_SUPPORT_BUNDLE, PermissionKind.READ),
                 ),
             rows =
                 mapOf(
@@ -79,6 +83,7 @@ object FixtureMatrix {
                             APPROVE to Allowance.PERMITTED,
                         ),
                     Role.ENTITY_ADMIN to mapOf(VIEW to Allowance.PERMITTED, EDIT_PROFILE to Allowance.PERMITTED),
+                    Role.DEPLOYMENT_OPERATOR to mapOf(EXPORT_SUPPORT_BUNDLE to Allowance.PERMITTED),
                     Role.AGENT_OPERATOR to mapOf(VIEW to Allowance.WITHIN_SCOPE),
                 ),
         )
