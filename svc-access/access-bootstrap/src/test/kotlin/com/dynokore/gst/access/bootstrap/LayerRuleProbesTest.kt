@@ -15,7 +15,8 @@ import java.io.File
  * The probes of the layer and database-access rules as tests: each line is added alone to a class of the layer in a
  * fixture tree and the shared rule is run on it (owner answers INV-Q-5331 (D) and INV-Q-5327 (D)). The statement and
  * connection probes (`Connection.prepareStatement`, `DataSource.getConnection()`) are caught by the bytecode check
- * `verifyMainSqlPlacement` of gst.kotlin-base, not by a source rule; they were run once against the real module (see the
+ * `verifyMainSqlPlacement` of gst.kotlin-base, not by a source rule; they were run once against the real module (see
+ * the
  * merge request).
  */
 class LayerRuleProbesTest {

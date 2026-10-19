@@ -3,7 +3,10 @@ package com.dynokore.gst.access.domain.grant
 import java.time.Instant
 import java.time.LocalDate
 
-/** A bounded range of days, both ends included: the periods an external audit engagement may read (INV-REQ-864 behaviour 1). */
+/**
+ * A bounded range of days, both ends included: the periods an external audit engagement may read (INV-REQ-864 behaviour
+ * 1).
+ */
 data class PeriodRange(
     val from: LocalDate,
     val to: LocalDate,
@@ -15,14 +18,18 @@ data class PeriodRange(
     fun encloses(other: PeriodRange): Boolean = !other.from.isBefore(from) && !other.to.isAfter(to)
 }
 
-/** The tenant and group an entity belongs to, from the structure (a scope never resolves through a cached tenant context). */
+/**
+ * The tenant and group an entity belongs to, from the structure (a scope never resolves through a cached tenant
+ * context).
+ */
 data class EntityMembership(
     val tenant: TenantRef,
     val group: GroupRef?,
 )
 
 /**
- * What a question is about: one entity, and the accounting period of the resource when there is one. A grant scoped to an
+ * What a question is about: one entity, and the accounting period of the resource when there is one. A grant scoped to
+ * an
  * entity and a period covers a target only when the target carries a period inside the granted range (INV-AC-1911).
  */
 data class Target(
@@ -31,7 +38,8 @@ data class Target(
 )
 
 /**
- * The scope of a grant: the five levels of INV-REQ-864 behaviour 1. A grant always has one; there is no "no scope" value, so
+ * The scope of a grant: the five levels of INV-REQ-864 behaviour 1. A grant always has one; there is no "no scope"
+ * value, so
  * a grant without a scope cannot be built (INV-REQ-859 behaviour 4).
  */
 sealed interface Scope {
@@ -105,7 +113,9 @@ sealed interface Scope {
         ) = this.entity == entity
     }
 
-    /** One entity and a bounded period range; a target with no period, or a period outside the range, is not covered. */
+    /**
+     * One entity and a bounded period range; a target with no period, or a period outside the range, is not covered.
+     */
     data class EntityPeriod(
         val entity: EntityRef,
         val periods: PeriodRange,
@@ -123,7 +133,9 @@ sealed interface Scope {
         ) = this.entity == entity
     }
 
-    /** The client entities under an active agent consent (INV-REQ-853, INV-REQ-865); the consent itself is checked live. */
+    /**
+     * The client entities under an active agent consent (INV-REQ-853, INV-REQ-865); the consent itself is checked live.
+     */
     data class ConsentDerived(
         val tenant: TenantRef,
         val consent: ConsentCheck,

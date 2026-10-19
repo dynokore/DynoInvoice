@@ -7,8 +7,10 @@ import com.dynokore.gst.access.application.grant.GrantRepository
 import com.dynokore.gst.access.domain.grant.ConsentCheck
 import com.dynokore.gst.access.domain.grant.EntityRef
 import com.dynokore.gst.access.domain.grant.Grant
+import com.dynokore.gst.access.domain.grant.GrantHeader
 import com.dynokore.gst.access.domain.grant.GrantRef
 import com.dynokore.gst.access.domain.grant.GrantSource
+import com.dynokore.gst.access.domain.grant.GrantState
 import com.dynokore.gst.access.domain.grant.GrantStatus
 import com.dynokore.gst.access.domain.grant.GranteeKind
 import com.dynokore.gst.access.domain.grant.GroupRef
@@ -25,11 +27,13 @@ import com.dynokore.platform.tenancykernel.TenantContext
 import org.jooq.DSLContext
 import org.jooq.Record
 import java.time.Clock
+import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 
 /**
- * TPL-11. The DSLContext is service-runtime's, wired with the tenancy-jooq listeners, which add `tenant_id = <bound tenant>`
+ * TPL-11. The DSLContext is service-runtime's, wired with the tenancy-jooq listeners, which add `tenant_id = <bound
+ * tenant>`
  * to every statement below or refuse it; forced row-level security stays behind that (INV-REQ-866). Every read is live.
  *
  * [consent] answers a consent-derived scope; until the consent task lands (INV-T-4939) the wiring passes a check that
@@ -62,16 +66,16 @@ class JooqGrantRepository(
         roleWire: String,
         scope: Scope,
     ): Grant? {
-        val (level, ref, from, to) = columnsOf(scope)
+        val columns = columnsOf(scope)
         return dsl
             .selectFrom(ROLE_GRANT)
             .where(
                 ROLE_GRANT.IDENTITY_REF.eq(identity.value),
                 ROLE_GRANT.ROLE.eq(roleWire),
-                ROLE_GRANT.SCOPE_LEVEL.eq(level),
-                ROLE_GRANT.SCOPE_REF.eq(ref),
-                if (from == null) ROLE_GRANT.PERIOD_FROM.isNull else ROLE_GRANT.PERIOD_FROM.eq(from),
-                if (to == null) ROLE_GRANT.PERIOD_TO.isNull else ROLE_GRANT.PERIOD_TO.eq(to),
+                ROLE_GRANT.SCOPE_LEVEL.eq(columns.level),
+                ROLE_GRANT.SCOPE_REF.eq(columns.ref),
+                columns.periodFrom?.let { ROLE_GRANT.PERIOD_FROM.eq(it) } ?: ROLE_GRANT.PERIOD_FROM.isNull,
+                columns.periodTo?.let { ROLE_GRANT.PERIOD_TO.eq(it) } ?: ROLE_GRANT.PERIOD_TO.isNull,
             ).orderBy(ROLE_GRANT.CREATED_AT.desc())
             .limit(1)
             .fetchOne()
@@ -79,7 +83,7 @@ class JooqGrantRepository(
     }
 
     override fun insert(grant: Grant) {
-        val (level, ref, from, to) = columnsOf(grant.scope)
+        val columns = columnsOf(grant.scope)
         val now = now()
         val actor = actor()
         dsl
@@ -88,10 +92,10 @@ class JooqGrantRepository(
             .set(ROLE_GRANT.GRANT_REF, grant.ref.value)
             .set(ROLE_GRANT.IDENTITY_REF, grant.identity.value)
             .set(ROLE_GRANT.ROLE, grant.role.wire)
-            .set(ROLE_GRANT.SCOPE_LEVEL, level)
-            .set(ROLE_GRANT.SCOPE_REF, ref)
-            .set(ROLE_GRANT.PERIOD_FROM, from)
-            .set(ROLE_GRANT.PERIOD_TO, to)
+            .set(ROLE_GRANT.SCOPE_LEVEL, columns.level)
+            .set(ROLE_GRANT.SCOPE_REF, columns.ref)
+            .set(ROLE_GRANT.PERIOD_FROM, columns.periodFrom)
+            .set(ROLE_GRANT.PERIOD_TO, columns.periodTo)
             .set(ROLE_GRANT.VALID_FROM, grant.window.from.atOffset(ZoneOffset.UTC))
             .set(ROLE_GRANT.VALID_UNTIL, grant.window.until?.atOffset(ZoneOffset.UTC))
             .set(ROLE_GRANT.STATUS, grant.status.name)
@@ -166,66 +170,84 @@ class JooqGrantRepository(
 
     private fun toGrant(row: Record): Grant? {
         // a role removed from the catalogue grants nothing
-        val role = Role.ofWire(row.get(ROLE_GRANT.ROLE)!!) ?: return null
-        val tenant = TenantRef(row.get(ROLE_GRANT.TENANT_ID)!!.toString())
-        val scopeRef = row.get(ROLE_GRANT.SCOPE_REF)!!
-        val scope =
-            when (ScopeLevel.valueOf(row.get(ROLE_GRANT.SCOPE_LEVEL)!!)) {
-                ScopeLevel.TENANT -> {
-                    Scope.Tenant(TenantRef(scopeRef))
-                }
-
-                ScopeLevel.GROUP -> {
-                    Scope.Group(GroupRef(scopeRef), tenant)
-                }
-
-                ScopeLevel.ENTITY -> {
-                    Scope.Entity(EntityRef(scopeRef))
-                }
-
-                ScopeLevel.ENTITY_PERIOD -> {
-                    val periods = PeriodRange(row.get(ROLE_GRANT.PERIOD_FROM)!!, row.get(ROLE_GRANT.PERIOD_TO)!!)
-                    Scope.EntityPeriod(EntityRef(scopeRef), periods)
-                }
-
-                ScopeLevel.CONSENT -> {
-                    Scope.ConsentDerived(TenantRef(scopeRef), consent)
-                }
-            }
+        val role = Role.ofWire(row.get(ROLE_GRANT.ROLE).column("role")) ?: return null
+        val tenant = TenantRef(row.get(ROLE_GRANT.TENANT_ID).column("tenant_id").toString())
+        val scope = scopeOf(row, tenant, consent)
         return Grant(
-            ref = GrantRef(row.get(ROLE_GRANT.GRANT_REF)!!),
-            tenant = tenant,
-            identity = IdentityRef(row.get(ROLE_GRANT.IDENTITY_REF)!!),
+            header =
+                GrantHeader(
+                    GrantRef(row.get(ROLE_GRANT.GRANT_REF).column("grant_ref")),
+                    tenant,
+                    IdentityRef(row.get(ROLE_GRANT.IDENTITY_REF).column("identity_ref")),
+                ),
             role = role,
             scope = scope,
             window =
                 ValidityWindow(
-                    row.get(ROLE_GRANT.VALID_FROM)!!.toInstant(),
+                    row.get(ROLE_GRANT.VALID_FROM).column("valid_from").toInstant(),
                     row.get(ROLE_GRANT.VALID_UNTIL)?.toInstant(),
                 ),
-            status = GrantStatus.valueOf(row.get(ROLE_GRANT.STATUS)!!),
-            source = GrantSource.valueOf(row.get(ROLE_GRANT.GRANT_SOURCE)!!),
-            version = row.get(ROLE_GRANT.VERSION)!!,
+            state =
+                GrantState(
+                    GrantStatus.valueOf(row.get(ROLE_GRANT.STATUS).column("status")),
+                    GrantSource.valueOf(row.get(ROLE_GRANT.GRANT_SOURCE).column("grant_source")),
+                    row.get(ROLE_GRANT.VERSION).column("version"),
+                ),
         )
     }
-
-    private data class Columns(
-        val level: String,
-        val ref: String,
-        val periodFrom: java.time.LocalDate?,
-        val periodTo: java.time.LocalDate?,
-    )
-
-    private fun columnsOf(scope: Scope): Columns =
-        when (scope) {
-            is Scope.Tenant -> Columns(scope.level.name, scope.tenant.value, null, null)
-            is Scope.Group -> Columns(scope.level.name, scope.group.value, null, null)
-            is Scope.Entity -> Columns(scope.level.name, scope.entity.value, null, null)
-            is Scope.EntityPeriod -> Columns(scope.level.name, scope.entity.value, scope.periods.from, scope.periods.to)
-            is Scope.ConsentDerived -> Columns(scope.level.name, scope.tenant.value, null, null)
-        }
 
     private companion object {
         const val REF_DIGITS = 16
     }
 }
+
+private fun scopeOf(
+    row: Record,
+    tenant: TenantRef,
+    consent: ConsentCheck,
+): Scope {
+    val scopeRef = row.get(ROLE_GRANT.SCOPE_REF).column("scope_ref")
+    return when (ScopeLevel.valueOf(row.get(ROLE_GRANT.SCOPE_LEVEL).column("scope_level"))) {
+        ScopeLevel.TENANT -> {
+            Scope.Tenant(TenantRef(scopeRef))
+        }
+
+        ScopeLevel.GROUP -> {
+            Scope.Group(GroupRef(scopeRef), tenant)
+        }
+
+        ScopeLevel.ENTITY -> {
+            Scope.Entity(EntityRef(scopeRef))
+        }
+
+        ScopeLevel.ENTITY_PERIOD -> {
+            Scope.EntityPeriod(
+                EntityRef(scopeRef),
+                PeriodRange(
+                    row.get(ROLE_GRANT.PERIOD_FROM).column("period_from"),
+                    row.get(ROLE_GRANT.PERIOD_TO).column("period_to"),
+                ),
+            )
+        }
+
+        ScopeLevel.CONSENT -> {
+            Scope.ConsentDerived(TenantRef(scopeRef), consent)
+        }
+    }
+}
+
+private data class Columns(
+    val level: String,
+    val ref: String,
+    val periodFrom: LocalDate?,
+    val periodTo: LocalDate?,
+)
+
+private fun columnsOf(scope: Scope): Columns =
+    when (scope) {
+        is Scope.Tenant -> Columns(scope.level.name, scope.tenant.value, null, null)
+        is Scope.Group -> Columns(scope.level.name, scope.group.value, null, null)
+        is Scope.Entity -> Columns(scope.level.name, scope.entity.value, null, null)
+        is Scope.EntityPeriod -> Columns(scope.level.name, scope.entity.value, scope.periods.from, scope.periods.to)
+        is Scope.ConsentDerived -> Columns(scope.level.name, scope.tenant.value, null, null)
+    }

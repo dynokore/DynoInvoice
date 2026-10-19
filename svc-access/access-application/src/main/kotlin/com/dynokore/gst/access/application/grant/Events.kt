@@ -7,7 +7,9 @@ import com.dynokore.gst.access.domain.grant.TenantRef
 import java.time.Instant
 import java.time.LocalDate
 
-/** One action an identity holds on an entity, with the scope it comes from and its validity (INV-API-3325 grant record). */
+/**
+ * One action an identity holds on an entity, with the scope it comes from and its validity (INV-API-3325 grant record).
+ */
 data class GrantedAction(
     val action: String,
     val scopeLevel: ScopeLevel,
@@ -19,7 +21,8 @@ data class GrantedAction(
 )
 
 /**
- * The full grant state, after a change, of one (tenant, identity, entity); an empty [actions] is an explicit removal that
+ * The full grant state, after a change, of one (tenant, identity, entity); an empty [actions] is an explicit removal
+ * that
  * a replica keeps as a tombstone. [authorityVersion] comes from access-svc's one sequence (INV-REQ-1201 behaviour 1).
  */
 data class AuthorityGrantRecord(
@@ -33,7 +36,8 @@ data class AuthorityGrantRecord(
 )
 
 /**
- * Publishes AuthorityChanged (INV-API-3325) through outbox-and-queue in the command transaction: one event per record, all
+ * Publishes AuthorityChanged (INV-API-3325) through outbox-and-queue in the command transaction: one event per record,
+ * all
  * appended before the transaction commits. The adapter owns the mapping to the contract event (TPL-05).
  */
 interface AuthorityChangePublisher {

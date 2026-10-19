@@ -27,7 +27,8 @@ import java.util.Base64
  * contract). The gateway operations answer only the gateway's service account (API-25; 403 SRT-004 otherwise).
  */
 @RestController
-// open: the generated API interface is @Validated, so Spring proxies the controller (no kotlin-spring plugin in the template)
+// open: the generated API interface is @Validated, so Spring proxies the controller (no kotlin-spring plugin in the
+// template)
 open class AuthoriseController(
     private val authorise: Authorise,
     private val keys: VerificationKeys,
@@ -53,10 +54,15 @@ open class AuthoriseController(
         permission: String,
         scope: String,
     ): Decision {
-        val target = targetOf(scope) ?: return Decision.Deny(BAD_SCOPE)
-        val principal = runCatching { IdentityRef(principalRef) }.getOrNull() ?: return Decision.Deny(BAD_PRINCIPAL)
-        val asked = runCatching { Permission(permission) }.getOrNull() ?: return Decision.Deny(BAD_PERMISSION)
-        return authorise.handle(principal, asked, target)
+        val target = targetOf(scope)
+        val principal = runCatching { IdentityRef(principalRef) }.getOrNull()
+        val asked = runCatching { Permission(permission) }.getOrNull()
+        return when {
+            target == null -> Decision.Deny(BAD_SCOPE)
+            principal == null -> Decision.Deny(BAD_PRINCIPAL)
+            asked == null -> Decision.Deny(BAD_PERMISSION)
+            else -> authorise.handle(principal, asked, target)
+        }
     }
 
     /** `entity:<ref>` only: the contract defines no other form of the question's scope. */

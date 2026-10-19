@@ -50,6 +50,8 @@ interface GrantRepository {
 interface EntityDirectory {
     fun membership(entity: EntityRef): EntityMembership?
 
-    /** Every entity of the bound tenant that [scope] covers now, for the per-entity grant records of AuthorityChanged. */
+    /**
+     * Every entity of the bound tenant that [scope] covers now, for the per-entity grant records of AuthorityChanged.
+     */
     fun entitiesCoveredBy(scope: Scope): Set<EntityRef>
 }

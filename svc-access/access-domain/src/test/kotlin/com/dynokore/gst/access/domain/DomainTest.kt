@@ -5,6 +5,7 @@ import com.dynokore.gst.access.domain.grant.Decision
 import com.dynokore.gst.access.domain.grant.EntityMembership
 import com.dynokore.gst.access.domain.grant.EntityRef
 import com.dynokore.gst.access.domain.grant.Grant
+import com.dynokore.gst.access.domain.grant.GrantHeader
 import com.dynokore.gst.access.domain.grant.GrantRef
 import com.dynokore.gst.access.domain.grant.GroupRef
 import com.dynokore.gst.access.domain.grant.IdentityRef
@@ -47,13 +48,13 @@ class DomainTest {
         role: Role,
         scope: Scope,
         window: ValidityWindow = this.window,
-    ) = Grant.issue(GrantRef("g"), tenant, IdentityRef("i"), role, scope, window)
+    ) = Grant.issue(GrantHeader(GrantRef("g"), tenant, IdentityRef("i")), role, scope, window)
 
     private fun decide(
         grants: List<Grant>,
         permission: Permission,
         target: Target,
-    ) = AuthorisationPolicy.decide(grants, permission, target, membership, matrix, now)
+    ) = AuthorisationPolicy.decide(grants, AuthorisationPolicy.Question(permission, target, membership), matrix, now)
 
     @Test
     fun `the role catalogue holds the nineteen roles of the model and names no other`() {

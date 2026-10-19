@@ -9,7 +9,8 @@ import com.dynokore.gst.access.domain.grant.TenantRef
 import com.dynokore.gst.access.domain.role.PermissionMatrix
 
 /**
- * Builds the per-entity grant records of one grant change (INV-API-3325): a tenant or group grant is expanded by access-svc
+ * Builds the per-entity grant records of one grant change (INV-API-3325): a tenant or group grant is expanded by
+ * access-svc
  * into one record per entity under the scope, so no replica resolves a scope through its structure replica.
  */
 internal class AuthorityRecords(

@@ -13,17 +13,25 @@ fun interface GrantManagerCheck {
     fun mayManageGrants(): Boolean
 
     companion object {
-        /** Fails closed: no caller may manage grants. Used until the permission catalogue names the permission it asks. */
+        /**
+         * Fails closed: no caller may manage grants. Used until the permission catalogue names the permission it asks.
+         */
         val DENY_ALL = GrantManagerCheck { false }
     }
 }
 
-/** Whether the caller is the API gateway's service account: the only caller of getRevocationList and getVerificationKeys. */
+/**
+ * Whether the caller is the API gateway's service account: the only caller of getRevocationList and
+ * getVerificationKeys.
+ */
 fun interface GatewayCaller {
     fun isGateway(): Boolean
 }
 
-/** Re-verifies the request's workload token and compares its subject with the configured gateway service account, by equality. */
+/**
+ * Re-verifies the request's workload token and compares its subject with the configured gateway service account, by
+ * equality.
+ */
 class WorkloadGatewayCaller(
     private val request: HttpServletRequest,
     private val verifier: WorkloadTokenVerifier,

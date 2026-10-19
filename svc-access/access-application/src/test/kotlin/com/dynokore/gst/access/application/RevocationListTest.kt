@@ -23,7 +23,10 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
 
-/** INV-API-4001, INV-TS-4002: a consistent snapshot, deltas by version, expired entries dropped, a malformed cursor refused. */
+/**
+ * INV-API-4001, INV-TS-4002: a consistent snapshot, deltas by version, expired entries dropped, a malformed cursor
+ * refused.
+ */
 class RevocationListTest {
     private val start = Instant.parse("2026-10-19T08:00:00Z")
     private var now = start

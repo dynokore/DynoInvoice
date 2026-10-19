@@ -10,7 +10,8 @@ import org.junit.jupiter.api.Test
 /**
  * The migrations that hold platform-generated DDL are exactly what the pinned platform modules generate: an upgrade of
  * outbox-and-queue or tenancy-kernel that changes the text fails here until the migration is regenerated (TPL-12).
- * Tables are tenant-scoped under the signed-binding row policy of tenancy-kernel (INV-T-4156), never a hand-written one.
+ * Tables are tenant-scoped under the signed-binding row policy of tenancy-kernel (INV-T-4156), never a hand-written
+ * one.
  */
 class GeneratedMigrationsTest {
     private fun migration(name: String): String =
@@ -43,15 +44,23 @@ class GeneratedMigrationsTest {
     fun `every service table carries the generated tenant policy`() {
         val tables =
             mapOf(
-                "V202610190910__create_identity_and_grant.sql" to listOf("identity", "role_grant"),
+                "V202610190910__create_identity_and_grant.sql" to
+                    mapOf(
+                        "identity" to "CREATE TABLE access.identity (",
+                        "role_grant" to "CREATE TABLE access.role_grant (",
+                    ),
                 "V202610190920__create_revocation_and_verification_keys.sql" to
-                    listOf("revocation_entry", "revocation_head", "verification_key"),
+                    mapOf(
+                        "revocation_entry" to "CREATE TABLE access.revocation_entry (",
+                        "revocation_head" to "CREATE TABLE access.revocation_head (",
+                        "verification_key" to "CREATE TABLE access.verification_key (",
+                    ),
             )
         tables.forEach { (file, names) ->
             val text = migration(file)
-            names.forEach { table ->
+            names.forEach { (table, create) ->
                 assertTrue(TenantRlsMigration.ddl("access", table, "tenant_isolation") in text, "$file: $table")
-                assertTrue("CREATE TABLE access.$table (" in text, "$file: $table")
+                assertTrue(create in text, "$file: $table")
             }
         }
     }

@@ -19,7 +19,9 @@ value class Permission(
 /** Whether a permission only reads or also changes state: the auditor's role holds reads only (INV-REQ-863). */
 enum class PermissionKind { READ, WRITE }
 
-/** Y is permitted; S is permitted within the granted scope only (INV-NOTE-3 section 22.3). Both need a covering grant. */
+/**
+ * Y is permitted; S is permitted within the granted scope only (INV-NOTE-3 section 22.3). Both need a covering grant.
+ */
 enum class Allowance { PERMITTED, WITHIN_SCOPE }
 
 /** One permission of the matrix with its kind. */
@@ -29,8 +31,10 @@ data class PermissionDefinition(
 )
 
 /**
- * The permission matrix: which roles hold which permissions (INV-REQ-859 behaviour 2). A role or permission the matrix does
- * not list holds nothing, so an unknown pair is denied (fail closed). The constructor refuses a read-only role that holds a
+ * The permission matrix: which roles hold which permissions (INV-REQ-859 behaviour 2). A role or permission the matrix
+ * does
+ * not list holds nothing, so an unknown pair is denied (fail closed). The constructor refuses a read-only role that
+ * holds a
  * write permission, so the auditor cannot be given one by data (INV-REQ-863).
  */
 class PermissionMatrix(

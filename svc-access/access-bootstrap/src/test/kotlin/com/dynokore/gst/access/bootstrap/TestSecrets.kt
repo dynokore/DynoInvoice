@@ -3,7 +3,9 @@ package com.dynokore.gst.access.bootstrap
 import java.nio.file.Files
 import java.nio.file.Path
 
-/** A mounted secret directory (STK-29: secrets are mounted files, never properties) with the secrets the service reads. */
+/**
+ * A mounted secret directory (STK-29: secrets are mounted files, never properties) with the secrets the service reads.
+ */
 object TestSecrets {
     const val BINDING_KEY = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
     const val CURSOR_KEY = "test-cursor-integrity-key-0123456789"

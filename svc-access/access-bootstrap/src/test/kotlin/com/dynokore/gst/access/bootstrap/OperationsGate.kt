@@ -3,7 +3,8 @@ package com.dynokore.gst.access.bootstrap
 import org.yaml.snakeyaml.Yaml
 
 /**
- * The contract gate (INV-T-4934): `operations.tsv` lists every operationId and channel of the contract with the task that
+ * The contract gate (INV-T-4934): `operations.tsv` lists every operationId and channel of the contract with the task
+ * that
  * implements it. It fails closed, on any of:
  *  - an operationId or channel of the contract missing from the table, or a table row the contract does not hold;
  *  - a row twice, a bad header, kind, task or state, an empty table;
@@ -85,41 +86,7 @@ object OperationsGate {
         rows.groupBy { it.kind to it.name }.filterValues { it.size > 1 }.keys.forEach {
             findings += "${it.first} ${it.second} is listed twice"
         }
-        rows.forEach { row ->
-            val label = "${row.kind} ${row.name}"
-            if (row.kind !in setOf("operation", "channel")) findings += "$label: kind must be operation or channel"
-            if (row.task != UNASSIGNED &&
-                !TASK.matches(row.task)
-            ) {
-                findings += "$label: task must be INV-T-<digits> or UNASSIGNED"
-            }
-            if (row.state !in setOf("open", "done")) findings += "$label: state must be open or done"
-            if (row.state == "done" && row.task == UNASSIGNED) findings += "$label: done but no task implements it"
-            when (row.kind) {
-                "operation" -> {
-                    val operation = contract.operations[row.name]
-                    if (operation == null) {
-                        findings += "$label: the contract holds no such operationId"
-                    } else if (row.state == "done" && answers(operation) == STUB_STATUS) {
-                        findings += "$label: marked done by ${row.task} but still answers $STUB_STATUS"
-                    }
-                }
-
-                "channel" -> {
-                    if (row.name !in contract.channels) findings += "$label: the contract holds no such channel"
-                    if (row.state == "done" &&
-                        row.name !in published
-                    ) {
-                        findings += "$label: marked done but the code does not publish it"
-                    }
-                    if (row.state != "done" &&
-                        row.name in published
-                    ) {
-                        findings += "$label: published by the code but not marked done"
-                    }
-                }
-            }
-        }
+        rows.forEach { row -> findings += rowFindings(row, contract, published, answers) }
         val listed = rows.map { it.kind to it.name }.toSet()
         contract.operations.keys.filter { ("operation" to it) !in listed }.forEach {
             findings += "operation $it is in the contract and missing from operations.tsv"
@@ -128,6 +95,68 @@ object OperationsGate {
             findings += "channel $it is in the contract and missing from operations.tsv"
         }
         return findings.distinct()
+    }
+
+    private fun rowFindings(
+        row: Row,
+        contract: Contract,
+        published: Set<String>,
+        answers: (OperationRef) -> Int,
+    ): List<String> {
+        val label = "${row.kind} ${row.name}"
+        val findings = mutableListOf<String>()
+        if (row.kind !in setOf("operation", "channel")) findings += "$label: kind must be operation or channel"
+        if (row.task != UNASSIGNED && !TASK.matches(row.task)) {
+            findings += "$label: task must be INV-T-<digits> or UNASSIGNED"
+        }
+        if (row.state !in setOf("open", "done")) findings += "$label: state must be open or done"
+        if (row.state == "done" && row.task == UNASSIGNED) findings += "$label: done but no task implements it"
+        when (row.kind) {
+            "operation" -> findings += operationFindings(row, label, contract, answers)
+            "channel" -> findings += channelFindings(row, label, contract, published)
+        }
+        return findings
+    }
+
+    private fun operationFindings(
+        row: Row,
+        label: String,
+        contract: Contract,
+        answers: (OperationRef) -> Int,
+    ): List<String> {
+        val operation = contract.operations[row.name]
+        return when {
+            operation == null -> {
+                listOf("$label: the contract holds no such operationId")
+            }
+
+            row.state == "done" && answers(operation) == STUB_STATUS -> {
+                listOf("$label: marked done by ${row.task} but still answers $STUB_STATUS")
+            }
+
+            else -> {
+                emptyList()
+            }
+        }
+    }
+
+    private fun channelFindings(
+        row: Row,
+        label: String,
+        contract: Contract,
+        published: Set<String>,
+    ): List<String> {
+        val findings = mutableListOf<String>()
+        if (row.name !in contract.channels) findings += "$label: the contract holds no such channel"
+        if (row.state == "done" && row.name !in published) {
+            findings += "$label: marked done but the code does not publish it"
+        }
+        if (row.state != "done" &&
+            row.name in published
+        ) {
+            findings += "$label: published by the code but not marked done"
+        }
+        return findings
     }
 
     private val TASK = Regex("INV-T-[0-9]+")

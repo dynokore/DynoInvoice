@@ -44,7 +44,9 @@ data class RevocationEntry(
     }
 }
 
-/** A token verification key (INV-API-4001 sibling: `getVerificationKeys`): DER SubjectPublicKeyInfo as standard base64. */
+/**
+ * A token verification key (INV-API-4001 sibling: `getVerificationKeys`): DER SubjectPublicKeyInfo as standard base64.
+ */
 data class VerificationKey(
     val kid: String,
     val alg: String,
@@ -53,11 +55,19 @@ data class VerificationKey(
     val validUntil: Instant,
 ) {
     init {
-        require(kid.isNotBlank() && kid.length <= 32) { "kid is required, at most 32 characters" }
-        require(alg.isNotBlank() && alg.length <= 16) { "alg is required, at most 16 characters" }
-        require(publicKey.isNotBlank() && publicKey.length <= 8192) { "publicKey is required, at most 8192 characters" }
+        require(kid.isNotBlank() && kid.length <= MAX_KID) { "kid is required, at most $MAX_KID characters" }
+        require(alg.isNotBlank() && alg.length <= MAX_ALG) { "alg is required, at most $MAX_ALG characters" }
+        require(publicKey.isNotBlank() && publicKey.length <= MAX_PUBLIC_KEY) {
+            "publicKey is required, at most $MAX_PUBLIC_KEY characters"
+        }
         require(validUntil.isAfter(validFrom)) { "a key must be valid for a positive time" }
     }
 
     fun isUsableAt(at: Instant): Boolean = !at.isBefore(validFrom) && at.isBefore(validUntil)
+
+    private companion object {
+        const val MAX_KID = 32
+        const val MAX_ALG = 16
+        const val MAX_PUBLIC_KEY = 8192
+    }
 }

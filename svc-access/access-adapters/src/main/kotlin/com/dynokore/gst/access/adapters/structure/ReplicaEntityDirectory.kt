@@ -26,10 +26,12 @@ class ReplicaEntityDirectory(
         val node =
             structure.replica.peek(StructureKey(tenant, entity.value))?.takeIf { it.isLiveEntity() } ?: return null
         val group =
-            node.parentRef
-                ?.let { structure.replica.peek(StructureKey(tenant, it)) }
-                ?.takeIf { it.kind == StructureNodeKind.GROUP && !it.retired }
-                ?.let { GroupRef(node.parentRef!!) }
+            node.parentRef?.let { parent ->
+                structure.replica
+                    .peek(StructureKey(tenant, parent))
+                    ?.takeIf { it.kind == StructureNodeKind.GROUP && !it.retired }
+                    ?.let { GroupRef(parent) }
+            }
         return EntityMembership(TenantRef(tenant.toString()), group)
     }
 

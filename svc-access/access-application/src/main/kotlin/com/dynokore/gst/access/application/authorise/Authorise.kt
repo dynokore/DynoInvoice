@@ -12,8 +12,10 @@ import com.dynokore.platform.tenancykernel.TransactionRunner
 import java.time.Clock
 
 /**
- * `authorise(principal, permission, target)`: role, permission and scope evaluated together against the live grant table,
- * never a cached tenant context (INV-REQ-859, INV-REQ-1214). Each call reads the grants again; this class keeps no state.
+ * `authorise(principal, permission, target)`: role, permission and scope evaluated together against the live grant
+ * table,
+ * never a cached tenant context (INV-REQ-859, INV-REQ-1214). Each call reads the grants again; this class keeps no
+ * state.
  * A target whose entity is unknown to the structure is denied (fail closed).
  */
 class Authorise(
@@ -31,7 +33,12 @@ class Authorise(
         val membership = directory.membership(target.entity) ?: return Decision.Deny(UNKNOWN_ENTITY)
         // a live read of the grant table in one transaction under the bound tenant; nothing is kept between calls
         val held = tx.inTransaction { grants.findByIdentity(principal) }
-        return AuthorisationPolicy.decide(held, permission, target, membership, matrix, clock.instant())
+        return AuthorisationPolicy.decide(
+            held,
+            AuthorisationPolicy.Question(permission, target, membership),
+            matrix,
+            clock.instant(),
+        )
     }
 
     companion object {

@@ -27,15 +27,14 @@ object ScopeParser {
         text: String,
         boundTenant: TenantRef,
     ): Parsed {
-        if (text.isBlank()) return Parsed.Missing
         val colon = text.indexOf(':')
-        if (colon <= 0 || colon == text.length - 1) return Parsed.Unsupported(text)
-        val kind = text.substring(0, colon)
-        val ref = text.substring(colon + 1)
-        if (!REF.matches(ref)) return Parsed.Unsupported(text)
-        return when (kind) {
-            "entity" -> Parsed.Ok(Scope.Entity(EntityRef(ref)))
-            "tenant" -> if (ref == boundTenant.value) Parsed.Ok(Scope.Tenant(boundTenant)) else Parsed.Unsupported(text)
+        val kind = if (colon > 0) text.substring(0, colon) else ""
+        val ref = if (colon >= 0) text.substring(colon + 1) else ""
+        return when {
+            text.isBlank() -> Parsed.Missing
+            colon <= 0 || colon == text.length - 1 || !REF.matches(ref) -> Parsed.Unsupported(text)
+            kind == "entity" -> Parsed.Ok(Scope.Entity(EntityRef(ref)))
+            kind == "tenant" && ref == boundTenant.value -> Parsed.Ok(Scope.Tenant(boundTenant))
             else -> Parsed.Unsupported(text)
         }
     }

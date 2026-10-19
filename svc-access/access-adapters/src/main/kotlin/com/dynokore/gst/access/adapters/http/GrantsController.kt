@@ -13,6 +13,7 @@ import com.dynokore.gst.access.domain.grant.GrantRef
 import com.dynokore.gst.access.domain.grant.GrantStatus
 import com.dynokore.gst.access.domain.grant.GranteeKind
 import com.dynokore.gst.access.domain.grant.IdentityRef
+import com.dynokore.gst.access.domain.grant.Scope
 import com.dynokore.gst.access.domain.grant.TenantRef
 import com.dynokore.gst.access.domain.grant.ValidityWindow
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
@@ -24,12 +25,15 @@ import java.time.ZoneOffset
 import java.util.UUID
 
 /**
- * TPL-08. grantRole and revokeGrant: the caller must be allowed to manage grants ([GrantManagerCheck]); a grant without a
- * scope, with an unknown role or with a scope this version cannot read is refused with 400 (SRT-001); a repeat of the same
+ * TPL-08. grantRole and revokeGrant: the caller must be allowed to manage grants ([GrantManagerCheck]); a grant without
+ * a
+ * scope, with an unknown role or with a scope this version cannot read is refused with 400 (SRT-001); a repeat of the
+ * same
  * identity, role and scope returns the original grant (repeatKey of the contract).
  */
 @RestController
-// open: the generated API interface is @Validated, so Spring proxies the controller (no kotlin-spring plugin in the template)
+// open: the generated API interface is @Validated, so Spring proxies the controller (no kotlin-spring plugin in the
+// template)
 open class GrantsController(
     private val grantRole: GrantRoleUseCase,
     private val revokeGrant: RevokeGrantUseCase,
@@ -42,28 +46,9 @@ open class GrantsController(
     ): ResponseEntity<GrantResponse> {
         requireManager()
         val tenant = TenantRef(tenants.current().toString())
-        val scope =
-            when (val parsed = ScopeParser.parse(grantRequest.scope, tenant)) {
-                is ScopeParser.Parsed.Ok -> parsed.scope
-
-                ScopeParser.Parsed.Missing -> null
-
-                is ScopeParser.Parsed.Unsupported -> throw ApiRefusal(
-                    ClosedErrorCode.CONTRACT_VIOLATION,
-                    "scope is not supported",
-                )
-            }
-        val identity =
-            runCatching {
-                IdentityRef(grantRequest.identityRef)
-            }.getOrElse { throw ApiRefusal(ClosedErrorCode.CONTRACT_VIOLATION, "identityRef is invalid") }
-        val window =
-            runCatching {
-                ValidityWindow(
-                    grantRequest.validFrom.atStartOfDay(ZoneOffset.UTC).toInstant(),
-                    grantRequest.validTo?.atStartOfDay(ZoneOffset.UTC)?.toInstant(),
-                )
-            }.getOrElse { throw ApiRefusal(ClosedErrorCode.CONTRACT_VIOLATION, "validTo must be after validFrom") }
+        val scope = scopeOf(grantRequest.scope, tenant)
+        val identity = identityOf(grantRequest.identityRef)
+        val window = windowOf(grantRequest)
         val command =
             GrantRoleCommand(
                 tenant = tenant,
@@ -83,14 +68,37 @@ open class GrantsController(
             }
 
             GrantRoleOutcome.ScopeMissing -> {
-                throw ApiRefusal(ClosedErrorCode.CONTRACT_VIOLATION, "a grant without a scope is invalid")
+                invalid("a grant without a scope is invalid")
             }
 
             is GrantRoleOutcome.UnknownRole -> {
-                throw ApiRefusal(ClosedErrorCode.CONTRACT_VIOLATION, "role is not in the role catalogue")
+                invalid("role is not in the role catalogue")
             }
         }
     }
+
+    private fun scopeOf(
+        text: String,
+        tenant: TenantRef,
+    ): Scope? =
+        when (val parsed = ScopeParser.parse(text, tenant)) {
+            is ScopeParser.Parsed.Ok -> parsed.scope
+            ScopeParser.Parsed.Missing -> null
+            is ScopeParser.Parsed.Unsupported -> invalid("scope is not supported")
+        }
+
+    private fun identityOf(text: String): IdentityRef =
+        runCatching { IdentityRef(text) }.getOrElse { invalid("identityRef is invalid") }
+
+    private fun windowOf(request: GrantRequest): ValidityWindow =
+        runCatching {
+            ValidityWindow(
+                request.validFrom.atStartOfDay(ZoneOffset.UTC).toInstant(),
+                request.validTo?.atStartOfDay(ZoneOffset.UTC)?.toInstant(),
+            )
+        }.getOrElse { invalid("validTo must be after validFrom") }
+
+    private fun invalid(message: String): Nothing = throw ApiRefusal(ClosedErrorCode.CONTRACT_VIOLATION, message)
 
     override fun revokeGrant(
         grantRef: String,

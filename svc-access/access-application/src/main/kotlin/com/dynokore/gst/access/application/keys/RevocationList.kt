@@ -1,6 +1,7 @@
 package com.dynokore.gst.access.application.keys
 
 import com.dynokore.gst.access.domain.revocation.RevocationEntry
+import java.security.MessageDigest
 import java.time.Clock
 import java.time.Instant
 import java.util.Base64
@@ -14,13 +15,16 @@ data class EntryPosition(
     val entryId: UUID,
 )
 
-/** Read side of the revocation list. Entries are persisted by the operations that revoke (revokePrincipal and others). */
+/**
+ * Read side of the revocation list. Entries are persisted by the operations that revoke (revokePrincipal and others).
+ */
 interface RevocationStore {
     /** The list version: the highest version ever assigned, 0 for an empty list. Dropped entries do not lower it. */
     fun currentVersion(): Long
 
     /**
-     * Entries with `afterVersion < version <= throughVersion` that are live at [now] (`expiresAt` after [now]), ordered by
+     * Entries with `afterVersion < version <= throughVersion` that are live at [now] (`expiresAt` after [now]), ordered
+     * by
      * (version, entryId), strictly after [position] when given, at most [limit].
      */
     fun live(
@@ -50,11 +54,14 @@ sealed interface RevocationListOutcome {
 }
 
 /**
- * `getRevocationList` (INV-API-4001, INV-TS-4002): a consistent snapshot or a delta by version, expired entries dropped, a
+ * `getRevocationList` (INV-API-4001, INV-TS-4002): a consistent snapshot or a delta by version, expired entries
+ * dropped, a
  * cursor pinned to the list version of the first page and refused when malformed.
  *
- * Without a cursor and without `sinceVersion`, or with a `sinceVersion` above the current version (after a restore), the
- * response is a snapshot of all live entries; otherwise it is the live entries above `sinceVersion`. A later page is read
+ * Without a cursor and without `sinceVersion`, or with a `sinceVersion` above the current version (after a restore),
+ * the
+ * response is a snapshot of all live entries; otherwise it is the live entries above `sinceVersion`. A later page is
+ * read
  * through the same pinned version, so entries added between pages never appear half way.
  */
 class RevocationList(
@@ -112,30 +119,40 @@ class RevocationList(
     }
 
     private fun decode(cursor: String): CursorState? {
-        val parts = cursor.split('.')
-        if (parts.size != 2) return null
-        val body = runCatching { String(B64D.decode(parts[0]), Charsets.UTF_8) }.getOrNull() ?: return null
-        val given = runCatching { B64D.decode(parts[1]) }.getOrNull() ?: return null
-        if (!java.security.MessageDigest.isEqual(given, mac(body))) return null
+        val body = verifiedBody(cursor) ?: return null
         val fields = body.split(SEPARATOR)
-        if (fields.size != FIELDS || fields[0] != VERSION) return null
-        val pinned = fields[1].toLongOrNull()?.takeIf { it >= 0 } ?: return null
-        val since = if (fields[2] == NONE) null else fields[2].toLongOrNull()?.takeIf { it >= 0 } ?: return null
-        val snapshot =
-            when (fields[3]) {
-                "1" -> true
-                "0" -> false
-                else -> return null
-            }
-        val position =
-            if (fields[4] == NONE && fields[5] == NONE) {
-                null
-            } else {
-                val version = fields[4].toLongOrNull() ?: return null
-                val id = runCatching { UUID.fromString(fields[5]) }.getOrNull() ?: return null
-                EntryPosition(version, id)
-            }
-        return CursorState(pinned, since, snapshot, position)
+        return if (fields.size == FIELDS && fields[0] == VERSION) stateOf(fields) else null
+    }
+
+    private fun verifiedBody(cursor: String): String? {
+        val parts = cursor.split('.')
+        val body = parts.getOrNull(0)?.let { runCatching { String(B64D.decode(it), Charsets.UTF_8) }.getOrNull() }
+        val given = parts.getOrNull(1)?.let { runCatching { B64D.decode(it) }.getOrNull() }
+        val genuine = parts.size == 2 && body != null && given != null && MessageDigest.isEqual(given, mac(body))
+        return if (genuine) body else null
+    }
+
+    private fun stateOf(fields: List<String>): CursorState? {
+        val pinned = nonNegative(fields[1])
+        val since = nonNegative(fields[2])
+        val snapshot = SNAPSHOT_FLAGS[fields[3]]
+        val noPosition = fields[4] == NONE && fields[5] == NONE
+        val position = if (noPosition) null else positionOf(fields[4], fields[5])
+        val valid =
+            pinned != null && snapshot != null && (since != null || fields[2] == NONE) &&
+                (position != null || noPosition)
+        return if (valid) CursorState(pinned, since, snapshot, position) else null
+    }
+
+    private fun nonNegative(text: String): Long? = text.toLongOrNull()?.takeIf { it >= 0 }
+
+    private fun positionOf(
+        versionText: String,
+        idText: String,
+    ): EntryPosition? {
+        val version = versionText.toLongOrNull()
+        val id = runCatching { UUID.fromString(idText) }.getOrNull()
+        return if (version != null && id != null) EntryPosition(version, id) else null
     }
 
     private fun mac(body: String): ByteArray {
@@ -151,6 +168,7 @@ class RevocationList(
         private const val SEPARATOR = "|"
         private const val NONE = "-"
         private const val FIELDS = 6
+        private val SNAPSHOT_FLAGS = mapOf("1" to true, "0" to false)
         private val B64 = Base64.getUrlEncoder().withoutPadding()
         private val B64D = Base64.getUrlDecoder()
     }

@@ -10,7 +10,8 @@ import java.io.File
 
 /**
  * TPL-14 architecture tests over the whole repository (INV-T-4934): the layer rule (a Spring or jOOQ import in
- * access-domain fails, a java.sql or javax.sql import passes: owner answer INV-Q-5331 (D)), the database-access rule (jOOQ
+ * access-domain fails, a java.sql or javax.sql import passes: owner answer INV-Q-5331 (D)), the database-access rule
+ * (jOOQ
  * only: no JdbcTemplate, no raw SQL string, no statement call, no connection taken from a DataSource: INV-T-4201 and
  * INV-Q-5327 (D)), the SQL guards and the migration lint (a tenant column and a row policy on every table).
  * Nothing is suppressed.
@@ -20,7 +21,8 @@ class ArchitectureTest {
 
     @Test
     fun `the module layers hold and the domain and application layers are framework-free`() {
-        // the generated contract sits under build/, which scopeFromProject skips; the Contract layer needs a file to exist
+        // the generated contract sits under build/, which scopeFromProject skips; the Contract layer needs a file to
+        // exist
         val contract = Konsist.scopeFromDirectory("access-contract/build/generated/contract-server/src/main/kotlin")
         ArchitectureRules.assertServiceModuleDirection("com.dynokore.gst.access", Konsist.scopeFromProject() + contract)
     }

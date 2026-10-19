@@ -15,6 +15,7 @@ import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.serviceruntime.replica.StructureNode
 import com.dynokore.platform.serviceruntime.replica.StructureNodeKind
+import com.dynokore.platform.tenancykernel.SqlIdentifier
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.springframework.beans.factory.config.BeanPostProcessor
@@ -24,6 +25,7 @@ import org.springframework.boot.test.context.runner.WebApplicationContextRunner
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.testcontainers.containers.PostgreSQLContainer
+import org.testcontainers.utility.MountableFile
 import java.nio.file.Files
 import java.nio.file.Path
 import java.sql.DriverManager
@@ -42,9 +44,9 @@ class MovableClock : Clock() {
         offset = offset.plus(by)
     }
 
-    override fun getZone() = ZoneOffset.UTC
+    override fun getZone(): java.time.ZoneId = ZoneOffset.UTC
 
-    override fun withZone(zone: java.time.ZoneId?) = this
+    override fun withZone(zone: java.time.ZoneId?): Clock = this
 
     override fun instant(): Instant = Instant.now().plus(offset)
 }
@@ -165,7 +167,7 @@ object BoundaryFixture {
         DriverManager.getConnection(container.jdbcUrl, container.username, container.password).use { connection ->
             connection.autoCommit = true
             val script = connection.createStatement()
-            script.execute(Files.readString(provisioning))
+            runFile(provisioning)
             script.execute("CREATE SCHEMA IF NOT EXISTS access")
             Files.list(migrationsDir).use { files ->
                 files
@@ -174,16 +176,36 @@ object BoundaryFixture {
                             ".sql",
                         )
                     }.sorted()
-                    .forEach { script.execute(Files.readString(it)) }
+                    .forEach { runFile(it) }
             }
             script.execute("ALTER ROLE access_runtime LOGIN PASSWORD '$RUNTIME_PASSWORD'")
-            script.execute("GRANT CONNECT ON DATABASE ${container.databaseName} TO access_runtime")
+            val database = SqlIdentifier.require(container.databaseName, "database")
+            script.execute("GRANT CONNECT ON DATABASE $database TO access_runtime")
             script.execute("GRANT USAGE ON SCHEMA access TO access_runtime")
             val key = TestSecrets.BINDING_KEY
             script.execute(
                 "INSERT INTO access.binding_key (slot, secret) VALUES ('current', convert_to('$key', 'UTF8'))",
             )
         }
+    }
+
+    /** Runs a SQL file as the container's superuser through psql, stopping at the first error. */
+    private fun runFile(file: Path) {
+        val target = "/tmp/${file.fileName}"
+        container.copyFileToContainer(MountableFile.forHostPath(file), target)
+        val result =
+            container.execInContainer(
+                "psql",
+                "-v",
+                "ON_ERROR_STOP=1",
+                "-U",
+                container.username,
+                "-d",
+                container.databaseName,
+                "-f",
+                target,
+            )
+        check(result.exitCode == 0) { "$file failed: ${result.stderr}" }
     }
 
     /** A superuser connection, for the assertions that must see every row. */
@@ -224,7 +246,9 @@ object BoundaryFixture {
         )
 }
 
-/** A live consent lookup the tests flip: it reads its state at every question, so a withdrawal shows at the next check. */
+/**
+ * A live consent lookup the tests flip: it reads its state at every question, so a withdrawal shows at the next check.
+ */
 class ConsentSwitch {
     private val live: MutableSet<EntityRef> = ConcurrentHashMap.newKeySet()
 

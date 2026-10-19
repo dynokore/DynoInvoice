@@ -9,7 +9,10 @@ import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import java.util.UUID
 
-/** A refused request: the closed service-runtime case and, optionally, what the caller may be told (never a server detail, API-22). */
+/**
+ * A refused request: the closed service-runtime case and, optionally, what the caller may be told (never a server
+ * detail, API-22).
+ */
 class ApiRefusal(
     val code: ClosedErrorCode,
     val detail: String? = null,

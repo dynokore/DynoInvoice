@@ -65,13 +65,13 @@ class JooqRevocationStore(
                 .fetch()
                 .map {
                     RevocationEntry(
-                        entryId = it.id!!,
-                        version = it.version!!,
-                        kind = RevocationKind.valueOf(it.kind!!),
+                        entryId = it.id.column("id"),
+                        version = it.version.column("version"),
+                        kind = RevocationKind.valueOf(it.kind.column("kind")),
                         principalRef = it.principalRef,
                         subject = it.subject,
                         tokenId = it.tokenId,
-                        revokedAt = it.revokedAt!!.toInstant(),
+                        revokedAt = it.revokedAt.column("revokedAt").toInstant(),
                     )
                 }
         }
@@ -85,11 +85,11 @@ class JooqVerificationKeyStore(
         reads.read {
             dsl.selectFrom(VERIFICATION_KEY).orderBy(VERIFICATION_KEY.KID).fetch().map {
                 VerificationKey(
-                    it.kid!!,
-                    it.alg!!,
-                    it.publicKey!!,
-                    it.validFrom!!.toInstant(),
-                    it.validUntil!!.toInstant(),
+                    it.kid.column("kid"),
+                    it.alg.column("alg"),
+                    it.publicKey.column("publicKey"),
+                    it.validFrom.column("validFrom").toInstant(),
+                    it.validUntil.column("validUntil").toInstant(),
                 )
             }
         }

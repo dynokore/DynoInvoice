@@ -7,7 +7,10 @@ import com.dynokore.gst.access.domain.grant.Scope
 import com.dynokore.gst.access.domain.grant.TenantRef
 import com.dynokore.gst.access.domain.grant.ValidityWindow
 
-/** What the caller asks for, before any rule is applied. A missing scope is representable here so that it can be refused. */
+/**
+ * What the caller asks for, before any rule is applied. A missing scope is representable here so that it can be
+ * refused.
+ */
 data class GrantRoleCommand(
     val tenant: TenantRef,
     val actor: String,

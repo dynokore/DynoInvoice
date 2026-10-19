@@ -20,7 +20,8 @@ import java.time.Instant
 import java.time.LocalDate
 
 /**
- * A test per published channel (INV-T-4934): the payload this service writes validates against the AsyncAPI schema of its
+ * A test per published channel (INV-T-4934): the payload this service writes validates against the AsyncAPI schema of
+ * its
  * channel, and the emission guard accepts exactly the catalogued types (TPL-05, API-43).
  */
 class AuthorityChangedPayloadTest {

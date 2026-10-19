@@ -2,7 +2,8 @@ package com.dynokore.gst.access.adapters.events
 
 /**
  * The asyncapi channels of the contract this build publishes, each through a mapper that appends in the command
- * transaction (TPL-05). The contract gate (`operations.tsv`) holds a channel `done` exactly when it is in this set, and a
+ * transaction (TPL-05). The contract gate (`operations.tsv`) holds a channel `done` exactly when it is in this set, and
+ * a
  * test per channel validates the payload against the AsyncAPI schema.
  */
 object PublishedChannels {

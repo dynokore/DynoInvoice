@@ -11,6 +11,7 @@ import com.dynokore.gst.access.contract.model.GrantRequest
 import com.dynokore.gst.access.domain.grant.Decision
 import com.dynokore.gst.access.domain.grant.EntityRef
 import com.dynokore.gst.access.domain.grant.Grant
+import com.dynokore.gst.access.domain.grant.GrantHeader
 import com.dynokore.gst.access.domain.grant.GrantRef
 import com.dynokore.gst.access.domain.grant.GranteeKind
 import com.dynokore.gst.access.domain.grant.IdentityRef
@@ -149,9 +150,7 @@ class AcceptanceCriteriaTest {
                     env.repository.lockIdentity(IdentityRef("IDN-AUD"), GranteeKind.EXTERNAL)
                     env.repository.insert(
                         Grant.issue(
-                            GrantRef("GRT-PERIOD"),
-                            TenantRef(tenantA.toString()),
-                            IdentityRef("IDN-AUD"),
+                            GrantHeader(GrantRef("GRT-PERIOD"), TenantRef(tenantA.toString()), IdentityRef("IDN-AUD")),
                             Role.AUDITOR,
                             Scope.EntityPeriod(EntityRef("ENT-E"), q1toQ2),
                             ValidityWindow(now.minus(Duration.ofDays(1)), now.plus(Duration.ofDays(30))),
@@ -242,9 +241,7 @@ class AcceptanceCriteriaTest {
                     env.repository.lockIdentity(IdentityRef("IDN-AGENT"), GranteeKind.STAFF)
                     env.repository.insert(
                         Grant.issue(
-                            GrantRef("GRT-AGENT"),
-                            TenantRef(tenantA.toString()),
-                            IdentityRef("IDN-AGENT"),
+                            GrantHeader(GrantRef("GRT-AGENT"), TenantRef(tenantA.toString()), IdentityRef("IDN-AGENT")),
                             Role.AGENT_OPERATOR,
                             Scope.ConsentDerived(TenantRef(tenantA.toString()), env.consent.check()),
                             ValidityWindow(now.minus(Duration.ofDays(1)), null),
@@ -268,9 +265,11 @@ class AcceptanceCriteriaTest {
                     env.repository.lockIdentity(IdentityRef("IDN-AGENT2"), GranteeKind.STAFF)
                     env.repository.insert(
                         Grant.issue(
-                            GrantRef("GRT-AGENT2"),
-                            TenantRef(tenantA.toString()),
-                            IdentityRef("IDN-AGENT2"),
+                            GrantHeader(
+                                GrantRef("GRT-AGENT2"),
+                                TenantRef(tenantA.toString()),
+                                IdentityRef("IDN-AGENT2"),
+                            ),
                             Role.AGENT_OPERATOR,
                             Scope.ConsentDerived(TenantRef(tenantA.toString()), env.consent.check()),
                             ValidityWindow(now.minus(Duration.ofDays(1)), null),

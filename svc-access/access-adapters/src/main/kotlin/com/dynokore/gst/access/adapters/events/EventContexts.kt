@@ -8,7 +8,10 @@ import com.dynokore.platform.serviceruntime.logging.CorrelationContext
 import com.dynokore.platform.tenancykernel.TenantId
 import java.util.UUID
 
-/** The outbox context of an event raised in the current request: correlation and causation from the request's MDC (§11.6). */
+/**
+ * The outbox context of an event raised in the current request: correlation and causation from the request's MDC
+ * (§11.6).
+ */
 object EventContexts {
     fun forAggregate(
         tenant: TenantId,

@@ -7,7 +7,8 @@ import com.dynokore.platform.productruntime.ReplicaFeeds
 import org.yaml.snakeyaml.Yaml
 
 /**
- * The event catalogue of access-svc, built only from published artefacts: the events access produces are the messages of
+ * The event catalogue of access-svc, built only from published artefacts: the events access produces are the messages
+ * of
  * the channels of its asyncapi document (platform-contracts access/asyncapi.yaml, staged into access-contract); the
  * events it consumes are product-runtime's replica feeds; the platform events are product-runtime's catalogue. The
  * emission guard of outbox-and-queue then refuses any type this catalogue does not list for access-svc.
@@ -16,7 +17,9 @@ object AccessEventCatalogue {
     const val SERVICE = "access-svc"
     const val ASYNCAPI_RESOURCE = "gst/contracts/access/asyncapi.yaml"
 
-    /** The scaffold channel the contract keeps only because its removal would be a breaking change (asyncapi header). */
+    /**
+     * The scaffold channel the contract keeps only because its removal would be a breaking change (asyncapi header).
+     */
     private val PLACEHOLDER_CHANNELS = setOf("accessExampleHappened")
 
     fun load(): EventCatalogue {

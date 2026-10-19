@@ -9,8 +9,10 @@ import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.tenancykernel.TenantContext
 
 /**
- * Writes the audit entry of a grant change through audit-log (INV-REQ-861): actor, action, scope, reason and prior state,
- * as an immutable row staged with the outbox of the command transaction; `evidence-svc` is the sole store (INV-ADR-282).
+ * Writes the audit entry of a grant change through audit-log (INV-REQ-861): actor, action, scope, reason and prior
+ * state,
+ * as an immutable row staged with the outbox of the command transaction; `evidence-svc` is the sole store
+ * (INV-ADR-282).
  * There is no update path: audit-log exposes `record` only.
  */
 class OutboxGrantAudit(
