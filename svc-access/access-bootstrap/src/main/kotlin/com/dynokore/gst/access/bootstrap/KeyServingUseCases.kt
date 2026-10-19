@@ -18,9 +18,11 @@ import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import jakarta.servlet.http.HttpServletRequest
 import org.jooq.DSLContext
-import org.springframework.beans.factory.annotation.Value
+import org.springframework.boot.context.properties.ConfigurationProperties
+import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.core.env.Environment
 import java.time.Clock
 
 /**
@@ -28,13 +30,14 @@ import java.time.Clock
  * and of the caller check that guards them.
  */
 @Configuration(proxyBeanMethods = false)
+@EnableConfigurationProperties(GatewayProperties::class)
 class KeyServingUseCases {
     @Bean
     fun platformReads(
         tenants: TenantContext,
         tx: TransactionRunner,
-        @Value("\${gst.service}") service: String,
-    ) = PlatformReads(tenants, tx, WorkloadPrincipal(service).value)
+        environment: Environment,
+    ) = PlatformReads(tenants, tx, WorkloadPrincipal(environment.getRequiredProperty("gst.service")).value)
 
     @Bean
     fun revocationStore(
@@ -73,10 +76,16 @@ class KeyServingUseCases {
     fun gatewayCaller(
         request: HttpServletRequest,
         verifier: WorkloadTokenVerifier,
-        @Value("\${access.gateway.workload-subject}") subject: String,
-    ): GatewayCaller = WorkloadGatewayCaller(request, verifier, subject)
+        gateway: GatewayProperties,
+    ): GatewayCaller = WorkloadGatewayCaller(request, verifier, gateway.workloadSubject)
 
     private companion object {
         const val CURSOR_KEY_SECRET = "access/revocation-cursor-key"
     }
 }
+
+/** The gateway's workload subject: configuration with no default, so start-up fails when it is not set. */
+@ConfigurationProperties(prefix = "access.gateway")
+class GatewayProperties(
+    val workloadSubject: String,
+)
