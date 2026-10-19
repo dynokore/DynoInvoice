@@ -34,15 +34,8 @@ class CompositionTest {
         return ApplicationContextRunner()
             .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
             // the deployment's IdentityProvider binding builds the real resolver; the composition needs only the port
-            .withBean(
-                EndUserPrincipalResolver::class.java,
-                {
-                    object : EndUserPrincipalResolver {
-                        override fun resolve(authorization: String?): EndUserPrincipal? = null
-                    }
-                },
-            )
-            // application.yaml is the service's own configuration (platform-scoped tables, management port); load it as `main` does
+            .withBean(EndUserPrincipalResolver::class.java, { EndUserPrincipalResolver { null } })
+            // application.yaml is the service's own configuration (platform-scoped tables, management port)
             .withInitializer(ConfigDataApplicationContextInitializer())
             .withUserConfiguration(ControlPlaneApplication::class.java)
             .withPropertyValues(
@@ -59,9 +52,8 @@ class CompositionTest {
                 "control-plane.signing.alias=pack-signing",
                 "control-plane.signing.pin-secret=signing/pin",
                 "control-plane.signing.certificate-secret=signing/certificate",
-                // GAP-HEALTH-EVENTLOG: no library registers the `eventLog` health contributor that TPL-16 names in the ready
-                // group (service-runtime registers `vault` and `eventLoops`); the group is narrowed here so the rest of the
-                // composition is proven, and the yaml text is asserted unchanged below
+                // GAP-HEALTH-EVENTLOG: no library registers the `eventLog` health contributor that TPL-16 names in
+                // the ready group (service-runtime has `vault` and `eventLoops`); narrowed here, yaml asserted below
                 "management.endpoint.health.group.ready.include=readinessState,vault",
                 *extra,
             )
