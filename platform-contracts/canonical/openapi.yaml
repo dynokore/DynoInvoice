@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: canonical API
-  version: 1.9.0
+  version: 1.10.0
   description: >-
     Contract-first source of truth for canonical (API-01, STK-44). The
     `canonical-contract` module generates its server interfaces and DTOs
@@ -404,6 +404,30 @@ components:
         identifierValue:
           type: string
           maxLength: 60
+          description: >-
+            The party identifier. Where identifierScheme is SG_UEN it is the UEN of INV-TERM-307 partyUen
+            (INV-Q-7104); no property named partyUen exists.
+        name:
+          type: string
+          maxLength: 256
+          description: The party name (INV-Q-7104).
+        gstn:
+          type: string
+          maxLength: 32
+          description: The party's GST registration number (INV-Q-7104).
+        address:
+          type: object
+          description: The party address (INV-Q-7104).
+          properties:
+            line1:
+              type: string
+              maxLength: 256
+            postalCode:
+              type: string
+              maxLength: 20
+            countryCode:
+              type: string
+              maxLength: 2
       required: [identifierScheme, identifierValue]
     Line:
       type: object
@@ -429,6 +453,10 @@ components:
         taxCode:
           type: string
           maxLength: 10
+        unitCode:
+          type: string
+          maxLength: 16
+          description: The unit of measure code of the line (INV-Q-7104).
         taxAmount:
           type: string
           format: decimal
@@ -656,6 +684,12 @@ components:
             Set only by ingestion-svc when it records the document through requestIssuance, so that canonical-svc
             publishes the network path RELAY_ISSUANCE in routingFacts of CanonicalVersionCreated (INV-Q-6988). Absent
             means false. A caller of any other path does not set it.
+        invoiceNote:
+          type: string
+          maxLength: 1024
+          description: >-
+            The invoice note (INV-TERM-302); ingestion-svc maps its notes to it (INV-Q-7104). The document
+            date needs no field: transactionDate is the document date (INV-Q-6515).
         buyerInvoiceRefs:
           type: array
           minItems: 1

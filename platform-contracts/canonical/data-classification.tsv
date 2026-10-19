@@ -123,3 +123,10 @@ schemas/decision-trace-recorded-payload.schema.json	traceReference	NONE
 schemas/decision-trace-recorded-payload.schema.json	decisionTrace	IDENTIFYING
 openapi.yaml	RecordDocumentRequest.relayIssuance	NONE
 schemas/canonical-version-created-payload.schema.json	routingFacts	NONE
+openapi.yaml	Party.name	IDENTIFYING
+openapi.yaml	Party.gstn	IDENTIFYING
+openapi.yaml	Party.address	IDENTIFYING
+openapi.yaml	Line.unitCode	NONE
+openapi.yaml	RecordDocumentRequest.invoiceNote	NONE
+schemas/canonical-version-created-payload.schema.json	canonicalDocument.documentDate	NONE
+schemas/canonical-version-created-payload.schema.json	canonicalDocument.invoiceNote	NONE

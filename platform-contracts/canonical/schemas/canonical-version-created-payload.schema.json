@@ -200,12 +200,92 @@
                 "supplier": {
                   "type": "object",
                   "additionalProperties": true,
-                  "description": "The supplier party."
+                  "description": "The supplier party.",
+                  "properties": {
+                    "identifierScheme": {
+                      "type": "string",
+                      "maxLength": 20,
+                      "description": "The identifier scheme of the party's identifier (INV-Q-7104)."
+                    },
+                    "identifierValue": {
+                      "type": "string",
+                      "maxLength": 60,
+                      "description": "The party's identifier; where identifierScheme is SG_UEN it is the UEN of INV-TERM-307 partyUen (INV-Q-7104)."
+                    },
+                    "name": {
+                      "type": "string",
+                      "maxLength": 256,
+                      "description": "The party name (INV-Q-7104)."
+                    },
+                    "gstn": {
+                      "type": "string",
+                      "maxLength": 32,
+                      "description": "The party's GST registration number (INV-Q-7104)."
+                    },
+                    "address": {
+                      "type": "object",
+                      "description": "The party address (INV-Q-7104).",
+                      "properties": {
+                        "line1": {
+                          "type": "string",
+                          "maxLength": 256
+                        },
+                        "postalCode": {
+                          "type": "string",
+                          "maxLength": 20
+                        },
+                        "countryCode": {
+                          "type": "string",
+                          "maxLength": 2
+                        }
+                      }
+                    }
+                  }
                 },
                 "buyer": {
                   "type": "object",
                   "additionalProperties": true,
-                  "description": "The buyer party."
+                  "description": "The buyer party.",
+                  "properties": {
+                    "identifierScheme": {
+                      "type": "string",
+                      "maxLength": 20,
+                      "description": "The identifier scheme of the party's identifier (INV-Q-7104)."
+                    },
+                    "identifierValue": {
+                      "type": "string",
+                      "maxLength": 60,
+                      "description": "The party's identifier; where identifierScheme is SG_UEN it is the UEN of INV-TERM-307 partyUen (INV-Q-7104)."
+                    },
+                    "name": {
+                      "type": "string",
+                      "maxLength": 256,
+                      "description": "The party name (INV-Q-7104)."
+                    },
+                    "gstn": {
+                      "type": "string",
+                      "maxLength": 32,
+                      "description": "The party's GST registration number (INV-Q-7104)."
+                    },
+                    "address": {
+                      "type": "object",
+                      "description": "The party address (INV-Q-7104).",
+                      "properties": {
+                        "line1": {
+                          "type": "string",
+                          "maxLength": 256
+                        },
+                        "postalCode": {
+                          "type": "string",
+                          "maxLength": 20
+                        },
+                        "countryCode": {
+                          "type": "string",
+                          "maxLength": 2
+                        }
+                      }
+                    }
+                  }
                 }
               },
               "required": [
@@ -261,6 +341,11 @@
                   },
                   "taxCode": {
                     "type": "string"
+                  },
+                  "unitCode": {
+                    "type": "string",
+                    "maxLength": 16,
+                    "description": "The unit of measure code of the line (INV-Q-7104)."
                   },
                   "taxAmount": {
                     "type": "string",
@@ -629,6 +714,52 @@
               "minLength": 1,
               "maxLength": 100,
               "description": "The document number issued to the customer."
+            },
+            "classification": {
+              "type": "string",
+              "enum": [
+                "NONE"
+              ],
+              "description": "The FR-AE.72 data classification tag for this content field."
+            }
+          },
+          "required": [
+            "value",
+            "classification"
+          ],
+          "additionalProperties": true
+        },
+        "documentDate": {
+          "type": "object",
+          "description": "The document date, the caller's transactionDate as the source records it (INV-Q-6515); canonical-svc sets it from the request. The top-level transactionDate of this payload stays the date of record canonical-svc derives. Optional (INV-Q-7104). Wrapped with its FR-AE.72 classification.",
+          "properties": {
+            "value": {
+              "type": "string",
+              "format": "date",
+              "description": "The document date."
+            },
+            "classification": {
+              "type": "string",
+              "enum": [
+                "NONE"
+              ],
+              "description": "The FR-AE.72 data classification tag for this content field."
+            }
+          },
+          "required": [
+            "value",
+            "classification"
+          ],
+          "additionalProperties": true
+        },
+        "invoiceNote": {
+          "type": "object",
+          "description": "The invoice note (INV-TERM-302); canonical-svc takes it from the ingestion notes. Optional (INV-Q-7104). Wrapped with its FR-AE.72 classification.",
+          "properties": {
+            "value": {
+              "type": "string",
+              "maxLength": 1024,
+              "description": "The invoice note."
             },
             "classification": {
               "type": "string",
