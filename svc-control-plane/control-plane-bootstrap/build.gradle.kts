@@ -24,6 +24,8 @@ dependencies {
     implementation(libs.platform.rulepackKernel.api)
     // the BouncyCastleCms bean of service-runtime's CryptoWiring (DetachedSigner)
     runtimeOnly(libs.platform.crypto)
+    // the LocalAuditWriter bean of service-runtime's AuditLogWiring (a service without an outbox, INV-Q-2958)
+    runtimeOnly(libs.platform.auditLog)
     runtimeOnly(libs.postgresql)
 
     testImplementation(platform(libs.junit.bom))
@@ -31,6 +33,8 @@ dependencies {
     testRuntimeOnly(libs.junit.platformLauncher)
     testImplementation(libs.kotest.assertionsCore)
     testImplementation(libs.springBoot.test)
+    // AssertableApplicationContext, the result type of ApplicationContextRunner.run, names AssertJ in its supertypes
+    testImplementation(libs.assertj.core)
 }
 
 tasks.withType<Test> { useJUnitPlatform() }
