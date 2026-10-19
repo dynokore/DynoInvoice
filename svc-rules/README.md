@@ -29,7 +29,7 @@ The evaluation API to canonical-svc, and to payload-svc for pre-issuance drafts.
 
 ## Gates
 
-- `operations.tsv` lists every operationId and channel of the rules contract with the task that implements it. `./gradlew verifyOperations` fails when the contract holds one the table lacks, when the table names one the contract does not hold, or when a row says its task is done and the operation still answers 501.
+- `operations.tsv` lists every operationId and channel of the rules contract with the task that implements it. `./gradlew verifyOperations` fails when the contract holds one the table lacks, when the table names one the contract does not hold, or when a row names a task listed in `done-tasks.txt` (one INV-T key per line; each task's merge request adds its own) while the operation still answers 501. `OperationsOwnersTest` and the gate compare the `task` column row by row with the owners of INV-T-4965 (INV-Q-7442).
 - `ac-keys.tsv` lists one row per acceptance criterion the tasks of this service carry (criterion, task, wave: 2 for a criterion run by this service's tasks, 3 or 4 for a deferred one). `./gradlew acKeyCoverage` fails when the table is missing or empty, when a wave-2 row has no test whose name holds the key as a whole token, or when a test name holds a key that is in no row. Every later task of this service appends the rows of its own `ac_refs` and its deferred criteria.
 - Both gates are in `check`; their logic is Kotlin in `rules-bootstrap/src/test/kotlin/.../gates/` with probe tests.
 
@@ -37,7 +37,7 @@ The evaluation API to canonical-svc, and to payload-svc for pre-issuance drafts.
 
 Schema `rules`, roles `rules_migrate` (owns every table, runs the migrations through service-runtime's `MigrationRunner`), `rules_runtime` (the one runtime login) and `rules_sys` (NOLOGIN, owns the definer functions). Every table has `tenant_id uuid NOT NULL`, forced row-level security and policies on the signed tenant binding. The platform rows (regulatory packs) are written only through `rules.register_platform_pack` and `rules.advance_platform_pack`. The registry holds metadata and activation state, no artefact content. `V2__outbox.sql` is generated from outbox-and-queue and checked by `MigrationDdlTest`; regenerate with `-Dgst.regenerate=true`.
 
-Precondition: `rules.bound_tenant()` and `rules.bound_actor()` exist in the schema (tenancy-kernel `BindingKeyMigration`, run as the sys login). Who runs it in an installation is owner question INV-Q-6580.
+Precondition: `rules.bound_tenant()` and `rules.bound_actor()` exist in the schema (tenancy-kernel `BindingKeyMigration`, run as the sys login). In an installation the sys login runs it (owner question INV-Q-6580); the code generation installs it in its throwaway database from the tenancy-kernel jar (`gstJooqCodegen.bindingSource`, INV-Q-7418).
 
 ## Dependency locking and verification
 

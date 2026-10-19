@@ -1,24 +1,24 @@
-kind	id	task	task_done
-operation	evaluateDocument	INV-T-4966	no
-operation	evaluatePreIssuanceDraft	INV-T-4966	no
-operation	draftMappingPack	INV-T-4972	no
-operation	getMappingPack	INV-T-4972	no
-operation	listMappingPackEntries	INV-T-4972	no
-operation	mapTaxCode	INV-T-4972	no
-operation	importMappingSpreadsheet	INV-T-4973	no
-operation	acceptSourceClassEntry	INV-T-4972	no
-operation	submitForApproval	INV-T-4972	no
-operation	approvePack	INV-T-4972	no
-operation	activateMappingPack	INV-T-4977	no
-operation	importRegulatoryPack	INV-T-4976	no
-operation	getRegulatoryPack	INV-T-4976	no
-operation	acknowledgePackDelta	INV-T-4977	no
-operation	armRegulatoryPack	INV-T-4977	no
-operation	rollbackPack	INV-T-4978	no
-operation	reprocessPopulation	INV-T-4978	no
-operation	dryRun	INV-T-4974	no
-operation	getDryRun	INV-T-4974	no
-channel	gst.rules.rule-pack-staged.v1	INV-T-4976	no
-channel	gst.rules.rule-pack-activated.v1	INV-T-4977	no
-channel	gst.rules.pack-currency-changed.v1	INV-T-4976	no
-channel	gst.rules.example-happened.v1	none	no
+kind	id	task
+operation	evaluateDocument	INV-T-4966
+operation	evaluatePreIssuanceDraft	INV-T-4966
+operation	draftMappingPack	INV-T-4972
+operation	getMappingPack	INV-T-4972
+operation	listMappingPackEntries	INV-T-4972
+operation	mapTaxCode	INV-T-4972
+operation	importMappingSpreadsheet	INV-T-4973
+operation	acceptSourceClassEntry	INV-T-4972
+operation	submitForApproval	INV-T-4972
+operation	approvePack	INV-T-4972
+operation	activateMappingPack	INV-T-4972
+operation	importRegulatoryPack	INV-T-4976
+operation	getRegulatoryPack	INV-T-4976
+operation	acknowledgePackDelta	INV-T-4977
+operation	armRegulatoryPack	INV-T-4977
+operation	rollbackPack	INV-T-4978
+operation	reprocessPopulation	INV-T-4978
+operation	dryRun	INV-T-4974
+operation	getDryRun	INV-T-4974
+channel	gst.rules.rule-pack-staged.v1	INV-T-4976
+channel	gst.rules.rule-pack-activated.v1	INV-T-4977
+channel	gst.rules.pack-currency-changed.v1	INV-T-4976
+channel	gst.rules.example-happened.v1	none

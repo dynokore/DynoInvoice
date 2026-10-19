@@ -17,7 +17,14 @@ class OperationsGate {
                     "the staged contract is missing: run :rules-contract:stageContractResources"
                 },
                 RepositoryGates.adapterSources(),
+                RepositoryGates.read("done-tasks.txt"),
             )
+        check(findings.isEmpty()) { "verifyOperations failed:\n" + findings.joinToString("\n") { " - $it" } }
+    }
+
+    @Test
+    fun `operations-tsv owners equal the published list`() {
+        val findings = OperationOwners.findings(RepositoryGates.read("operations.tsv"))
         check(findings.isEmpty()) { "verifyOperations failed:\n" + findings.joinToString("\n") { " - $it" } }
     }
 }

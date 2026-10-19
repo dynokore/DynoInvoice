@@ -4,26 +4,24 @@ plugins {
     id("gst.jooq-codegen") // STK-15: jOOQ code generated from the Flyway migrations (INV-T-4223)
 }
 
-// The jOOQ code is generated from the production migrations applied to PostgreSQL (STK-15). The policies name the
-// signed-binding functions that tenancy-kernel's BindingKeyMigration creates as the sys login in an installation, which
-// the code-generation database cannot do (initScripts may only create roles, INV-Q-4457); a codegen-only stub migration
-// V0 therefore travels with them into the throwaway database. It is not a service migration.
-val prepareCodegenMigrations =
-    tasks.register<Sync>("prepareCodegenMigrations") {
-        from("src/main/resources/db/migration")
-        from("src/codegen") { include("V0__*.sql") }
-        into(layout.buildDirectory.dir("codegen-migrations"))
-    }
-
-gstJooqCodegen {
-    schema = "rules"
-    migrations.set(layout.buildDirectory.dir("codegen-migrations"))
-    initScripts.from("src/codegen/roles.sql")
+// The jars that hold tenancy-kernel's BindingKeyMigration: the codegen installs the signed-binding functions of the schema
+// in its throwaway container before the migrations (INV-Q-7418), as an installation does as the sys login.
+val bindingKernel: Configuration by configurations.creating {
+    isCanBeConsumed = false
 }
 
-tasks.named("generateJooq") { dependsOn(prepareCodegenMigrations) }
+// The jOOQ code is generated from the production migrations applied to PostgreSQL (STK-15).
+gstJooqCodegen {
+    schema = "rules"
+    initScripts.from("src/codegen/roles.sql")
+    bindingSource.from(bindingKernel)
+    bindingSysRole = "rules_sys"
+    bindingRuntimeRole = "rules_runtime"
+}
 
 dependencies {
+    bindingKernel(platform(libs.platform.bom))
+    bindingKernel(libs.platform.tenancyKernel.impl)
     implementation(platform(libs.platform.bom))
     implementation(platform(libs.springBoot.dependencies))
     implementation(project(":rules-domain"))

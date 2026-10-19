@@ -96,4 +96,19 @@ class PackLifecycleTest {
         val unclassified = PackEntry("ENT-1", null, null)
         MappingSignOff.attempt(listOf(unclassified)).shouldBeInstanceOf<MappingSignOff.Outcome.Blocked>()
     }
+
+    @Test
+    fun `an INFERRED entry blocks sign-off with RUL-007 until it is re-sourced or accepted`() {
+        val inferred = PackEntry("ENT-9", null, SourceClass.INFERRED)
+        val blocked =
+            MappingSignOff
+                .attempt(listOf(primary, inferred))
+                .shouldBeInstanceOf<MappingSignOff.Outcome.Blocked>()
+        blocked.code shouldBe ErrorCode.RUL_007
+        blocked.entryIds shouldContainExactly listOf("ENT-9")
+        MappingSignOff.attempt(listOf(primary, inferred.copy(sourceClass = SourceClass.PRIMARY))) shouldBe
+            MappingSignOff.Outcome.SignedOff
+        MappingSignOff.attempt(listOf(primary, inferred), acceptedEntryIds = setOf("ENT-9")) shouldBe
+            MappingSignOff.Outcome.SignedOff
+    }
 }
