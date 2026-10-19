@@ -11,3 +11,10 @@
 ../openapi.yaml#/components/schemas/InstallationActionAck installation-action-ack-*.json
 ../openapi.yaml#/components/schemas/RecordMigrationCutoverRequest record-migration-cutover-request-*.json
 ../openapi.yaml#/components/schemas/MigrationCutoverRecord migration-cutover-record-*.json
+../openapi.yaml#/components/schemas/CreateGroupRequest create-group-request-*.json
+../openapi.yaml#/components/schemas/GroupResponse group-response-*.json
+../openapi.yaml#/components/schemas/RegisterBusinessUnitRequest register-business-unit-request-*.json
+../openapi.yaml#/components/schemas/BusinessUnitResponse business-unit-response-*.json
+../openapi.yaml#/components/schemas/MoveBusinessUnitRequest move-business-unit-request-*.json
+../openapi.yaml#/components/schemas/UpdateBusinessUnitRequest update-business-unit-request-*.json
+../openapi.yaml#/components/schemas/CreateEntityRequest create-entity-request-*.json

@@ -28,3 +28,10 @@ recordMigrationCutover	operation	openapi.yaml	INV-REQ-1109
 getMigrationCutover	operation	openapi.yaml	INV-REQ-1109
 cutoverDate	property	openapi.yaml	INV-REQ-1109
 priorSolution	property	openapi.yaml	INV-REQ-1109
+createGroup	operation	openapi.yaml	INV-REQ-850
+registerBusinessUnit	operation	openapi.yaml	INV-REQ-850
+moveBusinessUnit	operation	openapi.yaml	INV-REQ-850
+updateBusinessUnit	operation	openapi.yaml	INV-REQ-850
+uen	property	openapi.yaml	INV-REQ-652
+gstn	property	openapi.yaml	INV-REQ-652
+groupKind	property	openapi.yaml	INV-REQ-850

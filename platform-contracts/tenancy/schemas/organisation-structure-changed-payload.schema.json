@@ -73,6 +73,16 @@
           "maxLength": 10,
           "description": "The short code of a registered entity or business unit (A-Z, 0-9, 1 to 10 characters, unique within the tenant; INV-REQ-850 b7); absent for a tenant or group."
         },
+        "uen": {
+          "type": "string",
+          "maxLength": 32,
+          "description": "An entity's own UEN (uen); absent for a tenant, group or business unit."
+        },
+        "gstn": {
+          "type": "string",
+          "maxLength": 32,
+          "description": "An entity's own GSTN (gstn) when it has one, or a group's GSTN (gstn); absent for a tenant or business unit. An entity that has no gstn of its own is read with the gstn of its parent group (INV-NOTE-2 section 5.1)."
+        },
         "profile": {
           "type": "array",
           "description": "The node's profile as effective-dated attribute entries (INV-REQ-323, INV-REQ-376, INV-REQ-852): every entry in force or scheduled, so a consumer serves an attribute for a given date by its effective date and never serves a future-dated entry before its date. Empty when the node has no profile attributes.",

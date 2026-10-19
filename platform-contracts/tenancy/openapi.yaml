@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 1.4.0
+  version: 1.5.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -31,7 +31,7 @@ paths:
     post:
       operationId: createEntity
       summary: Create a registered entity (SDS §31.2.4)
-      description: Creates a business unit's registered-entity record under a group. Emits OrganisationStructureChanged.
+      description: Creates a registered entity under a group. Emits OrganisationStructureChanged.
       tags:
       - entities
       x-principal: filing-workflow
@@ -1908,6 +1908,202 @@ paths:
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/groups:
+    post:
+      operationId: createGroup
+      summary: Create a group (GST group or divisional registration)
+      description: Creates a group of the tenant, a GST group or a divisional registration (INV-REQ-850 b3). A GST group holds the group GSTN; its members keep their own UENs (INV-REQ-652). Emits OrganisationStructureChanged.
+      tags:
+      - entities
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->tenancy-svc
+      x-timeout: 2000
+      x-requirements:
+      - FR-G.1
+      x-error-codes: []
+      x-operation:
+        role: tenant.admin
+        scope: tenant
+        precondition: The tenant exists within the caller's tenant scope
+        reversibility: UNDOABLE
+        repeatKey: (tenantRef, name)
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateGroupRequest'
+      responses:
+        "201":
+          description: Group created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupResponse'
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/business-units:
+    post:
+      operationId: registerBusinessUnit
+      summary: Register a business unit under a registered entity
+      description: Registers a business unit under a registered entity, its short code entered at registration (INV-REQ-850 b7). Responds 409 when the code is already used by another entity or business unit of the tenant. Emits OrganisationStructureChanged.
+      tags:
+      - entities
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->tenancy-svc
+      x-timeout: 2000
+      x-requirements:
+      - FR-G.1
+      x-error-codes: []
+      x-operation:
+        role: entity.admin
+        scope: tenant
+        precondition: The parent registered entity exists within the caller's tenant scope
+        reversibility: UNDOABLE
+        repeatKey: (tenantRef, entityRef, code)
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterBusinessUnitRequest'
+      responses:
+        "201":
+          description: Business unit registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessUnitResponse'
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "409":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/business-units/{businessUnitRef}:
+    put:
+      operationId: updateBusinessUnit
+      summary: Rename a business unit or change its short code
+      description: Changes a business unit's name and short code (INV-REQ-850 b7). Responds 409 when the code is used by another node of the tenant, or when the unit's current code was already used in an aggregate number. A change publishes OrganisationStructureChanged with changeType UPDATED.
+      tags:
+      - entities
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->tenancy-svc
+      x-timeout: 2000
+      x-requirements:
+      - FR-G.1
+      x-error-codes: []
+      x-operation:
+        role: entity.admin
+        scope: tenant
+        precondition: The business unit exists within the caller's tenant scope
+        reversibility: COMPENSABLE
+        repeatKey: (businessUnitRef, name, code)
+      parameters:
+      - name: businessUnitRef
+        in: path
+        required: true
+        description: The business unit's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: BU-7731
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateBusinessUnitRequest'
+      responses:
+        "200":
+          description: Business unit updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessUnitResponse'
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "409":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/business-units/{businessUnitRef}/move:
+    post:
+      operationId: moveBusinessUnit
+      summary: Move a business unit to another registered entity
+      description: Moves a business unit to another registered entity of the tenant. The move publishes OrganisationStructureChanged with changeType MOVED, parentRef the new entity and previousParentRef the old one.
+      tags:
+      - entities
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->tenancy-svc
+      x-timeout: 2000
+      x-requirements:
+      - FR-G.1
+      x-error-codes: []
+      x-operation:
+        role: entity.admin
+        scope: tenant
+        precondition: The business unit and the target registered entity exist within the caller's tenant scope
+        reversibility: COMPENSABLE
+        repeatKey: (businessUnitRef, toEntityRef)
+      parameters:
+      - name: businessUnitRef
+        in: path
+        required: true
+        description: The business unit's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: BU-7731
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoveBusinessUnitRequest'
+      responses:
+        "200":
+          description: Business unit moved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessUnitResponse'
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
 components:
   parameters:
     IdempotencyKey:
@@ -1944,6 +2140,139 @@ components:
           - PARTNERSHIP
           - PUBLIC_LIMITED
           x-extensible-enum: true
+        uen:
+          type: string
+          maxLength: 32
+          description: The entity's own UEN (INV-REQ-652).
+        gstn:
+          type: string
+          maxLength: 32
+          description: The entity's own GSTN, when it has one.
+        code:
+          type: string
+          maxLength: 10
+          pattern: ^[A-Z0-9]{1,10}$
+          description: The entity's short code (INV-REQ-850 b7).
+    CreateGroupRequest:
+      type: object
+      required:
+      - tenantRef
+      - name
+      - groupKind
+      properties:
+        tenantRef:
+          type: string
+          maxLength: 64
+        name:
+          type: string
+          maxLength: 200
+        groupKind:
+          type: string
+          description: A GST group or a divisional registration (INV-REQ-850 b3).
+          enum:
+          - GST_GROUP
+          - DIVISIONAL
+          x-extensible-enum: true
+        gstn:
+          type: string
+          maxLength: 32
+          description: The group's GSTN (INV-REQ-652).
+    GroupResponse:
+      type: object
+      required:
+      - groupRef
+      - tenantRef
+      - name
+      - groupKind
+      properties:
+        groupRef:
+          type: string
+          maxLength: 64
+        tenantRef:
+          type: string
+          maxLength: 64
+        name:
+          type: string
+          maxLength: 200
+        groupKind:
+          type: string
+          description: A GST group or a divisional registration (INV-REQ-850 b3).
+          enum:
+          - GST_GROUP
+          - DIVISIONAL
+          x-extensible-enum: true
+        gstn:
+          type: string
+          maxLength: 32
+    RegisterBusinessUnitRequest:
+      type: object
+      required:
+      - tenantRef
+      - entityRef
+      - name
+      - code
+      properties:
+        tenantRef:
+          type: string
+          maxLength: 64
+        entityRef:
+          type: string
+          maxLength: 64
+          description: The parent registered entity.
+        name:
+          type: string
+          maxLength: 200
+        code:
+          type: string
+          maxLength: 10
+          pattern: ^[A-Z0-9]{1,10}$
+          description: The short code, entered when the unit is registered (INV-REQ-850 b7).
+    BusinessUnitResponse:
+      type: object
+      required:
+      - businessUnitRef
+      - tenantRef
+      - entityRef
+      - name
+      - code
+      properties:
+        businessUnitRef:
+          type: string
+          maxLength: 64
+        tenantRef:
+          type: string
+          maxLength: 64
+        entityRef:
+          type: string
+          maxLength: 64
+        name:
+          type: string
+          maxLength: 200
+        code:
+          type: string
+          maxLength: 10
+          pattern: ^[A-Z0-9]{1,10}$
+    MoveBusinessUnitRequest:
+      type: object
+      required:
+      - toEntityRef
+      properties:
+        toEntityRef:
+          type: string
+          maxLength: 64
+    UpdateBusinessUnitRequest:
+      type: object
+      required:
+      - name
+      - code
+      properties:
+        name:
+          type: string
+          maxLength: 200
+        code:
+          type: string
+          maxLength: 10
+          pattern: ^[A-Z0-9]{1,10}$
     EntityResponse:
       type: object
       required:
@@ -2009,6 +2338,14 @@ components:
           pattern: ^[A-Z0-9]{1,10}$
           description: Short code of a registered entity or business unit (INV-REQ-850 b7); absent
             for a tenant or group.
+        uen:
+          type: string
+          maxLength: 32
+          description: An entity's own UEN. Absent for a tenant, group or business unit.
+        gstn:
+          type: string
+          maxLength: 32
+          description: An entity's own GSTN when it has one, or a group's GSTN. Absent for a tenant or business unit. An entity that has no gstn of its own is read with the gstn of its parent group (INV-NOTE-2 section 5.1, GST group member and divisional registration).
         profile:
           type: array
           description: The node's profile as effective-dated attribute entries (INV-REQ-323,
