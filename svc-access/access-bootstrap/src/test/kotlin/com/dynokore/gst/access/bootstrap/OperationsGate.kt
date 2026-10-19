@@ -97,6 +97,57 @@ object OperationsGate {
         return findings.distinct()
     }
 
+    /**
+     * The done set (INV-Q-7424): the file `done-tasks.txt`, one INV-T key per line; [doneLines] is null when the file
+     * is missing. Fails when the file is missing, a line is not an INV-T key, a key is listed twice or names no row of
+     * the table, or a row names a listed key while its operation answers 501 or its channel is not published.
+     */
+    fun verifyDoneTasks(
+        doneLines: List<String>?,
+        rows: List<Row>,
+        contract: Contract,
+        published: Set<String>,
+        answers: (OperationRef) -> Int,
+    ): List<String> {
+        if (doneLines == null) return listOf("done-tasks.txt is missing")
+        val findings = mutableListOf<String>()
+        val (keys, bad) = doneLines.filter { it.isNotBlank() && !it.startsWith("#") }.partition { TASK.matches(it) }
+        bad.forEach { findings += "done-tasks.txt: '$it' is not an INV-T key" }
+        keys.groupBy { it }.filterValues { it.size > 1 }.keys.forEach {
+            findings += "done-tasks.txt: $it is listed twice"
+        }
+        keys.distinct().forEach { key ->
+            val named = rows.filter { it.task == key }
+            if (named.isEmpty()) findings += "done-tasks.txt: $key names no row of operations.tsv"
+            named.forEach { findings += doneRowFindings(it, key, contract, published, answers) }
+        }
+        return findings.distinct()
+    }
+
+    private fun doneRowFindings(
+        row: Row,
+        key: String,
+        contract: Contract,
+        published: Set<String>,
+        answers: (OperationRef) -> Int,
+    ): List<String> {
+        val label = "${row.kind} ${row.name}"
+        val operation = contract.operations[row.name]
+        return when {
+            row.kind == "operation" && operation != null && answers(operation) == STUB_STATUS -> {
+                listOf("$label: task $key is listed done but the operation still answers $STUB_STATUS")
+            }
+
+            row.kind == "channel" && row.name !in published -> {
+                listOf("$label: task $key is listed done but the code does not publish it")
+            }
+
+            else -> {
+                emptyList()
+            }
+        }
+    }
+
     private fun rowFindings(
         row: Row,
         contract: Contract,

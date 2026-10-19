@@ -42,6 +42,15 @@ class OperationsTableTest {
     }
 
     private val table: List<String> get() = tableFile.readLines()
+    private val doneFile = File("../done-tasks.txt")
+    private val doneTasks: List<String>? get() = if (doneFile.exists()) doneFile.readLines() else null
+
+    private fun verifyDone(
+        done: List<String>?,
+        lines: List<String> = table,
+        answers: (OperationRef) -> Int = { 200 },
+        published: Set<String> = PublishedChannels.ALL,
+    ): List<String> = OperationsGate.verifyDoneTasks(done, rows(lines).first, contract, published, answers)
 
     @Test
     fun `the real table lists every operationId and channel of the contract and no done operation answers 501`() {
@@ -54,6 +63,8 @@ class OperationsTableTest {
             val (rows, parseFindings) = rows(table)
             findings +=
                 OperationsGate.verify(rows, contract, parseFindings, PublishedChannels.ALL) { statusOf(mvc, it) }
+            findings +=
+                OperationsGate.verifyDoneTasks(doneTasks, rows, contract, PublishedChannels.ALL) { statusOf(mvc, it) }
         }
         assertThat(findings).isEmpty()
     }
@@ -86,6 +97,23 @@ class OperationsTableTest {
         val findings = verify(marked, answers = stub)
         assertThat(findings)
             .containsExactly("operation createPrincipal: marked done by INV-T-4937 but still answers 501")
+    }
+
+    @Test
+    fun `probe - done-tasks gate fails on a missing file, a bad line, a task with no row and a 501 operation`() {
+        assertThat(verifyDone(doneTasks)).isEmpty()
+        assertThat(verifyDone(null)).containsExactly("done-tasks.txt is missing")
+        assertThat(verifyDone(listOf("INV-T-4934", "inv-t-4934")))
+            .containsExactly("done-tasks.txt: 'inv-t-4934' is not an INV-T key")
+        assertThat(verifyDone(listOf("INV-T-4934 ", "INV-T-49340")))
+            .contains("done-tasks.txt: 'INV-T-4934 ' is not an INV-T key")
+            .contains("done-tasks.txt: INV-T-49340 names no row of operations.tsv")
+        assertThat(verifyDone(listOf("INV-T-4934", "INV-T-4934")))
+            .containsExactly("done-tasks.txt: INV-T-4934 is listed twice")
+        assertThat(verifyDone(listOf("INV-T-4934"), answers = { if (it.path.endsWith("/authorise")) 501 else 200 }))
+            .containsExactly("operation authorise: task INV-T-4934 is listed done but the operation still answers 501")
+        assertThat(verifyDone(listOf("INV-T-4934"), published = emptySet()).first())
+            .contains("is listed done but the code does not publish it")
     }
 
     @Test

@@ -1,7 +1,6 @@
 package com.dynokore.gst.access.adapters.persistence
 
 import com.dynokore.platform.outboxandqueue.OutboxSchema
-import com.dynokore.platform.tenancykernel.BindingKeyMigration
 import com.dynokore.platform.tenancykernel.TenantRlsMigration
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -34,10 +33,30 @@ class GeneratedMigrationsTest {
     }
 
     @Test
-    fun `the binding migration runs the generated binding functions as the sys role`() {
-        val text = migration("V202610190850__create_binding.sql")
-        assertTrue(BindingKeyMigration.ddl("access", "access_sys", "access_runtime").trim() in text)
-        assertTrue("SET ROLE access_sys;" in text && "RESET ROLE;" in text)
+    fun `no migration creates the binding functions or the binding key table`() {
+        val files =
+            listOf(
+                "V202610190900__create_outbox.sql",
+                "V202610190910__create_identity_and_grant.sql",
+                "V202610190920__create_revocation_and_verification_keys.sql",
+            )
+        files.forEach { file ->
+            val text = migration(file)
+            assertTrue("CREATE TABLE access.binding_key" !in text, file)
+            assertTrue("CREATE FUNCTION access.bound_" !in text, file)
+            assertTrue("SET ROLE" !in text, file)
+        }
+    }
+
+    @Test
+    fun `the authority version sequence is read by the schema and name of the migration`() {
+        val text = migration("V202610190910__create_identity_and_grant.sql")
+        val match = Regex("""CREATE SEQUENCE\s+(\w+)\.(\w+)""").find(text)
+        requireNotNull(match) { "the migration holds no CREATE SEQUENCE" }
+        assertEquals(match.groupValues[1], ACCESS_SCHEMA)
+        assertEquals(match.groupValues[2], AUTHORITY_VERSION_SEQUENCE_NAME)
+        assertEquals(match.groupValues[1], AUTHORITY_VERSION_SEQ.schema?.name)
+        assertEquals(match.groupValues[2], AUTHORITY_VERSION_SEQ.name)
     }
 
     @Test

@@ -1,6 +1,5 @@
 package com.dynokore.gst.access.adapters.persistence
 
-import com.dynokore.gst.access.adapters.persistence.jooq.sequences.AUTHORITY_VERSION_SEQ
 import com.dynokore.gst.access.adapters.persistence.jooq.tables.references.IDENTITY
 import com.dynokore.gst.access.adapters.persistence.jooq.tables.references.ROLE_GRANT
 import com.dynokore.gst.access.application.grant.GrantRepository

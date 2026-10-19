@@ -15,6 +15,7 @@ import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.serviceruntime.replica.StructureNode
 import com.dynokore.platform.serviceruntime.replica.StructureNodeKind
+import com.dynokore.platform.tenancykernel.BindingKeyMigration
 import com.dynokore.platform.tenancykernel.SqlIdentifier
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
@@ -168,7 +169,7 @@ object BoundaryFixture {
             connection.autoCommit = true
             val script = connection.createStatement()
             runFile(provisioning)
-            script.execute("CREATE SCHEMA IF NOT EXISTS access")
+            runFile(bindingFunctions())
             Files.list(migrationsDir).use { files ->
                 files
                     .filter {
@@ -187,6 +188,24 @@ object BoundaryFixture {
                 "INSERT INTO access.binding_key (slot, secret) VALUES ('current', convert_to('$key', 'UTF8'))",
             )
         }
+    }
+
+    /**
+     * The signed-binding functions of the schema, installed before the migrations as the installation does and as the
+     * jOOQ codegen does (INV-Q-7418): the migrations never create them, so the text is tenancy-kernel's own.
+     */
+    private fun bindingFunctions(): Path {
+        val file = Files.createTempDirectory("access-binding").resolve("binding-functions.sql")
+        val ddl = BindingKeyMigration.ddl("access", "access_sys", "access_runtime")
+        Files.writeString(
+            file,
+            "CREATE EXTENSION IF NOT EXISTS pgcrypto SCHEMA public;\n" +
+                "CREATE SCHEMA IF NOT EXISTS access AUTHORIZATION access_sys;\n" +
+                "SET ROLE access_sys;\n$ddl\nRESET ROLE;\n",
+        )
+        file.toFile().deleteOnExit()
+        file.parent.toFile().deleteOnExit()
+        return file
     }
 
     /** Runs a SQL file as the container's superuser through psql, stopping at the first error. */

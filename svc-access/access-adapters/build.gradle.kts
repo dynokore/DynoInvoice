@@ -5,13 +5,24 @@ plugins {
     id("gst.jooq-codegen")
 }
 
+// The jars that hold tenancy-kernel's BindingKeyMigration: the codegen installs the signed-binding functions of the schema
+// in its throwaway container before the migrations (INV-Q-7418), as the fixture does in an environment.
+val bindingKernel: Configuration by configurations.creating {
+    isCanBeConsumed = false
+}
+
 gstJooqCodegen {
     schema = "access"
-    // The roles, the schema and the signed-binding functions the migrations grant to and the policies call (TPL-11).
+    // The roles the migrations grant to (TPL-11).
     initScripts.from("src/test/resources/db/provisioning.sql")
+    bindingSource.from(bindingKernel)
+    bindingSysRole = "access_sys"
+    bindingRuntimeRole = "access_runtime"
 }
 
 dependencies {
+    bindingKernel(platform(libs.platform.bom))
+    bindingKernel(libs.platform.tenancyKernel.impl)
     implementation(platform(libs.platform.bom))
     implementation(platform(libs.springBoot.dependencies))
     implementation(project(":access-application"))

@@ -42,9 +42,3 @@ access:
     # The service account of the API gateway (edge api-gateway->access-svc): the only caller of getRevocationList and
     # getVerificationKeys. Set per installation by the Helm values; there is no default.
     workload-subject: ${ACCESS_GATEWAY_WORKLOAD_SUBJECT}
-inv:
-  tenancy:
-    # tenancy-kernel's key table: the installation binding key, read by the sys-owned binding functions only; its
-    # migration carries the comment 'platform-scoped: no tenant data' (TableClasses.verify, INV-ADR-3968 item 4a)
-    platform-scoped-tables:
-      - access.binding_key

@@ -42,6 +42,7 @@ in one pass:
 
 ## Open items
 
-See the merge request of INV-T-4934 ("Gaps"): the action catalogue, the scope grammar, entity-scope row policies and the
-binding-function provisioning await rulings; until then the production permission matrix is empty and every
-authorisation answers DENY.
+- INV-AC-1912 (entity-scope row policy) waits for the owner (INV-Q-7453): no policy and no test carry the key, so
+  `acKeyCoverage` fails for that one row on purpose.
+- The action catalogue and the scope grammar are unpublished: until INV-T-4935 lands the production permission matrix is
+  empty and every authorisation answers DENY.

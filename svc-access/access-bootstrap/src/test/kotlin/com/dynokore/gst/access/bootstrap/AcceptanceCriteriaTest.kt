@@ -188,6 +188,32 @@ class AcceptanceCriteriaTest {
         }
 
     @Test
+    fun `INV-AC-2546 a person holding both roles on an entity is answered per role and refused on another entity`() =
+        run { _, env ->
+            env.entity(tenantA, "ENT-E")
+            env.entity(tenantA, "ENT-E2")
+            env.grant(tenantA, "IDN-VP09", "entity.admin", "entity:ENT-E")
+            env.grant(tenantA, "IDN-VP09", "tax.approver", "entity:ENT-E")
+
+            val adminOnly = env.decide(tenantA, "IDN-VP09", "profile.edit", "ENT-E")
+            assertThat(adminOnly.decision).isEqualTo(ALLOW)
+            assertThat(adminOnly.role).isEqualTo("entity.admin")
+            val approverOnly = env.decide(tenantA, "IDN-VP09", "pack.approve", "ENT-E")
+            assertThat(approverOnly.decision).isEqualTo(ALLOW)
+            assertThat(approverOnly.role).isEqualTo("tax.approver")
+            assertThat(env.decide(tenantA, "IDN-VP09", "profile.edit", "ENT-E2").decision).isEqualTo(DENY)
+            assertThat(env.decide(tenantA, "IDN-VP09", "pack.approve", "ENT-E2").decision).isEqualTo(DENY)
+        }
+
+    @Test
+    fun `the authority version sequence yields strictly increasing values in one tenant`() =
+        run { _, env ->
+            val versions = List(3) { env.readIn(tenantA) { env.repository.nextAuthorityVersion() } }
+            assertThat(versions).isSorted()
+            assertThat(versions.toSet()).hasSize(3)
+        }
+
+    @Test
     fun `INV-AC-1935 a cross-tenant identity sees one tenant at a time`() =
         run { _, env ->
             env.entity(tenantA, "ENT-T1")
