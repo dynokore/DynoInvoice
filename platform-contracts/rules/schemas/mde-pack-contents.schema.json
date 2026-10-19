@@ -332,6 +332,21 @@
           }
         ]
       }
+    },
+    "offNetworkEndpoint": {
+      "type": "object",
+      "description": "The prefix written before the customer's UEN in the Customer Endpoint ID (IBT-049) of an off-network document, rule-pack configuration (INV-REQ-321, INV-Q-7189). Absent means no prefix is configured and the consumer builds no off-network endpoint ID. The schema holds no value: the provisional value is seed data.",
+      "properties": {
+        "prefix": {
+          "type": "string",
+          "description": "The prefix written before the customer's UEN.",
+          "minLength": 1,
+          "maxLength": 20
+        }
+      },
+      "required": [
+        "prefix"
+      ]
     }
   },
   "required": [

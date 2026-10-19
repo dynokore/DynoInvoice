@@ -293,3 +293,6 @@ TYPE_1A	enum_value	openapi.yaml	INV-REQ-416
 TYPE_1B	enum_value	openapi.yaml	INV-REQ-416
 TYPE_2	enum_value	openapi.yaml	INV-REQ-416
 TYPE_3	enum_value	openapi.yaml	INV-REQ-416
+# INV-T-7191 (INV-REQ-321): `SGUEN`, `C5UID`, `NA` and the example values (e.g. `SGUEN201888888A`) are values, not contract identifiers; they are carried by the payload-svc task and the seed-data task.
+offNetworkEndpoint	property	schemas/mde-pack-contents.schema.json	INV-REQ-321
+prefix	property	schemas/mde-pack-contents.schema.json	INV-REQ-321
