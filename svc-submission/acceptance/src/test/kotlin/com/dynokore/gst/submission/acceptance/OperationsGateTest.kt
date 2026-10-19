@@ -13,6 +13,7 @@ class OperationsGateTest {
     private val contractDir = File(System.getProperty("gst.contract.dir"))
     private val openapi = File(contractDir, "openapi.yaml").readText()
     private val asyncapi = File(contractDir, "asyncapi.yaml").readText()
+    private val doneText = File(System.getProperty("gst.root.dir"), "done-tasks.txt").takeIf { it.isFile }?.readText()
     private val tsv = File(System.getProperty("gst.root.dir"), "operations.tsv").readText()
 
     /** Operations answering 501 (OperationsStubs): what each controller method does for placeholder arguments. */
@@ -22,15 +23,16 @@ class OperationsGateTest {
     private fun run(
         table: String = tsv,
         spec: String = openapi,
-        done: Set<String> = emptySet(),
+        done: String? = "",
         stubSet: Set<String> = stubs,
     ) = OperationsGate.findings(table, spec, asyncapi, stubSet, done)
 
     @Test
     fun `the real table covers the real contract`() {
-        OperationsGate.contractOperations(openapi).size shouldBe 13
+        OperationsGate.contractOperations(openapi).size shouldBe 14
         OperationsGate.contractChannels(asyncapi).size shouldBe 6
-        run().shouldBeEmpty()
+        run(done = doneText).shouldBeEmpty()
+        doneText shouldBe ""
     }
 
     @Test
@@ -61,9 +63,9 @@ class OperationsGateTest {
     fun `a listed operation marked done with a 501 stub fails`() {
         val table = tsv.replaceFirst("getReadiness\tUNASSIGNED", "getReadiness\tINV-T-9999")
         run(table = table).shouldBeEmpty()
-        run(table = table, done = setOf("INV-T-9999")) shouldContain
+        run(table = table, done = "INV-T-9999\n") shouldContain
             "operation getReadiness: task INV-T-9999 is done but the operation still answers 501"
-        run(table = table, done = setOf("INV-T-9999"), stubSet = stubs - "getReadiness").shouldBeEmpty()
+        run(table = table, done = "INV-T-9999\n", stubSet = stubs - "getReadiness").shouldBeEmpty()
     }
 
     @Test
@@ -72,5 +74,22 @@ class OperationsGateTest {
         run(table = tsv.trimEnd() + "\noperation\tgetReadiness\tUNASSIGNED\n").shouldNotBeEmpty()
         run(table = tsv.trimEnd() + "\noperation\tnoSuchOperation\tUNASSIGNED\n").shouldNotBeEmpty()
         run(table = tsv.trimEnd() + "\nqueue\tx\tUNASSIGNED\n").shouldNotBeEmpty()
+    }
+
+    @Test
+    fun `the done set fails on a missing file, a non key line and a key naming no row`() {
+        run(done = null) shouldContain "done-tasks.txt: the file is missing"
+        run(done = "TBD\n") shouldContain "done-tasks.txt: 'TBD' is not exactly an INV-T key"
+        run(done = "inv-t-5964\n") shouldContain "done-tasks.txt: 'inv-t-5964' is not exactly an INV-T key"
+        val table = tsv.replaceFirst("getReadiness\tUNASSIGNED", "getReadiness\tINV-T-5964")
+        run(table = table, done = "INV-T-59640\n") shouldContain
+            "done-tasks.txt: INV-T-59640 names no row of operations.tsv"
+        run(table = table, done = "INV-T-5964 \n").shouldNotBeEmpty()
+    }
+
+    @Test
+    fun `a listed key whose operation is implemented passes`() {
+        val table = tsv.replaceFirst("getReadiness\tUNASSIGNED", "getReadiness\tINV-T-5964")
+        run(table = table, done = "INV-T-5964\n", stubSet = stubs - "getReadiness").shouldBeEmpty()
     }
 }

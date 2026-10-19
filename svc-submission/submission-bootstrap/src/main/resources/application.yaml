@@ -37,7 +37,7 @@ gst:
   db.event-log-url: ${GST_EVENT_LOG_DB_URL:}
 inv:
   tenancy:
-    # tenant-free objects of the schema that the start-up classification (TableClasses.verify, INV-ADR-3968 item 4a)
-    # cannot see as library-declared: the signed-binding key table (BindingKeyMigration) and the sys-owned claim function
-    # of the queue (QueueSchema.CLAIM_DUE, a table-valued function in the generated code)
-    platform-scoped-tables: submission.binding_key,submission.claim_due
+    # tenant-free object of the schema that the start-up classification (TableClasses.verify, INV-ADR-3968 item 4a)
+    # cannot see as library-declared: the sys-owned claim function of the queue (QueueSchema.CLAIM_DUE, a table-valued
+    # function in the generated code). The signed-binding key table is not generated (INV-T-7430), so it is not declared.
+    platform-scoped-tables: submission.claim_due

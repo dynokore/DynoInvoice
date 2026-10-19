@@ -18,3 +18,4 @@ channel	gst.submission.submission-failed.v1	UNASSIGNED
 channel	gst.submission.readiness-changed.v1	UNASSIGNED
 channel	gst.submission.submission-type-decided.v1	UNASSIGNED
 channel	gst.submission.example-happened.v1	UNASSIGNED
+operation	resolveAmendmentHold	UNASSIGNED

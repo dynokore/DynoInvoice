@@ -5,12 +5,25 @@ plugins {
     `java-test-fixtures`
 }
 
+// The jars that hold BindingKeyMigration: gst.jooq-codegen installs the signed-binding functions from them before
+// the first migration runs (INV-Q-7418 A, platform-build INV-T-7430). Build time only; who installs the functions
+// in an installation stays INV-Q-6580.
+val bindingKernel: Configuration by configurations.creating {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+}
+
 gstJooqCodegen {
     schema = "submission"
     initScripts.from("src/testFixtures/resources/db/roles.sql")
+    bindingSource.from(bindingKernel)
+    bindingSysRole = "submission_sys"
+    bindingRuntimeRole = "submission_runtime"
 }
 
 dependencies {
+    bindingKernel(platform(libs.platform.bom))
+    bindingKernel(libs.platform.tenancyKernel.impl)
     implementation(platform(libs.platform.bom))
     implementation(platform(libs.springBoot.dependencies))
     implementation(project(":submission-application"))

@@ -9,6 +9,10 @@ import org.yaml.snakeyaml.Yaml
  * Deny by default: a contract item missing from the table, a table row naming no contract item, a duplicate row, a
  * task cell that is neither an `INV-T-<digits>` key nor exactly `UNASSIGNED` (so `unassigned` and `TBD` fail), and a
  * listed task that is done while its operation still answers 501.
+ *
+ * The done set is the file `done-tasks.txt` (INV-Q-7424 A), one INV-T key per line. The gate fails when the file is
+ * missing, when a line is not exactly an INV-T key, when a listed key names no row of the table, and when a row names
+ * a listed key while its operation still answers 501.
  */
 object OperationsGate {
     private val TASK_KEY = Regex("INV-T-[0-9]+")
@@ -49,6 +53,21 @@ object OperationsGate {
         }
     }
 
+    /** Parses `done-tasks.txt`; [text] is null when the file is missing. Returns the keys and the findings. */
+    fun parseDone(text: String?): Pair<Set<String>, List<String>> {
+        if (text == null) return emptySet<String>() to listOf("done-tasks.txt: the file is missing")
+        val findings = mutableListOf<String>()
+        val keys = mutableSetOf<String>()
+        text.lines().filter { it.isNotEmpty() }.forEach { line ->
+            if (TASK_KEY.matches(line)) {
+                keys += line
+            } else {
+                findings += "done-tasks.txt: '$line' is not exactly an INV-T key"
+            }
+        }
+        return keys to findings
+    }
+
     private fun rowFindings(
         row: Row,
         operations: Set<String>,
@@ -71,19 +90,22 @@ object OperationsGate {
 
     /**
      * @param stubs the operationIds that still answer 501 (no override of the generated interface's default)
-     * @param doneTasks the task keys that are done
+     * @param doneFile the text of `done-tasks.txt`, or null when the file is missing
      */
     fun findings(
         tsv: String,
         openapi: String,
         asyncapi: String,
         stubs: Set<String>,
-        doneTasks: Set<String>,
+        doneFile: String?,
     ): List<String> {
         val rows = parse(tsv)
+        val (doneTasks, doneFindings) = parseDone(doneFile)
         val operations = contractOperations(openapi)
         val channels = contractChannels(asyncapi)
-        val findings = mutableListOf<String>()
+        val findings = doneFindings.toMutableList()
+        (doneTasks - rows.map { it.task }.toSet())
+            .forEach { findings += "done-tasks.txt: $it names no row of operations.tsv" }
         rows
             .groupBy { it.kind to it.id }
             .filter { it.value.size > 1 }
