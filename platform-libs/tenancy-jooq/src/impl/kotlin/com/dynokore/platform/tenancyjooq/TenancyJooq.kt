@@ -45,17 +45,20 @@ object TenancyJooq {
         if (configuration.visitListenerProviders().isNotEmpty()) {
             throw TenantPredicateViolation("tenancy-jooq owns the VisitListeners: the configuration already has one")
         }
-        return configuration
-            .derive(TenantConnectionProvider(transactionRunner, currentConnection))
-            .deriveAppending(TenantPredicateInjector(tables, tenants))
-            .deriveAppending(TenantStatementCheck(tables, tenants))
-            .deriveAppending(*recordListeners.toTypedArray())
+        val owned =
+            configuration
+                .derive(TenantConnectionProvider(transactionRunner, currentConnection))
+                .deriveAppending(TenantPredicateInjector(tables, tenants))
+                .deriveAppending(TenantStatementCheck(tables, tenants))
+        return recordListeners.fold(owned) { derived, listener -> derived.deriveAppending(listener) }
     }
 
     /**
-     * [configure] applied in place (INV-Q-5105): validates [configuration] as [configure] does, then sets tenancy-jooq's
+     * [configure] applied in place (INV-Q-5105): validates [configuration] as [configure] does, then sets
+     * tenancy-jooq's
      * connection provider, VisitListener and ExecuteListener on that object, for a caller that is handed a mutable
-     * `DefaultConfiguration` (Spring Boot's `DefaultConfigurationCustomizer`) and may not call a listener setter itself.
+     * `DefaultConfiguration` (Spring Boot's `DefaultConfigurationCustomizer`) and may not call a listener setter
+     * itself.
      */
     @JvmOverloads
     fun install(
@@ -67,8 +70,10 @@ object TenancyJooq {
     ) {
         val owned = configure(configuration, tables, tenants, transactionRunner, recordListeners)
         configuration.set(owned.connectionProvider())
-        configuration.set(*owned.visitListenerProviders())
+        configuration.set(owned.visitListenerProviders().single())
+        @Suppress("SpreadOperator") // jOOQ set takes only a vararg; INV-Q-4629, INV-Q-7495 (CS-50)
         configuration.set(*owned.executeListenerProviders())
+        @Suppress("SpreadOperator") // jOOQ set takes only a vararg; INV-Q-4629, INV-Q-7495 (CS-50)
         configuration.set(*owned.recordListenerProviders())
     }
 

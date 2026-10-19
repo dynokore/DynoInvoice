@@ -30,6 +30,11 @@ data class LaneBudgets(
         /** The HA event-log pool: background only (INV-REQ-1230 b2, owner rulings INV-Q-3955, INV-Q-4023). */
         val EVENT_LOG: LaneBudgets = LaneBudgets(0, 3, 0)
 
+        private const val MINIMAL_REQUEST = 4
+        private const val MINIMAL_BACKGROUND = 2
+        private const val SCALED_REQUEST = 7
+        private const val SCALED_BACKGROUND = 3
+
         /**
          * The application pool's default budgets for [profile] (request / background / reprocessing): minimal 4 / 2 / 1
          * or 4 / 2 / 0, HA and SaaS (per pod) 7 / 3 / 1 or 7 / 3 / 0, the reprocessing permit only when the service
@@ -42,8 +47,17 @@ data class LaneBudgets(
         ): LaneBudgets {
             val reprocessing = if (runsReprocessing) 1 else 0
             return when (profile) {
-                InstallationProfile.MINIMAL -> LaneBudgets(4, 2, reprocessing)
-                InstallationProfile.HA, InstallationProfile.SAAS -> LaneBudgets(7, 3, reprocessing)
+                InstallationProfile.MINIMAL -> {
+                    LaneBudgets(MINIMAL_REQUEST, MINIMAL_BACKGROUND, reprocessing)
+                }
+
+                InstallationProfile.HA, InstallationProfile.SAAS -> {
+                    LaneBudgets(
+                        SCALED_REQUEST,
+                        SCALED_BACKGROUND,
+                        reprocessing,
+                    )
+                }
             }
         }
     }
@@ -87,9 +101,9 @@ data class PoolLaneProperties(
         }
         val budgets =
             LaneBudgets(
-                lanes.request ?: defaults!!.request,
-                lanes.background ?: defaults!!.background,
-                lanes.reprocessing ?: defaults!!.reprocessing,
+                lanes.request ?: checkNotNull(defaults).request,
+                lanes.background ?: checkNotNull(defaults).background,
+                lanes.reprocessing ?: checkNotNull(defaults).reprocessing,
             )
         if (runsReprocessing) {
             check(budgets.reprocessing > 0) {

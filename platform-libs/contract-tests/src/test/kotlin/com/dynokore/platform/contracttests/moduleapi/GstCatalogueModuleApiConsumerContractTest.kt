@@ -10,6 +10,7 @@ import com.dynokore.platform.configresolver.PolicySource
 import com.dynokore.platform.configresolver.ScopeLevel
 import com.dynokore.platform.configresolver.ScopeRef
 import com.dynokore.platform.configresolver.SelectedOption
+import com.dynokore.platform.configresolver.Slot
 import com.dynokore.platform.configresolver.UnknownVariationPoint
 import com.dynokore.platform.configresolver.VariationPointCatalogue
 import com.dynokore.platform.configresolver.VariationPointKey
@@ -87,7 +88,14 @@ class GstCatalogueModuleApiConsumerContractTest {
     fun `an entity's election of another catalogue option is read as that enum constant`() {
         val tenant = TenantId(UUID.randomUUID())
         val ref = ScopeRef(ScopeLevel.ENTITY, "E1")
-        val id = harness.setTenant(tenant, VERDICT_MODE, ref, listOf(SelectedOption("BLOCKING")), march, entity = "E1")
+        val id =
+            harness.setTenant(
+                tenant,
+                VERDICT_MODE,
+                Slot(ref, entity = "E1"),
+                listOf(SelectedOption("BLOCKING")),
+                march,
+            )
         val resolved = inTenant(tenant) { useCase.verdictMode(PolicyScope.entity(tenant, "E1"), march) }
         resolved.value shouldBe ValidationVerdictMode.BLOCKING
         resolved.source shouldBe PolicySource.Override(ScopeLevel.ENTITY, "E1", id)

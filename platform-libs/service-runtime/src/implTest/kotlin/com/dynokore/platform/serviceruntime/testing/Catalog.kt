@@ -7,7 +7,8 @@ import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 
 /**
- * The PostgreSQL catalog tables the integration tests read through jOOQ (they hold no tenant data: PLATFORM_SCOPED), and
+ * The PostgreSQL catalog tables the integration tests read through jOOQ (they hold no tenant data: PLATFORM_SCOPED),
+ * and
  * the fields they use. A test declares [TABLES] to its [TestDatabase] and reads under the platform binding.
  */
 val PG_CLASS: Table<*> = DSL.table(DSL.name("pg_catalog", "pg_class"))

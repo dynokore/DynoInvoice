@@ -18,10 +18,8 @@ class PeriodGenerationTest {
         history: FrequencyHistory,
         through: String,
         deregistration: String? = null,
-        pack: CalendarPack = pack(),
-        rule: NonBusinessDayRule = NonBusinessDayRule.NO_MOVE,
-    ) = PackPeriodGenerator(pack).generate(
-        PeriodRequest(d(registration), deregistration?.let { d(it) }, history, d(through), rule),
+    ) = PackPeriodGenerator(pack()).generate(
+        PeriodRequest(d(registration), deregistration?.let { d(it) }, history, d(through), NonBusinessDayRule.NO_MOVE),
     )
 
     /** Rows: start,end,returnForm,dueDate,kinds (kinds joined by `+`, `-` for a standard period). */

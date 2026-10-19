@@ -31,8 +31,10 @@ import javax.sql.DataSource
 
 /**
  * Coordinator ruling INV-Q-4542 on what each pool actually receives: [PoolConfigurationGuard] classifies every
- * HikariConfig property (lessons P140) and, in a TPL-18 composition, refuses a pool configured to run SQL or set session
- * state, whatever path the value took (here a property bound with the key guard bypassed, as an indirect path would be).
+ * HikariConfig property (lessons P140) and, in a TPL-18 composition, refuses a pool configured to run SQL or set
+ * session
+ * state, whatever path the value took (here a property bound with the key guard bypassed, as an indirect path would
+ * be).
  */
 class PoolConfigurationGuardTest {
     @Test
@@ -333,7 +335,8 @@ class PoolConfigurationGuardTest {
             }
     }
 
-    // pool construction and the refused setters stay in method bodies of this class (pool-guard-test grant, INV-Q-4788 (B))
+    // pool construction and the refused setters stay in method bodies of this class (pool-guard-test grant, INV-Q-4788
+    // (B))
     private fun earlyPool(): DataSource =
         HikariDataSource().apply {
             jdbcUrl = "jdbc:postgresql://db:5432/submission"
@@ -388,7 +391,8 @@ class PoolConfigurationGuardTest {
             )
         service
             .withPropertyValues(
-                "gst.db.event-log-url=jdbc:postgresql://log:5432/submission?loggerLevel=OFF&sslmode=verify-full&sslrootcert=/etc/ssl/pg.crt",
+                "gst.db.event-log-url=jdbc:postgresql://log:5432/submission?loggerLevel=OFF&sslmode=verify-full" +
+                    "&sslrootcert=/etc/ssl/pg.crt",
             ).run { context ->
                 context.startupFailure shouldBe null
                 // the service-runtime pools with their ApplicationName <gst.service> pass (INV-Q-4566)
@@ -432,7 +436,10 @@ class PoolConfigurationGuardTest {
             allowedPool().also { set(it, setting) }
         }
 
-    /** The allowed pool plus a connectionTestQuery, bound from properties (INV-Q-5886): no SQL statement setter is called. */
+    /**
+     * The allowed pool plus a connectionTestQuery, bound from properties (INV-Q-5886): no SQL statement setter is
+     * called.
+     */
     private fun poolWithTestQuery(): HikariConfig =
         HikariConfig(
             Properties().apply {

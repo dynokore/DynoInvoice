@@ -87,36 +87,43 @@ object WriteCatalogue {
     val PLANNED = VariationPointKey("VP-66")
     val RETIRED = VariationPointKey("VP-27")
 
+    /** The mutable shape of a definition: a row's tweak sets fields before the definition is built and validated. */
+    private class Draft(
+        val key: VariationPointKey,
+        val levels: Set<ScopeLevel>,
+        val options: List<OptionSpec>,
+    ) {
+        var vpClass = VpClass.CONTROL
+        var modifiers: Set<VpModifier> = emptySet()
+        var status = VpStatus.AVAILABLE
+        var setBy = setOf("tax.approver")
+        var crossOption: String? = null
+        var crossScope: String? = null
+        var installationBound = false
+        var installationParameter: VariationPointKey? = null
+
+        fun build() =
+            VariationPointDefinition(
+                key = key,
+                vpClass = vpClass,
+                modifiers = modifiers,
+                status = status,
+                scopeLevels = levels,
+                setBy = setBy,
+                options = options,
+                crossOption = crossOption,
+                crossScope = crossScope,
+                installationBound = installationBound,
+                installationParameter = installationParameter,
+            )
+    }
+
     private fun def(
         key: VariationPointKey,
         levels: Set<ScopeLevel>,
         options: List<OptionSpec>,
-        vpClass: VpClass = VpClass.CONTROL,
-        setBy: Set<String> = setOf("tax.approver"),
-        modifiers: Set<VpModifier> = emptySet(),
-        status: VpStatus = VpStatus.AVAILABLE,
-        crossOption: String? = null,
-        crossScope: String? = null,
-        installationBound: Boolean = false,
-        installationParameter: VariationPointKey? = null,
-    ) = VariationPointDefinition(
-        key = key,
-        vpClass = vpClass,
-        modifiers = modifiers,
-        status = status,
-        scopeLevels = levels,
-        setBy = setBy,
-        options = options,
-        crossOption = crossOption,
-        crossScope = crossScope,
-        installationBound = installationBound,
-        installationParameter = installationParameter,
-    )
-
-    private fun record(vararg fields: Pair<String, TypedValueSpec>): TypedValueSpec {
-        val named = mapOf(*fields)
-        return TypedValueSpec(ValueType.RECORD, fields = named)
-    }
+        tweak: Draft.() -> Unit = {},
+    ) = Draft(key, levels, options).apply(tweak).build()
 
     private fun hours(
         min: Long,
@@ -159,8 +166,9 @@ object WriteCatalogue {
                 DESPATCH,
                 setOf(ScopeLevel.ENTITY),
                 listOf(OptionSpec("CONTINUOUS", Strictness.DEFAULT), OptionSpec("DAILY_WINDOW", Strictness.NEUTRAL)),
-                vpClass = VpClass.POLICY,
-            ),
+            ) {
+                vpClass = VpClass.POLICY
+            },
             def(
                 TENANT_CONTROL,
                 setOf(ScopeLevel.TENANT, ScopeLevel.GROUP),
@@ -168,8 +176,7 @@ object WriteCatalogue {
                     OptionSpec("SECURITY_OFFICER", Strictness.DEFAULT),
                     looser("TENANT_ADMIN_SOLE", Acknowledger("tenant.admin")),
                 ),
-                setBy = setOf("tenant.admin"),
-            ),
+            ) { setBy = setOf("tenant.admin") },
             def(
                 NON_WAIVABLE,
                 setOf(ScopeLevel.ENTITY),
@@ -177,9 +184,10 @@ object WriteCatalogue {
                     OptionSpec("SECOND_CONFIRMATION", Strictness.DEFAULT),
                     looser("SOLE_OPERATOR", Acknowledger("tenant.admin")),
                 ),
-                modifiers = setOf(VpModifier.NON_WAIVABLE),
-                setBy = setOf("tenant.admin"),
-            ),
+            ) {
+                modifiers = setOf(VpModifier.NON_WAIVABLE)
+                setBy = setOf("tenant.admin")
+            },
             def(
                 NO_ACKNOWLEDGER,
                 setOf(ScopeLevel.ENTITY),
@@ -192,8 +200,7 @@ object WriteCatalogue {
                     OptionSpec("EARLIER_DATE", Strictness.DEFAULT),
                     looser("FILER_OF_RECORD", Acknowledger("client.signatory", AcknowledgerCondition.UNDER_DELEGATION)),
                 ),
-                setBy = setOf("tax.approver", "client.signatory"),
-            ),
+            ) { setBy = setOf("tax.approver", "client.signatory") },
             def(
                 PRIVATE_ONLY_ACK,
                 setOf(ScopeLevel.ENTITY),
@@ -217,9 +224,10 @@ object WriteCatalogue {
                     OptionSpec("LAST_PERIOD", Strictness.DEFAULT),
                     OptionSpec("LAST_N", Strictness.STRICTER, true, int1to4),
                 ),
-                vpClass = VpClass.PARAMETER,
-                setBy = setOf("security.officer"),
-            ),
+            ) {
+                vpClass = VpClass.PARAMETER
+                setBy = setOf("security.officer")
+            },
             def(
                 RECORD,
                 setOf(ScopeLevel.ENTITY),
@@ -239,8 +247,7 @@ object WriteCatalogue {
                         ),
                     ),
                 ),
-                vpClass = VpClass.PARAMETER,
-            ),
+            ) { vpClass = VpClass.PARAMETER },
             def(
                 NAMED_BOUND,
                 setOf(ScopeLevel.ENTITY),
@@ -253,9 +260,10 @@ object WriteCatalogue {
                         TypedValueSpec(ValueType.DATE, max = Bound.named("the mandatory date")),
                     ),
                 ),
-                vpClass = VpClass.POLICY,
-                setBy = setOf("entity.admin"),
-            ),
+            ) {
+                vpClass = VpClass.POLICY
+                setBy = setOf("entity.admin")
+            },
             def(
                 PLATFORM_MAXIMUM,
                 setOf(ScopeLevel.INSTALLATION),
@@ -275,15 +283,15 @@ object WriteCatalogue {
                     ),
                     looser("LARGER", Acknowledger("security.officer")),
                 ),
-                setBy = setOf("platform.engineer", "deployment.operator"),
-            ),
+            ) { setBy = setOf("platform.engineer", "deployment.operator") },
             def(
                 EVERY_LEVEL,
                 ScopeLevel.entries.toSet(),
                 listOf(OptionSpec("A", Strictness.DEFAULT), OptionSpec("B", Strictness.NEUTRAL)),
-                vpClass = VpClass.POLICY,
-                setBy = setOf("tenant.admin", "platform.engineer", "deployment.operator"),
-            ),
+            ) {
+                vpClass = VpClass.POLICY
+                setBy = setOf("tenant.admin", "platform.engineer", "deployment.operator")
+            },
             breakGlass(CROSS_SCOPE),
             breakGlass(DEFAULT_PAIR),
             def(
@@ -298,11 +306,12 @@ object WriteCatalogue {
                         TypedValueSpec(ValueType.DURATION, "hours", min = Bound.of(1), max = Bound.row(RETRY_MAX)),
                     ),
                 ),
-                vpClass = VpClass.PARAMETER,
-                setBy = setOf("integration.engineer"),
-                installationBound = true,
-                installationParameter = RETRY_MAX,
-            ),
+            ) {
+                vpClass = VpClass.PARAMETER
+                setBy = setOf("integration.engineer")
+                installationBound = true
+                installationParameter = RETRY_MAX
+            },
             def(
                 RETRY_MAX,
                 setOf(ScopeLevel.INSTALLATION),
@@ -310,9 +319,10 @@ object WriteCatalogue {
                     OptionSpec("HOURS_168", Strictness.DEFAULT, true, hours(168, 168, Direction.NONE)),
                     OptionSpec("CUSTOM", Strictness.NEUTRAL, true, hours(72, 720, Direction.NONE)),
                 ),
-                vpClass = VpClass.PARAMETER,
-                setBy = setOf("platform.engineer", "deployment.operator"),
-            ),
+            ) {
+                vpClass = VpClass.PARAMETER
+                setBy = setOf("platform.engineer", "deployment.operator")
+            },
             def(
                 GRACE,
                 setOf(ScopeLevel.TENANT),
@@ -331,11 +341,12 @@ object WriteCatalogue {
                         ),
                     ),
                 ),
-                vpClass = VpClass.PARAMETER,
-                modifiers = setOf(VpModifier.TIGHTEN_ONLY),
-                installationBound = true,
-                installationParameter = GRACE_MAX,
-            ),
+            ) {
+                vpClass = VpClass.PARAMETER
+                modifiers = setOf(VpModifier.TIGHTEN_ONLY)
+                installationBound = true
+                installationParameter = GRACE_MAX
+            },
             def(
                 GRACE_MAX,
                 setOf(ScopeLevel.INSTALLATION),
@@ -343,9 +354,10 @@ object WriteCatalogue {
                     OptionSpec("DAYS_14", Strictness.DEFAULT, true, days14),
                     OptionSpec("CUSTOM", Strictness.NEUTRAL, true, TypedValueSpec(ValueType.DURATION, "days", oneDay)),
                 ),
-                vpClass = VpClass.PARAMETER,
-                setBy = setOf("platform.engineer", "deployment.operator"),
-            ),
+            ) {
+                vpClass = VpClass.PARAMETER
+                setBy = setOf("platform.engineer", "deployment.operator")
+            },
             def(
                 UNTYPED_BOUNDED,
                 setOf(ScopeLevel.TENANT),
@@ -364,11 +376,12 @@ object WriteCatalogue {
                         ),
                     ),
                 ),
-                vpClass = VpClass.PARAMETER,
-                modifiers = setOf(VpModifier.TIGHTEN_ONLY),
-                installationBound = true,
-                installationParameter = UNTYPED_MAX,
-            ),
+            ) {
+                vpClass = VpClass.PARAMETER
+                modifiers = setOf(VpModifier.TIGHTEN_ONLY)
+                installationBound = true
+                installationParameter = UNTYPED_MAX
+            },
             def(
                 UNTYPED_MAX,
                 setOf(ScopeLevel.INSTALLATION),
@@ -376,9 +389,10 @@ object WriteCatalogue {
                     OptionSpec("DAYS_14", Strictness.DEFAULT),
                     OptionSpec("CUSTOM", Strictness.NEUTRAL, true, TypedValueSpec(ValueType.DURATION, "days", oneDay)),
                 ),
-                vpClass = VpClass.PARAMETER,
-                setBy = setOf("platform.engineer", "deployment.operator"),
-            ),
+            ) {
+                vpClass = VpClass.PARAMETER
+                setBy = setOf("platform.engineer", "deployment.operator")
+            },
             def(
                 CROSS_ENTITY,
                 setOf(ScopeLevel.TENANT, ScopeLevel.ENTITY),
@@ -386,31 +400,35 @@ object WriteCatalogue {
                     OptionSpec("H4", Strictness.DEFAULT, true, hours(4, 4)),
                     OptionSpec("CUSTOM", Strictness.NEUTRAL, true, hours(1, 8)),
                 ),
-                vpClass = VpClass.PARAMETER,
-                crossScope = "An entity value may not exceed the tenant value",
-            ),
+            ) {
+                vpClass = VpClass.PARAMETER
+                crossScope = "An entity value may not exceed the tenant value"
+            },
             def(
                 UNNAMED_BOUND,
                 setOf(ScopeLevel.TENANT),
                 listOf(OptionSpec("H72", Strictness.DEFAULT), OptionSpec("LONGER", Strictness.NEUTRAL)),
-                vpClass = VpClass.PARAMETER,
-                setBy = setOf("integration.engineer"),
-                installationBound = true,
-            ),
+            ) {
+                vpClass = VpClass.PARAMETER
+                setBy = setOf("integration.engineer")
+                installationBound = true
+            },
             def(
                 UNDIRECTED_CROSS,
                 setOf(ScopeLevel.INSTALLATION, ScopeLevel.TENANT),
                 listOf(OptionSpec("PAIR_4H", Strictness.DEFAULT), OptionSpec("OTHER", Strictness.NEUTRAL)),
-                setBy = setOf("security.officer"),
-                crossScope = "A tenant value may not exceed the installation value",
-            ),
+            ) {
+                setBy = setOf("security.officer")
+                crossScope = "A tenant value may not exceed the installation value"
+            },
             def(
                 PLANNED,
                 setOf(ScopeLevel.ENTITY),
                 listOf(OptionSpec("DAYS_90", Strictness.DEFAULT), OptionSpec("LONGER", Strictness.STRICTER)),
-                status = VpStatus.PLANNED,
-            ),
-            def(RETIRED, setOf(ScopeLevel.ENTITY), emptyList(), status = VpStatus.RETIRED),
+            ) {
+                status = VpStatus.PLANNED
+            },
+            def(RETIRED, setOf(ScopeLevel.ENTITY), emptyList()) { status = VpStatus.RETIRED },
         ).associateBy { it.key }
 
     val catalogue =

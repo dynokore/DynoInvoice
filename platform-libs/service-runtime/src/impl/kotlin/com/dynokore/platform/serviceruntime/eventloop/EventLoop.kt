@@ -34,6 +34,7 @@ enum class EventLoopKind(
  * The loop binds no tenant: the relay, consumers and replay delivery bind the service's workload principal and each
  * row's tenant in their own transactions (INV-REQ-854 b1).
  */
+@Suppress("LongParameterList") // constructor injection under CS-05; INV-Q-4629 (CS-50)
 class EventLoop(
     val name: String,
     val kind: EventLoopKind,
@@ -72,47 +73,59 @@ class EventLoop(
     fun awaitStop(timeout: Duration): Boolean {
         val running = thread ?: return true
         running.join(timeout)
-        if (!running.isAlive) return true
-        log.warn("event loop did not stop within the timeout, interrupting: loop={} kind={}", name, kind.label)
-        running.interrupt()
-        running.join(timeout)
+        if (running.isAlive) {
+            log.warn("event loop did not stop within the timeout, interrupting: loop={} kind={}", name, kind.label)
+            running.interrupt()
+            running.join(timeout)
+        }
         return !running.isAlive
     }
 
     @Suppress("TooGenericExceptionCaught")
     private fun run() {
         var failures = 0
-        while (stopRequested.count > 0) {
-            var wait: Duration
-            try {
-                val worked = PoolLanes.inLane(PoolLane.BACKGROUND, call)
-                failures = 0
-                last.set(clock.instant())
-                wait = if (worked) Duration.ZERO else interval
-            } catch (_: InterruptedException) {
-                return
-            } catch (error: Throwable) {
-                // A StackOverflowError is the record's (a deep payload), as JdbcInboxConsumer treats it: back off and
-                // retry. Any other Error ends the loop below.
-                if (error !is Exception && error !is StackOverflowError) {
+        var wait: Duration? = Duration.ZERO
+        while (wait != null && stopRequested.count > 0) {
+            wait =
+                try {
+                    val worked = PoolLanes.inLane(PoolLane.BACKGROUND, call)
+                    failures = 0
+                    last.set(clock.instant())
+                    if (worked) Duration.ZERO else interval
+                } catch (_: InterruptedException) {
+                    null
+                } catch (error: StackOverflowError) {
+                    // A StackOverflowError is the record's (a deep payload), as JdbcInboxConsumer treats it: back off
+                    // and retry. Any other Error ends the loop below.
+                    failedCall(error, ++failures)
+                } catch (error: Exception) {
+                    failedCall(error, ++failures)
+                } catch (error: Throwable) {
                     end(error)
-                    return
+                    null
                 }
-                if (stopRequested.count == 0L) return
-                failures++
-                wait = backoff(failures)
-                log.warn(
-                    "event loop call failed, retrying: loop={} kind={} error_class={} sql_state={} lane_message={} retry_in_ms={}",
-                    name,
-                    kind.label,
-                    error.javaClass.name,
-                    sqlState(error),
-                    laneMessage(error),
-                    wait.toMillis(),
-                )
-            }
-            if (!wait.isZero && !pause(wait)) return
+            if (wait != null && !wait.isZero && !pause(wait)) wait = null
         }
+    }
+
+    /** The wait before the retry, or null when the stop was requested while the call failed. */
+    private fun failedCall(
+        error: Throwable,
+        failures: Int,
+    ): Duration? {
+        if (stopRequested.count == 0L) return null
+        val wait = backoff(failures)
+        log.warn(
+            "event loop call failed, retrying: loop={} kind={} error_class={} sql_state={} lane_message={} " +
+                "retry_in_ms={}",
+            name,
+            kind.label,
+            error.javaClass.name,
+            errors.sqlStateOf(error),
+            LaneRefusalMessage.of(error),
+            wait.toMillis(),
+        )
+        return wait
     }
 
     private fun end(error: Throwable) {
@@ -146,13 +159,23 @@ class EventLoop(
         return Duration.ofMillis(maxOf(1L, (raw * spread).toLong()))
     }
 
-    private fun sqlState(error: Throwable): String? = errors.sqlStateOf(error)
+    companion object {
+        val MAX_BACKOFF: Duration = Duration.ofSeconds(30)
+        private const val MAX_SHIFT = 20
+        private const val JITTER_FRACTION = 0.5
+        private val log = LoggerFactory.getLogger(EventLoop::class.java)
+    }
+}
 
-    /**
-     * The message of the pool's own lane refusal ("the BACKGROUND lane's 2 permits stayed in use for 2000 ms"), which
-     * holds a lane name and numbers only and is safe to log (CS-34); any other exception's message is never logged.
-     */
-    private fun laneMessage(error: Throwable): String? {
+/**
+ * The message of the pool's own lane refusal ("the BACKGROUND lane's 2 permits stayed in use for 2000 ms"), which
+ * holds a lane name and numbers only and is safe to log (CS-34); any other exception's message is never logged.
+ */
+private object LaneRefusalMessage {
+    private val LANE_REFUSAL = Regex("^the (REQUEST|BACKGROUND|REPROCESSING) lane('s| has) [\\w ()-.,]*$")
+    private const val CAUSE_DEPTH = 8
+
+    fun of(error: Throwable): String? {
         var cause: Throwable? = error
         repeat(CAUSE_DEPTH) {
             val message = (cause as? LaneRefusedException)?.message
@@ -160,14 +183,5 @@ class EventLoop(
             cause = cause?.cause
         }
         return null
-    }
-
-    companion object {
-        private val LANE_REFUSAL = Regex("^the (REQUEST|BACKGROUND|REPROCESSING) lane('s| has) [\\w ()-.,]*$")
-        val MAX_BACKOFF: Duration = Duration.ofSeconds(30)
-        private const val MAX_SHIFT = 20
-        private const val JITTER_FRACTION = 0.5
-        private const val CAUSE_DEPTH = 8
-        private val log = LoggerFactory.getLogger(EventLoop::class.java)
     }
 }

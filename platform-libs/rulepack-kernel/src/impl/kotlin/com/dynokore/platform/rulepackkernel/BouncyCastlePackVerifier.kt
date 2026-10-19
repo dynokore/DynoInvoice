@@ -52,6 +52,13 @@ class BouncyCastlePackVerifier(
         val checksumsNode =
             parseJson(artefact.checksums)
                 ?: return rejected(PackRejectionReason.MANIFEST_MALFORMED, "checksums member is not valid JSON")
+        return contentsRejection(artefact, checksumsNode) ?: verifySigned(artefact, trustAnchors, checksumsNode)
+    }
+
+    private fun contentsRejection(
+        artefact: PackArtefact,
+        checksumsNode: JsonNode,
+    ): PackVerificationOutcome.Rejected? {
         val declaredContentsDigest =
             checksumsNode
                 .get(CONTENTS_CHECKSUM_FIELD)
@@ -62,53 +69,62 @@ class BouncyCastlePackVerifier(
                     "checksums member has no '$CONTENTS_CHECKSUM_FIELD' entry",
                 )
         val actualContentsDigest = sha256Hex(artefact.contents)
-        if (!declaredContentsDigest.equals(actualContentsDigest, ignoreCase = true)) {
-            return rejected(
+        return if (declaredContentsDigest.equals(actualContentsDigest, ignoreCase = true)) {
+            null
+        } else {
+            rejected(
                 PackRejectionReason.CHECKSUM_MISMATCH,
                 "contents hashes to $actualContentsDigest, checksums declares $declaredContentsDigest",
             )
         }
+    }
 
+    private fun verifySigned(
+        artefact: PackArtefact,
+        trustAnchors: TrustAnchors,
+        checksumsNode: JsonNode,
+    ): PackVerificationOutcome {
         val signedContent = artefact.manifest + artefact.checksums
         val anchors = trustAnchors.anchors
-        val matchedAnchor =
-            when (
-                val verification =
-                    signatureVerifier.verify(
-                        content = signedContent,
-                        signature = artefact.signature,
-                        algorithm = signatureAlgorithm,
-                        trustedCertificatesDer = anchors.map { it.certificateDer },
-                    )
-            ) {
-                is DetachedVerification.SignatureInvalid -> {
-                    return rejected(PackRejectionReason.SIGNATURE_INVALID, verification.detail)
-                }
-
-                DetachedVerification.UntrustedSigner -> {
-                    return rejected(
-                        PackRejectionReason.UNTRUSTED_SIGNER,
-                        "signature is mathematically valid but the signer certificate is not one of the given trust anchors",
-                    )
-                }
-
-                is DetachedVerification.Verified -> {
-                    anchors[verification.trustedIndex]
-                }
+        return when (
+            val verification =
+                signatureVerifier.verify(
+                    content = signedContent,
+                    signature = artefact.signature,
+                    algorithm = signatureAlgorithm,
+                    trustedCertificatesDer = anchors.map { it.certificateDer },
+                )
+        ) {
+            is DetachedVerification.SignatureInvalid -> {
+                rejected(PackRejectionReason.SIGNATURE_INVALID, verification.detail)
             }
 
-        val manifestNode =
-            parseJson(artefact.manifest)
-                ?: return rejected(PackRejectionReason.MANIFEST_MALFORMED, "manifest member is not valid JSON")
-        val manifest =
-            parseManifest(manifestNode, checksumsNode)
-                ?: return rejected(
+            DetachedVerification.UntrustedSigner -> {
+                rejected(
+                    PackRejectionReason.UNTRUSTED_SIGNER,
+                    "signature is mathematically valid but the signer certificate is not one of the given " +
+                        "trust anchors",
+                )
+            }
+
+            is DetachedVerification.Verified -> {
+                verifiedManifest(artefact, checksumsNode, anchors[verification.trustedIndex].label)
+            }
+        }
+    }
+
+    private fun verifiedManifest(
+        artefact: PackArtefact,
+        checksumsNode: JsonNode,
+        anchorLabel: String,
+    ): PackVerificationOutcome =
+        parseJson(artefact.manifest)?.let { manifestNode ->
+            parseManifest(manifestNode, checksumsNode)?.let { PackVerificationOutcome.Verified(it, anchorLabel) }
+                ?: rejected(
                     PackRejectionReason.MANIFEST_MALFORMED,
                     "manifest is missing or has malformed required fields",
                 )
-
-        return PackVerificationOutcome.Verified(manifest, matchedAnchor.label)
-    }
+        } ?: rejected(PackRejectionReason.MANIFEST_MALFORMED, "manifest member is not valid JSON")
 
     private fun parseJson(bytes: ByteArray): JsonNode? =
         try {

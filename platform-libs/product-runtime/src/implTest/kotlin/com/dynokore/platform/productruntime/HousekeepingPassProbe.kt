@@ -11,18 +11,20 @@ import java.util.concurrent.atomic.AtomicInteger
  * Counts the housekeeping passes a named HikariCP pool completes while the probe is open (INV-T-5668). A test-only
  * hook built from what test sources reach: HikariCP's housekeeper logs "<pool> - Before cleanup stats (...)" at DEBUG
  * once per pass, and the probe counts those events on the pool's logger. It reads no pool setting, writes none, and
- * touches no production code; only the level of the HikariPool logger is raised to DEBUG while open (restored on close).
+ * touches no production code; only the level of the HikariPool logger is raised to DEBUG while open (restored on
+ * close).
  */
 class HousekeepingPassProbe(
-    private val poolName: String,
+    poolName: String,
 ) : AutoCloseable {
+    private val passPrefix = "$poolName - $PASS_MARKER"
     private val passes = AtomicInteger()
     private val logger = LoggerFactory.getLogger(HIKARI_POOL_LOGGER) as Logger
     private val previousLevel: Level? = logger.level
     private val appender =
         object : AppenderBase<ILoggingEvent>() {
             override fun append(event: ILoggingEvent) {
-                if (event.formattedMessage.startsWith("$poolName - $PASS_MARKER")) passes.incrementAndGet()
+                if (event.formattedMessage.startsWith(passPrefix)) passes.incrementAndGet()
             }
         }
 

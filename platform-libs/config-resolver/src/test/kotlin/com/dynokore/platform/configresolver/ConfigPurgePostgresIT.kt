@@ -115,6 +115,6 @@ class ConfigPurgePostgresIT {
             }
         }
         val tenantScope = ScopeRef(ScopeLevel.TENANT, "${tenant.value}")
-        h.setTenant(tenant, vp, tenantScope, listOf(SelectedOption("A")), LocalDate.now())
+        h.setTenant(tenant, vp, Slot(tenantScope), listOf(SelectedOption("A")), LocalDate.now())
     }
 }

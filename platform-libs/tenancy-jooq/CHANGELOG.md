@@ -6,6 +6,14 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-19
+### Added
+- `TableClasses.verify(List<Schema>)`, an additive overload of the vararg `verify`, for callers that hold the schemas as a list (INV-Q-7401; removes a spread copy in service-runtime)
+
+## [1.3.2] - 2026-10-19
+### Changed
+- detekt type-resolution findings fixed (platform-build 0.21.0, INV-Q-4629); no behaviour or API change
+
 ## [1.3.1] - 2026-10-19
 ### Changed
 - Metadata-only release (INV-Q-5337, G-DVS): depends on `tenancy-kernel` 4.0.0, whose published module metadata changed; no code change.
@@ -34,7 +42,6 @@ train is its own (README.md: "own version and changelog").
 ## [1.2.0] - 2026-10-17
 ### Changed
 - `TenancyJooq.problem` (owner answer INV-Q-4821 B, INV-T-5820) also refuses a configuration whose `TenancyTables` did not come from `TableClasses.verify`: the tables held by its predicate injector and by its statement check must be one instance, and that instance must not come from `TenancyTables.declared`; the text names `TableClasses.verify` and `INV-Q-4821`. Each `TenancyTables` carries an internal origin: `VERIFIED` (`TableClasses.verify`), `DECLARED` (`TenancyTables.declared`) or `LIBRARY` (`TenancyJooq.dslContext`, accepted). `declared`, `configure` and `install` still accept a declared instance; the refusal is the guard's, at start-up. The public API is unchanged.
-
 
 ## [1.1.1] - 2026-10-16
 ### Changed

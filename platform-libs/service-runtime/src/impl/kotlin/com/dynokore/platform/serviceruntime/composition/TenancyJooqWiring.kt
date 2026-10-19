@@ -56,7 +56,8 @@ data class TenancyProperties(
  *
  * @property appendOnlyTables `schema.table` names of the service's append-only tables; `AggregateStore` refuses them
  *   at construction, `LedgerAppender` is their access. Start-up fails, naming the entry, for a blank entry, one that is
- *   not two lower-case identifiers joined by one dot, or a repeated one (see [PersistenceGuards.requireAppendOnlyNames]).
+ *   not two lower-case identifiers joined by one dot, or a repeated one (see
+ * [PersistenceGuards.requireAppendOnlyNames]).
  */
 @ConfigurationProperties(prefix = "inv.persistence")
 data class PersistenceProperties(
@@ -100,7 +101,8 @@ class TenancyJooqWiring {
         transactionRunner: ObjectProvider<TransactionRunner>,
     ): TenancyTables {
         val generated = schemas.orderedStream().toList()
-        // INV-Q-4815: a service with a database (a TransactionRunner) supplies its generated schema; none is a failed check
+        // INV-Q-4815: a service with a database (a TransactionRunner) supplies its generated schema; none is a failed
+        // check
         check(transactionRunner.getIfAvailable() == null || generated.any { it.tables.isNotEmpty() }) {
             "the context has a TransactionRunner but no org.jooq.Schema bean that holds a table: declare one " +
                 "org.jooq.Schema bean per generated schema in the service's bootstrap module (INV-Q-4815, " +
@@ -121,7 +123,7 @@ class TenancyJooqWiring {
             .of(
                 platformScoped = (declared.platformScopedTables + libraries).distinct(),
                 reference = declared.referenceTables,
-            ).verify(*generated.toTypedArray())
+            ).verify(generated)
     }
 
     @Bean

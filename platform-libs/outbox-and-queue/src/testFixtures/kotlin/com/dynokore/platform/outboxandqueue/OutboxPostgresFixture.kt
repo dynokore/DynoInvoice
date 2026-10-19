@@ -64,7 +64,8 @@ class OutboxPostgresFixture(
     }
 
     /**
-     * A staleness monitor over this fixture's own pools (route R3, INV-Q-5245): the runtime login for the offsets and the
+     * A staleness monitor over this fixture's own pools (route R3, INV-Q-5245): the runtime login for the offsets and
+     * the
      * event log's reader; it takes and returns no JDBC type.
      */
     fun stalenessMonitor(
@@ -165,12 +166,15 @@ class OutboxPostgresFixture(
     fun ownerDataSource(): DataSource = dataSourceFor("outbox_owner", "outbox_owner_pw")
 
     /**
-     * A service's runtime role (outbox, inbox, state tables) on a pool of tenancy-kernel's [TestPoolFixture], behind its
+     * A service's runtime role (outbox, inbox, state tables) on a pool of tenancy-kernel's [TestPoolFixture], behind
+     * its
      * `TenantAwareDataSource` (the one test pool, owner ruling INV-Q-4508 (A)).
      */
     fun appDataSource(): DataSource = runtimePool()
 
-    /** The runtime login's pooled, tenant-aware DataSource: the one the event-log scope and the runners are built on. */
+    /**
+     * The runtime login's pooled, tenant-aware DataSource: the one the event-log scope and the runners are built on.
+     */
     fun runtimePool(): DataSource = pooled(APP, "outbox_app_pw")
 
     /** The purge login's pooled, tenant-aware DataSource. */
@@ -219,7 +223,8 @@ class OutboxPostgresFixture(
     fun purgeDataSource(): DataSource = dataSourceFor(PURGE, "eventlog_purge_pw")
 
     /**
-     * A [TenantScope] over the event log's own transactions on [source] (a pooled, tenant-aware DataSource such as [runtimePool]) (its own [TransactionRunnerImpl], as the
+     * A [TenantScope] over the event log's own transactions on [source] (a pooled, tenant-aware DataSource such as
+     * [runtimePool]) (its own [TransactionRunnerImpl], as the
      * service-runtime wiring builds it), binding [tenants] with the workload principal [principal].
      */
     fun eventLogScope(
@@ -280,7 +285,8 @@ class OutboxPostgresFixture(
 
     /**
      * Records, for every row inserted into [table] (`schema.table`) from now on, the transaction's bound actor (the
-     * actor tenancy-kernel's tenant binding signed, INV-REQ-854 b1, read through the schema's `bound_actor()`), so a test can read it back with [capturedActors]; forgets what an
+     * actor tenancy-kernel's tenant binding signed, INV-REQ-854 b1, read through the schema's `bound_actor()`), so a
+     * test can read it back with [capturedActors]; forgets what an
      * earlier call captured on [table].
      */
     fun captureActors(table: String) {
@@ -460,7 +466,8 @@ class OutboxPostgresFixture(
 
         /**
          * Init SQL that records, for every row inserted into each of [tables] (`schema.table`, which must exist by
-         * then), the transaction's bound actor (the actor tenancy-kernel's tenant binding signed, INV-REQ-854 b1; read through the schema's `bound_actor()`) in
+         * then), the transaction's bound actor (the actor tenancy-kernel's tenant binding signed, INV-REQ-854 b1; read
+         * through the schema's `bound_actor()`) in
          * `public.captured_actor`, so a test can read it back (INV-Q-5119: the trigger is container provisioning).
          * It runs as the superuser for the capture table and function, then as the owner for the triggers.
          */

@@ -39,7 +39,7 @@ class PackArtefact(
             )
 
     override fun hashCode(): Int =
-        arrayOf(
+        intArrayOf(
             manifest.contentHashCode(),
             checksums.contentHashCode(),
             signature.contentHashCode(),

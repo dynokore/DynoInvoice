@@ -156,13 +156,11 @@ class SpelBoundaryIT {
     class ExpressionConditionProbe
 
     @Configuration(proxyBeanMethods = false)
-    class ResolverReplacement {
-        companion object {
-            @JvmStatic
-            @Bean
-            fun replaceResolver(): BeanFactoryPostProcessor =
-                BeanFactoryPostProcessor { it.beanExpressionResolver = StandardBeanExpressionResolver() }
-        }
+    object ResolverReplacement {
+        @JvmStatic
+        @Bean
+        fun replaceResolver(): BeanFactoryPostProcessor =
+            BeanFactoryPostProcessor { it.beanExpressionResolver = StandardBeanExpressionResolver() }
     }
 
     private fun refused(
@@ -197,7 +195,8 @@ class SpelBoundaryIT {
             Tpl18WebService::class.java,
         ).web(WebApplicationType.SERVLET).initializers(bindingKeyInitializer)
 
-    // As SqlConfigurationKeyGuardContextIT: command-line arguments, no database (the TPL-16 keys are present and unused).
+    // As SqlConfigurationKeyGuardContextIT: command-line arguments, no database (the TPL-16 keys are present and
+    // unused).
     private fun arguments(secrets: Path): Array<String> =
         (
             listOf(

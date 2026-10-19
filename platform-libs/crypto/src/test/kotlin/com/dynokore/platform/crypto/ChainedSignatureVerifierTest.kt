@@ -128,7 +128,7 @@ class ChainedSignatureVerifierTest {
         val impostor = ca("root")
         val signer = leaf("signer", impostor)
         // the carried intermediate claims the listed root's name but is signed by the impostor key
-        val inter = ca("inter", impostor, nameOfIssuer = root.cert.subject)
+        val inter = ca("inter", impostor, Opts(nameOfIssuer = root.cert.subject))
         val lower = leaf("signer2", inter)
         assertEquals(untrusted, run(lower, listOf(lower, inter), listOf(root.der)))
         assertEquals(untrusted, run(signer, listOf(signer), listOf(root.der)))
@@ -137,14 +137,14 @@ class ChainedSignatureVerifierTest {
     @Test
     fun `a link whose issuer name differs from the next subject is untrusted although the key signed it`() {
         val root = ca("root")
-        val signer = leaf("signer", root, nameOfIssuer = X500Name("CN=somebody-else"))
+        val signer = leaf("signer", root, Opts(nameOfIssuer = X500Name("CN=somebody-else")))
         assertEquals(untrusted, run(signer, listOf(signer), listOf(root.der)))
     }
 
     @Test
     fun `an intermediate that is not a CA is untrusted`() {
         val root = ca("root")
-        val inter = ca("inter", root, isCa = false)
+        val inter = ca("inter", root, Opts(isCa = false))
         val signer = leaf("signer", inter)
         assertEquals(untrusted, run(signer, listOf(signer, inter), listOf(root.der)))
     }
@@ -152,14 +152,14 @@ class ChainedSignatureVerifierTest {
     @Test
     fun `an intermediate without keyCertSign is untrusted`() {
         val root = ca("root")
-        val inter = ca("inter", root, usage = KeyUsage.digitalSignature)
+        val inter = ca("inter", root, Opts(usage = KeyUsage.digitalSignature))
         val signer = leaf("signer", inter)
         assertEquals(untrusted, run(signer, listOf(signer, inter), listOf(root.der)))
     }
 
     @Test
     fun `an exceeded pathLenConstraint is untrusted`() {
-        val root = ca("root", pathLen = 0)
+        val root = ca("root", opts = Opts(pathLen = 0))
         val inter = ca("inter", root)
         val signer = leaf("signer", inter)
         assertEquals(untrusted, run(signer, listOf(signer, inter), listOf(root.der)))
@@ -167,8 +167,8 @@ class ChainedSignatureVerifierTest {
 
     @Test
     fun `a pathLenConstraint that is met is accepted`() {
-        val root = ca("root", pathLen = 1)
-        val inter = ca("inter", root, pathLen = 0)
+        val root = ca("root", opts = Opts(pathLen = 1))
+        val inter = ca("inter", root, Opts(pathLen = 0))
         val signer = leaf("signer", inter)
         assertEquals(verified(0), run(signer, listOf(signer, inter), listOf(root.der)))
     }
@@ -176,24 +176,24 @@ class ChainedSignatureVerifierTest {
     @Test
     fun `a signer without digitalSignature is untrusted`() {
         val root = ca("root")
-        val signer = leaf("signer", root, usage = KeyUsage.keyEncipherment)
+        val signer = leaf("signer", root, Opts(usage = KeyUsage.keyEncipherment))
         assertEquals(untrusted, run(signer, listOf(signer), listOf(root.der)))
     }
 
     @Test
     fun `a CA certificate as the signer is untrusted`() {
         val root = ca("root")
-        val signer = ca("signing-ca", root, usage = KeyUsage.keyCertSign or KeyUsage.digitalSignature)
+        val signer = ca("signing-ca", root, Opts(usage = KeyUsage.keyCertSign or KeyUsage.digitalSignature))
         assertEquals(untrusted, run(signer, listOf(signer), listOf(root.der)))
     }
 
     @Test
     fun `an unknown critical extension is untrusted`() {
         val root = ca("root")
-        val inter = ca("inter", root, criticalUnknown = true)
+        val inter = ca("inter", root, Opts(criticalUnknown = true))
         val signer = leaf("signer", inter)
         assertEquals(untrusted, run(signer, listOf(signer, inter), listOf(root.der)))
-        val signer2 = leaf("signer2", root, criticalUnknown = true)
+        val signer2 = leaf("signer2", root, Opts(criticalUnknown = true))
         assertEquals(untrusted, run(signer2, listOf(signer2), listOf(root.der)))
     }
 
@@ -209,8 +209,8 @@ class ChainedSignatureVerifierTest {
         val signer = leaf("signer", ca("unrelated"))
         // same subject, each its own key: every one is a candidate issuer of every other
         val shared = keyPair()
-        val first = ca("crowd", pair = shared)
-        val crowd = listOf(first) + List(39) { ca("crowd", first, pair = shared) }
+        val first = ca("crowd", opts = Opts(pair = shared))
+        val crowd = listOf(first) + List(39) { ca("crowd", first, Opts(pair = shared)) }
         val started = System.nanoTime()
         val outcome = run(signer, listOf(signer) + crowd, listOf(root.der))
         assertInstanceOf(DetachedVerification.SignatureInvalid::class.java, outcome)
@@ -221,9 +221,9 @@ class ChainedSignatureVerifierTest {
     fun `a bounded crowd of look-alike CAs is searched to a refusal in bounded time`() {
         val root = ca("root")
         val shared = keyPair()
-        val first = ca("crowd", pair = shared)
+        val first = ca("crowd", opts = Opts(pair = shared))
         // cross-certificates: one name and one key, many certificates, each valid under every other
-        val crowd = listOf(first) + List(14) { ca("crowd", first, pair = shared) }
+        val crowd = listOf(first) + List(14) { ca("crowd", first, Opts(pair = shared)) }
         val signer = leaf("signer", first)
         val started = System.nanoTime()
         assertEquals(untrusted, run(signer, listOf(signer) + crowd, listOf(root.der)))
@@ -233,36 +233,36 @@ class ChainedSignatureVerifierTest {
     @Test
     fun `a link signed with another signature algorithm is untrusted`() {
         val root = ca("root")
-        val signer = leaf("signer", root, linkSignature = "SHA384withECDSA")
+        val signer = leaf("signer", root, Opts(linkSignature = "SHA384withECDSA"))
         assertEquals(untrusted, run(signer, listOf(signer), listOf(root.der)))
     }
 
     @Test
     fun `a CA signer that is itself the listed anchor is untrusted`() {
-        val signer = ca("signing-ca", null, usage = KeyUsage.keyCertSign or KeyUsage.digitalSignature)
+        val signer = ca("signing-ca", null, Opts(usage = KeyUsage.keyCertSign or KeyUsage.digitalSignature))
         assertEquals(untrusted, run(signer, listOf(signer), listOf(signer.der)))
     }
 
     @Test
     fun `a critical extendedKeyUsage is untrusted and a non-critical one is ignored`() {
         val root = ca("root")
-        val inter = ca("inter", root, eku = true)
+        val inter = ca("inter", root, Opts(eku = true))
         val underCritical = leaf("signer", inter)
         assertEquals(untrusted, run(underCritical, listOf(underCritical, inter), listOf(root.der)))
-        val critical = leaf("signer2", root, eku = true)
+        val critical = leaf("signer2", root, Opts(eku = true))
         assertEquals(untrusted, run(critical, listOf(critical), listOf(root.der)))
-        val relaxedInter = ca("inter2", root, eku = false)
-        val relaxed = leaf("signer3", relaxedInter, eku = false)
+        val relaxedInter = ca("inter2", root, Opts(eku = false))
+        val relaxed = leaf("signer3", relaxedInter, Opts(eku = false))
         assertEquals(verified(0), run(relaxed, listOf(relaxed, relaxedInter), listOf(root.der)))
     }
 
     @Test
     fun `a self-issued intermediate counts against pathLenConstraint`() {
-        val strict = ca("root", pathLen = 0)
+        val strict = ca("root", opts = Opts(pathLen = 0))
         val strictRollover = ca("root", strict) // self-issued: issuer name equals subject name
         val strictSigner = leaf("signer", strictRollover)
         assertEquals(untrusted, run(strictSigner, listOf(strictSigner, strictRollover), listOf(strict.der)))
-        val relaxed = ca("root", pathLen = 1)
+        val relaxed = ca("root", opts = Opts(pathLen = 1))
         val relaxedRollover = ca("root", relaxed)
         val relaxedSigner = leaf("signer2", relaxedRollover)
         assertEquals(verified(0), run(relaxedSigner, listOf(relaxedSigner, relaxedRollover), listOf(relaxed.der)))
@@ -293,35 +293,35 @@ class ChainedSignatureVerifierTest {
     @Test
     fun `an expired signer is untrusted`() {
         val root = ca("root")
-        val signer = leaf("signer", root, notAfter = soon)
+        val signer = leaf("signer", root, Opts(notAfter = soon))
         assertEquals(untrusted, run(signer, listOf(signer), listOf(root.der), at = late))
     }
 
     @Test
     fun `a not-yet-valid signer is untrusted`() {
         val root = ca("root")
-        val signer = leaf("signer", root, notBefore = now.minus(30, ChronoUnit.DAYS))
+        val signer = leaf("signer", root, Opts(notBefore = now.minus(30, ChronoUnit.DAYS)))
         assertEquals(untrusted, run(signer, listOf(signer), listOf(root.der), at = now.minus(60, ChronoUnit.DAYS)))
     }
 
     @Test
     fun `an expired intermediate is untrusted`() {
         val root = ca("root")
-        val inter = ca("inter", root, notAfter = soon)
+        val inter = ca("inter", root, Opts(notAfter = soon))
         val signer = leaf("signer", inter)
         assertEquals(untrusted, run(signer, listOf(signer, inter), listOf(root.der), at = late))
     }
 
     @Test
     fun `an expired anchor is untrusted`() {
-        val root = ca("root", notAfter = soon)
+        val root = ca("root", opts = Opts(notAfter = soon))
         val signer = leaf("signer", root)
         assertEquals(untrusted, run(signer, listOf(signer), listOf(root.der), at = late))
     }
 
     @Test
     fun `an expired self-listed signing certificate is untrusted`() {
-        val signer = leaf("signer", null, notAfter = soon)
+        val signer = leaf("signer", null, Opts(notAfter = soon))
         assertEquals(untrusted, run(signer, listOf(signer), listOf(signer.der), at = late))
     }
 
@@ -338,7 +338,7 @@ class ChainedSignatureVerifierTest {
     fun `tampered content is a signature failure`() {
         val root = ca("root")
         val signer = leaf("signer", root)
-        val outcome = run(signer, listOf(signer), listOf(root.der), signed = content + 1)
+        val outcome = run(signer, listOf(signer), listOf(root.der), options = RunOptions(signed = content + 1))
         assertInstanceOf(DetachedVerification.SignatureInvalid::class.java, outcome)
     }
 
@@ -346,7 +346,8 @@ class ChainedSignatureVerifierTest {
     fun `another algorithm is a signature failure`() {
         val root = ca("root")
         val signer = leaf("signer", root)
-        val outcome = run(signer, listOf(signer), listOf(root.der), signatureName = "SHA384withECDSA")
+        val options = RunOptions(signatureName = "SHA384withECDSA")
+        val outcome = run(signer, listOf(signer), listOf(root.der), options = options)
         assertInstanceOf(DetachedVerification.SignatureInvalid::class.java, outcome)
     }
 
@@ -366,19 +367,18 @@ class ChainedSignatureVerifierTest {
         carried: List<Node>,
         anchors: List<ByteArray>,
         at: Instant = now,
-        signed: ByteArray = content,
-        signatureName: String = "SHA256withECDSA",
+        options: RunOptions = RunOptions(),
     ): DetachedVerification {
         val digests = JcaDigestCalculatorProviderBuilder().setProvider(BouncyCastleProvider.PROVIDER_NAME).build()
         val contentSigner =
-            JcaContentSignerBuilder(signatureName)
+            JcaContentSignerBuilder(options.signatureName)
                 .setProvider(BouncyCastleProvider.PROVIDER_NAME)
                 .build(signer.pair.private)
         val generator = CMSSignedDataGenerator()
         generator.addSignerInfoGenerator(SignerInfoGeneratorBuilder(digests).build(contentSigner, signer.cert))
         generator.addCertificates(JcaCertStore(carried.map { it.cert }))
         val signature = generator.generate(CMSProcessableByteArray(content), false).encoded
-        return cms.verify(signed, signature, alg, anchors, at)
+        return cms.verify(options.signed ?: content, signature, alg, anchors, at)
     }
 
     /** A root, [intermediates] CAs below it and a signer: the root, the signer and the certificates to carry. */
@@ -397,66 +397,40 @@ class ChainedSignatureVerifierTest {
     private fun ca(
         name: String,
         issuer: Node? = null,
-        pathLen: Int? = null,
-        isCa: Boolean = true,
-        usage: Int = KeyUsage.keyCertSign or KeyUsage.cRLSign,
-        nameOfIssuer: X500Name? = null,
-        notBefore: Instant = now.minus(90, ChronoUnit.DAYS),
-        notAfter: Instant = now.plus(30, ChronoUnit.DAYS),
-        criticalUnknown: Boolean = false,
-        pair: KeyPair? = null,
-        eku: Boolean? = null,
+        opts: Opts = Opts(),
     ): Node =
         issue(
             name,
             issuer,
-            if (pathLen == null) BasicConstraints(isCa) else BasicConstraints(pathLen),
-            usage,
-            nameOfIssuer,
-            notBefore,
-            notAfter,
-            criticalUnknown,
-            pair = pair,
-            eku = eku,
+            if (opts.pathLen == null) BasicConstraints(opts.isCa) else BasicConstraints(opts.pathLen),
+            opts.usage ?: (KeyUsage.keyCertSign or KeyUsage.cRLSign),
+            opts,
         )
 
     /** A signing certificate; [issuer] `null` makes it self-signed. */
     private fun leaf(
         name: String,
         issuer: Node?,
-        usage: Int = KeyUsage.digitalSignature,
-        notBefore: Instant = now.minus(90, ChronoUnit.DAYS),
-        notAfter: Instant = now.plus(30, ChronoUnit.DAYS),
-        criticalUnknown: Boolean = false,
-        nameOfIssuer: X500Name? = null,
-        linkSignature: String = "SHA256withECDSA",
-        eku: Boolean? = null,
-    ): Node =
-        issue(name, issuer, null, usage, nameOfIssuer, notBefore, notAfter, criticalUnknown, linkSignature, eku = eku)
+        opts: Opts = Opts(),
+    ): Node = issue(name, issuer, null, opts.usage ?: KeyUsage.digitalSignature, opts)
 
     private fun issue(
         name: String,
         issuer: Node?,
         basic: BasicConstraints?,
         usage: Int,
-        issuerName: X500Name?,
-        notBefore: Instant,
-        notAfter: Instant,
-        criticalUnknown: Boolean,
-        linkSignature: String = "SHA256withECDSA",
-        pair: KeyPair? = null,
-        eku: Boolean? = null,
+        opts: Opts,
     ): Node {
-        val pair = pair ?: keyPair()
+        val pair = opts.pair ?: keyPair()
         val subject = X500Name("CN=$name")
         val signingPair = issuer?.pair ?: pair
-        val issuerX500 = issuerName ?: issuer?.cert?.subject ?: subject
+        val issuerX500 = opts.nameOfIssuer ?: issuer?.cert?.subject ?: subject
         val builder =
             JcaX509v3CertificateBuilder(
                 issuerX500,
                 BigInteger.valueOf(serial.incrementAndGet()),
-                Date.from(notBefore),
-                Date.from(notAfter),
+                Date.from(opts.notBefore ?: now.minus(90, ChronoUnit.DAYS)),
+                Date.from(opts.notAfter ?: now.plus(30, ChronoUnit.DAYS)),
                 subject,
                 pair.public,
             )
@@ -464,18 +438,38 @@ class ChainedSignatureVerifierTest {
             builder.addExtension(Extension.basicConstraints, true, basic)
         }
         builder.addExtension(Extension.keyUsage, true, KeyUsage(usage))
-        if (eku != null) {
-            builder.addExtension(Extension.extendedKeyUsage, eku, ExtendedKeyUsage(KeyPurposeId.id_kp_codeSigning))
+        if (opts.eku != null) {
+            builder.addExtension(Extension.extendedKeyUsage, opts.eku, ExtendedKeyUsage(KeyPurposeId.id_kp_codeSigning))
         }
-        if (criticalUnknown) {
+        if (opts.criticalUnknown) {
             builder.addExtension(ASN1ObjectIdentifier("1.3.6.1.4.1.99999.1"), true, DEROctetString(byteArrayOf(1)))
         }
         val signer =
-            JcaContentSignerBuilder(linkSignature)
+            JcaContentSignerBuilder(opts.linkSignature)
                 .setProvider(BouncyCastleProvider.PROVIDER_NAME)
                 .build(signingPair.private)
         return Node(name, pair, builder.build(signer))
     }
+
+    /** The optional properties of a certificate; a `null` date or usage takes the default of [ca] or [leaf]. */
+    private data class Opts(
+        val pathLen: Int? = null,
+        val isCa: Boolean = true,
+        val usage: Int? = null,
+        val nameOfIssuer: X500Name? = null,
+        val notBefore: Instant? = null,
+        val notAfter: Instant? = null,
+        val criticalUnknown: Boolean = false,
+        val pair: KeyPair? = null,
+        val eku: Boolean? = null,
+        val linkSignature: String = "SHA256withECDSA",
+    )
+
+    /** The bytes the verifier is given (`null`: the signed content) and the signature algorithm. */
+    private class RunOptions(
+        val signed: ByteArray? = null,
+        val signatureName: String = "SHA256withECDSA",
+    )
 
     private fun keyPair(): KeyPair {
         val generator = KeyPairGenerator.getInstance("EC", BouncyCastleProvider.PROVIDER_NAME)

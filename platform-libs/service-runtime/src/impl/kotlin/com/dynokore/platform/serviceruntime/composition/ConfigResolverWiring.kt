@@ -37,7 +37,8 @@ import java.time.Clock
 
 /**
  * config-resolver's ports (INV-T-2875, INV-Q-3710), when the service embeds its impl half: over the service's
- * schema, each on the module's DSLContext of the [TransactionRunner] (INV-T-4517, ruling INV-Q-5275) and its [VariationPointCatalogue], for the deployment form `gst.form`. The policy writer uses the
+ * schema, each on the module's DSLContext of the [TransactionRunner] (INV-T-4517, ruling INV-Q-5275) and its
+ * [VariationPointCatalogue], for the deployment form `gst.form`. The policy writer uses the
  * service's [DelegationProbe], [BackdatingFloor] and [ValueConstraints] when it declares them, and its outbox
  * when it has one.
  *

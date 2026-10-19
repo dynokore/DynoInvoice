@@ -2,7 +2,9 @@ package com.dynokore.platform.serviceruntime.binding
 
 import java.util.concurrent.ConcurrentHashMap
 
-/** A [SecretStore] over a mutable map: a test rotates a secret with [put] or [remove], as a mounted file would change. */
+/**
+ * A [SecretStore] over a mutable map: a test rotates a secret with [put] or [remove], as a mounted file would change.
+ */
 class FakeSecretStore : SecretStore {
     private val values = ConcurrentHashMap<SecretRef, String>()
 

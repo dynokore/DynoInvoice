@@ -15,11 +15,16 @@ object BindingKeyMigration {
     private const val SLOT_CURRENT = "current"
     private const val SLOT_PREVIOUS = "previous"
 
-    /** The signed body `<tenant>.<actor>.<expiry>` in one pattern, applied after the MAC comparison (INV-Q-7088 (a)). */
+    /**
+     * The signed body `<tenant>.<actor>.<expiry>` in one pattern, applied after the MAC comparison (INV-Q-7088 (a)).
+     */
     private const val BODY_SHAPE =
         "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.[A-Za-z0-9_-]+\\.[0-9]{1,12}$"
 
-    /** Hex of ASCII bytes 01 to 7F: the fast path before the full RFC 3629 test (INV-Q-7088 (b)); it accepts no NUL byte. */
+    /**
+     * Hex of ASCII bytes 01 to 7F: the fast path before the full RFC 3629 test (INV-Q-7088 (b)); it accepts no NUL
+     * byte.
+     */
     private const val ASCII_NO_NUL_HEX = "^(0[1-9a-f]|[1-7][0-9a-f])*$"
 
     /**
@@ -56,9 +61,26 @@ object BindingKeyMigration {
         runtimeRole: String,
         pgcryptoSchema: String = "public",
     ): String {
+        // Each part checks the names it uses; these four checks keep the order in which a bad name is refused.
+        SqlIdentifier.require(schema, "schema")
+        SqlIdentifier.require(sysRole, "sysRole")
+        SqlIdentifier.require(runtimeRole, "runtimeRole")
+        SqlIdentifier.require(pgcryptoSchema, "pgcryptoSchema")
+        return listOf(
+            keyTable(schema, sysRole, pgcryptoSchema),
+            verifiedFunction(schema, pgcryptoSchema),
+            boundTenantFunction(schema, pgcryptoSchema),
+            boundActorFunction(schema, sysRole, runtimeRole),
+        ).joinToString("\n")
+    }
+
+    private fun keyTable(
+        schema: String,
+        sysRole: String,
+        pgcryptoSchema: String,
+    ): String {
         val s = SqlIdentifier.require(schema, "schema")
         val sys = SqlIdentifier.require(sysRole, "sysRole")
-        val runtime = SqlIdentifier.require(runtimeRole, "runtimeRole")
         val crypto = SqlIdentifier.require(pgcryptoSchema, "pgcryptoSchema")
         return """
             |DO $$
@@ -78,6 +100,16 @@ object BindingKeyMigration {
             |);
             |COMMENT ON TABLE $s.binding_key IS 'platform-scoped: no tenant data';
             |REVOKE ALL ON TABLE $s.binding_key FROM PUBLIC;
+            """.trimMargin()
+    }
+
+    private fun verifiedFunction(
+        schema: String,
+        pgcryptoSchema: String,
+    ): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        val crypto = SqlIdentifier.require(pgcryptoSchema, "pgcryptoSchema")
+        return """
             |CREATE FUNCTION $s.binding_verified() RETURNS text[]
             |    LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, $s, pg_temp AS $$
             |DECLARE
@@ -109,6 +141,16 @@ object BindingKeyMigration {
             |    RETURN NULL;
             |END;
             |$$;
+            """.trimMargin()
+    }
+
+    private fun boundTenantFunction(
+        schema: String,
+        pgcryptoSchema: String,
+    ): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        val crypto = SqlIdentifier.require(pgcryptoSchema, "pgcryptoSchema")
+        return """
             |CREATE FUNCTION $s.bound_tenant() RETURNS uuid
             |    LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, $s, pg_temp AS $$
             |DECLARE
@@ -133,6 +175,18 @@ object BindingKeyMigration {
             |    RETURN left(body, 36)::uuid;
             |END;
             |$$;
+            """.trimMargin()
+    }
+
+    private fun boundActorFunction(
+        schema: String,
+        sysRole: String,
+        runtimeRole: String,
+    ): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        val sys = SqlIdentifier.require(sysRole, "sysRole")
+        val runtime = SqlIdentifier.require(runtimeRole, "runtimeRole")
+        return """
             |CREATE FUNCTION $s.bound_actor() RETURNS text
             |    LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, $s, pg_temp
             |    AS $$

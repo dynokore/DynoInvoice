@@ -65,7 +65,7 @@ class SharedRateLimitIT {
                                     start.await()
                                     repeat(ATTEMPTS) {
                                         for (lane in listOf(Lane.REPROCESSING, Lane.BACKFILL)) {
-                                            limiter.acquire(lane)?.let { granted.add(it.lane) }
+                                            limiter.acquire(lane)?.let { permit -> granted.add(permit.lane) }
                                         }
                                     }
                                 }

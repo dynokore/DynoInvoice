@@ -4,7 +4,8 @@ import org.jooq.DSLContext
 import java.time.LocalDate
 
 /**
- * [PolicyHistory] over the setting tables, through jOOQ's DSL on the DSLContext of tenancy-jooq's factory, in the caller's
+ * [PolicyHistory] over the setting tables, through jOOQ's DSL on the DSLContext of tenancy-jooq's factory, in the
+ * caller's
  * open transaction (INV-REQ-1129, INV-AC-1146). In force on a date is what resolution gave on that date (INV-REQ-1243
  * behaviour #5); changed since is every version recorded after the date, on the installation business date,
  * or taking effect after it (ruling INV-Q-3171).

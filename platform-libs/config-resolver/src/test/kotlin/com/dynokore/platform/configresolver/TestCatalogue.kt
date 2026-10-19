@@ -21,50 +21,64 @@ object TestCatalogue {
             OptionSpec("FOUR_EYES_PLUS", Strictness.STRICTER),
         )
 
+    /** The mutable shape of a row: a tweak sets fields before the definition is built and validated. */
+    private class Draft(
+        val key: VariationPointKey,
+        val levels: Set<ScopeLevel>,
+        val options: List<OptionSpec>,
+    ) {
+        var vpClass = VpClass.CONTROL
+        var status = VpStatus.AVAILABLE
+        var setBy = setOf("tax.approver")
+        var defaultByForm: Map<DeploymentForm, String> = emptyMap()
+        var mustBeElected = false
+        var multiSelect = false
+
+        fun build() =
+            VariationPointDefinition(
+                key = key,
+                vpClass = vpClass,
+                modifiers = emptySet(),
+                status = status,
+                scopeLevels = levels,
+                setBy = setBy,
+                options = options,
+                defaultByForm = defaultByForm,
+                mustBeElected = mustBeElected,
+                multiSelect = multiSelect,
+            )
+    }
+
     private fun row(
         key: VariationPointKey,
         levels: Set<ScopeLevel>,
-        status: VpStatus = VpStatus.AVAILABLE,
         options: List<OptionSpec> = looseFirst,
-        vpClass: VpClass = VpClass.CONTROL,
-        setBy: Set<String> = setOf("tax.approver"),
-        defaultByForm: Map<DeploymentForm, String> = emptyMap(),
-        mustBeElected: Boolean = false,
-        multiSelect: Boolean = false,
-    ) = VariationPointDefinition(
-        key = key,
-        vpClass = vpClass,
-        modifiers = emptySet(),
-        status = status,
-        scopeLevels = levels,
-        setBy = setBy,
-        options = options,
-        defaultByForm = defaultByForm,
-        mustBeElected = mustBeElected,
-        multiSelect = multiSelect,
-    )
+        tweak: Draft.() -> Unit = {},
+    ) = Draft(key, levels, options).apply(tweak).build()
 
     val rows: Map<VariationPointKey, VariationPointDefinition> =
         listOf(
             row(ENTITY_POLICY, setOf(ScopeLevel.ENTITY, ScopeLevel.TENANT)),
             row(ALL_LEVELS, ScopeLevel.entries.toSet()),
-            row(PLANNED, setOf(ScopeLevel.TENANT), status = VpStatus.PLANNED),
-            row(RETIRED, setOf(ScopeLevel.TENANT), status = VpStatus.RETIRED),
+            row(PLANNED, setOf(ScopeLevel.TENANT)) { status = VpStatus.PLANNED },
+            row(RETIRED, setOf(ScopeLevel.TENANT)) { status = VpStatus.RETIRED },
             row(
                 MUST_ELECT,
                 setOf(ScopeLevel.ENTITY),
                 options = listOf(OptionSpec("STANDARD", Strictness.NEUTRAL), OptionSpec("CASH", Strictness.NEUTRAL)),
-                vpClass = VpClass.POLICY,
-                mustBeElected = true,
-            ),
+            ) {
+                vpClass = VpClass.POLICY
+                mustBeElected = true
+            },
             row(
                 BY_FORM,
                 setOf(ScopeLevel.INSTALLATION),
                 options = listOf(OptionSpec("ON", Strictness.NEUTRAL), OptionSpec("OFF", Strictness.NEUTRAL)),
-                vpClass = VpClass.POLICY,
-                setBy = setOf("platform.engineer", "deployment.operator"),
-                defaultByForm = mapOf(DeploymentForm.SAAS to "ON", DeploymentForm.PRIVATE to "OFF"),
-            ),
+            ) {
+                vpClass = VpClass.POLICY
+                setBy = setOf("platform.engineer", "deployment.operator")
+                defaultByForm = mapOf(DeploymentForm.SAAS to "ON", DeploymentForm.PRIVATE to "OFF")
+            },
             row(
                 INSTALLATION_ONLY,
                 setOf(ScopeLevel.INSTALLATION),
@@ -73,9 +87,10 @@ object TestCatalogue {
                         OptionSpec("PLATFORM_DEFAULT", Strictness.DEFAULT),
                         OptionSpec("OPERATOR_MAXIMUM", Strictness.NEUTRAL, typed = true),
                     ),
-                vpClass = VpClass.PARAMETER,
-                setBy = setOf("platform.engineer", "deployment.operator"),
-            ),
+            ) {
+                vpClass = VpClass.PARAMETER
+                setBy = setOf("platform.engineer", "deployment.operator")
+            },
             row(
                 MULTI,
                 setOf(ScopeLevel.TENANT),
@@ -85,9 +100,10 @@ object TestCatalogue {
                         OptionSpec("SMS", Strictness.NEUTRAL),
                         OptionSpec("WEBHOOK", Strictness.NEUTRAL),
                     ),
-                vpClass = VpClass.POLICY,
-                multiSelect = true,
-            ),
+            ) {
+                vpClass = VpClass.POLICY
+                multiSelect = true
+            },
             row(
                 TYPED,
                 setOf(ScopeLevel.ENTITY),
@@ -96,8 +112,7 @@ object TestCatalogue {
                         OptionSpec("DAYS_30", Strictness.DEFAULT),
                         OptionSpec("OTHER_PERIOD", Strictness.NEUTRAL, typed = true),
                     ),
-                vpClass = VpClass.PARAMETER,
-            ),
+            ) { vpClass = VpClass.PARAMETER },
         ).associateBy { it.key }
 
     val catalogue = VariationPointCatalogue { rows[it] }

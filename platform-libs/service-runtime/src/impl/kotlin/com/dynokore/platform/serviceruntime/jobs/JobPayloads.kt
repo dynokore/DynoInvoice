@@ -48,6 +48,7 @@ object JobPayloads {
         return mapper.writeValueAsString(node)
     }
 
+    @Suppress("LongParameterList") // a public factory with defaulted parameters; INV-Q-4629 (CS-50)
     fun jobRunRecorded(
         job: JobDefinition,
         target: JobTarget,

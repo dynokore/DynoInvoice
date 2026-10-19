@@ -142,7 +142,7 @@ private class Delivery(
     val dsl = JooqKit.module("submission", tenants, scope.transactions)
     val limiter = LaneRateLimiter(scope, dsl, "submission", LaneLimits())
     val queue = JdbcWorkQueue(scope, dsl, "submission", limiter, MutableClock(), consumer)
-    val delivery = JdbcReplayDelivery(queue, scope, inbox)
+    val replayDelivery = JdbcReplayDelivery(queue, scope, inbox)
     private val feeder = QueueKit(harness, consumer = consumer)
 
     /** Queues a replay item for [tenant] holding [raw]. */
@@ -179,7 +179,7 @@ private class Delivery(
     class ModeHandler : EventHandler {
         override fun handle(event: Envelope): HandleOutcome =
             when {
-                event.dataJson.contains("\"throw\"") -> throw IllegalStateException("handler failed (fixture)")
+                event.dataJson.contains("\"throw\"") -> error("handler failed (fixture)")
                 event.dataJson.contains("\"ignore\"") -> HandleOutcome.IGNORED
                 else -> HandleOutcome.APPLIED
             }
@@ -240,7 +240,7 @@ class ReplayDeliveryConnectionsIT {
             val d = Delivery(harness, CountingDataSource(harness.fixture.runtimePool()))
             for ((name, raw, expected) in inputs()) {
                 d.enqueue(tenantA, raw)
-                assertEquals(expected, d.delivery.runOnce(), name)
+                assertEquals(expected, d.replayDelivery.runOnce(), name)
                 assertEquals(0, d.items(), "$name: completion deletes the item")
             }
             // three rejected envelopes, one letter each: consumer, topic, replay offset 0, tenant, reason, raw
@@ -290,7 +290,7 @@ class ReplayDeliveryConnectionsIT {
         OutboxHarness(image).use { harness ->
             val d = Delivery(harness, CountingDataSource(harness.fixture.runtimePool()))
             d.enqueue(tenantA, json.write(envelope(tenantA, "throw")))
-            assertThrows(IllegalStateException::class.java) { d.delivery.runOnce() }
+            assertThrows(IllegalStateException::class.java) { d.replayDelivery.runOnce() }
             assertEquals(1, d.items())
             assertEquals(0, d.letters())
             assertNotNull(d.queue.claimNext(), "claimable again")
@@ -306,16 +306,16 @@ class ReplayDeliveryConnectionsIT {
             for ((name, raw, _) in inputs()) {
                 d.enqueue(tenantA, raw)
                 source.resetPeak()
-                d.delivery.runOnce()
+                d.replayDelivery.runOnce()
                 assertEquals(1, source.peak(), "$name: peak connections of one runOnce()")
             }
             d.enqueue(tenantA, json.write(envelope(tenantA, "throw")))
             source.resetPeak()
-            assertThrows(IllegalStateException::class.java) { d.delivery.runOnce() }
+            assertThrows(IllegalStateException::class.java) { d.replayDelivery.runOnce() }
             assertEquals(1, source.peak(), "handler failure and release")
             // retry: the released item is delivered again, one connection again
             source.resetPeak()
-            assertThrows(IllegalStateException::class.java) { d.delivery.runOnce() }
+            assertThrows(IllegalStateException::class.java) { d.replayDelivery.runOnce() }
             assertEquals(1, source.peak(), "retry")
         }
     }
@@ -360,7 +360,7 @@ class ReplayDeliveryConnectionsIT {
             try {
                 assertTrue(held.await(10, TimeUnit.SECONDS))
                 val started = System.nanoTime()
-                assertEquals(ReplayOutcome.REJECTED, d.delivery.runOnce())
+                assertEquals(ReplayOutcome.REJECTED, d.replayDelivery.runOnce())
                 val seconds = (System.nanoTime() - started) / 1_000_000_000.0
                 assertTrue(seconds < 5, "the delivery took ${seconds}s")
                 assertEquals(1, d.letters())
@@ -382,14 +382,14 @@ class ReplayDeliveryConnectionsIT {
             // the dead-letter function fails: the item stays, no letter exists
             d.enqueue(tenantA, "{not json")
             source.failOn = { it.contains(OutboxSchema.DEAD_LETTER_RECORD) }
-            assertThrows(IllegalStateException::class.java) { d.delivery.runOnce() }
+            assertThrows(IllegalStateException::class.java) { d.replayDelivery.runOnce() }
             assertEquals(1, d.items())
             assertEquals(0, d.letters())
             assertEquals(1, d.pending(), "claimable again")
 
             // the completion fails after the dead letter is recorded: the item is claimable, the letter stands
             source.failOn = { it.startsWith("delete from \"submission\".\"work_queue\"") }
-            assertThrows(IllegalStateException::class.java) { d.delivery.runOnce() }
+            assertThrows(IllegalStateException::class.java) { d.replayDelivery.runOnce() }
             assertEquals(1, d.items())
             assertEquals(1, d.letters(), "letters after a failed completion (main gives the same number)")
             source.failOn = { false }

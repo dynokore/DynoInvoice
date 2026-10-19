@@ -31,6 +31,7 @@ class DatabaseCredentialsConfiguration {
     @Configuration(proxyBeanMethods = false)
     @ConditionalOnClass(name = [HIKARI_DATA_SOURCE])
     @ConditionalOnProperty(name = [DATASOURCE_CREDENTIAL])
+    @Suppress("UtilityClassWithPublicConstructor") // Spring @Configuration of @Beans; INV-Q-4629, INV-Q-7405 (CS-50)
     class ApplicationPool {
         companion object {
             @JvmStatic
@@ -92,7 +93,7 @@ internal class ApplicationPoolCredentials(
         if (beanName != APPLICATION_DATA_SOURCE) return bean
         val credential = DatabaseCredentialsConfiguration.DATASOURCE_CREDENTIAL
         val pool = bean as? HikariDataSource
-        check(pool != null) {
+        checkNotNull(pool) {
             "$credential needs Spring Boot's application DataSource to be a HikariDataSource (STK-17), " +
                 "but bean '$beanName' is a ${bean.javaClass.name}"
         }

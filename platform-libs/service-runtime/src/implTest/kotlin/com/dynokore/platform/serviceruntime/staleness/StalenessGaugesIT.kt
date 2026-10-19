@@ -52,22 +52,8 @@ class StalenessGaugesIT {
             val registry = SimpleMeterRegistry()
             val gauges = StalenessGauges(monitor, rules, registry)
 
-            // nothing unconsumed: no lag; thresholds are the configured (provisional) values
-            gauges.refresh()
-            lag(registry, CANONICAL) shouldBe 0.0
-            lag(registry, POLICY) shouldBe 0.0
-            threshold(registry, CANONICAL) shouldBe 300.0
-            threshold(registry, POLICY) shouldBe 1800.0
-            // exactly two series per name, one per rule, each labelled consumer and event_type only (CS-36)
-            listOf(LAG_NAME, THRESHOLD_NAME).forEach { name ->
-                val found = registry.meters.filter { it.id.name == name }
-                found.size shouldBe 2
-                found.forEach { meter ->
-                    meter.id.tags.map { it.key } shouldContainExactlyInAnyOrder listOf("consumer", "event_type")
-                    meter.id.baseUnit shouldBe "seconds"
-                }
-            }
-            registry.meters.map { it.id.name }.toSet() shouldBe setOf(LAG_NAME, THRESHOLD_NAME)
+            assertNoLag(gauges, registry)
+            assertTwoSeriesPerName(registry)
 
             // submission-svc is stopped while CanonicalVersionCreated events keep arriving, the oldest at T0
             repeat(3) { insertEvent(admin, CANONICAL_TOPIC, T0.plusSeconds(it.toLong())) }
@@ -86,6 +72,31 @@ class StalenessGaugesIT {
             breaches.single().consumer shouldBe CONSUMER
             breaches.single().eventType shouldBe CANONICAL
         }
+    }
+
+    private fun assertNoLag(
+        gauges: StalenessGauges,
+        registry: SimpleMeterRegistry,
+    ) {
+        // nothing unconsumed: no lag; thresholds are the configured (provisional) values
+        gauges.refresh()
+        lag(registry, CANONICAL) shouldBe 0.0
+        lag(registry, POLICY) shouldBe 0.0
+        threshold(registry, CANONICAL) shouldBe 300.0
+        threshold(registry, POLICY) shouldBe 1800.0
+    }
+
+    private fun assertTwoSeriesPerName(registry: SimpleMeterRegistry) {
+        // exactly two series per name, one per rule, each labelled consumer and event_type only (CS-36)
+        listOf(LAG_NAME, THRESHOLD_NAME).forEach { name ->
+            val found = registry.meters.filter { it.id.name == name }
+            found.size shouldBe 2
+            found.forEach { meter ->
+                meter.id.tags.map { it.key } shouldContainExactlyInAnyOrder listOf("consumer", "event_type")
+                meter.id.baseUnit shouldBe "seconds"
+            }
+        }
+        registry.meters.map { it.id.name }.toSet() shouldBe setOf(LAG_NAME, THRESHOLD_NAME)
     }
 
     private fun gauge(

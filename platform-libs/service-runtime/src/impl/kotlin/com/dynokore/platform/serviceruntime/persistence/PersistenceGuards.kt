@@ -7,9 +7,11 @@ import org.jooq.Table
  * The tables [AggregateStore] refuses at construction (INV-T-4224; INV-ADR-3968 item 11: no runtime login holds UPDATE
  * or DELETE on the audit entries, the override grants or the evidence ledgers).
  *
- * @property protectedTables table names refused in any schema: `audit_entry`, `override_grant` and the evidence ledger's
+ * @property protectedTables table names refused in any schema: `audit_entry`, `override_grant` and the evidence
+ * ledger's
  *   table (`service-runtime.modules.evidence.ledger-table`). Exact equality.
- * @property appendOnlyTables `schema.table` names the service declares append-only (`inv.persistence.append-only-tables`).
+ * @property appendOnlyTables `schema.table` names the service declares append-only
+ * (`inv.persistence.append-only-tables`).
  *   Exact equality.
  */
 class PersistenceGuards(

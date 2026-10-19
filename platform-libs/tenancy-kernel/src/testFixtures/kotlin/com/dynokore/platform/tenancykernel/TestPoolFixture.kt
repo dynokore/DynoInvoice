@@ -15,6 +15,7 @@ import javax.sql.DataSource
  * @param minimumIdle idle connections the pool keeps.
  * @param connectionTimeoutMillis how long a transaction waits for a pooled connection.
  */
+@Suppress("LongParameterList") // a public factory with defaulted parameters; INV-Q-4629 (CS-50)
 class TestPoolFixture(
     url: String,
     user: String,
@@ -42,6 +43,7 @@ class TestPoolFixture(
      * [transactionTimeout].
      */
     @JvmOverloads
+    @Suppress("LongParameterList") // a public factory with defaulted parameters; INV-Q-4629 (CS-50)
     fun runner(
         tenants: TenantContext,
         lanes: LaneGate? = null,
@@ -52,7 +54,10 @@ class TestPoolFixture(
     ): TransactionRunnerImpl =
         TransactionRunnerImpl(TenantAwareDataSource(pool, lanes), tenants, label, keys, transactionTimeout, clock)
 
-    /** The pool as a `DataSource` (gated by [lanes]), for a Spring context that needs the bean; tests take no connection from it. */
+    /**
+     * The pool as a `DataSource` (gated by [lanes]), for a Spring context that needs the bean; tests take no connection
+     * from it.
+     */
     @JvmOverloads
     fun dataSource(lanes: LaneGate? = null): DataSource = TenantAwareDataSource(pool, lanes)
 

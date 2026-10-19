@@ -38,9 +38,8 @@ private class FakeDbError(
 /** The loop itself (INV-T-3938): immediate repeat, interval, backoff, stop, an Error that ends it, the properties. */
 class EventLoopTest {
     private val sqlErrors =
-        object : SqlErrors {
-            override fun sqlStateOf(error: Throwable): String? =
-                generateSequence(error) { it.cause }.filterIsInstance<FakeDbError>().firstOrNull()?.state
+        SqlErrors { error ->
+            generateSequence(error) { it.cause }.filterIsInstance<FakeDbError>().firstOrNull()?.state
         }
 
     private fun loop(

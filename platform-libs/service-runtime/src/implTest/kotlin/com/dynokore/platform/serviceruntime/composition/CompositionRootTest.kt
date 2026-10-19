@@ -101,6 +101,7 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.EnumSource
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.test.context.FilteredClassLoader
+import org.springframework.boot.test.context.assertj.AssertableApplicationContext
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.boot.web.servlet.ServletRegistrationBean
 import software.amazon.awssdk.services.s3.S3Client
@@ -343,93 +344,109 @@ class CompositionRootTest {
         Files.writeString(mountRoot.resolve("ap-token"), "s3cr3t")
         base.withServiceInputs(mountRoot).run { context ->
             context.startupFailure shouldBe null
-            // tenancy-kernel
-            context.getBean(TenantContext::class.java).shouldBeInstanceOf<TenantContextImpl>()
-            val tx = context.getBean(TransactionRunner::class.java).shouldBeInstanceOf<TransactionRunnerImpl>()
-            context.getBean(CurrentConnection::class.java) shouldBeSameInstanceAs tx
-            // the base LicenceCheck is tenancy-svc's; the composition root wraps it (INV-Q-3732)
-            context.getBean(LicenceCheck::class.java).shouldBeInstanceOf<NonBlockingLicenceCheck>()
-            // outbox-and-queue, with its EventBinding the one selected by configuration
-            context.getBean(TenantScope::class.java)
-            context.getBean(OutboxWriter::class.java).shouldBeInstanceOf<JdbcOutboxWriter>()
-            context.getBean(EventBinding::class.java).shouldBeInstanceOf<PostgresEventBinding>()
-            listOf(
-                OutboxRelay::class,
-                EventLogReader::class,
-                LaneRateLimiter::class,
-                WorkQueue::class,
-                DeadLetterTriage::class,
-                RetentionPurge::class,
-                EventLogPurge::class,
-                StalenessMonitor::class,
-                InboxConsumer::class,
-                ReplayDelivery::class,
-            ).forEach { context.getBean(it.java) }
-            // the unrelayed-event check, its open-findings gauge and its schedule (INV-Q-4334, INV-Q-4350)
-            context.getBean(UnrelayedEventCheck::class.java).shouldBeInstanceOf<JdbcUnrelayedEventCheck>()
-            context.getBean(UnrelayedEventCheckSchedule::class.java)
-            context
-                .getBean(
-                    MeterRegistry::class.java,
-                ).find(
-                    UnrelayedEventGauge.OPEN,
-                ).tag(UnrelayedEventGauge.SERVICE, "submission-svc")
-                .gauge()
-                .shouldNotBeNull()
-            context.getBean(UnrelayedEventProperties::class.java).checkInterval shouldBe Duration.ofMinutes(5)
-            // audit-log: the outbox writer in a service with an outbox
-            context
-                .getBean(
-                    AuditWriter::class.java,
-                ).shouldBeInstanceOf<OperatorSessionAuditWriter>()
-                .delegate
-                .shouldBeInstanceOf<OutboxAuditWriter>()
-            context.getBean(AuditedOperations::class.java)
-            context.getBean(OverrideService::class.java)
-            // config-resolver
-            listOf(
-                PolicyReader::class,
-                PolicyHistory::class,
-                ConfigPurge::class,
-                ResolutionRecorder::class,
-                PolicyWriter::class,
-            ).forEach { context.getBean(it.java) }
-            // evidence-store, with the ObjectStore binding selected by configuration
-            context.getBean(EvidenceLedger::class.java)
-            context.getBean(LegalHoldRegistry::class.java)
-            context.getBean(ObjectStore::class.java).shouldBeInstanceOf<S3ObjectStore>()
-            // adapter-runtime: its SecretStore reads the bound MountedFileSecretStore
-            context.getBean(SecretStore::class.java).shouldBeInstanceOf<MountedFileSecretStore>()
-            context.getBean(AdapterSecretStore::class.java).read(AdapterSecretRef("ap-token")).reveal() shouldBe
-                "s3cr3t"
-            context.getBean(SecretStore::class.java).read(BoundSecretRef("ap-token")).reveal() shouldBe "s3cr3t"
-            context.getBean(AdapterDeadLetterSink::class.java).shouldBeInstanceOf<InMemoryDeadLetterSink>()
-            // INV-Q-3730: adapter-runtime's version-keyed reporter is a local bean, not bridged; the only
-            // ConnectionStatusChanged publisher is service-runtime's
-            context
-                .getBean(
-                    AdapterConnectionStatusReporter::class.java,
-                ).shouldBeInstanceOf<InMemoryConnectionStatusReporter>()
-            context.getBean(ConnectionStatusReporter::class.java).shouldBeInstanceOf<OutboxConnectionStatusReporter>()
-            // crypto and rulepack-kernel
-            val cms = context.getBean(DetachedSigner::class.java).shouldBeInstanceOf<BouncyCastleCms>()
-            context.getBean(DetachedSignatureVerifier::class.java) shouldBeSameInstanceAs cms
-            listOf(
-                PackVerifier::class,
-                PackContentValidator::class,
-                PackRegistry::class,
-            ).forEach { context.getBean(it.java) }
-            // service-runtime's own ports over them
-            context.getBean(OperationRunner::class.java)
-            context.getBean(EvidenceArtefactRecorder::class.java)
-            context.getBean(JobCommands::class.java).shouldBeInstanceOf<JobRuntime>()
-            context.getBean(IdempotencyStore::class.java)
-            context.getBean(IdempotencyKeyPurgeJob::class.java).definition.name shouldBe "idempotency-key-purge"
-            context.getBean(JobRuntime::class.java).registered().map { it.name } shouldBe
-                listOf("idempotency-key-purge")
-            context.getBeansOfType(ServletRegistrationBean::class.java).keys shouldBe
-                setOf("jobCommandServlet", "policyCommandServlet")
+            assertTenancyAndOutbox(context)
+            assertAuditConfigAndEvidence(context)
+            assertAdapterAndCrypto(context)
+            assertServiceRuntimePorts(context)
         }
+    }
+
+    private fun assertTenancyAndOutbox(context: AssertableApplicationContext) {
+        // tenancy-kernel
+        context.getBean(TenantContext::class.java).shouldBeInstanceOf<TenantContextImpl>()
+        val tx = context.getBean(TransactionRunner::class.java).shouldBeInstanceOf<TransactionRunnerImpl>()
+        context.getBean(CurrentConnection::class.java) shouldBeSameInstanceAs tx
+        // the base LicenceCheck is tenancy-svc's; the composition root wraps it (INV-Q-3732)
+        context.getBean(LicenceCheck::class.java).shouldBeInstanceOf<NonBlockingLicenceCheck>()
+        // outbox-and-queue, with its EventBinding the one selected by configuration
+        context.getBean(TenantScope::class.java)
+        context.getBean(OutboxWriter::class.java).shouldBeInstanceOf<JdbcOutboxWriter>()
+        context.getBean(EventBinding::class.java).shouldBeInstanceOf<PostgresEventBinding>()
+        listOf(
+            OutboxRelay::class,
+            EventLogReader::class,
+            LaneRateLimiter::class,
+            WorkQueue::class,
+            DeadLetterTriage::class,
+            RetentionPurge::class,
+            EventLogPurge::class,
+            StalenessMonitor::class,
+            InboxConsumer::class,
+            ReplayDelivery::class,
+        ).forEach { context.getBean(it.java) }
+        // the unrelayed-event check, its open-findings gauge and its schedule (INV-Q-4334, INV-Q-4350)
+        context.getBean(UnrelayedEventCheck::class.java).shouldBeInstanceOf<JdbcUnrelayedEventCheck>()
+        context.getBean(UnrelayedEventCheckSchedule::class.java)
+        context
+            .getBean(
+                MeterRegistry::class.java,
+            ).find(
+                UnrelayedEventGauge.OPEN,
+            ).tag(UnrelayedEventGauge.SERVICE, "submission-svc")
+            .gauge()
+            .shouldNotBeNull()
+        context.getBean(UnrelayedEventProperties::class.java).checkInterval shouldBe Duration.ofMinutes(5)
+    }
+
+    private fun assertAuditConfigAndEvidence(context: AssertableApplicationContext) {
+        // audit-log: the outbox writer in a service with an outbox
+        context
+            .getBean(
+                AuditWriter::class.java,
+            ).shouldBeInstanceOf<OperatorSessionAuditWriter>()
+            .delegate
+            .shouldBeInstanceOf<OutboxAuditWriter>()
+        context.getBean(AuditedOperations::class.java)
+        context.getBean(OverrideService::class.java)
+        // config-resolver
+        listOf(
+            PolicyReader::class,
+            PolicyHistory::class,
+            ConfigPurge::class,
+            ResolutionRecorder::class,
+            PolicyWriter::class,
+        ).forEach { context.getBean(it.java) }
+        // evidence-store, with the ObjectStore binding selected by configuration
+        context.getBean(EvidenceLedger::class.java)
+        context.getBean(LegalHoldRegistry::class.java)
+        context.getBean(ObjectStore::class.java).shouldBeInstanceOf<S3ObjectStore>()
+    }
+
+    private fun assertAdapterAndCrypto(context: AssertableApplicationContext) {
+        // adapter-runtime: its SecretStore reads the bound MountedFileSecretStore
+        context.getBean(SecretStore::class.java).shouldBeInstanceOf<MountedFileSecretStore>()
+        context.getBean(AdapterSecretStore::class.java).read(AdapterSecretRef("ap-token")).reveal() shouldBe
+            "s3cr3t"
+        context.getBean(SecretStore::class.java).read(BoundSecretRef("ap-token")).reveal() shouldBe "s3cr3t"
+        context.getBean(AdapterDeadLetterSink::class.java).shouldBeInstanceOf<InMemoryDeadLetterSink>()
+        // INV-Q-3730: adapter-runtime's version-keyed reporter is a local bean, not bridged; the only
+        // ConnectionStatusChanged publisher is service-runtime's
+        context
+            .getBean(
+                AdapterConnectionStatusReporter::class.java,
+            ).shouldBeInstanceOf<InMemoryConnectionStatusReporter>()
+        context.getBean(ConnectionStatusReporter::class.java).shouldBeInstanceOf<OutboxConnectionStatusReporter>()
+        // crypto and rulepack-kernel
+        val cms = context.getBean(DetachedSigner::class.java).shouldBeInstanceOf<BouncyCastleCms>()
+        context.getBean(DetachedSignatureVerifier::class.java) shouldBeSameInstanceAs cms
+        listOf(
+            PackVerifier::class,
+            PackContentValidator::class,
+            PackRegistry::class,
+        ).forEach { context.getBean(it.java) }
+    }
+
+    private fun assertServiceRuntimePorts(context: AssertableApplicationContext) {
+        // service-runtime's own ports over them
+        context.getBean(OperationRunner::class.java)
+        context.getBean(EvidenceArtefactRecorder::class.java)
+        context.getBean(JobCommands::class.java).shouldBeInstanceOf<JobRuntime>()
+        context.getBean(IdempotencyStore::class.java)
+        context.getBean(IdempotencyKeyPurgeJob::class.java).definition.name shouldBe "idempotency-key-purge"
+        context.getBean(JobRuntime::class.java).registered().map { it.name } shouldBe
+            listOf("idempotency-key-purge")
+        context.getBeansOfType(ServletRegistrationBean::class.java).keys shouldBe
+            setOf("jobCommandServlet", "policyCommandServlet")
     }
 
     @Test
@@ -560,7 +577,8 @@ class CompositionRootTest {
         declared.withBean(ServiceDataSources.EVENT_LOG, DataSource::class.java, { eventLog }).run { context ->
             context.startupFailure shouldBe null
             // background work that started with the context (the staleness check and the unrelayed-event check, one
-            // run each, then every 5 minutes) runs on the application DataSource: wait for those two runs, then forget them
+            // run each, then every 5 minutes) runs on the application DataSource: wait for those two runs, then forget
+            // them
             val application = context.getBean("dataSource", DataSource::class.java)
             val deadline = System.nanoTime() + 20_000_000_000L
             while (runCatching { verify(atLeast = 2) { application.connection } }.isFailure) {
@@ -616,7 +634,8 @@ class CompositionRootTest {
                 val audit = context.getBean(AuditWriter::class.java)
                 audit.shouldBeInstanceOf<OperatorSessionAuditStager>().delegate::class shouldBe delegate
                 if (withPolicyWriter) {
-                    // the wired policy writer stages an installation value's audit entry through this bean (INV-Q-4254 A)
+                    // the wired policy writer stages an installation value's audit entry through this bean (INV-Q-4254
+                    // A)
                     val writer = context.getBean(PolicyWriter::class.java)
                     writer.shouldBeInstanceOf<JdbcPolicyWriter>().audit shouldBeSameInstanceAs audit
                 }

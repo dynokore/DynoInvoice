@@ -65,7 +65,7 @@ class Resilience4jResilientExecutorTest {
         val result =
             executor.execute {
                 calls += 1
-                if (calls < 3) throw IllegalStateException("transient") else "ok"
+                if (calls < 3) error("transient") else "ok"
             }
 
         result shouldBe "ok"
@@ -88,7 +88,7 @@ class Resilience4jResilientExecutorTest {
         shouldThrow<IllegalStateException> {
             executor.execute {
                 calls += 1
-                throw IllegalStateException("always fails")
+                error("always fails")
             }
         }
 
@@ -127,7 +127,7 @@ class Resilience4jResilientExecutorTest {
         val invocations = AtomicInteger(0)
         val failingBlock: () -> String = {
             invocations.incrementAndGet()
-            throw IllegalStateException("boom")
+            error("boom")
         }
 
         repeat(2) {
@@ -157,7 +157,7 @@ class Resilience4jResilientExecutorTest {
         shouldThrow<CallNotPermittedException> {
             executor.execute {
                 calls += 1
-                throw IllegalStateException("always fails")
+                error("always fails")
             }
         }
 

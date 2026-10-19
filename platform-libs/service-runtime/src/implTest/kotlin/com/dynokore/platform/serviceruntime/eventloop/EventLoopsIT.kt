@@ -295,21 +295,28 @@ class EventLoopsIT {
                 }
                 // a request-lane thread (no lane entered) gets its connections at once, twice over
                 val started = System.nanoTime()
-                TestDatabase(fx.jdbcUrl(), emptyMap()).use { db ->
-                    val access = db.over(OutboxAndQueueWiring.handOff(pool, laned))
-                    HeldTransaction(access).use { a ->
-                        HeldTransaction(access).use { b ->
-                            a.user()
-                            b.user()
-                        }
-                    }
-                }
+                holdTwoRequestConnections(fx, OutboxAndQueueWiring.handOff(pool, laned))
                 (TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started) < 1_500) shouldBe true
                 laned.availablePermits(PoolLane.REQUEST) shouldBe 4
                 laned.availablePermits(PoolLane.BACKGROUND) shouldBe 0
                 svc.handler.hold!!.countDown()
                 eventually("both consumers to apply both events", Duration.ofSeconds(60)) {
                     fx.count(APPLIED) == 4L
+                }
+            }
+        }
+    }
+
+    private fun holdTwoRequestConnections(
+        fx: Fixture,
+        pool: DataSource,
+    ) {
+        TestDatabase(fx.jdbcUrl(), emptyMap()).use { db ->
+            val access = db.over(pool)
+            HeldTransaction(access).use { a ->
+                HeldTransaction(access).use { b ->
+                    a.user()
+                    b.user()
                 }
             }
         }
@@ -406,49 +413,58 @@ class EventLoopsIT {
                 fx.run(mount, *extra).use { svc ->
                     root.addAppender(appender) // after start-up, which re-initialises logging
                     svc.append(1)
-                    val gauge = {
-                        svc.context
-                            .getBean(MeterRegistry::class.java)
-                            .get(EventLoops.LAST_SUCCESS)
-                            .tag("loop", "outboxRelay")
-                            .gauge()
-                            .value()
-                    }
-                    // past the first failed call
-                    eventually("the first failed outboxRelay call") {
-                        // snapshot under the appender lock (doAppend is synchronized): the relay thread appends concurrently
-                        synchronized(appender) { appender.list.toList() }.any {
-                            it.level == Level.WARN && it.formattedMessage.contains("loop=outboxRelay")
-                        }
-                    }
-                    val before = gauge()
-                    Thread.sleep(10_000)
-                    fx.count(OUTBOX, col("published_at").isNotNull) shouldBe 0
-                    fx.count("eventlog.${EventLogSchema.tableName(Service.TOPIC)}") shouldBe 0
-                    // never advanced: NaN (no success yet) or unchanged
-                    ((before.isNaN() && gauge().isNaN()) || gauge() == before) shouldBe true
-                    val failures =
-                        appender.list
-                            .filter { it.level == Level.WARN && it.formattedMessage.contains("loop=outboxRelay") }
-                            .map { it.formattedMessage }
-                    failures.isNotEmpty() shouldBe true
-                    failures.all {
-                        it.contains(
-                            "sql_state=",
-                        ) && it.contains("lane_message=the BACKGROUND lane")
-                    } shouldBe
-                        true
-                    val loop =
-                        svc.context
-                            .getBean(EventLoops::class.java)
-                            .loops()
-                            .first { it.name == "outboxRelay" }
-                    loop.isAlive() shouldBe true
+                    assertRelayFailureVisible(svc, fx, appender)
                 }
             }
         } finally {
             root.detachAppender(appender)
         }
+    }
+
+    private fun assertRelayFailureVisible(
+        svc: Service,
+        fx: Fixture,
+        appender: ListAppender<ILoggingEvent>,
+    ) {
+        val gauge = {
+            svc.context
+                .getBean(MeterRegistry::class.java)
+                .get(EventLoops.LAST_SUCCESS)
+                .tag("loop", "outboxRelay")
+                .gauge()
+                .value()
+        }
+        // past the first failed call
+        eventually("the first failed outboxRelay call") {
+            // snapshot under the appender lock (doAppend is synchronized): the relay thread appends
+            // concurrently
+            synchronized(appender) { appender.list.toList() }.any {
+                it.level == Level.WARN && it.formattedMessage.contains("loop=outboxRelay")
+            }
+        }
+        val before = gauge()
+        Thread.sleep(10_000)
+        fx.count(OUTBOX, col("published_at").isNotNull) shouldBe 0
+        fx.count("eventlog.${EventLogSchema.tableName(Service.TOPIC)}") shouldBe 0
+        // never advanced: NaN (no success yet) or unchanged
+        ((before.isNaN() && gauge().isNaN()) || gauge() == before) shouldBe true
+        val failures =
+            appender.list
+                .filter { it.level == Level.WARN && it.formattedMessage.contains("loop=outboxRelay") }
+                .map { it.formattedMessage }
+        failures.isNotEmpty() shouldBe true
+        failures.all {
+            it.contains(
+                "sql_state=",
+            ) && it.contains("lane_message=the BACKGROUND lane")
+        } shouldBe
+            true
+        val loop =
+            svc.context
+                .getBean(EventLoops::class.java)
+                .loops()
+                .first { it.name == "outboxRelay" }
+        loop.isAlive() shouldBe true
     }
 
     /** The recording handler of one consumer; `failing` ids throw, `hold` blocks inside the transaction. */
@@ -470,7 +486,7 @@ class EventLoopsIT {
         override fun handle(event: Envelope): HandleOutcome {
             attempts.incrementAndGet()
             entered.countDown()
-            if (event.id.value in failing) throw IllegalStateException("handler failure")
+            if (event.id.value in failing) error("handler failure")
             bound += Triple(event.id.value, tenants.current().value, tenants.currentActor())
             dsl
                 .insertInto(DSL.table(DSL.name("submission", "applied")))
@@ -569,7 +585,9 @@ class EventLoopsIT {
                 clock,
             )
 
-        /** Observes the permits of the application pool's lane gate and of the HA event-log pool's gate (INV-Q-5251). */
+        /**
+         * Observes the permits of the application pool's lane gate and of the HA event-log pool's gate (INV-Q-5251).
+         */
         @Bean
         fun peakCounting(
             gate: LaneGateHolder,
@@ -593,7 +611,6 @@ class EventLoopsIT {
     /** One running service over the fixture's database. */
     class Service(
         val context: ConfigurableApplicationContext,
-        private val fixture: OutboxPostgresFixture,
     ) : AutoCloseable {
         val handler: RecordingHandler get() = context.getBean("handler", RecordingHandler::class.java)
         val secondHandler: RecordingHandler get() = context.getBean("secondHandler", RecordingHandler::class.java)
@@ -714,7 +731,7 @@ class EventLoopsIT {
                         "spring.jmx.enabled=false",
                         *extra,
                     ).run()
-            return Service(context, fx)
+            return Service(context)
         }
 
         /** Rows of [table] (`schema.table`) in the service database that meet every one of [where]. */

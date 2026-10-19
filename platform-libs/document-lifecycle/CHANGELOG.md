@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-10-19
+### Changed
+- detekt type-resolution findings fixed (platform-build 0.21.0, INV-Q-4629); no behaviour or API change
+
 ## [1.1.0] - 2026-10-17
 ### Added
 - `ChangeTaxonomy`, `Outcome`, `FieldClassifier` and `classify`: a changed payload is classified field by field against

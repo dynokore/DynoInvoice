@@ -66,56 +66,79 @@ class CredentialRotationIT {
                 assertNoPoolPassword(eventLog)
                 TestDatabase(pg.jdbcUrl, emptyMap()).use { db ->
                     val pools = listOf(Triple(app, db.over(app), APP), Triple(eventLog, db.over(eventLog), APP))
-
-                    // each pool holds an open connection, logged in with the first password
-                    val open =
-                        pools.map { (_, access, role) ->
-                            HeldTransaction(access).also { it.user() shouldBe role }
-                        }
-                    val openPids = open.map { it.pid() }
-
-                    // the role password changes; the mounted files are not rewritten yet
-                    TenancyProbe.connect(pg.jdbcUrl, APP, first).changeOwnPassword(second)
-                    open.forEach { it.user() } // open connections keep working
-                    pools.forEach { (pool, _, _) -> softEvict(pool) }
-                    // the first password is revoked: a new connection with the file left at it is refused (nothing cached)
-                    pools.forEach { (_, access, role) ->
-                        val refused = shouldThrow<Exception> { access.asPlatform { } }
-                        val messages =
-                            generateSequence<Throwable>(
-                                refused,
-                            ) { it.cause }.joinToString(" | ") { it.message.orEmpty() }
-                        messages shouldContain "password authentication failed for user \"$role\""
-                        listOf(first, second, third).forEach { messages shouldNotContain it }
-                    }
-                    open.forEach { it.user() } // still open
-
-                    // the mounted files now carry the new password: new connections log in, with no restart
-                    mount(mountRoot, APP_REF, second)
-                    pools.forEach { (_, access, role) ->
-                        val (user, pid) =
-                            access.asPlatform {
-                                select(CURRENT_USER, BACKEND_PID).fetchSingle().let {
-                                    it.value1() to
-                                        it.value2()
-                                }
-                            }
-                        user shouldBe role
-                        openPids shouldNotContain pid
-                    }
-                    open.forEach { it.user() }
-                    open.forEach { it.close() } // returned after the eviction: retired, not reused
-
-                    // a second rotation, again in the same context
-                    TenancyProbe.connect(pg.jdbcUrl, APP, second).changeOwnPassword(third)
-                    mount(mountRoot, APP_REF, third)
-                    pools.forEach { (pool, _, _) -> softEvict(pool) }
-                    pools.forEach { (_, access, role) ->
-                        access.asPlatform { select(CURRENT_USER).fetchSingle().value1() } shouldBe role
-                    }
+                    rotateTwice(pg, mountRoot, pools, Passwords(first, second, third))
                 }
             }
             listOf(first, second, third).forEach { output.all shouldNotContain it }
+        }
+    }
+
+    private data class Passwords(
+        val first: String,
+        val second: String,
+        val third: String,
+    ) {
+        fun all(): List<String> = listOf(first, second, third)
+    }
+
+    private fun rotateTwice(
+        pg: PostgreSQLContainer<*>,
+        mountRoot: Path,
+        pools: List<Triple<DataSource, TestDatabase.Access, String>>,
+        passwords: Passwords,
+    ) {
+        // each pool holds an open connection, logged in with the first password
+        val open =
+            pools.map { (_, access, role) ->
+                HeldTransaction(access).also { it.user() shouldBe role }
+            }
+        val openPids = open.map { it.pid() }
+
+        // the role password changes; the mounted files are not rewritten yet
+        TenancyProbe.connect(pg.jdbcUrl, APP, passwords.first).changeOwnPassword(passwords.second)
+        open.forEach { it.user() } // open connections keep working
+        pools.forEach { (pool, _, _) -> softEvict(pool) }
+        assertRefused(pools, passwords)
+        open.forEach { it.user() } // still open
+
+        // the mounted files now carry the new password: new connections log in, with no restart
+        mount(mountRoot, APP_REF, passwords.second)
+        pools.forEach { (_, access, role) ->
+            val (user, pid) =
+                access.asPlatform {
+                    select(CURRENT_USER, BACKEND_PID).fetchSingle().let {
+                        it.value1() to
+                            it.value2()
+                    }
+                }
+            user shouldBe role
+            openPids shouldNotContain pid
+        }
+        open.forEach { it.user() }
+        open.forEach { it.close() } // returned after the eviction: retired, not reused
+
+        // a second rotation, again in the same context
+        TenancyProbe.connect(pg.jdbcUrl, APP, passwords.second).changeOwnPassword(passwords.third)
+        mount(mountRoot, APP_REF, passwords.third)
+        pools.forEach { (pool, _, _) -> softEvict(pool) }
+        pools.forEach { (_, access, role) ->
+            access.asPlatform { select(CURRENT_USER).fetchSingle().value1() } shouldBe role
+        }
+    }
+
+    // the first password is revoked: a new connection with the file left at it is refused (nothing cached)
+    private fun assertRefused(
+        pools: List<Triple<DataSource, TestDatabase.Access, String>>,
+        passwords: Passwords,
+    ) {
+        pools.forEach { (_, access, role) ->
+            val refused = shouldThrow<Exception> { access.asPlatform { } }
+            val messages =
+                generateSequence<Throwable>(
+                    refused,
+                ) { it.cause }.joinToString(" | ") { it.message.orEmpty() }
+            messages shouldContain "password authentication failed for user \"$role\""
+            passwords.all().forEach { messages shouldNotContain it }
         }
     }
 
@@ -140,7 +163,8 @@ class CredentialRotationIT {
         startPostgres(
             image,
             createLoginSql(OWNER, owner) +
-                "do \$\$ begin execute format('grant create on database %I to $OWNER', current_database()); end \$\$;\n",
+                "do \$\$ begin execute format('grant create on database %I to $OWNER', current_database()); end " +
+                "\$\$;\n",
         ).use { pg ->
             // a wrong mounted password: the migration's connection is refused, and start-up fails
             mount(mountRoot, OWNER_REF, wrong)
@@ -161,32 +185,40 @@ class CredentialRotationIT {
                         "pg_catalog.pg_tables" to TableClass.PLATFORM_SCOPED,
                         "ledger.flyway_schema_history" to TableClass.PLATFORM_SCOPED,
                     )
-                TestDatabase(pg.jdbcUrl, tables).use { db ->
-                    val reader = db.login(OWNER, owner)
-                    val ownerOfProbe =
-                        reader.asPlatform {
-                            select(DSL.field(DSL.name("tableowner"), SQLDataType.VARCHAR))
-                                .from(DSL.table(DSL.name("pg_catalog", "pg_tables")))
-                                .where(DSL.field(DSL.name("schemaname")).eq("ledger"))
-                                .and(DSL.field(DSL.name("tablename")).eq("probe"))
-                                .fetchSingle()
-                                .value1()
-                        }
-                    ownerOfProbe shouldBe OWNER
-                    val migrated =
-                        reader.asPlatform {
-                            fetchCount(
-                                DSL.table(DSL.name("ledger", "flyway_schema_history")),
-                                DSL
-                                    .field(DSL.name("success"), SQLDataType.BOOLEAN)
-                                    .isTrue
-                                    .and(DSL.field(DSL.name("version"), SQLDataType.VARCHAR).eq("1")),
-                            )
-                        }
-                    migrated shouldBe 1
-                }
+                assertMigratedAsOwner(pg.jdbcUrl, tables, owner)
             }
             listOf(owner, wrong).forEach { output.all shouldNotContain it }
+        }
+    }
+
+    private fun assertMigratedAsOwner(
+        jdbcUrl: String,
+        tables: Map<String, TableClass>,
+        ownerPassword: String,
+    ) {
+        TestDatabase(jdbcUrl, tables).use { db ->
+            val reader = db.login(OWNER, ownerPassword)
+            val ownerOfProbe =
+                reader.asPlatform {
+                    select(DSL.field(DSL.name("tableowner"), SQLDataType.VARCHAR))
+                        .from(DSL.table(DSL.name("pg_catalog", "pg_tables")))
+                        .where(DSL.field(DSL.name("schemaname")).eq("ledger"))
+                        .and(DSL.field(DSL.name("tablename")).eq("probe"))
+                        .fetchSingle()
+                        .value1()
+                }
+            ownerOfProbe shouldBe OWNER
+            val migrated =
+                reader.asPlatform {
+                    fetchCount(
+                        DSL.table(DSL.name("ledger", "flyway_schema_history")),
+                        DSL
+                            .field(DSL.name("success"), SQLDataType.BOOLEAN)
+                            .isTrue
+                            .and(DSL.field(DSL.name("version"), SQLDataType.VARCHAR).eq("1")),
+                    )
+                }
+            migrated shouldBe 1
         }
     }
 

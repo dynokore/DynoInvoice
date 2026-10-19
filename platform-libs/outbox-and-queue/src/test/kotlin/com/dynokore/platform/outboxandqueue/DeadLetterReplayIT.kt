@@ -59,12 +59,14 @@ class DeadLetterReplayIT {
         JooqKit.recordDeadLetter(
             harness.fixture,
             "submission",
-            consumer,
-            "gst.canonical.canonical-version-created.v1",
-            1,
-            tenant ?: TenantId.PLATFORM.value,
-            reason,
-            raw,
+            LetterToRecord(
+                consumer,
+                "gst.canonical.canonical-version-created.v1",
+                1,
+                tenant ?: TenantId.PLATFORM.value,
+                reason,
+                raw,
+            ),
         )
 
     private class Triage(
@@ -73,7 +75,7 @@ class DeadLetterReplayIT {
     ) {
         val kit = harness.submission
         val scope = kit.scope
-        val triage = JdbcDeadLetterTriage(scope, kit.dsl, "submission", clock)
+        val letters = JdbcDeadLetterTriage(scope, kit.dsl, "submission", clock)
 
         fun delivery(
             harness: OutboxHarness,
@@ -105,25 +107,25 @@ class DeadLetterReplayIT {
             val b = letter(harness, tenantB, "{not json", reason = "record is not JSON")
             val t = Triage(harness)
 
-            assertEquals(listOf(a, b), t.triage.list().map { it.id })
-            assertEquals(listOf(a), t.triage.list(DeadLetterScope(tenant = TenantId(tenantA))).map { it.id })
-            assertEquals(listOf(a), t.triage.list(DeadLetterScope(failureClass = "schema")).map { it.id })
-            assertEquals(listOf(a), t.triage.list(DeadLetterScope(subject = docA.toString())).map { it.id })
-            assertEquals(listOf(a), t.triage.list(DeadLetterScope(entity = "entity-1")).map { it.id })
-            assertEquals(listOf(b), t.triage.list(DeadLetterScope(ids = setOf(b))).map { it.id })
-            assertEquals(DeadLetterStatus.OPEN, notNull(t.triage.get(a)).status)
+            assertEquals(listOf(a, b), t.letters.list().map { it.id })
+            assertEquals(listOf(a), t.letters.list(DeadLetterScope(tenant = TenantId(tenantA))).map { it.id })
+            assertEquals(listOf(a), t.letters.list(DeadLetterScope(failureClass = "schema")).map { it.id })
+            assertEquals(listOf(a), t.letters.list(DeadLetterScope(subject = docA.toString())).map { it.id })
+            assertEquals(listOf(a), t.letters.list(DeadLetterScope(entity = "entity-1")).map { it.id })
+            assertEquals(listOf(b), t.letters.list(DeadLetterScope(ids = setOf(b))).map { it.id })
+            assertEquals(DeadLetterStatus.OPEN, notNull(t.letters.get(a)).status)
 
-            assertTrue(t.triage.discard(b, "producer bug, fixed upstream; events re-sent"))
-            assertEquals(false, t.triage.discard(b, "again"))
-            assertEquals(listOf(a), t.triage.list().map { it.id })
+            assertTrue(t.letters.discard(b, "producer bug, fixed upstream; events re-sent"))
+            assertEquals(false, t.letters.discard(b, "again"))
+            assertEquals(listOf(a), t.letters.list().map { it.id })
             assertEquals(
                 DeadLetterStatus.DISCARDED,
-                t.triage
+                t.letters
                     .list(status = DeadLetterStatus.DISCARDED)
                     .single()
                     .status,
             )
-            assertThrows(IllegalArgumentException::class.java) { t.triage.discard(a, " ") }
+            assertThrows(IllegalArgumentException::class.java) { t.letters.discard(a, " ") }
         }
     }
 
@@ -137,13 +139,13 @@ class DeadLetterReplayIT {
             val inOtherScope = letter(harness, tenantA, json.write(envelope(tenantA, docB)))
             val noTenant = letter(harness, null, "{}")
             val t = Triage(harness)
-            assertThrows(IllegalArgumentException::class.java) { t.triage.replay(DeadLetterScope(), "submission-svc") }
+            assertThrows(IllegalArgumentException::class.java) { t.letters.replay(DeadLetterScope(), "submission-svc") }
 
-            val result = t.triage.replay(DeadLetterScope(subject = docA.toString()), "submission-svc")
+            val result = t.letters.replay(DeadLetterScope(subject = docA.toString()), "submission-svc")
             assertEquals(ReplayResult(queued = 1, skippedWithoutTenant = 0, alreadyQueued = 0), result)
-            assertEquals(DeadLetterStatus.REPLAYED, notNull(t.triage.get(a)).status)
-            assertEquals("submission-svc", notNull(t.triage.get(a)).replayedTo)
-            assertEquals(DeadLetterStatus.OPEN, notNull(t.triage.get(inOtherScope)).status)
+            assertEquals(DeadLetterStatus.REPLAYED, notNull(t.letters.get(a)).status)
+            assertEquals("submission-svc", notNull(t.letters.get(a)).replayedTo)
+            assertEquals(DeadLetterStatus.OPEN, notNull(t.letters.get(inOtherScope)).status)
 
             // Another consumer receives nothing; the named one applies exactly the dead letter in scope.
             assertNull(t.delivery(harness, "reconciliation-svc").runOnce())
@@ -164,9 +166,9 @@ class DeadLetterReplayIT {
             )
 
             // A dead letter without a tenant cannot be replayed (no tenant to bind): reported, left open.
-            val rest = t.triage.replay(DeadLetterScope(consumer = "submission-svc"), "submission-svc")
+            val rest = t.letters.replay(DeadLetterScope(consumer = "submission-svc"), "submission-svc")
             assertEquals(ReplayResult(queued = 1, skippedWithoutTenant = 1, alreadyQueued = 0), rest)
-            assertEquals(DeadLetterStatus.OPEN, notNull(t.triage.get(noTenant)).status)
+            assertEquals(DeadLetterStatus.OPEN, notNull(t.letters.get(noTenant)).status)
         }
     }
 
@@ -180,7 +182,7 @@ class DeadLetterReplayIT {
             val bad = letter(harness, tenantA, incomplete, reason = "missing fields")
             val t = Triage(harness)
             val scope = DeadLetterScope(ids = setOf(good, bad))
-            assertEquals(2, t.triage.replay(scope, "submission-svc").queued)
+            assertEquals(2, t.letters.replay(scope, "submission-svc").queued)
             // The mark on the dead letter is lost (a crash between the two steps): the replay is repeated.
             // The runtime login holds SELECT only on the letters: the owner login resets them, once for tenantA.
             JooqKit.Access.owner(harness.fixture, OutboxSchema.jooqTables("submission")).use { owner ->
@@ -193,7 +195,7 @@ class DeadLetterReplayIT {
                         .execute()
                 }
             }
-            val again = t.triage.replay(scope, "submission-svc")
+            val again = t.letters.replay(scope, "submission-svc")
             assertEquals(ReplayResult(queued = 0, skippedWithoutTenant = 0, alreadyQueued = 2), again)
             assertEquals(2, harness.countIn(tenantA, "select count(*) from submission.work_queue"))
 
@@ -215,7 +217,7 @@ class DeadLetterReplayIT {
             val doc = UUID.randomUUID()
             letter(harness, tenantA, json.write(envelope(tenantA, doc)))
             val t = Triage(harness)
-            t.triage.replay(DeadLetterScope(tenant = TenantId(tenantA)), "submission-svc")
+            t.letters.replay(DeadLetterScope(tenant = TenantId(tenantA)), "submission-svc")
             val kit = harness.submission
 
             fun count(
@@ -285,16 +287,16 @@ class DeadLetterReplayIT {
                 val refused = assertThrows(Exception::class.java) { probe.unbound { fetchRows(sql) } }
                 assertNotNull(JooqKit.sqlState(refused), "$sql is refused by the database")
             }
-            val all = t.triage.list().associateBy { it.id }
+            val all = t.letters.list().associateBy { it.id }
             assertNull(all.getValue(none).raw, "a tenantless letter's raw is read by nobody")
             assertTrue(notNull(all.getValue(a).raw).contains(tenantA.toString()))
             assertTrue(notNull(all.getValue(b).raw).contains(tenantB.toString()))
-            assertEquals(listOf(a, b), t.triage.list(DeadLetterScope(subject = doc.toString())).map { it.id })
+            assertEquals(listOf(a, b), t.letters.list(DeadLetterScope(subject = doc.toString())).map { it.id })
             val ofA = DeadLetterScope(subject = doc.toString(), tenant = TenantId(tenantA))
-            assertEquals(listOf(a), t.triage.list(ofA).map { it.id })
-            assertEquals(emptyList<Long>(), t.triage.list(DeadLetterScope(entity = "nope")).map { it.id })
-            assertNull(notNull(t.triage.get(none)).raw)
-            assertTrue(t.triage.discard(none, "unparsable, producer fixed"))
+            assertEquals(listOf(a), t.letters.list(ofA).map { it.id })
+            assertEquals(emptyList<Long>(), t.letters.list(DeadLetterScope(entity = "nope")).map { it.id })
+            assertNull(notNull(t.letters.get(none)).raw)
+            assertTrue(t.letters.discard(none, "unparsable, producer fixed"))
         }
     }
 }

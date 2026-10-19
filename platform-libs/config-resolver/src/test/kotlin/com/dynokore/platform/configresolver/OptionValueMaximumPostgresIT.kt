@@ -46,25 +46,35 @@ class OptionValueMaximumPostgresIT {
     private fun record(vararg members: Int): String =
         members.withIndex().joinToString(",", "{", "}") { "\"m${it.index}\":${it.value}" }
 
+    /** What [tenantRow] stores besides the tenant, key and value; `null` takes the default of the test. */
+    private data class RowSpec(
+        val from: LocalDate? = null,
+        val option: String = LONGER,
+        val profile: Pair<String, String>? = null,
+        val level: ScopeLevel = ScopeLevel.TENANT,
+        val scopeId: String? = null,
+    )
+
     private fun tenantRow(
         h: ConfigHarness,
         tenant: TenantId,
         key: String,
         value: String?,
-        from: LocalDate = past,
-        option: String = LONGER,
-        profile: Pair<String, String>? = null,
-        level: ScopeLevel = ScopeLevel.TENANT,
-        scopeId: String = tenant.value.toString(),
-    ) = h.setTenant(
-        tenant,
-        VariationPointKey(key),
-        ScopeRef(level, scopeId),
-        listOf(SelectedOption(option, value)),
-        from,
-        entity = if (level == ScopeLevel.TENANT) null else scopeId,
-        profile = profile,
-    )
+        spec: RowSpec = RowSpec(),
+    ): UUID {
+        val scopeId = spec.scopeId ?: tenant.value.toString()
+        return h.setTenant(
+            tenant,
+            VariationPointKey(key),
+            Slot(
+                ScopeRef(spec.level, scopeId),
+                entity = if (spec.level == ScopeLevel.TENANT) null else scopeId,
+                profile = spec.profile,
+            ),
+            listOf(SelectedOption(spec.option, value)),
+            spec.from ?: past,
+        )
+    }
 
     /** Tenants A (7, 5, 5) and B (5, 10, 5) of [key]; C has no row. */
     private fun seedAb(
@@ -93,16 +103,16 @@ class OptionValueMaximumPostgresIT {
         assertEquals(0, BigDecimal(7).compareTo(maximum(h, "VP-430")), "10 superseded by 6")
 
         val (_, _, c) = seedAb(h, "VP-431")
-        tenantRow(h, c, "VP-431", record(12, 1, 1), level = ScopeLevel.ENTITY, scopeId = "entity-c")
+        tenantRow(h, c, "VP-431", record(12, 1, 1), RowSpec(level = ScopeLevel.ENTITY, scopeId = "entity-c"))
         assertEquals(0, BigDecimal(12).compareTo(maximum(h, "VP-431")), "an entity-scope row")
 
         val (a, _, _) = seedAb(h, "VP-432")
-        tenantRow(h, a, "VP-432", record(15, 1, 1), from = today.plusDays(1))
+        tenantRow(h, a, "VP-432", record(15, 1, 1), RowSpec(from = today.plusDays(1)))
         assertEquals(0, BigDecimal(15).compareTo(maximum(h, "VP-432")), "effective tomorrow")
 
         val old = TenantId(UUID.randomUUID())
-        tenantRow(h, old, "VP-433", record(30, 1, 1), from = past.minusDays(5))
-        tenantRow(h, old, "VP-433", record(2, 1, 1), from = past)
+        tenantRow(h, old, "VP-433", record(30, 1, 1), RowSpec(from = past.minusDays(5)))
+        tenantRow(h, old, "VP-433", record(2, 1, 1), RowSpec(from = past))
         assertEquals(0, BigDecimal(2).compareTo(maximum(h, "VP-433")), "a value replaced by a later date")
     }
 
@@ -111,15 +121,15 @@ class OptionValueMaximumPostgresIT {
     fun `an override hides the profile value of its scope and other options and keys do not count`(image: String) {
         val h = harness(image)
         val t = TenantId(UUID.randomUUID())
-        tenantRow(h, t, "VP-434", record(20, 1, 1), profile = "profile-1" to "1")
+        tenantRow(h, t, "VP-434", record(20, 1, 1), RowSpec(profile = "profile-1" to "1"))
         tenantRow(h, t, "VP-434", record(8, 1, 1))
         assertEquals(0, BigDecimal(8).compareTo(maximum(h, "VP-434")), "PROFILE 20 beneath OVERRIDE 8")
         val profileOnly = TenantId(UUID.randomUUID())
-        tenantRow(h, profileOnly, "VP-435", record(20, 1, 1), profile = "profile-1" to "1")
+        tenantRow(h, profileOnly, "VP-435", record(20, 1, 1), RowSpec(profile = "profile-1" to "1"))
         assertEquals(0, BigDecimal(20).compareTo(maximum(h, "VP-435")), "a profile value without an override")
 
         assertNull(maximum(h, "VP-436"), "no stored value of the key")
-        tenantRow(h, TenantId(UUID.randomUUID()), "VP-437", null, option = "YEARS_5")
+        tenantRow(h, TenantId(UUID.randomUUID()), "VP-437", null, RowSpec(option = "YEARS_5"))
         assertNull(maximum(h, "VP-437"), "YEARS_5 holds no value")
         assertNull(maximum(h, "VP-437", "YEARS_5"), "an option without a value")
         tenantRow(h, TenantId(UUID.randomUUID()), "VP-437", "\"P7Y\"")

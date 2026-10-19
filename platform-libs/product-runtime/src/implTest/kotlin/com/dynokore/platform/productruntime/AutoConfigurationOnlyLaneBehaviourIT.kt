@@ -123,7 +123,8 @@ class AutoConfigurationOnlyLaneBehaviourIT {
                     useEventLog(context.getBean(EventLogPresence::class.java))
                     // Hikari refills a pool of minimumIdle 1 when its only connection is borrowed, so for a moment the
                     // probe's connection and a refill connection both exist; the refill retires at the first
-                    // housekeeping pass after the idle timeout (60 s). Poll until the count settles at 1, bounded by the
+                    // housekeeping pass after the idle timeout (60 s). Poll until the count settles at 1, bounded by
+                    // the
                     // deadline of the pass window, instead of reading it once (the race is in how long the probe holds
                     // the connection, which grew with the signed binding, INV-T-4156).
                     settlesAt(1, HOUSEKEEPING_DEADLINE_MS) { sessionsOf(eventLog) } shouldBe 1
@@ -217,7 +218,9 @@ class AutoConfigurationOnlyLaneBehaviourIT {
         runCatching { presence.missing("probe-topic", listOf("probe-event")) }.exceptionOrNull().shouldNotBeNull()
     }
 
-    /** The first value of [read] equal to [expected] within [deadlineMs], polled every second; else the last value read. */
+    /**
+     * The first value of [read] equal to [expected] within [deadlineMs], polled every second; else the last value read.
+     */
     private fun settlesAt(
         expected: Int,
         deadlineMs: Long,
@@ -269,7 +272,8 @@ class AutoConfigurationOnlyLaneBehaviourIT {
         const val WINDOW_MS = 100_000L
 
         // HikariCP's housekeeper: first pass 100 ms after the pool starts, then 30 s after each pass ends (the library
-        // default, not set here). Passes in the window: 1 + (100 000 - 100) / 30 000 = 4, at about 0.1, 30, 60 and 90 s.
+        // default, not set here). Passes in the window: 1 + (100 000 - 100) / 30 000 = 4, at about 0.1, 30, 60 and 90
+        // s.
         // Only the 4th follows the 60 s idle timeout with margin, so the count is awaited until it is reached.
         const val HOUSEKEEPING_PERIOD_MS = 30_000L
         const val HOUSEKEEPING_FIRST_PASS_MS = 100L

@@ -45,7 +45,8 @@ import javax.management.ObjectName
 import javax.sql.DataSource
 
 /**
- * Coordinator ruling INV-Q-4542 through SpringApplication: [SqlConfigurationKeyGuard] is registered in service-runtime's
+ * Coordinator ruling INV-Q-4542 through SpringApplication: [SqlConfigurationKeyGuard] is registered in
+ * service-runtime's
  * `META-INF/spring.factories`, a service composed as TPL-18 with a TPL-16 configuration starts, a refused key fails
  * start-up (also as an environment variable), and the migration runner refuses `spring.flyway.init-sqls` before Flyway
  * connects.
@@ -156,7 +157,8 @@ class SqlConfigurationKeyGuardContextIT {
                     "spring.datasource.url=jdbc:postgresql://db:5432/submission",
                     "spring.datasource.username=submission_runtime",
                 ).withConfiguration(AutoConfigurations.of(JmxAutoConfiguration::class.java))
-        // spring.jmx.enabled=true as a key, and through a property source the key check cannot enumerate (the exporter check)
+        // spring.jmx.enabled=true as a key, and through a property source the key check cannot enumerate (the exporter
+        // check)
         service.withPropertyValues("spring.jmx.enabled=true").run { context ->
             context.startupFailure
                 .shouldNotBeNull()
@@ -237,8 +239,10 @@ class SqlConfigurationKeyGuardContextIT {
     @CsvSource(
         delimiter = '|',
         value = [
-            "spring.autoconfigure.exclude|SPRING_AUTOCONFIGURE_EXCLUDE|com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration",
-            "spring.autoconfigure.exclude[0]|SPRING_AUTOCONFIGURE_EXCLUDE_0|com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration",
+            "spring.autoconfigure.exclude|SPRING_AUTOCONFIGURE_EXCLUDE|" +
+                "com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration",
+            "spring.autoconfigure.exclude[0]|SPRING_AUTOCONFIGURE_EXCLUDE_0|" +
+                "com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration",
             "spring.main.allow-bean-definition-overriding|SPRING_MAIN_ALLOW_BEAN_DEFINITION_OVERRIDING|true",
             "spring.main.allowBeanDefinitionOverriding|SPRING_MAIN_ALLOWBEANDEFINITIONOVERRIDING|yes",
             "spring.main.sources|SPRING_MAIN_SOURCES|classpath:probe-beans.xml",

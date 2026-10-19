@@ -26,7 +26,8 @@ import java.util.UUID
  * Every statement is jOOQ DSL on the DSLContext of tenancy-jooq's factory, run in the caller's open transaction of the
  * tenant (ARC-21; forced RLS, CS-19); tenancy-jooq adds the tenant predicate and checks it again before the statement
  * runs. Identifiers are `DSL.name` of the [SqlIdentifier]-validated schema and constant column names; every value is a
- * bind value. The DSLContext runs on the TransactionRunner whose TenantAwareDataSource holds the lane gate (INV-Q-4502).
+ * bind value. The DSLContext runs on the TransactionRunner whose TenantAwareDataSource holds the lane gate
+ * (INV-Q-4502).
  */
 class JdbcResolutionRecorder(
     private val dsl: DSLContext,
@@ -99,7 +100,8 @@ class JdbcResolutionRecorder(
         subject: ResolutionSubject,
         key: VariationPointKey?,
     ): List<RecordedResolution> {
-        // A null key selects every variation point of the subject; tenancy-jooq adds the bound-tenant predicate (TPL-11).
+        // A null key selects every variation point of the subject; tenancy-jooq adds the bound-tenant predicate
+        // (TPL-11).
         val keyCondition = if (key == null) DSL.noCondition() else vpKey.eq(key.value)
         return dsl
             .select(

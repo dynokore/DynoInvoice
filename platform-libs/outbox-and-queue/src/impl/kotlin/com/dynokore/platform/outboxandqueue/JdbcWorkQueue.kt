@@ -11,6 +11,8 @@ import java.time.Duration
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 
+private const val DEFAULT_CLAIM_TIMEOUT_MINUTES = 5L
+
 /**
  * [WorkQueue] over the `work_queue` table of the service's schema ([QueueSchema]).
  *
@@ -33,6 +35,7 @@ import java.time.ZoneOffset
  * - **Crash.** A claim not completed within [claimTimeout] is claimed again (at-least-once; the handler is
  *   idempotent, INV-REQ-1164).
  */
+@Suppress("LongParameterList") // constructor injection under CS-05; INV-Q-4629 (CS-50)
 class JdbcWorkQueue(
     private val scope: TenantScope,
     private val dsl: DSLContext,
@@ -40,7 +43,7 @@ class JdbcWorkQueue(
     private val limiter: LaneRateLimiter,
     private val clock: Clock,
     private val consumer: String? = null,
-    private val claimTimeout: Duration = Duration.ofMinutes(5),
+    private val claimTimeout: Duration = Duration.ofMinutes(DEFAULT_CLAIM_TIMEOUT_MINUTES),
 ) : WorkQueue {
     private val schemaName = SqlIdentifier.require(schema, "schema")
     private val queue: Table<*> = DSL.table(DSL.name(schemaName, QueueSchema.WORK_QUEUE))

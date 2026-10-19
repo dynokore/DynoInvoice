@@ -2,6 +2,7 @@ package com.dynokore.platform.tenancyjooq
 
 import org.jooq.Configuration
 import org.jooq.SQLDialect
+import org.jooq.conf.RenderMapping
 import org.jooq.conf.Settings
 
 /**
@@ -55,19 +56,16 @@ internal object OwnedSettings {
      * are the defaults, so they are compared as unset.
      */
     private fun normalise(settings: Settings) {
-        val mapping = settings.renderMapping
-        if (mapping != null &&
-            mapping.defaultCatalog == null &&
-            mapping.defaultSchema == null &&
-            mapping.catalogs.isEmpty() &&
-            mapping.schemata.isEmpty()
-        ) {
-            settings.renderMapping = null
-        }
+        if (isEmptyMapping(settings.renderMapping)) settings.renderMapping = null
         if (settings.interpreterSearchPath.isEmpty()) settings.interpreterSearchPath = null
         if (settings.migrationSchemata.isEmpty()) settings.migrationSchemata = null
         if (settings.parseSearchPath.isEmpty()) settings.parseSearchPath = null
     }
+
+    private fun isEmptyMapping(mapping: RenderMapping?): Boolean =
+        mapping != null && mapping.defaultCatalog == null && mapping.defaultSchema == null && hasNoEntries(mapping)
+
+    private fun hasNoEntries(mapping: RenderMapping): Boolean = mapping.catalogs.isEmpty() && mapping.schemata.isEmpty()
 
     fun require(configuration: Configuration) {
         if (configuration.dialect() != SQLDialect.POSTGRES) {

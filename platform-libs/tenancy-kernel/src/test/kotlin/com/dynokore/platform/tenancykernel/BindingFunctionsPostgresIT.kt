@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Tag
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import java.util.Base64
+import java.util.Locale
 import java.util.UUID
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
@@ -122,7 +123,7 @@ class BindingFunctionsPostgresIT {
         val mac =
             Mac.getInstance("HmacSHA256").run {
                 init(SecretKeySpec(key, "HmacSHA256"))
-                doFinal(text.toByteArray()).joinToString("") { "%02x".format(it) }
+                doFinal(text.toByteArray()).joinToString("") { "%02x".format(Locale.ROOT, it) }
             }
         return "$text.$mac"
     }
@@ -326,7 +327,7 @@ class BindingFunctionsPostgresIT {
         val mac =
             macOverride ?: Mac.getInstance("HmacSHA256").run {
                 init(SecretKeySpec(key!!, "HmacSHA256"))
-                doFinal(text.toByteArray()).joinToString("") { "%02x".format(it) }
+                doFinal(text.toByteArray()).joinToString("") { "%02x".format(Locale.ROOT, it) }
             }
         return "$text.$mac"
     }

@@ -43,6 +43,12 @@ abstract class PolicyChangedProvider {
         context?.verifyInteraction()
     }
 
+    /** The provider state the pact names; a subclass annotates it with `@State` and calls [entityOverrideState]. */
+    abstract fun state()
+
+    /** The message the pact verifies; a subclass annotates it with `@PactVerifyProvider`. */
+    abstract fun entityOverride(): MessageAndMetadata
+
     /** The provider state: nothing to set up, the probe writes the override on a fresh tenant. */
     protected fun entityOverrideState() = Unit
 
@@ -56,10 +62,10 @@ abstract class PolicyChangedProvider {
 @PactFolder("build/pacts")
 class PolicyChangedProviderTest : PolicyChangedProvider() {
     @State(PolicyChangedPactTest.STATE)
-    fun state() = entityOverrideState()
+    override fun state() = entityOverrideState()
 
     @PactVerifyProvider(PolicyChangedPactTest.DESCRIPTION)
-    fun entityOverride() = entityOverrideMessage()
+    override fun entityOverride() = entityOverrideMessage()
 }
 
 @Provider(Contracts.CONFIG_RESOLVER)
@@ -70,8 +76,8 @@ class PolicyChangedProviderTest : PolicyChangedProvider() {
 @EnabledIfEnvironmentVariable(named = "PACT_BROKER_BASE_URL", matches = ".+")
 class PolicyChangedProviderBrokerTest : PolicyChangedProvider() {
     @State(PolicyChangedPactTest.STATE)
-    fun state() = entityOverrideState()
+    override fun state() = entityOverrideState()
 
     @PactVerifyProvider(PolicyChangedPactTest.DESCRIPTION)
-    fun entityOverride() = entityOverrideMessage()
+    override fun entityOverride() = entityOverrideMessage()
 }

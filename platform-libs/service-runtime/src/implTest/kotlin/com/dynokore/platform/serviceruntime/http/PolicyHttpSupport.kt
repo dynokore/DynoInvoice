@@ -45,7 +45,7 @@ enum class PolicyOp(
  * checked against the pinned contract (`service-runtime/openapi.yaml`) and the pinned error envelope.
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-abstract class PolicyHttpBase {
+open class PolicyHttpBase {
     private val harnesses = ConcurrentHashMap<String, PolicyHttpHarness>()
     protected val mapper = ObjectMapper()
     protected val contracts = ContractValidator()
@@ -206,25 +206,31 @@ abstract class PolicyHttpBase {
         level: ScopeLevel,
         scopeRef: String? = null,
         entityRef: String? = null,
-        option: String = "B",
-        value: String? = null,
-        effectiveDate: String = NEXT_MONTH,
-        reason: String? = "because",
-        asRole: String = "tenant.admin",
-        extra: String = "",
+        selection: RequestFields = RequestFields(),
     ): String {
         val fields = mutableListOf("\"scopeLevel\":\"${level.name}\"")
         scopeRef?.let { fields += "\"scopeRef\":\"$it\"" }
         entityRef?.let { fields += "\"entityRef\":\"$it\"" }
-        fields += "\"selected\":[{\"option\":\"$option\"${value?.let { ",\"value\":$it" }.orEmpty()}}]"
-        fields += "\"effectiveDate\":\"$effectiveDate\""
+        val value = selection.value?.let { ",\"value\":$it" }.orEmpty()
+        fields += "\"selected\":[{\"option\":\"${selection.option}\"$value}]"
+        fields += "\"effectiveDate\":\"${selection.effectiveDate}\""
         when (op) {
-            PolicyOp.SET -> reason?.let { fields += "\"reason\":\"$it\"" }
-            PolicyOp.ACK -> fields += "\"asRole\":\"$asRole\""
+            PolicyOp.SET -> selection.reason?.let { fields += "\"reason\":\"$it\"" }
+            PolicyOp.ACK -> fields += "\"asRole\":\"${selection.asRole}\""
         }
-        if (extra.isNotEmpty()) fields += extra
+        if (selection.extra.isNotEmpty()) fields += selection.extra
         return "{" + fields.joinToString(",") + "}"
     }
+
+    /** The selected option and the optional fields of a request body made by [request]. */
+    protected data class RequestFields(
+        val option: String = "B",
+        val value: String? = null,
+        val effectiveDate: String = NEXT_MONTH,
+        val reason: String? = "because",
+        val asRole: String = "tenant.admin",
+        val extra: String = "",
+    )
 
     protected companion object {
         const val NEXT_MONTH = "2026-11-01"

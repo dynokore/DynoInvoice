@@ -15,7 +15,8 @@ private class Postgres(
 /**
  * Isolation-test fixture for this module's own tests (done-when's own
  * PostgreSQL 16/17/18 matrix, TPL-14): a fresh PostgreSQL container whose init script
- * (route R1, owner ruling INV-Q-4508 (A)) runs [evidence-store-test-roles.sql], then [bindingInit] (the binding key table
+ * (route R1, owner ruling INV-Q-4508 (A)) runs [evidence-store-test-roles.sql], then [bindingInit] (the binding key
+ * table
  * and functions, before the first policy; INV-Q-6679), then, as the owner role, creates
  * the `evidence_record`/`legal_hold` tables this module's own tests exercise, built from
  * [JdbcEvidenceLedger.COLUMNS]/[JdbcLegalHoldRegistry.COLUMNS] plus

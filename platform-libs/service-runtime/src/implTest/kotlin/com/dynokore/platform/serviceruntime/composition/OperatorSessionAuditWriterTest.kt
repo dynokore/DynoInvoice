@@ -54,7 +54,8 @@ class OperatorSessionAuditWriterTest {
         }
     private val writer = OperatorSessionAuditWriter(own)
 
-    // The wiring conditions are on the TransactionRunner bean (INV-T-5301); tenancy-jooq needs it to be the current connection too.
+    // The wiring conditions are on the TransactionRunner bean (INV-T-5301); tenancy-jooq needs it to be the current
+    // connection too.
     private val transactionRunner =
         object : TransactionRunner, CurrentConnection {
             override fun <T> inTransaction(block: () -> T): T = error("no transaction is opened in this test")

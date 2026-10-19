@@ -21,8 +21,13 @@ class StructureReplicaTest {
         name: String = "Acme",
         retired: Boolean = false,
         profile: List<ProfileEntry> = emptyList(),
-        kind: StructureNodeKind = StructureNodeKind.ENTITY,
-    ) = StructureNode(kind, parent, retired, name, "ACME", profile, v)
+    ) = StructureNode(StructureNodeKind.ENTITY, parent, retired, name, "ACME", profile, v)
+
+    private fun unit(
+        parent: String?,
+        v: Long,
+        name: String,
+    ) = node(parent, v, name).copy(kind = StructureNodeKind.BUSINESS_UNIT)
 
     private fun org(
         ref: String,
@@ -122,13 +127,12 @@ class StructureReplicaTest {
 
     @Test
     fun `an UPDATED rename replaces the node's name, an unknown changeType applies the full node`() {
-        val bu = StructureNodeKind.BUSINESS_UNIT
-        feed.publish(org("bu1", StructureChange.CREATED, node("e1", 1, name = "Sales", kind = bu)))
-        feed.publish(org("bu1", StructureChange.UPDATED, node("e1", 2, name = "Sales APAC", kind = bu)))
+        feed.publish(org("bu1", StructureChange.CREATED, unit("e1", 1, "Sales")))
+        feed.publish(org("bu1", StructureChange.UPDATED, unit("e1", 2, "Sales APAC")))
         held("bu1").name shouldBe "Sales APAC"
         StructureChange.of("MERGED") shouldBe StructureChange.UNKNOWN
-        feed.publish(org("bu1", StructureChange.of("MERGED"), node("e2", 3, name = "Sales Asia", kind = bu)))
-        held("bu1") shouldBe node("e2", 3, name = "Sales Asia", kind = bu)
+        feed.publish(org("bu1", StructureChange.of("MERGED"), unit("e2", 3, "Sales Asia")))
+        held("bu1") shouldBe unit("e2", 3, "Sales Asia")
     }
 
     @Test

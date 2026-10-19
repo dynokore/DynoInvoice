@@ -79,13 +79,15 @@ import javax.sql.DataSource
  * is created only when the service declares the inputs only it has: its one application DataSource (and the
  * optional event-log pool, [ServiceDataSources]),
  * the topics [EventCatalogue] (from platform-contracts `event-log/topics.yaml`, TPL-18's platform-event catalogue),
- * [Retention], [LaneLimits], its staleness rules ([StalenessProperties] or [StalenessRule]s), and a consumer's [ConsumerSubscription] and
+ * [Retention], [LaneLimits], its staleness rules ([StalenessProperties] or [StalenessRule]s), and a consumer's
+ * [ConsumerSubscription] and
  * [EventHandler]; plus `gst.service` and `service-runtime.modules.schema`. The §12.1 [EventBinding] is the one
  * selected by `gst.bindings.event-binding` (`postgres`: [PostgresEventBinding], INV-REQ-1212).
  */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnClass(name = ["com.dynokore.platform.outboxandqueue.JdbcOutboxWriter"])
 @EnableConfigurationProperties(StalenessProperties::class, UnrelayedEventProperties::class)
+@Suppress("TooManyFunctions") // public Spring @Bean configuration; INV-Q-4629, INV-Q-7495 (CS-50)
 class OutboxAndQueueWiring(
     private val applicationGate: ObjectProvider<LaneGateHolder>,
     private val eventLogGate: ObjectProvider<EventLogGate>,
@@ -292,7 +294,10 @@ class OutboxAndQueueWiring(
         declared: ObjectProvider<StalenessRule>,
     ): StalenessRules = StalenessRules.resolve(properties.rules, declared.orderedStream().toList())
 
-    /** A service's own [StalenessBreachSink] replaces the logging default (the incident is the alert rule's, INV-Q-3030). */
+    /**
+     * A service's own [StalenessBreachSink] replaces the logging default (the incident is the alert rule's,
+     * INV-Q-3030).
+     */
     @Bean
     @ConditionalOnBean(
         EventLogLag::class,
@@ -469,7 +474,10 @@ class OutboxAndQueueWiring(
         transactions: TransactionRunner,
     ): DSLContext = TenancyJooq.dslContext(OutboxSchema.jooqTables(schema), tenants, transactions)
 
-    /** The event log's DSLContext over [scope]'s own runner, with the topic tables of [topics] ([EventLogSchema.jooqTables]). */
+    /**
+     * The event log's DSLContext over [scope]'s own runner, with the topic tables of [topics]
+     * ([EventLogSchema.jooqTables]).
+     */
     private fun eventLogDsl(
         scope: TenantScope,
         topics: Collection<String>,
@@ -484,7 +492,8 @@ class OutboxAndQueueWiring(
 
     companion object {
         /**
-         * The one hand-off of a pool to a user of this wiring (INV-Q-5243): a [TenantAwareDataSource] over [pool] that takes
+         * The one hand-off of a pool to a user of this wiring (INV-Q-5243): a [TenantAwareDataSource] over [pool] that
+         * takes
          * a permit of [gate] before every pool connection and resets the connection when it is handed back.
          */
         @JvmStatic

@@ -24,7 +24,8 @@ class OverrideListingIT {
         date: LocalDate?,
     ): UUID {
         val doc = UUID.randomUUID()
-        asTenant(tenant) { overrides.override(overrideCommand(tenant, doc, entity = entity, transactionDate = date)) }
+        val command = overrideCommand(tenant, doc).copy(entity = EntityRef(entity), transactionDate = date)
+        asTenant(tenant) { overrides.override(command) }
         return doc
     }
 

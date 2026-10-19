@@ -5,6 +5,7 @@ import com.dynokore.platform.serviceruntime.composition.JobProperties
 import com.dynokore.platform.serviceruntime.composition.ModuleProperties
 import com.dynokore.platform.serviceruntime.datasource.DatabaseCredentialsConfiguration
 import com.dynokore.platform.tenancykernel.SqlIdentifier
+import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration
 import org.springframework.boot.context.properties.EnableConfigurationProperties
@@ -37,7 +38,8 @@ class MigrationRunnerConfiguration {
             val schema = modules.schema?.takeIf { it.isNotBlank() }
             if (schema != null) {
                 require(jobs.retention.isPositive) { "the job retention must be positive" }
-                // Spring Boot has bound spring.flyway.placeholders.* already and placeholders(Map) replaces the whole map
+                // Spring Boot has bound spring.flyway.placeholders.* already and placeholders(Map) replaces the whole
+                // map
                 // (INV-Q-5255): the service's own placeholders stay, a clash with the callback's two is refused
                 val merged = LinkedHashMap(configuration.placeholders)
                 listOf(JOB_SCHEMA, JOB_RETENTION_SECONDS).forEach {
@@ -59,6 +61,6 @@ class MigrationRunnerConfiguration {
         const val DEFAULT_LOCATION = "classpath:db/migration"
         const val JOB_SCHEMA = "jobSchema"
         const val JOB_RETENTION_SECONDS = "jobRetentionSeconds"
-        val log = LoggerFactory.getLogger(MigrationRunnerConfiguration::class.java)
+        val log: Logger = LoggerFactory.getLogger(MigrationRunnerConfiguration::class.java)
     }
 }

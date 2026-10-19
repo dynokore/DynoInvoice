@@ -222,7 +222,7 @@ class JdbcOutboxWriter(
                 .set(LAST_VALUE, DSL.greatest(lastValue.plus(count), DSL.excluded(LAST_VALUE)))
                 .returning(LAST_VALUE)
                 .fetchOne()
-        check(last != null) { "sequence counter returned no row" }
+        checkNotNull(last) { "sequence counter returned no row" }
         return checkNotNull(last.get(LAST_VALUE)) - count + 1
     }
 

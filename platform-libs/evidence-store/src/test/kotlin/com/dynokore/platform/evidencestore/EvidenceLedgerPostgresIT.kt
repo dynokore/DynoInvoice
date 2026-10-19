@@ -155,7 +155,7 @@ class EvidenceLedgerPostgresIT {
     private fun assertTriggerRefusesMutationEvenForTheOwnerRole(db: Db) {
         val tenant = TenantId(UUID.randomUUID())
         val table = DSL.table(DSL.name(SCHEMA, EVIDENCE_TABLE))
-        ownerInsert(db, tenant, "trigger-entity", "trigger-period", "seed".toByteArray(), "1".repeat(64))
+        ownerInsert(db, tenant, Slot("trigger-entity", "trigger-period"), "seed".toByteArray(), "1".repeat(64))
         val update =
             assertThrows(DataAccessException::class.java) {
                 db.tenants.bind(tenant, "test-owner") {
@@ -214,7 +214,7 @@ class EvidenceLedgerPostgresIT {
             ledger.append(tenant, entity, period, EvidenceType.PAYLOAD, "genuine".toByteArray())
         }
         // an arbitrary hash, not the real chain link
-        ownerInsert(db, tenant, entity.value, period.value, "tampered".toByteArray(), "0".repeat(64), seq = 1)
+        ownerInsert(db, tenant, Slot(entity.value, period.value, seq = 1), "tampered".toByteArray(), "0".repeat(64))
 
         val result = runInTransaction(db, tenant) { ledger -> ledger.verifyChain(tenant, entity, period) }
         assertTrue(result is ChainVerificationResult.Broken, "expected Broken, was $result")
@@ -235,15 +235,20 @@ class EvidenceLedgerPostgresIT {
         }
     }
 
+    /** The entity, period and chain position of an evidence row. */
+    private class Slot(
+        val entity: String,
+        val period: String,
+        val seq: Long = 0,
+    )
+
     /** One evidence row written by the schema owner under [tenant]'s binding (WITH CHECK applies, CS-19). */
     private fun ownerInsert(
         db: Db,
         tenant: TenantId,
-        entity: String,
-        period: String,
+        slot: Slot,
         content: ByteArray,
         hash: String,
-        seq: Long = 0,
     ) {
         db.tenants.bind(tenant, "test-owner") {
             db.ownerTx.inTransaction {
@@ -253,9 +258,9 @@ class EvidenceLedgerPostgresIT {
                     .values(
                         UUID.randomUUID(),
                         tenant.value,
-                        entity,
-                        period,
-                        seq,
+                        slot.entity,
+                        slot.period,
+                        slot.seq,
                         "PAYLOAD",
                         content,
                         hash,

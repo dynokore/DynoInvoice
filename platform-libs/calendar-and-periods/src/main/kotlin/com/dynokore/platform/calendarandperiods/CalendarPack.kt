@@ -64,6 +64,7 @@ class BusinessCalendar(
  * holiday is data here. [pinnedRule] is set once the tax authority answers INV-NOTE-4#row:Q-25: it then applies to
  * every entity and the per-entity rule has no effect (INV-REQ-87 b3).
  */
+@Suppress("LongParameterList") // a public factory with defaulted parameters; INV-Q-4629 (CS-50)
 class CalendarPack(
     val version: String,
     windows: Map<FilingFrequency, List<StandardWindow>>,

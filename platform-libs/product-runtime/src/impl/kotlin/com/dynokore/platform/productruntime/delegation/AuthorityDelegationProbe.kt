@@ -30,12 +30,27 @@ class AuthorityDelegationProbe(
         onDate: LocalDate,
     ): Boolean {
         if (target.ref.level == ScopeLevel.CLIENT_ENTITY) return true
-        val authority = replica() ?: return true
-        if (!authority.lag().isWithin(authority.lagBound)) return true
-        val tenant = target.tenant ?: return false
-        val entity = target.entity ?: return false
-        val consent = authority.consents.peek(ConsentKey(tenant, entity)) ?: return false
-        return consent.state == ConsentState.LIVE && consent.overlaps(onDate)
+        val authority = replica()
+        return authority == null || !authority.lag().isWithin(authority.lagBound) ||
+            hasLiveConsent(authority, target, onDate)
+    }
+
+    private fun hasLiveConsent(
+        authority: AuthorityReplica,
+        target: SettingTarget,
+        onDate: LocalDate,
+    ): Boolean {
+        val tenant = target.tenant
+        val entity = target.entity
+        val consent =
+            if (tenant != null &&
+                entity != null
+            ) {
+                authority.consents.peek(ConsentKey(tenant, entity))
+            } else {
+                null
+            }
+        return consent != null && consent.state == ConsentState.LIVE && consent.overlaps(onDate)
     }
 
     private fun AuthorityRecord.ConsentRecord.overlaps(day: LocalDate): Boolean {

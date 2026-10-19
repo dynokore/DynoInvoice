@@ -42,7 +42,7 @@ class CronTicks(
             }
             step = step.multipliedBy(2)
         }
-        throw IllegalStateException("schedule fired not within the lookback")
+        error("schedule fired not within the lookback")
     }
 
     /** The longest gap between consecutive firings over the next [firings] firings after [from]. */

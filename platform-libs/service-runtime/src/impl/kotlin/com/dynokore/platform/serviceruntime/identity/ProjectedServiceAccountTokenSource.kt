@@ -18,7 +18,10 @@ class ProjectedServiceAccountTokenSource(
     }
 }
 
-/** The projected token volume is not mounted, or was not yet written — an infrastructure failure, not a refused call (CS-14). */
+/**
+ * The projected token volume is not mounted, or was not yet written — an infrastructure failure, not a refused call
+ * (CS-14).
+ */
 class WorkloadTokenUnavailable(
     path: Path,
 ) : RuntimeException("No projected service-account token at $path")

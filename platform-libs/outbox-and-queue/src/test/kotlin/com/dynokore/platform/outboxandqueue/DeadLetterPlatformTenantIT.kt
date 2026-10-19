@@ -36,12 +36,14 @@ class DeadLetterPlatformTenantIT {
         JooqKit.recordDeadLetter(
             harness.fixture,
             "submission",
-            "submission-svc",
-            "gst.canonical.canonical-version-created.v1",
-            1,
-            tenant,
-            "handler schema mismatch",
-            raw,
+            LetterToRecord(
+                "submission-svc",
+                "gst.canonical.canonical-version-created.v1",
+                1,
+                tenant,
+                "handler schema mismatch",
+                raw,
+            ),
         )
 
     /** The first column of every row [sql] returns in a runtime-login transaction bound to [bound]. */

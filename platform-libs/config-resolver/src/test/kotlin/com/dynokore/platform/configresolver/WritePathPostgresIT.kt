@@ -100,7 +100,7 @@ class WritePathPostgresIT : WritePathBase() {
         val r = Run(image)
         val june = LocalDate.of(2026, 6, 1)
         val floor = BackdatingFloor { _, _ -> LocalDate.of(2026, 4, 1) }
-        val floored = r.h.writer(backdating = floor)
+        val floored = r.h.writer(ports = WriterPorts(backdating = floor))
         // Singapore's date, not UTC's: at 2026-09-30T20:00Z it is already 1 October in Singapore.
         val lateUtc = r.h.writer(clock = clockAt("2026-09-30T20:00:00Z"))
         r.put(set(EVERY_LEVEL, r.tenantScope, ScopeLevel.TENANT, one("B"), admin), lateUtc)
@@ -109,7 +109,21 @@ class WritePathPostgresIT : WritePathBase() {
         // No port, a null floor, or a date before the floor: refused.
         val inJune = set(DESPATCH, r.e1, ScopeLevel.ENTITY, one("DAILY_WINDOW"), from = june)
         assertEquals(PolicyRefusal.BACKDATING_REFUSED, r.refusedPut(inJune))
-        assertEquals(PolicyRefusal.BACKDATING_REFUSED, r.refusedPut(inJune, r.h.writer(backdating = { _, _ -> null })))
+        assertEquals(
+            PolicyRefusal.BACKDATING_REFUSED,
+            r.refusedPut(
+                inJune,
+                r.h.writer(
+                    ports =
+                        WriterPorts(backdating = {
+                            _,
+                            _,
+                            ->
+                            null
+                        }),
+                ),
+            ),
+        )
         val inMarch = set(DESPATCH, r.e1, ScopeLevel.ENTITY, one("DAILY_WINDOW"), from = LocalDate.of(2026, 3, 1))
         assertEquals(PolicyRefusal.BACKDATING_REFUSED, r.refusedPut(inMarch, floored))
         // The first value from the floor on is accepted; a second back-dated value is not.

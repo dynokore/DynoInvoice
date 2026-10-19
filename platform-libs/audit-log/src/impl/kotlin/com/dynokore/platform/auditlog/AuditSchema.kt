@@ -39,6 +39,7 @@ object AuditSchema {
 
     /** The argument types of [PURGE_AUDIT_ENTRIES], for its hand-over and grants. */
     private const val PURGE_ARGUMENTS = "timestamptz, text, uuid, text, text, text, text, text"
+    private const val PURGE_BODY_INDENT = "    "
 
     fun ddl(
         schema: String,
@@ -164,15 +165,28 @@ object AuditSchema {
         sysRole: String,
         service: String,
     ): String {
-        val s = SqlIdentifier.require(schema, "schema")
+        SqlIdentifier.require(schema, "schema")
         val runtime = SqlIdentifier.require(runtimeRole, "runtime role")
         val sys = SqlIdentifier.require(sysRole, "sys role")
         require(runtime != sys) { "the runtime login and the sys role must differ, both were '$runtime'" }
         require(
             SERVICE.matches(service),
         ) { "service must be a lower-case name like 'control-plane-svc', was '$service'" }
-        // The service name has hyphens, so it enters the SQL text in its identifier form and is restored in SQL.
-        val svc = SqlIdentifier.require(service.replace('-', '_'), "service")
+        SqlIdentifier.require(service.replace('-', '_'), "service")
+        return listOf(
+            purgePolicies(schema, sysRole),
+            purgeFunction(schema, service),
+            purgeOwnership(schema, runtimeRole, sysRole),
+        ).joinToString("\n")
+    }
+
+    // Each part re-checks the identifiers it interpolates, so the SQL-identifier analysis traces them (INV-REQ-854 b5).
+    private fun purgePolicies(
+        schema: String,
+        sysRole: String,
+    ): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        val sys = SqlIdentifier.require(sysRole, "sys role")
         return """
             grant usage on schema $s to $sys;
             grant select, insert, delete on $s.$AUDIT_ENTRY to $sys;
@@ -182,6 +196,28 @@ object AuditSchema {
                 using (recorded_at < now() - interval '$LEGAL_FLOOR');
             create policy ${AUDIT_ENTRY}_sys_purge_floor on $s.$AUDIT_ENTRY as restrictive for delete to $sys
                 using (recorded_at < now() - interval '$LEGAL_FLOOR');
+            """.trimIndent()
+    }
+
+    private fun purgeFunction(
+        schema: String,
+        service: String,
+    ): String =
+        listOf(
+            purgeHead(schema, service),
+            purgeGuards(schema).prependIndent(PURGE_BODY_INDENT),
+            purgeWrites(schema).prependIndent(PURGE_BODY_INDENT),
+            "end\n$$;",
+        ).joinToString("\n")
+
+    private fun purgeHead(
+        schema: String,
+        service: String,
+    ): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        // The service name has hyphens, so it enters the SQL text in its identifier form and is restored in SQL.
+        val svc = SqlIdentifier.require(service.replace('-', '_'), "service")
+        return """
             create function $s.$PURGE_AUDIT_ENTRIES(p_cut_off timestamptz, p_reason text, p_entry_id uuid,
                 p_source text, p_subject text, p_instance_id text, p_correlation_id text, p_causation_id text)
                 returns bigint
@@ -189,41 +225,56 @@ object AuditSchema {
             declare
                 v_service constant text := replace('$svc', '_', '-');
                 v_actor text := (select $s.bound_actor());
+                v_deleted bigint;
+            begin
+            """.trimIndent()
+    }
+
+    private fun purgeGuards(schema: String): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        return """
+            if v_actor is null or v_actor ~ '${BlankText.SQL_NOT_ACTOR}' then
+                raise exception 'the bound actor is not set: the purge records its actor' using errcode = '42501';
+            end if;
+            if (select $s.bound_tenant()) is distinct from '$PLATFORM'::uuid then
+                raise exception 'the purge runs under the platform tenant only' using errcode = '42501';
+            end if;
+            if p_cut_off is null or p_cut_off > now() - interval '$LEGAL_FLOOR' then
+                raise exception 'cut-off % is later than the legal floor of $LEGAL_FLOOR', p_cut_off
+                    using errcode = '22023';
+            end if;
+            if p_reason is null or p_reason ~ '${BlankText.SQL_BLANK}' then
+                raise exception 'the purge needs a reason' using errcode = '22023';
+            end if;
+            if p_subject is null or p_subject ~ '${BlankText.SQL_BLANK}'
+                or p_instance_id is null or p_instance_id ~ '${BlankText.SQL_BLANK}'
+                or p_correlation_id is null or p_correlation_id ~ '${BlankText.SQL_BLANK}'
+                or p_causation_id is null or p_causation_id ~ '${BlankText.SQL_BLANK}' then
+                raise exception 'the staged entry needs a subject, instance, correlation and causation'
+                    using errcode = '22023';
+            end if;
+            if p_source is distinct from ('/gst/' || v_service) then
+                raise exception 'source % is not /gst/%', p_source, v_service using errcode = '22023';
+            end if;
+            if p_entry_id is null
+                or p_entry_id::text !~ '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' then
+                raise exception 'entry id % is not a version-7 UUID', p_entry_id using errcode = '22023';
+            end if;
+            if exists (select 1 from $s.$AUDIT_ENTRY where tenant_id = '$PLATFORM'::uuid and id = p_entry_id) then
+                raise exception 'entry id % is already present', p_entry_id using errcode = '22023';
+            end if;
+            """.trimIndent()
+    }
+
+    private fun purgeWrites(schema: String): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        // A nested block of its own: the SELECT … INTO targets are declared in the statement that holds them
+        return """
+            declare
                 v_rows bigint;
                 v_oldest timestamptz;
                 v_newest timestamptz;
-                v_deleted bigint;
             begin
-                if v_actor is null or v_actor ~ '${BlankText.SQL_NOT_ACTOR}' then
-                    raise exception 'the bound actor is not set: the purge records its actor' using errcode = '42501';
-                end if;
-                if (select $s.bound_tenant()) is distinct from '$PLATFORM'::uuid then
-                    raise exception 'the purge runs under the platform tenant only' using errcode = '42501';
-                end if;
-                if p_cut_off is null or p_cut_off > now() - interval '$LEGAL_FLOOR' then
-                    raise exception 'cut-off % is later than the legal floor of $LEGAL_FLOOR', p_cut_off
-                        using errcode = '22023';
-                end if;
-                if p_reason is null or p_reason ~ '${BlankText.SQL_BLANK}' then
-                    raise exception 'the purge needs a reason' using errcode = '22023';
-                end if;
-                if p_subject is null or p_subject ~ '${BlankText.SQL_BLANK}'
-                    or p_instance_id is null or p_instance_id ~ '${BlankText.SQL_BLANK}'
-                    or p_correlation_id is null or p_correlation_id ~ '${BlankText.SQL_BLANK}'
-                    or p_causation_id is null or p_causation_id ~ '${BlankText.SQL_BLANK}' then
-                    raise exception 'the staged entry needs a subject, instance, correlation and causation'
-                        using errcode = '22023';
-                end if;
-                if p_source is distinct from ('/gst/' || v_service) then
-                    raise exception 'source % is not /gst/%', p_source, v_service using errcode = '22023';
-                end if;
-                if p_entry_id is null
-                    or p_entry_id::text !~ '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' then
-                    raise exception 'entry id % is not a version-7 UUID', p_entry_id using errcode = '22023';
-                end if;
-                if exists (select 1 from $s.$AUDIT_ENTRY where tenant_id = '$PLATFORM'::uuid and id = p_entry_id) then
-                    raise exception 'entry id % is already present', p_entry_id using errcode = '22023';
-                end if;
                 select count(*), min(recorded_at), max(recorded_at) into v_rows, v_oldest, v_newest
                 from $s.$AUDIT_ENTRY where recorded_at < p_cut_off;
                 insert into $s.$AUDIT_ENTRY
@@ -237,8 +288,19 @@ object AuditSchema {
                 delete from $s.$AUDIT_ENTRY where recorded_at < p_cut_off;
                 get diagnostics v_deleted = row_count;
                 return v_deleted;
-            end
-            $$;
+            end;
+            """.trimIndent()
+    }
+
+    private fun purgeOwnership(
+        schema: String,
+        runtimeRole: String,
+        sysRole: String,
+    ): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        val runtime = SqlIdentifier.require(runtimeRole, "runtime role")
+        val sys = SqlIdentifier.require(sysRole, "sys role")
+        return """
             grant create on schema $s to $sys;
             alter function $s.$PURGE_AUDIT_ENTRIES($PURGE_ARGUMENTS) owner to $sys;
             revoke all on function $s.$PURGE_AUDIT_ENTRIES($PURGE_ARGUMENTS) from public;

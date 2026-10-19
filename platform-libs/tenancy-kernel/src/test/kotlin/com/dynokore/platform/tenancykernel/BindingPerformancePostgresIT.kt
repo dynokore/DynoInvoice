@@ -9,6 +9,7 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import java.sql.Connection
 import java.sql.PreparedStatement
+import java.util.Locale
 import java.util.UUID
 
 /**
@@ -139,11 +140,8 @@ class BindingPerformancePostgresIT {
         val u = cells.getValue(Variant.U).p95
         val x = cells.getValue(Variant.X).p95
         val s = cells.getValue(Variant.S).p95
-        println(
-            "BENCH $image $name p95 S-U=${s - u}us X-U=${x - u}us S-X=${s - x}us ratio S/U=${"%.4f".format(
-                s.toDouble() / u,
-            )}",
-        )
+        val ratio = String.format(Locale.ROOT, "%.4f", s.toDouble() / u)
+        println("BENCH $image $name p95 S-U=${s - u}us X-U=${x - u}us S-X=${s - x}us ratio S/U=$ratio")
     }
 
     private class Shape(

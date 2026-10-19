@@ -21,7 +21,10 @@ class TableClasses private constructor(
      *   declared [TableClass.PLATFORM_SCOPED] table has a tenant column, when a declared [TableClass.REFERENCE] table
      *   has none, or when a declared table is missing from [schemas].
      */
-    fun verify(vararg schemas: Schema): TenancyTables {
+    fun verify(vararg schemas: Schema): TenancyTables = verify(schemas.toList())
+
+    /** Same check as the vararg overload, for a caller that already holds the schemas as a list. */
+    fun verify(schemas: List<Schema>): TenancyTables {
         val problems = mutableListOf<String>()
         val classes = linkedMapOf<List<String>, TableClass>()
         schemas.flatMap { it.tables }.forEach { table ->

@@ -6,11 +6,13 @@ import com.dynokore.platform.tenancykernel.SignedBinding
 import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantId
 import java.sql.Connection
+import java.util.Locale
 import java.util.UUID
 
 /**
  * The signed tenant binding of the fixture services (INV-T-4156 slice 6, INV-REQ-854 b7, owner ruling INV-Q-4121): the
- * installation key the fixture's runners sign with and every fixture schema's `bound_tenant()` / `bound_actor()` verify,
+ * installation key the fixture's runners sign with and every fixture schema's `bound_tenant()` / `bound_actor()`
+ * verify,
  * and the statements a test uses where it binds a plain connection itself.
  */
 object SigningFixture {
@@ -26,8 +28,10 @@ object SigningFixture {
     ): String = SignedBinding.value(key, TenantId(tenant), actor)
 
     /**
-     * Binds [connection] as a signing runner does, in one statement: tenant, actor and `app.binding_sig`, for the current
-     * transaction ([transactionLocal]) or the session. [signature] defaults to the valid one; a test passes a forged value.
+     * Binds [connection] as a signing runner does, in one statement: tenant, actor and `app.binding_sig`, for the
+     * current
+     * transaction ([transactionLocal]) or the session. [signature] defaults to the valid one; a test passes a forged
+     * value.
      */
     fun bind(
         connection: Connection,
@@ -54,7 +58,8 @@ object SigningFixture {
 
     /**
      * Provisioning SQL, run as the superuser: pgcrypto, then the binding key table and the two functions in [schema]
-     * from tenancy-kernel's generator, created by [sysRole] (which holds USAGE and CREATE on the schema for this script only), and
+     * from tenancy-kernel's generator, created by [sysRole] (which holds USAGE and CREATE on the schema for this script
+     * only), and
      * the fixture key. [runtimeRole] gets EXECUTE.
      */
     fun provisioning(
@@ -64,7 +69,7 @@ object SigningFixture {
     ): String {
         val s = SqlIdentifier.require(schema, "schema")
         val sys = SqlIdentifier.require(sysRole, "sys role")
-        val hex = key.joinToString("") { "%02x".format(it) }
+        val hex = key.joinToString("") { "%02x".format(Locale.ROOT, it) }
         return listOf(
             "RESET ROLE;",
             "create extension if not exists pgcrypto schema public;",

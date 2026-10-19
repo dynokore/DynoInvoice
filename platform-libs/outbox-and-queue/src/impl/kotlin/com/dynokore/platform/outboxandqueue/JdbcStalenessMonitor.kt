@@ -9,7 +9,8 @@ import java.time.Duration
 
 /**
  * [StalenessMonitor] for the consumers of one service schema (INV-REQ-1165, INV-AC-2150). For each rule it reads
- * the consumer's offset (a platform-bound transaction of [scope], the runtime login, as jOOQ on [dsl]; the offset table holds no tenant data)
+ * the consumer's offset (a platform-bound transaction of [scope], the runtime login, as jOOQ on [dsl]; the offset table
+ * holds no tenant data)
  * and asks the event log ([EventLogLag], through `eventlog.claim` only, coordinator ruling INV-Q-4264) for the oldest
  * record the consumer has not consumed and the offset lag. The lag is `now - inserted_at` of that
  * record, measured by the injected [Clock]; it is breached only when strictly greater than the threshold. A breach
@@ -18,6 +19,7 @@ import java.time.Duration
  *
  * The metric is returned as plain values: exporting it as a gauge is the composition root's job (service-runtime).
  */
+@Suppress("LongParameterList") // constructor injection under CS-05; INV-Q-4629 (CS-50)
 class JdbcStalenessMonitor(
     private val scope: TenantScope,
     private val dsl: DSLContext,

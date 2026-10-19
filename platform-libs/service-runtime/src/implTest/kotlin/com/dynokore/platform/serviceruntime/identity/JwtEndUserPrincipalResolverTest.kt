@@ -65,19 +65,37 @@ class JwtEndUserPrincipalResolverTest {
         audience: String = "svc",
         iss: String = issuer,
         expiresAt: Instant = Instant.now().plusSeconds(300),
+    ): String = signed(claims(tenantClaim, subject, audience, iss, expiresAt), keys, null)
+
+    /** A token made by [signer] under [kid], for a user whose other claims are the defaults. */
+    private fun signedBy(
+        kid: String?,
         signer: KeyPair = keys,
-        kid: String? = null,
+        expiresAt: Instant = Instant.now().plusSeconds(300),
+    ): String = signed(claims(tenant.toString(), "p1", "svc", issuer, expiresAt), signer, kid)
+
+    private fun claims(
+        tenantClaim: String?,
+        subject: String,
+        audience: String,
+        iss: String,
+        expiresAt: Instant,
+    ): JWTClaimsSet =
+        JWTClaimsSet
+            .Builder()
+            .subject(subject)
+            .issuer(iss)
+            .audience(audience)
+            .expirationTime(Date.from(expiresAt))
+            .issueTime(Date.from(Instant.now()))
+            .apply { tenantClaim?.let { claim(JwtEndUserPrincipalResolver.TENANT_CLAIM, it) } }
+            .build()
+
+    private fun signed(
+        claims: JWTClaimsSet,
+        signer: KeyPair,
+        kid: String?,
     ): String {
-        val claims =
-            JWTClaimsSet
-                .Builder()
-                .subject(subject)
-                .issuer(iss)
-                .audience(audience)
-                .expirationTime(Date.from(expiresAt))
-                .issueTime(Date.from(Instant.now()))
-                .apply { tenantClaim?.let { claim(JwtEndUserPrincipalResolver.TENANT_CLAIM, it) } }
-                .build()
         val jwt = SignedJWT(JWSHeader.Builder(JWSAlgorithm.RS256).keyID(kid).build(), claims)
         jwt.sign(RSASSASigner(signer.private as RSAPrivateKey))
         return "Bearer " + jwt.serialize()
@@ -156,7 +174,7 @@ class JwtEndUserPrincipalResolverTest {
         resolver.resolve("Basic abc") shouldBe null
         resolver.resolve("Bearer ") shouldBe null
         resolver.resolve("Bearer not-a-jwt") shouldBe null
-        resolver.resolve(token(signer = other)) shouldBe null
+        resolver.resolve(signedBy(null, other)) shouldBe null
         resolver.resolve(token(expiresAt = Instant.now().minusSeconds(120))) shouldBe null
         resolver.resolve(token(audience = "another-svc")) shouldBe null
         resolver.resolve(token(iss = "https://elsewhere.test")) shouldBe null
@@ -209,15 +227,15 @@ class JwtEndUserPrincipalResolverTest {
         val outage = JwtEndUserPrincipalResolver(decoder, replica)
         val other = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair()
 
-        shouldThrow<TokenIssuerUnavailableException> { outage.resolve(token(kid = "k1")) } // no key ever obtained
+        shouldThrow<TokenIssuerUnavailableException> { outage.resolve(signedBy("k1")) } // no key ever obtained
         down = false
-        outage.resolve(token(kid = "k1"))?.actor shouldBe "p1"
+        outage.resolve(signedBy("k1"))?.actor shouldBe "p1"
         down = true
-        outage.resolve(token(kid = "k1"))?.actor shouldBe "p1" // the cached key still verifies
-        outage.resolve(token(kid = "k1", expiresAt = Instant.now().minusSeconds(120))) shouldBe null // still 401
-        shouldThrow<TokenIssuerUnavailableException> { outage.resolve(token(kid = "k2", signer = other)) }
+        outage.resolve(signedBy("k1"))?.actor shouldBe "p1" // the cached key still verifies
+        outage.resolve(signedBy("k1", expiresAt = Instant.now().minusSeconds(120))) shouldBe null // still 401
+        shouldThrow<TokenIssuerUnavailableException> { outage.resolve(signedBy("k2", other)) }
         down = false
-        outage.resolve(token(kid = "k2", signer = other)) shouldBe null // issuer reachable, unknown key: 401
+        outage.resolve(signedBy("k2", other)) shouldBe null // issuer reachable, unknown key: 401
     }
 
     private companion object {

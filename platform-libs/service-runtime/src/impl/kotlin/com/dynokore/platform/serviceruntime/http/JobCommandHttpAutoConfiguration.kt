@@ -42,7 +42,8 @@ data class IdempotencyProperties(
  * over its resource-server configuration, its [TenantScope] and its application [DataSource], this registers
  * the [JobCommandServlet] at [JobCommandServlet.MAPPING] with the API-15 [IdempotencyStore] in
  * `service-runtime.idempotency.schema`, keeping keys for `service-runtime.idempotency.retention` (per installation,
- * default 24 hours; a shorter one is refused at start-up, API-15). With the service's [JobRuntime], the store's purge runs as the
+ * default 24 hours; a shorter one is refused at start-up, API-15). With the service's [JobRuntime], the store's purge
+ * runs as the
  * [IdempotencyKeyPurgeJob] platform job (coordinator ruling INV-Q-3798). A service without jobs gets none of it.
  */
 @AutoConfiguration
@@ -89,6 +90,7 @@ class JobCommandHttpAutoConfiguration {
 
     @Bean
     @ConditionalOnBean(JobCommands::class)
+    @Suppress("LongParameterList") // a Spring @Bean factory; INV-Q-4629 (CS-50)
     fun jobCommandServlet(
         commands: JobCommands,
         principals: EndUserPrincipalResolver,
@@ -102,8 +104,10 @@ class JobCommandHttpAutoConfiguration {
     }
 
     /**
-     * Serves setPolicy and acknowledgeControlRelaxation (INV-T-5180, INV-Q-5172) only in a service that has a config-resolver
-     * [PolicyWriter]; a service without one mounts nothing, so both paths are unknown to it. The [PolicyRoleResolver] is the
+     * Serves setPolicy and acknowledgeControlRelaxation (INV-T-5180, INV-Q-5172) only in a service that has a
+     * config-resolver
+     * [PolicyWriter]; a service without one mounts nothing, so both paths are unknown to it. The [PolicyRoleResolver]
+     * is the
      * service's own port; unbound, both operations answer 403 SRT-004 (fail closed).
      */
     @Bean

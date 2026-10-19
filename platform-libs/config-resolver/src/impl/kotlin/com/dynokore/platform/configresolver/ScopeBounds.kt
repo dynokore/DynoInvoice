@@ -1,10 +1,8 @@
 package com.dynokore.platform.configresolver
 
-import tools.jackson.core.JacksonException
 import tools.jackson.databind.DeserializationFeature
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
-import tools.jackson.databind.node.ObjectNode
 import java.math.BigDecimal
 import java.time.LocalDate
 
@@ -32,16 +30,28 @@ internal class ScopeBounds(
 ) {
     private val mapper: JsonMapper =
         JsonMapper.builder().enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS).build()
+    private val walker = BoundFields(mapper)
 
     /** Why config-resolver cannot evaluate the row's cross-scope rule or installation bound, or `null`. */
-    fun unsupported(definition: VariationPointDefinition): String? {
-        if (definition.installationBound && definition.installationParameter == null) {
-            return "the row declares an installation bound but names no installation parameter row"
+    fun unsupported(definition: VariationPointDefinition): String? =
+        when {
+            definition.installationBound && definition.installationParameter == null -> {
+                "the row declares an installation bound but names no installation parameter row"
+            }
+
+            definition.crossScope == null -> {
+                null
+            }
+
+            else -> {
+                crossScopeUnsupported(definition)
+            }
         }
-        if (definition.crossScope == null) return null
+
+    private fun crossScopeUnsupported(definition: VariationPointDefinition): String? {
         val shapes =
             definition.options.map { option ->
-                shape(option.typedValue, "")
+                walker.shape(option.typedValue, "")
                     ?: return "a directed field sits in a list or map"
             }
         return when {
@@ -67,7 +77,7 @@ internal class ScopeBounds(
         selected: List<SelectedOption>,
         at: LocalDate,
     ): List<Limit> {
-        val fields = fields(definition, selected)
+        val fields = walker.fields(definition, selected)
         return crossScopeLimits(definition, scope, level, fields, at) + rowLimits(definition, fields, at)
     }
 
@@ -117,7 +127,7 @@ internal class ScopeBounds(
                                 caps += PolicyCap(option.key, path, stored, it.bound, it.by, it.level)
                             }
                     }
-                    node = put(node, path, value)
+                    node = walker.put(node, path, value)
                 }
                 SelectedOption(option.key, mapper.writeValueAsString(node))
             }
@@ -155,24 +165,26 @@ internal class ScopeBounds(
         fields: List<Field>,
         at: LocalDate,
     ): List<Limit> {
-        val broader = broaderLevels(definition, scope, level).maxOrNull() ?: return emptyList()
+        val broader = broaderLevels(definition, scope, level).maxOrNull()
         val directed = fields.filter { it.spec.direction != Direction.NONE }
-        if (directed.isEmpty()) return emptyList()
+        if (broader == null || directed.isEmpty()) return emptyList()
         val key = definition.key
         val wider = resolving(key) { resolve(key, scope.narrowedTo(broader), at) }
         val widerFields =
-            fields(
-                definition,
-                wider.selected,
-            ).filter { it.spec.direction != Direction.NONE }.groupBy { it.path }
+            walker
+                .fields(
+                    definition,
+                    wider.selected,
+                ).filter { it.spec.direction != Direction.NONE }
+                .groupBy { it.path }
         return directed.flatMap { field ->
             val same =
-                widerFields[field.path] ?: throw BoundUnavailable(key, "the $broader value has no '${field.path}'")
-            if (field.value == null) throw BoundUnavailable(key, "option '${field.option}' has no '${field.path}'")
+                widerFields[field.path] ?: unavailable(key, "the $broader value has no '${field.path}'")
+            if (field.value == null) unavailable(key, "option '${field.option}' has no '${field.path}'")
             same.map { other ->
-                val bound = other.value ?: throw BoundUnavailable(key, "the $broader value has no '${field.path}'")
+                val bound = other.value ?: unavailable(key, "the $broader value has no '${field.path}'")
                 if (other.spec.direction != field.spec.direction || other.spec.unit != field.spec.unit) {
-                    throw BoundUnavailable(key, "'${field.path}' differs in direction or unit from the $broader value")
+                    unavailable(key, "'${field.path}' differs in direction or unit from the $broader value")
                 }
                 Limit(field, bound, field.spec.direction == Direction.DOWN_STRICTER, key, broader, crossScope = true)
             }
@@ -196,7 +208,7 @@ internal class ScopeBounds(
                 if (field.value ==
                     null
                 ) {
-                    throw BoundUnavailable(definition.key, "option '${field.option}' has no '${field.path}'")
+                    unavailable(definition.key, "option '${field.option}' has no '${field.path}'")
                 }
                 val bound = rowNumber(definition.key, row, field.spec.unit, at)
                 Limit(field, bound, ceiling, row, ScopeLevel.INSTALLATION, crossScope = false)
@@ -211,118 +223,23 @@ internal class ScopeBounds(
         at: LocalDate,
     ): BigDecimal {
         val bounding =
-            catalogue.find(row) ?: throw BoundUnavailable(key, "the bounding row $row is not in the catalogue")
+            catalogue.find(row) ?: unavailable(key, "the bounding row $row is not in the catalogue")
         if (ScopeLevel.INSTALLATION !in bounding.scopeLevels || bounding.installationParameter != null ||
             bounding.crossScope != null
         ) {
-            throw BoundUnavailable(key, "$row is not a plain installation row")
+            unavailable(key, "$row is not a plain installation row")
         }
         val resolved = resolving(key) { resolve(row, PolicyScope.installation(), at) }
-        val only = resolved.selected.singleOrNull() ?: throw BoundUnavailable(key, "$row resolves to several options")
+        val only = resolved.selected.singleOrNull() ?: unavailable(key, "$row resolves to several options")
         val spec = bounding.option(only.key)?.typedValue
         if (spec == null || !spec.type.numeric || spec.unit != unit) {
-            throw BoundUnavailable(key, "$row option '${only.key}' is not a number in $unit")
+            unavailable(key, "$row option '${only.key}' is not a number in $unit")
         }
         val number =
-            only.valueJson?.let { json -> parse(row, json).takeIf { it.isNumber }?.decimalValue() } ?: spec.absentAs
-        return number ?: throw BoundUnavailable(key, "$row option '${only.key}' has no number")
+            only.valueJson?.let { json -> walker.parse(row, json).takeIf { it.isNumber }?.decimalValue() }
+                ?: spec.absentAs
+        return number ?: unavailable(key, "$row option '${only.key}' has no number")
     }
-
-    /** The number fields that are directed or bounded by a row, of every chosen option. */
-    private fun fields(
-        definition: VariationPointDefinition,
-        selected: List<SelectedOption>,
-    ): List<Field> =
-        selected.flatMap { choice ->
-            val spec = definition.option(choice.key)?.typedValue ?: return@flatMap emptyList()
-            val node = choice.valueJson?.let { parse(definition.key, it) }
-            walk(choice.key, spec, node, "")
-        }
-
-    private fun walk(
-        option: String,
-        spec: TypedValueSpec,
-        node: JsonNode?,
-        path: String,
-    ): List<Field> =
-        when {
-            spec.type == ValueType.RECORD -> {
-                spec.fields.flatMap { (name, field) ->
-                    walk(option, field, node?.get(name), join(path, name))
-                }
-            }
-
-            spec.type.numeric &&
-                (spec.direction != Direction.NONE || spec.min?.row != null || spec.max?.row != null) -> {
-                val value =
-                    if (node != null && node.isNumber) {
-                        node.decimalValue()
-                    } else if (node == null) {
-                        spec.absentAs
-                    } else {
-                        null
-                    }
-                listOf(Field(option, path, spec, value))
-            }
-
-            else -> {
-                emptyList()
-            }
-        }
-
-    /** The directed fields of an option as path → (direction, unit); `null` when one sits in a list or map. */
-    private fun shape(
-        spec: TypedValueSpec?,
-        path: String,
-    ): Map<String, Pair<Direction, String?>>? =
-        when {
-            spec == null -> {
-                emptyMap()
-            }
-
-            spec.type == ValueType.RECORD -> {
-                spec.fields.entries.fold(emptyMap()) { acc, (name, field) ->
-                    acc + (shape(field, join(path, name)) ?: return null)
-                }
-            }
-
-            spec.type.numeric && spec.direction != Direction.NONE -> {
-                mapOf(path to (spec.direction to spec.unit))
-            }
-
-            listOfNotNull(spec.item, spec.key, spec.value).any { (shape(it, path) ?: return null).isNotEmpty() } -> {
-                null
-            }
-
-            else -> {
-                emptyMap()
-            }
-        }
-
-    private fun put(
-        node: JsonNode,
-        path: String,
-        value: BigDecimal,
-    ): JsonNode {
-        if (path.isEmpty()) return mapper.getNodeFactory().numberNode(value)
-        val names = path.split('.')
-        var parent = node as ObjectNode
-        names.dropLast(1).forEach { name ->
-            parent = parent.get(name) as? ObjectNode ?: parent.putObject(name)
-        }
-        parent.put(names.last(), value)
-        return node
-    }
-
-    private fun parse(
-        key: VariationPointKey,
-        json: String,
-    ): JsonNode =
-        try {
-            mapper.readTree(json)
-        } catch (_: JacksonException) {
-            throw BoundUnavailable(key, "a stored value is not JSON")
-        }
 
     /** A broader value or bounding row that must be elected and has none bounds nothing knowable: refused. */
     private fun resolving(
@@ -331,12 +248,7 @@ internal class ScopeBounds(
     ): ResolvedSetting =
         try {
             block()
-        } catch (missing: ElectionRequired) {
-            throw BoundUnavailable(key, missing.message.orEmpty())
+        } catch (expected: ElectionRequired) {
+            unavailable(key, expected.message.orEmpty())
         }
-
-    private fun join(
-        path: String,
-        name: String,
-    ) = if (path.isEmpty()) name else "$path.$name"
 }

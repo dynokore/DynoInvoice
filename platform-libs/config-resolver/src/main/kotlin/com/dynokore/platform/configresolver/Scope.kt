@@ -93,6 +93,7 @@ class PolicyScope private constructor(
          * An entity of a tenant, optionally in a [group], and optionally narrowed to a [feed], an Access
          * Point connection or a client entity (under an agent consent).
          */
+        @Suppress("LongParameterList") // a public factory with defaulted parameters; INV-Q-4629 (CS-50)
         fun entity(
             tenant: TenantId,
             entity: String,

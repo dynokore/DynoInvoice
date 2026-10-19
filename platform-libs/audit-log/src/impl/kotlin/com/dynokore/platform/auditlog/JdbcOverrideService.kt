@@ -14,12 +14,14 @@ import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 /**
- * The override path over jOOQ (the module's tenancy-jooq [DSLContext]) (INV-REQ-1179, -1180, -1226). Refusals are decided from the command and the
+ * The override path over jOOQ (the module's tenancy-jooq [DSLContext]) (INV-REQ-1179, -1180, -1226). Refusals are
+ * decided from the command and the
  * catalogue before the transaction opens, so a refused override touches nothing (INV-AC-2166). The grant
  * row and its `AuditEntryRecorded` are written in one transaction: a rollback leaves neither (INV-AC-2209).
  * Also the [OverrideRegister]: a grant answers for exactly the version it was given for.
  * And the [OverrideListing]: the register of an entity over a date range, the read audited in its own transaction.
  */
+@Suppress("LongParameterList") // constructor injection under CS-05; INV-Q-4629 (CS-50)
 class JdbcOverrideService(
     private val dsl: DSLContext,
     private val tx: TransactionRunner,
@@ -93,69 +95,87 @@ class JdbcOverrideService(
                 action = LIST_ACTION,
                 scope = "entity:${query.entity.value}/from:${query.from}/to:${query.to}",
             )
-        val context =
-            EventContext(
-                tenant = query.tenant,
-                entity = query.entity,
-                docUuid = null,
-                transactionDate = null,
-                aggregateKey = "entity:${query.entity.value}",
-                aggregateVersion = null,
-                correlation = query.correlation,
-                causation = query.causation,
-            )
+        val context = listContext(query)
         return tx.inTransaction {
-            val rows =
-                dsl
-                    .select(
-                        ID,
-                        DOC_UUID,
-                        DOCUMENT_VERSION,
-                        ERROR_CODE,
-                        ACTOR,
-                        REASON,
-                        GRANTED_AT,
-                        AUDIT_EVENT_ID,
-                        TRANSACTION_DATE,
-                    ).from(table)
-                    .where(
-                        TENANT_ID.eq(query.tenant.value),
-                        ENTITY_REF.eq(query.entity.value),
-                        TRANSACTION_DATE.isNull.or(TRANSACTION_DATE.between(query.from, query.to)),
-                    ).orderBy(TRANSACTION_DATE.asc().nullsLast(), GRANTED_AT.asc(), ID.asc())
-                    .fetch()
-                    .map {
-                        OverrideEntry(
-                            OverrideGrant(
-                                DocUuid(checkNotNull(it.get(DOC_UUID))),
-                                checkNotNull(it.get(DOCUMENT_VERSION)),
-                                checkNotNull(it.get(ERROR_CODE)),
-                                checkNotNull(it.get(ACTOR)),
-                                checkNotNull(it.get(REASON)),
-                                checkNotNull(it.get(GRANTED_AT)).toInstant(),
-                                checkNotNull(it.get(AUDIT_EVENT_ID)),
-                            ),
-                            it.get(TRANSACTION_DATE),
-                        )
-                    }
+            val rows = listRows(query)
             audit.record(entry, context)
             val (undated, dated) = rows.partition { it.transactionDate == null }
             OverrideListingResult(dated, undated)
         }
     }
 
+    private fun listContext(query: OverrideListQuery) =
+        EventContext(
+            tenant = query.tenant,
+            entity = query.entity,
+            docUuid = null,
+            transactionDate = null,
+            aggregateKey = "entity:${query.entity.value}",
+            aggregateVersion = null,
+            correlation = query.correlation,
+            causation = query.causation,
+        )
+
+    private fun listRows(query: OverrideListQuery): List<OverrideEntry> =
+        dsl
+            .select(
+                ID,
+                DOC_UUID,
+                DOCUMENT_VERSION,
+                ERROR_CODE,
+                ACTOR,
+                REASON,
+                GRANTED_AT,
+                AUDIT_EVENT_ID,
+                TRANSACTION_DATE,
+            ).from(table)
+            .where(
+                TENANT_ID.eq(query.tenant.value),
+                ENTITY_REF.eq(query.entity.value),
+                TRANSACTION_DATE.isNull.or(TRANSACTION_DATE.between(query.from, query.to)),
+            ).orderBy(TRANSACTION_DATE.asc().nullsLast(), GRANTED_AT.asc(), ID.asc())
+            .fetch()
+            .map {
+                OverrideEntry(
+                    OverrideGrant(
+                        DocUuid(checkNotNull(it.get(DOC_UUID))),
+                        checkNotNull(it.get(DOCUMENT_VERSION)),
+                        checkNotNull(it.get(ERROR_CODE)),
+                        checkNotNull(it.get(ACTOR)),
+                        checkNotNull(it.get(REASON)),
+                        checkNotNull(it.get(GRANTED_AT)).toInstant(),
+                        checkNotNull(it.get(AUDIT_EVENT_ID)),
+                    ),
+                    it.get(TRANSACTION_DATE),
+                )
+            }
+
     private fun refuseIfNotAllowed(command: OverrideCommand) {
-        when (errors.dispositionOf(command.code)) {
-            null -> throw OverrideRefused(RefusalReason.UNKNOWN_CODE, command.code)
-            ErrorDisposition.TERMINAL -> throw OverrideRefused(RefusalReason.TERMINAL, command.code)
-            ErrorDisposition.MANUAL -> throw OverrideRefused(RefusalReason.NOT_OVERRIDABLE, command.code)
-            ErrorDisposition.OVERRIDABLE -> Unit
-        }
-        if (command.reason.isNullOrBlank()) throw OverrideRefused(RefusalReason.REASON_REQUIRED, command.code)
-        if (!policy.permits(command.actorRoles)) {
-            throw OverrideRefused(RefusalReason.ROLE_NOT_AUTHORISED, command.code)
-        }
+        refusalOf(command)?.let { throw OverrideRefused(it, command.code) }
     }
+
+    private fun refusalOf(command: OverrideCommand): RefusalReason? =
+        when (errors.dispositionOf(command.code)) {
+            null -> {
+                RefusalReason.UNKNOWN_CODE
+            }
+
+            ErrorDisposition.TERMINAL -> {
+                RefusalReason.TERMINAL
+            }
+
+            ErrorDisposition.MANUAL -> {
+                RefusalReason.NOT_OVERRIDABLE
+            }
+
+            ErrorDisposition.OVERRIDABLE -> {
+                when {
+                    command.reason.isNullOrBlank() -> RefusalReason.REASON_REQUIRED
+                    !policy.permits(command.actorRoles) -> RefusalReason.ROLE_NOT_AUTHORISED
+                    else -> null
+                }
+            }
+        }
 
     private fun insert(
         command: OverrideCommand,

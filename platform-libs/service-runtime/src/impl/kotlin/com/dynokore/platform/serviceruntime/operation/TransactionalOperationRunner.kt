@@ -8,7 +8,8 @@ import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 
 /**
- * [OperationRunner] over the service's [TransactionRunner] and the DSLContext of tenancy-jooq's factory and [AuditWriter] (INV-REQ-957, INV-REQ-1010). The
+ * [OperationRunner] over the service's [TransactionRunner] and the DSLContext of tenancy-jooq's factory and
+ * [AuditWriter] (INV-REQ-957, INV-REQ-1010). The
  * caller has bound the tenant (ARC-21). Order: the role and scope check (b2, CS-23); then in one transaction
  * (ARC-05) a transaction-scoped lock on (operation id, repeat key), so two concurrent commands with the same key
  * run one after the other and the second sees the first's committed state (INV-REQ-1010); the repeat check

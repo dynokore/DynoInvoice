@@ -11,9 +11,12 @@ import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * A stand-in for product-runtime's composition root (L3, INV-T-2876), in service-runtime's own package: ARC-16 lets an
- * L1 module neither import nor declare an L3 package (INV-Q-4734). Like the real one it is an auto-configuration ordered
- * before ServiceRuntimeConfiguration and provides the VariationPointCatalogue and a DelegationProbe, so service-runtime's
- * tests compose it the way TPL-18 composes the real one. It does not carry the real class name, so the cases that depend
+ * L1 module neither import nor declare an L3 package (INV-Q-4734). Like the real one it is an auto-configuration
+ * ordered
+ * before ServiceRuntimeConfiguration and provides the VariationPointCatalogue and a DelegationProbe, so
+ * service-runtime's
+ * tests compose it the way TPL-18 composes the real one. It does not carry the real class name, so the cases that
+ * depend
  * on ordering by that name (INV-T-3881's auto-configuration-only order, `afterName` of L1CompositionAutoConfiguration,
  * INV-Q-3877) run in product-runtime's implTest with the real ProductRuntimeConfiguration.
  */

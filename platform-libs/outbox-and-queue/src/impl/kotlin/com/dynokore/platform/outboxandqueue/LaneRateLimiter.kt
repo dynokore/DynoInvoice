@@ -38,7 +38,9 @@ class LaneRateLimiter(
     private val schemaName = SqlIdentifier.require(schema, "schema")
     private val table: Table<*> = DSL.table(DSL.name(schemaName, QueueSchema.LANE_RATE_WINDOW))
 
-    /** The stored row's own columns, qualified by the table name: in `ON CONFLICT DO UPDATE` a bare name is ambiguous. */
+    /**
+     * The stored row's own columns, qualified by the table name: in `ON CONFLICT DO UPDATE` a bare name is ambiguous.
+     */
     private val storedStart =
         DSL.field(
             DSL.name(schemaName, QueueSchema.LANE_RATE_WINDOW, "window_start"),

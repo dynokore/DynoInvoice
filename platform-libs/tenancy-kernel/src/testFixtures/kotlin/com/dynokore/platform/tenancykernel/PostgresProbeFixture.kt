@@ -5,6 +5,7 @@ import org.testcontainers.utility.DockerImageName
 import org.testcontainers.utility.MountableFile
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.Locale
 
 /** Testcontainers needs a concrete subclass for its fluent `self()` typing (Kotlin, unlike Java, has no raw types). */
 private class Postgres(
@@ -25,7 +26,8 @@ private class Postgres(
  * other runner sees none.
  *
  * One instance per test class, started once and stopped in [close]; a test class typically wants one per PostgreSQL
- * version under test (`@ParameterizedTest` over `postgres:17` and `postgres:18`, the done-when's own matrix), so this is
+ * version under test (`@ParameterizedTest` over `postgres:17` and `postgres:18`, the done-when's own matrix), so this
+ * is
  * a value a test constructs itself rather than a shared JUnit extension singleton.
  */
 class PostgresProbeFixture(
@@ -99,10 +101,15 @@ class PostgresProbeFixture(
         const val APP = "tenancy_kernel_app"
         const val APP_PASSWORD = "tenancy_kernel_app_pw"
 
-        /** Owns `tenancy_kernel_test.binding_key` and the binding functions the probe table's policy reads (INV-T-4156). */
+        /**
+         * Owns `tenancy_kernel_test.binding_key` and the binding functions the probe table's policy reads (INV-T-4156).
+         */
         private const val PROBE_SYS = "tenancy_kernel_probe_sys"
 
-        /** The key the probe schema holds as current: [SignedBinding.key] with its default fill, so `SignedBinding.keys()` verifies. */
-        private val PROBE_KEY_HEX = SignedBinding.key().joinToString("") { "%02x".format(it) }
+        /**
+         * The key the probe schema holds as current: [SignedBinding.key] with its default fill, so
+         * `SignedBinding.keys()` verifies.
+         */
+        private val PROBE_KEY_HEX = SignedBinding.key().joinToString("") { "%02x".format(Locale.ROOT, it) }
     }
 }

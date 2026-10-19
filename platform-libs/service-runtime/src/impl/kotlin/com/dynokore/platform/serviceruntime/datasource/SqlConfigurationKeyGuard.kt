@@ -108,7 +108,8 @@ class SqlConfigurationKeyGuard :
         fun findOffendingKeys(environment: ConfigurableEnvironment): List<String> =
             ConfigurationPropertySources
                 .get(environment)
-                // a source that cannot be enumerated (a stub, a servlet-context source before the web server) is not listed here;
+                // a source that cannot be enumerated (a stub, a servlet-context source before the web server) is not
+                // listed here;
                 // PoolConfigurationGuard checks what such a source binds into a pool
                 .filterIsInstance<IterableConfigurationPropertySource>()
                 .flatMap { source ->
@@ -135,116 +136,7 @@ class SqlConfigurationKeyGuard :
             name: ConfigurationPropertyName,
             environmentVariable: Boolean = false,
             value: () -> String? = { null },
-        ): String? {
-            val elements =
-                (0 until name.numberOfElements).map {
-                    name.getElement(
-                        it,
-                        ConfigurationPropertyName.Form.UNIFORM,
-                    )
-                }
-            // Tomcat hands a servlet-context init parameter to the environment once the web server exists, after this
-            // guard ran: `server.servlet.context-parameters.<key>` is checked as `<key>`
-            if (CONTEXT_PARAMETERS.isAncestorOf(name)) {
-                val rest =
-                    (CONTEXT_PARAMETERS.numberOfElements until name.numberOfElements)
-                        .joinToString(".") { name.getElement(it, ConfigurationPropertyName.Form.ORIGINAL) }
-                return refusal(ConfigurationPropertyName.adapt(rest, '.'), environmentVariable, value)
-                    ?.let { "a servlet-context parameter that $it" }
-            }
-            if (elements.joinToString("") ==
-                HIKARI_CONFIGURATION_FILE_FLAT
-            ) {
-                return "an external pool configuration file (INV-Q-4559)"
-            }
-            val key = withoutIndex(name, elements)
-            BOOTSTRAP_KEYS.entries
-                .firstOrNull { (refused, _) ->
-                    key == refused || (environmentVariable && key.joinToString("") == refused.joinToString(""))
-                }?.let { (_, check) -> check(value())?.let { return it } }
-            REFUSED_PREFIXES.firstOrNull { it.isAncestorOf(name) || it == name }?.let { return "under $it" }
-            if (JMX.isAncestorOf(name) || JMX == name) return jmxRefusal(elements.drop(2), value)
-            sqlSegment(key, environmentVariable)?.let { return "runs SQL: $it" }
-            if (DATASOURCE.isAncestorOf(name) || DATASOURCE == name) {
-                return allowlisted(elements.drop(2), DATASOURCE_ALLOWED, environmentVariable, value)
-            }
-            if (FLYWAY.isAncestorOf(name) || FLYWAY == name) {
-                return allowlisted(elements.drop(2), FLYWAY_ALLOWED, environmentVariable, value)
-            }
-            val eventLogUrl =
-                name == EVENT_LOG_URL || (environmentVariable && elements.joinToString("") == EVENT_LOG_URL_FLAT)
-            if (eventLogUrl) return urlRefusal(value())
-            return null
-        }
-
-        /**
-         * (7) Under `spring.jmx` only `enabled` with the value `false` (Spring Boot's default) passes: Spring's
-         * MBeanExporter exports every HikariDataSource as HikariConfigMXBean, with a writable Password, whatever
-         * registerMbeans is (coordinator ruling INV-Q-4591).
-         */
-        private fun jmxRefusal(
-            rest: List<String>,
-            value: () -> String?,
-        ): String? =
-            if (rest == listOf("enabled") && value()?.trim().equals("false", ignoreCase = true)) {
-                null
-            } else {
-                "JMX export is refused; only spring.jmx.enabled=false (INV-Q-4591)"
-            }
-
-        private fun allowlisted(
-            rest: List<String>,
-            allowed: Map<String, (String?) -> String?>,
-            environmentVariable: Boolean,
-            value: () -> String?,
-        ): String? {
-            // a list value (`locations[0]`) is checked as its list key
-            val key = rest.dropLastWhile { it.isNotEmpty() && it.all(Char::isDigit) }
-            val joined = key.joinToString(".")
-            val check =
-                allowed[joined]
-                    ?: (
-                        if (environmentVariable) {
-                            allowed.entries
-                                .firstOrNull {
-                                    it.key.replace(".", "") ==
-                                        key.joinToString("")
-                                }?.value
-                        } else {
-                            null
-                        }
-                    )
-                    ?: (if (key.size >= 2 && key.first() == PLACEHOLDERS) allowed["$PLACEHOLDERS.*"] else null)
-                    ?: return "not on the allowlist"
-            return check(value())
-        }
-
-        /** [elements] without the trailing list indexes and map keys (`init-sqls[0]`, `INITSQLS_0`, `init-sql[a]`). */
-        private fun withoutIndex(
-            name: ConfigurationPropertyName,
-            elements: List<String>,
-        ): List<String> {
-            var size = elements.size
-            while (size > 1 && (name.chop(size).isLastElementIndexed || elements[size - 1].all(Char::isDigit))) size--
-            return elements.take(size)
-        }
-
-        private fun sqlSegment(
-            elements: List<String>,
-            environmentVariable: Boolean,
-        ): String? {
-            val last = elements.lastOrNull() ?: return null
-            SQL_SEGMENTS.firstOrNull { last.contains(it) }?.let { return it }
-            if (!environmentVariable) return null
-            // FOO_INIT_SQL binds to foo.init-sql: a pattern spanning the last segments, ending in the last one
-            val joined = elements.joinToString("")
-            val lastStart = joined.length - last.length
-            return SQL_SEGMENTS.firstOrNull { pattern ->
-                generateSequence(joined.indexOf(pattern)) { at -> joined.indexOf(pattern, at + 1).takeIf { it >= 0 } }
-                    .takeWhile { it >= 0 }
-                    .any { at -> at + pattern.length > lastStart }
-            }
-        }
+        ): String? = SqlKeyRefusals.refusal(name, environmentVariable, value)
 
         private fun valueOf(
             source: ConfigurationPropertySource,
@@ -312,18 +204,10 @@ class SqlConfigurationKeyGuard :
 
         private val PASSWORD_KEYS =
             listOf("spring.datasource.password", "spring.datasource.hikari.password", "spring.flyway.password")
-        private const val PLACEHOLDERS = "placeholders"
         private const val PLATFORM_PACKAGE = "com.dynokore.platform."
         private const val POSTGRESQL_DRIVER = "org.postgresql.Driver"
         private const val HIKARI_CONFIGURATION_FILE = "hikaricp.configurationFile"
-        private const val HIKARI_CONFIGURATION_FILE_FLAT = "hikaricpconfigurationfile"
         private const val DRIVER_CONFIGURATION = "org/postgresql/driverconfig.properties"
-        private val DATASOURCE = ConfigurationPropertyName.of("spring.datasource")
-        private val FLYWAY = ConfigurationPropertyName.of("spring.flyway")
-        private val JMX = ConfigurationPropertyName.of("spring.jmx")
-        private val EVENT_LOG_URL = ConfigurationPropertyName.of("gst.db.event-log-url")
-        private const val EVENT_LOG_URL_FLAT = "gstdbeventlogurl"
-        private val CONTEXT_PARAMETERS = ConfigurationPropertyName.of("server.servlet.context-parameters")
 
         // ---- The allowlists and refusals of coordinator ruling INV-Q-4542; changed only through a Keel ruling ----
 
@@ -432,7 +316,7 @@ class SqlConfigurationKeyGuard :
                 "failonmissinglocations" to ANY,
                 "postgresql.transactionallock" to ANY,
                 "placeholderreplacement" to ANY,
-                "$PLACEHOLDERS.*" to IDENTIFIER,
+                "${SqlKeyRefusals.PLACEHOLDERS}.*" to IDENTIFIER,
             )
     }
 }
@@ -442,7 +326,8 @@ class SqlConfigurationKeyGuard :
  * before any application bean, so a property source added after environment post-processing (a `@PropertySource` on
  * any configuration class, an ApplicationContextInitializer, an earlier post-processor) is checked too.
  *
- * It also fails start-up, before any bean is created, on a bean definition of type [MBeanExporter] or a subclass (Spring
+ * It also fails start-up, before any bean is created, on a bean definition of type [MBeanExporter] or a subclass
+ * (Spring
  * Boot's JMX auto-configuration, `@EnableMBeanExport`, an exporter `@Bean`, a library's exporter): an exporter exports
  * every HikariDataSource as HikariConfigMXBean, with a writable Password (coordinator ruling INV-Q-4591). INV uses no
  * JMX: metrics, health and tracing are HTTP on the management port (STK-33, STK-34, INV-T-4125). INV-T-4593 grants

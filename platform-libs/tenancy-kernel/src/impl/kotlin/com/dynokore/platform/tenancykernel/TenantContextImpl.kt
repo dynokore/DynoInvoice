@@ -51,7 +51,7 @@ class TenantContextImpl :
 
     private fun bindingOrThrow(): Binding =
         current.get()
-            ?: throw IllegalStateException(
+            ?: error(
                 "No tenant is bound on this thread (ARC-21): the inbound adapter must call " +
                     "TenantContext.bind before any application code runs.",
             )

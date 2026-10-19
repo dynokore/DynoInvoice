@@ -94,33 +94,27 @@ class BlankValuesIT {
         val f = fixture(image)
         val tenant = UUID.randomUUID()
         val missed = mutableListOf<String>()
-        INSERTS.forEach { (table, fixed, columns) ->
+        INSERTS.forEach { insert ->
+            val (table, _, columns) = insert
             columns.forEach { (column, actor) ->
                 (if (actor) NOT_ACTORS else BLANKS).forEach { (name, value) ->
                     val before = f.count("select count(*) from $SCHEMA.$table", tenant)
                     val refused =
                         runCatching {
-                            f.ownerInsert(
-                                table,
-                                fixed,
-                                tenant,
-                                columns,
-                                column,
-                                value,
-                            )
+                            f.ownerInsert(insert, tenant, column, value)
                         }.exceptionOrNull()
                     if (refused == null || f.db.tx.sqlStateOf(refused) != "23514") missed += "$table.$column $name"
                     assertEquals(before, f.count("select count(*) from $SCHEMA.$table", tenant), "$table.$column $name")
                 }
                 (if (actor) VISIBLE_ACTORS else VISIBLE_ACTORS + " \t x \n ").forEach { value ->
-                    val id = f.ownerInsert(table, fixed, tenant, columns, column, value)
+                    val id = f.ownerInsert(insert, tenant, column, value)
                     assertEquals(value, f.db.text("select $column from $SCHEMA.$table where id = ?::uuid", tenant, id))
                 }
             }
         }
         assertEquals(emptyList<String>(), missed)
         val entry = INSERTS.single { it.first == "audit_entry" }
-        f.ownerInsert(entry.first, entry.second, tenant, entry.third, "reason", null)
+        f.ownerInsert(entry, tenant, "reason", null)
     }
 
     private fun List<String>.with(
@@ -132,7 +126,7 @@ class BlankValuesIT {
     private class Fixture(
         image: String,
     ) : AutoCloseable {
-        val fixture =
+        val postgres =
             OutboxPostgresFixture(
                 image,
                 "reset role;\ncreate schema $SCHEMA authorization outbox_owner;\n" +
@@ -142,7 +136,7 @@ class BlankValuesIT {
                     AuditSchema.purgeDdl(SCHEMA, APP, SYS, "control-plane-svc") + "\n" +
                     AuditSchema.ddl(SCHEMA, APP),
             )
-        val db = AuditTestDb(fixture, SignedBinding.keys())
+        val db = AuditTestDb(postgres, SignedBinding.keys())
         val tenants = db.tenants
         private val ownerDsl =
             db.dsl(
@@ -213,32 +207,32 @@ class BlankValuesIT {
         fun rawPurge(
             actor: String,
             arguments: List<String>,
-        ) = db.signed(
-            TenantId.PLATFORM,
-            "operator-9",
-            signature = SignedBinding.value(SignedBinding.key(), TenantId.PLATFORM, actor),
-        ) {
-            select(
-                DSL.function(
-                    DSL.name(SCHEMA, "purge_audit_entries"),
-                    Long::class.java,
-                    DSL.`val`(ZonedDateTime.now(ZoneOffset.UTC).minusYears(6).toOffsetDateTime()),
-                    DSL.`val`(arguments[0]),
-                    DSL.`val`(UUID.fromString(arguments[1])),
-                    *arguments.drop(2).map { DSL.`val`(it) }.toTypedArray(),
-                ),
-            ).fetchSingle().value1()
-        }
+        ): Long =
+            db.signed(
+                TenantId.PLATFORM,
+                "operator-9",
+                signature = SignedBinding.value(SignedBinding.key(), TenantId.PLATFORM, actor),
+            ) {
+                select(
+                    DSL.function(
+                        DSL.name(SCHEMA, "purge_audit_entries"),
+                        Long::class.java,
+                        DSL.`val`(ZonedDateTime.now(ZoneOffset.UTC).minusYears(6).toOffsetDateTime()),
+                        DSL.`val`(arguments[0]),
+                        DSL.`val`(UUID.fromString(arguments[1])),
+                        *arguments.drop(2).map { DSL.`val`(it) }.toTypedArray(),
+                    ),
+                ).fetchSingle().value1()
+            }
 
         /** Inserts one row as the owner, [column] set to [value] and every other probed column valid. */
         fun ownerInsert(
-            table: String,
-            fixed: Map<String, Any>,
+            insert: Triple<String, Map<String, Any>, List<Pair<String, Boolean>>>,
             tenant: UUID,
-            columns: List<Pair<String, Boolean>>,
             column: String,
             value: String?,
         ): UUID {
+            val (table, fixed, columns) = insert
             val id = UUID.randomUUID()
             // a grant row needs a fresh document for its unique key, as gen_random_uuid() gave one before
             val fresh = if (table == "override_grant") mapOf("doc_uuid" to UUID.randomUUID()) else emptyMap()

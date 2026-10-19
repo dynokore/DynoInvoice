@@ -44,6 +44,7 @@ import java.util.UUID
  * own PostgreSQL, the transaction holds only that unpublished row, and nothing of a command's state.
  * This is the one bounded exception to "no remote call in a transaction" (CS-17).
  */
+@Suppress("LongParameterList") // constructor injection under CS-05; INV-Q-4629 (CS-50)
 class JdbcOutboxRelay(
     private val scope: TenantScope,
     private val dsl: DSLContext,

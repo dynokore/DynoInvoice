@@ -81,7 +81,7 @@ class ChangeTaxonomy(
                 ) { "Classifier for '$field' names '${classifier.classCode}', not a class" }
             }
         }
-        require(unlistedClass != null) { "unlistedClass is required: a changed field must never be ignored" }
+        requireNotNull(unlistedClass) { "unlistedClass is required: a changed field must never be ignored" }
         require(unlistedClass in known) { "unlistedClass '$unlistedClass' is not a class" }
         this.unlistedClass = unlistedClass
     }

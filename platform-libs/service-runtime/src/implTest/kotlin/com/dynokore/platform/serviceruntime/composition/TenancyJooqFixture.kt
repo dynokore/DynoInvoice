@@ -3,6 +3,7 @@ package com.dynokore.platform.serviceruntime.composition
 import org.jooq.Record
 import org.jooq.Schema
 import org.jooq.Table
+import org.jooq.TableField
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 import org.jooq.impl.SchemaImpl
@@ -31,9 +32,18 @@ class FixtureTable(
     schema: Schema,
     tenant: Boolean,
 ) : TableImpl<Record>(DSL.name(name), schema) {
-    val id = createField(DSL.name("id"), SQLDataType.UUID, this)
-    val tenantId = if (tenant) createField(DSL.name("tenant_id"), SQLDataType.UUID, this) else null
-    val label = createField(DSL.name("label"), SQLDataType.CLOB, this)
+    val id: TableField<Record, UUID> = createField(DSL.name("id"), SQLDataType.UUID, this)
+    val tenantId: TableField<Record, UUID>? =
+        if (tenant) {
+            createField(
+                DSL.name("tenant_id"),
+                SQLDataType.UUID,
+                this,
+            )
+        } else {
+            null
+        }
+    val label: TableField<Record, String> = createField(DSL.name("label"), SQLDataType.CLOB, this)
 
     companion object {
         fun id(n: Int): UUID = UUID(0L, n.toLong())
@@ -95,7 +105,8 @@ class TableOnlyConfiguration {
 }
 
 /**
- * The generated schema every composition fixture of this module supplies (INV-Q-4815: a service with a database declares
+ * The generated schema every composition fixture of this module supplies (INV-Q-4815: a service with a database
+ * declares
  * its `org.jooq.Schema` beans in its bootstrap; TPL-18 compositions here have no real service behind them). Switched
  * off with `test.default-schema=false` by the tests that supply their own.
  */

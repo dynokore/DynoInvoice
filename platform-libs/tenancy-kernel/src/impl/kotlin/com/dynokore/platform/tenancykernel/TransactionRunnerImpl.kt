@@ -13,7 +13,8 @@ import javax.sql.DataSource
  *
  * Binds the tenant and the actor of the current binding as the very first statement
  * of the transaction (ARC-21 as revised: `set_config('app.tenant_id', :tenant, true)`
- * and `set_config('app.actor', :actor, true)`, both always, a binding with no actor is refused; INV-Q-3951, INV-Q-3953, INV-Q-3997), local scope — CS-19
+ * and `set_config('app.actor', :actor, true)`, both always, a binding with no actor is refused; INV-Q-3951, INV-Q-3953,
+ * INV-Q-3997), local scope — CS-19
  * requires transaction scope, never session scope, so the setting cannot
  * survive past this one transaction even before the connection is returned to
  * the pool). REQUIRED propagation: a call nested inside an outer
@@ -45,7 +46,8 @@ class TransactionRunnerImpl
 
         init {
             requireNotNull(keys) {
-                "A TransactionRunnerImpl needs a BindingKeySource (INV-REQ-854 b7, INV-Q-5354 (A)): an unsigned runner binds nothing."
+                "A TransactionRunnerImpl needs a BindingKeySource (INV-REQ-854 b7, INV-Q-5354 (A)): an unsigned " +
+                    "runner binds nothing."
             }
             require(
                 !transactionTimeout.isNegative && !transactionTimeout.isZero,
@@ -66,7 +68,7 @@ class TransactionRunnerImpl
             // A foreign TenantContext may answer null, blank or a control character: refuse before any SQL, by the
             // shared actor rule (INV-Q-3997, INV-Q-4614, INV-T-3999).
             val actor: String =
-                tenants.currentActor().takeIf { BlankText.isActor(it) } ?: throw IllegalStateException(
+                tenants.currentActor().takeIf { BlankText.isActor(it) } ?: error(
                     "No valid actor is bound for tenant $tenant (INV-REQ-854 b1): every transaction carries an actor " +
                         "that is not blank and holds no control character.",
                 )
@@ -92,9 +94,9 @@ class TransactionRunnerImpl
                 val result =
                     try {
                         block()
-                    } catch (failure: Throwable) {
+                    } catch (expected: Throwable) {
                         connection.rollback()
-                        throw failure
+                        throw expected
                     }
                 connection.commit()
                 return result
@@ -122,8 +124,9 @@ class TransactionRunnerImpl
             val source = checkNotNull(keys)
             val key =
                 source.currentKey()?.takeIf { it.isNotEmpty() }
-                    ?: throw IllegalStateException(
-                        "No current binding key is available for tenant $tenant (INV-REQ-854 b7): no transaction is opened.",
+                    ?: error(
+                        "No current binding key is available for tenant $tenant (INV-REQ-854 b7): no " +
+                            "transaction is opened.",
                     )
             try {
                 val start = clock.instant()
@@ -150,11 +153,13 @@ class TransactionRunnerImpl
             val prepared =
                 if (name == null) {
                     connection.prepareStatement(
-                        "select set_config('app.tenant_id', ?, true), set_config('app.actor', ?, true), set_config('app.binding_sig', ?, true)",
+                        "select set_config('app.tenant_id', ?, true), set_config('app.actor', ?, true), " +
+                            "set_config('app.binding_sig', ?, true)",
                     )
                 } else {
                     connection.prepareStatement(
-                        "select set_config('app.tenant_id', ?, true), set_config('app.actor', ?, true), set_config('app.binding_sig', ?, true), set_config('application_name', ?, true)",
+                        "select set_config('app.tenant_id', ?, true), set_config('app.actor', ?, true), " +
+                            "set_config('app.binding_sig', ?, true), set_config('application_name', ?, true)",
                     )
                 }
             prepared.use { statement ->
@@ -184,7 +189,7 @@ class TransactionRunnerImpl
 
         override fun require(): Connection =
             open.get()?.connection
-                ?: throw IllegalStateException(
+                ?: error(
                     "No transaction is open on this thread (ARC-21): repository calls must run inside " +
                         "TransactionRunner.inTransaction.",
                 )

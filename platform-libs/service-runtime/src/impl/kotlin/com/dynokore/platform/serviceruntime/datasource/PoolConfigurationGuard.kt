@@ -52,6 +52,7 @@ class SqlConfigurationGuardWiring {
 
     @Configuration(proxyBeanMethods = false)
     @ConditionalOnClass(HikariDataSource::class)
+    @Suppress("UtilityClassWithPublicConstructor") // Spring @Configuration of @Beans; INV-Q-4629, INV-Q-7405 (CS-50)
     class Pool {
         companion object {
             @JvmStatic
@@ -90,7 +91,10 @@ class PoolConfigurationGuard(
         internal const val SERVICE = "gst.service"
         private const val FIRST_PASS = "before its pool starts"
 
-        /** The pool of [bean] when it is a HikariConfig (a HikariDataSource is one), else null; a wrapper is not followed. */
+        /**
+         * The pool of [bean] when it is a HikariConfig (a HikariDataSource is one), else null; a wrapper is not
+         * followed.
+         */
         fun poolOf(bean: Any): HikariConfig? = bean as? HikariConfig
 
         /** Fails naming [beanName] and every refused property of its pool (never a value, CS-24); [pass] says when. */
@@ -114,7 +118,8 @@ class PoolConfigurationGuard(
 
         /**
          * The bean property names of the public no-argument get/is methods of the pinned HikariCP's HikariConfig
-         * (coordinator ruling INV-Q-5109); [PoolConfigurationGuardTest] holds the table equal to what `Class.getMethods`
+         * (coordinator ruling INV-Q-5109); [PoolConfigurationGuardTest] holds the table equal to what
+         * `Class.getMethods`
          * lists, so a HikariCP upgrade that adds a getter fails it until the property is classified.
          */
         val PROPERTIES: List<String> =
@@ -160,7 +165,10 @@ class PoolConfigurationGuard(
                 "validationTimeout",
             )
 
-        /** The value of [property] on [pool], by a direct getter call (no reflection); `dataSource` reports whether it is set. */
+        /**
+         * The value of [property] on [pool], by a direct getter call (no reflection); `dataSource` reports whether it
+         * is set.
+         */
         @Suppress("CyclomaticComplexMethod", "LongMethod")
         internal fun read(
             pool: HikariConfig,
@@ -231,7 +239,10 @@ class PoolConfigurationGuard(
 
         private val ANY: (Any?, String?) -> String? = { _, _ -> null }
 
-        /** The properties a pool may set, as `spring.datasource` allows them (SqlConfigurationKeyGuard), with their check. */
+        /**
+         * The properties a pool may set, as `spring.datasource` allows them (SqlConfigurationKeyGuard), with their
+         * check.
+         */
         val ALLOWED: Map<String, (Any?, String?) -> String?> =
             mapOf(
                 // the URL parameter allowlist of every configured URL (INV-Q-4559; password, STK-29, INV-Q-4548)
@@ -253,7 +264,8 @@ class PoolConfigurationGuard(
                 "username" to ANY,
                 // derived from username and password, a new object on every read
                 "credentials" to ANY,
-                // the login comes only through SecretStore (STK-29, TPL-16, INV-Q-3909; coordinator ruling INV-Q-4570): no
+                // the login comes only through SecretStore (STK-29, TPL-16, INV-Q-3909; coordinator ruling INV-Q-4570):
+                // no
                 // provider, or exactly the one DatabaseCredentialsConfiguration sets (class equality, no subclass)
                 "credentialsProvider" to { value, _ ->
                     if (value == null || value.javaClass == SecretStoreCredentialsProvider::class.java) {
@@ -282,7 +294,8 @@ class PoolConfigurationGuard(
         /** The properties that must keep HikariCP's default: they run SQL, set session state or replace the driver. */
         val AT_DEFAULT: Set<String> =
             setOf(
-                // a password set on the pool, from any property source or code, bypasses SecretStore (STK-29, INV-Q-4570)
+                // a password set on the pool, from any property source or code, bypasses SecretStore (STK-29,
+                // INV-Q-4570)
                 "password",
                 // MBeans expose HikariConfigMXBean.setPassword over JMX (coordinator ruling INV-Q-4574)
                 "registerMbeans",

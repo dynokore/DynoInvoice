@@ -15,6 +15,7 @@ import java.nio.file.Path
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import java.util.Locale
 import java.util.UUID
 
 // The probe sessions and statements of PackRegistryMigrationPostgresIT, through tenancy-jooq's TenancyProbe only.
@@ -116,8 +117,7 @@ internal fun TenancyProbe.register(
     schema: String = "rulepack_test",
     version: String = "1.0.0",
     effectiveTo: LocalDate? = null,
-    manifest: String = "{}",
-    signature: ByteArray = byteArrayOf(1, 2, 3),
+    payload: PackPayload = PackPayload(),
 ): Any? =
     fetchValue(
         "select $schema.register_platform_pack(?::uuid, ?, 'Scope', ?, ?::date, ?::date, '1.0.0', " +
@@ -127,9 +127,15 @@ internal fun TenancyProbe.register(
         version,
         LocalDate.now(),
         effectiveTo,
-        manifest,
-        signature,
+        payload.manifest,
+        payload.signature,
     )
+
+/** The manifest JSON and the signature bytes that [register] passes to the function. */
+internal class PackPayload(
+    val manifest: String = "{}",
+    val signature: ByteArray = byteArrayOf(1, 2, 3),
+)
 
 /** Inserts one row directly in the current probe transaction, the row carrying [rowTenant]. */
 internal fun TenancyProbe.insertRow(
@@ -222,7 +228,7 @@ internal fun packRegistryDdl(schema: String = "rulepack_test"): String =
         sysRole = SYS,
     )
 
-private fun hex(key: ByteArray): String = key.joinToString("") { "%02x".format(it) }
+private fun hex(key: ByteArray): String = key.joinToString("") { "%02x".format(Locale.ROOT, it) }
 
 /**
  * The binding functions and the test key of [schema], as the init script of the superuser creates them before the

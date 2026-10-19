@@ -22,6 +22,27 @@ class TableClassesTest {
     }
 
     @Test
+    fun `the List overload classifies and fails exactly like the vararg one`() {
+        val declared = TableClasses.of(reference = listOf(currencies))
+        assertEquals(
+            declared.verifyFailure(TestSchema),
+            runCatching {
+                declared.verify(listOf(TestSchema))
+            }.exceptionOrNull()?.message,
+        )
+        val ok =
+            TableClasses
+                .of(
+                    platformScoped = listOf(countries),
+                    reference = listOf(currencies),
+                ).verify(listOf(TestSchema))
+        assertEquals(TableClass.PLATFORM_SCOPED, ok.classOf(Countries.qualifiedName))
+    }
+
+    private fun TableClasses.verifyFailure(schema: org.jooq.Schema): String? =
+        runCatching { verify(schema) }.exceptionOrNull()?.message
+
+    @Test
     fun `an undeclared table without a tenant column fails`() {
         val failure =
             assertThrows<IllegalStateException> { TableClasses.of(reference = listOf(currencies)).verify(TestSchema) }

@@ -5,7 +5,8 @@ import java.time.Instant
 
 /**
  * The signing helper of the library slices (INV-T-4156, slice 2): a library test that runs under a signed binding takes
- * its key source and its provisioning from here, and builds the runner with `TestPoolFixture.runner(tenants, keys = ...)`.
+ * its key source and its provisioning from here, and builds the runner with `TestPoolFixture.runner(tenants, keys =
+ * ...)`.
  */
 object SignedBinding {
     /** A fixed test key: 32 bytes of [fill]. */

@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-10-19
+### Changed
+- detekt type-resolution findings fixed (platform-build 0.21.0, INV-Q-4629); no behaviour or API change
+
 ## [1.1.0] - 2026-10-19
 ### Added
 - `PlatformEventCatalogue` gains `PrivacyNoticeDue` and `AccreditationAlertRaised`, the eleven platform events of INV-REQ-1226 (INV-Q-7336, INV-T-7341).

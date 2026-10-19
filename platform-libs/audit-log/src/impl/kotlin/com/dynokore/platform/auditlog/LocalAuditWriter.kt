@@ -6,6 +6,7 @@ import com.dynokore.platform.outboxandqueue.EventId
 import com.dynokore.platform.outboxandqueue.UuidV7
 import com.dynokore.platform.tenancykernel.SqlIdentifier
 import org.jooq.DSLContext
+import org.jooq.Field
 import org.jooq.Table
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
@@ -17,8 +18,9 @@ import java.util.UUID
 
 /**
  * [AuditWriter] for a service without an outbox (`control-plane-svc`, INV-Q-2958): one row in the
- * [AuditSchema.AUDIT_ENTRY] table of the service's own schema (`controlplane`), through the module's jOOQ [DSLContext] (tenancy-jooq, on the
- * caller's open transaction), so the entry commits with the change it records or vanishes with it
+ * [AuditSchema.AUDIT_ENTRY] table of the service's own schema (`controlplane`), through the module's jOOQ
+ * [DSLContext] (tenancy-jooq, on the caller's open transaction), so the entry commits with the change it records or
+ * vanishes with it
  * (INV-REQ-1226, INV-REQ-2588, ARC-05). It never opens, commits or rolls back a transaction.
  *
  * The row carries the context's mandatory tenant under forced row-level security (CS-19): the session's
@@ -58,9 +60,9 @@ class LocalAuditWriter(
         val staged = stage(entry, context)
         try {
             insert(staged)
-        } catch (failure: Exception) {
+        } catch (expected: Exception) {
             // includes the checked SQLException of a refused insert
-            throw AuditWriteFailed(failure)
+            throw AuditWriteFailed(expected)
         }
         return staged.envelope
     }
@@ -97,24 +99,8 @@ class LocalAuditWriter(
         val entry = staged.entry
         dsl
             .insertInto(table)
-            .columns(
-                ID,
-                TENANT_ID,
-                ENTITY_REF,
-                RECORDED_AT,
-                SOURCE,
-                SUBJECT,
-                DOC_UUID,
-                TRANSACTION_DATE,
-                INSTANCE_ID,
-                CORRELATION_ID,
-                CAUSATION_ID,
-                ACTOR,
-                ACTION,
-                SCOPE,
-                REASON,
-                PRIOR_STATE,
-            ).values(
+            .columns(COLUMNS)
+            .values(
                 UUID.fromString(envelope.id.value),
                 envelope.tenant.value,
                 envelope.entity.value,
@@ -153,5 +139,25 @@ class LocalAuditWriter(
         val SCOPE = DSL.field(DSL.name("scope"), SQLDataType.CLOB)
         val REASON = DSL.field(DSL.name("reason"), SQLDataType.CLOB)
         val PRIOR_STATE = DSL.field(DSL.name("prior_state"), SQLDataType.JSONB)
+
+        val COLUMNS: List<Field<*>> =
+            listOf(
+                ID,
+                TENANT_ID,
+                ENTITY_REF,
+                RECORDED_AT,
+                SOURCE,
+                SUBJECT,
+                DOC_UUID,
+                TRANSACTION_DATE,
+                INSTANCE_ID,
+                CORRELATION_ID,
+                CAUSATION_ID,
+                ACTOR,
+                ACTION,
+                SCOPE,
+                REASON,
+                PRIOR_STATE,
+            )
     }
 }

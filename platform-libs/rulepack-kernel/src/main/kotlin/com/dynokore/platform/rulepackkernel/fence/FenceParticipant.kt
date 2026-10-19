@@ -29,6 +29,7 @@ import java.util.concurrent.ConcurrentHashMap
  * acknowledgement cannot be handed over, the hold is withdrawn and the failure propagates,
  * so the coordinator sees no acknowledgement and aborts.
  */
+@Suppress("LongParameterList") // constructor injection under CS-05; INV-Q-4629 (CS-50)
 class FenceParticipant<C : Any>(
     val instance: String,
     private val verifier: PackVerifier,

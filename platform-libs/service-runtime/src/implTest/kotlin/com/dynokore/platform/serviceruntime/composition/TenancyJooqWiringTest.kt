@@ -77,7 +77,8 @@ class TenancyJooqWiringTest {
 
     @Test
     fun `a service with a database and no Schema bean that holds a table fails start-up (INV-Q-4815)`() {
-        // (1) no Schema bean, (2) a Schema bean without tables, (3) an org.jooq.Catalog look-alike, then a Table look-alike
+        // (1) no Schema bean, (2) a Schema bean without tables, (3) an org.jooq.Catalog look-alike, then a Table
+        // look-alike
         listOf(
             service,
             service.withUserConfiguration(EmptySchemaConfiguration::class.java),
@@ -174,7 +175,7 @@ class TenancyJooqWiringTest {
         service
             .withUserConfiguration(SubmissionSchemaConfiguration::class.java, RogueConfiguration::class.java)
             .run { context ->
-                failure(context) shouldContain "bean 'rogueConfiguration'"
+                failure(context) shouldContain "bean 'rogueJooqConfiguration'"
                 failure(context) shouldContain "connection provider is not tenancy-jooq's"
             }
     }
@@ -234,7 +235,7 @@ class TenancyJooqWiringTest {
         service
             .withUserConfiguration(SubmissionSchemaConfiguration::class.java, DeclaredConfiguration::class.java)
             .run { context ->
-                failure(context) shouldContain "bean 'declaredConfiguration'"
+                failure(context) shouldContain "bean 'declaredTablesConfiguration'"
                 failure(context) shouldContain "TableClasses.verify"
             }
     }
@@ -270,7 +271,7 @@ class TenancyJooqWiringTest {
     @SpringConfiguration(proxyBeanMethods = false)
     class DeclaredConfiguration {
         @Bean
-        fun declaredConfiguration(
+        fun declaredTablesConfiguration(
             tenants: TenantContext,
             runner: TransactionRunner,
         ): Configuration =
@@ -285,7 +286,7 @@ class TenancyJooqWiringTest {
     @SpringConfiguration(proxyBeanMethods = false)
     class OwnTablesConfiguration {
         @Bean
-        fun ownTablesConfiguration(
+        fun ownTablesJooqConfiguration(
             tables: TenancyTables,
             tenants: TenantContext,
             runner: TransactionRunner,
@@ -302,6 +303,6 @@ class TenancyJooqWiringTest {
     @SpringConfiguration(proxyBeanMethods = false)
     class RogueConfiguration {
         @Bean
-        fun rogueConfiguration(): Configuration = DefaultConfiguration().set(SQLDialect.POSTGRES)
+        fun rogueJooqConfiguration(): Configuration = DefaultConfiguration().set(SQLDialect.POSTGRES)
     }
 }

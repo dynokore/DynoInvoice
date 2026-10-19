@@ -15,7 +15,8 @@ import org.springframework.core.type.AnnotationMetadata
  * `@Import` of the two composition roots, plus `@SpringBootApplication`'s auto-configuration. A DeferredImportSelector
  * stands in for that auto-configuration. It lists every platform-libs auto-configuration that the classpath's
  * `AutoConfiguration.imports` names, plus Spring Boot's DataSourceAutoConfiguration, sorted as Spring Boot sorts them.
- * Like Boot, it is processed after all user configuration. ApplicationContextRunner.withConfiguration(AutoConfigurations)
+ * Like Boot, it is processed after all user configuration.
+ * ApplicationContextRunner.withConfiguration(AutoConfigurations)
  * is not used: it registers each auto-configuration as a top-level class, and so it re-registers an imported
  * StandInProductRuntimeConfiguration after its import. product-runtime is the stand-in [StandInProductRuntimeConfiguration].
  */

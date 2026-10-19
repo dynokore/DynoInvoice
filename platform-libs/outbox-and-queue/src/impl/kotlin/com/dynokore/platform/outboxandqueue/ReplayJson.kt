@@ -107,7 +107,7 @@ class ReplayJson(
     private fun <T> guarded(block: () -> T): T =
         try {
             block()
-        } catch (failure: RuntimeException) {
-            throw ContractViolation("malformed replay payload: ${failure.message}")
+        } catch (expected: RuntimeException) {
+            throw ContractViolation("malformed replay payload: ${expected.message}")
         }
 }

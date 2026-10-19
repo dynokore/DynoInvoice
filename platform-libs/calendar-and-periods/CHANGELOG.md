@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-10-19
+### Changed
+- detekt type-resolution findings fixed (platform-build 0.21.0, INV-Q-4629); no behaviour or API change
+
 ## [1.4.0] - 2026-10-18
 ### Added
 - `CalendarPack` carries the optional `alertThresholds` (days before the due date per filing frequency, first alert

@@ -14,7 +14,8 @@ import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 
 /**
- * A Testcontainers PostgreSQL that runs [initSql] once, as the container's superuser, before the first connection of any
+ * A Testcontainers PostgreSQL that runs [initSql] once, as the container's superuser, before the first connection of
+ * any
  * test (coordinator ruling INV-Q-5245, route R1): roles, their passwords, schemas and test tables are provisioning, so
  * a test body issues no DDL. The script goes to a temporary file that is copied into the image's init directory and
  * deleted after the start.
@@ -76,9 +77,9 @@ fun setting(name: String): Field<String> =
 class HeldTransaction
     @JvmOverloads
     constructor(
-        private val access: TestDatabase.Access,
+        access: TestDatabase.Access,
         /** Wraps the helper thread's whole transaction (a pool lane is a property of the acquiring thread). */
-        private val around: (() -> Unit) -> Unit = { it() },
+        around: (() -> Unit) -> Unit = { it() },
     ) : AutoCloseable {
         private val commands = LinkedBlockingQueue<(DSLContext) -> Unit>()
         private val stop: (DSLContext) -> Unit = {}

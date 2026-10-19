@@ -79,7 +79,8 @@ object PackRegistryMigration {
      * Precondition (coordinator ruling INV-Q-6663): this DDL does not create the signed-binding functions and issues no
      * role switch. The schema must already hold `<schema>.bound_tenant()` and `<schema>.bound_actor()`, from
      * tenancy-kernel's `BindingKeyMigration.ddl` run once per schema as the sys login, before this DDL; on a schema
-     * without them the first policy that names `bound_tenant()` raises (SQLSTATE 42883) and nothing is created. Who runs
+     * without them the first policy that names `bound_tenant()` raises (SQLSTATE 42883) and nothing is created. Who
+     * runs
      * `BindingKeyMigration.ddl` in an installation is INV-Q-6580 (owner, unanswered).
      *
      * @throws IllegalArgumentException if [schema], [table], a role or a name derived from [table] is not a plain
@@ -97,8 +98,27 @@ object PackRegistryMigration {
         val runtime = SqlIdentifier.require(runtimeRole, "runtime role")
         val sys = SqlIdentifier.require(sysRole, "sys role")
         require(runtime != sys) { "the runtime login and the sys role must differ, both were '$runtime'" }
-        val index = SqlIdentifier.require("${t}_resolution_idx", "resolution index")
-        val lineageKey = SqlIdentifier.require("${t}_lineage_key", "lineage constraint")
+        return listOf(
+            tableDdl(s, t, sys),
+            registeredBy(s, t),
+            registerPlatformPack(s, t, runtime, sys),
+        ).joinToString("\n")
+    }
+
+    private fun tableDdl(
+        schema: String,
+        table: String,
+        sysRole: String,
+    ): String = PackRegistryTableDdl.create(schema, table) + "\n" + tablePolicies(schema, table, sysRole)
+
+    private fun tablePolicies(
+        schema: String,
+        table: String,
+        sysRole: String,
+    ): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        val t = SqlIdentifier.require(table, "table")
+        val sys = SqlIdentifier.require(sysRole, "sys role")
         val read = SqlIdentifier.require("${t}_tenant_read", "policy")
         val insert = SqlIdentifier.require("${t}_tenant_insert", "policy")
         val update = SqlIdentifier.require("${t}_tenant_update", "policy")
@@ -107,27 +127,7 @@ object PackRegistryMigration {
         // The bound tenant: an absent, forged or expired signed binding binds nothing, so no row matches.
         val boundTenant = "(select $s.bound_tenant())"
         val ownRow = "(tenant_id = $boundTenant AND tenant_id <> '$PLATFORM'::uuid)"
-        val tableDdl =
-            """
-            |CREATE TABLE $s.$t (
-            |    id                 uuid PRIMARY KEY,
-            |    pack_id            text NOT NULL,
-            |    pack_type          text NOT NULL,
-            |    version            text NOT NULL,
-            |    tenant_id          uuid NOT NULL,
-            |    effective_from     date NOT NULL,
-            |    effective_to       date NULL,
-            |    min_engine_version text NOT NULL,
-            |    manifest           jsonb NOT NULL,
-            |    checksums          jsonb NOT NULL,
-            |    signature          bytea NOT NULL,
-            |    contents           jsonb NOT NULL,
-            |    trusted_anchor     text NOT NULL,
-            |    registered_by      text NOT NULL CHECK (registered_by !~ '${BlankText.SQL_NOT_ACTOR}'),
-            |    created_at         timestamptz NOT NULL DEFAULT clock_timestamp(),
-            |    CONSTRAINT $lineageKey UNIQUE (pack_type, tenant_id, version)
-            |);
-            |CREATE INDEX $index ON $s.$t (pack_type, tenant_id, effective_from);
+        return """
             |ALTER TABLE $s.$t ENABLE ROW LEVEL SECURITY;
             |ALTER TABLE $s.$t FORCE ROW LEVEL SECURITY;
             |CREATE POLICY $read ON $s.$t FOR SELECT
@@ -139,7 +139,6 @@ object PackRegistryMigration {
             |GRANT USAGE ON SCHEMA $s TO $sys;
             |GRANT INSERT ON $s.$t TO $sys;
             """.trimMargin()
-        return listOf(tableDdl, registeredBy(s, t), registerPlatformPack(s, t, runtime, sys)).joinToString("\n")
     }
 
     /**
@@ -198,11 +197,21 @@ object PackRegistryMigration {
         table: String,
         runtimeRole: String,
         sysRole: String,
-    ): String {
+    ): String =
+        listOf(platformPackFunction(schema, table), platformPackGrants(schema, runtimeRole, sysRole)).joinToString("\n")
+
+    private fun platformPackFunction(
+        schema: String,
+        table: String,
+    ): String =
+        listOf(
+            platformPackHead(schema),
+            platformPackChecks(schema),
+            platformPackInsert(schema, table),
+        ).joinToString("\n")
+
+    private fun platformPackHead(schema: String): String {
         val s = SqlIdentifier.require(schema, "schema")
-        val t = SqlIdentifier.require(table, "table")
-        val runtime = SqlIdentifier.require(runtimeRole, "runtime role")
-        val sys = SqlIdentifier.require(sysRole, "sys role")
         return """
             |CREATE FUNCTION $s.$REGISTER_PLATFORM_PACK(p_id uuid, p_pack_id text, p_pack_type text, p_version text,
             |    p_effective_from date, p_effective_to date, p_min_engine_version text, p_manifest jsonb,
@@ -212,12 +221,19 @@ object PackRegistryMigration {
             |DECLARE
             |    v_actor text := (select $s.bound_actor());
             |BEGIN
+            """.trimMargin()
+    }
+
+    private fun platformPackChecks(schema: String): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        return """
             |    IF (select $s.bound_tenant()) IS DISTINCT FROM '$PLATFORM'::uuid THEN
             |        RAISE EXCEPTION 'a platform pack is registered under the platform tenant only'
             |            USING ERRCODE = '42501';
             |    END IF;
             |    IF v_actor IS NULL OR v_actor ~ '${BlankText.SQL_NOT_ACTOR}' THEN
-            |        RAISE EXCEPTION 'the bound actor is not set: a platform pack records its actor' USING ERRCODE = '42501';
+            |        RAISE EXCEPTION 'the bound actor is not set: a platform pack records its actor'
+            |            USING ERRCODE = '42501';
             |    END IF;
             |    IF p_id IS NULL OR p_effective_from IS NULL OR p_manifest IS NULL OR p_checksums IS NULL
             |        OR p_signature IS NULL OR p_contents IS NULL
@@ -237,6 +253,16 @@ object PackRegistryMigration {
             |        RAISE EXCEPTION 'the manifest and checksums are JSON objects and the signature is not empty'
             |            USING ERRCODE = '22023';
             |    END IF;
+            """.trimMargin()
+    }
+
+    private fun platformPackInsert(
+        schema: String,
+        table: String,
+    ): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        val t = SqlIdentifier.require(table, "table")
+        return """
             |    INSERT INTO $s.$t (id, pack_id, pack_type, version, tenant_id, effective_from, effective_to,
             |        min_engine_version, manifest, checksums, signature, contents, trusted_anchor, registered_by)
             |    VALUES (p_id, p_pack_id, p_pack_type, p_version, '$PLATFORM'::uuid, p_effective_from, p_effective_to,
@@ -244,6 +270,18 @@ object PackRegistryMigration {
             |    RETURN p_id;
             |END
             |$$;
+            """.trimMargin()
+    }
+
+    private fun platformPackGrants(
+        schema: String,
+        runtimeRole: String,
+        sysRole: String,
+    ): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        val runtime = SqlIdentifier.require(runtimeRole, "runtime role")
+        val sys = SqlIdentifier.require(sysRole, "sys role")
+        return """
             |GRANT CREATE ON SCHEMA $s TO $sys;
             |ALTER FUNCTION $s.$REGISTER_PLATFORM_PACK($REGISTER_PLATFORM_PACK_ARGUMENTS) OWNER TO $sys;
             |REVOKE EXECUTE ON FUNCTION $s.$REGISTER_PLATFORM_PACK($REGISTER_PLATFORM_PACK_ARGUMENTS) FROM PUBLIC;

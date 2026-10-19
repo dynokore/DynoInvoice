@@ -32,6 +32,7 @@ import java.util.UUID
  */
 class JdbcReplayIntake
     @JvmOverloads
+    @Suppress("LongParameterList") // constructor injection under CS-05; INV-Q-4629 (CS-50)
     constructor(
         subscription: ConsumerSubscription,
         catalogue: EventCatalogue,
@@ -93,7 +94,8 @@ class JdbcReplayIntake
                     .select(replayId("r"), TOPICS)
                     .from(r)
                     .where(
-                        // A replay addressed to several producers closes once every addressee has completed (INV-Q-3788 A).
+                        // A replay addressed to several producers closes once every addressee has completed (INV-Q-3788
+                        // A).
                         CONSUMER
                             .eq(consumer)
                             .and(PRODUCER.eq(producer))
@@ -130,8 +132,16 @@ class JdbcReplayIntake
         private inner class MarkerAwareHandler(
             private val delegate: EventHandler,
         ) : EventHandler {
-            override fun handle(event: Envelope): HandleOutcome {
-                if (event.type != ReplayProtocol.REPLAY_COMPLETED) return delegate.handle(event)
+            override fun handle(event: Envelope): HandleOutcome =
+                if (event.type ==
+                    ReplayProtocol.REPLAY_COMPLETED
+                ) {
+                    recordMarker(event)
+                } else {
+                    delegate.handle(event)
+                }
+
+            private fun recordMarker(event: Envelope): HandleOutcome {
                 val replayId = json.readCompleted(event.dataJson)
                 // The marker is recorded in a platform-bound transaction of its own, whatever tenant the event is
                 // published under (owner ruling on INV-T-5306, keeping the earlier behaviour).
@@ -157,8 +167,7 @@ class JdbcReplayIntake
                             true
                         }
                     }
-                if (!pending) return HandleOutcome.IGNORED
-                return HandleOutcome.APPLIED
+                return if (pending) HandleOutcome.APPLIED else HandleOutcome.IGNORED
             }
 
             /** Locks the pending replay [replayId] of this pair; false when there is none. */

@@ -19,6 +19,7 @@ import java.io.IOException
 import java.io.OutputStream
 import java.security.Provider
 import java.security.Security
+import java.security.cert.X509Certificate
 import java.time.Instant
 
 /**
@@ -74,18 +75,44 @@ class BouncyCastleCms(
             is SignatureCheck.Signed -> chainedSigner(checked, trustAnchorsDer, at, algorithm)
         }
 
+    private sealed interface SignerParse {
+        class Parsed(
+            val certificate: X509Certificate,
+        ) : SignerParse
+
+        class Refused(
+            val outcome: DetachedVerification,
+        ) : SignerParse
+    }
+
     private fun chainedSigner(
         checked: SignatureCheck.Signed,
         trustAnchorsDer: List<ByteArray>,
         at: Instant,
         algorithm: SignatureAlgorithm,
+    ): DetachedVerification =
+        when (val signer = parseSigner(checked)) {
+            is SignerParse.Refused -> signer.outcome
+            is SignerParse.Parsed -> verifyPath(signer.certificate, checked, trustAnchorsDer, at, algorithm)
+        }
+
+    private fun parseSigner(checked: SignatureCheck.Signed): SignerParse =
+        try {
+            CertificatePathValidator
+                .parseCertificate(provider, checked.signer.encoded)
+                ?.let { SignerParse.Parsed(it) }
+                ?: SignerParse.Refused(invalid("signer certificate is not a parseable X.509 certificate"))
+        } catch (failure: IOException) {
+            SignerParse.Refused(invalid("signer certificate could not be re-encoded: ${failure.message}"))
+        }
+
+    private fun verifyPath(
+        signer: X509Certificate,
+        checked: SignatureCheck.Signed,
+        trustAnchorsDer: List<ByteArray>,
+        at: Instant,
+        algorithm: SignatureAlgorithm,
     ): DetachedVerification {
-        val signer =
-            try {
-                CertificatePathValidator.parseCertificate(provider, checked.signer.encoded)
-            } catch (failure: IOException) {
-                return invalid("signer certificate could not be re-encoded: ${failure.message}")
-            } ?: return invalid("signer certificate is not a parseable X.509 certificate")
         if (checked.carried.size > CertificatePathValidator.MAX_CARRIED + 1) {
             return invalid(
                 "message carries ${checked.carried.size - 1} certificates, more than " +

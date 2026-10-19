@@ -15,7 +15,8 @@ import org.jooq.impl.SQLDataType
  *
  * The topic tables are under forced tenant row-level security ([EventLogSchema], INV-REQ-854, Keel INV-Q-3251): the
  * transaction is opened through [eventLog], the TenantScope over the event-log DataSource, bound to the envelope's
- * tenant (`TenantId.PLATFORM` for a platform event, INV-Q-2927) and the service's workload principal, which tenancy-kernel
+ * tenant (`TenantId.PLATFORM` for a platform event, INV-Q-2927) and the service's workload principal, which
+ * tenancy-kernel
  * sets as its first statement (ARC-21). The service's runtime login holds INSERT only on its own producer topics, so a
  * row whose tenant differs from the bound one is refused by the database (INV-REQ-1205 b3).
  */
@@ -45,10 +46,10 @@ class PostgresEventBinding(
                         .execute()
                 }
             }
-        } catch (failure: Exception) {
+        } catch (expected: Exception) {
             // jOOQ wraps the SQLException; the SQLSTATE is read through the runner (INV-Q-5121)
-            val state = eventLog.sqlErrors.sqlStateOf(failure) ?: throw failure
-            throw EventBindingUnavailable("event log refused ${envelope.type}: $state", failure)
+            val state = eventLog.sqlErrors.sqlStateOf(expected) ?: throw expected
+            throw EventBindingUnavailable("event log refused ${envelope.type}: $state", expected)
         }
     }
 

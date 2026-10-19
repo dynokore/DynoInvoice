@@ -35,7 +35,7 @@ open class OperatorSessionAuditWriter(
         fun reasonUnder(
             session: OperatorSession,
             own: String?,
-        ): String = "case ${session.case}" + (own?.let { ": $it" } ?: "")
+        ): String = "case ${session.case}" + own?.let { ": $it" }.orEmpty()
     }
 }
 

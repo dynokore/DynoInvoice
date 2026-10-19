@@ -26,7 +26,8 @@ import javax.sql.DataSource
 
 /*
  * INV-T-3913 (P109): a service composed as TPL-18 writes it (`@Import(ServiceRuntimeConfiguration::class,
- * StandInProductRuntimeConfiguration::class)`), with Spring Boot's DataSourceAutoConfiguration and FlywayAutoConfiguration
+ * StandInProductRuntimeConfiguration::class)`), with Spring Boot's DataSourceAutoConfiguration and
+ * FlywayAutoConfiguration
  * among its auto-configurations, sorted as Spring Boot sorts them (see composition/Tpl18Compositions.kt).
  */
 
@@ -113,7 +114,8 @@ fun isPoolClosed(pool: DataSource): Boolean = (pool as HikariDataSource).isClose
 
 /**
  * The installation binding key of a test composition (INV-T-4156): start-up fails without one, so a test supplies the
- * fixture key that its database holds (`SigningFixture.provisioning`). BindingKeyWiringTest covers the SecretStore path.
+ * fixture key that its database holds (`SigningFixture.provisioning`). BindingKeyWiringTest covers the SecretStore
+ * path.
  */
 fun ApplicationContextRunner.withBindingKey(): ApplicationContextRunner =
     withBean(InstallationBindingKey::class.java, { InstallationBindingKey(SigningFixture.keys()) })

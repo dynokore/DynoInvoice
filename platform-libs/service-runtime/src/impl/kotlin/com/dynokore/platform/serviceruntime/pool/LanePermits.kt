@@ -9,7 +9,8 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * The service's one application pool split into lanes (INV-REQ-1230 b1, INV-REQ-1072 b5, INV-ADR-3968 item 1) as a plain
+ * The service's one application pool split into lanes (INV-REQ-1230 b1, INV-REQ-1072 b5, INV-ADR-3968 item 1) as a
+ * plain
  * permit class (owner ruling INV-Q-4502 (A)): tenancy-kernel's `TenantAwareDataSource` takes a permit of the current
  * thread's lane ([PoolLanes]) before it takes a pool connection and gives it back once when the connection is handed
  * back. The pool maximum is the sum of the budgets, so a lane whose permits are all in use waits for its own permits
@@ -33,19 +34,23 @@ class LanePermits(
             )
         }
         val semaphore = permits.getValue(lane)
-        val acquired =
-            try {
-                semaphore.tryAcquire(timeoutMillis, TimeUnit.MILLISECONDS)
-            } catch (interrupted: InterruptedException) {
-                Thread.currentThread().interrupt()
-                throw LaneRefusedException("interrupted while waiting for a $lane lane permit", true, interrupted)
-            }
-        if (!acquired) {
+        if (!tryAcquire(semaphore, lane)) {
             throw LaneRefusedException("the $lane lane's $budget permits stayed in use for $timeoutMillis ms")
         }
         val released = AtomicBoolean(false)
         return LanePermit { if (released.compareAndSet(false, true)) semaphore.release() }
     }
+
+    private fun tryAcquire(
+        semaphore: Semaphore,
+        lane: PoolLane,
+    ): Boolean =
+        try {
+            semaphore.tryAcquire(timeoutMillis, TimeUnit.MILLISECONDS)
+        } catch (interrupted: InterruptedException) {
+            Thread.currentThread().interrupt()
+            throw LaneRefusedException("interrupted while waiting for a $lane lane permit", true, interrupted)
+        }
 
     /** The permits of [lane] not in use. */
     fun availablePermits(lane: PoolLane): Int = permits.getValue(lane).availablePermits()
@@ -54,8 +59,10 @@ class LanePermits(
 }
 
 /**
- * The lane gate bean (owner ruling INV-Q-4502 (A)): [PoolLanePostProcessor] sets the [LanePermits] of the application pool
- * when it sizes that pool; tenancy-kernel's `TenantAwareDataSource` takes permits from this bean. Without an application
+ * The lane gate bean (owner ruling INV-Q-4502 (A)): [PoolLanePostProcessor] sets the [LanePermits] of the application
+ * pool
+ * when it sizes that pool; tenancy-kernel's `TenantAwareDataSource` takes permits from this bean. Without an
+ * application
  * Hikari pool (a test double) it is [active] false and admits every connection.
  */
 class LaneGateHolder : LaneGate {
@@ -92,7 +99,8 @@ interface PermitObserver {
 }
 
 /**
- * The gate of the HA event-log pool: it admits every connection (the pool maximum, 3, still bounds the pool, INV-Q-4348),
+ * The gate of the HA event-log pool: it admits every connection (the pool maximum, 3, still bounds the pool,
+ * INV-Q-4348),
  * and accepts [PermitObserver]s like [LaneGateHolder].
  */
 class EventLogGate : LaneGate {

@@ -96,16 +96,12 @@ object PackFixtures {
         packType: String = "code-catalogue",
         version: String = "2026.10.1",
         effectiveFrom: String = "2026-10-01",
-        effectiveTo: String? = null,
-        minEngineVersion: String = "1.0.0",
-    ): ByteArray {
-        val effectiveToJson = effectiveTo?.let { "\"$it\"" } ?: "null"
-        return """
-            {"packId":"$packId","packType":"$packType","version":"$version",
-             "effectiveFrom":"$effectiveFrom","effectiveTo":$effectiveToJson,
-             "minEngineVersion":"$minEngineVersion"}
-            """.trimIndent().toByteArray()
-    }
+    ): ByteArray =
+        """
+        {"packId":"$packId","packType":"$packType","version":"$version",
+         "effectiveFrom":"$effectiveFrom","effectiveTo":null,
+         "minEngineVersion":"1.0.0"}
+        """.trimIndent().toByteArray()
 
     fun checksumsJson(contents: ByteArray): ByteArray = """{"contents":"${sha256Hex(contents)}"}""".toByteArray()
 

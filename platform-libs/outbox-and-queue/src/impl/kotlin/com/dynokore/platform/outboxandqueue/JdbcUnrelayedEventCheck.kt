@@ -16,8 +16,10 @@ import java.util.BitSet
  *
  * - **Outbox side.** Every run reads the whole outbox across tenants, each page in a transaction under the platform
  *   binding, through the `<svc>_sys`-owned function [OutboxSchema.OUTBOX_CLAIM_PAGE] (`seq`, `tenant_id`,
- *   `published_at` of the claim view's rows; INV-Q-5612), in keyset pages of [pageSize] rows on `seq` (the view's key; it exposes no event id), each page verified
- *   before the next is read: memory is bounded by one page, the open findings and one bit per verified seq. The topic and event id of each published row not yet verified are read in a transaction bound to its tenant
+ *   `published_at` of the claim view's rows; INV-Q-5612), in keyset pages of [pageSize] rows on `seq` (the view's key;
+ * it exposes no event id), each page verified
+ *   before the next is read: memory is bounded by one page, the open findings and one bit per verified seq. The topic
+ * and event id of each published row not yet verified are read in a transaction bound to its tenant
  *   ([TenantScope.bindWorkload]). No row is skipped by position: a row written or marked by a transaction still open
  *   during one run is invisible or unpublished then, so it is not verified and the next run reads it again.
  * - **Event-log side.** The ids are sent per topic, at most [UnrelayedEventSettings.batchSize] at a time, to
@@ -32,6 +34,7 @@ import java.util.BitSet
  *   existing INSERT, in the row's tenant transaction): one alert per row across instances and restarts. The record
  *   ages out with the inbox retention, which is longer than the outbox's content window, so it outlives the row.
  */
+@Suppress("LongParameterList") // constructor injection under CS-05; INV-Q-4629 (CS-50)
 class JdbcUnrelayedEventCheck(
     private val scope: TenantScope,
     private val dsl: DSLContext,
@@ -119,7 +122,9 @@ class JdbcUnrelayedEventCheck(
             }
         }
 
-    /** Records [row] as raised in the inbox, in its tenant's transaction; true only for the run that records it first. */
+    /**
+     * Records [row] as raised in the inbox, in its tenant's transaction; true only for the run that records it first.
+     */
     private fun recordRaised(row: Published): Boolean =
         scope.bindWorkload(row.tenant) {
             scope.transactions.inTransaction {

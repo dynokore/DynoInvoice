@@ -3,6 +3,7 @@ package com.dynokore.platform.configresolver
 import com.dynokore.platform.tenancykernel.BindingKeyMigration
 import com.dynokore.platform.tenancykernel.SignedBinding
 import com.dynokore.platform.tenancykernel.TenantId
+import java.util.Locale
 import java.util.UUID
 
 /**
@@ -50,7 +51,7 @@ internal object SignedBindingFixture {
         "SET ROLE $sysRole;\n" +
             BindingKeyMigration.ddl(schema, sysRole, runtimeRole) + "\n" +
             "INSERT INTO $schema.binding_key (slot, secret) VALUES ('current', " +
-            "decode('${key.joinToString("") { "%02x".format(it) }}', 'hex'));\n" +
+            "decode('${key.joinToString("") { "%02x".format(Locale.ROOT, it) }}', 'hex'));\n" +
             "RESET ROLE;"
 
     /**

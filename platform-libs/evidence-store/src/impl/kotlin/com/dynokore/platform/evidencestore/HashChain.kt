@@ -14,7 +14,7 @@ object HashChain {
         previous: ContentHash?,
         content: ByteArray,
     ): ContentHash {
-        val prefix = (previous?.hex ?: "").toByteArray(StandardCharsets.US_ASCII)
+        val prefix = previous?.hex.orEmpty().toByteArray(StandardCharsets.US_ASCII)
         return ContentHash.of(prefix + content)
     }
 

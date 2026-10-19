@@ -61,7 +61,7 @@ class FenceTest {
         fun deliver(ack: PackReadinessAcknowledgement) {
             if (failNext) {
                 failNext = false
-                throw IllegalStateException("outbox unavailable")
+                error("outbox unavailable")
             }
             sent += ack
             fence?.record(ack)

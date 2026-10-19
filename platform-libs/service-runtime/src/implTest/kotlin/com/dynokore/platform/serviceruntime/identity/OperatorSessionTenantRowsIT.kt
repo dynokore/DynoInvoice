@@ -62,23 +62,7 @@ class OperatorSessionTenantRowsIT {
                 }
             }
 
-            val keys = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair()
-            val replica = AuthorityReplica(Clock.systemUTC()).also { it.onSnapshotComplete(0) }
-            val now = Instant.now()
-            val key =
-                OperatorSessionKey(
-                    "k1",
-                    "RS256",
-                    Base64.getEncoder().encodeToString(keys.public.encoded),
-                    now.minusSeconds(60),
-                    now.plusSeconds(3600),
-                )
-            replica.operatorSessionKeys.accept(OperatorSessionKeysChanged(listOf(key)))
-            val idpNeverAsked = JwtDecoder { error("an operator session is never verified by the identity provider") }
-            val resolver = JwtEndUserPrincipalResolver(idpNeverAsked, replica, Clock.systemUTC())
-
-            val jwt = operatorSessionJwt(keys, now)
-            val principal = checkNotNull(resolver.resolve("Bearer " + jwt.serialize()))
+            val principal = operatorPrincipal()
 
             val read =
                 app.asTenant(checkNotNull(principal.tenant), principal.actor) {
@@ -88,6 +72,27 @@ class OperatorSessionTenantRowsIT {
             read.map { it.first }.toSet() shouldBe setOf(tenantA.value)
             db.close()
         }
+    }
+
+    private fun operatorPrincipal(): EndUserPrincipal {
+        val keys = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair()
+        val replica = AuthorityReplica(Clock.systemUTC()).also { it.onSnapshotComplete(0) }
+        val now = Instant.now()
+        val key =
+            OperatorSessionKey(
+                "k1",
+                "RS256",
+                Base64.getEncoder().encodeToString(keys.public.encoded),
+                now.minusSeconds(60),
+                now.plusSeconds(3600),
+            )
+        replica.operatorSessionKeys.accept(OperatorSessionKeysChanged(listOf(key)))
+        val idpNeverAsked = JwtDecoder { error("an operator session is never verified by the identity provider") }
+        val resolver = JwtEndUserPrincipalResolver(idpNeverAsked, replica, Clock.systemUTC())
+
+        val jwt = operatorSessionJwt(keys, now)
+        val principal = checkNotNull(resolver.resolve("Bearer " + jwt.serialize()))
+        return principal
     }
 
     /** An operator session for op-1 on tenant A, signed with key k1 and issued at [now]. */

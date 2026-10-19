@@ -307,8 +307,10 @@ class PackRegistryMigrationPostgresIT {
         assertRefusedWith("after effective_from") {
             platform { register(packId = "p", effectiveTo = LocalDate.now().minusDays(1)) }
         }
-        assertRefusedWith("JSON objects") { platform { register(packId = "p", manifest = "[]") } }
-        assertRefusedWith("JSON objects") { platform { register(packId = "p", signature = byteArrayOf()) } }
+        val badManifest = PackPayload(manifest = "[]")
+        val emptySignature = PackPayload(signature = byteArrayOf())
+        assertRefusedWith("JSON objects") { platform { register(packId = "p", payload = badManifest) } }
+        assertRefusedWith("JSON objects") { platform { register(packId = "p", payload = emptySignature) } }
         assertEquals(setOf("platform-scope"), packIds(app, Identity.Tenant(TenantId.PLATFORM)))
     }
 

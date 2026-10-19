@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [5.0.4] - 2026-10-19
+### Changed
+- detekt type-resolution findings fixed (platform-build 0.21.0, INV-Q-4629); no behaviour or API change
+
 ## [5.0.3] - 2026-10-19
 ### Changed
 - Metadata-only release (INV-T-7341, G-DVS): depends on `outbox-and-queue` 6.2.0, whose published module metadata changed; no code change.

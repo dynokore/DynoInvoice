@@ -429,7 +429,7 @@ class AuditPurgeIT {
             // The runner never binds a blank actor; a value signed for the blank actor replaces its own, so the
             // function's check refuses.
             val signature = if (unsetActor) SignedBinding.value(SignedBinding.key(), id, "") else null
-            return db.signed(id, "operator-9", signature = signature) { purge(call) }
+            return db.signed(id, "operator-9", signature = signature) { callPurge(call) }
         }
 
         /** Calls the function as in [call], by default on a runner whose key the schema does not hold (a forgery). */
@@ -437,9 +437,9 @@ class AuditPurgeIT {
             call: PurgeCall,
             schema: String = SCHEMA,
             runner: TransactionRunner = db.forgedTx,
-        ): Long = db.signed(TenantId.PLATFORM, "operator-9", runner) { purge(call, schema) }
+        ): Long = db.signed(TenantId.PLATFORM, "operator-9", AuditTestDb.Route(runner)) { callPurge(call, schema) }
 
-        private fun DSLContext.purge(
+        private fun DSLContext.callPurge(
             call: PurgeCall,
             schema: String = SCHEMA,
         ): Long =
@@ -463,7 +463,7 @@ class AuditPurgeIT {
             db.signed(
                 TenantId.PLATFORM,
                 "operator-9",
-                tables = mapOf("$SCHEMA.audit_entry" to TableClass.TENANT),
+                route = AuditTestDb.Route(db.tx, mapOf("$SCHEMA.audit_entry" to TableClass.TENANT)),
                 block = block,
             )
 

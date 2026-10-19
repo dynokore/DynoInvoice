@@ -63,7 +63,9 @@ class PolicyHttpHarness(
         )
     val clock: Clock = Clock.fixed(Instant.parse("2026-10-01T00:00:00Z"), ZoneOffset.UTC)
 
-    /** The tables the tests and the policy writer reach through jOOQ: the idempotency keys and config-resolver's tables. */
+    /**
+     * The tables the tests and the policy writer reach through jOOQ: the idempotency keys and config-resolver's tables.
+     */
     private val db =
         TestDatabase(
             fixture.jdbcUrl(),
@@ -171,7 +173,9 @@ class RecordingWriter(
 
 /** Fixture variation points, shaped on the rows of config-resolver's write-path tests (WriteCatalogue). */
 object Fixtures {
-    /** VP-62-like: entity and client entity; the looser option needs tax.approver, and client.signatory if delegated. */
+    /**
+     * VP-62-like: entity and client entity; the looser option needs tax.approver, and client.signatory if delegated.
+     */
     val DUE_DATE = VariationPointKey("VP-62")
 
     /** VP-20-like despatch timing: entity only, a POLICY. */
@@ -198,8 +202,7 @@ object Fixtures {
         options: List<OptionSpec>,
         vpClass: VpClass,
         setBy: Set<String>,
-        modifiers: Set<VpModifier> = emptySet(),
-    ) = VariationPointDefinition(key, vpClass, modifiers, VpStatus.AVAILABLE, levels, setBy, options)
+    ) = VariationPointDefinition(key, vpClass, emptySet(), VpStatus.AVAILABLE, levels, setBy, options)
 
     private val rows =
         listOf(
@@ -255,8 +258,7 @@ object Fixtures {
                 ),
                 VpClass.CONTROL,
                 setOf("tenant.admin"),
-                setOf(VpModifier.NON_WAIVABLE),
-            ),
+            ).copy(modifiers = setOf(VpModifier.NON_WAIVABLE)),
             def(
                 BOUNDED,
                 setOf(ScopeLevel.TENANT),

@@ -10,9 +10,11 @@ import org.jooq.impl.DSL
  * DDL for the partition-ordered queue (INV-REQ-540, INV-REQ-1072): one `work_queue` table in a service's own
  * schema. It is tenant data, so it carries the mandatory `tenant_id` and tenancy-kernel's forced row-level
  * security keyed on the tenant binding of tenancy-kernel; the runtime login `<svc>_runtime` enqueues, reads the
- * payload, completes and releases under that tenant policy only. Finding and claiming work across tenants is the NOLOGIN `<svc>_sys`'s,
+ * payload, completes and releases under that tenant policy only. Finding and claiming work across tenants is the
+ * NOLOGIN `<svc>_sys`'s,
  * reached only through its SECURITY DEFINER function [CLAIM_DUE] (static SQL, `SET search_path = pg_catalog,
- * <schema>, pg_temp`, EXECUTE for the runtime login only; owner rulings INV-Q-3951, INV-Q-3953, INV-ADR-3968): it returns the
+ * <schema>, pg_temp`, EXECUTE for the runtime login only; owner rulings INV-Q-3951, INV-Q-3953, INV-ADR-3968): it
+ * returns the
  * claim columns of one claimed item, never its payload, and takes its partition lock with
  * `pg_try_advisory_xact_lock`, so nothing outlives the claim transaction. Finished items are deleted, so every row
  * is unfinished: `PENDING`, or `CLAIMED` by a worker that has not completed it.
@@ -78,8 +80,19 @@ object QueueSchema {
         val runtime = SqlIdentifier.require(runtimeRole, "runtime role")
         val sys = SqlIdentifier.require(sysRole, "sys role")
         require(runtime != sys) { "the runtime login and the sys role must differ, both were '$runtime'" }
-        val table =
-            """
+        // Statement groups joined outside SQL text: tenancy-kernel's RLS DDL is not spliced into this module's SQL.
+        return listOf(
+            workQueueTable(schema),
+            TenantRlsMigration.ddl(s, WORK_QUEUE, policyName = "${WORK_QUEUE}_tenant_isolation"),
+            workQueueGrants(schema, runtimeRole, sysRole),
+            claimDue(schema, runtimeRole, sysRole),
+            laneRateWindow(schema, runtimeRole),
+        ).joinToString("\n")
+    }
+
+    private fun workQueueTable(schema: String): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        return """
             create table $s.$WORK_QUEUE (
                 seq bigint generated always as identity primary key,
                 tenant_id uuid not null,
@@ -99,8 +112,17 @@ object QueueSchema {
                 where source_dead_letter_id is not null;
             comment on column $s.$WORK_QUEUE.payload is 'class: content';
             """.trimIndent()
-        val grants =
-            """
+    }
+
+    private fun workQueueGrants(
+        schema: String,
+        runtimeRole: String,
+        sysRole: String,
+    ): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        val runtime = SqlIdentifier.require(runtimeRole, "runtime role")
+        val sys = SqlIdentifier.require(sysRole, "sys role")
+        return """
             grant usage on schema $s to $runtime;
             grant select, insert, update, delete on $s.$WORK_QUEUE to $runtime;
             grant usage on schema $s to $sys;
@@ -110,14 +132,6 @@ object QueueSchema {
                 on $s.$WORK_QUEUE to $sys;
             grant update (state, attempts, claimed_at) on $s.$WORK_QUEUE to $sys;
             """.trimIndent()
-        // Statement groups joined outside SQL text: tenancy-kernel's RLS DDL is not spliced into this module's SQL.
-        return listOf(
-            table,
-            TenantRlsMigration.ddl(s, WORK_QUEUE, policyName = "${WORK_QUEUE}_tenant_isolation"),
-            grants,
-            claimDue(schema, runtimeRole, sysRole),
-            laneRateWindow(schema, runtimeRole),
-        ).joinToString("\n")
     }
 
     /**
@@ -129,10 +143,13 @@ object QueueSchema {
         schema: String,
         runtimeRole: String,
         sysRole: String,
-    ): String {
+    ): String = listOf(claimDueFunction(schema), claimDueGrants(schema, runtimeRole, sysRole)).joinToString("\n")
+
+    private fun claimDueFunction(schema: String): String =
+        listOf(claimDueCandidates(schema), claimDueClaim(schema)).joinToString("\n")
+
+    private fun claimDueCandidates(schema: String): String {
         val s = SqlIdentifier.require(schema, "schema")
-        val runtime = SqlIdentifier.require(runtimeRole, "runtime role")
-        val sys = SqlIdentifier.require(sysRole, "sys role")
         return """
             create function $s.$CLAIM_DUE(p_lane text, p_consumer text, p_claimed_at timestamptz,
                 p_reclaim_before timestamptz)
@@ -153,6 +170,12 @@ object QueueSchema {
                           where p.tenant_id = q.tenant_id and p.partition_key = q.partition_key and p.lane = q.lane
                             and p.consumer is not distinct from q.consumer and p.seq < q.seq)
                     order by q.seq limit $CANDIDATES for update of q skip locked
+            """.trimIndent()
+    }
+
+    private fun claimDueClaim(schema: String): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        return """
                 loop
                     continue when not pg_try_advisory_xact_lock(hashtextextended(
                         '$s.$WORK_QUEUE|' || c.tenant_id || '|' || c.partition_key || '|' || p_lane || '|' ||
@@ -176,6 +199,18 @@ object QueueSchema {
                 end loop;
             end
             $$;
+            """.trimIndent()
+    }
+
+    private fun claimDueGrants(
+        schema: String,
+        runtimeRole: String,
+        sysRole: String,
+    ): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        val runtime = SqlIdentifier.require(runtimeRole, "runtime role")
+        val sys = SqlIdentifier.require(sysRole, "sys role")
+        return """
             grant create on schema $s to $sys;
             alter function $s.$CLAIM_DUE(text, text, timestamptz, timestamptz) owner to $sys;
             revoke all on function $s.$CLAIM_DUE(text, text, timestamptz, timestamptz) from public;

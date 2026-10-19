@@ -29,6 +29,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Import
 import org.springframework.core.env.SystemEnvironmentPropertySource
+import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RestController
 import java.net.URI
@@ -280,5 +281,5 @@ class OneValidToken {
 @RestController
 class BusinessController {
     @GetMapping("/business")
-    fun business(): String = "ok"
+    fun business(): ResponseEntity<String> = ResponseEntity.ok("ok")
 }

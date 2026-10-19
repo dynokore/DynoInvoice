@@ -4,7 +4,8 @@ import org.jooq.DSLContext
 import java.time.LocalDate
 
 /**
- * [PolicyReader] over the setting tables, through jOOQ's DSL on the DSLContext of tenancy-jooq's factory, in the caller's
+ * [PolicyReader] over the setting tables, through jOOQ's DSL on the DSLContext of tenancy-jooq's factory, in the
+ * caller's
  * open transaction (the tenant is bound by the transaction, ARC-21). The DSLContext runs on the TransactionRunner whose
  * TenantAwareDataSource holds the lane gate (INV-Q-4502). All precedence logic is [PrecedenceResolver]'s.
  *

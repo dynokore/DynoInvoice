@@ -11,7 +11,7 @@ import java.util.UUID
 
 /** Shared helpers of the write-path integration tests: one harness per image, one tenant per [Run]. */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-abstract class WritePathBase {
+open class WritePathBase {
     protected val harnesses = mutableMapOf<String, WriteHarness>()
 
     @AfterAll

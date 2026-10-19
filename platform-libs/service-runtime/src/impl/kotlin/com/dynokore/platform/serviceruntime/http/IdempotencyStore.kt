@@ -295,7 +295,8 @@ class IdempotencyStore(
     ) : RuntimeException(null, null, false, false)
 
     /**
-     * Deletes keys stored more than [retention] ago by the database clock, across tenants, on the runtime login through the `<svc>_sys`
+     * Deletes keys stored more than [retention] ago by the database clock, across tenants, on the runtime login through
+     * the `<svc>_sys`
      * purge function (INV-ADR-3968 item 6, INV-Q-4070), in batches of [PURGE_BATCH] so no statement holds many row
      * locks, each batch its own transaction under the service's workload principal (INV-Q-4344); returns the count.
      */

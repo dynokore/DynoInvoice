@@ -37,9 +37,9 @@ class JdbcReplayDelivery(
                     }
                 }
             }
-        } catch (failure: Exception) {
+        } catch (expected: Exception) {
             inTenant(item) { queue.release(item) }
-            throw failure
+            throw expected
         }
     }
 

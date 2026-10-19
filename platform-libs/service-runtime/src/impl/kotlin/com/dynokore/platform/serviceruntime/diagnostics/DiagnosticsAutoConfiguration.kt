@@ -36,6 +36,7 @@ class DiagnosticsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @Suppress("LongParameterList") // a Spring @Bean factory; INV-Q-4629 (CS-50)
     fun diagnosticsEndpoint(
         buildProperties: ObjectProvider<BuildProperties>,
         vaultHealthIndicator: VaultHealthIndicator,

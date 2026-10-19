@@ -21,8 +21,7 @@ class PolicyReplicaTest {
         feed: String? = null,
         ap: String? = null,
         client: String? = null,
-        tenant: com.dynokore.platform.tenancykernel.TenantId = TENANT_A,
-    ) = PolicyScope.entity(tenant, entity, group, feed, ap, client)
+    ) = PolicyScope.entity(TENANT_A, entity, group, feed, ap, client)
 
     private fun at(
         scope: PolicyScope,
@@ -34,16 +33,21 @@ class PolicyReplicaTest {
         value: String,
         on: LocalDate,
         offset: Long,
-        source: PolicySource = PolicySource.OVERRIDE,
-        ack: String? = null,
-        vp: String = "VP-1",
-        topic: String = "t.policy",
-    ) = PolicyChanged(scope, vp, value, on, source, ack, topic, offset)
+        how: Change = Change(),
+    ) = PolicyChanged(scope, how.vp, value, on, how.source, how.ack, how.topic, offset)
+
+    /** What a [changed] event carries beside its scope, value, date and offset. */
+    private data class Change(
+        val source: PolicySource = PolicySource.OVERRIDE,
+        val ack: String? = null,
+        val vp: String = "VP-1",
+        val topic: String = "t.policy",
+    )
 
     @Test
     fun `serves the value in force at a date, with its source and relaxation reference`() {
-        feed.publish(changed(platform, "a", d1, 1, PolicySource.DEFAULT))
-        feed.publish(changed(platform, "b", d2, 2, ack = "ACK-9"))
+        feed.publish(changed(platform, "a", d1, 1, Change(PolicySource.DEFAULT)))
+        feed.publish(changed(platform, "b", d2, 2, Change(ack = "ACK-9")))
         replica.valueAt(platform, "VP-1", d1.minusDays(1)) shouldBe null
         replica.valueAt(platform, "VP-1", d1)?.value shouldBe "a"
         replica.valueAt(platform, "VP-1", d2.minusDays(1))?.value shouldBe "a"
@@ -70,15 +74,15 @@ class PolicyReplicaTest {
         at(ent("e1", "g1")) shouldBe "level3"
         at(ent("e2", "g1")) shouldBe "level2"
         at(ent("e2")) shouldBe "level1"
-        at(ent("e1", tenant = TENANT_B)) shouldBe "level0"
+        at(PolicyScope.entity(TENANT_B, "e1")) shouldBe "level0"
         at(full, "VP-OTHER") shouldBe null
     }
 
     @Test
     fun `a value per AP connection applies to that connection only (INV-REQ-1241 example)`() {
         val vp = "INV-REQ-1311"
-        feed.publish(changed(platform, "default", d1, 1, vp = vp))
-        feed.publish(changed(ent("e1", ap = "ap1"), "strict", d1, 2, vp = vp))
+        feed.publish(changed(platform, "default", d1, 1, Change(vp = vp)))
+        feed.publish(changed(ent("e1", ap = "ap1"), "strict", d1, 2, Change(vp = vp)))
         at(ent("e1", ap = "ap1"), vp) shouldBe "strict"
         at(ent("e1", ap = "ap2"), vp) shouldBe "default"
         at(ent("e1"), vp) shouldBe "default"
@@ -87,35 +91,37 @@ class PolicyReplicaTest {
     @Test
     fun `an override at any level beats a profile value at a more specific level`() {
         val vp = "VP-2"
-        feed.publish(changed(PolicyScope.tenant(TENANT_A), "tenant-override", d1, 1, vp = vp))
-        feed.publish(changed(ent("e1"), "entity-profile", d1, 2, PolicySource.PROFILE, vp = vp))
-        feed.publish(changed(platform, "default", d1, 3, PolicySource.DEFAULT, vp = vp))
+        feed.publish(changed(PolicyScope.tenant(TENANT_A), "tenant-override", d1, 1, Change(vp = vp)))
+        feed.publish(changed(ent("e1"), "entity-profile", d1, 2, Change(PolicySource.PROFILE, vp = vp)))
+        feed.publish(changed(platform, "default", d1, 3, Change(PolicySource.DEFAULT, vp = vp)))
         replica.valueAt(ent("e1"), vp, d1) shouldBe PolicyValue("tenant-override", d1, PolicySource.OVERRIDE, null)
-        feed.publish(changed(ent("e2"), "entity-profile-2", d1, 4, PolicySource.PROFILE, vp = vp))
+        feed.publish(changed(ent("e2"), "entity-profile-2", d1, 4, Change(PolicySource.PROFILE, vp = vp)))
         at(ent("e2"), vp) shouldBe "tenant-override"
-        at(ent("e1", tenant = TENANT_B), vp) shouldBe "default"
+        at(PolicyScope.entity(TENANT_B, "e1"), vp) shouldBe "default"
     }
 
     @Test
     fun `at one level and date an override beats a profile value whatever the offset order`() {
         val vp = "VP-3"
-        feed.publish(changed(ent("e1"), "override", d1, 1, vp = vp))
-        feed.publish(changed(ent("e1"), "profile", d1, 2, PolicySource.PROFILE, vp = vp))
+        feed.publish(changed(ent("e1"), "override", d1, 1, Change(vp = vp)))
+        feed.publish(changed(ent("e1"), "profile", d1, 2, Change(PolicySource.PROFILE, vp = vp)))
         at(ent("e1"), vp) shouldBe "override"
-        feed.publish(changed(ent("e2"), "profile", d1, 3, PolicySource.PROFILE, vp = vp))
-        feed.publish(changed(ent("e2"), "override", d1, 4, vp = vp))
+        feed.publish(changed(ent("e2"), "profile", d1, 3, Change(PolicySource.PROFILE, vp = vp)))
+        feed.publish(changed(ent("e2"), "override", d1, 4, Change(vp = vp)))
         at(ent("e2"), vp) shouldBe "override"
     }
 
     @Test
     fun `within a source the profile ranks by level, and the later effective date and offset win`() {
         val vp = "VP-4"
-        feed.publish(changed(PolicyScope.tenant(TENANT_A), "tenant-profile", d1, 1, PolicySource.PROFILE, vp = vp))
-        feed.publish(changed(ent("e1"), "entity-profile", d1, 2, PolicySource.PROFILE, vp = vp))
-        feed.publish(changed(ent("e1"), "entity-profile-later", d2, 3, PolicySource.PROFILE, vp = vp))
+        feed.publish(
+            changed(PolicyScope.tenant(TENANT_A), "tenant-profile", d1, 1, Change(PolicySource.PROFILE, vp = vp)),
+        )
+        feed.publish(changed(ent("e1"), "entity-profile", d1, 2, Change(PolicySource.PROFILE, vp = vp)))
+        feed.publish(changed(ent("e1"), "entity-profile-later", d2, 3, Change(PolicySource.PROFILE, vp = vp)))
         at(ent("e1"), vp) shouldBe "entity-profile"
         replica.valueAt(ent("e1"), vp, d2)?.value shouldBe "entity-profile-later"
-        feed.publish(changed(ent("e1"), "entity-profile-rerecorded", d1, 9, PolicySource.PROFILE, vp = vp))
+        feed.publish(changed(ent("e1"), "entity-profile-rerecorded", d1, 9, Change(PolicySource.PROFILE, vp = vp)))
         at(ent("e1"), vp) shouldBe "entity-profile-rerecorded"
     }
 
@@ -129,8 +135,8 @@ class PolicyReplicaTest {
 
     @Test
     fun `offsets of different topics are not compared`() {
-        feed.publish(changed(platform, "a", d1, 900, topic = "t.one"))
-        feed.publish(changed(platform, "b", d1, 2, topic = "t.two"))
+        feed.publish(changed(platform, "a", d1, 900, Change(topic = "t.one")))
+        feed.publish(changed(platform, "b", d1, 2, Change(topic = "t.two")))
         replica.valueAt(platform, "VP-1", d1)?.value shouldBe "b"
     }
 
@@ -139,7 +145,7 @@ class PolicyReplicaTest {
         replica.lag() shouldBe Lag.Unknown
         feed.snapshotComplete("t.one", 0)
         feed.snapshotComplete("t.two", 0)
-        feed.publish(changed(platform, "a", d1, 1, topic = "t.one"))
+        feed.publish(changed(platform, "a", d1, 1, Change(topic = "t.one")))
         replica.lag() shouldBe Lag.Measured(Duration.ZERO)
         replica.appliedOffset("t.one") shouldBe 1
         replica.appliedOffset("t.two") shouldBe 0

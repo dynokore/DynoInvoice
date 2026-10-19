@@ -17,7 +17,7 @@ object TestSchema : SchemaImpl(DSL.name("tenancy_kernel_test"), null) {
 }
 
 /** A generated-style table of [TestSchema]. */
-abstract class TestTable(
+open class TestTable(
     name: String,
     schema: Schema = TestSchema,
 ) : TableImpl<Record>(DSL.name(name), schema) {

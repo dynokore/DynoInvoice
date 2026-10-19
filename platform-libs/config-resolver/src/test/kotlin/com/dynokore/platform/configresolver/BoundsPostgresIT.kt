@@ -42,7 +42,7 @@ class BoundsPostgresIT : WritePathBase() {
     ) = listOf(SelectedOption(option, "$value"))
 
     private fun Run.installation(cmd: SetPolicyCommand): PolicyChange {
-        val writer = h.writer(platform = true, constraints = accept)
+        val writer = h.writer(platform = true, ports = WriterPorts(constraints = accept))
         return h.putInstallation(writer, cmd)
     }
 
@@ -69,7 +69,7 @@ class BoundsPostgresIT : WritePathBase() {
     @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-REQ-780 VP-08 a tenant window may not exceed the installation value, capped when lowered`(image: String) {
         val r = Run(image)
-        val w = r.h.writer(constraints = accept)
+        val w = r.h.writer(ports = WriterPorts(constraints = accept))
         val tenant = { selected: List<SelectedOption>, from: LocalDate ->
             set(CROSS_SCOPE, r.tenantScope, ScopeLevel.TENANT, selected, officer, from)
         }
@@ -132,7 +132,7 @@ class BoundsPostgresIT : WritePathBase() {
     @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-Q-3320 VP-08 the default pair's window is 1 to 8 hours, default 4, tighten-only`(image: String) {
         val r = Run(image)
-        val w = r.h.writer(constraints = accept)
+        val w = r.h.writer(ports = WriterPorts(constraints = accept))
         val defaultPair = { hours: Int -> listOf(SelectedOption("DEFAULT_PAIR_4H", "{\"window\":$hours}")) }
         val tenant = { selected: List<SelectedOption> ->
             set(DEFAULT_PAIR, r.tenantScope, ScopeLevel.TENANT, selected, officer)

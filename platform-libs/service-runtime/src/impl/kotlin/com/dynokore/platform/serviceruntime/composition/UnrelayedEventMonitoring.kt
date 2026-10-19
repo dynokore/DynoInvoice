@@ -25,7 +25,8 @@ import java.util.concurrent.atomic.AtomicReference
  * @property checkInterval how often the check runs; default 5 minutes.
  * @property margin how long after the event log's retention cut-off a row must have been published to be reported
  *   ([UnrelayedEventSettings.margin], coordinator ruling INV-Q-4403 (A)); default 1 hour. Validated at start-up against
- *   the installation's [Retention] (or, without one, the 7-day floor any retention keeps): not positive or not below the
+ *   the installation's [Retention] (or, without one, the 7-day floor any retention keeps): not positive or not below
+ * the
  *   shortest topic retention stops start-up.
  */
 @ConfigurationProperties(prefix = UnrelayedEventProperties.PREFIX)
@@ -59,7 +60,8 @@ data class UnrelayedEventProperties(
 class LoggingUnrelayedEventSink : UnrelayedEventSink {
     override fun raise(finding: UnrelayedEvent) {
         log.error(
-            "outbox row marked published but its event is not in the event log: service={} topic={} event_id={} outbox_seq={} published_at={}",
+            "outbox row marked published but its event is not in the event log: service={} topic={} event_id={} " +
+                "outbox_seq={} published_at={}",
             finding.service,
             finding.topic,
             finding.eventId,

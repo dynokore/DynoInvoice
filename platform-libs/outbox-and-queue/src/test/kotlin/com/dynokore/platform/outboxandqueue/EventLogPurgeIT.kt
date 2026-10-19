@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import java.time.Duration
+import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -135,7 +136,7 @@ class EventLogPurgeIT {
             val runtime = OutboxPostgresFixture.APP to OutboxPostgresFixture.APP_PASSWORD
             val purge = OutboxPostgresFixture.PURGE to "eventlog_purge_pw"
             for ((login, value) in listOf(migrate to "6 days", runtime to "1 day", purge to "1 day")) {
-                val sql = update.format(value)
+                val sql = update.format(Locale.ROOT, value)
                 assertNotNull(JooqKit.refusal(harness.fixture, login.first, login.second, sql), "${login.first}: $sql")
             }
 

@@ -72,13 +72,13 @@ class ShedLockJooqAccessorIT {
             ) shouldBe
                 true
             accessor.unlock(config("lock-c", atMost = Duration.ofMinutes(20), atLeast = Duration.ofMinutes(10)))
-            val untilC = lockUntil(h, replica, "lock-c")
+            val untilC = lockUntil(replica, "lock-c")
             (untilC.isAfter(LocalDateTime.now(ZoneOffset.UTC).plusMinutes(9))) shouldBe true
             accessor.unlock(config("lock-a"))
-            (lockUntil(h, replica, "lock-a").isBefore(LocalDateTime.now(ZoneOffset.UTC).plusSeconds(10))) shouldBe true
+            (lockUntil(replica, "lock-a").isBefore(LocalDateTime.now(ZoneOffset.UTC).plusSeconds(10))) shouldBe true
 
             // locked_at is the UTC database clock
-            val lockedAt = lockedAt(h, replica, "lock-c")
+            val lockedAt = lockedAt(replica, "lock-c")
             Duration
                 .between(lockedAt, LocalDateTime.now(ZoneOffset.UTC))
                 .abs()
@@ -88,19 +88,16 @@ class ShedLockJooqAccessorIT {
     }
 
     private fun lockUntil(
-        h: JobsHarness,
         replica: JobsHarness.Replica,
         name: String,
-    ): LocalDateTime = column(h, replica, name, "lock_until")
+    ): LocalDateTime = column(replica, name, "lock_until")
 
     private fun lockedAt(
-        h: JobsHarness,
         replica: JobsHarness.Replica,
         name: String,
-    ): LocalDateTime = column(h, replica, name, "locked_at")
+    ): LocalDateTime = column(replica, name, "locked_at")
 
     private fun column(
-        h: JobsHarness,
         replica: JobsHarness.Replica,
         name: String,
         column: String,

@@ -18,6 +18,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
+import java.util.Locale
 import java.util.UUID
 import javax.sql.DataSource
 
@@ -169,7 +170,7 @@ class SignedBindingPostgresIT {
             }
         }
 
-    private fun hex(bytes: ByteArray) = bytes.joinToString("") { "%02x".format(it) }
+    private fun hex(bytes: ByteArray) = bytes.joinToString("") { "%02x".format(Locale.ROOT, it) }
 
     /** The text of every statement the runner and jOOQ prepared or executed, in order. */
     private class Log {
@@ -200,7 +201,7 @@ class SignedBindingPostgresIT {
             args: Array<Any?>?,
         ): Any? =
             try {
-                m.invoke(target, *(args ?: emptyArray()))
+                m.invoke(target, *args.orEmpty())
             } catch (e: java.lang.reflect.InvocationTargetException) {
                 throw e.targetException
             }

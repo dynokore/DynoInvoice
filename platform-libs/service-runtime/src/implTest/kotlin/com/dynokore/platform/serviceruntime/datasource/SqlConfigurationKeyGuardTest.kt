@@ -446,7 +446,9 @@ class SqlConfigurationKeyGuardTest {
         fun guard(environment: StandardEnvironment) =
             SqlConfigurationKeyGuard().postProcessEnvironment(environment, SpringApplication())
 
-        /** An environment with only [entries], as a properties or YAML source (no real system properties or variables). */
+        /**
+         * An environment with only [entries], as a properties or YAML source (no real system properties or variables).
+         */
         fun properties(vararg entries: Pair<String, String>): StandardEnvironment =
             empty().also {
                 it.propertySources.addFirst(MapPropertySource("test", mapOf(*entries)))

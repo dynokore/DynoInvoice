@@ -27,7 +27,8 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import java.time.Clock
 
 /**
- * INV-T-5303 (P109): [ConfigResolverWiring] builds the purge, the recorder and the policy ports over the module's DSLContext only when
+ * INV-T-5303 (P109): [ConfigResolverWiring] builds the purge, the recorder and the policy ports over the module's
+ * DSLContext only when
  * the context has a [TransactionRunner] (coordinator ruling INV-Q-5275), and a service's own port replaces them.
  */
 class ConfigResolverWiringTest {

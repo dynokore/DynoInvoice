@@ -24,7 +24,7 @@ class JwtWorkloadTokenVerifier(
         return try {
             val jwt = jwtDecoder.decode(token.value)
             WorkloadVerification.Verified(jwt.subject ?: "unknown")
-        } catch (e: JwtException) {
+        } catch (expected: JwtException) {
             WorkloadVerification.Refused("invalid")
         }
     }

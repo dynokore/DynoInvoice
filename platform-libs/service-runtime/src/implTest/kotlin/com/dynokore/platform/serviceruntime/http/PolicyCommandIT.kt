@@ -76,13 +76,18 @@ class PolicyCommandIT : PolicyHttpBase() {
         s.stored() shouldBe 1
 
         s
-            .post(path, request(PolicyOp.SET, ScopeLevel.TENANT, s.tenant.toString(), option = "A"), token, key)
-            .closed(ClosedErrorCode.DIFFERENT_REQUEST)
+            .post(
+                path,
+                request(PolicyOp.SET, ScopeLevel.TENANT, s.tenant.toString(), selection = RequestFields(option = "A")),
+                token,
+                key,
+            ).closed(ClosedErrorCode.DIFFERENT_REQUEST)
         s.writer.calls shouldBe 1
 
         // a refusal is stored too: its replay is the same refusal
         val refusedKey = UUID.randomUUID().toString()
-        val refusing = request(PolicyOp.SET, ScopeLevel.TENANT, s.tenant.toString(), reason = null)
+        val refusing =
+            request(PolicyOp.SET, ScopeLevel.TENANT, s.tenant.toString(), selection = RequestFields(reason = null))
         val refused = s.post(path, refusing, token, refusedKey).refused(PolicyErrorCode.REASON_REQUIRED)
         s.post(path, refusing, token, refusedKey).body shouldBe refused.body
         s.writer.calls shouldBe 2
@@ -138,7 +143,13 @@ class PolicyCommandIT : PolicyHttpBase() {
         val path = PolicyOp.SET.path("VP-42")
         val tenantRef = s.tenant.toString()
 
-        fun set(value: String) = request(PolicyOp.SET, ScopeLevel.TENANT, tenantRef, option = "LAST_N", value = value)
+        fun set(value: String) =
+            request(
+                PolicyOp.SET,
+                ScopeLevel.TENANT,
+                tenantRef,
+                selection = RequestFields(option = "LAST_N", value = value),
+            )
         // the setting role is security.officer; a user without it, with a value within the bounds
         val other = s.user("other", roleSet = setOf("tenant.admin"))
         s.post(path, set("3"), other).refused(PolicyErrorCode.ROLE_NOT_ALLOWED)
@@ -164,38 +175,23 @@ class PolicyCommandIT : PolicyHttpBase() {
         val s = Service(image)
         val token = s.tenantUser()
         // VP-20 allows entity scope only
-        val tenantBody = request(PolicyOp.SET, ScopeLevel.TENANT, s.tenant.toString(), option = "DAILY_WINDOW")
+        val tenantBody =
+            request(
+                PolicyOp.SET,
+                ScopeLevel.TENANT,
+                s.tenant.toString(),
+                selection = RequestFields(option = "DAILY_WINDOW"),
+            )
         s
             .post(PolicyOp.SET.path("VP-20"), tenantBody, token)
             .refused(PolicyErrorCode.SCOPE_NOT_ALLOWED)
         s.stored() shouldBe 0
-        val entityBody = request(PolicyOp.SET, ScopeLevel.ENTITY, "E-1", "E-1", option = "DAILY_WINDOW")
+        val entityBody = request(PolicyOp.SET, ScopeLevel.ENTITY, "E-1", "E-1", RequestFields(option = "DAILY_WINDOW"))
         s.post(PolicyOp.SET.path("VP-20"), entityBody, token).ok()
         s.stored() shouldBe 1
     }
 
-    @OnPostgres
-    fun `INV-AC-2229 no reason is 400 POL-005, an accepted change returns the prior value and an audit event`(
-        image: String,
-    ) {
-        val s = Service(image)
-        val token = s.tenantUser()
-        val path = PolicyOp.SET.path("VP-20")
-        // continuous is set first, from today
-        val first =
-            request(PolicyOp.SET, ScopeLevel.ENTITY, "E-1", "E-1", option = "CONTINUOUS", effectiveDate = TODAY)
-        s.post(path, first, token).ok()
-        // the change to a daily window effective next month: without a reason it is refused, with one it is accepted
-        val change = request(PolicyOp.SET, ScopeLevel.ENTITY, "E-1", "E-1", option = "DAILY_WINDOW")
-        val noReason = request(PolicyOp.SET, ScopeLevel.ENTITY, "E-1", "E-1", option = "DAILY_WINDOW", reason = null)
-        s.post(path, noReason, token).refused(PolicyErrorCode.REASON_REQUIRED)
-        val emptyReason =
-            request(PolicyOp.SET, ScopeLevel.ENTITY, "E-1", "E-1", option = "DAILY_WINDOW", reason = "")
-        s
-            .post(path, emptyReason, token)
-            .refused(PolicyErrorCode.REASON_REQUIRED)
-        s.stored() shouldBe 1
-        val accepted = s.post(path, change, token).ok()
+    private fun assertAcceptedChange(accepted: Answer) {
         accepted.body
             .get("prior")
             .get("selected")
@@ -216,6 +212,44 @@ class PolicyCommandIT : PolicyHttpBase() {
             .isNotEmpty() shouldBe true
         accepted.body.get("effectiveDate").asString() shouldBe NEXT_MONTH
         accepted.body.get("reason").asString() shouldBe "because"
+    }
+
+    @OnPostgres
+    fun `INV-AC-2229 no reason is 400 POL-005, an accepted change returns the prior value and an audit event`(
+        image: String,
+    ) {
+        val s = Service(image)
+        val token = s.tenantUser()
+        val path = PolicyOp.SET.path("VP-20")
+        // continuous is set first, from today
+        val first =
+            request(
+                PolicyOp.SET,
+                ScopeLevel.ENTITY,
+                "E-1",
+                "E-1",
+                RequestFields(option = "CONTINUOUS", effectiveDate = TODAY),
+            )
+        s.post(path, first, token).ok()
+        // the change to a daily window effective next month: without a reason it is refused, with one it is accepted
+        val change = request(PolicyOp.SET, ScopeLevel.ENTITY, "E-1", "E-1", RequestFields(option = "DAILY_WINDOW"))
+        val noReason =
+            request(
+                PolicyOp.SET,
+                ScopeLevel.ENTITY,
+                "E-1",
+                "E-1",
+                RequestFields(option = "DAILY_WINDOW", reason = null),
+            )
+        s.post(path, noReason, token).refused(PolicyErrorCode.REASON_REQUIRED)
+        val emptyReason =
+            request(PolicyOp.SET, ScopeLevel.ENTITY, "E-1", "E-1", RequestFields(option = "DAILY_WINDOW", reason = ""))
+        s
+            .post(path, emptyReason, token)
+            .refused(PolicyErrorCode.REASON_REQUIRED)
+        s.stored() shouldBe 1
+        val accepted = s.post(path, change, token).ok()
+        assertAcceptedChange(accepted)
         s.stored() shouldBe 2
     }
 
@@ -223,12 +257,19 @@ class PolicyCommandIT : PolicyHttpBase() {
     fun `INV-AC-2230 a looser option of a non-waivable control is 422 POL-015`(image: String) {
         val s = Service(image)
         val token = s.tenantUser()
-        val soleOperator = request(PolicyOp.SET, ScopeLevel.ENTITY, "E-1", "E-1", option = "SOLE_OPERATOR")
+        val soleOperator =
+            request(PolicyOp.SET, ScopeLevel.ENTITY, "E-1", "E-1", RequestFields(option = "SOLE_OPERATOR"))
         s
             .post(PolicyOp.SET.path("VP-05"), soleOperator, token)
             .refused(PolicyErrorCode.LOOSER_NOT_OFFERED)
         val soleAck =
-            request(PolicyOp.ACK, ScopeLevel.ENTITY, "E-1", "E-1", option = "SOLE_OPERATOR", asRole = "tenant.admin")
+            request(
+                PolicyOp.ACK,
+                ScopeLevel.ENTITY,
+                "E-1",
+                "E-1",
+                RequestFields(option = "SOLE_OPERATOR", asRole = "tenant.admin"),
+            )
         s.post(PolicyOp.ACK.path("VP-05"), soleAck, token).refused(PolicyErrorCode.LOOSER_NOT_OFFERED)
         s.stored() shouldBe 0
     }
@@ -250,13 +291,21 @@ class PolicyCommandIT : PolicyHttpBase() {
                 ScopeLevel.ENTITY,
                 "E-1",
                 "E-1",
-                option = "NEXT_WORKING_DAY",
-                extra = relaxation?.let { "\"relaxationId\":\"$it\"" }.orEmpty(),
+                RequestFields(
+                    option = "NEXT_WORKING_DAY",
+                    extra = relaxation?.let { "\"relaxationId\":\"$it\"" }.orEmpty(),
+                ),
             )
         s.post(set, looser(), approver).refused(PolicyErrorCode.RELAXATION_REQUIRED)
         val looserOption = "NEXT_WORKING_DAY"
         val firstAck =
-            request(PolicyOp.ACK, ScopeLevel.ENTITY, "E-1", "E-1", option = looserOption, asRole = "tax.approver")
+            request(
+                PolicyOp.ACK,
+                ScopeLevel.ENTITY,
+                "E-1",
+                "E-1",
+                RequestFields(option = looserOption, asRole = "tax.approver"),
+            )
         val acknowledged = s.post(ack, firstAck, approver).ok()
         acknowledged.body.get("complete").asBoolean() shouldBe true
         acknowledged.body.get("outstandingRoles").size() shouldBe 0
@@ -276,9 +325,11 @@ class PolicyCommandIT : PolicyHttpBase() {
             ScopeLevel.CLIENT_ENTITY,
             "C-1",
             "E-1",
-            option = "NEXT_WORKING_DAY",
-            asRole = asRole,
-            extra = relaxation?.let { "\"relaxationId\":\"$it\"" }.orEmpty(),
+            RequestFields(
+                option = "NEXT_WORKING_DAY",
+                asRole = asRole,
+                extra = relaxation?.let { "\"relaxationId\":\"$it\"" }.orEmpty(),
+            ),
         )
         val partial = s.post(ack, client(PolicyOp.ACK, null), approver).ok()
         partial.body.get("complete").asBoolean() shouldBe false

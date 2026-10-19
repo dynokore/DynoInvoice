@@ -29,9 +29,9 @@ class OutboxAuditWriter(
         val event = OutboundEvent(EVENT_TYPE, payload(entry))
         return try {
             outbox.append(listOf(event), context).single()
-        } catch (failure: Exception) {
+        } catch (expected: Exception) {
             // includes the checked SQLException of a refused insert
-            throw AuditWriteFailed(failure)
+            throw AuditWriteFailed(expected)
         }
     }
 

@@ -48,12 +48,9 @@ class PlatformEventsTest {
     private fun record(
         type: String,
         data: ObjectNode,
-        tenant: TenantId = this.tenant,
-        entity: EntityRef = EntityRef("E-001"),
-        instance: String = "svc-1",
-        time: Instant = start,
         source: String = "/gst/payload-svc",
         minorIncrement: Boolean = true,
+        stamp: Stamp = stamp(),
     ): String {
         if (minorIncrement) data.put("addedInV1_3", "a field this reader was not built with")
         val envelope =
@@ -62,13 +59,13 @@ class PlatformEventsTest {
                 source,
                 type,
                 "agg-1",
-                time,
-                tenant,
-                entity,
+                stamp.time,
+                stamp.tenant,
+                stamp.entity,
                 null,
                 null,
                 null,
-                instance,
+                stamp.instance,
                 CorrelationId("corr-1"),
                 CausationId("cause-1"),
                 mapper.writeValueAsString(data),
@@ -77,6 +74,21 @@ class PlatformEventsTest {
         if (minorIncrement) node.put("futureattribute", "an envelope extension this reader does not know")
         return mapper.writeValueAsString(node)
     }
+
+    /** Whose event it is, where and when. */
+    private data class Stamp(
+        val tenant: TenantId,
+        val entity: EntityRef,
+        val instance: String,
+        val time: Instant,
+    )
+
+    private fun stamp(
+        tenant: TenantId = this.tenant,
+        entity: EntityRef = EntityRef("E-001"),
+        instance: String = "svc-1",
+        time: Instant = start,
+    ) = Stamp(tenant, entity, instance, time)
 
     private fun policyData(
         value: String,
@@ -144,7 +156,11 @@ class PlatformEventsTest {
         val replica = PolicyReplica(MutableClock(start))
         val data = policyData("STRICT", scope = "INSTALLATION")
         val text =
-            record(PlatformEventTypes.POLICY_CHANGED, data, tenant = TenantId.PLATFORM, entity = EntityRef.PLATFORM)
+            record(
+                PlatformEventTypes.POLICY_CHANGED,
+                data,
+                stamp = stamp(tenant = TenantId.PLATFORM, entity = EntityRef.PLATFORM),
+            )
         mapper.readTree(text).has("tenantid") shouldBe false
         replica.accept(reader.policyChanged(PlatformEventTypes.POLICY_CHANGED_TOPIC, LogRecord(1, text)))
         replica.valueAt(PolicyScope.entity(tenant, "E-009"), "VP-13", LocalDate.parse("2026-10-05"))?.value shouldBe
@@ -168,10 +184,9 @@ class PlatformEventsTest {
                 record(
                     PlatformEventTypes.CONNECTION_STATUS_CHANGED,
                     data,
-                    instance = instance,
-                    time = at,
                     source = "/gst/transport-svc",
                     minorIncrement = minorIncrement,
+                    stamp = stamp(instance = instance, time = at),
                 )
             return reader.connectionStatusChanged(text)
         }

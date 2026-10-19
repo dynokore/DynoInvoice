@@ -30,11 +30,13 @@ class TenancyStructureFallback(
             try {
                 api.getEntityStructure(key.nodeRef)
             } catch (e: RestClientResponseException) {
-                if (e.statusCode.value() == HttpStatus.NOT_FOUND.value()) return FallbackResult.NotFound
-                throw e
+                if (e.statusCode.value() != HttpStatus.NOT_FOUND.value()) throw e
+                null
             }
-        val node = response.node ?: return FallbackResult.Unavailable
-        return FallbackResult.Found(node.toReplicaNode())
+        return when {
+            response == null -> FallbackResult.NotFound
+            else -> response.node?.let { FallbackResult.Found(it.toReplicaNode()) } ?: FallbackResult.Unavailable
+        }
     }
 
     private fun TenancyNode.toReplicaNode() =

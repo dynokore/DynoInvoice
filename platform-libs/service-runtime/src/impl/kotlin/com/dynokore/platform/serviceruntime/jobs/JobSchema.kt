@@ -8,7 +8,8 @@ import com.dynokore.platform.tenancykernel.TenantRlsMigration
  * embedded by the service's own migration (TPL-12), run as `<svc>_migrate`.
  *
  * - [SHEDLOCK]: ShedLock 6 on PostgreSQL (STK-25). Lock names and lease times only.
- *   a tenant id in `shedlock.name` names the entity a job lock covers: scheduling metadata, not tenant data (owner answer INV-Q-4817 A)
+ *   a tenant id in `shedlock.name` names the entity a job lock covers: scheduling metadata, not tenant data (owner
+ * answer INV-Q-4817 A)
  *   so no `tenant_id` and no RLS (as `consumer_offset`, INV-Q-2954); used by the runtime login.
  * - [JOB_RUN]: one row per run, keyed by (tenant, service, job, entity or platform, tick, trigger, attempt)
  *   (INV-Q-2948, INV-Q-3039, INV-Q-3034). An ENTITY run carries the entity's tenant; a PLATFORM or whole-job
@@ -22,7 +23,8 @@ import com.dynokore.platform.tenancykernel.TenantRlsMigration
  * both state tables have `tenant_id NOT NULL` and tenancy-kernel's forced tenant policy (CS-19), and the runtime login
  * works on them under that policy only. The job-table maintenance that reaches across tenants is held by the NOLOGIN
  * `<svc>_sys` role and reached only through the objects it owns: [IN_PROGRESS_RUNS], the SECURITY DEFINER
- * function that returns the IN_PROGRESS runs the abandoned-run sweeper reads, and [PURGE_EXPIRED], a SECURITY DEFINER purge that takes no
+ * function that returns the IN_PROGRESS runs the abandoned-run sweeper reads, and [PURGE_EXPIRED], a SECURITY DEFINER
+ * purge that takes no
  * cut-off and reads its window from [JOB_RETENTION]; [RETENTION_WINDOW] lets the job runtime compare its configured
  * retention with the row at start-up. Every function has static SQL, `SET search_path = pg_catalog, <schema>,
  * pg_temp`, EXECUTE revoked from PUBLIC and granted to the runtime login only.
@@ -75,7 +77,8 @@ object JobSchema {
         require(runtime != sys) { "the runtime login and the sys role must differ, both were '$runtime'" }
         // Statement groups joined outside SQL text, so no generated SQL is spliced into a literal (INV-Q-4036).
         return listOf(
-            tables(schema),
+            runTables(schema),
+            pauseTables(schema),
             TenantRlsMigration.ddl(
                 SqlIdentifier.require(schema, "schema"),
                 JOB_RUN,
@@ -89,12 +92,13 @@ object JobSchema {
             runtimeGrants(schema, runtimeRole),
             sysAccess(schema, sysRole),
             inProgressRunsFunction(schema, runtimeRole, sysRole),
-            purgeFunction(schema, runtimeRole, sysRole),
+            purgeBody(schema),
+            purgeGrants(schema, runtimeRole, sysRole),
             retentionWindowFunction(schema, runtimeRole, sysRole),
         ).joinToString("\n")
     }
 
-    private fun tables(schema: String): String {
+    private fun runTables(schema: String): String {
         val s = SqlIdentifier.require(schema, "schema")
         return """
             create table $s.$SHEDLOCK (
@@ -119,6 +123,12 @@ object JobSchema {
                 duration_millis bigint check (duration_millis >= 0),
                 primary key (tenant_id, service, job, entity_ref, tick, trigger, attempt)
             );
+            """.trimIndent()
+    }
+
+    private fun pauseTables(schema: String): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        return """
             create table $s.$JOB_PAUSE (
                 tenant_id uuid not null,
                 service text not null,
@@ -141,7 +151,9 @@ object JobSchema {
             """.trimIndent()
     }
 
-    /** The runtime login: ShedLock's table, and the state tables under their tenant policy only; nothing on retention. */
+    /**
+     * The runtime login: ShedLock's table, and the state tables under their tenant policy only; nothing on retention.
+     */
     private fun runtimeGrants(
         schema: String,
         runtimeRole: String,
@@ -228,14 +240,8 @@ object JobSchema {
      * IN_PROGRESS that started before `now() - window`, then, within what is left of the batch, `job_pause` rows that
      * ended or ran out before it; returns the number deleted.
      */
-    private fun purgeFunction(
-        schema: String,
-        runtimeRole: String,
-        sysRole: String,
-    ): String {
+    private fun purgeBody(schema: String): String {
         val s = SqlIdentifier.require(schema, "schema")
-        val runtime = SqlIdentifier.require(runtimeRole, "runtime role")
-        val sys = SqlIdentifier.require(sysRole, "sys role")
         return """
             create function $s.$PURGE_EXPIRED(batch_size integer) returns bigint
             language plpgsql security definer set search_path = pg_catalog, $s, pg_temp as $$
@@ -269,6 +275,18 @@ object JobSchema {
                 return runs + pauses;
             end
             $$;
+            """.trimIndent()
+    }
+
+    private fun purgeGrants(
+        schema: String,
+        runtimeRole: String,
+        sysRole: String,
+    ): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        val runtime = SqlIdentifier.require(runtimeRole, "runtime role")
+        val sys = SqlIdentifier.require(sysRole, "sys role")
+        return """
             grant create on schema $s to $sys;
             alter function $s.$PURGE_EXPIRED(integer) owner to $sys;
             revoke all on function $s.$PURGE_EXPIRED(integer) from public;

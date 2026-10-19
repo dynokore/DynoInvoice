@@ -87,16 +87,16 @@ class Resilience4jResilientEdge(
 
         return try {
             toRun.call()
-        } catch (e: CallNotPermittedException) {
+        } catch (expected: CallNotPermittedException) {
             onCallNotPermitted()
-        } catch (e: BulkheadFullException) {
+        } catch (expected: BulkheadFullException) {
             onCallNotPermitted()
-        } catch (e: TimeoutException) {
+        } catch (expected: TimeoutException) {
             onTimeout()
-        } catch (e: ConnectException) {
+        } catch (expected: ConnectException) {
             onConnectFailure()
-        } catch (e: ResourceAccessException) {
-            if (e.cause is ConnectException) onConnectFailure() else throw e
+        } catch (expected: ResourceAccessException) {
+            if (expected.cause is ConnectException) onConnectFailure() else throw expected
         }
     }
 

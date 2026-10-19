@@ -36,7 +36,8 @@ class JdbcEventLogPurge(
             .associateBy { EventLogSchema.tableName(it) }
 
     init {
-        // The migration that generated purge_batch() needed one marker per topic; a catalogue without it is refused here.
+        // The migration that generated purge_batch() needed one marker per topic; a catalogue without it is refused
+        // here.
         catalogue.entries().groupBy { it.topic }.forEach { (topic, entries) ->
             val markers = entries.map { it.contentTopic }.toSet()
             requireNotNull(markers.singleOrNull()) {
@@ -66,15 +67,15 @@ class JdbcEventLogPurge(
                     }
                 }
             } while (batch.any { it.rows >= EventLogSchema.PURGE_BATCH_SIZE })
-        } catch (failure: Exception) {
+        } catch (expected: Exception) {
             // jOOQ wraps the SQLException; the SQLSTATE is read through the runner (INV-Q-5121)
-            val state = eventLog.sqlErrors.sqlStateOf(failure) ?: throw failure
+            val state = eventLog.sqlErrors.sqlStateOf(expected) ?: throw expected
             LOG
                 .atError()
                 .setMessage("event-log purge failed")
                 .addKeyValue("sql_state", state)
                 .log()
-            throw EventBindingUnavailable("event log not purgeable: $state", failure)
+            throw EventBindingUnavailable("event log not purgeable: $state", expected)
         }
         if (totals.isEmpty()) {
             LOG
@@ -84,20 +85,22 @@ class JdbcEventLogPurge(
                 ).log()
         }
         val run = EventLogPurgeRun(totals.values.toList())
-        run.topics.forEach {
-            LOG
-                .atInfo()
-                .setMessage("event-log purge run")
-                .addKeyValue("topic", it.topic)
-                .addKeyValue("content_topic", it.contentTopic)
-                .addKeyValue("retained_while_resolvable", it.retainedWhileResolvable)
-                .addKeyValue("period", it.period)
-                .addKeyValue("cutoff", it.cutoff)
-                .addKeyValue("rows", it.rows)
-                .addKeyValue("watermark", it.watermark)
-                .log()
-        }
+        run.topics.forEach { logRun(it) }
         return run
+    }
+
+    private fun logRun(purged: TopicPurge) {
+        LOG
+            .atInfo()
+            .setMessage("event-log purge run")
+            .addKeyValue("topic", purged.topic)
+            .addKeyValue("content_topic", purged.contentTopic)
+            .addKeyValue("retained_while_resolvable", purged.retainedWhileResolvable)
+            .addKeyValue("period", purged.period)
+            .addKeyValue("cutoff", purged.cutoff)
+            .addKeyValue("rows", purged.rows)
+            .addKeyValue("watermark", purged.watermark)
+            .log()
     }
 
     /** One `purge_batch()` call: one row per topic. */

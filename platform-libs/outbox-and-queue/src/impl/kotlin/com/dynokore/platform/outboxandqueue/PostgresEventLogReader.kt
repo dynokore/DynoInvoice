@@ -8,13 +8,16 @@ import java.time.Instant
 
 /**
  * [EventLogReader] over the PostgreSQL event log: a consumer's read of its subscribed topics (INV-REQ-1205 b3), on the
- * service's runtime login (the pool of [eventLog]) and nothing else, as jOOQ on [dsl]: the topic tables, `eventlog.claim`
+ * service's runtime login (the pool of [eventLog]) and nothing else, as jOOQ on [dsl]: the topic tables,
+ * `eventlog.claim`
  * and the purge watermark declared in [EventLogSchema.jooqTables] (INV-T-5306).
  *
  * - The records after an offset are found across tenants only through `eventlog.claim` (owned by `eventlog_sys`,
- *   [EventLogSchema.CLAIM]), which returns `log_offset`, `tenant_id` and `inserted_at` of the topics the login subscribes
+ *   [EventLogSchema.CLAIM]), which returns `log_offset`, `tenant_id` and `inserted_at` of the topics the login
+ * subscribes
  *   to, and nothing for any other topic.
- * - The envelopes of one claimed batch are read once per tenant through [eventLog], each in a transaction that binds that
+ * - The envelopes of one claimed batch are read once per tenant through [eventLog], each in a transaction that binds
+ * that
  *   tenant and the service's workload principal first (tenancy-kernel, ARC-21; `TenantId.PLATFORM` for platform events,
  *   INV-Q-2927), under the tenant policy, so no read can return another tenant's envelope.
  *
@@ -56,8 +59,11 @@ class PostgresEventLogReader(
                             dsl
                                 .select(LOG_OFFSET, ENVELOPE)
                                 .from(topicTable)
-                                .where(LOG_OFFSET.eq(DSL.any(*offsets.toTypedArray())))
-                                .fetch()
+                                .where(
+                                    LOG_OFFSET.eq(
+                                        DSL.any(DSL.`val`(offsets.toTypedArray(), SQLDataType.BIGINT.array())),
+                                    ),
+                                ).fetch()
                                 .forEach { row -> envelopes[row.get(LOG_OFFSET)] = row.get(ENVELOPE).data() }
                         }
                     }
@@ -69,8 +75,8 @@ class PostgresEventLogReader(
                 .takeWhile { it != null }
                 .filterNotNull()
                 .toList()
-        } catch (failure: Exception) {
-            throw unreadable(topic, failure)
+        } catch (expected: Exception) {
+            throw unreadable(topic, expected)
         }
     }
 
@@ -84,8 +90,8 @@ class PostgresEventLogReader(
                 val head = gallop(topic, afterOffset, oldest.first)
                 LogBacklog(head - afterOffset, oldest.second)
             }
-        } catch (failure: Exception) {
-            throw unreadable(topic, failure)
+        } catch (expected: Exception) {
+            throw unreadable(topic, expected)
         }
     }
 
@@ -102,8 +108,8 @@ class PostgresEventLogReader(
                 val head = if (first == null) start else gallop(topic, start, first.first)
                 TopicHead(head, watermark)
             }
-        } catch (failure: Exception) {
-            throw unreadable(topic, failure)
+        } catch (expected: Exception) {
+            throw unreadable(topic, expected)
         }
     }
 
@@ -121,7 +127,8 @@ class PostgresEventLogReader(
     }
 
     /**
-     * The highest offset present, given [present], an offset present after [from]: doubles a step from [present] until a
+     * The highest offset present, given [present], an offset present after [from]: doubles a step from [present] until
+     * a
      * single-row claim after `present + step` finds nothing, then halves the interval between the highest offset found
      * and that bound. About two claims per doubling of the distance from [from] to the head.
      */

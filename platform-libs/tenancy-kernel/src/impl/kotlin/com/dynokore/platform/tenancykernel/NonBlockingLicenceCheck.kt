@@ -7,6 +7,8 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 
+private const val DEFAULT_TIMEOUT_MILLIS = 200L
+
 /**
  * Enforces FR-G.12 structurally: wraps a real [LicenceCheck] (the SaaS
  * entitlement source, or a private installation's signed licence file) so
@@ -26,7 +28,7 @@ import java.util.concurrent.TimeoutException
  */
 class NonBlockingLicenceCheck(
     private val delegate: LicenceCheck,
-    private val timeout: Duration = Duration.ofMillis(200),
+    private val timeout: Duration = Duration.ofMillis(DEFAULT_TIMEOUT_MILLIS),
     private val executor: ExecutorService =
         Executors.newCachedThreadPool { runnable ->
             Thread(runnable, "licence-check").apply { isDaemon = true }

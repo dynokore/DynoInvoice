@@ -9,7 +9,10 @@ import org.springframework.context.annotation.ConditionContext
 import org.springframework.context.annotation.ConfigurationCondition
 import org.springframework.core.type.AnnotatedTypeMetadata
 
-/** Matches when the service has staleness rules: configured under `service-runtime.staleness.rules`, or [StalenessRule] beans. */
+/**
+ * Matches when the service has staleness rules: configured under `service-runtime.staleness.rules`, or [StalenessRule]
+ * beans.
+ */
 class OnStalenessRules :
     SpringBootCondition(),
     ConfigurationCondition {

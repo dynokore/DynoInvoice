@@ -29,6 +29,7 @@ import java.util.function.DoubleSupplier
  * Several instances of one service need no lock here: the relay runs one at a time (a transaction-scoped advisory
  * lock) and a consumer locks its offset row, both in outbox-and-queue.
  */
+@Suppress("LongParameterList") // constructor injection under CS-05; INV-Q-4629 (CS-50)
 class EventLoops(
     private val beans: ListableBeanFactory,
     private val properties: EventLoopProperties,

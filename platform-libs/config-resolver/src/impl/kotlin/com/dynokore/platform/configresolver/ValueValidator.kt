@@ -133,7 +133,7 @@ internal class ValueValidator(
             }
 
             ValueType.LIST_REF -> {
-                if (isReference(node) || (node.isArray && node.size() > 0 && node.all { isReference(it) })) {
+                if (isReferenceOrList(node)) {
                     countProblem(spec, if (node.isArray) node.size() else 1, path)
                 } else {
                     "$path must be a reference or a list of references"
@@ -154,18 +154,6 @@ internal class ValueValidator(
         }
     }
 
-    private fun numberProblem(
-        spec: TypedValueSpec,
-        node: JsonNode,
-        path: String,
-    ): String? {
-        val value = node.decimalValue()
-        spec.min?.number?.let { if (value < it) return "$path is below ${it.toPlainString()}" }
-        spec.max?.number?.let { if (value > it) return "$path is above ${it.toPlainString()}" }
-        spec.minExclusive?.number?.let { if (value <= it) return "$path must be above ${it.toPlainString()}" }
-        return null
-    }
-
     private fun collectionProblem(
         spec: TypedValueSpec,
         node: JsonNode,
@@ -173,10 +161,16 @@ internal class ValueValidator(
     ): String? {
         if (!node.isArray) return "$path must be a list"
         val items = node.toList()
-        countProblem(spec, items.size, path)?.let { return it }
-        if ((spec.type == ValueType.SET || spec.distinct) && items.toSet().size != items.size) {
-            return "$path holds an item twice"
-        }
+        return countProblem(spec, items.size, path)
+            ?: duplicateProblem(spec, items, path)
+            ?: itemProblem(spec, items, path)
+    }
+
+    private fun itemProblem(
+        spec: TypedValueSpec,
+        items: List<JsonNode>,
+        path: String,
+    ): String? {
         val item = spec.item
         return when {
             item != null -> {
@@ -195,32 +189,20 @@ internal class ValueValidator(
         }
     }
 
-    private fun countProblem(
-        spec: TypedValueSpec,
-        count: Int,
-        path: String,
-    ): String? {
-        spec.minItems?.let { if (count < it) return "$path has fewer than $it items" }
-        spec.maxItems?.let { if (count > it) return "$path has more than $it items" }
-        spec.length?.number?.let {
-            if (BigDecimal.valueOf(count.toLong()).compareTo(it) !=
-                0
-            ) {
-                return "$path must hold $it items"
-            }
-        }
-        spec.min?.number?.let { if (BigDecimal.valueOf(count.toLong()) < it) return "$path has fewer than $it items" }
-        spec.max?.number?.let { if (BigDecimal.valueOf(count.toLong()) > it) return "$path has more than $it items" }
-        return null
-    }
-
     private fun mapProblem(
         spec: TypedValueSpec,
         node: JsonNode,
         path: String,
     ): String? {
         if (!node.isObject) return "$path must be an object"
-        countProblem(spec, node.size(), path)?.let { return it }
+        return countProblem(spec, node.size(), path) ?: entriesProblem(spec, node, path)
+    }
+
+    private fun entriesProblem(
+        spec: TypedValueSpec,
+        node: JsonNode,
+        path: String,
+    ): String? {
         val keySpec = checkNotNull(spec.key)
         val valueSpec = checkNotNull(spec.value)
         return node.properties().firstNotNullOfOrNull { (k, v) ->
@@ -237,23 +219,13 @@ internal class ValueValidator(
         if (!node.isObject) return "$path must be an object"
         val names = node.propertyNames().toSet()
         val missing = spec.fields.keys - names
-        if (missing.isNotEmpty()) return "$path misses ${missing.sorted()}"
         val extra = names - spec.fields.keys
-        if (extra.isNotEmpty()) return "$path has unknown ${extra.sorted()}"
-        return spec.fields.entries.firstNotNullOfOrNull { (name, field) ->
-            problem(field, node.get(name), "$path.$name")
-        }
+        return missing.takeIf { it.isNotEmpty() }?.let { "$path misses ${it.sorted()}" }
+            ?: extra.takeIf { it.isNotEmpty() }?.let { "$path has unknown ${it.sorted()}" }
+            ?: spec.fields.entries.firstNotNullOfOrNull { (name, field) ->
+                problem(field, node.get(name), "$path.$name")
+            }
     }
-
-    private fun isReference(node: JsonNode) = node.isString && node.stringValue().isNotBlank()
-
-    private fun isDate(text: String) =
-        try {
-            LocalDate.parse(text)
-            true
-        } catch (_: DateTimeParseException) {
-            false
-        }
 
     private companion object {
         /** Types whose numeric min/max bound the number of items. */
@@ -273,3 +245,69 @@ internal fun refuse(
     refusal: PolicyRefusal,
     detail: String,
 ): Nothing = throw PolicyRefused(refusal, key, detail)
+
+private fun numberProblem(
+    spec: TypedValueSpec,
+    node: JsonNode,
+    path: String,
+): String? {
+    val value = node.decimalValue()
+    return spec.min
+        ?.number
+        ?.takeIf { value < it }
+        ?.let { "$path is below ${it.toPlainString()}" }
+        ?: spec.max
+            ?.number
+            ?.takeIf { value > it }
+            ?.let { "$path is above ${it.toPlainString()}" }
+        ?: spec.minExclusive
+            ?.number
+            ?.takeIf { value <= it }
+            ?.let { "$path must be above ${it.toPlainString()}" }
+}
+
+private fun duplicateProblem(
+    spec: TypedValueSpec,
+    items: List<JsonNode>,
+    path: String,
+): String? =
+    if ((spec.type == ValueType.SET || spec.distinct) && items.toSet().size != items.size) {
+        "$path holds an item twice"
+    } else {
+        null
+    }
+
+private fun countProblem(
+    spec: TypedValueSpec,
+    count: Int,
+    path: String,
+): String? {
+    val size = BigDecimal.valueOf(count.toLong())
+    return spec.minItems?.takeIf { count < it }?.let { "$path has fewer than $it items" }
+        ?: spec.maxItems?.takeIf { count > it }?.let { "$path has more than $it items" }
+        ?: spec.length
+            ?.number
+            ?.takeIf { size.compareTo(it) != 0 }
+            ?.let { "$path must hold $it items" }
+        ?: spec.min
+            ?.number
+            ?.takeIf { size < it }
+            ?.let { "$path has fewer than $it items" }
+        ?: spec.max
+            ?.number
+            ?.takeIf { size > it }
+            ?.let { "$path has more than $it items" }
+}
+
+private fun isReferenceOrList(node: JsonNode) =
+    isReference(node) || (node.isArray && node.size() > 0 && node.all { isReference(it) })
+
+private fun isReference(node: JsonNode) = node.isString && node.stringValue().isNotBlank()
+
+private fun isDate(text: String) =
+    try {
+        LocalDate.parse(text)
+        true
+    } catch (_: DateTimeParseException) {
+        false
+    }

@@ -45,9 +45,9 @@ class TenantAwareDataSource
             val permit = acquire()
             try {
                 return ResettingConnection(take(), permit)
-            } catch (failure: Throwable) {
+            } catch (expected: Throwable) {
                 permit?.release()
-                throw failure
+                throw expected
             }
         }
 

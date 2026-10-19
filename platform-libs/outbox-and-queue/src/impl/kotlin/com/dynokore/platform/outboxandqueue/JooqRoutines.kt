@@ -28,7 +28,10 @@ internal object JooqRoutines {
     fun advisoryXactLock(key: String): Field<Any> =
         DSL.function(DSL.name("pg_catalog", "pg_advisory_xact_lock"), SQLDataType.OTHER, hashtext(key))
 
-    /** `<schema>.consumer_offset_lock(consumer, topic)`: the offset row's `next_offset`, row locked until the transaction ends. */
+    /**
+     * `<schema>.consumer_offset_lock(consumer, topic)`: the offset row's `next_offset`, row locked until the
+     * transaction ends.
+     */
     fun consumerOffsetLock(
         schema: String,
         consumer: String,
@@ -71,7 +74,10 @@ internal object JooqRoutines {
             DSL.`val`(source, SQLDataType.CLOB),
         )
 
-    /** `<schema>.<function>(cutoff, batch_size)`: one batch of a retention purge function; the number of rows it deleted. */
+    /**
+     * `<schema>.<function>(cutoff, batch_size)`: one batch of a retention purge function; the number of rows it
+     * deleted.
+     */
     fun purgeExpired(
         schema: String,
         function: String,
@@ -121,6 +127,7 @@ internal object JooqRoutines {
 }
 
 /** A table-valued function of a schema, as jOOQ's generator emits one: [call] binds its arguments. */
+@Suppress("AbstractClassCanBeConcreteClass") // public jOOQ-style function table base; INV-Q-4629, INV-Q-7405 (CS-50)
 abstract class FunctionTable(
     protected val schemaName: String,
     functionName: String,
@@ -165,7 +172,10 @@ class OutboxClaimPage private constructor(
         )
 }
 
-/** `<schema>.event_dead_letter_triage_page(...)` ([OutboxSchema.DEAD_LETTER_TRIAGE_PAGE]): the eleven non-content columns. */
+/**
+ * `<schema>.event_dead_letter_triage_page(...)` ([OutboxSchema.DEAD_LETTER_TRIAGE_PAGE]): the eleven non-content
+ * columns.
+ */
 class DeadLetterTriagePage private constructor(
     schema: String,
     parameters: Array<Field<*>>?,
@@ -186,7 +196,7 @@ class DeadLetterTriagePage private constructor(
     val note: Field<String> = createField(DSL.name("note"), SQLDataType.CLOB, this)
     val replayedTo: Field<String> = createField(DSL.name("replayed_to"), SQLDataType.CLOB, this)
 
-    @Suppress("LongParameterList")
+    @Suppress("LongParameterList", "ArrayPrimitive") // SQL bigint[] parameter; INV-Q-4629, INV-Q-7405 (CS-50)
     fun call(
         after: Long,
         status: String?,
@@ -278,7 +288,9 @@ class ClaimDue private constructor(
         )
 }
 
-/** `eventlog.claim(topic, after_offset, limit)` ([EventLogSchema.CLAIM]): (`log_offset`, `tenant_id`, `inserted_at`). */
+/**
+ * `eventlog.claim(topic, after_offset, limit)` ([EventLogSchema.CLAIM]): (`log_offset`, `tenant_id`, `inserted_at`).
+ */
 class EventLogClaim private constructor(
     parameters: Array<Field<*>>?,
 ) : FunctionTable(EventLogSchema.SCHEMA, EventLogSchema.CLAIM, parameters) {

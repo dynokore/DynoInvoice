@@ -186,16 +186,13 @@ class WriteHarness(
         form: DeploymentForm = DeploymentForm.SAAS,
         clock: Clock = CLOCK,
         withOutbox: Boolean = true,
-        delegation: DelegationProbe? = DelegationProbe { _, _ -> false },
-        backdating: BackdatingFloor? = null,
-        constraints: ValueConstraints? = null,
         platform: Boolean = false,
-        catalogue: VariationPointCatalogue = WriteCatalogue.catalogue,
+        ports: WriterPorts = WriterPorts(),
     ): JdbcPolicyWriter {
         val installation = platform && mode == EventMode.OUTBOX
         return JdbcPolicyWriter(
             dsl = dsl,
-            catalogue = catalogue,
+            catalogue = WriteCatalogue.catalogue,
             form = form,
             schema = SCHEMA,
             audit = if (platform) installationAudit(app, clock) else audit(),
@@ -207,9 +204,9 @@ class WriteHarness(
                     else -> outbox()
                 },
             clock = clock,
-            delegation = delegation,
-            backdating = backdating,
-            constraints = constraints,
+            delegation = ports.delegation,
+            backdating = ports.backdating,
+            constraints = ports.constraints,
         )
     }
 
@@ -527,3 +524,10 @@ class WriteHarness(
         fun clockAt(instant: String): Clock = Clock.fixed(Instant.parse(instant), ZoneOffset.UTC)
     }
 }
+
+/** The optional ports a test gives the writer: the delegation probe, the back-dating floor and the constraints. */
+data class WriterPorts(
+    val delegation: DelegationProbe? = DelegationProbe { _, _ -> false },
+    val backdating: BackdatingFloor? = null,
+    val constraints: ValueConstraints? = null,
+)

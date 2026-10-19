@@ -32,16 +32,23 @@ class JdbcEventLogPositions(
                             DSL.`val`(offset, SQLDataType.BIGINT),
                         )
                     val row = dsl.select(position).fetchOne()
-                    check(row != null) { "record_position returned no row" }
+                    checkNotNull(row) { "record_position returned no row" }
                     checkNotNull(row.get(position)) { "record_position returned no position" }
                 }
             }
         } catch (failure: IllegalStateException) {
             throw failure
-        } catch (failure: Exception) {
-            // jOOQ wraps the SQLException; the SQLSTATE is read through the runner (INV-Q-5121)
-            val state = eventLog.sqlErrors.sqlStateOf(failure) ?: throw failure
-            throw EventBindingUnavailable("event log refused the position on $topic: $state", failure)
+        } catch (expected: Exception) {
+            refused(expected, topic)
         }
+    }
+
+    // jOOQ wraps the SQLException; the SQLSTATE is read through the runner (INV-Q-5121)
+    private fun refused(
+        failure: Exception,
+        topic: String,
+    ): Nothing {
+        val state = eventLog.sqlErrors.sqlStateOf(failure) ?: throw failure
+        throw EventBindingUnavailable("event log refused the position on $topic: $state", failure)
     }
 }

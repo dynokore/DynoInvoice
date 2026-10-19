@@ -35,13 +35,19 @@ class ConfigResolverPostgresIT {
         option: String,
         from: LocalDate,
         key: VariationPointKey = ENTITY_POLICY,
-    ) = setTenant(tenant, key, ScopeRef(ScopeLevel.ENTITY, "E1"), one(option), from, entity = "E1")
+    ) = setTenant(tenant, key, Slot(ScopeRef(ScopeLevel.ENTITY, "E1"), entity = "E1"), one(option), from)
 
     private fun ConfigHarness.tenantProfile(
         tenant: TenantId,
         option: String,
         from: LocalDate,
-    ) = setTenant(tenant, ENTITY_POLICY, ScopeRef(ScopeLevel.TENANT, "$tenant"), one(option), from, profile = PROFILE)
+    ) = setTenant(
+        tenant,
+        ENTITY_POLICY,
+        Slot(ScopeRef(ScopeLevel.TENANT, "$tenant"), profile = PROFILE),
+        one(option),
+        from,
+    )
 
     private fun <T> ConfigHarness.inTx(
         tenant: TenantId,
@@ -151,9 +157,9 @@ class ConfigResolverPostgresIT {
     fun `typed and multi-option values round-trip through settings and records`(image: String) {
         ConfigHarness(image).use { h ->
             val multi = listOf(SelectedOption("SMS"), SelectedOption("WEBHOOK"))
-            h.setTenant(a, MULTI, ScopeRef(ScopeLevel.TENANT, a.toString()), multi, march.minusDays(1))
+            h.setTenant(a, MULTI, Slot(ScopeRef(ScopeLevel.TENANT, a.toString())), multi, march.minusDays(1))
             val typed = listOf(SelectedOption("OTHER_PERIOD", """{"days":45}"""))
-            h.setTenant(a, TYPED, ScopeRef(ScopeLevel.ENTITY, "E1"), typed, march.minusDays(1), entity = "E1")
+            h.setTenant(a, TYPED, Slot(ScopeRef(ScopeLevel.ENTITY, "E1"), entity = "E1"), typed, march.minusDays(1))
 
             assertEquals(multi, h.resolveAndRecord(a, PolicyScope.tenant(a), MULTI, march).selected)
             assertEquals(typed, h.resolveAndRecord(a, PolicyScope.entity(a, "E1"), TYPED, march).selected)

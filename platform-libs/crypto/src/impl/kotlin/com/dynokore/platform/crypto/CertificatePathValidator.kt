@@ -38,12 +38,19 @@ internal class CertificatePathValidator(
     ): Int? {
         val current = path.last()
         val anchorIndex = anchorsDer.indexOfFirst { it.contentEquals(current.encoded) }
-        if (anchorIndex >= 0) {
-            return anchorIndex
+        return when {
+            anchorIndex >= 0 -> anchorIndex
+            path.size >= MAX_PATH_LENGTH -> null
+            else -> extendThrough(path, pool, deadEnds, current)
         }
-        if (path.size >= MAX_PATH_LENGTH) {
-            return null
-        }
+    }
+
+    private fun extendThrough(
+        path: List<X509Certificate>,
+        pool: List<X509Certificate>,
+        deadEnds: MutableSet<Pair<Int, Int>>,
+        current: X509Certificate,
+    ): Int? {
         for ((poolIndex, issuer) in pool.withIndex()) {
             val state = poolIndex to path.size
             val onPath = path.any { it.encoded.contentEquals(issuer.encoded) }

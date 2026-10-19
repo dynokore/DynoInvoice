@@ -4,7 +4,8 @@ package com.dynokore.platform.outboxandqueue
  * Reads the event catalogue from platform-contracts' generated `event-log/topics.yaml`. Three sections:
  * - `topics`: one entry per event topic: `topic`, `event_type`, `producers`, `subscribers`, from INV-T-3386
  *   `content_topic: true|false` (INV-REQ-1205 b4; an entry without it gets [CatalogueEntry.contentTopic] `null`) and
- *   from INV-T-3606 `record_topic` ([CatalogueEntry.recordTopic], INV-Q-3809) and `retained_while_resolvable: true|false`
+ *   from INV-T-3606 `record_topic` ([CatalogueEntry.recordTopic], INV-Q-3809) and `retained_while_resolvable:
+ * true|false`
  *   (INV-REQ-1210, INV-Q-6281; an entry without it gets [CatalogueEntry.retainedWhileResolvable] `null`, a replay topic
  *   without it is refused);
  * - `replay_topics` (INV-T-3606): one per (producer, subscriber) pair, with `event_types`, exactly one producer and
@@ -19,6 +20,8 @@ package com.dynokore.platform.outboxandqueue
 object TopicsYamlCatalogue {
     private enum class Section { TOPICS, REPLAY, REQUEST }
 
+    private enum class Key { TYPES, PRODUCERS, SUBSCRIBERS }
+
     private class Entry(
         val section: Section,
         val topic: String,
@@ -30,17 +33,25 @@ object TopicsYamlCatalogue {
         var content: Boolean? = null
         var record = false
         var retained: Boolean? = null
+
+        fun values(key: Key): MutableSet<String> =
+            when (key) {
+                Key.TYPES -> types
+                Key.PRODUCERS -> producers
+                Key.SUBSCRIBERS -> subscribers
+            }
     }
 
-    /** Parses [text] into an [EventCatalogue]; throws [IllegalArgumentException] on a malformed entry. */
-    fun parse(text: String): EventCatalogue {
+    /** The line reader: the section, entry and list a line belongs to are the state between lines. */
+    private class LineReader {
         val entries = mutableListOf<Entry>()
-        var section: Section? = null
-        var entry: Entry? = null
-        var list: MutableSet<String>? = null
-        for (raw in text.lines()) {
+        private var section: Section? = null
+        private var entry: Entry? = null
+        private var list: Key? = null
+
+        fun feed(raw: String) {
             val line = raw.trim()
-            if (line.isEmpty() || line.startsWith("#")) continue
+            if (line.isEmpty() || line.startsWith("#")) return
             if (!raw.startsWith(" ") && !raw.startsWith("-")) {
                 section =
                     when (line) {
@@ -51,63 +62,67 @@ object TopicsYamlCatalogue {
                     }
                 entry = null
                 list = null
-                continue
+            } else {
+                section?.let { feedEntryLine(it, line) }
             }
-            val current = section ?: continue
+        }
+
+        private fun feedEntryLine(
+            current: Section,
+            line: String,
+        ) {
+            val open = entry
             when {
                 line.startsWith("- topic:") -> {
                     entry = Entry(current, line.removePrefix("- topic:").trim()).also { entries += it }
                     list = null
                 }
 
-                entry == null -> {}
+                open != null -> {
+                    feedKey(open, line)
+                }
+            }
+        }
 
+        private fun feedKey(
+            open: Entry,
+            line: String,
+        ) {
+            when {
                 line.startsWith("event_type:") -> {
-                    entry.type = line.removePrefix("event_type:").trim()
+                    open.type = line.removePrefix("event_type:").trim()
                     list = null
                 }
 
                 line.startsWith("content_topic:") -> {
-                    val value = line.removePrefix("content_topic:").trim()
-                    entry.content =
-                        requireNotNull(value.toBooleanStrictOrNull()) {
-                            "topic ${entry.topic} has content_topic '$value', expected true or false"
-                        }
+                    open.content = flag(open, "content_topic", line)
                     list = null
                 }
 
                 line.startsWith("retained_while_resolvable:") -> {
-                    val value = line.removePrefix("retained_while_resolvable:").trim()
-                    entry.retained =
-                        requireNotNull(value.toBooleanStrictOrNull()) {
-                            "topic ${entry.topic} has retained_while_resolvable '$value', expected true or false"
-                        }
+                    open.retained = flag(open, "retained_while_resolvable", line)
                     list = null
                 }
 
                 line.startsWith("record_topic:") -> {
-                    val value = line.removePrefix("record_topic:").trim()
-                    entry.record =
-                        requireNotNull(value.toBooleanStrictOrNull()) {
-                            "topic ${entry.topic} has record_topic '$value', expected true or false"
-                        }
+                    open.record = flag(open, "record_topic", line)
                     list = null
                 }
 
                 line == "event_types:" -> {
-                    list = entry.types
+                    list = Key.TYPES
                 }
 
                 line == "producers:" -> {
-                    list = entry.producers
+                    list = Key.PRODUCERS
                 }
 
                 line == "subscribers:" -> {
-                    list = entry.subscribers
+                    list = Key.SUBSCRIBERS
                 }
 
                 line.startsWith("- ") && list != null -> {
-                    list += line.removePrefix("- ").trim()
+                    list?.let { open.values(it) }?.add(line.removePrefix("- ").trim())
                 }
 
                 else -> {
@@ -115,6 +130,24 @@ object TopicsYamlCatalogue {
                 } // another key (an empty list `[]`, ...)
             }
         }
+
+        private fun flag(
+            open: Entry,
+            key: String,
+            line: String,
+        ): Boolean {
+            val value = line.removePrefix("$key:").trim()
+            return requireNotNull(value.toBooleanStrictOrNull()) {
+                "topic ${open.topic} has $key '$value', expected true or false"
+            }
+        }
+    }
+
+    /** Parses [text] into an [EventCatalogue]; throws [IllegalArgumentException] on a malformed entry. */
+    fun parse(text: String): EventCatalogue {
+        val reader = LineReader()
+        text.lines().forEach(reader::feed)
+        val entries = reader.entries
         return EventCatalogue(
             entries.filter { it.section == Section.TOPICS }.map(::eventEntry),
             entries.filter { it.section == Section.REPLAY }.map(::replayTopic),

@@ -32,7 +32,8 @@ import javax.sql.DataSource
 
 /**
  * INV-T-3881 (ruling INV-Q-3877, INV-Q-3710): config-resolver's ports are wired whatever the order in which a service
- * registers ServiceRuntimeConfiguration and StandInProductRuntimeConfiguration (the [Composition]s of Tpl18Compositions.kt).
+ * registers ServiceRuntimeConfiguration and StandInProductRuntimeConfiguration (the [Composition]s of
+ * Tpl18Compositions.kt).
  */
 class ConfigResolverImportOrderTest {
     /** The inputs every service declares: a DataSource, its name, its schema (README port table). */

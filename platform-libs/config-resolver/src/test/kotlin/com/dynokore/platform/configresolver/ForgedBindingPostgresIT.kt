@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
+import java.util.Locale
 import java.util.UUID
 
 /**
@@ -69,11 +70,11 @@ class ForgedBindingPostgresIT {
             h.raw(
                 tenant,
                 "op",
-            ) { fetchRows(sql.format(WriteHarness.SCHEMA, WriteHarness.SCHEMA)).single().values }
+            ) { fetchRows(sql.format(Locale.ROOT, WriteHarness.SCHEMA, WriteHarness.SCHEMA)).single().values }
         assertEquals(listOf(tenant, "op"), own.map { it.toString() })
         val other =
             h.raw(tenant, "op") {
-                fetchRows(sql.format(WriteHarness.OTHER_SCHEMA, WriteHarness.OTHER_SCHEMA)).single().values
+                fetchRows(sql.format(Locale.ROOT, WriteHarness.OTHER_SCHEMA, WriteHarness.OTHER_SCHEMA)).single().values
             }
         other.forEach { assertNull(it, "the look-alike schema accepted a value signed under the other key") }
     }

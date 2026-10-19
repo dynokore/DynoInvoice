@@ -10,7 +10,8 @@ import java.util.Objects
 
 /**
  * The convenience layer over the service's one `DSLContext` (INV-T-4224; owner ruling INV-Q-4214, coordinator ruling
- * INV-Q-4217): makes an [AggregateStore] or a [LedgerAppender] for a generated table. Every statement runs on [dsl], the
+ * INV-Q-4217): makes an [AggregateStore] or a [LedgerAppender] for a generated table. Every statement runs on [dsl],
+ * the
  * tenancy-jooq configuration, inside the caller's `TransactionRunner` transaction; the layer holds no connection of its
  * own and renders no SQL text.
  *

@@ -119,7 +119,8 @@ class ServiceRuntimeWiring {
 }
 
 /**
- * The DSLContext of tenancy-jooq's factory, which TenancyJooqWiring defines whenever the context has a TransactionRunner
+ * The DSLContext of tenancy-jooq's factory, which TenancyJooqWiring defines whenever the context has a
+ * TransactionRunner
  * (start-up fails without a generated schema, INV-Q-4815). A context composed without it (a wiring test on no database)
  * gets a connectionless DSLContext, which runs no statement.
  */

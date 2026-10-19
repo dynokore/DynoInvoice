@@ -2,6 +2,8 @@ package com.dynokore.platform.serviceruntime.composition
 
 import org.springframework.boot.context.properties.ConfigurationProperties
 
+private const val DEFAULT_RETENTION_DAYS = 30L
+
 /**
  * The service's DataSources (INV-REQ-1230 b1 and b2, INV-ADR-3968; owner ruling INV-Q-3955): one application
  * DataSource, the runtime login (Spring Boot's `dataSource` from `spring.datasource.*`), which every implementation
@@ -49,7 +51,7 @@ data class EventLogPoolProperties(
  */
 @ConfigurationProperties(prefix = "service-runtime.jobs")
 data class JobProperties(
-    val retention: java.time.Duration = java.time.Duration.ofDays(30),
+    val retention: java.time.Duration = java.time.Duration.ofDays(DEFAULT_RETENTION_DAYS),
 )
 
 /**

@@ -115,48 +115,55 @@ internal class JdbcSettingWrites(
         key: VariationPointKey,
         target: SettingTarget,
     ): List<SettingVersion> =
-        if (target.level == ScopeLevel.INSTALLATION) {
-            dsl
-                .select(id, columns.keys, columns.values, effectiveFrom, setBy, reason, recordedAt)
-                .from(installation)
-                .where(vpKey.eq(key.value))
-                .orderBy(seq)
-                .fetch { row ->
-                    // Installation values are overrides: no profile and no relaxation applies there.
-                    version(row, key, target, SettingSource.OVERRIDE, null, null, null)
-                }
-        } else {
-            dsl
-                .select(
-                    id,
-                    columns.keys,
-                    columns.values,
-                    source,
-                    profileId,
-                    profileVersion,
-                    effectiveFrom,
-                    setBy,
-                    reason,
-                    recordedAt,
-                    relaxationRef,
-                ).from(settings)
-                .where(tenantId.eq(checkNotNull(target.tenant).value))
-                .and(vpKey.eq(key.value))
-                .and(scopeLevel.eq(target.level.name))
-                .and(scopeId.eq(target.ref.id))
-                .orderBy(seq)
-                .fetch { row ->
-                    version(
-                        row,
-                        key,
-                        target,
+        if (target.level == ScopeLevel.INSTALLATION) installationVersions(key, target) else scopedVersions(key, target)
+
+    private fun installationVersions(
+        key: VariationPointKey,
+        target: SettingTarget,
+    ): List<SettingVersion> =
+        dsl
+            .select(id, columns.keys, columns.values, effectiveFrom, setBy, reason, recordedAt)
+            .from(installation)
+            .where(vpKey.eq(key.value))
+            .orderBy(seq)
+            .fetch { row ->
+                // Installation values are overrides: no profile and no relaxation applies there.
+                version(row, key, target, Lineage(SettingSource.OVERRIDE, null, null, null))
+            }
+
+    private fun scopedVersions(
+        key: VariationPointKey,
+        target: SettingTarget,
+    ): List<SettingVersion> =
+        dsl
+            .select(
+                id,
+                columns.keys,
+                columns.values,
+                source,
+                profileId,
+                profileVersion,
+                effectiveFrom,
+                setBy,
+                reason,
+                recordedAt,
+                relaxationRef,
+            ).from(settings)
+            .where(tenantId.eq(checkNotNull(target.tenant).value))
+            .and(vpKey.eq(key.value))
+            .and(scopeLevel.eq(target.level.name))
+            .and(scopeId.eq(target.ref.id))
+            .orderBy(seq)
+            .fetch { row ->
+                val lineage =
+                    Lineage(
                         SettingSource.valueOf(row.get(source)),
                         row.get(profileId),
                         row.get(profileVersion),
                         row.get(relaxationRef),
                     )
-                }
-        }
+                version(row, key, target, lineage)
+            }
 
     /** Whether any value of [key] has ever been stored at [target] (the first-value test, INV-Q-3140). */
     fun hasAny(
@@ -221,59 +228,65 @@ internal class JdbcSettingWrites(
             .where(tenantId.eq(tenant.value))
             .and(relaxationId.eq(relaxation.value))
             .orderBy(seq)
-            .fetch { row ->
-                AcknowledgementRow(
-                    key = VariationPointKey(row.get(vpKey)),
-                    target =
-                        SettingTarget(
-                            tenant,
-                            ScopeRef(ScopeLevel.valueOf(row.get(scopeLevel)), row.get(scopeId)),
-                            row.get(entityId),
-                        ),
-                    selected = columns.read(row.get(columns.keys), row.get(columns.values)),
-                    reason = row.get(reason),
-                    acknowledgement =
-                        RelaxationAcknowledgement(
-                            id = row.get(id),
-                            relaxation = RelaxationId(row.get(relaxationId)),
-                            role = row.get(role),
-                            principal = row.get(principal),
-                            effectiveFrom = row.get(effectiveFrom),
-                            acknowledgedAt = row.get(acknowledgedAt).toInstant(),
-                        ),
-                )
-            }
+            .fetch { row -> acknowledgementOf(row, tenant) }
+
+    private fun acknowledgementOf(
+        row: Record,
+        tenant: TenantId,
+    ) = AcknowledgementRow(
+        key = VariationPointKey(row.get(vpKey)),
+        target =
+            SettingTarget(
+                tenant,
+                ScopeRef(ScopeLevel.valueOf(row.get(scopeLevel)), row.get(scopeId)),
+                row.get(entityId),
+            ),
+        selected = columns.read(row.get(columns.keys), row.get(columns.values)),
+        reason = row.get(reason),
+        acknowledgement =
+            RelaxationAcknowledgement(
+                id = row.get(id),
+                relaxation = RelaxationId(row.get(relaxationId)),
+                role = row.get(role),
+                principal = row.get(principal),
+                effectiveFrom = row.get(effectiveFrom),
+                acknowledgedAt = row.get(acknowledgedAt).toInstant(),
+            ),
+    )
+
+    /** Where a stored version came from: its source, the profile it names and the relaxation behind it. */
+    private class Lineage(
+        val origin: SettingSource,
+        val profile: String?,
+        val profileVer: String?,
+        val relaxation: UUID?,
+    )
 
     private fun version(
         row: Record,
         key: VariationPointKey,
         target: SettingTarget,
-        origin: SettingSource,
-        profile: String?,
-        profileVer: String?,
-        relaxation: UUID?,
+        lineage: Lineage,
     ) = SettingVersion(
         id = row.get(id),
         key = key,
         target = target,
         selected = columns.read(row.get(columns.keys), row.get(columns.values)),
-        source = origin,
-        profileId = profile,
-        profileVersion = profileVer,
+        source = lineage.origin,
+        profileId = lineage.profile,
+        profileVersion = lineage.profileVer,
         effectiveFrom = row.get(effectiveFrom),
         setBy = row.get(setBy),
         reason = row.get(reason),
         recordedAt = row.get(recordedAt).toInstant(),
-        relaxation = relaxation?.let { RelaxationId(it) },
+        relaxation = lineage.relaxation?.let { RelaxationId(it) },
     )
 
-    private fun <T> column(
-        name: String,
-        type: DataType<T>,
-    ): Field<T> = DSL.field(DSL.name(name), type)
-
     private companion object {
-        /** `(setting_id, stored_at)` as the composite text PostgreSQL gives a row value: `(uuid,"2026-10-01 00:00:00+00")`. */
+        /**
+         * `(setting_id, stored_at)` as the composite text PostgreSQL gives a row value: `(uuid,"2026-10-01
+         * 00:00:00+00")`.
+         */
         val STORED: DataType<StoredInstallation> =
             SQLDataType.OTHER.asConvertedDataType(
                 object : Converter<Any, StoredInstallation> {
@@ -294,7 +307,9 @@ internal class JdbcSettingWrites(
                 },
             )
 
-        /** A timestamptz as PostgreSQL prints it: `2026-10-01 00:00:00.123456+00` (the offset may be `+08` or `+05:30`). */
+        /**
+         * A timestamptz as PostgreSQL prints it: `2026-10-01 00:00:00.123456+00` (the offset may be `+08` or `+05:30`).
+         */
         fun instantOf(text: String): Instant {
             val match = checkNotNull(OFFSET.find(text)) { "no offset in $text" }
             val sign = match.groupValues[1]
@@ -322,3 +337,8 @@ internal data class AcknowledgementRow(
     val reason: String?,
     val acknowledgement: RelaxationAcknowledgement,
 )
+
+private fun <T> column(
+    name: String,
+    type: DataType<T>,
+): Field<T> = DSL.field(DSL.name(name), type)

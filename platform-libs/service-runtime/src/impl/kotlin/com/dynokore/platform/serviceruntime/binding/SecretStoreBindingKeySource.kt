@@ -6,7 +6,8 @@ import com.dynokore.platform.tenancykernel.BindingKeySource
  * tenancy-kernel's [BindingKeySource] over the [SecretStore] (INV-T-5360, INV-REQ-854 b7; coordinator rulings
  * INV-Q-5352, INV-Q-5354). Like [com.dynokore.platform.serviceruntime.datasource.SecretStoreCredentialsProvider]
  * (INV-T-3913) it reads on every call and caches nothing, so each transaction start signs with the key mounted at that
- * moment: a rotated secret needs no restart. The key is the UTF-8 bytes of the secret value, with no decoding (INV-Q-6576):
+ * moment: a rotated secret needs no restart. The key is the UTF-8 bytes of the secret value, with no decoding
+ * (INV-Q-6576):
  * this class is the one converter. Each call hands out a new array. A missing, empty or white-space-only secret
  * answers null.
  *
@@ -54,10 +55,11 @@ class InstallationBindingKey(
     companion object {
         fun of(secrets: SecretStore?): InstallationBindingKey {
             checkNotNull(secrets) {
-                "no SecretStore is bound: the installation binding key '${SecretStoreBindingKeySource.CURRENT}' cannot be read"
+                "no SecretStore is bound: the installation binding key '${SecretStoreBindingKeySource.CURRENT}' " +
+                    "cannot be read"
             }
             val source = SecretStoreBindingKeySource(secrets)
-            check(source.currentKey() != null) {
+            checkNotNull(source.currentKey()) {
                 "the current binding key secret '${SecretStoreBindingKeySource.CURRENT}' is not available"
             }
             return InstallationBindingKey(source)

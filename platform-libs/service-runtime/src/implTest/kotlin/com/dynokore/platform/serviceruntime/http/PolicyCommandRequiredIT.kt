@@ -118,7 +118,14 @@ class PolicyCommandRequiredIT : PolicyHttpBase() {
     fun `reason absent from a caller outside the entity set is 403 SRT-004 with zero writer calls`(image: String) {
         val s = Service(image)
         val token = s.user("u1", "E-1", roleSet = admin)
-        val noReason = request(PolicyOp.SET, ScopeLevel.ENTITY, "E-9", "E-9", option = "DAILY_WINDOW", reason = null)
+        val noReason =
+            request(
+                PolicyOp.SET,
+                ScopeLevel.ENTITY,
+                "E-9",
+                "E-9",
+                RequestFields(option = "DAILY_WINDOW", reason = null),
+            )
         s.post(PolicyOp.SET.path("VP-20"), noReason, token).closed(ClosedErrorCode.ACCESS_DENIED)
         val emptySelected = noReason.replace(Regex("\"selected\":\\[[^\\]]*\\]"), "\"selected\":[]")
         s.post(PolicyOp.SET.path("VP-20"), emptySelected, token).closed(ClosedErrorCode.ACCESS_DENIED)
@@ -145,7 +152,13 @@ class PolicyCommandRequiredIT : PolicyHttpBase() {
         val s = Service(image)
         val token = s.user("u1", roleSet = admin)
         pin?.let { s.writer.change = it }
-        val request = request(PolicyOp.SET, ScopeLevel.TENANT, s.tenant.toString(), effectiveDate = NEXT_MONTH)
+        val request =
+            request(
+                PolicyOp.SET,
+                ScopeLevel.TENANT,
+                s.tenant.toString(),
+                selection = RequestFields(effectiveDate = NEXT_MONTH),
+            )
         return s.post(PolicyOp.SET.path("VP-12"), request, token).ok().body
     }
 

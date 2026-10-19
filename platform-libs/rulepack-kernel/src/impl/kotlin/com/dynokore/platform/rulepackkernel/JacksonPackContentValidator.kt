@@ -32,8 +32,8 @@ class JacksonPackContentValidator(
         val root =
             try {
                 objectMapper.readTree(contents)
-            } catch (failure: RuntimeException) {
-                return ContentValidationOutcome.Rejected("contents is not valid JSON: ${failure.message}")
+            } catch (expected: RuntimeException) {
+                return ContentValidationOutcome.Rejected("contents is not valid JSON: ${expected.message}")
             }
         val reason = scan(root, "$")
         return if (reason == null) ContentValidationOutcome.Accepted else ContentValidationOutcome.Rejected(reason)
@@ -42,60 +42,67 @@ class JacksonPackContentValidator(
     private fun scan(
         node: JsonNode,
         path: String,
+    ): String? =
+        when {
+            node.isObject -> scanObject(node, path)
+            node.isArray -> node.withIndex().firstNotNullOfOrNull { (index, element) -> scan(element, "$path[$index]") }
+            node.isString -> suspiciousTextReason(node.asString(""))?.let { "value at '$path' $it" }
+            node.isBinary -> binaryReason(node, path)
+            else -> null
+        }
+
+    private fun scanObject(
+        node: JsonNode,
+        path: String,
+    ): String? =
+        node.properties().firstNotNullOfOrNull { (name, value) ->
+            if (isForbiddenFieldName(name)) {
+                "field '$path.$name' is not permitted in declarative pack content (INV-REQ-2393): " +
+                    "field names naming a scripting or execution concept are refused outright"
+            } else {
+                scan(value, "$path.$name")
+            }
+        }
+
+    private fun binaryReason(
+        node: JsonNode,
+        path: String,
     ): String? {
-        if (node.isObject) {
-            node.properties().forEach { (name, value) ->
-                if (isForbiddenFieldName(name)) {
-                    return "field '$path.$name' is not permitted in declarative pack content (INV-REQ-2393): " +
-                        "field names naming a scripting or execution concept are refused outright"
-                }
-                scan(value, "$path.$name")?.let { return it }
+        val bytes =
+            try {
+                node.binaryValue()
+            } catch (_: RuntimeException) {
+                null
             }
-            return null
+        return if (bytes != null && looksLikeCompiledCode(bytes)) {
+            "value at '$path' is binary data carrying a compiled-code magic number"
+        } else {
+            null
         }
-        if (node.isArray) {
-            var index = 0
-            for (element in node) {
-                scan(element, "$path[$index]")?.let { return it }
-                index++
-            }
-            return null
-        }
-        if (node.isString) {
-            return suspiciousTextReason(node.asString(""))?.let { "value at '$path' $it" }
-        }
-        if (node.isBinary) {
-            val bytes =
-                try {
-                    node.binaryValue()
-                } catch (_: RuntimeException) {
-                    null
-                }
-            if (bytes != null && looksLikeCompiledCode(bytes)) {
-                return "value at '$path' is binary data carrying a compiled-code magic number"
-            }
-        }
-        return null
     }
 
     private fun isForbiddenFieldName(name: String): Boolean =
         FORBIDDEN_FIELD_NAMES.any { name.equals(it, ignoreCase = true) } ||
             FORBIDDEN_FIELD_NAME_PATTERNS.any { it.matches(name) }
 
-    private fun suspiciousTextReason(text: String): String? {
-        val pattern = SCRIPT_PATTERNS.firstOrNull { it.containsMatchIn(text) }
-        if (pattern != null) return "matches a known script pattern"
+    private fun suspiciousTextReason(text: String): String? =
+        when {
+            SCRIPT_PATTERNS.any { it.containsMatchIn(text) } -> {
+                "matches a known script pattern"
+            }
 
-        val decoded = decodeBase64OrNull(text)
-        if (decoded != null && looksLikeCompiledCode(decoded)) {
-            return "base64-decodes to bytes carrying a compiled-code magic number"
+            decodeBase64OrNull(text)?.let(::looksLikeCompiledCode) == true -> {
+                "base64-decodes to bytes carrying a compiled-code magic number"
+            }
+
+            else -> {
+                null
+            }
         }
-        return null
-    }
 
     private fun decodeBase64OrNull(text: String): ByteArray? {
         // Only worth trying on strings that plausibly *are* base64 (avoid a broad try/catch on every leaf).
-        if (text.length < 8 || !BASE64_SHAPE.matches(text)) return null
+        if (text.length < MIN_BASE64_LENGTH || !BASE64_SHAPE.matches(text)) return null
         return try {
             Base64.getDecoder().decode(text)
         } catch (_: IllegalArgumentException) {
@@ -109,6 +116,8 @@ class JacksonPackContentValidator(
         } || (bytes.isNotEmpty() && bytes[0] == '#'.code.toByte() && bytes.size > 1 && bytes[1] == '!'.code.toByte())
 
     companion object {
+        private const val MIN_BASE64_LENGTH = 8
+
         // Deliberately narrower than a first guess might make it: "code" and "handler" read as
         // scripting concepts in isolation, but are the product's own declarative vocabulary here
         // (packs.yaml: the Code catalogue pack's own field is "code"; the Scenario pack holds

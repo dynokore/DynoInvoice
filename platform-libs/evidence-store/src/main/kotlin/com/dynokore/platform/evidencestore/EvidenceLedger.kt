@@ -26,6 +26,7 @@ interface EvidenceLedger {
      * [EvidenceRecord.contentHash] (`null` for the first record) — the
      * implementation computes both; the caller supplies only [content].
      */
+    @Suppress("LongParameterList") // published port signature, unchanged; INV-Q-4629 (CS-50)
     fun append(
         tenant: TenantId,
         entity: EntityRef,

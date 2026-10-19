@@ -20,7 +20,8 @@ import com.zaxxer.hikari.util.Credentials
  * ```
  * HikariConfig().also {
  *     it.jdbcUrl = url
- *     it.credentialsProvider = SecretStoreCredentialsProvider(secrets, "submission_runtime", SecretRef("db/submission_runtime"))
+ *     it.credentialsProvider = SecretStoreCredentialsProvider(secrets, "submission_runtime",
+ * SecretRef("db/submission_runtime"))
  * }
  * ```
  * Spring Boot's application pool takes one from `service-runtime.datasource.credential`, and Flyway from

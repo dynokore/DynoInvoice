@@ -94,37 +94,45 @@ class FatJarTest {
                 mainAttributes.putValue("Spring-Boot-Classpath-Index", "BOOT-INF/classpath.idx")
             }
         JarOutputStream(jar.outputStream(), manifest).use { out ->
-            JarFile(paths("fatJar.loader").single { it.name.startsWith("spring-boot-loader") }).use { loader ->
-                for (entry in loader.entries()) {
-                    if (entry.isDirectory || entry.name.startsWith("META-INF/")) continue
-                    out.putNextEntry(ZipEntry(entry.name))
-                    loader.getInputStream(entry).use { it.copyTo(out) }
-                    out.closeEntry()
-                }
-            }
-            val directories = mutableSetOf<String>()
-            for (directory in listOf("BOOT-INF/", "BOOT-INF/classes/", "BOOT-INF/lib/")) {
-                directories += directory
-                out.putNextEntry(ZipEntry(directory))
-                out.closeEntry()
-            }
-            for (classes in paths("fatJar.classes").filter { it.isDirectory }) {
-                classes.walkTopDown().filter { it.isFile }.forEach { file ->
-                    val name = "BOOT-INF/classes/" + file.relativeTo(classes).invariantSeparatorsPath
-                    for (directory in parents(name).filter { directories.add(it) }) {
-                        out.putNextEntry(ZipEntry(directory))
-                        out.closeEntry()
-                    }
-                    out.putNextEntry(ZipEntry(name))
-                    file.inputStream().use { it.copyTo(out) }
-                    out.closeEntry()
-                }
-            }
+            writeLoader(out)
+            writeBootClasses(out)
             for ((name, file) in nested) stored(out, "BOOT-INF/lib/$name", file.readBytes())
             val index = nested.joinToString("") { "- \"BOOT-INF/lib/${it.first}\"\n" }
             out.putNextEntry(ZipEntry("BOOT-INF/classpath.idx"))
             out.write(index.toByteArray())
             out.closeEntry()
+        }
+    }
+
+    private fun writeLoader(out: JarOutputStream) {
+        JarFile(paths("fatJar.loader").single { it.name.startsWith("spring-boot-loader") }).use { loader ->
+            for (entry in loader.entries()) {
+                if (entry.isDirectory || entry.name.startsWith("META-INF/")) continue
+                out.putNextEntry(ZipEntry(entry.name))
+                loader.getInputStream(entry).use { it.copyTo(out) }
+                out.closeEntry()
+            }
+        }
+    }
+
+    private fun writeBootClasses(out: JarOutputStream) {
+        val directories = mutableSetOf<String>()
+        for (directory in listOf("BOOT-INF/", "BOOT-INF/classes/", "BOOT-INF/lib/")) {
+            directories += directory
+            out.putNextEntry(ZipEntry(directory))
+            out.closeEntry()
+        }
+        for (classes in paths("fatJar.classes").filter { it.isDirectory }) {
+            classes.walkTopDown().filter { it.isFile }.forEach { file ->
+                val name = "BOOT-INF/classes/" + file.relativeTo(classes).invariantSeparatorsPath
+                for (directory in parents(name).filter { directories.add(it) }) {
+                    out.putNextEntry(ZipEntry(directory))
+                    out.closeEntry()
+                }
+                out.putNextEntry(ZipEntry(name))
+                file.inputStream().use { it.copyTo(out) }
+                out.closeEntry()
+            }
         }
     }
 
@@ -137,25 +145,37 @@ class FatJarTest {
             }
         val names = mutableSetOf<String>()
         JarOutputStream(jar.outputStream(), manifest).use { out ->
-            for (classes in paths("fatJar.classes").filter { it.isDirectory }) {
-                classes.walkTopDown().filter { it.isFile }.forEach { file ->
-                    val name = file.relativeTo(classes).invariantSeparatorsPath
-                    if (names.add(name)) {
-                        out.putNextEntry(ZipEntry(name))
-                        file.inputStream().use { it.copyTo(out) }
-                        out.closeEntry()
-                    }
-                }
+            for (classes in paths("fatJar.classes").filter { it.isDirectory }) copyClassFiles(out, classes, names)
+            for (lib in paths("fatJar.libs").distinct()) copyLibraryEntries(out, lib, names)
+        }
+    }
+
+    private fun copyClassFiles(
+        out: JarOutputStream,
+        classes: File,
+        names: MutableSet<String>,
+    ) {
+        classes.walkTopDown().filter { it.isFile }.forEach { file ->
+            val name = file.relativeTo(classes).invariantSeparatorsPath
+            if (names.add(name)) {
+                out.putNextEntry(ZipEntry(name))
+                file.inputStream().use { it.copyTo(out) }
+                out.closeEntry()
             }
-            for (lib in paths("fatJar.libs").distinct()) {
-                JarFile(lib).use { source ->
-                    for (entry in source.entries()) {
-                        if (entry.isDirectory || entry.name.startsWith("META-INF/") || !names.add(entry.name)) continue
-                        out.putNextEntry(ZipEntry(entry.name))
-                        source.getInputStream(entry).use { it.copyTo(out) }
-                        out.closeEntry()
-                    }
-                }
+        }
+    }
+
+    private fun copyLibraryEntries(
+        out: JarOutputStream,
+        lib: File,
+        names: MutableSet<String>,
+    ) {
+        JarFile(lib).use { source ->
+            for (entry in source.entries()) {
+                if (entry.isDirectory || entry.name.startsWith("META-INF/") || !names.add(entry.name)) continue
+                out.putNextEntry(ZipEntry(entry.name))
+                source.getInputStream(entry).use { it.copyTo(out) }
+                out.closeEntry()
             }
         }
     }

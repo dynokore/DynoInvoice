@@ -39,9 +39,8 @@ class Resilience4jResilientEdgeTest {
         slidingWindowSize: Int = 2,
         maxConcurrentCalls: Int = 4,
         maxWaitDuration: Duration = Duration.ofMillis(200),
-        name: String = "edge-${System.nanoTime()}",
     ) = Resilience4jResilientEdge(
-        name,
+        "edge-${System.nanoTime()}",
         EdgePolicy(
             timeout = TimeoutPolicy(timeout),
             retry =
@@ -83,7 +82,7 @@ class Resilience4jResilientEdgeTest {
 
         e.callWithFallbacks {
             calls += 1
-            if (calls < 3) throw IllegalStateException("transient") else "ok"
+            if (calls < 3) error("transient") else "ok"
         } shouldBe "ok"
         calls shouldBe 3
     }
@@ -96,7 +95,7 @@ class Resilience4jResilientEdgeTest {
         shouldThrow<IllegalStateException> {
             e.callWithFallbacks {
                 calls += 1
-                throw IllegalStateException("boom")
+                error("boom")
             }
         }
         calls shouldBe 1
@@ -110,7 +109,7 @@ class Resilience4jResilientEdgeTest {
         shouldThrow<IllegalStateException> {
             e.callWithFallbacks {
                 calls += 1
-                throw IllegalStateException("always fails")
+                error("always fails")
             }
         }
         calls shouldBe 3
@@ -150,7 +149,7 @@ class Resilience4jResilientEdgeTest {
         val invocations = AtomicInteger(0)
         val failingBlock: () -> String = {
             invocations.incrementAndGet()
-            throw IllegalStateException("boom")
+            error("boom")
         }
 
         repeat(2) {

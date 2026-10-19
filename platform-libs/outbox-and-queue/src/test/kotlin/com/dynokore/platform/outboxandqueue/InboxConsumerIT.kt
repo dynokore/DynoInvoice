@@ -69,9 +69,7 @@ class InboxConsumerIT {
             val dying = KillableTransactionRunner(harness.fixture.appDataSource(), TenantContextImpl())
             val firstRun =
                 harness.consumer(
-                    "reconciliation-svc",
-                    ACK_TOPIC,
-                    "reconciliation",
+                    ConsumerSubscription("reconciliation-svc", ACK_TOPIC, "reconciliation"),
                     dying,
                     ReconciliationFixtureHandler(dying, afterUpdate = { dying.armKill() }),
                     clock,
@@ -83,9 +81,7 @@ class InboxConsumerIT {
             val restarted = harness.reconciliation
             val secondRun =
                 harness.consumer(
-                    "reconciliation-svc",
-                    ACK_TOPIC,
-                    "reconciliation",
+                    ConsumerSubscription("reconciliation-svc", ACK_TOPIC, "reconciliation"),
                     restarted.boundary,
                     ReconciliationFixtureHandler(restarted.boundary),
                     clock,

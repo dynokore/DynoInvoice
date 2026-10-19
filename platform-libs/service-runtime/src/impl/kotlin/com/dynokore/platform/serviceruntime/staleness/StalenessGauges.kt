@@ -64,7 +64,7 @@ class StalenessGauges(
     ) {
         if (thresholds.put(key, seconds(threshold)) == null) {
             Gauge
-                .builder(THRESHOLD, thresholds) { it[key] ?: Double.NaN }
+                .builder(THRESHOLD, thresholds) { lags -> lags[key] ?: Double.NaN }
                 .description(
                     "Configured staleness threshold of the consumer for the event type (provisional until SDS §13.7)",
                 ).baseUnit(SECONDS)
@@ -72,7 +72,7 @@ class StalenessGauges(
                 .strongReference(true)
                 .register(registry)
         }
-        lagGauges.computeIfAbsent(key) {
+        lagGauges.computeIfAbsent(key) { _ ->
             Gauge
                 .builder(LAG, lagSeconds) { it[key] ?: Double.NaN }
                 .description("Age of the oldest event the consumer has not consumed, zero with nothing unconsumed")
@@ -85,7 +85,8 @@ class StalenessGauges(
 
     companion object {
         /**
-         * The lag gauge, rendered by the Prometheus registry as `gst_platform_consumer_staleness_lag_seconds`. Named per
+         * The lag gauge, rendered by the Prometheus registry as `gst_platform_consumer_staleness_lag_seconds`. Named
+         * per
          * ruling INV-Q-3831 (A, HIGH); INV-T-3035's alert rules read this name.
          */
         const val LAG = "gst.platform.consumer.staleness.lag"

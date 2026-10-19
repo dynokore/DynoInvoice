@@ -14,8 +14,10 @@ import org.jooq.impl.SQLDataType
  * jOOQ function calls on the DSLContext of tenancy-jooq's factory, in the runtime login's transaction of the tenant
  * concerned with the caller's actor bound (INV-ADR-3968 item 6, owner ruling INV-Q-3953; INV-Q-3997). The runtime login
  * has no DELETE: the functions delete, under the tenant policy, only the bound tenant's rows, and refuse an
- * unbound actor, an unbound or platform tenant, and a purge of a tenant other than the bound one. The application checks
- * the operation before it calls them. The DSLContext runs on the TransactionRunner whose TenantAwareDataSource holds the
+ * unbound actor, an unbound or platform tenant, and a purge of a tenant other than the bound one. The application
+ * checks
+ * the operation before it calls them. The DSLContext runs on the TransactionRunner whose TenantAwareDataSource holds
+ * the
  * lane gate, so a lane budget of 0 still refuses (INV-REQ-1072 b5, INV-Q-4502 (A)).
  */
 class JdbcConfigPurge(
@@ -36,7 +38,8 @@ class JdbcConfigPurge(
 
     override fun purgeTenant(tenant: TenantId): PurgedTenant {
         require(!tenant.isPlatform) { "the platform tenant holds no configuration rows" }
-        // The function returns one row of three counts: called as a function, its row is one composite value, `(a,b,c)`.
+        // The function returns one row of three counts: called as a function, its row is one composite value,
+        // `(a,b,c)`.
         val counts =
             dsl
                 .select(DSL.function(purgeTenant, COUNTS, DSL.`val`(tenant.value)))

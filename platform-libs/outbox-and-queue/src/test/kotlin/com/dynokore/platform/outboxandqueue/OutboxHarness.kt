@@ -93,13 +93,20 @@ class OutboxHarness(
         schema: String,
         tx: KillableTransactionRunner,
         handler: EventHandler,
+    ) = consumer(ConsumerSubscription(name, topic, schema), tx, handler)
+
+    /** A consumer of [subscription], over [tx], reading time from [clock]. */
+    fun consumer(
+        subscription: ConsumerSubscription,
+        tx: KillableTransactionRunner,
+        handler: EventHandler,
         clock: java.time.Clock = java.time.Clock.systemUTC(),
     ) = JdbcInboxConsumer(
-        ConsumerSubscription(name, topic, schema),
+        subscription,
         catalogue,
         reader,
         TenantScope(tx.tenants, tx, tx, OutboxPostgresFixture.WORKLOAD),
-        JooqKit.module(schema, tx.tenants, tx),
+        JooqKit.module(subscription.schema, tx.tenants, tx),
         handler,
         rebuildSink,
         clock,

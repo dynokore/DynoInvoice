@@ -121,7 +121,7 @@ internal class TenancyJooqFixture(
         args: Array<out Any?>?,
     ): Any? =
         try {
-            method.invoke(target, *(args ?: emptyArray()))
+            method.invoke(target, *args.orEmpty())
         } catch (failure: InvocationTargetException) {
             throw failure.targetException
         }

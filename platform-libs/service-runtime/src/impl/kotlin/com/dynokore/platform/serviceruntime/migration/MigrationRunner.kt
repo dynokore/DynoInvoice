@@ -10,9 +10,11 @@ import org.springframework.core.env.MapPropertySource
 /**
  * The migration runner (INV-REQ-1189 b5; owner ruling INV-Q-3959): the entry point of a service's migration Job. It
  * runs the service's Flyway migrations (STK-16) as the service's `<svc>_migrate` login, `spring.flyway.user`, whose
- * password it reads through SecretStore from `service-runtime.flyway.credential` (STK-29, INV-Q-3909), and its Flyway afterMigrate callback writes the
+ * password it reads through SecretStore from `service-runtime.flyway.credential` (STK-29, INV-Q-3909), and its Flyway
+ * afterMigrate callback writes the
  * job-retention row from `service-runtime.jobs.retention` when the service's schema has one (coordinator rulings
- * INV-Q-4346 (A), INV-Q-5113), and exits. The service itself no longer migrates at start-up (`spring.flyway.enabled=false` in
+ * INV-Q-4346 (A), INV-Q-5113), and exits. The service itself no longer migrates at start-up
+ * (`spring.flyway.enabled=false` in
  * service-runtime's defaults).
  *
  * It refuses to run unless `spring.flyway.user` is a `<svc>_migrate` login and `service-runtime.flyway.credential`
@@ -23,6 +25,7 @@ object MigrationRunner {
 
     @JvmStatic
     fun main(args: Array<String>) {
+        @Suppress("SpreadOperator") // run takes only a vararg; INV-Q-4629, INV-Q-7495 (CS-50)
         run(*args).close()
     }
 
@@ -42,7 +45,8 @@ object MigrationRunner {
                 "the migration runner runs as the service's <svc>_migrate login: set $FLYWAY_USER"
             }
             require(!environment.getProperty(DatabaseCredentialsConfiguration.FLYWAY_CREDENTIAL).isNullOrBlank()) {
-                "the migration runner reads the <svc>_migrate password through SecretStore: set ${DatabaseCredentialsConfiguration.FLYWAY_CREDENTIAL}"
+                "the migration runner reads the <svc>_migrate password through SecretStore: set " +
+                    "${DatabaseCredentialsConfiguration.FLYWAY_CREDENTIAL}"
             }
             val forced = mutableMapOf<String, Any>("spring.flyway.enabled" to "true")
             if (environment.getProperty(FLYWAY_URL).isNullOrBlank()) {

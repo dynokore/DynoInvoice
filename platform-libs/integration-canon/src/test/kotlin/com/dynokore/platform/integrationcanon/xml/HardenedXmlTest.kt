@@ -92,7 +92,7 @@ class HardenedXmlTest {
             var result: String? = null
             val failure = runCatching { result = run(xxe(file)) }.exceptionOrNull()
             assertTrue(failure != null, "$name accepted the XXE payload")
-            assertFalse((result ?: "").contains(secret), name)
+            assertFalse(result.orEmpty().contains(secret), name)
             assertFalse(failure?.message.orEmpty().contains(secret), name)
         }
     }

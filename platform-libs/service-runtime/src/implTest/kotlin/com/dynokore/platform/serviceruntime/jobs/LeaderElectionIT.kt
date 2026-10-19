@@ -10,6 +10,7 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import java.time.Duration
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
@@ -32,24 +33,11 @@ class LeaderElectionIT {
             val killed = CountDownLatch(1)
             val holding = CountDownLatch(1)
             val replicas = (1..3).map { h.replica("submission-svc-$it", clock) }
-            replicas.forEachIndexed { index, replica ->
-                replica.runtime.register(def) { context ->
-                    if (index == 0 && context.scheduledFor == START.plus(Duration.ofHours(1)).minusSeconds(5)) {
-                        holding.countDown()
-                        killed.await() // replica 1 dies here, holding the lock with its run in progress
-                    }
-                }
-            }
+            registerDyingHolder(replicas, def, holding, killed)
             val pool = Executors.newFixedThreadPool(3)
 
-            fun fireTogether(of: List<JobsHarness.Replica>) =
-                of
-                    .map { r ->
-                        pool.submit<FireResult> { fireOnce(r, def.name) }
-                    }.map { it.get(30, TimeUnit.SECONDS) }
-
             // Hour 1: all three fire at once; exactly one runs.
-            fireTogether(replicas).count { it == FireResult.RAN } shouldBe 1
+            fireTogether(pool, def.name, replicas).count { it == FireResult.RAN } shouldBe 1
 
             // Hour 2: replica 1 takes the lock and dies during its run; the others find the lock taken.
             clock.advance(Duration.ofHours(1))
@@ -64,7 +52,7 @@ class LeaderElectionIT {
             Thread.sleep(lease.plusMillis(500).toMillis())
             clock.advance(Duration.ofHours(1))
             replicas[1].runtime.sweepAbandoned() shouldBe 1
-            val third = fireTogether(replicas.drop(1))
+            val third = fireTogether(pool, def.name, replicas.drop(1))
             third.count { it == FireResult.RAN } shouldBe 1
 
             // The dead replica's body returning late changes nothing: its run was already recorded.
@@ -80,6 +68,31 @@ class LeaderElectionIT {
             h.events(JobPayloads.JOB_RUN_RECORDED, "$SERVICE/${def.name}") shouldHaveSize 3
         }
     }
+
+    private fun registerDyingHolder(
+        replicas: List<JobsHarness.Replica>,
+        def: com.dynokore.platform.serviceruntime.jobs.JobDefinition,
+        holding: CountDownLatch,
+        killed: CountDownLatch,
+    ) {
+        replicas.forEachIndexed { index, replica ->
+            replica.runtime.register(def) { context ->
+                if (index == 0 && context.scheduledFor == START.plus(Duration.ofHours(1)).minusSeconds(5)) {
+                    holding.countDown()
+                    killed.await() // replica 1 dies here, holding the lock with its run in progress
+                }
+            }
+        }
+    }
+
+    private fun fireTogether(
+        pool: ExecutorService,
+        name: String,
+        of: List<JobsHarness.Replica>,
+    ) = of
+        .map { r ->
+            pool.submit<FireResult> { fireOnce(r, name) }
+        }.map { it.get(30, TimeUnit.SECONDS) }
 
     /** One replica's fire of [name]: its single target's result. */
     private fun fireOnce(

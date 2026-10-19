@@ -101,10 +101,12 @@ class ContractValidator {
                 (responses.get(status.toString()) ?: responses.get("default"))
                     ?: return listOf("status $status is not declared for $operationId")
             val response = resolve(Location(file, declared))
-            val media =
-                response.node.get("content")?.get(contentType.substringBefore(';').trim())
-                    ?: return listOf("$operationId $status declares no $contentType")
-            return buildList { validate(Location(response.file, media.get("schema")), body, "$", this) }
+            val media = response.node.get("content")?.get(contentType.substringBefore(';').trim())
+            return if (media == null) {
+                listOf("$operationId $status declares no $contentType")
+            } else {
+                buildList { validate(Location(response.file, media.get("schema")), body, "$", this) }
+            }
         }
     }
 
@@ -145,20 +147,50 @@ class ContractValidator {
         val schema = resolved.node
         val unknown = schema.propertyNames().filterNot { it in KNOWN_KEYWORDS || it.startsWith("x-") }
         check(unknown.isEmpty()) { "validator does not implement $unknown at $path" }
-        schema.get("type")?.let { declared ->
-            val types = if (declared.isArray) declared.toList().map { it.asString() } else listOf(declared.asString())
-            if (types.none { typeHolds(it, instance) }) {
-                errors += "$path: expected ${types.joinToString("|")}, was ${instance.nodeType}"
-                return
-            }
+        if (!typeErrors(schema, instance, path, errors)) return
+        valueErrors(schema, instance, path, errors)
+        combinatorErrors(resolved, instance, path, errors)
+        if (instance.isString) stringErrors(schema, instance.asString(), path, errors)
+        if (instance.isNumber) {
+            schema.get("minimum")?.let { if (instance.asLong() < it.asLong()) errors += "$path: below ${it.asLong()}" }
         }
+        if (instance.isArray) arrayErrors(resolved, instance, path, errors)
+        if (instance.isObject) objectErrors(resolved, instance, path, errors)
+    }
+
+    /** False when the declared type fails, which ends the checks of this schema. */
+    private fun typeErrors(
+        schema: JsonNode,
+        instance: JsonNode,
+        path: String,
+        errors: MutableList<String>,
+    ): Boolean {
+        val declared = schema.get("type") ?: return true
+        val types = if (declared.isArray) declared.toList().map { it.asString() } else listOf(declared.asString())
+        val holds = types.any { typeHolds(it, instance) }
+        if (!holds) errors += "$path: expected ${types.joinToString("|")}, was ${instance.nodeType}"
+        return holds
+    }
+
+    private fun valueErrors(
+        schema: JsonNode,
+        instance: JsonNode,
+        path: String,
+        errors: MutableList<String>,
+    ) {
         schema.get("const")?.let { if (it != instance) errors += "$path: expected const $it" }
         schema.get("enum")?.let { values ->
-            if (values.none { it == instance }) {
-                errors +=
-                    "$path: $instance not in $values"
-            }
+            if (values.none { it == instance }) errors += "$path: $instance not in $values"
         }
+    }
+
+    private fun combinatorErrors(
+        resolved: Location,
+        instance: JsonNode,
+        path: String,
+        errors: MutableList<String>,
+    ) {
+        val schema = resolved.node
         schema.get("allOf")?.forEach { validate(Location(resolved.file, it), instance, path, errors) }
         schema.get("not")?.let { negated ->
             val found = mutableListOf<String>()
@@ -171,68 +203,60 @@ class ContractValidator {
             val branch = if (found.isEmpty()) schema.get("then") else schema.get("else")
             branch?.let { validate(Location(resolved.file, it), instance, path, errors) }
         }
-        if (instance.isString) {
-            val text = instance.asString()
-            schema.get("pattern")?.let {
-                if (!Regex(it.asString()).containsMatchIn(text)) {
-                    errors +=
-                        "$path: '$text' does not match ${it.asString()}"
-                }
-            }
-            schema.get("minLength")?.let { if (text.length < it.asInt()) errors += "$path: shorter than ${it.asInt()}" }
-            schema.get("maxLength")?.let { if (text.length > it.asInt()) errors += "$path: longer than ${it.asInt()}" }
-            schema.get("format")?.asString()?.let { format ->
-                if (!formatHolds(format, text)) {
-                    errors +=
-                        "$path: '$text' is not a $format"
-                }
-            }
-        }
-        if (instance.isNumber) {
-            schema.get("minimum")?.let {
-                if (instance.asLong() <
-                    it.asLong()
-                ) {
-                    errors += "$path: below ${it.asLong()}"
-                }
-            }
-        }
-        if (instance.isArray) {
-            schema.get("minItems")?.let {
-                if (instance.size() <
-                    it.asInt()
-                ) {
-                    errors += "$path: fewer than ${it.asInt()} items"
-                }
-            }
-            schema.get("items")?.let { items ->
-                instance.forEachIndexed {
-                    i,
-                    item,
-                    ->
-                    validate(Location(resolved.file, items), item, "$path[$i]", errors)
-                }
-            }
-        }
-        if (instance.isObject) {
-            schema.get("required")?.forEach {
-                if (!instance.has(it.asString())) {
-                    errors +=
-                        "$path: missing required ${it.asString()}"
-                }
-            }
-            val properties = schema.get("properties")
-            instance.properties().forEach { (name, value) ->
-                val property = properties?.get(name)
-                when {
-                    property != null -> {
-                        validate(Location(resolved.file, property), value, "$path.$name", errors)
-                    }
+    }
 
-                    schema.get("additionalProperties")?.isBoolean == true &&
-                        !schema.get("additionalProperties").asBoolean() -> {
-                        errors += "$path: unexpected property $name"
-                    }
+    private fun stringErrors(
+        schema: JsonNode,
+        text: String,
+        path: String,
+        errors: MutableList<String>,
+    ) {
+        schema.get("pattern")?.let {
+            if (!Regex(it.asString()).containsMatchIn(text)) errors += "$path: '$text' does not match ${it.asString()}"
+        }
+        schema.get("minLength")?.let { if (text.length < it.asInt()) errors += "$path: shorter than ${it.asInt()}" }
+        schema.get("maxLength")?.let { if (text.length > it.asInt()) errors += "$path: longer than ${it.asInt()}" }
+        schema.get("format")?.asString()?.let { format ->
+            if (!formatHolds(format, text)) errors += "$path: '$text' is not a $format"
+        }
+    }
+
+    private fun arrayErrors(
+        resolved: Location,
+        instance: JsonNode,
+        path: String,
+        errors: MutableList<String>,
+    ) {
+        val schema = resolved.node
+        schema.get("minItems")?.let {
+            if (instance.size() < it.asInt()) errors += "$path: fewer than ${it.asInt()} items"
+        }
+        schema.get("items")?.let { items ->
+            instance.forEachIndexed { i, item -> validate(Location(resolved.file, items), item, "$path[$i]", errors) }
+        }
+    }
+
+    private fun objectErrors(
+        resolved: Location,
+        instance: JsonNode,
+        path: String,
+        errors: MutableList<String>,
+    ) {
+        val schema = resolved.node
+        schema.get("required")?.forEach {
+            if (!instance.has(it.asString())) errors += "$path: missing required ${it.asString()}"
+        }
+        val properties = schema.get("properties")
+        instance.properties().forEach { (name, value) ->
+            val property = properties?.get(name)
+            when {
+                property != null -> {
+                    validate(Location(resolved.file, property), value, "$path.$name", errors)
+                }
+
+                schema.get("additionalProperties")?.isBoolean == true &&
+                    !schema.get("additionalProperties").asBoolean() -> {
+                    errors += "$path: unexpected property $name"
                 }
             }
         }

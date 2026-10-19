@@ -6,7 +6,8 @@ import org.jooq.Name
 import org.jooq.impl.DSL
 
 /**
- * This module's tables for tenancy-jooq's factory `TenancyJooq.dslContext(tables, tenants, transactionRunner)`, named with
+ * This module's tables for tenancy-jooq's factory `TenancyJooq.dslContext(tables, tenants, transactionRunner)`, named
+ * with
  * `DSL.name(schema, table)` and declared with their class (INV-ADR-3968 item 4a, CS-18). The class follows from the
  * published DDL in [ConfigSchema]: three tables carry `tenant_id` ([TableClass.TENANT]); [ConfigSchema.INSTALLATION_SETTING]
  * has none and carries the table comment `platform-scoped: no tenant data` ([TableClass.PLATFORM_SCOPED]).

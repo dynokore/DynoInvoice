@@ -21,8 +21,6 @@ class DespatchWindowsTest {
     private val ready = i("2026-04-18T09:00:00Z")
     private val plus8 = ZoneOffset.ofHours(8)
 
-    private fun at(text: String) = ZonedDateTime.parse(text)
-
     @Test
     fun `INV-AC-179 continuous despatch goes at once and reports a late one`() {
         assertEquals(Despatch(ready, DespatchReason.IMMEDIATE_CONTINUOUS, false), despatchAt(ready, null, stop))

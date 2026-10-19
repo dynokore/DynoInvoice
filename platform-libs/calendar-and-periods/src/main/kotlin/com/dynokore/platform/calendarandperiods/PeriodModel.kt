@@ -98,7 +98,7 @@ data class PeriodRequest(
         require(deregistrationDate == null || !deregistrationDate.isBefore(registrationDate)) {
             "deregistration is on or after registration"
         }
-        require(history.at(registrationDate) != null) { "the filing frequency history covers the registration date" }
+        requireNotNull(history.at(registrationDate)) { "the filing frequency history covers the registration date" }
     }
 }
 

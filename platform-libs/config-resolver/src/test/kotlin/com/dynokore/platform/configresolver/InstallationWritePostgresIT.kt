@@ -53,7 +53,7 @@ class InstallationWritePostgresIT {
         mode: EventMode,
     ) = harnesses.getOrPut(image to mode) { WriteHarness(image, mode) }
 
-    private fun cases() = IMAGES.flatMap { image -> EventMode.entries.map { Arguments.of(image, it) } }
+    fun cases() = IMAGES.flatMap { image -> EventMode.entries.map { Arguments.of(image, it) } }
 
     @ParameterizedTest(name = "{displayName}[{0}, {1}]")
     @MethodSource("cases")

@@ -19,7 +19,6 @@ import java.time.Instant
 class PackRetentionIT {
     private val marked = "gst.rules.rule-pack-staged.v1"
     private val markedTable = "eventlog.gst_rules_rule_pack_staged_v1"
-    private val markedKey = "gst_rules_rule_pack_staged_v1"
     private val content = "gst.canonical.canonical-version-created.v1"
     private val contentTable = "eventlog.gst_canonical_canonical_version_created_v1"
     private val other = "gst.submission.submission-acknowledged.v1"

@@ -81,13 +81,12 @@ class ConfigHarness(
     fun setTenant(
         tenant: TenantId,
         key: VariationPointKey,
-        ref: ScopeRef,
+        slot: Slot,
         selected: List<SelectedOption>,
         from: LocalDate,
-        entity: String? = null,
-        profile: Pair<String, String>? = null,
     ): UUID =
         asTenant(tenant) {
+            val (ref, entity, profile) = slot
             app.inTransaction {
                 val id = UUID.randomUUID()
                 dsl
@@ -207,3 +206,10 @@ internal object OptionColumns {
                 DSL.`val`(typed.joinToString(",", "{", "}") { "\"${it.key}\":${it.valueJson}" }).cast(SQLDataType.JSONB)
             } ?: DSL.`val`(null, SQLDataType.JSONB)
 }
+
+/** The scope, the entity and the profile (id, version) of a setting row that [ConfigHarness.setTenant] inserts. */
+data class Slot(
+    val ref: ScopeRef,
+    val entity: String? = null,
+    val profile: Pair<String, String>? = null,
+)

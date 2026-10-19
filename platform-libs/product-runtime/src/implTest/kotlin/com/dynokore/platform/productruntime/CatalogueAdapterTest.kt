@@ -73,14 +73,14 @@ class CatalogueAdapterTest {
         assertSameBound(spec.length, source.length)
         assertSameBound(spec.default, source.default)
         spec.direction.name shouldBe (source.direction?.name ?: "NONE")
-        spec.values shouldBe source.values.orEmpty()
+        spec.values shouldBe source.values
         spec.minItems shouldBe source.minItems
         spec.maxItems shouldBe source.maxItems
         spec.ref shouldBe source.ref
         spec.rule shouldBe source.rule
         spec.requires shouldBe source.requires
-        spec.fields.keys shouldBe source.fields.orEmpty().keys
-        source.fields.orEmpty().forEach { (name, field) -> assertSameTyped(id, spec.fields[name], field) }
+        spec.fields.keys shouldBe source.fields.keys
+        source.fields.forEach { (name, field) -> assertSameTyped(id, spec.fields[name], field) }
         assertSameTyped(id, spec.item, source.item)
         assertSameTyped(id, spec.key, source.key)
         assertSameTyped(id, spec.value, source.value)

@@ -10,40 +10,34 @@ package com.dynokore.platform.tenancyjooq
 internal object RenderedSql {
     fun require(sql: String) {
         val problem = problem(sql) ?: return
-        throw TenantPredicateViolation("the rendered statement is refused: it holds $problem")
+        refuse("the rendered statement is refused: it holds $problem")
     }
 
     fun problem(sql: String): String? {
         var depth = 0
         var i = 0
-        while (i < sql.length) {
+        var problem: String? = null
+        while (problem == null && i < sql.length) {
             val c = sql[i]
-            when {
-                c == '\'' -> {
-                    i = endOfLiteral(sql, i, backslashEscapes = isEscapeString(sql, i)) ?: return UNTERMINATED
-                }
-
-                c == '"' -> {
-                    i = endOfLiteral(sql, i, backslashEscapes = false) ?: return UNTERMINATED
-                }
-
-                else -> {
-                    tokenProblem(sql, i)?.let { return it }
-                    depth +=
-                        if (c == '(') {
-                            1
-                        } else if (c == ')') {
-                            -1
-                        } else {
-                            0
-                        }
-                    if (depth < 0) return UNBALANCED
-                    i++
-                }
+            if (c == '\'' || c == '"') {
+                val end = endOfLiteral(sql, i, backslashEscapes = c == '\'' && isEscapeString(sql, i))
+                if (end == null) problem = UNTERMINATED else i = end
+            } else {
+                problem = tokenProblem(sql, i)
+                depth += parenthesisStep(c)
+                if (problem == null && depth < 0) problem = UNBALANCED
+                i++
             }
         }
-        return if (depth == 0) null else UNBALANCED
+        return problem ?: if (depth == 0) null else UNBALANCED
     }
+
+    private fun parenthesisStep(c: Char): Int =
+        when (c) {
+            '(' -> 1
+            ')' -> -1
+            else -> 0
+        }
 
     private fun tokenProblem(
         sql: String,

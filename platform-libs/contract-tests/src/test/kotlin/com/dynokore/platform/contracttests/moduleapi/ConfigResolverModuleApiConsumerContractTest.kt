@@ -11,6 +11,7 @@ import com.dynokore.platform.configresolver.ResolutionSubject
 import com.dynokore.platform.configresolver.ScopeLevel
 import com.dynokore.platform.configresolver.ScopeRef
 import com.dynokore.platform.configresolver.SelectedOption
+import com.dynokore.platform.configresolver.Slot
 import com.dynokore.platform.configresolver.TestCatalogue
 import com.dynokore.platform.configresolver.UnknownVariationPoint
 import com.dynokore.platform.configresolver.resolve
@@ -72,10 +73,9 @@ class ConfigResolverModuleApiConsumerContractTest {
     ) = harness.setTenant(
         tenant,
         TestCatalogue.ENTITY_POLICY,
-        ScopeRef(ScopeLevel.ENTITY, "E1"),
+        Slot(ScopeRef(ScopeLevel.ENTITY, "E1"), entity = "E1"),
         listOf(SelectedOption(option)),
         from,
-        entity = "E1",
     )
 
     @Test

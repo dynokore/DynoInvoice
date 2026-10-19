@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.FieldSource
+import java.util.Locale
 
 /**
  * PostgreSQL reads [BlankText]'s patterns exactly as the Kotlin checks do (INV-Q-4614 (A), INV-Q-4622 (A)): for every
@@ -26,7 +27,7 @@ class BlankTextPostgresIT {
                 v.blank != BlankText.isBlank(text) || v.wrappedNotActor == BlankText.isActor("a${text}b") ||
                     v.aloneNotActor == BlankText.isActor(text)
             }
-        assertEquals(emptyList<String>(), disagreements.map { "U+%04X".format(it.codePoint) })
+        assertEquals(emptyList<String>(), disagreements.map { "U+%04X".format(Locale.ROOT, it.codePoint) })
         assertEquals(CODE_POINTS, rows.size, "every code point but the surrogates was compared")
     }
 

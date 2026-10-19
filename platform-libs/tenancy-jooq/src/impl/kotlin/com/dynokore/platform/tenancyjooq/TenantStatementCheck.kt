@@ -19,11 +19,9 @@ internal class TenantStatementCheck(
     override fun renderEnd(context: ExecuteContext) {
         val query =
             context.query()
-                ?: throw TenantPredicateViolation(
-                    "only single statements run on a tenancy-jooq DSLContext (batch or routine)",
-                )
+                ?: refuse("only single statements run on a tenancy-jooq DSLContext (batch or routine)")
         requireOwnedConfiguration(context.configuration())
-        val rendered = context.sql() ?: throw TenantPredicateViolation("the statement rendered no SQL")
+        val rendered = context.sql() ?: refuse("the statement rendered no SQL")
         RenderedSql.require(rendered)
         val check = TenantPredicateCheck(tables, Predicates(BoundTenant.require(tenants)))
         val checked =
@@ -34,7 +32,7 @@ internal class TenantStatementCheck(
                 .render(query)
         check.requireAllVerified()
         if (checked != rendered) {
-            throw TenantPredicateViolation("the checked statement differs from the statement about to run")
+            refuse("the checked statement differs from the statement about to run")
         }
         context.data(CHECKED, checked)
     }
@@ -42,7 +40,7 @@ internal class TenantStatementCheck(
     /** No listener may change the checked statement between rendering and preparing it. */
     override fun prepareStart(context: ExecuteContext) {
         if (context.data(CHECKED) != context.sql()) {
-            throw TenantPredicateViolation("the statement about to be prepared is not the checked statement")
+            refuse("the statement about to be prepared is not the checked statement")
         }
     }
 
@@ -57,10 +55,10 @@ internal class TenantStatementCheck(
         fun requireOwnedConfiguration(configuration: Configuration) {
             OwnedSettings.require(configuration)
             if (configuration.visitListenerProviders().any { it.provide() !is TenantPredicateInjector }) {
-                throw TenantPredicateViolation("a VisitListener other than tenancy-jooq's runs on this configuration")
+                refuse("a VisitListener other than tenancy-jooq's runs on this configuration")
             }
             if (configuration.executeListenerProviders().lastOrNull()?.provide() !is TenantStatementCheck) {
-                throw TenantPredicateViolation("an ExecuteListener runs after tenancy-jooq's statement check")
+                refuse("an ExecuteListener runs after tenancy-jooq's statement check")
             }
         }
     }

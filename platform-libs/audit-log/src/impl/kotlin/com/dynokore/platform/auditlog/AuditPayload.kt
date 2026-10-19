@@ -6,7 +6,8 @@ import tools.jackson.databind.node.ObjectNode
 
 /**
  * The `AuditEntryRecorded` payload (platform-contracts
- * `service-runtime/schemas/audit-entry-recorded-payload.schema.json`), shared by [OutboxAuditWriter] and [LocalAuditWriter] so both writers stamp the same data.
+ * `service-runtime/schemas/audit-entry-recorded-payload.schema.json`), shared by [OutboxAuditWriter] and
+ * [LocalAuditWriter] so both writers stamp the same data.
  */
 internal object AuditPayload {
     /** The platform event type (API-40), schema owned by `service-runtime`. */

@@ -24,9 +24,9 @@ class PostgresEventLogPresence(
         return eventLog.bindWorkload(TenantId.PLATFORM) {
             eventLog.transactions.inTransaction {
                 val row = dsl.select(function.missing, function.cutoff).from(function).fetchOne()
-                check(row != null) { "events_missing returned no row" }
+                checkNotNull(row) { "events_missing returned no row" }
                 val cutoff = checkNotNull(row.get(function.cutoff)) { "events_missing returned no cut-off for $topic" }
-                MissingEvents(row.get(function.missing)?.toSet() ?: emptySet(), cutoff.toInstant())
+                MissingEvents(row.get(function.missing)?.toSet().orEmpty(), cutoff.toInstant())
             }
         }
     }

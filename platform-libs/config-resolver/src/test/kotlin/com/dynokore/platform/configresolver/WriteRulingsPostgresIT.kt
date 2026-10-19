@@ -51,9 +51,9 @@ class WriteRulingsPostgresIT : WritePathBase() {
         val r = Run(image)
         val cmd = ackCmd(DUE_DATE, r.e1, ScopeLevel.ENTITY, one("NEXT_WORKING_DAY"), approver, "tax.approver")
         listOf(
-            r.h.writer(delegation = null),
-            r.h.writer(delegation = { _, _ -> null }),
-            r.h.writer(delegation = { _, _ -> error("down") }),
+            r.h.writer(ports = WriterPorts(delegation = null)),
+            r.h.writer(ports = WriterPorts(delegation = { _, _ -> null })),
+            r.h.writer(ports = WriterPorts(delegation = { _, _ -> error("down") })),
         ).forEach { assertEquals(listOf("client.signatory"), r.ack(cmd, it).outstandingRoles) }
         assertEquals(emptyList<String>(), r.ack(cmd).outstandingRoles)
     }
@@ -138,8 +138,17 @@ class WriteRulingsPostgresIT : WritePathBase() {
         val r = Run(image)
         val floor = LocalDate.of(2026, 4, 1)
         val asked = mutableListOf<ScopeLevel>()
-        val floored = r.h.writer(backdating = { target, _ -> floor.also { asked += target.level } })
-        val platform = r.h.writer(platform = true, backdating = { _, _ -> floor })
+        val floored =
+            r.h.writer(
+                ports =
+                    WriterPorts(backdating = {
+                        target,
+                        _,
+                        ->
+                        floor.also { asked += target.level }
+                    }),
+            )
+        val platform = r.h.writer(platform = true, ports = WriterPorts(backdating = { _, _ -> floor }))
         val operator = actor("op", "platform.engineer")
         val installation = PolicyScope.installation()
         val back = set(EVERY_LEVEL, installation, ScopeLevel.INSTALLATION, one("B"), operator, floor)
@@ -160,7 +169,17 @@ class WriteRulingsPostgresIT : WritePathBase() {
         val r = Run(image)
         val tenth = LocalDate.of(2026, 10, 10)
         val june = LocalDate.of(2026, 6, 1)
-        val w = r.h.writer(clock = clockAt("2026-10-15T02:00:00Z"), backdating = { _, _ -> LocalDate.of(2026, 4, 1) })
+        val w =
+            r.h.writer(
+                clock = clockAt("2026-10-15T02:00:00Z"),
+                ports =
+                    WriterPorts(backdating = {
+                        _,
+                        _,
+                        ->
+                        LocalDate.of(2026, 4, 1)
+                    }),
+            )
         r.put(set(DESPATCH, r.e1, ScopeLevel.ENTITY, one("DAILY_WINDOW"), from = june), w)
         val entry =
             r.h
@@ -179,7 +198,22 @@ class WriteRulingsPostgresIT : WritePathBase() {
         val cmd = ackCmd(DUE_DATE, r.e1, ScopeLevel.ENTITY, one("NEXT_WORKING_DAY"), signatory, "client.signatory")
         assertEquals(PolicyRefusal.ACKNOWLEDGER_NOT_ALLOWED, r.refusedAck(cmd))
         assertEquals(0L, r.acknowledgements())
-        assertEquals(listOf("tax.approver"), r.ack(cmd, r.h.writer(delegation = { _, _ -> true })).outstandingRoles)
+        assertEquals(
+            listOf("tax.approver"),
+            r
+                .ack(
+                    cmd,
+                    r.h.writer(
+                        ports =
+                            WriterPorts(delegation = {
+                                _,
+                                _,
+                                ->
+                                true
+                            }),
+                    ),
+                ).outstandingRoles,
+        )
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")

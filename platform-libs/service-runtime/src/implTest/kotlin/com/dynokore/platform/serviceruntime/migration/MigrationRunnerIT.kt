@@ -73,7 +73,8 @@ class MigrationRunnerIT {
 
     /**
      * `V0_1__Binding.sql` creates the signed-binding key table and functions of `ledger` before the job tables, whose
-     * policies read `ledger.bound_tenant()` (INV-T-4156): the sys role runs [BindingKeyMigration.ddl], then the test key.
+     * policies read `ledger.bound_tenant()` (INV-T-4156): the sys role runs [BindingKeyMigration.ddl], then the test
+     * key.
      */
     @Test
     fun `the committed binding migration is BindingKeyMigration ddl for ledger byte for byte`() {
@@ -160,36 +161,7 @@ class MigrationRunnerIT {
                     "spring.flyway.locations=classpath:db/migration-it",
                 )
 
-            // the service: service-runtime's defaults turn Flyway off, so its context starts and migrates nothing
-            ApplicationContextRunner()
-                .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
-                .withBindingKey()
-                .withUserConfiguration(Tpl18JdbcApplication::class.java)
-                .withPropertyValues(
-                    *database,
-                    "spring.datasource.username=$RUNTIME",
-                    "spring.flyway.user=$MIGRATE",
-                    "service-runtime.flyway.credential=$MIGRATE_REF",
-                    "service-runtime.workload-identity.audience=submission-svc",
-                    "gst.service=submission-svc",
-                    "gst.instance-id=submission-svc-0",
-                    "service-runtime.pool.profile=minimal",
-                ).withMountedLogin(mountRoot, "runtime-pw")
-                .run { context ->
-                    context.startupFailure shouldBe null
-                    context.beanDefinitionNames.filter {
-                        context
-                            .getType(
-                                it,
-                            )?.name == "org.flywaydb.core.Flyway"
-                    } shouldBe
-                        emptyList()
-                    TestDatabase(pg.jdbcUrl, mapOf("pg_catalog.pg_namespace" to TableClass.PLATFORM_SCOPED)).use { db ->
-                        db.login(RUNTIME, "runtime-pw").asPlatform {
-                            fetchCount(PG_NAMESPACE, PG_NAMESPACE_NAME.eq("ledger"))
-                        } shouldBe 0
-                    }
-                }
+            assertServiceMigratesNothing(pg.jdbcUrl, mountRoot, database)
 
             // the runner, with the service's own `spring.flyway.enabled=false` in its configuration
             val args =
@@ -205,39 +177,7 @@ class MigrationRunnerIT {
                             "spring.flyway.placeholders.svc=ledger",
                         )
                 ).map { "--$it" }.toTypedArray()
-            val tables =
-                mapOf(
-                    "pg_catalog.pg_tables" to TableClass.PLATFORM_SCOPED,
-                    "ledger.flyway_schema_history" to TableClass.PLATFORM_SCOPED,
-                    "ledger.job_retention" to TableClass.PLATFORM_SCOPED,
-                )
-            TestDatabase(pg.jdbcUrl, tables).use { db ->
-                val reader = db.login(MIGRATE, migrate)
-                val installers = DSL.field(DSL.name("installed_by"), SQLDataType.VARCHAR)
-                val history = DSL.table(DSL.name("ledger", "flyway_schema_history"))
-                val window = DSL.field(DSL.name("job_window"), SQLDataType.INTERVALDAYTOSECOND)
-
-                MigrationRunner.run(*args).close()
-                reader.asPlatform {
-                    select(installers)
-                        .from(history)
-                        .where(DSL.field(DSL.name("success"), SQLDataType.BOOLEAN).isTrue)
-                        .fetchSet(installers)
-                } shouldBe setOf(MIGRATE)
-                reader.asPlatform {
-                    select(DSL.field(DSL.name("tableowner"), SQLDataType.VARCHAR))
-                        .from(DSL.table(DSL.name("pg_catalog", "pg_tables")))
-                        .where(DSL.field(DSL.name("schemaname")).eq("ledger"))
-                        .and(DSL.field(DSL.name("tablename")).eq("job_run"))
-                        .fetchSingle()
-                        .value1()
-                } shouldBe MIGRATE
-                retention(reader, window) shouldBe Duration.ofDays(2)
-
-                // a second run re-applies the configured retention with bound parameters
-                MigrationRunner.run(*args.map { it.replace("retention=2d", "retention=3d") }.toTypedArray()).close()
-                retention(reader, window) shouldBe Duration.ofDays(3)
-            }
+            assertRunnerMigrates(pg.jdbcUrl, migrate, args)
             output.all shouldNotContain migrate
         }
     }
@@ -263,6 +203,83 @@ class MigrationRunnerIT {
         val noCredential =
             shouldThrow<IllegalArgumentException> { MigrationRunner.run(*base, "--spring.flyway.user=$MIGRATE") }
         noCredential.message.orEmpty() shouldContain "service-runtime.flyway.credential"
+    }
+
+    private fun assertServiceMigratesNothing(
+        jdbcUrl: String,
+        mountRoot: Path,
+        database: Array<String>,
+    ) {
+        // the service: service-runtime's defaults turn Flyway off, so its context starts and migrates nothing
+        ApplicationContextRunner()
+            .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
+            .withBindingKey()
+            .withUserConfiguration(Tpl18JdbcApplication::class.java)
+            .withPropertyValues(
+                *database,
+                "spring.datasource.username=$RUNTIME",
+                "spring.flyway.user=$MIGRATE",
+                "service-runtime.flyway.credential=$MIGRATE_REF",
+                "service-runtime.workload-identity.audience=submission-svc",
+                "gst.service=submission-svc",
+                "gst.instance-id=submission-svc-0",
+                "service-runtime.pool.profile=minimal",
+            ).withMountedLogin(mountRoot, "runtime-pw")
+            .run { context ->
+                context.startupFailure shouldBe null
+                context.beanDefinitionNames.filter {
+                    context
+                        .getType(
+                            it,
+                        )?.name == "org.flywaydb.core.Flyway"
+                } shouldBe
+                    emptyList()
+                TestDatabase(jdbcUrl, mapOf("pg_catalog.pg_namespace" to TableClass.PLATFORM_SCOPED)).use { db ->
+                    db.login(RUNTIME, "runtime-pw").asPlatform {
+                        fetchCount(PG_NAMESPACE, PG_NAMESPACE_NAME.eq("ledger"))
+                    } shouldBe 0
+                }
+            }
+    }
+
+    private fun assertRunnerMigrates(
+        jdbcUrl: String,
+        migrate: String,
+        args: Array<String>,
+    ) {
+        val tables =
+            mapOf(
+                "pg_catalog.pg_tables" to TableClass.PLATFORM_SCOPED,
+                "ledger.flyway_schema_history" to TableClass.PLATFORM_SCOPED,
+                "ledger.job_retention" to TableClass.PLATFORM_SCOPED,
+            )
+        TestDatabase(jdbcUrl, tables).use { db ->
+            val reader = db.login(MIGRATE, migrate)
+            val installers = DSL.field(DSL.name("installed_by"), SQLDataType.VARCHAR)
+            val history = DSL.table(DSL.name("ledger", "flyway_schema_history"))
+            val window = DSL.field(DSL.name("job_window"), SQLDataType.INTERVALDAYTOSECOND)
+
+            MigrationRunner.run(*args).close()
+            reader.asPlatform {
+                select(installers)
+                    .from(history)
+                    .where(DSL.field(DSL.name("success"), SQLDataType.BOOLEAN).isTrue)
+                    .fetchSet(installers)
+            } shouldBe setOf(MIGRATE)
+            reader.asPlatform {
+                select(DSL.field(DSL.name("tableowner"), SQLDataType.VARCHAR))
+                    .from(DSL.table(DSL.name("pg_catalog", "pg_tables")))
+                    .where(DSL.field(DSL.name("schemaname")).eq("ledger"))
+                    .and(DSL.field(DSL.name("tablename")).eq("job_run"))
+                    .fetchSingle()
+                    .value1()
+            } shouldBe MIGRATE
+            retention(reader, window) shouldBe Duration.ofDays(2)
+
+            // a second run re-applies the configured retention with bound parameters
+            MigrationRunner.run(*args.map { it.replace("retention=2d", "retention=3d") }.toTypedArray()).close()
+            retention(reader, window) shouldBe Duration.ofDays(3)
+        }
     }
 
     private fun retention(

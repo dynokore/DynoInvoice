@@ -6,7 +6,10 @@ import io.kotest.matchers.collections.shouldContainExactly
 import org.junit.jupiter.api.Test
 import java.time.Instant
 
-/** The port contract every [DeadLetterSink] implementation must satisfy: it must not lose or reorder an entry it accepted. */
+/**
+ * The port contract every [DeadLetterSink] implementation must satisfy: it must not lose or reorder an entry it
+ * accepted.
+ */
 abstract class DeadLetterSinkContractTest {
     abstract fun sink(): DeadLetterSink
 

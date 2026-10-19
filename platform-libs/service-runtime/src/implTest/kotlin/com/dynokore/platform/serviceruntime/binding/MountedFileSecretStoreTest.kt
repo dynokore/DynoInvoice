@@ -6,7 +6,9 @@ import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Files
 import java.nio.file.Path
 
-/** STK-29: "rotation by file watch without restart" — no restart needed here because there is no cache to invalidate. */
+/**
+ * STK-29: "rotation by file watch without restart" — no restart needed here because there is no cache to invalidate.
+ */
 class MountedFileSecretStoreTest {
     @Test
     fun `a rotated file is visible on the very next read, with no restart`(

@@ -57,24 +57,22 @@ interface TransactionalJobCommandJournal : JobCommandJournal {
  * [JobSchema.IN_PROGRESS_VIEW] and [JobSchema.PURGE_EXPIRED] (coordinator ruling INV-Q-4346 (A)); [checkRetention]
  * refuses a configured [retention] that differs from the migration-written retention row.
  */
+@Suppress("LongParameterList") // constructor injection under CS-05; INV-Q-4629 (CS-50)
 class JobRuntime(
     private val service: String,
     schema: String,
     private val scope: TenantScope,
     private val dsl: DSLContext,
-    private val outbox: OutboxWriter,
-    private val audit: AuditWriter,
-    private val authorizer: JobCommandAuthorizer,
-    private val deadlines: DeadlineSource,
+    outbox: OutboxWriter,
+    audit: AuditWriter,
+    authorizer: JobCommandAuthorizer,
+    deadlines: DeadlineSource,
     private val clock: Clock,
-    private val runNowExecutor: Executor,
+    runNowExecutor: Executor,
     /** job_run and ended job_pause rows are purged after this window (T30 slot answer retention: default 30 days). */
     val retention: Duration = DEFAULT_RETENTION,
 ) : JobCommands {
     private val principal = WorkloadPrincipal(service)
-    private val inProgress = DSL.name(SqlIdentifier.require(schema, "schema"), JobSchema.IN_PROGRESS_RUNS)
-    private val purgeExpired = DSL.name(SqlIdentifier.require(schema, "schema"), JobSchema.PURGE_EXPIRED)
-    private val retentionWindow = DSL.name(SqlIdentifier.require(schema, "schema"), JobSchema.RETENTION_WINDOW)
     private val state = JdbcJobState(dsl, schema, service)
     private val election = ShedLockLeaderElection.postgres(dsl, scope, schema, clock)
 
@@ -84,14 +82,30 @@ class JobRuntime(
         }
     }
 
-    private val jobs = ConcurrentHashMap<String, Registered>()
-
-    private class Registered(
-        val job: JobDefinition,
-        val body: JobBody,
-        val entities: JobEntitySource?,
-        val ticks: CronTicks,
-    )
+    private val jobs = ConcurrentHashMap<String, RegisteredJob>()
+    private val scopes = JobScopes(scope, principal)
+    private val pauses = JobPauseRules(scope, scopes, state, authorizer, deadlines)
+    private val core = JobCore(clock, state, scopes, JobRecords(service, scope, outbox, audit), pauses)
+    private val runs = JobRunBody(core, election)
+    private val retentionRule =
+        JobRetention(
+            scope,
+            dsl,
+            DSL.name(SqlIdentifier.require(schema, "schema"), JobSchema.RETENTION_WINDOW),
+            DSL.name(SqlIdentifier.require(schema, "schema"), JobSchema.PURGE_EXPIRED),
+            retention,
+        )
+    private val sweeper =
+        JobSweeper(
+            scope,
+            dsl,
+            DSL.name(SqlIdentifier.require(schema, "schema"), JobSchema.IN_PROGRESS_RUNS),
+            jobs,
+            core,
+            runs,
+        )
+    private val runNowCommand = JobRunNowCommand(jobs, core, runs, runNowExecutor)
+    private val pauseCommands = JobPauseCommands(jobs, core)
 
     /**
      * Registers [job] with its [body] (INV-REQ-1136 b1); an ENTITY-scoped job also names the [entities] it
@@ -111,7 +125,9 @@ class JobRuntime(
         require(retention >= ticks.longestInterval(clock.instant()).plus(job.tolerance)) {
             "retention must cover the job's schedule interval plus its tolerance"
         }
-        require(jobs.putIfAbsent(job.name, Registered(job, body, entities, ticks)) == null) { "job already registered" }
+        require(jobs.putIfAbsent(job.name, RegisteredJob(job, body, entities, ticks)) == null) {
+            "job already registered"
+        }
     }
 
     /** The registered jobs, by name. */
@@ -124,18 +140,7 @@ class JobRuntime(
      */
     fun announce() {
         checkRetention()
-        val correlation = CorrelationId("job-registration:${UUID.randomUUID()}")
-        // start-up is background work: the service's workload principal (INV-REQ-854 b1, INV-Q-4268)
-        scope.bindWorkload(TenantId.PLATFORM) {
-            scope.transactions.inTransaction {
-                outbox.append(
-                    jobs.values.sortedBy { it.job.name }.map {
-                        OutboundEvent(JobPayloads.JOB_REGISTERED, JobPayloads.jobRegistered(it.job))
-                    },
-                    context(JobTarget.Whole, "$service/jobs", correlation, CausationId(correlation.value)),
-                )
-            }
-        }
+        core.records.announceRegistered(jobs.values)
     }
 
     /**
@@ -147,66 +152,22 @@ class JobRuntime(
     fun fire(
         jobName: String,
         at: Instant = clock.instant(),
-    ): Map<JobTarget, FireResult> = PoolLanes.inLane(PoolLane.BACKGROUND) { fireInBackground(jobName, at) }
-
-    private fun fireInBackground(
-        jobName: String,
-        at: Instant,
-    ): Map<JobTarget, FireResult> {
-        val registered = jobs[jobName] ?: throw IllegalArgumentException("job not registered")
-        val tick = registered.ticks.tickContaining(at)
-        val targets = registered.entities?.entities(registered.job) ?: listOf(JobTarget.Whole)
-        return targets.associateWith { target ->
-            if (isPaused(registered.job, target, at, endLapsed = true)) {
-                FireResult.SKIPPED_PAUSED
-            } else {
-                election.runIfLeader(registered.job, target) {
-                    val key = RunKey(registered.job, target, tick, JobTrigger.SCHEDULED, 1)
-                    val claimed = inRun(registered.job, target) { state.begin(key, clock.instant()) }
-                    if (claimed) {
-                        execute(registered, key, newCorrelation(), null)
-                        FireResult.RAN
-                    } else {
-                        FireResult.SKIPPED_TICK_TAKEN
-                    }
-                } ?: FireResult.SKIPPED_NOT_LEADER
-            }
+    ): Map<JobTarget, FireResult> =
+        PoolLanes.inLane(PoolLane.BACKGROUND) {
+            runs.fire(jobs[jobName] ?: throw IllegalArgumentException("job not registered"), at)
         }
-    }
 
     /**
      * Records FAILED("abandoned") for each run of this service still in progress after its job's
      * lockAtMostFor: its instance died (INV-Q-2948). Returns the number swept.
      */
-    fun sweepAbandoned(): Int {
-        val now = clock.instant()
-        return abandonedCandidates().count { candidate ->
-            val registered = jobs[candidate.job] ?: return@count false
-            if (!candidate.startedAt.plus(registered.job.lockAtMostFor).isBefore(now)) return@count false
-            val key = RunKey(registered.job, candidate.target, candidate.tick, candidate.trigger, candidate.attempt)
-            finish(registered, key, ABANDONED, Duration.between(candidate.startedAt, now).toMillis(), newCorrelation())
-        }
-    }
+    fun sweepAbandoned(): Int = sweeper.sweep()
 
     /**
      * Refuses to start when [retention] differs from the job-retention row the migration runner wrote (coordinator
      * ruling INV-Q-4346 (A)), or when the row is missing: the purge reads only the row.
      */
-    fun checkRetention() {
-        val window =
-            scope.bindWorkload(TenantId.PLATFORM) {
-                scope.transactions.inTransaction {
-                    val interval = DSL.function(retentionWindow, SQLDataType.INTERVALDAYTOSECOND)
-                    dsl.select(DSL.extract(interval, DatePart.EPOCH).cast(SQLDataType.BIGINT)).fetchOne()?.value1()
-                }
-            }
-        check(window != null) { "the job-retention row is missing: run the service's migration (INV-Q-4346)" }
-        check(Duration.ofSeconds(window) == retention) {
-            "the configured job retention $retention differs from the migration-written row (${Duration.ofSeconds(
-                window,
-            )})"
-        }
-    }
+    fun checkRetention() = retentionRule.check()
 
     /**
      * Deletes `job_run` rows that started, and `job_pause` rows that ended or ran out, before the migration-written
@@ -214,507 +175,21 @@ class JobRuntime(
      * transaction under the service's workload principal. Returns the number of rows deleted; with no retention row
      * nothing is deleted and an error is logged.
      */
-    fun purge(): Int {
-        var total = 0
-        do {
-            val deleted =
-                scope.bindWorkload(TenantId.PLATFORM) {
-                    scope.transactions.inTransaction {
-                        dsl
-                            .select(DSL.function(purgeExpired, SQLDataType.BIGINT, DSL.`val`(PURGE_BATCH)))
-                            .fetchOne()
-                            ?.value1()
-                    }
-                }
-            if (deleted == null) {
-                log.error("job retention row is missing in the service's schema: nothing purged (INV-Q-4346)")
-                return total
-            }
-            total += deleted.toInt()
-        } while (deleted == PURGE_BATCH.toLong())
-        return total
-    }
+    fun purge(): Int = retentionRule.purge()
 
     // --- commands (INV-REQ-1138, INV-API-3023, INV-API-3025) ---
 
-    override fun runNow(request: JobCommandRequest): JobCommandOutcome<JobRunState> {
-        val registered = jobs[request.job] ?: return JobCommandOutcome.Refused(JobErrorCode.JOB_UNKNOWN)
-        val target = authorise(registered.job, request, JobCommand.RUN_NOW) ?: return REFUSED_SCOPE
-        val now = clock.instant()
-        val paused = runNowOnPausedScope(registered, target, request.actor, now) ?: return REFUSED_SCOPE
-        val tick = registered.ticks.tickContaining(now)
-        val started: Pair<JobRunState, Boolean> =
-            inTenant(target, request.actor) {
-                begin(request)
-                var outcome: Pair<JobRunState, Boolean>? = null
-                while (outcome == null) {
-                    val latest = state.latest(registered.job, target, tick, JobTrigger.MANUAL)
-                    if (latest != null && latest.status != JobRunStatus.FAILED) {
-                        outcome = runState(registered.job, target, tick, latest, repeat = true) to false
-                    } else {
-                        val attempt = (latest?.attempt ?: 0) + 1
-                        if (state.begin(RunKey(registered.job, target, tick, JobTrigger.MANUAL, attempt), now)) {
-                            audit.record(
-                                auditEntry(request, JobCommand.RUN_NOW, registered.job, target, paused.priorState()),
-                                context(target, aggregateKey(registered.job), request.correlation, request.causation),
-                            )
-                            val started = RunRow(attempt, JobRunStatus.IN_PROGRESS, now)
-                            outcome = runState(registered.job, target, tick, started, repeat = false) to true
-                        }
-                    }
-                }
-                val done = checkNotNull(outcome)
-                request.journal?.withinTransaction(JobCommandOutcome.Done(done.first, done.second))
-                done
-            }
-        if (started.second) {
-            val key = RunKey(registered.job, target, tick, JobTrigger.MANUAL, started.first.attempt)
-            val skipped = paused.skipped()
-            runNowExecutor.execute {
-                execute(registered, key, request.correlation, request.causation) { tenant, entity ->
-                    (tenant to entity) in skipped
-                }
-            }
-        }
-        return JobCommandOutcome.Done(started.first, created = started.second)
-    }
+    override fun runNow(request: JobCommandRequest): JobCommandOutcome<JobRunState> = runNowCommand.runNow(request)
 
     override fun pause(
         request: JobCommandRequest,
         until: Instant,
-    ): JobCommandOutcome<JobPauseState> {
-        val registered = jobs[request.job] ?: return JobCommandOutcome.Refused(JobErrorCode.JOB_UNKNOWN)
-        val job = registered.job
-        val target = authorise(job, request, JobCommand.PAUSE) ?: return REFUSED_SCOPE
-        val now = clock.instant()
-        if (!until.isAfter(now)) return JobCommandOutcome.Refused(JobErrorCode.PAUSE_END_NOT_FUTURE)
-        val bound = deadlineBound(job, target)
-        if (bound != null && until.isAfter(bound)) return JobCommandOutcome.Refused(JobErrorCode.PAUSE_PAST_DEADLINE)
-        return inTenant(target, request.actor) {
-            begin(request)
-            var outcome: JobCommandOutcome<JobPauseState>? = null
-            while (outcome == null) {
-                val open = livePause(job, target, now, bound)
-                outcome =
-                    when {
-                        open == null && state.openNewPause(job, target, now, until) -> {
-                            recordAudit(request, JobCommand.PAUSE, job, target, """{"state":"ACTIVE"}""")
-                            JobCommandOutcome.Done(JobPauseState(job.name, target, true, until, now), created = true)
-                        }
+    ): JobCommandOutcome<JobPauseState> = pauseCommands.pause(request, until)
 
-                        open == null -> {
-                            null
-                        }
-
-                        // a concurrent pause opened first: read it again
-
-                        open.until == until -> {
-                            JobCommandOutcome.Done(
-                                JobPauseState(job.name, target, true, until, open.pausedAt),
-                                created = false,
-                            )
-                        }
-
-                        else -> {
-                            state.replaceUntil(job, target, until)
-                            recordAudit(request, JobCommand.PAUSE, job, target, pausedJson(open))
-                            val replaced = JobPauseState(job.name, target, true, until, open.pausedAt, open.until)
-                            JobCommandOutcome.Done(replaced, created = true)
-                        }
-                    }
-            }
-            journal(request, checkNotNull(outcome))
-        }
-    }
-
-    override fun resume(request: JobCommandRequest): JobCommandOutcome<JobPauseState> {
-        val registered = jobs[request.job] ?: return JobCommandOutcome.Refused(JobErrorCode.JOB_UNKNOWN)
-        val job = registered.job
-        val target = authorise(job, request, JobCommand.RESUME) ?: return REFUSED_SCOPE
-        val now = clock.instant()
-        val bound = deadlineBound(job, target)
-        return inTenant(target, request.actor) {
-            begin(request)
-            val open = livePause(job, target, now, bound)
-            val outcome =
-                if (open == null) {
-                    JobCommandOutcome.Done(JobPauseState(job.name, target, false), created = false)
-                } else {
-                    state.endPause(job, target, now)
-                    recordAudit(request, JobCommand.RESUME, job, target, pausedJson(open))
-                    JobCommandOutcome.Done(JobPauseState(job.name, target, false), created = true)
-                }
-            journal(request, outcome)
-        }
-    }
-
-    /** The first step of a command transaction, before any effect: the journal's [TransactionalJobCommandJournal.begin]. */
-    private fun begin(request: JobCommandRequest) {
-        (request.journal as? TransactionalJobCommandJournal)?.begin()
-    }
-
-    /** Hands a done outcome to the request's journal inside the command transaction (ARC-05, TPL-04). */
-    private fun <T> journal(
-        request: JobCommandRequest,
-        outcome: JobCommandOutcome<T>,
-    ): JobCommandOutcome<T> {
-        if (outcome is JobCommandOutcome.Done) request.journal?.withinTransaction(outcome)
-        return outcome
-    }
-
-    // --- internals ---
-
-    /** The pauses in force on a run-now's scope, as the run handles them. */
-    private class PausedScope(
-        val pauses: List<Pair<TenantId, PauseInForce>>,
-    ) {
-        fun priorState(): String? =
-            if (pauses.isEmpty()) null else JobPayloads.runNowPriorState(pauses.map { it.second })
-
-        fun skipped(): Set<Pair<TenantId, EntityRef>> =
-            pauses
-                .filter { it.second.skipped }
-                .mapNotNull { (tenant, pause) ->
-                    pause.entity?.let {
-                        tenant to
-                            it
-                    }
-                }.toSet()
-    }
-
-    /**
-     * The one place where a run-now meets a paused scope (owner decision INV-Q-3533, ruling INV-Q-3563). A
-     * run-now processes its own scope's items once despite a pause its caller can lift (the actor may resume
-     * that key, through [JobCommandAuthorizer]) and leaves the pause in force for scheduled firings. A pause the
-     * caller cannot lift stays in force: a whole-job run-now skips the entities under such pauses, and the
-     * audit lists them. A scope wholly covered by such pauses, taken together (the job-wide pause, the requested
-     * entity's own, or per-entity pauses over every entity of a whole-job run; INV-Q-3567), returns `null`:
-     * refused with JOB-002, no run recorded. Every pause in force is audited as prior state.
-     */
-    private fun runNowOnPausedScope(
-        registered: Registered,
-        target: JobTarget,
-        actor: String,
-        now: Instant,
-    ): PausedScope? {
-        val job = registered.job
-        val pauses = mutableListOf<Pair<TenantId, PauseInForce>>()
-        val wide =
-            inTenant(
-                JobTarget.Whole,
-                actor,
-            ) { peekPause(job, JobTarget.Whole, now, deadlineBound(job, JobTarget.Whole)) }
-        if (wide != null) {
-            if (!authorizer.isPlatformOperator(actor, JobCommand.RESUME)) return null
-            pauses += TenantId.PLATFORM to PauseInForce(null, wide.until, wide.pausedAt, skipped = false)
-        }
-        val shares =
-            when (target) {
-                is JobTarget.Entity -> listOf(target)
-                JobTarget.Whole -> registered.entities?.entities(job).orEmpty()
-            }
-        for (share in shares) {
-            val own = inTenant(share, actor) { peekPause(job, share, now, deadlineBound(job, share)) } ?: continue
-            val liftable = authorizer.mayCommandEntity(actor, share.tenant, share.entity, JobCommand.RESUME)
-            if (!liftable && target is JobTarget.Entity) return null
-            pauses += share.tenant to PauseInForce(share.entity, own.until, own.pausedAt, skipped = !liftable)
-        }
-        // INV-Q-3567: the union of the unliftable pauses covering every item of the scope refuses it.
-        if (shares.isNotEmpty() && pauses.count { it.second.skipped } == shares.size) return null
-        return PausedScope(pauses)
-    }
-
-    /**
-     * The command's target, or null when the actor may not command the job at that scope (JOB-002): an entity's
-     * share of an ENTITY-scoped job needs the entity grant; the whole job, and any command on a PLATFORM-scoped
-     * job with or without an entity, the platform operator role (INV-Q-2985, INV-Q-3032, INV-Q-3537). The
-     * platform operator giving an entity for a PLATFORM-scoped job is a contract violation (400).
-     */
-    private fun authorise(
-        job: JobDefinition,
-        request: JobCommandRequest,
-        command: JobCommand,
-    ): JobTarget? {
-        val entity = request.entity
-        if (entity == null || job.entityScope == JobEntityScope.PLATFORM) {
-            if (!authorizer.isPlatformOperator(request.actor, command)) return null
-            require(entity == null) { "a PLATFORM-scoped job has no entity share" }
-            return JobTarget.Whole
-        }
-        val target = JobTarget.Entity(scope.tenants.current(), entity)
-        return if (authorizer.mayCommandEntity(request.actor, target.tenant, target.entity, command)) target else null
-    }
-
-    /**
-     * The latest end of a pause of a deadline-critical job: the nearest due date minus the safety margin
-     * (INV-Q-2946).
-     */
-    private fun deadlineBound(
-        job: JobDefinition,
-        target: JobTarget,
-    ): Instant? {
-        if (job.criticality != JobCriticality.DEADLINE_CRITICAL) return null
-        return deadlines.nearestDueDate(job, target)?.minus(deadlines.safetyMargin(job, target))
-    }
-
-    /**
-     * The open pause of (job, target) that still holds at [now], in the target's transaction. A pause past its
-     * end time, or lapsed at the deadline bound, is ended where it ended and does not hold (INV-Q-2946).
-     */
-    private fun livePause(
-        job: JobDefinition,
-        target: JobTarget,
-        now: Instant,
-        bound: Instant?,
-    ): PauseRow? {
-        val open = state.openPause(job, target) ?: return null
-        val end = if (bound != null && bound.isBefore(open.until)) bound else open.until
-        if (now.isBefore(end)) return open
-        state.endPause(job, target, maxOf(end, open.pausedAt))
-        return null
-    }
-
-    /**
-     * Whether a firing for [target] skips: its own pause, lapsing at its deadline bound, or for an entity the
-     * job-wide pause, lapsing at the whole job's bound (the earliest over every entity, INV-Q-3531); both are
-     * re-checked at every firing because due dates move (INV-REQ-1138 b2-b3, INV-Q-2946).
-     */
-    private fun isPaused(
-        job: JobDefinition,
-        target: JobTarget,
-        at: Instant,
-        endLapsed: Boolean,
-    ): Boolean {
-        val bound = deadlineBound(job, target)
-        val own =
-            inRun(job, target) {
-                if (endLapsed) livePause(job, target, at, bound) else peekPause(job, target, at, bound)
-            }
-        if (own != null) return true
-        if (target is JobTarget.Entity) {
-            val wideBound = deadlineBound(job, JobTarget.Whole)
-            val wide =
-                inRun(job, JobTarget.Whole) {
-                    if (endLapsed) {
-                        livePause(job, JobTarget.Whole, at, wideBound)
-                    } else {
-                        peekPause(job, JobTarget.Whole, at, wideBound)
-                    }
-                }
-            if (wide != null) return true
-        }
-        return false
-    }
-
-    private fun peekPause(
-        job: JobDefinition,
-        target: JobTarget,
-        at: Instant,
-        bound: Instant?,
-    ): PauseRow? =
-        state.openPause(job, target)?.takeIf {
-            at.isBefore(if (bound != null && bound.isBefore(it.until)) bound else it.until)
-        }
-
-    /**
-     * Runs the body and records the run. A scheduled firing skips paused entities' items; a run-now passes
-     * [skips], the entities under pauses its caller cannot lift (INV-Q-3563).
-     */
-    private fun execute(
-        registered: Registered,
-        key: RunKey,
-        correlation: CorrelationId,
-        causation: CausationId?,
-        skips: ((TenantId, EntityRef) -> Boolean)? = null,
-    ) {
-        val started = clock.instant()
-        val context =
-            JobRunContext(registered.job, key.target, key.trigger, key.tick, key.attempt) { tenant, entity ->
-                if (skips != null) {
-                    skips(tenant, entity)
-                } else {
-                    val target = if (tenant.isPlatform) JobTarget.Whole else JobTarget.Entity(tenant, entity)
-                    isPaused(registered.job, target, clock.instant(), endLapsed = false)
-                }
-            }
-        val failure =
-            try {
-                registered.body.run(context)
-                null
-            } catch (failed: Exception) {
-                failed.javaClass.name // CS-34: the class, never the message
-            }
-        val millis = Duration.between(started, clock.instant()).toMillis().coerceAtLeast(0)
-        finish(registered, key, failure, millis, correlation, causation)
-    }
-
-    /** Completes the run and writes its `JobRunRecorded` in one transaction; false when it was already completed. */
-    private fun finish(
-        registered: Registered,
-        key: RunKey,
-        failure: String?,
-        durationMillis: Long,
-        correlation: CorrelationId,
-        causation: CausationId? = null,
-    ): Boolean =
-        inRun(registered.job, key.target) {
-            val now = clock.instant()
-            val finished = state.finish(key, failure, now, durationMillis)
-            if (finished) {
-                val nextRunAt = registered.ticks.next(now)
-                val payload =
-                    JobPayloads.jobRunRecorded(
-                        registered.job,
-                        key.target,
-                        failure,
-                        durationMillis,
-                        key.tick,
-                        nextRunAt,
-                    )
-                outbox.append(
-                    listOf(OutboundEvent(JobPayloads.JOB_RUN_RECORDED, payload)),
-                    context(
-                        key.target,
-                        aggregateKey(registered.job),
-                        correlation,
-                        causation ?: CausationId(correlation.value),
-                    ),
-                )
-            }
-            finished
-        }
-
-    private data class Candidate(
-        val job: String,
-        val target: JobTarget,
-        val tick: Instant,
-        val trigger: JobTrigger,
-        val attempt: Int,
-        val startedAt: Instant,
-    )
-
-    /** The IN_PROGRESS runs, oldest first, through the `<svc>_sys` view (INV-Q-4346), as the service's principal. */
-    private fun abandonedCandidates(): List<Candidate> =
-        scope.bindWorkload(TenantId.PLATFORM) {
-            scope.transactions.inTransaction {
-                val runs = DSL.function(inProgress, SQLDataType.JSONB, DSL.`val`(SWEEP_BATCH))
-                val json =
-                    dsl
-                        .select(runs)
-                        .fetchOne()
-                        ?.value1()
-                        ?.data()
-                parseCandidates(json)
-            }
-        }
-
-    /** The function's one jsonb array of objects (JobSchema.IN_PROGRESS_RUNS) as candidates, in its order. */
-    private fun parseCandidates(json: String?): List<Candidate> =
-        if (json == null) {
-            emptyList()
-        } else {
-            JSON.readTree(json).values().map { run ->
-                val tenant = TenantId(UUID.fromString(run.get("tenant_id").asString()))
-                val target =
-                    if (tenant.isPlatform) {
-                        JobTarget.Whole
-                    } else {
-                        JobTarget.Entity(tenant, EntityRef(run.get("entity_ref").asString()))
-                    }
-                Candidate(
-                    run.get("job").asString(),
-                    target,
-                    OffsetDateTime.parse(run.get("tick").asString()).toInstant(),
-                    JobTrigger.valueOf(run.get("trigger").asString()),
-                    run.get("attempt").asInt(),
-                    OffsetDateTime.parse(run.get("started_at").asString()).toInstant(),
-                )
-            }
-        }
-
-    private fun recordAudit(
-        request: JobCommandRequest,
-        command: JobCommand,
-        job: JobDefinition,
-        target: JobTarget,
-        priorState: String?,
-    ) {
-        audit.record(
-            auditEntry(request, command, job, target, priorState),
-            context(target, aggregateKey(job), request.correlation, request.causation),
-        )
-    }
-
-    private fun auditEntry(
-        request: JobCommandRequest,
-        command: JobCommand,
-        job: JobDefinition,
-        target: JobTarget,
-        priorState: String?,
-    ) = AuditEntry(
-        actor = request.actor,
-        action = command.operationId,
-        scope =
-            when (target) {
-                JobTarget.Whole -> aggregateKey(job)
-                is JobTarget.Entity -> "${aggregateKey(job)}/${target.entity}"
-            },
-        reason = "Idempotency-Key ${request.idempotencyKey}" + (request.reason?.let { ": $it" } ?: ""),
-        priorStateJson = priorState,
-    )
-
-    private fun pausedJson(open: PauseRow) =
-        """{"state":"PAUSED","until":"${open.until}","pausedAt":"${open.pausedAt}"}"""
-
-    private fun runState(
-        job: JobDefinition,
-        target: JobTarget,
-        tick: Instant,
-        row: RunRow,
-        repeat: Boolean,
-    ) = JobRunState(job.name, target, JobTrigger.MANUAL, tick, row.attempt, row.status, row.startedAt, repeat)
-
-    private fun aggregateKey(job: JobDefinition) = "$service/${job.name}"
-
-    private fun context(
-        target: JobTarget,
-        aggregateKey: String,
-        correlation: CorrelationId,
-        causation: CausationId,
-    ) = EventContext(
-        tenant = target.tenant,
-        entity = target.entity,
-        docUuid = null,
-        transactionDate = null,
-        aggregateKey = aggregateKey,
-        aggregateVersion = null,
-        correlation = correlation,
-        causation = causation,
-    )
-
-    /** A run of [job] (its firing, claim and completion): `svc:<svc>/job:<job>` (owner ruling INV-Q-4344 (b)). */
-    private fun <T> inRun(
-        job: JobDefinition,
-        target: JobTarget,
-        block: () -> T,
-    ): T = scope.bind(target.tenant, principal.job(job.name)) { scope.transactions.inTransaction(block) }
-
-    /** An operator's command: bound to the operator's `sub` (INV-REQ-854 b1, INV-Q-4268); never the service's actor. */
-    private fun <T> inTenant(
-        target: JobTarget,
-        actor: String,
-        block: () -> T,
-    ): T = scope.bind(target.tenant, actor) { scope.transactions.inTransaction(block) }
-
-    private fun newCorrelation() = CorrelationId("job-run:${UUID.randomUUID()}")
+    override fun resume(request: JobCommandRequest): JobCommandOutcome<JobPauseState> = pauseCommands.resume(request)
 
     companion object {
         val DEFAULT_RETENTION: Duration = Duration.ofDays(30)
         const val ABANDONED = "abandoned"
-        private const val SWEEP_BATCH = 500
-        private const val PURGE_BATCH = 1000
-        private val log = LoggerFactory.getLogger(JobRuntime::class.java)
-        private val JSON = ObjectMapper()
-        private val REFUSED_SCOPE = JobCommandOutcome.Refused(JobErrorCode.SCOPE_NOT_PERMITTED)
     }
 }

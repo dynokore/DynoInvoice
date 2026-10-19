@@ -11,12 +11,14 @@ import org.springframework.core.env.Environment
 /**
  * Splits Spring Boot's application pool (bean `dataSource`, a HikariDataSource, STK-17) into lanes before it starts
  * (INV-REQ-1230 b1, INV-ADR-3968 item 1): the budgets come from `service-runtime.pool.*` ([PoolLaneProperties]), the
- * pool maximum is set to their sum, and the pool stays the bean and a [LanePermits] gate is registered. Start-up fails when no
+ * pool maximum is set to their sum, and the pool stays the bean and a [LanePermits] gate is registered. Start-up fails
+ * when no
  * budget can be determined, or when `spring.datasource.hikari.maximum-pool-size` is set to another value than the sum.
  * A `dataSource` that is not a HikariDataSource (a test double) is left as it is.
  */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnClass(HikariDataSource::class)
+@Suppress("UtilityClassWithPublicConstructor") // public Spring @Configuration holder; INV-Q-4629, INV-Q-7405 (CS-50)
 class PoolLaneWiring {
     companion object {
         @JvmStatic
@@ -63,7 +65,8 @@ internal class PoolLanePostProcessor(
                 SERVICE,
             )?.takeIf { it.isNotBlank() }
             ?.let { bean.addDataSourceProperty(APPLICATION_NAME, it) }
-        // the lane gate tenancy-kernel's TenantAwareDataSource calls (owner ruling INV-Q-4502 (A)); the pool stays the bean
+        // the lane gate tenancy-kernel's TenantAwareDataSource calls (owner ruling INV-Q-4502 (A)); the pool stays the
+        // bean
         gate.set(LanePermits(budgets, bean.connectionTimeout))
         return bean
     }

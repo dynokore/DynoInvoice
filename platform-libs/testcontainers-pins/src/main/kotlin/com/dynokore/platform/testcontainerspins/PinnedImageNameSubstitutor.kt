@@ -14,7 +14,7 @@ class PinnedImageNameSubstitutor : ImageNameSubstitutor() {
         if (DIGEST_MARKER in reference) return original
         val pinned =
             ImagePins.postgres[reference]
-                ?: throw IllegalStateException(
+                ?: error(
                     "image '$reference' is not pinned by digest: add it to testcontainers-pins' ImagePins " +
                         "(see testcontainers-pins/README.md) or name it with @sha256:",
                 )

@@ -112,7 +112,7 @@ class OverrideRefusalTest {
                 override fun append(
                     events: List<OutboundEvent>,
                     context: EventContext,
-                ): List<Envelope> = throw IllegalStateException("outbox refuses")
+                ): List<Envelope> = error("outbox refuses")
             }
         val writer = OutboxAuditWriter(failing)
         val context = EventContextSample.context(tenant)

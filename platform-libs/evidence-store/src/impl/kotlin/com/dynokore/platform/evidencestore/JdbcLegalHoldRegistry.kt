@@ -9,7 +9,8 @@ import org.jooq.impl.SQLDataType
 import java.time.ZoneOffset
 
 /**
- * [LegalHoldRegistry] through jOOQ's DSL on the module's [DSLContext] (tenancy-jooq's factory, INV-T-4516). Unlike [JdbcEvidenceLedger]'s table,
+ * [LegalHoldRegistry] through jOOQ's DSL on the module's [DSLContext] (tenancy-jooq's factory, INV-T-4516). Unlike
+ * [JdbcEvidenceLedger]'s table,
  * this one table IS mutable in place: a hold is a control flag, placed and
  * released (FR-D.4 behaviour 2), not evidence — CS-22 governs evidence rows
  * only.

@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.util.Locale
 
 /** Pins the shared blank set and actor rule code point by code point (INV-Q-4614 (A), INV-Q-4622 (A)). */
 class BlankTextTest {
@@ -46,7 +47,7 @@ class BlankTextTest {
 
     private fun text(cp: Int) = String(Character.toChars(cp))
 
-    private fun hex(cp: Int) = "U+%04X".format(cp)
+    private fun hex(cp: Int) = "U+%04X".format(Locale.ROOT, cp)
 
     private companion object {
         /** The set of coordinator ruling INV-Q-4614: ISO controls plus the caseId whitespace set (INV-Q-4534). */

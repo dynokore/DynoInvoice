@@ -14,6 +14,7 @@ import com.dynokore.platform.tenancykernel.TransactionRunner
 import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
 import org.jooq.DSLContext
 import org.jooq.impl.DSL
+import java.util.Locale
 import java.util.UUID
 import javax.sql.DataSource
 
@@ -64,6 +65,12 @@ internal class AuditTestDb(
     val app: TenancyProbe =
         TenancyProbe.connect(fixture.jdbcUrl(), OutboxPostgresFixture.APP, OutboxPostgresFixture.APP_PASSWORD)
 
+    /** The transaction runner of a [signed] call and the tables its block touches. */
+    class Route(
+        val runner: TransactionRunner,
+        val tables: Map<String, TableClass> = emptyMap(),
+    )
+
     fun dsl(
         runner: TransactionRunner,
         tables: Map<String, TableClass>,
@@ -77,18 +84,18 @@ internal class AuditTestDb(
     /**
      * Runs [block] on the runtime login in one transaction bound to [tenant] and [actor] that [runner] signs. A
      * non-null [signature] replaces `app.binding_sig` after the runner's first statement (a value signed for another
-     * actor, or a forgery), so a test reaches a binding the runner itself never signs. [tables] are the tables
-     * [block] touches.
+     * actor, or a forgery), so a test reaches a binding the runner itself never signs. The [route] holds the runner
+     * and the tables [block] touches.
      */
     fun <T> signed(
         tenant: TenantId,
         actor: String,
-        runner: TransactionRunner = tx,
+        route: Route = Route(tx),
         signature: String? = null,
-        tables: Map<String, TableClass> = emptyMap(),
         block: DSLContext.() -> T,
     ): T {
-        val dsl = dsl(runner, tables)
+        val runner = route.runner
+        val dsl = dsl(runner, route.tables)
         val run = {
             runner.inTransaction {
                 if (signature != null) {
@@ -201,7 +208,7 @@ internal class AuditTestDb(
             sys: String,
             fill: Int = 1,
         ): String {
-            val key = SignedBinding.key(fill).joinToString("") { "%02x".format(it) }
+            val key = SignedBinding.key(fill).joinToString("") { "%02x".format(Locale.ROOT, it) }
             return "create extension if not exists pgcrypto schema public;\n" +
                 "grant usage, create on schema $schema to $sys;\nset role $sys;\n" +
                 BindingKeyMigration.ddl(schema, sys, runtime) + "\n" +

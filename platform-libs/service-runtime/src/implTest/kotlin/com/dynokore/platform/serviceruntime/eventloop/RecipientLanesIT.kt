@@ -25,6 +25,7 @@ import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
 import com.dynokore.platform.outboxandqueue.Retention
 import com.dynokore.platform.outboxandqueue.TestCatalogue
 import com.dynokore.platform.serviceruntime.pool.LaneGateHolder
+import com.dynokore.platform.serviceruntime.pool.LanePermits
 import com.dynokore.platform.serviceruntime.pool.PoolLane
 import com.dynokore.platform.serviceruntime.pool.PoolLanes
 import com.dynokore.platform.tenancykernel.LaneRefusedException
@@ -126,12 +127,7 @@ class RecipientLanesIT {
         recipient: String,
     ) {
         val permits = context.getBean(LaneGateHolder::class.java).permits()
-        // the start-up checks and schedules of the service give their permits back first
-        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(15)
-        while (permits.availablePermits(PoolLane.BACKGROUND) < permits.budgets.of(PoolLane.BACKGROUND)) {
-            check(System.nanoTime() < deadline) { "the BACKGROUND lane never became idle before $recipient" }
-            Thread.sleep(50)
-        }
+        awaitBackgroundIdle(permits, recipient)
         val held = (1..permits.budgets.of(PoolLane.BACKGROUND)).map { onBackground { permits.acquire() } }
         val failure = AtomicReference<Throwable?>()
         val elapsedMs = AtomicReference<Long>()
@@ -158,7 +154,32 @@ class RecipientLanesIT {
             ) { it.cause }.filterIsInstance<LaneRefusedException>().firstOrNull()
         withClue("$recipient ended with ${failure.get()}") { (refusal != null) shouldBe true }
         (refusal!!.message!!.startsWith("the BACKGROUND lane's ")) shouldBe true
-        // the recipient itself asked the pool: the nearest outbox-and-queue frame under the refusal is the recipient class
+        assertRefusedByRecipient(refusal, recipient)
+        // waited for the lane's own permits, until the pool's connection timeout
+        (elapsedMs.get() >= TIMEOUT_MS - SLACK_MS) shouldBe true
+        // never served from another lane, and no permit leaked
+        permits.availablePermits(PoolLane.REQUEST) shouldBe permits.budgets.of(PoolLane.REQUEST)
+        permits.availablePermits(PoolLane.BACKGROUND) shouldBe permits.budgets.of(PoolLane.BACKGROUND)
+    }
+
+    private fun awaitBackgroundIdle(
+        permits: LanePermits,
+        recipient: String,
+    ) {
+        // the start-up checks and schedules of the service give their permits back first
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(15)
+        while (permits.availablePermits(PoolLane.BACKGROUND) < permits.budgets.of(PoolLane.BACKGROUND)) {
+            check(System.nanoTime() < deadline) { "the BACKGROUND lane never became idle before $recipient" }
+            Thread.sleep(50)
+        }
+    }
+
+    private fun assertRefusedByRecipient(
+        refusal: LaneRefusedException,
+        recipient: String,
+    ) {
+        // the recipient itself asked the pool: the nearest outbox-and-queue frame under the refusal is the recipient
+        // class
         val caller =
             refusal.stackTrace
                 .first {
@@ -166,18 +187,13 @@ class RecipientLanesIT {
                         "com.dynokore.platform.outboxandqueue.",
                     )
                 }.className
+        val own = listOfNotNull(recipient, HELPERS[recipient])
         withClue("$recipient was refused by $caller") {
-            (
-                caller == "com.dynokore.platform.outboxandqueue.$recipient" ||
-                    caller.startsWith("com.dynokore.platform.outboxandqueue.$recipient$")
-            ) shouldBe
-                true
+            own.any {
+                val name = "com.dynokore.platform.outboxandqueue.$it"
+                caller == name || caller.startsWith("$name$")
+            } shouldBe true
         }
-        // waited for the lane's own permits, until the pool's connection timeout
-        (elapsedMs.get() >= TIMEOUT_MS - SLACK_MS) shouldBe true
-        // never served from another lane, and no permit leaked
-        permits.availablePermits(PoolLane.REQUEST) shouldBe permits.budgets.of(PoolLane.REQUEST)
-        permits.availablePermits(PoolLane.BACKGROUND) shouldBe permits.budgets.of(PoolLane.BACKGROUND)
     }
 
     /**
@@ -222,5 +238,8 @@ class RecipientLanesIT {
     private companion object {
         const val TIMEOUT_MS = 1_500L
         const val SLACK_MS = 200L
+
+        // internal classes a recipient delegates its pool calls to (the nearest outbox-and-queue frame may be one of them)
+        val HELPERS = mapOf("JdbcInboxConsumer" to "InboxOffsets")
     }
 }

@@ -39,15 +39,21 @@ class JwtEndUserPrincipalResolver(
     private val operatorSessions = OperatorSessionTokens(authority, clock)
 
     override fun resolve(authorization: String?): EndUserPrincipal? {
-        val token = bearer(authorization) ?: return null
-        val parsed =
-            try {
-                JWTParser.parse(token)
-            } catch (malformed: ParseException) {
-                return null
-            }
-        return if (carriesAct(parsed)) operatorPrincipal(parsed) else identityProviderPrincipal(token)
+        val token = bearer(authorization)
+        val parsed = token?.let(::parseOrNull)
+        return when {
+            token == null || parsed == null -> null
+            carriesAct(parsed) -> operatorPrincipal(parsed)
+            else -> identityProviderPrincipal(token)
+        }
     }
+
+    private fun parseOrNull(token: String): JWT? =
+        try {
+            JWTParser.parse(token)
+        } catch (malformed: ParseException) {
+            null
+        }
 
     /** The unverified claims name `act`: only the operator-session keys may verify it. Unreadable claims: none. */
     private fun carriesAct(parsed: JWT): Boolean =
@@ -68,7 +74,7 @@ class JwtEndUserPrincipalResolver(
         val jwt =
             try {
                 jwtDecoder.decode(token)
-            } catch (invalid: BadJwtException) {
+            } catch (expected: BadJwtException) {
                 null
             } catch (unavailable: JwtException) {
                 // not a bad token: the issuer's keys could not be obtained and no cached key verified it
@@ -105,7 +111,7 @@ class JwtEndUserPrincipalResolver(
     private fun tenantOf(claim: String): TenantId? =
         try {
             TenantId.fromClaim(claim)
-        } catch (e: IllegalArgumentException) {
+        } catch (expected: IllegalArgumentException) {
             null
         }
 

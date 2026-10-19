@@ -1,9 +1,7 @@
 package com.dynokore.platform.serviceruntime.events
 
 import com.dynokore.platform.configresolver.PolicyScope
-import com.dynokore.platform.configresolver.ScopeLevel
 import com.dynokore.platform.outboxandqueue.ContractViolation
-import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EnvelopeJson
 import com.dynokore.platform.outboxandqueue.LogRecord
@@ -118,32 +116,7 @@ class PlatformEventReader(
     private fun policyScope(
         envelope: Envelope,
         text: String,
-    ): PolicyScope {
-        if (text == "INSTALLATION") {
-            if (!envelope.tenant.isPlatform) throw ContractViolation("an installation value carries no tenant")
-            return PolicyScope.installation()
-        }
-        val level = enumValue<ScopeLevel>(text.substringBefore(':', ""))
-        val id = text.substringAfter(':', "")
-        if (id.isBlank() ||
-            level == ScopeLevel.INSTALLATION
-        ) {
-            throw ContractViolation("scope must be INSTALLATION or LEVEL:id")
-        }
-        if (envelope.tenant.isPlatform) throw ContractViolation("a $level value carries its tenant")
-        val tenant = envelope.tenant
-        val entity = envelope.entity.takeUnless { it == EntityRef.TENANT_WIDE }?.value
-        if (level.entityScoped && entity == null) throw ContractViolation("a $level value carries its entity")
-        return when (level) {
-            ScopeLevel.TENANT -> PolicyScope.tenant(tenant)
-            ScopeLevel.GROUP -> PolicyScope.tenant(tenant, group = id)
-            ScopeLevel.ENTITY -> PolicyScope.entity(tenant, id)
-            ScopeLevel.FEED -> PolicyScope.entity(tenant, entity!!, feed = id)
-            ScopeLevel.AP_CONNECTION -> PolicyScope.entity(tenant, entity!!, apConnection = id)
-            ScopeLevel.CLIENT_ENTITY -> PolicyScope.entity(tenant, entity!!, clientEntity = id)
-            ScopeLevel.INSTALLATION -> PolicyScope.installation()
-        }
-    }
+    ): PolicyScope = PolicyScopes.of(envelope, text)
 
     private fun failure(node: JsonNode): ConnectionFailure {
         if (!node.isObject) throw ContractViolation("lastFailure must be an object")

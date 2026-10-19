@@ -55,12 +55,7 @@ object JooqKit {
     fun recordDeadLetter(
         fixture: OutboxPostgresFixture,
         schema: String,
-        consumer: String,
-        topic: String,
-        offset: Long,
-        tenant: UUID?,
-        reason: String,
-        raw: String,
+        letter: LetterToRecord,
     ): Long =
         Access.runtime(fixture, OutboxSchema.jooqTables(schema)).single().asPlatform { dsl ->
             dsl
@@ -68,12 +63,12 @@ object JooqKit {
                     DSL.function(
                         DSL.name(schema, OutboxSchema.DEAD_LETTER_RECORD),
                         SQLDataType.BIGINT,
-                        DSL.`val`(consumer, SQLDataType.CLOB),
-                        DSL.`val`(topic, SQLDataType.CLOB),
-                        DSL.`val`(offset, SQLDataType.BIGINT),
-                        DSL.`val`(tenant, SQLDataType.UUID),
-                        DSL.`val`(reason, SQLDataType.CLOB),
-                        DSL.`val`(raw, SQLDataType.CLOB),
+                        DSL.`val`(letter.consumer, SQLDataType.CLOB),
+                        DSL.`val`(letter.topic, SQLDataType.CLOB),
+                        DSL.`val`(letter.offset, SQLDataType.BIGINT),
+                        DSL.`val`(letter.tenant, SQLDataType.UUID),
+                        DSL.`val`(letter.reason, SQLDataType.CLOB),
+                        DSL.`val`(letter.raw, SQLDataType.CLOB),
                     ),
                 ).fetchSingle()
                 .value1()
@@ -236,3 +231,13 @@ object JooqKit {
         }
     }
 }
+
+/** The dead letter [JooqKit.recordDeadLetter] records. */
+class LetterToRecord(
+    val consumer: String,
+    val topic: String,
+    val offset: Long,
+    val tenant: UUID?,
+    val reason: String,
+    val raw: String,
+)

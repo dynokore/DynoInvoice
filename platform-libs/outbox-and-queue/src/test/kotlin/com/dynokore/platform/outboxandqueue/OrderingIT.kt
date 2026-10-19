@@ -31,15 +31,15 @@ class OrderingIT {
             val canonicalTopic = "gst.canonical.canonical-version-created.v1"
             val payloadTopic = "gst.payload.payload-ready.v1"
             // Natural order: canonical first, then payload.
-            emit(harness, harness.canonical, TestCatalogue.CANONICAL_VERSION_CREATED, tenant, natural)
+            emit(harness, harness.canonical, Emission(TestCatalogue.CANONICAL_VERSION_CREATED, tenant, natural))
             consume(harness, canonicalTopic)
-            emit(harness, harness.payload, TestCatalogue.PAYLOAD_READY, tenant, natural)
+            emit(harness, harness.payload, Emission(TestCatalogue.PAYLOAD_READY, tenant, natural))
             consume(harness, payloadTopic)
             // Reversed: the payload arrives first and creates the register entry; canonical completes it.
-            emit(harness, harness.payload, TestCatalogue.PAYLOAD_READY, tenant, reversed)
+            emit(harness, harness.payload, Emission(TestCatalogue.PAYLOAD_READY, tenant, reversed))
             consume(harness, payloadTopic)
             assertEquals(Register(canonical = false, payload = true, state = "PARTIAL"), register(harness, reversed))
-            emit(harness, harness.canonical, TestCatalogue.CANONICAL_VERSION_CREATED, tenant, reversed)
+            emit(harness, harness.canonical, Emission(TestCatalogue.CANONICAL_VERSION_CREATED, tenant, reversed))
             consume(harness, canonicalTopic)
 
             val naturalState = register(harness, natural)
@@ -77,7 +77,7 @@ class OrderingIT {
             assertEquals(1, result.stale)
             assertEquals(listOf(doc to 2), transport.calls) // only the newer event reached the handler
             // A canonical event with docsequence 1 from another producer is not stale against payload-svc's 2.
-            emit(harness, harness.canonical, TestCatalogue.CANONICAL_VERSION_CREATED, tenant, doc)
+            emit(harness, harness.canonical, Emission(TestCatalogue.CANONICAL_VERSION_CREATED, tenant, doc))
             assertEquals(1, consume(harness, "gst.canonical.canonical-version-created.v1").applied)
         }
     }
@@ -87,26 +87,30 @@ class OrderingIT {
         tenant: UUID,
         doc: UUID,
         version: Int,
-    ) = emit(harness, harness.payload, TestCatalogue.PAYLOAD_READY, tenant, doc, version, relay = false)
+    ) = emit(harness, harness.payload, Emission(TestCatalogue.PAYLOAD_READY, tenant, doc, version, relay = false))
+
+    private class Emission(
+        val type: String,
+        val tenant: UUID,
+        val doc: UUID,
+        val version: Int = 1,
+        val relay: Boolean = true,
+    )
 
     private fun emit(
         harness: OutboxHarness,
         kit: ServiceKit,
-        type: String,
-        tenant: UUID,
-        doc: UUID,
-        version: Int = 1,
-        relay: Boolean = true,
+        emission: Emission,
     ): Envelope {
         val envelope =
-            kit.inTx(tenant) {
+            kit.inTx(emission.tenant) {
                 kit.writer
                     .append(
-                        listOf(OutboundEvent(type, """{"version":$version}""")),
-                        kit.docContext(tenant, doc),
+                        listOf(OutboundEvent(emission.type, """{"version":${emission.version}}""")),
+                        kit.docContext(emission.tenant, emission.doc),
                     ).single()
             }
-        if (relay) harness.drain(kit.relay)
+        if (emission.relay) harness.drain(kit.relay)
         return envelope
     }
 

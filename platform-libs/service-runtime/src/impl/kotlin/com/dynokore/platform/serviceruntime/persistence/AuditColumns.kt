@@ -36,10 +36,17 @@ internal class AuditColumns private constructor(
 
         /** The audit columns of [table], or null when it has none of the four names. */
         fun of(table: Table<*>): AuditColumns? {
-            val fields = NAMES.map { name -> table.fields().firstOrNull { it.name == name } }
-            if (fields.all { it == null }) return null
-            return AuditColumns(fields[0]!!, fields[1]!!, fields[2]!!, fields[3]!!)
+            val byName = NAMES.associateWith { name -> table.fields().firstOrNull { it.name == name } }
+            if (byName.values.all { it == null }) return null
+            return AuditColumns(
+                present(byName[CREATED_AT]),
+                present(byName[CREATED_BY]),
+                present(byName[UPDATED_AT]),
+                present(byName[UPDATED_BY]),
+            )
         }
+
+        private fun present(field: Field<*>?): Field<*> = field ?: throw NullPointerException("audit column is missing")
 
         /** Why [table] has some but not all four audit columns, or null. */
         fun problem(table: Table<*>): String? {
@@ -62,7 +69,8 @@ internal class AuditColumns private constructor(
  * - Insert: `created_at` and `updated_at` are the clock's now, `created_by` and `updated_by` the bound actor. A value
  *   the caller set in `created_by` or `updated_by` is accepted only when it equals the actor. An insert with no bound
  *   actor is refused.
- * - Update: `updated_at` and `updated_by` are set. A changed `created_at` or `created_by`, or an `updated_by` that is not
+ * - Update: `updated_at` and `updated_by` are set. A changed `created_at` or `created_by`, or an `updated_by` that is
+ * not
  *   the actor, is refused.
  */
 class AuditColumnRecordListener(

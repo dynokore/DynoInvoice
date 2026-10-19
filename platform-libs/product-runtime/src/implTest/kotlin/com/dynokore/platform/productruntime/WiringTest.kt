@@ -32,6 +32,7 @@ import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.jooq.Record
 import org.jooq.Schema
+import org.jooq.TableField
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 import org.jooq.impl.SchemaImpl
@@ -47,6 +48,7 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Import
 import org.springframework.web.client.RestClient
 import java.time.LocalDate
+import java.util.UUID
 
 /** INV-T-2876: ProductRuntimeConfiguration (TPL-18) wires the bindings, and config-resolver over them under TPL-18. */
 class WiringTest {
@@ -138,7 +140,10 @@ class WiringTest {
     )
     class Tpl18Bootstrap
 
-    /** The bootstrap of TPL-18 with a service's own inputs: its datasource properties, meter registry and gst properties. */
+    /**
+     * The bootstrap of TPL-18 with a service's own inputs: its datasource properties, meter registry and gst
+     * properties.
+     */
     private fun tpl18(): ApplicationContextRunner =
         ApplicationContextRunner()
             .withUserConfiguration(Tpl18Bootstrap::class.java)
@@ -150,12 +155,15 @@ class WiringTest {
                 "gst.instance-id=submission-svc-0",
                 "service-runtime.workload-identity.audience=submission-svc",
                 "service-runtime.modules.schema=submission",
-                // The DataSource comes from Spring Boot's auto-configuration (INV-Q-4196 (A), INV-Q-4436): a lazy Hikari
-                // pool that opens no connection while the context starts, so no database is reached. No pool password: it
+                // The DataSource comes from Spring Boot's auto-configuration (INV-Q-4196 (A), INV-Q-4436): a lazy
+                // Hikari
+                // pool that opens no connection while the context starts, so no database is reached. No pool password:
+                // it
                 // comes only from SecretStore and service-runtime refuses one (STK-29, INV-Q-4548, INV-Q-4570).
                 "spring.datasource.url=jdbc:postgresql://localhost:1/submission",
                 "spring.datasource.username=submission_svc_runtime",
-                // service-runtime sets the application pool's lanes per installation profile, with no default (INV-Q-4496).
+                // service-runtime sets the application pool's lanes per installation profile, with no default
+                // (INV-Q-4496).
                 "service-runtime.pool.profile=minimal",
             )
 
@@ -212,8 +220,8 @@ internal class DefaultItemSchema : SchemaImpl(DSL.name("submission"), null) {
 internal class DefaultItemTable(
     schema: Schema,
 ) : TableImpl<Record>(DSL.name("default_item"), schema) {
-    val id = createField(DSL.name("id"), SQLDataType.UUID, this)
-    val tenantId = createField(DSL.name("tenant_id"), SQLDataType.UUID, this)
+    val id: TableField<Record, UUID> = createField(DSL.name("id"), SQLDataType.UUID, this)
+    val tenantId: TableField<Record, UUID> = createField(DSL.name("tenant_id"), SQLDataType.UUID, this)
 }
 
 /** The Schema bean of the TPL-18 bootstrap; `test.default-schema=false` leaves it out. */

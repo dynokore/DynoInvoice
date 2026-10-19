@@ -68,13 +68,6 @@ class JobCommandServlet(
 ) : HttpServlet() {
     private val mapper = ObjectMapper()
 
-    private enum class Action { RUN, PAUSE, RESUME }
-
-    private class Violation(
-        message: String,
-        val code: ClosedErrorCode = ClosedErrorCode.CONTRACT_VIOLATION,
-    ) : RuntimeException(message)
-
     override fun service(
         request: HttpServletRequest,
         response: HttpServletResponse,
@@ -83,8 +76,8 @@ class JobCommandServlet(
         val answer =
             try {
                 handle(request, correlation)
-            } catch (failure: RuntimeException) {
-                log.error("job command failed: {}", failure.javaClass.name) // CS-34: class only
+            } catch (expected: RuntimeException) {
+                log.error("job command failed: {}", expected.javaClass.name) // CS-34: class only
                 Problems.serverError(correlation)
             }
         response.status = answer.status
@@ -109,98 +102,80 @@ class JobCommandServlet(
         return authority.decide(request, CurrentDeadline.current() ?: Deadline.after(FALLBACK_BUDGET, clock)).allowed
     }
 
+    private class Admitted(
+        val action: JobAction,
+        val principal: EndUserPrincipal,
+        val parsed: ParsedJobCommand,
+        val body: ByteArray,
+    )
+
     private fun handle(
         request: HttpServletRequest,
         correlation: String,
     ): StoredResponse {
-        val path = request.requestURI.removePrefix(request.contextPath.orEmpty())
-        val route = ROUTE.matchEntire(path) ?: return Problems.notFound(correlation)
-        val action = Action.valueOf(route.groupValues[2].uppercase())
-        if (request.method != "POST") return Problems.methodNotAllowed(correlation)
-        val principal =
-            try {
-                principals.resolve(request.getHeader(AUTHORIZATION))
-            } catch (_: TokenIssuerUnavailableException) {
-                return Problems.closed(ClosedErrorCode.ISSUER_UNAVAILABLE, correlation)
-            } ?: return Problems.unauthenticated(correlation)
-        val body = request.inputStream.readNBytes(MAX_BODY + 1)
-        val parsed =
-            try {
-                if (body.size > MAX_BODY) throw Violation("request body too large")
-                Parsed(
-                    job = URLDecoder.decode(route.groupValues[1], StandardCharsets.UTF_8),
-                    key = idempotencyKey(request.getHeader(IDEMPOTENCY_KEY)),
-                    body = jsonObject(body),
-                ).also { it.validate(action) }
-            } catch (violation: Violation) {
-                return Problems.closed(violation.code, correlation, violation.message.orEmpty())
+        val path = CommandHttp.path(request)
+        return when (val step = admit(request, path, correlation)) {
+            is Step.Stop -> {
+                step.response
             }
-        val entity = parsed.entity
-        if (principal.tenant == null) {
-            // a tenantless caller (a platform operator) reaches only a platform-level target, before anything is bound
-            // (coordinator ruling INV-Q-4115); it holds no entity set, so no per-entity scope applies
-            if (!platformTarget(parsed)) return Problems.accessDenied(correlation)
-        } else if (entity != null && !inScope(principal, entity)) {
-            return Problems.accessDenied(correlation)
-        }
-        val fingerprint = fingerprint(request.method, path, body)
-        val outcome =
-            idempotency.once(principal.tenant, principal.actor, parsed.key, fingerprint) { recorder ->
-                execute(action, parsed, principal, correlation, recorder)
+
+            is Step.Go -> {
+                val admitted = step.value
+                val fingerprint = CommandHttp.fingerprint(request.method, path, admitted.body)
+                val outcome =
+                    idempotency.once(
+                        admitted.principal.tenant,
+                        admitted.principal.actor,
+                        admitted.parsed.key,
+                        fingerprint,
+                    ) { recorder ->
+                        execute(admitted.action, admitted.parsed, admitted.principal, correlation, recorder)
+                    }
+                CommandHttp.answer(outcome, correlation)
             }
-        return when (outcome) {
-            is IdempotencyOutcome.Fresh -> outcome.response
-            is IdempotencyOutcome.Replay -> outcome.response
-            IdempotencyOutcome.InFlight -> Problems.inFlight(correlation)
-            IdempotencyOutcome.DifferentRequest -> Problems.differentRequest(correlation)
         }
     }
 
-    private inner class Parsed(
-        val job: String,
-        val key: UUID,
-        val body: JsonNode,
-    ) {
-        val entity: EntityRef? get() = optionalText("entityRef")?.let(::EntityRef)
-        val reason: String? get() = optionalText("reason")
-        val until: Instant
-            get() =
-                try {
-                    Instant.parse(optionalText("until") ?: throw Violation("until is required"))
-                } catch (_: DateTimeParseException) {
-                    throw Violation("until must be a date-time")
+    private fun admit(
+        request: HttpServletRequest,
+        path: String,
+        correlation: String,
+    ): Step<Admitted> {
+        val route = ROUTE.matchEntire(path) ?: return Step.Stop(Problems.notFound(correlation))
+        val action = JobAction.valueOf(route.groupValues[2].uppercase())
+        return CommandHttp.caller(request, principals, correlation).andThen { principal ->
+            val body = CommandHttp.body(request, MAX_BODY)
+            CommandHttp
+                .parsed(correlation) {
+                    if (body.size > MAX_BODY) CommandViolation.raise("request body too large")
+                    ParsedJobCommand(
+                        job = URLDecoder.decode(route.groupValues[1], StandardCharsets.UTF_8),
+                        key = CommandHttp.idempotencyKey(request),
+                        body = CommandHttp.jsonObject(mapper, body),
+                    ).also { it.validate(action) }
+                }.andThen { parsed ->
+                    scoped(principal, parsed, correlation, Admitted(action, principal, parsed, body))
                 }
-
-        fun validate(action: Action) {
-            if (job.isBlank()) throw Violation("job is required")
-            optionalText("entityRef")?.let {
-                if (it.isBlank() ||
-                    it.length > JobTarget.MAX_ENTITY_REF
-                ) {
-                    throw Violation("entityRef is 1 to ${JobTarget.MAX_ENTITY_REF} characters")
-                }
-            }
-            optionalText("reason")?.let {
-                if (it.isBlank() ||
-                    it.length > JobCommandRequest.MAX_REASON
-                ) {
-                    throw Violation("reason is 1 to ${JobCommandRequest.MAX_REASON} characters")
-                }
-            }
-            if (action == Action.PAUSE) until
         }
+    }
 
-        private fun optionalText(field: String): String? {
-            val value = body.get(field) ?: return null
-            if (value.isNull) return null
-            if (!value.isString) throw Violation("$field must be a string")
-            return value.asString()
-        }
+    private fun scoped(
+        principal: EndUserPrincipal,
+        parsed: ParsedJobCommand,
+        correlation: String,
+        admitted: Admitted,
+    ): Step<Admitted> {
+        val entity = parsed.entity
+        // a tenantless caller (a platform operator) reaches only a platform-level target, before anything is bound
+        // (coordinator ruling INV-Q-4115); it holds no entity set, so no per-entity scope applies
+        val allowed =
+            if (principal.tenant == null) platformTarget(parsed) else entity == null || inScope(principal, entity)
+        return if (allowed) Step.Go(admitted) else Step.Stop(Problems.accessDenied(correlation))
     }
 
     private fun execute(
-        action: Action,
-        parsed: Parsed,
+        action: JobAction,
+        parsed: ParsedJobCommand,
         principal: EndUserPrincipal,
         correlation: String,
         recorder: IdempotencyRecorder,
@@ -211,7 +186,7 @@ class JobCommandServlet(
                 override fun begin() = recorder.begin()
 
                 override fun withinTransaction(outcome: JobCommandOutcome.Done<*>) =
-                    recorder.record(render(action, outcome, correlation))
+                    recorder.record(JobCommandResponses.render(action, outcome, correlation))
             }
         val command =
             try {
@@ -228,12 +203,23 @@ class JobCommandServlet(
             } catch (invalid: IllegalArgumentException) {
                 return Problems.contractViolation(invalid.message.orEmpty(), correlation)
             }
-        return bound(principal) {
+        return CommandHttp.bound(scope, principal) {
             try {
                 when (action) {
-                    Action.RUN -> runResponse(commands.runNow(command), correlation)
-                    Action.PAUSE -> pauseResponse(commands.pause(command, parsed.until), correlation)
-                    Action.RESUME -> pauseResponse(commands.resume(command), correlation)
+                    JobAction.RUN -> {
+                        JobCommandResponses.runResponse(commands.runNow(command), correlation)
+                    }
+
+                    JobAction.PAUSE -> {
+                        JobCommandResponses.pauseResponse(
+                            commands.pause(command, parsed.until),
+                            correlation,
+                        )
+                    }
+
+                    JobAction.RESUME -> {
+                        JobCommandResponses.pauseResponse(commands.resume(command), correlation)
+                    }
                 }
             } catch (invalid: IllegalArgumentException) {
                 // JobRuntime's contract violation: an entityRef from the platform operator role for a
@@ -243,125 +229,13 @@ class JobCommandServlet(
         }
     }
 
-    @Suppress("UNCHECKED_CAST")
-    private fun render(
-        action: Action,
-        done: JobCommandOutcome.Done<*>,
-        correlation: String,
-    ): StoredResponse =
-        when (action) {
-            Action.RUN -> runResponse(done as JobCommandOutcome.Done<JobRunState>, correlation)
-            Action.PAUSE, Action.RESUME -> pauseResponse(done as JobCommandOutcome.Done<JobPauseState>, correlation)
-        }
-
     /**
      * A tenantless caller's command has a platform-level target (coordinator ruling INV-Q-4115): a whole-job command
      * (no `entityRef`) or any command on a PLATFORM-scoped job. An unknown job is not one.
      */
-    private fun platformTarget(parsed: Parsed): Boolean =
+    private fun platformTarget(parsed: ParsedJobCommand): Boolean =
         parsed.entity == null ||
             commands.registered().any { it.name == parsed.job && it.entityScope == JobEntityScope.PLATFORM }
-
-    /**
-     * Binds the caller's tenant and `sub` for the command (ARC-21, INV-REQ-854 b1); a tenantless caller, already
-     * limited to a platform-level target by [handle], binds the platform tenant with its `sub` (INV-Q-4115).
-     */
-    private fun <T> bound(
-        principal: EndUserPrincipal,
-        block: () -> T,
-    ): T {
-        val tenant =
-            principal.tenant
-                ?: return checkNotNull(scope.platform) {
-                    "a tenantless command needs the platform binding"
-                }.bindPlatform(principal.actor, block)
-        return scope.tenants.bind(tenant, principal.actor, block)
-    }
-
-    private fun runResponse(
-        outcome: JobCommandOutcome<JobRunState>,
-        correlation: String,
-    ): StoredResponse =
-        when (outcome) {
-            is JobCommandOutcome.Refused -> {
-                Problems.job(outcome.code, correlation)
-            }
-
-            is JobCommandOutcome.Done -> {
-                val state = outcome.state
-                val node = mapper.createObjectNode()
-                node.put("job", state.job)
-                (state.target as? JobTarget.Entity)?.let { node.put("entityRef", it.entity.value) }
-                node.put("trigger", state.trigger.name)
-                node.put("scheduledFor", state.scheduledFor.toString())
-                node.put("attempt", state.attempt)
-                node.put("status", state.status.name)
-                node.put("startedAt", state.startedAt.toString())
-                node.put("repeat", state.repeat)
-                StoredResponse(if (outcome.created) HTTP_ACCEPTED else HTTP_OK, mapper.writeValueAsString(node))
-            }
-        }
-
-    private fun pauseResponse(
-        outcome: JobCommandOutcome<JobPauseState>,
-        correlation: String,
-    ): StoredResponse =
-        when (outcome) {
-            is JobCommandOutcome.Refused -> {
-                Problems.job(outcome.code, correlation)
-            }
-
-            is JobCommandOutcome.Done -> {
-                val state = outcome.state
-                val node = mapper.createObjectNode()
-                node.put("job", state.job)
-                (state.target as? JobTarget.Entity)?.let { node.put("entityRef", it.entity.value) }
-                node.put("state", if (state.paused) "PAUSED" else "ACTIVE")
-                state.until?.let { node.put("until", it.toString()) }
-                state.pausedAt?.let { node.put("pausedAt", it.toString()) }
-                state.previousUntil?.let { node.put("previousUntil", it.toString()) }
-                StoredResponse(HTTP_OK, mapper.writeValueAsString(node))
-            }
-        }
-
-    private fun jsonObject(body: ByteArray): JsonNode {
-        if (body.isEmpty()) throw Violation("a request body is required")
-        val node =
-            try {
-                mapper.readTree(body)
-            } catch (_: tools.jackson.core.JacksonException) {
-                throw Violation("request body is not JSON")
-            }
-        if (node == null || !node.isObject) throw Violation("request body must be a JSON object")
-        return node
-    }
-
-    private fun idempotencyKey(header: String?): UUID {
-        val text = header?.trim() ?: throw Violation("Idempotency-Key is required", KEY_INVALID)
-        return try {
-            UUID.fromString(text).also {
-                if (it.toString() !=
-                    text.lowercase()
-                ) {
-                    throw Violation("Idempotency-Key must be a UUID", KEY_INVALID)
-                }
-            }
-        } catch (_: IllegalArgumentException) {
-            throw Violation("Idempotency-Key must be a UUID", KEY_INVALID)
-        }
-    }
-
-    /** API-15: the fingerprint of the method, path and body. */
-    private fun fingerprint(
-        method: String,
-        path: String,
-        body: ByteArray,
-    ): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        digest.update("$method $path\n".toByteArray(StandardCharsets.UTF_8))
-        digest.update(body)
-        return digest.digest().joinToString("") { "%02x".format(java.util.Locale.ROOT, it) }
-    }
 
     companion object {
         /** The §22.3 permission for run now, pause and resume (FR-AG.64, INV-REQ-859, INV-Q-3782). */
@@ -371,13 +245,8 @@ class JobCommandServlet(
         /** The servlet mapping of the three operations. */
         const val MAPPING = "/internal/v1/jobs/*"
         private val ROUTE = Regex("^/internal/v1/jobs/([^/]+)/(run|pause|resume)$")
-        private val KEY_INVALID = ClosedErrorCode.IDEMPOTENCY_KEY_INVALID
-        private const val AUTHORIZATION = "Authorization"
-        private const val IDEMPOTENCY_KEY = "Idempotency-Key"
         private const val JSON = "application/json"
         private const val MAX_BODY = 16 * 1024
-        private const val HTTP_OK = 200
-        private const val HTTP_ACCEPTED = 202
         private const val HTTP_ERRORS = 400
         private val log = LoggerFactory.getLogger(JobCommandServlet::class.java)
     }

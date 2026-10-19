@@ -30,15 +30,22 @@ class PrecedenceResolverTest {
 
     private val rows = mutableListOf<Row>()
 
+    /** Where a stored row came from; `null` [from] is 30 days before the test day. */
+    private data class Origin(
+        val source: SettingSource = SettingSource.OVERRIDE,
+        val from: LocalDate? = null,
+        val profile: Pair<String, String>? = null,
+    )
+
     private fun put(
         key: VariationPointKey,
         level: ScopeLevel,
         id: String,
         option: String,
-        source: SettingSource = SettingSource.OVERRIDE,
-        from: LocalDate = day.minusDays(30),
-        profile: Pair<String, String>? = null,
+        origin: Origin = Origin(),
     ): StoredSetting {
+        val (source, since, profile) = origin
+        val from = since ?: day.minusDays(30)
         val setting =
             StoredSetting(
                 UUID.randomUUID(),
@@ -55,7 +62,17 @@ class PrecedenceResolverTest {
     private fun profileAtTenant(
         key: VariationPointKey,
         option: String,
-    ) = put(key, ScopeLevel.TENANT, tenant.toString(), option, SettingSource.PROFILE, profile = "small-business" to "3")
+    ) = put(
+        key,
+        ScopeLevel.TENANT,
+        tenant.toString(),
+        option,
+        Origin(
+            source = SettingSource.PROFILE,
+            profile =
+                "small-business" to "3",
+        ),
+    )
 
     private val e1 get() = PolicyScope.entity(tenant, "E1")
 
@@ -114,7 +131,17 @@ class PrecedenceResolverTest {
 
     @Test
     fun `any override beats a profile value, even a broader one (INV-REQ-1068 b1)`() {
-        put(ALL_LEVELS, ScopeLevel.ENTITY, "E1", "FOUR_EYES_PLUS", SettingSource.PROFILE, profile = "p" to "1")
+        put(
+            ALL_LEVELS,
+            ScopeLevel.ENTITY,
+            "E1",
+            "FOUR_EYES_PLUS",
+            Origin(
+                source = SettingSource.PROFILE,
+                profile =
+                    "p" to "1",
+            ),
+        )
         put(ALL_LEVELS, ScopeLevel.INSTALLATION, "installation", "SOLE_OPERATOR")
 
         assertEquals(
@@ -174,8 +201,8 @@ class PrecedenceResolverTest {
 
     @Test
     fun `INV-REQ-1351 the value in force at the transaction date applies, not a later one`() {
-        put(ENTITY_POLICY, ScopeLevel.ENTITY, "E1", "SOLE_OPERATOR", from = LocalDate.of(2026, 1, 1))
-        put(ENTITY_POLICY, ScopeLevel.ENTITY, "E1", "FOUR_EYES_PLUS", from = LocalDate.of(2026, 7, 1))
+        put(ENTITY_POLICY, ScopeLevel.ENTITY, "E1", "SOLE_OPERATOR", Origin(from = LocalDate.of(2026, 1, 1)))
+        put(ENTITY_POLICY, ScopeLevel.ENTITY, "E1", "FOUR_EYES_PLUS", Origin(from = LocalDate.of(2026, 7, 1)))
         val scope = PolicyScope.entity(tenant, "E1")
 
         assertEquals("SOLE_OPERATOR", keyOf(ENTITY_POLICY, scope, LocalDate.of(2026, 3, 15)))

@@ -57,14 +57,13 @@ class ModuleApiConsumerContractTest {
 
         /** FR-D.4: a hold always refuses deletion, whatever [RetentionGate] alone would say. */
         fun canDeleteWithHold(
-            tenant: TenantId,
-            entity: EntityRef,
-            period: PeriodRef,
+            chain: Triple<TenantId, EntityRef, PeriodRef>,
             retention: RetentionPeriod,
             periodEnd: LocalDate,
             asOf: LocalDate,
         ): Boolean =
             tx.inTransaction {
+                val (tenant, entity, period) = chain
                 RetentionGate.canDelete(retention, periodEnd, asOf, held = holds.isHeld(tenant, entity, period))
             }
     }
@@ -103,7 +102,7 @@ class ModuleApiConsumerContractTest {
             val retention = RetentionPeriod.DEFAULT
             val deletableWithoutHold =
                 tenants.bind(tenant, "test-actor") {
-                    useCase.canDeleteWithHold(tenant, entity, period, retention, periodEnd, LocalDate.now())
+                    useCase.canDeleteWithHold(Triple(tenant, entity, period), retention, periodEnd, LocalDate.now())
                 }
             assertTrue(deletableWithoutHold)
 
@@ -112,7 +111,7 @@ class ModuleApiConsumerContractTest {
             tenants.bind(tenant, "test-actor") { tx.inTransaction { holds.place(tenant, entity, period, hold) } }
             val deletableWithHold =
                 tenants.bind(tenant, "test-actor") {
-                    useCase.canDeleteWithHold(tenant, entity, period, retention, periodEnd, LocalDate.now())
+                    useCase.canDeleteWithHold(Triple(tenant, entity, period), retention, periodEnd, LocalDate.now())
                 }
             assertFalse(deletableWithHold)
             pool.close()

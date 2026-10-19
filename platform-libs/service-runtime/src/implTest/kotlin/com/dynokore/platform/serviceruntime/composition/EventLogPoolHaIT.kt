@@ -63,24 +63,32 @@ class EventLogPoolHaIT {
                         applicationInitSql shouldBe INIT_SQL
                         copiedInitSql shouldBe null
                         assertNoInitSqlNoSchema(pool)
-                        TestDatabase(application.jdbcUrl, CATALOG_TABLES).use { db ->
-                            val onApp = db.over(app)
-                            val onEventLog = db.over(pool)
-                            val marker = { access: TestDatabase.Access ->
-                                access.asPlatform { fetchCount(PG_CLASS, PG_CLASS_NAME.eq("event_log_marker")) } == 1
-                            }
-                            marker(onApp) shouldBe false
-                            marker(onEventLog) shouldBe true
-                            onEventLog.asPlatform { select(CURRENT_USER).fetchSingle().value1() } shouldBe RUNTIME
-                            // minimumIdle 1: the pool keeps an idle connection once started (INV-Q-4348)
-                            (idleConnections(pool) >= 1) shouldBe true
-                            // maximum 3: a fourth concurrent connection waits and times out
-                            val held = (1..3).map { HeldTransaction(onEventLog) }
-                            shouldThrow<Exception> { onEventLog.asPlatform { } }
-                            held.forEach { it.close() }
-                        }
+                        assertPoolsOver(application.jdbcUrl, app, pool)
                     }
             }
+        }
+    }
+
+    private fun assertPoolsOver(
+        applicationUrl: String,
+        app: DataSource,
+        pool: DataSource,
+    ) {
+        TestDatabase(applicationUrl, CATALOG_TABLES).use { db ->
+            val onApp = db.over(app)
+            val onEventLog = db.over(pool)
+            val marker = { access: TestDatabase.Access ->
+                access.asPlatform { fetchCount(PG_CLASS, PG_CLASS_NAME.eq("event_log_marker")) } == 1
+            }
+            marker(onApp) shouldBe false
+            marker(onEventLog) shouldBe true
+            onEventLog.asPlatform { select(CURRENT_USER).fetchSingle().value1() } shouldBe RUNTIME
+            // minimumIdle 1: the pool keeps an idle connection once started (INV-Q-4348)
+            (idleConnections(pool) >= 1) shouldBe true
+            // maximum 3: a fourth concurrent connection waits and times out
+            val held = (1..3).map { HeldTransaction(onEventLog) }
+            shouldThrow<Exception> { onEventLog.asPlatform { } }
+            held.forEach { it.close() }
         }
     }
 

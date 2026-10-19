@@ -31,6 +31,7 @@ data class PackManifest private constructor(
     val contentChecksums: Map<String, Checksum>,
 ) {
     companion object {
+        @Suppress("LongParameterList") // public factory over the manifest fields; INV-Q-4629 (CS-50)
         operator fun invoke(
             packId: PackId,
             packType: PackType,

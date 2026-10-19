@@ -415,7 +415,6 @@ class ProducerReplayIT {
     private fun assertRolesStayInTheirTenant(s: Scenario) {
         val b = tenantB.value
         // The app role cannot delete docsequence rows at all, and bound to one tenant it sees no other tenant's.
-        val recon = s.harness.reconciliation
         val app = OutboxPostgresFixture.APP
         val pw = OutboxPostgresFixture.APP_PASSWORD
         val delete = "delete from reconciliation.consumer_sequence where tenant_id = '$b' returning 1"
@@ -703,7 +702,7 @@ class ProducerReplayIT {
                     canonicalDsl
                         .select(docField, versionField)
                         .from(DSL.table(DOC_STATE))
-                        .where(docField.cast(SQLDataType.CLOB).gt(cursor ?: ""))
+                        .where(docField.cast(SQLDataType.CLOB).gt(cursor.orEmpty()))
                         .and(filter)
                         .orderBy(docField)
                         .limit(limit)

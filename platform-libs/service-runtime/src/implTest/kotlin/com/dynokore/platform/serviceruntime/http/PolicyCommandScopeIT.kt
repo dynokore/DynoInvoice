@@ -66,7 +66,13 @@ class PolicyCommandScopeIT : PolicyHttpBase() {
         val s = Service(image)
         val token = s.user("u1", "e1", roleSet = admin)
         for (op in PolicyOp.entries) {
-            reaches(s, op, "VP-20", request(op, ScopeLevel.ENTITY, "e1", "e1", option = "DAILY_WINDOW"), token)
+            reaches(
+                s,
+                op,
+                "VP-20",
+                request(op, ScopeLevel.ENTITY, "e1", "e1", RequestFields(option = "DAILY_WINDOW")),
+                token,
+            )
             // the equality is ENTITY only
             reaches(s, op, "VP-12", request(op, ScopeLevel.FEED, "feed-9", "e1"), token)
         }
@@ -129,7 +135,9 @@ class PolicyCommandScopeIT : PolicyHttpBase() {
         s.portCalls.shouldBeEmpty()
     }
 
-    /** The row and option that make a TENANT request succeed: a POLICY for setPolicy, a CONTROL for the acknowledgement. */
+    /**
+     * The row and option that make a TENANT request succeed: a POLICY for setPolicy, a CONTROL for the acknowledgement.
+     */
     private fun tenantTarget(op: PolicyOp) = if (op == PolicyOp.SET) "VP-12" to "B" else "VP-07" to "TENANT_ADMIN_SOLE"
 
     private fun tenantRefIsRefused(
@@ -141,8 +149,11 @@ class PolicyCommandScopeIT : PolicyHttpBase() {
         for (op in PolicyOp.entries) {
             val (vp, option) = tenantTarget(op)
             s
-                .post(op.path(vp), request(op, ScopeLevel.TENANT, other(s), option = option), token)
-                .closed(ClosedErrorCode.ACCESS_DENIED)
+                .post(
+                    op.path(vp),
+                    request(op, ScopeLevel.TENANT, other(s), selection = RequestFields(option = option)),
+                    token,
+                ).closed(ClosedErrorCode.ACCESS_DENIED)
         }
         s.writer.calls shouldBe 0
         s.portCalls.shouldBeEmpty()
@@ -158,7 +169,13 @@ class PolicyCommandScopeIT : PolicyHttpBase() {
         val own = s.tenant.toString()
         for (op in PolicyOp.entries) {
             val (vp, option) = tenantTarget(op)
-            val answer = s.post(op.path(vp), request(op, ScopeLevel.TENANT, own, option = option), token).ok()
+            val answer =
+                s
+                    .post(
+                        op.path(vp),
+                        request(op, ScopeLevel.TENANT, own, selection = RequestFields(option = option)),
+                        token,
+                    ).ok()
             answer.body.get("scopeRef").asString() shouldBe own
             answer.body.get("scopeLevel").asString() shouldBe "TENANT"
         }
@@ -188,11 +205,11 @@ class PolicyCommandScopeIT : PolicyHttpBase() {
     fun `TENANT with the upper-case form of the token's own id is 403 SRT-004 with zero writer calls`(image: String) =
         tenantRefIsRefused(image) { it.tenant.toString().uppercase() }
 
-    @OnPostgres
-    fun `a tenantless token reaches only INSTALLATION under the platform tenant, a tenant token never`(image: String) {
-        val s = Service(image)
-        val operator = s.operator("op", setOf("platform.engineer"))
-        val tenantUser = s.user("u1", "e1", roleSet = setOf("platform.engineer", "tenant.admin"))
+    private fun assertScopesRefused(
+        s: Service,
+        operator: String,
+        tenantUser: String,
+    ) {
         for (op in PolicyOp.entries) {
             val vp = "VP-72"
             // a tenant-scoped target from a tenantless token, and INSTALLATION from a tenant token: 403, nothing asked
@@ -211,17 +228,25 @@ class PolicyCommandScopeIT : PolicyHttpBase() {
             s
                 .post(
                     op.path(vp),
-                    request(op, ScopeLevel.INSTALLATION, option = "Y"),
+                    request(op, ScopeLevel.INSTALLATION, selection = RequestFields(option = "Y")),
                     tenantUser,
                 ).closed(ClosedErrorCode.ACCESS_DENIED)
         }
+    }
+
+    @OnPostgres
+    fun `a tenantless token reaches only INSTALLATION under the platform tenant, a tenant token never`(image: String) {
+        val s = Service(image)
+        val operator = s.operator("op", setOf("platform.engineer"))
+        val tenantUser = s.user("u1", "e1", roleSet = setOf("platform.engineer", "tenant.admin"))
+        assertScopesRefused(s, operator, tenantUser)
         s.portCalls.shouldBeEmpty()
         s.writer.calls shouldBe 0
         // INSTALLATION from the tenantless token: the port is asked under the platform tenant, the writer is reached
         val answer =
             s.post(
                 PolicyOp.SET.path("VP-72"),
-                request(PolicyOp.SET, ScopeLevel.INSTALLATION, option = "Y"),
+                request(PolicyOp.SET, ScopeLevel.INSTALLATION, selection = RequestFields(option = "Y")),
                 operator,
             )
         answer.ok()
@@ -247,7 +272,7 @@ class PolicyCommandScopeIT : PolicyHttpBase() {
 
     private fun entityBody(op: PolicyOp): String {
         val (_, option, role) = entityTarget(op)
-        return request(op, ScopeLevel.ENTITY, "E-1", "E-1", option = option, asRole = role)
+        return request(op, ScopeLevel.ENTITY, "E-1", "E-1", RequestFields(option = option, asRole = role))
     }
 
     @OnPostgres
@@ -327,6 +352,34 @@ class PolicyCommandScopeIT : PolicyHttpBase() {
         s.stored() shouldBe 0
     }
 
+    private fun assertAckMapped(
+        s: Service,
+        token: String,
+        relaxation: String,
+    ) {
+        val ack =
+            listOf(
+                """{"scopeLevel":"GROUP","scopeRef":"g-1","selected":[{"option":"TENANT_ADMIN_SOLE"}],""",
+                """"effectiveDate":"2026-11-15","asRole":"tenant.admin","relaxationId":"$relaxation",""",
+                """"reason":"accepted"}""",
+            ).joinToString("")
+        val ackKey = UUID.randomUUID().toString()
+        s.post(PolicyOp.ACK.path("VP-07"), ack, token, ackKey)
+        val acknowledgement = s.writer.acknowledgements.single()
+        acknowledgement.key.value shouldBe "VP-07"
+        acknowledgement.level shouldBe ScopeLevel.GROUP
+        acknowledgement.scope.target(ScopeLevel.GROUP).let {
+            it.tenant shouldBe s.tenant
+            it.ref.id shouldBe "g-1"
+        }
+        acknowledgement.selected.map { it.key } shouldBe listOf("TENANT_ADMIN_SOLE")
+        acknowledgement.asRole shouldBe "tenant.admin"
+        acknowledgement.relaxation!!.value.toString() shouldBe relaxation
+        acknowledgement.reason shouldBe "accepted"
+        acknowledgement.actor.principal shouldBe "u1"
+        acknowledgement.causation.value shouldBe "idempotency-key:$ackKey"
+    }
+
     @OnPostgres
     fun `the request maps field by field to the command, the tenant from the token and the causation from the key`(
         image: String,
@@ -363,27 +416,7 @@ class PolicyCommandScopeIT : PolicyHttpBase() {
         command.causation.value shouldBe "idempotency-key:$key"
         command.correlation.value.startsWith("http:") shouldBe true
 
-        val ack =
-            listOf(
-                """{"scopeLevel":"GROUP","scopeRef":"g-1","selected":[{"option":"TENANT_ADMIN_SOLE"}],""",
-                """"effectiveDate":"2026-11-15","asRole":"tenant.admin","relaxationId":"$relaxation",""",
-                """"reason":"accepted"}""",
-            ).joinToString("")
-        val ackKey = UUID.randomUUID().toString()
-        s.post(PolicyOp.ACK.path("VP-07"), ack, token, ackKey)
-        val acknowledgement = s.writer.acknowledgements.single()
-        acknowledgement.key.value shouldBe "VP-07"
-        acknowledgement.level shouldBe ScopeLevel.GROUP
-        acknowledgement.scope.target(ScopeLevel.GROUP).let {
-            it.tenant shouldBe s.tenant
-            it.ref.id shouldBe "g-1"
-        }
-        acknowledgement.selected.map { it.key } shouldBe listOf("TENANT_ADMIN_SOLE")
-        acknowledgement.asRole shouldBe "tenant.admin"
-        acknowledgement.relaxation!!.value.toString() shouldBe relaxation
-        acknowledgement.reason shouldBe "accepted"
-        acknowledgement.actor.principal shouldBe "u1"
-        acknowledgement.causation.value shouldBe "idempotency-key:$ackKey"
+        assertAckMapped(s, token, relaxation)
     }
 
     @OnPostgres
@@ -397,7 +430,7 @@ class PolicyCommandScopeIT : PolicyHttpBase() {
         fun set(extra: String) =
             s.post(
                 PolicyOp.SET.path("VP-12"),
-                request(PolicyOp.SET, ScopeLevel.TENANT, tenantRef, extra = extra),
+                request(PolicyOp.SET, ScopeLevel.TENANT, tenantRef, selection = RequestFields(extra = extra)),
                 token,
             )
 

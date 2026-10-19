@@ -28,7 +28,9 @@ import org.springframework.test.web.client.response.MockRestResponseCreators.wit
 import org.springframework.web.client.RestClient
 import java.time.Duration
 
-/** INV-T-2876: the tenancy-svc and access-svc fallbacks over the generated clients (INV-REQ-1200 b2, INV-REQ-1201 b3). */
+/**
+ * INV-T-2876: the tenancy-svc and access-svc fallbacks over the generated clients (INV-REQ-1200 b2, INV-REQ-1201 b3).
+ */
 class FallbacksTest {
     private val deadline = Deadline.after(Duration.ofMillis(500), CLOCK)
     private val builder = RestClient.builder().baseUrl("http://svc")

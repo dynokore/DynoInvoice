@@ -9,7 +9,8 @@ import org.springframework.context.annotation.Import
  * The L1 composition (INV-MOD-2371, INV-T-2875, INV-Q-3710): each L1 module's wiring, in dependency order, and the
  * job command HTTP surface that needs it.
  *
- * Its own auto-configuration, listed in `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`
+ * Its own auto-configuration, listed in
+ * `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`
  * and ordered after ServiceRuntimeConfiguration, Spring Boot's DataSourceAutoConfiguration and product-runtime's
  * ProductRuntimeConfiguration (INV-T-3881; rulings INV-Q-3877, INV-Q-3889). Its `@ConditionalOnBean`s are evaluated
  * when it is registered, and they decide on beans from those three: the application DataSource that

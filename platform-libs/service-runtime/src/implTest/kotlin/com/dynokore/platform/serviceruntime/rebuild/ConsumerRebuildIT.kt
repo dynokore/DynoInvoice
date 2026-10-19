@@ -41,6 +41,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
+import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 import java.time.Clock
 import java.time.OffsetDateTime
@@ -80,7 +81,8 @@ class ConsumerRebuildIT {
 
     /**
      * Replay state (INV-T-4134; INV-Q-3671, INV-Q-4115): the stored `consumer_replay.scope` of each scope kind is the
-     * JSON of the request's scope; a caller who is not a platform operator gets EVL-002 and nothing is written, with the
+     * JSON of the request's scope; a caller who is not a platform operator gets EVL-002 and nothing is written, with
+     * the
      * request otherwise valid (a purge watermark ahead of the consumer).
      */
     @ParameterizedTest(name = "{displayName}[{0}]")
@@ -288,27 +290,31 @@ class ConsumerRebuildIT {
             assertEquals(3L, h.count("outbox"))
 
             Checks(h).repeatOverPairs(done)
-            // Another replay (same mode and scope) pending on one of the pairs only is EVL-004 too.
-            val scopeJson = ReplayJson().writeScope(ReplayScope.Tenant(TENANT))
-            h.delete("consumer_replay", f("producer").eq("b-svc"))
-            h.insert(
-                "consumer_replay",
-                UUID.randomUUID(),
-                CONSUMER,
-                "b-svc",
-                "SCOPE",
-                scopeJson,
-                arrayOf(MULTI),
-                OffsetDateTime.now(),
-                null,
-                null,
-            )
-            assertEquals(
-                refused(RebuildErrorCode.OTHER_REPLAY_PENDING),
-                h.runtime().rebuildConsumer(h.request(topic = MULTI)),
-            )
+            assertOtherReplayPendingOnOnePair(h)
             assertEquals(3L, h.count("outbox"))
         }
+    }
+
+    private fun assertOtherReplayPendingOnOnePair(h: Harness) {
+        // Another replay (same mode and scope) pending on one of the pairs only is EVL-004 too.
+        val scopeJson = ReplayJson().writeScope(ReplayScope.Tenant(TENANT))
+        h.delete("consumer_replay", f("producer").eq("b-svc"))
+        h.insert(
+            "consumer_replay",
+            UUID.randomUUID(),
+            CONSUMER,
+            "b-svc",
+            "SCOPE",
+            scopeJson,
+            arrayOf(MULTI),
+            OffsetDateTime.now(),
+            null,
+            null,
+        )
+        assertEquals(
+            refused(RebuildErrorCode.OTHER_REPLAY_PENDING),
+            h.runtime().rebuildConsumer(h.request(topic = MULTI)),
+        )
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
@@ -432,7 +438,9 @@ class ConsumerRebuildIT {
     private inner class Checks(
         private val h: Harness,
     ) {
-        /** The request event and the audit entry of [done]: the operator, the action, the key and the prior position. */
+        /**
+         * The request event and the audit entry of [done]: the operator, the action, the key and the prior position.
+         */
         fun assertRequestedAndAudited(
             done: RebuildOutcome.Done,
             request: RebuildConsumerRequest,
@@ -456,7 +464,9 @@ class ConsumerRebuildIT {
             assertEquals(LIVE, mapper.readTree(audit.get("scope").asString()).get("topic").asString())
         }
 
-        /** A repeat returns the pending replay [done] and writes nothing; another scope while it is pending is EVL-004. */
+        /**
+         * A repeat returns the pending replay [done] and writes nothing; another scope while it is pending is EVL-004.
+         */
         fun assertRepeatWritesNothing(done: RebuildOutcome.Done) {
             // A repeat for the pair with the same mode and scope: the pending replay, nothing written (INV-Q-3665).
             val repeat = h.runtime().rebuildConsumer(h.request()) as RebuildOutcome.Done
@@ -635,7 +645,10 @@ class ConsumerRebuildIT {
             },
         )
 
-        /** The read-model table of the full sync is provisioned with the container ([MATCH_VIEW_DDL]); kept for the tests' reading order. */
+        /**
+         * The read-model table of the full sync is provisioned with the container ([MATCH_VIEW_DDL]); kept for the
+         * tests' reading order.
+         */
         fun matchView() = Unit
 
         /** Rows of [table] (in [SCHEMA] unless qualified) that meet every one of [where]. */
@@ -733,7 +746,7 @@ class ConsumerRebuildIT {
 
         fun nextOffset(topic: String = LIVE): Long = checkNotNull(nextOffsetOrNull(topic))
 
-        fun data(type: String) =
+        fun data(type: String): List<JsonNode> =
             admin.asPlatform {
                 select(DSL.field(DSL.name("data"), SQLDataType.JSONB))
                     .from(tbl("outbox"))

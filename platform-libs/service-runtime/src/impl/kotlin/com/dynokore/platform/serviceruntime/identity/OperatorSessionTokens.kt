@@ -15,6 +15,7 @@ import java.security.spec.X509EncodedKeySpec
 import java.text.ParseException
 import java.time.Clock
 import java.time.Duration
+import java.time.Instant
 import java.util.Base64
 
 /**
@@ -29,7 +30,8 @@ import java.util.Base64
  *  - its `act` is an object with a `role` and a `case` as openOperatorSession's `caseId` allows (coordinator ruling
  *    INV-Q-4529): 1 to 64 code points, no ':' and no ISO control character (U+0000-U+001F, U+007F-U+009F), and
  *    at least one outside the caseId whitespace set (coordinator ruling INV-Q-4534); the rule is
- *    [OperatorSession.isValidCase], and a token whose case breaks it is refused (null, 401). A ':' would make `case <case>` and `case <case>: <own reason>` ambiguous, and a
+ *    [OperatorSession.isValidCase], and a token whose case breaks it is refused (null, 401). A ':' would make `case
+ * <case>` and `case <case>: <own reason>` ambiguous, and a
  *    control character would forge structure in an audit reason. The `role` may not hold a control character either.
  * The caller checks `sub` and `tenant_id`. Anything else is refused (null, 401).
  */
@@ -39,13 +41,16 @@ internal class OperatorSessionTokens(
 ) {
     /** The verified claims and the session, or null when the token is refused. */
     fun verify(jwt: SignedJWT): Pair<JWTClaimsSet, OperatorSession>? {
-        val key = jwt.header.keyID?.let(authority.operatorSessionKeys::valid) ?: return null
-        if (jwt.header.algorithm?.name != key.alg) return null
-        val verifier = verifierFor(jwt.header, key) ?: return null
+        val key =
+            jwt.header.keyID?.let(authority.operatorSessionKeys::valid)?.takeIf {
+                jwt.header.algorithm?.name ==
+                    it.alg
+            }
+        val verifier = key?.let { verifierFor(jwt.header, it) } ?: return null
         val signed =
             try {
                 jwt.verify(verifier)
-            } catch (invalid: JOSEException) {
+            } catch (expected: JOSEException) {
                 false
             }
         val claims = if (signed) claimsOf(jwt) else null
@@ -66,11 +71,11 @@ internal class OperatorSessionTokens(
         return try {
             val spki = X509EncodedKeySpec(Base64.getDecoder().decode(key.publicKey))
             DefaultJWSVerifierFactory().createJWSVerifier(header, KeyFactory.getInstance(family).generatePublic(spki))
-        } catch (malformed: IllegalArgumentException) {
+        } catch (expected: IllegalArgumentException) {
             null
-        } catch (unusable: GeneralSecurityException) {
+        } catch (expected: GeneralSecurityException) {
             null
-        } catch (unusable: JOSEException) {
+        } catch (expected: JOSEException) {
             null
         }
     }
@@ -83,9 +88,16 @@ internal class OperatorSessionTokens(
         }
 
     private fun withinLifetime(claims: JWTClaimsSet): Boolean {
-        val issued = claims.issueTime?.toInstant() ?: return false
-        val expires = claims.expirationTime?.toInstant() ?: return false
-        val notBefore = claims.notBeforeTime?.toInstant()
+        val issued = claims.issueTime?.toInstant()
+        val expires = claims.expirationTime?.toInstant()
+        return issued != null && expires != null && isLifetimeValid(issued, expires, claims.notBeforeTime?.toInstant())
+    }
+
+    private fun isLifetimeValid(
+        issued: Instant,
+        expires: Instant,
+        notBefore: Instant?,
+    ): Boolean {
         val now = clock.instant()
         return expires.isAfter(issued) &&
             !Duration.between(issued, expires).minus(MAX_LIFETIME).isPositive &&

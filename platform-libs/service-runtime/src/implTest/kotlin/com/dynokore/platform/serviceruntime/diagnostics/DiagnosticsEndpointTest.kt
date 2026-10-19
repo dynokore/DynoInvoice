@@ -15,7 +15,10 @@ import java.nio.file.Path
 import java.time.Clock
 import java.util.Properties
 
-/** FR-AE.82: "each service exposes the same diagnostic endpoint: version, health, recent error codes, queue and outbox lag". */
+/**
+ * FR-AE.82: "each service exposes the same diagnostic endpoint: version, health, recent error codes, queue and outbox
+ * lag".
+ */
 class DiagnosticsEndpointTest {
     private fun <T : Any> providerOf(value: T?): ObjectProvider<T> =
         object : ObjectProvider<T> {

@@ -13,10 +13,12 @@ class UuidV7(
         val bytes = ByteArray(RANDOM_BYTES).also { random.nextBytes(it) }
         val millis = at.toEpochMilli()
         var high = (millis shl TIME_SHIFT) or (VERSION_7 shl VERSION_SHIFT)
-        high = high or ((bytes[0].toLong() and 0xFF) shl 4) or ((bytes[1].toLong() and 0xFF) shr 4)
+        high =
+            high or ((bytes[0].toLong() and BYTE_MASK) shl NIBBLE_BITS) or
+            ((bytes[1].toLong() and BYTE_MASK) shr NIBBLE_BITS)
         var low = 0L
         for (index in 2 until RANDOM_BYTES) {
-            low = (low shl 8) or (bytes[index].toLong() and 0xFF)
+            low = (low shl Byte.SIZE_BITS) or (bytes[index].toLong() and BYTE_MASK)
         }
         low = (low and VARIANT_MASK) or VARIANT_BITS
         return UUID(high, low)
@@ -24,6 +26,8 @@ class UuidV7(
 
     private companion object {
         const val RANDOM_BYTES = 10
+        const val BYTE_MASK = 0xFFL
+        const val NIBBLE_BITS = 4
         const val TIME_SHIFT = 16
         const val VERSION_SHIFT = 12
         const val VERSION_7 = 7L

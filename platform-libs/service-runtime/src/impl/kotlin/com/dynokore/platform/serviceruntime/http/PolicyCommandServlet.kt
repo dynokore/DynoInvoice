@@ -75,11 +75,6 @@ class PolicyCommandServlet(
 ) : HttpServlet() {
     private val mapper = ObjectMapper()
 
-    private class Violation(
-        message: String,
-        val code: ClosedErrorCode = ClosedErrorCode.CONTRACT_VIOLATION,
-    ) : RuntimeException(message)
-
     override fun service(
         request: HttpServletRequest,
         response: HttpServletResponse,
@@ -88,8 +83,8 @@ class PolicyCommandServlet(
         val answer =
             try {
                 handle(request, correlation)
-            } catch (failure: RuntimeException) {
-                log.error("policy command failed: {}", failure.javaClass.name) // CS-34: class only
+            } catch (expected: RuntimeException) {
+                log.error("policy command failed: {}", expected.javaClass.name) // CS-34: class only
                 Problems.serverError(correlation)
             }
         response.status = answer.status
@@ -98,48 +93,62 @@ class PolicyCommandServlet(
         response.writer.write(answer.body)
     }
 
+    private class Admitted(
+        val principal: EndUserPrincipal,
+        val parsed: Parsed,
+        val granted: Set<String>,
+        val body: ByteArray,
+    )
+
     private fun handle(
         request: HttpServletRequest,
         correlation: String,
     ): StoredResponse {
-        val path = request.requestURI.removePrefix(request.contextPath.orEmpty())
-        val route = ROUTE.matchEntire(path) ?: return Problems.notFound(correlation)
-        val acknowledge = route.groupValues[2].isNotEmpty()
-        if (request.method != "POST") return Problems.methodNotAllowed(correlation)
-        val principal =
-            try {
-                principals.resolve(request.getHeader(AUTHORIZATION))
-            } catch (_: TokenIssuerUnavailableException) {
-                return Problems.closed(ClosedErrorCode.ISSUER_UNAVAILABLE, correlation)
-            } ?: return Problems.unauthenticated(correlation)
-        val body = request.inputStream.readNBytes(MAX_BODY + 1)
-        val parsed =
-            try {
-                if (body.size > MAX_BODY) throw Violation("request body too large")
-                Parsed(
-                    variationPoint = URLDecoder.decode(route.groupValues[1], StandardCharsets.UTF_8),
-                    acknowledge = acknowledge,
-                    key = idempotencyKey(request.getHeader(IDEMPOTENCY_KEY)),
-                    body = jsonObject(body),
-                )
-            } catch (violation: Violation) {
-                return Problems.closed(violation.code, correlation, violation.message.orEmpty())
+        val path = CommandHttp.path(request)
+        return when (val step = admit(request, path, correlation)) {
+            is Step.Stop -> {
+                step.response
             }
-        val granted = access(principal, parsed) ?: return Problems.accessDenied(correlation)
-        val fingerprint = fingerprint(request.method, path, body)
-        val outcome =
-            bound(principal) {
-                scope.transactions.inTransaction {
-                    idempotency.once(principal.tenant, principal.actor, parsed.key, fingerprint) {
-                        execute(parsed, Actor(principal.actor, granted), correlation)
+
+            is Step.Go -> {
+                val admitted = step.value
+                val principal = admitted.principal
+                val fingerprint = CommandHttp.fingerprint(request.method, path, admitted.body)
+                val outcome =
+                    CommandHttp.bound(scope, principal) {
+                        scope.transactions.inTransaction {
+                            idempotency.once(principal.tenant, principal.actor, admitted.parsed.key, fingerprint) {
+                                execute(admitted.parsed, Actor(principal.actor, admitted.granted), correlation)
+                            }
+                        }
                     }
-                }
+                CommandHttp.answer(outcome, correlation)
             }
-        return when (outcome) {
-            is IdempotencyOutcome.Fresh -> outcome.response
-            is IdempotencyOutcome.Replay -> outcome.response
-            IdempotencyOutcome.InFlight -> Problems.inFlight(correlation)
-            IdempotencyOutcome.DifferentRequest -> Problems.differentRequest(correlation)
+        }
+    }
+
+    private fun admit(
+        request: HttpServletRequest,
+        path: String,
+        correlation: String,
+    ): Step<Admitted> {
+        val route = ROUTE.matchEntire(path) ?: return Step.Stop(Problems.notFound(correlation))
+        val acknowledge = route.groupValues[2].isNotEmpty()
+        return CommandHttp.caller(request, principals, correlation).andThen { principal ->
+            val body = CommandHttp.body(request, MAX_BODY)
+            CommandHttp
+                .parsed(correlation) {
+                    if (body.size > MAX_BODY) CommandViolation.raise("request body too large")
+                    Parsed(
+                        variationPoint = URLDecoder.decode(route.groupValues[1], StandardCharsets.UTF_8),
+                        acknowledge = acknowledge,
+                        key = CommandHttp.idempotencyKey(request),
+                        body = CommandHttp.jsonObject(mapper, body),
+                    )
+                }.andThen { parsed ->
+                    access(principal, parsed)?.let { Step.Go(Admitted(principal, parsed, it, body)) }
+                        ?: Step.Stop(Problems.accessDenied(correlation))
+                }
         }
     }
 
@@ -153,14 +162,19 @@ class PolicyCommandServlet(
     ): Set<String>? {
         val tenant = principal.tenant
         val level = parsed.level
-        if ((tenant == null) != (level == ScopeLevel.INSTALLATION)) return null
-        if (level == ScopeLevel.TENANT && parsed.scopeRef != tenant.toString()) return null
         val entity = parsed.entity
-        if (entity != null && principal.entitySetCurrent && !principal.covers(entity)) return null
+        val inScope =
+            (tenant == null) == (level == ScopeLevel.INSTALLATION) &&
+                !(level == ScopeLevel.TENANT && parsed.scopeRef != tenant.toString()) &&
+                !(entity != null && principal.entitySetCurrent && !principal.covers(entity))
         val held =
-            try {
-                roles?.rolesOf(principal.actor, tenant ?: TenantId.PLATFORM, level, parsed.scopeRef, entity?.value)
-            } catch (_: RuntimeException) {
+            if (inScope) {
+                try {
+                    roles?.rolesOf(principal.actor, tenant ?: TenantId.PLATFORM, level, parsed.scopeRef, entity?.value)
+                } catch (_: RuntimeException) {
+                    null
+                }
+            } else {
                 null
             }
         return held?.takeIf { it.isNotEmpty() }
@@ -185,61 +199,72 @@ class PolicyCommandServlet(
         val profileVersion: String? = if (acknowledge) null else profileVersion()
 
         init {
-            if (!VARIATION_POINT.matches(variationPoint)) throw Violation("variationPoint must match ^VP-[0-9]+$")
+            if (!VARIATION_POINT.matches(
+                    variationPoint,
+                )
+            ) {
+                CommandViolation.raise("variationPoint must match ^VP-[0-9]+$")
+            }
             val entityRef = optionalText("entityRef")
             // the present-exactly-when rules of the pinned contract, whether or not the schema already refuses them
-            if (scopeRef != null && scopeRef.isEmpty()) throw Violation("scopeRef must not be empty")
-            if (entityRef != null && entityRef.isEmpty()) throw Violation("entityRef must not be empty")
+            if (scopeRef != null && scopeRef.isEmpty()) CommandViolation.raise("scopeRef must not be empty")
+            if (entityRef != null && entityRef.isEmpty()) CommandViolation.raise("entityRef must not be empty")
             if ((scopeRef == null) != (level == ScopeLevel.INSTALLATION)) {
-                throw Violation("scopeRef is absent exactly when scopeLevel is INSTALLATION")
+                CommandViolation.raise("scopeRef is absent exactly when scopeLevel is INSTALLATION")
             }
             if ((entityRef != null) != level.entityScoped) {
-                throw Violation(
+                CommandViolation.raise(
                     "entityRef is present exactly when scopeLevel is ENTITY, FEED, AP_CONNECTION or CLIENT_ENTITY",
                 )
             }
             // INV-Q-5217: code-point equality, no trimming, no case folding; ENTITY only
             if (level == ScopeLevel.ENTITY && entityRef != scopeRef) {
-                throw Violation("entityRef must equal scopeRef when scopeLevel is ENTITY")
+                CommandViolation.raise("entityRef must equal scopeRef when scopeLevel is ENTITY")
             }
             entity =
                 entityRef?.let {
                     try {
                         EntityRef(it)
                     } catch (_: IllegalArgumentException) {
-                        throw Violation("entityRef is not a valid entity reference")
+                        CommandViolation.raise("entityRef is not a valid entity reference")
                     }
                 }
-            reason?.let { if (it.length > MAX_REASON) throw Violation("reason is at most $MAX_REASON characters") }
+            reason?.let {
+                if (it.length >
+                    MAX_REASON
+                ) {
+                    CommandViolation.raise("reason is at most $MAX_REASON characters")
+                }
+            }
         }
 
         private fun scopeLevel(): ScopeLevel {
             val text = requiredText("scopeLevel")
             return ScopeLevel.entries.firstOrNull { it.name == text }
-                ?: throw Violation("scopeLevel is not a scope level")
+                ?: CommandViolation.raise("scopeLevel is not a scope level")
         }
 
         private fun source(): SettingSource {
             val text = optionalText("source") ?: return SettingSource.OVERRIDE
             return SettingSource.entries.firstOrNull { it.name == text }
-                ?: throw Violation("source is OVERRIDE or PROFILE")
+                ?: CommandViolation.raise("source is OVERRIDE or PROFILE")
         }
 
         private fun profileRef(): String? {
             val text = optionalText("profileRef") ?: return null
             if (text.isEmpty() || text.length > MAX_PROFILE_REF) {
-                throw Violation("profileRef is 1 to $MAX_PROFILE_REF characters")
+                CommandViolation.raise("profileRef is 1 to $MAX_PROFILE_REF characters")
             }
-            if (source != SettingSource.PROFILE) throw Violation("profileRef is only for source PROFILE")
+            if (source != SettingSource.PROFILE) CommandViolation.raise("profileRef is only for source PROFILE")
             return text
         }
 
         private fun profileVersion(): String? {
             val node = body.get("profileVersion")?.takeUnless { it.isNull } ?: return null
             if (!node.isIntegralNumber || !node.canConvertToLong() || node.asLong() < 1) {
-                throw Violation("profileVersion must be an integer of at least 1")
+                CommandViolation.raise("profileVersion must be an integer of at least 1")
             }
-            if (source != SettingSource.PROFILE) throw Violation("profileVersion is only for source PROFILE")
+            if (source != SettingSource.PROFILE) CommandViolation.raise("profileVersion is only for source PROFILE")
             return node.asLong().toString()
         }
 
@@ -247,35 +272,37 @@ class PolicyCommandServlet(
             try {
                 LocalDate.parse(requiredText("effectiveDate"))
             } catch (_: DateTimeParseException) {
-                throw Violation("effectiveDate must be a date")
+                CommandViolation.raise("effectiveDate must be a date")
             }
 
         /** An empty `selected` is the writer's POL-012, not a shape error; a malformed item is SRT-001. */
         private fun selectedOptions(): List<SelectedOption> {
             val node = body.get("selected")
-            if (node == null || !node.isArray) throw Violation("selected must be an array")
+            if (node == null || !node.isArray) CommandViolation.raise("selected must be an array")
             return node.toList().map { item ->
-                if (!item.isObject) throw Violation("a selected item must be an object")
+                if (!item.isObject) CommandViolation.raise("a selected item must be an object")
                 val option = item.get("option")
                 if (option == null || !option.isString || option.asString().isEmpty()) {
-                    throw Violation("a selected item names its option")
+                    CommandViolation.raise("a selected item names its option")
                 }
                 try {
                     SelectedOption(option.asString(), item.get("value")?.let { mapper.writeValueAsString(it) })
                 } catch (_: IllegalArgumentException) {
-                    throw Violation("a selected item is not a valid option")
+                    CommandViolation.raise("a selected item is not a valid option")
                 }
             }
         }
 
         private fun requiredText(field: String): String =
-            optionalText(field)?.takeIf { it.isNotEmpty() } ?: throw Violation("$field is required")
+            optionalText(field)?.takeIf { it.isNotEmpty() } ?: CommandViolation.raise("$field is required")
 
         private fun optionalText(field: String): String? {
-            val value = body.get(field) ?: return null
-            if (value.isNull) return null
-            if (!value.isString) throw Violation("$field must be a string")
-            return value.asString()
+            val value = body.get(field)
+            return when {
+                value == null || value.isNull -> null
+                !value.isString -> CommandViolation.raise("$field must be a string")
+                else -> value.asString()
+            }
         }
 
         private fun uuid(
@@ -287,24 +314,58 @@ class PolicyCommandServlet(
                     if (it.toString() !=
                         text.lowercase()
                     ) {
-                        throw Violation("$field must be a UUID")
+                        CommandViolation.raise("$field must be a UUID")
                     }
                 }
             } catch (_: IllegalArgumentException) {
-                throw Violation("$field must be a UUID")
+                CommandViolation.raise("$field must be a UUID")
             }
+
+        private fun entityValue(): String = (entity ?: throw NullPointerException("entity is null")).value
 
         /** The scope the writer receives: the token's tenant, never a field (CS-23). */
         fun policyScope(tenant: TenantId?): PolicyScope {
             val ref = scopeRef.orEmpty()
             return when (level) {
-                ScopeLevel.INSTALLATION -> PolicyScope.installation()
-                ScopeLevel.TENANT -> PolicyScope.tenant(checkNotNull(tenant))
-                ScopeLevel.GROUP -> PolicyScope.tenant(checkNotNull(tenant), group = ref)
-                ScopeLevel.ENTITY -> PolicyScope.entity(checkNotNull(tenant), ref)
-                ScopeLevel.FEED -> PolicyScope.entity(checkNotNull(tenant), entity!!.value, feed = ref)
-                ScopeLevel.AP_CONNECTION -> PolicyScope.entity(checkNotNull(tenant), entity!!.value, apConnection = ref)
-                ScopeLevel.CLIENT_ENTITY -> PolicyScope.entity(checkNotNull(tenant), entity!!.value, clientEntity = ref)
+                ScopeLevel.INSTALLATION -> {
+                    PolicyScope.installation()
+                }
+
+                ScopeLevel.TENANT -> {
+                    PolicyScope.tenant(checkNotNull(tenant))
+                }
+
+                ScopeLevel.GROUP -> {
+                    PolicyScope.tenant(checkNotNull(tenant), group = ref)
+                }
+
+                ScopeLevel.ENTITY -> {
+                    PolicyScope.entity(checkNotNull(tenant), ref)
+                }
+
+                ScopeLevel.FEED -> {
+                    PolicyScope.entity(
+                        checkNotNull(tenant),
+                        entityValue(),
+                        feed = ref,
+                    )
+                }
+
+                ScopeLevel.AP_CONNECTION -> {
+                    PolicyScope.entity(
+                        checkNotNull(tenant),
+                        entityValue(),
+                        apConnection = ref,
+                    )
+                }
+
+                ScopeLevel.CLIENT_ENTITY -> {
+                    PolicyScope.entity(
+                        checkNotNull(tenant),
+                        entityValue(),
+                        clientEntity = ref,
+                    )
+                }
             }
         }
     }
@@ -320,39 +381,9 @@ class PolicyCommandServlet(
             val correlationId = CorrelationId(correlation)
             val causation = CausationId("idempotency-key:${parsed.key}")
             if (parsed.acknowledge) {
-                val command =
-                    AcknowledgeRelaxationCommand(
-                        key,
-                        scopeOf,
-                        parsed.level,
-                        parsed.selected,
-                        parsed.effectiveDate,
-                        actor,
-                        checkNotNull(parsed.asRole),
-                        correlationId,
-                        causation,
-                        parsed.relaxation,
-                        parsed.reason,
-                    )
-                relaxationResponse(writer.acknowledgeControlRelaxation(command))
+                acknowledge(parsed, CommandContext(key, scopeOf, actor, correlationId, causation))
             } else {
-                val command =
-                    SetPolicyCommand(
-                        key,
-                        scopeOf,
-                        parsed.level,
-                        parsed.selected,
-                        parsed.effectiveDate,
-                        parsed.reason,
-                        actor,
-                        correlationId,
-                        causation,
-                        parsed.source,
-                        parsed.profileRef,
-                        parsed.profileVersion,
-                        parsed.relaxation,
-                    )
-                settingResponse(writer.setPolicy(command))
+                set(parsed, CommandContext(key, scopeOf, actor, correlationId, causation))
             }
         } catch (_: UnknownKey) {
             Problems.policy(PolicyErrorCode.UNKNOWN_VARIATION_POINT, correlation)
@@ -366,128 +397,60 @@ class PolicyCommandServlet(
             Problems.contractViolation(invalid.message.orEmpty(), correlation)
         }
 
+    private class CommandContext(
+        val key: VariationPointKey,
+        val scopeOf: PolicyScope,
+        val actor: Actor,
+        val correlationId: CorrelationId,
+        val causation: CausationId,
+    )
+
+    private fun acknowledge(
+        parsed: Parsed,
+        context: CommandContext,
+    ): StoredResponse {
+        val command =
+            AcknowledgeRelaxationCommand(
+                context.key,
+                context.scopeOf,
+                parsed.level,
+                parsed.selected,
+                parsed.effectiveDate,
+                context.actor,
+                checkNotNull(parsed.asRole),
+                context.correlationId,
+                context.causation,
+                parsed.relaxation,
+                parsed.reason,
+            )
+        return PolicyCommandResponses.relaxationResponse(writer.acknowledgeControlRelaxation(command))
+    }
+
+    private fun set(
+        parsed: Parsed,
+        context: CommandContext,
+    ): StoredResponse {
+        val command =
+            SetPolicyCommand(
+                context.key,
+                context.scopeOf,
+                parsed.level,
+                parsed.selected,
+                parsed.effectiveDate,
+                parsed.reason,
+                context.actor,
+                context.correlationId,
+                context.causation,
+                parsed.source,
+                parsed.profileRef,
+                parsed.profileVersion,
+                parsed.relaxation,
+            )
+        return PolicyCommandResponses.settingResponse(writer.setPolicy(command))
+    }
+
     /** A key the catalogue could never register (config-resolver keys are VP-nn or VP-nnn): not registered. */
     private class UnknownKey : RuntimeException()
-
-    private fun settingResponse(change: PolicyChange): StoredResponse {
-        val version = change.version
-        val node = mapper.createObjectNode()
-        node.put("variationPoint", version.key.value)
-        target(node, version)
-        node.set("selected", selected(version.selected))
-        node.put("source", version.source.name)
-        version.profileId?.let { node.put("profileRef", it) }
-        version.profileVersion?.let { node.put("profileVersion", it.toLong()) }
-        version.relaxation?.let { node.put("relaxationId", it.toString()) }
-        node.put("effectiveDate", version.effectiveFrom.toString())
-        node.put("setBy", version.setBy)
-        node.put("reason", version.reason)
-        node.put("recordedAt", version.recordedAt.toString())
-        node.put("settingId", version.id.toString())
-        // the contract's prior carries a value an override or a profile set; the catalogue default is no setting
-        val prior = change.prior
-        val priorSource = prior?.source
-        if (prior == null || priorSource is PolicySource.CatalogueDefault) {
-            node.putNull("prior")
-        } else {
-            val priorNode = node.putObject("prior")
-            priorNode.set("selected", selected(prior.selected))
-            priorNode.put("effectiveDate", prior.at.toString())
-            priorNode.put("source", if (priorSource is PolicySource.Profile) "PROFILE" else "OVERRIDE")
-        }
-        node.put("auditEventId", change.auditEventId)
-        change.policyChangedEventId?.let { node.put("policyChangedEventId", it) }
-            ?: node.putNull("policyChangedEventId")
-        return StoredResponse(HTTP_OK, mapper.writeValueAsString(node))
-    }
-
-    private fun relaxationResponse(status: RelaxationStatus): StoredResponse {
-        val node = mapper.createObjectNode()
-        node.put("relaxationId", status.relaxation.toString())
-        node.put("variationPoint", status.key.value)
-        node.put("scopeLevel", status.target.ref.level.name)
-        if (status.target.ref.level != ScopeLevel.INSTALLATION) node.put("scopeRef", status.target.ref.id)
-        status.target.entity?.let { node.put("entityRef", it) }
-        node.set("selected", selected(status.selected))
-        node.put("effectiveDate", status.effectiveFrom.toString())
-        val acknowledgements = node.putArray("acknowledgements")
-        status.acknowledgements.forEach {
-            acknowledgements
-                .addObject()
-                .put("role", it.role)
-                .put("principal", it.principal)
-                .put("acknowledgedAt", it.acknowledgedAt.toString())
-        }
-        val outstanding = node.putArray("outstandingRoles")
-        status.outstandingRoles.forEach { outstanding.add(it) }
-        node.put("complete", status.complete)
-        return StoredResponse(HTTP_OK, mapper.writeValueAsString(node))
-    }
-
-    /** The stored target: the response `scopeRef` is the stored ref (the token tenant's text for TENANT, INV-Q-5233). */
-    private fun target(
-        node: ObjectNode,
-        version: SettingVersion,
-    ) {
-        node.put("scopeLevel", version.target.ref.level.name)
-        if (version.target.ref.level != ScopeLevel.INSTALLATION) node.put("scopeRef", version.target.ref.id)
-        version.target.entity?.let { node.put("entityRef", it) }
-    }
-
-    private fun selected(options: List<SelectedOption>) =
-        mapper.createArrayNode().also { array ->
-            options.forEach {
-                val item = array.addObject().put("option", it.key)
-                it.valueJson?.let { json -> item.set("value", mapper.readTree(json)) }
-            }
-        }
-
-    private fun <T> bound(
-        principal: EndUserPrincipal,
-        block: () -> T,
-    ): T {
-        val tenant =
-            principal.tenant
-                ?: return checkNotNull(scope.platform) {
-                    "a tenantless command needs the platform binding"
-                }.bindPlatform(principal.actor, block)
-        return scope.tenants.bind(tenant, principal.actor, block)
-    }
-
-    private fun jsonObject(body: ByteArray): JsonNode {
-        if (body.isEmpty()) throw Violation("a request body is required")
-        val node =
-            try {
-                mapper.readTree(body)
-            } catch (_: tools.jackson.core.JacksonException) {
-                throw Violation("request body is not JSON")
-            }
-        if (node == null || !node.isObject) throw Violation("request body must be a JSON object")
-        return node
-    }
-
-    private fun idempotencyKey(header: String?): UUID {
-        val text = header?.trim() ?: throw Violation("Idempotency-Key is required", KEY_INVALID)
-        return try {
-            UUID.fromString(text).also {
-                if (it.toString() != text.lowercase()) throw Violation("Idempotency-Key must be a UUID", KEY_INVALID)
-            }
-        } catch (_: IllegalArgumentException) {
-            throw Violation("Idempotency-Key must be a UUID", KEY_INVALID)
-        }
-    }
-
-    /** API-15: the fingerprint of the method, path and body. */
-    private fun fingerprint(
-        method: String,
-        path: String,
-        body: ByteArray,
-    ): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        digest.update("$method $path\n".toByteArray(StandardCharsets.UTF_8))
-        digest.update(body)
-        return digest.digest().joinToString("") { "%02x".format(java.util.Locale.ROOT, it) }
-    }
 
     companion object {
         /** The servlet mapping of the two operations. */
@@ -495,14 +458,10 @@ class PolicyCommandServlet(
         private val ROUTE = Regex("^/internal/v1/policies/([^/]+)(/relaxations)?$")
         private val VARIATION_POINT = Regex("^VP-[0-9]+$")
         private val KEY = Regex("^VP-[0-9]{2,3}$")
-        private val KEY_INVALID = ClosedErrorCode.IDEMPOTENCY_KEY_INVALID
-        private const val AUTHORIZATION = "Authorization"
-        private const val IDEMPOTENCY_KEY = "Idempotency-Key"
         private const val JSON = "application/json"
         private const val MAX_BODY = 64 * 1024
         private const val MAX_REASON = 500
         private const val MAX_PROFILE_REF = 64
-        private const val HTTP_OK = 200
         private const val HTTP_ERRORS = 400
         private val log = LoggerFactory.getLogger(PolicyCommandServlet::class.java)
     }

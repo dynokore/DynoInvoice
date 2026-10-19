@@ -64,6 +64,13 @@ class JdbcEvidenceLedger(
         // record this method returns matches, field for field, what a later
         // `findByEntityAndPeriod` reads back — not a nanosecond-rounded near-miss.
         val recordedAt = Instant.now().truncatedTo(ChronoUnit.MICROS)
+        val record =
+            EvidenceRecord(tenant, entity, period, type, sequence, content, hash, previousHash, recordedAt, index)
+        insert(record)
+        return record
+    }
+
+    private fun insert(record: EvidenceRecord) {
         dsl
             .insertInto(ledger)
             .columns(
@@ -83,21 +90,20 @@ class JdbcEvidenceLedger(
                 CATEGORY_CODE,
             ).values(
                 UUID.randomUUID(),
-                tenant.value,
-                entity.value,
-                period.value,
-                sequence,
-                type.name,
-                content,
-                hash.hex,
-                previousHash?.hex,
-                recordedAt.atOffset(ZoneOffset.UTC),
-                index.docUuid,
-                index.invoiceNumber,
-                index.counterpartyUen,
-                index.categoryCode,
+                record.tenantId.value,
+                record.entityRef.value,
+                record.periodRef.value,
+                record.sequence,
+                record.evidenceType.name,
+                record.content,
+                record.contentHash.hex,
+                record.previousHash?.hex,
+                record.recordedAt.atOffset(ZoneOffset.UTC),
+                record.index.docUuid,
+                record.index.invoiceNumber,
+                record.index.counterpartyUen,
+                record.index.categoryCode,
             ).execute()
-        return EvidenceRecord(tenant, entity, period, type, sequence, content, hash, previousHash, recordedAt, index)
     }
 
     override fun findByEntityAndPeriod(

@@ -25,7 +25,7 @@ class InstallationFaultsPostgresIT {
     @AfterAll
     fun stop() = harnesses.values.forEach { it.close() }
 
-    private fun cases() =
+    fun cases() =
         listOf("postgres:16", "postgres:17", "postgres:18").flatMap { image ->
             EventMode.entries.map { Arguments.of(image, it) }
         }

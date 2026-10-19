@@ -30,22 +30,33 @@ import org.jooq.impl.QOM
  */
 internal object StatementGuard {
     fun visitStart(context: VisitContext) {
+        refusal(context)?.let { refuse(it) }
+    }
+
+    private fun refusal(context: VisitContext): String? {
         val part = context.queryPart()
-        if (part is SQL && !isJooqOperatorToken(context)) {
-            throw TenantPredicateViolation("a plain-SQL query part is refused, whatever its text")
-        }
-        if (isCustom(part) && !isJooqWindowPart(context)) {
-            throw TenantPredicateViolation("a custom query part is refused: it renders its own SQL text")
-        }
-        if (part is Name && !isRenderedQuotedOrIdentifier(part)) {
-            throw TenantPredicateViolation("a name rendered unquoted is refused: it is SQL text")
-        }
-        if (part is Query && !isSupportedStatement(part)) {
+        return when {
+            part is SQL && !isJooqOperatorToken(context) -> {
+                "a plain-SQL query part is refused, whatever its text"
+            }
+
+            isCustom(part) && !isJooqWindowPart(context) -> {
+                "a custom query part is refused: it renders its own SQL text"
+            }
+
+            part is Name && !isRenderedQuotedOrIdentifier(part) -> {
+                "a name rendered unquoted is refused: it is SQL text"
+            }
+
             // The statement is not rendered into the message: an attached query renders through these listeners.
-            throw TenantPredicateViolation(
+            part is Query && !isSupportedStatement(part) -> {
                 "only SELECT, INSERT, UPDATE, DELETE and MERGE run on a tenancy-jooq DSLContext " +
-                    "(TRUNCATE, DDL and every other statement are refused)",
-            )
+                    "(TRUNCATE, DDL and every other statement are refused)"
+            }
+
+            else -> {
+                null
+            }
         }
     }
 
@@ -148,9 +159,10 @@ internal object StatementGuard {
         val count = parts.getOrNull(parts.size - COUNT_DEPTH)
         return count is QOM.Count &&
             count.`$field`() == null &&
-            parts[parts.size - 3].javaClass.simpleName == "QueryPartCollectionView" &&
+            parts[parts.size - COLLECTION_VIEW_DEPTH].javaClass.simpleName == "QueryPartCollectionView" &&
             parts[parts.size - 2].javaClass.simpleName == "SQLField"
     }
 
     private const val COUNT_DEPTH = 4
+    private const val COLLECTION_VIEW_DEPTH = 3
 }

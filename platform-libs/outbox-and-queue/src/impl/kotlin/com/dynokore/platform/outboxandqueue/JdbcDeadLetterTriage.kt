@@ -18,13 +18,15 @@ import java.util.UUID
  * [DeadLetterTriage] over the `event_dead_letter` table ([OutboxSchema]). Dead letters keep whole rejected envelopes
  * (content) under forced row-level security. It lists them through the sys-owned table function
  * [OutboxSchema.DEAD_LETTER_TRIAGE_PAGE] over the `<svc>_sys`-owned view [OutboxSchema.DEAD_LETTER_TRIAGE_VIEW] (the
- * non-content columns only, ARC 4.3 step 1a), in a platform transaction, and resolves them through the definer function [OutboxSchema.DEAD_LETTER_RESOLVE] (INV-Q-3953); `raw` is
+ * non-content columns only, ARC 4.3 step 1a), in a platform transaction, and resolves them through the definer function
+ * [OutboxSchema.DEAD_LETTER_RESOLVE] (INV-Q-3953); `raw` is
  * read, and filtered by subject or entity, in the letter's tenant session under the tenant policy (INV-T-2997). A
  * letter without a tenant is triaged from metadata alone.
  *
  * Replay writes into a tenant's queue, which only a tenant session may do: for each dead letter it binds the
  * dead letter's tenant ([TenantScope], ARC-21), inserts one replay-lane item addressed to the named consumer in a
- * tenant transaction, then marks the dead letter through [OutboxSchema.DEAD_LETTER_RESOLVE]. The queue item is unique per dead
+ * tenant transaction, then marks the dead letter through [OutboxSchema.DEAD_LETTER_RESOLVE]. The queue item is unique
+ * per dead
  * letter, so a crash between the two steps is repaired by running the replay again.
  */
 class JdbcDeadLetterTriage(
@@ -32,11 +34,12 @@ class JdbcDeadLetterTriage(
     private val dsl: DSLContext,
     schema: String,
     private val clock: Clock,
-    private val mapper: ObjectMapper = ObjectMapper(),
+    mapper: ObjectMapper = ObjectMapper(),
 ) : DeadLetterTriage {
     private val s = SqlIdentifier.require(schema, "schema")
     private val letters: Table<*> = DSL.table(DSL.name(s, OutboxSchema.DEAD_LETTER))
-    private val queue: Table<*> = DSL.table(DSL.name(s, QueueSchema.WORK_QUEUE))
+    private val replayQueue =
+        DeadLetterReplayQueue(scope, dsl, DSL.table(DSL.name(s, QueueSchema.WORK_QUEUE)), clock, mapper)
 
     override fun list(
         scope: DeadLetterScope,
@@ -47,14 +50,16 @@ class JdbcDeadLetterTriage(
         val readsRaw = scope.subject != null || scope.entity != null
         val found = mutableListOf<DeadLetter>()
         var after = 0L
-        while (found.size < limit) {
+        var more = true
+        while (more && found.size < limit) {
             // Without a raw filter one page is the answer; with one, pages are read until `limit` letters match.
             val pageSize = if (readsRaw) MAX_LIMIT else limit
             val page = metadata(scope, status, after, pageSize)
-            if (page.isEmpty()) break
-            after = page.last().id
-            found += withRaw(page, scope)
-            if (page.size < pageSize) break
+            if (page.isNotEmpty()) {
+                after = page.last().id
+                found += withRaw(page, scope)
+            }
+            more = page.size >= pageSize
         }
         return found.take(limit)
     }
@@ -97,7 +102,8 @@ class JdbcDeadLetterTriage(
 
     /**
      * Fills `raw` of each letter with a tenant by reading it in that tenant's session, where the tenant policy applies
-     * (the triage view never exposes it). A letter without a tenant keeps `raw = null`. When [filter] gives a subject or
+     * (the triage view never exposes it). A letter without a tenant keeps `raw = null`. When [filter] gives a subject
+     * or
      * entity, only the letters whose raw envelope matches are returned, and a letter without a tenant never does.
      */
     private fun withRaw(
@@ -106,9 +112,15 @@ class JdbcDeadLetterTriage(
     ): List<DeadLetter> {
         val readsRaw = filter.subject != null || filter.entity != null
         val raws = mutableMapOf<Long, String>()
-        page.filter { it.tenant != null }.groupBy { it.tenant!! }.forEach { (tenant, group) ->
-            raws += rawsOf(tenant, group.map { it.id }, filter)
-        }
+        page
+            .filter { it.tenant != null }
+            .groupBy {
+                it.tenant ?: throw NullPointerException(
+                    "tenant is null",
+                )
+            }.forEach { (tenant, group) ->
+                raws += rawsOf(tenant, group.map { it.id }, filter)
+            }
         return page.mapNotNull { letter ->
             val raw = raws[letter.id]
             when {
@@ -177,56 +189,10 @@ class JdbcDeadLetterTriage(
                 skipped++
                 continue
             }
-            if (enqueueReplay(tenant, letter, consumer)) queued++ else already++
+            if (replayQueue.enqueue(tenant, letter, consumer)) queued++ else already++
             resolve(letter.id, DeadLetterStatus.REPLAYED, null, consumer)
         }
         return ReplayResult(queued, skipped, already)
-    }
-
-    private fun enqueueReplay(
-        tenant: TenantId,
-        letter: DeadLetter,
-        consumer: String,
-    ): Boolean =
-        this.scope.bindWorkload(tenant) {
-            this.scope.transactions.inTransaction {
-                dsl
-                    .insertInto(queue)
-                    .columns(TENANT_ID, PARTITION_KEY, LANE, CONSUMER, PAYLOAD, ENQUEUED_AT, SOURCE_DEAD_LETTER_ID)
-                    .values(
-                        DSL.`val`(tenant.value, SQLDataType.UUID),
-                        DSL.`val`(partitionOf(letter), SQLDataType.CLOB),
-                        DSL.`val`(Lane.REPLAY.name, SQLDataType.CLOB),
-                        DSL.`val`(consumer, SQLDataType.CLOB),
-                        DSL.`val`(payload(letter), SQLDataType.JSONB),
-                        DSL.`val`(clock.instant().atOffset(ZoneOffset.UTC), SQLDataType.TIMESTAMPWITHTIMEZONE),
-                        DSL.`val`(letter.id, SQLDataType.BIGINT),
-                    ).onConflict(SOURCE_DEAD_LETTER_ID)
-                    .where(SOURCE_DEAD_LETTER_ID.isNotNull)
-                    .doNothing()
-                    .execute() == 1
-            }
-        }
-
-    /** The envelope's `subject` (the Doc UUID text) so a document's replays stay in order; else the dead letter itself. */
-    private fun partitionOf(letter: DeadLetter): String =
-        try {
-            mapper
-                .readTree(letter.raw!!)
-                .get("subject")
-                ?.takeIf { it.isString }
-                ?.asString()
-                ?.takeIf { it.isNotBlank() }
-        } catch (_: JacksonException) {
-            null
-        } ?: "dead-letter-${letter.id}"
-
-    private fun payload(letter: DeadLetter): String {
-        val node = mapper.createObjectNode()
-        node.put("deadLetterId", letter.id)
-        node.put("topic", letter.topic)
-        node.put("raw", checkNotNull(letter.raw) { "a replay needs the raw envelope" })
-        return mapper.writeValueAsString(node)
     }
 
     private fun resolve(
@@ -272,12 +238,5 @@ class JdbcDeadLetterTriage(
         const val ENTITY_KEY = "entityref"
         val ID = DSL.field(DSL.name("id"), SQLDataType.BIGINT)
         val RAW = DSL.field(DSL.name("raw"), SQLDataType.CLOB)
-        val TENANT_ID = DSL.field(DSL.name("tenant_id"), SQLDataType.UUID)
-        val PARTITION_KEY = DSL.field(DSL.name("partition_key"), SQLDataType.CLOB)
-        val LANE = DSL.field(DSL.name("lane"), SQLDataType.CLOB)
-        val CONSUMER = DSL.field(DSL.name("consumer"), SQLDataType.CLOB)
-        val PAYLOAD = DSL.field(DSL.name("payload"), SQLDataType.JSONB)
-        val ENQUEUED_AT = DSL.field(DSL.name("enqueued_at"), SQLDataType.TIMESTAMPWITHTIMEZONE)
-        val SOURCE_DEAD_LETTER_ID = DSL.field(DSL.name("source_dead_letter_id"), SQLDataType.BIGINT)
     }
 }

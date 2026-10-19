@@ -19,11 +19,13 @@ import org.springframework.expression.ParserContext
 import org.springframework.expression.common.LiteralExpression
 
 /**
- * Coordinator ruling INV-Q-4694 (C): SpEL is refused where Spring evaluates it. Spring evaluates a template only through
+ * Coordinator ruling INV-Q-4694 (C): SpEL is refused where Spring evaluates it. Spring evaluates a template only
+ * through
  * the bean factory's [BeanExpressionResolver]: `@Value` after placeholder resolution, every EmbeddedValueResolver user
  * (`@Scheduled`, `@RequestMapping` and the rest), `@Value` method parameters and bean-definition strings, whatever the
  * key or property source. This resolver never parses or evaluates: a string without the template prefix is returned
- * unchanged, and any string that contains it fails. The value is never printed (CS-24); Spring's wrapping exception names
+ * unchanged, and any string that contains it fails. The value is never printed (CS-24); Spring's wrapping exception
+ * names
  * the bean and the injection point. No property source is scanned, so text that no evaluation point reads (a CI
  * variable, a pod annotation) never affects start-up.
  */
@@ -52,7 +54,8 @@ class SpelRefusingExpressionResolver : BeanExpressionResolver {
 /**
  * The parser given to Spring's standard resolver that `prepareBeanFactory` created (INV-Q-4694): Spring's
  * ApplicationContextAwareProcessor builds its EmbeddedValueResolver (for every EmbeddedValueResolverAware bean, such as
- * the `@Scheduled` processor) at that moment and keeps that resolver, so replacing the bean factory's resolver alone does
+ * the `@Scheduled` processor) at that moment and keeps that resolver, so replacing the bean factory's resolver alone
+ * does
  * not reach it. It never parses: text without the template prefix is a literal, and a template fails.
  */
 class SpelRefusingExpressionParser : ExpressionParser {
@@ -101,9 +104,12 @@ class SpelRefusalInitializer : ApplicationContextInitializer<ConfigurableApplica
 }
 
 /**
- * The second pass of the SpEL boundary (INV-Q-4694): once every singleton exists, start-up fails, naming the cause, when
- * the bean factory's BeanExpressionResolver is not [SpelRefusingExpressionResolver] (it was replaced after installation),
- * and when Spring Boot's ConditionEvaluationReport holds any OnExpressionCondition outcome (a `@ConditionalOnExpression`
+ * The second pass of the SpEL boundary (INV-Q-4694): once every singleton exists, start-up fails, naming the cause,
+ * when
+ * the bean factory's BeanExpressionResolver is not [SpelRefusingExpressionResolver] (it was replaced after
+ * installation),
+ * and when Spring Boot's ConditionEvaluationReport holds any OnExpressionCondition outcome (a
+ * `@ConditionalOnExpression`
  * evaluated while configuration classes were parsed, before the resolver was installed).
  */
 class SpelBoundaryRecheck :

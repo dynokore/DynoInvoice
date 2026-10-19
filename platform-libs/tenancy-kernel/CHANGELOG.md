@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [4.0.1] - 2026-10-19
+### Changed
+- detekt type-resolution findings fixed (platform-build 0.21.0, INV-Q-4629); no behaviour or API change
+
 ## [4.0.0] - 2026-10-19
 ### Changed
 - BREAKING (INV-T-4156 last slice; INV-Q-5352, INV-Q-5354 (A), owner ruling INV-Q-4121): `TransactionRunnerImpl` takes `keys: BindingKeySource` with no default

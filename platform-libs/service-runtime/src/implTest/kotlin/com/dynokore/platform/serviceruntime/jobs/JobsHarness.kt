@@ -163,11 +163,12 @@ class JobsHarness
             val clock: Clock,
             authorizer: JobCommandAuthorizer,
             deadlines: DeadlineSource,
-            executor: Executor,
-            retention: Duration,
-            poolMaximum: Int = TestPoolFixture.DEFAULT_MAXIMUM,
-            connectionTimeoutMillis: Long = TestPoolFixture.DEFAULT_TIMEOUT_MILLIS,
+            extras: ReplicaExtras,
         ) {
+            private val executor = extras.executor
+            private val retention = extras.retention
+            private val poolMaximum = extras.poolMaximum
+            private val connectionTimeoutMillis = extras.connectionTimeoutMillis
             private val replicaDb = TestDatabase(fixture.jdbcUrl(), tables)
             private val app =
                 replicaDb.login(
@@ -224,11 +225,16 @@ class JobsHarness
             clock: Clock,
             authorizer: JobCommandAuthorizer = FakeAuthorizer(),
             deadlines: DeadlineSource = FixedDeadlineSource(),
-            executor: Executor = Executor { it.run() },
-            retention: Duration = JobRuntime.DEFAULT_RETENTION,
-            poolMaximum: Int = TestPoolFixture.DEFAULT_MAXIMUM,
-            connectionTimeoutMillis: Long = TestPoolFixture.DEFAULT_TIMEOUT_MILLIS,
-        ) = Replica(instance, clock, authorizer, deadlines, executor, retention, poolMaximum, connectionTimeoutMillis)
+            extras: ReplicaExtras = ReplicaExtras(),
+        ) = Replica(instance, clock, authorizer, deadlines, extras)
+
+        /** What a replica takes beside its identity, clock, authorizer and deadlines. */
+        data class ReplicaExtras(
+            val executor: Executor = Executor { it.run() },
+            val retention: Duration = JobRuntime.DEFAULT_RETENTION,
+            val poolMaximum: Int = TestPoolFixture.DEFAULT_MAXIMUM,
+            val connectionTimeoutMillis: Long = TestPoolFixture.DEFAULT_TIMEOUT_MILLIS,
+        )
 
         /** Forgets what an earlier call captured on [table] (the trigger exists from the start). */
         fun captureActors(table: String) {
@@ -300,7 +306,8 @@ class JobsHarness
         private val extraLogins = mutableListOf<TestDatabase>()
 
         /**
-         * The runtime login's own access with [tables] declared PLATFORM_SCOPED (no tenant predicate is injected), for the
+         * The runtime login's own access with [tables] declared PLATFORM_SCOPED (no tenant predicate is injected), for
+         * the
          * tests that prove what the database itself refuses that login.
          */
         fun runtimeLogin(vararg tables: String): TestDatabase.Access {

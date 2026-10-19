@@ -38,7 +38,8 @@ import javax.sql.DataSource
  * INV-T-3881 (ruling INV-Q-3889, INV-Q-3710): a TPL-16 service composed as TPL-18. Its application DataSource comes
  * only from `spring.datasource.*`, through Spring Boot's DataSourceAutoConfiguration (TPL-16, TPL-14). Its bootstrap,
  * which component scan registers before the application class's `@Import`, declares its other inputs; there are no
- * role DataSources (owner ruling INV-Q-3955). Every L1 port that service injects is a bean, whatever the order of the two roots.
+ * role DataSources (owner ruling INV-Q-3955). Every L1 port that service injects is a bean, whatever the order of the
+ * two roots.
  */
 class Tpl16ServiceCompositionTest {
     private val service =

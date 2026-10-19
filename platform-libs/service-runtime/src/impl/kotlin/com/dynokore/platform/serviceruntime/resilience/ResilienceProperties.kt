@@ -3,6 +3,11 @@ package com.dynokore.platform.serviceruntime.resilience
 import org.springframework.boot.context.properties.ConfigurationProperties
 import java.time.Duration
 
+private const val DEFAULT_DEADLINE_SECONDS = 30L
+private const val DEFAULT_TIMEOUT_SECONDS = 5L
+private const val INITIAL_BACKOFF_MILLIS = 50L
+private const val OPEN_STATE_WAIT_SECONDS = 30L
+
 /**
  * §36.6's policy table, in configuration form (ARC-11: the values differ per
  * edge and per installation, never a code branch). [edges] is keyed by the same
@@ -17,7 +22,7 @@ import java.time.Duration
  */
 @ConfigurationProperties(prefix = "service-runtime.resilience")
 data class ResilienceProperties(
-    val defaultDeadlineBudget: Duration = Duration.ofSeconds(30),
+    val defaultDeadlineBudget: Duration = Duration.ofSeconds(DEFAULT_DEADLINE_SECONDS),
     val default: EdgeProperties = EdgeProperties(),
     val edges: Map<String, EdgeProperties> = emptyMap(),
 )
@@ -30,7 +35,7 @@ data class ResilienceProperties(
  * service that owns the call.
  */
 data class EdgeProperties(
-    val timeout: Duration = Duration.ofSeconds(5),
+    val timeout: Duration = Duration.ofSeconds(DEFAULT_TIMEOUT_SECONDS),
     val retry: RetryProperties? = null,
     val circuitBreaker: CircuitBreakerProperties = CircuitBreakerProperties(),
     val bulkhead: BulkheadProperties = BulkheadProperties(),
@@ -46,7 +51,7 @@ data class EdgeProperties(
 
 data class RetryProperties(
     val maxAttempts: Int = 3,
-    val initialBackoff: Duration = Duration.ofMillis(50),
+    val initialBackoff: Duration = Duration.ofMillis(INITIAL_BACKOFF_MILLIS),
     val maxBackoff: Duration = Duration.ofSeconds(2),
     val jitter: Double = 0.5,
 ) {
@@ -56,7 +61,7 @@ data class RetryProperties(
 data class CircuitBreakerProperties(
     val failureRateThreshold: Float = 50.0F,
     val slidingWindowSize: Int = 20,
-    val waitDurationInOpenState: Duration = Duration.ofSeconds(30),
+    val waitDurationInOpenState: Duration = Duration.ofSeconds(OPEN_STATE_WAIT_SECONDS),
     val permittedCallsInHalfOpenState: Int = 5,
 ) {
     fun toPolicy(): CircuitBreakerPolicy =

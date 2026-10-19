@@ -80,6 +80,12 @@ class LaneBudgetsTest {
                     "spring.datasource.url=jdbc:postgresql://localhost:5432/submission",
                     "spring.datasource.username=submission_runtime",
                 )
+        assertLaneDeclarations(service)
+        assertPoolSizes(service)
+        assertReprocessing(service)
+    }
+
+    private fun assertLaneDeclarations(service: ApplicationContextRunner) {
         // INV-Q-4496: no default profile
         service.run {
             it.startupFailure!!.rootMessage() shouldContain
@@ -104,6 +110,9 @@ class LaneBudgetsTest {
                 message shouldContain "or service-runtime.pool.lanes.background"
                 message shouldNotContain "lanes.request"
             }
+    }
+
+    private fun assertPoolSizes(service: ApplicationContextRunner) {
         service.withPropertyValues("service-runtime.pool.profile=large").run { context ->
             generateSequence(context.startupFailure!!) { it.cause }.any {
                 "service-runtime.pool.profile" in
@@ -120,6 +129,9 @@ class LaneBudgetsTest {
                 it.startupFailure!!.rootMessage() shouldContain
                     "maximum-pool-size is 10, but the application pool's maximum is the sum"
             }
+    }
+
+    private fun assertReprocessing(service: ApplicationContextRunner) {
         service
             .withPropertyValues(
                 "service-runtime.pool.profile=saas",

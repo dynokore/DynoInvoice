@@ -118,6 +118,11 @@ internal enum class JoinKind {
     FULL_NO_ON,
 }
 
+private fun JoinKind.orNoOn(
+    usingOnly: Boolean,
+    noOn: JoinKind,
+): JoinKind = if (usingOnly) noOn else this
+
 internal fun joinKind(join: QOM.JoinTable<*, *>): JoinKind {
     val usingOnly = join is QOM.QualifiedJoin<*, *> && join.`$using`().isNotEmpty()
     return when (join) {
@@ -126,15 +131,15 @@ internal fun joinKind(join: QOM.JoinTable<*, *>): JoinKind {
         }
 
         is QOM.LeftJoin<*>, is QOM.LeftSemiJoin<*>, is QOM.LeftAntiJoin<*> -> {
-            if (usingOnly) JoinKind.LEFT_NO_ON else JoinKind.LEFT
+            JoinKind.LEFT.orNoOn(usingOnly, JoinKind.LEFT_NO_ON)
         }
 
         is QOM.RightJoin<*> -> {
-            if (usingOnly) JoinKind.RIGHT_NO_ON else JoinKind.RIGHT
+            JoinKind.RIGHT.orNoOn(usingOnly, JoinKind.RIGHT_NO_ON)
         }
 
         is QOM.FullJoin<*> -> {
-            if (usingOnly) JoinKind.FULL_NO_ON else JoinKind.FULL
+            JoinKind.FULL.orNoOn(usingOnly, JoinKind.FULL_NO_ON)
         }
 
         is QOM.NaturalLeftJoin<*>, is QOM.OuterApply<*> -> {

@@ -72,16 +72,16 @@ class Resilience4jResilientExecutor(
         // deliberately not caught.
         return try {
             retried.call()
-        } catch (e: Exception) {
+        } catch (expected: Exception) {
             deadLetterSink.send(
                 DeadLetterEntry(
                     edge = edge,
                     attempts = attempts,
                     failedAt = clock.instant(),
-                    failureType = e::class.qualifiedName ?: e.javaClass.name,
+                    failureType = expected::class.qualifiedName ?: expected.javaClass.name,
                 ),
             )
-            throw e
+            throw expected
         }
     }
 

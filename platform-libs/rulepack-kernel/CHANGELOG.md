@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [3.0.2] - 2026-10-19
+### Changed
+- detekt type-resolution findings fixed (platform-build 0.21.0, INV-Q-4629); no behaviour or API change
+
 ## [3.0.1] - 2026-10-19
 ### Changed
 - Metadata-only release (INV-Q-5337, G-DVS): depends on `tenancy-kernel` 4.0.0, whose published module metadata changed; no code change.
@@ -29,7 +33,6 @@ train is its own (README.md: "own version and changelog").
 ## [2.0.6] - 2026-10-17
 ### Changed
 - Metadata-only release (INV-T-5820, ruling INV-Q-5678 A): depends on `tenancy-jooq` 1.2.0 (the guard refuses a `TenancyTables` not built by `TableClasses.verify`, INV-Q-4821 B); no code change.
-
 
 ## [2.0.5] - 2026-10-16
 ### Changed

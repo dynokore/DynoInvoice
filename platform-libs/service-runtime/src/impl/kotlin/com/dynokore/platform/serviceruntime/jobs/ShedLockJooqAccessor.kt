@@ -111,7 +111,10 @@ class ShedLockJooqAccessor(
     }
 }
 
-/** ShedLock core's storage-based provider over [ShedLockJooqAccessor] (its constructor is protected, as in shedlock-provider-jooq). */
+/**
+ * ShedLock core's storage-based provider over [ShedLockJooqAccessor] (its constructor is protected, as in
+ * shedlock-provider-jooq).
+ */
 class ShedLockJooqLockProvider(
     accessor: ShedLockJooqAccessor,
 ) : StorageBasedLockProvider(accessor)

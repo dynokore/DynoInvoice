@@ -52,7 +52,10 @@ class KillableTransactionRunner(
         }
     }
 
-    /** The seam of tenancy-kernel's `TransactionRunner` (INV-T-5675): the thread's open transaction is hidden for [block]. */
+    /**
+     * The seam of tenancy-kernel's `TransactionRunner` (INV-T-5675): the thread's open transaction is hidden for
+     * [block].
+     */
     override fun <T> outsideOpenTransaction(block: () -> T): T {
         val saved = bound.get()
         bound.remove()

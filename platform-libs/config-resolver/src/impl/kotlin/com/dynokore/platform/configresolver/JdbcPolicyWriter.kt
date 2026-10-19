@@ -3,25 +3,21 @@ package com.dynokore.platform.configresolver
 import com.dynokore.platform.auditlog.AuditEntry
 import com.dynokore.platform.auditlog.AuditStager
 import com.dynokore.platform.auditlog.AuditWriter
-import com.dynokore.platform.outboxandqueue.CausationId
-import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
-import com.dynokore.platform.tenancykernel.TenantId
 import org.jooq.DSLContext
 import tools.jackson.databind.DeserializationFeature
-import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
-import tools.jackson.databind.node.ObjectNode
 import java.time.Clock
 import java.time.LocalDate
 import java.util.UUID
 
 /**
  * [PolicyWriter] through jOOQ's DSL on the DSLContext of tenancy-jooq's factory, in the caller's open transaction
- * (INV-Q-3115: every write path). The DSLContext runs on the TransactionRunner whose TenantAwareDataSource holds the lane
+ * (INV-Q-3115: every write path). The DSLContext runs on the TransactionRunner whose TenantAwareDataSource holds the
+ * lane
  * gate (INV-Q-4502). [audit] and [delegation] are public read-only properties (INV-Q-5117).
  *
  * Checks, in order, before anything is written (INV-Q-2930): the key (unknown and retired keys throw,
@@ -43,34 +39,94 @@ import java.util.UUID
  * @param backdating `null` refuses every back-dated value (INV-Q-3140).
  * @param constraints `null` refuses every value that needs the owning service's check (INV-Q-3167).
  */
+@Suppress("LongParameterList") // constructor injection under CS-05; INV-Q-4629 (CS-50)
 class JdbcPolicyWriter(
     dsl: DSLContext,
-    private val catalogue: VariationPointCatalogue,
-    private val form: DeploymentForm,
+    catalogue: VariationPointCatalogue,
+    form: DeploymentForm,
     schema: String,
     val audit: AuditWriter,
     private val outbox: OutboxWriter?,
     private val clock: Clock,
     val delegation: DelegationProbe? = null,
-    private val backdating: BackdatingFloor? = null,
-    private val constraints: ValueConstraints? = null,
+    backdating: BackdatingFloor? = null,
+    constraints: ValueConstraints? = null,
 ) : PolicyWriter {
     private val store = JdbcSettingStore(dsl, schema)
     private val writes = JdbcSettingWrites(dsl, schema)
-    private val validator = ValueValidator(form)
     private val mapper: JsonMapper =
         JsonMapper.builder().enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS).build()
     private val resolver =
         PrecedenceResolver(catalogue, form) { key, ref, tenant, source, at ->
             store.find(key, ref, tenant, source, at)
         }
-    private val bounds = ScopeBounds(catalogue, resolver::resolve)
     private val stagedRows = StagedRows(mapper)
+    private val checks =
+        PolicyChecks(catalogue, ValueValidator(form), ScopeBounds(catalogue, resolver::resolve), writes, constraints)
+    private val relaxations = RelaxationRules(form, delegation, writes, mapper)
+    private val effectiveDates = EffectiveDateCheck(writes, backdating, clock)
+    private val payloads = PolicyPayloads(mapper)
 
     override fun setPolicy(command: SetPolicyCommand): PolicyChange {
-        val definition = settable(command.key)
+        val definition = checks.settable(command.key)
         val key = definition.key
-        val target = targetOf(definition, command.scope, command.level)
+        val target = checks.targetOf(definition, command.scope, command.level)
+        val reason = checkSetter(definition, target, command)
+        checks.selectionAndBounds(definition, command.scope, target, command.selected, command.effectiveFrom)
+        val looser = relaxations.looserOptions(definition, command.selected)
+        val relaxation =
+            if (looser.isEmpty()) {
+                // A relaxation backs exactly the looser value it acknowledges (INV-Q-3138).
+                command.relaxation?.let {
+                    refuse(
+                        key,
+                        PolicyRefusal.NOT_LOOSER,
+                        "relaxation $it given for a value that is not looser",
+                    )
+                }
+            } else {
+                relaxations.requireRelaxation(definition, target, command, looser)
+            }
+        effectiveDates.check(definition, target, command.effectiveFrom)
+
+        val prior = priorOf(command, key)
+        val version = versionOf(command, key, target, reason, relaxation)
+        val context = payloads.contextOf(key, target, command.correlation, command.causation)
+        val entry =
+            AuditEntry(
+                actor = command.actor.principal,
+                action = SET_POLICY,
+                scope = target.scopeText,
+                reason = reason,
+                priorStateJson = payloads.priorState(key, target, command.effectiveFrom, prior),
+            )
+        val event = OutboundEvent(POLICY_CHANGED, payloads.policyChanged(version))
+        if (target.level == ScopeLevel.INSTALLATION) {
+            return writeInstallation(version, prior, entry, event, context)
+        }
+        writes.insert(version)
+        val auditEnvelope = audit.record(entry, context)
+        val changed = outbox?.append(listOf(event), context)?.single()
+        return PolicyChange(version, prior, auditEnvelope.id.toString(), changed?.id?.toString())
+    }
+
+    private fun priorOf(
+        command: SetPolicyCommand,
+        key: VariationPointKey,
+    ): ResolvedSetting? =
+        try {
+            resolver.resolve(key, command.scope.narrowedTo(command.level), command.effectiveFrom)
+        } catch (_: ElectionRequired) {
+            null
+        }
+
+    /** The setter's role, the reason and the profile fields; returns the reason (INV-Q-3169). */
+    private fun checkSetter(
+        definition: VariationPointDefinition,
+        target: SettingTarget,
+        command: SetPolicyCommand,
+    ): String {
+        val key = definition.key
         if (definition.setBy.none { it in command.actor.roles }) {
             refuse(key, PolicyRefusal.ROLE_NOT_ALLOWED, "setting needs one of ${definition.setBy.sorted()}")
         }
@@ -89,64 +145,29 @@ class JdbcPolicyWriter(
                 "an operating profile applies to a tenant, not the installation",
             )
         }
-        unsupported(definition)
-        checkSelection(definition, target, command.selected, command.effectiveFrom)
-        checkBounds(definition, command.scope, target, command.selected, command.effectiveFrom)
-        val looser = looserOptions(definition, command.selected)
-        val relaxation =
-            if (looser.isEmpty()) {
-                // A relaxation backs exactly the looser value it acknowledges (INV-Q-3138).
-                command.relaxation?.let {
-                    refuse(
-                        key,
-                        PolicyRefusal.NOT_LOOSER,
-                        "relaxation $it given for a value that is not looser",
-                    )
-                }
-            } else {
-                requireRelaxation(definition, target, command, looser)
-            }
-        checkEffectiveDate(definition, target, command.effectiveFrom)
-
-        val prior =
-            try {
-                resolver.resolve(key, command.scope.narrowedTo(command.level), command.effectiveFrom)
-            } catch (_: ElectionRequired) {
-                null
-            }
-        val version =
-            SettingVersion(
-                id = UUID.randomUUID(),
-                key = key,
-                target = target,
-                selected = command.selected,
-                source = command.source,
-                profileId = command.profileId.takeIf { command.source == SettingSource.PROFILE },
-                profileVersion = command.profileVersion.takeIf { command.source == SettingSource.PROFILE },
-                effectiveFrom = command.effectiveFrom,
-                setBy = command.actor.principal,
-                reason = reason,
-                recordedAt = clock.instant(),
-                relaxation = relaxation,
-            )
-        val context = contextOf(key, target, command.correlation, command.causation)
-        val entry =
-            AuditEntry(
-                actor = command.actor.principal,
-                action = SET_POLICY,
-                scope = target.scopeText,
-                reason = reason,
-                priorStateJson = priorState(key, target, command.effectiveFrom, prior),
-            )
-        val event = OutboundEvent(POLICY_CHANGED, policyChanged(version))
-        if (target.level == ScopeLevel.INSTALLATION) {
-            return writeInstallation(version, prior, entry, event, context)
-        }
-        writes.insert(version)
-        val auditEnvelope = audit.record(entry, context)
-        val changed = outbox?.append(listOf(event), context)?.single()
-        return PolicyChange(version, prior, auditEnvelope.id.toString(), changed?.id?.toString())
+        return reason
     }
+
+    private fun versionOf(
+        command: SetPolicyCommand,
+        key: VariationPointKey,
+        target: SettingTarget,
+        reason: String,
+        relaxation: RelaxationId?,
+    ) = SettingVersion(
+        id = UUID.randomUUID(),
+        key = key,
+        target = target,
+        selected = command.selected,
+        source = command.source,
+        profileId = command.profileId.takeIf { command.source == SettingSource.PROFILE },
+        profileVersion = command.profileVersion.takeIf { command.source == SettingSource.PROFILE },
+        effectiveFrom = command.effectiveFrom,
+        setBy = command.actor.principal,
+        reason = reason,
+        recordedAt = clock.instant(),
+        relaxation = relaxation,
+    )
 
     /**
      * An installation value is written only by [ConfigSchema.WRITE_INSTALLATION_SETTING] (INV-ADR-3968 item 6, owner
@@ -181,15 +202,13 @@ class JdbcPolicyWriter(
     }
 
     override fun acknowledgeControlRelaxation(command: AcknowledgeRelaxationCommand): RelaxationStatus {
-        val definition = settable(command.key)
+        val definition = checks.settable(command.key)
         val key = definition.key
-        val target = targetOf(definition, command.scope, command.level)
-        unsupported(definition)
-        checkSelection(definition, target, command.selected, command.effectiveFrom)
-        checkBounds(definition, command.scope, target, command.selected, command.effectiveFrom)
-        val looser = looserOptions(definition, command.selected)
+        val target = checks.targetOf(definition, command.scope, command.level)
+        checks.selectionAndBounds(definition, command.scope, target, command.selected, command.effectiveFrom)
+        val looser = relaxations.looserOptions(definition, command.selected)
         if (looser.isEmpty()) refuse(key, PolicyRefusal.NOT_LOOSER, "the value relaxes nothing")
-        val required = requiredRoles(definition, looser, target, command.effectiveFrom).map { it.first }
+        val required = relaxations.requiredRoles(definition, looser, target, command.effectiveFrom).map { it.first }
         // Only the roles that apply here may acknowledge: an UNDER_DELEGATION role where no delegation applies
         // is not accountable for this relaxation (T26 slot default_source, INV-Q-3136).
         val allowed = required.toSet()
@@ -198,68 +217,18 @@ class JdbcPolicyWriter(
         }
         val tenant = checkNotNull(target.tenant)
         val relaxation = command.relaxation ?: RelaxationId(UUID.randomUUID())
-        val earlier =
-            if (command.relaxation == null) {
-                emptyList()
-            } else {
-                val rows = writes.acknowledgements(tenant, relaxation)
-                if (rows.isEmpty()) refuse(key, PolicyRefusal.RELAXATION_REQUIRED, "no relaxation $relaxation")
-                if (rows.any {
-                        !matches(it, key, target, command.selected) ||
-                            it.acknowledgement.effectiveFrom != command.effectiveFrom
-                    }
-                ) {
-                    refuse(
-                        key,
-                        PolicyRefusal.RELAXATION_REQUIRED,
-                        "relaxation $relaxation is for another value or date",
-                    )
-                }
-                if (writes.consumed(tenant, relaxation)) {
-                    refuse(key, PolicyRefusal.RELAXATION_REQUIRED, "relaxation $relaxation is already used")
-                }
-                if (rows.any {
-                        it.acknowledgement.role == command.asRole ||
-                            it.acknowledgement.principal == command.actor.principal
-                    }
-                ) {
-                    refuse(
-                        key,
-                        PolicyRefusal.ACKNOWLEDGER_DUPLICATE,
-                        "role or principal already acknowledged $relaxation",
-                    )
-                }
-                rows
-            }
-        val row =
-            AcknowledgementRow(
-                key = key,
-                target = target,
-                selected = command.selected,
-                reason = command.reason?.takeIf { it.isNotBlank() },
-                acknowledgement =
-                    RelaxationAcknowledgement(
-                        id = UUID.randomUUID(),
-                        relaxation = relaxation,
-                        role = command.asRole,
-                        principal = command.actor.principal,
-                        effectiveFrom = command.effectiveFrom,
-                        acknowledgedAt = clock.instant(),
-                    ),
-            )
+        val earlier = relaxations.earlierAcknowledgements(command, relaxation, target, tenant)
+        val row = acknowledgementRow(command, target, relaxation)
         writes.insertAcknowledgement(row)
-        val prior = mapper.createObjectNode()
-        prior.put("relaxation", relaxation.toString())
-        prior.putArray("acknowledgedRoles").apply { earlier.forEach { add(it.acknowledgement.role) } }
         audit.record(
             AuditEntry(
                 actor = command.actor.principal,
                 action = ACKNOWLEDGE_CONTROL_RELAXATION,
                 scope = target.scopeText,
                 reason = row.reason,
-                priorStateJson = mapper.writeValueAsString(prior),
+                priorStateJson = payloads.acknowledgedState(relaxation, earlier),
             ),
-            contextOf(key, target, command.correlation, command.causation),
+            payloads.contextOf(key, target, command.correlation, command.causation),
         )
         val given = (earlier + row).map { it.acknowledgement }
         return RelaxationStatus(
@@ -273,6 +242,26 @@ class JdbcPolicyWriter(
         )
     }
 
+    private fun acknowledgementRow(
+        command: AcknowledgeRelaxationCommand,
+        target: SettingTarget,
+        relaxation: RelaxationId,
+    ) = AcknowledgementRow(
+        key = command.key,
+        target = target,
+        selected = command.selected,
+        reason = command.reason?.takeIf { it.isNotBlank() },
+        acknowledgement =
+            RelaxationAcknowledgement(
+                id = UUID.randomUUID(),
+                relaxation = relaxation,
+                role = command.asRole,
+                principal = command.actor.principal,
+                effectiveFrom = command.effectiveFrom,
+                acknowledgedAt = clock.instant(),
+            ),
+    )
+
     override fun validate(
         key: VariationPointKey,
         scope: PolicyScope,
@@ -280,395 +269,10 @@ class JdbcPolicyWriter(
         selected: List<SelectedOption>,
         onDate: LocalDate,
     ) {
-        val definition = settable(key)
-        val target = targetOf(definition, scope, level)
-        unsupported(definition)
-        checkSelection(definition, target, selected, onDate)
-        checkBounds(definition, scope, target, selected, onDate)
+        val definition = checks.settable(key)
+        val target = checks.targetOf(definition, scope, level)
+        checks.selectionAndBounds(definition, scope, target, selected, onDate)
     }
-
-    /** Unknown and retired keys throw; a planned key cannot be set (INV-Q-2930, INV-REQ-1251). */
-    private fun settable(key: VariationPointKey): VariationPointDefinition {
-        val definition = catalogue.require(key)
-        when (definition.status) {
-            VpStatus.RETIRED -> throw VariationPointRetired(key)
-            VpStatus.PLANNED -> refuse(key, PolicyRefusal.PLANNED, "a planned variation point cannot be set")
-            VpStatus.AVAILABLE -> Unit
-        }
-        return definition
-    }
-
-    /** The scope level comes first (INV-Q-2930, INV-AC-2227). */
-    private fun targetOf(
-        definition: VariationPointDefinition,
-        scope: PolicyScope,
-        level: ScopeLevel,
-    ): SettingTarget {
-        if (level !in definition.scopeLevels) {
-            refuse(definition.key, PolicyRefusal.SCOPE_NOT_ALLOWED, "the row allows ${definition.scopeLevels.sorted()}")
-        }
-        return scope.target(level)
-    }
-
-    /** Lifted only for what is implemented (INV-T-3176): anything [ScopeBounds] cannot evaluate is refused. */
-    private fun unsupported(definition: VariationPointDefinition) {
-        bounds.unsupported(definition)?.let { refuse(definition.key, PolicyRefusal.NOT_SUPPORTED, it) }
-    }
-
-    /**
-     * A narrower value may not be looser than the broader value, nor pass the installation bound (INV-REQ-780
-     * b1, INV-REQ-1248, INV-Q-3202/3204), on its effective date and on every later date a broader value or
-     * the bounding row already takes effect. A tighter broader write is never refused: narrower values then
-     * resolve capped (INV-Q-3206).
-     */
-    private fun checkBounds(
-        definition: VariationPointDefinition,
-        scope: PolicyScope,
-        target: SettingTarget,
-        selected: List<SelectedOption>,
-        effectiveFrom: LocalDate,
-    ) {
-        if (!bounds.applies(definition)) return
-        val key = definition.key
-        val limiting =
-            bounds.broaderLevels(definition, scope, target.level).map { key to scope.target(it) } +
-                listOfNotNull(definition.installationParameter).map {
-                    it to PolicyScope.installation().target(ScopeLevel.INSTALLATION)
-                }
-        val later =
-            limiting
-                .flatMap { (row, at) -> writes.versions(row, at).map { it.effectiveFrom } }
-                .filter { it > effectiveFrom }
-        (listOf(effectiveFrom) + later.distinct().sorted()).forEach { date ->
-            val limits =
-                try {
-                    bounds.limits(definition, scope, target.level, selected, date)
-                } catch (unavailable: BoundUnavailable) {
-                    refuse(key, PolicyRefusal.BOUND_UNAVAILABLE, unavailable.message.orEmpty())
-                }
-            limits.firstOrNull { it.violatedBy(it.field.value) }?.let { refuseViolation(key, it, date) }
-        }
-    }
-
-    /** Refuses the selection for the [limit] it breaks on [date]. */
-    private fun refuseViolation(
-        key: VariationPointKey,
-        limit: ScopeBounds.Limit,
-        date: LocalDate,
-    ): Nothing {
-        val side = if (limit.ceiling) "above" else "below"
-        val where =
-            "'${limit.field.option}' ${limit.field.path.ifEmpty { "value" }} " +
-                "${limit.field.value?.toPlainString()} is $side"
-        if (limit.crossScope) {
-            refuse(
-                key,
-                PolicyRefusal.LOOSER_THAN_BROADER,
-                "$where the ${limit.level} value ${limit.bound.toPlainString()} on $date",
-            )
-        } else {
-            refuse(
-                key,
-                PolicyRefusal.BEYOND_INSTALLATION_BOUND,
-                "$where ${limit.by} ${limit.bound.toPlainString()} on $date",
-            )
-        }
-    }
-
-    @Suppress("TooGenericExceptionCaught") // any failure of the owning service's port refuses (INV-Q-3167)
-    private fun checkSelection(
-        definition: VariationPointDefinition,
-        target: SettingTarget,
-        selected: List<SelectedOption>,
-        onDate: LocalDate,
-    ) {
-        if (!validator.check(definition, selected)) return
-        val verdict =
-            try {
-                constraints?.check(target, definition.key, selected, onDate)
-            } catch (failure: RuntimeException) {
-                refuse(
-                    definition.key,
-                    PolicyRefusal.CONSTRAINT_REFUSED,
-                    "the owning service's check failed: ${failure.javaClass.simpleName}",
-                )
-            }
-        when (verdict) {
-            ConstraintVerdict.Accept -> {}
-
-            is ConstraintVerdict.Refuse -> {
-                refuse(definition.key, PolicyRefusal.CONSTRAINT_REFUSED, verdict.reason)
-            }
-
-            null -> {
-                refuse(
-                    definition.key,
-                    PolicyRefusal.CONSTRAINT_REFUSED,
-                    "the owning service did not check the value",
-                )
-            }
-        }
-    }
-
-    /** The LOOSER options of the selection; the validator has already refused them on a row that offers none. */
-    private fun looserOptions(
-        definition: VariationPointDefinition,
-        selected: List<SelectedOption>,
-    ): List<OptionSpec> =
-        selected.mapNotNull { definition.option(it.key) }.filter { it.strictness == Strictness.LOOSER }
-
-    /**
-     * The roles that must acknowledge, each with its distinct-from-setter flag (INV-Q-3134, INV-Q-3136). An
-     * option with no acknowledger, a by-form acknowledger naming no role in this form, or only
-     * UNDER_DELEGATION acknowledgers where no delegation applies leaves nobody accountable: refused.
-     */
-    private fun requiredRoles(
-        definition: VariationPointDefinition,
-        looser: List<OptionSpec>,
-        target: SettingTarget,
-        onDate: LocalDate,
-    ): List<Pair<String, Boolean>> {
-        val key = definition.key
-        if (target.level == ScopeLevel.INSTALLATION) {
-            refuse(key, PolicyRefusal.LOOSER_AT_INSTALLATION, "a looser option at installation scope is not in 1.1.0")
-        }
-        val delegated by lazy { isDelegated(target, onDate) }
-        val required = linkedMapOf<String, Boolean>()
-        looser.forEach { option ->
-            if (option.acknowledgers.isEmpty()) {
-                refuse(key, PolicyRefusal.NO_ACCOUNTABLE_ROLE, "option '${option.key}' names no acknowledger")
-            }
-            val applying =
-                option.acknowledgers.filter {
-                    it.condition == AcknowledgerCondition.ALWAYS || delegated
-                }
-            if (applying.isEmpty()) {
-                refuse(
-                    key,
-                    PolicyRefusal.NO_ACCOUNTABLE_ROLE,
-                    "option '${option.key}' has no acknowledger for this scope",
-                )
-            }
-            applying.forEach {
-                val role =
-                    it.roleIn(form)
-                        ?: refuse(
-                            key,
-                            PolicyRefusal.NO_ACCOUNTABLE_ROLE,
-                            "option '${option.key}' names no acknowledger in $form",
-                        )
-                required[role] = (required[role] ?: false) || it.distinctFromSetter
-            }
-        }
-        return required.map { it.key to it.value }
-    }
-
-    /** A client entity is always delegated; otherwise the probe, and no answer counts as delegated (INV-Q-3136). */
-    private fun isDelegated(
-        target: SettingTarget,
-        onDate: LocalDate,
-    ): Boolean =
-        target.level == ScopeLevel.CLIENT_ENTITY ||
-            (delegation?.let { probe -> runCatching { probe.isDelegated(target, onDate) }.getOrNull() } ?: true)
-
-    /** A complete, matching, unused relaxation, effective on or before the value (INV-AC-205, INV-Q-3138). */
-    private fun requireRelaxation(
-        definition: VariationPointDefinition,
-        target: SettingTarget,
-        command: SetPolicyCommand,
-        looser: List<OptionSpec>,
-    ): RelaxationId {
-        val key = definition.key
-        val required = requiredRoles(definition, looser, target, command.effectiveFrom)
-        val relaxation =
-            command.relaxation
-                ?: refuse(key, PolicyRefusal.RELAXATION_REQUIRED, "a looser option needs ${required.map { it.first }}")
-        val tenant = checkNotNull(target.tenant)
-        val rows = writes.acknowledgements(tenant, relaxation)
-        if (rows.isEmpty() || rows.any { !matches(it, key, target, command.selected) }) {
-            refuse(key, PolicyRefusal.RELAXATION_REQUIRED, "relaxation $relaxation does not acknowledge this value")
-        }
-        if (rows.any { it.acknowledgement.effectiveFrom > command.effectiveFrom }) {
-            refuse(key, PolicyRefusal.RELAXATION_REQUIRED, "relaxation $relaxation takes effect after the value")
-        }
-        if (writes.consumed(tenant, relaxation)) {
-            refuse(key, PolicyRefusal.RELAXATION_REQUIRED, "relaxation $relaxation is already used")
-        }
-        required.forEach { (role, distinct) ->
-            val given =
-                rows.firstOrNull { it.acknowledgement.role == role }
-                    ?: refuse(key, PolicyRefusal.RELAXATION_REQUIRED, "relaxation $relaxation lacks $role")
-            if (distinct && given.acknowledgement.principal == command.actor.principal) {
-                refuse(
-                    key,
-                    PolicyRefusal.RELAXATION_REQUIRED,
-                    "$role must be acknowledged by someone other than the setter",
-                )
-            }
-        }
-        return relaxation
-    }
-
-    /** Never retroactive, except a scope's first value back to its floor (INV-Q-2940, INV-Q-2977, INV-Q-3140). */
-    private fun checkEffectiveDate(
-        definition: VariationPointDefinition,
-        target: SettingTarget,
-        effectiveFrom: LocalDate,
-    ) {
-        val today = BusinessDate.today(clock)
-        if (effectiveFrom >= today) return
-        val key = definition.key
-        if (target.level == ScopeLevel.TENANT || target.level == ScopeLevel.INSTALLATION) {
-            refuse(key, PolicyRefusal.BACKDATING_REFUSED, "a ${target.level} value takes effect $today or later")
-        }
-        if (writes.hasAny(key, target)) {
-            refuse(key, PolicyRefusal.BACKDATING_REFUSED, "only a scope's first value may be back-dated")
-        }
-        val floor =
-            backdating?.let { port -> runCatching { port.earliest(target, key) }.getOrNull() }
-                ?: refuse(key, PolicyRefusal.BACKDATING_REFUSED, "no back-dating floor for ${target.scopeText}")
-        if (effectiveFrom < floor) {
-            refuse(key, PolicyRefusal.BACKDATING_REFUSED, "the earliest allowed date is $floor")
-        }
-    }
-
-    private fun matches(
-        row: AcknowledgementRow,
-        key: VariationPointKey,
-        target: SettingTarget,
-        selected: List<SelectedOption>,
-    ): Boolean = row.key == key && row.target == target && sameSelection(row.selected, selected)
-
-    /** Same option keys and the same typed values, numbers compared by value (INV-Q-3138). */
-    private fun sameSelection(
-        a: List<SelectedOption>,
-        b: List<SelectedOption>,
-    ): Boolean {
-        if (a.map { it.key }.toSet() != b.map { it.key }.toSet() || a.size != b.size) return false
-        val bByKey = b.associateBy { it.key }
-        return a.all { left ->
-            val right = bByKey.getValue(left.key)
-            when {
-                left.valueJson == null || right.valueJson == null -> left.valueJson == right.valueJson
-                else -> sameJson(mapper.readTree(left.valueJson), mapper.readTree(right.valueJson))
-            }
-        }
-    }
-
-    private fun sameJson(
-        a: JsonNode,
-        b: JsonNode,
-    ): Boolean =
-        when {
-            a.isNumber && b.isNumber -> {
-                a.decimalValue().compareTo(b.decimalValue()) == 0
-            }
-
-            a.isObject && b.isObject -> {
-                a.propertyNames().toSet() == b.propertyNames().toSet() &&
-                    a.propertyNames().all { sameJson(a.get(it), b.get(it)) }
-            }
-
-            a.isArray && b.isArray -> {
-                a.size() == b.size() && (0 until a.size()).all { sameJson(a.get(it), b.get(it)) }
-            }
-
-            else -> {
-                a == b
-            }
-        }
-
-    private fun contextOf(
-        key: VariationPointKey,
-        target: SettingTarget,
-        correlation: CorrelationId,
-        causation: CausationId,
-    ): EventContext {
-        val tenant = target.tenant
-        val entityId = target.entity
-        val (eventTenant, entity) =
-            when {
-                tenant == null -> TenantId.PLATFORM to EntityRef.PLATFORM
-                entityId != null -> tenant to EntityRef(entityId)
-                else -> tenant to EntityRef.TENANT_WIDE
-            }
-        return EventContext(
-            tenant = eventTenant,
-            entity = entity,
-            docUuid = null,
-            transactionDate = null,
-            aggregateKey = "config:$key:${target.scopeText}",
-            aggregateVersion = null,
-            correlation = correlation,
-            causation = causation,
-        )
-    }
-
-    private fun valueNode(selected: List<SelectedOption>) =
-        mapper.createArrayNode().apply {
-            selected.forEach { option ->
-                val node = addObject()
-                node.put("key", option.key)
-                option.valueJson?.let { node.set("value", mapper.readTree(it)) }
-            }
-        }
-
-    /** The prior value at the target on the effective date, as the audit entry's prior state (INV-AC-2229). */
-    private fun priorState(
-        key: VariationPointKey,
-        target: SettingTarget,
-        effectiveFrom: LocalDate,
-        prior: ResolvedSetting?,
-    ): String {
-        val node: ObjectNode = mapper.createObjectNode()
-        node.put("vpId", key.value)
-        node.put("scope", target.scopeText)
-        node.put("effectiveDate", effectiveFrom.toString())
-        if (prior == null) {
-            node.putNull("value")
-            node.putNull("source")
-        } else {
-            node.set("value", valueNode(prior.selected))
-            node.put("source", sourceName(prior.source))
-            when (val source = prior.source) {
-                is PolicySource.Override -> {
-                    node.put("sourceScope", source.scopeId).put("settingId", source.settingId.toString())
-                }
-
-                is PolicySource.Profile -> {
-                    node
-                        .put("sourceScope", source.scopeId)
-                        .put("settingId", source.settingId.toString())
-                        .put("profileId", source.profileId)
-                        .put("profileVersion", source.profileVersion)
-                }
-
-                PolicySource.CatalogueDefault -> {}
-            }
-        }
-        return mapper.writeValueAsString(node)
-    }
-
-    /** The `PolicyChanged` payload (platform-contracts policy-changed-payload.schema.json, INV-API-3306). */
-    private fun policyChanged(version: SettingVersion): String {
-        val node = mapper.createObjectNode()
-        node.put("scope", version.target.scopeText)
-        node.put("vpId", version.key.value)
-        node.set("value", valueNode(version.selected))
-        node.put("effectiveDate", version.effectiveFrom.toString())
-        node.put("source", version.source.name)
-        version.relaxation?.let { node.put("relaxationAcknowledgementReference", it.toString()) }
-        // Exactly the INV-API-3306 data model: the setting id, profile id and profile version stay on the
-        // setting record, where INV-AC-2092 reads them, not on the wire (owner ruling INV-Q-2979, INV-Q-3714).
-        return mapper.writeValueAsString(node)
-    }
-
-    private fun sourceName(source: PolicySource) =
-        when (source) {
-            is PolicySource.Override -> "OVERRIDE"
-            is PolicySource.Profile -> "PROFILE"
-            PolicySource.CatalogueDefault -> "DEFAULT"
-        }
 
     companion object {
         /** The platform event type (API-40), schema owned by `service-runtime`. */

@@ -79,47 +79,9 @@ class JobMaintenanceIT {
             replica.runtime.register(purge, entities) { }
             replica.runtime.checkRetention()
 
-            // abandoned runs of two tenants, an hour old (past lockAtMostFor), and finished, paused and recent rows
-            listOf(TENANT_A to "E-001", TENANT_B to "E-002").forEach { (tenant, entity) ->
-                insertRun(h, tenant, sweep.name, entity, "IN_PROGRESS", Duration.ofHours(1))
-                insertRun(h, tenant, purge.name, entity, "SUCCEEDED", Duration.ofDays(31))
-                insertPause(h, tenant, purge.name, entity, ended = true, age = Duration.ofDays(31))
-            }
-            insertRun(h, TENANT_A, purge.name, "E-004", "SUCCEEDED", Duration.ofDays(1))
-            insertPause(h, TENANT_A, purge.name, "E-005", ended = false, age = Duration.ofDays(1))
+            seedRows(h, sweep.name, purge.name)
 
-            // the runtime login, bound to tenant A: its direct SELECT reaches only A's rows (never B's), it holds no
-            // DELETE on the job tables at all (refused, nothing removed), and it cannot read the retention row
-            val runtime = h.replica("svc-probe", MutableClock(Instant.now()))
-            for (table in listOf(runTable, pauseTable)) {
-                val seen =
-                    runtime.asTenant(TENANT_A) {
-                        runtime.tx.inTransaction {
-                            runtime.dsl
-                                .select(tenantId)
-                                .from(table)
-                                .fetch(tenantId)
-                                .toSet()
-                        }
-                    }
-                seen shouldBe setOf(TENANT_A.value)
-                sqlStateOf(runtime) {
-                    runtime.asTenant(TENANT_A) { runtime.tx.inTransaction { runtime.dsl.deleteFrom(table).execute() } }
-                } shouldBe "42501"
-            }
-            sqlStateOf(runtime) {
-                runtime.asPlatform {
-                    runtime.tx.inTransaction {
-                        runtime.dsl
-                            .select(
-                                retentionWindow(),
-                            ).from(retentionTable)
-                            .fetch()
-                    }
-                }
-            } shouldBe "42501"
-            count(h, runTable, purge.name) shouldBe 3
-            count(h, pauseTable, purge.name) shouldBe 3
+            assertRuntimeLoginIsBoundToA(h, purge.name)
 
             // the sweeper finishes each tenant's abandoned run under that tenant, as the job's own principal
             h.captureActors("$SCHEMA.outbox")
@@ -130,7 +92,7 @@ class JobMaintenanceIT {
             h.capturedActors("$SCHEMA.outbox").toSet() shouldBe setOf("svc:$SERVICE/job:${sweep.name}")
 
             // an old run still IN_PROGRESS (not yet swept) is never purged
-            insertRun(h, TENANT_A, purge.name, "E-003", "IN_PROGRESS", Duration.ofDays(31))
+            insertRun(h, Row(TENANT_A, purge.name, "E-003"), "IN_PROGRESS", Duration.ofDays(31))
 
             // the purge deletes, across tenants, only finished runs and ended pauses older than the row's window
             replica.runtime.purge() shouldBe 4
@@ -141,16 +103,7 @@ class JobMaintenanceIT {
                 listOf("E-003" to "IN_PROGRESS", "E-004" to "SUCCEEDED")
             h.rows("$SCHEMA.job_pause", "job" to purge.name).map { it["entity_ref"] } shouldBe listOf("E-005")
 
-            // a retention that differs from the row stops the job runtime's start
-            val longer = h.replica("svc-2", MutableClock(Instant.now()), retention = Duration.ofDays(40))
-            assertThrows<IllegalStateException> { longer.runtime.announce() }
-
-            // with no retention row the purge deletes nothing, and the job runtime refuses to start
-            insertRun(h, TENANT_B, purge.name, "E-006", "SUCCEEDED", Duration.ofDays(400))
-            h.owner.asPlatform { deleteFrom(retentionTable).execute() }
-            replica.runtime.purge() shouldBe 0
-            count(h, runTable, purge.name) shouldBe 3
-            assertThrows<IllegalStateException> { replica.runtime.announce() }
+            assertRetentionRowGuards(h, replica, purge.name)
         }
     }
 
@@ -158,129 +111,233 @@ class JobMaintenanceIT {
     @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `the functions and the purge are the sys role's, granted to the runtime login only`(image: String) {
         JobsHarness(image).use { h ->
-            val names = listOf(JobSchema.IN_PROGRESS_RUNS, JobSchema.RETENTION_WINDOW, JobSchema.PURGE_EXPIRED).sorted()
-            val functions =
-                h.admin.asPlatform {
-                    val namespace =
-                        select(
-                            PG_NAMESPACE_OID,
-                        ).from(PG_NAMESPACE).where(PG_NAMESPACE_NAME.eq(SCHEMA)).fetchOne(PG_NAMESPACE_OID)
-                    select(
-                        PG_PROC_NAME,
-                        DSL.function(DSL.name("pg_get_userbyid"), SQLDataType.VARCHAR, PG_PROC_OWNER),
-                        PG_PROC_DEFINER,
-                        PG_PROC_CONFIG.cast(SQLDataType.CLOB),
-                        DSL.function(
-                            DSL.name("has_function_privilege"),
-                            SQLDataType.BOOLEAN,
-                            DSL.`val`("public"),
-                            PG_PROC_OID,
-                            DSL.`val`("execute"),
-                        ),
-                        DSL.function(
-                            DSL.name("has_function_privilege"),
-                            SQLDataType.BOOLEAN,
-                            DSL.`val`(OutboxPostgresFixture.APP),
-                            PG_PROC_OID,
-                            DSL.`val`("execute"),
-                        ),
-                    ).from(PG_PROC)
-                        .where(PG_PROC_NAMESPACE.eq(namespace).and(PG_PROC_NAME.`in`(names)))
-                        .orderBy(PG_PROC_NAME)
-                        .fetch()
-                        .map { it.intoList() }
-                }
-            functions.map { it[0] } shouldBe names
-            functions.forEach {
-                it[1] shouldBe OutboxPostgresFixture.SYS
-                it[2] shouldBe true
-                it[3] shouldBe "{\"search_path=pg_catalog, $SCHEMA, pg_temp\"}"
-                it[4] shouldBe false
-                it[5] shouldBe true
-            }
+            assertSysFunctions(h)
 
             // the sweeper's function returns only the seven columns, ordered by started_at, and refuses a bad batch
             val replica = h.replica("svc-1", MutableClock(Instant.now()))
-            insertRun(h, TENANT_A, "shape", "E-001", "IN_PROGRESS", Duration.ofHours(1))
-            insertRun(h, TENANT_B, "shape", "E-002", "IN_PROGRESS", Duration.ofHours(2))
-            val json = inProgress(replica, 500)
-            val runs = ObjectMapper().readTree(json)
-            runs.size() shouldBe 2
-            runs.values().forEach {
-                it
-                    .propertyNames()
-                    .asSequence()
-                    .toList()
-                    .sorted() shouldBe
-                    listOf("attempt", "entity_ref", "job", "started_at", "tenant_id", "tick", "trigger")
-            }
-            runs.values().map { it.get("entity_ref").asString() } shouldBe listOf("E-002", "E-001")
-            for (batch in listOf(0, JobSchema.MAX_SWEEP_BATCH + 1)) {
-                sqlStateOf(replica) { inProgress(replica, batch) } shouldBe "22023"
-            }
+            assertSweeperFunction(h, replica)
 
-            // the retention table: platform-scoped, SELECT to the sys role only
-            val retention =
-                h.admin.asPlatform {
-                    val namespace =
-                        select(
-                            PG_NAMESPACE_OID,
-                        ).from(PG_NAMESPACE).where(PG_NAMESPACE_NAME.eq(SCHEMA)).fetchOne(PG_NAMESPACE_OID)
-                    select(
-                        DSL.function(
-                            DSL.name("obj_description"),
-                            SQLDataType.CLOB,
-                            PG_CLASS_OID,
-                            DSL.`val`("pg_class"),
-                        ),
-                        DSL.function(
-                            DSL.name("has_table_privilege"),
-                            SQLDataType.BOOLEAN,
-                            DSL.`val`(OutboxPostgresFixture.APP),
-                            PG_CLASS_OID,
-                            DSL.`val`("select"),
-                        ),
-                        DSL.function(
-                            DSL.name("has_table_privilege"),
-                            SQLDataType.BOOLEAN,
-                            DSL.`val`(OutboxPostgresFixture.SYS),
-                            PG_CLASS_OID,
-                            DSL.`val`("select"),
-                        ),
-                    ).from(PG_CLASS)
-                        .where(PG_CLASS_NAMESPACE.eq(namespace).and(PG_CLASS_NAME.eq(JobSchema.JOB_RETENTION)))
-                        .fetchOne()!!
-                        .intoList()
-                }
-            retention shouldBe listOf("platform-scoped: no tenant data", false, true)
-            sqlStateOf(replica) {
-                h.owner.asPlatform {
-                    update(
-                        retentionTable,
-                    ).set(
-                        DSL.field(DSL.name("job_window"), SQLDataType.INTERVALDAYTOSECOND),
-                        DayToSecond.valueOf(Duration.ZERO),
-                    ).execute()
-                }
-            } shouldBe "23514"
+            assertRetentionTable(h, replica)
 
-            // the purge refuses a batch outside its bounds
-            for (batch in listOf(0, JobSchema.MAX_PURGE_BATCH + 1)) {
-                sqlStateOf(replica) {
-                    replica.asPlatform {
-                        replica.tx.inTransaction {
-                            replica.dsl
-                                .select(
-                                    DSL.function(
-                                        DSL.name(SCHEMA, JobSchema.PURGE_EXPIRED),
-                                        SQLDataType.BIGINT,
-                                        DSL.`val`(batch),
-                                    ),
-                                ).fetch()
-                        }
+            assertPurgeBatchBounds(replica)
+        }
+    }
+
+    private fun seedRows(
+        h: JobsHarness,
+        sweepJob: String,
+        purgeJob: String,
+    ) {
+        // abandoned runs of two tenants, an hour old (past lockAtMostFor), and finished, paused and recent rows
+        listOf(TENANT_A to "E-001", TENANT_B to "E-002").forEach { (tenant, entity) ->
+            insertRun(h, Row(tenant, sweepJob, entity), "IN_PROGRESS", Duration.ofHours(1))
+            insertRun(h, Row(tenant, purgeJob, entity), "SUCCEEDED", Duration.ofDays(31))
+            insertPause(h, Row(tenant, purgeJob, entity), ended = true, age = Duration.ofDays(31))
+        }
+        insertRun(h, Row(TENANT_A, purgeJob, "E-004"), "SUCCEEDED", Duration.ofDays(1))
+        insertPause(h, Row(TENANT_A, purgeJob, "E-005"), ended = false, age = Duration.ofDays(1))
+    }
+
+    private fun assertRuntimeLoginIsBoundToA(
+        h: JobsHarness,
+        purgeJob: String,
+    ) {
+        // the runtime login, bound to tenant A: its direct SELECT reaches only A's rows (never B's), it holds no
+        // DELETE on the job tables at all (refused, nothing removed), and it cannot read the retention row
+        val runtime = h.replica("svc-probe", MutableClock(Instant.now()))
+        for (table in listOf(runTable, pauseTable)) {
+            val seen =
+                runtime.asTenant(TENANT_A) {
+                    runtime.tx.inTransaction {
+                        runtime.dsl
+                            .select(tenantId)
+                            .from(table)
+                            .fetch(tenantId)
+                            .toSet()
                     }
-                } shouldBe "22023"
+                }
+            seen shouldBe setOf(TENANT_A.value)
+            sqlStateOf(runtime) {
+                runtime.asTenant(TENANT_A) { runtime.tx.inTransaction { runtime.dsl.deleteFrom(table).execute() } }
+            } shouldBe "42501"
+        }
+        sqlStateOf(runtime) {
+            runtime.asPlatform {
+                runtime.tx.inTransaction {
+                    runtime.dsl
+                        .select(
+                            retentionWindow(),
+                        ).from(retentionTable)
+                        .fetch()
+                }
             }
+        } shouldBe "42501"
+        count(h, runTable, purgeJob) shouldBe 3
+        count(h, pauseTable, purgeJob) shouldBe 3
+    }
+
+    private fun assertRetentionRowGuards(
+        h: JobsHarness,
+        replica: JobsHarness.Replica,
+        purgeJob: String,
+    ) {
+        // a retention that differs from the row stops the job runtime's start
+        val longer =
+            h.replica(
+                "svc-2",
+                MutableClock(Instant.now()),
+                extras = JobsHarness.ReplicaExtras(retention = Duration.ofDays(40)),
+            )
+        assertThrows<IllegalStateException> { longer.runtime.announce() }
+
+        // with no retention row the purge deletes nothing, and the job runtime refuses to start
+        insertRun(h, Row(TENANT_B, purgeJob, "E-006"), "SUCCEEDED", Duration.ofDays(400))
+        h.owner.asPlatform { deleteFrom(retentionTable).execute() }
+        replica.runtime.purge() shouldBe 0
+        count(h, runTable, purgeJob) shouldBe 3
+        assertThrows<IllegalStateException> { replica.runtime.announce() }
+    }
+
+    private fun functionRows(
+        h: JobsHarness,
+        names: List<String>,
+    ): List<List<Any?>> =
+        h.admin.asPlatform {
+            val namespace =
+                select(
+                    PG_NAMESPACE_OID,
+                ).from(PG_NAMESPACE).where(PG_NAMESPACE_NAME.eq(SCHEMA)).fetchOne(PG_NAMESPACE_OID)
+            select(
+                PG_PROC_NAME,
+                DSL.function(DSL.name("pg_get_userbyid"), SQLDataType.VARCHAR, PG_PROC_OWNER),
+                PG_PROC_DEFINER,
+                PG_PROC_CONFIG.cast(SQLDataType.CLOB),
+                DSL.function(
+                    DSL.name("has_function_privilege"),
+                    SQLDataType.BOOLEAN,
+                    DSL.`val`("public"),
+                    PG_PROC_OID,
+                    DSL.`val`("execute"),
+                ),
+                DSL.function(
+                    DSL.name("has_function_privilege"),
+                    SQLDataType.BOOLEAN,
+                    DSL.`val`(OutboxPostgresFixture.APP),
+                    PG_PROC_OID,
+                    DSL.`val`("execute"),
+                ),
+            ).from(PG_PROC)
+                .where(PG_PROC_NAMESPACE.eq(namespace).and(PG_PROC_NAME.`in`(names)))
+                .orderBy(PG_PROC_NAME)
+                .fetch()
+                .map { it.intoList() }
+        }
+
+    private fun assertSysFunctions(h: JobsHarness) {
+        val names = listOf(JobSchema.IN_PROGRESS_RUNS, JobSchema.RETENTION_WINDOW, JobSchema.PURGE_EXPIRED).sorted()
+        val functions = functionRows(h, names)
+        functions.map { it[0] } shouldBe names
+        functions.forEach {
+            it[1] shouldBe OutboxPostgresFixture.SYS
+            it[2] shouldBe true
+            it[3] shouldBe "{\"search_path=pg_catalog, $SCHEMA, pg_temp\"}"
+            it[4] shouldBe false
+            it[5] shouldBe true
+        }
+    }
+
+    private fun assertSweeperFunction(
+        h: JobsHarness,
+        replica: JobsHarness.Replica,
+    ) {
+        insertRun(h, Row(TENANT_A, "shape", "E-001"), "IN_PROGRESS", Duration.ofHours(1))
+        insertRun(h, Row(TENANT_B, "shape", "E-002"), "IN_PROGRESS", Duration.ofHours(2))
+        val json = inProgress(replica, 500)
+        val runs = ObjectMapper().readTree(json)
+        runs.size() shouldBe 2
+        runs.values().forEach {
+            it
+                .propertyNames()
+                .asSequence()
+                .toList()
+                .sorted() shouldBe
+                listOf("attempt", "entity_ref", "job", "started_at", "tenant_id", "tick", "trigger")
+        }
+        runs.values().map { it.get("entity_ref").asString() } shouldBe listOf("E-002", "E-001")
+        for (batch in listOf(0, JobSchema.MAX_SWEEP_BATCH + 1)) {
+            sqlStateOf(replica) { inProgress(replica, batch) } shouldBe "22023"
+        }
+    }
+
+    private fun retentionTableFacts(h: JobsHarness): List<Any?> =
+        h.admin.asPlatform {
+            val namespace =
+                select(
+                    PG_NAMESPACE_OID,
+                ).from(PG_NAMESPACE).where(PG_NAMESPACE_NAME.eq(SCHEMA)).fetchOne(PG_NAMESPACE_OID)
+            select(
+                DSL.function(
+                    DSL.name("obj_description"),
+                    SQLDataType.CLOB,
+                    PG_CLASS_OID,
+                    DSL.`val`("pg_class"),
+                ),
+                DSL.function(
+                    DSL.name("has_table_privilege"),
+                    SQLDataType.BOOLEAN,
+                    DSL.`val`(OutboxPostgresFixture.APP),
+                    PG_CLASS_OID,
+                    DSL.`val`("select"),
+                ),
+                DSL.function(
+                    DSL.name("has_table_privilege"),
+                    SQLDataType.BOOLEAN,
+                    DSL.`val`(OutboxPostgresFixture.SYS),
+                    PG_CLASS_OID,
+                    DSL.`val`("select"),
+                ),
+            ).from(PG_CLASS)
+                .where(PG_CLASS_NAMESPACE.eq(namespace).and(PG_CLASS_NAME.eq(JobSchema.JOB_RETENTION)))
+                .fetchOne()!!
+                .intoList()
+        }
+
+    private fun assertRetentionTable(
+        h: JobsHarness,
+        replica: JobsHarness.Replica,
+    ) {
+        // the retention table: platform-scoped, SELECT to the sys role only
+        val retention = retentionTableFacts(h)
+        retention shouldBe listOf("platform-scoped: no tenant data", false, true)
+        sqlStateOf(replica) {
+            h.owner.asPlatform {
+                update(
+                    retentionTable,
+                ).set(
+                    DSL.field(DSL.name("job_window"), SQLDataType.INTERVALDAYTOSECOND),
+                    DayToSecond.valueOf(Duration.ZERO),
+                ).execute()
+            }
+        } shouldBe "23514"
+    }
+
+    private fun assertPurgeBatchBounds(replica: JobsHarness.Replica) {
+        // the purge refuses a batch outside its bounds
+        for (batch in listOf(0, JobSchema.MAX_PURGE_BATCH + 1)) {
+            sqlStateOf(replica) {
+                replica.asPlatform {
+                    replica.tx.inTransaction {
+                        replica.dsl
+                            .select(
+                                DSL.function(
+                                    DSL.name(SCHEMA, JobSchema.PURGE_EXPIRED),
+                                    SQLDataType.BIGINT,
+                                    DSL.`val`(batch),
+                                ),
+                            ).fetch()
+                    }
+                }
+            } shouldBe "22023"
         }
     }
 
@@ -309,19 +366,20 @@ class JobMaintenanceIT {
         block: () -> Any?,
     ): String? = assertThrows<DataAccessException> { block() }.let { replica.tx.sqlStateOf(it) }
 
-    private fun sqlStateOf(
-        h: JobsHarness,
-        block: () -> Any?,
-    ): String? = assertThrows<DataAccessException> { block() }.let { h.owner.runner.sqlStateOf(it) }
+    /** One job row's identity: the tenant, the job and the entity it is for. */
+    private data class Row(
+        val tenant: TenantId,
+        val job: String,
+        val entity: String,
+    )
 
     private fun insertRun(
         h: JobsHarness,
-        tenant: TenantId,
-        job: String,
-        entity: String,
+        row: Row,
         status: String,
         age: Duration,
     ) {
+        val (tenant, job, entity) = row
         val at = OffsetDateTime.now().minus(age)
         h.owner.asTenant(tenant) {
             insertInto(runTable)
@@ -359,12 +417,11 @@ class JobMaintenanceIT {
 
     private fun insertPause(
         h: JobsHarness,
-        tenant: TenantId,
-        job: String,
-        entity: String,
+        row: Row,
         ended: Boolean,
         age: Duration,
     ) {
+        val (tenant, job, entity) = row
         val now = OffsetDateTime.now()
         val pausedFrom = now.minus(age).minusHours(1)
         h.owner.asTenant(tenant) {

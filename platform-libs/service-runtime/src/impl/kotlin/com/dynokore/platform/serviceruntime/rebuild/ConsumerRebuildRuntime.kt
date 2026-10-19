@@ -2,6 +2,7 @@ package com.dynokore.platform.serviceruntime.rebuild
 
 import com.dynokore.platform.auditlog.AuditEntry
 import com.dynokore.platform.auditlog.AuditWriter
+import com.dynokore.platform.outboxandqueue.CatalogueEntry
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.EventCatalogue
@@ -54,6 +55,7 @@ import java.util.UUID
  */
 class ConsumerRebuildRuntime
     @JvmOverloads
+    @Suppress("LongParameterList") // constructor injection under CS-05; INV-Q-4629 (CS-50)
     constructor(
         private val service: String,
         private val schema: String,
@@ -87,7 +89,10 @@ class ConsumerRebuildRuntime
                     clock,
                 )
 
-            /** The operator's command under the platform tenant, bound to the operator's `sub` (INV-Q-4268, INV-T-3981 line 7). */
+            /**
+             * The operator's command under the platform tenant, bound to the operator's `sub` (INV-Q-4268, INV-T-3981
+             * line 7).
+             */
             fun <T> platformTransaction(
                 actor: String,
                 block: () -> T,
@@ -99,18 +104,24 @@ class ConsumerRebuildRuntime
         private val mapper = ObjectMapper()
 
         override fun rebuildConsumer(request: RebuildConsumerRequest): RebuildOutcome {
-            val subscription =
-                subscriptions.firstOrNull { it.topic == request.topic }
-                    ?: return RebuildOutcome.Refused(RebuildErrorCode.TOPIC_NOT_CONSUMED)
-            val entry =
-                catalogue.topic(request.topic) ?: return RebuildOutcome.Refused(RebuildErrorCode.TOPIC_NOT_CONSUMED)
-            if (!authorizer.isPlatformOperator(
+            val subscription = subscriptions.firstOrNull { it.topic == request.topic }
+            val entry = subscription?.let { catalogue.topic(request.topic) }
+            return when {
+                subscription == null || entry == null -> RebuildOutcome.Refused(RebuildErrorCode.TOPIC_NOT_CONSUMED)
+
+                !authorizer.isPlatformOperator(
                     request.actor,
-                )
-            ) {
-                return RebuildOutcome.Refused(RebuildErrorCode.ROLE_NOT_PERMITTED)
+                ) -> RebuildOutcome.Refused(RebuildErrorCode.ROLE_NOT_PERMITTED)
+
+                else -> rebuild(request, subscription.consumer, entry)
             }
-            val consumer = subscription.consumer
+        }
+
+        private fun rebuild(
+            request: RebuildConsumerRequest,
+            consumer: String,
+            entry: CatalogueEntry,
+        ): RebuildOutcome {
             val (producers, side) =
                 if (request.mode == ReplayMode.FULL_SYNC) {
                     val closed = fullSyncAddressees(consumer, entry.producers)
@@ -124,17 +135,19 @@ class ConsumerRebuildRuntime
             repeat(ATTEMPTS) {
                 try {
                     return side.platformTransaction(request.actor) { decide(side, request, consumer, producers) }
-                } catch (race: Exception) {
+                } catch (expected: Exception) {
                     // A concurrent call for the pair committed its pending replay first (unique index): read it again.
-                    if (errors.sqlStateOf(race) != UNIQUE_VIOLATION) throw race
+                    if (errors.sqlStateOf(expected) != UNIQUE_VIOLATION) throw expected
                 }
             }
             error("rebuildConsumer kept racing on the pending replay")
         }
 
         /**
-         * The addressees of a full sync of a topic produced by [start]: a full sync moves every topic of its producers that
-         * [consumer] reads (INV-Q-3603), so each such topic's other producers are addressed too, until no moved topic has a
+         * The addressees of a full sync of a topic produced by [start]: a full sync moves every topic of its producers
+         * that
+         * [consumer] reads (INV-Q-3603), so each such topic's other producers are addressed too, until no moved topic
+         * has a
          * producer outside the set (owner ruling INV-Q-3788 A). Without this, a moved topic's other producers' history
          * would be skipped with no replay to fill it.
          */
@@ -166,11 +179,20 @@ class ConsumerRebuildRuntime
             request: RebuildConsumerRequest,
             consumer: String,
             producers: List<String>,
+        ): RebuildOutcome =
+            repeatOrConflict(side, request, consumer, producers)
+                ?: if (side.replay.isBehind(consumer, request.topic)) {
+                    start(side, request, consumer, producers)
+                } else {
+                    RebuildOutcome.Refused(RebuildErrorCode.NOT_REBUILD_REQUIRED)
+                }
+
+        private fun start(
+            side: Side,
+            request: RebuildConsumerRequest,
+            consumer: String,
+            producers: List<String>,
         ): RebuildOutcome {
-            repeatOrConflict(side, request, consumer, producers)?.let { return it }
-            if (!side.replay.isBehind(consumer, request.topic)) {
-                return RebuildOutcome.Refused(RebuildErrorCode.NOT_REBUILD_REQUIRED)
-            }
             val replayId = UUID.randomUUID()
             val requests = producers.map { ReplayRequest(replayId, it, request.mode, request.scope) }
             val moved =
@@ -199,8 +221,10 @@ class ConsumerRebuildRuntime
         }
 
         /**
-         * The repeat rule over the addressed pairs (owner rulings INV-Q-3665, INV-Q-3788 A): none pending, `null` (go on);
-         * the pending replay returned (200) when every pending pair holds one replay, of this mode and scope, addressed to
+         * The repeat rule over the addressed pairs (owner rulings INV-Q-3665, INV-Q-3788 A): none pending, `null` (go
+         * on);
+         * the pending replay returned (200) when every pending pair holds one replay, of this mode and scope, addressed
+         * to
          * exactly [producers] (pairs of it already completed stay part of it until its incident closes, INV-Q-3845);
          * otherwise EVL-004. EVL-003 is reached only once the incident has closed.
          */
@@ -239,7 +263,8 @@ class ConsumerRebuildRuntime
         )
 
         /**
-         * The audit entry of INV-Q-3663 (INV-REQ-2588 b9): actor; action rebuildConsumer; scope = consumer service, topic,
+         * The audit entry of INV-Q-3663 (INV-REQ-2588 b9): actor; action rebuildConsumer; scope = consumer service,
+         * topic,
          * producer, every addressee (INV-Q-3788 A), mode and replay scope; reason = the caller's text, else the
          * Idempotency-Key; prior state = the positions before the move.
          */

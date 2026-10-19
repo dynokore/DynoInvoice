@@ -79,7 +79,8 @@ class ModuleApiConsumerContractTest {
         AuditHarness(image).use { h ->
             val tenant = UUID.randomUUID()
             val everyRole = setOf("tax.approver", "tenant.admin")
-            val command = h.overrideCommand(tenant, UUID.randomUUID(), code = AuditHarness.SUB_009, roles = everyRole)
+            val command =
+                h.overrideCommand(tenant, UUID.randomUUID(), code = AuditHarness.SUB_009).copy(actorRoles = everyRole)
             val refused =
                 assertThrows(OverrideRefused::class.java) { h.asTenant(tenant) { h.overrides.override(command) } }
             assertEquals(RefusalReason.TERMINAL, refused.reason)
@@ -104,7 +105,8 @@ class ModuleApiConsumerContractTest {
             assertEquals(RefusalReason.REASON_REQUIRED, refusal(h.overrideCommand(tenant, doc, reason = null)))
             assertEquals(RefusalReason.REASON_REQUIRED, refusal(h.overrideCommand(tenant, doc, reason = "  ")))
             val admin = setOf("tenant.admin")
-            assertEquals(RefusalReason.ROLE_NOT_AUTHORISED, refusal(h.overrideCommand(tenant, doc, roles = admin)))
+            val adminCommand = h.overrideCommand(tenant, doc).copy(actorRoles = admin)
+            assertEquals(RefusalReason.ROLE_NOT_AUTHORISED, refusal(adminCommand))
             val manual = h.overrideCommand(tenant, doc, code = AuditHarness.PAY_001)
             assertEquals(RefusalReason.NOT_OVERRIDABLE, refusal(manual))
             assertEquals(RefusalReason.UNKNOWN_CODE, refusal(h.overrideCommand(tenant, doc, code = "XXX-999")))
