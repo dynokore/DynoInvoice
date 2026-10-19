@@ -2,7 +2,7 @@
 //
 // No buildable code sits at the repository root: the five architectural modules (ARC-10) and the test-only
 // `acceptance` project are Gradle projects of their own. This file holds what they share: dependency locking,
-// the repository gates (gradle/gates.gradle.kts) and the group.
+// the repository gates (the acceptance project: acKeyCoverage, operationsGate) and the group.
 
 // STK-72 (coordinator ruling INV-Q-4367): every resolvable configuration of every project is locked in strict
 // mode, the plugin classpath of the root and of each module too (buildscript-gradle.lockfile), and the settings
@@ -51,3 +51,7 @@ subprojects {
         useJUnitPlatform()
     }
 }
+
+// `./gradlew acKeyCoverage` and `./gradlew operationsGate` run the repository gates of the acceptance project.
+tasks.register("acKeyCoverage") { dependsOn(":acceptance:acKeyCoverage") }
+tasks.register("operationsGate") { dependsOn(":acceptance:operationsGate") }

@@ -8,7 +8,7 @@ SET lock_timeout = '5s';
 CREATE SEQUENCE tenancy.structure_version_seq AS bigint START WITH 1 INCREMENT BY 1 MINVALUE 1 NO CYCLE;
 
 CREATE TABLE tenancy.tenant (
-    tenant_id          uuid        PRIMARY KEY,
+    tenant_id          uuid        NOT NULL PRIMARY KEY,
     ref                text        NOT NULL CHECK (length(ref) BETWEEN 1 AND 64),
     legal_name         text        NOT NULL CHECK (length(legal_name) BETWEEN 1 AND 200),
     plan_ref           text        NOT NULL CHECK (length(plan_ref) BETWEEN 1 AND 64),

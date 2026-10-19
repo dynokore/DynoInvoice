@@ -14,6 +14,10 @@ testcontainers = "1.21.4"
 junit = "6.1.3"
 jackson = "3.2.3"
 slf4jSimple = "2.0.16"
+kotest = "6.2.5"
+konsist = "0.17.3"
+snakeyaml = "2.7"
+jsonSchemaValidator = "3.0.8"
 # The published platform-contracts bundle tenancy-contract generates from (a main build including INV-T-4909 and
 # INV-T-3298); bumped deliberately, like platform-libs' product-runtime does.
 platformContractsBundle = "0.0.0-dev+206f60b3"
@@ -53,6 +57,10 @@ postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" 
 testcontainers-postgresql = { module = "org.testcontainers:postgresql", version.ref = "testcontainers" }
 jackson-databind = { module = "tools.jackson.core:jackson-databind", version.ref = "jackson" }
 jackson-moduleKotlin = { module = "tools.jackson.module:jackson-module-kotlin" }
+kotest-assertionsCore = { module = "io.kotest:kotest-assertions-core", version.ref = "kotest" }
+konsist = { module = "com.lemonappdev:konsist", version.ref = "konsist" }
+snakeyaml = { module = "org.yaml:snakeyaml", version.ref = "snakeyaml" }
+jsonSchemaValidator = { module = "com.networknt:json-schema-validator", version.ref = "jsonSchemaValidator" }
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4jSimple" }
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
