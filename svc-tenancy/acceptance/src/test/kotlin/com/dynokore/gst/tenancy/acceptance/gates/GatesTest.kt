@@ -19,19 +19,27 @@ class GatesTest {
         """
         asyncapi: 3.1.0
         channels:
-          chanOne:
+          tenancyChanOne:
             address: 'gst.x.one.v1'
+        components:
+          messages:
+            ChanOne: { payload: {} }
         """.trimIndent()
-    private val header = "kind\tid\ttask\tstate\n"
+    private val header = "name\tkind\ttask\tstate\n"
     private val full =
-        header + "operation\topA\tINV-T-1\tdone\noperation\topB\tINV-T-2\tpending\nchannel\tchanOne\tINV-T-1\tdone\n"
+        header + "opA\toperation\tINV-T-1\tdone\nopB\toperation\tINV-T-2\tpending\nChanOne\tchannel\tINV-T-1\tdone\n"
+    private val assignedTo =
+        mapOf("opA" to "INV-T-1", "opB" to "INV-T-2", "ChanOne" to "INV-T-1", "gone" to "INV-T-3", "x" to "INV-T-3")
 
     private fun ops(
         table: String?,
         stubs: Set<String> = emptySet(),
         implemented: Set<String> = setOf("opA"),
         spec: String = openapi,
-    ) = OperationsGate.check(spec, asyncapi, table, OperationsGate.Code(implemented, stubs)).map { it.message }
+        classes: Set<String> = setOf("ChanOnePayloadSchemaTest"),
+    ) = OperationsGate
+        .check(spec, asyncapi, table, OperationsGate.Code(implemented, stubs), classes) { _, name -> assignedTo[name] }
+        .map { it.message }
 
     @Test
     fun `a complete table passes`() {
@@ -47,7 +55,7 @@ class GatesTest {
 
     @Test
     fun `a channel missing from the table fails`() {
-        ops(header + "operation\topA\tINV-T-1\tdone\noperation\topB\tINV-T-2\tpending\n").single() shouldBe
+        ops(header + "opA\toperation\tINV-T-1\tdone\nopB\toperation\tINV-T-2\tpending\n").single() shouldBe
             "the contract holds this channel but the table does not list it"
     }
 
@@ -71,7 +79,7 @@ class GatesTest {
     @Test
     fun `a row for an operation the contract does not hold fails`() {
         ops(
-            full + "operation\tgone\tINV-T-3\tpending\n",
+            full + "gone\toperation\tINV-T-3\tpending\n",
             stubs = setOf("gone"),
         ).contains("the table lists an operationId the contract does not hold") shouldBe
             true
@@ -81,10 +89,110 @@ class GatesTest {
     fun `a missing, empty or malformed table fails`() {
         ops(null).single() shouldBe "the table is missing or empty"
         ops("").single() shouldBe "the table is missing or empty"
-        ops(full + "operation\topA\tINV-T-1\tdone\n").contains("listed twice") shouldBe true
-        ops(full.replace("INV-T-2", "T2")).contains("task 'T2' is not an INV-T-<n> key") shouldBe true
+        ops(full + "opA\toperation\tINV-T-1\tdone\n").contains("listed twice") shouldBe true
+        ops(full.replace("INV-T-2", "T2")).contains("task 'T2' is not the assigned task INV-T-2") shouldBe true
         ops(full.replace("pending", "later")).contains("state 'later' is not done or pending") shouldBe true
-        ops(full + "tool\tx\tINV-T-3\tdone\n").contains("kind 'tool' is not operation or channel") shouldBe true
+        ops(full + "x\ttool\tINV-T-3\tdone\n").contains("kind 'tool' is not operation or channel") shouldBe true
+    }
+
+    @Test
+    fun `a done channel without its payload-schema test class fails and a look-alike class does not count`() {
+        for (classes in listOf(
+            emptySet(),
+            setOf("ChanOnePayloadSchemaTests"),
+            setOf("OtherPayloadSchemaTest"),
+            setOf("chanOnePayloadSchemaTest"),
+        )) {
+            ops(full, classes = classes).single() shouldBe
+                "task INV-T-1 is done but no test class ChanOnePayloadSchemaTest exists"
+        }
+    }
+
+    @Test
+    fun `payload test classes are read from code, not from comments or strings`() {
+        val dir =
+            kotlin.io.path
+                .createTempDirectory()
+                .toFile()
+        File(dir, "A.kt").writeText(
+            "// class XPayloadSchemaTest\n/* class YPayloadSchemaTest */\nval s = \"class ZPayloadSchemaTest\"\n" +
+                "internal class RealPayloadSchemaTest { }\n",
+        )
+        OperationsGate.classNames(listOf(File(dir, "A.kt"))) shouldBe setOf("RealPayloadSchemaTest")
+    }
+
+    @Test
+    fun `the ruled assignment is enforced by equality on the real names`() {
+        val ops = Assignments.operations
+        val channels = Assignments.channels
+        val spec =
+            "openapi: 3.1.0\npaths:\n" + ops.keys.joinToString("\n") { "  /$it:\n    post: { operationId: $it }" }
+        val async =
+            "asyncapi: 3.1.0\ncomponents:\n  messages:\n" +
+                channels.keys.joinToString("\n") { "    $it: { payload: {} }" }
+        val table =
+            header +
+                ops.entries.joinToString("") { "${it.key}\toperation\t${it.value}\tpending\n" } +
+                channels.entries.joinToString("") { "${it.key}\tchannel\t${it.value}\tpending\n" }
+
+        fun run(
+            t: String,
+            s: String = spec,
+        ) = OperationsGate.check(s, async, t, OperationsGate.Code(emptySet(), emptySet())).map {
+            it.subject to
+                it.message
+        }
+
+        run(table).shouldBeEmpty()
+        run(
+            table.replace(
+                "recordMigrationCutover\toperation\tINV-T-7382",
+                "recordMigrationCutover\toperation\tINV-T-73820",
+            ),
+        ).single()
+            .first shouldBe "recordMigrationCutover"
+        run(
+            table.replace(
+                "recordMigrationCutover\toperation\tINV-T-7382",
+                "recordMigrationCutover\toperation\tunassigned",
+            ),
+        ).single()
+            .first shouldBe "recordMigrationCutover"
+        run(table.replace("answerQuestionnaire\toperation\tINV-T-4933\tpending\n", "")).single().first shouldBe
+            "answerQuestionnaire"
+        run(table.replace("listPeriodRecords", "listPeriodRecord")).map { it.first }.toSet() shouldBe
+            setOf("listPeriodRecords", "listPeriodRecord")
+        run(table + "createTenant\toperation\tINV-T-4925\tpending\n").single().second shouldBe "listed twice"
+        run(table, spec.replace("moveBusinessUnit", "moveBusinessunit")).map { it.first }.toSet() shouldBe
+            setOf("moveBusinessUnit", "moveBusinessunit")
+        run(table, spec + "\n  /extra:\n    post: { operationId: extraOp }").single().first shouldBe "extraOp"
+        val done =
+            table.replace(
+                "PeriodExtended\tchannel\tINV-T-4930\tpending",
+                "PeriodExtended\tchannel\tINV-T-4930\tdone",
+            )
+        for (classes in listOf(
+            emptySet(),
+            setOf("PeriodExtendedPayloadSchemaTests"),
+            setOf("PeriodDueDateChangedPayloadSchemaTest"),
+        )) {
+            OperationsGate
+                .check(spec, async, done, OperationsGate.Code(emptySet(), emptySet()), classes)
+                .single()
+                .subject shouldBe "PeriodExtended"
+        }
+        OperationsGate
+            .check(
+                spec,
+                async,
+                done,
+                OperationsGate.Code(emptySet(), emptySet()),
+                setOf("PeriodExtendedPayloadSchemaTest"),
+            ).shouldBeEmpty()
+        OperationsGate
+            .check(spec, "$async\n    Unknown: { payload: {} }", table, OperationsGate.Code(emptySet(), emptySet()))
+            .single()
+            .subject shouldBe "Unknown"
     }
 
     @Test

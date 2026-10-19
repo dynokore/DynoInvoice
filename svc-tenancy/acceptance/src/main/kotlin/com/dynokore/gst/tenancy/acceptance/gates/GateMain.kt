@@ -17,11 +17,13 @@ object GateMain {
                 "operations" -> {
                     val contract = dir("--contract")
                     val sources = dir("--adapters").walkTopDown().filter { it.isFile }.toList()
+                    val tests = testSources(dir("--table"))
                     OperationsGate.check(
                         File(contract, "openapi.yaml").readText(),
                         File(contract, "asyncapi.yaml").readText(),
                         File(dir("--table"), OperationsGate.NAME).takeIf { it.isFile }?.readText(),
                         OperationsGate.Code(OperationsGate.overrides(sources), OperationsGate.stubs(sources)),
+                        OperationsGate.classNames(tests),
                     )
                 }
 
@@ -40,6 +42,15 @@ object GateMain {
         if (findings.isNotEmpty()) exitProcess(1)
         println("$gate gate: no finding")
     }
+
+    /** Every Kotlin file under a `src/test` or `src/integrationTest` folder of a module of the repository. */
+    private fun testSources(root: File): List<File> =
+        root
+            .walkTopDown()
+            .onEnter { it.name != "build" && it.name != ".git" && it.name != ".gradle" }
+            .filter { it.isFile && it.extension == "kt" }
+            .filter { f -> f.path.contains("/src/test/") || f.path.contains("/src/integrationTest/") }
+            .toList()
 
     private fun usage(): Nothing {
         System.err.println("usage: GateMain operations --contract=DIR --table=DIR --adapters=DIR")

@@ -11,8 +11,9 @@ import java.io.File
  * - a row's task is marked `done` while its operation still answers 501: the generated interface answers 501 for an
  *   operation no adapters class overrides, and an override that calls `notImplemented("<operationId>")` is an explicit
  *   stub; or a row is `pending` while the operation is implemented (a stale row);
- * - a row is malformed: not `kind`, `id`, `task`, `state` columns, an unknown kind or state, or a task that is not an
- *   `INV-T-<n>` key.
+ * - a channel row is done and no test class `<Channel>PayloadSchemaTest` exists (INV-Q-7391);
+ * - a row is malformed: not `name`, `kind`, `task`, `state` columns, an unknown kind or state, a name the ruling
+ *   (INV-Q-7388, INV-Q-7391) does not classify, or a task other than the one the ruling assigns it.
  *
  * Deny by default: anything the gate cannot classify is a finding.
  */
@@ -20,8 +21,23 @@ object OperationsGate {
     const val NAME = "operations.tsv"
     private val OVERRIDE = Regex("""\boverride\s+fun\s+(\w+)\s*\(""")
     private val STUB = Regex("""notImplemented\(\s*"([^"\\]+)"\s*\)""")
-    private val TASK = Regex("INV-T-[0-9]+")
-    private val HEADER = listOf("kind", "id", "task", "state")
+    private val CLASS = Regex("""\bclass\s+(\w+)""")
+    private val HEADER = listOf("name", "kind", "task", "state")
+
+    /** The suffix of the payload-schema test class every channel of a done task must have (INV-Q-7391). */
+    const val PAYLOAD_TEST_SUFFIX = "PayloadSchemaTest"
+
+    /** The class names declared in the given test sources. */
+    fun classNames(testSources: List<File>): Set<String> =
+        testSources
+            .filter { it.isFile && it.extension == "kt" }
+            .flatMap {
+                CLASS
+                    .findAll(SourceText.stripCommentsAndStrings(it.readText()))
+                    .map { m ->
+                        m.groupValues[1]
+                    }.toList()
+            }.toSet()
 
     fun contractOperations(openapi: String): Set<String> {
         val root = Yaml().load<Map<String, Any?>>(openapi)
@@ -32,10 +48,11 @@ object OperationsGate {
             .toSet()
     }
 
-    /** The channel keys of the AsyncAPI document (the channel id of the table). */
+    /** The channel keys under `components.messages` of the AsyncAPI document (the channel name of the table). */
     fun contractChannels(asyncapi: String): Set<String> {
         val root = Yaml().load<Map<String, Any?>>(asyncapi)
-        return (root["channels"] as? Map<*, *>)
+        val components = root["components"] as? Map<*, *>
+        return (components?.get("messages") as? Map<*, *>)
             ?.keys
             ?.filterIsInstance<String>()
             ?.toSet()
@@ -68,6 +85,8 @@ object OperationsGate {
         asyncapi: String,
         table: String?,
         code: Code,
+        testClasses: Set<String> = emptySet(),
+        assigned: (kind: String, name: String) -> String? = { kind, name -> Assignments.of(kind)[name] },
     ): List<Finding> {
         val parsed = table?.let(Tsv::rows) ?: return listOf(Finding(NAME, NAME, "the table is missing or empty"))
         val (header, rows) = parsed
@@ -81,12 +100,12 @@ object OperationsGate {
                 if (row.size == HEADER.size &&
                     row.none { it.isEmpty() }
                 ) {
-                    rowFindings(row, seen, operations, channels, code)
+                    rowFindings(row, seen, operations, channels, code, testClasses, assigned)
                 } else {
                     listOf(malformed(row))
                 }
         }
-        val listed = rows.filter { it.size == HEADER.size }.map { it[0] to it[1] }.toSet()
+        val listed = rows.filter { it.size == HEADER.size }.map { it[1] to it[0] }.toSet()
         findings += unlisted("operation", operations, listed, "operationId")
         findings += unlisted("channel", channels, listed, "channel")
         findings +=
@@ -114,14 +133,21 @@ object OperationsGate {
         operations: Set<String>,
         channels: Set<String>,
         code: Code,
+        testClasses: Set<String>,
+        assigned: (String, String) -> String?,
     ): List<Finding> {
-        val kind = row[0]
-        val id = row[1]
+        val id = row[0]
+        val kind = row[1]
         val task = row[2]
         val state = row[3]
         val out = ArrayList<Finding>()
         if (!seen.add(listOf(kind, id))) out += Finding(NAME, id, "listed twice")
-        if (!TASK.matches(task)) out += Finding(NAME, id, "task '$task' is not an INV-T-<n> key")
+        val expected = assigned(kind, id)
+        if (expected == null) {
+            out += Finding(NAME, id, "the $kind has no assigned task in the ruling; classify it first")
+        } else if (task != expected) {
+            out += Finding(NAME, id, "task '$task' is not the assigned task $expected")
+        }
         if (state != "done" && state != "pending") out += Finding(NAME, id, "state '$state' is not done or pending")
         when (kind) {
             "operation" -> {
@@ -133,6 +159,9 @@ object OperationsGate {
                     channels
                 ) {
                     out += Finding(NAME, id, "the table lists a channel the contract does not hold")
+                }
+                if (state == "done" && id + PAYLOAD_TEST_SUFFIX !in testClasses) {
+                    out += Finding(NAME, id, "task $task is done but no test class ${id + PAYLOAD_TEST_SUFFIX} exists")
                 }
             }
 
@@ -163,4 +192,54 @@ object OperationsGate {
         }
         return out
     }
+}
+
+/** The task each operation and channel belongs to (coordinator rulings INV-Q-7388 and INV-Q-7391). */
+internal object Assignments {
+    private fun of(
+        task: String,
+        vararg names: String,
+    ) = names.associateWith { task }
+
+    val operations: Map<String, String> =
+        of("INV-T-4925", "createTenant", "createEntity", "getEntityStructure", "createGroup", "registerBusinessUnit") +
+            of("INV-T-4925", "moveBusinessUnit", "updateBusinessUnit") +
+            of("INV-T-4926", "assessPhase", "setEntityStatus") +
+            of("INV-T-4927", "setIssuanceMode", "recordElection", "electRateSource") +
+            of("INV-T-4929", "changeFilingFrequency", "confirmPeriods") +
+            of("INV-T-4930", "recordExtension", "listPeriodRecords") +
+            of(
+                "INV-T-4931",
+                "certifySandbox",
+                "goLive",
+                "suspendEntity",
+                "deregisterEntity",
+                "recordRenditionResponsibility",
+                "offboardTenant",
+            ) +
+            of("INV-T-4932", "createWorkspace", "archiveWorkspace") +
+            of(
+                "INV-T-4933",
+                "installLicence",
+                "getUsageCounters",
+                "answerQuestionnaire",
+                "recordAppliedOperatingProfile",
+                "getAppliedOperatingProfile",
+            ) +
+            of("INV-T-3290", "recordInstallationAction") +
+            of("INV-T-7382", "recordMigrationCutover", "getMigrationCutover")
+
+    val channels: Map<String, String> =
+        of("INV-T-4925", "OrganisationStructureChanged", "ExampleHappened") +
+            of("INV-T-4926", "EntityProfileChanged") +
+            of("INV-T-4929", "FilingFrequencyChanged") +
+            of("INV-T-4930", "PeriodExtended", "PeriodDueDateChanged") +
+            of("INV-T-4933", "InstallationStatusChanged")
+
+    fun of(kind: String): Map<String, String> =
+        when (kind) {
+            "operation" -> operations
+            "channel" -> channels
+            else -> emptyMap()
+        }
 }
