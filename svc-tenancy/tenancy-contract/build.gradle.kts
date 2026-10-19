@@ -91,6 +91,4 @@ fun stageService(
 
 stageContracts()
 
-stageContracts()
-
 contractServer { generatorSource("platform-contracts:tenancy:openapi.yaml") }

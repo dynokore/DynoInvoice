@@ -6,6 +6,7 @@ plugins {
 
 // STK-15: the records are generated from the Flyway migrations (src/main/resources/db/migration) applied to PostgreSQL.
 gstJooqCodegen {
+    initScripts.from("src/integrationTest/resources/roles.sql")
     schema = "tenancy"
 }
 
