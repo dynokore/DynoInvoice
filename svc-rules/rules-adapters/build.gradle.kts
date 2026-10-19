@@ -47,10 +47,14 @@ dependencies {
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.kotest.assertionsCore)
+    testImplementation(libs.jsonSchemaValidator) // the AsyncAPI payload schemas of every published channel
+    testImplementation(libs.snakeyaml) // asyncapi.yaml of the pinned contract
     testRuntimeOnly(libs.junit.platformLauncher)
 }
 
 tasks.test {
     useJUnitPlatform()
+    // -Dgst.regenerate=true rewrites the committed generated migration (MigrationDdlTest)
+    System.getProperty("gst.regenerate")?.let { systemProperty("gst.regenerate", it) }
     jvmArgs("-Duser.timezone=UTC") // CS-41
 }

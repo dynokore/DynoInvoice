@@ -36,12 +36,15 @@ dependencies {
     testImplementation(libs.assertj.core) // AssertableApplicationContext extends AssertJ's AssertProvider
     testImplementation(libs.jooq)
     testImplementation(libs.kotest.assertionsCore)
+    testImplementation(libs.platform.konsistRules) // ArchitectureRules, RawSqlPlacement, SqlGuards, MigrationLint (STK-41)
     testImplementation(libs.platform.outboxAndQueue.api)
     testImplementation(libs.platform.tenancyKernel.api)
     testRuntimeOnly(libs.junit.platformLauncher)
 }
 
 tasks.test {
+    // ArchitectureTest scans the generated contract layer of rules-contract
+    dependsOn(":rules-contract:generateContractServer")
     useJUnitPlatform()
     jvmArgs("-Duser.timezone=UTC") // CS-41
 }
