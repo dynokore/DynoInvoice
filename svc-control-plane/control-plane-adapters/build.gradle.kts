@@ -6,10 +6,20 @@ plugins {
     id("gst.jooq-codegen")
 }
 
+// The jars that hold BindingKeyMigration: gst.jooq-codegen installs the signed-binding functions from them before the
+// first migration runs (INV-Q-7418 A, platform-build INV-T-7430). Build time only.
+val bindingKernel: Configuration by configurations.creating {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+}
+
 gstJooqCodegen {
     schema = "controlplane"
     packageName = "com.dynokore.gst.controlPlane.adapters.persistence.jooq"
     initScripts.from("src/integrationTest/resources/roles.sql")
+    bindingSource.from(bindingKernel)
+    bindingSysRole = "controlplane_sys"
+    bindingRuntimeRole = "controlplane_runtime"
 }
 
 sourceSets {
@@ -27,6 +37,8 @@ val integrationTestRuntimeOnly: Configuration by configurations.getting {
 }
 
 dependencies {
+    bindingKernel(platform(libs.platform.bom))
+    bindingKernel(libs.platform.tenancyKernel)
     implementation(platform(libs.platform.bom))
     implementation(platform(libs.springBoot.dependencies))
     implementation(project(":control-plane-domain"))

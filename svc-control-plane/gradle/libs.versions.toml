@@ -1,13 +1,13 @@
 # gradle/libs.versions.toml: the one place versions live (STK-01, TPL-01).
 [versions]
 # platform-build's convention plugins and konsist-rules (TPL-01 `libs.versions.platformBuild`).
-platformBuild = "0.21.0"
+platformBuild = "0.22.2"
 # The platform-libs BOM names the module versions tested together; a service bumps this one line (STK-60).
 platformLibsBom = "0.97.0"
 gstCatalogue = "1.28.0"
 # The published platform-contracts bundle this service generates from and tests against (INV-T-4984: the fixture takes
 # the feed index schema from the pinned release, never a copy).
-platformContractsBundle = "0.0.0-dev+d05bfdbf"
+platformContractsBundle = "0.0.0-dev+ad00fb84"
 springBoot = "4.1.1"
 jooq = "3.21.9"
 flyway = "12.4.0"
@@ -38,6 +38,8 @@ platform-configResolver-api = { module = "com.dynokore.platform:config-resolver-
 platform-configResolver = { module = "com.dynokore.platform:config-resolver" }
 platform-crypto-api = { module = "com.dynokore.platform:crypto-api" }
 platform-crypto = { module = "com.dynokore.platform:crypto" }
+platform-rulepackKernel-api = { module = "com.dynokore.platform:rulepack-kernel-api" }
+platform-rulepackKernel-impl = { module = "com.dynokore.platform:rulepack-kernel" }
 platform-productRuntime = { module = "com.dynokore.platform:product-runtime" }
 gst-catalogue = { module = "com.dynokore.gst:gst-catalogue", version.ref = "gstCatalogue" }
 platformContracts-bundle = { module = "platform-contracts-bundle:platform-contracts", version.ref = "platformContractsBundle" }

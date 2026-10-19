@@ -1,10 +1,11 @@
 package com.dynokore.gst.controlPlane.adapters.stage
 
-import com.dynokore.gst.controlPlane.adapters.persistence.jooq.routines.references.recordStagingResult
 import com.dynokore.gst.controlPlane.domain.pack.ContentHash
 import com.dynokore.gst.controlPlane.domain.pack.PackRef
 import com.dynokore.gst.controlPlane.domain.pack.StagingResult
 import org.jooq.DSLContext
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import java.util.UUID
 
 /** What the stage records for a pack version (the `PackStagingRecord` of the contract). */
@@ -27,17 +28,22 @@ data class StagingOutcome(
 class StagingRecordWriter(
     private val dsl: DSLContext,
 ) {
-    fun record(outcome: StagingOutcome): UUID =
-        checkNotNull(
-            recordStagingResult(
-                dsl.configuration(),
-                outcome.packRef.value,
-                outcome.result.name,
-                outcome.packContentHash.hex,
-                outcome.target,
-                outcome.evidenceRef,
-                outcome.replayedPeriodRef,
-                outcome.recordedBy,
-            ),
-        )
+    fun record(outcome: StagingOutcome): UUID {
+        // The Name form of DSL.function: no generated routine class is used (INV-Q-7457).
+        val call =
+            DSL.function(
+                DSL.name("controlplane", "record_staging_result"),
+                SQLDataType.UUID,
+                text(outcome.packRef.value),
+                text(outcome.result.name),
+                text(outcome.packContentHash.hex),
+                text(outcome.target),
+                text(outcome.evidenceRef),
+                text(outcome.replayedPeriodRef),
+                text(outcome.recordedBy),
+            )
+        return checkNotNull(dsl.select(call).fetchSingle().value1())
+    }
+
+    private fun text(value: String?) = DSL.value(value, SQLDataType.CLOB)
 }

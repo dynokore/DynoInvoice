@@ -13,8 +13,8 @@ import java.sql.DriverManager
 /**
  * One PostgreSQL per test JVM with the role family of provisioning (roles.sql, schema.sql) and every migration applied
  * as controlplane_migrate, in version order, the way the migration Job does (TPL-12). Tests then act as the runtime
- * login, controlplane_runtime: NOSUPERUSER, NOBYPASSRLS, owns nothing (S2-05, V-01). A superuser session would make every
- * grant assertion pass vacuously, so [asRuntime] refuses one.
+ * login, controlplane_runtime: NOSUPERUSER, NOBYPASSRLS, owns nothing (S2-05, V-01). A superuser session would make
+ * every grant assertion pass vacuously, so [asRuntime] refuses one.
  */
 object PostgresDb {
     private val container: PostgreSQLContainer<*> =

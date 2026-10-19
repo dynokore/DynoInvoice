@@ -127,7 +127,8 @@ class RegistryPersistenceIT {
             PostgresDb.scalar(connection, "select count(*) from pg_tables where tableowner = current_user") shouldBe 0L
             PostgresDb.scalar(
                 connection,
-                "select count(*) from pg_auth_members m join pg_roles r on r.oid = m.member where r.rolname = current_user",
+                "select count(*) from pg_auth_members m join pg_roles r on r.oid = m.member " +
+                    "where r.rolname = current_user",
             ) shouldBe 0L
         }
 
