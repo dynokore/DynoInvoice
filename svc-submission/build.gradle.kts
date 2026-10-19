@@ -23,3 +23,41 @@ subprojects {
         useJUnitPlatform()
     }
 }
+
+// STK-72: every resolvable configuration of every project is locked in strict mode, the plugin classpath of the root and
+// of each module too (buildscript-gradle.lockfile). A configuration without lock state, a resolution outside the lock
+// files or a deleted lock file fails the build. Every downloaded artefact is verified against
+// gradle/verification-metadata.xml in strict mode. Refresh after a dependency change: README.md.
+buildscript {
+    configurations.classpath {
+        resolutionStrategy.activateDependencyLocking()
+    }
+    dependencyLocking {
+        lockMode.set(LockMode.STRICT)
+    }
+}
+
+allprojects {
+    buildscript.configurations.named("classpath") {
+        resolutionStrategy.activateDependencyLocking()
+    }
+    if (this != rootProject) {
+        // The root's own buildscript lock mode is set (and already final) in its buildscript block above.
+        buildscript.dependencyLocking.lockMode.set(LockMode.STRICT)
+    }
+    dependencyLocking {
+        lockAllConfigurations()
+        lockMode.set(LockMode.STRICT)
+    }
+}
+
+// Resolves every resolvable configuration of every project, so one `gradle resolveAndLockAll --write-locks` writes
+// every gradle.lockfile; the build script and settings classpaths are resolved while the build is configured.
+allprojects {
+    tasks.register("resolveAndLockAll") {
+        notCompatibleWithConfigurationCache("resolves configurations at execution time")
+        doLast {
+            project.configurations.filter { it.isCanBeResolved }.forEach { it.resolve() }
+        }
+    }
+}
