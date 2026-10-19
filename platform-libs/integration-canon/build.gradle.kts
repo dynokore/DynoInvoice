@@ -32,6 +32,7 @@ sourceSets {
 dependencies {
     // The impl half compiles and runs against the api half's output, in this same project.
     add("implImplementation", sourceSets["main"].output)
+    add("implImplementation", libs.saxon.he)
 
     testImplementation(sourceSets["impl"].output)
     testImplementation(platform(libs.junit.bom))

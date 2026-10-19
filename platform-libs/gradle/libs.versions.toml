@@ -39,6 +39,9 @@ kotlinxCoroutinesTest = "1.11.0"
 # rulepack-kernel (INV-T-2866 / T22): detached CMS signature verification (STK-13);
 # BC 1.8x latest patch (catalogue) at the time of writing.
 bouncycastle = "1.86"
+# integration-canon impl half (INV-T-7072; STK-10, INV-Q-7068 A): Saxon-HE 12.x, the Schematron runner's XSLT engine;
+# newest 12.x on Maven Central (12.10). Move to 13.x only after one train of conformance-corpus parity (STK-10).
+saxon = "12.10"
 # STK-08: Jackson 3 (`tools.jackson`), one JSON library platform-wide.
 # CVE-2026-89407, CVE-2026-89425, CVE-2026-68497, CVE-2026-91776, CVE-2026-91777
 # (HIGH, INV-REQ-1382): Spring Boot 4.1.1 manages tools.jackson:jackson-bom 3.1.5,
@@ -164,6 +167,8 @@ kotlinx-coroutinesTest = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-te
 kotlinx-coroutinesCore = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
 bouncycastle-bcprov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
 bouncycastle-bcpkix = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "bouncycastle" }
+# STK-10, INV-Q-7068 A: `implImplementation` of integration-canon alone (the api half stays framework-free, ARC-16).
+saxon-he = { module = "net.sf.saxon:Saxon-HE", version.ref = "saxon" }
 jackson-databind = { module = "tools.jackson.core:jackson-databind", version.ref = "jackson" }
 # Jackson 3's own BOM: every `tools.jackson` artefact at one version, imported by
 # `platform-libs-bom` over the Spring Boot BOM's older `jackson-bom` (INV-T-4230).

@@ -6,6 +6,11 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-10-19
+### Changed
+- The impl half gains Saxon-HE 12.10 (`implImplementation`) for the Schematron runner; dependency only, no code. The api
+  half stays free of Saxon (INV-Q-7068, STK-10, ARC-16).
+
 ## [1.1.0] - 2026-10-19
 ### Added
 - `HardenedXml`: the one place that builds the DOM, SAX, StAX and Transformer factories, with document type
