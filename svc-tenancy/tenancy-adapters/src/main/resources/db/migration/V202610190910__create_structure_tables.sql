@@ -27,7 +27,7 @@ CREATE TABLE tenancy.tenant_group (
     ref               text        NOT NULL CHECK (length(ref) BETWEEN 1 AND 64),
     name              text        NOT NULL CHECK (length(name) BETWEEN 1 AND 200),
     kind              text        NOT NULL CHECK (kind IN ('GST_GROUP', 'DIVISIONAL')),
-    gstn              text        CHECK (gstn IS NULL OR length(gstn) BETWEEN 1 AND 20),
+    gstn              text        CHECK (gstn IS NULL OR length(gstn) BETWEEN 1 AND 32),
     retired           boolean     NOT NULL DEFAULT false,
     structure_version bigint      NOT NULL CHECK (structure_version >= 1),
     created_at        timestamptz NOT NULL,
@@ -45,8 +45,8 @@ CREATE TABLE tenancy.entity (
     group_id          uuid        NOT NULL,
     legal_name        text        NOT NULL CHECK (length(legal_name) BETWEEN 1 AND 200),
     constitution      text        NOT NULL,
-    uen               text        CHECK (uen IS NULL OR length(uen) BETWEEN 1 AND 20),
-    gstn              text        CHECK (gstn IS NULL OR length(gstn) BETWEEN 1 AND 20),
+    uen               text        CHECK (uen IS NULL OR length(uen) BETWEEN 1 AND 32),
+    gstn              text        CHECK (gstn IS NULL OR length(gstn) BETWEEN 1 AND 32),
     code              text        NOT NULL CHECK (code ~ '^[A-Z0-9]{1,10}$'),
     lifecycle_state   text        NOT NULL CHECK (lifecycle_state IN ('DRAFT', 'LIVE', 'SUSPENDED', 'DEREGISTERED', 'RETIRED')),
     go_live_date      date,
@@ -85,6 +85,7 @@ CREATE TABLE tenancy.short_code (
     code      text    NOT NULL CHECK (code ~ '^[A-Z0-9]{1,10}$'),
     node_kind text    NOT NULL CHECK (node_kind IN ('ENTITY', 'BUSINESS_UNIT')),
     node_id   uuid    NOT NULL,
+    used_in_aggregate_number boolean NOT NULL DEFAULT false,
     PRIMARY KEY (tenant_id, code),
     UNIQUE (tenant_id, node_id)
 );
@@ -123,5 +124,5 @@ CREATE POLICY tenant_isolation ON tenancy.short_code
     WITH CHECK (tenant_id = (select tenancy.bound_tenant()));
 
 GRANT SELECT, INSERT, UPDATE ON tenancy.tenant, tenancy.tenant_group, tenancy.entity, tenancy.business_unit TO tenancy_runtime;
-GRANT SELECT, INSERT ON tenancy.short_code TO tenancy_runtime;
+GRANT SELECT, INSERT, UPDATE ON tenancy.short_code TO tenancy_runtime;
 GRANT USAGE ON SEQUENCE tenancy.structure_version_seq TO tenancy_runtime;

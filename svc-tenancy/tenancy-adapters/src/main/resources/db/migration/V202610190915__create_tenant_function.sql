@@ -12,6 +12,19 @@ GRANT USAGE ON SCHEMA tenancy TO tenancy_sys;
 GRANT SELECT, INSERT ON tenancy.tenant TO tenancy_sys;
 GRANT USAGE ON SEQUENCE tenancy.structure_version_seq TO tenancy_sys;
 
+-- The stored row as the function answers it: one jsonb value, so the adapter reads it through DSL.function.
+CREATE FUNCTION tenancy.tenant_json(p_outcome text, p_row tenancy.tenant) RETURNS jsonb
+    LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, tenancy, pg_temp AS $$
+    SELECT jsonb_build_object(
+        'outcome', p_outcome,
+        'tenantId', p_row.tenant_id,
+        'ref', p_row.ref,
+        'legalName', p_row.legal_name,
+        'planRef', p_row.plan_ref,
+        'contractReference', p_row.contract_reference,
+        'structureVersion', p_row.structure_version)
+$$;
+
 CREATE FUNCTION tenancy.create_tenant(
     p_tenant_id                uuid,
     p_ref                      text,
@@ -19,15 +32,7 @@ CREATE FUNCTION tenancy.create_tenant(
     p_plan_ref                 text,
     p_contract_reference       text,
     p_paired_production_tenant uuid)
-RETURNS TABLE (
-    outcome                text,
-    out_tenant_id          uuid,
-    out_ref                text,
-    out_legal_name         text,
-    out_plan_ref           text,
-    out_contract_reference text,
-    out_structure_version  bigint,
-    out_created_at         timestamptz)
+RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, tenancy, pg_temp AS $$
 DECLARE
     platform constant uuid := 'ffffffff-ffff-ffff-ffff-ffffffffffff';
@@ -60,27 +65,22 @@ BEGIN
     SELECT * INTO found_row FROM tenancy.tenant t WHERE t.tenant_id = p_tenant_id;
     IF FOUND THEN
         IF found_row.contract_reference = p_contract_reference AND found_row.ref = p_ref THEN
-            RETURN QUERY SELECT 'repeat'::text, found_row.tenant_id, found_row.ref, found_row.legal_name,
-                found_row.plan_ref, found_row.contract_reference, found_row.structure_version, found_row.created_at;
-        ELSE
-            RETURN QUERY SELECT 'conflict'::text, NULL::uuid, NULL::text, NULL::text, NULL::text, NULL::text,
-                NULL::bigint, NULL::timestamptz;
+            RETURN tenancy.tenant_json('repeat', found_row);
         END IF;
-        RETURN;
+        RETURN jsonb_build_object('outcome', 'conflict');
     END IF;
     IF EXISTS (SELECT 1 FROM tenancy.tenant t WHERE t.contract_reference = p_contract_reference OR t.ref = p_ref) THEN
-        RETURN QUERY SELECT 'conflict'::text, NULL::uuid, NULL::text, NULL::text, NULL::text, NULL::text,
-            NULL::bigint, NULL::timestamptz;
-        RETURN;
+        RETURN jsonb_build_object('outcome', 'conflict');
     END IF;
     INSERT INTO tenancy.tenant AS t (tenant_id, ref, legal_name, plan_ref, contract_reference, structure_version, created_at)
     VALUES (p_tenant_id, p_ref, p_legal_name, p_plan_ref, p_contract_reference, nextval('tenancy.structure_version_seq'), now())
     RETURNING * INTO found_row;
-    RETURN QUERY SELECT 'created'::text, found_row.tenant_id, found_row.ref, found_row.legal_name,
-        found_row.plan_ref, found_row.contract_reference, found_row.structure_version, found_row.created_at;
+    RETURN tenancy.tenant_json('created', found_row);
 END;
 $$;
 
+ALTER FUNCTION tenancy.tenant_json(text, tenancy.tenant) OWNER TO tenancy_sys;
+REVOKE ALL ON FUNCTION tenancy.tenant_json(text, tenancy.tenant) FROM PUBLIC;
 ALTER FUNCTION tenancy.create_tenant(uuid, text, text, text, text, uuid) OWNER TO tenancy_sys;
 REVOKE ALL ON FUNCTION tenancy.create_tenant(uuid, text, text, text, text, uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION tenancy.create_tenant(uuid, text, text, text, text, uuid) TO tenancy_runtime;

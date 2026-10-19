@@ -14,6 +14,8 @@ data class StructureNodeState(
     val name: String,
     val code: String?,
     val structureVersion: Long,
+    val uen: String? = null,
+    val gstn: String? = null,
 )
 
 /** One structure change, raised in the command transaction that makes it. */

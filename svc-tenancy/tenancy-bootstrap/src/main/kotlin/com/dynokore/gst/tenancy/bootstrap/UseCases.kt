@@ -2,9 +2,16 @@ package com.dynokore.gst.tenancy.bootstrap
 
 import com.dynokore.gst.tenancy.adapters.events.OrganisationStructureChangedOutbox
 import com.dynokore.gst.tenancy.adapters.persistence.JooqInstallationFactRepository
+import com.dynokore.gst.tenancy.adapters.persistence.JooqStructureStore
+import com.dynokore.gst.tenancy.adapters.persistence.JooqTenantStore
 import com.dynokore.gst.tenancy.adapters.persistence.PlatformScope
 import com.dynokore.gst.tenancy.application.installation.InstallationFactRepository
 import com.dynokore.gst.tenancy.application.structure.StructureChangePublisher
+import com.dynokore.gst.tenancy.application.structure.StructureCommands
+import com.dynokore.gst.tenancy.application.structure.StructureQueries
+import com.dynokore.gst.tenancy.application.structure.StructureStore
+import com.dynokore.gst.tenancy.application.tenant.CreateTenant
+import com.dynokore.gst.tenancy.application.tenant.TenantStore
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TenantContext
@@ -37,4 +44,37 @@ class UseCases {
         outbox: OutboxWriter,
         mapper: ObjectMapper,
     ): StructureChangePublisher = OrganisationStructureChangedOutbox(outbox, mapper)
+
+    @Bean
+    fun tenantStore(
+        dsl: DSLContext,
+        mapper: ObjectMapper,
+    ): TenantStore = JooqTenantStore(dsl, mapper)
+
+    @Bean
+    fun structureStore(
+        dsl: DSLContext,
+        tenants: TenantContext,
+    ): StructureStore = JooqStructureStore(dsl, tenants)
+
+    @Bean
+    fun createTenant(
+        tenants: TenantContext,
+        tx: TransactionRunner,
+        store: TenantStore,
+    ): CreateTenant = CreateTenant(tenants as PlatformTenantBinding, tx, store, "tenancy-svc")
+
+    @Bean
+    fun structureCommands(
+        tx: TransactionRunner,
+        store: StructureStore,
+        publisher: StructureChangePublisher,
+    ): StructureCommands = StructureCommands(tx, store, publisher)
+
+    @Bean
+    fun structureQueries(
+        tx: TransactionRunner,
+        store: StructureStore,
+        tenantStore: TenantStore,
+    ): StructureQueries = StructureQueries(tx, store, tenantStore)
 }
