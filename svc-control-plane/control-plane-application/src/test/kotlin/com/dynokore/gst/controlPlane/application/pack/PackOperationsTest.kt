@@ -44,7 +44,10 @@ class PackOperationsTest {
             }
 
             override fun latestPublished(type: PackType) =
-                store.values.filter { it.type == type && it.status == PackStatus.PUBLISHED }.maxByOrNull { it.publishedAt!! }?.ref
+                store.values
+                    .filter { it.type == type && it.status == PackStatus.PUBLISHED }
+                    .maxByOrNull { it.publishedAt!! }
+                    ?.ref
         }
     private var content = "content-v1"
     private val hasher = PackContentHasher { ContentHash(sha(content)) }
@@ -68,18 +71,18 @@ class PackOperationsTest {
         effectiveFrom: LocalDate? = LocalDate.parse("2026-10-01"),
         contents: PackContents? = PackContents("{\"rules\":[]}"),
     ) = AuthorRegulatoryPackCommand(
-            ActorId(actor),
-            PackType(type),
-            PackVersion(version),
-            listOf("IRAS e-Tax Guide 2026-08"),
-            effectiveFrom,
-            contents,
-            request,
-        ).also {
-            check(author.permits(actor, it))
-            val state = author.load(it)
-            if (author.priorResult(it, state) == null) author.perform(it, state)
-        }
+        ActorId(actor),
+        PackType(type),
+        PackVersion(version),
+        listOf("IRAS e-Tax Guide 2026-08"),
+        effectiveFrom,
+        contents,
+        request,
+    ).also {
+        check(author.permits(actor, it))
+        val state = author.load(it)
+        if (author.priorResult(it, state) == null) author.perform(it, state)
+    }
 
     private fun signAs(
         actor: String,
@@ -221,7 +224,7 @@ class PackOperationsTest {
     }
 
     @Test
-    fun `INV-AC-2594 a second version of a type supersedes the latest published one of that type and the first stays published`() {
+    fun `INV-AC-2594 a second version supersedes the latest published one and the first stays published`() {
         fun publishVersion(
             type: String,
             version: String,

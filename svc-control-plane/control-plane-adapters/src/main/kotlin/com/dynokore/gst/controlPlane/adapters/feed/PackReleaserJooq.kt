@@ -29,7 +29,9 @@ class PackReleaserJooq(
         contentHash: ContentHash,
     ) {
         val members = bundles.members(pack)
-        check(members.contentHash() == contentHash) { "the content changed between the gate and the release of ${pack.ref}" }
+        check(
+            members.contentHash() == contentHash,
+        ) { "the content changed between the gate and the release of ${pack.ref}" }
         val key = checkNotNull(keys.resolve(checkNotNull(pack.signingKeyRef))) { "no signing key for ${pack.ref}" }
         val artefact = bundles.sign(members, key)
         dsl
@@ -72,5 +74,11 @@ class PackReleaserJooq(
                     packContentHash = checkNotNull(it[PACK_RELEASE.PACK_CONTENT_HASH]),
                     supersedes = it[PACK_RELEASE.SUPERSEDES],
                 )
-            }.also { check(it.any { e -> e.packRef == pack.ref.value }) { "the release of ${pack.ref} is not in its own index" } }
+            }.also {
+                check(
+                    it.any { e ->
+                        e.packRef == pack.ref.value
+                    },
+                ) { "the release of ${pack.ref} is not in its own index" }
+            }
 }

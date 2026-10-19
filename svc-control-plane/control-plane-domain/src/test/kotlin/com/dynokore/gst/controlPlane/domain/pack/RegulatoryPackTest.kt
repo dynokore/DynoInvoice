@@ -74,7 +74,16 @@ class RegulatoryPackTest {
 
     @Test
     fun `publication records the superseded version and only a signed version publishes`() {
-        val signed = (draft().sign(bob, "KEY-REG-01", MinEngineVersion("2026.10.0"), false, at) as SignOutcome.Signed).pack
+        val signed =
+            (
+                draft().sign(
+                    bob,
+                    "KEY-REG-01",
+                    MinEngineVersion("2026.10.0"),
+                    false,
+                    at,
+                ) as SignOutcome.Signed
+            ).pack
         val earlier = PackRef.of(PackType("SCOPE"), PackVersion("2026.2"))
         signed.published(at, earlier).supersedes shouldBe earlier
         signed.published(at, null).supersedes shouldBe null

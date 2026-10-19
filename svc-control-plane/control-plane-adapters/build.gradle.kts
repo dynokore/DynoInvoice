@@ -90,7 +90,6 @@ dependencies {
         capabilities { requireCapability("com.dynokore.platform:tenancy-jooq-test-fixtures") }
     }
     integrationTestImplementation(libs.platform.crypto)
-
 }
 
 // The feed index schema of the pinned platform-contracts release, staged by control-plane-contract, is a classpath

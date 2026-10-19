@@ -18,8 +18,7 @@ class PublicationGateTest {
                     ActorId("alice"),
                     LocalDate.parse("2026-10-01"),
                     PackContents("{}"),
-                )
-                .sign(ActorId("bob"), "KEY", MinEngineVersion("2026.10.0"), false, Instant.EPOCH) as SignOutcome.Signed
+                ).sign(ActorId("bob"), "KEY", MinEngineVersion("2026.10.0"), false, Instant.EPOCH) as SignOutcome.Signed
         ).pack
     private val ref = signed.ref
 
@@ -63,8 +62,7 @@ class PublicationGateTest {
                         ActorId("alice"),
                         LocalDate.parse("2026-10-01"),
                         PackContents("{}"),
-                    )
-                    .sign(ActorId("bob"), "KEY", null, false, Instant.EPOCH) as SignOutcome.Signed
+                    ).sign(ActorId("bob"), "KEY", null, false, Instant.EPOCH) as SignOutcome.Signed
             ).pack
         PublicationGate.check(
             noEngine,

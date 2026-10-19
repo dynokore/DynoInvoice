@@ -37,7 +37,7 @@ data class PackSigningSettings(
             activeProfiles: Collection<String>,
         ) {
             check(settings.keyStoreType == PKCS11 || TEST_PROFILE in activeProfiles) {
-                "$PREFIX.key-store-type must be $PKCS11 outside the profile $TEST_PROFILE (STK-13: no software-held key)"
+                "$PREFIX.key-store-type must be $PKCS11 outside the profile $TEST_PROFILE (STK-13: no software key)"
             }
             check(settings.ref.isNotBlank()) { "$PREFIX.ref is not set" }
             check(settings.alias.isNotBlank()) { "$PREFIX.alias is not set" }

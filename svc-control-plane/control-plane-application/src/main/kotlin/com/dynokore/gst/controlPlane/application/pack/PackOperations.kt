@@ -149,16 +149,33 @@ class SignPack(
         state: RegulatoryPack?,
     ): String? =
         when {
-            state == null -> Refusal(Refusal.PACK_NOT_FOUND, command.ref.value).encode()
-            command.signingKeyRef.isBlank() -> Refusal(Refusal.SIGNING_KEY_MISSING, command.ref.value).encode()
-            command.actor in state.authors -> Refusal(Refusal.SEPARATION_OF_DUTY, command.ref.value).encode()
+            state == null -> {
+                Refusal(Refusal.PACK_NOT_FOUND, command.ref.value).encode()
+            }
+
+            command.signingKeyRef.isBlank() -> {
+                Refusal(Refusal.SIGNING_KEY_MISSING, command.ref.value).encode()
+            }
+
+            command.actor in state.authors -> {
+                Refusal(Refusal.SEPARATION_OF_DUTY, command.ref.value).encode()
+            }
+
             keys.resolve(command.signingKeyRef) == null -> {
                 Refusal(Refusal.SIGNING_KEY_MISSING, "${command.ref.value} unknown signingKeyRef").encode()
             }
 
-            state.effectiveFrom == null -> Refusal(Refusal.EFFECTIVE_FROM_MISSING, command.ref.value).encode()
-            state.contents == null -> Refusal(Refusal.CONTENTS_MISSING, command.ref.value).encode()
-            else -> null
+            state.effectiveFrom == null -> {
+                Refusal(Refusal.EFFECTIVE_FROM_MISSING, command.ref.value).encode()
+            }
+
+            state.contents == null -> {
+                Refusal(Refusal.CONTENTS_MISSING, command.ref.value).encode()
+            }
+
+            else -> {
+                null
+            }
         }
 
     override fun perform(

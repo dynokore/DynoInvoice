@@ -29,7 +29,15 @@ class HsmPackSigningKeys(
         val store = keyStore(pin)
         val key = store.getKey(settings.alias, pin) as? PrivateKey
         checkNotNull(key) { "the key store holds no private key under the configured alias" }
-        return JcaSigningKey(SignatureAlgorithm.ECDSA_P256_SHA256, key, certificate, store.provider.name.takeIf { settings.keyStoreType == PackSigningSettings.PKCS11 })
+        return JcaSigningKey(
+            SignatureAlgorithm.ECDSA_P256_SHA256,
+            key,
+            certificate,
+            store.provider.name.takeIf {
+                settings.keyStoreType ==
+                    PackSigningSettings.PKCS11
+            },
+        )
     }
 
     private fun keyStore(pin: CharArray): KeyStore {

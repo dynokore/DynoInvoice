@@ -26,13 +26,14 @@ class BundleMembers(
     val checksums: ByteArray,
     val contents: ByteArray,
 ) {
-    /** SHA-256 over manifest, checksums and contents in that order: the `packContentHash` of the version (INV-Q-4878). */
+    /** SHA-256 over manifest, checksums and contents in that order: the `packContentHash` (INV-Q-4878). */
     fun contentHash(): ContentHash = ContentHash(sha256Hex(manifest + checksums + contents))
 
     override fun toString(): String = "BundleMembers(${manifest.size}B, ${checksums.size}B, ${contents.size}B)"
 }
 
-internal fun sha256Hex(bytes: ByteArray): String = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes))
+internal fun sha256Hex(bytes: ByteArray): String =
+    HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes))
 
 /**
  * Builds the bundle of a signed pack version as the four members of rulepack-kernel's `PackArtefact` (STK-13,
@@ -53,7 +54,8 @@ class PackBundles(
                 "packType" to pack.type.value,
                 "version" to pack.version.value,
                 "effectiveFrom" to checkNotNull(pack.effectiveFrom) { "${pack.ref} has no effectiveFrom" }.toString(),
-                "minEngineVersion" to checkNotNull(pack.minEngineVersion) { "${pack.ref} has no minEngineVersion" }.value,
+                "minEngineVersion" to
+                    checkNotNull(pack.minEngineVersion) { "${pack.ref} has no minEngineVersion" }.value,
                 "sourceCitation" to pack.citations,
             )
         return BundleMembers(

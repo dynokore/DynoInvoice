@@ -7,6 +7,7 @@ import com.dynokore.gst.controlPlane.adapters.stage.StagingRecordWriter
 import com.dynokore.gst.controlPlane.domain.pack.ActorId
 import com.dynokore.gst.controlPlane.domain.pack.ContentHash
 import com.dynokore.gst.controlPlane.domain.pack.MinEngineVersion
+import com.dynokore.gst.controlPlane.domain.pack.PackContents
 import com.dynokore.gst.controlPlane.domain.pack.PackRef
 import com.dynokore.gst.controlPlane.domain.pack.PackStatus
 import com.dynokore.gst.controlPlane.domain.pack.PackType
@@ -20,6 +21,7 @@ import org.junit.jupiter.api.Test
 import java.sql.SQLException
 import java.time.Clock
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.UUID
 
@@ -34,13 +36,16 @@ class RegistryPersistenceIT {
             PackVersion("v${UUID.randomUUID().toString().take(8)}"),
             listOf("IRAS e-Tax Guide"),
             ActorId(author),
+            LocalDate.parse("2026-11-01"),
+            PackContents("""{"rules":[]}"""),
         )
 
     private val dsl = PostgresDb.dsl()
     private val probe = PostgresDb.probe
 
     /** The SQLException at the root of a failed probe or statement. */
-    private fun Throwable.sql(): SQLException = generateSequence(this) { it.cause }.filterIsInstance<SQLException>().first()
+    private fun Throwable.sql(): SQLException =
+        generateSequence(this) { it.cause }.filterIsInstance<SQLException>().first()
 
     private fun has(
         table: String,
@@ -111,8 +116,14 @@ class RegistryPersistenceIT {
     @Test
     fun `the runtime login holds no INSERT, UPDATE or DELETE on the staging table and no DELETE anywhere`() {
         listOf("INSERT", "UPDATE", "DELETE", "TRUNCATE").forEach { has("pack_staging_record", it) shouldBe false }
-        listOf("pack_version", "pack_author", "signing_record", "pack_staging_record", "pack_release", "pack_feed_index")
-            .forEach { has(it, "DELETE") shouldBe false }
+        listOf(
+            "pack_version",
+            "pack_author",
+            "signing_record",
+            "pack_staging_record",
+            "pack_release",
+            "pack_feed_index",
+        ).forEach { has(it, "DELETE") shouldBe false }
         listOf("signing_record", "pack_author", "pack_release", "pack_feed_index").forEach {
             has(it, "UPDATE") shouldBe false
         }

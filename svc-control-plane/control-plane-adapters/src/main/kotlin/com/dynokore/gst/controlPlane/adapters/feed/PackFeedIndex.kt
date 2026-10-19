@@ -24,7 +24,12 @@ data class FeedEntry(
 /** The document failed `pack-feed-index.schema.json`; nothing was written and the previous index is still served. */
 class FeedIndexInvalid(
     val errors: List<String>,
-) : RuntimeException("the pack feed index does not validate against its schema: ${errors.joinToString("; ")}", null, false, false)
+) : RuntimeException(
+        "the pack feed index does not validate against its schema: ${errors.joinToString("; ")}",
+        null,
+        false,
+        false,
+    )
 
 /**
  * Writes the pack feed index (INV-REQ-1079, INV-AC-2074, INV-AC-2594): one entry per published pack version, a
@@ -38,7 +43,11 @@ class PackFeedIndex(
     private val clock: Clock,
     schemaText: String = schemaFromClasspath(),
 ) {
-    private val schema: Schema = SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_2020_12).getSchema(schemaText)
+    private val schema: Schema =
+        SchemaRegistry
+            .withDefaultDialect(
+                SpecificationVersion.DRAFT_2020_12,
+            ).getSchema(schemaText)
 
     /** Validates and stores the index of [entries]; returns the stored document. */
     fun write(entries: List<FeedEntry>): String {
@@ -48,7 +57,18 @@ class PackFeedIndex(
                 context.executionConfig { config -> config.formatAssertionsEnabled(true) }
             }
         if (errors.isNotEmpty()) throw FeedIndexInvalid(errors.map { it.message })
-        val next = (dsl.select(org.jooq.impl.DSL.max(PACK_FEED_INDEX.GENERATION)).from(PACK_FEED_INDEX).fetchSingle().value1() ?: 0) + 1
+        val next =
+            (
+                dsl
+                    .select(
+                        org.jooq.impl.DSL
+                            .max(PACK_FEED_INDEX.GENERATION),
+                    ).from(PACK_FEED_INDEX)
+                    .fetchSingle()
+                    .value1()
+                    ?: 0
+            ) +
+                1
         dsl
             .insertInto(PACK_FEED_INDEX)
             .set(PACK_FEED_INDEX.GENERATION, next)
@@ -83,7 +103,7 @@ class PackFeedIndex(
 
         fun schemaFromClasspath(): String =
             checkNotNull(PackFeedIndex::class.java.getResourceAsStream(SCHEMA_RESOURCE)) {
-                "$SCHEMA_RESOURCE is not on the classpath: the build stages it from the pinned platform-contracts release"
+                "$SCHEMA_RESOURCE is not on the classpath: the build stages it from the pinned contracts release"
             }.use { it.readBytes().toString(Charsets.UTF_8) }
     }
 }

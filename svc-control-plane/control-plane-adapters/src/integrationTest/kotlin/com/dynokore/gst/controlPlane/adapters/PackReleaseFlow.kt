@@ -77,10 +77,26 @@ class PackReleaseFlow(
     private val author = AuthorRegulatoryPack(packs, roles)
     private val sign = SignPack(packs, roles, signing.keys, clock)
     private val publish =
-        PublishPack(packs, roles, staging, bundles.hasher(), PackReleaserJooq(dsl, clock, bundles, signing.keys, index), clock)
+        PublishPack(
+            packs,
+            roles,
+            staging,
+            bundles.hasher(),
+            PackReleaserJooq(dsl, clock, bundles, signing.keys, index),
+            clock,
+        )
 
     /** A pack type no other test uses, so concurrent tests do not supersede each other's versions. */
-    val type = PackType("T" + UUID.randomUUID().toString().replace("-", "").take(12).uppercase())
+    val type =
+        PackType(
+            "T" +
+                UUID
+                    .randomUUID()
+                    .toString()
+                    .replace("-", "")
+                    .take(12)
+                    .uppercase(),
+        )
 
     fun author(
         version: String,
@@ -105,7 +121,8 @@ class PackReleaseFlow(
         ref: PackRef,
         engine: String? = "2026.10.0",
     ): String? {
-        val command = SignPackCommand(ActorId("bob"), ref, signing.keyRef, engine?.let(::MinEngineVersion), false, request)
+        val command =
+            SignPackCommand(ActorId("bob"), ref, signing.keyRef, engine?.let(::MinEngineVersion), false, request)
         val state = sign.load(command)
         return sign.unmetPrecondition(command, state) ?: run {
             sign.perform(command, state)
@@ -113,11 +130,19 @@ class PackReleaseFlow(
         }
     }
 
-    /** The PASSED record the stage of INV-T-4985 writes, called from this test helper through the sys-owned function. */
+    /** The PASSED record the stage of INV-T-4985 writes, called here through the sys-owned function. */
     fun recordPassed(ref: PackRef) {
         val pack = checkNotNull(packs.find(ref))
         StagingRecordWriter(dsl).record(
-            StagingOutcome(ref, StagingResult.PASSED, bundles.hasher().hash(pack), "SIMULATOR", "evidence/$ref", "2026-Q3", "stage"),
+            StagingOutcome(
+                ref,
+                StagingResult.PASSED,
+                bundles.hasher().hash(pack),
+                "SIMULATOR",
+                "evidence/$ref",
+                "2026-Q3",
+                "stage",
+            ),
         )
     }
 

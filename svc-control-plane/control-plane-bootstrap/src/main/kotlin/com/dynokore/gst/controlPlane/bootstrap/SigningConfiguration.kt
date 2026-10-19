@@ -11,8 +11,8 @@ import org.springframework.core.env.Environment
 
 /**
  * The pack signing key (INV-Q-7459): the settings come from `control-plane.signing.*`, the PIN and the certificate
- * through the SecretStore binding by reference. Start-up fails when the key store type is not PKCS11 outside the profile
- * `test` (STK-13 rejects software-held keys), before any request is served.
+ * through the SecretStore binding by reference. Start-up fails when the key store type is not PKCS11 outside the
+ * profile `test` (STK-13 rejects software-held keys), before any request is served.
  */
 @Configuration(proxyBeanMethods = false)
 class SigningConfiguration {

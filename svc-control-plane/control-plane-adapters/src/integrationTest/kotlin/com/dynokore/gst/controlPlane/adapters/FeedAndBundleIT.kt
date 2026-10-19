@@ -20,7 +20,7 @@ import java.io.File
 import java.security.MessageDigest
 import java.util.HexFormat
 
-/** The bundle, the feed index and the release history over the real tables (INV-REQ-1077, INV-REQ-1079, INV-REQ-2590). */
+/** The bundle, the feed index and the release history over the real tables (INV-REQ-1077, INV-REQ-1079). */
 class FeedAndBundleIT {
     private val json = JsonMapper.builder().build()
     private val verifier = BouncyCastlePackVerifier()
@@ -31,7 +31,8 @@ class FeedAndBundleIT {
         return HexFormat.of().formatHex(digest.digest())
     }
 
-    private fun anchors(flow: PackReleaseFlow) = TrustAnchors(listOf(TrustAnchor("platform", flow.signing.certificateDer)))
+    private fun anchors(flow: PackReleaseFlow) =
+        TrustAnchors(listOf(TrustAnchor("platform", flow.signing.certificateDer)))
 
     private fun entriesOf(flow: PackReleaseFlow) =
         json
@@ -62,7 +63,17 @@ class FeedAndBundleIT {
         val tampered = PackArtefact(bundle.manifest, bundle.checksums, bundle.signature, bundle.contents + 1)
         val changed = verifier.verify(tampered, anchors(flow)) as PackVerificationOutcome.Rejected
         changed.reason shouldBe PackRejectionReason.CHECKSUM_MISMATCH
-        val stranger = TrustAnchors(listOf(TrustAnchor("other", com.dynokore.gst.controlPlane.adapters.testing.SigningFixtures.create().certificateDer)))
+        val stranger =
+            TrustAnchors(
+                listOf(
+                    TrustAnchor(
+                        "other",
+                        com.dynokore.gst.controlPlane.adapters.testing.SigningFixtures
+                            .create()
+                            .certificateDer,
+                    ),
+                ),
+            )
         val untrusted = verifier.verify(bundle, stranger) as PackVerificationOutcome.Rejected
         untrusted.reason shouldBe PackRejectionReason.UNTRUSTED_SIGNER
     }
@@ -80,7 +91,10 @@ class FeedAndBundleIT {
         entry.get("minEngineVersion").asString() shouldBe "2026.10.0"
         entry.get("packContentHash").asString() shouldBe sha256(bundle.manifest, bundle.checksums, bundle.contents)
         // the staging gate hashed the same content: the release history holds the same hash
-        flow.reader.history().single { it.packRef == pack.ref }.packContentHash shouldBe
+        flow.reader
+            .history()
+            .single { it.packRef == pack.ref }
+            .packContentHash shouldBe
             entry.get("packContentHash").asString()
         // the offline file is the stored members: reading it twice gives the same bytes
         val again = checkNotNull(flow.reader.bundle(pack.ref))
@@ -99,7 +113,10 @@ class FeedAndBundleIT {
         entries[0].has("supersedes") shouldBe false
         entries[1].get("supersedes").asString() shouldBe first.ref.value
         (flow.reader.bundle(first.ref) != null && flow.reader.bundle(second.ref) != null) shouldBe true
-        flow.reader.history().filter { it.packRef in setOf(first.ref, second.ref) }.map { it.packRef } shouldBe
+        flow.reader
+            .history()
+            .filter { it.packRef in setOf(first.ref, second.ref) }
+            .map { it.packRef } shouldBe
             listOf(first.ref, second.ref)
         checkNotNull(flow.packs.find(first.ref)).status shouldBe PackStatus.PUBLISHED
     }
@@ -111,7 +128,9 @@ class FeedAndBundleIT {
         val operationIds =
             paths.flatMap { (it as Map<*, *>).values }.mapNotNull { (it as? Map<*, *>)?.get("operationId") as? String }
         operationIds.isNotEmpty() shouldBe true
-        operationIds.filter { id -> listOf("unpublish", "withdraw", "retract").any { id.lowercase().contains(it) } } shouldBe
+        operationIds.filter { id ->
+            listOf("unpublish", "withdraw", "retract").any { id.lowercase().contains(it) }
+        } shouldBe
             emptyList<String>()
     }
 
