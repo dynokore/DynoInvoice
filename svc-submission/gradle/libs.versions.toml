@@ -45,6 +45,7 @@ springBoot-starterWeb = { module = "org.springframework.boot:spring-boot-starter
 springBoot-starterActuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }
 springBoot-starterValidation = { module = "org.springframework.boot:spring-boot-starter-validation" }
 swagger-annotations = { module = "io.swagger.core.v3:swagger-annotations-jakarta", version.ref = "swaggerAnnotations" }
+snakeyaml = { module = "org.yaml:snakeyaml" }
 springBoot-test = { module = "org.springframework.boot:spring-boot-test" }
 springBoot-autoconfigure = { module = "org.springframework.boot:spring-boot-autoconfigure" }
 spring-context = { module = "org.springframework:spring-context" }
