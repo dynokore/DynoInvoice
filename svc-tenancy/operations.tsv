@@ -27,8 +27,8 @@ answerQuestionnaire	operation	INV-T-4933	pending
 recordInstallationAction	operation	INV-T-3290	pending
 recordMigrationCutover	operation	INV-T-7382	pending
 getMigrationCutover	operation	INV-T-7382	pending
-OrganisationStructureChanged	channel	INV-T-4925	pending
-ExampleHappened	channel	INV-T-4925	pending
+OrganisationStructureChanged	channel	INV-T-4925	done
+ExampleHappened	channel	INV-T-4925	done
 EntityProfileChanged	channel	INV-T-4926	pending
 FilingFrequencyChanged	channel	INV-T-4929	pending
 PeriodExtended	channel	INV-T-4930	pending
