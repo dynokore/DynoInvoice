@@ -1,0 +1,16 @@
+{
+  "entries": [
+    {
+      "categoryCode": "SR",
+      "direction": "SALE",
+      "boxes": [
+        {
+          "box": "1",
+          "basis": "TAXABLE_AMOUNT"
+        }
+      ],
+      "sourceClass": "SECONDARY",
+      "sourceReference": "Practitioner note on Box 1"
+    }
+  ]
+}

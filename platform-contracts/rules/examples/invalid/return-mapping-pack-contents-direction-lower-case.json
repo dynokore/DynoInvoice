@@ -1,0 +1,36 @@
+{
+  "entries": [
+    {
+      "categoryCode": "SR",
+      "direction": "sale",
+      "boxes": [
+        {
+          "box": "1",
+          "basis": "TAXABLE_AMOUNT"
+        },
+        {
+          "box": "6",
+          "basis": "TAX_AMOUNT"
+        }
+      ],
+      "sourceClass": "PRIMARY",
+      "sourceReference": "ASR+ e-Tax Guide Appendix 2"
+    },
+    {
+      "categoryCode": "SR",
+      "direction": "PURCHASE",
+      "boxes": [
+        {
+          "box": "5",
+          "basis": "TAXABLE_AMOUNT"
+        },
+        {
+          "box": "7",
+          "basis": "TAX_AMOUNT"
+        }
+      ],
+      "sourceClass": "PRIMARY",
+      "sourceReference": "ASR+ e-Tax Guide Appendix 2"
+    }
+  ]
+}

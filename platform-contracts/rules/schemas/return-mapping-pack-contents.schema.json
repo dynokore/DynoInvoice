@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/rules/schemas/return-mapping-pack-contents.schema.json",
+  "title": "ReturnMappingPackContents",
+  "description": "The artefact.contents of a RulePackStaged payload whose packType is exactly return-mapping (INV-REQ-654, INV-REQ-727): the GST return Box mapping, one entry per (category code, direction) pair, carrying the Boxes the pair feeds, the source class and the citation. Rules JSON Schema cannot express, checked by rules-svc at import and at the pack dry run and by the seed content test, not here: the pair (categoryCode, direction) is unique across entries; a Box appears once within an entry; an entry whose citation is not IRAS Box text is not read as PRIMARY. reconciliation-svc decodes the pack from the RulePackStaged payload it already subscribes to and never edits it; the Box mapping is pack data, never code (INV-BR-214). No entry is written here; the entries are seed content. A consumer ignores any property this schema does not name (API-41, FR-K.4); no object of this schema sets additionalProperties to false. Within a major version this schema is additive-only.",
+  "type": "object",
+  "properties": {
+    "entries": {
+      "type": "array",
+      "description": "The mapping entries, one per (category code, direction) pair.",
+      "minItems": 1,
+      "maxItems": 5000,
+      "items": {
+        "type": "object",
+        "properties": {
+          "categoryCode": {
+            "type": "string",
+            "description": "The IRAS category code the entry maps.",
+            "pattern": "^[A-Z][A-Z0-9]{0,9}(-[A-Z0-9]{1,9})?$"
+          },
+          "direction": {
+            "type": "string",
+            "description": "The direction of the code, the values of routingFacts.direction of the canonical event.",
+            "enum": [
+              "SALE",
+              "PURCHASE"
+            ]
+          },
+          "boxes": {
+            "type": "array",
+            "description": "The Boxes the category feeds, each with the amount that feeds it.",
+            "minItems": 1,
+            "maxItems": 20,
+            "items": {
+              "type": "object",
+              "properties": {
+                "box": {
+                  "type": "string",
+                  "description": "The return Box number, as GstReturnBox.box.",
+                  "minLength": 1,
+                  "maxLength": 10
+                },
+                "basis": {
+                  "type": "string",
+                  "description": "The amount of the category that feeds the Box: the taxableAmount or the taxAmount of the tax subtotal.",
+                  "enum": [
+                    "TAXABLE_AMOUNT",
+                    "TAX_AMOUNT"
+                  ]
+                }
+              },
+              "required": [
+                "box",
+                "basis"
+              ]
+            }
+          },
+          "sourceClass": {
+            "type": "string",
+            "description": "The source class of the entry.",
+            "enum": [
+              "PRIMARY",
+              "SECONDARY",
+              "INFERRED"
+            ]
+          },
+          "sourceReference": {
+            "type": "string",
+            "description": "The source citation of the entry.",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "categoryCode",
+          "direction",
+          "boxes",
+          "sourceClass",
+          "sourceReference"
+        ]
+      }
+    }
+  },
+  "required": [
+    "entries"
+  ]
+}

@@ -18,6 +18,7 @@
 #   INV-T-6484 (INV-REQ-491, 774, 727): the purchase codes TX, IM, ME, IGDS, TXCA, TXNA, TXRC-TS, TX-ESS, TXRC-ESS, IM-ESS, TX-N33, TXRC-N33, IM-N33, TX-RE, TXRC-RE, IM-RE, ZP, BL, EP, OP, NR and NA, DS, OS, SRRC, SRCA-C are IRAS category codes, seed content, not elements of the schemas; payload-svc is a service; source_class and source_citation are snake_case names of the pack manifest and content (API-09), carried as sourceClass and sourceReference; content/ is a pack directory.
 #   INV-T-6512 (INV-REQ-416, 417, 1805, 2433, 2444, 2447, 2439, 2440, 2441, 2443, INV-AC-1438, 1666, 1816, 2502, 2505, 2535): the scheme tags A3PL, ACMT, AISS, AMCS, ARCS, MES, ACMT_RECIPIENT_ACCOUNTING, ACMT_OVERSEAS_CLIENT_PURCHASE and AMCS_SELF_ACCOUNTING are seed content values of tag and scheme, not elements of the schema; NA, TXNA, SR, TX, ZR, ZP, DS, ME, ES33, ESN33 are IRAS category codes, seed content; 0 is a sample value of rate; approvedSchemes, CanonicalParty.approvedSchemes, arcsGstChargeAgreed, effectiveFrom, effectiveTo, evidenceRef and resolveMasterData belong to the masterdata and canonical contracts; scenario is the packType value of RulePackStaged (rule-pack-staged-payload.schema.json), not an element of the handlers schema; tax.approver is a role; canonical-svc, masterdata-svc, payload-svc, rules-svc and service-runtime are services.
 #   INV-T-6563 (INV-REQ-1117, 1279, 774, 80): tax.approver and tenant.admin are roles; CalendarPack is a library type of calendar-and-periods; content/ is a pack directory; submission-svc is a service; source_class and source_citation are snake_case names of the pack manifest and content (API-09), carried as sourceClass and sourceReference; PRIMARY, SECONDARY and INFERRED are rows.
+#   INV-T-7229 (INV-REQ-654): `return-mapping` is a pack type value of RulePackStaged (rule-pack-staged-payload.schema.json), not a property of the contents schema; `source_class` is the snake_case name of the requirement (API-09), carried as sourceClass; `tax.approver` is a role.
 # Enum members shared by several properties (CLAIMABLE_PORTION, ENTIRE_INVOICE, BILL_FOR_PAYMENT ...) are one row each.
 #   INV-T-6503 (INV-REQ-658, 493, 496, 504, 738, INV-AC-1717, 513, 514, 1510, 761): `tax.approver` is a role; `DS`, `OS`, `SRRC` and `SR` are IRAS category codes, seed content, not elements of the Scope pack contents schema; `sameGroup` and `sameTenant` are counterparty flags of the rules and masterdata contracts, not elements of this schema.
 identifier	kind	file	requirement
@@ -296,3 +297,18 @@ TYPE_3	enum_value	openapi.yaml	INV-REQ-416
 # INV-T-7191 (INV-REQ-321): `SGUEN`, `C5UID`, `NA` and the example values (e.g. `SGUEN201888888A`) are values, not contract identifiers; they are carried by the payload-svc task and the seed-data task.
 offNetworkEndpoint	property	schemas/mde-pack-contents.schema.json	INV-REQ-321
 prefix	property	schemas/mde-pack-contents.schema.json	INV-REQ-321
+entries	property	schemas/return-mapping-pack-contents.schema.json	INV-REQ-654
+categoryCode	property	schemas/return-mapping-pack-contents.schema.json	INV-REQ-654
+direction	property	schemas/return-mapping-pack-contents.schema.json	INV-REQ-654
+boxes	property	schemas/return-mapping-pack-contents.schema.json	INV-REQ-654
+box	property	schemas/return-mapping-pack-contents.schema.json	INV-REQ-654
+basis	property	schemas/return-mapping-pack-contents.schema.json	INV-REQ-654
+sourceClass	property	schemas/return-mapping-pack-contents.schema.json	INV-REQ-654
+sourceReference	property	schemas/return-mapping-pack-contents.schema.json	INV-REQ-654
+SALE	enum_value	schemas/return-mapping-pack-contents.schema.json	INV-REQ-654
+PURCHASE	enum_value	schemas/return-mapping-pack-contents.schema.json	INV-REQ-654
+TAXABLE_AMOUNT	enum_value	schemas/return-mapping-pack-contents.schema.json	INV-REQ-654
+TAX_AMOUNT	enum_value	schemas/return-mapping-pack-contents.schema.json	INV-REQ-654
+PRIMARY	enum_value	schemas/return-mapping-pack-contents.schema.json	INV-REQ-654
+SECONDARY	enum_value	schemas/return-mapping-pack-contents.schema.json	INV-REQ-654
+INFERRED	enum_value	schemas/return-mapping-pack-contents.schema.json	INV-REQ-654

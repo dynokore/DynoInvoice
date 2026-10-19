@@ -1,0 +1,16 @@
+{
+  "entries": [
+    {
+      "categoryCode": "ES33-A",
+      "direction": "SALE",
+      "boxes": [
+        {
+          "box": "1",
+          "basis": "TAXABLE_AMOUNT"
+        }
+      ],
+      "sourceClass": "PRIMARY",
+      "sourceReference": "ASR+ e-Tax Guide Appendix 2"
+    }
+  ]
+}
