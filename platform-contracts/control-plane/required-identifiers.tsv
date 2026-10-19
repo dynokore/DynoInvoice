@@ -87,3 +87,7 @@ OPEN	enum_value	openapi.yaml	INV-REQ-1365
 CONCLUDED	enum_value	openapi.yaml	INV-REQ-1365
 ACCREDITATION_LAPSED	enum_value	openapi.yaml	INV-REQ-1365
 REASSESSMENT_NEEDED	enum_value	openapi.yaml	INV-REQ-1365
+AuthorPackRequest.effectiveFrom	schema_property	openapi.yaml	INV-REQ-1077
+AuthorPackRequest.contents	schema_property	openapi.yaml	INV-REQ-1077
+PackResponse.effectiveFrom	schema_property	openapi.yaml	INV-REQ-1077
+PackResponse.supersedes	schema_property	openapi.yaml	INV-REQ-2590

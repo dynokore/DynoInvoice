@@ -10,3 +10,4 @@
 ../openapi.yaml#/components/schemas/AccreditationTask accreditation-task-*.json
 ../openapi.yaml#/components/schemas/AccreditationTaskPage accreditation-tasks-page-*.json
 ../openapi.yaml#/components/schemas/ConcludeAccreditationTaskRequest conclude-accreditation-task-request-*.json
+../openapi.yaml#/components/schemas/AuthorPackRequest author-pack-request-*.json
