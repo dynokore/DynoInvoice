@@ -1,8 +1,6 @@
 # svc-rules
 
-`rules-svc` — Rules as versioned data — which rules apply at a date, and what they say about a transaction, reproducibly
-
-**Status:** design only; no code yet. This repository follows the design in [invoice-docs](http://registry.example.internal/invoice/invoice-docs). Change the design there first, then the code here.
+`rules-svc` — Rules as versioned data — which rules apply at a date, and what they say about a transaction, reproducibly.
 
 | | |
 | --- | --- |
@@ -13,54 +11,42 @@
 
 ## Owns
 
-Pack registry metadata; activation state and instance acknowledgements; drafts, approvals and dry-run results; import history of mapping spreadsheets (FR-AG.57)
+Pack registry metadata; activation state and instance acknowledgements; drafts, approvals and dry-run results; import history of mapping spreadsheets (FR-AG.57).
 
 ## Provides
 
-The evaluation API to canonical-svc, and to payload-svc for pre-issuance drafts. Authoring, approval and activation commands to console-bff
+The evaluation API to canonical-svc, and to payload-svc for pre-issuance drafts. Authoring, approval and activation commands to console-bff.
 
-## Capabilities
+## Layout (TPL-01)
 
-Pack registry and activation state. Sole client of the pack feed and of offline bundle import; staging of each verified pack by RulePackStaged, and the fence on the holders' PackReadinessAcknowledged (§27.4, AD-31). Pack currency, DEP-001 to DEP-003, raised and cleared by PackCurrencyChanged (§12.4). Resolution by transaction date, with the credit-note rate exception (FR-AA.1). Pure evaluation of line scope verdict and category code, returning a decision trace (FR-B.6, FR-B.8). Scenario handler decisions: the scenario pack's handler returns the category code, the rate and the IBT-022 statement, or a RUL-004 or RUL-011 verdict (FR-AE.89); the effect on the payload is payload-svc's (§6.6; split by owner decision 25 Sep 2026). Activation fence (FR-K.7). Dry-run deltas (FR-B.3). Mapping authoring, with author/approver separation and source-class gating (FR-P.2, FR-AA.16–AA.18, RUL-007). Spreadsheet round-trip into drafts (§35.10). Private-form arming restricted to tax.approver (FR-AB.10). The wrong-pack compensation flow (§31.4.1). Pack types added on 24 Sep 2026: endpoint acceptance (§33.8), the amendment taxonomy in the MDE pack (§33.3), adjustment mapping (§33.11), intra-group rule (§33.12), return mapping (§33.10)
-
-## Events published
-
-- PackCurrencyChanged
-- RulePackActivated
-- RulePackStaged
-
-## Events consumed
-
-- PackReadinessAcknowledged
-
-## Synchronous calls
-
-None
-
-## External dependencies
-
-The pack feed and offline bundles, as the sole PackSource client (AD-31)
-
-## Embedded modules (SDS §18.15)
-
-| Layer | Modules |
+| Module | Holds |
 | --- | --- |
-| L1 | `service-runtime`, `outbox-and-queue`, `tenancy-kernel`, `config-resolver`, `audit-log`, `rulepack-kernel`, `adapter-runtime` |
-| L2 | None |
-| L3 | `product-runtime`, `gst-catalogue`, IRAS GST category code catalogue, scope rules, scheme scenario handlers |
+| `rules-contract` | Generated from `platform-contracts/rules/` (openapi.yaml; asyncapi.yaml and `schemas/` as resources). Never hand-written. |
+| `rules-domain` | Pure Kotlin: pack entries and their sources, the pack lifecycle (an armed pack is never edited, a correction is a new version), resolution by transaction date over the rulepack-kernel, pure evaluation with its decision trace. |
+| `rules-application` | The evaluation use case and the port events leave through. Framework-free. |
+| `rules-adapters` | Controllers (501 until their task), the jOOQ lookup of armed packs, the outbox emitter and event catalogue, Flyway migrations of schema `rules`. |
+| `rules-bootstrap` | The Spring Boot composition root (TPL-18), `application.yaml` (TPL-16), the architecture tests and the two repository gates. |
 
-Shared L1, L2 and `product-runtime` modules come from `platform-libs` as published versions; `gst-catalogue` comes from `platform-contracts`. Service-internal L3 modules live in this repository.
+## Gates
 
-## Must not
+- `operations.tsv` lists every operationId and channel of the rules contract with the task that implements it. `./gradlew verifyOperations` fails when the contract holds one the table lacks, when the table names one the contract does not hold, or when a row says its task is done and the operation still answers 501.
+- `ac-keys.tsv` lists one row per acceptance criterion the tasks of this service carry (criterion, task, wave: 2 for a criterion run by this service's tasks, 3 or 4 for a deferred one). `./gradlew acKeyCoverage` fails when the table is missing or empty, when a wave-2 row has no test whose name holds the key as a whole token, or when a test name holds a key that is in no row. Every later task of this service appends the rows of its own `ac_refs` and its deferred criteria.
+- Both gates are in `check`; their logic is Kotlin in `rules-bootstrap/src/test/kotlin/.../gates/` with probe tests.
 
-- Resolve against now() (FR-B.1, FR-F.1)
-- act as a pack repository other services read from (FR-Z.9)
-- know the submission type or the transport
-- permit in-place edits to an activated pack (FR-B.4)
-- allow self-approval (FR-P.2)
-- execute logic embedded in a pack (§3.5)
-- persist decision traces (AD-24)
+## Database
 
-## Degradation
+Schema `rules`, roles `rules_migrate` (owns every table, runs the migrations through service-runtime's `MigrationRunner`), `rules_runtime` (the one runtime login) and `rules_sys` (NOLOGIN, owns the definer functions). Every table has `tenant_id uuid NOT NULL`, forced row-level security and policies on the signed tenant binding. The platform rows (regulatory packs) are written only through `rules.register_platform_pack` and `rules.advance_platform_pack`. The registry holds metadata and activation state, no artefact content. `V2__outbox.sql` is generated from outbox-and-queue and checked by `MigrationDdlTest`; regenerate with `-Dgst.regenerate=true`.
 
-Unavailable: new documents hold at INGESTED. A partial pack load aborts activation entirely (FR-K.7)
+Precondition: `rules.bound_tenant()` and `rules.bound_actor()` exist in the schema (tenancy-kernel `BindingKeyMigration`, run as the sys login). Who runs it in an installation is owner question INV-Q-6580.
+
+## Dependency locking and verification
+
+STK-72 applies as in platform-libs: every resolvable configuration is locked in strict mode (`gradle.lockfile` per module, `buildscript-gradle.lockfile` for the plugin classpath, `gradle/settings-gradle.lockfile` for the settings classpath) and every downloaded artefact is verified against `gradle/verification-metadata.xml`. When a dependency or plugin changes: use an empty Gradle user home, then run
+
+```sh
+./gradlew resolveAndLockAll compileKotlin compileTestKotlin spotlessCheck detekt checkDependencyCatalogUsage \
+  verifyBannedDependencies assemble -x test --continue \
+  --write-locks --write-verification-metadata sha256,pgp --export-keys --no-configuration-cache
+```
+
+and check every SHA-256-only entry against the artefact's published checksum before committing. No build script or CI job disables verification; a build with `--dependency-verification off` is refused by the shared build template.

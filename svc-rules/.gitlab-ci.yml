@@ -1,0 +1,27 @@
+# .gitlab-ci.yml — svc-rules (INV-T-4965; TPL-01, STK-04, STK-53, STK-72).
+#
+# Uses platform-build's shared CI templates (platform-build ci/README.md). The `gst.*` convention plugins are consumed
+# as published artefacts at the catalogue's `platformBuild` version (settings.gradle.kts), never from a sibling checkout.
+# IMAGE_NAME turns on the image pipeline: bootBuildImage on the Paketo digest pins, SBOM, image scan, signature and
+# provenance, and the push to the Nexus registry under invoice/svc-rules.
+
+include:
+  - project: 'invoice/platform-build'
+    ref: main
+    file:
+      - 'ci/stages.gitlab-ci.yml'   # always first: stages, workflow rules, shared variables
+      - 'ci/build.gitlab-ci.yml'    # compile, unit and integration tests, lint, verify-rules, Semgrep, Trivy
+      - 'ci/image.gitlab-ci.yml'    # bootBuildImage, SBOM, scan, sign, provenance, reproducibility
+      - 'ci/publish.gitlab-ci.yml'  # (Maven publish is off: MAVEN_PUBLISH stays unset)
+  # The keel-report job reads the JUnit XML of unit-test from the main push pipeline and reports the INV-AC numbers in
+  # the testcase names to Keel (main only, as platform-libs does).
+  - project: 'keel/tooling'
+    ref: main
+    file: 'keel-report-junit.yml'
+    inputs:
+      runner_tags: [inv-arm64]
+      junit_paths: '**/build/test-results/*/TEST-*.xml'
+      ac_pattern: 'INV-AC-\d+(?!\d)'
+
+variables:
+  IMAGE_NAME: "svc-rules"
