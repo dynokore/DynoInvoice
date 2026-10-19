@@ -130,3 +130,4 @@ openapi.yaml	Line.unitCode	NONE
 openapi.yaml	RecordDocumentRequest.invoiceNote	NONE
 schemas/canonical-version-created-payload.schema.json	canonicalDocument.documentDate	NONE
 schemas/canonical-version-created-payload.schema.json	canonicalDocument.invoiceNote	NONE
+schemas/canonical-version-created-payload.schema.json	canonicalDocument.identityTriple	IDENTIFYING

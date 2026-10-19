@@ -775,6 +775,54 @@
           ],
           "additionalProperties": true
         },
+        "identityTriple": {
+          "type": "object",
+          "description": "The supplier identity triple (Sender ID, Supplier ID, Supplier GSTN) that masterdata-svc resolved for the entity and its legal constitution at derivation step 8 (INV-REQ-310, INV-REQ-479, INV-BR-1452), as canonical-svc stored it with this version; payload-svc writes the Sender ID, IBT-030 and IBT-031 of the document from it and from nothing else (INV-REQ-699, INV-REQ-803). Set by canonical-svc from the masterdata resolution, never from the caller's parties, so a document submitted by an overseas shared service centre or an agent still names the entity. A version is never edited, so a later change of the triple does not alter a recorded version. Absent on a version recorded before this pair existed. Optional (API-41). Wrapped with its FR-AE.72 classification (INV-Q-7142).",
+          "properties": {
+            "value": {
+              "type": "object",
+              "description": "The three values exactly as masterdata-svc returned them in its IdentityTripleFacts (masterdata/openapi.yaml); canonical-svc does not reformat them.",
+              "properties": {
+                "senderId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64,
+                  "description": "Sender ID, the Peppol ID of the SBDH envelope."
+                },
+                "supplierId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64,
+                  "description": "Supplier ID (IBT-030)."
+                },
+                "supplierGstn": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 20,
+                  "description": "Supplier GSTN (IBT-031)."
+                }
+              },
+              "required": [
+                "senderId",
+                "supplierId",
+                "supplierGstn"
+              ],
+              "additionalProperties": true
+            },
+            "classification": {
+              "type": "string",
+              "enum": [
+                "IDENTIFYING"
+              ],
+              "description": "The FR-AE.72 data classification tag for this content field."
+            }
+          },
+          "required": [
+            "value",
+            "classification"
+          ],
+          "additionalProperties": true
+        },
         "buyerInvoiceRefs": {
           "type": "object",
           "description": "The references of the self-billing invoices the customer issued that this document derives from (INV-REQ-696, INV-Q-7045). Required for a SALE document of an entity that the Scope pack's self-billing assignment (INV-REQ-416) puts on the Type 2 side, a condition canonical-svc enforces by refusing the record request with 400 and SRT-001, not this schema; otherwise optional. Wrapped with its FR-AE.72 classification (INV-Q-6268).",
