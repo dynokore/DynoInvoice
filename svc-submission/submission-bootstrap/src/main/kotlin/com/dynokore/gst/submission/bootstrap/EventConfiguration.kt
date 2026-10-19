@@ -20,13 +20,16 @@ object SubmissionEvents {
     private const val TYPE_PREFIX = "com.dynokore.gst.submission."
 
     /** Event type (the AsyncAPI message name) to topic (the channel address). */
-    val entries: List<CatalogueEntry> =
+    val topicByType: Map<String, String> =
         listOf(
             "SubmissionDespatched" to "gst.submission.submission-despatched.v1",
             "SubmissionAcknowledged" to "gst.submission.submission-acknowledged.v1",
             "SubmissionFailed" to "gst.submission.submission-failed.v1",
             "ReadinessChanged" to "gst.submission.readiness-changed.v1",
-        ).map { (name, topic) ->
-            CatalogueEntry("$TYPE_PREFIX$name.v1", topic, setOf(SERVICE), contentTopic = false, retainedWhileResolvable = false)
+        ).associate { (name, topic) -> "$TYPE_PREFIX$name.v1" to topic }
+
+    val entries: List<CatalogueEntry> =
+        topicByType.map { (type, topic) ->
+            CatalogueEntry(type, topic, setOf(SERVICE), contentTopic = false, retainedWhileResolvable = false)
         }
 }
