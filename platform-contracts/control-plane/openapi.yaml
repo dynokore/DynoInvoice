@@ -291,6 +291,8 @@ paths:
                 value:
                   trainVersion: 2026.10.0
                   kind: TRAIN
+                  exposureReducing: false
+                  needsReAccreditationAssessment: true
       responses:
         "201":
           description: Published
@@ -311,8 +313,12 @@ paths:
                       - gate: SECURITY
                         candidateResult: FAILED
                         baselineResult: FAILED
-                      exposureReducing: true
+                      exposureReducing: false
                       classifiedByRole: release.manager
+                      accreditationCheck:
+                        assessmentNeeded: true
+                        alertRef: ALERT-2026-10-0001
+                        taskRef: TASK-2026-10-0001
                       recordedAt: '2026-10-12T08:45:00Z'
         "400":
           $ref: '#/components/responses/Error'
@@ -1007,6 +1013,23 @@ components:
         classifiedByRole:
           type: string
           maxLength: 64
+        accreditationCheck:
+          description: The re-accreditation assessment declared for the release train, recorded with the release record (INV-REQ-1365, INV-REQ-909 behavior 4). It is a tracked task with an alert, never a release gate.
+          type: object
+          required:
+          - assessmentNeeded
+          properties:
+            assessmentNeeded:
+              description: Whether the release train changes what accreditation covered and so needs a re-accreditation assessment (INV-REQ-1365).
+              type: boolean
+            alertRef:
+              description: Opaque reference to the alert (INV-REQ-1365); absent until control-plane-svc has raised the alert and opened the task.
+              type: string
+              maxLength: 128
+            taskRef:
+              description: Opaque reference to the tracked assessment task (INV-REQ-1365); absent until control-plane-svc has raised the alert and opened the task.
+              type: string
+              maxLength: 128
         recordedAt:
           type: string
           format: date-time
@@ -1022,6 +1045,10 @@ components:
           type: string
           maxLength: 32
         exposureReducing:
+          description: The pack only reduces exposure, which exempts it from the release gates (INV-REQ-909 behavior 4). Absent is read as false.
+          type: boolean
+        needsReAccreditationAssessment:
+          description: Whether the pack changes what accreditation covered and so needs a re-accreditation assessment (INV-REQ-1365). Absent is read as true.
           type: boolean
     PublishTrainRequest:
       type: object
@@ -1038,6 +1065,12 @@ components:
           - TRAIN
           - PATCH
           x-extensible-enum: true
+        exposureReducing:
+          description: The train only reduces exposure, which exempts it from the release gates (INV-REQ-909 behavior 4). Absent is read as false.
+          type: boolean
+        needsReAccreditationAssessment:
+          description: Whether the train changes what accreditation covered and so needs a re-accreditation assessment (INV-REQ-1365). Absent is read as true.
+          type: boolean
     ReleaseTrainResponse:
       type: object
       required:

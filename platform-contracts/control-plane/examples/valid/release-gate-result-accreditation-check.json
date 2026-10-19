@@ -1,0 +1,1 @@
+{"gates":[{"gate":"SCENARIOS","candidateResult":"PASSED"},{"gate":"SECURITY","candidateResult":"FAILED","baselineResult":"FAILED"}],"exposureReducing":false,"classifiedByRole":"release.manager","accreditationCheck":{"assessmentNeeded":true,"alertRef":"ALERT-2026-10-0001","taskRef":"TASK-2026-10-0001"},"recordedAt":"2026-10-12T08:45:00Z"}

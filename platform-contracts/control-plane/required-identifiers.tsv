@@ -45,3 +45,12 @@ effectiveFrom	property	schemas/pack-feed-index.schema.json	INV-REQ-1079
 minEngineVersion	property	schemas/pack-feed-index.schema.json	INV-REQ-1079
 packContentHash	property	schemas/pack-feed-index.schema.json	INV-REQ-1079
 supersedes	property	schemas/pack-feed-index.schema.json	INV-AC-2594
+# INV-Q-7289 A: the exposure and re-accreditation declarations on publishTrain and signPack, and the accreditationCheck of the release record.
+publishTrain	operation	openapi.yaml	INV-REQ-909
+PublishTrainRequest.exposureReducing	schema_property	openapi.yaml	INV-REQ-909
+PublishTrainRequest.needsReAccreditationAssessment	schema_property	openapi.yaml	INV-REQ-1365
+SignPackRequest.needsReAccreditationAssessment	schema_property	openapi.yaml	INV-REQ-1365
+ReleaseGateResult.accreditationCheck	schema_property	openapi.yaml	INV-REQ-1365
+assessmentNeeded	property	openapi.yaml	INV-REQ-1365
+alertRef	property	openapi.yaml	INV-REQ-1365
+taskRef	property	openapi.yaml	INV-REQ-1365
