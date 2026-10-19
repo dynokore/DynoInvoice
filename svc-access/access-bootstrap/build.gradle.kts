@@ -28,6 +28,7 @@ dependencies {
     implementation(libs.springBoot.starterJdbc)
     runtimeOnly(libs.postgresql)
     testImplementation(libs.springBoot.starterTest)
+    testImplementation(libs.platform.konsistRules)
     testImplementation(libs.testcontainers.postgresql)
     testImplementation(libs.platform.productRuntime.impl)
     testImplementation(platform(libs.junit.bom))

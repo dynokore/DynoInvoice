@@ -32,11 +32,7 @@ object ScopeParser {
         if (colon <= 0 || colon == text.length - 1) return Parsed.Unsupported(text)
         val kind = text.substring(0, colon)
         val ref = text.substring(colon + 1)
-        if (ref.isBlank() || ref != ref.trim() || ref.length > MAX_REF ||
-            ref.any { it.isWhitespace() || it == ':' || it == ';' }
-        ) {
-            return Parsed.Unsupported(text)
-        }
+        if (!REF.matches(ref)) return Parsed.Unsupported(text)
         return when (kind) {
             "entity" -> Parsed.Ok(Scope.Entity(EntityRef(ref)))
             "tenant" -> if (ref == boundTenant.value) Parsed.Ok(Scope.Tenant(boundTenant)) else Parsed.Unsupported(text)
@@ -44,5 +40,6 @@ object ScopeParser {
         }
     }
 
-    private const val MAX_REF = 64
+    /** A reference is letters, digits, underscore and hyphen, 1 to 64: no list, wildcard, range, path or space. */
+    private val REF = Regex("[A-Za-z0-9][A-Za-z0-9_-]{0,63}")
 }

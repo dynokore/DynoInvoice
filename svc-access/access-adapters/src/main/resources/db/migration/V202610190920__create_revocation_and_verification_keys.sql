@@ -20,7 +20,7 @@ CREATE INDEX revocation_entry_revoked_at ON access.revocation_entry (tenant_id, 
 
 -- The highest list version ever assigned: it does not fall when an entry expires (INV-API-4001)
 CREATE TABLE access.revocation_head (
-    tenant_id     uuid        PRIMARY KEY,
+    tenant_id     uuid        NOT NULL PRIMARY KEY,
     version       bigint      NOT NULL CHECK (version >= 0)
 );
 

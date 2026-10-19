@@ -17,7 +17,7 @@ value class EntityRef(
 ) {
     init {
         require(value.isNotBlank() && value.length <= MAX_LENGTH) {
-            "entity reference is required, at most $MAX_LENGTH characters"
+            "an entity reference is required, 1 to $MAX_LENGTH characters"
         }
     }
 
@@ -42,7 +42,7 @@ value class IdentityRef(
 ) {
     init {
         require(value.isNotBlank() && value.length <= MAX_LENGTH) {
-            "identity reference is required, at most $MAX_LENGTH characters"
+            "an identity reference is required, 1 to $MAX_LENGTH characters"
         }
     }
 
@@ -57,7 +57,7 @@ value class GrantRef(
 ) {
     init {
         require(value.isNotBlank() && value.length <= MAX_LENGTH) {
-            "grant reference is required, at most $MAX_LENGTH characters"
+            "a reference of the grant is required, 1 to $MAX_LENGTH characters"
         }
     }
 
