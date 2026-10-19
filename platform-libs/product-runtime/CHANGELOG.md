@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-19
+### Added
+- `PlatformEventCatalogue` gains `PrivacyNoticeDue` and `AccreditationAlertRaised`, the eleven platform events of INV-REQ-1226 (INV-Q-7336, INV-T-7341).
+
 ## [1.0.31] - 2026-10-19
 ### Changed
 - Metadata-only release (INV-Q-5337, G-DVS): depends on `outbox-and-queue` 6.1.6 and `service-runtime` 10.0.0, whose published module metadata changed; no code change.

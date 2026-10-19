@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.0.1] - 2026-10-19
+### Changed
+- Metadata-only release (INV-T-7341, G-DVS): depends on `outbox-and-queue` 6.2.0, whose published module metadata changed; no code change.
+
 ## [10.0.0] - 2026-10-19
 ### Changed
 - BREAKING (INV-T-4156 last slice; INV-Q-5352, INV-Q-5354 (A)): start-up fails when the current binding key secret `tenancy/binding-key-current` is missing or no SecretStore is bound

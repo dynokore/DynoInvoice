@@ -35,6 +35,8 @@ object PlatformEventCatalogue {
     val PACK_READINESS_ACKNOWLEDGED = fixed("PackReadinessAcknowledged", "pack-readiness-acknowledged")
     val REPLAY_REQUESTED = replay("ReplayRequested")
     val REPLAY_COMPLETED = replay("ReplayCompleted")
+    val PRIVACY_NOTICE_DUE = fixed("PrivacyNoticeDue", "privacy-notice-due")
+    val ACCREDITATION_ALERT_RAISED = fixed("AccreditationAlertRaised", "accreditation-alert-raised")
 
     /** Every platform event, in INV-REQ-1226 b1's order. */
     val ALL: List<PlatformEvent> =
@@ -48,6 +50,8 @@ object PlatformEventCatalogue {
             PACK_READINESS_ACKNOWLEDGED,
             REPLAY_REQUESTED,
             REPLAY_COMPLETED,
+            PRIVACY_NOTICE_DUE,
+            ACCREDITATION_ALERT_RAISED,
         )
 
     /** True when [eventType] is a platform event. */

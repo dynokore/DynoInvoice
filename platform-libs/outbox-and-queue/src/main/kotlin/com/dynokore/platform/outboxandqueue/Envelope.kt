@@ -55,7 +55,7 @@ data class Envelope(
     companion object {
         private const val PLATFORM_TYPE_PREFIX = "com.dynokore.gst.platform."
 
-        /** INV-REQ-1226 behaviour 1: the closed platform class. */
+        /** INV-REQ-1226 behaviour 1: the closed platform class of eleven events (INV-Q-7336), exact names only. */
         private val PLATFORM_EVENTS =
             setOf(
                 "AuditEntryRecorded",
@@ -67,11 +67,14 @@ data class Envelope(
                 "PackReadinessAcknowledged",
                 "ReplayRequested",
                 "ReplayCompleted",
+                "PrivacyNoticeDue",
+                "AccreditationAlertRaised",
             )
 
         /**
          * True for a platform event type (`com.dynokore.gst.platform.<Name>.v<N>` with `<Name>` one of
-         * INV-REQ-1226's nine platform events (ReplayRequested and ReplayCompleted by INV-Q-3674)): the
+         * INV-REQ-1226's eleven platform events (ReplayRequested and ReplayCompleted by INV-Q-3674, PrivacyNoticeDue
+         * and AccreditationAlertRaised by INV-Q-7336)): the
          * only types that may be written under `TenantId.PLATFORM` and travel without `tenantid` and
          * `entityref` (INV-Q-3018). A domain event always carries a real tenant (FR-K.3, INV-REQ-1162).
          */

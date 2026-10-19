@@ -21,7 +21,7 @@ class ProductConfigurationTest {
     }
 
     @Test
-    fun `the platform-event catalogue is the nine platform events of INV-REQ-1226 b1`() {
+    fun `the platform-event catalogue is the eleven platform events of INV-REQ-1226 b1`() {
         PlatformEventCatalogue.ALL.map { it.name } shouldContainExactly
             listOf(
                 "AuditEntryRecorded",
@@ -33,7 +33,14 @@ class ProductConfigurationTest {
                 "PackReadinessAcknowledged",
                 "ReplayRequested",
                 "ReplayCompleted",
+                "PrivacyNoticeDue",
+                "AccreditationAlertRaised",
             )
+        PlatformEventCatalogue.PRIVACY_NOTICE_DUE.topic shouldBe "gst.platform.privacy-notice-due.v1"
+        PlatformEventCatalogue.ACCREDITATION_ALERT_RAISED.topic shouldBe "gst.platform.accreditation-alert-raised.v1"
+        PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.PrivacyNoticeDue.v1") shouldBe true
+        PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.AccreditationAlertRaised.v1") shouldBe true
+        PlatformEventCatalogue.isPlatform("com.dynokore.gst.control-plane.AccreditationAlertRaised.v1") shouldBe false
         PlatformEventCatalogue.REPLAY_REQUESTED.topic shouldBe null
         PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.JobRegistered.v1") shouldBe true
         PlatformEventCatalogue.isPlatform(ProductEventTypes.AUTHORITY_CHANGED) shouldBe false
