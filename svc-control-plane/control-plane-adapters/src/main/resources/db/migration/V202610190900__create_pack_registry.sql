@@ -10,7 +10,7 @@ CREATE TABLE controlplane.pack_version (
     pack_type          text        NOT NULL CHECK (length(pack_type) BETWEEN 1 AND 32),
     pack_version       text        NOT NULL CHECK (length(pack_version) BETWEEN 1 AND 16),
     status             text        NOT NULL CHECK (status IN ('DRAFT', 'SIGNED', 'PUBLISHED')),
-    citations          jsonb       NOT NULL CHECK (jsonb_typeof(citations) = 'array' AND jsonb_array_length(citations) <= 50),
+    citations          text[]      NOT NULL CHECK (cardinality(citations) <= 50),
     min_engine_version text        CHECK (length(min_engine_version) BETWEEN 1 AND 32),
     exposure_reducing  boolean     NOT NULL DEFAULT false,
     signer             text        CHECK (length(signer) BETWEEN 1 AND 128),

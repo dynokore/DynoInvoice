@@ -8,7 +8,7 @@ import com.dynokore.gst.controlPlane.domain.pack.StagingEvidence
 import com.dynokore.gst.controlPlane.domain.pack.StagingResult
 import org.jooq.DSLContext
 
-/** Reads the staging evidence records of a pack version. The runtime login holds SELECT on the table and nothing else. */
+/** Reads the staging evidence records of a pack version. The runtime login holds SELECT on the table only. */
 class StagingEvidenceReaderJooq(
     private val dsl: DSLContext,
 ) : StagingEvidenceReader {

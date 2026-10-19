@@ -11,7 +11,8 @@ class RegulatoryPackTest {
     private val bob = ActorId("bob.approver@operator.example")
     private val at = Instant.parse("2026-10-12T08:30:00Z")
 
-    private fun draft() = RegulatoryPack.draft(PackType("SCOPE"), PackVersion("2026.3"), listOf("IRAS e-Tax Guide 2026-08"), alice)
+    private fun draft() =
+        RegulatoryPack.draft(PackType("SCOPE"), PackVersion("2026.3"), listOf("IRAS e-Tax Guide 2026-08"), alice)
 
     @Test
     fun `INV-AC-2591 signPack by an author is refused and the version stays unsigned`() {
@@ -41,7 +42,8 @@ class RegulatoryPackTest {
     @Test
     fun `a repeat of signPack on a signed version is a no-op`() {
         val signed = (draft().sign(bob, "KEY-REG-01", null, false, at) as SignOutcome.Signed).pack
-        signed.sign(ActorId("carol"), "KEY-REG-02", null, true, at.plusSeconds(1)) shouldBe SignOutcome.AlreadySigned(signed)
+        signed.sign(ActorId("carol"), "KEY-REG-02", null, true, at.plusSeconds(1)) shouldBe
+            SignOutcome.AlreadySigned(signed)
     }
 
     @Test

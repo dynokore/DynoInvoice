@@ -3,14 +3,14 @@ package com.dynokore.gst.controlPlane.adapters.http
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.serviceruntime.http.ProblemResponse
 import com.dynokore.platform.serviceruntime.http.Problems
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpHeaders
 import org.springframework.http.ResponseEntity
-import org.springframework.web.bind.MissingRequestHeaderException
 import org.springframework.web.bind.MethodArgumentNotValidException
+import org.springframework.web.bind.MissingRequestHeaderException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.method.annotation.HandlerMethodValidationException
-import org.slf4j.LoggerFactory
 import java.util.UUID
 
 /** An API-20 error a controller raises instead of returning a body of the success type (ARC-19, CS-12). */
@@ -46,7 +46,8 @@ class ProblemAdvice {
         )
 
     @ExceptionHandler(MethodArgumentNotValidException::class, HandlerMethodValidationException::class)
-    fun invalid(e: Exception): ResponseEntity<String> = respond(Problems.render(ClosedErrorCode.CONTRACT_VIOLATION, newCorrelation()))
+    fun invalid(): ResponseEntity<String> =
+        respond(Problems.render(ClosedErrorCode.CONTRACT_VIOLATION, newCorrelation()))
 
     @ExceptionHandler(Exception::class)
     fun unexpected(e: Exception): ResponseEntity<String> {

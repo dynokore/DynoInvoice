@@ -28,11 +28,15 @@ class RegulatoryPack private constructor(
         require(authors.isNotEmpty()) { "a pack version has at least one author" }
         require(authors.size <= MAX_AUTHORS) { "a pack version has at most $MAX_AUTHORS authors" }
         require((status == PackStatus.DRAFT) == (signer == null)) { "a version has a signer exactly when it is signed" }
-        require(signer == null || signer !in authors) { "the signer of a version is never one of its authors (INV-REQ-2590)" }
-        require((status == PackStatus.PUBLISHED) == (publishedAt != null)) { "a version is published exactly when it has a time" }
+        require(
+            signer == null || signer !in authors,
+        ) { "the signer of a version is never one of its authors (INV-REQ-2590)" }
+        require((status == PackStatus.PUBLISHED) == (publishedAt != null)) {
+            "a version is published exactly when it has a time"
+        }
     }
 
-    /** The call of [actor] to authorRegulatoryPack on a version that already exists (the repeat key of the operation). */
+    /** The call of [actor] to authorRegulatoryPack on a version that already exists (the operation's repeat key). */
     fun authoredBy(actor: ActorId): RegulatoryPack =
         if (status != PackStatus.DRAFT || actor in authors) {
             this
@@ -53,9 +57,15 @@ class RegulatoryPack private constructor(
         at: Instant,
     ): SignOutcome =
         when {
-            status != PackStatus.DRAFT -> SignOutcome.AlreadySigned(this)
-            signer in authors -> SignOutcome.SeparationOfDutyRefused(this)
-            else ->
+            status != PackStatus.DRAFT -> {
+                SignOutcome.AlreadySigned(this)
+            }
+
+            signer in authors -> {
+                SignOutcome.SeparationOfDutyRefused(this)
+            }
+
+            else -> {
                 SignOutcome.Signed(
                     copy(
                         status = PackStatus.SIGNED,
@@ -66,6 +76,7 @@ class RegulatoryPack private constructor(
                         signedAt = at,
                     ),
                 )
+            }
         }
 
     /** The version after publication; only a signed version is published. */
@@ -84,8 +95,18 @@ class RegulatoryPack private constructor(
         signedAt: Instant? = this.signedAt,
         publishedAt: Instant? = this.publishedAt,
     ) = RegulatoryPack(
-        ref, type, version, citations, authors, status, signer, signingKeyRef, minEngineVersion, exposureReducing,
-        signedAt, publishedAt,
+        ref,
+        type,
+        version,
+        citations,
+        authors,
+        status,
+        signer,
+        signingKeyRef,
+        minEngineVersion,
+        exposureReducing,
+        signedAt,
+        publishedAt,
     )
 
     companion object {
@@ -105,8 +126,18 @@ class RegulatoryPack private constructor(
                 "a citation is 1..$MAX_CITATION_LENGTH characters"
             }
             return RegulatoryPack(
-                PackRef.of(type, version), type, version, citations, setOf(author), PackStatus.DRAFT, null, null, null,
-                false, null, null,
+                PackRef.of(type, version),
+                type,
+                version,
+                citations,
+                setOf(author),
+                PackStatus.DRAFT,
+                null,
+                null,
+                null,
+                false,
+                null,
+                null,
             )
         }
 
@@ -126,8 +157,18 @@ class RegulatoryPack private constructor(
             publishedAt: Instant?,
         ): RegulatoryPack =
             RegulatoryPack(
-                PackRef.of(type, version), type, version, citations, authors, status, signer, signingKeyRef,
-                minEngineVersion, exposureReducing, signedAt, publishedAt,
+                PackRef.of(type, version),
+                type,
+                version,
+                citations,
+                authors,
+                status,
+                signer,
+                signingKeyRef,
+                minEngineVersion,
+                exposureReducing,
+                signedAt,
+                publishedAt,
             )
     }
 }

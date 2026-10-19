@@ -37,6 +37,7 @@ dependencies {
     implementation(libs.platform.tenancyKernel.api)
     implementation(libs.platform.outboxAndQueue.api)
     implementation(libs.platform.crypto.api)
+    implementation(libs.platform.productRuntime.api)
     implementation(libs.jooq)
     implementation(libs.spring.web)
     implementation(libs.spring.context)
@@ -50,13 +51,30 @@ dependencies {
     testRuntimeOnly(libs.junit.platformLauncher)
     testImplementation(libs.kotest.assertionsCore)
     testImplementation(libs.jsonSchemaValidator)
+    testImplementation(libs.snakeyaml)
 
     integrationTestImplementation(libs.testcontainers.postgresql)
     integrationTestImplementation(libs.jooq)
     integrationTestRuntimeOnly(libs.postgresql)
 }
 
-tasks.withType<Test> { useJUnitPlatform() }
+tasks.withType<Test> {
+    useJUnitPlatform()
+    // The pinned platform-contracts release, staged by control-plane-contract: tests read their schemas from it, never a copy.
+    systemProperty(
+        "gst.contracts.dir",
+        rootProject.layout.projectDirectory
+            .dir(
+                "control-plane-contract/build/contracts-repo/platform-contracts/control-plane/${libs.versions.platformContractsBundle.get()}",
+            ).asFile.path,
+    )
+    systemProperty(
+        "gst.migrations.dir",
+        layout.projectDirectory
+            .dir("src/main/resources/db/migration")
+            .asFile.path,
+    )
+}
 
 val integrationTest =
     tasks.register<Test>("integrationTest") {
@@ -66,9 +84,12 @@ val integrationTest =
         classpath = sourceSets["integrationTest"].runtimeClasspath
         shouldRunAfter(tasks.named("test"))
         systemProperty("gst.pg.image", System.getProperty("gst.pg.image") ?: "postgres:18")
-        // The migrations are the unit under test: the same files the jOOQ code is generated from.
-        systemProperty("gst.migrations.dir", layout.projectDirectory.dir("src/main/resources/db/migration").asFile.path)
-        systemProperty("gst.sql.dir", layout.projectDirectory.dir("src/integrationTest/resources").asFile.path)
+        systemProperty(
+            "gst.sql.dir",
+            layout.projectDirectory
+                .dir("src/integrationTest/resources")
+                .asFile.path,
+        )
     }
 
 tasks.named("check") { dependsOn(integrationTest) }

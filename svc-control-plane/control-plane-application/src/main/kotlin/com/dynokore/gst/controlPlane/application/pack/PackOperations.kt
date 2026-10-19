@@ -149,9 +149,14 @@ class SignPack(
     ): RegulatoryPack {
         val outcome =
             checkNotNull(state).sign(
-                command.actor, command.signingKeyRef, command.minEngineVersion, command.exposureReducing, clock.instant(),
+                command.actor,
+                command.signingKeyRef,
+                command.minEngineVersion,
+                command.exposureReducing,
+                clock.instant(),
             )
-        val signed = (outcome as? SignOutcome.Signed)?.pack ?: error("signPack performed on a version the preconditions refuse")
+        val signed =
+            (outcome as? SignOutcome.Signed)?.pack ?: error("signPack performed on a version the preconditions refuse")
         packs.save(signed)
         return signed
     }
@@ -232,16 +237,28 @@ class PublishPack(
 
     private fun refusalOf(refusal: PublicationRefusal): Refusal =
         when (refusal) {
-            is PublicationRefusal.NotSigned -> Refusal(Refusal.NOT_SIGNED, refusal.packRef.value)
-            is PublicationRefusal.MinEngineVersionMissing -> Refusal(Refusal.MIN_ENGINE_VERSION_MISSING, refusal.packRef.value)
-            is PublicationRefusal.NoStagingRecord -> Refusal(Refusal.NO_STAGING_RECORD, refusal.packRef.value)
-            is PublicationRefusal.StagingNotPassed ->
+            is PublicationRefusal.NotSigned -> {
+                Refusal(Refusal.NOT_SIGNED, refusal.packRef.value)
+            }
+
+            is PublicationRefusal.MinEngineVersionMissing -> {
+                Refusal(Refusal.MIN_ENGINE_VERSION_MISSING, refusal.packRef.value)
+            }
+
+            is PublicationRefusal.NoStagingRecord -> {
+                Refusal(Refusal.NO_STAGING_RECORD, refusal.packRef.value)
+            }
+
+            is PublicationRefusal.StagingNotPassed -> {
                 Refusal(Refusal.STAGING_NOT_PASSED, "${refusal.packRef} results=${refusal.results.joinToString(",")}")
-            is PublicationRefusal.StagingHashMismatch ->
+            }
+
+            is PublicationRefusal.StagingHashMismatch -> {
                 Refusal(
                     Refusal.STAGING_HASH_MISMATCH,
                     "${refusal.packRef} recorded=${refusal.recordedHash} current=${refusal.currentHash}",
                 )
+            }
         }
 }
 

@@ -2,6 +2,7 @@ package com.dynokore.gst.controlPlane.bootstrap
 
 import com.dynokore.gst.controlPlane.adapters.persistence.PackRepositoryJooq
 import com.dynokore.gst.controlPlane.adapters.persistence.StagingEvidenceReaderJooq
+import com.dynokore.gst.controlPlane.adapters.persistence.jooq.Controlplane
 import com.dynokore.gst.controlPlane.application.pack.AuthorRegulatoryPack
 import com.dynokore.gst.controlPlane.application.pack.GetPack
 import com.dynokore.gst.controlPlane.application.pack.OperatorRoles
@@ -9,7 +10,6 @@ import com.dynokore.gst.controlPlane.application.pack.PackRepository
 import com.dynokore.gst.controlPlane.application.pack.SignPack
 import org.jooq.DSLContext
 import org.jooq.Schema
-import com.dynokore.gst.controlPlane.adapters.persistence.jooq.Controlplane
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import java.time.Clock

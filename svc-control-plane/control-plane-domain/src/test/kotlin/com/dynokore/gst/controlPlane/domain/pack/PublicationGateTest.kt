@@ -51,7 +51,11 @@ class PublicationGateTest {
                     .draft(PackType("SCOPE"), PackVersion("2026.5"), listOf("c"), ActorId("alice"))
                     .sign(ActorId("bob"), "KEY", null, false, Instant.EPOCH) as SignOutcome.Signed
             ).pack
-        PublicationGate.check(noEngine, listOf(StagingEvidence(noEngine.ref, StagingResult.PASSED, hash)), hash) shouldBe
+        PublicationGate.check(
+            noEngine,
+            listOf(StagingEvidence(noEngine.ref, StagingResult.PASSED, hash)),
+            hash,
+        ) shouldBe
             PublicationRefusal.MinEngineVersionMissing(noEngine.ref)
     }
 }

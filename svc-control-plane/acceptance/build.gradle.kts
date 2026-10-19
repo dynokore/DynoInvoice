@@ -32,7 +32,6 @@ val contractDir =
         "control-plane-contract/build/contracts-repo/platform-contracts/control-plane/$contractVersion",
     )
 
-
 val operationsGate =
     tasks.register<JavaExec>("operationsGate") {
         group = "verification"
@@ -55,7 +54,8 @@ val operationsGate =
 val acKeyCoverage =
     tasks.register<JavaExec>("acKeyCoverage") {
         group = "verification"
-        description = "INV-T-4984: every wave 2 row of ac-keys.tsv has a test named by its key; no test names a key outside the table."
+        description =
+            "INV-T-4984: every wave 2 row of ac-keys.tsv has a test named by its key; no test names a key outside the table."
         classpath = sourceSets["main"].runtimeClasspath
         mainClass.set("com.dynokore.gst.controlPlane.acceptance.gates.GateMain")
         args("ac-keys", "--root=${repoRoot.asFile}")

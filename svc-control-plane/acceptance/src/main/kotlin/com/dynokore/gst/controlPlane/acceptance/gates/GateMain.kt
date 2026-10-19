@@ -21,16 +21,20 @@ object GateMain {
                         File(contract, "openapi.yaml").readText(),
                         File(contract, "asyncapi.yaml").readText(),
                         File(dir("--table"), OperationsGate.NAME).takeIf { it.isFile }?.readText(),
-                        OperationsGate.overrides(sources),
-                        OperationsGate.stubs(sources),
+                        OperationsGate.Code(OperationsGate.overrides(sources), OperationsGate.stubs(sources)),
                     )
                 }
+
                 "ac-keys" -> {
                     val root = dir("--root")
                     val modules = root.listFiles { f -> f.isDirectory && File(f, "src").isDirectory }.orEmpty().toList()
-                    AcKeyGate.check(File(root, AcKeyGate.NAME).takeIf { it.isFile }?.readText(), AcKeyGate.testNames(modules))
+                    val table = File(root, AcKeyGate.NAME).takeIf { it.isFile }?.readText()
+                    AcKeyGate.check(table, AcKeyGate.testNames(modules))
                 }
-                else -> usage()
+
+                else -> {
+                    usage()
+                }
             }
         findings.forEach { System.err.println(it) }
         if (findings.isNotEmpty()) exitProcess(1)
@@ -38,7 +42,8 @@ object GateMain {
     }
 
     private fun usage(): Nothing {
-        System.err.println("usage: GateMain operations --contract=DIR --table=DIR --adapters=DIR | ac-keys --root=DIR")
+        System.err.println("usage: GateMain operations --contract=DIR --table=DIR --adapters=DIR")
+        System.err.println("       GateMain ac-keys --root=DIR")
         exitProcess(2)
     }
 }

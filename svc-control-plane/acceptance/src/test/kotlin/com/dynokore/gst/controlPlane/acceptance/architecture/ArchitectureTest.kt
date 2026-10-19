@@ -6,7 +6,7 @@ import gst.build.konsist.RawSqlPlacement
 import gst.build.konsist.SqlGuards
 import org.junit.jupiter.api.Test
 
-/** ARC-03, ARC §2.2, INV-REQ-854 and INV-T-4201 over the real sources of this repository (platform-build's shared rules). */
+/** ARC-03, ARC §2.2, INV-REQ-854 and INV-T-4201 over the real sources (platform-build's shared rules). */
 class ArchitectureTest {
     @Test
     fun `layers are one-way and domain and application import no Spring, jOOQ, Jackson, servlet or JPA type`() {

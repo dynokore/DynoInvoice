@@ -27,7 +27,7 @@ object PostgresDb {
         DriverManager.getConnection(container.jdbcUrl, container.username, container.password).use { admin ->
             listOf("roles.sql", "schema.sql").forEach { admin.createStatement().execute(Files.readString(sql(it))) }
         }
-        DriverManager.getConnection(container.jdbcUrl, "controlplane_migrate", "controlplane_migrate_pw").use { migrate ->
+        connect("controlplane_migrate", "controlplane_migrate_pw").use { migrate ->
             Files.list(Path.of(System.getProperty("gst.migrations.dir"))).use { files ->
                 files.filter { it.fileName.toString().endsWith(".sql") }.sorted().forEach {
                     migrate.createStatement().execute(Files.readString(it))
@@ -46,9 +46,13 @@ object PostgresDb {
     /** A session of the runtime login; refuses a superuser or BYPASSRLS session. */
     fun asRuntime(): Connection =
         connect("controlplane_runtime", "controlplane_runtime_pw").also { connection ->
-            connection.createStatement().executeQuery("select rolsuper or rolbypassrls from pg_roles where rolname = current_user").use {
-                check(it.next() && !it.getBoolean(1)) { "the probe session must not be a superuser or bypass RLS" }
-            }
+            connection
+                .createStatement()
+                .executeQuery(
+                    "select rolsuper or rolbypassrls from pg_roles where rolname = current_user",
+                ).use {
+                    check(it.next() && !it.getBoolean(1)) { "the probe session must not be a superuser or bypass RLS" }
+                }
         }
 
     /** Returns Unit on purpose: a JUnit test method that returns a value is not run. */
@@ -60,5 +64,9 @@ object PostgresDb {
     fun scalar(
         connection: Connection,
         sql: String,
-    ): Long = connection.createStatement().executeQuery(sql).use { it.next(); it.getLong(1) }
+    ): Long =
+        connection.createStatement().executeQuery(sql).use {
+            it.next()
+            it.getLong(1)
+        }
 }

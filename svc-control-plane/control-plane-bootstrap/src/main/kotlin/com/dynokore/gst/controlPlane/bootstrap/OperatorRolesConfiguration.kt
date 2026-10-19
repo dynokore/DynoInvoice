@@ -7,7 +7,8 @@ import org.springframework.context.annotation.Configuration
 
 /**
  * The source of a platform operator's roles (regulatory.author, regulatory.approver) is an open question (the report of
- * INV-T-4984, gap G6). Until it is ruled this binding fails closed: nobody holds a role, so every operation answers 403.
+ * INV-T-4984, gap G6). Until it is ruled this binding fails closed: nobody holds a role, so every operation
+ * answers 403.
  */
 @Configuration(proxyBeanMethods = false)
 class OperatorRolesConfiguration {

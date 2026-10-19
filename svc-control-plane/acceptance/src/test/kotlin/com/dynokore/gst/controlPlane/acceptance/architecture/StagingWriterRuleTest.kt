@@ -1,8 +1,9 @@
 package com.dynokore.gst.controlPlane.acceptance.architecture
 
+import com.dynokore.gst.controlPlane.acceptance.gates.SourceText
+import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.io.File
-import io.kotest.matchers.shouldBe
 
 /**
  * The staging evidence write path (coordinator ruling INV-Q-4878): `StagingRecordWriter` is used only by the stage of
@@ -18,20 +19,39 @@ class StagingWriterRuleTest {
 
     @Test
     fun `a call from a class outside the stage package is a finding`() {
-        val root = kotlin.io.path.createTempDirectory().toFile()
-        write(root, "control-plane-adapters/src/main/kotlin/x/stage/Stage.kt", "package $SERVICE_PACKAGE.adapters.stage\nclass StagingRecordWriter\nclass Stage(val w: StagingRecordWriter)\n")
+        val root =
+            kotlin.io.path
+                .createTempDirectory()
+                .toFile()
+        val pkg = SERVICE_PACKAGE
+        write(root, "control-plane-adapters/src/main/kotlin/x/stage/Stage.kt", stageFile(pkg))
         StagingWriterRule.findings(root) shouldBe emptyList<String>()
-        write(root, "control-plane-adapters/src/main/kotlin/x/http/Bad.kt", "package $SERVICE_PACKAGE.adapters.http\nimport $SERVICE_PACKAGE.adapters.stage.StagingRecordWriter\nclass Bad(val w: StagingRecordWriter)\n")
+        write(root, "control-plane-adapters/src/main/kotlin/x/http/Bad.kt", badFile(pkg))
         StagingWriterRule.findings(root).size shouldBe 1
-        // the same simple name in a string or comment is not a use; a fully qualified use without an import is
-        write(root, "control-plane-bootstrap/src/main/kotlin/y/Ok.kt", "package $SERVICE_PACKAGE.bootstrap\n// StagingRecordWriter\nval s = \"StagingRecordWriter\"\n")
+        // the simple name in a comment or a string is not a use; a fully qualified use without an import is
+        write(root, "control-plane-bootstrap/src/main/kotlin/y/Ok.kt", okFile(pkg))
         StagingWriterRule.findings(root).size shouldBe 1
-        write(root, "control-plane-bootstrap/src/main/kotlin/y/Fq.kt", "package $SERVICE_PACKAGE.bootstrap\nval w = $SERVICE_PACKAGE.adapters.stage.StagingRecordWriter::class\n")
+        write(root, "control-plane-bootstrap/src/main/kotlin/y/Fq.kt", fullyQualifiedFile(pkg))
         StagingWriterRule.findings(root).size shouldBe 2
         // a look-alike package does not count as the stage package
-        write(root, "control-plane-adapters/src/main/kotlin/z/Look.kt", "package $SERVICE_PACKAGE.adapters.stagehand\nclass Look(val w: StagingRecordWriter)\n")
+        write(root, "control-plane-adapters/src/main/kotlin/z/Look.kt", lookAlikeFile(pkg))
         StagingWriterRule.findings(root).size shouldBe 3
     }
+
+    private fun stageFile(pkg: String) =
+        "package $pkg.adapters.stage\nclass StagingRecordWriter\nclass S(val w: StagingRecordWriter)\n"
+
+    private fun badFile(pkg: String) =
+        "package $pkg.adapters.http\nimport $pkg.adapters.stage.StagingRecordWriter\n" +
+            "class Bad(val w: StagingRecordWriter)\n"
+
+    private fun okFile(pkg: String) =
+        "package $pkg.bootstrap\n// StagingRecordWriter\nval s = \"StagingRecordWriter\"\n"
+
+    private fun fullyQualifiedFile(pkg: String) =
+        "package $pkg.bootstrap\nval w = $pkg.adapters.stage.StagingRecordWriter::class\n"
+
+    private fun lookAlikeFile(pkg: String) = "package $pkg.adapters.stagehand\nclass Look(val w: StagingRecordWriter)\n"
 
     private fun write(
         root: File,
@@ -51,8 +71,13 @@ internal object StagingWriterRule {
             .onEnter { it.name != "build" && it.name != ".git" }
             .filter { it.isFile && it.extension == "kt" && "/src/main/" in it.invariantSeparatorsPath }
             .filter { file ->
-                val code = com.dynokore.gst.controlPlane.acceptance.gates.stripForRule(file.readText())
-                val pkg = PACKAGE.find(code)?.groupValues?.get(1).orEmpty()
+                val code = SourceText.stripCommentsAndStrings(file.readText())
+                val pkg =
+                    PACKAGE
+                        .find(code)
+                        ?.groupValues
+                        ?.get(1)
+                        .orEmpty()
                 val inStage = pkg == STAGE || pkg.startsWith("$STAGE.")
                 !inStage && WORD.containsMatchIn(code)
             }.map { it.path }

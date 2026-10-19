@@ -36,8 +36,35 @@ pluginManagement {
     }
 }
 
+// STK-72 (INV-Q-4375): the settings classpath (the plugin below) is locked in strict mode; its lock state lives in
+// gradle/settings-gradle.lockfile, because Gradle writes the version catalogue's own settings lock state to the default
+// settings-gradle.lockfile and the last writer would drop the classpath entries.
+buildscript {
+    configurations.classpath {
+        resolutionStrategy.activateDependencyLocking()
+    }
+    dependencyLocking {
+        lockMode.set(LockMode.STRICT)
+        lockFile.set(file("gradle/settings-gradle.lockfile"))
+    }
+}
+
 plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
+}
+
+// The root settings-gradle.lockfile holds only the version catalogue's lock state, which Gradle does not check strictly;
+// this makes a deleted or changed file fail the build. Skipped under --write-locks, which rewrites the file.
+if (!gradle.startParameter.isWriteDependencyLocks) {
+    val catalogueLock = settingsDir.resolve("settings-gradle.lockfile")
+    val lockLines =
+        catalogueLock.takeIf { it.isFile }?.readLines()?.map { it.trim() }?.filter {
+            it.isNotEmpty() && !it.startsWith("#")
+        }
+    check(lockLines == listOf("empty=incomingCatalogForLibs0")) {
+        "STK-72: settings-gradle.lockfile must exist and hold exactly 'empty=incomingCatalogForLibs0' " +
+            "(found ${lockLines ?: "no file"}); regenerate it as README.md, \"Dependency locking and verification\" says"
+    }
 }
 
 dependencyResolutionManagement {

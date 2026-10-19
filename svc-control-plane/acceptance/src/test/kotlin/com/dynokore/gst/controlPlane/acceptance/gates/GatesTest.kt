@@ -23,14 +23,15 @@ class GatesTest {
             address: 'gst.x.one.v1'
         """.trimIndent()
     private val header = "kind\tid\ttask\tstate\n"
-    private val full = header + "operation\topA\tINV-T-1\tdone\noperation\topB\tINV-T-2\tpending\nchannel\tchanOne\tINV-T-1\tdone\n"
+    private val full =
+        header + "operation\topA\tINV-T-1\tdone\noperation\topB\tINV-T-2\tpending\nchannel\tchanOne\tINV-T-1\tdone\n"
 
     private fun ops(
         table: String?,
         stubs: Set<String> = emptySet(),
         implemented: Set<String> = setOf("opA"),
         spec: String = openapi,
-    ) = OperationsGate.check(spec, asyncapi, table, implemented, stubs).map { it.message }
+    ) = OperationsGate.check(spec, asyncapi, table, OperationsGate.Code(implemented, stubs)).map { it.message }
 
     @Test
     fun `a complete table passes`() {
@@ -40,7 +41,8 @@ class GatesTest {
     @Test
     fun `an operation added to the contract and missing from the table fails`() {
         val extended = "$openapi\n  /c:\n    post: { operationId: opC }"
-        ops(full, spec = extended).single() shouldBe "the contract holds this operationId but the table does not list it"
+        ops(full, spec = extended).single() shouldBe
+            "the contract holds this operationId but the table does not list it"
     }
 
     @Test
@@ -68,7 +70,11 @@ class GatesTest {
 
     @Test
     fun `a row for an operation the contract does not hold fails`() {
-        ops(full + "operation\tgone\tINV-T-3\tpending\n", stubs = setOf("gone")).contains("the table lists an operationId the contract does not hold") shouldBe true
+        ops(
+            full + "operation\tgone\tINV-T-3\tpending\n",
+            stubs = setOf("gone"),
+        ).contains("the table lists an operationId the contract does not hold") shouldBe
+            true
     }
 
     @Test
@@ -83,8 +89,14 @@ class GatesTest {
 
     @Test
     fun `a stub inside a comment or a string is not a 501 stub`() {
-        val dir = kotlin.io.path.createTempDirectory().toFile()
-        File(dir, "A.kt").writeText("// notImplemented(\"opA\")\n/* /* nested */ notImplemented(\"opA\") */\nval s = 1\n")
+        val dir =
+            kotlin.io.path
+                .createTempDirectory()
+                .toFile()
+        File(
+            dir,
+            "A.kt",
+        ).writeText("// notImplemented(\"opA\")\n/* /* nested */ notImplemented(\"opA\") */\nval s = 1\n")
         OperationsGate.stubs(listOf(File(dir, "A.kt"))) shouldBe emptySet()
         File(dir, "B.kt").writeText("fun f() = notImplemented(\"opA\")\n")
         OperationsGate.stubs(listOf(File(dir, "B.kt"))) shouldBe setOf("opA")
@@ -115,8 +127,13 @@ class GatesTest {
 
     @Test
     fun `a longer look-alike key does not satisfy the row and is itself a finding`() {
-        val findings = AcKeyGate.check(rows, listOf(File("T.kt") to "INV-AC-11 look-alike")).map { it.subject to it.message }
-        findings.contains("INV-AC-1" to "wave 2 row has no test whose name contains the key as a whole token") shouldBe true
+        val findings =
+            AcKeyGate.check(rows, listOf(File("T.kt") to "INV-AC-11 look-alike")).map {
+                it.subject to
+                    it.message
+            }
+        findings.contains("INV-AC-1" to "wave 2 row has no test whose name contains the key as a whole token") shouldBe
+            true
         findings.any { it.first == "INV-AC-11" && it.second.endsWith("names a key that is in no row") } shouldBe true
     }
 
@@ -137,14 +154,22 @@ class GatesTest {
     }
 
     @Test
-    fun `test names are read from test source sets only and not from comments`() {
-        val root = kotlin.io.path.createTempDirectory().toFile()
+    fun `test names are read from test source sets only, not from comments, strings or DisplayName`() {
+        val root =
+            kotlin.io.path
+                .createTempDirectory()
+                .toFile()
         File(root, "m/src/test/kotlin").mkdirs()
         File(root, "m/src/main/kotlin").mkdirs()
         File(root, "m/src/integrationTest/kotlin").mkdirs()
-        File(root, "m/src/test/kotlin/A.kt").writeText("// fun `INV-AC-9 commented`\nclass A { @Test fun `INV-AC-1 real`() {} }\n")
+        File(root, "m/src/test/kotlin/A.kt").writeText(
+            "// fun `INV-AC-9 commented`\n" +
+                "val s = \"fun `INV-AC-7 in a string`\"\n" +
+                "class A { @Test fun `INV-AC-1 real`() {} }\n",
+        )
         File(root, "m/src/main/kotlin/B.kt").writeText("fun `INV-AC-8 production`() {}\n")
-        File(root, "m/src/integrationTest/kotlin/C.kt").writeText("@DisplayName(\"INV-AC-2 display\") class C\n")
-        AcKeyGate.testNames(listOf(File(root, "m"))).map { it.second }.sorted() shouldBe listOf("INV-AC-1 real", "INV-AC-2 display")
+        File(root, "m/src/integrationTest/kotlin/C.kt").writeText("class C { @Test fun `INV-AC-2 integration`() {} }\n")
+        AcKeyGate.testNames(listOf(File(root, "m"))).map { it.second }.sorted() shouldBe
+            listOf("INV-AC-1 real", "INV-AC-2 integration")
     }
 }

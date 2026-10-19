@@ -72,13 +72,29 @@ object PublicationGate {
         val own = records.filter { it.packRef == pack.ref }
         val passed = own.filter { it.result == StagingResult.PASSED }
         return when {
-            pack.status != PackStatus.SIGNED -> PublicationRefusal.NotSigned(pack.ref)
-            pack.minEngineVersion == null -> PublicationRefusal.MinEngineVersionMissing(pack.ref)
-            own.isEmpty() -> PublicationRefusal.NoStagingRecord(pack.ref)
-            passed.isEmpty() -> PublicationRefusal.StagingNotPassed(pack.ref, own.map { it.result })
-            passed.none { it.packContentHash == currentHash } ->
+            pack.status != PackStatus.SIGNED -> {
+                PublicationRefusal.NotSigned(pack.ref)
+            }
+
+            pack.minEngineVersion == null -> {
+                PublicationRefusal.MinEngineVersionMissing(pack.ref)
+            }
+
+            own.isEmpty() -> {
+                PublicationRefusal.NoStagingRecord(pack.ref)
+            }
+
+            passed.isEmpty() -> {
+                PublicationRefusal.StagingNotPassed(pack.ref, own.map { it.result })
+            }
+
+            passed.none { it.packContentHash == currentHash } -> {
                 PublicationRefusal.StagingHashMismatch(pack.ref, passed.last().packContentHash, currentHash)
-            else -> null
+            }
+
+            else -> {
+                null
+            }
         }
     }
 }

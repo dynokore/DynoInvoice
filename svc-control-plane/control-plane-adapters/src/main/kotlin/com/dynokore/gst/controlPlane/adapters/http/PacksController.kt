@@ -67,7 +67,10 @@ class PacksController(
                     RequestContext(caller.correlationId, idempotencyKey.toString()),
                 )
             }
-        val outcome = platform.bindPlatform(caller.principal.actor) { runner.run(author, caller.principal.actor, command) }
+        val outcome =
+            platform.bindPlatform(
+                caller.principal.actor,
+            ) { runner.run(author, caller.principal.actor, command) }
         return ResponseEntity.status(HttpStatus.CREATED).body(answer(outcome, caller.correlationId))
     }
 
@@ -88,7 +91,10 @@ class PacksController(
                     RequestContext(caller.correlationId, idempotencyKey.toString()),
                 )
             }
-        val outcome = platform.bindPlatform(caller.principal.actor) { runner.run(sign, caller.principal.actor, command) }
+        val outcome =
+            platform.bindPlatform(
+                caller.principal.actor,
+            ) { runner.run(sign, caller.principal.actor, command) }
         return ResponseEntity.ok(answer(outcome, caller.correlationId))
     }
 
@@ -111,15 +117,20 @@ class PacksController(
     /** The platform operator of the request: a verified token with no tenant (INV-REQ-1202 b2). */
     private fun caller(): Caller {
         val request = (RequestContextHolder.currentRequestAttributes() as ServletRequestAttributes).request
-        val correlationId = request.getHeader("X-Correlation-Id")?.takeIf { it.isNotBlank() } ?: UUID.randomUUID().toString()
+        val correlationId =
+            request.getHeader("X-Correlation-Id")?.takeIf { it.isNotBlank() } ?: UUID.randomUUID().toString()
         val principal =
             principals.resolve(request.getHeader("Authorization"))
                 ?: problem(ClosedErrorCode.UNAUTHENTICATED, correlationId)
-        if (principal.tenant != null) problem(ClosedErrorCode.ACCESS_DENIED, correlationId, "A platform operator token is required")
+        if (principal.tenant !=
+            null
+        ) {
+            problem(ClosedErrorCode.ACCESS_DENIED, correlationId, "A platform operator token is required")
+        }
         return Caller(principal, correlationId)
     }
 
-    /** A value of the request that the domain refuses (a malformed reference, a too long field) is a contract violation. */
+    /** A request value the domain refuses (a malformed reference, a too long field) is a contract violation. */
     private fun <T> commandOf(
         caller: Caller,
         build: () -> T,
@@ -146,15 +157,25 @@ class PacksController(
         correlationId: String,
     ): Nothing =
         when (refusal.code) {
-            Refusal.PACK_NOT_FOUND -> problem(ClosedErrorCode.NOT_FOUND, correlationId)
-            Refusal.SEPARATION_OF_DUTY ->
+            Refusal.PACK_NOT_FOUND -> {
+                problem(ClosedErrorCode.NOT_FOUND, correlationId)
+            }
+
+            Refusal.SEPARATION_OF_DUTY -> {
                 problem(
                     ClosedErrorCode.ACCESS_DENIED,
                     correlationId,
-                    "Separation of duties: the signer edited ${refusal.detail}, so the version stays unsigned (INV-REQ-2590)",
+                    "Separation of duties: the signer edited ${refusal.detail}; the version stays unsigned",
                 )
-            Refusal.SIGNING_KEY_MISSING -> problem(ClosedErrorCode.CONTRACT_VIOLATION, correlationId, "signingKeyRef is blank")
-            else -> error("no response is declared for the refusal ${refusal.code}")
+            }
+
+            Refusal.SIGNING_KEY_MISSING -> {
+                problem(ClosedErrorCode.CONTRACT_VIOLATION, correlationId, "signingKeyRef is blank")
+            }
+
+            else -> {
+                error("no response is declared for the refusal ${refusal.code}")
+            }
         }
 
     private fun responseOf(pack: RegulatoryPack) =

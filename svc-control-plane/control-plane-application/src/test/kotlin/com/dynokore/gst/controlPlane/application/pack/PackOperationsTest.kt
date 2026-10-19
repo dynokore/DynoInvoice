@@ -44,12 +44,20 @@ class PackOperationsTest {
     private val hasher = PackContentHasher { ContentHash(sha(content)) }
     private val author = AuthorRegulatoryPack(repository, roles)
     private val sign = SignPack(repository, roles, clock)
-    private val publish = PublishPack(repository, roles, { ref -> evidence.filter { it.packRef == ref } }, hasher, { released += it.ref }, clock)
+    private val staging = StagingEvidenceReader { ref -> evidence.filter { it.packRef == ref } }
+    private val publish = PublishPack(repository, roles, staging, hasher, { released += it.ref }, clock)
 
-    private fun sha(text: String) = MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
+    private fun sha(text: String) =
+        MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
 
     private fun authorAs(actor: String) =
-        AuthorRegulatoryPackCommand(ActorId(actor), PackType("SCOPE"), PackVersion("2026.3"), listOf("IRAS e-Tax Guide 2026-08"), request).also {
+        AuthorRegulatoryPackCommand(
+            ActorId(actor),
+            PackType("SCOPE"),
+            PackVersion("2026.3"),
+            listOf("IRAS e-Tax Guide 2026-08"),
+            request,
+        ).also {
             check(author.permits(actor, it))
             val state = author.load(it)
             if (author.priorResult(it, state) == null) author.perform(it, state)
@@ -59,7 +67,15 @@ class PackOperationsTest {
         actor: String,
         engine: String? = "2026.10.0",
     ): String? {
-        val cmd = SignPackCommand(ActorId(actor), PackRef("PACK-SCOPE-2026.3"), "KEY-REG-01", engine?.let(::MinEngineVersion), false, request)
+        val cmd =
+            SignPackCommand(
+                ActorId(actor),
+                PackRef("PACK-SCOPE-2026.3"),
+                "KEY-REG-01",
+                engine?.let(::MinEngineVersion),
+                false,
+                request,
+            )
         val state = sign.load(cmd)
         val unmet = if (sign.priorResult(cmd, state) == null) sign.unmetPrecondition(cmd, state) else null
         if (unmet == null && sign.priorResult(cmd, state) == null) sign.perform(cmd, state)
@@ -76,10 +92,11 @@ class PackOperationsTest {
 
     private val ref = PackRef("PACK-SCOPE-2026.3")
 
-    private fun passed(hash: String = sha(content)) = evidence.add(StagingEvidence(ref, StagingResult.PASSED, ContentHash(hash)))
+    private fun passed(hash: String = sha(content)) =
+        evidence.add(StagingEvidence(ref, StagingResult.PASSED, ContentHash(hash)))
 
     @Test
-    fun `INV-AC-2591 a person with both roles who edited the version cannot sign it and publishPack is refused as not signed`() {
+    fun `INV-AC-2591 an editor with both roles cannot sign and publishPack is refused as not signed`() {
         authorAs("alice")
         authorAs("pat") // pat holds both regulatory roles and edits through authorRegulatoryPack
         Refusal.parse(signAs("pat")!!).code shouldBe Refusal.SEPARATION_OF_DUTY

@@ -72,3 +72,4 @@ jakarta-servletApi = { module = "jakarta.servlet:jakarta.servlet-api" }
 slf4j-api = { module = "org.slf4j:slf4j-api" }
 springBoot-starterJdbc = { module = "org.springframework.boot:spring-boot-starter-jdbc" }
 springBoot-starterFlyway = { module = "org.springframework.boot:spring-boot-starter-flyway" }
+platform-productRuntime-api = { module = "com.dynokore.platform:product-runtime-api" }

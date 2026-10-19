@@ -29,10 +29,13 @@ class RegistryPersistenceIT {
     private val clock = Clock.fixed(Instant.parse("2026-10-12T08:30:00Z"), ZoneOffset.UTC)
     private val hash = ContentHash("a".repeat(64))
 
-    private fun newDraft(
-        author: String = "alice",
-    ): RegulatoryPack =
-        RegulatoryPack.draft(PackType("SCOPE"), PackVersion("v${UUID.randomUUID().toString().take(8)}"), listOf("IRAS e-Tax Guide"), ActorId(author))
+    private fun newDraft(author: String = "alice"): RegulatoryPack =
+        RegulatoryPack.draft(
+            PackType("SCOPE"),
+            PackVersion("v${UUID.randomUUID().toString().take(8)}"),
+            listOf("IRAS e-Tax Guide"),
+            ActorId(author),
+        )
 
     private fun SQLException.permissionDenied() = sqlState == "42501"
 
@@ -46,7 +49,16 @@ class RegistryPersistenceIT {
             val stored = checkNotNull(repository.find(draft.ref))
             stored.authors shouldBe setOf(ActorId("alice"), ActorId("pat"))
             stored.status shouldBe PackStatus.DRAFT
-            val signed = (stored.sign(ActorId("bob"), "KEY-REG-01", MinEngineVersion("2026.10.0"), false, clock.instant()) as SignOutcome.Signed).pack
+            val signed =
+                (
+                    stored.sign(
+                        ActorId("bob"),
+                        "KEY-REG-01",
+                        MinEngineVersion("2026.10.0"),
+                        false,
+                        clock.instant(),
+                    ) as SignOutcome.Signed
+                ).pack
             repository.save(signed)
             val again = checkNotNull(repository.find(draft.ref))
             again.status shouldBe PackStatus.SIGNED
@@ -79,7 +91,8 @@ class RegistryPersistenceIT {
             val error =
                 shouldThrow<SQLException> {
                     connection.createStatement().execute(
-                        "insert into controlplane.pack_staging_record (pack_ref, result, pack_content_hash, recorded_by) " +
+                        "insert into controlplane.pack_staging_record " +
+                            "(pack_ref, result, pack_content_hash, recorded_by) " +
                             "values ('${draft.ref}', 'PASSED', '${hash.hex}', 'runtime')",
                     )
                 }
@@ -92,12 +105,19 @@ class RegistryPersistenceIT {
             fun has(
                 table: String,
                 privilege: String,
-            ) = connection.createStatement().executeQuery("select has_table_privilege(current_user, 'controlplane.$table', '$privilege')").use {
-                it.next()
-                it.getBoolean(1)
-            }
+            ) = connection
+                .createStatement()
+                .executeQuery(
+                    "select has_table_privilege(current_user, 'controlplane.$table', '$privilege')",
+                ).use {
+                    it.next()
+                    it.getBoolean(1)
+                }
             listOf("INSERT", "UPDATE", "DELETE", "TRUNCATE").forEach { has("pack_staging_record", it) shouldBe false }
-            listOf("pack_version", "pack_author", "signing_record", "pack_staging_record").forEach { has(it, "DELETE") shouldBe false }
+            listOf("pack_version", "pack_author", "signing_record", "pack_staging_record").forEach {
+                has(it, "DELETE") shouldBe
+                    false
+            }
             listOf("signing_record", "pack_author").forEach { has(it, "UPDATE") shouldBe false }
         }
 
@@ -116,9 +136,14 @@ class RegistryPersistenceIT {
         PostgresDb.runtime { _, dsl ->
             val draft = newDraft().also { PackRepositoryJooq(dsl, clock).save(it) }
             val writer = StagingRecordWriter(dsl)
-            writer.record(StagingOutcome(draft.ref, StagingResult.FAILED, hash, "SIMULATOR", "evidence/1", "2026-Q3", "stage"))
-            writer.record(StagingOutcome(draft.ref, StagingResult.PASSED, hash, "SIMULATOR", "evidence/2", "2026-Q3", "stage"))
-            StagingEvidenceReaderJooq(dsl).forPack(draft.ref).map { it.result } shouldBe listOf(StagingResult.FAILED, StagingResult.PASSED)
+            writer.record(
+                StagingOutcome(draft.ref, StagingResult.FAILED, hash, "SIMULATOR", "evidence/1", "2026-Q3", "stage"),
+            )
+            writer.record(
+                StagingOutcome(draft.ref, StagingResult.PASSED, hash, "SIMULATOR", "evidence/2", "2026-Q3", "stage"),
+            )
+            StagingEvidenceReaderJooq(dsl).forPack(draft.ref).map { it.result } shouldBe
+                listOf(StagingResult.FAILED, StagingResult.PASSED)
             StagingEvidenceReaderJooq(dsl).forPack(PackRef("PACK-NONE-1")) shouldBe emptyList()
         }
 
@@ -127,7 +152,9 @@ class RegistryPersistenceIT {
         PostgresDb.runtime { _, dsl ->
             val writer = StagingRecordWriter(dsl)
             shouldThrow<Exception> {
-                writer.record(StagingOutcome(PackRef("PACK-NONE-1"), StagingResult.PASSED, hash, null, null, null, "stage"))
+                writer.record(
+                    StagingOutcome(PackRef("PACK-NONE-1"), StagingResult.PASSED, hash, null, null, null, "stage"),
+                )
             }
         }
 
@@ -135,9 +162,14 @@ class RegistryPersistenceIT {
     fun `the function is owned by the sys role and no other login may execute it`() =
         PostgresDb.runtime { connection, _ ->
             val owner =
-                connection.createStatement().executeQuery(
-                    "select pg_get_userbyid(proowner) from pg_proc where proname = 'record_staging_result'",
-                ).use { it.next(); it.getString(1) }
+                connection
+                    .createStatement()
+                    .executeQuery(
+                        "select pg_get_userbyid(proowner) from pg_proc where proname = 'record_staging_result'",
+                    ).use {
+                        it.next()
+                        it.getString(1)
+                    }
             owner shouldBe "controlplane_sys"
             PostgresDb.scalar(
                 connection,

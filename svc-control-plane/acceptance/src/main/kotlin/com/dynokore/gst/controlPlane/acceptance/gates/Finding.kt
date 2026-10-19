@@ -14,6 +14,7 @@ internal object Tsv {
     fun rows(text: String): Pair<List<String>, List<List<String>>>? {
         val lines = text.lines().filter { it.isNotBlank() && !it.trimStart().startsWith("#") }
         if (lines.isEmpty()) return null
-        return lines.first().split('\t').map { it.trim() } to lines.drop(1).map { line -> line.split('\t').map { it.trim() } }
+        val header = lines.first().split('\t').map { it.trim() }
+        return header to lines.drop(1).map { line -> line.split('\t').map { it.trim() } }
     }
 }
