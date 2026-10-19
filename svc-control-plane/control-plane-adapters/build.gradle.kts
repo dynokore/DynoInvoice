@@ -68,8 +68,8 @@ dependencies {
     testRuntimeOnly(libs.junit.platformLauncher)
     testImplementation(libs.kotest.assertionsCore)
     testImplementation(libs.platform.rulepackKernel.impl)
+    testImplementation(libs.platform.crypto)
     testImplementation(libs.snakeyaml)
-    testImplementation(libs.platform.rulepackKernel.impl)
     testImplementation(testFixtures(project))
 
     // Signing fixtures: a P-256 key, a self-signed certificate, a PKCS12 key store and a stub PKCS#11 provider.
@@ -77,13 +77,17 @@ dependencies {
     testFixturesImplementation(libs.platform.crypto)
     testFixturesImplementation(libs.platform.crypto.api)
     testFixturesImplementation(libs.platform.serviceRuntime.api)
+    testFixturesImplementation(project(":control-plane-application"))
     testFixturesImplementation(libs.bouncycastle.bcprov)
     testFixturesImplementation(libs.bouncycastle.bcpkix)
 
     integrationTestImplementation(testFixtures(project))
     integrationTestImplementation(libs.testcontainers.postgresql)
     integrationTestImplementation(libs.jooq)
-    integrationTestRuntimeOnly(libs.postgresql)
+    integrationTestImplementation(libs.postgresql)
+    integrationTestImplementation(testFixtures(libs.platform.tenancyJooq))
+    integrationTestImplementation(libs.platform.crypto)
+
 }
 
 // The feed index schema of the pinned platform-contracts release, staged by control-plane-contract, is a classpath

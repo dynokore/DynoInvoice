@@ -1,72 +1,75 @@
 package com.dynokore.gst.controlPlane.adapters
 
+import com.dynokore.platform.tenancyjooq.TenancyProbe
 import org.jooq.DSLContext
 import org.jooq.SQLDialect
 import org.jooq.impl.DSL
+import org.postgresql.ds.PGSimpleDataSource
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.utility.DockerImageName
+import org.testcontainers.utility.MountableFile
 import java.nio.file.Files
 import java.nio.file.Path
-import java.sql.Connection
-import java.sql.DriverManager
+import javax.sql.DataSource
 
 /**
- * One PostgreSQL per test JVM with the role family of provisioning (roles.sql, schema.sql) and every migration applied
- * as controlplane_migrate, in version order, the way the migration Job does (TPL-12). Tests then act as the runtime
- * login, controlplane_runtime: NOSUPERUSER, NOBYPASSRLS, owns nothing (S2-05, V-01). A superuser session would make
- * every grant assertion pass vacuously, so [asRuntime] refuses one.
+ * One PostgreSQL per test JVM. The role family of provisioning (roles.sql, schema.sql) and every migration, applied as
+ * controlplane_migrate in version order the way the migration Job does (TPL-12), run once as the container's init
+ * script (coordinator ruling INV-Q-5245, route R1), so no test body issues DDL. Tests then act as the runtime login,
+ * controlplane_runtime: NOSUPERUSER, NOBYPASSRLS, owns nothing (S2-05, V-01). Catalog and grant probes go through
+ * [TenancyProbe], which refuses a superuser or BYPASSRLS session, so a grant assertion cannot pass vacuously.
  */
 object PostgresDb {
+    private const val RUNTIME_LOGIN = "controlplane_runtime"
+    private const val RUNTIME_PASSWORD = "controlplane_runtime_pw"
+
     private val container: PostgreSQLContainer<*> =
         PostgreSQLContainer(DockerImageName.parse(System.getProperty("gst.pg.image", "postgres:18")))
             .withLabel("inv.agent", "c-inv-t-4984")
 
     init {
-        container.start()
+        val script = Files.createTempFile("controlplane-init-", ".sql")
+        try {
+            Files.writeString(script, initSql())
+            container.withCopyFileToContainer(
+                MountableFile.forHostPath(script, 0b110_100_100),
+                "/docker-entrypoint-initdb.d/10-init.sql",
+            )
+            container.start()
+        } finally {
+            Files.deleteIfExists(script)
+        }
         Runtime.getRuntime().addShutdownHook(Thread { container.stop() })
-        DriverManager.getConnection(container.jdbcUrl, container.username, container.password).use { admin ->
-            listOf("roles.sql", "schema.sql").forEach { admin.createStatement().execute(Files.readString(sql(it))) }
-        }
-        connect("controlplane_migrate", "controlplane_migrate_pw").use { migrate ->
+    }
+
+    private fun initSql(): String {
+        val sql = Path.of(System.getProperty("gst.sql.dir"))
+        val migrations =
             Files.list(Path.of(System.getProperty("gst.migrations.dir"))).use { files ->
-                files.filter { it.fileName.toString().endsWith(".sql") }.sorted().forEach {
-                    migrate.createStatement().execute(Files.readString(it))
-                }
+                files
+                    .filter { it.fileName.toString().endsWith(".sql") }
+                    .sorted()
+                    .map { Files.readString(it) }
+                    .toList()
             }
-        }
+        return listOf(Files.readString(sql.resolve("roles.sql")), Files.readString(sql.resolve("schema.sql")))
+            .plus("SET ROLE controlplane_migrate;")
+            .plus(migrations)
+            .plus("RESET ROLE;")
+            .joinToString("\n")
     }
 
-    private fun sql(name: String): Path = Path.of(System.getProperty("gst.sql.dir"), name)
-
-    fun connect(
-        user: String,
-        password: String,
-    ): Connection = DriverManager.getConnection(container.jdbcUrl, user, password)
-
-    /** A session of the runtime login; refuses a superuser or BYPASSRLS session. */
-    fun asRuntime(): Connection =
-        connect("controlplane_runtime", "controlplane_runtime_pw").also { connection ->
-            connection
-                .createStatement()
-                .executeQuery(
-                    "select rolsuper or rolbypassrls from pg_roles where rolname = current_user",
-                ).use {
-                    check(it.next() && !it.getBoolean(1)) { "the probe session must not be a superuser or bypass RLS" }
-                }
+    /** The runtime login's data source: every statement of the service under test runs on it. */
+    val runtimeDataSource: DataSource =
+        PGSimpleDataSource().apply {
+            setUrl(container.jdbcUrl)
+            user = RUNTIME_LOGIN
+            password = RUNTIME_PASSWORD
         }
 
-    /** Returns Unit on purpose: a JUnit test method that returns a value is not run. */
-    fun runtime(block: (Connection, DSLContext) -> Unit) {
-        asRuntime().use { connection -> block(connection, DSL.using(connection, SQLDialect.POSTGRES)) }
-    }
+    /** The catalog and grant probe of TPL-14, on the runtime login. */
+    val probe: TenancyProbe by lazy { TenancyProbe.connect(container.jdbcUrl, RUNTIME_LOGIN, RUNTIME_PASSWORD) }
 
-    /** Calls the sys-owned function the way the stage will, over a runtime session. */
-    fun scalar(
-        connection: Connection,
-        sql: String,
-    ): Long =
-        connection.createStatement().executeQuery(sql).use {
-            it.next()
-            it.getLong(1)
-        }
+    /** A plain jOOQ context on the runtime login (the tables here are platform-scoped: no tenant listeners apply). */
+    fun dsl(): DSLContext = DSL.using(runtimeDataSource, SQLDialect.POSTGRES)
 }

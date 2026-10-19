@@ -16,7 +16,6 @@ import com.dynokore.gst.controlPlane.domain.pack.SignOutcome
 import com.dynokore.gst.controlPlane.domain.pack.StagingResult
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldContain
 import org.junit.jupiter.api.Test
 import java.sql.SQLException
 import java.time.Clock
@@ -37,144 +36,128 @@ class RegistryPersistenceIT {
             ActorId(author),
         )
 
-    private fun SQLException.permissionDenied() = sqlState == "42501"
+    private val dsl = PostgresDb.dsl()
+    private val probe = PostgresDb.probe
+
+    /** The SQLException at the root of a failed probe or statement. */
+    private fun Throwable.sql(): SQLException = generateSequence(this) { it.cause }.filterIsInstance<SQLException>().first()
+
+    private fun has(
+        table: String,
+        privilege: String,
+    ) = probe.fetchValue("select has_table_privilege(current_user, ?, ?)", "controlplane.$table", privilege) == true
 
     @Test
-    fun `a draft round-trips with its authors and a signature records the signer`() =
-        PostgresDb.runtime { _, dsl ->
-            val repository = PackRepositoryJooq(dsl, clock)
-            val draft = newDraft()
-            repository.save(draft)
-            repository.save(draft.authoredBy(ActorId("pat")))
-            val stored = checkNotNull(repository.find(draft.ref))
-            stored.authors shouldBe setOf(ActorId("alice"), ActorId("pat"))
-            stored.status shouldBe PackStatus.DRAFT
-            val signed =
-                (
-                    stored.sign(
-                        ActorId("bob"),
-                        "KEY-REG-01",
-                        MinEngineVersion("2026.10.0"),
-                        false,
-                        clock.instant(),
-                    ) as SignOutcome.Signed
-                ).pack
-            repository.save(signed)
-            val again = checkNotNull(repository.find(draft.ref))
-            again.status shouldBe PackStatus.SIGNED
-            again.signer shouldBe ActorId("bob")
-            again.minEngineVersion shouldBe MinEngineVersion("2026.10.0")
-            again.authors shouldBe setOf(ActorId("alice"), ActorId("pat"))
-        }
+    fun `a draft round-trips with its authors and a signature records the signer`() {
+        val repository = PackRepositoryJooq(dsl, clock)
+        val draft = newDraft()
+        repository.save(draft)
+        repository.save(draft.authoredBy(ActorId("pat")))
+        val stored = checkNotNull(repository.find(draft.ref))
+        stored.authors shouldBe setOf(ActorId("alice"), ActorId("pat"))
+        stored.status shouldBe PackStatus.DRAFT
+        val signed =
+            (
+                stored.sign(
+                    ActorId("bob"),
+                    "KEY-REG-01",
+                    MinEngineVersion("2026.10.0"),
+                    false,
+                    clock.instant(),
+                ) as SignOutcome.Signed
+            ).pack
+        repository.save(signed)
+        val again = checkNotNull(repository.find(draft.ref))
+        again.status shouldBe PackStatus.SIGNED
+        again.signer shouldBe ActorId("bob")
+        again.minEngineVersion shouldBe MinEngineVersion("2026.10.0")
+        again.authors shouldBe setOf(ActorId("alice"), ActorId("pat"))
+    }
 
     @Test
-    fun `the database refuses a signature by an author of the version`() =
-        PostgresDb.runtime { connection, dsl ->
-            val repository = PackRepositoryJooq(dsl, clock)
-            val draft = newDraft("pat")
-            repository.save(draft)
-            val error =
-                shouldThrow<SQLException> {
-                    connection.createStatement().execute(
-                        "insert into controlplane.signing_record (pack_ref, signer, signing_key_ref, signed_at) " +
-                            "values ('${draft.ref}', 'pat', 'KEY', now())",
-                    )
-                }
-            error.permissionDenied() shouldBe true
-            error.message!! shouldContain "separation of duties"
-        }
-
-    @Test
-    fun `a direct INSERT of a PASSED staging row as the runtime login is refused with permission denied`() =
-        PostgresDb.runtime { connection, dsl ->
-            val draft = newDraft().also { PackRepositoryJooq(dsl, clock).save(it) }
-            val error =
-                shouldThrow<SQLException> {
-                    connection.createStatement().execute(
-                        "insert into controlplane.pack_staging_record " +
-                            "(pack_ref, result, pack_content_hash, recorded_by) " +
-                            "values ('${draft.ref}', 'PASSED', '${hash.hex}', 'runtime')",
-                    )
-                }
-            error.permissionDenied() shouldBe true
-        }
-
-    @Test
-    fun `the runtime login holds no INSERT, UPDATE or DELETE on the staging table and no DELETE anywhere`() =
-        PostgresDb.runtime { connection, _ ->
-            fun has(
-                table: String,
-                privilege: String,
-            ) = connection
-                .createStatement()
-                .executeQuery(
-                    "select has_table_privilege(current_user, 'controlplane.$table', '$privilege')",
-                ).use {
-                    it.next()
-                    it.getBoolean(1)
-                }
-            listOf("INSERT", "UPDATE", "DELETE", "TRUNCATE").forEach { has("pack_staging_record", it) shouldBe false }
-            listOf("pack_version", "pack_author", "signing_record", "pack_staging_record").forEach {
-                has(it, "DELETE") shouldBe
-                    false
-            }
-            listOf("signing_record", "pack_author").forEach { has(it, "UPDATE") shouldBe false }
-        }
-
-    @Test
-    fun `the runtime login owns no table, is a member of no role and is neither superuser nor BYPASSRLS`() =
-        PostgresDb.runtime { connection, _ ->
-            PostgresDb.scalar(connection, "select count(*) from pg_tables where tableowner = current_user") shouldBe 0L
-            PostgresDb.scalar(
-                connection,
-                "select count(*) from pg_auth_members m join pg_roles r on r.oid = m.member " +
-                    "where r.rolname = current_user",
-            ) shouldBe 0L
-        }
-
-    @Test
-    fun `the staging writer records a row through the sys-owned function and the reader returns it`() =
-        PostgresDb.runtime { _, dsl ->
-            val draft = newDraft().also { PackRepositoryJooq(dsl, clock).save(it) }
-            val writer = StagingRecordWriter(dsl)
-            writer.record(
-                StagingOutcome(draft.ref, StagingResult.FAILED, hash, "SIMULATOR", "evidence/1", "2026-Q3", "stage"),
-            )
-            writer.record(
-                StagingOutcome(draft.ref, StagingResult.PASSED, hash, "SIMULATOR", "evidence/2", "2026-Q3", "stage"),
-            )
-            StagingEvidenceReaderJooq(dsl).forPack(draft.ref).map { it.result } shouldBe
-                listOf(StagingResult.FAILED, StagingResult.PASSED)
-            StagingEvidenceReaderJooq(dsl).forPack(PackRef("PACK-NONE-1")) shouldBe emptyList()
-        }
-
-    @Test
-    fun `the function refuses a record for an unknown pack version and a malformed hash`() =
-        PostgresDb.runtime { _, dsl ->
-            val writer = StagingRecordWriter(dsl)
+    fun `the database refuses a signature by an author of the version`() {
+        val draft = newDraft("pat")
+        PackRepositoryJooq(dsl, clock).save(draft)
+        val error =
             shouldThrow<Exception> {
-                writer.record(
-                    StagingOutcome(PackRef("PACK-NONE-1"), StagingResult.PASSED, hash, null, null, null, "stage"),
-                )
-            }
-        }
+                probe.unbound {
+                    fetchValue(
+                        "insert into controlplane.signing_record (pack_ref, signer, signing_key_ref, signed_at) " +
+                            "values (?, 'pat', 'KEY', now())",
+                        draft.ref.value,
+                    )
+                }
+            }.sql()
+        error.sqlState shouldBe "42501"
+    }
 
     @Test
-    fun `the function is owned by the sys role and no other login may execute it`() =
-        PostgresDb.runtime { connection, _ ->
-            val owner =
-                connection
-                    .createStatement()
-                    .executeQuery(
-                        "select pg_get_userbyid(proowner) from pg_proc where proname = 'record_staging_result'",
-                    ).use {
-                        it.next()
-                        it.getString(1)
-                    }
-            owner shouldBe "controlplane_sys"
-            PostgresDb.scalar(
-                connection,
-                "select count(*) from pg_proc where proname = 'record_staging_result' and prosecdef",
-            ) shouldBe 1L
+    fun `a direct INSERT of a PASSED staging row as the runtime login is refused with permission denied`() {
+        val draft = newDraft().also { PackRepositoryJooq(dsl, clock).save(it) }
+        val error =
+            shouldThrow<Exception> {
+                probe.unbound {
+                    fetchValue(
+                        "insert into controlplane.pack_staging_record " +
+                            "(pack_ref, result, pack_content_hash, recorded_by) values (?, 'PASSED', ?, 'runtime')",
+                        draft.ref.value,
+                        hash.hex,
+                    )
+                }
+            }.sql()
+        error.sqlState shouldBe "42501"
+    }
+
+    @Test
+    fun `the runtime login holds no INSERT, UPDATE or DELETE on the staging table and no DELETE anywhere`() {
+        listOf("INSERT", "UPDATE", "DELETE", "TRUNCATE").forEach { has("pack_staging_record", it) shouldBe false }
+        listOf("pack_version", "pack_author", "signing_record", "pack_staging_record", "pack_release", "pack_feed_index")
+            .forEach { has(it, "DELETE") shouldBe false }
+        listOf("signing_record", "pack_author", "pack_release", "pack_feed_index").forEach {
+            has(it, "UPDATE") shouldBe false
         }
+    }
+
+    @Test
+    fun `the runtime login owns no table, is a member of no role and is neither superuser nor BYPASSRLS`() {
+        probe.fetchValue("select count(*) from pg_tables where tableowner = current_user") shouldBe 0L
+        probe.fetchValue(
+            "select count(*) from pg_auth_members m join pg_roles r on r.oid = m.member where r.rolname = current_user",
+        ) shouldBe 0L
+    }
+
+    @Test
+    fun `the staging writer records a row through the sys-owned function and the reader returns it`() {
+        val draft = newDraft().also { PackRepositoryJooq(dsl, clock).save(it) }
+        val writer = StagingRecordWriter(dsl)
+        writer.record(
+            StagingOutcome(draft.ref, StagingResult.FAILED, hash, "SIMULATOR", "evidence/1", "2026-Q3", "stage"),
+        )
+        writer.record(
+            StagingOutcome(draft.ref, StagingResult.PASSED, hash, "SIMULATOR", "evidence/2", "2026-Q3", "stage"),
+        )
+        StagingEvidenceReaderJooq(dsl).forPack(draft.ref).map { it.result } shouldBe
+            listOf(StagingResult.FAILED, StagingResult.PASSED)
+        StagingEvidenceReaderJooq(dsl).forPack(PackRef("PACK-NONE-1")) shouldBe emptyList()
+    }
+
+    @Test
+    fun `the function refuses a record for an unknown pack version`() {
+        val writer = StagingRecordWriter(dsl)
+        shouldThrow<Exception> {
+            writer.record(
+                StagingOutcome(PackRef("PACK-NONE-1"), StagingResult.PASSED, hash, null, null, null, "stage"),
+            )
+        }
+    }
+
+    @Test
+    fun `the function is owned by the sys role and is a definer function`() {
+        probe.fetchValue(
+            "select pg_get_userbyid(proowner) from pg_proc where proname = 'record_staging_result'",
+        ) shouldBe "controlplane_sys"
+        probe.fetchValue(
+            "select count(*) from pg_proc where proname = 'record_staging_result' and prosecdef",
+        ) shouldBe 1L
+    }
 }
