@@ -1,0 +1,35 @@
+{
+  "currency": "CURRENT",
+  "asOf": "2026-10-19",
+  "record": {
+    "grantedOn": "2026-09-15",
+    "currentUntil": "2027-09-14",
+    "imdaReference": "IMDA-IRS-2026-0042",
+    "coveredSubmissionTypes": [
+      "TYPE_1A",
+      "TYPE_1B",
+      "TYPE_2",
+      "TYPE_3"
+    ],
+    "sandboxAcknowledgements": [
+      {
+        "submissionType": "TYPE_1A",
+        "acknowledgementId": "ACK-1A-0001"
+      },
+      {
+        "submissionType": "TYPE_1B",
+        "acknowledgementId": "ACK-1B-0001"
+      },
+      {
+        "submissionType": "TYPE_2",
+        "acknowledgementId": "ACK-2-0001"
+      },
+      {
+        "submissionType": "TYPE_3",
+        "acknowledgementId": "ACK-3-0001"
+      }
+    ],
+    "recordedAt": "2026-10-19T08:00:00Z",
+    "recordedByRole": "release.manager"
+  }
+}

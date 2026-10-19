@@ -5,3 +5,5 @@
 ../openapi.yaml#/components/schemas/ReleaseTrainResponse release-train-response-*.json
 ../schemas/pack-feed-index.schema.json pack-feed-index-*.json
 ../openapi.yaml#/components/schemas/PublishTrainRequest publish-train-request-*.json
+../openapi.yaml#/components/schemas/RecordAccreditationRequest record-accreditation-request-*.json
+../openapi.yaml#/components/schemas/AccreditationStatus accreditation-status-*.json

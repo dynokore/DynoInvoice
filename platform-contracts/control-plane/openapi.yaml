@@ -856,6 +856,179 @@ paths:
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
+  /internal/v1/control-plane/accreditation:
+    post:
+      operationId: recordAccreditation
+      summary: Record the product's IMDA InvoiceNow-Ready Solution accreditation
+      description: Records the accreditation the product holds as an InvoiceNow-Ready Solution with GST InvoiceNow
+        submission (INV-REQ-1363), with the sandbox acknowledgement of each covered submission type (INV-REQ-1364,
+        INV-AC-2338, INV-AC-2339). Read back by getAccreditation, whose `currency` LAPSED or NOT_RECORDED
+        refuses and gates nothing.
+      tags:
+      - releases
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->control-plane-svc
+      x-timeout: 2000
+      x-requirements:
+      - FR-AC.1
+      x-error-codes: []
+      x-operation:
+        role: release.manager
+        scope: platform
+        reversibility: COMPENSABLE
+        repeatKey: (imdaReference, currentUntil) — no-op if already recorded
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordAccreditationRequest'
+            examples:
+              default:
+                value:
+                  grantedOn: '2026-09-15'
+                  currentUntil: '2027-09-14'
+                  imdaReference: IMDA-IRS-2026-0042
+                  coveredSubmissionTypes:
+                  - TYPE_1A
+                  - TYPE_1B
+                  - TYPE_2
+                  - TYPE_3
+                  sandboxAcknowledgements:
+                  - submissionType: TYPE_1A
+                    acknowledgementId: ACK-1A-0001
+                  - submissionType: TYPE_1B
+                    acknowledgementId: ACK-1B-0001
+                  - submissionType: TYPE_2
+                    acknowledgementId: ACK-2-0001
+                  - submissionType: TYPE_3
+                    acknowledgementId: ACK-3-0001
+      responses:
+        "201":
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccreditationRecord'
+              examples:
+                default:
+                  value:
+                    grantedOn: '2026-09-15'
+                    currentUntil: '2027-09-14'
+                    imdaReference: IMDA-IRS-2026-0042
+                    coveredSubmissionTypes:
+                    - TYPE_1A
+                    - TYPE_1B
+                    - TYPE_2
+                    - TYPE_3
+                    sandboxAcknowledgements:
+                    - submissionType: TYPE_1A
+                      acknowledgementId: ACK-1A-0001
+                    - submissionType: TYPE_1B
+                      acknowledgementId: ACK-1B-0001
+                    - submissionType: TYPE_2
+                      acknowledgementId: ACK-2-0001
+                    - submissionType: TYPE_3
+                      acknowledgementId: ACK-3-0001
+                    recordedAt: '2026-10-19T08:00:00Z'
+                    recordedByRole: release.manager
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "422":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+    get:
+      operationId: getAccreditation
+      summary: Read the accreditation record and its currency
+      description: Reads the recorded accreditation (INV-REQ-1363, INV-REQ-1364) and whether it is current on
+        the day asked about (INV-AC-2338, INV-AC-2339). `currency` LAPSED or NOT_RECORDED refuses and gates
+        nothing; `record` is absent when NOT_RECORDED.
+      tags:
+      - releases
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->control-plane-svc
+      x-timeout: 2000
+      x-requirements:
+      - FR-AC.1
+      x-error-codes: []
+      x-operation:
+        role: release.manager
+        scope: platform
+      responses:
+        "200":
+          description: Accreditation status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccreditationStatus'
+              examples:
+                current:
+                  value:
+                    currency: CURRENT
+                    asOf: '2026-10-19'
+                    record:
+                      grantedOn: '2026-09-15'
+                      currentUntil: '2027-09-14'
+                      imdaReference: IMDA-IRS-2026-0042
+                      coveredSubmissionTypes:
+                      - TYPE_1A
+                      - TYPE_1B
+                      - TYPE_2
+                      - TYPE_3
+                      sandboxAcknowledgements:
+                      - submissionType: TYPE_1A
+                        acknowledgementId: ACK-1A-0001
+                      - submissionType: TYPE_1B
+                        acknowledgementId: ACK-1B-0001
+                      - submissionType: TYPE_2
+                        acknowledgementId: ACK-2-0001
+                      - submissionType: TYPE_3
+                        acknowledgementId: ACK-3-0001
+                      recordedAt: '2026-10-19T08:00:00Z'
+                      recordedByRole: release.manager
+                lapsed:
+                  value:
+                    currency: LAPSED
+                    asOf: '2027-10-01'
+                    record:
+                      grantedOn: '2026-09-15'
+                      currentUntil: '2027-09-14'
+                      imdaReference: IMDA-IRS-2026-0042
+                      coveredSubmissionTypes:
+                      - TYPE_1A
+                      - TYPE_1B
+                      - TYPE_2
+                      - TYPE_3
+                      sandboxAcknowledgements:
+                      - submissionType: TYPE_1A
+                        acknowledgementId: ACK-1A-0001
+                      - submissionType: TYPE_1B
+                        acknowledgementId: ACK-1B-0001
+                      - submissionType: TYPE_2
+                        acknowledgementId: ACK-2-0001
+                      - submissionType: TYPE_3
+                        acknowledgementId: ACK-3-0001
+                      recordedAt: '2026-10-19T08:00:00Z'
+                      recordedByRole: release.manager
+                notRecorded:
+                  value:
+                    currency: NOT_RECORDED
+                    asOf: '2026-10-19'
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
 components:
   parameters:
     IdempotencyKey:
@@ -1303,6 +1476,129 @@ components:
           maxLength: 64
           description: The data region elected in the provisioning request, echoed (INV-REQ-1306,
             INV-AC-2293, INV-Q-3590).
+    RecordAccreditationRequest:
+      type: object
+      required:
+      - grantedOn
+      - currentUntil
+      - imdaReference
+      - coveredSubmissionTypes
+      properties:
+        grantedOn:
+          type: string
+          format: date
+          description: The day IMDA granted the accreditation (INV-REQ-1363).
+        currentUntil:
+          type: string
+          format: date
+          description: The last day the accreditation is current (INV-REQ-1363).
+        imdaReference:
+          type: string
+          maxLength: 128
+          description: IMDA's reference for the accreditation (INV-REQ-1363).
+        coveredSubmissionTypes:
+          type: array
+          minItems: 1
+          maxItems: 4
+          uniqueItems: true
+          items:
+            type: string
+            enum: [TYPE_1A, TYPE_1B, TYPE_2, TYPE_3]
+            x-extensible-enum: true
+          description: The submission types the accreditation covers (INV-REQ-1364).
+        sandboxAcknowledgements:
+          type: array
+          maxItems: 4
+          items:
+            type: object
+            required:
+            - submissionType
+            - acknowledgementId
+            properties:
+              submissionType:
+                type: string
+                enum: [TYPE_1A, TYPE_1B, TYPE_2, TYPE_3]
+                x-extensible-enum: true
+              acknowledgementId:
+                type: string
+                maxLength: 128
+                description: The IRAS sandbox Acknowledgement ID of the product's own submission (INV-REQ-1364).
+          description: The product's own sandbox acknowledgements, independent of any tenant (INV-REQ-1364).
+    AccreditationRecord:
+      type: object
+      required:
+      - grantedOn
+      - currentUntil
+      - imdaReference
+      - coveredSubmissionTypes
+      - recordedAt
+      - recordedByRole
+      properties:
+        grantedOn:
+          type: string
+          format: date
+          description: The day IMDA granted the accreditation (INV-REQ-1363).
+        currentUntil:
+          type: string
+          format: date
+          description: The last day the accreditation is current (INV-REQ-1363).
+        imdaReference:
+          type: string
+          maxLength: 128
+          description: IMDA's reference for the accreditation (INV-REQ-1363).
+        coveredSubmissionTypes:
+          type: array
+          minItems: 1
+          maxItems: 4
+          uniqueItems: true
+          items:
+            type: string
+            enum: [TYPE_1A, TYPE_1B, TYPE_2, TYPE_3]
+            x-extensible-enum: true
+          description: The submission types the accreditation covers (INV-REQ-1364).
+        sandboxAcknowledgements:
+          type: array
+          maxItems: 4
+          items:
+            type: object
+            required:
+            - submissionType
+            - acknowledgementId
+            properties:
+              submissionType:
+                type: string
+                enum: [TYPE_1A, TYPE_1B, TYPE_2, TYPE_3]
+                x-extensible-enum: true
+              acknowledgementId:
+                type: string
+                maxLength: 128
+                description: The IRAS sandbox Acknowledgement ID of the product's own submission (INV-REQ-1364).
+          description: The product's own sandbox acknowledgements, independent of any tenant (INV-REQ-1364).
+        recordedAt:
+          type: string
+          format: date-time
+        recordedByRole:
+          type: string
+          maxLength: 64
+    AccreditationStatus:
+      type: object
+      required:
+      - currency
+      - asOf
+      properties:
+        currency:
+          type: string
+          enum:
+          - CURRENT
+          - LAPSED
+          - NOT_RECORDED
+          x-extensible-enum: true
+          description: LAPSED or NOT_RECORDED refuses and gates nothing (INV-AC-2338).
+        asOf:
+          type: string
+          format: date
+        record:
+          $ref: '#/components/schemas/AccreditationRecord'
   responses:
     Error:
       description: Error (API-20 envelope)

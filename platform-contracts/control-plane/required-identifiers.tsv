@@ -54,3 +54,21 @@ ReleaseGateResult.accreditationCheck	schema_property	openapi.yaml	INV-REQ-1365
 assessmentNeeded	property	openapi.yaml	INV-REQ-1365
 alertRef	property	openapi.yaml	INV-REQ-1365
 taskRef	property	openapi.yaml	INV-REQ-1365
+# INV-Q-7314 A: the accreditation record operations recordAccreditation and getAccreditation.
+recordAccreditation	operation	openapi.yaml	INV-REQ-1363
+getAccreditation	operation	openapi.yaml	INV-REQ-1363
+grantedOn	property	openapi.yaml	INV-REQ-1363
+currentUntil	property	openapi.yaml	INV-REQ-1363
+imdaReference	property	openapi.yaml	INV-REQ-1363
+coveredSubmissionTypes	property	openapi.yaml	INV-REQ-1363
+sandboxAcknowledgements	property	openapi.yaml	INV-REQ-1364
+acknowledgementId	property	openapi.yaml	INV-REQ-1364
+submissionType	property	openapi.yaml	INV-REQ-1364
+currency	property	openapi.yaml	INV-REQ-1363
+CURRENT	enum_value	openapi.yaml	INV-REQ-1363
+LAPSED	enum_value	openapi.yaml	INV-REQ-1363
+NOT_RECORDED	enum_value	openapi.yaml	INV-REQ-1363
+TYPE_1A	enum_value	openapi.yaml	INV-REQ-1364
+TYPE_1B	enum_value	openapi.yaml	INV-REQ-1364
+TYPE_2	enum_value	openapi.yaml	INV-REQ-1364
+TYPE_3	enum_value	openapi.yaml	INV-REQ-1364
