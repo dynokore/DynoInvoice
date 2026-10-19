@@ -4,6 +4,25 @@ plugins {
     id("gst.jooq-codegen") // STK-15: jOOQ code generated from the Flyway migrations (INV-T-4223)
 }
 
+// The jOOQ code is generated from the production migrations applied to PostgreSQL (STK-15). The policies name the
+// signed-binding functions that tenancy-kernel's BindingKeyMigration creates as the sys login in an installation, which
+// the code-generation database cannot do (initScripts may only create roles, INV-Q-4457); a codegen-only stub migration
+// V0 therefore travels with them into the throwaway database. It is not a service migration.
+val prepareCodegenMigrations =
+    tasks.register<Sync>("prepareCodegenMigrations") {
+        from("src/main/resources/db/migration")
+        from("src/codegen") { include("V0__*.sql") }
+        into(layout.buildDirectory.dir("codegen-migrations"))
+    }
+
+gstJooqCodegen {
+    schema = "rules"
+    migrations.set(layout.buildDirectory.dir("codegen-migrations"))
+    initScripts.from("src/codegen/roles.sql")
+}
+
+tasks.named("generateJooq") { dependsOn(prepareCodegenMigrations) }
+
 dependencies {
     implementation(platform(libs.platform.bom))
     implementation(platform(libs.springBoot.dependencies))

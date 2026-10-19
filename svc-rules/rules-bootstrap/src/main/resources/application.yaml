@@ -1,0 +1,44 @@
+# rules-bootstrap/src/main/resources/application.yaml (TPL-16; INV-T-4965)
+spring:
+  threads.virtual.enabled: true                     # STK-03
+  main.lazy-initialization: false                   # STK-06
+  # One DataSource, declared only here and in the Helm values: Spring Boot's `dataSource`, the service's one bounded,
+  # elastic HikariCP pool (STK-17). No code names or builds a DataSource; service-runtime serves every platform-libs
+  # adapter from it.
+  datasource:
+    username: rules_runtime                         # the one runtime LOGIN: NOSUPERUSER, NOBYPASSRLS, owns no table
+    hikari:                                         # maximum-pool-size is not set: service-runtime sizes it from the lanes
+      minimum-idle: 1
+      idle-timeout: 60000
+      max-lifetime: 1800000
+  flyway:
+    schemas: rules
+    default-schema: rules
+    user: rules_migrate                             # read only by the migration Job's MigrationRunner (TPL-12, ARC-20)
+service-runtime:
+  modules.schema: rules
+  pool:
+    runs-reprocessing: true                         # rules-svc runs pack-activation reprocessing (INV-Q-4485)
+    # No profile and no lane budget here (INV-Q-4496): the chart supplies the lanes or the installation profile.
+  # SecretRef under this service's secret mount; there is no spring.datasource.password and none in the environment.
+  datasource.credential: db/rules_runtime
+management:
+  server.port: 8081                                 # API-33: health, metrics and diagnostics only on the management port
+  endpoints.web:
+    base-path: /
+    exposure.include: health,prometheus,diagnostics
+    path-mapping.prometheus: metrics
+  endpoint.health:
+    status.order: DOWN,OUT_OF_SERVICE,DEGRADED,UP,UNKNOWN
+    status.http-mapping: { DEGRADED: 200, DOWN: 503, OUT_OF_SERVICE: 503 }
+    group:
+      live.include: livenessState
+      ready.include: readinessState,vault,eventLoops # own schema, event log and vault only (FR-AH.17)
+logging.structured.format.console: ecs              # STK-35, JSON
+inv:
+  tenancy:
+    # Tables with a tenant_id column that also hold platform rows every tenant reads (INV-ADR-3968 item 4a).
+    reference-tables: rules.pack_registry, rules.pack_entry_source
+gst:
+  service: rules-svc
+  db.event-log-url: ${GST_EVENT_LOG_DB_URL:}

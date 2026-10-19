@@ -40,12 +40,28 @@ sealed interface PackResolution {
 }
 
 /**
+ * The one question resolution asks of a registry: the pack version of [packType] in force on [date] for [tenant]
+ * (INV-REQ-770). The kernel's [PackRegistry.resolve] has this shape; rules-svc's registry answers it from the armed
+ * versions of its own schema.
+ */
+fun interface PackLookup {
+    fun resolve(
+        packType: PackType,
+        tenant: TenantId?,
+        date: java.time.LocalDate,
+    ): com.dynokore.platform.rulepackkernel.PackVersion?
+}
+
+/**
  * Resolution of the packs a document needs, by its transaction dates, through the rulepack-kernel's registry
  * (INV-REQ-770). It takes dates, never a clock: there is no `Clock` and no `now()` in this path.
  */
 class PackResolver(
-    private val registry: PackRegistry,
+    private val lookup: PackLookup,
 ) {
+    /** Resolution over the kernel's registry port itself (the reference registry of the tests). */
+    constructor(registry: PackRegistry) : this(PackLookup(registry::resolve))
+
     fun resolve(
         packTypes: List<PackType>,
         tenant: TenantId?,
@@ -55,7 +71,7 @@ class PackResolver(
             packTypes.map { packType ->
                 val date = dates.forPack(packType)
                 val version =
-                    registry.resolve(packType, tenant, date.value)
+                    lookup.resolve(packType, tenant, date.value)
                         ?: return PackResolution.NoPackEffective(packType, date)
                 AppliedPack(packType, version.packId, version.version)
             }
