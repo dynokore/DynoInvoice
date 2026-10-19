@@ -88,6 +88,10 @@ fun gateTask(
         isFailOnNoMatchingTests = true
     }
     systemProperty("gst.repo.root", rootDir.absolutePath)
+    testLogging {
+        events("failed")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL // the finding names the row
+    }
     // the inputs are files of the repository, not Gradle inputs of this module: always run
     outputs.upToDateWhen { false }
 }
