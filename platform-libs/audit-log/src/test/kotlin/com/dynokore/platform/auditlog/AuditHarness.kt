@@ -9,6 +9,7 @@ import com.dynokore.platform.outboxandqueue.JdbcOutboxWriter
 import com.dynokore.platform.outboxandqueue.KillableTransactionRunner
 import com.dynokore.platform.outboxandqueue.OutboxPostgresFixture
 import com.dynokore.platform.outboxandqueue.OutboxSchema
+import com.dynokore.platform.outboxandqueue.SigningFixture
 import com.dynokore.platform.outboxandqueue.TestCatalogue
 import com.dynokore.platform.tenancyjooq.TableClass
 import com.dynokore.platform.tenancyjooq.TenancyJooq
@@ -34,30 +35,32 @@ class AuditHarness(
     val fixture =
         OutboxPostgresFixture(
             image,
-            OutboxSchema.ddl(SCHEMA, OutboxPostgresFixture.APP, OutboxPostgresFixture.SYS) + "\n" +
+            OutboxPostgresFixture.serviceInitSql(
+                SCHEMA,
                 AuditSchema.ddl(SCHEMA, OutboxPostgresFixture.APP) +
-                """
+                    """
 
-                create table $SCHEMA.idp_group_mapping (
-                    tenant_id uuid not null, idp_group text not null, role text not null,
-                    primary key (tenant_id, idp_group));
-                create table $SCHEMA.support_bundle (id uuid primary key, tenant_id uuid not null);
-                grant select, insert, update on $SCHEMA.idp_group_mapping, $SCHEMA.support_bundle
-                    to ${OutboxPostgresFixture.APP};
-                create table $SCHEMA.outbox_gate (refuse boolean not null);
-                create function $SCHEMA.refuse_outbox() returns trigger language plpgsql security definer
-                    set search_path = pg_catalog, $SCHEMA as ${'$'}${'$'}
-                begin
-                    if exists (select 1 from $SCHEMA.outbox_gate where refuse) then
-                        raise exception 'the outbox refuses inserts (test gate)' using errcode = '42501';
-                    end if;
-                    return new;
-                end ${'$'}${'$'};
-                create trigger outbox_gate before insert on $SCHEMA.outbox
-                    for each row execute function $SCHEMA.refuse_outbox();
-                """.trimIndent(),
+                    create table $SCHEMA.idp_group_mapping (
+                        tenant_id uuid not null, idp_group text not null, role text not null,
+                        primary key (tenant_id, idp_group));
+                    create table $SCHEMA.support_bundle (id uuid primary key, tenant_id uuid not null);
+                    grant select, insert, update on $SCHEMA.idp_group_mapping, $SCHEMA.support_bundle
+                        to ${OutboxPostgresFixture.APP};
+                    create table $SCHEMA.outbox_gate (refuse boolean not null);
+                    create function $SCHEMA.refuse_outbox() returns trigger language plpgsql security definer
+                        set search_path = pg_catalog, $SCHEMA as ${'$'}${'$'}
+                    begin
+                        if exists (select 1 from $SCHEMA.outbox_gate where refuse) then
+                            raise exception 'the outbox refuses inserts (test gate)' using errcode = '42501';
+                        end if;
+                        return new;
+                    end ${'$'}${'$'};
+                    create trigger outbox_gate before insert on $SCHEMA.outbox
+                        for each row execute function $SCHEMA.refuse_outbox();
+                    """.trimIndent(),
+            ),
         )
-    internal val db = AuditTestDb(fixture)
+    internal val db = AuditTestDb(fixture, SigningFixture.keys())
     val tenants = db.tenants
     val boundary = KillableTransactionRunner(db.appDataSource, tenants)
     val outbox =

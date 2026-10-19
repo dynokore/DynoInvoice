@@ -339,9 +339,15 @@ class AuditPurgeIT {
                     AuditSchema.purgeDdl(OTHER, APP, SYS, "control-plane-svc") + "\n" +
                     // A third schema with the table and the purge but not the binding functions (INV-Q-6586).
                     "reset role;\ncreate schema $BARE authorization outbox_owner;\n" +
-                    "grant usage on schema $BARE to $APP;\nset role outbox_owner;\n" +
+                    "grant usage on schema $BARE to $APP;\n" + AuditTestDb.bindingInit(BARE, APP, SYS) +
+                    "set role outbox_owner;\n" +
                     AuditSchema.auditEntryDdl(BARE, APP) + "\n" +
-                    AuditSchema.purgeDdl(BARE, APP, SYS, "control-plane-svc"),
+                    AuditSchema.purgeDdl(BARE, APP, SYS, "control-plane-svc") + "\n" +
+                    // The policy depends on the functions by OID and the purge text names them, so renaming them
+                    // away leaves the purge call to raise 42883 (INV-Q-6586) while the DDL above was accepted.
+                    "reset role;\n" +
+                    "alter function $BARE.bound_tenant() rename to bound_tenant_removed;\n" +
+                    "alter function $BARE.bound_actor() rename to bound_actor_removed;",
             )
         val db = AuditTestDb(fixture, SignedBinding.keys())
         val tenants = db.tenants

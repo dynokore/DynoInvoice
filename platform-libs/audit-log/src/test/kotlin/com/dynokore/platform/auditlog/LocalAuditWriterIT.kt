@@ -6,6 +6,7 @@ import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.KillableTransactionRunner
 import com.dynokore.platform.outboxandqueue.OutboxPostgresFixture
+import com.dynokore.platform.outboxandqueue.SigningFixture
 import com.dynokore.platform.tenancyjooq.TableClass
 import com.dynokore.platform.tenancykernel.TenantId
 import org.jooq.exception.DataAccessException
@@ -241,14 +242,16 @@ class LocalAuditWriterIT {
             OutboxPostgresFixture(
                 image,
                 "reset role;\ncreate schema $SCHEMA authorization outbox_owner;\n" +
-                    "grant usage on schema $SCHEMA to ${OutboxPostgresFixture.APP};\nset role outbox_owner;\n" +
+                    "grant usage on schema $SCHEMA to ${OutboxPostgresFixture.APP};\n" +
+                    SigningFixture.provisioning(SCHEMA, OutboxPostgresFixture.SYS, OutboxPostgresFixture.APP) +
+                    "\nset role outbox_owner;\n" +
                     AuditSchema.auditEntryDdl(SCHEMA, OutboxPostgresFixture.APP) +
                     "\ncreate table $SCHEMA.setting " +
                     "(tenant_id uuid not null, name text not null, value text not null);" +
                     "\ngrant select, insert on $SCHEMA.setting to ${OutboxPostgresFixture.APP};" +
                     if (revokeInsert) REVOKE_INSERT else "",
             )
-        val db = AuditTestDb(fixture)
+        val db = AuditTestDb(fixture, SigningFixture.keys())
         val tenants = db.tenants
         val boundary = KillableTransactionRunner(db.appDataSource, tenants)
         val dsl =
