@@ -168,6 +168,15 @@ topics:
       - canonical-svc
     subscribers:
       - ingestion-svc
+  - topic: gst.control-plane.accreditation-alert-raised.v1
+    event_type: com.dynokore.gst.control-plane.AccreditationAlertRaised.v1
+    content_topic: false
+    record_topic: false
+    retained_while_resolvable: false
+    producers:
+      - control-plane-svc
+    subscribers:
+      - notification-svc
   - topic: gst.evidence.evidence-integrity-failed.v1
     event_type: com.dynokore.gst.evidence.EvidenceIntegrityFailed.v1
     content_topic: false
@@ -851,6 +860,17 @@ replay_topics:
       - canonical-svc
     subscribers:
       - submission-svc
+  - topic: gst.control-plane.replay-notification.v1
+    event_types:
+      - com.dynokore.gst.control-plane.AccreditationAlertRaised.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: false
+    record_topic: false
+    retained_while_resolvable: false
+    producers:
+      - control-plane-svc
+    subscribers:
+      - notification-svc
   - topic: gst.evidence.replay-console-bff.v1
     event_types:
       - com.dynokore.gst.evidence.EvidenceIntegrityFailed.v1
@@ -1612,6 +1632,7 @@ replay_request_topics:
     subscribers:
       - access-svc
       - canonical-svc
+      - control-plane-svc
       - every service
       - evidence-svc
       - ingestion-svc

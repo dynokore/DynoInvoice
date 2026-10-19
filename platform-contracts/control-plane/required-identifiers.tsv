@@ -72,3 +72,22 @@ TYPE_1A	enum_value	openapi.yaml	INV-REQ-1364
 TYPE_1B	enum_value	openapi.yaml	INV-REQ-1364
 TYPE_2	enum_value	openapi.yaml	INV-REQ-1364
 TYPE_3	enum_value	openapi.yaml	INV-REQ-1364
+# INV-Q-7314 A: the accreditation task operations and the AccreditationAlertRaised event.
+listAccreditationTasks	operation	openapi.yaml	INV-REQ-1365
+getAccreditationTask	operation	openapi.yaml	INV-REQ-1365
+concludeAccreditationTask	operation	openapi.yaml	INV-REQ-1365
+status	property	openapi.yaml	INV-REQ-1365
+reason	property	openapi.yaml	INV-REQ-1365
+openedAt	property	openapi.yaml	INV-REQ-1365
+releaseRef	property	openapi.yaml	INV-REQ-1365
+concludedAt	property	openapi.yaml	INV-REQ-1365
+conclusion	property	openapi.yaml	INV-REQ-1365
+nextCursor	property	openapi.yaml	INV-REQ-1365
+OPEN	enum_value	openapi.yaml	INV-REQ-1365
+CONCLUDED	enum_value	openapi.yaml	INV-REQ-1365
+ACCREDITATION_LAPSED	enum_value	openapi.yaml	INV-REQ-1365
+REASSESSMENT_NEEDED	enum_value	openapi.yaml	INV-REQ-1365
+alertRef	property	schemas/accreditation-alert-raised-payload.schema.json	INV-REQ-1365
+taskRef	property	schemas/accreditation-alert-raised-payload.schema.json	INV-REQ-1365
+reason	property	schemas/accreditation-alert-raised-payload.schema.json	INV-REQ-1365
+raisedAt	property	schemas/accreditation-alert-raised-payload.schema.json	INV-REQ-1365

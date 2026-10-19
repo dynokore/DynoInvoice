@@ -7,3 +7,7 @@
 ../openapi.yaml#/components/schemas/PublishTrainRequest publish-train-request-*.json
 ../openapi.yaml#/components/schemas/RecordAccreditationRequest record-accreditation-request-*.json
 ../openapi.yaml#/components/schemas/AccreditationStatus accreditation-status-*.json
+../openapi.yaml#/components/schemas/AccreditationTask accreditation-task-*.json
+../openapi.yaml#/components/schemas/AccreditationTaskPage accreditation-tasks-page-*.json
+../openapi.yaml#/components/schemas/ConcludeAccreditationTaskRequest conclude-accreditation-task-request-*.json
+../schemas/accreditation-alert-raised-payload.schema.json accreditation-alert-raised-*.json

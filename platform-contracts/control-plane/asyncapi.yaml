@@ -25,6 +25,11 @@ channels:
     messages:
       ExampleHappened:
         $ref: '#/components/messages/ExampleHappened'
+  control-planeAccreditationAlertRaised:
+    address: 'gst.control-plane.accreditation-alert-raised.v1'
+    messages:
+      AccreditationAlertRaised:
+        $ref: '#/components/messages/AccreditationAlertRaised'
 operations:
   publishExampleHappened:
     action: send
@@ -33,6 +38,13 @@ operations:
       $ref: '#/channels/control-planeExampleHappened'
     messages:
       - $ref: '#/channels/control-planeExampleHappened/messages/ExampleHappened'
+  publishAccreditationAlertRaised:
+    action: send
+    description: Publishes the alert raised with a re-accreditation assessment task (INV-REQ-1365, INV-Q-7316 A).
+    channel:
+      $ref: '#/channels/control-planeAccreditationAlertRaised'
+    messages:
+      - $ref: '#/channels/control-planeAccreditationAlertRaised/messages/AccreditationAlertRaised'
 components:
   messages:
     ExampleHappened:
@@ -42,3 +54,14 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/example-happened-payload.schema.json'
+    AccreditationAlertRaised:
+      name: com.dynokore.gst.control-plane.AccreditationAlertRaised.v1
+      title: AccreditationAlertRaised
+      summary: An alert was raised with a re-accreditation assessment task.
+      description: >-
+        An alert was raised for a re-accreditation assessment task (INV-REQ-1365, INV-AC-2340): the accreditation
+        lapsed or a release train needs reassessment. Emitted by: control-plane-svc. Consumed by: notification-svc.
+        Delivery is at-least-once; consumers deduplicate on `alertRef`. The event carries no invoice content.
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/accreditation-alert-raised-payload.schema.json'

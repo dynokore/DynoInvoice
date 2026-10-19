@@ -1030,8 +1030,221 @@ paths:
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
+  /internal/v1/control-plane/accreditation-tasks:
+    get:
+      operationId: listAccreditationTasks
+      summary: List the re-accreditation assessment tasks
+      description: Lists the tracked re-accreditation assessment tasks (INV-REQ-1365, INV-AC-2340), sorted by
+        `openedAt` descending then `taskRef` ascending, optionally filtered by `status`. Pages by cursor (API-18),
+        `limit` defaults to 100 and is at least 1 and at most 500 (an invalid `limit`, including one outside 1 to 500,
+        is refused with 400); `cursor` is opaque and integrity-protected, bound to the principal, filters and
+        sort that produced it (a cursor from another query is refused with 400); `nextCursor` is omitted on the
+        last page; there is no offset and no total count. A task never gates a release.
+      tags:
+      - releases
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->control-plane-svc
+      x-timeout: 2000
+      x-requirements:
+      - INV-REQ-1365
+      x-error-codes: []
+      x-operation:
+        role: release.manager
+        scope: platform
+      parameters:
+      - name: status
+        in: query
+        required: false
+        description: Only the tasks in this status.
+        schema:
+          type: string
+          enum:
+          - OPEN
+          - CONCLUDED
+          x-extensible-enum: true
+      - name: cursor
+        in: query
+        required: false
+        description: The opaque `nextCursor` of the previous page.
+        schema:
+          type: string
+          maxLength: 1024
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 100
+          maximum: 500
+      responses:
+        "200":
+          description: One page of re-accreditation assessment tasks
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccreditationTaskPage'
+              examples:
+                withCursor:
+                  value:
+                    items:
+                    - taskRef: TASK-2026-0042
+                      status: OPEN
+                      reason: REASSESSMENT_NEEDED
+                      openedAt: '2026-10-19T08:00:00Z'
+                      alertRef: ALERT-2026-0042
+                      releaseRef: TRAIN-2026.10.1
+                    nextCursor: eyJvIjoiMjAyNi0xMC0xOVQwODowMDowMFoiLCJ0IjoiVEFTSy0yMDI2LTAwNDIifQ
+                last:
+                  value:
+                    items:
+                    - taskRef: TASK-2026-0041
+                      status: CONCLUDED
+                      reason: ACCREDITATION_LAPSED
+                      openedAt: '2026-10-01T08:00:00Z'
+                      alertRef: ALERT-2026-0041
+                      concludedAt: '2026-10-05T09:30:00Z'
+                      conclusion: Accreditation renewed by IMDA; no further assessment needed.
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/control-plane/accreditation-tasks/{taskRef}:
+    get:
+      operationId: getAccreditationTask
+      summary: Read one re-accreditation assessment task
+      description: Reads one tracked re-accreditation assessment task (INV-REQ-1365, INV-AC-2340). `concludedAt`
+        and `conclusion` are present exactly when `status` is CONCLUDED.
+      tags:
+      - releases
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->control-plane-svc
+      x-timeout: 2000
+      x-requirements:
+      - INV-REQ-1365
+      x-error-codes: []
+      x-operation:
+        role: release.manager
+        scope: platform
+      parameters:
+      - $ref: '#/components/parameters/TaskRef'
+      responses:
+        "200":
+          description: The task
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccreditationTask'
+              examples:
+                open:
+                  value:
+                    taskRef: TASK-2026-0042
+                    status: OPEN
+                    reason: REASSESSMENT_NEEDED
+                    openedAt: '2026-10-19T08:00:00Z'
+                    alertRef: ALERT-2026-0042
+                    releaseRef: TRAIN-2026.10.1
+                concluded:
+                  value:
+                    taskRef: TASK-2026-0041
+                    status: CONCLUDED
+                    reason: ACCREDITATION_LAPSED
+                    openedAt: '2026-10-01T08:00:00Z'
+                    alertRef: ALERT-2026-0041
+                    concludedAt: '2026-10-05T09:30:00Z'
+                    conclusion: Accreditation renewed by IMDA; no further assessment needed.
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/control-plane/accreditation-tasks/{taskRef}/conclusion:
+    post:
+      operationId: concludeAccreditationTask
+      summary: Conclude a re-accreditation assessment task
+      description: Concludes the task with the assessment's conclusion (INV-REQ-1365, INV-AC-2340); the task becomes
+        CONCLUDED with `concludedAt` and `conclusion` set. Repeating it with the same `conclusion` is a no-op;
+        a conclusion that differs from the recorded one on an already CONCLUDED task is refused with 409. The
+        conclusion never gates a release.
+      tags:
+      - releases
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->control-plane-svc
+      x-timeout: 2000
+      x-requirements:
+      - INV-REQ-1365
+      x-error-codes: []
+      x-operation:
+        role: release.manager
+        scope: platform
+        precondition: Task exists
+        reversibility: IRREVERSIBLE
+        repeatKey: taskRef — no-op if already concluded with the same conclusion
+      parameters:
+      - $ref: '#/components/parameters/TaskRef'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConcludeAccreditationTaskRequest'
+            examples:
+              default:
+                value:
+                  conclusion: Change reviewed against the accredited submission scope; no re-accreditation needed.
+      responses:
+        "200":
+          description: Concluded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccreditationTask'
+              examples:
+                default:
+                  value:
+                    taskRef: TASK-2026-0042
+                    status: CONCLUDED
+                    reason: REASSESSMENT_NEEDED
+                    openedAt: '2026-10-19T08:00:00Z'
+                    alertRef: ALERT-2026-0042
+                    releaseRef: TRAIN-2026.10.1
+                    concludedAt: '2026-10-20T09:00:00Z'
+                    conclusion: Change reviewed against the accredited submission scope; no re-accreditation needed.
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "409":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
 components:
   parameters:
+    TaskRef:
+      name: taskRef
+      in: path
+      required: true
+      description: The re-accreditation assessment task's opaque reference.
+      schema:
+        type: string
+        maxLength: 128
+      example: TASK-2026-0042
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -1600,6 +1813,77 @@ components:
           format: date
         record:
           $ref: '#/components/schemas/AccreditationRecord'
+    AccreditationTask:
+      type: object
+      required:
+      - taskRef
+      - status
+      - reason
+      - openedAt
+      - alertRef
+      properties:
+        taskRef:
+          type: string
+          maxLength: 128
+          description: The task's opaque reference (INV-REQ-1365).
+        status:
+          type: string
+          enum:
+          - OPEN
+          - CONCLUDED
+          x-extensible-enum: true
+          description: OPEN until concluded. `concludedAt` and `conclusion` are present exactly when `status`
+            is CONCLUDED (enforced by the service).
+        reason:
+          type: string
+          enum:
+          - ACCREDITATION_LAPSED
+          - REASSESSMENT_NEEDED
+          x-extensible-enum: true
+          description: Why the task was opened.
+        openedAt:
+          type: string
+          format: date-time
+        alertRef:
+          type: string
+          maxLength: 128
+          description: The alert raised with the task.
+        releaseRef:
+          type: string
+          maxLength: 128
+          description: The release train the task was opened for, when it was opened by one.
+        concludedAt:
+          type: string
+          format: date-time
+          description: Present exactly when `status` is CONCLUDED.
+        conclusion:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: Present exactly when `status` is CONCLUDED.
+    AccreditationTaskPage:
+      type: object
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccreditationTask'
+        nextCursor:
+          type: string
+          maxLength: 1024
+          description: Omitted on the last page.
+    ConcludeAccreditationTaskRequest:
+      type: object
+      required:
+      - conclusion
+      properties:
+        conclusion:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: The assessment's conclusion.
   responses:
     Error:
       description: Error (API-20 envelope)
