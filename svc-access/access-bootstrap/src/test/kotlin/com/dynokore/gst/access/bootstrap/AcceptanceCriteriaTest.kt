@@ -377,12 +377,14 @@ class AcceptanceCriteriaTest {
             assertThat(env.readIn(tenantB) { env.repository.findByIdentity(IdentityRef("IDN-S")) }).isEmpty()
             val unbound =
                 BoundaryFixture.asRuntime { c ->
-                    c.createStatement().executeQuery("select count(*) from access.role_grant").use { rs ->
-                        rs.next()
-                        rs.getInt(1)
+                    listOf("access.identity", "access.role_grant").associateWith { table ->
+                        c.createStatement().executeQuery("select count(*) from $table").use { rs ->
+                            rs.next()
+                            rs.getInt(1)
+                        }
                     }
                 }
-            assertThat(unbound).isZero()
+            assertThat(unbound).containsEntry("access.identity", 0).containsEntry("access.role_grant", 0)
         }
 
     private companion object {

@@ -42,7 +42,7 @@ in one pass:
 
 ## Open items
 
-- INV-AC-1912 (entity-scope row policy) waits for the owner (INV-Q-7453): no policy and no test carry the key, so
-  `acKeyCoverage` fails for that one row on purpose.
+- INV-AC-1912 (entity-scope row policy) is deferred to INV-T-7520 (INV-Q-7453 option B): its row in `ac-keys.tsv` carries
+  wave 3 and no test here carries the key; this service asserts only the tenant-level part (unbound session sees zero rows).
 - The action catalogue and the scope grammar are unpublished: until INV-T-4935 lands the production permission matrix is
   empty and every authorisation answers DENY.
