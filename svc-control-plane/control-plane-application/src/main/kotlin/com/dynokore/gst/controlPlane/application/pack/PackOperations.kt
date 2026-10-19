@@ -2,6 +2,7 @@ package com.dynokore.gst.controlPlane.application.pack
 
 import com.dynokore.gst.controlPlane.domain.pack.ActorId
 import com.dynokore.gst.controlPlane.domain.pack.MinEngineVersion
+import com.dynokore.gst.controlPlane.domain.pack.PackContents
 import com.dynokore.gst.controlPlane.domain.pack.PackRef
 import com.dynokore.gst.controlPlane.domain.pack.PackStatus
 import com.dynokore.gst.controlPlane.domain.pack.PackType
@@ -19,6 +20,7 @@ import com.dynokore.platform.serviceruntime.operation.OperationAudit
 import com.dynokore.platform.serviceruntime.operation.Reversibility
 import com.dynokore.platform.tenancykernel.TenantId
 import java.time.Clock
+import java.time.LocalDate
 
 private const val SCOPE = "platform"
 
@@ -41,6 +43,8 @@ data class AuthorRegulatoryPackCommand(
     val packType: PackType,
     val version: PackVersion,
     val citations: List<String>,
+    val effectiveFrom: LocalDate?,
+    val contents: PackContents?,
     val request: RequestContext,
 ) {
     val ref: PackRef get() = PackRef.of(packType, version)
@@ -84,7 +88,14 @@ class AuthorRegulatoryPack(
     ): RegulatoryPack {
         val pack =
             state?.authoredBy(command.actor)
-                ?: RegulatoryPack.draft(command.packType, command.version, command.citations, command.actor)
+                ?: RegulatoryPack.draft(
+                    command.packType,
+                    command.version,
+                    command.citations,
+                    command.actor,
+                    command.effectiveFrom,
+                    command.contents,
+                )
         packs.save(pack)
         return pack
     }
@@ -112,6 +123,7 @@ data class SignPackCommand(
 class SignPack(
     private val packs: PackRepository,
     private val roles: OperatorRoles,
+    private val keys: PackSigningKeys,
     private val clock: Clock,
 ) : DeclaredOperation<SignPackCommand, RegulatoryPack?, RegulatoryPack> {
     override val operationId = "signPack"
@@ -140,6 +152,12 @@ class SignPack(
             state == null -> Refusal(Refusal.PACK_NOT_FOUND, command.ref.value).encode()
             command.signingKeyRef.isBlank() -> Refusal(Refusal.SIGNING_KEY_MISSING, command.ref.value).encode()
             command.actor in state.authors -> Refusal(Refusal.SEPARATION_OF_DUTY, command.ref.value).encode()
+            keys.resolve(command.signingKeyRef) == null -> {
+                Refusal(Refusal.SIGNING_KEY_MISSING, "${command.ref.value} unknown signingKeyRef").encode()
+            }
+
+            state.effectiveFrom == null -> Refusal(Refusal.EFFECTIVE_FROM_MISSING, command.ref.value).encode()
+            state.contents == null -> Refusal(Refusal.CONTENTS_MISSING, command.ref.value).encode()
             else -> null
         }
 
@@ -223,8 +241,10 @@ class PublishPack(
         command: PublishPackCommand,
         state: RegulatoryPack?,
     ): RegulatoryPack {
-        val published = checkNotNull(state).published(clock.instant())
-        releaser.release(published)
+        val signed = checkNotNull(state)
+        val published = signed.published(clock.instant(), packs.latestPublished(signed.type))
+        // the hash the gate accepted, over the same content, as at the moment of the check (INV-Q-4878)
+        releaser.release(published, hasher.hash(published))
         packs.save(published)
         return published
     }

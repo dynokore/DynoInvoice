@@ -4,6 +4,7 @@
 plugins {
     id("gst.adapters")
     id("gst.jooq-codegen")
+    `java-test-fixtures`
 }
 
 // The jars that hold BindingKeyMigration: gst.jooq-codegen installs the signed-binding functions from them before the
@@ -49,6 +50,10 @@ dependencies {
     implementation(libs.platform.tenancyKernel.api)
     implementation(libs.platform.outboxAndQueue.api)
     implementation(libs.platform.crypto.api)
+    // JcaSigningKey, the signing key over the JCA provider that holds it (INV-Q-7459)
+    implementation(libs.platform.crypto)
+    implementation(libs.platform.rulepackKernel.api)
+    implementation(libs.jsonSchemaValidator)
     implementation(libs.platform.productRuntime.api)
     implementation(libs.jooq)
     implementation(libs.spring.web)
@@ -62,12 +67,36 @@ dependencies {
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platformLauncher)
     testImplementation(libs.kotest.assertionsCore)
-    testImplementation(libs.jsonSchemaValidator)
+    testImplementation(libs.platform.rulepackKernel.impl)
     testImplementation(libs.snakeyaml)
+    testImplementation(libs.platform.rulepackKernel.impl)
+    testImplementation(testFixtures(project))
 
+    // Signing fixtures: a P-256 key, a self-signed certificate, a PKCS12 key store and a stub PKCS#11 provider.
+    testFixturesImplementation(platform(libs.platform.bom))
+    testFixturesImplementation(libs.platform.crypto)
+    testFixturesImplementation(libs.platform.crypto.api)
+    testFixturesImplementation(libs.platform.serviceRuntime.api)
+    testFixturesImplementation(libs.bouncycastle.bcprov)
+    testFixturesImplementation(libs.bouncycastle.bcpkix)
+
+    integrationTestImplementation(testFixtures(project))
     integrationTestImplementation(libs.testcontainers.postgresql)
     integrationTestImplementation(libs.jooq)
     integrationTestRuntimeOnly(libs.postgresql)
+}
+
+// The feed index schema of the pinned platform-contracts release, staged by control-plane-contract, is a classpath
+// resource of this module: the service validates the index against it before it serves it (never a copy in the repo).
+tasks.processResources {
+    from(
+        rootProject.layout.projectDirectory.dir(
+            "control-plane-contract/build/contracts-repo/platform-contracts/control-plane/${libs.versions.platformContractsBundle.get()}/schemas",
+        ),
+    ) {
+        include("pack-feed-index.schema.json")
+        into("contract-schemas")
+    }
 }
 
 tasks.withType<Test> {

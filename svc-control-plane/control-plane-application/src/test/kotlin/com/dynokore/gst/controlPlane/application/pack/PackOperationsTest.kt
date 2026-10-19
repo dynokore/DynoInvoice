@@ -3,6 +3,7 @@ package com.dynokore.gst.controlPlane.application.pack
 import com.dynokore.gst.controlPlane.domain.pack.ActorId
 import com.dynokore.gst.controlPlane.domain.pack.ContentHash
 import com.dynokore.gst.controlPlane.domain.pack.MinEngineVersion
+import com.dynokore.gst.controlPlane.domain.pack.PackContents
 import com.dynokore.gst.controlPlane.domain.pack.PackRef
 import com.dynokore.gst.controlPlane.domain.pack.PackStatus
 import com.dynokore.gst.controlPlane.domain.pack.PackType
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.Test
 import java.security.MessageDigest
 import java.time.Clock
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.Locale
 
@@ -40,13 +42,17 @@ class PackOperationsTest {
             override fun save(pack: RegulatoryPack) {
                 store[pack.ref] = pack
             }
+
+            override fun latestPublished(type: PackType) =
+                store.values.filter { it.type == type && it.status == PackStatus.PUBLISHED }.maxByOrNull { it.publishedAt!! }?.ref
         }
     private var content = "content-v1"
     private val hasher = PackContentHasher { ContentHash(sha(content)) }
     private val author = AuthorRegulatoryPack(repository, roles)
-    private val sign = SignPack(repository, roles, clock)
+    private val keys = PackSigningKeys { ref -> if (ref == "KEY-REG-01") StubKey else null }
+    private val sign = SignPack(repository, roles, keys, clock)
     private val staging = StagingEvidenceReader { ref -> evidence.filter { it.packRef == ref } }
-    private val publish = PublishPack(repository, roles, staging, hasher, { released += it.ref }, clock)
+    private val publish = PublishPack(repository, roles, staging, hasher, { pack, _ -> released += pack.ref }, clock)
 
     private fun sha(text: String) =
         MessageDigest
@@ -55,12 +61,19 @@ class PackOperationsTest {
             ).digest(text.toByteArray())
             .joinToString("") { "%02x".format(Locale.ROOT, it) }
 
-    private fun authorAs(actor: String) =
-        AuthorRegulatoryPackCommand(
+    private fun authorAs(
+        actor: String,
+        version: String = "2026.3",
+        type: String = "SCOPE",
+        effectiveFrom: LocalDate? = LocalDate.parse("2026-10-01"),
+        contents: PackContents? = PackContents("{\"rules\":[]}"),
+    ) = AuthorRegulatoryPackCommand(
             ActorId(actor),
-            PackType("SCOPE"),
-            PackVersion("2026.3"),
+            PackType(type),
+            PackVersion(version),
             listOf("IRAS e-Tax Guide 2026-08"),
+            effectiveFrom,
+            contents,
             request,
         ).also {
             check(author.permits(actor, it))
@@ -71,12 +84,14 @@ class PackOperationsTest {
     private fun signAs(
         actor: String,
         engine: String? = "2026.10.0",
+        ref: PackRef = PackRef("PACK-SCOPE-2026.3"),
+        keyRef: String = "KEY-REG-01",
     ): String? {
         val cmd =
             SignPackCommand(
                 ActorId(actor),
-                PackRef("PACK-SCOPE-2026.3"),
-                "KEY-REG-01",
+                ref,
+                keyRef,
                 engine?.let(::MinEngineVersion),
                 false,
                 request,
@@ -87,8 +102,11 @@ class PackOperationsTest {
         return unmet
     }
 
-    private fun publishAs(actor: String): String? {
-        val cmd = PublishPackCommand(ActorId(actor), PackRef("PACK-SCOPE-2026.3"), request)
+    private fun publishAs(
+        actor: String,
+        ref: PackRef = PackRef("PACK-SCOPE-2026.3"),
+    ): String? {
+        val cmd = PublishPackCommand(ActorId(actor), ref, request)
         val state = publish.load(cmd)
         val unmet = publish.unmetPrecondition(cmd, state)
         if (unmet == null) publish.perform(cmd, state)
@@ -184,4 +202,50 @@ class PackOperationsTest {
         store.getValue(ref).status shouldBe PackStatus.PUBLISHED
         released shouldBe listOf(ref)
     }
+
+    @Test
+    fun `signPack of a version authored without effectiveFrom or without contents is refused and stays unsigned`() {
+        authorAs("alice", version = "2026.6", effectiveFrom = null)
+        Refusal.parse(signAs("bob", ref = PackRef("PACK-SCOPE-2026.6"))!!).code shouldBe Refusal.EFFECTIVE_FROM_MISSING
+        store.getValue(PackRef("PACK-SCOPE-2026.6")).status shouldBe PackStatus.DRAFT
+        authorAs("alice", version = "2026.7", contents = null)
+        Refusal.parse(signAs("bob", ref = PackRef("PACK-SCOPE-2026.7"))!!).code shouldBe Refusal.CONTENTS_MISSING
+        store.getValue(PackRef("PACK-SCOPE-2026.7")).status shouldBe PackStatus.DRAFT
+    }
+
+    @Test
+    fun `signPack with an unknown signing key reference is refused and stays unsigned`() {
+        authorAs("alice")
+        Refusal.parse(signAs("bob", keyRef = "KEY-OTHER")!!).code shouldBe Refusal.SIGNING_KEY_MISSING
+        store.getValue(ref).status shouldBe PackStatus.DRAFT
+    }
+
+    @Test
+    fun `INV-AC-2594 a second version of a type supersedes the latest published one of that type and the first stays published`() {
+        fun publishVersion(
+            type: String,
+            version: String,
+        ): PackRef {
+            val pack = PackRef("PACK-$type-$version")
+            authorAs("alice", version = version, type = type)
+            signAs("bob", ref = pack) shouldBe null
+            evidence.add(StagingEvidence(pack, StagingResult.PASSED, ContentHash(sha(content))))
+            publishAs("bob", pack) shouldBe null
+            return pack
+        }
+        val first = publishVersion("SCOPE", "2026.1")
+        store.getValue(first).supersedes shouldBe null
+        publishVersion("MDE", "2026.1")
+        val second = publishVersion("SCOPE", "2026.2")
+        store.getValue(second).supersedes shouldBe first
+        store.getValue(first).status shouldBe PackStatus.PUBLISHED
+        store.getValue(PackRef("PACK-MDE-2026.1")).supersedes shouldBe null
+    }
+}
+
+private object StubKey : com.dynokore.platform.crypto.SigningKey {
+    override val algorithm = com.dynokore.platform.crypto.SignatureAlgorithm.ECDSA_P256_SHA256
+    override val certificateDer = ByteArray(1)
+
+    override fun sign(data: ByteArray) = data
 }

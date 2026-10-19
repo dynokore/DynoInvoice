@@ -12,6 +12,11 @@ CREATE TABLE controlplane.pack_version (
     status             text        NOT NULL CHECK (status IN ('DRAFT', 'SIGNED', 'PUBLISHED')),
     citations          text[]      NOT NULL CHECK (cardinality(citations) <= 50),
     min_engine_version text        CHECK (length(min_engine_version) BETWEEN 1 AND 32),
+    -- authored values (INV-Q-7455): the date the version takes effect and the pack contents as canonical JSON text
+    effective_from     date,
+    contents           text        CHECK (length(contents) BETWEEN 2 AND 4000000),
+    -- set when the version is published: the latest published version of the same pack type (INV-Q-7455)
+    supersedes         text        REFERENCES controlplane.pack_version (pack_ref),
     exposure_reducing  boolean     NOT NULL DEFAULT false,
     signer             text        CHECK (length(signer) BETWEEN 1 AND 128),
     signing_key_ref    text        CHECK (length(signing_key_ref) BETWEEN 1 AND 64),
@@ -21,7 +26,8 @@ CREATE TABLE controlplane.pack_version (
     UNIQUE (pack_type, pack_version),
     -- a version has a signer exactly when it is signed, and a publication time exactly when it is published
     CHECK ((status = 'DRAFT') = (signer IS NULL AND signing_key_ref IS NULL AND signed_at IS NULL)),
-    CHECK ((status = 'PUBLISHED') = (published_at IS NOT NULL))
+    CHECK ((status = 'PUBLISHED') = (published_at IS NOT NULL)),
+    CHECK (supersedes IS NULL OR (status = 'PUBLISHED' AND supersedes <> pack_ref))
 );
 COMMENT ON TABLE controlplane.pack_version IS 'platform-scoped: no tenant data';
 

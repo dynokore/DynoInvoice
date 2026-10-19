@@ -9,6 +9,7 @@ dependencies {
     implementation(libs.platform.serviceRuntime.api)
     implementation(libs.platform.tenancyKernel.api)
     implementation(libs.platform.outboxAndQueue.api)
+    implementation(libs.platform.crypto.api)
 
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)

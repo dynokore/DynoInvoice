@@ -21,6 +21,7 @@ konsist = "0.17.3"
 jsonSchemaValidator = "3.0.8"
 snakeyaml = "2.7"
 swaggerAnnotations = "2.2.55"
+bouncycastle = "1.86"
 
 [libraries]
 platform-bom = { module = "com.dynokore.platform:platform-libs-bom", version.ref = "platformLibsBom" }
@@ -57,6 +58,8 @@ postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" 
 jackson-databind = { module = "tools.jackson.core:jackson-databind", version.ref = "jackson" }
 jackson-moduleKotlin = { module = "tools.jackson.module:jackson-module-kotlin" }
 jackson-bom = { module = "tools.jackson:jackson-bom", version.ref = "jackson" }
+bouncycastle-bcprov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
+bouncycastle-bcpkix = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "bouncycastle" }
 jsonSchemaValidator = { module = "com.networknt:json-schema-validator", version.ref = "jsonSchemaValidator" }
 snakeyaml = { module = "org.yaml:snakeyaml", version.ref = "snakeyaml" }
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }

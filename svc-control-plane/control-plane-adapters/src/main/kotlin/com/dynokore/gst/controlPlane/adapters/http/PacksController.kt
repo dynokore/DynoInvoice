@@ -1,10 +1,13 @@
 package com.dynokore.gst.controlPlane.adapters.http
 
+import com.dynokore.gst.controlPlane.adapters.bundle.CanonicalJson
 import com.dynokore.gst.controlPlane.application.pack.AuthorRegulatoryPack
 import com.dynokore.gst.controlPlane.application.pack.AuthorRegulatoryPackCommand
 import com.dynokore.gst.controlPlane.application.pack.GetPack
 import com.dynokore.gst.controlPlane.application.pack.OperatorRole
 import com.dynokore.gst.controlPlane.application.pack.OperatorRoles
+import com.dynokore.gst.controlPlane.application.pack.PublishPack
+import com.dynokore.gst.controlPlane.application.pack.PublishPackCommand
 import com.dynokore.gst.controlPlane.application.pack.Refusal
 import com.dynokore.gst.controlPlane.application.pack.RequestContext
 import com.dynokore.gst.controlPlane.application.pack.SignPack
@@ -15,6 +18,7 @@ import com.dynokore.gst.controlPlane.contract.model.PackResponse
 import com.dynokore.gst.controlPlane.contract.model.SignPackRequest
 import com.dynokore.gst.controlPlane.domain.pack.ActorId
 import com.dynokore.gst.controlPlane.domain.pack.MinEngineVersion
+import com.dynokore.gst.controlPlane.domain.pack.PackContents
 import com.dynokore.gst.controlPlane.domain.pack.PackRef
 import com.dynokore.gst.controlPlane.domain.pack.PackStatus
 import com.dynokore.gst.controlPlane.domain.pack.PackType
@@ -35,8 +39,8 @@ import org.springframework.web.context.request.ServletRequestAttributes
 import java.util.UUID
 
 /**
- * authorRegulatoryPack, signPack and getPack (TPL-08). publishPack and the other operations of the contract are not
- * overridden here, so the generated interface answers 501 for them; `operations.tsv` lists each as pending.
+ * authorRegulatoryPack, signPack, publishPack and getPack (TPL-08). The other operations of the contract are not
+ * overridden here, so the generated interface answers 501 for them; `operations.tsv` lists each under its own task.
  *
  * The caller is the verified token's `sub`, never a request field (API-24); a pack is platform data, so the command
  * runs in a transaction bound to the reserved platform tenant, by an operator token that has no tenant.
@@ -51,6 +55,7 @@ class PacksController(
     private val roles: OperatorRoles,
     private val author: AuthorRegulatoryPack,
     private val sign: SignPack,
+    private val publish: PublishPack,
     private val get: GetPack,
 ) : PacksApi {
     override fun authorRegulatoryPack(
@@ -65,6 +70,8 @@ class PacksController(
                     PackType(authorPackRequest.packType),
                     PackVersion(authorPackRequest.version),
                     authorPackRequest.citations,
+                    authorPackRequest.effectiveFrom,
+                    authorPackRequest.contents?.let { PackContents(CanonicalJson.text(it)) },
                     RequestContext(caller.correlationId, idempotencyKey.toString()),
                 )
             }
@@ -96,6 +103,26 @@ class PacksController(
             platform.bindPlatform(
                 caller.principal.actor,
             ) { runner.run(sign, caller.principal.actor, command) }
+        return ResponseEntity.ok(answer(outcome, caller.correlationId))
+    }
+
+    override fun publishPack(
+        packRef: String,
+        idempotencyKey: UUID,
+    ): ResponseEntity<PackResponse> {
+        val caller = caller()
+        val command =
+            commandOf(caller) {
+                PublishPackCommand(
+                    ActorId(caller.principal.actor),
+                    PackRef(packRef),
+                    RequestContext(caller.correlationId, idempotencyKey.toString()),
+                )
+            }
+        val outcome =
+            platform.bindPlatform(
+                caller.principal.actor,
+            ) { runner.run(publish, caller.principal.actor, command) }
         return ResponseEntity.ok(answer(outcome, caller.correlationId))
     }
 
@@ -171,7 +198,19 @@ class PacksController(
             }
 
             Refusal.SIGNING_KEY_MISSING -> {
-                problem(ClosedErrorCode.CONTRACT_VIOLATION, correlationId, "signingKeyRef is blank")
+                problem(ClosedErrorCode.CONTRACT_VIOLATION, correlationId, "signingKeyRef is blank or unknown")
+            }
+
+            // a precondition of the operation is unmet: the detail names the missing or mismatched value or record
+            Refusal.EFFECTIVE_FROM_MISSING,
+            Refusal.CONTENTS_MISSING,
+            Refusal.NOT_SIGNED,
+            Refusal.MIN_ENGINE_VERSION_MISSING,
+            Refusal.NO_STAGING_RECORD,
+            Refusal.STAGING_NOT_PASSED,
+            Refusal.STAGING_HASH_MISMATCH,
+            -> {
+                problem(ClosedErrorCode.CONTRACT_VIOLATION, correlationId, "${refusal.code}: ${refusal.detail}")
             }
 
             else -> {
@@ -189,5 +228,7 @@ class PacksController(
             signer = pack.signer?.value,
             minEngineVersion = pack.minEngineVersion?.value,
             exposureReducing = pack.exposureReducing,
+            effectiveFrom = pack.effectiveFrom,
+            supersedes = pack.supersedes?.value,
         ).also { check(pack.status != PackStatus.PUBLISHED || pack.publishedAt != null) }
 }

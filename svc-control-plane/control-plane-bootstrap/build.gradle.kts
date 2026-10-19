@@ -20,6 +20,10 @@ dependencies {
     implementation(libs.flyway.core)
     runtimeOnly(libs.flyway.databasePostgresql)
     implementation(libs.jooq)
+    implementation(libs.platform.crypto.api)
+    implementation(libs.platform.rulepackKernel.api)
+    // the BouncyCastleCms bean of service-runtime's CryptoWiring (DetachedSigner)
+    runtimeOnly(libs.platform.crypto)
     runtimeOnly(libs.postgresql)
 
     testImplementation(platform(libs.junit.bom))

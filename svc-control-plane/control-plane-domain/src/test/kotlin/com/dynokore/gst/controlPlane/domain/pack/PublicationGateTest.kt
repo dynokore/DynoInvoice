@@ -3,6 +3,7 @@ package com.dynokore.gst.controlPlane.domain.pack
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.time.Instant
+import java.time.LocalDate
 
 class PublicationGateTest {
     private val hash = ContentHash("a".repeat(64))
@@ -10,7 +11,14 @@ class PublicationGateTest {
     private val signed =
         (
             RegulatoryPack
-                .draft(PackType("SCOPE"), PackVersion("2026.3"), listOf("c"), ActorId("alice"))
+                .draft(
+                    PackType("SCOPE"),
+                    PackVersion("2026.3"),
+                    listOf("c"),
+                    ActorId("alice"),
+                    LocalDate.parse("2026-10-01"),
+                    PackContents("{}"),
+                )
                 .sign(ActorId("bob"), "KEY", MinEngineVersion("2026.10.0"), false, Instant.EPOCH) as SignOutcome.Signed
         ).pack
     private val ref = signed.ref
@@ -48,7 +56,14 @@ class PublicationGateTest {
         val noEngine =
             (
                 RegulatoryPack
-                    .draft(PackType("SCOPE"), PackVersion("2026.5"), listOf("c"), ActorId("alice"))
+                    .draft(
+                        PackType("SCOPE"),
+                        PackVersion("2026.5"),
+                        listOf("c"),
+                        ActorId("alice"),
+                        LocalDate.parse("2026-10-01"),
+                        PackContents("{}"),
+                    )
                     .sign(ActorId("bob"), "KEY", null, false, Instant.EPOCH) as SignOutcome.Signed
             ).pack
         PublicationGate.check(

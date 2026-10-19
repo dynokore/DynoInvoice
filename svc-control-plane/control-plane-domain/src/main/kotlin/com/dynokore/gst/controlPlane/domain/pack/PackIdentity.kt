@@ -90,4 +90,23 @@ value class MinEngineVersion(
     }
 }
 
+/**
+ * The pack contents as one canonical JSON object text (opaque to the envelope; interpreted only by the rule engine,
+ * INV-REQ-1077). The adapter canonicalises it, so equal contents are equal bytes and hash alike.
+ */
+@JvmInline
+value class PackContents(
+    val json: String,
+) {
+    init {
+        require(json.isNotBlank() && json.length <= MAX_LENGTH) { "the pack contents are 1..$MAX_LENGTH characters" }
+    }
+
+    override fun toString(): String = "PackContents(${json.length} chars)"
+
+    companion object {
+        const val MAX_LENGTH = 4_000_000
+    }
+}
+
 enum class PackStatus { DRAFT, SIGNED, PUBLISHED }

@@ -6,6 +6,7 @@ import com.dynokore.gst.controlPlane.adapters.persistence.jooq.tables.references
 import com.dynokore.gst.controlPlane.application.pack.PackRepository
 import com.dynokore.gst.controlPlane.domain.pack.ActorId
 import com.dynokore.gst.controlPlane.domain.pack.MinEngineVersion
+import com.dynokore.gst.controlPlane.domain.pack.PackContents
 import com.dynokore.gst.controlPlane.domain.pack.PackRef
 import com.dynokore.gst.controlPlane.domain.pack.PackStatus
 import com.dynokore.gst.controlPlane.domain.pack.PackType
@@ -47,6 +48,9 @@ class PackRepositoryJooq(
             exposureReducing = checkNotNull(row.exposureReducing),
             signedAt = row.signedAt?.toInstant(),
             publishedAt = row.publishedAt?.toInstant(),
+            effectiveFrom = row.effectiveFrom,
+            contents = row.contents?.let(::PackContents),
+            supersedes = row.supersedes?.let(::PackRef),
         )
     }
 
@@ -57,6 +61,16 @@ class PackRepositoryJooq(
         pack.signer?.let { insertSigningRecord(pack, it) }
         updateVersion(pack)
     }
+
+    override fun latestPublished(type: PackType): PackRef? =
+        dsl
+            .select(PACK_VERSION.PACK_REF)
+            .from(PACK_VERSION)
+            .where(PACK_VERSION.PACK_TYPE.eq(type.value).and(PACK_VERSION.STATUS.eq(PackStatus.PUBLISHED.name)))
+            .orderBy(PACK_VERSION.PUBLISHED_AT.desc(), PACK_VERSION.PACK_REF.desc())
+            .limit(1)
+            .fetchOne(PACK_VERSION.PACK_REF)
+            ?.let(::PackRef)
 
     private fun insertVersion(
         pack: RegulatoryPack,
@@ -70,6 +84,8 @@ class PackRepositoryJooq(
             .set(PACK_VERSION.STATUS, PackStatus.DRAFT.name)
             .set(PACK_VERSION.CITATIONS, pack.citations.toTypedArray())
             .set(PACK_VERSION.EXPOSURE_REDUCING, false)
+            .set(PACK_VERSION.EFFECTIVE_FROM, pack.effectiveFrom)
+            .set(PACK_VERSION.CONTENTS, pack.contents?.json)
             .set(PACK_VERSION.CREATED_AT, now)
             .onConflict(PACK_VERSION.PACK_REF)
             .doNothing()
@@ -116,6 +132,7 @@ class PackRepositoryJooq(
             .set(PACK_VERSION.SIGNING_KEY_REF, pack.signingKeyRef)
             .set(PACK_VERSION.SIGNED_AT, pack.signedAt?.atOffset(ZoneOffset.UTC))
             .set(PACK_VERSION.PUBLISHED_AT, pack.publishedAt?.atOffset(ZoneOffset.UTC))
+            .set(PACK_VERSION.SUPERSEDES, pack.supersedes?.value)
             .where(PACK_VERSION.PACK_REF.eq(pack.ref.value))
             .execute()
     }

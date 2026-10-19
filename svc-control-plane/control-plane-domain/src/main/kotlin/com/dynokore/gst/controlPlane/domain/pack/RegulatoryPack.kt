@@ -1,6 +1,7 @@
 package com.dynokore.gst.controlPlane.domain.pack
 
 import java.time.Instant
+import java.time.LocalDate
 
 /**
  * One regulatory pack version through the draft, signed, published path (INV-REQ-2590, INV-NOTE-7 §7).
@@ -24,6 +25,9 @@ class RegulatoryPack private constructor(
     val exposureReducing: Boolean,
     val signedAt: Instant?,
     val publishedAt: Instant?,
+    val effectiveFrom: LocalDate?,
+    val contents: PackContents?,
+    val supersedes: PackRef?,
 ) {
     init {
         require(authors.isNotEmpty()) { "a pack version has at least one author" }
@@ -34,6 +38,9 @@ class RegulatoryPack private constructor(
         ) { "the signer of a version is never one of its authors (INV-REQ-2590)" }
         require((status == PackStatus.PUBLISHED) == (publishedAt != null)) {
             "a version is published exactly when it has a time"
+        }
+        require(supersedes == null || (status == PackStatus.PUBLISHED && supersedes != ref)) {
+            "only a published version supersedes, and never itself"
         }
     }
 
@@ -66,6 +73,10 @@ class RegulatoryPack private constructor(
                 SignOutcome.SeparationOfDutyRefused(this)
             }
 
+            effectiveFrom == null || contents == null -> {
+                SignOutcome.Incomplete(this, missing())
+            }
+
             else -> {
                 SignOutcome.Signed(
                     copy(
@@ -80,10 +91,20 @@ class RegulatoryPack private constructor(
             }
         }
 
-    /** The version after publication; only a signed version is published. */
-    fun published(at: Instant): RegulatoryPack {
+    /** The authored values a signature needs and this version lacks (INV-Q-7455), in a fixed order. */
+    fun missing(): List<String> =
+        listOfNotNull("effectiveFrom".takeIf { effectiveFrom == null }, "contents".takeIf { contents == null })
+
+    /**
+     * The version after publication; only a signed version is published. [supersedes] is the latest published version
+     * of the same type, derived by the caller, and absent for a first version (INV-Q-7455).
+     */
+    fun published(
+        at: Instant,
+        supersedes: PackRef?,
+    ): RegulatoryPack {
         check(status == PackStatus.SIGNED) { "only a signed version is published" }
-        return copy(status = PackStatus.PUBLISHED, publishedAt = at)
+        return copy(status = PackStatus.PUBLISHED, publishedAt = at, supersedes = supersedes)
     }
 
     private fun copy(
@@ -95,6 +116,7 @@ class RegulatoryPack private constructor(
         exposureReducing: Boolean = this.exposureReducing,
         signedAt: Instant? = this.signedAt,
         publishedAt: Instant? = this.publishedAt,
+        supersedes: PackRef? = this.supersedes,
     ) = RegulatoryPack(
         ref,
         type,
@@ -108,6 +130,9 @@ class RegulatoryPack private constructor(
         exposureReducing,
         signedAt,
         publishedAt,
+        effectiveFrom,
+        contents,
+        supersedes,
     )
 
     companion object {
@@ -121,6 +146,8 @@ class RegulatoryPack private constructor(
             version: PackVersion,
             citations: List<String>,
             author: ActorId,
+            effectiveFrom: LocalDate? = null,
+            contents: PackContents? = null,
         ): RegulatoryPack {
             require(citations.size <= MAX_CITATIONS) { "a draft has at most $MAX_CITATIONS citations" }
             require(citations.all { it.isNotBlank() && it.length <= MAX_CITATION_LENGTH }) {
@@ -139,6 +166,9 @@ class RegulatoryPack private constructor(
                 false,
                 null,
                 null,
+                effectiveFrom,
+                contents,
+                null,
             )
         }
 
@@ -156,6 +186,9 @@ class RegulatoryPack private constructor(
             exposureReducing: Boolean,
             signedAt: Instant?,
             publishedAt: Instant?,
+            effectiveFrom: LocalDate?,
+            contents: PackContents?,
+            supersedes: PackRef?,
         ): RegulatoryPack =
             RegulatoryPack(
                 PackRef.of(type, version),
@@ -170,6 +203,9 @@ class RegulatoryPack private constructor(
                 exposureReducing,
                 signedAt,
                 publishedAt,
+                effectiveFrom,
+                contents,
+                supersedes,
             )
     }
 }
@@ -183,6 +219,12 @@ sealed interface SignOutcome {
     /** A repeat on a version that is already signed or published: the version as it is. */
     data class AlreadySigned(
         val pack: RegulatoryPack,
+    ) : SignOutcome
+
+    /** The version lacks an authored [missing] value a signature needs (INV-Q-7455): it stays unsigned. */
+    data class Incomplete(
+        val pack: RegulatoryPack,
+        val missing: List<String>,
     ) : SignOutcome
 
     /** The signer edited the version (INV-AC-2591): the version stays unsigned. */
