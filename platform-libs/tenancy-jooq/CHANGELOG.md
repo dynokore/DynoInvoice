@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-10-20
+### Changed
+- Metadata-only release (INV-T-7520, G-DVS): depends on `tenancy-kernel 4.1.0`, whose published module metadata changed; no code change.
+
 ## [1.4.0] - 2026-10-19
 ### Added
 - `TableClasses.verify(List<Schema>)`, an additive overload of the vararg `verify`, for callers that hold the schemas as a list (INV-Q-7401; removes a spread copy in service-runtime)

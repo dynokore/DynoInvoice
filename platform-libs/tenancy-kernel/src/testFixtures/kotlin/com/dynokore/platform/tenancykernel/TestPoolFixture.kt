@@ -40,7 +40,7 @@ class TestPoolFixture(
     /**
      * A runner on this pool; [lanes] gates the connections and [label] names each transaction (INV-Q-4487). With
      * [keys] (required, INV-T-4156) every transaction runs under a signed binding (see [SignedBinding]), expiring after
-     * [transactionTimeout].
+     * [transactionTimeout]; with [entities] the binding also signs the entity set (INV-T-7520).
      */
     @JvmOverloads
     @Suppress("LongParameterList") // a public factory with defaulted parameters; INV-Q-4629 (CS-50)
@@ -51,8 +51,17 @@ class TestPoolFixture(
         keys: BindingKeySource?,
         transactionTimeout: Duration = Duration.ofSeconds(30),
         clock: Clock = Clock.systemUTC(),
+        entities: BoundEntitySource? = null,
     ): TransactionRunnerImpl =
-        TransactionRunnerImpl(TenantAwareDataSource(pool, lanes), tenants, label, keys, transactionTimeout, clock)
+        TransactionRunnerImpl(
+            TenantAwareDataSource(pool, lanes),
+            tenants,
+            label,
+            keys,
+            transactionTimeout,
+            clock,
+            entities,
+        )
 
     /**
      * The pool as a `DataSource` (gated by [lanes]), for a Spring context that needs the bean; tests take no connection

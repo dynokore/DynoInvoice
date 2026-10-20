@@ -26,7 +26,8 @@ import javax.sql.DataSource
  * binding of [BindingSignature], as a bind parameter and never as text. Its expiry is the transaction start plus
  * [transactionTimeout], rounded down to whole seconds. [keys] has no default and is required: a runner built without
  * one is refused at construction (INV-T-4156), because every RLS policy reads the binding through `bound_tenant()`.
- * A source with no current key is refused before any statement.
+ * A source with no current key is refused before any statement. With [entities] the binding also signs the entity set
+ * of the tenant and actor (five-field form, INV-T-7520); without one it signs the four-field form with no set.
  */
 class TransactionRunnerImpl
     constructor(
@@ -36,6 +37,7 @@ class TransactionRunnerImpl
         private val keys: BindingKeySource?,
         private val transactionTimeout: Duration = DEFAULT_TRANSACTION_TIMEOUT,
         private val clock: Clock = Clock.systemUTC(),
+        private val entities: BoundEntitySource? = null,
     ) : TransactionRunner,
         CurrentConnection,
         SqlErrors {
@@ -130,7 +132,13 @@ class TransactionRunnerImpl
                     )
             try {
                 val start = clock.instant()
-                return BindingSignature.sign(key, tenant, actor, BindingSignature.expiryFor(start, transactionTimeout))
+                return BindingSignature.sign(
+                    key,
+                    tenant,
+                    actor,
+                    BindingSignature.expiryFor(start, transactionTimeout),
+                    entities?.entitiesOf(tenant, actor),
+                )
             } finally {
                 key.fill(0)
             }

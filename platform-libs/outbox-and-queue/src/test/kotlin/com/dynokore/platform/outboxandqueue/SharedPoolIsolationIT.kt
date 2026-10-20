@@ -337,6 +337,7 @@ class SharedPoolIsolationIT {
             listOf(
                 "binding_verified", // the binding functions (INV-T-4156), created by tenancy-kernel's generator
                 "bound_actor",
+                "bound_entities",
                 "bound_tenant",
                 "claim_due",
                 "consumer_offset_advance",

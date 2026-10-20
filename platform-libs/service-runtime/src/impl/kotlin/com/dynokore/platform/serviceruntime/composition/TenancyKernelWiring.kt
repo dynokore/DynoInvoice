@@ -4,6 +4,8 @@ import com.dynokore.platform.serviceruntime.binding.InstallationBindingKey
 import com.dynokore.platform.serviceruntime.binding.SecretStore
 import com.dynokore.platform.serviceruntime.pool.LaneGateHolder
 import com.dynokore.platform.serviceruntime.pool.PoolLanes
+import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
+import com.dynokore.platform.serviceruntime.replica.ReplicaBoundEntities
 import com.dynokore.platform.tenancykernel.ConnectionLabel
 import com.dynokore.platform.tenancykernel.LicenceCheck
 import com.dynokore.platform.tenancykernel.NonBlockingLicenceCheck
@@ -27,7 +29,8 @@ import javax.sql.DataSource
  * (also the `PlatformTenantBinding`), and over the service's application `DataSource` the [TransactionRunner]
  * (also the `CurrentConnection` of its transaction), on a [TenantAwareDataSource] so a pooled connection never
  * keeps a tenant. The base [LicenceCheck] is tenancy-svc's (INV-REQ-1076, INV-Q-3732): when the service declares
- * one, it is wrapped in [NonBlockingLicenceCheck].
+ * one, it is wrapped in [NonBlockingLicenceCheck]. When the service has an [AuthorityReplica], each transaction also
+ * binds the entity set the replica holds for the tenant and actor (INV-REQ-866, INV-AC-1912; INV-T-7520).
  */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnClass(name = ["com.dynokore.platform.tenancykernel.TransactionRunnerImpl"])
@@ -54,6 +57,7 @@ class TenancyKernelWiring {
         environment: Environment,
         gate: ObjectProvider<LaneGateHolder>,
         bindingKey: InstallationBindingKey,
+        authority: ObjectProvider<AuthorityReplica>,
     ): TransactionRunnerImpl {
         val lanes = gate.getIfAvailable()?.takeIf { it.active }
         return TransactionRunnerImpl(
@@ -69,6 +73,8 @@ class TenancyKernelWiring {
                 environment.getProperty("gst.service")?.takeIf { it.isNotBlank() }?.let { laneLabel(it) }
             },
             bindingKey.source,
+            // the entity set of the acting principal, from the authority replica when the service has one (INV-T-7520)
+            entities = authority.getIfAvailable()?.let { ReplicaBoundEntities(it) },
         )
     }
 

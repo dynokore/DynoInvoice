@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.2.0] - 2026-10-20
+### Added
+- `ReplicaBoundEntities`: the entity set a transaction binds, from the `AuthorityReplica` (INV-T-7520; INV-Q-7453 (B); INV-REQ-866, INV-AC-1912); `TenancyKernelWiring` gives it to the transaction runner when the service has an `AuthorityReplica`. An actor with no grant, an empty replica and an `UNKNOWN` scope level give the empty set. Needs tenancy-kernel 4.1.0.
+
 ## [10.1.0] - 2026-10-20
 ### Added
 - `TenancyErrorCode` (TNC-001 Tenant not created, TNC-002 Short code already used, TNC-003 Short code fixed) and `Problems.renderTenancy`, beside `PolicyErrorCode` (INV-T-7557; coordinator ruling INV-Q-7553 A); pinned error catalogue refreshed to platform-contracts 4b8924e8 (INV-T-7556).

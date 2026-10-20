@@ -7,19 +7,25 @@ import org.jooq.impl.SQLDataType
 /**
  * The signed-binding half of a service's schema (INV-REQ-854 b7, owner ruling INV-Q-4121; slice 1 of INV-T-4156): the
  * key table `<schema>.binding_key` and the STABLE `SECURITY DEFINER` functions `<schema>.bound_tenant()` and
- * `<schema>.bound_actor()` that verify `app.binding_sig` with pgcrypto and return NULL for a missing, malformed, forged
- * or expired value. The value layout is in README.md ("Signed binding"). [ddl] is pure text generation like
- * [TenantRlsMigration.ddl]; [writeKeys] is the migration runner's key write. Nothing calls the functions yet.
+ * `<schema>.bound_actor()` and `<schema>.bound_entities()` that verify `app.binding_sig` with pgcrypto and return NULL
+ * for a missing, malformed, forged or expired value. The value layout is in README.md ("Signed binding"). [ddl] is
+ * pure text generation like [TenantRlsMigration.ddl]; [writeKeys] is the migration runner's key write. Nothing calls the functions yet.
  */
 object BindingKeyMigration {
     private const val SLOT_CURRENT = "current"
     private const val SLOT_PREVIOUS = "previous"
 
+    private const val UUID_SHAPE = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+
+    /** The optional fifth field with its dot: `-` or lower-case UUIDs joined by `,` (README.md "Signed binding"). */
+    private const val ENTITY_PART = "\\.(-|$UUID_SHAPE(,$UUID_SHAPE)*)"
+
     /**
-     * The signed body `<tenant>.<actor>.<expiry>` in one pattern, applied after the MAC comparison (INV-Q-7088 (a)).
+     * The signed body `<tenant>.<actor>.<expiry>[.<entities>]` in one pattern, applied after the MAC comparison
+     * (INV-Q-7088 (a)).
      */
     private const val BODY_SHAPE =
-        "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.[A-Za-z0-9_-]+\\.[0-9]{1,12}$"
+        "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.[A-Za-z0-9_-]+\\.[0-9]{1,12}($ENTITY_PART)?$"
 
     /**
      * Hex of ASCII bytes 01 to 7F: the fast path before the full RFC 3629 test (INV-Q-7088 (b)); it accepts no NUL
@@ -70,7 +76,9 @@ object BindingKeyMigration {
             keyTable(schema, sysRole, pgcryptoSchema),
             verifiedFunction(schema, pgcryptoSchema),
             boundTenantFunction(schema, pgcryptoSchema),
-            boundActorFunction(schema, sysRole, runtimeRole),
+            boundActorFunction(schema),
+            boundEntitiesFunction(schema),
+            ownersAndGrants(schema, sysRole, runtimeRole),
         ).joinToString("\n")
     }
 
@@ -115,25 +123,30 @@ object BindingKeyMigration {
             |DECLARE
             |    sig    text := nullif(current_setting('app.binding_sig', true), '');
             |    parts  text[];
+            |    n      int;
+            |    body   text;
             |    k      record;
             |    b64    text;
             |BEGIN
             |    IF sig IS NULL THEN RETURN NULL; END IF;
             |    parts := string_to_array(sig, '.');
-            |    IF array_length(parts, 1) IS DISTINCT FROM 4
+            |    n := array_length(parts, 1);
+            |    IF n IS NULL OR n NOT IN (4, 5)
             |       OR parts[1] !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
             |       OR parts[2] !~ '^[A-Za-z0-9_-]+$'
             |       OR parts[3] !~ '^[0-9]{1,12}$'
-            |       OR parts[4] !~ '^[0-9a-f]{64}$' THEN
+            |       OR (n = 5 AND parts[4] !~ '^(-|$UUID_SHAPE(,$UUID_SHAPE)*)$')
+            |       OR parts[n] !~ '^[0-9a-f]{64}$' THEN
             |        RETURN NULL;
             |    END IF;
             |    IF parts[3]::bigint <= extract(epoch FROM now())::bigint THEN RETURN NULL; END IF;
+            |    body := left(sig, length(sig) - 65);
             |    FOR k IN SELECT secret FROM $s.binding_key LOOP
-            |        IF encode($crypto.hmac(convert_to(parts[1] || '.' || parts[2] || '.' || parts[3], 'UTF8'),
-            |                               k.secret, 'sha256'), 'hex') = parts[4] THEN
+            |        IF encode($crypto.hmac(convert_to(body, 'UTF8'), k.secret, 'sha256'), 'hex') = parts[n] THEN
             |            b64 := translate(parts[2], '-_', '+/');
             |            b64 := rpad(b64, length(b64) + (4 - length(b64) % 4) % 4, '=');
-            |            RETURN ARRAY[parts[1], convert_from(decode(b64, 'base64'), 'UTF8')];
+            |            RETURN ARRAY[parts[1], convert_from(decode(b64, 'base64'), 'UTF8'),
+            |                          CASE WHEN n = 5 THEN parts[4] END];
             |        END IF;
             |    END LOOP;
             |    RETURN NULL;
@@ -178,7 +191,38 @@ object BindingKeyMigration {
             """.trimMargin()
     }
 
-    private fun boundActorFunction(
+    private fun boundActorFunction(schema: String): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        return """
+            |CREATE FUNCTION $s.bound_actor() RETURNS text
+            |    LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, $s, pg_temp
+            |    AS $$
+            |    SELECT ($s.binding_verified())[2]
+            |$$;
+            """.trimMargin()
+    }
+
+    /**
+     * `bound_entities()`: the verified entity set, through `binding_verified()` (MAC, shape and expiry); NULL for a
+     * value that fails any of them and for the four-field form, an empty array for the signed empty set.
+     */
+    private fun boundEntitiesFunction(schema: String): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        return """
+            |CREATE FUNCTION $s.bound_entities() RETURNS uuid[]
+            |    LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, $s, pg_temp AS $$
+            |DECLARE
+            |    v text[] := $s.binding_verified();
+            |BEGIN
+            |    IF v IS NULL OR v[3] IS NULL THEN RETURN NULL; END IF;
+            |    IF v[3] = '-' THEN RETURN ARRAY[]::uuid[]; END IF;
+            |    RETURN string_to_array(v[3], ',')::uuid[];
+            |END;
+            |$$;
+            """.trimMargin()
+    }
+
+    private fun ownersAndGrants(
         schema: String,
         sysRole: String,
         runtimeRole: String,
@@ -187,19 +231,17 @@ object BindingKeyMigration {
         val sys = SqlIdentifier.require(sysRole, "sysRole")
         val runtime = SqlIdentifier.require(runtimeRole, "runtimeRole")
         return """
-            |CREATE FUNCTION $s.bound_actor() RETURNS text
-            |    LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, $s, pg_temp
-            |    AS $$
-            |    SELECT ($s.binding_verified())[2]
-            |$$;
             |ALTER FUNCTION $s.binding_verified() OWNER TO $sys;
             |ALTER FUNCTION $s.bound_tenant() OWNER TO $sys;
             |ALTER FUNCTION $s.bound_actor() OWNER TO $sys;
+            |ALTER FUNCTION $s.bound_entities() OWNER TO $sys;
             |REVOKE ALL ON FUNCTION $s.binding_verified() FROM PUBLIC;
             |REVOKE ALL ON FUNCTION $s.bound_tenant() FROM PUBLIC;
             |REVOKE ALL ON FUNCTION $s.bound_actor() FROM PUBLIC;
+            |REVOKE ALL ON FUNCTION $s.bound_entities() FROM PUBLIC;
             |GRANT EXECUTE ON FUNCTION $s.bound_tenant() TO $runtime;
             |GRANT EXECUTE ON FUNCTION $s.bound_actor() TO $runtime;
+            |GRANT EXECUTE ON FUNCTION $s.bound_entities() TO $runtime;
             """.trimMargin()
     }
 

@@ -47,4 +47,38 @@ class TenantRlsMigrationTest {
             TenantRlsMigration.ddl(schema = "submission", table = "Filing Fact")
         }
     }
+
+    @Test
+    fun `with no entity column the text is exactly the text of platform-libs 5dfc6a5f`() {
+        val expected =
+            """
+            |ALTER TABLE submission.filing_fact ENABLE ROW LEVEL SECURITY;
+            |ALTER TABLE submission.filing_fact FORCE ROW LEVEL SECURITY;
+            |CREATE POLICY tenant_isolation ON submission.filing_fact
+            |    USING      (tenant_id = (select submission.bound_tenant()))
+            |    WITH CHECK (tenant_id = (select submission.bound_tenant()));
+            """.trimMargin()
+        assertEquals(expected, TenantRlsMigration.ddl(schema = "submission", table = "filing_fact"))
+        assertEquals(expected, TenantRlsMigration.ddl("submission", "filing_fact", "tenant_isolation", null))
+    }
+
+    @Test
+    fun `an entity column adds the entity predicate to USING and WITH CHECK beside the tenant predicate`() {
+        val ddl = TenantRlsMigration.ddl("submission", "filing_fact", entityColumn = "entity_id")
+        val predicate =
+            "tenant_id = (select submission.bound_tenant()) " +
+                "AND entity_id = ANY ((select submission.bound_entities())::uuid[])"
+        assertTrue(ddl.contains("    USING      ($predicate)\n"), ddl)
+        assertTrue(ddl.contains("    WITH CHECK ($predicate);"), ddl)
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest(name = "[{index}] {0}")
+    @org.junit.jupiter.params.provider.ValueSource(
+        strings = ["Entity", "entity id", "entity;drop", "", "e\"", "1e", "entity_id, x", "a.b"],
+    )
+    fun `an entity column that is not a plain lower-case identifier is refused`(bad: String) {
+        assertThrows(IllegalArgumentException::class.java) {
+            TenantRlsMigration.ddl("submission", "filing_fact", entityColumn = bad)
+        }
+    }
 }

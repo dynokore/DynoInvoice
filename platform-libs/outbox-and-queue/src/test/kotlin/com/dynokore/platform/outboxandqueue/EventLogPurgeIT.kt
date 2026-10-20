@@ -209,6 +209,7 @@ class EventLogPurgeIT {
                     "events_missing",
                     "binding_verified",
                     "bound_tenant",
+                    "bound_entities",
                     "bound_actor", // the binding functions (INV-T-4156)
                 )
             assertEquals(definers, definers(harness), "each owned by eventlog_sys")

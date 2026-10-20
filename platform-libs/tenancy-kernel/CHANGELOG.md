@@ -6,6 +6,13 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [4.1.0] - 2026-10-20
+### Added
+- Signed entity set (INV-T-7520; INV-Q-7453 (B); INV-REQ-866, INV-AC-1912): `app.binding_sig` may carry a fifth field, the entity set of the acting principal, signed with the tenant, the actor and the expiry (README.md "Signed binding"); `BindingSignature.sign(..., entities)`, `BoundEntitySource` and `TransactionRunnerImpl(..., entities)` (default none: the four-field form, unchanged).
+- `<schema>.bound_entities()` (`uuid[]`) from `BindingKeyMigration.ddl`: STABLE SECURITY DEFINER, same owner, fixed `search_path` and grants as `bound_tenant()`; NULL for a missing, malformed, forged or expired value and for a value with no set. `binding_verified()` accepts both forms and returns the set as a third element; `bound_tenant()` and `bound_actor()` verify both forms.
+- `TenantRlsMigration.ddl(..., entityColumn = null)`: with a column, the policy also requires `<column> = ANY ((select <schema>.bound_entities())::uuid[])`; with the default the generated text is unchanged.
+- Test fixtures: `TestPoolFixture.runner(..., entities)`.
+
 ## [4.0.1] - 2026-10-19
 ### Changed
 - detekt type-resolution findings fixed (platform-build 0.21.0, INV-Q-4629); no behaviour or API change

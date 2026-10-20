@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [4.0.8] - 2026-10-20
+### Changed
+- Metadata-only release (INV-T-7520, G-DVS): depends on `tenancy-kernel 4.1.0`, whose published module metadata changed; no code change.
+
 ## [4.0.7] - 2026-10-19
 ### Changed
 - detekt type-resolution findings fixed (platform-build 0.21.0, INV-Q-4629); no behaviour or API change

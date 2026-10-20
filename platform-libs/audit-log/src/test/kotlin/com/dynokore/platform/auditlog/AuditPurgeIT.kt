@@ -269,6 +269,7 @@ class AuditPurgeIT {
                 // The binding functions of tenancy-kernel's BindingKeyMigration; only the verifier is closed to $APP.
                 "binding_verified|$SYS|$PATH|$SYS",
                 "bound_actor|$SYS|$PATH|$APP,$SYS",
+                "bound_entities|$SYS|$PATH|$APP,$SYS",
                 "bound_tenant|$SYS|$PATH|$APP,$SYS",
                 "purge_audit_entries|$SYS|$PATH|$APP,$SYS",
             ),

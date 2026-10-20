@@ -32,7 +32,11 @@ object TenantRlsMigration {
      * for `"schema"."table"` (CS-19). Appended after a service's own
      * `CREATE TABLE` in the same migration file (TPL-12).
      *
-     * @throws IllegalArgumentException if [schema], [table] or [policyName] is
+     * With [entityColumn] (default none) the policy also requires `<entityColumn> = ANY ((select
+     * <schema>.bound_entities())::uuid[])` (INV-REQ-866, INV-AC-1912; INV-T-7520): a NULL set matches no row. With the
+     * default the text is what it was before the parameter existed.
+     *
+     * @throws IllegalArgumentException if [schema], [table], [policyName] or [entityColumn] is
      *   not a plain lower-case SQL identifier of at most 63 characters — this
      *   text is spliced directly into DDL, so each name goes through
      *   [SqlIdentifier.require] (there is no bind parameter for an identifier;
@@ -42,10 +46,21 @@ object TenantRlsMigration {
         schema: String,
         table: String,
         policyName: String = "tenant_isolation",
+        entityColumn: String? = null,
     ): String {
         val schemaName = SqlIdentifier.require(schema, "schema")
         val tableName = SqlIdentifier.require(table, "table")
         val policy = SqlIdentifier.require(policyName, "policyName")
+        if (entityColumn != null) {
+            val column = SqlIdentifier.require(entityColumn, "entityColumn")
+            return """
+                |ALTER TABLE $schemaName.$tableName ENABLE ROW LEVEL SECURITY;
+                |ALTER TABLE $schemaName.$tableName FORCE ROW LEVEL SECURITY;
+                |CREATE POLICY $policy ON $schemaName.$tableName
+                |    USING      (tenant_id = (select $schemaName.bound_tenant()) AND $column = ANY ((select $schemaName.bound_entities())::uuid[]))
+                |    WITH CHECK (tenant_id = (select $schemaName.bound_tenant()) AND $column = ANY ((select $schemaName.bound_entities())::uuid[]));
+                """.trimMargin()
+        }
         return """
             |ALTER TABLE $schemaName.$tableName ENABLE ROW LEVEL SECURITY;
             |ALTER TABLE $schemaName.$tableName FORCE ROW LEVEL SECURITY;

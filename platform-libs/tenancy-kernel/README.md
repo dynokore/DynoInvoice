@@ -56,3 +56,38 @@ as `<svc>_sys` (the first block refuses any other login and a missing pgcrypto):
 The MAC is checked against the `current` key and then the `previous` key, so a rotation keeps values signed with the
 previous key valid and a key older than that is refused. A value is read once per statement by a policy through
 `(select bound_tenant())`, never per row.
+
+### The entity set (INV-T-7520; INV-Q-7453 (B); INV-REQ-866, INV-AC-1912)
+
+The value carries, optionally, the entity set of the acting principal as a fifth field, signed by the same key with the
+tenant, the actor and the expiry:
+
+    <tenant>.<actor>.<expiry>.<entities>.<mac>
+
+| Field | Form |
+| --- | --- |
+| `entities` | `-` for the empty set; otherwise the entity UUIDs, each lower-case canonical (36 characters), in ascending order of their text, each once, joined by `,` |
+| `mac` | as above, over the exact text `<tenant>.<actor>.<expiry>.<entities>` (the first four fields as transmitted) |
+
+- **Told apart by the number of fields.** Four fields (`<tenant>.<actor>.<expiry>.<mac>`) is the form without a set
+  and keeps verifying as before for `bound_tenant()` and `bound_actor()`; it carries no entity set, so
+  `bound_entities()` is NULL for it. Five fields carry a set, which may be empty. Any other count is refused.
+- **Order and de-duplication.** `BindingSignature.sign` sorts the set by the text of its UUIDs and signs each once, so
+  one set has one text. The database does not re-sort: it checks the MAC over the text as sent and the shape of the
+  field, so a set that is changed, added to or removed from after signing fails the MAC.
+- **Shape of the field.** `-`, or one or more lower-case canonical UUIDs separated by single `,`. An upper-case UUID,
+  an empty element, a repeated `,` or any other character makes the whole value refused (NULL from all three
+  functions), even when the MAC is right.
+- **The empty set** is the field `-` with a valid MAC: `bound_entities()` returns an empty array and the entity
+  predicate matches no row. A value with no set returns NULL, which also matches no row.
+- `BindingSignature` stays the only signing code. `TransactionRunnerImpl(..., entities: BoundEntitySource? = null)`
+  signs the five-field form when a source is given (it answers for the tenant and actor of the transaction; the empty set
+  is a set) and the four-field form when there is none. service-runtime supplies the source from its authority
+  replica; no application code sets the set.
+
+`<schema>.bound_entities()` (uuid[]) is created beside the other two, with the same owner, `search_path`, revoked
+PUBLIC and EXECUTE for the runtime login only. It returns NULL, never an error, for a missing, empty, malformed,
+forged or expired value and for a value with no set, and reads `app.binding_sig` only.
+`TenantRlsMigration.ddl(schema, table, policyName, entityColumn = null)` adds, when `entityColumn` is given (a plain
+lower-case identifier), `AND <entityColumn> = ANY ((select <schema>.bound_entities())::uuid[])` to the USING and WITH CHECK
+of the policy; with the default the text is unchanged. A NULL set matches no row. This module applies the clause to no service table.

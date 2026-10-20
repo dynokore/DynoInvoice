@@ -18,7 +18,7 @@ class BindingKeyMigrationTest {
         assertTrue(sql.contains("CREATE FUNCTION svc_x.bound_tenant() RETURNS uuid"))
         assertTrue(sql.contains("CREATE FUNCTION svc_x.bound_actor() RETURNS text"))
         assertTrue(
-            Regex("STABLE SECURITY DEFINER SET search_path = pg_catalog, svc_x, pg_temp").findAll(sql).count() == 3,
+            Regex("STABLE SECURITY DEFINER SET search_path = pg_catalog, svc_x, pg_temp").findAll(sql).count() == 4,
         )
         assertTrue(sql.contains("REVOKE ALL ON FUNCTION svc_x.bound_tenant() FROM PUBLIC;"))
         assertTrue(sql.contains("REVOKE ALL ON TABLE svc_x.binding_key FROM PUBLIC;"))

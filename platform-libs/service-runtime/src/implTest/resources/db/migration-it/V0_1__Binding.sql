@@ -22,25 +22,30 @@ CREATE FUNCTION ledger.binding_verified() RETURNS text[]
 DECLARE
     sig    text := nullif(current_setting('app.binding_sig', true), '');
     parts  text[];
+    n      int;
+    body   text;
     k      record;
     b64    text;
 BEGIN
     IF sig IS NULL THEN RETURN NULL; END IF;
     parts := string_to_array(sig, '.');
-    IF array_length(parts, 1) IS DISTINCT FROM 4
+    n := array_length(parts, 1);
+    IF n IS NULL OR n NOT IN (4, 5)
        OR parts[1] !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
        OR parts[2] !~ '^[A-Za-z0-9_-]+$'
        OR parts[3] !~ '^[0-9]{1,12}$'
-       OR parts[4] !~ '^[0-9a-f]{64}$' THEN
+       OR (n = 5 AND parts[4] !~ '^(-|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(,[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})*)$')
+       OR parts[n] !~ '^[0-9a-f]{64}$' THEN
         RETURN NULL;
     END IF;
     IF parts[3]::bigint <= extract(epoch FROM now())::bigint THEN RETURN NULL; END IF;
+    body := left(sig, length(sig) - 65);
     FOR k IN SELECT secret FROM ledger.binding_key LOOP
-        IF encode(public.hmac(convert_to(parts[1] || '.' || parts[2] || '.' || parts[3], 'UTF8'),
-                               k.secret, 'sha256'), 'hex') = parts[4] THEN
+        IF encode(public.hmac(convert_to(body, 'UTF8'), k.secret, 'sha256'), 'hex') = parts[n] THEN
             b64 := translate(parts[2], '-_', '+/');
             b64 := rpad(b64, length(b64) + (4 - length(b64) % 4) % 4, '=');
-            RETURN ARRAY[parts[1], convert_from(decode(b64, 'base64'), 'UTF8')];
+            RETURN ARRAY[parts[1], convert_from(decode(b64, 'base64'), 'UTF8'),
+                          CASE WHEN n = 5 THEN parts[4] END];
         END IF;
     END LOOP;
     RETURN NULL;
@@ -62,7 +67,7 @@ BEGIN
         SELECT 1 FROM ledger.binding_key k
         WHERE encode(public.hmac(convert_to(body, 'UTF8'), k.secret, 'sha256'), 'hex') = right(sig, 64)
     ) THEN RETURN NULL; END IF;
-    IF body !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.[A-Za-z0-9_-]+\.[0-9]{1,12}$' THEN RETURN NULL; END IF;
+    IF body !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.[A-Za-z0-9_-]+\.[0-9]{1,12}(\.(-|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(,[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})*))?$' THEN RETURN NULL; END IF;
     actor := split_part(body, '.', 2);
     IF length(actor) % 4 = 1 THEN RETURN NULL; END IF;
     IF split_part(body, '.', 3)::bigint <= extract(epoch FROM now())::bigint THEN RETURN NULL; END IF;
@@ -77,13 +82,26 @@ CREATE FUNCTION ledger.bound_actor() RETURNS text
     AS $$
     SELECT (ledger.binding_verified())[2]
 $$;
+CREATE FUNCTION ledger.bound_entities() RETURNS uuid[]
+    LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, ledger, pg_temp AS $$
+DECLARE
+    v text[] := ledger.binding_verified();
+BEGIN
+    IF v IS NULL OR v[3] IS NULL THEN RETURN NULL; END IF;
+    IF v[3] = '-' THEN RETURN ARRAY[]::uuid[]; END IF;
+    RETURN string_to_array(v[3], ',')::uuid[];
+END;
+$$;
 ALTER FUNCTION ledger.binding_verified() OWNER TO submission_sys;
 ALTER FUNCTION ledger.bound_tenant() OWNER TO submission_sys;
 ALTER FUNCTION ledger.bound_actor() OWNER TO submission_sys;
+ALTER FUNCTION ledger.bound_entities() OWNER TO submission_sys;
 REVOKE ALL ON FUNCTION ledger.binding_verified() FROM PUBLIC;
 REVOKE ALL ON FUNCTION ledger.bound_tenant() FROM PUBLIC;
 REVOKE ALL ON FUNCTION ledger.bound_actor() FROM PUBLIC;
+REVOKE ALL ON FUNCTION ledger.bound_entities() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION ledger.bound_tenant() TO submission_runtime;
 GRANT EXECUTE ON FUNCTION ledger.bound_actor() TO submission_runtime;
+GRANT EXECUTE ON FUNCTION ledger.bound_entities() TO submission_runtime;
 insert into ledger.binding_key (slot, secret) values ('current', decode(repeat('05', 32), 'hex'));
 reset role;

@@ -208,7 +208,7 @@ class BindingFunctionsPostgresIT {
                         SCHEMA,
                     ).map { r -> r.intoList() }
             }
-        assertEquals(listOf("binding_verified", "bound_actor", "bound_tenant"), rows.map { it[0] })
+        assertEquals(listOf("binding_verified", "bound_actor", "bound_entities", "bound_tenant"), rows.map { it[0] })
         rows.forEach {
             assertEquals(SYS, it[1])
             assertEquals(true, it[2])
