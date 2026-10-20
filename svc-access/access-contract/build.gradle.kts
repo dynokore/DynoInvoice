@@ -95,6 +95,8 @@ stageContracts()
 contractServer { generatorSource("platform-contracts:access:openapi.yaml") }
 
 dependencies {
+    // The platform BOM first: it raises Jackson 3 above the Spring Boot BOM's 3.1.5 (HIGH CVEs, fixed in 3.1.7).
+    implementation(platform(libs.platform.bom))
     implementation(platform(libs.springBoot.dependencies))
     implementation(libs.springBoot.starterWeb)
     implementation(libs.springBoot.starterValidation)

@@ -6,6 +6,14 @@
 // STK-72: every resolvable configuration of every project is locked in strict mode, the plugin classpath of the root
 // and of each module too (buildscript-gradle.lockfile), and the settings classpath (gradle/settings-gradle.lockfile).
 buildscript {
+    dependencies {
+        // The Spring Boot Gradle plugin brings Jackson 3 3.1.5 (HIGH CVEs, fixed in 3.1.7); platform-build's build-logic
+        // forces 3.1.7 for the modules, this root classpath needs the same floor.
+        constraints {
+            classpath("tools.jackson.core:jackson-core:3.1.7")
+            classpath("tools.jackson.core:jackson-databind:3.1.7")
+        }
+    }
     configurations.classpath {
         resolutionStrategy.activateDependencyLocking()
     }
