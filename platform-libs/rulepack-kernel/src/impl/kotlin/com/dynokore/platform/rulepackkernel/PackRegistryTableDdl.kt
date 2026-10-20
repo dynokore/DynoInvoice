@@ -18,7 +18,7 @@ internal object PackRegistryTableDdl {
             |    id                 uuid PRIMARY KEY,
             |    pack_id            text NOT NULL,
             |    pack_type          text NOT NULL,
-            |    version            text NOT NULL,
+            |    pack_version       text NOT NULL,
             |    tenant_id          uuid NOT NULL,
             |    effective_from     date NOT NULL,
             |    effective_to       date NULL,
@@ -30,7 +30,7 @@ internal object PackRegistryTableDdl {
             |    trusted_anchor     text NOT NULL,
             |    registered_by      text NOT NULL CHECK (registered_by !~ '${BlankText.SQL_NOT_ACTOR}'),
             |    created_at         timestamptz NOT NULL DEFAULT clock_timestamp(),
-            |    CONSTRAINT $lineageKey UNIQUE (pack_type, tenant_id, version)
+            |    CONSTRAINT $lineageKey UNIQUE (pack_type, tenant_id, pack_version)
             |);
             |CREATE INDEX $index ON $s.$t (pack_type, tenant_id, effective_from);
             """.trimMargin()

@@ -25,7 +25,7 @@ class PackRegistryMigrationTest {
     fun `tenant_id is NOT NULL and the lineage key is a plain UNIQUE`() {
         assertTrue(ddl.contains("CREATE TABLE rules.rule_pack_version ("))
         assertTrue(ddl.contains("tenant_id          uuid NOT NULL,"))
-        assertTrue(ddl.contains("CONSTRAINT rule_pack_version_lineage_key UNIQUE (pack_type, tenant_id, version)"))
+        assertTrue(ddl.contains("CONSTRAINT rule_pack_version_lineage_key UNIQUE (pack_type, tenant_id, pack_version)"))
         assertTrue(
             ddl.contains(
                 "CREATE INDEX rule_pack_version_resolution_idx ON rules.rule_pack_version " +

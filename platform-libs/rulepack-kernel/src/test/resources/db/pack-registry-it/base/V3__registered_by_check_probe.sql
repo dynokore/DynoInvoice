@@ -7,7 +7,7 @@ CREATE FUNCTION rulepack_test.insert_bypassing_the_actor_trigger(p_pack_id text,
 LANGUAGE plpgsql SET search_path = pg_catalog, rulepack_test, pg_temp AS $$
 BEGIN
     ALTER TABLE rulepack_test.rule_pack_version DISABLE TRIGGER rule_pack_version_registered_by_insert;
-    INSERT INTO rulepack_test.rule_pack_version (id, pack_id, pack_type, version, tenant_id, effective_from,
+    INSERT INTO rulepack_test.rule_pack_version (id, pack_id, pack_type, pack_version, tenant_id, effective_from,
         min_engine_version, manifest, checksums, signature, contents, trusted_anchor, registered_by)
     VALUES (gen_random_uuid(), p_pack_id, 'Scope', p_version, p_tenant, current_date, '1.0.0', '{}'::jsonb,
         '{}'::jsonb, '\x01'::bytea, '{}'::jsonb, 'test-anchor', p_registered_by);

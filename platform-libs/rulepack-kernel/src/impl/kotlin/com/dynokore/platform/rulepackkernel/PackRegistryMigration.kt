@@ -263,7 +263,7 @@ object PackRegistryMigration {
         val s = SqlIdentifier.require(schema, "schema")
         val t = SqlIdentifier.require(table, "table")
         return """
-            |    INSERT INTO $s.$t (id, pack_id, pack_type, version, tenant_id, effective_from, effective_to,
+            |    INSERT INTO $s.$t (id, pack_id, pack_type, pack_version, tenant_id, effective_from, effective_to,
             |        min_engine_version, manifest, checksums, signature, contents, trusted_anchor, registered_by)
             |    VALUES (p_id, p_pack_id, p_pack_type, p_version, '$PLATFORM'::uuid, p_effective_from, p_effective_to,
             |        p_min_engine_version, p_manifest, p_checksums, p_signature, p_contents, p_trusted_anchor, v_actor);

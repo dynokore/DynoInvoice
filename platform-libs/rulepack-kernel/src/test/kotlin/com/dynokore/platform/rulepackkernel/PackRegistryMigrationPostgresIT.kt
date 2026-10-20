@@ -418,7 +418,9 @@ class PackRegistryMigrationPostgresIT {
         assertEquals(setOf("platform-scope"), packIds(app, Identity.Tenant(TenantId.PLATFORM)))
     }
 
-    /** The lineage key is UNIQUE (pack_type, tenant_id, version): a platform version once, a tenant's per tenant. */
+    /**
+     * The lineage key is UNIQUE (pack_type, tenant_id, pack_version): a platform version once, a tenant's per tenant.
+     */
     private fun assertTheLineageKeyIsAPlainUnique(
         app: TenancyProbe,
         tenantA: TenantId,
@@ -432,6 +434,7 @@ class PackRegistryMigrationPostgresIT {
         }
         insert(app, tenantA, rowTenant = tenantA, packId = "a-v2", version = "2.0.0")
         insert(app, tenantB, rowTenant = tenantB, packId = "b-v2", version = "2.0.0")
+        insert(app, tenantA, rowTenant = tenantA, packId = "a-v2-next", version = "2.0.1")
         assertRefusedWith("rule_pack_version_lineage_key") {
             insert(app, tenantA, rowTenant = tenantA, packId = "a-v2-again", version = "2.0.0")
         }

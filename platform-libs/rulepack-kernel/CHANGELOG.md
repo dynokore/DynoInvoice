@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-10-20
+### Changed
+- BREAKING: the pack registry table created by `PackRegistryMigration.ddl` renames its column `version` to `pack_version` (INV-Q-7438), so `gst.jooq-codegen` accepts the table; the lineage key becomes `UNIQUE (pack_type, tenant_id, pack_version)`; the function `register_platform_pack` keeps its signature and the parameter name `p_version` (INV-T-7524).
+
 ## [3.0.3] - 2026-10-20
 ### Changed
 - Metadata-only release (INV-T-7520, G-DVS): depends on `tenancy-kernel 4.1.0`, whose published module metadata changed; no code change.

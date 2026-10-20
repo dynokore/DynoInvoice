@@ -147,7 +147,7 @@ internal fun TenancyProbe.insertRow(
     fetchValue(
         """
         insert into rulepack_test.rule_pack_version
-            (id, pack_id, pack_type, version, tenant_id, effective_from, min_engine_version,
+            (id, pack_id, pack_type, pack_version, tenant_id, effective_from, min_engine_version,
              manifest, checksums, signature, contents, trusted_anchor, registered_by)
         values (?, ?, 'Scope', ?, ?::uuid, ?, '1.0.0', '{}'::jsonb, '{}'::jsonb, ?, '{}'::jsonb, 'test-anchor', ?)
         returning pack_id
@@ -164,7 +164,7 @@ internal fun TenancyProbe.insertRow(
 
 /** The pack ids visible to the current probe transaction. */
 internal fun TenancyProbe.visiblePackIds(): Set<String> =
-    fetchRows("select pack_id from rulepack_test.rule_pack_version where version = '1.0.0'")
+    fetchRows("select pack_id from rulepack_test.rule_pack_version where pack_version = '1.0.0'")
         .map { it.getValue("pack_id") as String }
         .toSet()
 
