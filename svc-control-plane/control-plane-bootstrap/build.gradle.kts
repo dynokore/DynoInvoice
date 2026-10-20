@@ -1,4 +1,15 @@
 // control-plane-bootstrap: the Spring Boot application and its composition (TPL-18). All wiring lives here.
+// The Spring Boot plugin brings tools.jackson.core 3.1.5 (HIGH CVEs, fixed in 3.1.7) onto this module's plugin classpath;
+// the constraint lifts both to 3.1.7, as platform-build does for its own classpath. Remove once the plugin resolves 3.1.7+.
+buildscript {
+    dependencies {
+        constraints {
+            classpath("tools.jackson.core:jackson-core:3.1.7")
+            classpath("tools.jackson.core:jackson-databind:3.1.7")
+        }
+    }
+}
+
 plugins {
     id("gst.bootstrap")
     id("org.springframework.boot")
