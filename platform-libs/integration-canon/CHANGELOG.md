@@ -6,6 +6,13 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-20
+### Added
+- `SchematronRunner`: compiles an already-XSLT Schematron stylesheet once (Saxon-HE) into a shared, thread-safe
+  `CompiledSchematron`; `validate` reads the failed asserts from the in-memory SVRL result. It refuses every external
+  resource, extension function and result document, and parses input with `HardenedXml` (CS-25, INV-Q-7068,
+  INV-REQ-472).
+
 ## [1.1.1] - 2026-10-19
 ### Changed
 - The impl half gains Saxon-HE 12.10 (`implImplementation`) for the Schematron runner; dependency only, no code. The api

@@ -35,6 +35,7 @@ dependencies {
     add("implImplementation", libs.saxon.he)
 
     testImplementation(sourceSets["impl"].output)
+    testRuntimeOnly(libs.saxon.he) // the impl half's runtime dependency, for the Schematron runner tests
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.junit.params)

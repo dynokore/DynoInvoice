@@ -14,6 +14,7 @@ import java.io.StringReader
 import java.io.StringWriter
 import java.time.Duration
 import javax.xml.stream.XMLStreamConstants
+import javax.xml.transform.TransformerFactory
 import javax.xml.transform.stream.StreamResult
 import javax.xml.transform.stream.StreamSource
 
@@ -110,6 +111,16 @@ class HardenedXmlTest {
     }
 
     @Test
+    fun `a benign document type declaration with an internal subset only is refused by the DOM and SAX parsers`() {
+        // Secure processing alone accepts this document, so only disallow-doctype-decl can refuse it (P9).
+        val xml = "<!DOCTYPE d [<!ELEMENT d (#PCDATA)>]><d>ok</d>"
+        listOf("dom", "sax").forEach { name ->
+            val failure = runCatching { runners.getValue(name)(xml) }.exceptionOrNull()
+            assertTrue(failure != null, "$name accepted a document type declaration")
+        }
+    }
+
+    @Test
     fun `a control document without a document type declaration parses to the expected tree`() {
         val xml = "<d><e>ok</e></d>"
         assertEquals("ok|d", runners.getValue("dom")(xml))
@@ -156,5 +167,14 @@ class HardenedXmlTest {
         assertTrue(HardenedXml.xmlInputFactory() !== HardenedXml.xmlInputFactory())
         assertTrue(HardenedXml.transformerFactory() !== HardenedXml.transformerFactory())
         assertThrows(Exception::class.java) { runners.getValue("dom")("<d>") }
+    }
+
+    @Test
+    fun `the transformer factory is the JDK one although Saxon is the JAXP provider`() {
+        assertEquals("net.sf.saxon.TransformerFactoryImpl", TransformerFactory.newInstance().javaClass.name)
+        assertEquals(
+            "com.sun.org.apache.xalan.internal.xsltc.trax.TransformerFactoryImpl",
+            HardenedXml.transformerFactory().javaClass.name,
+        )
     }
 }

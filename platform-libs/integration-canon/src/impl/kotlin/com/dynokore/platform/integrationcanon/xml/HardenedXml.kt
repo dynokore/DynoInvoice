@@ -45,9 +45,12 @@ object HardenedXml {
         return factory
     }
 
-    /** A transformer factory with secure processing on and no external DTD, schema or stylesheet access. */
+    /**
+     * A transformer factory with secure processing on and no external DTD, schema or stylesheet access. It is the JDK
+     * factory whichever JAXP provider is on the classpath (INV-Q-7620).
+     */
     fun transformerFactory(): TransformerFactory {
-        val factory = TransformerFactory.newInstance()
+        val factory = TransformerFactory.newDefaultInstance()
         factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true)
         factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "")
         factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "")
