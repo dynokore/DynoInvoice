@@ -88,3 +88,5 @@ nettedCreditNoteKeys	property	schemas/transaction-request.schema.json	INV-REQ-55
 INVOICE	enum_value	schemas/transaction-request.schema.json	INV-REQ-558
 gstNotAdjusted	property	schemas/transaction-request.schema.json	INV-REQ-693
 buyerInvoiceRefs	property	schemas/transaction-request.schema.json	INV-REQ-696
+replayFeed	operation	openapi.yaml	INV-REQ-2588
+sendTestEvent	operation	openapi.yaml	INV-REQ-2588

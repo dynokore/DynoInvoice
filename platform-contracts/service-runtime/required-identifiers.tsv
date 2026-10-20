@@ -67,3 +67,5 @@ releaseRef	property	schemas/accreditation-alert-raised-payload.schema.json	INV-R
 currentUntil	property	schemas/accreditation-alert-raised-payload.schema.json	INV-REQ-1365
 ACCREDITATION_LAPSED	enum_value	schemas/accreditation-alert-raised-payload.schema.json	INV-REQ-1365
 REASSESSMENT_NEEDED	enum_value	schemas/accreditation-alert-raised-payload.schema.json	INV-REQ-1365
+pauseJob	operation	openapi.yaml	INV-REQ-2588
+runJobNow	operation	openapi.yaml	INV-REQ-2588
