@@ -16,6 +16,15 @@ buildscript {
     dependencyLocking {
         lockMode.set(LockMode.STRICT)
     }
+    dependencies {
+        // CVE-2026-89407, CVE-2026-89425 (jackson-core) and CVE-2026-68497, CVE-2026-91776,
+        // CVE-2026-91777 (jackson-databind), all HIGH, fixed in 3.1.7: the Spring Boot Gradle plugin 4.1.1
+        // brings Jackson 3.1.5 onto this classpath. Same pin as platform-build's build-logic.
+        constraints {
+            classpath("tools.jackson.core:jackson-core:3.1.7")
+            classpath("tools.jackson.core:jackson-databind:3.1.7")
+        }
+    }
 }
 
 plugins {
