@@ -52,7 +52,7 @@ acknowledgeControlRelaxation	acknowledgeControlRelaxation	service-runtime	-
 pauseJob	pauseJob	service-runtime	-
 runJobNow	runJobNow	service-runtime	-
 setPolicy	setPolicy	service-runtime	-
-runSampleCheck	UNCONTRACTED	payload	-
+runSampleCheck	runSampleCheck	payload	-
 annotateVariance	annotateVariance	reconciliation	-
 attestWorkPaper	attestWorkPaper	reconciliation	-
 uploadGstReturn	uploadGstReturn	reconciliation	-

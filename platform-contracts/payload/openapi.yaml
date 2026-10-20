@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: payload API
-  version: 1.4.0
+  version: 1.5.0
   description: >-
     Contract-first source of truth for payload (API-01, STK-44). The
     `payload-contract` module generates its server interfaces and DTOs
@@ -434,6 +434,106 @@ paths:
                     correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
         '404':
           description: The entity is unknown, or the pack does not list the (scenario, submissionType) pair (SRT-005); nothing is recorded.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '../service-runtime/schemas/error-envelope.schema.json'
+              examples:
+                default:
+                  value:
+                    type: "about:blank"
+                    title: "Not found"
+                    status: 404
+                    code: "SRT-005"
+                    correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/payload/entities/{entityRef}/rendition-sample-checks:
+    post:
+      operationId: runSampleCheck
+      summary: Run the wording check on one sample PDF without recording anything
+      description: >-
+        `tax.operator` uploads sample PDFs and sees the wording check (PAY-014)
+        before anything is recorded (INV-NOTE-7 SCR-14.2). The request is the
+        one of `recordRenditionSample`, and the check is the same: the check of
+        `recordRenditionSample` is run on the sample, nothing is recorded, and
+        no finding is raised against the entity. When `result` is FAILED the
+        `findingCode` PAY-014 is reported in the result.
+
+
+        The operation changes no state, so its audit entry is written before
+        the result returns (INV-REQ-2588 behavior 3).
+
+
+        A missing or invalid field is refused with `400` and SRT-001. An
+        unknown entity, or a (scenario, submissionType) pair the pack does not
+        list, is refused with `404` and SRT-005.
+      tags: [rendition]
+      x-principal: filing-workflow
+      x-timeout: 2000
+      x-sync-edge: console-bff->payload-svc
+      x-error-codes: [SRT-001, SRT-005]
+      x-requirements: [INV-REQ-957, INV-REQ-2588, INV-REQ-1033]
+      x-operation:
+        role: tax.operator
+        scope: entity
+        precondition: >-
+          The entity exists and the Scenario pack effective on the day of the
+          call lists the (scenario, submissionType) pair.
+        reversibility: UNDOABLE
+        repeatKey: >-
+          None — a safe query with no persistent state change; a repeat has
+          nothing to make safe (INV-REQ-2588 behavior 3).
+      parameters:
+        - $ref: '#/components/parameters/EntityRef'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordRenditionSampleRequest'
+            examples:
+              default:
+                value: { scenario: "SELF_BILLING", submissionType: "TYPE_2", sampleContent: "JVBERi0xLjQK" }
+      responses:
+        '200':
+          description: >-
+            The check of `recordRenditionSample` is run on the sample; nothing
+            is recorded and no finding is raised against the entity. When
+            `result` is FAILED, `findingCode` PAY-014 is reported in the result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RenditionSampleResult'
+              examples:
+                default:
+                  value:
+                    entityRef: "ENT-0001"
+                    scenario: "SELF_BILLING"
+                    submissionType: "TYPE_2"
+                    sampleSha256: "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+                    result: "FAILED"
+                    textFound: true
+                    missingWording: ["Buyer Created Tax Invoice"]
+                    checkedAt: "2026-03-20T03:20:00Z"
+                    packVersion: "2026.1"
+                    findingCode: "PAY-014"
+        '400':
+          description: A required field is missing or invalid (SRT-001).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '../service-runtime/schemas/error-envelope.schema.json'
+              examples:
+                default:
+                  value:
+                    type: "about:blank"
+                    title: "A required field is missing"
+                    status: 400
+                    code: "SRT-001"
+                    correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+        '404':
+          description: The entity is unknown, or the pack does not list the (scenario, submissionType) pair (SRT-005).
           content:
             application/problem+json:
               schema:

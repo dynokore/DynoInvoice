@@ -53,3 +53,4 @@ AppliedPackVersion.packType	schema_property	openapi.yaml	INV-REQ-499
 AppliedPackVersion.version	schema_property	openapi.yaml	INV-REQ-499
 packVersions	property	schemas/payload-rejected-payload.schema.json	INV-REQ-499
 packType	property	schemas/payload-rejected-payload.schema.json	INV-REQ-499
+runSampleCheck	operation	openapi.yaml	INV-REQ-2588
