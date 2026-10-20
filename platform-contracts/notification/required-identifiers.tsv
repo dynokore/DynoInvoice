@@ -67,3 +67,8 @@ Alert.alertRef	schema_property	openapi.yaml	INV-REQ-1365
 Alert.taskRef	schema_property	openapi.yaml	INV-REQ-1365
 listPlatformAlerts	operation	openapi.yaml	INV-REQ-1365
 acknowledgePlatformAlert	operation	openapi.yaml	INV-REQ-1365
+createWebhookSubscription	operation	openapi.yaml	INV-REQ-2588
+deleteWebhookSubscription	operation	openapi.yaml	INV-REQ-2588
+replayWebhookDelivery	operation	openapi.yaml	INV-REQ-2588
+rotateWebhookSecret	operation	openapi.yaml	INV-REQ-2588
+setAlertPolicy	operation	openapi.yaml	INV-REQ-2588

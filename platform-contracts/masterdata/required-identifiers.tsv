@@ -59,3 +59,7 @@ expiresAt	property	openapi.yaml	INV-REQ-901
 INVALIDATED	enum_value	openapi.yaml	INV-REQ-901
 sendCounterpartyRequest	operation	openapi.yaml	INV-REQ-901
 provenance	property	openapi.yaml	INV-REQ-512
+enterRate	operation	openapi.yaml	INV-REQ-2588
+importCounterparties	operation	openapi.yaml	INV-REQ-2588
+importRates	operation	openapi.yaml	INV-REQ-2588
+submitCounterpartyDetails	operation	openapi.yaml	INV-REQ-2588
