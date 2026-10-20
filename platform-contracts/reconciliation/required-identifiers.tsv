@@ -30,3 +30,5 @@ varianceClass	property	openapi.yaml	INV-REQ-632
 unmappedLines	property	openapi.yaml	INV-REQ-631
 annotateVariance	operation	openapi.yaml	INV-REQ-633
 annotateVariance.PER-015	operation_error_code	openapi.yaml	INV-REQ-633
+attestWorkPaper	operation	openapi.yaml	INV-REQ-2588
+uploadGstReturn	operation	openapi.yaml	INV-REQ-2588

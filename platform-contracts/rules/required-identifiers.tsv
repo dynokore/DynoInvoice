@@ -312,3 +312,7 @@ TAX_AMOUNT	enum_value	schemas/return-mapping-pack-contents.schema.json	INV-REQ-6
 PRIMARY	enum_value	schemas/return-mapping-pack-contents.schema.json	INV-REQ-654
 SECONDARY	enum_value	schemas/return-mapping-pack-contents.schema.json	INV-REQ-654
 INFERRED	enum_value	schemas/return-mapping-pack-contents.schema.json	INV-REQ-654
+acceptSourceClassEntry	operation	openapi.yaml	INV-REQ-2588
+activateMappingPack	operation	openapi.yaml	INV-REQ-2588
+armRegulatoryPack	operation	openapi.yaml	INV-REQ-2588
+importMappingSpreadsheet	operation	openapi.yaml	INV-REQ-2588
