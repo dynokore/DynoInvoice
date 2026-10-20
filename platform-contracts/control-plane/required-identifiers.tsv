@@ -91,3 +91,7 @@ AuthorPackRequest.effectiveFrom	schema_property	openapi.yaml	INV-REQ-1077
 AuthorPackRequest.contents	schema_property	openapi.yaml	INV-REQ-1077
 PackResponse.effectiveFrom	schema_property	openapi.yaml	INV-REQ-1077
 PackResponse.supersedes	schema_property	openapi.yaml	INV-REQ-2590
+issueLicence	operation	openapi.yaml	INV-REQ-2588
+provisionTenant	operation	openapi.yaml	INV-REQ-2588
+recordQualification	operation	openapi.yaml	INV-REQ-2588
+setSupportWindow	operation	openapi.yaml	INV-REQ-2588

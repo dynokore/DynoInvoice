@@ -76,3 +76,5 @@ importedGaps	property	openapi.yaml	INV-REQ-954
 EvidenceChain.importedGaps	schema_property	openapi.yaml	INV-REQ-954
 DECISION_TRACE	enum_value	openapi.yaml	INV-REQ-954
 PACK_VERSION	enum_value	openapi.yaml	INV-REQ-954
+placeLegalHold	operation	openapi.yaml	INV-REQ-2588
+recordSecurityCase	operation	openapi.yaml	INV-REQ-2588
