@@ -25,3 +25,17 @@ invalidated	property	openapi.yaml	INV-REQ-2762
 grantSource	property	openapi.yaml	INV-REQ-1263
 CreatePrincipalRequest.callingSystem	schema_property	openapi.yaml	INV-REQ-587
 PrincipalResponse.callingSystem	schema_property	openapi.yaml	INV-REQ-587
+acknowledgeMapping	operation	openapi.yaml	INV-REQ-2588
+createPrincipal	operation	openapi.yaml	INV-REQ-2588
+decideElevation	operation	openapi.yaml	INV-REQ-2588
+grantRole	operation	openapi.yaml	INV-REQ-2588
+inviteDiagnostics	operation	openapi.yaml	INV-REQ-2588
+issueSignatoryLink	operation	openapi.yaml	INV-REQ-2588
+mapIdpGroup	operation	openapi.yaml	INV-REQ-2588
+recordSoleOperator	operation	openapi.yaml	INV-REQ-2588
+requestElevation	operation	openapi.yaml	INV-REQ-2588
+resealBreakGlass	operation	openapi.yaml	INV-REQ-2588
+revokePrincipal	operation	openapi.yaml	INV-REQ-2588
+rotatePrincipal	operation	openapi.yaml	INV-REQ-2588
+runAccessReview	operation	openapi.yaml	INV-REQ-2588
+unlockBreakGlass	operation	openapi.yaml	INV-REQ-2588
