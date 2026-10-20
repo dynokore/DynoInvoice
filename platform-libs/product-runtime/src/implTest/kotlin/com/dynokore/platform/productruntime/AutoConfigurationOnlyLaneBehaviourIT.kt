@@ -32,6 +32,7 @@ import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.ExecutionException
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
@@ -189,6 +190,11 @@ class AutoConfigurationOnlyLaneBehaviourIT {
                 }
 
         try {
+            // readiness before the timed section: every permit of each served lane opens a connection, so the waits
+            // below do not pay for the cold connection set-up of the signed binding (a host under load makes it
+            // exceed them)
+            warmUp(PoolLane.BACKGROUND, BACKGROUND_PERMITS, threads, transactions, tenants, tenant)
+            warmUp(PoolLane.REQUEST, REQUEST_PERMITS, threads, transactions, tenants, tenant)
             val backgroundEntered = CountDownLatch(BACKGROUND_PERMITS)
             val background = (1..BACKGROUND_PERMITS).map { inLane(PoolLane.BACKGROUND, backgroundEntered) }
             backgroundEntered.await(HOLD_SECONDS, TimeUnit.SECONDS) shouldBe true
@@ -208,6 +214,44 @@ class AutoConfigurationOnlyLaneBehaviourIT {
             release.countDown()
             threads.shutdownNow()
         }
+    }
+
+    /**
+     * [permits] no-op transactions in [lane], all open at once, so the pool has opened one connection per permit; each
+     * attempt is repeated until it enters or [HOLD_SECONDS] pass (a failed attempt only means a connection was not yet
+     * open).
+     */
+    private fun warmUp(
+        lane: PoolLane,
+        permits: Int,
+        threads: ExecutorService,
+        transactions: TransactionRunner,
+        tenants: TenantContext,
+        tenant: TenantId,
+    ) {
+        val allOpen = CountDownLatch(permits)
+        val end = System.nanoTime() + TimeUnit.SECONDS.toNanos(HOLD_SECONDS)
+        val warmed =
+            (1..permits).map {
+                CompletableFuture.supplyAsync({
+                    var entered = false
+                    while (!entered && System.nanoTime() < end) {
+                        entered =
+                            runCatching {
+                                PoolLanes.inLane(lane) {
+                                    tenants.bind(tenant, "user-a") {
+                                        transactions.inTransaction {
+                                            allOpen.countDown()
+                                            allOpen.await(HOLD_SECONDS, TimeUnit.SECONDS)
+                                        }
+                                    }
+                                }
+                            }.isSuccess
+                    }
+                    entered
+                }, threads)
+            }
+        warmed.map { it.get(HOLD_SECONDS * 2, TimeUnit.SECONDS) } shouldBe List(permits) { true }
     }
 
     /**
