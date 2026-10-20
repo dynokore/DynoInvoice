@@ -17,10 +17,17 @@ val contractsBundle by configurations.creating {
 dependencies {
     contractsBundle(variantOf(libs.platformContracts.bundle) { artifactType("zip") })
     implementation(platform(libs.springBoot.dependencies))
+    // Spring Boot 4.1.1 manages Jackson 3.1.5 (HIGH CVEs); the catalogue's jackson version is the one the service runs.
+    implementation(platform(libs.jackson.bom))
     implementation(libs.springBoot.starterWeb)
     implementation(libs.springBoot.starterValidation)
     implementation(libs.swagger.annotations)
     implementation(libs.jackson.moduleKotlin)
+    constraints {
+        implementation(libs.tomcat.embedCore)
+        implementation(libs.tomcat.embedEl)
+        implementation(libs.tomcat.embedWebsocket)
+    }
 }
 
 // gst.contract-server resolves `platform-contracts:submission:+` while the task graph is built, so the layout
