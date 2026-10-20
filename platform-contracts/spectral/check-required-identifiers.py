@@ -40,6 +40,16 @@ requirement cell are not findings. A table missing at the head, an empty sha, an
 the repository at the root each exit 1. There is no exemption for a retired row: removing one is an owner matter.
 Without --base the behaviour is the plain check above.
 
+Audited-operation completeness (INV-T-7643, INV-Q-7641 A), --base mode only: H are the data lines of
+`catalogue/audited-operations.tsv` in the working tree and B those of the same file at the base commit (four
+tab-separated cells: listedName, operationId, service, discriminator; the header line, blank lines, `#` lines and
+lines without four cells are not data lines). For each line of H whose operationId is not `UNCONTRACTED` and whose
+(operationId, service) pair is not the pair of a contracted line of B, `<service>/required-identifiers.tsv` must hold
+a data row (operationId, operation, openapi.yaml), compared by equality after trimming. The pairs of B are the
+baseline: the 52 pairs without a row at origin/main 4b8924e8 are exempt until the slice tasks INV-T-7644 to
+INV-T-7649 add their rows; INV-T-7650 removes this limit and applies the rule to the plain check. The table present
+at B and missing at the head is a finding; absent at both, no check; absent at B only, B is empty.
+
 Usage: check-required-identifiers.py [--base <sha>] [<root>]      (default root: the current directory)
 Standard library plus PyYAML, as the other spectral checks.
 """
@@ -188,6 +198,57 @@ def check_base(root: Path, sha: str) -> list[str]:
     return findings
 
 
+AUDITED = "catalogue/audited-operations.tsv"
+
+
+def audited_lines(text: str) -> list[tuple[int, str, str]]:
+    """(line number, operationId, service) of every contracted data line of the audited-operations table."""
+    out: list[tuple[int, str, str]] = []
+    for no, raw in enumerate(text.splitlines(), 1):
+        if not raw.strip() or raw.lstrip().startswith("#"):
+            continue
+        cells = [c.strip() for c in raw.split("\t")]
+        if len(cells) != 4 or cells[0] == "listedName":
+            continue
+        if cells[1] != "UNCONTRACTED":
+            out.append((no, cells[1], cells[2]))
+    return out
+
+
+def check_audited(root: Path, sha: str) -> list[str]:
+    """INV-Q-7641 A: a contracted audited operation new since the base needs its operation row in its service table."""
+    def git(*args: str) -> subprocess.CompletedProcess:
+        return subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True)
+
+    head = root / AUDITED
+    before = git("show", f"{sha}:{AUDITED}") if git("cat-file", "-e", f"{sha}:{AUDITED}").returncode == 0 else None
+    if not head.is_file():
+        return [f"{AUDITED}: exists at {sha} and is missing at the head"] if before is not None and before.returncode == 0 else []
+    baseline = {(op, svc) for _, op, svc in audited_lines(before.stdout)} if before is not None and before.returncode == 0 else set()
+    findings: list[str] = []
+    rows: dict[str, set | None] = {}
+    for no, op, svc in audited_lines(head.read_text()):
+        if (op, svc) in baseline:
+            continue
+        if svc not in rows:
+            table = root / svc / "required-identifiers.tsv"
+            ok = re.fullmatch(r"[^/]+", svc) and svc not in (".", "..") and table.is_file()
+            rows[svc] = row_keys(table.read_text()) if ok else None
+        keys = rows[svc]
+        if keys is not None and (op, "operation", "openapi.yaml") in keys:
+            continue
+        tail = "" if keys is not None else f"; {svc}/required-identifiers.tsv does not exist"
+        findings.append(f"{root / AUDITED}:{no}: audited operation '{op}' of service '{svc}' has no row ({op}, operation, openapi.yaml) in {svc}/required-identifiers.tsv{tail}")
+    return findings
+
+
+def git_ok(root: Path, sha: str) -> bool:
+    """True when the base is a usable commit (check_base reports the bad ones)."""
+    if not sha.strip() or sha.startswith("-"):
+        return False
+    return subprocess.run(["git", "-C", str(root), "cat-file", "-e", f"{sha}^{{commit}}"], capture_output=True).returncode == 0
+
+
 def main(argv: list[str]) -> int:
     args = argv[1:]
     base = None
@@ -207,6 +268,8 @@ def main(argv: list[str]) -> int:
         findings += check_table(table, cache)
     if base is not None:
         findings += check_base(root, base)
+        if git_ok(root, base):
+            findings += check_audited(root, base)
     if findings:
         print("gst-ci: required-identifiers FAIL")
         for f in findings:
