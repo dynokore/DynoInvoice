@@ -54,3 +54,5 @@ POST /internal/v1/masterdata/entities/{entityRef}/identity-triple added the new 
 POST /internal/v1/transport/payloads added the new required request property `payload`
 POST /internal/v1/transport/payloads removed the request property `adapterRef`
 POST /internal/v1/transport/payloads removed the request property `payloadRef`
+# INV-Q-8172 (INV-T-8174), on INV-Q-3569 (A) and INV-Q-4534 (A): SubmitPayloadRequest gains the required entityRef; no train lists the transport contract and no consumer is deployed.
+POST /internal/v1/transport/payloads added the new required request property `entityRef`

@@ -30,6 +30,8 @@ submitPayload	operation	openapi.yaml	INV-REQ-795
 SubmitPayloadRequest.docUuid	schema_property	openapi.yaml	INV-REQ-795
 SubmitPayloadRequest.version	schema_property	openapi.yaml	INV-REQ-795
 SubmitPayloadRequest.payload	schema_property	openapi.yaml	INV-REQ-795
+# INV-Q-8172 is the source of the name entityRef (INV-REQ-795 and INV-REQ-796 carry no backticked contract name of their own).
+SubmitPayloadRequest.entityRef	schema_property	openapi.yaml	INV-REQ-796
 TransportOutcome.outcome	schema_property	openapi.yaml	INV-REQ-795
 TransportOutcome.acknowledgement	schema_property	openapi.yaml	INV-REQ-795
 Acknowledgement.reference	schema_property	openapi.yaml	INV-REQ-795
