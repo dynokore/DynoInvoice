@@ -1,0 +1,418 @@
+# The role-by-permission table of the gst-catalogue (STK-61, INV-T-7987, coordinator ruling INV-Q-7979 A).
+#
+# Hand-edited in this repository: there is no vendoring script. The text of record is the Keel note
+# INV-NOTE-3 section 22.2 (role catalogue) and section 22.3 (permission matrix, with its amendment
+# table of 24 Sep 2026) and requirement INV-REQ-999 (private form: import, verify and arm a
+# regulatory pack). README.md says how the keys are named and how a change is made.
+#
+# roles:       key and belongs_to as in section 22.2; forms is the non-empty set of deployment forms
+#              the role exists in (INV-REQ-876: deployment.operator is PRIVATE only; INV-REQ-888:
+#              platform.support, platform.engineer, release.manager and commercial.admin are SAAS only).
+# permissions: one key per function; kind is READ or WRITE; row is the label of the published row the
+#              key transcribes, copied verbatim (markup removed). cells lists {role, form, allowance}:
+#              PERMITTED is the published Y, WITHIN_SCOPE the published S. A cell that is not listed is
+#              DENIED (the published dash, and every case the text does not state: fail closed).
+#              The consent-item condition of the Agent scope paragraph is not a catalogue field
+#              (INV-T-4939 owns it).
+
+
+roles:
+  - {key: tenant.admin, belongs_to: "Customer", forms: [SAAS, PRIVATE]}
+  - {key: tax.operator, belongs_to: "Customer", forms: [SAAS, PRIVATE]}
+  - {key: tax.approver, belongs_to: "Customer", forms: [SAAS, PRIVATE]}
+  - {key: finance.viewer, belongs_to: "Customer", forms: [SAAS, PRIVATE]}
+  - {key: integration.engineer, belongs_to: "Customer or partner", forms: [SAAS, PRIVATE]}
+  - {key: auditor, belongs_to: "Customer or external", forms: [SAAS, PRIVATE]}
+  - {key: agent.operator, belongs_to: "Agent tenant", forms: [SAAS, PRIVATE]}
+  - {key: platform.support, belongs_to: "Operator", forms: [SAAS]}
+  - {key: platform.engineer, belongs_to: "Operator", forms: [SAAS]}
+  - {key: regulatory.author, belongs_to: "Operator", forms: [SAAS, PRIVATE]}
+  - {key: regulatory.approver, belongs_to: "Operator", forms: [SAAS, PRIVATE]}
+  - {key: entity.admin, belongs_to: "Customer", forms: [SAAS, PRIVATE]}
+  - {key: security.officer, belongs_to: "Customer; the operator also holds it for its own platform, for co-approving retention deletion in SaaS (FR-D.4)", forms: [SAAS, PRIVATE]}
+  - {key: billing.contact, belongs_to: "Customer", forms: [SAAS, PRIVATE]}
+  - {key: client.signatory, belongs_to: "Agent's client", forms: [SAAS, PRIVATE]}
+  - {key: deployment.operator, belongs_to: "Customer, private form only", forms: [PRIVATE]}
+  - {key: implementation.consultant, belongs_to: "Operator, time-boxed grant", forms: [SAAS, PRIVATE]}
+  - {key: release.manager, belongs_to: "Operator", forms: [SAAS]}
+  - {key: commercial.admin, belongs_to: "Operator", forms: [SAAS]}
+
+permissions:
+  - key: submission.view-status
+    kind: READ
+    row: "View submission status"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+      - {role: tax.operator, form: SAAS, allowance: PERMITTED}
+      - {role: tax.operator, form: PRIVATE, allowance: PERMITTED}
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+      - {role: finance.viewer, form: SAAS, allowance: PERMITTED}
+      - {role: finance.viewer, form: PRIVATE, allowance: PERMITTED}
+      - {role: integration.engineer, form: SAAS, allowance: PERMITTED}
+      - {role: integration.engineer, form: PRIVATE, allowance: PERMITTED}
+      - {role: auditor, form: SAAS, allowance: PERMITTED}
+      - {role: auditor, form: PRIVATE, allowance: PERMITTED}
+      - {role: agent.operator, form: SAAS, allowance: WITHIN_SCOPE}
+      - {role: agent.operator, form: PRIVATE, allowance: WITHIN_SCOPE}
+      - {role: platform.support, form: SAAS, allowance: PERMITTED}
+      - {role: platform.engineer, form: SAAS, allowance: PERMITTED}
+  - key: doc.view.content
+    kind: READ
+    row: "View invoice content"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+      - {role: tax.operator, form: SAAS, allowance: PERMITTED}
+      - {role: tax.operator, form: PRIVATE, allowance: PERMITTED}
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+      - {role: finance.viewer, form: SAAS, allowance: PERMITTED}
+      - {role: finance.viewer, form: PRIVATE, allowance: PERMITTED}
+      - {role: auditor, form: SAAS, allowance: PERMITTED}
+      - {role: auditor, form: PRIVATE, allowance: PERMITTED}
+      - {role: agent.operator, form: SAAS, allowance: WITHIN_SCOPE}
+      - {role: agent.operator, form: PRIVATE, allowance: WITHIN_SCOPE}
+  - key: transaction.ingest
+    kind: WRITE
+    row: "Ingest transactions via API"
+    cells:
+      - {role: integration.engineer, form: SAAS, allowance: PERMITTED}
+      - {role: integration.engineer, form: PRIVATE, allowance: PERMITTED}
+      - {role: agent.operator, form: SAAS, allowance: WITHIN_SCOPE}
+      - {role: agent.operator, form: PRIVATE, allowance: WITHIN_SCOPE}
+  - key: masterdata-exception.resolve
+    kind: WRITE
+    row: "Resolve master data exceptions"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+      - {role: tax.operator, form: SAAS, allowance: PERMITTED}
+      - {role: tax.operator, form: PRIVATE, allowance: PERMITTED}
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+      - {role: agent.operator, form: SAAS, allowance: WITHIN_SCOPE}
+      - {role: agent.operator, form: PRIVATE, allowance: WITHIN_SCOPE}
+  - key: mapping-pack.author
+    kind: WRITE
+    row: "Author mapping pack"
+    cells:
+      - {role: tax.operator, form: SAAS, allowance: PERMITTED}
+      - {role: tax.operator, form: PRIVATE, allowance: PERMITTED}
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+      - {role: agent.operator, form: SAAS, allowance: WITHIN_SCOPE}
+      - {role: agent.operator, form: PRIVATE, allowance: WITHIN_SCOPE}
+  - key: mapping-pack.approve
+    kind: WRITE
+    row: "Approve mapping pack"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: mapping-pack.activate
+    kind: WRITE
+    row: "Activate an approved mapping pack"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: validation.override
+    kind: WRITE
+    row: "Override a blocking validation"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+      - {role: agent.operator, form: SAAS, allowance: WITHIN_SCOPE}
+      - {role: agent.operator, form: PRIVATE, allowance: WITHIN_SCOPE}
+  - key: override-policy.manage
+    kind: WRITE
+    row: "Administer override policy"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: period-readiness.view
+    kind: READ
+    row: "View period readiness (no drain)"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+      - {role: tax.operator, form: SAAS, allowance: PERMITTED}
+      - {role: tax.operator, form: PRIVATE, allowance: PERMITTED}
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+      - {role: finance.viewer, form: SAAS, allowance: PERMITTED}
+      - {role: finance.viewer, form: PRIVATE, allowance: PERMITTED}
+      - {role: auditor, form: SAAS, allowance: PERMITTED}
+      - {role: auditor, form: PRIVATE, allowance: PERMITTED}
+      - {role: agent.operator, form: SAAS, allowance: WITHIN_SCOPE}
+      - {role: agent.operator, form: PRIVATE, allowance: WITHIN_SCOPE}
+      - {role: platform.support, form: SAAS, allowance: PERMITTED}
+  - key: period-readiness.run
+    kind: WRITE
+    row: "Run period readiness check — drains, irreversible (FR-C.8, §31.2.2)"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+      - {role: agent.operator, form: SAAS, allowance: WITHIN_SCOPE}
+      - {role: agent.operator, form: PRIVATE, allowance: WITHIN_SCOPE}
+  - key: submission.replay
+    kind: WRITE
+    row: "Replay a failed submission"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+      - {role: tax.operator, form: SAAS, allowance: PERMITTED}
+      - {role: tax.operator, form: PRIVATE, allowance: PERMITTED}
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+      - {role: integration.engineer, form: SAAS, allowance: PERMITTED}
+      - {role: integration.engineer, form: PRIVATE, allowance: PERMITTED}
+      - {role: agent.operator, form: SAAS, allowance: WITHIN_SCOPE}
+      - {role: agent.operator, form: PRIVATE, allowance: WITHIN_SCOPE}
+      - {role: platform.support, form: SAAS, allowance: PERMITTED}
+      - {role: platform.engineer, form: SAAS, allowance: PERMITTED}
+      - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}
+  - key: adapter.configure
+    kind: WRITE
+    row: "Configure adapters"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+      - {role: integration.engineer, form: SAAS, allowance: PERMITTED}
+      - {role: integration.engineer, form: PRIVATE, allowance: PERMITTED}
+  - key: ap-credential.manage
+    kind: WRITE
+    row: "Manage AP credentials"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+      - {role: platform.engineer, form: SAAS, allowance: PERMITTED}
+  - key: audit-pack.export
+    kind: READ
+    row: "Export audit pack"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+      - {role: tax.operator, form: SAAS, allowance: PERMITTED}
+      - {role: tax.operator, form: PRIVATE, allowance: PERMITTED}
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+      - {role: finance.viewer, form: SAAS, allowance: PERMITTED}
+      - {role: finance.viewer, form: PRIVATE, allowance: PERMITTED}
+      - {role: auditor, form: SAAS, allowance: PERMITTED}
+      - {role: auditor, form: PRIVATE, allowance: PERMITTED}
+      - {role: agent.operator, form: SAAS, allowance: WITHIN_SCOPE}
+      - {role: agent.operator, form: PRIVATE, allowance: WITHIN_SCOPE}
+  - key: audit-log.view
+    kind: READ
+    row: "View audit log"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+      - {role: auditor, form: SAAS, allowance: PERMITTED}
+      - {role: auditor, form: PRIVATE, allowance: PERMITTED}
+      - {role: security.officer, form: SAAS, allowance: PERMITTED}
+      - {role: security.officer, form: PRIVATE, allowance: PERMITTED}
+      - {role: platform.engineer, form: SAAS, allowance: PERMITTED}
+  - key: user.manage
+    kind: WRITE
+    row: "Manage users and roles"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: regulatory-pack.activate
+    kind: WRITE
+    row: "Activate a regulatory pack"
+    cells:
+      - {role: platform.engineer, form: SAAS, allowance: PERMITTED}
+  - key: retention.delete.request
+    kind: WRITE
+    row: "Delete data at end of retention"
+    cells:
+      - {role: platform.engineer, form: SAAS, allowance: PERMITTED}
+      - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}
+  - key: retention.delete.approve
+    kind: WRITE
+    row: "Delete data at end of retention (private form)"
+    cells:
+      - {role: security.officer, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: entity-config.manage
+    kind: WRITE
+    row: "Manage entity registry, identity triple, elections, issuance mode, trigger waivers, go-live, suspension, deregistration, offboarding"
+    cells:
+      - {role: entity.admin, form: SAAS, allowance: PERMITTED}
+      - {role: entity.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: entity-config.confirm
+    kind: WRITE
+    row: "Manage entity registry, identity triple, elections, issuance mode, trigger waivers, go-live, suspension, deregistration, offboarding"
+    cells:
+      - {role: entity.admin, form: SAAS, allowance: PERMITTED}
+      - {role: entity.admin, form: PRIVATE, allowance: PERMITTED}
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: elevation.decide
+    kind: WRITE
+    row: "Approve operator elevation or diagnostic invitation; review audit log; run access reviews; handle privacy requests"
+    cells:
+      - {role: security.officer, form: SAAS, allowance: PERMITTED}
+      - {role: security.officer, form: PRIVATE, allowance: PERMITTED}
+  - key: access-review.run
+    kind: WRITE
+    row: "Approve operator elevation or diagnostic invitation; review audit log; run access reviews; handle privacy requests"
+    cells:
+      - {role: security.officer, form: SAAS, allowance: PERMITTED}
+      - {role: security.officer, form: PRIVATE, allowance: PERMITTED}
+  - key: privacy-request.handle
+    kind: WRITE
+    row: "Approve operator elevation or diagnostic invitation; review audit log; run access reviews; handle privacy requests"
+    cells:
+      - {role: security.officer, form: SAAS, allowance: PERMITTED}
+      - {role: security.officer, form: PRIVATE, allowance: PERMITTED}
+  - key: usage.view
+    kind: READ
+    row: "View usage, plan or licence status"
+    cells:
+      - {role: billing.contact, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+  - key: plan.view
+    kind: READ
+    row: "View usage, plan or licence status"
+    cells:
+      - {role: billing.contact, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+  - key: licence-status.view
+    kind: READ
+    row: "View usage, plan or licence status"
+    cells:
+      - {role: billing.contact, form: PRIVATE, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: mapping-effect.acknowledge
+    kind: WRITE
+    row: "Acknowledge mapping effects; grant or withdraw consent"
+    cells:
+      - {role: client.signatory, form: SAAS, allowance: WITHIN_SCOPE}
+      - {role: client.signatory, form: PRIVATE, allowance: WITHIN_SCOPE}
+  - key: consent.grant
+    kind: WRITE
+    row: "Acknowledge mapping effects; grant or withdraw consent"
+    cells:
+      - {role: client.signatory, form: SAAS, allowance: WITHIN_SCOPE}
+      - {role: client.signatory, form: PRIVATE, allowance: WITHIN_SCOPE}
+  - key: consent.withdraw
+    kind: WRITE
+    row: "Acknowledge mapping effects; grant or withdraw consent"
+    cells:
+      - {role: client.signatory, form: SAAS, allowance: WITHIN_SCOPE}
+      - {role: client.signatory, form: PRIVATE, allowance: WITHIN_SCOPE}
+  - key: installation.install
+    kind: WRITE
+    row: "Install, upgrade, patch; import and verify packs; backups; monitoring; support bundle; adapter failover; replay"
+    cells:
+      - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}
+  - key: installation.upgrade
+    kind: WRITE
+    row: "Install, upgrade, patch; import and verify packs; backups; monitoring; support bundle; adapter failover; replay"
+    cells:
+      - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}
+  - key: installation.patch
+    kind: WRITE
+    row: "Install, upgrade, patch; import and verify packs; backups; monitoring; support bundle; adapter failover; replay"
+    cells:
+      - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}
+  - key: backup.manage
+    kind: WRITE
+    row: "Install, upgrade, patch; import and verify packs; backups; monitoring; support bundle; adapter failover; replay"
+    cells:
+      - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}
+  - key: adapter.failover
+    kind: WRITE
+    row: "Install, upgrade, patch; import and verify packs; backups; monitoring; support bundle; adapter failover; replay"
+    cells:
+      - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}
+  - key: monitoring.view
+    kind: READ
+    row: "Install, upgrade, patch; import and verify packs; backups; monitoring; support bundle; adapter failover; replay"
+    cells:
+      - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}
+  - key: support-bundle.export
+    kind: READ
+    row: "Install, upgrade, patch; import and verify packs; backups; monitoring; support bundle; adapter failover; replay"
+    cells:
+      - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}
+  - key: onboarding.entity-setup.configure
+    kind: WRITE
+    row: "Configure entity set-up, integration and mapping drafts during onboarding"
+    cells:
+      - {role: implementation.consultant, form: SAAS, allowance: PERMITTED}
+      - {role: implementation.consultant, form: PRIVATE, allowance: PERMITTED}
+  - key: onboarding.integration.configure
+    kind: WRITE
+    row: "Configure entity set-up, integration and mapping drafts during onboarding"
+    cells:
+      - {role: implementation.consultant, form: SAAS, allowance: PERMITTED}
+      - {role: implementation.consultant, form: PRIVATE, allowance: PERMITTED}
+  - key: onboarding.mapping-draft.configure
+    kind: WRITE
+    row: "Configure entity set-up, integration and mapping drafts during onboarding"
+    cells:
+      - {role: implementation.consultant, form: SAAS, allowance: PERMITTED}
+      - {role: implementation.consultant, form: PRIVATE, allowance: PERMITTED}
+  - key: release-train.certify
+    kind: WRITE
+    row: "Certify and publish release trains"
+    cells:
+      - {role: release.manager, form: SAAS, allowance: PERMITTED}
+  - key: release-train.publish
+    kind: WRITE
+    row: "Certify and publish release trains"
+    cells:
+      - {role: release.manager, form: SAAS, allowance: PERMITTED}
+  - key: plan.manage
+    kind: WRITE
+    row: "Manage plans, entitlements, licences"
+    cells:
+      - {role: commercial.admin, form: SAAS, allowance: PERMITTED}
+  - key: entitlement.manage
+    kind: WRITE
+    row: "Manage plans, entitlements, licences"
+    cells:
+      - {role: commercial.admin, form: SAAS, allowance: PERMITTED}
+  - key: licence.manage
+    kind: WRITE
+    row: "Manage plans, entitlements, licences"
+    cells:
+      - {role: commercial.admin, form: SAAS, allowance: PERMITTED}
+  - key: break-glass.unlock
+    kind: WRITE
+    row: "Unlock break-glass access"
+    cells:
+      - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: job.operate
+    kind: WRITE
+    row: "Run a job now, pause and resume it (FR-AG.64)"
+    cells:
+      - {role: integration.engineer, form: SAAS, allowance: PERMITTED}
+      - {role: integration.engineer, form: PRIVATE, allowance: PERMITTED}
+      - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}
+  - key: regulatory-pack.import-verify
+    kind: WRITE
+    row: "Import and verify a regulatory pack"
+    cells:
+      - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: regulatory-pack.arm
+    kind: WRITE
+    row: "Arm a regulatory pack"
+    cells:
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
