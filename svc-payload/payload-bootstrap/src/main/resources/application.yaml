@@ -1,0 +1,43 @@
+# TPL-16 (INV-T-5966). One DataSource, declared only here and in the Helm values: Spring Boot's `dataSource`, the
+# service's one bounded HikariCP pool (STK-17; owner rulings INV-Q-3955, INV-Q-4196). Passwords are never set here:
+# service-runtime reads them through SecretStore (STK-29).
+spring:
+  threads.virtual.enabled: true # STK-03
+  main.lazy-initialization: false # STK-06
+  datasource:
+    username: payload_runtime # the one runtime LOGIN: NOSUPERUSER, NOBYPASSRLS, owns no table (CS-19, INV-AC-2175)
+    hikari:
+      minimum-idle: 1
+      idle-timeout: 60000
+      max-lifetime: 1800000
+  flyway:
+    schemas: payload
+    default-schema: payload
+    user: payload_migrate # read only by the migration Job's MigrationRunner (TPL-12, ARC-20)
+service-runtime:
+  datasource.credential: db/payload_runtime
+  event-log-pool.minimum-idle: 1
+  modules.schema: payload
+  idempotency.schema: payload
+management:
+  server.port: 8081 # API-33: health, metrics and diagnostics only on the management port, no token
+  endpoints.web:
+    base-path: /
+    exposure.include: health,prometheus,diagnostics
+    path-mapping.prometheus: metrics
+  endpoint.health:
+    status.order: DOWN,OUT_OF_SERVICE,DEGRADED,UP,UNKNOWN
+    status.http-mapping: { DEGRADED: 200, DOWN: 503, OUT_OF_SERVICE: 503 }
+    group:
+      live.include: livenessState
+      ready.include: readinessState,db
+logging.structured.format.console: ecs # STK-35
+gst:
+  service: payload-svc
+  db.event-log-url: ${GST_EVENT_LOG_DB_URL:}
+inv:
+  tenancy:
+    # tenant-free object of the schema that the start-up classification (TableClasses.verify, INV-ADR-3968 item 4a)
+    # cannot see as library-declared: the sys-owned claim function of the queue (QueueSchema.CLAIM_DUE, a table-valued
+    # function in the generated code). The signed-binding key table is not generated (INV-T-7430), so it is not declared.
+    platform-scoped-tables: payload.claim_due, payload.capability

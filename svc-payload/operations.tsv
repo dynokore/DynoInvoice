@@ -1,0 +1,13 @@
+kind	id	task
+operation	checkPreIssuance	UNASSIGNED
+operation	validateIssuance	UNASSIGNED
+operation	overrideValidation	UNASSIGNED
+operation	recordRenditionSample	UNASSIGNED
+operation	runSampleCheck	UNASSIGNED
+operation	getPayload	UNASSIGNED
+operation	getRendition	UNASSIGNED
+operation	getRegeneratedPayload	UNASSIGNED
+channel	gst.payload.payload-ready.v1	UNASSIGNED
+channel	gst.payload.payload-rejected.v1	UNASSIGNED
+channel	gst.payload.rendition-finding-changed.v1	UNASSIGNED
+channel	gst.payload.example-happened.v1	UNASSIGNED
