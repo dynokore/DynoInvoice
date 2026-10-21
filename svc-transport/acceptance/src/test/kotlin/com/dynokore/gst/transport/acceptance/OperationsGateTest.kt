@@ -39,12 +39,13 @@ class OperationsGateTest {
         OperationsGate.contractOperations(openapi).size shouldBe 8
         OperationsGate.contractChannels(asyncapi).size shouldBe 4
         run(done = doneText).shouldBeEmpty()
-        doneText shouldBe ""
+        doneText shouldBe "INV-T-4981\n"
     }
 
     @Test
     fun `every operation of the real contract is a stub until a task overrides it`() {
-        stubs shouldBe OperationsGate.contractOperations(openapi)
+        // INV-T-4981 has overridden submitPayload; every other operation still answers 501
+        stubs shouldBe OperationsGate.contractOperations(openapi) - "submitPayload"
     }
 
     @Test
@@ -87,18 +88,20 @@ class OperationsGateTest {
 
     @Test
     fun `the task of this service whose operation still answers 501 is not in the done set`() {
-        // INV-T-4981 owns submitPayload: listing the task while the operation answers 501 fails the gate
-        run(done = "INV-T-4981\n") shouldContain
-            "operation submitPayload: task INV-T-4981 is done but the operation still answers 501"
+        // INV-T-4982 owns receiveApNotification: listing the task while the operation answers 501 fails the gate
+        run(done = "INV-T-4982\n") shouldContain
+            "operation receiveApNotification: task INV-T-4982 is done but the operation still answers 501"
+        // INV-T-4981 has overridden submitPayload: its listing passes
+        run(done = "INV-T-4981\n").shouldBeEmpty()
     }
 
     @Test
     fun `a listed operation marked done with a 501 stub fails`() {
-        val table = tsv.replaceFirst("submitPayload\tINV-T-4981", "submitPayload\tINV-T-9999")
+        val table = tsv.replaceFirst("receiveApNotification\tINV-T-4982", "receiveApNotification\tINV-T-9999")
         run(table = table).shouldBeEmpty()
         run(table = table, done = "INV-T-9999\n") shouldContain
-            "operation submitPayload: task INV-T-9999 is done but the operation still answers 501"
-        run(table = table, done = "INV-T-9999\n", stubSet = stubs - "submitPayload").shouldBeEmpty()
+            "operation receiveApNotification: task INV-T-9999 is done but the operation still answers 501"
+        run(table = table, done = "INV-T-9999\n", stubSet = stubs - "receiveApNotification").shouldBeEmpty()
     }
 
     @Test
@@ -122,6 +125,8 @@ class OperationsGateTest {
 
     @Test
     fun `a listed key whose operation is implemented passes`() {
-        run(table = tsv, done = "INV-T-4981\n", stubSet = stubs - "submitPayload").shouldBeEmpty()
+        run(table = tsv, done = "INV-T-4981\n", stubSet = stubs).shouldBeEmpty()
+        run(table = tsv, done = "INV-T-4981\n", stubSet = stubs + "submitPayload") shouldContain
+            "operation submitPayload: task INV-T-4981 is done but the operation still answers 501"
     }
 }

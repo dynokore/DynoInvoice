@@ -18,9 +18,11 @@ class SubmitPayloadContractTest {
         responseExtra: String = "# no extra property",
         outcomes: String = "[ACCEPTED, REJECTED, TRANSIENT_FAILURE]",
         additional: String = "additionalProperties: false",
+        required: String = "required: [docUuid, version, payload, entityRef]",
         ackExtra: String = "# no extra property",
     ) = BASELINE
         .replace("%ADDITIONAL%", additional)
+        .replace("%REQUIRED%", required)
         .replace("%ACK_EXTRA%", ackExtra)
         .replace("%REQUEST_EXTRA%", requestExtra)
         .replace("%RESPONSE_EXTRA%", responseExtra)
@@ -68,6 +70,18 @@ class SubmitPayloadContractTest {
             "SubmitPayloadRequest"
         SubmitPayloadContract.findings(spec().replace("receivedAt: { type: string }", "")).joinToString() shouldContain
             "Acknowledgement"
+        // the entity of the document (INV-Q-8172): dropped, optional, or beside a look-alike, each is a finding
+        SubmitPayloadContract.findings(spec().replace("entityRef: { type: string }", "")).joinToString() shouldContain
+            "SubmitPayloadRequest"
+        SubmitPayloadContract
+            .findings(spec(required = "required: [docUuid, version, payload]"))
+            .joinToString() shouldContain "entityRef must be required"
+        SubmitPayloadContract
+            .findings(spec(required = "# no required list"))
+            .joinToString() shouldContain "entityRef must be required"
+        listOf("entityRefs", "entityref", "EntityRef", "entityRef ").forEach { name ->
+            SubmitPayloadContract.findings(spec(requestExtra = "'$name': { type: string }")).shouldNotBeEmpty()
+        }
         SubmitPayloadContract.findings(spec().replace("Acknowledgement:", "Receipt:")).shouldNotBeEmpty()
         listOf(
             "apCredential",
@@ -116,10 +130,12 @@ class SubmitPayloadContractTest {
                 SubmitPayloadRequest:
                   type: object
                   %ADDITIONAL%
+                  %REQUIRED%
                   properties:
                     docUuid: { type: string }
                     version: { type: integer }
                     payload: { type: string }
+                    entityRef: { type: string }
                     %REQUEST_EXTRA%
                 TransportOutcome:
                   type: object

@@ -2,7 +2,7 @@
 
 `transport-svc` — The Access Point conversation — everything that crosses to and from the AP
 
-**Status:** service skeleton and the submit path (INV-T-4981): the five architectural modules, the schema `transport` with its first migration, the `submitPayload` use case behind the Access Point adapter port, the attempt log, the throughput ceiling rule, the failure metrics, the contract gate and the acceptance-criterion key gate. `submitPayload` is not yet exposed over HTTP (it answers 501): see "Open gaps". Every other operation answers 501 until the task named for it in `operations.tsv` implements it. This repository follows the design in [invoice-docs](http://registry.example.internal/invoice/invoice-docs). Change the design there first, then the code here.
+**Status:** service skeleton and the submit path (INV-T-4981): the five architectural modules, the schema `transport` with its first migration, the `submitPayload` use case behind the Access Point adapter port, the attempt log, the throughput ceiling rule, the failure metrics, the contract gate and the acceptance-criterion key gate. `submitPayload` is exposed over HTTP (202 with the three-outcome answer; 403 SRT-004 for an `entityRef` outside the caller's entity set; 404 SRT-005 for a Doc UUID recorded under another entity, INV-Q-8172). Every other operation answers 501 until the task named for it in `operations.tsv` implements it. This repository follows the design in [invoice-docs](http://registry.example.internal/invoice/invoice-docs). Change the design there first, then the code here.
 
 | | |
 | --- | --- |
@@ -86,7 +86,7 @@ Gradle runs in the CI image; the build needs Docker (jOOQ code generation and th
 
 ## Open gaps (INV-T-4981)
 
-See the merge request description: the `submitPayload` request of the published contract carries `adapterRef` and `payloadRef` and its response has no acknowledgement field, which the task text and `SubmitPayloadContractTest` do not allow.
+See the merge request description: while a principal's entity set is not current the check asks the authority decision for the permission `filing-workflow` (the operation's role), which no published text names as a permission.
 
 ## Dependency locking and verification
 

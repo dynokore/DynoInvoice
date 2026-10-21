@@ -8,14 +8,15 @@ import org.yaml.snakeyaml.Yaml
  * be in a reviewed allowlist, so an AP credential, envelope element, batch field or AP error code, however it is
  * spelled, is a finding without the check knowing its name. The outcome enum must be exactly the three outcomes.
  *
- * Allowlist, one line each: the request is a Doc UUID, a version and a payload (`payload`); the response repeats the
+ * Allowlist, one line each: the request is a Doc UUID, a version, a payload (`payload`) and the entity of the
+ * document (`entityRef`, INV-Q-8172); the response repeats the
  * Doc UUID and version, names the outcome, and carries rejection reasons (`reasons` with `code`, `field` and
  * `message`, the internal failure classes of SUB-nnn codes) and, for an ACCEPTED submission, the AP receipt
  * (`acknowledgement` with `reference` and `receivedAt`).
  */
 object SubmitPayloadContract {
     const val OPERATION = "submitPayload"
-    val REQUEST_ALLOWED = setOf("docUuid", "version", "payload")
+    val REQUEST_ALLOWED = setOf("docUuid", "version", "payload", "entityRef")
     val RESPONSE_ALLOWED =
         setOf(
             "docUuid",
@@ -37,7 +38,7 @@ object SubmitPayloadContract {
      */
     val EXACT_KEYS =
         mapOf(
-            "SubmitPayloadRequest" to setOf("docUuid", "version", "payload"),
+            "SubmitPayloadRequest" to setOf("docUuid", "version", "payload", "entityRef"),
             "TransportOutcome" to setOf("docUuid", "version", "outcome", "reasons", "acknowledgement"),
             "Acknowledgement" to setOf("reference", "receivedAt"),
         )
@@ -113,6 +114,10 @@ object SubmitPayloadContract {
         if (request != null && resolve(root, request)["additionalProperties"] != false) {
             findings += "schema SubmitPayloadRequest: additionalProperties must be false"
         }
+        if (request != null) {
+            val required = (resolve(root, request)["required"] as? List<*>).orEmpty()
+            if ("entityRef" !in required) findings += "schema SubmitPayloadRequest: entityRef must be required"
+        }
         return findings
     }
 
@@ -125,7 +130,7 @@ object SubmitPayloadContract {
             findings += "$OPERATION has no JSON request body"
         } else {
             (names(root, requestSchema) - REQUEST_ALLOWED).sorted().forEach {
-                findings += "$OPERATION request: property '$it' is not a Doc UUID, version or payload field"
+                findings += "$OPERATION request: property '$it' is not a Doc UUID, version, payload or entityRef field"
             }
         }
         val responseSchema = map(map(map(op["responses"])["202"])["content"]).let { body(root, it) }

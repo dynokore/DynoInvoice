@@ -33,6 +33,7 @@ class SubmitPayloadTest {
     private class Log : AttemptLog {
         data class Row(
             val id: UUID,
+            val entity: EntityRef,
             val doc: DocRef,
             val adapter: AdapterId,
             var outcome: TransportOutcome? = null,
@@ -41,6 +42,10 @@ class SubmitPayloadTest {
         val rows = mutableListOf<Row>()
 
         override fun adapterInFlight(doc: DocRef): AdapterId? = rows.firstOrNull { it.doc == doc }?.adapter
+
+        override fun entityOf(docUuid: UUID): EntityRef? = rows.firstOrNull { it.doc.docUuid == docUuid }?.entity
+
+        override fun acceptedAt(doc: DocRef): Instant? = null
 
         override fun settledOutcome(doc: DocRef): TransportOutcome? =
             rows
@@ -52,7 +57,7 @@ class SubmitPayloadTest {
             doc: DocRef,
             adapter: AdapterId,
             at: Instant,
-        ): UUID = UUID.randomUUID().also { rows += Row(it, doc, adapter) }
+        ): UUID = UUID.randomUUID().also { rows += Row(it, entity, doc, adapter) }
 
         override fun complete(
             attempt: UUID,
@@ -100,6 +105,21 @@ class SubmitPayloadTest {
     fun `an entity without an adapter is refused and nothing is logged`() {
         shouldThrow<NoAdapterConfigured> { submit.submit(entity, doc(), "x") }
         log.rows.size shouldBe 0
+    }
+
+    @Test
+    fun `a Doc UUID recorded under one entity is refused under another and nothing changes`() {
+        val other = EntityRef("E-002")
+        assignments.assign(entity, a.adapterId)
+        assignments.assign(other, b.adapterId)
+        val doc = doc()
+        val first = submit.submit(entity, doc, "x")
+        shouldThrow<DocUuidRecordedUnderOtherEntity> { submit.submit(other, doc, "x") }
+        shouldThrow<DocUuidRecordedUnderOtherEntity> { submit.submit(other, DocRef(doc.docUuid, 2), "x") }
+        log.rows.size shouldBe 1
+        a.calls shouldBe 1
+        b.calls shouldBe 0
+        submit.submit(entity, doc, "x") shouldBe first
     }
 
     @Test

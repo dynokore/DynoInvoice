@@ -45,6 +45,33 @@ class JooqAttemptLog(
                 ?.let(::AdapterId)
         }
 
+    override fun entityOf(docUuid: UUID): EntityRef? =
+        runner.inTransaction {
+            dsl
+                .select(SUBMISSION_ATTEMPT.ENTITY_REF)
+                .from(SUBMISSION_ATTEMPT)
+                .where(SUBMISSION_ATTEMPT.DOC_UUID.eq(docUuid))
+                .orderBy(SUBMISSION_ATTEMPT.STARTED_AT.asc())
+                .limit(1)
+                .fetchOne(SUBMISSION_ATTEMPT.ENTITY_REF)
+                ?.let(::EntityRef)
+        }
+
+    override fun acceptedAt(doc: DocRef): Instant? =
+        runner.inTransaction {
+            dsl
+                .select(SUBMISSION_ATTEMPT.FINISHED_AT)
+                .from(SUBMISSION_ATTEMPT)
+                .where(
+                    SUBMISSION_ATTEMPT.DOC_UUID.eq(doc.docUuid),
+                    SUBMISSION_ATTEMPT.VERSION.eq(doc.version),
+                    SUBMISSION_ATTEMPT.OUTCOME.eq(OutcomeKind.ACCEPTED.name),
+                ).orderBy(SUBMISSION_ATTEMPT.STARTED_AT.asc())
+                .limit(1)
+                .fetchOne(SUBMISSION_ATTEMPT.FINISHED_AT)
+                ?.toInstant()
+        }
+
     override fun settledOutcome(doc: DocRef): TransportOutcome? =
         runner.inTransaction {
             val row =

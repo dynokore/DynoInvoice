@@ -36,6 +36,12 @@ interface AttemptLog {
     /** The adapter an earlier attempt of this Doc UUID and version used: versions in flight finish on it. */
     fun adapterInFlight(doc: DocRef): AdapterId?
 
+    /** The entity the first attempt of this Doc UUID (any version) recorded; null when the Doc UUID is unknown. */
+    fun entityOf(docUuid: UUID): EntityRef?
+
+    /** When the AP receipt of the accepted attempt of this Doc UUID and version was recorded. */
+    fun acceptedAt(doc: DocRef): Instant?
+
     /** The recorded outcome of a settled (accepted or rejected) earlier attempt: a repeat returns it. */
     fun settledOutcome(doc: DocRef): TransportOutcome?
 
