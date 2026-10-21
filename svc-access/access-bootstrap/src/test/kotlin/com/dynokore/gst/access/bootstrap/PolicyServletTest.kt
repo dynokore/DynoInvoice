@@ -3,6 +3,7 @@ package com.dynokore.gst.access.bootstrap
 import com.dynokore.gst.access.adapters.http.GrantsController
 import com.dynokore.gst.access.contract.model.GrantRequest
 import com.dynokore.gst.access.domain.role.Role
+import com.dynokore.platform.serviceruntime.http.PolicyCommandServlet
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.replica.OrganisationStructureChanged
@@ -10,7 +11,6 @@ import com.dynokore.platform.serviceruntime.replica.StructureChange
 import com.dynokore.platform.serviceruntime.replica.StructureReplica
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
-import com.dynokore.platform.serviceruntime.http.PolicyCommandServlet
 import jakarta.servlet.http.HttpServlet
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
