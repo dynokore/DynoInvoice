@@ -25,3 +25,15 @@ include:
 
 variables:
   IMAGE_NAME: "svc-transport"
+
+# INV-T-4981 (INV-Q-8039): the boundary tests start the certification-kit Access Point simulator from the local image
+# certkit/access-point-simulator:dev. The job pulls it by the digest pinned in simulator-image.digest (ci/pull-simulator.sh
+# fails closed on a missing or malformed file and on a registry digest that differs) before the tests, with the job-local
+# auth file of platform-build's `.gst-registry-auth` and no `docker login`. The image carries skopeo and the docker CLI.
+unit-test:
+  extends: [.gradle-job, .gst-registry]
+  image: "$CI_GRADLE_DOCKER_IMAGE"
+  before_script:
+    - !reference [.gradle-job, before_script]
+    - !reference [.gst-registry-auth, script]
+    - sh ci/pull-simulator.sh
