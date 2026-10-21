@@ -10,3 +10,5 @@
 ../openapi.yaml#/components/schemas/CounterpartyRequest party-request-*.json
 ../openapi.yaml#/components/schemas/SendCounterpartyRequestBody send-counterparty-request-body-*.json
 ../openapi.yaml#/components/schemas/ExchangeRate exchange-rate-*.json
+../openapi.yaml#/components/schemas/ConfigureIdentityTripleRequest configure-identity-triple-request-*.json
+../openapi.yaml#/components/schemas/PendingIdentityTripleChange pending-identity-triple-change-*.json

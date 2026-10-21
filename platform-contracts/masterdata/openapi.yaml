@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: masterdata API
-  version: 1.3.0
+  version: 1.4.0
   description: >-
     Contract-first source of truth for masterdata (API-01, STK-44). The
     `masterdata-contract` module generates its server interfaces and DTOs
@@ -99,6 +99,25 @@ paths:
                   value:
                     identityTriple: { senderId: "0195:201912345A", supplierId: "0195:201912345A", supplierGstn: "201912345A" }
                     counterparty: { partyRef: "CTP-118", resolvedIdentifiers: [{ scheme: "UEN", value: "201954321B" }], providedBy: "INTERNAL" }
+        '422':
+          description: "MDM-005 - no identity triple is configured for the entity's constitution; nothing is changed"
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../service-runtime/schemas/error-envelope.schema.json
+              examples:
+                default:
+                  value:
+                    type: https://errors.invoice.internal/MDM-005
+                    title: No identity triple configured for the constitution
+                    status: 422
+                    code: MDM-005
+                    severity: BLOCK
+                    disposition: MANUAL
+                    remediationOwner: Onboarding
+                    errors:
+                      - { code: "MDM-005", field: "/constitution", message: "No identity triple is configured for constitution PTE_LTD of entity E-001" }
+                    correlationId: 3fa85f64-5717-4562-b3fc-2c963f66afa6
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/masterdata/register-and-rates:
@@ -159,9 +178,13 @@ paths:
         VP-09). Effective-dated; a wrong identity triple is not correctable
         by resubmission alone (FR-AC.15) — the remedy is a correction
         effective from the original date plus reprocessing and resubmission
-        under the same Doc UUIDs. Always needs a second confirmation from
-        another `entity.admin` or `tenant.admin`, or a `tax.approver`; never
-        a sole-operator path (FR-AC.16, VP-09, FR-AB.13).
+        under the same Doc UUIDs. The call only proposes the change: it
+        answers 202 with a pending change, and `confirmIdentityTripleChange`
+        confirms it. The confirmation is always a separate call by another
+        `entity.admin` or `tenant.admin`, or a `tax.approver`, never the
+        proposer and never a sole-operator path (FR-AC.16, VP-09, FR-AB.13).
+        Until then the previous triple stays in force. A body carrying
+        `secondConfirmation` is refused 400 SRT-001.
       tags: [identity-triples]
       x-principal: filing-workflow
       x-sync-edge: console-bff->masterdata-svc
@@ -171,7 +194,7 @@ paths:
       x-operation:
         role: entity.admin
         scope: entity
-        precondition: "Constitution known; a second confirmation from another entity.admin/tenant.admin or a tax.approver (FR-AC.16, VP-09)."
+        precondition: "Constitution known. The call proposes the change; confirmIdentityTripleChange confirms it by another entity.admin/tenant.admin or a tax.approver (FR-AC.16, VP-09)."
         reversibility: UNDOABLE
         repeatKey: "(entityRef, effectiveFrom) — a repeat replaces the same effective-dated change."
       parameters:
@@ -193,10 +216,9 @@ paths:
                   supplierId: "0195:201912345A"
                   supplierGstn: "201912345A"
                   effectiveFrom: "2026-04-01"
-                  secondConfirmation: { identityRef: "IDN-0044", role: "tax.approver" }
       responses:
         '200':
-          description: The identity triple, effective from the given date.
+          description: The identity triple, effective from the given date. Kept declared for compatibility; a proposal answers 202.
           content:
             application/json:
               schema:
@@ -204,6 +226,79 @@ paths:
               examples:
                 default:
                   value: { entityRef: "E-001", senderId: "0195:201912345A", supplierId: "0195:201912345A", supplierGstn: "201912345A", effectiveFrom: "2026-04-01" }
+        '202':
+          description: The change is proposed and pending confirmation; the previous triple stays in force until a different person confirms it.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PendingIdentityTripleChange'
+              examples:
+                default:
+                  value: { changeRef: "ITC-0007", entityRef: "E-001", senderId: "0195:201912345A", supplierId: "0195:201912345A", supplierGstn: "201912345A", effectiveFrom: "2026-04-01", state: "PENDING_CONFIRMATION", proposedBy: "IDN-0031" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/masterdata/entities/{entityRef}/identity-triple/changes/{changeRef}/confirmation:
+    post:
+      operationId: confirmIdentityTripleChange
+      summary: Confirm a pending identity triple change as a different person
+      description: >-
+        Remediation command to console-bff (INV-REQ-1007, INV-REQ-1270).
+        Confirms the change proposed by `configureIdentityTriple`; the
+        confirmer is the authenticated subject of the call, never a body
+        field. The triple takes effect from its stated date only after this
+        call; documents resolved meanwhile carry the previous triple.
+      tags: [identity-triples]
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->masterdata-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-1007, INV-REQ-1270]
+      x-operation:
+        role: entity.admin
+        scope: entity
+        precondition: "The change is PENDING_CONFIRMATION and the caller is another entity.admin/tenant.admin or a tax.approver, never the proposer (INV-REQ-1007, INV-REQ-1270)."
+        reversibility: UNDOABLE
+        repeatKey: "(entityRef, changeRef) - a repeat after the first confirmation is refused 409."
+      parameters:
+        - name: entityRef
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+        - name: changeRef
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: The identity triple, confirmed; it applies from its effective date.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IdentityTriple'
+              examples:
+                default:
+                  value: { entityRef: "E-001", senderId: "0195:201912345A", supplierId: "0195:201912345A", supplierGstn: "201912345A", effectiveFrom: "2026-04-01" }
+        '403':
+          description: >-
+            SRT-004 - the confirmer is the proposer, the same identity under
+            another role, or not in the confirmer set; the change stays pending.
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../service-runtime/schemas/error-envelope.schema.json
+        '404':
+          description: SRT-005 - unknown changeRef of that entity.
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../service-runtime/schemas/error-envelope.schema.json
+        '409':
+          description: SRT-008 - the change is no longer PENDING_CONFIRMATION (already confirmed or superseded).
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../service-runtime/schemas/error-envelope.schema.json
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/masterdata/counterparties/{counterpartyRef}/resolution:
@@ -1269,15 +1364,39 @@ components:
         supplierGstn: { type: string, maxLength: 20 }
         effectiveFrom: { type: string, format: date }
         secondConfirmation:
-          type: object
+          deprecated: true
+          description: >-
+            Deprecated and not accepted: the confirmation is a separate call
+            (`confirmIdentityTripleChange`) by a different person, and a body
+            carrying this property is refused 400 SRT-001.
+          allOf:
+            - $ref: '#/components/schemas/SecondConfirmation'
+      required: [senderId, supplierId, supplierGstn, effectiveFrom]
+    SecondConfirmation:
+      type: object
+      properties:
+        identityRef: { type: string, maxLength: 64 }
+        role:
+          type: string
+          maxLength: 64
+          description: 'One of entity.admin, tenant.admin or tax.approver (VP-09) — never the same person as the requester.'
+      required: [identityRef, role]
+    PendingIdentityTripleChange:
+      allOf:
+        - $ref: '#/components/schemas/IdentityTripleFacts'
+        - type: object
           properties:
-            identityRef: { type: string, maxLength: 64 }
-            role:
+            changeRef: { type: string, maxLength: 40 }
+            entityRef: { type: string, maxLength: 40 }
+            effectiveFrom: { type: string, format: date }
+            state:
+              type: string
+              enum: [PENDING_CONFIRMATION]
+            proposedBy:
               type: string
               maxLength: 64
-              description: 'One of entity.admin, tenant.admin or tax.approver (VP-09) — never the same person as the requester.'
-          required: [identityRef, role]
-      required: [senderId, supplierId, supplierGstn, effectiveFrom, secondConfirmation]
+              description: The identity reference of the proposer.
+          required: [changeRef, entityRef, effectiveFrom, state, proposedBy]
     Counterparty:
       type: object
       properties:

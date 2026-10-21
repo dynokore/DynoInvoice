@@ -10,6 +10,8 @@
 # (canonical contract, Wave 3); console-bff, rules-svc, tenancy-svc, notification-svc, payload-svc, service-runtime (services);
 # SecretStore (the secret store); agent.operator, tax.approver, deployment.operator, tenant.admin (roles); ap-callback (an
 # adapter name); counterparty (an actor); FR-E.7 (a source reference).
+# INV-T-7894 (INV-REQ-310, 1007, 1270, INV-AC-1602, 7821, 7822): entity.admin (added here), tenant.admin and tax.approver are roles, not rows;
+# PendingIdentityTripleChange (a schema name) has no row kind in the checker (gap reported to the coordinator), so it has no row.
 identifier	kind	file	requirement
 sameGroup	property	openapi.yaml	INV-REQ-720
 sameTenant	property	openapi.yaml	INV-REQ-720
@@ -63,3 +65,7 @@ enterRate	operation	openapi.yaml	INV-REQ-2588
 importCounterparties	operation	openapi.yaml	INV-REQ-2588
 importRates	operation	openapi.yaml	INV-REQ-2588
 submitCounterpartyDetails	operation	openapi.yaml	INV-REQ-2588
+configureIdentityTriple	operation	openapi.yaml	INV-REQ-1007
+confirmIdentityTripleChange	operation	openapi.yaml	INV-REQ-1007
+changeRef	property	openapi.yaml	INV-REQ-1007
+PENDING_CONFIRMATION	enum_value	openapi.yaml	INV-REQ-1007
