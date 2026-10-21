@@ -61,7 +61,7 @@ open class SoleOperatorController(
     ): ResponseEntity<Unit> {
         requireManager()
         val actor = checkNotNull(tenants.currentActor()) { "no actor is bound" }
-        return when (withdraw.handle(actor, ackRef)) {
+        return when (val outcome = withdraw.handle(actor, ackRef)) {
             WithdrawSoleOperatorOutcome.Withdrawn, WithdrawSoleOperatorOutcome.AlreadyWithdrawn -> {
                 ResponseEntity.noContent().build()
             }
@@ -69,8 +69,28 @@ open class SoleOperatorController(
             WithdrawSoleOperatorOutcome.NotFound -> {
                 throw ApiRefusal(ClosedErrorCode.NOT_FOUND)
             }
+
+            // the contract lists 403 and no 409 for this operation (INV-AC-8288 cases C6 and C7)
+            WithdrawSoleOperatorOutcome.SecondPersonRequired, WithdrawSoleOperatorOutcome.HolderRemains -> {
+                throw withdrawalRefused(outcome)
+            }
         }
     }
+
+    private fun withdrawalRefused(outcome: WithdrawSoleOperatorOutcome) =
+        ApiRefusal(
+            ClosedErrorCode.ACCESS_DENIED,
+            when (outcome) {
+                WithdrawSoleOperatorOutcome.SecondPersonRequired -> {
+                    "a second person must hold security.officer or tenant.admin " +
+                        "before the acknowledgement is withdrawn"
+                }
+
+                else -> {
+                    "a person still holds security.officer and tenant.admin; revoke one of the roles first"
+                }
+            },
+        )
 
     private fun requireManager() {
         if (!manager.mayManageGrants()) throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)

@@ -4,6 +4,7 @@ import com.dynokore.gst.access.application.separation.SoleOperatorAcks
 import com.dynokore.gst.access.domain.grant.Grant
 import com.dynokore.gst.access.domain.grant.GrantHeader
 import com.dynokore.gst.access.domain.grant.GrantStatus
+import com.dynokore.gst.access.domain.grant.IdentityRef
 import com.dynokore.gst.access.domain.grant.Scope
 import com.dynokore.gst.access.domain.role.PermissionMatrix
 import com.dynokore.gst.access.domain.role.Role
@@ -61,13 +62,30 @@ class GrantRoleUseCase(
         if (existing != null && existing.status != GrantStatus.REVOKED) {
             return GrantRoleOutcome.Granted(existing, repeated = true)
         }
+        return separated(command, role, scope)
+    }
+
+    /** The separation of duty: the lock on the acknowledgement comes before the count of the people holding both. */
+    private fun separated(
+        command: GrantRoleCommand,
+        role: Role,
+        scope: Scope,
+    ): GrantRoleOutcome {
         val held = grants.findByIdentity(command.identity).filter { it.status != GrantStatus.REVOKED }.map { it.role }
-        return if (SeparationOfDuty.completesConflict(held.toSet(), role) && rules.soleOperators.findActive() == null) {
-            GrantRoleOutcome.SoleOperatorAckRequired
-        } else {
-            insert(command, role, scope)
+        return when {
+            !SeparationOfDuty.completesConflict(held.toSet(), role) -> insert(command, role, scope)
+            rules.soleOperators.lockActive() == null -> GrantRoleOutcome.SoleOperatorAckRequired
+            otherPeopleHoldingBoth(command.identity).isNotEmpty() -> GrantRoleOutcome.SecondHolderRefused
+            else -> insert(command, role, scope)
         }
     }
+
+    /** The people other than [identity] who hold both conflicting roles in the bound tenant (VP-81 default). */
+    private fun otherPeopleHoldingBoth(identity: IdentityRef): Set<IdentityRef> =
+        SeparationOfDuty.holdingBoth(
+            rules.soleOperators.holders(Role.SECURITY_OFFICER),
+            rules.soleOperators.holders(Role.TENANT_ADMIN),
+        ) - identity
 
     private fun insert(
         command: GrantRoleCommand,

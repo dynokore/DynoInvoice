@@ -81,15 +81,23 @@ open class GrantsController(
                 GrantRequests.invalid("role is not in the role catalogue")
             }
 
-            // the contract lists 403 and 409 for grantRole; no catalogue error code names this refusal (INV-REQ-891)
-            GrantRoleOutcome.SoleOperatorAckRequired -> {
-                throw ApiRefusal(
-                    ClosedErrorCode.ACCESS_DENIED,
-                    "security.officer and tenant.admin need the recorded sole-operator acknowledgement",
-                )
+            // the contract lists 403 and 409 for grantRole; no catalogue error code names these refusals (INV-REQ-891)
+            GrantRoleOutcome.SecondHolderRefused, GrantRoleOutcome.SoleOperatorAckRequired -> {
+                throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED, separationDetail(outcome))
             }
         }
     }
+
+    private fun separationDetail(outcome: GrantRoleOutcome) =
+        when (outcome) {
+            GrantRoleOutcome.SecondHolderRefused -> {
+                "only one person may hold security.officer and tenant.admin under the sole-operator acknowledgement"
+            }
+
+            else -> {
+                "security.officer and tenant.admin need the recorded sole-operator acknowledgement"
+            }
+        }
 
     override fun revokeGrant(
         grantRef: String,

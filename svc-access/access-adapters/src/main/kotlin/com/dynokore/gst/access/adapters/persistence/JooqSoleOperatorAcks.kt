@@ -1,8 +1,12 @@
 package com.dynokore.gst.access.adapters.persistence
 
+import com.dynokore.gst.access.adapters.persistence.jooq.tables.references.ROLE_GRANT
 import com.dynokore.gst.access.adapters.persistence.jooq.tables.references.SOLE_OPERATOR_ACK
 import com.dynokore.gst.access.application.separation.SoleOperatorAck
 import com.dynokore.gst.access.application.separation.SoleOperatorAcks
+import com.dynokore.gst.access.domain.grant.GrantStatus
+import com.dynokore.gst.access.domain.grant.IdentityRef
+import com.dynokore.gst.access.domain.role.Role
 import com.dynokore.platform.outboxandqueue.UuidV7
 import com.dynokore.platform.tenancykernel.TenantContext
 import org.jooq.DSLContext
@@ -23,6 +27,24 @@ class JooqSoleOperatorAcks(
             .where(SOLE_OPERATOR_ACK.STATUS.eq(ACTIVE))
             .fetchOne()
             ?.let { toAck(it) }
+
+    override fun lockActive(): SoleOperatorAck? =
+        dsl
+            .selectFrom(SOLE_OPERATOR_ACK)
+            .where(SOLE_OPERATOR_ACK.STATUS.eq(ACTIVE))
+            .forUpdate()
+            .fetchOne()
+            ?.let { toAck(it) }
+
+    override fun holders(role: Role): Set<IdentityRef> =
+        dsl
+            .select(ROLE_GRANT.IDENTITY_REF)
+            .from(ROLE_GRANT)
+            .where(ROLE_GRANT.ROLE.eq(role.wire))
+            .and(ROLE_GRANT.STATUS.ne(GrantStatus.REVOKED.name))
+            .fetch(ROLE_GRANT.IDENTITY_REF)
+            .map { IdentityRef(checkNotNull(it) { "identity_ref is not null" }) }
+            .toSet()
 
     override fun find(ref: String): SoleOperatorAck? =
         dsl

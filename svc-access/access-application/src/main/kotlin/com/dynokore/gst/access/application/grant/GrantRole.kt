@@ -37,6 +37,12 @@ sealed interface GrantRoleOutcome {
      */
     data object SoleOperatorAckRequired : GrantRoleOutcome
 
+    /**
+     * The grant would give a second person both roles while another person already holds both under the active
+     * acknowledgement (INV-REQ-891, INV-AC-8288 case C2; default value `ONE_HOLDER_WITHDRAW_BLOCKED` of VP-81).
+     */
+    data object SecondHolderRefused : GrantRoleOutcome
+
     /** The role is not in the role catalogue of this installation's form (INV-NOTE-3 section 22.2, INV-REQ-888). */
     data class UnknownRole(
         val roleWire: String,

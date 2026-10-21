@@ -1,5 +1,7 @@
 package com.dynokore.gst.access.domain.role
 
+import com.dynokore.gst.access.domain.grant.IdentityRef
+
 /**
  * Nobody holds `security.officer` and `tenant.admin` in the same tenant without the recorded sole-operator
  * acknowledgement (INV-REQ-891, INV-REQ-890). Assigning the second of the two is the refused step.
@@ -12,4 +14,10 @@ object SeparationOfDuty {
         held: Set<Role>,
         adding: Role,
     ): Boolean = adding in CONFLICTING && (CONFLICTING - adding).any { it in held }
+
+    /** The people who hold both conflicting roles, from the holders of each. */
+    fun holdingBoth(
+        officers: Set<IdentityRef>,
+        admins: Set<IdentityRef>,
+    ): Set<IdentityRef> = officers intersect admins
 }
