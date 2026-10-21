@@ -13,9 +13,7 @@ fun interface GrantManagerCheck {
     fun mayManageGrants(): Boolean
 
     companion object {
-        /**
-         * Fails closed: no caller may manage grants. Used until the permission catalogue names the permission it asks.
-         */
+        /** Fails closed: no caller may manage grants. Never bound in production; [LiveGrantManagerCheck] is. */
         val DENY_ALL = GrantManagerCheck { false }
     }
 }

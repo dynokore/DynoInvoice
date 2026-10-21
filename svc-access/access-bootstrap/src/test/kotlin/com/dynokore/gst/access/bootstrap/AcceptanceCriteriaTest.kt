@@ -79,6 +79,10 @@ class AcceptanceCriteriaTest {
         val captured = context.getBean(CapturedEvents::class.java)
         val consent = context.getBean(ConsentSwitch::class.java)
 
+        init {
+            listOf(tenantA, tenantB).forEach { Seeds.grant(context, it, SeedSpec(admin, Role.TENANT_ADMIN)) }
+        }
+
         fun <T> inTenant(
             tenant: TenantId,
             block: () -> T,

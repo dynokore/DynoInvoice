@@ -9,6 +9,7 @@ import com.dynokore.gst.access.contract.model.GrantRequest
 import com.dynokore.gst.access.contract.model.LandingChoiceRequest
 import com.dynokore.gst.access.contract.model.SoleOperatorAckRequest
 import com.dynokore.gst.access.domain.role.PermissionMatrix
+import com.dynokore.gst.access.domain.role.Role
 import com.dynokore.gst.access.domain.role.RoleCatalogue
 import com.dynokore.platform.configresolver.Actor
 import com.dynokore.platform.configresolver.PolicyScope
@@ -30,7 +31,7 @@ import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.context.assertj.AssertableWebApplicationContext
 import java.time.LocalDate
-import java.time.ZoneOffset
+import java.time.ZoneId
 import java.util.UUID
 
 /**
@@ -56,6 +57,7 @@ class CatalogueAcceptanceTest {
         val matrix = context.getBean(PermissionMatrix::class.java)
 
         init {
+            Seeds.grant(context, tenant, SeedSpec(admin, Role.TENANT_ADMIN))
             context
                 .getBean(StructureReplica::class.java)
                 .accept(
@@ -261,7 +263,7 @@ class CatalogueAcceptanceTest {
                     scope = PolicyScope.tenant(env.tenant),
                     level = ScopeLevel.TENANT,
                     selected = listOf(SelectedOption("TENANT_PRECEDENCE", precedence)),
-                    effectiveFrom = LocalDate.now(ZoneOffset.UTC),
+                    effectiveFrom = LocalDate.now(ZoneId.of("Asia/Singapore")),
                     reason = "precedence",
                     actor = Actor(admin, setOf("tenant.admin")),
                     correlation = CorrelationId("c-4935"),

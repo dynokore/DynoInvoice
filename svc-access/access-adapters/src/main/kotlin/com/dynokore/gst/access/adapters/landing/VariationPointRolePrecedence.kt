@@ -2,13 +2,13 @@ package com.dynokore.gst.access.adapters.landing
 
 import com.dynokore.gst.access.application.landing.RolePrecedence
 import com.dynokore.gst.access.domain.role.Role
+import com.dynokore.platform.configresolver.BusinessDate
 import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.configresolver.PolicyScope
 import com.dynokore.platform.configresolver.VariationPointKey
 import com.dynokore.platform.tenancykernel.TenantContext
 import tools.jackson.databind.ObjectMapper
 import java.time.Clock
-import java.time.ZoneOffset
 
 /**
  * The tenant-scope role precedence of VP-73, set by `tenant.admin` through service-runtime's `setPolicy`
@@ -26,7 +26,7 @@ class VariationPointRolePrecedence(
             reader.resolve(
                 VP_73,
                 PolicyScope.tenant(tenants.current()),
-                clock.instant().atZone(ZoneOffset.UTC).toLocalDate(),
+                BusinessDate.today(clock),
             )
         val json = setting.selected.singleOrNull { it.key == TENANT_PRECEDENCE }?.valueJson ?: return null
         return mapper.readTree(json).mapNotNull { Role.ofWire(it.asString()) }

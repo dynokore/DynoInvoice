@@ -1,8 +1,17 @@
 package com.dynokore.gst.access.bootstrap
 
-import com.dynokore.gst.access.adapters.http.GrantManagerCheck
+import com.dynokore.gst.access.application.grant.GrantRepository
 import com.dynokore.gst.access.domain.grant.ConsentCheck
 import com.dynokore.gst.access.domain.grant.EntityRef
+import com.dynokore.gst.access.domain.grant.Grant
+import com.dynokore.gst.access.domain.grant.GrantHeader
+import com.dynokore.gst.access.domain.grant.GrantRef
+import com.dynokore.gst.access.domain.grant.GrantStatus
+import com.dynokore.gst.access.domain.grant.GranteeKind
+import com.dynokore.gst.access.domain.grant.IdentityRef
+import com.dynokore.gst.access.domain.grant.Scope
+import com.dynokore.gst.access.domain.grant.TenantRef
+import com.dynokore.gst.access.domain.grant.ValidityWindow
 import com.dynokore.gst.access.domain.role.Allowance
 import com.dynokore.gst.access.domain.role.Permission
 import com.dynokore.gst.access.domain.role.PermissionDefinition
@@ -18,6 +27,9 @@ import com.dynokore.platform.serviceruntime.replica.StructureNode
 import com.dynokore.platform.serviceruntime.replica.StructureNodeKind
 import com.dynokore.platform.tenancykernel.BindingKeyMigration
 import com.dynokore.platform.tenancykernel.SqlIdentifier
+import com.dynokore.platform.tenancykernel.TenantContext
+import com.dynokore.platform.tenancykernel.TenantId
+import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.springframework.beans.factory.config.BeanPostProcessor
@@ -25,6 +37,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner
+import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.testcontainers.containers.PostgreSQLContainer
@@ -36,6 +49,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -64,6 +78,7 @@ object FixtureMatrix {
     val EDIT_PROFILE = Permission("profile.edit")
     val VIEW_CONTENT = Permission("doc.view.content")
     val EXPORT_SUPPORT_BUNDLE = Permission("support.bundle.export")
+    val USER_MANAGE = Permission("user.manage")
 
     val matrix =
         PermissionMatrix(
@@ -77,6 +92,7 @@ object FixtureMatrix {
                     PermissionDefinition(EDIT_PROFILE, PermissionKind.WRITE),
                     PermissionDefinition(VIEW_CONTENT, PermissionKind.READ),
                     PermissionDefinition(EXPORT_SUPPORT_BUNDLE, PermissionKind.READ),
+                    PermissionDefinition(USER_MANAGE, PermissionKind.WRITE),
                 ),
             rows =
                 mapOf(
@@ -89,6 +105,7 @@ object FixtureMatrix {
                         ),
                     Role.ENTITY_ADMIN to mapOf(VIEW to Allowance.PERMITTED, EDIT_PROFILE to Allowance.PERMITTED),
                     Role.DEPLOYMENT_OPERATOR to mapOf(EXPORT_SUPPORT_BUNDLE to Allowance.PERMITTED),
+                    Role.TENANT_ADMIN to mapOf(USER_MANAGE to Allowance.PERMITTED),
                     Role.AGENT_OPERATOR to mapOf(VIEW to Allowance.WITHIN_SCOPE),
                 ),
         )
@@ -115,9 +132,6 @@ class FixtureMatrixConfiguration {
 class BoundaryTestConfiguration {
     @Bean
     fun clock(): Clock = MovableClock()
-
-    @Bean
-    fun grantManagerCheck(): GrantManagerCheck = GrantManagerCheck { true }
 
     @Bean
     fun consentSwitch(): ConsentSwitch = ConsentSwitch()
@@ -301,4 +315,60 @@ class ConsentSwitch {
     }
 
     fun check(): ConsentCheck = ConsentCheck { it in live }
+}
+
+/** One grant to seed: the scope defaults to the whole tenant, the window to yesterday until thirty days ahead. */
+data class SeedSpec(
+    val identity: String,
+    val role: Role,
+    val scope: Scope? = null,
+    val status: GrantStatus = GrantStatus.ACTIVE,
+    val window: ((Instant) -> ValidityWindow)? = null,
+)
+
+/**
+ * Seeds grants straight through the repository, the way an installation's first administrator exists before anyone can
+ * call grantRole (the real caller check is bound in every test; no test binds an allow-all).
+ */
+object Seeds {
+    fun grant(
+        context: ApplicationContext,
+        tenant: TenantId,
+        spec: SeedSpec,
+    ): String {
+        val tenants = context.getBean(TenantContext::class.java)
+        val tx = context.getBean(TransactionRunner::class.java)
+        val grants = context.getBean(GrantRepository::class.java)
+        val now = context.getBean(Clock::class.java).instant()
+        val ref = IdentityRef(spec.identity)
+        val role = spec.role
+        val status = spec.status
+        val scope = spec.scope ?: Scope.Tenant(TenantRef(tenant.toString()))
+        val grantRef = "GRT-" + UUID.randomUUID().toString().take(8)
+        val issued =
+            Grant.issue(
+                GrantHeader(
+                    GrantRef(grantRef),
+                    TenantRef(tenant.toString()),
+                    ref,
+                ),
+                role,
+                scope,
+                spec.window?.invoke(now)
+                    ?: ValidityWindow(now.minus(Duration.ofDays(1)), now.plus(Duration.ofDays(30))),
+            )
+        return tenants.bind(tenant, "seed") {
+            tx.inTransaction {
+                val existing = grants.findByRepeatKey(ref, role.wire, scope)
+                if (existing != null && existing.status == status) {
+                    existing.ref.value
+                } else {
+                    grants.lockIdentity(ref, GranteeKind.STAFF)
+                    grants.insert(issued)
+                    if (status == GrantStatus.REVOKED) grants.update(issued, issued.revoked())
+                    grantRef
+                }
+            }
+        }
+    }
 }
