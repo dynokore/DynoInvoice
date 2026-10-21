@@ -42,7 +42,31 @@ class MigrationDdlTest {
         artefactFile.readText() shouldBe expectedArtefact()
     }
 
+    private val grantFile = File("src/main/resources/db/migration/V4__pack_artefact_grants.sql")
+
+    /** Comments removed, the single statement trimmed: what V4 says, compared as a string with the one allowed grant. */
+    private fun grantMatches(text: String): Boolean =
+        text
+            .lines()
+            .filterNot { it.trimStart().startsWith("--") }
+            .joinToString("\n")
+            .trim() == GRANT
+
+    @Test
+    fun `INV-AC-2182 V4 holder copy grant is exactly SELECT and INSERT to rules_runtime`() {
+        grantMatches(grantFile.readText()) shouldBe true
+    }
+
+    @Test
+    fun `INV-AC-2182 V4 comparison rejects an UPDATE grant and the same grant for rules_sys`() {
+        grantMatches("GRANT SELECT, INSERT, UPDATE ON rules.pack_artefact TO rules_runtime;") shouldBe false
+        grantMatches("GRANT SELECT, INSERT ON rules.pack_artefact TO rules_sys;") shouldBe false
+        grantMatches("-- c\n$GRANT\nGRANT DELETE ON rules.pack_artefact TO rules_runtime;") shouldBe false
+        grantMatches("-- c\n$GRANT\n") shouldBe true
+    }
+
     private companion object {
+        const val GRANT = "GRANT SELECT, INSERT ON rules.pack_artefact TO rules_runtime;"
         const val ARTEFACT_HEADER =
             "-- Generated: PackRegistryMigration.ddl(\"rules\", \"pack_artefact\", \"rules_runtime\", " +
                 "\"rules_sys\") of\n" +
