@@ -52,7 +52,11 @@ dependencies {
         exclude(group = "io.grpc", module = "grpc-netty")
     }
     implementation(libs.grpc.nettyShaded)
-    implementation(libs.envoy.api)
+    // The stubs only carry the SOURCE-retention javax.annotation.Generated; the CDDL-1.1/GPL-2.0-CPE artefact is
+    // not a runtime need and fails the STK-66 licence policy, so it is excluded (no licence exception).
+    implementation(libs.envoy.api) {
+        exclude(group = "javax.annotation", module = "javax.annotation-api")
+    }
 
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)

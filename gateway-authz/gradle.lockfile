@@ -109,7 +109,6 @@ io.prometheus:prometheus-metrics-tracer-common:1.7.0=compileClasspath,production
 jakarta.activation:jakarta.activation-api:2.1.4=testCompileClasspath,testRuntimeClasspath
 jakarta.annotation:jakarta.annotation-api:3.0.0=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 jakarta.xml.bind:jakarta.xml.bind-api:4.0.5=testCompileClasspath,testRuntimeClasspath
-javax.annotation:javax.annotation-api:1.3.2=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 net.bytebuddy:byte-buddy-agent:1.18.11=testCompileClasspath,testRuntimeClasspath
 net.bytebuddy:byte-buddy:1.18.11=testCompileClasspath,testRuntimeClasspath
 net.minidev:accessors-smart:2.6.0=testCompileClasspath,testRuntimeClasspath
