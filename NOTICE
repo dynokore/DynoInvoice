@@ -1,0 +1,16 @@
+Required Notice: Copyright DynoKore (https://dynokore.com)
+
+This repository is licensed under the PolyForm Strict License 1.0.0 (LICENSE.md).
+It is source-available for reading and study only. It may not be used for any
+commercial purpose, and modified versions may not be distributed.
+
+Third-party files excluded from the PolyForm grant
+- Gradle wrapper files (gradlew, gradlew.bat, gradle/wrapper/gradle-wrapper.jar,
+  gradle/wrapper/gradle-wrapper.properties) in the service and library
+  subdirectories are Copyright Gradle, Inc. and are licensed under the Apache
+  License 2.0 (https://www.apache.org/licenses/LICENSE-2.0).
+- Third-party dependencies are referenced by coordinates only and are not
+  included in this repository; each is governed by its own licence.
+
+Names of third-party products and organisations are trademarks of their
+respective owners.
