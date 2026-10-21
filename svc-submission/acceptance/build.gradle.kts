@@ -53,3 +53,6 @@ val acKeyCoverage =
     }
 
 tasks.named("check") { dependsOn(acKeyCoverage) }
+
+// CI's unit-test job runs only `test`: finalize it with the gate so the gate runs there and its failure fails the job.
+tasks.named<Test>("test") { finalizedBy(acKeyCoverage) }
