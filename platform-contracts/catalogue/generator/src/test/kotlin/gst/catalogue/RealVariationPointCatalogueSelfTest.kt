@@ -53,11 +53,31 @@ class RealVariationPointCatalogueSelfTest {
     }
 
     @Test
+    fun `INV-T-8291 VP-81 offers exactly the three ruled options, planned, set and acknowledged by tenant admin`() {
+        val vp81 = VariationPointYamlParser.parse(vendoredFile, pendingFile).single { it.id == "VP-81" }
+        assertEquals("INV-REQ-8287", vp81.requirement)
+        assertEquals(VpStatus.PLANNED, vp81.status)
+        assertEquals(listOf("tenant.admin"), vp81.setBy)
+        val fields = vp81.fields!!
+        assertEquals(listOf(ScopeLevel.TENANT), fields.scopeLevels)
+        assertEquals(listOf("ONE_HOLDER_WITHDRAW_BLOCKED", "ONE_HOLDER", "ANY_NUMBER"), fields.options.map { it.key })
+        assertEquals(listOf(Strictness.DEFAULT, Strictness.LOOSER, Strictness.LOOSER), fields.options.map { it.strictness })
+        assertTrue(fields.options[0].acknowledgedBy.isEmpty())
+        fields.options.drop(1).forEach {
+            val ack = it.acknowledgedBy.single()
+            assertEquals(listOf("tenant.admin"), ack.roles, it.key)
+            assertEquals(AckCondition.ALWAYS, ack.condition, it.key)
+            assertTrue(!ack.distinctFromSetter, it.key)
+        }
+        assertTrue(fields.options.all { it.typedValue == null })
+    }
+
+    @Test
     fun `INV-T-3148 every LOOSER option carries the ruled acknowledgers`() {
         val rows = VariationPointYamlParser.parse(vendoredFile, pendingFile).associateBy { it.id }
         val looser =
             rows.values.flatMap { r -> r.fields?.options.orEmpty().filter { it.strictness == Strictness.LOOSER }.map { r.id to it } }
-        assertEquals(10, looser.size)
+        assertEquals(12, looser.size)
         looser.forEach { (id, o) -> assertTrue(o.acknowledgedBy.isNotEmpty(), "$id ${o.key} has no acknowledgers") }
 
         fun roles(id: String) = rows.getValue(id).fields!!.options.single { it.strictness == Strictness.LOOSER }.acknowledgedBy

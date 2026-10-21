@@ -42,6 +42,7 @@
 # note (INV-Q-3616); VP-08's cross_scope text (INV-Q-3548).
 # Re-extracted 2026-10-11 (INV-T-3636; Keel INV-CS-3635): VP-01's typed FACT record
 # VP-01.DIRECTORY_CONNECTED and bounds text (owner ruling INV-Q-3612 A).
+# Re-extracted 2026-10-22 (INV-T-8291; Keel INV-CS-8286): adds VP-81, the sole-operator acknowledgement scope, as a planned row (INV-REQ-8287, owner answer INV-Q-8239); 81 rows.
 #
 # Keel has no single repository-wide commit the way invoice-docs does, so each row
 # below pins to its own published entity_revision id (`revision`), not a shared SHA.
@@ -393,7 +394,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1269, INV-REQ-896 b2 (1 to 8 hours set by security.officer), INV-AC-2253 (only above 8 hours refused), INV-Q-2936 (non-waivable rows offer nothing looser; VP-08 tighten-only across scopes): the 1 to 8 h range is the row's bound, the installation value bounds the tenant's; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; DEFAULT_PAIR_4H typed window fixed at 4 h, directed fields only compared across scopes: coordinator ruling INV-Q-3204; resolution cap: INV-Q-3206; for INV-T-3176; owner ruling INV-Q-3320 (A′, 2026-10-11): INV-REQ-1269 allows 1 to 8 hours for any pair, so DEFAULT_PAIR_4H's window is 1 to 8 h, default 4 (supersedes INV-Q-3204's fixed 4 h); the key is kept; a write without the window is refused and the default 4 h is the window of the catalogue default only: coordinator ruling INV-Q-3548 (HIGH, reconciling INV-Q-3167 and INV-Q-3320)"
 - id: VP-09
   requirement: INV-REQ-1270
-  revision: ef8a531f-ad28-46bc-a663-35f0bf03aca3
+  revision: f8a5263a-6174-4f6d-bc9c-a8897e726ed3
   title: "The second confirmation of an identity triple change is given by another entity.admin or tenant.admin by default, or by a tax.approver, and always by a different person"
   class: CONTROL
   class_modifiers:
@@ -2329,7 +2330,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1316, INV-REQ-413 b1 (cadence per category), so the two deviations combine (G3 option A); PARAMETER without tighten-only, so NEUTRAL (G5 option A); conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-56
   requirement: INV-REQ-1317
-  revision: 474ff0cb-fe28-4a1a-8bf7-e5e492452b69
+  revision: cae2b61d-2363-48ca-b273-af281414c605
   title: "The throughput ceiling of an AP connection is the rate agreed with the AP by default, or a lower tenant value"
   class: PARAMETER
   class_modifiers:
@@ -3072,7 +3073,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-2468, INV-AC-2498 (30 accepted, 31 refused); PARAMETER without tighten-only, so no LOOSER (G5 option A); the option is 'a longer limit', so nothing below 7; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-73
   requirement: INV-REQ-2756
-  revision: 5b58ddcb-c785-42c2-8f20-1810e63af8ac
+  revision: 8065436f-de66-4054-ae8c-5c911215ee2b
   title: "Landing screen for a person holding several roles defaults to the role order of UI inventory §4.1, until the person chooses"
   class: POLICY
   class_modifiers: []
@@ -3480,3 +3481,50 @@ variation_points:
           direction: "NONE"
     note: "the maximum of VP-67 (INV-REQ-2463 typed max {row: VP-80}); resolved at INSTALLATION scope inside notification-svc"
     basis: "Coordinator ruling (HIGH, owner rule 2026-10-11) on INV-Q-3202, option D; values from INV-Q-3059 (A); for INV-T-3176; default option typed as fixed 168 hours: coordinator ruling INV-Q-3223"
+- id: VP-81
+  requirement: INV-REQ-8287
+  revision: d0f7da4a-31dd-456a-9001-33bb90406584
+  title: "Who may hold security.officer and tenant.admin together under the sole-operator acknowledgement, and what withdrawing it does, is the tenant's setting; one holder with withdrawal blocked while anyone holds both is the default"
+  class: CONTROL
+  class_modifiers: []
+  scope:
+    - "tenant"
+  owner: access-svc
+  set_by:
+    - "tenant.admin"
+  must_be_elected: false
+  default: "At most one person holds both roles while the acknowledgement is active; withdrawing the acknowledgement is refused while any person holds both roles, and refused unless a second person holds one of the two roles"
+  options:
+    - "At most one person holds both roles while the acknowledgement is active; withdrawing the acknowledgement is refused while any person holds both roles, and refused unless a second person holds one of the two roles"
+    - "At most one person holds both roles while the acknowledgement is active; withdrawing it is allowed once a second person holds one of the two roles, and the person who holds both keeps both grants"
+    - "Any number of people hold both roles while the acknowledgement is active; withdrawing it is allowed at any time and changes no grant"
+  bounds: "The sole-operator acknowledgement is required under every value (INV-REQ-891). The second and third options are looser and need the acknowledgement of `tenant.admin`. Changes nothing a role may do."
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-891"
+    - "INV-REQ-994"
+  form_dependence: null
+  catalogue:
+    scope_levels:
+      - "TENANT"
+    options:
+      - key: "ONE_HOLDER_WITHDRAW_BLOCKED"
+        strictness: "DEFAULT"
+      - key: "ONE_HOLDER"
+        strictness: "LOOSER"
+        acknowledged_by:
+          - roles:
+              - "tenant.admin"
+            condition: "ALWAYS"
+            roles_by_form: null
+            distinct_from_setter: false
+      - key: "ANY_NUMBER"
+        strictness: "LOOSER"
+        acknowledged_by:
+          - roles:
+              - "tenant.admin"
+            condition: "ALWAYS"
+            roles_by_form: null
+            distinct_from_setter: false
+    basis: "Coordinator ruling (delegated, owner 2026-10-14; owner delegation 2026-10-18: \"For any matter, after doing the breakdown, you rule per best practice.\") for INV-Q-8239 (owner answer 2026-10-22); acknowledged_by: tenant.admin by a delegated coordinator ruling (HIGH), by analogy with the rule of owner ruling INV-Q-3155 for VP-03, VP-40 and VP-07 (that owner ruling does not name VP-81); conventions G1-G6 option A; for INV-T-8291"
