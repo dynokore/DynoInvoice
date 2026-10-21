@@ -65,7 +65,32 @@ class RolePermissionsTest {
             listOf("tenant.admin", "tax.approver", "auditor", "security.officer").map {
                 Req("audit-log.view", PermissionKind.READ, it, y, both)
             } +
-            Req("audit-log.view", PermissionKind.READ, "platform.engineer", y, listOf(saas))
+            Req("audit-log.view", PermissionKind.READ, "platform.engineer", y, listOf(saas)) +
+            listOf("mapping-effect.acknowledge", "consent.grant", "consent.withdraw").map {
+                Req(it, PermissionKind.WRITE, "client.signatory", RoleAllowance.WITHIN_SCOPE, both)
+            } +
+            listOf(
+                Req("break-glass.unlock", PermissionKind.WRITE, "deployment.operator", y, listOf(privateForm)),
+                Req("break-glass.unlock", PermissionKind.WRITE, "tenant.admin", y, both),
+                Req("break-glass.unlock", PermissionKind.WRITE, "tax.approver", y, both),
+            ) +
+            listOf(
+                "onboarding.entity-setup.configure",
+                "onboarding.integration.configure",
+                "onboarding.mapping-draft.configure",
+            ).map { Req(it, PermissionKind.WRITE, "implementation.consultant", y, both) } +
+            listOf("usage.view", "plan.view").flatMap {
+                listOf("billing.contact", "tenant.admin").map { r -> Req(it, PermissionKind.READ, r, y, listOf(saas)) }
+            } +
+            listOf("billing.contact", "tenant.admin").map {
+                Req("licence-status.view", PermissionKind.READ, it, y, listOf(privateForm))
+            } +
+            listOf(
+                Req("job.operate", PermissionKind.WRITE, "integration.engineer", y, both),
+                Req("job.operate", PermissionKind.WRITE, "deployment.operator", y, listOf(privateForm)),
+                Req("job.operate-whole-job", PermissionKind.WRITE, "platform.engineer", y, listOf(saas)),
+                Req("job.operate-whole-job", PermissionKind.WRITE, "deployment.operator", y, listOf(privateForm)),
+            )
 
     @Test
     fun `every required cell is served and every other cell of a required key is denied`() {
@@ -122,5 +147,19 @@ class RolePermissionsTest {
                 .keys
                 .forEach { assertEquals(PermissionKind.READ, RolePermissions.kind(it), it) }
         }
+    }
+
+    @Test
+    fun `whole-job run is held by the platform engineer in SaaS and not by the integration engineer`() {
+        assertEquals(y, cell(saas, "platform.engineer", "job.operate-whole-job"))
+        assertNull(cell(saas, "integration.engineer", "job.operate-whole-job"))
+        assertNull(cell(saas, "platform.engineer", "job.operate"))
+    }
+
+    @Test
+    fun `private form gives the client signatory only WITHIN_SCOPE cells`() {
+        val cells = RolePermissions.cells(privateForm).getValue("client.signatory")
+        assertTrue(cells.isNotEmpty())
+        cells.values.forEach { assertEquals(RoleAllowance.WITHIN_SCOPE, it) }
     }
 }

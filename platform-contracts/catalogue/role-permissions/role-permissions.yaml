@@ -2,8 +2,9 @@
 #
 # Hand-edited in this repository: there is no vendoring script. The text of record is the Keel note
 # INV-NOTE-3 section 22.2 (role catalogue) and section 22.3 (permission matrix, with its amendment
-# table of 24 Sep 2026) and requirement INV-REQ-999 (private form: import, verify and arm a
-# regulatory pack). README.md says how the keys are named and how a change is made.
+# table of 24 Sep 2026) and requirements INV-REQ-999 (private form: import, verify and arm a
+# regulatory pack), INV-REQ-896 (FR-AF.18, break-glass unlock) and INV-REQ-1138 (FR-AG.64, whole-job
+# run and pause). README.md says how the keys are named and how a change is made.
 #
 # roles:       key and belongs_to as in section 22.2; forms is the non-empty set of deployment forms
 #              the role exists in (INV-REQ-876: deployment.operator is PRIVATE only; INV-REQ-888:
@@ -404,6 +405,12 @@ permissions:
     cells:
       - {role: integration.engineer, form: SAAS, allowance: PERMITTED}
       - {role: integration.engineer, form: PRIVATE, allowance: PERMITTED}
+      - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}
+  - key: job.operate-whole-job
+    kind: WRITE
+    row: "Run a job now, pause and resume it (FR-AG.64)"
+    cells:
+      - {role: platform.engineer, form: SAAS, allowance: PERMITTED}
       - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}
   - key: regulatory-pack.import-verify
     kind: WRITE

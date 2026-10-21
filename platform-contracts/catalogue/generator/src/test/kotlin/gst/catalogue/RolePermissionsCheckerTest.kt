@@ -149,4 +149,72 @@ class RolePermissionsCheckerTest {
     fun `a form listed twice on a role is reported`() {
         assertReported(withRole("deployment.operator") { it.copy(forms = listOf(DeploymentForm.PRIVATE, DeploymentForm.PRIVATE)) }, "role deployment.operator: forms")
     }
+
+    private fun cellAdd(
+        key: String,
+        role: String,
+        form: DeploymentForm,
+        allowance: RoleAllowance = RoleAllowance.PERMITTED,
+    ) = withPermission(key) { it.copy(cells = it.cells + CellRow(role, form, allowance)) }
+
+    @Test
+    fun `probe 13 swapped retention rows are reported naming both keys`() {
+        val a = permission(real, "retention.delete.request").row
+        val b = permission(real, "retention.delete.approve").row
+        val table =
+            real.copy(
+                permissions =
+                    real.permissions.map {
+                        when (it.key) {
+                            "retention.delete.request" -> it.copy(row = b)
+                            "retention.delete.approve" -> it.copy(row = a)
+                            else -> it
+                        }
+                    },
+            )
+        assertReported(table, "key retention.delete.request", "differs from")
+        assertReported(table, "key retention.delete.approve", "differs from")
+    }
+
+    @Test
+    fun `probe 14 a client signatory PERMITTED cell on consent grant is reported`() {
+        val table = withPermission("consent.grant") { p -> p.copy(cells = p.cells.map { if (it.form == DeploymentForm.SAAS) it.copy(allowance = RoleAllowance.PERMITTED) else it }) }
+        assertReported(table, "role client.signatory key consent.grant form SAAS", "required WITHIN_SCOPE")
+    }
+
+    @Test
+    fun `probe 15 a tenant admin cell on licence status in SAAS is reported`() {
+        assertReported(cellAdd("licence-status.view", "tenant.admin", DeploymentForm.SAAS), "role tenant.admin key licence-status.view form SAAS", "extra")
+    }
+
+    @Test
+    fun `probe 16 a removed deployment operator cell on break-glass unlock is reported`() {
+        val table = withPermission("break-glass.unlock") { p -> p.copy(cells = p.cells.filter { it.role != "deployment.operator" }) }
+        assertReported(table, "role deployment.operator key break-glass.unlock form PRIVATE", "missing")
+    }
+
+    @Test
+    fun `probe 17 a WITHIN_SCOPE consultant cell on onboarding integration is reported`() {
+        val table =
+            withPermission("onboarding.integration.configure") { p ->
+                p.copy(cells = p.cells.map { if (it.form == DeploymentForm.PRIVATE) it.copy(allowance = RoleAllowance.WITHIN_SCOPE) else it })
+            }
+        assertReported(table, "role implementation.consultant key onboarding.integration.configure form PRIVATE", "required PERMITTED")
+    }
+
+    @Test
+    fun `probe 18 an integration engineer cell on the whole-job key is reported`() {
+        assertReported(cellAdd("job.operate-whole-job", "integration.engineer", DeploymentForm.SAAS), "role integration.engineer key job.operate-whole-job form SAAS", "extra")
+    }
+
+    @Test
+    fun `probe 19 a removed platform engineer cell on the whole-job key is reported`() {
+        val table = withPermission("job.operate-whole-job") { p -> p.copy(cells = p.cells.filter { it.role != "platform.engineer" }) }
+        assertReported(table, "role platform.engineer key job.operate-whole-job form SAAS", "missing")
+    }
+
+    @Test
+    fun `probe 20 a platform engineer cell on job operate is reported`() {
+        assertReported(cellAdd("job.operate", "platform.engineer", DeploymentForm.SAAS), "role platform.engineer key job.operate form SAAS", "extra")
+    }
 }

@@ -71,6 +71,13 @@ object RolePermissionsChecker {
             "Arm a regulatory pack",
         )
 
+    /** The two keys that serve two published rows each (INV-Q-8148): the (key, row) pairs, compared by equality. */
+    val retentionPairs: Map<String, String> =
+        mapOf(
+            "retention.delete.request" to "Delete data at end of retention",
+            "retention.delete.approve" to "Delete data at end of retention (private form)",
+        )
+
     /** A required key: its kind and exact cells. */
     data class Required(
         val kind: PermissionKind,
@@ -84,6 +91,7 @@ object RolePermissionsChecker {
     ): Set<CellRow> = roles.flatMap { r -> forms.map { CellRow(r, it, allowance) } }.toSet()
 
     private val permitted = RoleAllowance.PERMITTED
+    private val withinScope = RoleAllowance.WITHIN_SCOPE
     private val saasForm = setOf(DeploymentForm.SAAS)
     private val privateForm = setOf(DeploymentForm.PRIVATE)
 
@@ -120,6 +128,24 @@ object RolePermissionsChecker {
                     cells(permitted, both, "tenant.admin", "tax.approver", "auditor", "security.officer") +
                         cells(permitted, saasForm, "platform.engineer"),
                 ),
+            "mapping-effect.acknowledge" to Required(PermissionKind.WRITE, cells(withinScope, both, "client.signatory")),
+            "consent.grant" to Required(PermissionKind.WRITE, cells(withinScope, both, "client.signatory")),
+            "consent.withdraw" to Required(PermissionKind.WRITE, cells(withinScope, both, "client.signatory")),
+            "break-glass.unlock" to
+                Required(
+                    PermissionKind.WRITE,
+                    cells(permitted, privateForm, "deployment.operator") + cells(permitted, both, "tenant.admin", "tax.approver"),
+                ),
+            "onboarding.entity-setup.configure" to Required(PermissionKind.WRITE, cells(permitted, both, "implementation.consultant")),
+            "onboarding.integration.configure" to Required(PermissionKind.WRITE, cells(permitted, both, "implementation.consultant")),
+            "onboarding.mapping-draft.configure" to Required(PermissionKind.WRITE, cells(permitted, both, "implementation.consultant")),
+            "usage.view" to Required(PermissionKind.READ, cells(permitted, saasForm, "billing.contact", "tenant.admin")),
+            "plan.view" to Required(PermissionKind.READ, cells(permitted, saasForm, "billing.contact", "tenant.admin")),
+            "licence-status.view" to Required(PermissionKind.READ, cells(permitted, privateForm, "billing.contact", "tenant.admin")),
+            "job.operate" to
+                Required(PermissionKind.WRITE, cells(permitted, both, "integration.engineer") + cells(permitted, privateForm, "deployment.operator")),
+            "job.operate-whole-job" to
+                Required(PermissionKind.WRITE, cells(permitted, saasForm, "platform.engineer") + cells(permitted, privateForm, "deployment.operator")),
         )
 
     fun check(table: RolePermissionTable): List<String> {
@@ -156,6 +182,10 @@ object RolePermissionsChecker {
         table.permissions.forEach { p ->
             if (!keyPattern.matches(p.key)) v += "key ${p.key}: does not match ${keyPattern.pattern}."
             if (p.row !in publishedRows) v += "key ${p.key}: row '${p.row}' is not one of the 32 published labels."
+        }
+        retentionPairs.forEach { (key, row) ->
+            val p = table.permissions.firstOrNull { it.key == key }
+            if (p != null && p.row != row) v += "key $key: row '${p.row}' differs from '$row' (retention keys ${retentionPairs.keys.joinToString()})."
         }
         val used = table.permissions.map { it.row }.toSet()
         publishedRows.filter { it !in used }.forEach { v += "row '$it': no key transcribes it." }
