@@ -111,3 +111,7 @@ val verifyOperations =
 verifyOperations.configure { dependsOn(":rules-contract:stageContractResources") }
 
 tasks.named("check") { dependsOn(acKeyCoverage, verifyOperations) }
+
+// The shared unit-test job runs only `test`: finalizing it with the gates runs them there too, and a gate failure fails
+// the job (verify-rules disables the Test tasks, so the gates stay out of that job).
+tasks.named("test") { finalizedBy(acKeyCoverage, verifyOperations) }
