@@ -1,5 +1,5 @@
 kind	name	task	state
-operation	configureIdentityTriple	INV-T-4942	open
+operation	configureIdentityTriple	INV-T-4942	done
 operation	confirmIdentityTripleChange	INV-T-4942	done
 operation	resolveCounterparty	INV-T-4943	open
 operation	bulkResolveCounterparty	INV-T-4944	open
