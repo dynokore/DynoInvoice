@@ -17,7 +17,11 @@ class SubmitPayloadContractTest {
         requestExtra: String = "# no extra property",
         responseExtra: String = "# no extra property",
         outcomes: String = "[ACCEPTED, REJECTED, TRANSIENT_FAILURE]",
+        additional: String = "additionalProperties: false",
+        ackExtra: String = "# no extra property",
     ) = BASELINE
+        .replace("%ADDITIONAL%", additional)
+        .replace("%ACK_EXTRA%", ackExtra)
         .replace("%REQUEST_EXTRA%", requestExtra)
         .replace("%RESPONSE_EXTRA%", responseExtra)
         .replace("%OUTCOMES%", outcomes)
@@ -54,6 +58,33 @@ class SubmitPayloadContractTest {
     }
 
     @Test
+    fun `INV-AC-7857 the key sets of the three schemas are compared by equality`() {
+        // the acknowledgement schema, a request without the closed-object marker, and a dropped property each fail
+        SubmitPayloadContract.findings(spec(ackExtra = "apCredential: { type: string }")).joinToString() shouldContain
+            "Acknowledgement"
+        SubmitPayloadContract.findings(spec(additional = "# open object")).joinToString() shouldContain
+            "additionalProperties"
+        SubmitPayloadContract.findings(spec().replace("payload: { type: string }", "")).joinToString() shouldContain
+            "SubmitPayloadRequest"
+        SubmitPayloadContract.findings(spec().replace("receivedAt: { type: string }", "")).joinToString() shouldContain
+            "Acknowledgement"
+        SubmitPayloadContract.findings(spec().replace("Acknowledgement:", "Receipt:")).shouldNotBeEmpty()
+        listOf(
+            "apCredential",
+            "apErrorCode",
+            "envelope",
+            "batchId",
+            "peppolMessageId",
+            "adapterRef",
+            "payloadRef",
+            "AP_CODE",
+        ).forEach { name ->
+            SubmitPayloadContract.findings(spec(ackExtra = "$name: { type: string }")).shouldNotBeEmpty()
+            SubmitPayloadContract.findings(spec(requestExtra = "$name: { type: string }")).shouldNotBeEmpty()
+        }
+    }
+
+    @Test
     fun `the check fails closed when the operation or a body is missing`() {
         SubmitPayloadContract.findings("openapi: 3.1.0\npaths: {}\n").shouldNotBeEmpty()
         SubmitPayloadContract.findings(spec().replace("requestBody:", "noRequestBody:")).shouldNotBeEmpty()
@@ -73,23 +104,24 @@ class SubmitPayloadContractTest {
                     content:
                       application/json:
                         schema:
-                          ${'$'}ref: '#/components/schemas/Request'
+                          ${'$'}ref: '#/components/schemas/SubmitPayloadRequest'
                   responses:
                     '202':
                       content:
                         application/json:
                           schema:
-                            ${'$'}ref: '#/components/schemas/Outcome'
+                            ${'$'}ref: '#/components/schemas/TransportOutcome'
             components:
               schemas:
-                Request:
+                SubmitPayloadRequest:
                   type: object
+                  %ADDITIONAL%
                   properties:
                     docUuid: { type: string }
                     version: { type: integer }
                     payload: { type: string }
                     %REQUEST_EXTRA%
-                Outcome:
+                TransportOutcome:
                   type: object
                   properties:
                     docUuid: { type: string }
@@ -103,6 +135,14 @@ class SubmitPayloadContractTest {
                           code: { type: string }
                           message: { type: string }
                           %RESPONSE_EXTRA%
+                    acknowledgement:
+                      ${'$'}ref: '#/components/schemas/Acknowledgement'
+                Acknowledgement:
+                  type: object
+                  properties:
+                    reference: { type: string }
+                    receivedAt: { type: string }
+                    %ACK_EXTRA%
             """.trimIndent()
     }
 }

@@ -4,7 +4,8 @@ import org.yaml.snakeyaml.Yaml
 
 /**
  * The contract gate (INV-T-4981): `operations.tsv` lists every operationId and channel of the transport contract
- * with the task that implements it, or exactly `UNASSIGNED` where no published task implements it yet.
+ * with the task that implements it, or exactly `UNASSIGNED` for the three ids INV-Q-8045 names (submitPackage,
+ * sendNetworkDocument and the scaffold channel).
  *
  * Deny by default: a contract item missing from the table, a table row naming no contract item, a duplicate row, a
  * task cell that is neither an `INV-T-<digits>` key nor exactly `UNASSIGNED` (so `unassigned` and `TBD` fail), and a
@@ -17,6 +18,17 @@ import org.yaml.snakeyaml.Yaml
 object OperationsGate {
     private val TASK_KEY = Regex("INV-T-[0-9]+")
     private const val UNASSIGNED = "UNASSIGNED"
+
+    /**
+     * The only ids that may stay [UNASSIGNED] until INV-Q-8047 is answered (INV-Q-8045), compared by equality on
+     * kind and id: no published task implements them yet.
+     */
+    private val MAY_BE_UNASSIGNED =
+        setOf(
+            "operation" to "submitPackage",
+            "operation" to "sendNetworkDocument",
+            "channel" to "gst.transport.example-happened.v1",
+        )
     private val HTTP_METHODS = setOf("get", "put", "post", "delete", "options", "head", "patch", "trace")
 
     data class Row(
@@ -68,6 +80,13 @@ object OperationsGate {
         return keys to findings
     }
 
+    private fun unassignedFinding(row: Row): String? =
+        if (row.task == UNASSIGNED && (row.kind to row.id) !in MAY_BE_UNASSIGNED) {
+            "${row.kind} ${row.id}: $UNASSIGNED is allowed only for the ids INV-Q-8045 names"
+        } else {
+            null
+        }
+
     private fun rowFindings(
         row: Row,
         operations: Set<String>,
@@ -80,6 +99,7 @@ object OperationsGate {
         if (row.task != UNASSIGNED && !TASK_KEY.matches(row.task)) {
             findings += "${row.kind} ${row.id}: task '${row.task}' is neither an INV-T key nor exactly $UNASSIGNED"
         }
+        unassignedFinding(row)?.let { findings += it }
         val known = if (row.kind == "channel") row.id in channels else row.kind == "operation" && row.id in operations
         if (!known) findings += "${row.kind} ${row.id}: not in the contract"
         if (row.kind == "operation" && row.task in doneTasks && row.id in stubs) {

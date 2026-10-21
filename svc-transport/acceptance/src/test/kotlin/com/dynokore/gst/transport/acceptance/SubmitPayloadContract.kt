@@ -10,12 +10,37 @@ import org.yaml.snakeyaml.Yaml
  *
  * Allowlist, one line each: the request is a Doc UUID, a version and a payload (`payload`); the response repeats the
  * Doc UUID and version, names the outcome, and carries rejection reasons (`reasons` with `code`, `field` and
- * `message`, the internal failure classes of SUB-nnn codes).
+ * `message`, the internal failure classes of SUB-nnn codes) and, for an ACCEPTED submission, the AP receipt
+ * (`acknowledgement` with `reference` and `receivedAt`).
  */
 object SubmitPayloadContract {
     const val OPERATION = "submitPayload"
     val REQUEST_ALLOWED = setOf("docUuid", "version", "payload")
-    val RESPONSE_ALLOWED = setOf("docUuid", "version", "outcome", "reasons", "code", "field", "message")
+    val RESPONSE_ALLOWED =
+        setOf(
+            "docUuid",
+            "version",
+            "outcome",
+            "reasons",
+            "code",
+            "field",
+            "message",
+            "acknowledgement",
+            "reference",
+            "receivedAt",
+        )
+
+    /**
+     * Exact property key sets of the three schemas of the contract amended by INV-T-8030 (INV-Q-8033, INV-Q-8043):
+     * compared by equality, so a missing property is a finding as much as an added one. `acknowledgement` is the AP
+     * receipt, the `reference` and the time it was received.
+     */
+    val EXACT_KEYS =
+        mapOf(
+            "SubmitPayloadRequest" to setOf("docUuid", "version", "payload"),
+            "TransportOutcome" to setOf("docUuid", "version", "outcome", "reasons", "acknowledgement"),
+            "Acknowledgement" to setOf("reference", "receivedAt"),
+        )
     val OUTCOMES = listOf("ACCEPTED", "REJECTED", "TRANSIENT_FAILURE")
 
     private fun map(value: Any?): Map<String, Any?> {
@@ -70,10 +95,31 @@ object SubmitPayloadContract {
                 it.isNotEmpty()
             }?.let { resolve(root, it) }
 
+    private fun exactKeyFindings(root: Map<String, Any?>): List<String> {
+        val schemas = map(map(root["components"])["schemas"])
+        val findings = mutableListOf<String>()
+        EXACT_KEYS.forEach { (name, expected) ->
+            val schema = schemas[name]?.let { map(it) }
+            if (schema == null) {
+                findings += "schema $name is not in the contract"
+                return@forEach
+            }
+            val actual = map(resolve(root, schema)["properties"]).keys
+            if (actual != expected) {
+                findings += "schema $name: property keys $actual differ from $expected"
+            }
+        }
+        val request = schemas["SubmitPayloadRequest"]?.let { map(it) }
+        if (request != null && resolve(root, request)["additionalProperties"] != false) {
+            findings += "schema SubmitPayloadRequest: additionalProperties must be false"
+        }
+        return findings
+    }
+
     fun findings(openapi: String): List<String> {
         val root = map(Yaml().load<Any?>(openapi))
         val op = operation(root) ?: return listOf("operation $OPERATION is not in the contract")
-        val findings = mutableListOf<String>()
+        val findings = exactKeyFindings(root).toMutableList()
         val requestSchema = map(map(op["requestBody"])["content"]).let { body(root, it) }
         if (requestSchema == null) {
             findings += "$OPERATION has no JSON request body"

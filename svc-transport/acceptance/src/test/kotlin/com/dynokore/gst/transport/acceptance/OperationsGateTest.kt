@@ -67,6 +67,25 @@ class OperationsGateTest {
     }
 
     @Test
+    fun `UNASSIGNED is allowed only for the three ids of INV-Q-8045`() {
+        run(table = tsv.replaceFirst("setConnectionEntities\tINV-T-4983", "setConnectionEntities\tUNASSIGNED"))
+            .shouldNotBeEmpty()
+        run(table = tsv.replaceFirst("submitPayload\tINV-T-4981", "submitPayload\tUNASSIGNED")).shouldNotBeEmpty()
+        run(
+            table =
+                tsv.replaceFirst(
+                    "access-point-route-changed.v1\tINV-T-4982",
+                    "access-point-route-changed.v1\tUNASSIGNED",
+                ),
+        ).shouldNotBeEmpty()
+        // a look-alike id is not one of the three, even though the rest of the row is unchanged
+        run(table = tsv.replaceFirst("submitPackage\t", "submitPackages\t")).shouldNotBeEmpty()
+        run(table = tsv.replaceFirst("sendNetworkDocument\t", "SendNetworkDocument\t")).shouldNotBeEmpty()
+        // the same id under the other kind is not allowed either
+        run(table = tsv.replaceFirst("operation\tsubmitPackage", "channel\tsubmitPackage")).shouldNotBeEmpty()
+    }
+
+    @Test
     fun `the task of this service whose operation still answers 501 is not in the done set`() {
         // INV-T-4981 owns submitPayload: listing the task while the operation answers 501 fails the gate
         run(done = "INV-T-4981\n") shouldContain
