@@ -35,9 +35,10 @@ class ServiceDefaults {
     fun confirmerPolicy(): ConfirmerPolicy = ConfirmerPolicy { PLANNED_CONFIRMERS }
 
     /**
-     * The roles of the confirming subject at the entity come from service-runtime's [PolicyRoleResolver] when the
-     * deployment binds one (the authority replica, INV-T-5180); without one the subject holds no role, so nobody can
-     * confirm (fail closed).
+     * The roles of the confirming subject at the entity come from service-runtime's [PolicyRoleResolver] asked at level
+     * ENTITY with the entity as `scopeRef` and as `entityRef`. This service registers no resolver (the binding to the
+     * authority replica is INV-T-8118). Fail closed (INV-Q-8121 A, CS-23, API-24): no resolver bean, an empty answer
+     * and an exception alike give the empty set, so nobody can confirm.
      */
     @Bean
     @ConditionalOnMissingBean
@@ -46,9 +47,16 @@ class ServiceDefaults {
         tenants: TenantContext,
     ): ConfirmerRoles =
         ConfirmerRoles { subject, entity ->
-            resolver.ifAvailable
-                ?.rolesOf(subject.value, tenants.current(), ScopeLevel.ENTITY, entity.value, entity.value)
-                .orEmpty()
+            val bound = resolver.ifAvailable
+            if (bound == null) {
+                emptySet()
+            } else {
+                try {
+                    bound.rolesOf(subject.value, tenants.current(), ScopeLevel.ENTITY, entity.value, entity.value)
+                } catch (_: Exception) {
+                    emptySet()
+                }
+            }
         }
 
     private companion object {

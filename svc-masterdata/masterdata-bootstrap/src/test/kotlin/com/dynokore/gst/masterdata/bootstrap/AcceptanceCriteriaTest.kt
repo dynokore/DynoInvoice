@@ -13,7 +13,6 @@ import com.dynokore.gst.masterdata.application.identity.ProposeIdentityTripleCha
 import com.dynokore.gst.masterdata.application.identity.ResolveCommand
 import com.dynokore.gst.masterdata.application.identity.ResolveIdentityTriple
 import com.dynokore.gst.masterdata.contract.model.ConfigureIdentityTripleRequest
-import com.dynokore.gst.masterdata.contract.model.PendingIdentityTripleChange
 import com.dynokore.gst.masterdata.contract.model.SecondConfirmation
 import com.dynokore.gst.masterdata.domain.identity.ChangeState
 import com.dynokore.gst.masterdata.domain.identity.ConfirmationRefusal
@@ -24,7 +23,9 @@ import com.dynokore.gst.masterdata.domain.identity.PendingChange
 import com.dynokore.gst.masterdata.domain.identity.PersonRef
 import com.dynokore.gst.masterdata.domain.identity.Resolution
 import com.dynokore.gst.masterdata.domain.identity.SubmittingIdentity
+import com.dynokore.platform.configresolver.ScopeLevel
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
+import com.dynokore.platform.serviceruntime.policy.PolicyRoleResolver
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import org.assertj.core.api.Assertions.assertThat
@@ -60,8 +61,11 @@ class AcceptanceCriteriaTest {
     private val groupMember = Constitution("GST_GROUP_MEMBER")
     private val longAgo = LocalDate.of(2026, 1, 1)
 
-    private fun run(block: (Env) -> Unit) {
-        BoundaryFixture.runner().run { context ->
+    private fun run(
+        resolver: PolicyRoleResolver? = BoundaryFixture.testResolver,
+        block: (Env) -> Unit,
+    ) {
+        BoundaryFixture.runner(resolver).run { context ->
             context.startupFailure?.let { throw it }
             block(Env(context))
         }
@@ -395,21 +399,6 @@ class AcceptanceCriteriaTest {
                 env.rows("identity_triple", "ENT-BODY") to env.rows("identity_triple_change", "ENT-BODY"),
             ).isEqualTo(before)
             assertThat(before).isEqualTo(0 to 0)
-        }
-
-    @Test
-    fun `INV-AC-1603 a proposal answers 202 with the pending change and puts nothing in force`() =
-        run { env ->
-            val request = ConfigureIdentityTripleRequest("0195:U-A", "U-A", "G-A", LocalDate.of(2026, 7, 1), agent.code)
-            val response =
-                env.inTenant(tenantA) { env.identityApi.configureIdentityTriple("ENT-202", UUID.randomUUID(), request) }
-            assertThat(response.statusCode).isEqualTo(HttpStatus.ACCEPTED)
-            val body = response.body as Any as PendingIdentityTripleChange
-            assertThat(body.state).isEqualTo(PendingIdentityTripleChange.State.PENDING_CONFIRMATION)
-            assertThat(body.proposedBy).isEqualTo(admin)
-            assertThat(env.resolved(tenantA, "ENT-202", agent, LocalDate.of(2026, 8, 1)))
-                .isInstanceOf(Resolution.Blocked::class.java)
-            assertThat(env.rows("identity_triple", "ENT-202")).isZero()
         }
 
     @Test

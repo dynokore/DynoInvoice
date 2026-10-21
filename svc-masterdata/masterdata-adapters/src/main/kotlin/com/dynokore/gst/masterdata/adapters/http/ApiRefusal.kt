@@ -1,10 +1,12 @@
 package com.dynokore.gst.masterdata.adapters.http
 
+import com.dynokore.gst.masterdata.contract.model.PendingIdentityTripleChange
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.serviceruntime.http.MasterdataErrorCode
 import com.dynokore.platform.serviceruntime.http.Problems
 import com.dynokore.platform.serviceruntime.logging.CorrelationContext
 import org.springframework.http.HttpHeaders
+import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
@@ -25,6 +27,11 @@ class MasterdataRefusal(
     val detail: String? = null,
 ) : RuntimeException("${code.code}: ${detail ?: code.title}")
 
+/** The 202 answer of `configureIdentityTriple`, carried to [ApiRefusalAdvice] where the compiler types its body. */
+class ProposalAccepted(
+    val body: PendingIdentityTripleChange,
+) : RuntimeException("202: the change is pending confirmation", null, false, false)
+
 /** ARC-19, CS-14: the one place a refusal becomes the API-20 envelope. */
 @RestControllerAdvice
 class ApiRefusalAdvice {
@@ -40,6 +47,10 @@ class ApiRefusalAdvice {
         problem.headers.forEach { (name, value) -> headers.add(name, value) }
         return ResponseEntity.status(problem.status).headers(headers).body(problem.body)
     }
+
+    @ExceptionHandler(ProposalAccepted::class)
+    fun accepted(accepted: ProposalAccepted): ResponseEntity<PendingIdentityTripleChange> =
+        ResponseEntity.status(HttpStatus.ACCEPTED).body(accepted.body)
 
     @ExceptionHandler(MasterdataRefusal::class)
     fun refuse(refusal: MasterdataRefusal): ResponseEntity<String> {

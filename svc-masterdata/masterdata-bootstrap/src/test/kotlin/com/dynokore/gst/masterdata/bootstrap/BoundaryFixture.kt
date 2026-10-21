@@ -64,10 +64,6 @@ object TestRoles {
 @EnableConfigurationProperties
 class BoundaryTestConfiguration {
     @Bean
-    fun policyRoleResolver(): PolicyRoleResolver =
-        PolicyRoleResolver { actor, _, _, _, _ -> TestRoles.roles[actor].orEmpty() }
-
-    @Bean
     fun clock(): Clock = MovableClock()
 
     @Bean
@@ -199,8 +195,12 @@ object BoundaryFixture {
     fun <T> asRuntime(block: (java.sql.Connection) -> T): T =
         DriverManager.getConnection(container.jdbcUrl, "masterdata_runtime", RUNTIME_PASSWORD).use(block)
 
-    fun runner(): WebApplicationContextRunner =
+    /** The resolver of the test subjects' roles; `null` registers none, as production code does (INV-Q-8121 A). */
+    val testResolver = PolicyRoleResolver { actor, _, _, _, _ -> TestRoles.roles[actor].orEmpty() }
+
+    fun runner(resolver: PolicyRoleResolver? = testResolver): WebApplicationContextRunner =
         WebApplicationContextRunner()
+            .let { if (resolver != null) it.withBean(PolicyRoleResolver::class.java, { resolver }) else it }
             .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
             .withInitializer(ConfigDataApplicationContextInitializer())
             .withUserConfiguration(BoundaryTestConfiguration::class.java, MasterdataApplication::class.java)

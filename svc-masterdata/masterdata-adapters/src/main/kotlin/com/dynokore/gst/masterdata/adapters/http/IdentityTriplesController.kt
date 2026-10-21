@@ -16,7 +16,6 @@ import com.dynokore.gst.masterdata.domain.identity.PersonRef
 import com.dynokore.gst.masterdata.domain.identity.TripleVersion
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.tenancykernel.TenantContext
-import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.RestController
 import java.util.UUID
@@ -40,19 +39,23 @@ open class IdentityTriplesController(
         idempotencyKey: UUID,
         configureIdentityTripleRequest: ConfigureIdentityTripleRequest,
     ): ResponseEntity<IdentityTriple> {
-        // A body that carries secondConfirmation is refused and nothing is recorded (a separate call confirms).
+        // Over HTTP a body that carries the key secondConfirmation, with any value, never gets here:
+        // SecondConfirmationKeyAdvice refuses it (INV-Q-8123 A). This covers a call that bypasses the request body.
         if (configureIdentityTripleRequest.secondConfirmation != null) {
             invalid("secondConfirmation is not accepted: the confirmation is a separate call")
         }
-        return propose(entityRef, configureIdentityTripleRequest)
+        propose(entityRef, configureIdentityTripleRequest)
     }
 
-    /** The proposal: 202 with the pending change for the request's constitution; nothing is put in force. */
-    @Suppress("UNCHECKED_CAST")
+    /**
+     * The proposal: 202 with the pending change for the request's constitution; nothing is put in force. The generated
+     * interface types every response as the 200 schema, so the 202 body leaves as [ProposalAccepted], which
+     * [ApiRefusalAdvice] answers as a `ResponseEntity<PendingIdentityTripleChange>` (INV-Q-8125 A).
+     */
     private fun propose(
         entityRef: String,
         request: ConfigureIdentityTripleRequest,
-    ): ResponseEntity<IdentityTriple> {
+    ): Nothing {
         val proposer = PersonRef(checkNotNull(tenants.currentActor()) { "no actor is bound" })
         val change =
             proposeChange.handle(
@@ -73,9 +76,7 @@ open class IdentityTriplesController(
                     proposer = proposer,
                 ),
             )
-        // The generated interface types every response as the 200 schema; the 202 body is the pending change. Jackson
-        // writes the runtime type, so the cast only crosses the generator's single return type.
-        return ResponseEntity.status(HttpStatus.ACCEPTED).body(pendingOf(change)) as ResponseEntity<IdentityTriple>
+        throw ProposalAccepted(pendingOf(change))
     }
 
     override fun confirmIdentityTripleChange(
