@@ -4,6 +4,7 @@
 # security.officer, regulatory.author, regulatory.approver, release.manager, tax.approver, commercial.admin (roles);
 # control-plane-svc, tenancy-svc, rules-svc (services); `model/tool.py check` (a command); [FR-H.10] (a source reference).
 # The pack feed index that rules-svc polls (INV-REQ-1079) is schemas/pack-feed-index.schema.json.
+# INV-T-8141 (INV-REQ-8100): commercial.admin is a role and adds no row.
 identifier	kind	file	requirement
 authors	property	openapi.yaml	INV-REQ-2590
 signer	property	openapi.yaml	INV-REQ-2590
@@ -95,3 +96,14 @@ issueLicence	operation	openapi.yaml	INV-REQ-2588
 provisionTenant	operation	openapi.yaml	INV-REQ-2588
 recordQualification	operation	openapi.yaml	INV-REQ-2588
 setSupportWindow	operation	openapi.yaml	INV-REQ-2588
+setTenantSchedule	operation	openapi.yaml	INV-REQ-8100
+approveTenantSchedule	operation	openapi.yaml	INV-REQ-8100
+changeTenantSchedule	operation	openapi.yaml	INV-REQ-8100
+cancelTenantSchedule	operation	openapi.yaml	INV-REQ-8100
+getTenantSchedule	operation	openapi.yaml	INV-REQ-8100
+SetTenantScheduleRequest.contractReference	schema_property	openapi.yaml	INV-REQ-8100
+TenantScheduleResponse.state.AWAITING_APPROVAL	schema_enum_value	openapi.yaml	INV-REQ-8100
+TenantScheduleResponse.state.APPROVED	schema_enum_value	openapi.yaml	INV-REQ-8100
+TenantScheduleResponse.state.EXECUTED	schema_enum_value	openapi.yaml	INV-REQ-8100
+TenantScheduleResponse.state.FAILED	schema_enum_value	openapi.yaml	INV-REQ-8100
+TenantScheduleResponse.state.CANCELLED	schema_enum_value	openapi.yaml	INV-REQ-8100

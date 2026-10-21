@@ -1,0 +1,10 @@
+{
+  "tenantRef": "TEN-7B1004",
+  "scheduleRef": "SCH-0001",
+  "state": "DONE",
+  "contractReference": "CTR-2026-0091",
+  "goLiveAt": "2027-01-04T01:00:00Z",
+  "offboardingAt": "2028-01-04T01:00:00Z",
+  "setBy": "PRN-OPERATOR-A",
+  "approvedBy": "PRN-SUPERVISOR-B"
+}

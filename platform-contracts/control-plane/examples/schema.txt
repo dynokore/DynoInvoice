@@ -11,3 +11,5 @@
 ../openapi.yaml#/components/schemas/AccreditationTaskPage accreditation-tasks-page-*.json
 ../openapi.yaml#/components/schemas/ConcludeAccreditationTaskRequest conclude-accreditation-task-request-*.json
 ../openapi.yaml#/components/schemas/AuthorPackRequest author-pack-request-*.json
+../openapi.yaml#/components/schemas/SetTenantScheduleRequest set-tenant-schedule-request-*.json
+../openapi.yaml#/components/schemas/TenantScheduleResponse tenant-schedule-response-*.json

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: control-plane API
-  version: 1.3.0
+  version: 1.4.0
   description: 'Contract-first source of truth for control-plane (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1), SaaS-operator-only: the operator
     console for regulatory, release and commercial roles (regulatory pack authoring/signing/publication,
@@ -747,6 +747,328 @@ paths:
         "403":
           $ref: '#/components/responses/Error'
         "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/control-plane/tenants/{tenantRef}/schedule:
+    post:
+      operationId: setTenantSchedule
+      summary: Set the go-live and offboarding schedule of a tenant (INV-REQ-8100)
+      description: >-
+        The platform operator who holds commercial.admin records, for the tenant, the go-live time,
+        the offboarding time, the reference of the signed contract and the inputs the closing needs
+        (retentionCustodyHolder, optional noticeWindowDays). The schedule is created AWAITING_APPROVAL
+        and takes effect only when a different holder of commercial.admin approves it
+        (approveTenantSchedule). It is refused with 422 when the contract reference is missing, when the
+        offboarding time is not after the go-live time, or when the go-live time is not after the moment
+        of setting (INV-REQ-8100 behavior 1).
+      tags:
+      - commercial
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->control-plane-svc
+      x-timeout: 2000
+      x-requirements:
+      - INV-REQ-8100
+      x-error-codes: []
+      x-operation:
+        role: commercial.admin
+        scope: installation
+        precondition: None
+        reversibility: UNDOABLE
+        repeatKey: (tenantRef, contractReference)
+      parameters:
+      - name: tenantRef
+        in: path
+        required: true
+        description: The tenant the schedule belongs to.
+        schema:
+          type: string
+          maxLength: 64
+        example: TEN-7B1004
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetTenantScheduleRequest'
+      responses:
+        "201":
+          description: Schedule recorded, awaiting approval
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantScheduleResponse'
+              examples:
+                default:
+                  value:
+                    tenantRef: TEN-7B1004
+                    scheduleRef: SCH-0001
+                    state: AWAITING_APPROVAL
+                    contractReference: CTR-2026-0091
+                    goLiveAt: '2027-01-04T01:00:00Z'
+                    offboardingAt: '2028-01-04T01:00:00Z'
+                    setBy: PRN-OPERATOR-A
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "422":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+    get:
+      operationId: getTenantSchedule
+      summary: Read the current schedule of a tenant (INV-REQ-8100)
+      description: >-
+        Returns the tenant's current TenantScheduleResponse. Readable by commercial.admin, re-checked
+        by control-plane-svc. A tenant with no schedule is 404.
+      tags:
+      - commercial
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->control-plane-svc
+      x-timeout: 2000
+      x-requirements:
+      - INV-REQ-8100
+      x-error-codes: []
+      x-operation:
+        role: commercial.admin
+        scope: installation
+        precondition: None
+        reversibility: UNDOABLE
+        repeatKey: (tenantRef, scheduleRef)
+      parameters:
+      - name: tenantRef
+        in: path
+        required: true
+        description: The tenant the schedule belongs to.
+        schema:
+          type: string
+          maxLength: 64
+        example: TEN-7B1004
+      responses:
+        "200":
+          description: The tenant schedule
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantScheduleResponse'
+              examples:
+                default:
+                  value:
+                    tenantRef: TEN-7B1004
+                    scheduleRef: SCH-0001
+                    state: APPROVED
+                    contractReference: CTR-2026-0091
+                    goLiveAt: '2027-01-04T01:00:00Z'
+                    offboardingAt: '2028-01-04T01:00:00Z'
+                    setBy: PRN-OPERATOR-A
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/control-plane/tenants/{tenantRef}/schedule/approve:
+    post:
+      operationId: approveTenantSchedule
+      summary: Approve a tenant schedule, or a change or cancellation of it (INV-REQ-8100)
+      description: >-
+        A holder of commercial.admin other than the person who set the schedule approves it. The
+        approver is refused with 403 when the approver's principal reference equals the reference of the
+        person who set the schedule, or of the person who requested the change or the cancellation that
+        is being approved, and when the caller does not hold commercial.admin (INV-REQ-8100 behavior 2;
+        owner answer INV-Q-8095, option (C)). The comparison is by principal reference. No new role is
+        added. Approval of a schedule, a change or a cancellation is audited with the approver, the time,
+        the tenant and the contract reference.
+      tags:
+      - commercial
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->control-plane-svc
+      x-timeout: 2000
+      x-requirements:
+      - INV-REQ-8100
+      x-error-codes: []
+      x-operation:
+        role: commercial.admin
+        scope: installation
+        precondition: The schedule, change or cancellation is awaiting approval
+        reversibility: COMPENSABLE
+        repeatKey: (tenantRef, scheduleRef)
+      parameters:
+      - name: tenantRef
+        in: path
+        required: true
+        description: The tenant the schedule belongs to.
+        schema:
+          type: string
+          maxLength: 64
+        example: TEN-7B1004
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        "200":
+          description: Approved; the schedule as it now stands
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantScheduleResponse'
+              examples:
+                default:
+                  value:
+                    tenantRef: TEN-7B1004
+                    scheduleRef: SCH-0001
+                    state: APPROVED
+                    contractReference: CTR-2026-0091
+                    goLiveAt: '2027-01-04T01:00:00Z'
+                    offboardingAt: '2028-01-04T01:00:00Z'
+                    setBy: PRN-OPERATOR-A
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "409":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/control-plane/tenants/{tenantRef}/schedule/change:
+    post:
+      operationId: changeTenantSchedule
+      summary: Request a change of the go-live or offboarding time of a tenant schedule (INV-REQ-8100)
+      description: >-
+        The platform operator who holds commercial.admin requests a new go-live time, offboarding time
+        or both. The change takes effect only after approval (approveTenantSchedule); until then the
+        approved schedule stays in force. A time that was already carried out cannot be changed and the
+        request is refused with 409 (INV-REQ-8100 behavior 4, INV-AC-8103).
+      tags:
+      - commercial
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->control-plane-svc
+      x-timeout: 2000
+      x-requirements:
+      - INV-REQ-8100
+      x-error-codes: []
+      x-operation:
+        role: commercial.admin
+        scope: installation
+        precondition: The schedule is APPROVED
+        reversibility: UNDOABLE
+        repeatKey: (tenantRef, scheduleRef)
+      parameters:
+      - name: tenantRef
+        in: path
+        required: true
+        description: The tenant the schedule belongs to.
+        schema:
+          type: string
+          maxLength: 64
+        example: TEN-7B1004
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangeTenantScheduleRequest'
+      responses:
+        "200":
+          description: Change recorded, awaiting approval
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantScheduleResponse'
+              examples:
+                default:
+                  value:
+                    tenantRef: TEN-7B1004
+                    scheduleRef: SCH-0001
+                    state: AWAITING_APPROVAL
+                    contractReference: CTR-2026-0091
+                    goLiveAt: '2027-01-04T01:00:00Z'
+                    offboardingAt: '2028-01-04T01:00:00Z'
+                    setBy: PRN-OPERATOR-A
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "409":
+          $ref: '#/components/responses/Error'
+        "422":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/control-plane/tenants/{tenantRef}/schedule/cancel:
+    post:
+      operationId: cancelTenantSchedule
+      summary: Request the cancellation of a tenant schedule (INV-REQ-8100)
+      description: >-
+        The platform operator who holds commercial.admin requests the cancellation of the schedule.
+        The cancellation takes effect only after approval (approveTenantSchedule); until then the
+        approved schedule stays in force. A time that was already carried out cannot be cancelled and
+        the request is refused with 409 (INV-REQ-8100 behavior 4, INV-AC-8103).
+      tags:
+      - commercial
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->control-plane-svc
+      x-timeout: 2000
+      x-requirements:
+      - INV-REQ-8100
+      x-error-codes: []
+      x-operation:
+        role: commercial.admin
+        scope: installation
+        precondition: The schedule is APPROVED
+        reversibility: IRREVERSIBLE
+        repeatKey: (tenantRef, scheduleRef)
+      parameters:
+      - name: tenantRef
+        in: path
+        required: true
+        description: The tenant the schedule belongs to.
+        schema:
+          type: string
+          maxLength: 64
+        example: TEN-7B1004
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        "200":
+          description: Cancellation recorded, awaiting approval
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantScheduleResponse'
+              examples:
+                default:
+                  value:
+                    tenantRef: TEN-7B1004
+                    scheduleRef: SCH-0001
+                    state: AWAITING_APPROVAL
+                    contractReference: CTR-2026-0091
+                    goLiveAt: '2027-01-04T01:00:00Z'
+                    offboardingAt: '2028-01-04T01:00:00Z'
+                    setBy: PRN-OPERATOR-A
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "409":
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
@@ -1910,6 +2232,106 @@ components:
           minLength: 1
           maxLength: 2000
           description: The assessment's conclusion.
+    RetentionCustodyHolder:
+      type: object
+      required:
+      - name
+      - contactEmail
+      properties:
+        name:
+          type: string
+          maxLength: 200
+          description: The named retention custody holder, stored in the offboarding record (INV-REQ-956).
+        contactEmail:
+          type: string
+          maxLength: 254
+          description: Where the holder is notified at retention end (INV-REQ-956 b4).
+        contactMobile:
+          type: string
+          description: Optional mobile number of the holder (INV-Q-5020); a plain string, no format rule.
+    SetTenantScheduleRequest:
+      type: object
+      required:
+      - contractReference
+      - goLiveAt
+      - offboardingAt
+      - retentionCustodyHolder
+      properties:
+        contractReference:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: The reference of the signed contract (INV-REQ-8100 behavior 1).
+        goLiveAt:
+          type: string
+          format: date-time
+          description: Must be after the moment of setting (422 otherwise).
+        offboardingAt:
+          type: string
+          format: date-time
+          description: Must be after goLiveAt (422 otherwise).
+        retentionCustodyHolder:
+          $ref: '#/components/schemas/RetentionCustodyHolder'
+        noticeWindowDays:
+          type: integer
+          minimum: 1
+          description: A lengthening of the installation notice window (VP-66) only (INV-REQ-2462 b2).
+    ChangeTenantScheduleRequest:
+      type: object
+      required:
+      - scheduleRef
+      properties:
+        scheduleRef:
+          type: string
+          maxLength: 64
+        goLiveAt:
+          type: string
+          format: date-time
+        offboardingAt:
+          type: string
+          format: date-time
+    TenantScheduleResponse:
+      type: object
+      required:
+      - tenantRef
+      - scheduleRef
+      - state
+      - contractReference
+      - goLiveAt
+      - offboardingAt
+      - setBy
+      properties:
+        tenantRef:
+          type: string
+          maxLength: 64
+        scheduleRef:
+          type: string
+          maxLength: 64
+        state:
+          type: string
+          enum:
+          - AWAITING_APPROVAL
+          - APPROVED
+          - EXECUTED
+          - FAILED
+          - CANCELLED
+        contractReference:
+          type: string
+          maxLength: 64
+        goLiveAt:
+          type: string
+          format: date-time
+        offboardingAt:
+          type: string
+          format: date-time
+        setBy:
+          type: string
+          maxLength: 128
+          description: The principal reference of the person who set the schedule.
+        approvedBy:
+          type: string
+          maxLength: 128
+          description: The principal reference of the approver.
   responses:
     Error:
       description: Error (API-20 envelope)
