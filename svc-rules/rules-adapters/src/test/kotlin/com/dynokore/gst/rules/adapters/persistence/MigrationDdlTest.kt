@@ -44,7 +44,8 @@ class MigrationDdlTest {
 
     private val grantFile = File("src/main/resources/db/migration/V4__pack_artefact_grants.sql")
 
-    /** Comments removed, the single statement trimmed: what V4 says, compared as a string with the one allowed grant. */
+    /** Comments removed, the single statement trimmed: what V4 says, compared as a string
+     *  with the one allowed grant. */
     private fun grantMatches(text: String): Boolean =
         text
             .lines()
