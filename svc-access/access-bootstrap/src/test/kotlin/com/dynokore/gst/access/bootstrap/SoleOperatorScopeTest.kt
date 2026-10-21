@@ -147,9 +147,9 @@ class SoleOperatorScopeTest {
 
     @Test
     fun `INV-AC-8288 C4 a holder in another tenant does not count`() =
-        BoundaryFixture.runner(catalogueMatrix = true, form = "SAAS").run { context ->
-            context.startupFailure?.let { throw it }
-            val b = Env(context, freshTenant())
+        run { env ->
+            val context = env.context
+            val b = env
             b.grant("IDN-P1", "tenant.admin")
             b.record()
             b.grant("IDN-P1", "security.officer")
