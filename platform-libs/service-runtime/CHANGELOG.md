@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.3.0] - 2026-10-21
+### Added
+- `MasterdataErrorCode` (MDM-005 Entity identity triple not configured for the constitution, HTTP 422, owner Onboarding) and `Problems.renderMasterdata`, beside `TenancyErrorCode` (INV-T-7895; INV-Q-7886 A: "the enum of MDM-005 and its renderer"; disposition MANUAL as the catalogue row).
+
 ## [10.2.0] - 2026-10-20
 ### Added
 - `ReplicaBoundEntities`: the entity set a transaction binds, from the `AuthorityReplica` (INV-T-7520; INV-Q-7453 (B); INV-REQ-866, INV-AC-1912); `TenancyKernelWiring` gives it to the transaction runner when the service has an `AuthorityReplica`. An actor with no grant, an empty replica and an `UNKNOWN` scope level give the empty set. Needs tenancy-kernel 4.1.0.

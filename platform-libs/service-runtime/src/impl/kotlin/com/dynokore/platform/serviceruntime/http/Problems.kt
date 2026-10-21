@@ -177,6 +177,19 @@ object Problems {
         return ProblemResponse(response.status, mapOf(CONTENT_TYPE_HEADER to CONTENT_TYPE), response.body)
     }
 
+    /**
+     * The MDM refusal [code] as a complete response (INV-Q-7886 A): status 422, the headers of [renderTenancy] and
+     * the API-20 envelope with the catalogue disposition MANUAL, with [detail] as a client error carries it (API-22).
+     */
+    fun renderMasterdata(
+        code: MasterdataErrorCode,
+        correlationId: String,
+        detail: String? = null,
+    ): ProblemResponse {
+        val response = coded(code.httpStatus, code.title, detail, correlationId, code.code, "MANUAL", code.owner.text)
+        return ProblemResponse(response.status, mapOf(CONTENT_TYPE_HEADER to CONTENT_TYPE), response.body)
+    }
+
     fun contractViolation(
         detail: String,
         correlationId: String,
