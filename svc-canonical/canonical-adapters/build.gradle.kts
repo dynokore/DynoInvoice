@@ -30,6 +30,7 @@ dependencies {
     implementation(project(":canonical-domain"))
     implementation(project(":canonical-contract"))
     implementation(libs.platform.tenancyKernel.impl)
+    implementation(libs.platform.tenancyJooq.impl)
     implementation(libs.platform.outboxAndQueue.impl)
     implementation(libs.platform.auditLog.impl)
     implementation(libs.platform.configResolver.impl)
