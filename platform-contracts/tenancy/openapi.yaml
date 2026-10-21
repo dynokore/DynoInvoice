@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 1.5.0
+  version: 1.6.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -1690,7 +1690,9 @@ paths:
         same tenant, scope and entity is REQUESTED or COMPLETED is refused with 409 and creates nothing. A
         call with a new key after a FAILED record is a new request: a new offboardingRef, every precondition
         evaluated afresh, nothing carried over; the FAILED record stays as history (INV-Q-5025).
-        noticeWindowDays only lengthens the installation notice window (VP-66, INV-REQ-2462 b2).
+        noticeWindowDays only lengthens the installation notice window (VP-66, INV-REQ-2462 b2). A second
+        confirmation (FR-AF.8, `secondConfirmationBy`) is required when scope is ENTITY; when scope is TENANT
+        none is required and a value is ignored (owner answer INV-Q-8024).
       tags:
       - tenants
       x-principal: filing-workflow
@@ -1732,7 +1734,6 @@ paths:
                   retentionCustodyHolder:
                     name: Ledger Custody Pte Ltd
                     contactEmail: custody@ledger.example
-                  secondConfirmationBy: user-8841
       responses:
         "202":
           description: Offboarding accepted; the record carries the export manifest
@@ -3096,7 +3097,6 @@ components:
       required:
       - scope
       - retentionCustodyHolder
-      - secondConfirmationBy
       properties:
         scope:
           type: string
@@ -3112,7 +3112,7 @@ components:
         secondConfirmationBy:
           type: string
           maxLength: 128
-          description: The second confirmation of an irreversible operation (INV-REQ-875).
+          description: Required when scope is ENTITY (INV-REQ-875); not required when scope is TENANT, where the service ignores it (owner answer INV-Q-8024).
         unsubmittedOverride:
           $ref: '#/components/schemas/UnsubmittedOverrideAcknowledgement'
         noticeWindowDays:
@@ -3128,6 +3128,7 @@ components:
       then:
         required:
         - entityRef
+        - secondConfirmationBy
       else:
         not:
           required:

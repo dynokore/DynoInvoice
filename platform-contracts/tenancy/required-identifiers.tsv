@@ -1,6 +1,9 @@
 # INV-T-4909. Identifiers in backticks in the published behavior and intent of INV-REQ-85, 331, 333, 335, 877, 956, 1245
 # (read from Keel). One row per identifier, under the first requirement that names it; INV-REQ-333 names the
 # three Excluded values and excludedBusinessStatus, INV-REQ-335 names obligationStartDate.
+# INV-T-8106 adds one row, OffboardTenantRequest.secondConfirmationBy (INV-REQ-875). The other names of INV-REQ-875 and INV-AC-8105 add no row:
+# entity.admin, tenant.admin, tax.approver (roles); entity-config.confirm (a permission of the catalogue table of INV-T-7987);
+# goLive, offboardTenant (rows that exist).
 # Not listed, because they are not tenancy contract identifiers: entity.admin, tenant.admin, tax.approver (roles);
 # tenancy-svc, console-bff, console-web, config-resolver (services); setPolicy (owning services' contracts);
 # confirmFiling (submission/openapi.yaml); applyOperatingProfile (INV-REQ-1245) belongs to console-bff (owner answer
@@ -35,3 +38,4 @@ updateBusinessUnit	operation	openapi.yaml	INV-REQ-850
 uen	property	openapi.yaml	INV-REQ-652
 gstn	property	openapi.yaml	INV-REQ-652
 groupKind	property	openapi.yaml	INV-REQ-850
+OffboardTenantRequest.secondConfirmationBy	schema_property	openapi.yaml	INV-REQ-875
