@@ -37,6 +37,13 @@ logging.structured.format.console: ecs             # STK-35
 gst:
   service: access-svc
   db.event-log-url: ${GST_EVENT_LOG_DB_URL:}
+inv:
+  tenancy:
+    # The table-valued functions config-resolver's DDL adds to the schema (INV-T-4935): jOOQ generates them as tables; they
+    # hold no tenant data and no tenant_id column, and refuse an unbound actor themselves (ConfigSchema).
+    platform-scoped-tables:
+      - access.config_purge_tenant
+      - access.write_installation_setting
 access:
   gateway:
     # The service account of the API gateway (edge api-gateway->access-svc): the only caller of getRevocationList and

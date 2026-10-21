@@ -99,6 +99,48 @@ class OperationsTableTest {
             .containsExactly("operation createPrincipal: marked done by INV-T-4937 but still answers 501")
     }
 
+    /** The rows INV-T-4935 names: the sole-operator pair and the three landing operations (INV-Q-7983 A). */
+    private val ownedByT4935 =
+        listOf(
+            "recordSoleOperator",
+            "withdrawSoleOperatorAcknowledgement",
+            "chooseLandingScreen",
+            "resolveLandingScreen",
+            "clearLandingChoice",
+        )
+
+    /** The named rows whose `task` column is not INV-T-4935, compared by equality; a missing row is a finding. */
+    private fun taskFindings(lines: List<String>): List<String> {
+        val rows = rows(lines).first.filter { it.kind == "operation" }.associateBy { it.name }
+        return ownedByT4935.mapNotNull { name ->
+            val task = rows[name]?.task
+            if (task == "INV-T-4935") null else "operation $name: task is ${task ?: "missing"}, not INV-T-4935"
+        }
+    }
+
+    @Test
+    fun `the task column of the rows INV-T-4935 names is INV-T-4935 and probes against it fail`() {
+        assertThat(taskFindings(table)).isEmpty()
+        val renamed =
+            table.map {
+                it.replace(
+                    "\tclearLandingChoice\tINV-T-4935\t",
+                    "\tclearLandingChoice\tINV-T-49350\t",
+                )
+            }
+        assertThat(
+            taskFindings(renamed),
+        ).containsExactly("operation clearLandingChoice: task is INV-T-49350, not INV-T-4935")
+        val missing = table.filterNot { it.startsWith("operation\tclearLandingChoice\t") }
+        assertThat(
+            taskFindings(missing),
+        ).containsExactly("operation clearLandingChoice: task is missing, not INV-T-4935")
+        val other = table.map { it.replace("\trecordSoleOperator\tINV-T-4935\t", "\trecordSoleOperator\tINV-T-4934\t") }
+        assertThat(
+            taskFindings(other),
+        ).containsExactly("operation recordSoleOperator: task is INV-T-4934, not INV-T-4935")
+    }
+
     @Test
     fun `probe - done-tasks gate fails on a missing file, a bad line, a task with no row and a 501 operation`() {
         assertThat(verifyDone(doneTasks)).isEmpty()

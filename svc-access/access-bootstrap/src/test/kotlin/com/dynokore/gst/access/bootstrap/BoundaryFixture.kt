@@ -21,6 +21,7 @@ import com.dynokore.platform.tenancykernel.SqlIdentifier
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.springframework.beans.factory.config.BeanPostProcessor
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner
@@ -100,6 +101,7 @@ class CapturedEvents {
 
 /** The fixture rows in place of the catalogue table, and every role grantable (test data, INV-T-4934's tests). */
 @Configuration(proxyBeanMethods = false)
+@ConditionalOnProperty("access.test.fixture-matrix", havingValue = "true", matchIfMissing = true)
 class FixtureMatrixConfiguration {
     @Bean
     fun permissionMatrix(): PermissionMatrix = FixtureMatrix.matrix
@@ -255,12 +257,10 @@ object BoundaryFixture {
             .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
             .withInitializer(ConfigDataApplicationContextInitializer())
             .withUserConfiguration(
-                *listOfNotNull(
-                    BoundaryTestConfiguration::class.java,
-                    FixtureMatrixConfiguration::class.java.takeUnless { catalogueMatrix },
-                    AccessApplication::class.java,
-                ).toTypedArray(),
+                BoundaryTestConfiguration::class.java,
+                AccessApplication::class.java,
             ).withPropertyValues(
+                "access.test.fixture-matrix=${!catalogueMatrix}",
                 "gst.form=$form",
                 "spring.datasource.url=${container.jdbcUrl}",
                 "spring.datasource.username=access_runtime",

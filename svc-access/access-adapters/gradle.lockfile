@@ -9,6 +9,7 @@ com.dynokore.gst:gst-catalogue:1.28.0=testCompileClasspath,testRuntimeClasspath
 com.dynokore.platform:audit-log-api:4.0.7=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.dynokore.platform:audit-log:4.0.7=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.dynokore.platform:config-resolver-api:5.0.4=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+com.dynokore.platform:config-resolver:5.0.4=testCompileClasspath,testRuntimeClasspath
 com.dynokore.platform:outbox-and-queue-api:6.2.1=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.dynokore.platform:outbox-and-queue:6.2.1=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.dynokore.platform:platform-libs-bom:0.103.0=bindingKernel,compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath

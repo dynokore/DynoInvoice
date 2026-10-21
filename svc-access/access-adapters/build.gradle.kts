@@ -47,6 +47,7 @@ dependencies {
     testImplementation(libs.springBoot.starterTest)
     testImplementation(libs.jsonSchemaValidator)
     testImplementation(libs.platform.productRuntime.impl)
+    testImplementation(libs.platform.configResolver.impl)
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platformLauncher)

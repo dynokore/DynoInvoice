@@ -1,5 +1,6 @@
 package com.dynokore.gst.access.adapters.persistence
 
+import com.dynokore.platform.configresolver.ConfigSchema
 import com.dynokore.platform.outboxandqueue.OutboxSchema
 import com.dynokore.platform.tenancykernel.TenantRlsMigration
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -33,12 +34,19 @@ class GeneratedMigrationsTest {
     }
 
     @Test
+    fun `the config migration is the DDL config-resolver generates for the access schema`() {
+        val expected = ConfigSchema.ddl("access", "access_runtime", "access_sys", ConfigSchema.EventMode.OUTBOX).trim()
+        assertEquals(expected, body(migration("V202610210910__create_config_resolver.sql")))
+    }
+
+    @Test
     fun `no migration creates the binding functions or the binding key table`() {
         val files =
             listOf(
                 "V202610190900__create_outbox.sql",
                 "V202610190910__create_identity_and_grant.sql",
                 "V202610190920__create_revocation_and_verification_keys.sql",
+                "V202610210910__create_config_resolver.sql",
             )
         files.forEach { file ->
             val text = migration(file)
