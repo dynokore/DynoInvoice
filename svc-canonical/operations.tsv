@@ -1,0 +1,13 @@
+kind	id	task
+operation	recordDocument	UNASSIGNED
+operation	getDocument	UNASSIGNED
+operation	getDocumentVersion	UNASSIGNED
+operation	listPreparedReassignments	UNASSIGNED
+operation	confirmPeriodReassignment	UNASSIGNED
+channel	gst.canonical.transaction-recorded.v1	UNASSIGNED
+channel	gst.canonical.canonical-version-created.v1	UNASSIGNED
+channel	gst.canonical.decision-trace-recorded.v1	UNASSIGNED
+channel	gst.canonical.document-held.v1	UNASSIGNED
+channel	gst.canonical.document-released.v1	UNASSIGNED
+channel	gst.canonical.period-reassigned.v1	UNASSIGNED
+channel	gst.canonical.example-happened.v1	UNASSIGNED
