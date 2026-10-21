@@ -8,7 +8,7 @@
 # 0.23.1 carries the Trivy ignore file of INV-T-7704 (INV-Q-7701).
 platformBuild = "0.23.1"
 # The tested platform-libs set (STK-60; platform-libs' registry, project 227): service-runtime and the L1 modules.
-platformLibsBom = "0.34.0"
+platformLibsBom = "0.103.0"
 # STK-05: Spring Boot 4.1.x, the same patch platform-libs builds service-runtime against; also the Spring Boot
 # Gradle plugin's version (settings.gradle.kts), which gives the STK-53 `bootBuildImage` task.
 springBoot = "4.1.1"
