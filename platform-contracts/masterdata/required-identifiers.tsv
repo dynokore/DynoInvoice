@@ -74,3 +74,5 @@ changeRef	property	openapi.yaml	INV-REQ-1007
 PENDING_CONFIRMATION	enum_value	openapi.yaml	INV-REQ-1007
 PendingIdentityTripleChange.changeRef	schema_property	openapi.yaml	INV-REQ-1007
 PendingIdentityTripleChange.state.PENDING_CONFIRMATION	schema_enum_value	openapi.yaml	INV-REQ-1007
+constitution	property	openapi.yaml	INV-REQ-310
+ConfigureIdentityTripleRequest.constitution	schema_property	openapi.yaml	INV-REQ-310

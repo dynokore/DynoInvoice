@@ -42,3 +42,8 @@ GET /internal/v1/notification/webhook-subscriptions the response's body `type` c
 # INV-Q-6527 (owner, 2026-10-18; INV-T-6534): setRetentionJustification is retired, retention periods are set with
 # setPolicy for VP-43; permitted within v1 on INV-Q-3569's reasoning: no train is published and no consumer is deployed.
 PUT /internal/v1/evidence/tenants/{tenantId}/retention-justification api path removed without deprecation
+#
+# INV-Q-7878 (owner answer, 2026-10-21; INV-T-8014): ConfigureIdentityTripleRequest.constitution, a new required
+# request property (the identity triple is held per entity and constitution, INV-REQ-310), is permitted within v1
+# on INV-Q-3569 and INV-Q-3590's reasoning: no train is published and no consumer is deployed.
+POST /internal/v1/masterdata/entities/{entityRef}/identity-triple added the new required request property `constitution`

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: masterdata API
-  version: 1.4.0
+  version: 1.5.0
   description: >-
     Contract-first source of truth for masterdata (API-01, STK-44). The
     `masterdata-contract` module generates its server interfaces and DTOs
@@ -184,7 +184,8 @@ paths:
         `entity.admin` or `tenant.admin`, or a `tax.approver`, never the
         proposer and never a sole-operator path (FR-AC.16, VP-09, FR-AB.13).
         Until then the previous triple stays in force. A body carrying
-        `secondConfirmation` is refused 400 SRT-001.
+        `secondConfirmation` is refused 400 SRT-001. The request names the
+        constitution; an entity may hold one triple per constitution (INV-REQ-310).
       tags: [identity-triples]
       x-principal: filing-workflow
       x-sync-edge: console-bff->masterdata-svc
@@ -196,7 +197,7 @@ paths:
         scope: entity
         precondition: "Constitution known. The call proposes the change; confirmIdentityTripleChange confirms it by another entity.admin/tenant.admin or a tax.approver (FR-AC.16, VP-09)."
         reversibility: UNDOABLE
-        repeatKey: "(entityRef, effectiveFrom) — a repeat replaces the same effective-dated change."
+        repeatKey: "(entityRef, constitution, effectiveFrom) — a repeat replaces the same effective-dated change for that constitution."
       parameters:
         - name: entityRef
           in: path
@@ -216,6 +217,7 @@ paths:
                   supplierId: "0195:201912345A"
                   supplierGstn: "201912345A"
                   effectiveFrom: "2026-04-01"
+                  constitution: "PTE_LTD"
       responses:
         '200':
           description: The identity triple, effective from the given date. Kept declared for compatibility; a proposal answers 202.
@@ -225,7 +227,7 @@ paths:
                 $ref: '#/components/schemas/IdentityTriple'
               examples:
                 default:
-                  value: { entityRef: "E-001", senderId: "0195:201912345A", supplierId: "0195:201912345A", supplierGstn: "201912345A", effectiveFrom: "2026-04-01" }
+                  value: { entityRef: "E-001", senderId: "0195:201912345A", supplierId: "0195:201912345A", supplierGstn: "201912345A", effectiveFrom: "2026-04-01", constitution: "PTE_LTD" }
         '202':
           description: The change is proposed and pending confirmation; the previous triple stays in force until a different person confirms it.
           content:
@@ -278,7 +280,7 @@ paths:
                 $ref: '#/components/schemas/IdentityTriple'
               examples:
                 default:
-                  value: { entityRef: "E-001", senderId: "0195:201912345A", supplierId: "0195:201912345A", supplierGstn: "201912345A", effectiveFrom: "2026-04-01" }
+                  value: { entityRef: "E-001", senderId: "0195:201912345A", supplierId: "0195:201912345A", supplierGstn: "201912345A", effectiveFrom: "2026-04-01", constitution: "PTE_LTD" }
         '403':
           description: >-
             SRT-004 - the confirmer is the proposer, the same identity under
@@ -1355,7 +1357,8 @@ components:
           properties:
             entityRef: { type: string, maxLength: 40 }
             effectiveFrom: { type: string, format: date }
-          required: [entityRef, effectiveFrom]
+            constitution: { type: string, maxLength: 40 }
+          required: [entityRef, effectiveFrom, constitution]
     ConfigureIdentityTripleRequest:
       type: object
       properties:
@@ -1363,6 +1366,13 @@ components:
         supplierId: { type: string, maxLength: 64 }
         supplierGstn: { type: string, maxLength: 20 }
         effectiveFrom: { type: string, format: date }
+        constitution:
+          type: string
+          maxLength: 40
+          description: >-
+            The legal constitution the triple is for. One entity may hold one
+            triple per constitution (INV-REQ-310). It is compared as text by
+            equality; this contract defines no vocabulary for it.
         secondConfirmation:
           deprecated: true
           description: >-
@@ -1371,7 +1381,7 @@ components:
             carrying this property is refused 400 SRT-001.
           allOf:
             - $ref: '#/components/schemas/SecondConfirmation'
-      required: [senderId, supplierId, supplierGstn, effectiveFrom]
+      required: [senderId, supplierId, supplierGstn, effectiveFrom, constitution]
     SecondConfirmation:
       type: object
       properties:
