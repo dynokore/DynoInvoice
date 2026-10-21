@@ -42,3 +42,7 @@ gateway-authz:
   token:
     issuer: ${GATEWAY_AUTHZ_TOKEN_ISSUER:}           # INV-Q-4081: the machine-token issuer; required (not ready without it)
     audience: ${GATEWAY_AUTHZ_TOKEN_AUDIENCE:}       # INV-Q-4081: the public API; required (not ready without it)
+  access-svc:
+    # INV-API-4001: access-svc's internal base URL, set by the api-gateway chart (base-url is absent here on purpose: the
+    # client bean exists only when it is set, and a pod without it is never ready)
+    timeout: 2s                                       # x-timeout 2000 of getVerificationKeys and getRevocationList

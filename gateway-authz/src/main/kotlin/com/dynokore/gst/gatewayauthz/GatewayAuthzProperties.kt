@@ -24,6 +24,7 @@ data class GatewayAuthzProperties(
     val rateLimits: RateLimitSettings = RateLimitSettings(),
     val token: TokenSettings = TokenSettings(),
     val additionalIdentityHeaders: List<String> = emptyList(),
+    val accessSvc: AccessSvcSettings = AccessSvcSettings(),
 ) {
     /**
      * The inbound identity headers removed from every admitted request (coordinator ruling INV-Q-4099): the fixed
@@ -37,5 +38,18 @@ data class GatewayAuthzProperties(
         val FIXED_IDENTITY_HEADERS = listOf(WorkloadToken.HEADER_NAME, Deadline.HEADER_NAME)
 
         private const val DEFAULT_REFRESH_MILLIS = 500L
+    }
+}
+
+/**
+ * access-svc on the api-gateway -> access-svc edge: its base URL (set by the api-gateway chart) and the per-call
+ * timeout, the operations' x-timeout of 2000 ms (INV-API-4001).
+ */
+data class AccessSvcSettings(
+    val baseUrl: String = "",
+    val timeout: Duration = Duration.ofMillis(DEFAULT_TIMEOUT_MILLIS),
+) {
+    private companion object {
+        const val DEFAULT_TIMEOUT_MILLIS = 2000L
     }
 }

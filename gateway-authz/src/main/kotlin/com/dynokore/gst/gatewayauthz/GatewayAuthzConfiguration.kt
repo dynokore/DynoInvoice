@@ -20,6 +20,7 @@ import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.context.annotation.Import
 import java.time.Clock
 
 /**
@@ -29,6 +30,7 @@ import java.time.Clock
  * access-svc client) is present.
  */
 @Configuration(proxyBeanMethods = false)
+@Import(AccessSvcConfiguration::class)
 @EnableConfigurationProperties(GatewayAuthzProperties::class)
 class GatewayAuthzConfiguration {
     @Bean
