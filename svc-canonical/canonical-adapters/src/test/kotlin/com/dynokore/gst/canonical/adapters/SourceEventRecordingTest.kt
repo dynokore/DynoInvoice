@@ -1,6 +1,7 @@
 package com.dynokore.gst.canonical.adapters
 
 import com.dynokore.gst.canonical.adapters.persistence.JooqSourceEventStore
+import com.dynokore.gst.canonical.adapters.persistence.jooq.tables.references.SOURCE_EVENT
 import com.dynokore.gst.canonical.application.source.RecordSourceEvent
 import com.dynokore.gst.canonical.application.source.SourceEventStore
 import com.dynokore.gst.canonical.domain.source.SourceKey
@@ -21,6 +22,11 @@ import org.jooq.impl.DefaultConfiguration
 import org.junit.jupiter.api.Test
 import org.postgresql.ds.PGSimpleDataSource
 import java.util.UUID
+import java.util.concurrent.CyclicBarrier
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
+import java.util.concurrent.atomic.AtomicInteger
 
 /** INV-AC-2177 and INV-AC-7864 on PostgreSQL, through the recording function of canonical-application. */
 class SourceEventRecordingTest {
@@ -63,6 +69,68 @@ class SourceEventRecordingTest {
     }
 
     private val store = JooqSourceEventStore(dsl)
+
+    /** After `boundDocUuid` finds no value, waits at a barrier of two parties for at most 2 seconds, then goes on. */
+    private class BarrierAfterNoBinding(
+        private val inner: SourceEventStore,
+        private val barrier: CyclicBarrier,
+        private val timeouts: AtomicInteger,
+    ) : SourceEventStore by inner {
+        override fun boundDocUuid(key: SourceKey): UUID? {
+            val bound = inner.boundDocUuid(key)
+            if (bound == null) {
+                try {
+                    barrier.await(2, TimeUnit.SECONDS)
+                } catch (_: TimeoutException) {
+                    timeouts.incrementAndGet()
+                }
+            }
+            return bound
+        }
+    }
+
+    /** Runs the two calls at the same time, each bound to its own tenant on its own connection. */
+    private fun concurrently(
+        first: Pair<UUID, SourceKey>,
+        second: Pair<UUID, SourceKey>,
+    ): Pair<List<UUID>, Int> {
+        val timeouts = AtomicInteger()
+        val barrier = CyclicBarrier(2)
+        val pool = Executors.newFixedThreadPool(2)
+        try {
+            val futures =
+                listOf(first, second).map { (boundTenant, key) ->
+                    pool.submit<UUID> {
+                        tenants.bind(TenantId(boundTenant), SignedBindings.ACTOR) {
+                            recorder(BarrierAfterNoBinding(store, barrier, timeouts)).record(key).docUuid
+                        }
+                    }
+                }
+            return futures.map { it.get(30, TimeUnit.SECONDS) } to timeouts.get()
+        } finally {
+            pool.shutdownNow()
+        }
+    }
+
+    private fun rowsOf(
+        owner: UUID,
+        sourceKey: String,
+    ): List<Pair<Long, UUID>> =
+        CanonicalDb.superuser().use { connection ->
+            connection
+                .prepareStatement(
+                    "select source_revision, doc_uuid from canonical.source_event " +
+                        "where tenant_id = ? and source_key = ? order by 1",
+                ).use { statement ->
+                    statement.setObject(1, owner)
+                    statement.setString(2, sourceKey)
+                    statement.executeQuery().use { rows ->
+                        generateSequence {
+                            if (rows.next()) rows.getLong(1) to rows.getObject(2, UUID::class.java) else null
+                        }.toList()
+                    }
+                }
+        }
 
     private fun recorder(source: SourceEventStore = store) =
         RecordSourceEvent(source, transaction) { UUID.randomUUID() }
@@ -143,6 +211,36 @@ class SourceEventRecordingTest {
         recorded.inserted shouldBe true
         rowsOfTenant() shouldBe 1
         ingestion() shouldBe before
+    }
+
+    @Test
+    fun `INV-AC-7864 concurrent first records of one source key with two revisions bind one Doc UUID`() {
+        val (docUuids, _) = concurrently(tenant to key("k-race", 1), tenant to key("k-race", 2))
+        docUuids[0] shouldBe docUuids[1]
+        rowsOf(tenant, "k-race") shouldBe listOf(1L to docUuids[0], 2L to docUuids[0])
+    }
+
+    @Test
+    fun `INV-AC-7864 the same source key in tenant A and tenant B is not serialised and the Doc UUIDs differ`() {
+        val tenantB = UUID.randomUUID()
+        val (docUuids, timeouts) =
+            concurrently(tenant to key("k-shared", 1), tenantB to SourceKey(tenantB, "erp", "k-shared", 1))
+        timeouts shouldBe 0 // both calls reached the barrier together
+        docUuids[0] shouldNotBe docUuids[1]
+        rowsOf(tenant, "k-shared").map { it.second } shouldBe listOf(docUuids[0])
+        rowsOf(tenantB, "k-shared").map { it.second } shouldBe listOf(docUuids[1])
+        // a read as tenant A through the runtime login returns none of the rows of tenant B
+        asTenant {
+            transaction.inTransaction {
+                dsl.selectFrom(SOURCE_EVENT).where(SOURCE_EVENT.TENANT_ID.eq(tenant)).fetch(SOURCE_EVENT.DOC_UUID)
+            }
+        } shouldBe listOf(docUuids[0])
+    }
+
+    @Test
+    fun `INV-AC-7864 the lock is released by the rollback so a second call for the same key succeeds`() {
+        shouldThrow<IllegalStateException> { asTenant { recorder(FailAfterInsert(store)).record(key("k-unlock", 1)) } }
+        asTenant { recorder().record(key("k-unlock", 1)) }.inserted shouldBe true
     }
 
     private companion object {

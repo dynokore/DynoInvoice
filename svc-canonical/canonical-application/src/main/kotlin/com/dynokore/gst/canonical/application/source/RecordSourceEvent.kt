@@ -7,6 +7,12 @@ import java.util.UUID
 
 /** Port of the `source_event` table (canonical schema). */
 interface SourceEventStore {
+    /**
+     * Takes a transaction-scoped lock on (tenant, source_system, source_key), not on the revision; the commit or the
+     * rollback releases it (INV-Q-8114). Concurrent first records of one source key are serialised by it.
+     */
+    fun lockSourceKey(key: SourceKey)
+
     /** The Doc UUID of the row with exactly this four-part key, if any. */
     fun docUuidOf(key: SourceKey): UUID?
 
@@ -33,6 +39,7 @@ class RecordSourceEvent(
 ) {
     fun record(key: SourceKey): RecordedEvent =
         transaction.inTransaction {
+            store.lockSourceKey(key) // first statement, before any read of source_event
             store.docUuidOf(key)?.let { return@inTransaction RecordedEvent(it, inserted = false) }
             val docUuid = store.boundDocUuid(key) ?: newDocUuid()
             if (store.insert(key, docUuid)) {
