@@ -7,6 +7,7 @@
 # (the VP-77 authentication settings, INV-REQ-2760, not access operations or schemas); security.officer, platform.engineer and
 # deployment.operator (roles); access-svc and notification-svc (services); MessageDelivery (a port of notification-svc, INV-REQ-817);
 # MessageRequested (a message name under components.messages of access/asyncapi.yaml, not a properties key, an operationId or an enum member).
+# INV-T-7988. INV-REQ-2756: the backticked names (tenant.admin, a role; access-svc, a service) are not contract elements, so they are not rows.
 # identifier	kind	file	requirement
 INGEST	enum_value	openapi.yaml	INV-REQ-584
 FILING_WORKFLOW	enum_value	openapi.yaml	INV-REQ-584
@@ -39,3 +40,12 @@ revokePrincipal	operation	openapi.yaml	INV-REQ-2588
 rotatePrincipal	operation	openapi.yaml	INV-REQ-2588
 runAccessReview	operation	openapi.yaml	INV-REQ-2588
 unlockBreakGlass	operation	openapi.yaml	INV-REQ-2588
+chooseLandingScreen	operation	openapi.yaml	INV-REQ-2756
+resolveLandingScreen	operation	openapi.yaml	INV-REQ-2756
+clearLandingChoice	operation	openapi.yaml	INV-REQ-2756
+LandingChoiceRequest.role	schema_property	openapi.yaml	INV-REQ-2756
+LandingScreenResponse.role	schema_property	openapi.yaml	INV-REQ-2756
+LandingScreenResponse.source	schema_property	openapi.yaml	INV-REQ-2756
+LandingScreenResponse.source.PERSONAL_CHOICE	schema_enum_value	openapi.yaml	INV-REQ-2756
+LandingScreenResponse.source.TENANT_PRECEDENCE	schema_enum_value	openapi.yaml	INV-REQ-2756
+LandingScreenResponse.source.ROLE_ORDER_PRESET	schema_enum_value	openapi.yaml	INV-REQ-2756
