@@ -91,7 +91,7 @@ class SourceEventSchemaTest {
         const val INGESTION_TABLES =
             "select table_name from information_schema.tables where table_schema = 'ingestion' order by 1"
 
-        val GOOD =
+        const val GOOD =
             "create table canonical.source_event (tenant_id uuid not null, source_system text not null, " +
                 "source_key text not null, source_revision bigint not null, doc_uuid uuid not null, " +
                 "unique (tenant_id, source_system, source_key, source_revision))"

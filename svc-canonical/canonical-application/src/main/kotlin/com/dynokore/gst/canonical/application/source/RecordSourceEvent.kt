@@ -21,10 +21,10 @@ interface SourceEventStore {
 }
 
 /**
- * Records an event in `source_event` and assigns or binds its Doc UUID in one `canonical` transaction of the bound tenant (INV-REQ-1191
- * behavior 2, INV-ADR-259). Contract rules of `recordDocument`: a new source key gets a new Doc UUID; a repeat of the
- * same four-part key returns the original Doc UUID and inserts nothing; a higher revision of the same (tenant,
- * source_system, source_key) binds the same Doc UUID; a Doc UUID is never regenerated on retry.
+ * Records an event in `source_event` and assigns or binds its Doc UUID in one `canonical` transaction of the bound
+ * tenant (INV-REQ-1191 behavior 2, INV-ADR-259). Contract rules of `recordDocument`: a new source key gets a new Doc
+ * UUID; a repeat of the same four-part key returns the original Doc UUID and inserts nothing; a higher revision of the
+ * same (tenant, source_system, source_key) binds the same Doc UUID; a Doc UUID is never regenerated on retry.
  */
 class RecordSourceEvent(
     private val store: SourceEventStore,

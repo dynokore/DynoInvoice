@@ -69,20 +69,23 @@ class SourceEventGrantsTest {
         insertRow()
         CanonicalDb.connect(CanonicalDb.MIGRATE, CanonicalDb.MIGRATE_PASSWORD).use { owner ->
             owner.createStatement().use { it.execute("grant update on canonical.source_event to canonical_runtime") }
-            try {
-                updateAndDeleteAreRefused() shouldBe false // the probe: the committed test would fail here
-            } finally {
-                owner.createStatement().use {
-                    it.execute(
-                        "revoke update on canonical.source_event from canonical_runtime",
-                    )
+            val refusedWithGrant =
+                try {
+                    updateAndDeleteAreRefused()
+                } finally {
+                    revoke(owner)
                 }
-            }
+            refusedWithGrant shouldBe false // the probe: the committed test would fail here
         }
         updateAndDeleteAreRefused() shouldBe true
     }
 
+    private fun revoke(owner: java.sql.Connection) {
+        owner.createStatement().use { it.execute(REVOKE) }
+    }
+
     private companion object {
         const val INSUFFICIENT_PRIVILEGE = "42501"
+        const val REVOKE = "revoke update on canonical.source_event from canonical_runtime"
     }
 }
