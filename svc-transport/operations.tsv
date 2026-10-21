@@ -1,0 +1,13 @@
+kind	id	task
+operation	submitPayload	INV-T-4981
+operation	submitPackage	UNASSIGNED
+operation	sendNetworkDocument	UNASSIGNED
+operation	receiveApNotification	INV-T-4982
+operation	rotateCredential	INV-T-4983
+operation	testConnection	INV-T-4983
+operation	failoverAdapter	INV-T-4983
+operation	setConnectionEntities	UNASSIGNED
+channel	gst.transport.acknowledgement-received.v1	INV-T-4982
+channel	gst.transport.network-document-received.v1	UNASSIGNED
+channel	gst.transport.access-point-route-changed.v1	UNASSIGNED
+channel	gst.transport.example-happened.v1	UNASSIGNED
