@@ -1,0 +1,77 @@
+# gradle/libs.versions.toml — svc-evidence's version catalogue (STK-01, TPL-01).
+#
+# platform-build's own catalogue is internal to its build; every consuming repository keeps its own.
+# `checkDependencyCatalogUsage` (STK §1b(a)) enforces that every dependency goes through an alias.
+
+[versions]
+# The gst.* convention plugins and platform-build's konsist-rules ship together as one train.
+platformBuild = "0.23.1"
+# platform-libs' BOM: the one line a service bumps for the L1 modules (platform-libs README, "Releasing").
+platformLibsBom = "0.108.0"
+# The generated ErrorCode / VariationPoint catalogue (STK-61), from platform-contracts' registry (226).
+gstCatalogue = "1.28.0"
+# The published platform-contracts bundle the contract module generates from (a main build of platform-contracts).
+platformContractsBundle = "0.0.0-dev+d7fc06f3"
+springBoot = "4.1.1"
+jooq = "3.21.9"
+flyway = "12.4.0"
+postgresql = "42.7.14"
+testcontainers = "1.21.4"
+junit = "6.1.3"
+kotest = "6.2.5"
+mockk = "1.14.11"
+jackson = "3.2.3"
+# Spring Boot 4.1.1 manages Tomcat 11.0.24 (3 CRITICAL CVEs, fixed in 11.0.25), the version the bootstrap module already runs.
+tomcat = "11.0.25"
+jsonSchemaValidator = "3.0.8"
+# The generated server interfaces annotate with swagger (the version codegen-self-test pins).
+swaggerAnnotations = "2.2.55"
+
+[libraries]
+platform-bom = { module = "com.dynokore.platform:platform-libs-bom", version.ref = "platformLibsBom" }
+platform-konsistRules = { module = "com.dynokore.gst.build:konsist-rules", version.ref = "platformBuild" }
+platform-tenancyKernel-api = { module = "com.dynokore.platform:tenancy-kernel-api" }
+platform-tenancyKernel-impl = { module = "com.dynokore.platform:tenancy-kernel" }
+platform-outboxAndQueue-api = { module = "com.dynokore.platform:outbox-and-queue-api" }
+platform-outboxAndQueue-impl = { module = "com.dynokore.platform:outbox-and-queue" }
+platform-auditLog-api = { module = "com.dynokore.platform:audit-log-api" }
+platform-auditLog-impl = { module = "com.dynokore.platform:audit-log" }
+platform-configResolver-api = { module = "com.dynokore.platform:config-resolver-api" }
+platform-configResolver-impl = { module = "com.dynokore.platform:config-resolver" }
+platform-serviceRuntime-api = { module = "com.dynokore.platform:service-runtime-api" }
+platform-serviceRuntime-impl = { module = "com.dynokore.platform:service-runtime" }
+platform-productRuntime-api = { module = "com.dynokore.platform:product-runtime-api" }
+platform-productRuntime-impl = { module = "com.dynokore.platform:product-runtime" }
+platform-tenancyJooq-api = { module = "com.dynokore.platform:tenancy-jooq-api" }
+platform-tenancyJooq-impl = { module = "com.dynokore.platform:tenancy-jooq" }
+gstCatalogue = { module = "com.dynokore.gst:gst-catalogue", version.ref = "gstCatalogue" }
+platformContracts-bundle = { module = "platform-contracts-bundle:platform-contracts", version.ref = "platformContractsBundle" }
+springBoot-dependencies = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "springBoot" }
+springBoot-starterWeb = { module = "org.springframework.boot:spring-boot-starter-web" }
+springBoot-starterJdbc = { module = "org.springframework.boot:spring-boot-starter-jdbc" }
+springBoot-starterJooq = { module = "org.springframework.boot:spring-boot-starter-jooq" }
+springBoot-starterActuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }
+springBoot-starterValidation = { module = "org.springframework.boot:spring-boot-starter-validation" }
+swagger-annotations = { module = "io.swagger.core.v3:swagger-annotations-jakarta", version.ref = "swaggerAnnotations" }
+assertj-core = { module = "org.assertj:assertj-core" }
+snakeyaml = { module = "org.yaml:snakeyaml" }
+springBoot-test = { module = "org.springframework.boot:spring-boot-test" }
+springBoot-autoconfigure = { module = "org.springframework.boot:spring-boot-autoconfigure" }
+spring-context = { module = "org.springframework:spring-context" }
+jooq = { module = "org.jooq:jooq", version.ref = "jooq" }
+flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
+flyway-databasePostgresql = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway" }
+postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
+testcontainers-postgresql = { module = "org.testcontainers:postgresql", version.ref = "testcontainers" }
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
+junit-platformLauncher = { module = "org.junit.platform:junit-platform-launcher" }
+kotest-assertionsCore = { module = "io.kotest:kotest-assertions-core", version.ref = "kotest" }
+mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
+tomcat-embedCore = { module = "org.apache.tomcat.embed:tomcat-embed-core", version.ref = "tomcat" }
+tomcat-embedEl = { module = "org.apache.tomcat.embed:tomcat-embed-el", version.ref = "tomcat" }
+tomcat-embedWebsocket = { module = "org.apache.tomcat.embed:tomcat-embed-websocket", version.ref = "tomcat" }
+jackson-bom = { module = "tools.jackson:jackson-bom", version.ref = "jackson" }
+jackson-databind = { module = "tools.jackson.core:jackson-databind", version.ref = "jackson" }
+jackson-moduleKotlin = { module = "tools.jackson.module:jackson-module-kotlin" }
+jsonSchemaValidator = { module = "com.networknt:json-schema-validator", version.ref = "jsonSchemaValidator" }
