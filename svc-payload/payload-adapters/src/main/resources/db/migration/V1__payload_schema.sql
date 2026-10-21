@@ -7,7 +7,9 @@
 -- tenancy-kernel's BindingKeyMigration.ddl; this file does not run that generator and does not switch role.
 -- The schema itself is created by Flyway (the `schemas` setting) or by the installer, owned by payload_migrate.
 -- The capability registry (INV-REQ-481): one row per capability of the service. SERIALISATION starts NOT_SPECIFIED and
--- changes only through markSpecified, which the binding table of INV-REQ-480 gates. Platform-scoped: no tenant data.
+-- changes only through the definer function below, which accepts the platform tenant's binding alone (INV-REQ-854
+-- behavior 2, INV-ADR-3968 items 4a and 6). Platform-scoped: no tenant data. The guard that decides when to call it
+-- (the MDE pack contents, INV-REQ-480) lives in payload-application; no table of this schema holds the binding rows.
 create table payload.capability (
     key text primary key check (key in ('SERIALISATION')),
     state text not null default 'NOT_SPECIFIED' check (state in ('NOT_SPECIFIED', 'SPECIFIED'))
@@ -16,7 +18,26 @@ comment on table payload.capability is 'platform-scoped: no tenant data';
 insert into payload.capability (key, state) values ('SERIALISATION', 'NOT_SPECIFIED');
 grant usage on schema payload to payload_runtime;
 grant select on payload.capability to payload_runtime;
-grant update (state) on payload.capability to payload_runtime;
+create function payload.mark_capability_specified(p_key text) returns boolean
+    language plpgsql security definer set search_path = pg_catalog, payload, pg_temp as $$
+begin
+    if (select payload.bound_tenant()) is distinct from 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid then
+        raise exception 'a capability is marked specified under the platform tenant only' using errcode = '42501';
+    end if;
+    update payload.capability set state = 'SPECIFIED' where key = p_key;
+    if not found then
+        raise exception 'no such capability' using errcode = '02000';
+    end if;
+    return true;
+end
+$$;
+grant usage on schema payload to payload_sys;
+grant select, update (state) on payload.capability to payload_sys;
+grant create on schema payload to payload_sys;
+alter function payload.mark_capability_specified(text) owner to payload_sys;
+revoke create on schema payload from payload_sys;
+revoke execute on function payload.mark_capability_specified(text) from public;
+grant execute on function payload.mark_capability_specified(text) to payload_runtime;
 -- OutboxSchema.ddl("payload", "payload_runtime", "payload_sys")
 create table payload.outbox (
     seq bigint generated always as identity primary key,

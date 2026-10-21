@@ -2,7 +2,10 @@ package com.dynokore.gst.payload.bootstrap
 
 import com.dynokore.gst.payload.adapters.persistence.JooqCapabilityRegistry
 import com.dynokore.gst.payload.adapters.persistence.jooq.DefaultCatalog
+import com.dynokore.gst.payload.application.AbsentMdePackSource
 import com.dynokore.gst.payload.application.CapabilityRegistry
+import com.dynokore.gst.payload.application.CapabilityService
+import com.dynokore.gst.payload.application.MdePackSource
 import org.jooq.DSLContext
 import org.jooq.Schema
 import org.springframework.context.annotation.Bean
@@ -17,10 +20,19 @@ class PersistenceConfiguration {
     @Bean
     fun payloadSchema(): Schema = DefaultCatalog.DEFAULT_CATALOG.PAYLOAD
 
-    /**
-     * The capability registry. `CapabilityService` (the `markSpecified` guard) is not a bean yet: the schema, table
-     * and column names of the INV-REQ-480 binding table are not fixed by any published text (reported in the MR).
-     */
     @Bean
     fun capabilityRegistry(dsl: DSLContext): CapabilityRegistry = JooqCapabilityRegistry(dsl)
+
+    /**
+     * The production source: no MDE pack is loaded yet, so `markSpecified(SERIALISATION)` stays refused. The task that
+     * loads the pack replaces this one bean.
+     */
+    @Bean
+    fun mdePackSource(): MdePackSource = AbsentMdePackSource()
+
+    @Bean
+    fun capabilityService(
+        registry: CapabilityRegistry,
+        packs: MdePackSource,
+    ): CapabilityService = CapabilityService(registry, packs)
 }

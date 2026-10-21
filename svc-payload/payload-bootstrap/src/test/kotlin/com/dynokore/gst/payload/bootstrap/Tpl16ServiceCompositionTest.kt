@@ -1,5 +1,8 @@
 package com.dynokore.gst.payload.bootstrap
 
+import com.dynokore.gst.payload.application.AbsentMdePackSource
+import com.dynokore.gst.payload.application.CapabilityService
+import com.dynokore.gst.payload.application.MdePackSource
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.TenantScope
@@ -8,6 +11,7 @@ import com.dynokore.platform.tenancykernel.CurrentConnection
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.context.ApplicationContext
@@ -31,7 +35,9 @@ class Tpl16ServiceCompositionTest {
                 TenantScope::class,
                 OutboxWriter::class,
                 WorkQueue::class,
+                CapabilityService::class,
             ).forEach { context.getBean(it.java) }
+            context.getBean(MdePackSource::class.java).shouldBeInstanceOf<AbsentMdePackSource>()
             context.getBeanNamesForType(DataSource::class.java).toList() shouldBe listOf("dataSource")
             context.getBean(TenantScope::class.java).workloadPrincipal shouldBe "svc:payload-svc"
             catalogueTypes(context) shouldBe PayloadEvents.entries.map { it.eventType }.toSet()

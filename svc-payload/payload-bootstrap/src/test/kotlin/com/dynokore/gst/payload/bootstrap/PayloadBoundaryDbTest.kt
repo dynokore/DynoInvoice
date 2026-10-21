@@ -2,6 +2,7 @@ package com.dynokore.gst.payload.bootstrap
 
 import com.dynokore.gst.payload.adapters.persistence.jooq.tables.Outbox
 import com.dynokore.gst.payload.application.CapabilityRegistry
+import com.dynokore.gst.payload.application.CapabilityService
 import com.dynokore.gst.payload.domain.CapabilityKey
 import com.dynokore.gst.payload.domain.CapabilityState
 import com.dynokore.platform.outboxandqueue.CausationId
@@ -12,10 +13,12 @@ import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.TenantScope
+import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import org.jooq.DSLContext
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -39,6 +42,8 @@ class PayloadBoundaryDbTest {
         val dsl: DSLContext = context.getBean(DSLContext::class.java)
         val outbox: OutboxWriter = context.getBean(OutboxWriter::class.java)
         val capabilities: CapabilityRegistry = context.getBean(CapabilityRegistry::class.java)
+        val service: CapabilityService = context.getBean(CapabilityService::class.java)
+        val platform: PlatformTenantBinding = context.getBean(PlatformTenantBinding::class.java)
     }
 
     private fun run(
@@ -115,6 +120,24 @@ class PayloadBoundaryDbTest {
     ) = run(dir) { boundary ->
         val state =
             boundary.scope.bind(TenantId(UUID.randomUUID()), actor) {
+                boundary.runner.inTransaction { boundary.capabilities.state(CapabilityKey.SERIALISATION) }
+            }
+        state shouldBe CapabilityState.NOT_SPECIFIED
+    }
+
+    @Test
+    fun `INV-AC-7842 the production wiring refuses markSpecified naming the MDE pack and the state stays NOT_SPECIFIED`(
+        @TempDir dir: Path,
+    ) = run(dir) { boundary ->
+        val failure =
+            shouldThrow<IllegalStateException> {
+                boundary.platform.bindPlatform(actor) {
+                    boundary.runner.inTransaction { boundary.service.markSpecified(CapabilityKey.SERIALISATION) }
+                }
+            }
+        failure.message shouldContain "MDE pack (packType mde)"
+        val state =
+            boundary.platform.bindPlatform(actor) {
                 boundary.runner.inTransaction { boundary.capabilities.state(CapabilityKey.SERIALISATION) }
             }
         state shouldBe CapabilityState.NOT_SPECIFIED

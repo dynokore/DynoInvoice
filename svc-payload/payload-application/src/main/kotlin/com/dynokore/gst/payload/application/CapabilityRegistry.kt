@@ -1,6 +1,5 @@
 package com.dynokore.gst.payload.application
 
-import com.dynokore.gst.payload.domain.BindingTableRef
 import com.dynokore.gst.payload.domain.CapabilityKey
 import com.dynokore.gst.payload.domain.CapabilityState
 
@@ -8,47 +7,71 @@ import com.dynokore.gst.payload.domain.CapabilityState
 interface CapabilityRegistry {
     fun state(key: CapabilityKey): CapabilityState
 
-    /** Sets [key] to SPECIFIED; a no-op for a capability that is already SPECIFIED. */
+    /**
+     * Sets [key] to SPECIFIED. The database accepts the write only in a transaction bound to the platform tenant
+     * (INV-REQ-854 behavior 2); a no-op for a capability that is already SPECIFIED.
+     */
     fun markSpecified(key: CapabilityKey)
 }
 
-/** What the database holds of the MDE binding table of INV-REQ-480. */
-interface BindingTableInspector {
-    fun exists(table: BindingTableRef): Boolean
+/**
+ * The facts of one binding row (INV-REQ-480) that the guard checks: the Business Term ID, the IRAS MDE status and one
+ * PINT-SG cardinality per entry of the row's `specifications` array. The names differ on purpose from the Layer 2
+ * types of INV-T-6790.
+ */
+data class BindingRowFacts(
+    val businessTermId: String?,
+    val irasStatus: String?,
+    val pintCardinalities: List<String?>,
+)
 
-    /** Rows of [table] that lack a Business Term ID, a PINT-SG cardinality or an IRAS MDE status (null or blank). */
-    fun incompleteRows(table: BindingTableRef): Int
+/** The active MDE pack (packType `mde`) as the guard sees it: its version and its binding rows. */
+data class ActiveMdePack(
+    val version: String,
+    val rows: List<BindingRowFacts>,
+)
 
-    fun rows(table: BindingTableRef): Int
+/** Where the contents of the active MDE pack come from; the binding table of INV-REQ-480 is these contents. */
+interface MdePackSource {
+    /** The active MDE pack, or null while none is active. */
+    fun active(): ActiveMdePack?
+}
+
+/** The source of the production wiring until the task that loads the pack replaces it: no pack is active. */
+class AbsentMdePackSource : MdePackSource {
+    override fun active(): ActiveMdePack? = null
 }
 
 /**
  * `markSpecified(SERIALISATION)` (INV-REQ-481, INV-AC-7842, INV-AC-7843): refused with an [IllegalStateException]
- * while the binding table is absent, empty or holds an incomplete row; the state then stays as it was.
+ * naming the MDE pack while no pack is active, its rows are empty or a row is incomplete; the state then stays as it
+ * was. The status value itself is not judged here: the pack schema fixes it and Layer 2 applies it.
  */
 class CapabilityService(
     private val registry: CapabilityRegistry,
-    private val inspector: BindingTableInspector,
-    private val bindingTable: BindingTableRef,
+    private val packs: MdePackSource,
 ) {
     fun markSpecified(key: CapabilityKey) {
         when (key) {
-            CapabilityKey.SERIALISATION -> requireCompleteBindingTable()
+            CapabilityKey.SERIALISATION -> requireCompletePack(packs.active())
         }
         registry.markSpecified(key)
     }
 
-    private fun requireCompleteBindingTable() {
-        check(inspector.exists(bindingTable)) {
-            "the MDE binding table ${bindingTable.qualifiedName} does not exist: serialisation is not specified"
+    private fun requireCompletePack(pack: ActiveMdePack?) {
+        checkNotNull(pack) { "$PACK: no pack is active, serialisation is not specified" }
+        check(pack.rows.isNotEmpty()) { "$PACK: the active pack holds no row, serialisation is not specified" }
+        pack.rows.forEachIndexed { index, row ->
+            check(!row.businessTermId.isNullOrBlank()) { "$PACK: row $index has no Business Term ID" }
+            check(!row.irasStatus.isNullOrBlank()) { "$PACK: row $index has no IRAS MDE status" }
+            check(row.pintCardinalities.isNotEmpty()) { "$PACK: row $index has no specification entry" }
+            row.pintCardinalities.forEachIndexed { entry, cardinality ->
+                check(!cardinality.isNullOrBlank()) { "$PACK: row $index entry $entry has no PINT-SG cardinality" }
+            }
         }
-        check(inspector.rows(bindingTable) > 0) {
-            "the MDE binding table ${bindingTable.qualifiedName} holds no row: serialisation is not specified"
-        }
-        val incomplete = inspector.incompleteRows(bindingTable)
-        check(incomplete == 0) {
-            "the MDE binding table ${bindingTable.qualifiedName} holds $incomplete row(s) without a Business Term " +
-                "ID, a PINT-SG cardinality or an IRAS MDE status: serialisation is not specified"
-        }
+    }
+
+    private companion object {
+        const val PACK = "MDE pack (packType mde)"
     }
 }

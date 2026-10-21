@@ -1,24 +1,26 @@
 package com.dynokore.gst.payload.adapters
 
-import com.dynokore.gst.payload.adapters.persistence.JooqBindingTableInspector
 import com.dynokore.gst.payload.adapters.persistence.JooqCapabilityRegistry
+import com.dynokore.gst.payload.application.ActiveMdePack
+import com.dynokore.gst.payload.application.BindingRowFacts
 import com.dynokore.gst.payload.application.CapabilityService
-import com.dynokore.gst.payload.domain.BindingTableRef
+import com.dynokore.gst.payload.application.MdePackSource
 import com.dynokore.gst.payload.domain.CapabilityKey
 import com.dynokore.gst.payload.domain.CapabilityState
+import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import org.jooq.SQLDialect
+import org.jooq.exception.DataAccessException
 import org.jooq.impl.DSL
 import org.junit.jupiter.api.Test
-import java.sql.Connection
 import java.util.UUID
 
 /**
  * The serialisation guard (INV-REQ-481) at the database, over the `payload_runtime` login: the capability registry of
- * schema `payload` and `markSpecified(SERIALISATION)` against scratch binding tables. The registry state is reset
- * through the superuser connection before each case, so the cases do not depend on their order.
+ * schema `payload` and `markSpecified(SERIALISATION)` over a fixture [MdePackSource]. The state is reset through the
+ * superuser connection before each case, so the cases do not depend on their order.
  */
 class CapabilityGuardTest {
     private val key = CapabilityKey.SERIALISATION
@@ -29,42 +31,50 @@ class CapabilityGuardTest {
 
     private fun scratchSchema(): String = "scratch_" + UUID.randomUUID().toString().replace("-", "")
 
-    private fun ref(
-        schema: String,
-        table: String = "mde_binding_table",
-    ) = BindingTableRef(schema, table, "business_term_id", "pint_sg_cardinality", "iras_mde_status")
-
-    private fun createBindingTable(
-        schema: String,
-        table: String,
-        vararg rows: String,
-    ) {
-        superuser("create schema $schema")
-        superuser(
-            "create table $schema.$table (business_term_id text, pint_sg_cardinality text, iras_mde_status text)",
-        )
-        rows.forEach { superuser("insert into $schema.$table values $it") }
-        superuser("grant usage on schema $schema to ${PayloadDb.RUNTIME}")
-        superuser("grant select on $schema.$table to ${PayloadDb.RUNTIME}")
+    private fun fixture(pack: ActiveMdePack?): MdePackSource {
+        var calls = 0
+        return object : MdePackSource {
+            override fun active(): ActiveMdePack? {
+                calls += 1
+                check(calls == 1) { "active() must be called once per markSpecified" }
+                return pack
+            }
+        }
     }
 
-    private fun <T> service(
-        table: BindingTableRef,
-        block: (CapabilityService, JooqCapabilityRegistry) -> T,
+    private fun row(
+        term: String? = "BT-1",
+        status: String? = "MANDATORY",
+        vararg cardinalities: String? = arrayOf("1..1"),
+    ) = BindingRowFacts(term, status, cardinalities.toList())
+
+    private fun pack(vararg rows: BindingRowFacts) = ActiveMdePack("1.0.0", rows.toList())
+
+    /** Runs [block] in one transaction of the `payload_runtime` login bound to [tenant] with a signed binding. */
+    private fun <T> bound(
+        tenant: UUID,
+        block: (JooqCapabilityRegistry) -> T,
     ): T =
-        PayloadDb.connect(PayloadDb.RUNTIME, PayloadDb.RUNTIME_PASSWORD).use { connection: Connection ->
-            val dsl = DSL.using(connection, SQLDialect.POSTGRES)
-            val registry = JooqCapabilityRegistry(dsl)
-            block(CapabilityService(registry, JooqBindingTableInspector(dsl), table), registry)
+        PayloadDb.connect(PayloadDb.RUNTIME, PayloadDb.RUNTIME_PASSWORD).use { connection ->
+            connection.autoCommit = false
+            SignedBindings.bind(connection, tenant)
+            // commit even when the block throws: a write made before a refusal must not be rolled back out of sight
+            try {
+                block(JooqCapabilityRegistry(DSL.using(connection, SQLDialect.POSTGRES)))
+            } finally {
+                connection.commit()
+            }
         }
 
-    private fun refused(
-        table: BindingTableRef,
-        expectedInMessage: String? = null,
-    ) = service(table) { guard, registry ->
-        val failure = shouldThrow<IllegalStateException> { guard.markSpecified(key) }
-        expectedInMessage?.let { failure.message shouldContain it }
-        registry.state(key) shouldBe CapabilityState.NOT_SPECIFIED
+    private fun state(): CapabilityState = bound(UUID.randomUUID()) { it.state(key) }
+
+    private fun refused(source: MdePackSource) {
+        val failure =
+            shouldThrow<IllegalStateException> {
+                bound(TenantId.PLATFORM.value) { CapabilityService(it, source).markSpecified(key) }
+            }
+        failure.message shouldContain "MDE pack (packType mde)"
+        state() shouldBe CapabilityState.NOT_SPECIFIED
     }
 
     @Test
@@ -95,64 +105,85 @@ class CapabilityGuardTest {
     }
 
     @Test
-    fun `INV-AC-7842 markSpecified is refused naming the missing table when no binding table exists`() {
+    fun `INV-AC-7842 markSpecified is refused when no MDE pack is active`() {
         reset()
-        refused(ref(scratchSchema()), "does not exist")
+        refused(fixture(null))
     }
 
     @Test
-    fun `INV-AC-7842 markSpecified is refused for a binding table with one complete and one incomplete row`() {
+    fun `INV-AC-7842 markSpecified is refused for an active pack with no row`() {
         reset()
-        val schema = scratchSchema()
-        createBindingTable(schema, "mde_binding_table", "('BT-1', '1..1', 'MANDATORY')", "('BT-2', '0..1', null)")
-        refused(ref(schema), "1 row(s)")
+        refused(fixture(pack()))
     }
 
     @Test
-    fun `INV-AC-7842 a blank cardinality makes the row incomplete`() {
+    fun `INV-AC-7842 a blank or whitespace-only Business Term ID or IRAS status makes the row incomplete`() {
         reset()
-        val schema = scratchSchema()
-        createBindingTable(schema, "mde_binding_table", "('BT-1', '1..1', 'MANDATORY')", "('BT-2', '  ', 'MANDATORY')")
-        refused(ref(schema))
-    }
-
-    @Test
-    fun `INV-AC-7842 a row missing its Business Term ID or its IRAS MDE status is incomplete`() {
-        reset()
-        val schema = scratchSchema()
-        createBindingTable(schema, "mde_binding_table", "(null, '1..1', 'MANDATORY')")
-        refused(ref(schema))
-        val second = scratchSchema()
-        createBindingTable(second, "mde_binding_table", "('BT-1', '1..1', '')")
-        refused(ref(second))
-    }
-
-    @Test
-    fun `INV-AC-7842 a look-alike table name does not satisfy the guard`() {
-        reset()
-        val schema = scratchSchema()
-        createBindingTable(schema, "mde_binding_tables", "('BT-1', '1..1', 'MANDATORY')")
-        refused(ref(schema), "does not exist")
-    }
-
-    @Test
-    fun `INV-AC-7842 an empty binding table does not satisfy the guard`() {
-        reset()
-        val schema = scratchSchema()
-        createBindingTable(schema, "mde_binding_table")
-        refused(ref(schema), "holds no row")
-    }
-
-    @Test
-    fun `INV-AC-7843 markSpecified succeeds and changes the state only when every row is complete`() {
-        reset()
-        val schema = scratchSchema()
-        createBindingTable(schema, "mde_binding_table", "('BT-1', '1..1', 'MANDATORY')", "('BT-2', '0..1', 'NOT_MDE')")
-        service(ref(schema)) { guard, registry ->
-            registry.state(key) shouldBe CapabilityState.NOT_SPECIFIED
-            guard.markSpecified(key)
-            registry.state(key) shouldBe CapabilityState.SPECIFIED
+        listOf(null, "", "   ").forEach { blank ->
+            refused(fixture(pack(row(), row(term = blank))))
+            refused(fixture(pack(row(), row(status = blank))))
         }
+    }
+
+    @Test
+    fun `INV-AC-7842 an empty list of specification cardinalities makes the row incomplete`() {
         reset()
+        refused(fixture(pack(row(), row(cardinalities = emptyArray()))))
+    }
+
+    @Test
+    fun `INV-AC-7842 a blank cardinality of three spaces or a blank second cardinality makes the row incomplete`() {
+        reset()
+        refused(fixture(pack(row(cardinalities = arrayOf("   ")))))
+        refused(fixture(pack(row(cardinalities = arrayOf("1..1", "   ")))))
+        refused(fixture(pack(row(cardinalities = arrayOf("1..1", null)))))
+        refused(fixture(pack(row(cardinalities = arrayOf("1..1", "")))))
+    }
+
+    @Test
+    fun `INV-AC-7842 a look-alike table mde_binding_tables in schema payload leaves the refusal unchanged`() {
+        reset()
+        superuser("create table payload.mde_binding_tables (business_term_id text, iras_mde_status text)")
+        try {
+            superuser("insert into payload.mde_binding_tables values ('BT-1', 'MANDATORY')")
+            refused(fixture(null))
+            refused(fixture(pack()))
+        } finally {
+            superuser("drop table payload.mde_binding_tables")
+        }
+    }
+
+    @Test
+    fun `INV-AC-7843 markSpecified succeeds and sets SPECIFIED when every row is complete`() {
+        reset()
+        val complete = pack(row(), row(term = "BT-2", status = "NOT_MDE", cardinalities = arrayOf("0..1", "0..n")))
+        bound(TenantId.PLATFORM.value) { registry ->
+            registry.state(key) shouldBe CapabilityState.NOT_SPECIFIED
+            CapabilityService(registry, fixture(complete)).markSpecified(key)
+        }
+        state() shouldBe CapabilityState.SPECIFIED
+        reset()
+        // the refusals still hold in the same database
+        refused(fixture(null))
+        refused(fixture(pack(row(), row(cardinalities = arrayOf("1..1", " ")))))
+    }
+
+    @Test
+    fun `INV-AC-7843 a session bound to tenant A cannot change the state of capability`() {
+        reset()
+        val tenantA = UUID.randomUUID()
+        shouldThrow<DataAccessException> { bound(tenantA) { it.markSpecified(key) } }
+        state() shouldBe CapabilityState.NOT_SPECIFIED
+        // and the runtime login holds no UPDATE of its own
+        PayloadDb.connect(PayloadDb.RUNTIME, PayloadDb.RUNTIME_PASSWORD).use { connection ->
+            connection.createStatement().use { statement ->
+                val failure =
+                    shouldThrow<java.sql.SQLException> {
+                        statement.execute("update payload.capability set state = 'SPECIFIED'")
+                    }
+                failure.message shouldContain "permission denied"
+            }
+        }
+        state() shouldBe CapabilityState.NOT_SPECIFIED
     }
 }
