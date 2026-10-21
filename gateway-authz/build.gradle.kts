@@ -78,6 +78,8 @@ tasks.named<org.springframework.boot.gradle.tasks.bundling.BootBuildImage>("boot
         mapOf(
             "BP_JVM_VERSION" to "25",
             "BP_JVM_AOTCACHE_ENABLED" to "true",
+            // STK-72: unused (no service bindings); with the AOT cache it is repacked into runner.jar with build-time timestamps.
+            "BP_SPRING_CLOUD_BINDINGS_DISABLED" to "true",
         ),
     )
 }
