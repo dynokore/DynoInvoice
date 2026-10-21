@@ -2,11 +2,16 @@ package com.dynokore.gst.rules.bootstrap
 
 import com.dynokore.gst.catalogue.ErrorCode
 import com.dynokore.gst.rules.adapters.persistence.ArmedPackLookup
+import com.dynokore.gst.rules.adapters.persistence.jooq.tables.references.PACK_ARTEFACT
+import com.dynokore.gst.rules.bootstrap.SchemaInspection.Column
+import com.dynokore.gst.rules.bootstrap.SchemaInspection.Grant
+import com.dynokore.gst.rules.bootstrap.SchemaInspection.Table
 import com.dynokore.gst.rules.domain.resolution.PackResolution
 import com.dynokore.gst.rules.domain.resolution.PackResolver
 import com.dynokore.gst.rules.domain.resolution.PackTypes
 import com.dynokore.gst.rules.domain.resolution.ResolutionDates
 import com.dynokore.gst.rules.domain.resolution.TransactionDate
+import com.dynokore.platform.rulepackkernel.PackRegistryMigration
 import com.dynokore.platform.rulepackkernel.PackType
 import com.dynokore.platform.serviceruntime.migration.MigrationRunner
 import com.dynokore.platform.tenancyjooq.TenancyProbe
@@ -20,7 +25,10 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import org.jooq.DSLContext
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.boot.context.properties.bind.Bindable
+import org.springframework.boot.context.properties.bind.Binder
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.core.env.Environment
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.testcontainers.containers.PostgreSQLContainer
@@ -41,8 +49,18 @@ private const val INSERT_TENANT_PACK =
         "values (?::uuid, ?::uuid, ?, ?, ?, 'TENANT_MAPPING', ?, ?::date, ?::date, '1.0.0', ?, 'tenancy-probe') " +
         "returning id"
 
-/** The two metadata tables rules-svc owns, and the tables of the platform libraries and Flyway in the schema. */
-private val REGISTRY_TABLES = setOf("pack_registry", "pack_entry_source")
+private const val INSERT_ARTEFACT =
+    "insert into rules.pack_artefact (id, pack_id, pack_type, pack_version, tenant_id, effective_from, effective_to, " +
+        "min_engine_version, manifest, checksums, signature, contents, trusted_anchor, registered_by) " +
+        "values (?::uuid, ?, ?, ?, ?::uuid, '2026-01-01'::date, null, '1.0.0', '{}'::jsonb, '{}'::jsonb, ?, " +
+        "'{}'::jsonb, 'anchor', 'tenancy-probe') returning id"
+
+private const val REGISTER_KERNEL_PACK =
+    "select rules.register_platform_pack(?::uuid, ?, ?, ?, ?::date, null, '1.0.0', ?::jsonb, ?::jsonb, ?, ?::jsonb, ?)"
+
+/** The two metadata tables rules-svc owns, the holder copy beside them, and the tables of the libraries and Flyway. */
+private val REGISTRY_TABLES = SchemaInspection.REGISTRY_TABLES
+private val HOLDER_TABLES = setOf(SchemaInspection.HOLDER)
 private val LIBRARY_TABLES =
     setOf(
         "binding_key",
@@ -71,6 +89,7 @@ class RegistryPostgresIT(
     @Autowired private val tx: TransactionRunner,
     @Autowired private val tenants: TenantContext,
     @Autowired private val db: DSLContext,
+    @Autowired private val environment: Environment,
 ) {
     private val probe: TenancyProbe = TenancyProbe.connect(pg.jdbcUrl, "rules_runtime", "rules_runtime_pw")
 
@@ -249,10 +268,11 @@ class RegistryPostgresIT(
         platformRegister("SCOPE_FN", "via-function", "2026-01-01")
         value(tenantA, "select count(*) from rules.pack_registry where pack_version = 'via-function'") shouldBe 1L
         // the sys function owner is rules_sys and the execute right is not PUBLIC's
-        probe.fetchValue(
-            "select pg_get_userbyid(proowner) from pg_proc " +
+        // both overloads of the name (nine and twelve parameters) are owned by rules_sys
+        names(
+            "select pg_get_userbyid(proowner) as n from pg_proc " +
                 "where proname = 'register_platform_pack' and pronamespace = 'rules'::regnamespace",
-        ) shouldBe "rules_sys"
+        ) shouldBe setOf("rules_sys")
         probe.fetchValue(
             "select has_function_privilege('public', 'rules.register_platform_pack($REGISTER_ARGUMENTS)', 'execute')",
         ) shouldBe false
@@ -265,7 +285,7 @@ class RegistryPostgresIT(
                 .fetchRows("select table_name from information_schema.tables where table_schema = 'rules'")
                 .map { it["table_name"] as String }
         // deny by default: every table of the schema is classified above, an unknown table is a finding
-        tables.filter { it !in REGISTRY_TABLES && it !in LIBRARY_TABLES } shouldBe emptyList()
+        tables.filter { it !in REGISTRY_TABLES && it !in HOLDER_TABLES && it !in LIBRARY_TABLES } shouldBe emptyList()
         // the registry tables hold no document-shaped column: no json, jsonb, bytea
         val registry = "table_schema = 'rules' and table_name in ('pack_registry', 'pack_entry_source')"
         probe.fetchRows(
@@ -278,6 +298,215 @@ class RegistryPostgresIT(
                 .map { it["column_name"] as String }
         val documentColumns = setOf("contents", "content", "manifest", "signature", "checksums", "artefact")
         names.none { it in documentColumns } shouldBe true
+    }
+
+    private fun catalogTables(): List<Table> =
+        probe
+            .fetchRows(
+                "select n.nspname as s, c.relname as t from pg_class c join pg_namespace n on n.oid = c.relnamespace " +
+                    "where c.relkind in ('r', 'p') and n.nspname = 'rules'",
+            ).map { Table(it["s"] as String, it["t"] as String) }
+
+    private fun catalogColumns(): List<Column> =
+        probe
+            .fetchRows(
+                "select n.nspname as s, c.relname as t, a.attname as a, y.typname as y from pg_attribute a " +
+                    "join pg_class c on c.oid = a.attrelid join pg_namespace n on n.oid = c.relnamespace " +
+                    "join pg_type y on y.oid = a.atttypid " +
+                    "where a.attnum > 0 and not a.attisdropped and c.relkind in ('r', 'p') and n.nspname = 'rules'",
+            ).map { Column(Table(it["s"] as String, it["t"] as String), it["a"] as String, it["y"] as String) }
+
+    private fun columnsOf(table: String): Set<String> =
+        catalogColumns().filter { it.table == Table("rules", table) }.map { it.name }.toSet()
+
+    private fun names(sql: String): Set<String> = probe.fetchRows(sql).map { it["n"] as String }.toSet()
+
+    @Test
+    fun `INV-AC-2182 the holder copy is rules pack_artefact with the kernel columns`() {
+        SchemaInspection.tableFindings(catalogTables(), catalogColumns(), LIBRARY_TABLES) shouldBe emptyList()
+        columnsOf("pack_artefact") shouldBe SchemaInspection.HOLDER_COLUMNS
+        columnsOf("pack_artefact").contains("version") shouldBe false
+        probe.fetchValue(
+            "select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace " +
+                "where c.relname = 'pack_artefact' and n.nspname <> 'rules'",
+        ) shouldBe 0L
+        // the V3 table is the kernel table for schema rules, owned by the migrating role
+        probe.fetchValue(
+            "select tableowner from pg_tables where schemaname = 'rules' and tablename = 'pack_artefact'",
+        ) shouldBe "rules_migrate"
+    }
+
+    @Test
+    fun `INV-AC-2182 the metadata tables keep their columns`() {
+        columnsOf("pack_registry") shouldBe
+            setOf(
+                "id",
+                "tenant_id",
+                "pack_id",
+                "pack_type",
+                "pack_version",
+                "layer",
+                "status",
+                "effective_from",
+                "effective_to",
+                "min_engine_version",
+                "supersedes",
+                "registered_by",
+                "registered_at",
+            )
+        columnsOf("pack_entry_source") shouldBe
+            setOf(
+                "id",
+                "tenant_id",
+                "pack_type",
+                "pack_version",
+                "entry_id",
+                "source_class",
+                "source_citation",
+                "accepted",
+            )
+    }
+
+    @Test
+    fun `INV-AC-2182 the metadata tables keep their policies`() {
+        val policies = "select policyname as n from pg_policies where schemaname = 'rules' and tablename = "
+        names(policies + "'pack_registry'") shouldBe
+            setOf(
+                "pack_registry_tenant_read",
+                "pack_registry_tenant_insert",
+                "pack_registry_tenant_update",
+                "pack_registry_platform_register",
+                "pack_registry_platform_select",
+                "pack_registry_platform_advance",
+            )
+        names(policies + "'pack_entry_source'") shouldBe
+            setOf(
+                "pack_entry_source_tenant_read",
+                "pack_entry_source_tenant_insert",
+                "pack_entry_source_tenant_update",
+                "pack_entry_source_platform_register",
+            )
+    }
+
+    @Test
+    fun `INV-AC-2182 the metadata tables keep their triggers and the nine-parameter function beside the kernel one`() {
+        val triggers =
+            "select t.tgname as n from pg_trigger t join pg_class c on c.oid = t.tgrelid " +
+                "where not t.tgisinternal and c.relnamespace = 'rules'::regnamespace and c.relname = "
+        names(triggers + "'pack_registry'") shouldBe
+            setOf("pack_registry_registered_by_insert", "pack_registry_frozen_update")
+        names(triggers + "'pack_entry_source'") shouldBe setOf("pack_entry_source_frozen")
+        // the nine-parameter function of INV-T-4965 and the kernel's twelve-parameter one share a name
+        names(
+            "select array_to_string(proargtypes::regtype[], ',') as n from pg_proc " +
+                "where pronamespace = 'rules'::regnamespace and proname = 'register_platform_pack'",
+        ) shouldBe setOf(REGISTER_ARGUMENTS, PackRegistryMigration.REGISTER_PLATFORM_PACK_ARGUMENTS.replace(" ", ""))
+        names(
+            "select array_to_string(proargtypes::regtype[], ',') as n from pg_proc " +
+                "where pronamespace = 'rules'::regnamespace and proname = 'advance_platform_pack'",
+        ) shouldBe setOf("text,text,text,date")
+    }
+
+    @Test
+    fun `INV-AC-2182 the holder copy is granted to the runtime login for insert and select only`() {
+        val rows =
+            probe.fetchRows(
+                "select pg_get_userbyid(c.relowner) as owner, case when x.grantee = 0 then 'PUBLIC' " +
+                    "else pg_get_userbyid(x.grantee) end as grantee, x.privilege_type as p, x.is_grantable as g, " +
+                    "null::text as col from pg_class c, aclexplode(c.relacl) x " +
+                    "where c.oid = 'rules.pack_artefact'::regclass " +
+                    "union all select pg_get_userbyid(c.relowner), case when x.grantee = 0 then 'PUBLIC' " +
+                    "else pg_get_userbyid(x.grantee) end, x.privilege_type, x.is_grantable, a.attname::text " +
+                    "from pg_attribute a join pg_class c on c.oid = a.attrelid, aclexplode(a.attacl) x " +
+                    "where c.oid = 'rules.pack_artefact'::regclass and a.attacl is not null",
+            )
+        rows.map { it["owner"] }.toSet() shouldBe setOf("rules_migrate")
+        val grants =
+            rows.map { Grant(it["grantee"] as String, it["p"] as String, it["g"] as Boolean, it["col"] as String?) }
+        // GAP (merge request): the kernel DDL also grants INSERT to the sys role, whose definer function writes
+        // the platform rows
+        SchemaInspection.grantFindings(grants, mapOf(SchemaInspection.SYS to setOf("INSERT"))) shouldBe emptyList()
+    }
+
+    @Test
+    fun `INV-AC-2182 each register_platform_pack writes its own table`() {
+        val registryBefore = platformCount("rules.pack_registry")
+        val artefactBefore = platformCount("rules.pack_artefact")
+        platformRegister("SCOPE_ARITY", "nine", "2026-01-01")
+        platformCount("rules.pack_registry") shouldBe registryBefore + 1
+        platformCount("rules.pack_artefact") shouldBe artefactBefore
+        registerKernelPack("SCOPE_ARITY", "twelve", "2026-01-01")
+        platformCount("rules.pack_registry") shouldBe registryBefore + 1
+        platformCount("rules.pack_artefact") shouldBe artefactBefore + 1
+        // the twelve-parameter function keeps the sys owner and is not executable by PUBLIC
+        probe.fetchValue(
+            "select has_function_privilege('public', 'rules.register_platform_pack(" +
+                PackRegistryMigration.REGISTER_PLATFORM_PACK_ARGUMENTS + ")', 'execute')",
+        ) shouldBe false
+    }
+
+    private fun platformCount(table: String): Long =
+        value(TenantId.PLATFORM, "select count(*) from $table where tenant_id = '$PLATFORM'::uuid") as Long
+
+    private fun registerKernelPack(
+        packType: String,
+        version: String,
+        from: String,
+    ) = value(
+        TenantId.PLATFORM,
+        REGISTER_KERNEL_PACK,
+        UUID.randomUUID().toString(),
+        "$packType-pack",
+        packType,
+        version,
+        from,
+        "{\"id\": 1}",
+        "{\"contents\": \"ab\"}",
+        byteArrayOf(1, 2, 3),
+        "{\"rules\": []}",
+        "anchor-1",
+    )
+
+    private fun seedArtefact(
+        tenant: TenantId,
+        version: String,
+    ) = value(
+        tenant,
+        INSERT_ARTEFACT,
+        UUID.randomUUID().toString(),
+        "mapping-pack",
+        "MAPPING",
+        version,
+        tenant.toString(),
+        byteArrayOf(9),
+    )
+
+    private fun artefactVersions(tenant: TenantId): Set<String> =
+        tenants.bind(tenant, "rules-test") {
+            tx.inTransaction {
+                db
+                    .select(PACK_ARTEFACT.PACK_VERSION)
+                    .from(PACK_ARTEFACT)
+                    .fetch(PACK_ARTEFACT.PACK_VERSION)
+                    .filterNotNull()
+                    .toSet()
+            }
+        }
+
+    @Test
+    fun `INV-AC-2182 the reference table is declared and a tenant reads the platform rows and its own`() {
+        PackRegistryMigration.referenceTable("rules", "pack_artefact") shouldBe "rules.pack_artefact"
+        val declared = Binder.get(environment).bind("inv.tenancy.reference-tables", Bindable.listOf(String::class.java))
+        declared.get().contains(PackRegistryMigration.referenceTable("rules", "pack_artefact")) shouldBe true
+        registerKernelPack("MAPPING", "platform-v", "2026-01-01")
+        seedArtefact(tenantA, "tenant-a-v")
+        seedArtefact(tenantB, "tenant-b-v")
+        val seenByA = artefactVersions(tenantA)
+        seenByA.contains("platform-v") shouldBe true
+        seenByA.contains("tenant-a-v") shouldBe true
+        seenByA.contains("tenant-b-v") shouldBe false
+        // no valid binding: no row, not even a platform row
+        probe.unbound { fetchValue("select count(*) from rules.pack_artefact") } shouldBe 0L
     }
 
     companion object {

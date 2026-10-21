@@ -1,6 +1,7 @@
 package com.dynokore.gst.rules.adapters.persistence
 
 import com.dynokore.platform.outboxandqueue.OutboxSchema
+import com.dynokore.platform.rulepackkernel.PackRegistryMigration
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.io.File
@@ -27,7 +28,28 @@ class MigrationDdlTest {
         file.readText() shouldBe expected()
     }
 
+    private val artefactFile = File("src/main/resources/db/migration/V3__pack_artefact.sql")
+
+    private fun expectedArtefact(): String =
+        ARTEFACT_HEADER +
+            PackRegistryMigration.ddl("rules", "pack_artefact", "rules_runtime", "rules_sys").trimEnd() +
+            "\n"
+
+    /** INV-T-7525: the holder copy table is the kernel's DDL taken verbatim, so a kernel bump cannot leave it stale. */
+    @Test
+    fun `V3 pack artefact migration is the DDL the pinned rulepack-kernel generates`() {
+        if (System.getProperty("gst.regenerate") == "true") artefactFile.writeText(expectedArtefact())
+        artefactFile.readText() shouldBe expectedArtefact()
+    }
+
     private companion object {
+        const val ARTEFACT_HEADER =
+            "-- V3__pack_artefact.sql (TPL-12; INV-T-7525). Generated: PackRegistryMigration.ddl(\"rules\",\n" +
+                "-- \"pack_artefact\", \"rules_runtime\", \"rules_sys\") of rulepack-kernel, committed as text;\n" +
+                "-- MigrationDdlTest fails when it differs. The holder copy of the verified packs (INV-REQ-1195),\n" +
+                "-- beside the metadata tables of V1 and replacing none of them (INV-Q-7438). Run as rules_migrate;\n" +
+                "-- PRECONDITION: rules.bound_tenant() and rules.bound_actor() exist (tenancy-kernel BindingKeyMigration).\n"
+
         const val HEADER =
             "-- V2__outbox.sql (TPL-12; INV-T-4965). Generated: OutboxSchema.ddl(\"rules\", \"rules_runtime\",\n" +
                 "-- \"rules_sys\") of outbox-and-queue, committed as text; MigrationDdlTest fails when it differs.\n" +

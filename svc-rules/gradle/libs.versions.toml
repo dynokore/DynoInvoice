@@ -8,7 +8,7 @@
 # The gst.* convention plugins and platform-build's shared Konsist rule set, one train (platform-build CHANGELOG).
 platformBuild = "0.23.1"
 # The platform-libs-bom: the tested set of L1 modules (STK-60). Bumped deliberately, one line.
-platformLibsBom = "0.102.0"
+platformLibsBom = "0.106.0"
 # gst-catalogue (ErrorCode, VariationPoint; STK-61) and the published platform-contracts bundle rules-contract
 # generates from (INV-T-4911 settled the rules contract at 206f60b3).
 gstCatalogue = "1.28.0"
