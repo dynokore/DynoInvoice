@@ -5,3 +5,4 @@
 ../schemas/access-point-route-changed-payload.schema.json access-point-route-changed-payload-*.json
 ../openapi.yaml#/components/schemas/SubmitPackageRequest submit-package-request-*.json
 ../openapi.yaml#/components/schemas/PackageOutcome package-outcome-*.json
+../openapi.yaml#/components/schemas/SubmitPayloadRequest submit-payload-request-*.json

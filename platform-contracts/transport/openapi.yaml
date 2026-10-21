@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: transport API
-  version: 1.2.0
+  version: 1.3.0
   description: >-
     Contract-first source of truth for transport (API-01, STK-44). The
     `transport-contract` module generates its server interfaces and DTOs
@@ -81,7 +81,8 @@ paths:
         for a Doc UUID and version, and return accepted with acknowledgement,
         rejected with reasons, or transient failure (FR-E.1); everything
         AP-specific sits behind it, including which of the (at most two
-        concurrent, FR-E.2) adapters is used. transport-svc never decides
+        concurrent, FR-E.2) adapters is used; transport-svc picks the adapter
+        from the entity's AP connection record (FR-E.2). transport-svc never decides
         which document to send, when, or under which Doc UUID
         (transport-svc `must_not`) — that is submission-svc's. Every
         transmission to a third party is irreversible (§31.3, FR-AC.9).
@@ -110,8 +111,7 @@ paths:
                 value:
                   docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
                   version: 1
-                  adapterRef: "AP-PRIMARY"
-                  payloadRef: "PAY-9001"
+                  payload: "PGludm9pY2U+PC9pbnZvaWNlPg=="
       responses:
         '202':
           description: The transport outcome.
@@ -121,7 +121,7 @@ paths:
                 $ref: '#/components/schemas/TransportOutcome'
               examples:
                 default:
-                  value: { docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6", version: 1, outcome: "ACCEPTED" }
+                  value: { docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6", version: 1, outcome: "ACCEPTED", acknowledgement: { reference: "AP-ACK-0001", receivedAt: "2026-10-21T08:00:00Z" } }
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/transport/packages:
@@ -595,12 +595,19 @@ components:
   schemas:
     SubmitPayloadRequest:
       type: object
+      additionalProperties: false
       properties:
         docUuid: { type: string, format: uuid }
         version: { type: integer, minimum: 1 }
-        adapterRef: { type: string, maxLength: 40 }
-        payloadRef: { type: string, maxLength: 100 }
-      required: [docUuid, version, adapterRef, payloadRef]
+        payload:
+          type: string
+          format: byte
+          minLength: 1
+          maxLength: 13333336
+          description: >-
+            The bytes of the document exactly as submission-svc holds them,
+            base64-encoded (at most 10000000 bytes).
+      required: [docUuid, version, payload]
     SendNetworkDocumentRequest:
       type: object
       properties:
@@ -627,7 +634,21 @@ components:
               field: { type: string }
               message: { type: string }
             required: [code, message]
+        acknowledgement:
+          $ref: '#/components/schemas/Acknowledgement'
+          description: >-
+            The receipt the Access Point returns when it takes the document
+            into custody. It is not the IRAS acknowledgement, which arrives
+            later through `receiveApNotification`. An ACCEPTED outcome carries
+            it; the REJECTED and TRANSIENT_FAILURE outcomes do not.
       required: [docUuid, version, outcome]
+    Acknowledgement:
+      type: object
+      additionalProperties: false
+      properties:
+        reference: { type: string, minLength: 1, maxLength: 100 }
+        receivedAt: { type: string, format: date-time }
+      required: [reference, receivedAt]
     SubmitPackageRequest:
       type: object
       description: >-

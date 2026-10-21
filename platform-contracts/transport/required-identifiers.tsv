@@ -25,3 +25,15 @@ PackageOutcome.outcome	schema_property	openapi.yaml	INV-REQ-424
 PackageOutcome.members	schema_property	openapi.yaml	INV-REQ-424
 PackageOutcome.reasons	schema_property	openapi.yaml	INV-REQ-424
 sizeBytes	property	openapi.yaml	INV-REQ-424
+# INV-T-8030. INV-REQ-795 names `submission-svc` and `transport-svc`, which are services, not contract elements: the names below come from INV-Q-8033 and INV-Q-8043.
+submitPayload	operation	openapi.yaml	INV-REQ-795
+SubmitPayloadRequest.docUuid	schema_property	openapi.yaml	INV-REQ-795
+SubmitPayloadRequest.version	schema_property	openapi.yaml	INV-REQ-795
+SubmitPayloadRequest.payload	schema_property	openapi.yaml	INV-REQ-795
+TransportOutcome.outcome	schema_property	openapi.yaml	INV-REQ-795
+TransportOutcome.acknowledgement	schema_property	openapi.yaml	INV-REQ-795
+Acknowledgement.reference	schema_property	openapi.yaml	INV-REQ-795
+Acknowledgement.receivedAt	schema_property	openapi.yaml	INV-REQ-795
+TransportOutcome.outcome.ACCEPTED	schema_enum_value	openapi.yaml	INV-REQ-795
+TransportOutcome.outcome.REJECTED	schema_enum_value	openapi.yaml	INV-REQ-795
+TransportOutcome.outcome.TRANSIENT_FAILURE	schema_enum_value	openapi.yaml	INV-REQ-795
