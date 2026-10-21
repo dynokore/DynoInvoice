@@ -5,7 +5,7 @@
 biz.aQute.bnd:biz.aQute.bnd.annotation:7.1.0=testCompileClasspath
 ch.qos.logback:logback-classic:1.5.38=testCompileClasspath,testRuntimeClasspath
 ch.qos.logback:logback-core:1.5.38=testCompileClasspath,testRuntimeClasspath
-com.dynokore.gst.build:konsist-rules:0.23.0=testCompileClasspath,testRuntimeClasspath
+com.dynokore.gst.build:konsist-rules:0.23.1=testCompileClasspath,testRuntimeClasspath
 com.dynokore.gst:gst-catalogue:1.28.0=testRuntimeClasspath
 com.dynokore.platform:audit-log-api:4.0.7=testRuntimeClasspath
 com.dynokore.platform:audit-log:4.0.7=testRuntimeClasspath
