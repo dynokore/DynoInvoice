@@ -44,8 +44,9 @@ class MigrationDdlTest {
 
     private companion object {
         const val ARTEFACT_HEADER =
-            "-- V3__pack_artefact.sql (TPL-12; INV-T-7525). Generated: PackRegistryMigration.ddl(\"rules\",\n" +
-                "-- \"pack_artefact\", \"rules_runtime\", \"rules_sys\") of rulepack-kernel, committed as text;\n" +
+            "-- Generated: PackRegistryMigration.ddl(\"rules\", \"pack_artefact\", \"rules_runtime\", " +
+                "\"rules_sys\") of\n" +
+                "-- rulepack-kernel (V3__pack_artefact.sql, TPL-12, INV-T-7525), committed as text;\n" +
                 "-- MigrationDdlTest fails when it differs. The holder copy of the verified packs (INV-REQ-1195),\n" +
                 "-- beside the metadata tables of V1 and replacing none of them (INV-Q-7438). Run as rules_migrate;\n" +
                 "-- PRECONDITION: rules.bound_tenant() and rules.bound_actor() exist (tenancy-kernel BindingKeyMigration).\n"

@@ -408,7 +408,7 @@ class RegistryPostgresIT(
     }
 
     @Test
-    fun `INV-AC-2182 the holder copy is granted to the runtime login for insert and select only`() {
+    fun `INV-AC-2182 the holder copy grants are the three triples and rules_sys cannot log in`() {
         val rows =
             probe.fetchRows(
                 "select pg_get_userbyid(c.relowner) as owner, case when x.grantee = 0 then 'PUBLIC' " +
@@ -423,9 +423,13 @@ class RegistryPostgresIT(
         rows.map { it["owner"] }.toSet() shouldBe setOf("rules_migrate")
         val grants =
             rows.map { Grant(it["grantee"] as String, it["p"] as String, it["g"] as Boolean, it["col"] as String?) }
-        // GAP (merge request): the kernel DDL also grants INSERT to the sys role, whose definer function writes
-        // the platform rows
-        SchemaInspection.grantFindings(grants, mapOf(SchemaInspection.SYS to setOf("INSERT"))) shouldBe emptyList()
+        SchemaInspection.grantFindings(grants) shouldBe emptyList()
+        SchemaInspection.loginFindings(
+            probe
+                .fetchRows("select rolcanlogin as l from pg_roles where rolname = 'rules_sys'")
+                .singleOrNull()
+                ?.get("l") as Boolean?,
+        ) shouldBe emptyList()
     }
 
     @Test

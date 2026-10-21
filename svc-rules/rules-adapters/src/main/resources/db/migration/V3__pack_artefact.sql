@@ -1,5 +1,5 @@
--- V3__pack_artefact.sql (TPL-12; INV-T-7525). Generated: PackRegistryMigration.ddl("rules",
--- "pack_artefact", "rules_runtime", "rules_sys") of rulepack-kernel, committed as text;
+-- Generated: PackRegistryMigration.ddl("rules", "pack_artefact", "rules_runtime", "rules_sys") of
+-- rulepack-kernel (V3__pack_artefact.sql, TPL-12, INV-T-7525), committed as text;
 -- MigrationDdlTest fails when it differs. The holder copy of the verified packs (INV-REQ-1195),
 -- beside the metadata tables of V1 and replacing none of them (INV-Q-7438). Run as rules_migrate;
 -- PRECONDITION: rules.bound_tenant() and rules.bound_actor() exist (tenancy-kernel BindingKeyMigration).

@@ -60,40 +60,43 @@ class SchemaInspectionTest {
     private val runtime = listOf(Grant("rules_runtime", "INSERT"), Grant("rules_runtime", "SELECT"))
     private val owner = listOf(Grant("rules_migrate", "UPDATE"), Grant("rules_migrate", "DELETE"))
 
-    private fun grants(
-        all: List<Grant>,
-        others: Map<String, Set<String>> = emptyMap(),
-    ) = SchemaInspection.grantFindings(all, others)
+    private val sys = Grant("rules_sys", "INSERT")
+    private val expected = runtime + sys
+
+    private fun grants(all: List<Grant>) = SchemaInspection.grantFindings(all)
 
     @Test
-    fun `INV-AC-2182 the runtime login holds insert and select and the owner holds anything`() {
-        grants(runtime + owner).shouldBeEmpty()
+    fun `INV-AC-2182 the three expected grants and an owner that holds anything have no finding`() {
+        grants(expected + owner).shouldBeEmpty()
     }
 
     @Test
-    fun `INV-AC-2182 probe - a grant to PUBLIC or to another role fails`() {
-        grants(runtime + Grant("PUBLIC", "SELECT")).shouldNotBeEmpty()
-        grants(runtime + Grant("rules_sys", "INSERT")).shouldNotBeEmpty()
-        grants(runtime + Grant("rules_runtime2", "SELECT")).shouldNotBeEmpty()
-        grants(runtime + Grant("rules_sys", "INSERT"), mapOf("rules_sys" to setOf("INSERT"))).shouldBeEmpty()
-        grants(runtime + Grant("rules_sys", "SELECT"), mapOf("rules_sys" to setOf("INSERT"))).shouldNotBeEmpty()
+    fun `INV-AC-2182 probe - planted ACLs each fail`() {
+        grants(expected + Grant("rules_sys", "SELECT")).shouldNotBeEmpty()
+        grants(runtime + Grant("rules_sys", "INSERT", grantable = true)).shouldNotBeEmpty()
+        grants(expected + Grant("rules_runtime", "UPDATE")).shouldNotBeEmpty()
+        grants(listOf(Grant("rules_runtime", "SELECT"), sys)).shouldNotBeEmpty()
+        grants(expected + Grant("PUBLIC", "SELECT")).shouldNotBeEmpty()
+        grants(expected + Grant("rules_sys2", "INSERT")).shouldNotBeEmpty()
+        grants(expected + Grant("rules_runtime", "SELECT", column = "contents")).shouldNotBeEmpty()
     }
 
     @Test
-    fun `INV-AC-2182 probe - update delete truncate and the grant option fail`() {
-        for (privilege in listOf("UPDATE", "DELETE", "TRUNCATE")) {
-            grants(runtime + Grant("rules_runtime", privilege)).shouldNotBeEmpty()
-            grants(runtime + Grant("rules_sys", privilege), mapOf("rules_sys" to setOf(privilege))).shouldNotBeEmpty()
-        }
-        grants(listOf(Grant("rules_runtime", "INSERT", grantable = true), Grant("rules_runtime", "SELECT")))
+    fun `INV-AC-2182 probe - a missing triple, a grant option and the forbidden privileges fail`() {
+        grants(runtime).shouldNotBeEmpty()
+        grants(listOf(Grant("rules_runtime", "INSERT", grantable = true), Grant("rules_runtime", "SELECT"), sys))
             .shouldNotBeEmpty()
-        grants(runtime + Grant("rules_runtime", "UPDATE", column = "contents")).shouldNotBeEmpty()
+        for (privilege in listOf("DELETE", "TRUNCATE", "REFERENCES", "TRIGGER")) {
+            grants(expected + Grant("rules_runtime", privilege)).shouldNotBeEmpty()
+            grants(expected + Grant("rules_sys", privilege)).shouldNotBeEmpty()
+        }
+        grants(emptyList()).shouldNotBeEmpty()
     }
 
     @Test
-    fun `INV-AC-2182 probe - the runtime login must hold exactly insert and select`() {
-        grants(listOf(Grant("rules_runtime", "SELECT"))).shouldNotBeEmpty()
-        grants(runtime + Grant("rules_runtime", "REFERENCES")).shouldNotBeEmpty()
-        grants(emptyList()).shouldNotBeEmpty()
+    fun `INV-AC-2182 probe - rules_sys with login fails`() {
+        SchemaInspection.loginFindings(false).shouldBeEmpty()
+        SchemaInspection.loginFindings(true).shouldNotBeEmpty()
+        SchemaInspection.loginFindings(null).shouldNotBeEmpty()
     }
 }

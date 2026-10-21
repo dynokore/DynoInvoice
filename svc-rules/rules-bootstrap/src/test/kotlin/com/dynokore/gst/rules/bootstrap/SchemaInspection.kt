@@ -57,11 +57,6 @@ internal object SchemaInspection {
 
     val DOCUMENT_TYPES = setOf("json", "jsonb", "bytea")
 
-    /** The privileges the runtime login holds on the holder copy: it reads and inserts, rows are immutable. */
-    val RUNTIME_PRIVILEGES = setOf("INSERT", "SELECT")
-
-    private val NEVER = setOf("UPDATE", "DELETE", "TRUNCATE")
-
     /**
      * Deny by default: every table of the schema is the holder copy, a registry table or a table [libraries] names
      * (platform libraries and Flyway); anything else is a finding, as is a missing or mis-shaped holder copy.
@@ -91,37 +86,39 @@ internal object SchemaInspection {
         return findings
     }
 
+    /** The three grants the holder copy carries: (grantee, privilege, grant option). */
+    val EXPECTED_GRANTS =
+        setOf(
+            Triple(RUNTIME, "INSERT", false),
+            Triple(RUNTIME, "SELECT", false),
+            Triple(SYS, "INSERT", false),
+        )
+
     /**
-     * The grants on the holder copy. Set equality for the runtime login (INSERT, SELECT), no UPDATE, DELETE or TRUNCATE
-     * for anyone, no grant option, nothing to `PUBLIC` or to an unnamed role. [allowedOthers] are the roles other than
-     * the runtime login that the kernel DDL itself grants (see the gap in the merge request), each with its
-     * privileges.
+     * The grants on the holder copy (INV-Q-8204 A): the set of (grantee, privilege, grant option) triples whose grantee
+     * is not the owner equals [EXPECTED_GRANTS] by set equality (the sys triple is the kernel DDL's grant to the owner
+     * of its definer function), and the column-level ACL is empty. A grant to `PUBLIC` or to any other role, any other
+     * privilege and any grant option is a finding, as is a missing expected triple. Whether the sys role can log in is
+     * checked separately ([loginFindings]).
      */
-    fun grantFindings(
-        grants: List<Grant>,
-        allowedOthers: Map<String, Set<String>>,
-    ): List<String> {
+    fun grantFindings(grants: List<Grant>): List<String> {
         val findings = mutableListOf<String>()
         val others = grants.filter { it.grantee != OWNER }
-        others.filter { it.privilege in NEVER }.forEach { findings += "${it.grantee} holds ${it.privilege}" }
-        others.filter { it.grantable }.forEach { findings += "${it.grantee} holds ${it.privilege} WITH GRANT OPTION" }
         others.filter { it.column != null }.forEach {
             findings += "${it.grantee} holds ${it.privilege} on column ${it.column}"
         }
-        val byGrantee = others.groupBy({ it.grantee }, { it.privilege })
-        byGrantee.keys
-            .filter { it != RUNTIME && it !in allowedOthers }
-            .forEach { findings += "$it holds a grant on $SCHEMA.$HOLDER" }
-        val runtime = byGrantee[RUNTIME].orEmpty()
-        if (runtime.toSet() != RUNTIME_PRIVILEGES || runtime.size != RUNTIME_PRIVILEGES.size) {
-            findings += "$RUNTIME holds $runtime, expected $RUNTIME_PRIVILEGES"
-        }
-        allowedOthers.forEach { (role, privileges) ->
-            val held = byGrantee[role].orEmpty()
-            if (held.toSet() != privileges || held.size != privileges.size) {
-                findings += "$role holds $held, expected $privileges"
-            }
-        }
+        val triples = others.filter { it.column == null }.map { Triple(it.grantee, it.privilege, it.grantable) }
+        (triples.toSet() - EXPECTED_GRANTS).forEach { findings += "unexpected grant $it" }
+        (EXPECTED_GRANTS - triples.toSet()).forEach { findings += "missing grant $it" }
+        if (triples.size != triples.toSet().size) findings += "a grant is listed twice"
         return findings
     }
+
+    /** `rules_sys` is NOLOGIN: [canLogin] is `pg_roles.rolcanlogin` of that role, null when the role does not exist. */
+    fun loginFindings(canLogin: Boolean?): List<String> =
+        when (canLogin) {
+            false -> emptyList()
+            true -> listOf("$SYS can log in")
+            null -> listOf("$SYS does not exist")
+        }
 }
