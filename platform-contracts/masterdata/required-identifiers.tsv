@@ -11,7 +11,10 @@
 # SecretStore (the secret store); agent.operator, tax.approver, deployment.operator, tenant.admin (roles); ap-callback (an
 # adapter name); counterparty (an actor); FR-E.7 (a source reference).
 # INV-T-7894 (INV-REQ-310, 1007, 1270, INV-AC-1602, 7821, 7822): entity.admin (added here), tenant.admin and tax.approver are roles, not rows;
-# PendingIdentityTripleChange (a schema name) has no row kind in the checker (gap reported to the coordinator), so it has no row.
+# PendingIdentityTripleChange (a bare schema name) has no row kind in the checker, so it is covered by the scoped rows
+# PendingIdentityTripleChange.changeRef and PendingIdentityTripleChange.state.PENDING_CONFIRMATION (INV-Q-7919; precedent INV-T-6755);
+# (entity, constitution) is a key pair written in prose, not an identifier of the contract; OTHER_ADMIN, TAX_APPROVER, TENANT (catalogue
+# keys and a scope level of catalogue/variation-points/variation-points.yaml), BLOCKED (a document state), acKeyCoverage (a check of INV-T-4942).
 identifier	kind	file	requirement
 sameGroup	property	openapi.yaml	INV-REQ-720
 sameTenant	property	openapi.yaml	INV-REQ-720
@@ -69,3 +72,5 @@ configureIdentityTriple	operation	openapi.yaml	INV-REQ-1007
 confirmIdentityTripleChange	operation	openapi.yaml	INV-REQ-1007
 changeRef	property	openapi.yaml	INV-REQ-1007
 PENDING_CONFIRMATION	enum_value	openapi.yaml	INV-REQ-1007
+PendingIdentityTripleChange.changeRef	schema_property	openapi.yaml	INV-REQ-1007
+PendingIdentityTripleChange.state.PENDING_CONFIRMATION	schema_enum_value	openapi.yaml	INV-REQ-1007

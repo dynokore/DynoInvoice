@@ -1382,21 +1382,22 @@ components:
           description: 'One of entity.admin, tenant.admin or tax.approver (VP-09) — never the same person as the requester.'
       required: [identityRef, role]
     PendingIdentityTripleChange:
-      allOf:
-        - $ref: '#/components/schemas/IdentityTripleFacts'
-        - type: object
-          properties:
-            changeRef: { type: string, maxLength: 40 }
-            entityRef: { type: string, maxLength: 40 }
-            effectiveFrom: { type: string, format: date }
-            state:
-              type: string
-              enum: [PENDING_CONFIRMATION]
-            proposedBy:
-              type: string
-              maxLength: 64
-              description: The identity reference of the proposer.
-          required: [changeRef, entityRef, effectiveFrom, state, proposedBy]
+      type: object
+      properties:
+        changeRef: { type: string, maxLength: 40 }
+        entityRef: { type: string, maxLength: 40 }
+        senderId: { type: string, maxLength: 64 }
+        supplierId: { type: string, maxLength: 64 }
+        supplierGstn: { type: string, maxLength: 20 }
+        effectiveFrom: { type: string, format: date }
+        state:
+          type: string
+          enum: [PENDING_CONFIRMATION]
+        proposedBy:
+          type: string
+          maxLength: 64
+          description: The identity reference of the proposer.
+      required: [changeRef, entityRef, senderId, supplierId, supplierGstn, effectiveFrom, state, proposedBy]
     Counterparty:
       type: object
       properties:
