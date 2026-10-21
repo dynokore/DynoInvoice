@@ -2,6 +2,7 @@ package com.dynokore.gst.access.adapters.persistence
 
 import com.dynokore.platform.configresolver.ConfigSchema
 import com.dynokore.platform.outboxandqueue.OutboxSchema
+import com.dynokore.platform.serviceruntime.http.IdempotencySchema
 import com.dynokore.platform.tenancykernel.TenantRlsMigration
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -40,6 +41,12 @@ class GeneratedMigrationsTest {
     }
 
     @Test
+    fun `the idempotency migration is the DDL service-runtime generates for the access schema`() {
+        val expected = IdempotencySchema.ddl("access", "access_runtime", "access_sys").trim()
+        assertEquals(expected, body(migration("V202610220900__create_idempotency_key.sql")))
+    }
+
+    @Test
     fun `no migration creates the binding functions or the binding key table`() {
         val files =
             listOf(
@@ -47,6 +54,7 @@ class GeneratedMigrationsTest {
                 "V202610190910__create_identity_and_grant.sql",
                 "V202610190920__create_revocation_and_verification_keys.sql",
                 "V202610210910__create_config_resolver.sql",
+                "V202610220900__create_idempotency_key.sql",
             )
         files.forEach { file ->
             val text = migration(file)

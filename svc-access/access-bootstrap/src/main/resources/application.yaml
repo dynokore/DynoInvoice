@@ -17,6 +17,7 @@ spring:
     user: access_migrate                            # read only by the migration Job's MigrationRunner (TPL-12, ARC-20)
 service-runtime:
   modules.schema: access
+  idempotency.schema: access                        # the API-15 Idempotency-Key store of the setPolicy servlet (INV-T-4935)
   workload-identity.audience: access-svc
   pool:
     runs-reprocessing: false                        # access-svc runs no pack-activation reprocessing (INV-Q-4485)
