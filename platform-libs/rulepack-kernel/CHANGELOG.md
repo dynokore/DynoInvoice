@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [4.1.0] - 2026-10-22
+### Added
+- `VerifiedPack` (private constructor, factory `VerifiedPack.of(Verified, PackArtefact, TenantId?)`) and `PackRegistry.register(VerifiedPack)`, whose default calls `register(PackVersion)`; `FenceParticipant.onArmed` now registers through it, so a registry that persists receives the signed artefact and the trust anchor label (INV-Q-8206, INV-T-8211). Additive.
+
 ## [4.0.0] - 2026-10-20
 ### Changed
 - BREAKING: the pack registry table created by `PackRegistryMigration.ddl` renames its column `version` to `pack_version` (INV-Q-7438), so `gst.jooq-codegen` accepts the table; the lineage key becomes `UNIQUE (pack_type, tenant_id, pack_version)`; the function `register_platform_pack` keeps its signature and the parameter name `p_version` (INV-T-7524).

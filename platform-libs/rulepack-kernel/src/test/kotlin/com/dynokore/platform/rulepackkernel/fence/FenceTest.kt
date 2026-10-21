@@ -3,12 +3,17 @@ package com.dynokore.platform.rulepackkernel.fence
 import com.dynokore.platform.rulepackkernel.BouncyCastlePackVerifier
 import com.dynokore.platform.rulepackkernel.InMemoryPackRegistry
 import com.dynokore.platform.rulepackkernel.JacksonPackContentValidator
+import com.dynokore.platform.rulepackkernel.PackArtefact
 import com.dynokore.platform.rulepackkernel.PackFixtures
 import com.dynokore.platform.rulepackkernel.PackId
+import com.dynokore.platform.rulepackkernel.PackRegistry
 import com.dynokore.platform.rulepackkernel.PackType
+import com.dynokore.platform.rulepackkernel.PackVersion
 import com.dynokore.platform.rulepackkernel.PackVersionLabel
 import com.dynokore.platform.rulepackkernel.TrustAnchor
 import com.dynokore.platform.rulepackkernel.TrustAnchors
+import com.dynokore.platform.rulepackkernel.VerifiedPack
+import com.dynokore.platform.tenancykernel.TenantId
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertInstanceOf
@@ -23,6 +28,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZoneOffset
+import java.util.UUID
 
 /**
  * INV-REQ-1166, INV-REQ-1009 (INV-AC-1235): the two-phase fence, with an in-memory coordinator and an
@@ -242,5 +248,93 @@ class FenceTest {
         fence.record(PackReadinessAcknowledgement(PackId("other"), version, "payload-svc", ReadinessOutcome.Loaded))
         fence.record(PackReadinessAcknowledgement(packId, version, "stranger", ReadinessOutcome.Loaded))
         assertEquals(setOf("payload-svc"), assertInstanceOf(FenceOutcome.Pending::class.java, fence.evaluate()).missing)
+    }
+
+    /** Records every [VerifiedPack]; the [PackVersion] overload must never be reached by the fence (INV-Q-8206). */
+    private class RecordingRegistry : PackRegistry {
+        val packs = mutableListOf<VerifiedPack>()
+
+        override fun register(version: PackVersion) = throw AssertionError("the fence called register(PackVersion)")
+
+        override fun register(pack: VerifiedPack) {
+            packs += pack
+        }
+
+        override fun resolve(
+            packType: PackType,
+            tenant: TenantId?,
+            resolutionDate: LocalDate,
+        ): PackVersion? = null
+    }
+
+    private fun recordingHolder(
+        registry: RecordingRegistry,
+        compiler: PackCompiler<String> = PackCompiler { m, _ -> CompileOutcome.Compiled("compiled-${m.version}") },
+        trust: TrustAnchors = anchors,
+    ) = FenceParticipant(
+        "payload-svc",
+        BouncyCastlePackVerifier(),
+        JacksonPackContentValidator(),
+        compiler,
+        trust,
+        bus::deliver,
+        registry,
+    )
+
+    @Test
+    fun `onArmed hands the registry the staged artefact, the anchor label and the version (INV-Q-8206)`() {
+        val registry = RecordingRegistry()
+        val tenant = TenantId(UUID.randomUUID())
+        val labelled = TrustAnchors(listOf(TrustAnchor("2026-train-primary", certificate.encoded)))
+        val holder = recordingHolder(registry, trust = labelled)
+        holder.onStaged(artefact, tenant)
+        assertTrue(registry.packs.isEmpty(), "staged, not armed: nothing registered")
+        assertTrue(holder.onArmed(packId, version))
+
+        val pack = registry.packs.single()
+        assertEquals(artefact, pack.artefact)
+        assertEquals("2026-train-primary", pack.trustedAnchorLabel)
+        val manifest = pack.version.manifest
+        assertEquals(PackVersion(manifest, tenant), pack.version)
+    }
+
+    @Test
+    fun `a redelivered onStaged registers once, an aborted or unarmed pack registers nothing`() {
+        val registry = RecordingRegistry()
+        val holder = recordingHolder(registry)
+        holder.onStaged(artefact)
+        holder.onStaged(artefact)
+        holder.onArmed(packId, version)
+        assertEquals(1, registry.packs.size)
+
+        val aborted = RecordingRegistry()
+        val abortedHolder = recordingHolder(aborted)
+        abortedHolder.onStaged(artefact)
+        abortedHolder.onAborted(packId, version)
+        assertFalse(abortedHolder.onArmed(packId, version))
+        assertTrue(aborted.packs.isEmpty())
+    }
+
+    @Test
+    fun `a refused artefact registers nothing`() {
+        val registry = RecordingRegistry()
+        val tampered = PackArtefact(artefact.manifest, artefact.checksums, artefact.signature, artefact.contents + 1)
+        val otherKey = PackFixtures.signingKeyPair()
+        val otherAnchor = TrustAnchor("other", PackFixtures.selfSignedCertificate(otherKey, "other").encoded)
+        val unknownAnchor = recordingHolder(registry, trust = TrustAnchors(listOf(otherAnchor)))
+        val compileFails = recordingHolder(registry, failingCompiler)
+        val executable =
+            PackFixtures.artefact(
+                contents = """{"script":"x"}""".toByteArray(),
+                keyPair = keyPair,
+                certificate = certificate,
+            )
+        listOf(
+            recordingHolder(registry).also { it.onStaged(tampered) },
+            recordingHolder(registry).also { it.onStaged(executable) },
+            unknownAnchor.also { it.onStaged(artefact) },
+            compileFails.also { it.onStaged(artefact) },
+        ).forEach { assertFalse(it.onArmed(packId, version)) }
+        assertTrue(registry.packs.isEmpty())
     }
 }

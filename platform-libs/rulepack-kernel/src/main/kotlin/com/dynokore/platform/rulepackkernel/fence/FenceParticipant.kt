@@ -8,9 +8,9 @@ import com.dynokore.platform.rulepackkernel.PackManifest
 import com.dynokore.platform.rulepackkernel.PackRegistry
 import com.dynokore.platform.rulepackkernel.PackVerificationOutcome
 import com.dynokore.platform.rulepackkernel.PackVerifier
-import com.dynokore.platform.rulepackkernel.PackVersion
 import com.dynokore.platform.rulepackkernel.PackVersionLabel
 import com.dynokore.platform.rulepackkernel.TrustAnchors
+import com.dynokore.platform.rulepackkernel.VerifiedPack
 import com.dynokore.platform.tenancykernel.TenantId
 import java.util.concurrent.ConcurrentHashMap
 
@@ -48,6 +48,7 @@ class FenceParticipant<C : Any>(
         val manifest: PackManifest,
         val tenant: TenantId?,
         val compiled: C,
+        val pack: VerifiedPack,
     )
 
     private val held = ConcurrentHashMap<Key, Held<C>>()
@@ -125,18 +126,19 @@ class FenceParticipant<C : Any>(
                     }
 
                     ContentValidationOutcome.Accepted -> {
-                        hold(manifest, tenant, artefact, identity)
+                        hold(verified, tenant, artefact, identity)
                     }
                 }
             }
         }
 
     private fun hold(
-        manifest: PackManifest,
+        verified: PackVerificationOutcome.Verified,
         tenant: TenantId?,
         artefact: PackArtefact,
         identity: Pair<PackId, PackVersionLabel>,
     ): Loading {
+        val manifest = verified.manifest
         val key = Key(manifest.packId, manifest.version)
         val existing = held[key]
         if (existing != null) {
@@ -161,7 +163,7 @@ class FenceParticipant<C : Any>(
             }
 
             is CompileOutcome.Compiled -> {
-                held[key] = Held(manifest, tenant, compiled.compiled)
+                held[key] = Held(manifest, tenant, compiled.compiled, VerifiedPack.of(verified, artefact, tenant))
                 Loading.Held(manifest, newlyHeld = true)
             }
         }
@@ -183,7 +185,7 @@ class FenceParticipant<C : Any>(
     ): Boolean {
         val key = Key(packId, version)
         val pack = held[key] ?: return false
-        registry.register(PackVersion(pack.manifest, pack.tenant))
+        registry.register(pack.pack)
         armedPacks[key] = pack
         return true
     }

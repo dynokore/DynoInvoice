@@ -26,6 +26,16 @@ interface PackRegistry {
     fun register(version: PackVersion)
 
     /**
+     * Adds a [VerifiedPack]: the same contract as [register] with a [PackVersion], plus the signed
+     * artefact and the trust anchor label that a persisted registry must store (INV-Q-8206). The
+     * default calls `register(pack.version)`, so it drops the artefact and the anchor: a registry
+     * that persists must override it.
+     *
+     * @throws IllegalArgumentException on a conflicting re-registration.
+     */
+    fun register(pack: VerifiedPack) = register(pack.version)
+
+    /**
      * `resolve(pack_type, entity, resolution_date)` (INV-REQ-770's own
      * behaviour text): the [PackVersion] of [packType] whose
      * `effective_from <= resolutionDate < effective_to` (open-ended when

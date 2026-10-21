@@ -17,3 +17,7 @@ Released on its own version with its own changelog. Services consume it only as 
 `PackRegistryMigration.ddl` expects `<schema>.bound_tenant()` and `<schema>.bound_actor()` to exist in the schema before it runs. It does not create them and issues no role switch (INV-Q-6663): tenancy-kernel's `BindingKeyMigration.ddl` runs once per schema as the `<svc>_sys` login and writes the key table and the two functions. Who runs it in an installation is INV-Q-6580 (owner, unanswered). On a schema without the functions the DDL raises SQLSTATE 42883 at the first policy that names `bound_tenant()` and creates nothing.
 
 The registry table names its pack version column `pack_version`, not `version`, so that `gst.jooq-codegen` accepts the table (INV-Q-7438).
+
+## Persisting registries
+
+A registry that persists must override `register(VerifiedPack)`, because its default calls `register(PackVersion)` and drops the signed artefact and the trust anchor label (INV-Q-8206).
