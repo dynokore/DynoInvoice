@@ -1024,7 +1024,7 @@ paths:
       description: >-
         The platform operator who holds commercial.admin requests the cancellation of the schedule.
         The cancellation takes effect only after approval (approveTenantSchedule); until then the
-        approved schedule stays in force. A time that was already carried out cannot be cancelled and
+        approved schedule stays in force. A time that was already carried out cannot be changed and
         the request is refused with 409 (INV-REQ-8100 behavior 4, INV-AC-8103).
       tags:
       - commercial
