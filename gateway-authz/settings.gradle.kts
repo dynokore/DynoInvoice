@@ -1,4 +1,4 @@
-// settings.gradle.kts — gateway-authz (INV-T-6522, INV-ADR-4051), STK-04.
+// settings.gradle.kts — gateway-authz (INV-T-4056, INV-ADR-4051), STK-04.
 //
 // The gst.* convention plugins come as PUBLISHED artefacts of platform-build (package registry, project 225) at the
 // catalogue's `platformBuild` version, and the platform-libs modules and BOM from platform-libs' registry (project

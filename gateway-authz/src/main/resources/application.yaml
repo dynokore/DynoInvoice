@@ -1,0 +1,44 @@
+# gateway-authz (INV-T-4056, TPL-16). No datasource: gateway-authz holds no database (INV-ADR-4051).
+spring:
+  application.name: gateway-authz
+  threads.virtual.enabled: true                     # STK-03
+  main.lazy-initialization: false                   # STK-06
+  grpc.server:
+    # INV-Q-4077: Spring Boot's gRPC server on the pod-local Unix socket Envoy's extAuth calls (grpc-netty-shaded,
+    # epoll domain-socket transport); the path comes from the api-gateway chart (INV-T-3990). Spring Boot 4.1 binds a
+    # Unix socket through netty.domain-socket-path (its `address` property is an IP address).
+    netty.domain-socket-path: ${GATEWAY_AUTHZ_SOCKET:/var/run/gateway-authz/ext-authz.sock}
+    reflection.enabled: false
+management:
+  # INV-Q-4103 A (INV-REQ-1228 b5): health, metrics and diagnostics only on the management port, which carries no
+  # workload-token filter and is never routed by the gateway; the api-gateway chart probes it (INV-T-3990).
+  server.port: ${GATEWAY_AUTHZ_MANAGEMENT_PORT:8081}
+  endpoints.web:
+    base-path: /
+    exposure.include: health,prometheus,diagnostics
+    path-mapping.prometheus: metrics                 # API-33: /metrics in Prometheus format
+  endpoint.health:
+    # service-runtime's defaults map DEGRADED to 200, and a configured mapping replaces Spring Boot's own DOWN and
+    # OUT_OF_SERVICE to 503, so without these lines a DOWN readiness answers 200 and the probe never fails.
+    status.http-mapping:
+      down: 503
+      out-of-service: 503
+    group:
+      # API-33: /health/live and /health/ready (the endpoints sit at the root, so a group's name is its path).
+      live:
+        include: livenessState
+      ready:
+        # INV-Q-4008 A: DOWN until keys and one full snapshot are loaded; INV-Q-4081: and the token settings are set
+        include: readinessState,keyMaterial,tokenSettings
+service-runtime:
+  workload-identity:
+    # STK-26: gateway-authz calls access-svc with the pod's projected service-account token (INV-Q-4006 A); it serves
+    # no workload-authenticated endpoint of its own, so this audience only satisfies service-runtime's start-up check.
+    audience: ${GATEWAY_AUTHZ_WORKLOAD_AUDIENCE:gateway-authz}
+gateway-authz:
+  refresh-interval: 500ms                           # INV-Q-3973 A: at least once a second
+  staleness-bound: 30s                              # INV-Q-4021 A: default, tighten-only
+  ready-replicas: ${GATEWAY_READY_REPLICAS:1}       # INV-Q-4048 A: limits are divided by the ready replica count
+  token:
+    issuer: ${GATEWAY_AUTHZ_TOKEN_ISSUER:}           # INV-Q-4081: the machine-token issuer; required (not ready without it)
+    audience: ${GATEWAY_AUTHZ_TOKEN_AUDIENCE:}       # INV-Q-4081: the public API; required (not ready without it)

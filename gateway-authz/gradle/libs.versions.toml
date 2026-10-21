@@ -4,11 +4,52 @@
 # `checkDependencyCatalogUsage` enforces that every dependency goes through an alias here.
 
 [versions]
-# The gst.* convention plugins (platform-build's registry, project 225); a published release, 0.18.0 or later (INV-Q-4811).
-platformBuild = "0.21.0"
+# The gst.* convention plugins (platform-build's registry, project 225); a published release, 0.18.0 or later (INV-Q-4811);
+# 0.23.1 carries the Trivy ignore file of INV-T-7704 (INV-Q-7701).
+platformBuild = "0.23.1"
+# The tested platform-libs set (STK-60; platform-libs' registry, project 227): service-runtime and the L1 modules.
+platformLibsBom = "0.34.0"
 # STK-05: Spring Boot 4.1.x, the same patch platform-libs builds service-runtime against; also the Spring Boot
-# Gradle plugin's version (settings.gradle.kts).
+# Gradle plugin's version (settings.gradle.kts), which gives the STK-53 `bootBuildImage` task.
 springBoot = "4.1.1"
+junit = "6.1.3"
+kotest = "6.2.5"
+mockk = "1.14.11"
+# Envoy's published Java API (envoy.service.auth.v3 messages and stubs) for the extAuth Check service (coordinator
+# ruling INV-Q-4077); grpc-java and protobuf come from the Spring Boot BOM.
+envoyApi = "1.0.55"
 
 [libraries]
+springBoot-starterGrpcServer = { module = "org.springframework.boot:spring-boot-starter-grpc-server" }
+grpc-nettyShaded = { module = "io.grpc:grpc-netty-shaded" }
+envoy-api = { module = "io.envoyproxy.controlplane:api", version.ref = "envoyApi" }
+platform-bom = { module = "com.dynokore.platform:platform-libs-bom", version.ref = "platformLibsBom" }
+platform-serviceRuntime-api = { module = "com.dynokore.platform:service-runtime-api" }
+platform-serviceRuntime-impl = { module = "com.dynokore.platform:service-runtime" }
+platform-tenancyKernel-api = { module = "com.dynokore.platform:tenancy-kernel-api" }
+platform-tenancyKernel-impl = { module = "com.dynokore.platform:tenancy-kernel" }
+platform-outboxAndQueue-api = { module = "com.dynokore.platform:outbox-and-queue-api" }
+platform-outboxAndQueue-impl = { module = "com.dynokore.platform:outbox-and-queue" }
+platform-configResolver-api = { module = "com.dynokore.platform:config-resolver-api" }
+platform-auditLog-api = { module = "com.dynokore.platform:audit-log-api" }
+platform-konsistRules = { module = "com.dynokore.gst.build:konsist-rules", version.ref = "platformBuild" }
+
 springBoot-dependencies = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "springBoot" }
+springBoot-starterWeb = { module = "org.springframework.boot:spring-boot-starter-web" }
+springBoot-starterActuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }
+springBoot-starterTest = { module = "org.springframework.boot:spring-boot-starter-test" }
+springSecurity-oauth2Jose = { module = "org.springframework.security:spring-security-oauth2-jose" }
+micrometer-prometheus = { module = "io.micrometer:micrometer-registry-prometheus" }
+jackson-databind = { module = "tools.jackson.core:jackson-databind" }
+jackson-moduleKotlin = { module = "tools.jackson.module:jackson-module-kotlin" }
+resilience4j-bom = { module = "io.github.resilience4j:resilience4j-bom", version = "2.4.0" }
+resilience4j-circuitbreaker = { module = "io.github.resilience4j:resilience4j-circuitbreaker" }
+resilience4j-retry = { module = "io.github.resilience4j:resilience4j-retry" }
+resilience4j-bulkhead = { module = "io.github.resilience4j:resilience4j-bulkhead" }
+resilience4j-timelimiter = { module = "io.github.resilience4j:resilience4j-timelimiter" }
+
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
+junit-platformLauncher = { module = "org.junit.platform:junit-platform-launcher" }
+kotest-assertionsCore = { module = "io.kotest:kotest-assertions-core", version.ref = "kotest" }
+mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
