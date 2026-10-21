@@ -30,6 +30,8 @@ object SchemaReferences {
         val from: String,
         val toSchema: String,
         val owner: String,
+        /** The object named after the schema in a function body (`hmac` of `public.hmac`); empty for other kinds. */
+        val target: String = "",
     )
 
     /** An object of a catalogue with a schema and an owner; [extra] is the function body of a pg_proc row. */
@@ -116,6 +118,12 @@ object SchemaReferences {
         val schemaOid = namespaces.entries.single { it.value == schema }.key
         val classes = objects(dsl, "pg_class", "rel")
         val procs = objects(dsl, "pg_proc", "pro", "prosrc").filter { it.schema == schemaOid }
+        private val argumentTypes =
+            fetch(dsl, "pg_proc", oid("oid"), text("proargtypes")).associate { it.long(0) to it.string(1) }
+
+        /** `name(argument type oids)`: the identity of a function, so `bound_tenant()` is not `bound_tenant(text)`. */
+        fun signature(proc: Obj): String = "${proc.name}(${argumentTypes.getValue(proc.id).trim().replace(" ", ",")})"
+
         val classesIn = classes.filter { it.schema == schemaOid }.associateBy { it.id }
         val constraints =
             fetch(
@@ -160,7 +168,7 @@ object SchemaReferences {
         val owned: Map<Pair<Long, Long>, Owned> =
             buildMap {
                 classesIn.values.forEach { put(CLASS_CLASS to it.id, Owned("relation ${it.name}", roleName(it.owner))) }
-                procs.forEach { put(CLASS_PROC to it.id, Owned("function ${it.name}", roleName(it.owner))) }
+                procs.forEach { put(CLASS_PROC to it.id, Owned("function ${signature(it)}", roleName(it.owner))) }
                 constraints.filter { it.relation in classesIn }.forEach {
                     put(CLASS_CONSTRAINT to it.id, Owned("constraint ${it.name}", roleOf(it.relation)))
                 }
@@ -182,6 +190,15 @@ object SchemaReferences {
 
         private fun roleName(owner: Long): String = roles.getValue(owner)
     }
+
+    /** The functions of the schema as `function name(argument type oids)` with their owner role. */
+    fun functions(
+        connection: Connection,
+        schema: String,
+    ): Map<String, String> =
+        Catalogue(DSL.using(connection, SQLDialect.POSTGRES), schema).let { c ->
+            c.procs.associate { "function ${c.signature(it)}" to c.roles.getValue(it.owner) }
+        }
 
     fun references(
         connection: Connection,
@@ -240,10 +257,19 @@ object SchemaReferences {
         return c.procs.flatMap { proc ->
             QUALIFIED
                 .findAll(proc.extra)
-                .map { it.groupValues[1].ifEmpty { it.groupValues[2] } }
-                .filter { it in schemaNames }
-                .map { Reference("function body", "function ${proc.name}", it, c.roles.getValue(proc.owner)) }
-                .toList()
+                .map {
+                    it.groupValues[1].ifEmpty { it.groupValues[2] } to
+                        it.groupValues[3].ifEmpty { it.groupValues[4] }
+                }.filter { it.first in schemaNames }
+                .map {
+                    Reference(
+                        "function body",
+                        "function ${c.signature(proc)}",
+                        it.first,
+                        c.roles.getValue(proc.owner),
+                        it.second,
+                    )
+                }.toList()
         }
     }
 
@@ -253,9 +279,12 @@ object SchemaReferences {
         allowed: Set<String>,
     ): List<Reference> = references.filter { it.toSchema !in allowed }
 
-    /** `schema.name` or `"schema".name` in a body: group 1 the bare name, group 2 the quoted one. */
+    /** `schema.name` or `"schema".name` in a body: groups 1, 2 the schema (bare, quoted), groups 3, 4 the name. */
     private val QUALIFIED =
-        Regex("""(?<![A-Za-z0-9_$.\"])(?:([A-Za-z_][A-Za-z0-9_$]*)|\"([^\"]+)\")\s*\.\s*[A-Za-z_\"]""")
+        Regex(
+            """(?<![A-Za-z0-9_$.\"])(?:([A-Za-z_][A-Za-z0-9_$]*)|\"([^\"]+)\")""" +
+                """\s*\.\s*(?:([A-Za-z_][A-Za-z0-9_$]*)|\"([^\"]+)\")""",
+        )
 
     private const val CLASS_CLASS = 1259L
     private const val CLASS_PROC = 1255L
