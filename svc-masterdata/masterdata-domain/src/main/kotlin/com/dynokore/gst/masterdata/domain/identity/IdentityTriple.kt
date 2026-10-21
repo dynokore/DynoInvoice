@@ -37,6 +37,26 @@ data class TripleVersion(
     val effectiveFrom: LocalDate,
 )
 
+/** The state of a proposed change (contract: `PendingIdentityTripleChange.state`). */
+enum class ChangeState {
+    /** Proposed; nothing is in force until a different person confirms it. */
+    PENDING_CONFIRMATION,
+
+    /** Confirmed by a different person; the version applies from its date. */
+    CONFIRMED,
+
+    /** Replaced by a later proposal for the same entity, constitution and effective date (the contract's repeatKey). */
+    SUPERSEDED,
+}
+
+/** A proposed change: the version that would apply, and who proposed it (INV-REQ-1007). */
+data class PendingChange(
+    val changeRef: String,
+    val version: TripleVersion,
+    val proposedBy: PersonRef,
+    val state: ChangeState,
+)
+
 /**
  * The connection and the principal that submit a document. Held apart from the supplier triple: the resolver accepts
  * it, returns it beside the triple and never lets it reach a triple field (INV-REQ-803, INV-AC-2034).

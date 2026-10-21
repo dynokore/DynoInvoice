@@ -3,9 +3,15 @@ package com.dynokore.gst.masterdata.bootstrap
 import com.dynokore.gst.masterdata.adapters.events.MasterdataEventCatalogue
 import com.dynokore.gst.masterdata.adapters.persistence.jooq.Masterdata
 import com.dynokore.gst.masterdata.application.identity.ConfirmerPolicy
+import com.dynokore.gst.masterdata.application.identity.ConfirmerRoles
+import com.dynokore.gst.masterdata.domain.identity.ConfirmerRole
 import com.dynokore.gst.masterdata.domain.identity.ConfirmerSet
+import com.dynokore.platform.configresolver.ScopeLevel
 import com.dynokore.platform.outboxandqueue.EventCatalogue
+import com.dynokore.platform.serviceruntime.policy.PolicyRoleResolver
+import com.dynokore.platform.tenancykernel.TenantContext
 import org.jooq.Schema
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -20,10 +26,33 @@ class ServiceDefaults {
     fun eventCatalogue(): EventCatalogue = MasterdataEventCatalogue.load()
 
     /**
-     * The confirmer set of VP-09: another `entity.admin` or `tenant.admin`. The contract publishes no operation that
-     * sets a tenant's choice (see the merge request, "Gaps"), so the default is the only set in force.
+     * The confirmer set. While VP-09 is `planned` and the owner question INV-Q-7880 is open, the port holds exactly
+     * {entity.admin, tenant.admin, tax.approver}; the answer changes only this set. The service adds no operation that
+     * sets it (ruling INV-Q-7888 A).
      */
     @Bean
     @ConditionalOnMissingBean
-    fun confirmerPolicy(): ConfirmerPolicy = ConfirmerPolicy { ConfirmerSet.DEFAULT }
+    fun confirmerPolicy(): ConfirmerPolicy = ConfirmerPolicy { INTERIM_CONFIRMERS }
+
+    /**
+     * The roles of the confirming subject at the entity come from service-runtime's [PolicyRoleResolver] when the
+     * deployment binds one (the authority replica, INV-T-5180); without one the subject holds no role, so nobody can
+     * confirm (fail closed).
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    fun confirmerRoles(
+        resolver: ObjectProvider<PolicyRoleResolver>,
+        tenants: TenantContext,
+    ): ConfirmerRoles =
+        ConfirmerRoles { subject, entity ->
+            resolver.ifAvailable
+                ?.rolesOf(subject.value, tenants.current(), ScopeLevel.ENTITY, entity.value, entity.value)
+                .orEmpty()
+        }
+
+    private companion object {
+        val INTERIM_CONFIRMERS =
+            ConfirmerSet(setOf(ConfirmerRole.ENTITY_ADMIN, ConfirmerRole.TENANT_ADMIN, ConfirmerRole.TAX_APPROVER))
+    }
 }

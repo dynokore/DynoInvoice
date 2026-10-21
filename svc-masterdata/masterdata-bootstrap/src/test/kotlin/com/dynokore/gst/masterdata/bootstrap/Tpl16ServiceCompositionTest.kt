@@ -1,6 +1,9 @@
 package com.dynokore.gst.masterdata.bootstrap
 
-import com.dynokore.gst.masterdata.application.identity.ConfigureIdentityTriple
+import com.dynokore.gst.masterdata.application.identity.ConfirmIdentityTripleChange
+import com.dynokore.gst.masterdata.application.identity.ConfirmerPolicy
+import com.dynokore.gst.masterdata.application.identity.ConfirmerRoles
+import com.dynokore.gst.masterdata.application.identity.ProposeIdentityTripleChange
 import com.dynokore.gst.masterdata.application.identity.ResolveIdentityTriple
 import com.dynokore.platform.auditlog.AuditWriter
 import com.dynokore.platform.outboxandqueue.EventCatalogue
@@ -49,7 +52,10 @@ class Tpl16ServiceCompositionTest {
                 AuditWriter::class,
                 EventCatalogue::class,
                 ResolveIdentityTriple::class,
-                ConfigureIdentityTriple::class,
+                ProposeIdentityTripleChange::class,
+                ConfirmIdentityTripleChange::class,
+                ConfirmerPolicy::class,
+                ConfirmerRoles::class,
             ).forEach { assertThat(context.getBeansOfType(it.java)).describedAs(it.simpleName).isNotEmpty() }
             assertThat(context.getBeanNamesForType(DataSource::class.java).toList()).containsExactly("dataSource")
         }

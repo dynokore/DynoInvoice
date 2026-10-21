@@ -14,12 +14,6 @@ enum class ConfirmerRole(
     }
 }
 
-/** The second confirmation as the contract carries it: who gives it and in which role. */
-data class SecondConfirmation(
-    val person: PersonRef,
-    val role: String,
-)
-
 /**
  * The set of roles that may confirm (VP-09, a CONTROL, non-waivable). Default: another `entity.admin` or
  * `tenant.admin`; a tenant that chose it adds `tax.approver`. Whatever the set, it is never empty and never lifts the
@@ -44,20 +38,31 @@ enum class ConfirmationRefusal {
     /** The confirming person is the proposing person, whichever role they confirm in (INV-AC-2254). */
     SAME_PERSON,
 
-    /** The confirming role is not in the tenant's confirmer set, or is not a role of VP-09. */
+    /** The confirming subject holds no role of the tenant's confirmer set. */
     ROLE_NOT_ALLOWED,
 }
 
 /** The rule of INV-REQ-1007 and INV-REQ-1270, with no waiver. */
 object ConfirmationRule {
+    /**
+     * [confirmer] is the authenticated subject of the confirming call and [confirmerRoles] the roles it holds (wire
+     * form); neither comes from a request body. The roles are compared with the set by equality.
+     */
     fun check(
         proposer: PersonRef,
-        confirmation: SecondConfirmation,
+        confirmer: PersonRef,
+        confirmerRoles: Set<String>,
         allowed: ConfirmerSet,
     ): ConfirmationRefusal? =
         when {
-            confirmation.person.isSamePersonAs(proposer) -> ConfirmationRefusal.SAME_PERSON
-            ConfirmerRole.ofWire(confirmation.role) !in allowed.roles -> ConfirmationRefusal.ROLE_NOT_ALLOWED
+            confirmer.isSamePersonAs(proposer) -> ConfirmationRefusal.SAME_PERSON
+            allowed.roles.none { it.wire in confirmerRoles } -> ConfirmationRefusal.ROLE_NOT_ALLOWED
             else -> null
         }
+
+    /** The role the confirmation is recorded under: the first in the fixed order that the subject holds and may use. */
+    fun roleOf(
+        confirmerRoles: Set<String>,
+        allowed: ConfirmerSet,
+    ): ConfirmerRole? = ConfirmerRole.entries.firstOrNull { it in allowed.roles && it.wire in confirmerRoles }
 }

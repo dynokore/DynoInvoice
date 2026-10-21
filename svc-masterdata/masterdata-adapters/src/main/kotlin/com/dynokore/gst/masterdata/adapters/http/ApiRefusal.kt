@@ -1,6 +1,7 @@
 package com.dynokore.gst.masterdata.adapters.http
 
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
+import com.dynokore.platform.serviceruntime.http.MasterdataErrorCode
 import com.dynokore.platform.serviceruntime.http.Problems
 import com.dynokore.platform.serviceruntime.logging.CorrelationContext
 import org.springframework.http.HttpHeaders
@@ -18,6 +19,12 @@ class ApiRefusal(
     val detail: String? = null,
 ) : RuntimeException("${code.code}: ${detail ?: code.title}")
 
+/** A refusal with a masterdata catalogue code (MDM-005, answered 422), rendered by the service-runtime renderer. */
+class MasterdataRefusal(
+    val code: MasterdataErrorCode,
+    val detail: String? = null,
+) : RuntimeException("${code.code}: ${detail ?: code.title}")
+
 /** ARC-19, CS-14: the one place a refusal becomes the API-20 envelope. */
 @RestControllerAdvice
 class ApiRefusalAdvice {
@@ -25,6 +32,19 @@ class ApiRefusalAdvice {
     fun refuse(refusal: ApiRefusal): ResponseEntity<String> {
         val problem =
             Problems.render(
+                refusal.code,
+                CorrelationContext.currentCorrelationId()?.value ?: UUID.randomUUID().toString(),
+                refusal.detail,
+            )
+        val headers = HttpHeaders()
+        problem.headers.forEach { (name, value) -> headers.add(name, value) }
+        return ResponseEntity.status(problem.status).headers(headers).body(problem.body)
+    }
+
+    @ExceptionHandler(MasterdataRefusal::class)
+    fun refuse(refusal: MasterdataRefusal): ResponseEntity<String> {
+        val problem =
+            Problems.renderMasterdata(
                 refusal.code,
                 CorrelationContext.currentCorrelationId()?.value ?: UUID.randomUUID().toString(),
                 refusal.detail,

@@ -4,6 +4,7 @@ import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
+import com.dynokore.platform.serviceruntime.policy.PolicyRoleResolver
 import com.dynokore.platform.tenancykernel.BindingKeyMigration
 import com.dynokore.platform.tenancykernel.SqlIdentifier
 import io.micrometer.core.instrument.MeterRegistry
@@ -46,9 +47,26 @@ class CapturedEvents {
     val envelopes = CopyOnWriteArrayList<Envelope>()
 }
 
+/** The roles of the test subjects, answered through service-runtime's [PolicyRoleResolver] port. */
+object TestRoles {
+    val roles: ConcurrentHashMap<String, Set<String>> =
+        ConcurrentHashMap(
+            mapOf(
+                "IDN-ADMIN" to setOf("entity.admin"),
+                "IDN-ADMIN-2" to setOf("tenant.admin"),
+                "IDN-ADVISOR" to setOf("tax.approver"),
+                "IDN-OUTSIDER" to setOf("entity.viewer"),
+            ),
+        )
+}
+
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties
 class BoundaryTestConfiguration {
+    @Bean
+    fun policyRoleResolver(): PolicyRoleResolver =
+        PolicyRoleResolver { actor, _, _, _, _ -> TestRoles.roles[actor].orEmpty() }
+
     @Bean
     fun clock(): Clock = MovableClock()
 

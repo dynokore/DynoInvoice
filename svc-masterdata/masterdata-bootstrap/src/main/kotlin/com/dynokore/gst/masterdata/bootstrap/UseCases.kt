@@ -1,8 +1,12 @@
 package com.dynokore.gst.masterdata.bootstrap
 
+import com.dynokore.gst.masterdata.adapters.persistence.JooqPendingChangeRepository
 import com.dynokore.gst.masterdata.adapters.persistence.JooqTripleRepository
-import com.dynokore.gst.masterdata.application.identity.ConfigureIdentityTriple
+import com.dynokore.gst.masterdata.application.identity.ConfirmIdentityTripleChange
 import com.dynokore.gst.masterdata.application.identity.ConfirmerPolicy
+import com.dynokore.gst.masterdata.application.identity.ConfirmerRoles
+import com.dynokore.gst.masterdata.application.identity.PendingChangeRepository
+import com.dynokore.gst.masterdata.application.identity.ProposeIdentityTripleChange
 import com.dynokore.gst.masterdata.application.identity.ResolveIdentityTriple
 import com.dynokore.gst.masterdata.application.identity.TripleRepository
 import com.dynokore.platform.tenancykernel.TransactionRunner
@@ -30,9 +34,23 @@ class UseCases {
     ) = ResolveIdentityTriple(tx, triples)
 
     @Bean
-    fun configureIdentityTriple(
+    fun pendingChangeRepository(
+        dsl: DSLContext,
+        clock: Clock,
+    ): PendingChangeRepository = JooqPendingChangeRepository(dsl, clock)
+
+    @Bean
+    fun proposeIdentityTripleChange(
         tx: TransactionRunner,
+        changes: PendingChangeRepository,
+    ) = ProposeIdentityTripleChange(tx, changes)
+
+    @Bean
+    fun confirmIdentityTripleChange(
+        tx: TransactionRunner,
+        changes: PendingChangeRepository,
         triples: TripleRepository,
         policy: ConfirmerPolicy,
-    ) = ConfigureIdentityTriple(tx, triples, policy)
+        roles: ConfirmerRoles,
+    ) = ConfirmIdentityTripleChange(tx, changes, triples, policy, roles)
 }

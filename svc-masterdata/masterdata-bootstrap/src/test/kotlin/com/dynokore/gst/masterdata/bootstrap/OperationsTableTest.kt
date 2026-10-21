@@ -49,7 +49,7 @@ class OperationsTableTest {
         done: List<String>?,
         lines: List<String> = table,
         answers: (OperationRef) -> Int = { 200 },
-        published: Set<String> = PublishedChannels.ALL,
+        published: Set<String> = contract.channels,
     ): List<String> = OperationsGate.verifyDoneTasks(done, rows(lines).first, contract, published, answers)
 
     @Test
@@ -67,6 +67,57 @@ class OperationsTableTest {
                 OperationsGate.verifyDoneTasks(doneTasks, rows, contract, PublishedChannels.ALL) { statusOf(mvc, it) }
         }
         assertThat(findings).isEmpty()
+    }
+
+    /** The assignments the task text names (ruling INV-Q-7890 A), compared with the table's task column by equality. */
+    private val assigned =
+        mapOf(
+            "operation" to "resolveMasterDataGap" to "INV-T-4943",
+            "operation" to "getImportRecord" to "INV-T-4944",
+            "operation" to "getRegisterAndRates" to "INV-T-4947",
+            "channel" to "masterdataMasterDataResolved" to "INV-T-4943",
+            "operation" to "confirmIdentityTripleChange" to "INV-T-4942",
+            "channel" to "masterdataExampleHappened" to "UNASSIGNED",
+        )
+
+    private fun assignmentFindings(lines: List<String>): List<String> {
+        val rows = rows(lines).first
+        return assigned
+            .map { (key, task) ->
+                val row = rows.singleOrNull { it.kind == key.first && it.name == key.second }
+                when {
+                    row == null -> "${key.first} ${key.second}: no row, the task text assigns $task"
+                    row.task != task -> "${key.first} ${key.second}: task is ${row.task}, the task text assigns $task"
+                    else -> null
+                }
+            }.filterNotNull()
+    }
+
+    @Test
+    fun `the named rows carry the tasks the task text assigns, and look-alikes or a missing row fail`() {
+        assertThat(assignmentFindings(table)).isEmpty()
+
+        fun swap(
+            from: String,
+            to: String,
+        ) = table.map {
+            if (it.startsWith(
+                    from,
+                )
+            ) {
+                it.replace(Regex("""\t(INV-T-\d+|UNASSIGNED)\t"""), "\t$to\t")
+            } else {
+                it
+            }
+        }
+        assertThat(assignmentFindings(swap("operation\tgetImportRecord\t", "INV-T-4943")))
+            .containsExactly("operation getImportRecord: task is INV-T-4943, the task text assigns INV-T-4944")
+        assertThat(assignmentFindings(swap("operation\tgetImportRecord\t", "INV-T-49440")))
+            .containsExactly("operation getImportRecord: task is INV-T-49440, the task text assigns INV-T-4944")
+        assertThat(assignmentFindings(table.filterNot { it.startsWith("operation\tconfirmIdentityTripleChange\t") }))
+            .containsExactly("operation confirmIdentityTripleChange: no row, the task text assigns INV-T-4942")
+        assertThat(assignmentFindings(swap("channel\tmasterdataExampleHappened\t", "INV-T-4942")))
+            .containsExactly("channel masterdataExampleHappened: task is INV-T-4942, the task text assigns UNASSIGNED")
     }
 
     @Test
@@ -119,7 +170,7 @@ class OperationsTableTest {
         ).containsExactly(
             "operation resolveCounterparty: task INV-T-4943 is listed done but the operation still answers 501",
         )
-        assertThat(verifyDone(listOf("INV-T-4944"), published = emptySet()).first())
+        assertThat(verifyDone(listOf("INV-T-4943"), published = emptySet()).first())
             .contains("is listed done but the code does not publish it")
     }
 
@@ -136,12 +187,13 @@ class OperationsTableTest {
         assertThat(withRow("operation\tx\tINV-T-1\tDONE")).anyMatch { "state must be" in it }
         assertThat(withRow("route\tx\tINV-T-1\topen")).anyMatch { "kind must be" in it }
         assertThat(withRow("operation\tx\tINV-T-1")).anyMatch { "four tab-separated" in it }
-        val unassignedDone = "operation\tresolveMasterDataGap\tUNASSIGNED\tdone"
-        assertThat(verify(base.map { it.replace("operation\tresolveMasterDataGap\tUNASSIGNED\topen", unassignedDone) }))
-            .anyMatch { "done but no task" in it }
+        val unassignedDone = "channel\tmasterdataExampleHappened\tUNASSIGNED\tdone"
+        assertThat(
+            verify(base.map { it.replace("channel\tmasterdataExampleHappened\tUNASSIGNED\topen", unassignedDone) }),
+        ).anyMatch { "done but no task" in it }
         assertThat(verify(base, published = setOf("masterdataMasterDataResolved")))
             .containsExactly("channel masterdataMasterDataResolved: published by the code but not marked done")
-        val unpublished = "channel\tmasterdataMasterDataResolved\tINV-T-4944\tdone"
+        val unpublished = "channel\tmasterdataMasterDataResolved\tINV-T-4943\tdone"
         assertThat(verify(base.map { if (it.startsWith("channel\tmasterdataMasterDataResolved")) unpublished else it }))
             .containsExactly("channel masterdataMasterDataResolved: marked done but the code does not publish it")
     }
