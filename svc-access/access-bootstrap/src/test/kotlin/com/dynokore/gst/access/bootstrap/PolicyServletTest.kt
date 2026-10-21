@@ -23,8 +23,9 @@ import java.time.ZoneId
 import java.util.UUID
 
 /**
- * The principal source of the servlet tests only: fixed test tokens to principals. The production source is the identity
- * binding of INV-T-4938; this class lives under src/test and no production class implements the port (INV-Q-8183).
+ * The principal source of the servlet tests only: fixed test tokens to principals. The production source is the
+ * identity binding of INV-T-4938; this class lives under src/test and no production class implements the port
+ * (INV-Q-8183).
  */
 class TestTokenPrincipals(
     private val principals: Map<String, EndUserPrincipal>,
@@ -35,8 +36,8 @@ class TestTokenPrincipals(
 
 /**
  * INV-AC-2767 through the mounted PolicyCommandServlet (INV-T-4935, ruling INV-Q-8183): the servlet registered by
- * service-runtime at PolicyCommandServlet.MAPPING answers over the real PolicyWriter, the TenantPolicyRoleResolver binding
- * and the IdempotencyStore on the access schema. The principal comes from a test-only resolver.
+ * service-runtime at PolicyCommandServlet.MAPPING answers over the real PolicyWriter, the TenantPolicyRoleResolver
+ * binding and the IdempotencyStore on the access schema. The principal comes from a test-only resolver.
  */
 class PolicyServletTest {
     /** Own tenant per test: the database is shared, and a stored policy would otherwise reach the next test. */
