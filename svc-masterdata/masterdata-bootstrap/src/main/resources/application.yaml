@@ -1,0 +1,39 @@
+# masterdata-bootstrap/src/main/resources/application.yaml — TPL-16 (INV-T-4942)
+spring:
+  threads.virtual.enabled: true                     # STK-03
+  main.lazy-initialization: false                   # STK-06
+  # One DataSource, declared only here and in the Helm values: Spring Boot's `dataSource`, the service's one bounded,
+  # elastic HikariCP pool (STK-17). No code names or builds a DataSource; service-runtime serves every platform-libs
+  # adapter from it
+  datasource:
+    username: masterdata_runtime                        # the one runtime LOGIN: NOSUPERUSER, NOBYPASSRLS, owns no table (CS-19)
+    hikari:                                         # maximum-pool-size is not set: service-runtime sizes the pool as the sum of the lanes
+      minimum-idle: 1
+      idle-timeout: 60000
+      max-lifetime: 1800000
+  flyway:
+    schemas: masterdata
+    default-schema: masterdata
+    user: masterdata_migrate                            # read only by the migration Job's MigrationRunner (TPL-12, ARC-20)
+service-runtime:
+  modules.schema: masterdata
+  workload-identity.audience: masterdata-svc
+  pool:
+    runs-reprocessing: false                        # masterdata-svc runs no pack-activation reprocessing (INV-Q-4485)
+  datasource.credential: db/masterdata_runtime          # the runtime login only; read through SecretStore on every new connection
+management:
+  server.port: 8081                                 # API-33: health, metrics and diagnostics only on the management port
+  endpoints.web:
+    base-path: /
+    exposure.include: health,prometheus,diagnostics
+    path-mapping.prometheus: metrics
+  endpoint.health:
+    status.order: DOWN,OUT_OF_SERVICE,DEGRADED,UP,UNKNOWN
+    status.http-mapping: { DEGRADED: 200, DOWN: 503, OUT_OF_SERVICE: 503 }
+    group:
+      live.include: livenessState
+      ready.include: readinessState,vault,db,eventLoops   # own schema, event loops and vault only (FR-AH.17)
+logging.structured.format.console: ecs             # STK-35
+gst:
+  service: masterdata-svc
+  db.event-log-url: ${GST_EVENT_LOG_DB_URL:}

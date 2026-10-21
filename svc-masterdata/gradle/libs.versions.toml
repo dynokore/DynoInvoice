@@ -1,0 +1,58 @@
+# gradle/libs.versions.toml — svc-masterdata' version catalogue (TPL-01, STK-01 §1).
+# gst.kotlin-base's checkDependencyCatalogUsage (STK §1b(a)) requires every dependency to go through an alias.
+
+[versions]
+# The gst.* convention plugins and platform-build's Konsist rule set: one train, one version (P11).
+platformBuild = "0.23.1"
+# The tested set of platform-libs modules (STK-60): platform-libs-bom.
+platformLibsBom = "0.103.0"
+# The published platform-contracts bundle this service stages its contract from (STK-46, API-01).
+platformContractsBundle = "0.0.0-dev+7da66239"
+gstCatalogue = "1.14.0"
+springBoot = "4.1.1"
+jooq = "3.21.9"
+postgresql = "42.7.14"
+testcontainers = "1.21.4"
+junit = "6.1.3"
+jackson = "3.2.3"
+jsonSchemaValidator = "3.0.8"
+
+[libraries]
+platform-bom = { module = "com.dynokore.platform:platform-libs-bom", version.ref = "platformLibsBom" }
+platform-serviceRuntime-api = { module = "com.dynokore.platform:service-runtime-api" }
+platform-serviceRuntime-impl = { module = "com.dynokore.platform:service-runtime" }
+platform-tenancyKernel-api = { module = "com.dynokore.platform:tenancy-kernel-api" }
+platform-tenancyKernel-impl = { module = "com.dynokore.platform:tenancy-kernel" }
+platform-outboxAndQueue-api = { module = "com.dynokore.platform:outbox-and-queue-api" }
+platform-outboxAndQueue-impl = { module = "com.dynokore.platform:outbox-and-queue" }
+platform-auditLog-api = { module = "com.dynokore.platform:audit-log-api" }
+platform-auditLog-impl = { module = "com.dynokore.platform:audit-log" }
+platform-configResolver-api = { module = "com.dynokore.platform:config-resolver-api" }
+platform-configResolver-impl = { module = "com.dynokore.platform:config-resolver" }
+platform-productRuntime-api = { module = "com.dynokore.platform:product-runtime-api" }
+platform-productRuntime-impl = { module = "com.dynokore.platform:product-runtime" }
+platform-tenancyJooq-api = { module = "com.dynokore.platform:tenancy-jooq-api" }
+platform-tenancyJooq-impl = { module = "com.dynokore.platform:tenancy-jooq" }
+platform-konsistRules = { module = "com.dynokore.gst.build:konsist-rules", version.ref = "platformBuild" }
+platformContracts-bundle = { module = "platform-contracts-bundle:platform-contracts", version.ref = "platformContractsBundle" }
+gstCatalogue = { module = "com.dynokore.gst:gst-catalogue", version.ref = "gstCatalogue" }
+springBoot-dependencies = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "springBoot" }
+springBoot-starterWeb = { module = "org.springframework.boot:spring-boot-starter-web" }
+springBoot-starterValidation = { module = "org.springframework.boot:spring-boot-starter-validation" }
+springBoot-starterActuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }
+springBoot-starterJdbc = { module = "org.springframework.boot:spring-boot-starter-jdbc" }
+springBoot-starterTest = { module = "org.springframework.boot:spring-boot-starter-test" }
+springWeb = { module = "org.springframework:spring-web" }
+jooq = { module = "org.jooq:jooq", version.ref = "jooq" }
+postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
+testcontainers-postgresql = { module = "org.testcontainers:postgresql", version.ref = "testcontainers" }
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
+junit-platformLauncher = { module = "org.junit.platform:junit-platform-launcher" }
+jackson-databind = { module = "tools.jackson.core:jackson-databind" }
+jackson-moduleKotlin = { module = "tools.jackson.module:jackson-module-kotlin" }
+jackson-bom = { module = "tools.jackson:jackson-bom", version.ref = "jackson" }
+jsonSchemaValidator = { module = "com.networknt:json-schema-validator", version.ref = "jsonSchemaValidator" }
+snakeyaml = { module = "org.yaml:snakeyaml" }
+jakartaServlet = { module = "jakarta.servlet:jakarta.servlet-api" }
+swaggerAnnotations = { module = "io.swagger.core.v3:swagger-annotations-jakarta", version = "2.2.55" }

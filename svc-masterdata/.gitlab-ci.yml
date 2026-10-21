@@ -1,0 +1,25 @@
+# .gitlab-ci.yml — svc-masterdata (INV-T-4942).
+#
+# Uses platform-build's shared CI templates (ci/README.md): compile, unit tests, lint, Semgrep, Trivy, the verify-rules
+# gate, the dependency-verification check (STK-72, INV-T-4300) and, because this repository builds a bootable image,
+# the Paketo image build with SBOM, scan and publish to the LAN Nexus registry (ci/image.gitlab-ci.yml).
+include:
+  - project: 'invoice/platform-build'
+    ref: main
+    file:
+      - 'ci/stages.gitlab-ci.yml'   # always first: stages, workflow rules, shared variables
+      - 'ci/build.gitlab-ci.yml'    # compile, unit tests, lint, Semgrep, Trivy, verification-metadata check
+      - 'ci/image.gitlab-ci.yml'    # bootBuildImage, SBOM, image scan, publish to Nexus
+      - 'ci/publish.gitlab-ci.yml'  # OCI image publish
+  # The keel-report job reads the JUnit XML of unit-test from the main push pipeline and reports the INV-AC numbers in
+  # the testcase names to Keel (the acceptance results of the criteria in ac-keys.tsv).
+  - project: 'keel/tooling'
+    ref: main
+    file: 'keel-report-junit.yml'
+    inputs:
+      runner_tags: [inv-arm64]
+      junit_paths: '**/build/test-results/*/TEST-*.xml'
+      ac_pattern: 'INV-AC-\d+(?!\d)'
+
+variables:
+  IMAGE_NAME: "svc-masterdata"
