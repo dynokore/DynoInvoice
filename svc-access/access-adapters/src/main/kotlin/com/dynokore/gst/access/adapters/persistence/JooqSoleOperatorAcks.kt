@@ -10,7 +10,7 @@ import org.jooq.Record
 import java.time.Clock
 import java.time.ZoneOffset
 
-/** TPL-11. The listeners of the DSLContext add the bound tenant to every statement; forced row-level security stays behind. */
+/** TPL-11. The listeners of the DSLContext add the bound tenant to every statement; row-level security stays behind. */
 class JooqSoleOperatorAcks(
     private val dsl: DSLContext,
     private val tenants: TenantContext,
@@ -70,9 +70,10 @@ class JooqSoleOperatorAcks(
 
     private fun toAck(row: Record): SoleOperatorAck =
         SoleOperatorAck(
-            ref = row.get(SOLE_OPERATOR_ACK.ACK_REF)!!,
+            ref = checkNotNull(row.get(SOLE_OPERATOR_ACK.ACK_REF)) { "ack_ref is not null" },
             tenantRef = tenants.current().toString(),
-            compensatingControls = row.get(SOLE_OPERATOR_ACK.COMPENSATING_CONTROLS)!!,
+            compensatingControls =
+                checkNotNull(row.get(SOLE_OPERATOR_ACK.COMPENSATING_CONTROLS)) { "compensating_controls is not null" },
             active = row.get(SOLE_OPERATOR_ACK.STATUS) == ACTIVE,
         )
 

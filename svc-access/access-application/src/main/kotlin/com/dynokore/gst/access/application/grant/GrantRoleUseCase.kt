@@ -11,6 +11,18 @@ import com.dynokore.gst.access.domain.role.RoleCatalogue
 import com.dynokore.gst.access.domain.role.SeparationOfDuty
 import com.dynokore.platform.tenancykernel.TransactionRunner
 
+/** What `grantRole` checks beyond the grant itself: the roles of the installation's form and the separation of duty. */
+class GrantRoleRules(
+    val catalogue: RoleCatalogue,
+    val soleOperators: SoleOperatorAcks,
+)
+
+/** What a granted role writes besides the grant: the AuthorityChanged events and the audit entry. */
+class GrantRoleEffects(
+    val publisher: AuthorityChangePublisher,
+    val audit: GrantAudit,
+)
+
 /**
  * `grantRole` (INV-REQ-864, INV-REQ-859): refuses a grant without a scope or with an unknown role; otherwise stores the
  * grant (a repeat of the same identity, role and scope returns the original), publishes AuthorityChanged for every
@@ -24,10 +36,8 @@ class GrantRoleUseCase(
     private val grants: GrantRepository,
     directory: EntityDirectory,
     matrix: PermissionMatrix,
-    private val publisher: AuthorityChangePublisher,
-    private val audit: GrantAudit,
-    private val catalogue: RoleCatalogue,
-    private val soleOperators: SoleOperatorAcks,
+    private val effects: GrantRoleEffects,
+    private val rules: GrantRoleRules,
 ) {
     private val records = AuthorityRecords(directory, matrix)
 
@@ -36,7 +46,7 @@ class GrantRoleUseCase(
         val role = Role.ofWire(command.roleWire)
         return when {
             scope == null -> GrantRoleOutcome.ScopeMissing
-            role == null || !catalogue.contains(role) -> GrantRoleOutcome.UnknownRole(command.roleWire)
+            role == null || !rules.catalogue.contains(role) -> GrantRoleOutcome.UnknownRole(command.roleWire)
             else -> tx.inTransaction { issue(command, role, scope) }
         }
     }
@@ -52,9 +62,18 @@ class GrantRoleUseCase(
             return GrantRoleOutcome.Granted(existing, repeated = true)
         }
         val held = grants.findByIdentity(command.identity).filter { it.status != GrantStatus.REVOKED }.map { it.role }
-        if (SeparationOfDuty.completesConflict(held.toSet(), role) && soleOperators.findActive() == null) {
-            return GrantRoleOutcome.SoleOperatorAckRequired
+        return if (SeparationOfDuty.completesConflict(held.toSet(), role) && rules.soleOperators.findActive() == null) {
+            GrantRoleOutcome.SoleOperatorAckRequired
+        } else {
+            insert(command, role, scope)
         }
+    }
+
+    private fun insert(
+        command: GrantRoleCommand,
+        role: Role,
+        scope: Scope,
+    ): GrantRoleOutcome {
         val grant =
             Grant.issue(
                 GrantHeader(grants.nextGrantRef(), command.tenant, command.identity),
@@ -63,7 +82,7 @@ class GrantRoleUseCase(
                 command.window,
             )
         grants.insert(grant)
-        publisher.publish(
+        effects.publisher.publish(
             records.forChange(
                 command.tenant,
                 command.identity,
@@ -72,7 +91,7 @@ class GrantRoleUseCase(
                 grants::nextAuthorityVersion,
             ),
         )
-        audit.record(
+        effects.audit.record(
             GrantAuditEntry(
                 actor = command.actor,
                 action = "grantRole",

@@ -12,6 +12,8 @@ import com.dynokore.gst.access.application.grant.AuthorityChangePublisher
 import com.dynokore.gst.access.application.grant.EntityDirectory
 import com.dynokore.gst.access.application.grant.GrantAudit
 import com.dynokore.gst.access.application.grant.GrantRepository
+import com.dynokore.gst.access.application.grant.GrantRoleEffects
+import com.dynokore.gst.access.application.grant.GrantRoleRules
 import com.dynokore.gst.access.application.grant.GrantRoleUseCase
 import com.dynokore.gst.access.application.grant.RevokeGrantUseCase
 import com.dynokore.gst.access.application.landing.LandingChoices
@@ -84,13 +86,6 @@ class UseCases {
     ) = Authorise(dependencies.tx, dependencies.grants, dependencies.directory, dependencies.matrix, clock)
 
     @Bean
-    fun soleOperatorAcks(
-        dsl: DSLContext,
-        tenants: TenantContext,
-        clock: Clock,
-    ): SoleOperatorAcks = JooqSoleOperatorAcks(dsl, tenants, clock)
-
-    @Bean
     fun grantRoleUseCase(
         dependencies: GrantDependencies,
         publisher: AuthorityChangePublisher,
@@ -102,56 +97,9 @@ class UseCases {
         dependencies.grants,
         dependencies.directory,
         dependencies.matrix,
-        publisher,
-        audit,
-        catalogue,
-        soleOperators,
+        GrantRoleEffects(publisher, audit),
+        GrantRoleRules(catalogue, soleOperators),
     )
-
-    @Bean
-    fun recordSoleOperatorUseCase(
-        tx: TransactionRunner,
-        acks: SoleOperatorAcks,
-        audit: GrantAudit,
-    ) = RecordSoleOperatorUseCase(tx, acks, audit)
-
-    @Bean
-    fun withdrawSoleOperatorUseCase(
-        tx: TransactionRunner,
-        acks: SoleOperatorAcks,
-        audit: GrantAudit,
-    ) = WithdrawSoleOperatorUseCase(tx, acks, audit)
-
-    @Bean
-    fun landingChoices(
-        dsl: DSLContext,
-        tenants: TenantContext,
-        clock: Clock,
-    ): LandingChoices = JooqLandingChoices(dsl, tenants, clock)
-
-    /** VP-73 as `setPolicy` of service-runtime stores it and the config-resolver resolves it (INV-REQ-2756). */
-    @Bean
-    fun rolePrecedence(
-        reader: PolicyReader,
-        tenants: TenantContext,
-        clock: Clock,
-        mapper: ObjectMapper,
-    ): RolePrecedence = VariationPointRolePrecedence(reader, tenants, clock, mapper)
-
-    /** The check of VP-73 `setPolicy` asks of its owning service (INV-Q-3167); it is the only variation point checked here. */
-    @Bean
-    fun rolePrecedenceConstraints(
-        catalogue: RoleCatalogue,
-        mapper: ObjectMapper,
-    ): ValueConstraints = RolePrecedenceConstraints(catalogue, mapper)
-
-    @Bean
-    fun landingScreens(
-        dependencies: GrantDependencies,
-        choices: LandingChoices,
-        precedence: RolePrecedence,
-        clock: Clock,
-    ) = LandingScreens(dependencies.tx, dependencies.grants, choices, precedence, clock)
 
     @Bean
     fun revokeGrantUseCase(

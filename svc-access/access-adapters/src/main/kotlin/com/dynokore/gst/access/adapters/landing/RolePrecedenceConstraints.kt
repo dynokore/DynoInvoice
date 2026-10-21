@@ -24,17 +24,26 @@ class RolePrecedenceConstraints(
         key: VariationPointKey,
         selected: List<SelectedOption>,
         onDate: LocalDate,
-    ): ConstraintVerdict? {
-        if (key != VP_73) return null
-        val json = selected.singleOrNull { it.key == TENANT_PRECEDENCE }?.valueJson ?: return ConstraintVerdict.Accept
-        val node = runCatching { mapper.readTree(json) }.getOrNull()
-        if (node == null || !node.isArray) return ConstraintVerdict.Refuse("the precedence must be a list of role keys")
-        val roles: List<Role?> =
-            (0 until node.size()).map { index ->
-                val item = node.get(index)
-                if (item.isString) item.asString()?.let { Role.ofWire(it) } else null
-            }
+    ): ConstraintVerdict? =
+        if (key == VP_73) {
+            verdictOf(
+                selected
+                    .singleOrNull {
+                        it.key == TENANT_PRECEDENCE
+                    }?.valueJson,
+            )
+        } else {
+            null
+        }
+
+    private fun verdictOf(json: String?): ConstraintVerdict {
+        if (json == null) return ConstraintVerdict.Accept
+        val roles = rolesOf(json)
         return when {
+            roles == null -> {
+                ConstraintVerdict.Refuse("the precedence must be a list of role keys")
+            }
+
             roles.any { it == null || !catalogue.contains(it) } -> {
                 ConstraintVerdict.Refuse("the precedence names a role that is not in this installation's catalogue")
             }
@@ -46,6 +55,15 @@ class RolePrecedenceConstraints(
             else -> {
                 ConstraintVerdict.Accept
             }
+        }
+    }
+
+    /** The roles of a JSON list of role keys (a null for an item that is no known role), or null when it is no list. */
+    private fun rolesOf(json: String): List<Role?>? {
+        val node = runCatching { mapper.readTree(json) }.getOrNull()?.takeIf { it.isArray } ?: return null
+        return (0 until node.size()).map { index ->
+            val item = node.get(index)
+            if (item.isString) item.asString()?.let { Role.ofWire(it) } else null
         }
     }
 

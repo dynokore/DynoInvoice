@@ -15,7 +15,7 @@ data class Landing(
  * decides a landing screen only and never reads or changes a permission.
  */
 object LandingPolicy {
-    /** The role order of UI inventory section 4.1 (the rows of its table; `counterparty` is no role of this service). */
+    /** The role order of UI inventory section 4.1 (its rows; `counterparty` is no role of this service). */
     val ROLE_ORDER: List<Role> =
         listOf(
             Role.TENANT_ADMIN,

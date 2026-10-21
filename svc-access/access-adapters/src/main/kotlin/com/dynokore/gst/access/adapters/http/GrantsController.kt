@@ -52,9 +52,9 @@ open class GrantsController(
     ): ResponseEntity<GrantResponse> {
         requireManager()
         val tenant = TenantRef(tenants.current().toString())
-        val scope = scopeOf(grantRequest.scope, tenant)
-        val identity = identityOf(grantRequest.identityRef)
-        val window = windowOf(grantRequest)
+        val scope = GrantRequests.scopeOf(grantRequest.scope, tenant)
+        val identity = GrantRequests.identityOf(grantRequest.identityRef)
+        val window = GrantRequests.windowOf(grantRequest)
         val command =
             GrantRoleCommand(
                 tenant = tenant,
@@ -74,14 +74,14 @@ open class GrantsController(
             }
 
             GrantRoleOutcome.ScopeMissing -> {
-                invalid("a grant without a scope is invalid")
+                GrantRequests.invalid("a grant without a scope is invalid")
             }
 
             is GrantRoleOutcome.UnknownRole -> {
-                invalid("role is not in the role catalogue")
+                GrantRequests.invalid("role is not in the role catalogue")
             }
 
-            // the contract lists 403 and 409 for grantRole; no error code of the catalogue names this refusal (INV-REQ-891)
+            // the contract lists 403 and 409 for grantRole; no catalogue error code names this refusal (INV-REQ-891)
             GrantRoleOutcome.SoleOperatorAckRequired -> {
                 throw ApiRefusal(
                     ClosedErrorCode.ACCESS_DENIED,
@@ -90,29 +90,6 @@ open class GrantsController(
             }
         }
     }
-
-    private fun scopeOf(
-        text: String,
-        tenant: TenantRef,
-    ): Scope? =
-        when (val parsed = ScopeParser.parse(text, tenant)) {
-            is ScopeParser.Parsed.Ok -> parsed.scope
-            ScopeParser.Parsed.Missing -> null
-            is ScopeParser.Parsed.Unsupported -> invalid("scope is not supported")
-        }
-
-    private fun identityOf(text: String): IdentityRef =
-        runCatching { IdentityRef(text) }.getOrElse { invalid("identityRef is invalid") }
-
-    private fun windowOf(request: GrantRequest): ValidityWindow =
-        runCatching {
-            ValidityWindow(
-                request.validFrom.atStartOfDay(ZoneOffset.UTC).toInstant(),
-                request.validTo?.atStartOfDay(ZoneOffset.UTC)?.toInstant(),
-            )
-        }.getOrElse { invalid("validTo must be after validFrom") }
-
-    private fun invalid(message: String): Nothing = throw ApiRefusal(ClosedErrorCode.CONTRACT_VIOLATION, message)
 
     override fun revokeGrant(
         grantRef: String,
@@ -145,7 +122,12 @@ open class GrantsController(
         ResponseEntity.ok(landingOf(landing.resolve(caller()) ?: throw ApiRefusal(ClosedErrorCode.NOT_FOUND)))
 
     /** The person is the authenticated subject of the call, never a request field (INV-REQ-2756). */
-    private fun caller(): IdentityRef = identityOf(checkNotNull(tenants.currentActor()) { "no actor is bound" })
+    private fun caller(): IdentityRef =
+        GrantRequests.identityOf(
+            checkNotNull(tenants.currentActor()) {
+                "no actor is bound"
+            },
+        )
 
     private fun landingOf(landing: Landing) =
         LandingScreenResponse(landing.role.wire, LandingScreenResponse.Source.valueOf(landing.source.name))
