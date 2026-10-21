@@ -26,13 +26,13 @@ class ServiceDefaults {
     fun eventCatalogue(): EventCatalogue = MasterdataEventCatalogue.load()
 
     /**
-     * The confirmer set. While VP-09 is `planned` and the owner question INV-Q-7880 is open, the port holds exactly
-     * {entity.admin, tenant.admin, tax.approver}; the answer changes only this set. The service adds no operation that
-     * sets it (ruling INV-Q-7888 A).
+     * The confirmer set. While VP-09 is `planned` the port holds exactly {entity.admin, tenant.admin, tax.approver}
+     * (owner answer INV-Q-7880 A). The service adds no operation that sets it (ruling INV-Q-7888 A), and reading the
+     * tenant's own value once VP-09 is available is not built here.
      */
     @Bean
     @ConditionalOnMissingBean
-    fun confirmerPolicy(): ConfirmerPolicy = ConfirmerPolicy { INTERIM_CONFIRMERS }
+    fun confirmerPolicy(): ConfirmerPolicy = ConfirmerPolicy { PLANNED_CONFIRMERS }
 
     /**
      * The roles of the confirming subject at the entity come from service-runtime's [PolicyRoleResolver] when the
@@ -52,7 +52,7 @@ class ServiceDefaults {
         }
 
     private companion object {
-        val INTERIM_CONFIRMERS =
+        val PLANNED_CONFIRMERS =
             ConfirmerSet(setOf(ConfirmerRole.ENTITY_ADMIN, ConfirmerRole.TENANT_ADMIN, ConfirmerRole.TAX_APPROVER))
     }
 }

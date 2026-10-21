@@ -22,4 +22,4 @@ operation	getImportRecord	INV-T-4944	open
 channel	masterdataMasterDataResolved	INV-T-4943	open
 channel	masterdataReferenceRateLoaded	INV-T-4947	open
 channel	masterdataSignedLinkRequested	INV-T-4945	open
-channel	masterdataExampleHappened	UNASSIGNED	open
+channel	masterdataExampleHappened	PLACEHOLDER	open

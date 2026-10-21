@@ -38,8 +38,8 @@ import java.util.UUID
  * The acceptance criteria of INV-T-4942 at the service boundary: the real application context over a real PostgreSQL
  * with forced row-level security and the signed binding, the use cases called under a bound tenant. Test names
  * carry the criterion key (acKeyCoverage). The constitution codes, Peppol IDs, UENs and GSTNs are test data: the
- * published contract carries the constitution as a free string and publishes no value list. See the merge request,
- * "Gaps", for the parts that wait for a ruling (the wire form of MDM-005, a pending change, the reprocessing request).
+ * published contract carries the constitution as a free string and publishes no value list. See the merge request
+ * for the parts that wait for a ruling (the wire form of MDM-005 and the reprocessing event of INV-T-8017).
  */
 class AcceptanceCriteriaTest {
     private val tenantA = TenantId(UUID.fromString("0a000000-0000-4000-8000-00000000000a"))
@@ -379,6 +379,7 @@ class AcceptanceCriteriaTest {
                     "U-A",
                     "G-A",
                     LocalDate.of(2026, 7, 1),
+                    agent.code,
                     SecondConfirmation(otherAdmin, "tenant.admin"),
                 )
             val refusal =
@@ -399,8 +400,9 @@ class AcceptanceCriteriaTest {
     @Test
     fun `INV-AC-1603 a proposal answers 202 with the pending change and puts nothing in force`() =
         run { env ->
-            val request = ConfigureIdentityTripleRequest("0195:U-A", "U-A", "G-A", LocalDate.of(2026, 7, 1))
-            val response = env.inTenant(tenantA) { env.identityApi.propose("ENT-202", agent.code, request) }
+            val request = ConfigureIdentityTripleRequest("0195:U-A", "U-A", "G-A", LocalDate.of(2026, 7, 1), agent.code)
+            val response =
+                env.inTenant(tenantA) { env.identityApi.configureIdentityTriple("ENT-202", UUID.randomUUID(), request) }
             assertThat(response.statusCode).isEqualTo(HttpStatus.ACCEPTED)
             val body = response.body as Any as PendingIdentityTripleChange
             assertThat(body.state).isEqualTo(PendingIdentityTripleChange.State.PENDING_CONFIRMATION)
@@ -408,6 +410,77 @@ class AcceptanceCriteriaTest {
             assertThat(env.resolved(tenantA, "ENT-202", agent, LocalDate.of(2026, 8, 1)))
                 .isInstanceOf(Resolution.Blocked::class.java)
             assertThat(env.rows("identity_triple", "ENT-202")).isZero()
+        }
+
+    @Test
+    fun `two constitutions of one entity each resolve to their own triple and a change for one leaves the other`() =
+        run { env ->
+            val soleTriple = triple("0195:G-S", "G-S", "G-S")
+            val agentTriple = triple("0195:U-A", "U-A", "G-A")
+            env.configured(tenantA, "ENT-TWO", soleProprietor, soleTriple)
+            env.configured(tenantA, "ENT-TWO", agent, agentTriple)
+            assertThat(env.triple(tenantA, "ENT-TWO", soleProprietor)).isEqualTo(soleTriple)
+            assertThat(env.triple(tenantA, "ENT-TWO", agent)).isEqualTo(agentTriple)
+            // a change for the agent constitution is confirmed while a document for the sole proprietor is resolved
+            val from = LocalDate.of(2026, 7, 1)
+            val changed = triple("0195:U-A2", "U-A2", "G-A2")
+            val pending = env.proposed(tenantA, "ENT-TWO", agent, changed, from)
+            assertThat(env.triple(tenantA, "ENT-TWO", soleProprietor, from)).isEqualTo(soleTriple)
+            assertThat(env.confirmedAs(tenantA, otherAdmin, "ENT-TWO", pending.changeRef)).isEqualTo(HttpStatus.OK)
+            assertThat(env.triple(tenantA, "ENT-TWO", soleProprietor, from)).isEqualTo(soleTriple)
+            assertThat(env.triple(tenantA, "ENT-TWO", agent, from)).isEqualTo(changed)
+            assertThat(env.triple(tenantA, "ENT-TWO", agent, from.minusDays(1))).isEqualTo(agentTriple)
+            // the confirmation answers the constitution of the change, compared by equality
+            val other = env.proposed(tenantA, "ENT-TWO", soleProprietor, triple("0195:G-S2", "G-S2", "G-S2"), from)
+            val answer =
+                env.inTenant(tenantA, otherAdmin) {
+                    env.identityApi.confirmIdentityTripleChange("ENT-TWO", other.changeRef, UUID.randomUUID())
+                }
+            assertThat(answer.body?.constitution).isEqualTo(soleProprietor.code)
+            // a constitution with no stored version is MDM-005
+            assertThat((env.resolved(tenantA, "ENT-TWO", groupMember) as Resolution.Blocked).code).isEqualTo("MDM-005")
+        }
+
+    @Test
+    fun `a proposal without constitution or with one over 40 characters is refused 400 and records nothing`() =
+        run { env ->
+            val web = env.context.sourceApplicationContext as org.springframework.web.context.WebApplicationContext
+            val mvc =
+                org.springframework.test.web.servlet.setup.MockMvcBuilders
+                    .webAppContextSetup(web)
+                    .build()
+
+            fun post(body: String): Int =
+                env.inTenant(tenantA) {
+                    mvc
+                        .perform(
+                            org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                                .post("/internal/v1/masterdata/entities/ENT-400/identity-triple")
+                                .header("Idempotency-Key", UUID.randomUUID().toString())
+                                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                                .content(body),
+                        ).andReturn()
+                        .response.status
+                }
+
+            val head = """"senderId":"0195:U-A","supplierId":"U-A","supplierGstn":"G-A","effectiveFrom":"2026-07-01""""
+            assertThat(post("{$head}")).isEqualTo(400)
+            assertThat(post("{$head,\"constitution\":\"${"X".repeat(41)}\"}")).isEqualTo(400)
+            assertThat(post("{$head,\"constitution\":\"\"}")).isEqualTo(400)
+            assertThat(env.rows("identity_triple", "ENT-400") to env.rows("identity_triple_change", "ENT-400"))
+                .isEqualTo(0 to 0)
+        }
+
+    @Test
+    fun `INV-AC-1927 a different person in the confirmer set confirms, a role outside the set does not`() =
+        run { env ->
+            roles["IDN-OPERATOR"] = setOf("agent.operator")
+            val pending = env.proposed(tenantA, "ENT-1927", agent, triple("0195:U-A", "U-A", "G-A"))
+            assertThat(env.confirmedAs(tenantA, "IDN-OPERATOR", "ENT-1927", pending.changeRef))
+                .isEqualTo(ClosedErrorCode.ACCESS_DENIED)
+            assertThat(env.confirmedAs(tenantA, advisor, "ENT-1927", pending.changeRef)).isEqualTo(HttpStatus.OK)
+            val second = env.proposed(tenantA, "ENT-1927B", agent, triple("0195:U-B", "U-B", "G-B"))
+            assertThat(env.confirmedAs(tenantA, otherAdmin, "ENT-1927B", second.changeRef)).isEqualTo(HttpStatus.OK)
         }
 
     @Test

@@ -25,9 +25,6 @@ import java.util.UUID
  * TPL-08. `configureIdentityTriple` proposes and `confirmIdentityTripleChange` confirms (rulings INV-Q-7884 A and
  * INV-Q-7888 A). The confirmer is the authenticated subject of the confirming call, never a body field.
  *
- * `configureIdentityTriple` answers 501 for a valid proposal: the published request carries no constitution and the
- * owner question INV-Q-7878 is open, so no constitution is assumed (see the merge request, "Gaps"). [propose] holds the
- * whole path, from a constitution to the 202 body, and waits only for that answer.
  */
 @RestController
 // open: the generated API interface is @Validated, so Spring proxies the controller (no kotlin-spring plugin in the
@@ -47,24 +44,26 @@ open class IdentityTriplesController(
         if (configureIdentityTripleRequest.secondConfirmation != null) {
             invalid("secondConfirmation is not accepted: the confirmation is a separate call")
         }
-        return super.configureIdentityTriple(entityRef, idempotencyKey, configureIdentityTripleRequest)
+        return propose(entityRef, configureIdentityTripleRequest)
     }
 
-    /** The proposal for [constitution]: 202 with the pending change; nothing is put in force. */
-    @Suppress("UNCHECKED_CAST", "DEPRECATION")
-    open fun propose(
+    /** The proposal: 202 with the pending change for the request's constitution; nothing is put in force. */
+    @Suppress("UNCHECKED_CAST")
+    private fun propose(
         entityRef: String,
-        constitution: String,
         request: ConfigureIdentityTripleRequest,
     ): ResponseEntity<IdentityTriple> {
-        if (request.secondConfirmation != null) invalid("secondConfirmation is not accepted")
         val proposer = PersonRef(checkNotNull(tenants.currentActor()) { "no actor is bound" })
         val change =
             proposeChange.handle(
                 ProposeCommand(
                     entity = runCatching { EntityRef(entityRef) }.getOrElse { invalid("entityRef is invalid") },
                     constitution =
-                        runCatching { Constitution(constitution) }.getOrElse { invalid("constitution is invalid") },
+                        runCatching {
+                            Constitution(
+                                request.constitution,
+                            )
+                        }.getOrElse { invalid("constitution is invalid") },
                     triple =
                         runCatching {
                             com.dynokore.gst.masterdata.domain.identity
@@ -130,6 +129,7 @@ open class IdentityTriplesController(
             supplierGstn = version.triple.supplierGstn,
             entityRef = version.entity.value,
             effectiveFrom = version.effectiveFrom,
+            constitution = version.constitution.code,
         )
 
     private fun invalid(message: String): Nothing = throw ApiRefusal(ClosedErrorCode.CONTRACT_VIOLATION, message)

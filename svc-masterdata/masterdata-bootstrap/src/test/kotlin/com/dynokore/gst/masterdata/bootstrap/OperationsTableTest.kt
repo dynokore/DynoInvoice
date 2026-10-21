@@ -1,5 +1,6 @@
 package com.dynokore.gst.masterdata.bootstrap
 
+import com.dynokore.gst.masterdata.adapters.events.MasterdataEventCatalogue
 import com.dynokore.gst.masterdata.adapters.events.PublishedChannels
 import com.dynokore.gst.masterdata.bootstrap.OperationsGate.Contract
 import com.dynokore.gst.masterdata.bootstrap.OperationsGate.OperationRef
@@ -77,7 +78,7 @@ class OperationsTableTest {
             "operation" to "getRegisterAndRates" to "INV-T-4947",
             "channel" to "masterdataMasterDataResolved" to "INV-T-4943",
             "operation" to "confirmIdentityTripleChange" to "INV-T-4942",
-            "channel" to "masterdataExampleHappened" to "UNASSIGNED",
+            "channel" to "masterdataExampleHappened" to "PLACEHOLDER",
         )
 
     private fun assignmentFindings(lines: List<String>): List<String> {
@@ -105,7 +106,7 @@ class OperationsTableTest {
                     from,
                 )
             ) {
-                it.replace(Regex("""\t(INV-T-\d+|UNASSIGNED)\t"""), "\t$to\t")
+                it.replace(Regex("""\t(INV-T-\d+|PLACEHOLDER)\t"""), "\t$to\t")
             } else {
                 it
             }
@@ -117,7 +118,7 @@ class OperationsTableTest {
         assertThat(assignmentFindings(table.filterNot { it.startsWith("operation\tconfirmIdentityTripleChange\t") }))
             .containsExactly("operation confirmIdentityTripleChange: no row, the task text assigns INV-T-4942")
         assertThat(assignmentFindings(swap("channel\tmasterdataExampleHappened\t", "INV-T-4942")))
-            .containsExactly("channel masterdataExampleHappened: task is INV-T-4942, the task text assigns UNASSIGNED")
+            .containsExactly("channel masterdataExampleHappened: task is INV-T-4942, the task text assigns PLACEHOLDER")
     }
 
     @Test
@@ -187,15 +188,74 @@ class OperationsTableTest {
         assertThat(withRow("operation\tx\tINV-T-1\tDONE")).anyMatch { "state must be" in it }
         assertThat(withRow("route\tx\tINV-T-1\topen")).anyMatch { "kind must be" in it }
         assertThat(withRow("operation\tx\tINV-T-1")).anyMatch { "four tab-separated" in it }
-        val unassignedDone = "channel\tmasterdataExampleHappened\tUNASSIGNED\tdone"
-        assertThat(
-            verify(base.map { it.replace("channel\tmasterdataExampleHappened\tUNASSIGNED\topen", unassignedDone) }),
-        ).anyMatch { "done but no task" in it }
+        assertThat(withRow("operation\tx\tUNASSIGNED\topen")).anyMatch { "task must be" in it }
         assertThat(verify(base, published = setOf("masterdataMasterDataResolved")))
             .containsExactly("channel masterdataMasterDataResolved: published by the code but not marked done")
         val unpublished = "channel\tmasterdataMasterDataResolved\tINV-T-4943\tdone"
         assertThat(verify(base.map { if (it.startsWith("channel\tmasterdataMasterDataResolved")) unpublished else it }))
             .containsExactly("channel masterdataMasterDataResolved: marked done but the code does not publish it")
+    }
+
+    @Test
+    fun `probe - PLACEHOLDER is accepted for exactly the channel masterdataExampleHappened`() {
+        val real = "channel\tmasterdataExampleHappened\tPLACEHOLDER\topen"
+        val base = table
+        assertThat(base).contains(real)
+        assertThat(verify(base)).isEmpty()
+
+        fun replaced(row: String) = verify(base.map { if (it == real) row else it })
+        assertThat(replaced("channel\tmasterdataReferenceRateLoaded\tPLACEHOLDER\topen"))
+            .anyMatch { "masterdataReferenceRateLoaded: PLACEHOLDER is accepted only for" in it }
+        assertThat(verify(base + "operation\tgetImportRecord\tPLACEHOLDER\topen"))
+            .anyMatch { "operation getImportRecord: PLACEHOLDER is accepted only for" in it }
+        val relabelled =
+            base.map {
+                if (it.startsWith(
+                        "operation\tgetImportRecord\t",
+                    )
+                ) {
+                    "operation\tgetImportRecord\tPLACEHOLDER\topen"
+                } else {
+                    it
+                }
+            }
+        assertThat(verify(relabelled)).anyMatch { "operation getImportRecord: PLACEHOLDER is accepted only for" in it }
+        assertThat(replaced("channel\tmasterdataexamplehappened\tPLACEHOLDER\topen"))
+            .anyMatch { "masterdataexamplehappened" in it }
+        val renamed = replaced("channel\tmasterdataExampleHappened2\tPLACEHOLDER\topen")
+        assertThat(renamed)
+            .anyMatch { "channel masterdataExampleHappened2: the contract holds no such channel" in it }
+            .anyMatch { "channel masterdataExampleHappened is in the contract and missing" in it }
+        assertThat(replaced("channel\tmasterdataExampleHappened\tplaceholder\topen"))
+            .anyMatch { "masterdataExampleHappened: the task must be exactly PLACEHOLDER" in it }
+        assertThat(replaced("channel\tmasterdataExampleHappened\tPLACEHOLDER\tdone"))
+            .anyMatch { "the PLACEHOLDER row must be open" in it }
+        assertThat(replaced("channel\tmasterdataExampleHappened\tUNASSIGNED\topen"))
+            .anyMatch { "task must be INV-T-<digits>" in it }
+            .anyMatch { "the task must be exactly PLACEHOLDER" in it }
+        assertThat(replaced("channel\tmasterdataExampleHappened\tINV-T-4947\topen"))
+            .containsExactly("channel masterdataExampleHappened: the task must be exactly PLACEHOLDER")
+        assertThat(verify(base, published = PublishedChannels.ALL + "masterdataExampleHappened"))
+            .containsExactly("channel masterdataExampleHappened: the code must not publish the PLACEHOLDER channel")
+    }
+
+    @Test
+    fun `the placeholder set of the event catalogue equals the channel the gate accepts as PLACEHOLDER`() {
+        val field = MasterdataEventCatalogue::class.java.getDeclaredField("PLACEHOLDER_CHANNELS")
+        field.isAccessible = true
+        val holder = MasterdataEventCatalogue::class.java.getDeclaredField("INSTANCE").get(null)
+        // a private val of an object is a static field of the object's class in Kotlin
+        val value =
+            field.get(
+                if (java.lang.reflect.Modifier
+                        .isStatic(field.modifiers)
+                ) {
+                    null
+                } else {
+                    holder
+                },
+            )
+        assertThat(value).isEqualTo(setOf(OperationsGate.PLACEHOLDER_NAME))
     }
 
     @Test

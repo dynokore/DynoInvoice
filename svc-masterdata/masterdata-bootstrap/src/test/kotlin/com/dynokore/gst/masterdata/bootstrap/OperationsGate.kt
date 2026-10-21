@@ -4,16 +4,20 @@ import org.yaml.snakeyaml.Yaml
 
 /**
  * The contract gate (INV-T-4942): `operations.tsv` lists every operationId and channel of the contract with the task
- * that
- * implements it. It fails closed, on any of:
+ * that implements it. It fails closed, on any of:
  *  - an operationId or channel of the contract missing from the table, or a table row the contract does not hold;
  *  - a row twice, a bad header, kind, task or state, an empty table;
- *  - a row `done` whose task is `UNASSIGNED`, or whose operation answers 501 (the generated interface's stub answer);
- *  - a channel `done` that the code does not publish, or published by the code but not `done`.
- * A task is `INV-T-<digits>` or exactly `UNASSIGNED`; a state is exactly `open` or `done`.
+ *  - a row `done` whose operation answers 501 (the generated interface's stub answer);
+ *  - a channel `done` that the code does not publish, or published by the code but not `done`;
+ *  - the value `PLACEHOLDER` on any row but `channel masterdataExampleHappened`, that row holding another value, the
+ *    state `done`, or the channel published by the code (owner answer INV-Q-7882 A).
+ * A task is `INV-T-<digits>`, or exactly `PLACEHOLDER` on the one row above; a state is exactly `open` or `done`.
+ * `UNASSIGNED` is accepted on no row: the tasks of the service name every operation and channel.
  */
 object OperationsGate {
-    const val UNASSIGNED = "UNASSIGNED"
+    const val PLACEHOLDER = "PLACEHOLDER"
+    const val PLACEHOLDER_KIND = "channel"
+    const val PLACEHOLDER_NAME = "masterdataExampleHappened"
 
     data class Row(
         val kind: String,
@@ -157,16 +161,42 @@ object OperationsGate {
         val label = "${row.kind} ${row.name}"
         val findings = mutableListOf<String>()
         if (row.kind !in setOf("operation", "channel")) findings += "$label: kind must be operation or channel"
-        if (row.task != UNASSIGNED && !TASK.matches(row.task)) {
-            findings += "$label: task must be INV-T-<digits> or UNASSIGNED"
+        if (row.task != PLACEHOLDER && !TASK.matches(row.task)) {
+            findings += "$label: task must be INV-T-<digits>"
         }
+        findings += placeholderFindings(row, label, published)
         if (row.state !in setOf("open", "done")) findings += "$label: state must be open or done"
-        if (row.state == "done" && row.task == UNASSIGNED) findings += "$label: done but no task implements it"
         when (row.kind) {
             "operation" -> findings += operationFindings(row, label, contract, answers)
             "channel" -> findings += channelFindings(row, label, contract, published)
         }
         return findings
+    }
+
+    /** The `PLACEHOLDER` rule (INV-Q-7882 A): that value on exactly one row, which stays open and unpublished. */
+    private fun placeholderFindings(
+        row: Row,
+        label: String,
+        published: Set<String>,
+    ): List<String> {
+        val placeholderRow = row.kind == PLACEHOLDER_KIND && row.name == PLACEHOLDER_NAME
+        return when {
+            placeholderRow -> {
+                listOfNotNull(
+                    "$label: the task must be exactly $PLACEHOLDER".takeIf { row.task != PLACEHOLDER },
+                    "$label: the $PLACEHOLDER row must be open".takeIf { row.state != "open" },
+                    "$label: the code must not publish the $PLACEHOLDER channel".takeIf { row.name in published },
+                )
+            }
+
+            row.task == PLACEHOLDER -> {
+                listOf("$label: $PLACEHOLDER is accepted only for $PLACEHOLDER_KIND $PLACEHOLDER_NAME")
+            }
+
+            else -> {
+                emptyList()
+            }
+        }
     }
 
     private fun operationFindings(
@@ -199,12 +229,10 @@ object OperationsGate {
     ): List<String> {
         val findings = mutableListOf<String>()
         if (row.name !in contract.channels) findings += "$label: the contract holds no such channel"
-        if (row.state == "done" && row.name !in published) {
+        if (row.state == "done" && row.name !in published && row.name != PLACEHOLDER_NAME) {
             findings += "$label: marked done but the code does not publish it"
         }
-        if (row.state != "done" &&
-            row.name in published
-        ) {
+        if (row.state != "done" && row.name in published && row.name != PLACEHOLDER_NAME) {
             findings += "$label: published by the code but not marked done"
         }
         return findings

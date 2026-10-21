@@ -53,7 +53,7 @@ interface PendingChangeRepository {
 }
 
 /**
- * The tenant's confirmer set (VP-09), read at TENANT scope. The owner question INV-Q-7880 fixes the set while the
+ * The tenant's confirmer set (VP-09), read at TENANT scope. The owner answer INV-Q-7880 A fixes the set while the
  * control is `planned`; the application only reads the port.
  */
 fun interface ConfirmerPolicy {
