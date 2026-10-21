@@ -31,7 +31,13 @@ sealed interface GrantRoleOutcome {
     /** A grant without a scope is invalid (INV-REQ-859 behaviour 4, INV-AC-1907). */
     data object ScopeMissing : GrantRoleOutcome
 
-    /** The role is not in the role catalogue (INV-NOTE-3 section 22.2). */
+    /**
+     * Assigning the second of `security.officer` and `tenant.admin` to one person in one tenant, with no recorded
+     * sole-operator acknowledgement (INV-REQ-891, INV-AC-1931).
+     */
+    data object SoleOperatorAckRequired : GrantRoleOutcome
+
+    /** The role is not in the role catalogue of this installation's form (INV-NOTE-3 section 22.2, INV-REQ-888). */
     data class UnknownRole(
         val roleWire: String,
     ) : GrantRoleOutcome

@@ -33,6 +33,7 @@ dependencies {
     implementation(libs.platform.auditLog.api)
     implementation(libs.platform.serviceRuntime.api)
     implementation(libs.platform.productRuntime.api)
+    implementation(libs.platform.configResolver.api)
     implementation(libs.platform.tenancyKernel.impl)
     implementation(libs.platform.tenancyJooq.impl)
     implementation(libs.platform.outboxAndQueue.impl)

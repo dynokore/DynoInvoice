@@ -16,6 +16,7 @@ dependencies {
     implementation(libs.platform.auditLog.api)
     implementation(libs.platform.serviceRuntime.api)
     implementation(libs.platform.productRuntime.api)
+    implementation(libs.gstCatalogue)
     implementation(libs.jooq)
     implementation(libs.jackson.databind)
     implementation(libs.jakartaServlet)

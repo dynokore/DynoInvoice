@@ -5,9 +5,13 @@ import com.dynokore.gst.access.application.grant.GrantRoleOutcome
 import com.dynokore.gst.access.application.grant.GrantRoleUseCase
 import com.dynokore.gst.access.application.grant.RevokeGrantOutcome
 import com.dynokore.gst.access.application.grant.RevokeGrantUseCase
+import com.dynokore.gst.access.application.landing.ChooseLandingOutcome
+import com.dynokore.gst.access.application.landing.LandingScreens
 import com.dynokore.gst.access.contract.api.GrantsApi
 import com.dynokore.gst.access.contract.model.GrantRequest
 import com.dynokore.gst.access.contract.model.GrantResponse
+import com.dynokore.gst.access.contract.model.LandingChoiceRequest
+import com.dynokore.gst.access.contract.model.LandingScreenResponse
 import com.dynokore.gst.access.domain.grant.Grant
 import com.dynokore.gst.access.domain.grant.GrantRef
 import com.dynokore.gst.access.domain.grant.GrantStatus
@@ -16,6 +20,7 @@ import com.dynokore.gst.access.domain.grant.IdentityRef
 import com.dynokore.gst.access.domain.grant.Scope
 import com.dynokore.gst.access.domain.grant.TenantRef
 import com.dynokore.gst.access.domain.grant.ValidityWindow
+import com.dynokore.gst.access.domain.role.Landing
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.tenancykernel.TenantContext
 import org.springframework.http.HttpStatus
@@ -39,6 +44,7 @@ open class GrantsController(
     private val revokeGrant: RevokeGrantUseCase,
     private val tenants: TenantContext,
     private val manager: GrantManagerCheck,
+    private val landing: LandingScreens,
 ) : GrantsApi {
     override fun grantRole(
         idempotencyKey: UUID,
@@ -73,6 +79,14 @@ open class GrantsController(
 
             is GrantRoleOutcome.UnknownRole -> {
                 invalid("role is not in the role catalogue")
+            }
+
+            // the contract lists 403 and 409 for grantRole; no error code of the catalogue names this refusal (INV-REQ-891)
+            GrantRoleOutcome.SoleOperatorAckRequired -> {
+                throw ApiRefusal(
+                    ClosedErrorCode.ACCESS_DENIED,
+                    "security.officer and tenant.admin need the recorded sole-operator acknowledgement",
+                )
             }
         }
     }
@@ -112,6 +126,29 @@ open class GrantsController(
             RevokeGrantOutcome.NotFound -> throw ApiRefusal(ClosedErrorCode.NOT_FOUND)
         }
     }
+
+    override fun chooseLandingScreen(
+        idempotencyKey: UUID,
+        landingChoiceRequest: LandingChoiceRequest,
+    ): ResponseEntity<LandingScreenResponse> =
+        when (val outcome = landing.choose(caller(), landingChoiceRequest.role)) {
+            is ChooseLandingOutcome.Chosen -> ResponseEntity.ok(landingOf(outcome.landing))
+            ChooseLandingOutcome.NotHeld -> throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
+        }
+
+    override fun clearLandingChoice(idempotencyKey: UUID): ResponseEntity<Unit> {
+        landing.clear(caller())
+        return ResponseEntity.noContent().build()
+    }
+
+    override fun resolveLandingScreen(): ResponseEntity<LandingScreenResponse> =
+        ResponseEntity.ok(landingOf(landing.resolve(caller()) ?: throw ApiRefusal(ClosedErrorCode.NOT_FOUND)))
+
+    /** The person is the authenticated subject of the call, never a request field (INV-REQ-2756). */
+    private fun caller(): IdentityRef = identityOf(checkNotNull(tenants.currentActor()) { "no actor is bound" })
+
+    private fun landingOf(landing: Landing) =
+        LandingScreenResponse(landing.role.wire, LandingScreenResponse.Source.valueOf(landing.source.name))
 
     private fun requireManager() {
         if (!manager.mayManageGrants()) throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)

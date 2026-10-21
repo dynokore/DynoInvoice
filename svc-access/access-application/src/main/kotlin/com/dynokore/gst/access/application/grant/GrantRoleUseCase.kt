@@ -1,11 +1,14 @@
 package com.dynokore.gst.access.application.grant
 
+import com.dynokore.gst.access.application.separation.SoleOperatorAcks
 import com.dynokore.gst.access.domain.grant.Grant
 import com.dynokore.gst.access.domain.grant.GrantHeader
 import com.dynokore.gst.access.domain.grant.GrantStatus
 import com.dynokore.gst.access.domain.grant.Scope
 import com.dynokore.gst.access.domain.role.PermissionMatrix
 import com.dynokore.gst.access.domain.role.Role
+import com.dynokore.gst.access.domain.role.RoleCatalogue
+import com.dynokore.gst.access.domain.role.SeparationOfDuty
 import com.dynokore.platform.tenancykernel.TransactionRunner
 
 /**
@@ -23,6 +26,8 @@ class GrantRoleUseCase(
     matrix: PermissionMatrix,
     private val publisher: AuthorityChangePublisher,
     private val audit: GrantAudit,
+    private val catalogue: RoleCatalogue,
+    private val soleOperators: SoleOperatorAcks,
 ) {
     private val records = AuthorityRecords(directory, matrix)
 
@@ -31,7 +36,7 @@ class GrantRoleUseCase(
         val role = Role.ofWire(command.roleWire)
         return when {
             scope == null -> GrantRoleOutcome.ScopeMissing
-            role == null -> GrantRoleOutcome.UnknownRole(command.roleWire)
+            role == null || !catalogue.contains(role) -> GrantRoleOutcome.UnknownRole(command.roleWire)
             else -> tx.inTransaction { issue(command, role, scope) }
         }
     }
@@ -45,6 +50,10 @@ class GrantRoleUseCase(
         val existing = grants.findByRepeatKey(command.identity, role.wire, scope)
         if (existing != null && existing.status != GrantStatus.REVOKED) {
             return GrantRoleOutcome.Granted(existing, repeated = true)
+        }
+        val held = grants.findByIdentity(command.identity).filter { it.status != GrantStatus.REVOKED }.map { it.role }
+        if (SeparationOfDuty.completesConflict(held.toSet(), role) && soleOperators.findActive() == null) {
+            return GrantRoleOutcome.SoleOperatorAckRequired
         }
         val grant =
             Grant.issue(

@@ -5,7 +5,10 @@ import com.dynokore.gst.access.adapters.http.GrantManagerCheck
 import com.dynokore.gst.access.adapters.persistence.jooq.Access
 import com.dynokore.gst.access.domain.grant.ConsentCheck
 import com.dynokore.gst.access.domain.role.PermissionMatrix
+import com.dynokore.gst.access.domain.role.RoleCatalogue
+import com.dynokore.gst.catalogue.DeploymentForm
 import com.dynokore.platform.outboxandqueue.EventCatalogue
+import com.dynokore.platform.serviceruntime.binding.GstProperties
 import org.jooq.Schema
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
@@ -21,13 +24,21 @@ class ServiceDefaults {
     fun eventCatalogue(): EventCatalogue = AccessEventCatalogue.load()
 
     /**
-     * Holds nothing until the permission catalogue is ruled (the names of the permissions of INV-NOTE-3 section 22.3
-     * are
-     * published nowhere): every `authorise` answers DENY and no event carries an action. Fail closed.
+     * The role-by-permission table of the gst-catalogue for the installation's deployment form (INV-T-4935, INV-Q-7979
+     * A). A role or permission key the loader cannot map stops the start-up (fail closed).
      */
     @Bean
     @ConditionalOnMissingBean
-    fun permissionMatrix(): PermissionMatrix = PermissionMatrix.EMPTY
+    fun permissionMatrix(properties: GstProperties): PermissionMatrix =
+        PermissionMatrixLoader.load(catalogueForm(properties))
+
+    /** The roles of the installation's form: a private installation has no `platform.support` (INV-REQ-888). */
+    @Bean
+    @ConditionalOnMissingBean
+    fun roleCatalogue(properties: GstProperties): RoleCatalogue =
+        PermissionMatrixLoader.roleCatalogue(catalogueForm(properties))
+
+    private fun catalogueForm(properties: GstProperties): DeploymentForm = DeploymentForm.valueOf(properties.form.name)
 
     /**
      * No grant manager is recognised until the permission catalogue is ruled (fail closed): grantRole and revokeGrant

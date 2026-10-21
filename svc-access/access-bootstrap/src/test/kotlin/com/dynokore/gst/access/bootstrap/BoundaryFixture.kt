@@ -9,6 +9,7 @@ import com.dynokore.gst.access.domain.role.PermissionDefinition
 import com.dynokore.gst.access.domain.role.PermissionKind
 import com.dynokore.gst.access.domain.role.PermissionMatrix
 import com.dynokore.gst.access.domain.role.Role
+import com.dynokore.gst.access.domain.role.RoleCatalogue
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.OutboundEvent
@@ -97,14 +98,21 @@ class CapturedEvents {
     val envelopes = CopyOnWriteArrayList<Envelope>()
 }
 
+/** The fixture rows in place of the catalogue table, and every role grantable (test data, INV-T-4934's tests). */
+@Configuration(proxyBeanMethods = false)
+class FixtureMatrixConfiguration {
+    @Bean
+    fun permissionMatrix(): PermissionMatrix = FixtureMatrix.matrix
+
+    @Bean
+    fun roleCatalogue(): RoleCatalogue = RoleCatalogue.ALL
+}
+
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties
 class BoundaryTestConfiguration {
     @Bean
     fun clock(): Clock = MovableClock()
-
-    @Bean
-    fun permissionMatrix(): PermissionMatrix = FixtureMatrix.matrix
 
     @Bean
     fun grantManagerCheck(): GrantManagerCheck = GrantManagerCheck { true }
@@ -235,12 +243,25 @@ object BoundaryFixture {
     fun <T> asRuntime(block: (java.sql.Connection) -> T): T =
         DriverManager.getConnection(container.jdbcUrl, "access_runtime", RUNTIME_PASSWORD).use(block)
 
-    fun runner(): WebApplicationContextRunner =
+    /**
+     * The context over the real database. [catalogueMatrix] builds the matrix and the role catalogue from the
+     * gst-catalogue table of [form] (INV-T-4935) instead of the fixture rows.
+     */
+    fun runner(
+        catalogueMatrix: Boolean = false,
+        form: String = "SAAS",
+    ): WebApplicationContextRunner =
         WebApplicationContextRunner()
             .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
             .withInitializer(ConfigDataApplicationContextInitializer())
-            .withUserConfiguration(BoundaryTestConfiguration::class.java, AccessApplication::class.java)
-            .withPropertyValues(
+            .withUserConfiguration(
+                *listOfNotNull(
+                    BoundaryTestConfiguration::class.java,
+                    FixtureMatrixConfiguration::class.java.takeUnless { catalogueMatrix },
+                    AccessApplication::class.java,
+                ).toTypedArray(),
+            ).withPropertyValues(
+                "gst.form=$form",
                 "spring.datasource.url=${container.jdbcUrl}",
                 "spring.datasource.username=access_runtime",
                 "service-runtime.workload-identity.audience=access-svc",

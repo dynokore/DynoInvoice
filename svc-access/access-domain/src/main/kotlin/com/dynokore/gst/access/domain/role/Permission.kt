@@ -70,6 +70,15 @@ class PermissionMatrix(
 
     fun kindOf(permission: Permission): PermissionKind? = kinds[permission]
 
+    /**
+     * Every listed cell, as role key to permission key to allowance: the shape the gst-catalogue table is compared in
+     * (INV-AC-7945). A role with no cell is present with an empty map.
+     */
+    fun export(): Map<String, Map<String, Allowance>> =
+        matrix.entries.associate { (role, permissions) ->
+            role.wire to permissions.entries.associate { it.key.value to it.value }
+        }
+
     companion object {
         /** Holds nothing: every question is denied. */
         val EMPTY = PermissionMatrix(emptyList(), emptyMap())
