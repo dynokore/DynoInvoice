@@ -44,9 +44,10 @@ class GatewayAuthzConfiguration {
         cache: KeyMaterialCache,
         clock: Clock,
         properties: GatewayAuthzProperties,
-    ): KeyMaterialRefreshSchedule? = source.ifAvailable?.let {
-        KeyMaterialRefreshSchedule(KeyMaterialRefresher(it, cache, clock), properties.refreshInterval)
-    }
+    ): KeyMaterialRefreshSchedule? =
+        source.ifAvailable?.let {
+            KeyMaterialRefreshSchedule(KeyMaterialRefresher(it, cache, clock), properties.refreshInterval)
+        }
 
     /** The `keyMaterial` health contributor, in the readiness group (application.yaml). */
     @Bean
@@ -95,15 +96,16 @@ class GatewayAuthzConfiguration {
         limiter: ProtectiveRateLimiter,
         properties: GatewayAuthzProperties,
         clock: Clock,
-    ): ExtAuthorizer = ExtAuthorizer(
-        cache,
-        verifier,
-        limiter,
-        ErrorEnvelopes(),
-        properties.identityHeaders,
-        RouteConfigurationFaults(registry.ifAvailable),
-        clock,
-    )
+    ): ExtAuthorizer =
+        ExtAuthorizer(
+            cache,
+            verifier,
+            limiter,
+            ErrorEnvelopes(),
+            properties.identityHeaders,
+            RouteConfigurationFaults(registry.ifAvailable),
+            clock,
+        )
 
     /** The Check service; Spring Boot's gRPC server serves every BindableService bean (INV-Q-4077). */
     @Bean

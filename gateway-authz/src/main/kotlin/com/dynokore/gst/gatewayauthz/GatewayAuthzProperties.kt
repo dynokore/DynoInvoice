@@ -31,6 +31,7 @@ data class GatewayAuthzProperties(
      */
     val identityHeaders: List<String>
         get() = (FIXED_IDENTITY_HEADERS + additionalIdentityHeaders).map { it.lowercase() }.distinct()
+
     companion object {
         /** STK-26 workload token and API-29 deadline: internal only (INV-Q-4099). */
         val FIXED_IDENTITY_HEADERS = listOf(WorkloadToken.HEADER_NAME, Deadline.HEADER_NAME)

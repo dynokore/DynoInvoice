@@ -39,7 +39,8 @@ class TestTokens(
         lifetime: Duration = Duration.ofMinutes(15),
     ): String {
         val claims =
-            JWTClaimsSet.Builder()
+            JWTClaimsSet
+                .Builder()
                 .issuer(issuer)
                 .audience(audience)
                 .subject(subject)
@@ -51,7 +52,12 @@ class TestTokens(
                     scope?.let { claim("scope", it) }
                     tenantId?.let { claim("tenant_id", it) }
                 }.build()
-        val header = JWSHeader.Builder(JWSAlgorithm.ES256).keyID(kid).type(JOSEObjectType(type)).build()
+        val header =
+            JWSHeader
+                .Builder(JWSAlgorithm.ES256)
+                .keyID(kid)
+                .type(JOSEObjectType(type))
+                .build()
         return SignedJWT(header, claims).apply { sign(ECDSASigner(keyPair.private as ECPrivateKey)) }.serialize()
     }
 

@@ -20,10 +20,11 @@ data class TokenSettings(
     class Readiness(
         private val settings: TokenSettings,
     ) : HealthIndicator {
-        override fun health(): Health = if (settings.configured) {
-            Health.up().build()
-        } else {
-            Health.down().withDetail("reason", "gateway-authz.token.issuer and .audience are required").build()
-        }
+        override fun health(): Health =
+            if (settings.configured) {
+                Health.up().build()
+            } else {
+                Health.down().withDetail("reason", "gateway-authz.token.issuer and .audience are required").build()
+            }
     }
 }

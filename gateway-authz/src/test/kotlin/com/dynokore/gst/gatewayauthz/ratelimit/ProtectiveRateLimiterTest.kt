@@ -87,8 +87,11 @@ class ProtectiveRateLimiterTest {
         limiter.checkMachine("ingest", "p", "t").policy("tenant").quota shouldBe 400
         limiter.checkSignedLink("link-1").policy("signed-link").quota shouldBe 10
         limiter.checkApNotification("adapter-1").policy("ap-callback").quota shouldBe 200
-        ProtectiveRateLimiter(RateLimitSettings(signedLinkPerLink = 2), 3, clock).checkSignedLink("l").policies
-            .single().quota shouldBe 1
+        ProtectiveRateLimiter(RateLimitSettings(signedLinkPerLink = 2), 3, clock)
+            .checkSignedLink("l")
+            .policies
+            .single()
+            .quota shouldBe 1
     }
 
     @Test

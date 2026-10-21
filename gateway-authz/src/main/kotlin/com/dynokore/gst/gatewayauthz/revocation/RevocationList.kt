@@ -43,9 +43,10 @@ class RevocationList private constructor(
     fun refuses(
         token: TokenIdentity,
         now: Instant,
-    ): Boolean = listedByJti(token, now) ||
-        listedIssuedBefore(RevocationKind.PRINCIPAL, token.principalRef, token.issuedAt, now) ||
-        listedIssuedBefore(RevocationKind.SUBJECT, token.subject, token.issuedAt, now)
+    ): Boolean =
+        listedByJti(token, now) ||
+            listedIssuedBefore(RevocationKind.PRINCIPAL, token.principalRef, token.issuedAt, now) ||
+            listedIssuedBefore(RevocationKind.SUBJECT, token.subject, token.issuedAt, now)
 
     private fun listedByJti(
         token: TokenIdentity,

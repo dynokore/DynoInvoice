@@ -13,10 +13,11 @@ class VerificationKey(
 
     val publicKey: ByteArray get() = bytes.copyOf()
 
-    override fun equals(other: Any?): Boolean = other is VerificationKey &&
-        other.kid == kid &&
-        other.alg == alg &&
-        other.bytes.contentEquals(bytes)
+    override fun equals(other: Any?): Boolean =
+        other is VerificationKey &&
+            other.kid == kid &&
+            other.alg == alg &&
+            other.bytes.contentEquals(bytes)
 
     override fun hashCode(): Int = 31 * (31 * kid.hashCode() + alg.hashCode()) + bytes.contentHashCode()
 }

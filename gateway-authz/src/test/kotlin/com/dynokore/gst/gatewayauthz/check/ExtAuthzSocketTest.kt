@@ -61,7 +61,9 @@ class ExtAuthzSocketTest {
             val allowed = stub.check(checkRequest(token))
             allowed.status.code shouldBe 0
             allowed.okResponse.headersToRemoveList shouldBe listOf("x-workload-token", "x-deadline-ms")
-            allowed.okResponse.responseHeadersToAddList.map(HeaderValueOption::getHeader).map { it.key } shouldBe
+            allowed.okResponse.responseHeadersToAddList
+                .map(HeaderValueOption::getHeader)
+                .map { it.key } shouldBe
                 listOf("RateLimit-Policy", "RateLimit")
 
             val denied = stub.check(checkRequest(null))
@@ -76,20 +78,22 @@ class ExtAuthzSocketTest {
         }
     }
 
-    private fun start(socket: Path) = SpringApplicationBuilder(GatewayAuthzApplication::class.java).run(
-        "--server.port=0",
-        "--management.server.port=0",
-        "--spring.grpc.server.netty.domain-socket-path=$socket",
-        "--gateway-authz.token.issuer=${TestTokens.ISSUER}",
-        "--gateway-authz.token.audience=${TestTokens.AUDIENCE}",
-        "--gateway-authz.rate-limits.machine-per-principal=1000000",
-        "--gateway-authz.rate-limits.machine-per-tenant=1000000",
-    )
+    private fun start(socket: Path) =
+        SpringApplicationBuilder(GatewayAuthzApplication::class.java).run(
+            "--server.port=0",
+            "--management.server.port=0",
+            "--spring.grpc.server.netty.domain-socket-path=$socket",
+            "--gateway-authz.token.issuer=${TestTokens.ISSUER}",
+            "--gateway-authz.token.audience=${TestTokens.AUDIENCE}",
+            "--gateway-authz.rate-limits.machine-per-principal=1000000",
+            "--gateway-authz.rate-limits.machine-per-tenant=1000000",
+        )
 
     private fun channel(
         socket: Path,
         group: EventLoopGroup,
-    ) = NettyChannelBuilder.forAddress(DomainSocketAddress(socket.toString()))
+    ) = NettyChannelBuilder
+        .forAddress(DomainSocketAddress(socket.toString()))
         .channelType(EpollDomainSocketChannel::class.java)
         .eventLoopGroup(group)
         .usePlaintext()
@@ -112,21 +116,25 @@ class ExtAuthzSocketTest {
                 call()
                 System.nanoTime() - start
             }.sorted()
+
         fun micros(quantile: Double) = nanos[((nanos.size - 1) * quantile).toInt()] / NANOS_PER_MICRO
         println("CHECK-LATENCY n=$MEASURED p50=${micros(P50)}us p99=${micros(P99)}us max=${micros(1.0)}us")
     }
 
     private fun checkRequest(token: String?): CheckRequest {
         val http =
-            AttributeContext.HttpRequest.newBuilder()
+            AttributeContext.HttpRequest
+                .newBuilder()
                 .setPath("/v1/invoices")
                 .setMethod("POST")
                 .putHeaders("x-workload-token", "forged")
                 .putHeaders("x-deadline-ms", "1")
         token?.let { http.putHeaders("authorization", "Bearer $it") }
-        return CheckRequest.newBuilder()
+        return CheckRequest
+            .newBuilder()
             .setAttributes(
-                AttributeContext.newBuilder()
+                AttributeContext
+                    .newBuilder()
                     .setRequest(AttributeContext.Request.newBuilder().setHttp(http))
                     .putContextExtensions("route-class", "machine-api"),
             ).build()

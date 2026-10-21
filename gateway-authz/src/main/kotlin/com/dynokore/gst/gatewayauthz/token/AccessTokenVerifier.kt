@@ -44,20 +44,22 @@ class AccessTokenVerifier(
     }
 
     /** The signed JWT with readable claims, or null when [compact] is not one. */
-    private fun parse(compact: String): SignedJWT? = try {
-        SignedJWT.parse(compact).also { it.jwtClaimsSet }
-    } catch (_: ParseException) {
-        null
-    }
+    private fun parse(compact: String): SignedJWT? =
+        try {
+            SignedJWT.parse(compact).also { it.jwtClaimsSet }
+        } catch (_: ParseException) {
+            null
+        }
 
     private fun verifies(
         jwt: SignedJWT,
         verifier: JWSVerifier,
-    ): Boolean = try {
-        jwt.verify(verifier)
-    } catch (_: JOSEException) {
-        false
-    }
+    ): Boolean =
+        try {
+            jwt.verify(verifier)
+        } catch (_: JOSEException) {
+            false
+        }
 
     private fun claimsOf(
         claims: JWTClaimsSet,
@@ -107,24 +109,29 @@ class AccessTokenVerifier(
         return entries.toMap()
     }
 
-    private fun verifierOf(key: VerificationKey): JWSVerifier? = try {
-        val spec = X509EncodedKeySpec(key.publicKey)
-        when {
-            key.alg.startsWith("RS") || key.alg.startsWith("PS") ->
-                RSASSAVerifier(KeyFactory.getInstance("RSA").generatePublic(spec) as RSAPublicKey)
+    private fun verifierOf(key: VerificationKey): JWSVerifier? =
+        try {
+            val spec = X509EncodedKeySpec(key.publicKey)
+            when {
+                key.alg.startsWith("RS") || key.alg.startsWith("PS") -> {
+                    RSASSAVerifier(KeyFactory.getInstance("RSA").generatePublic(spec) as RSAPublicKey)
+                }
 
-            key.alg.startsWith("ES") ->
-                ECDSAVerifier(KeyFactory.getInstance("EC").generatePublic(spec) as ECPublicKey)
+                key.alg.startsWith("ES") -> {
+                    ECDSAVerifier(KeyFactory.getInstance("EC").generatePublic(spec) as ECPublicKey)
+                }
 
-            else -> null
+                else -> {
+                    null
+                }
+            }
+        } catch (_: GeneralSecurityException) {
+            null
+        } catch (_: JOSEException) {
+            null
+        } catch (_: ClassCastException) {
+            null
         }
-    } catch (_: GeneralSecurityException) {
-        null
-    } catch (_: JOSEException) {
-        null
-    } catch (_: ClassCastException) {
-        null
-    }
 
     private companion object {
         /** RFC 9068 section 4: `at+jwt`, or its full media type. */

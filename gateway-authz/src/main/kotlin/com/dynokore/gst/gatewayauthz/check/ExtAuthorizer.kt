@@ -45,12 +45,17 @@ class ExtAuthorizer(
         val bearer = bearerOf(request.headers["authorization"])
         val token = bearer?.let(verifier::verify)
         return when {
-            !cache.loaded -> envelopes.issuerUnavailable(request.correlationId)
+            !cache.loaded -> {
+                envelopes.issuerUnavailable(request.correlationId)
+            }
 
-            token == null -> envelopes.unauthenticated(request.correlationId)
-
-            cache.current().revocations.refuses(token.identity, clock.instant()) ->
+            token == null -> {
                 envelopes.unauthenticated(request.correlationId)
+            }
+
+            cache.current().revocations.refuses(token.identity, clock.instant()) -> {
+                envelopes.unauthenticated(request.correlationId)
+            }
 
             else -> {
                 val decision = limiter.checkMachine(token.machineScope, token.principal, token.tenantId)
@@ -101,7 +106,10 @@ class ExtAuthorizer(
 
     private fun bearerOf(authorization: String?): String? {
         val parts = authorization?.trim()?.split(' ', limit = 2) ?: return null
-        return parts.takeIf { it.size == 2 && it[0].equals(BEARER, ignoreCase = true) }?.get(1)?.trim()
+        return parts
+            .takeIf { it.size == 2 && it[0].equals(BEARER, ignoreCase = true) }
+            ?.get(1)
+            ?.trim()
             ?.takeIf { it.isNotEmpty() }
     }
 

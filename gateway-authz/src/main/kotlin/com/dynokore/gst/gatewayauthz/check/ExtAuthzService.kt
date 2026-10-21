@@ -50,7 +50,8 @@ class ExtAuthzService(
             response.setStatus(Status.newBuilder().setCode(Code.OK_VALUE)).setOkResponse(ok)
         } else {
             val denied =
-                DeniedHttpResponse.newBuilder()
+                DeniedHttpResponse
+                    .newBuilder()
                     .setStatus(HttpStatus.newBuilder().setCode(StatusCode.forNumber(decision.status)))
                     .setBody(decision.body)
             decision.responseHeaders.forEach { (name, value) -> denied.addHeaders(header(name, value)) }
@@ -62,17 +63,20 @@ class ExtAuthzService(
     private fun header(
         name: String,
         value: String,
-    ): HeaderValueOption = HeaderValueOption.newBuilder()
-        .setHeader(HeaderValue.newBuilder().setKey(name).setValue(value))
-        .setAppendAction(HeaderValueOption.HeaderAppendAction.OVERWRITE_IF_EXISTS_OR_ADD)
-        .build()
+    ): HeaderValueOption =
+        HeaderValueOption
+            .newBuilder()
+            .setHeader(HeaderValue.newBuilder().setKey(name).setValue(value))
+            .setAppendAction(HeaderValueOption.HeaderAppendAction.OVERWRITE_IF_EXISTS_OR_ADD)
+            .build()
 
-    private fun grpcCodeOf(status: Int): Int = when (status) {
-        HTTP_UNAUTHORIZED -> Code.UNAUTHENTICATED_VALUE
-        HTTP_TOO_MANY_REQUESTS -> Code.RESOURCE_EXHAUSTED_VALUE
-        HTTP_UNAVAILABLE -> Code.UNAVAILABLE_VALUE
-        else -> Code.PERMISSION_DENIED_VALUE
-    }
+    private fun grpcCodeOf(status: Int): Int =
+        when (status) {
+            HTTP_UNAUTHORIZED -> Code.UNAUTHENTICATED_VALUE
+            HTTP_TOO_MANY_REQUESTS -> Code.RESOURCE_EXHAUSTED_VALUE
+            HTTP_UNAVAILABLE -> Code.UNAVAILABLE_VALUE
+            else -> Code.PERMISSION_DENIED_VALUE
+        }
 
     private companion object {
         const val HTTP_UNAUTHORIZED = 401

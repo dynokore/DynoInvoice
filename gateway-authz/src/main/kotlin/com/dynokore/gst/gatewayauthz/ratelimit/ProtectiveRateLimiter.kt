@@ -29,12 +29,13 @@ class ProtectiveRateLimiter(
         scope: String,
         principal: String,
         tenant: String?,
-    ): RateLimitDecision = decide(
-        listOfNotNull(
-            Policy(scope, "machine/principal/$principal", settings.machinePerPrincipal),
-            tenant?.let { Policy(TENANT, "machine/tenant/$it", settings.machinePerTenant) },
-        ),
-    )
+    ): RateLimitDecision =
+        decide(
+            listOfNotNull(
+                Policy(scope, "machine/principal/$principal", settings.machinePerPrincipal),
+                tenant?.let { Policy(TENANT, "machine/tenant/$it", settings.machinePerTenant) },
+            ),
+        )
 
     /** A request for a signed-link page identified by [link]. */
     fun checkSignedLink(link: String): RateLimitDecision {
