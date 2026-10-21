@@ -775,7 +775,7 @@ paths:
         scope: installation
         precondition: None
         reversibility: UNDOABLE
-        repeatKey: (tenantRef, contractReference)
+        repeatKey: '(tenantRef, contractReference) — a repeat returns the original schedule'
       parameters:
       - name: tenantRef
         in: path
@@ -838,9 +838,6 @@ paths:
       x-operation:
         role: commercial.admin
         scope: installation
-        precondition: None
-        reversibility: UNDOABLE
-        repeatKey: (tenantRef, scheduleRef)
       parameters:
       - name: tenantRef
         in: path
@@ -898,9 +895,9 @@ paths:
       x-operation:
         role: commercial.admin
         scope: installation
-        precondition: The schedule, change or cancellation is awaiting approval
+        precondition: 'The request named by target is awaiting approval'
         reversibility: COMPENSABLE
-        repeatKey: (tenantRef, scheduleRef)
+        repeatKey: '(tenantRef, scheduleRef, target) — no-op if already approved'
       parameters:
       - name: tenantRef
         in: path
@@ -911,6 +908,16 @@ paths:
           maxLength: 64
         example: TEN-7B1004
       - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApproveTenantScheduleRequest'
+            examples:
+              default:
+                value:
+                  target: CHANGE
       responses:
         "200":
           description: Approved; the schedule as it now stands
@@ -960,9 +967,9 @@ paths:
       x-operation:
         role: commercial.admin
         scope: installation
-        precondition: The schedule is APPROVED
+        precondition: 'The schedule is APPROVED'
         reversibility: UNDOABLE
-        repeatKey: (tenantRef, scheduleRef)
+        repeatKey: '(tenantRef, scheduleRef) — a repeat returns the pending change'
       parameters:
       - name: tenantRef
         in: path
@@ -991,7 +998,7 @@ paths:
                   value:
                     tenantRef: TEN-7B1004
                     scheduleRef: SCH-0001
-                    state: AWAITING_APPROVAL
+                    state: APPROVED
                     contractReference: CTR-2026-0091
                     goLiveAt: '2027-01-04T01:00:00Z'
                     offboardingAt: '2028-01-04T01:00:00Z'
@@ -1030,9 +1037,9 @@ paths:
       x-operation:
         role: commercial.admin
         scope: installation
-        precondition: The schedule is APPROVED
+        precondition: 'The schedule is APPROVED'
         reversibility: IRREVERSIBLE
-        repeatKey: (tenantRef, scheduleRef)
+        repeatKey: '(tenantRef, scheduleRef) — no-op if the cancellation is already requested'
       parameters:
       - name: tenantRef
         in: path
@@ -1055,7 +1062,7 @@ paths:
                   value:
                     tenantRef: TEN-7B1004
                     scheduleRef: SCH-0001
-                    state: AWAITING_APPROVAL
+                    state: APPROVED
                     contractReference: CTR-2026-0091
                     goLiveAt: '2027-01-04T01:00:00Z'
                     offboardingAt: '2028-01-04T01:00:00Z'
@@ -2276,6 +2283,18 @@ components:
           type: integer
           minimum: 1
           description: A lengthening of the installation notice window (VP-66) only (INV-REQ-2462 b2).
+    ApproveTenantScheduleRequest:
+      type: object
+      required:
+      - target
+      properties:
+        target:
+          type: string
+          enum:
+          - SCHEDULE
+          - CHANGE
+          - CANCELLATION
+          description: The request being approved - the schedule as set, a requested change, or a requested cancellation.
     ChangeTenantScheduleRequest:
       type: object
       required:

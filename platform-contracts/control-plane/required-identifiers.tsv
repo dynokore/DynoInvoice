@@ -107,3 +107,7 @@ TenantScheduleResponse.state.APPROVED	schema_enum_value	openapi.yaml	INV-REQ-810
 TenantScheduleResponse.state.EXECUTED	schema_enum_value	openapi.yaml	INV-REQ-8100
 TenantScheduleResponse.state.FAILED	schema_enum_value	openapi.yaml	INV-REQ-8100
 TenantScheduleResponse.state.CANCELLED	schema_enum_value	openapi.yaml	INV-REQ-8100
+ApproveTenantScheduleRequest.target	schema_property	openapi.yaml	INV-REQ-8100
+ApproveTenantScheduleRequest.target.SCHEDULE	schema_enum_value	openapi.yaml	INV-REQ-8100
+ApproveTenantScheduleRequest.target.CHANGE	schema_enum_value	openapi.yaml	INV-REQ-8100
+ApproveTenantScheduleRequest.target.CANCELLATION	schema_enum_value	openapi.yaml	INV-REQ-8100

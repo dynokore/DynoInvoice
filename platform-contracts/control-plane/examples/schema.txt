@@ -13,3 +13,4 @@
 ../openapi.yaml#/components/schemas/AuthorPackRequest author-pack-request-*.json
 ../openapi.yaml#/components/schemas/SetTenantScheduleRequest set-tenant-schedule-request-*.json
 ../openapi.yaml#/components/schemas/TenantScheduleResponse tenant-schedule-response-*.json
+../openapi.yaml#/components/schemas/ApproveTenantScheduleRequest approve-tenant-schedule-request-*.json
