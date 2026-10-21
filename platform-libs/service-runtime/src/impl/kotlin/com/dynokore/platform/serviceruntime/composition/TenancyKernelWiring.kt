@@ -41,9 +41,11 @@ class TenancyKernelWiring {
 
     /**
      * The binding key read through [SecretStore] (INV-T-5360); start-up fails when the current secret is missing
-     * (INV-T-4156).
+     * (INV-T-4156). The key exists only where the application has a `DataSource`, as its one consumer, the
+     * [TransactionRunner], does: a service without a database needs no tenancy secret (INV-T-7937).
      */
     @Bean
+    @ConditionalOnBean(DataSource::class)
     @ConditionalOnMissingBean(InstallationBindingKey::class)
     fun installationBindingKey(secrets: ObjectProvider<SecretStore>): InstallationBindingKey =
         InstallationBindingKey.of(secrets.getIfAvailable())

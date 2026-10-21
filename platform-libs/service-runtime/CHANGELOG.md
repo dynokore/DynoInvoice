@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.3.1] - 2026-10-21
+### Changed
+- The bean `installationBindingKey` of `TenancyKernelWiring` now carries `@ConditionalOnBean(DataSource::class)`: the key, and so the secret `tenancy/binding-key-current`, is required only where the application has a `DataSource`; a service without a database starts without the tenancy secret (INV-T-7937; follow-up of INV-T-4156). A service with a `DataSource` still fails start-up naming the secret when it is missing.
+
 ## [10.3.0] - 2026-10-21
 ### Added
 - `MasterdataErrorCode` (MDM-005 Entity identity triple not configured for the constitution, HTTP 422, owner Onboarding) and `Problems.renderMasterdata`, beside `TenancyErrorCode` (INV-T-7895; INV-Q-7886 A: "the enum of MDM-005 and its renderer"; disposition MANUAL as the catalogue row).

@@ -117,8 +117,9 @@ The transaction runners sign the tenant binding with the key read through `Secre
 (no cache; a rotated secret needs no restart). Secrets: `tenancy/binding-key-current` and, while a rotation is in
 flight, `tenancy/binding-key-previous`. The key is the UTF-8 bytes of the secret value, with no decoding by
 `SecretStoreBindingKeySource`, the one converter. A blank or white-space-only value counts as no key. The installer
-creates the current secret as 32 random bytes written as 64 hexadecimal characters. A missing current secret builds
-the runners unsigned and logs one warning naming the secret (until INV-T-4156 makes it a start-up failure).
+creates the current secret as 32 random bytes written as 64 hexadecimal characters. The key is created, and the secret
+required, only where the application has a `DataSource` (a service without a database needs no tenancy secret;
+INV-T-7937). A missing current secret fails start-up naming the secret (INV-T-4156).
 
 ## jOOQ convenience layer (INV-T-4224; INV-ADR-3968 items 4a and 4c, INV-REQ-854 b8, owner ruling INV-Q-4214)
 
