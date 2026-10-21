@@ -26,7 +26,7 @@ import java.time.Instant
 class AccessTokenVerifier(
     private val settings: TokenSettings,
     private val keys: () -> List<VerificationKey>?,
-    private val clock: Clock,
+    val clock: Clock,
 ) {
     @Volatile
     private var verifiers: Pair<List<VerificationKey>, Map<Pair<String, String>, JWSVerifier>>? = null

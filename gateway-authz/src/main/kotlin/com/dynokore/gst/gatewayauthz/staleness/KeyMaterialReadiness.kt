@@ -12,9 +12,14 @@ import org.springframework.boot.health.contributor.HealthIndicator
 class KeyMaterialReadiness(
     private val cache: KeyMaterialCache,
 ) : HealthIndicator {
-    override fun health(): Health = if (cache.loaded) {
-        Health.up().build()
-    } else {
-        Health.down().withDetail("reason", "verification keys and a revocation-list snapshot not loaded yet").build()
+    override fun health(): Health =
+        if (cache.loaded) {
+            Health.up().build()
+        } else {
+            Health.down().withDetail("reason", NOT_LOADED).build()
+        }
+
+    private companion object {
+        const val NOT_LOADED = "verification keys and a revocation-list snapshot not loaded yet"
     }
 }

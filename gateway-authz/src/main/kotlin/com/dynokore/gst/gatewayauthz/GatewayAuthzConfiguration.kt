@@ -1,6 +1,5 @@
 package com.dynokore.gst.gatewayauthz
 
-import com.dynokore.gst.gatewayauthz.check.ErrorEnvelopes
 import com.dynokore.gst.gatewayauthz.check.ExtAuthorizer
 import com.dynokore.gst.gatewayauthz.check.ExtAuthzService
 import com.dynokore.gst.gatewayauthz.check.RouteConfigurationFaults
@@ -95,16 +94,13 @@ class GatewayAuthzConfiguration {
         verifier: AccessTokenVerifier,
         limiter: ProtectiveRateLimiter,
         properties: GatewayAuthzProperties,
-        clock: Clock,
     ): ExtAuthorizer =
         ExtAuthorizer(
             cache,
             verifier,
             limiter,
-            ErrorEnvelopes(),
             properties.identityHeaders,
             RouteConfigurationFaults(registry.ifAvailable),
-            clock,
         )
 
     /** The Check service; Spring Boot's gRPC server serves every BindableService bean (INV-Q-4077). */

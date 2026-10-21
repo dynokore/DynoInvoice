@@ -12,34 +12,33 @@ object Entries {
         ref: String,
         revokedAt: Instant,
         version: Long = 1,
-    ) = entry(RevocationKind.PRINCIPAL, version, revokedAt, principalRef = ref)
+    ) = entry(RevocationKind.PRINCIPAL, version, revokedAt, key = ref)
 
     fun subject(
         sub: String,
         revokedAt: Instant,
         version: Long = 1,
-    ) = entry(RevocationKind.SUBJECT, version, revokedAt, subject = sub)
+    ) = entry(RevocationKind.SUBJECT, version, revokedAt, key = sub)
 
     fun token(
         jti: String,
         revokedAt: Instant,
         version: Long = 1,
-    ) = entry(RevocationKind.TOKEN, version, revokedAt, tokenId = jti)
+    ) = entry(RevocationKind.TOKEN, version, revokedAt, key = jti)
 
+    /** [key] fills the field the [kind] names: principalRef for PRINCIPAL, tokenId for TOKEN, subject otherwise. */
     fun entry(
         kind: RevocationKind,
         version: Long,
         revokedAt: Instant,
-        principalRef: String? = null,
-        subject: String? = null,
-        tokenId: String? = null,
+        key: String,
     ) = RevocationEntry(
         UUID.randomUUID(),
         version,
         kind,
-        principalRef,
-        subject,
-        tokenId,
+        key.takeIf { kind == RevocationKind.PRINCIPAL },
+        key.takeIf { kind != RevocationKind.PRINCIPAL && kind != RevocationKind.TOKEN },
+        key.takeIf { kind == RevocationKind.TOKEN },
         revokedAt,
         revokedAt.plus(lifetime),
     )

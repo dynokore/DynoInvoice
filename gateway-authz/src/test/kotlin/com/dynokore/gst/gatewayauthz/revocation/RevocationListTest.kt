@@ -51,7 +51,7 @@ class RevocationListTest {
 
     @Test
     fun `an entry of an unknown kind is kept but matches nothing (API-09)`() {
-        val unknown = Entries.entry(RevocationKind.fromWire("DEVICE"), 1, revokedAt, subject = "user-1")
+        val unknown = Entries.entry(RevocationKind.fromWire("DEVICE"), 1, revokedAt, "user-1")
         val list = RevocationList.EMPTY.replacedBy(1, listOf(unknown))
 
         unknown.kind shouldBe RevocationKind.UNKNOWN

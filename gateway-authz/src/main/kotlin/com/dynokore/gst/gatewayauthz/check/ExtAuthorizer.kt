@@ -20,11 +20,12 @@ class ExtAuthorizer(
     private val cache: KeyMaterialCache,
     private val verifier: AccessTokenVerifier,
     private val limiter: ProtectiveRateLimiter,
-    private val envelopes: ErrorEnvelopes,
     private val identityHeaders: List<String>,
     private val faults: RouteConfigurationFaults,
-    private val clock: Clock,
 ) {
+    private val envelopes = ErrorEnvelopes()
+    private val clock: Clock = verifier.clock
+
     fun check(request: AuthzRequest): AuthzDecision {
         val routeClass = RouteClass.fromWire(request.context[AuthzRequest.ROUTE_CLASS])
         return when (routeClass) {

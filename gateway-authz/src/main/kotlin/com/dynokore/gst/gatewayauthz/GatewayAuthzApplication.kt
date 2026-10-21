@@ -15,6 +15,7 @@ import org.springframework.context.annotation.Import
 @Import(ServiceRuntimeConfiguration::class, GatewayAuthzConfiguration::class)
 class GatewayAuthzApplication
 
+@Suppress("SpreadOperator") // Java varargs: the same entry point as the other bootstrap applications
 fun main(args: Array<String>) {
     runApplication<GatewayAuthzApplication>(*args)
 }

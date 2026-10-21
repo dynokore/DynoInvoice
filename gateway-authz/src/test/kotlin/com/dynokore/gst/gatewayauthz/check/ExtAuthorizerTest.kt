@@ -29,17 +29,16 @@ class ExtAuthorizerTest {
             cache,
             AccessTokenVerifier(TokenSettings(TestTokens.ISSUER, TestTokens.AUDIENCE), { cache.current().keys }, clock),
             ProtectiveRateLimiter(RateLimitSettings(signedLinkPerLink = 2), readyReplicas = 1, clock = clock),
-            ErrorEnvelopes(),
             listOf("x-workload-token", "x-deadline-ms"),
             RouteConfigurationFaults(registry),
-            clock,
         )
 
-    private fun machine(token: String?) = AuthzRequest(
-        headers = listOfNotNull(token?.let { "authorization" to "Bearer $it" }).toMap() + ("traceparent" to TRACE),
-        path = "/v1/invoices",
-        context = mapOf("route-class" to "machine-api"),
-    )
+    private fun machine(token: String?) =
+        AuthzRequest(
+            headers = listOfNotNull(token?.let { "authorization" to "Bearer $it" }).toMap() + ("traceparent" to TRACE),
+            path = "/v1/invoices",
+            context = mapOf("route-class" to "machine-api"),
+        )
 
     private fun loaded() = refresher.refreshOnce()
 
@@ -124,11 +123,14 @@ class ExtAuthorizerTest {
     @Test
     fun `a signed-link request without a token is admitted and counted per link`() {
         val template = "/s/{linkRef}"
-        fun link(ref: String) = AuthzRequest(
-            headers = mapOf("x-workload-token" to "forged", "x-deadline-ms" to "1"),
-            path = "/s/$ref?p=1",
-            context = mapOf("route-class" to "signed-link", "path-template" to template, "link-parameter" to "linkRef"),
-        )
+
+        fun link(ref: String) =
+            AuthzRequest(
+                headers = mapOf("x-workload-token" to "forged", "x-deadline-ms" to "1"),
+                path = "/s/$ref?p=1",
+                context =
+                    mapOf("route-class" to "signed-link", "path-template" to template, "link-parameter" to "linkRef"),
+            )
         repeat(2) {
             val decision = authorizer.check(link("L-1"))
             decision.allowed shouldBe true
