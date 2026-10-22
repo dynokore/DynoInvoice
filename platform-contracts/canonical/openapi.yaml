@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: canonical API
-  version: 1.10.0
+  version: 1.11.0
   description: >-
     Contract-first source of truth for canonical (API-01, STK-44). The
     `canonical-contract` module generates its server interfaces and DTOs
@@ -89,6 +89,7 @@ paths:
         SRT-001 and nothing is recorded (INV-REQ-696, INV-Q-7045).
       tags: [documents]
       x-principal: ingest
+      x-caller-auth: end-user
       x-timeout: 2000
       x-sync-edge: ingestion-svc->canonical-svc
       x-error-codes: [ING-002, ING-005, ING-011, ING-012, ING-016, ING-019, ING-013, ING-017, PER-009, PER-011]
@@ -205,6 +206,7 @@ paths:
         own view (INV-REQ-1168) — never a fan-out at request time.
       tags: [documents]
       x-principal: reporting
+      x-caller-auth: end-user
       x-sync-edge: console-bff->canonical-svc
       x-timeout: 2000
       x-error-codes: []
@@ -239,6 +241,7 @@ paths:
         each version is its own immutable record (canonical-svc `must_not`).
       tags: [documents]
       x-principal: reporting
+      x-caller-auth: end-user
       x-sync-edge: console-bff->canonical-svc
       x-timeout: 2000
       x-error-codes: []
@@ -283,6 +286,7 @@ paths:
         recomputation changes no document.
       tags: [reassignments]
       x-principal: reporting
+      x-caller-auth: end-user
       x-sync-edge: console-bff->canonical-svc
       x-timeout: 2000
       x-error-codes: []
@@ -336,6 +340,7 @@ paths:
         consuming the event.
       tags: [reassignments]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->canonical-svc
       x-timeout: 2000
       x-error-codes: []

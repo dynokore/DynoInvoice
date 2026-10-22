@@ -2,3 +2,5 @@ aggregation/openapi.yaml
 tenancy/openapi.yaml
 access/openapi.yaml
 service-runtime/openapi.yaml
+masterdata/openapi.yaml
+canonical/openapi.yaml

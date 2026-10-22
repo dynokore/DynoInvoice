@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: masterdata API
-  version: 1.8.0
+  version: 1.9.0
   description: >-
     Contract-first source of truth for masterdata (API-01, STK-44). The
     `masterdata-contract` module generates its server interfaces and DTOs
@@ -62,6 +62,7 @@ paths:
         (masterdata-svc `must_not`).
       tags: [resolution]
       x-principal: ingest
+      x-caller-auth: end-user
       x-timeout: 300
       x-sync-edge: canonical-svc->masterdata-svc
       x-error-codes: [MDM-001, MDM-002, MDM-004, MDM-005, MDM-006, MDM-007]
@@ -166,6 +167,7 @@ paths:
         payload-svc to hold (PAY-013).
       tags: [register-and-rates]
       x-principal: ingest
+      x-caller-auth: end-user
       x-timeout: 1000
       x-sync-edge: payload-svc->masterdata-svc
       x-error-codes: [MDM-007]
@@ -217,6 +219,7 @@ paths:
         constitution; an entity may hold one triple per constitution (INV-REQ-310).
       tags: [identity-triples]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->masterdata-svc
       x-timeout: 2000
       x-error-codes: [MDM-005]
@@ -280,6 +283,7 @@ paths:
         call; documents resolved meanwhile carry the previous triple.
       tags: [identity-triples]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->masterdata-svc
       x-timeout: 2000
       x-error-codes: []
@@ -348,6 +352,7 @@ paths:
         SRT-001.
       tags: [remediation]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-entity-ref: entityRef
       x-sync-edge: console-bff->masterdata-svc
       x-timeout: 2000
@@ -405,6 +410,7 @@ paths:
         behavior 5).
       tags: [resolution]
       x-principal: ingest
+      x-caller-auth: end-user
       x-sync-edge: canonical-svc->masterdata-svc
       x-timeout: 300
       x-error-codes: []
@@ -458,6 +464,7 @@ paths:
         update is refused for an intervening one.
       tags: [resolution]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->masterdata-svc
       x-timeout: 2000
       x-error-codes: []
@@ -525,6 +532,7 @@ paths:
         with `413` (API-20 envelope) and changes nothing.
       tags: [remediation]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->masterdata-svc
       x-timeout: 2000
       x-error-codes: [MDM-001, MDM-002, MDM-003, MDM-004, MDM-006]
@@ -577,6 +585,7 @@ paths:
         direct call (DR-11).
       tags: [counterparty-requests]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->masterdata-svc
       x-timeout: 2000
       x-error-codes: []
@@ -628,6 +637,7 @@ paths:
         held documents.
       tags: [counterparty-requests]
       x-principal: filing-workflow
+      x-caller-auth: signed-link
       x-sync-edge: console-bff->masterdata-svc
       x-timeout: 2000
       x-error-codes: [MDM-002, MDM-003, MDM-006]
@@ -694,6 +704,7 @@ paths:
         Idempotency-Key replays the stored `202` (API-15).
       tags: [import]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->masterdata-svc
       x-timeout: 2000
       x-error-codes: [MDM-002, MDM-003, MDM-006, MDM-009]
@@ -788,6 +799,7 @@ paths:
         Idempotency-Key replays the stored `202` (API-15).
       tags: [import]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->masterdata-svc
       x-timeout: 2000
       x-error-codes: []
@@ -854,6 +866,7 @@ paths:
         days (API-17).
       tags: [import]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->masterdata-svc
       x-timeout: 2000
       x-error-codes: []
@@ -911,6 +924,7 @@ paths:
         with the same Idempotency-Key replays the stored response (API-15).
       tags: [import]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->masterdata-svc
       x-timeout: 2000
       x-error-codes: [MDM-002, MDM-003, MDM-004, MDM-006]
@@ -989,6 +1003,7 @@ paths:
         days (API-17).
       tags: [import]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->masterdata-svc
       x-timeout: 2000
       x-error-codes: []
@@ -1035,6 +1050,7 @@ paths:
         `evidenceRef` (INV-REQ-512).
       tags: [import]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->masterdata-svc
       x-timeout: 2000
       x-error-codes: [PAY-013]
@@ -1092,6 +1108,7 @@ paths:
         (API-15).
       tags: [gap-report]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->masterdata-svc
       x-timeout: 2000
       x-error-codes: [MDM-002, MDM-003, MDM-006, MDM-007]
@@ -1145,6 +1162,7 @@ paths:
         principal that started the report, and kept at least 7 days (API-17).
       tags: [gap-report]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->masterdata-svc
       x-timeout: 2000
       x-error-codes: []
@@ -1184,6 +1202,7 @@ paths:
         service assigns `connectionRef`.
       tags: [connections]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->masterdata-svc
       x-timeout: 2000
       x-error-codes: []
@@ -1228,6 +1247,7 @@ paths:
         secret (INV-AC-1883).
       tags: [connections]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->masterdata-svc
       x-timeout: 2000
       x-error-codes: []
@@ -1267,6 +1287,7 @@ paths:
         INV-AC-1884).
       tags: [connections]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->masterdata-svc
       x-timeout: 2000
       x-error-codes: []
@@ -1306,6 +1327,7 @@ paths:
         only its reference, never the secret.
       tags: [connections]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->masterdata-svc
       x-timeout: 2000
       x-error-codes: []
