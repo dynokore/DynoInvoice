@@ -99,6 +99,31 @@ class OperationsTableTest {
             .containsExactly("operation createPrincipal: marked done by INV-T-4937 but still answers 501")
     }
 
+    /** The `task` column of the row `revokePrincipal`, compared by equality with INV-T-4937 (INV-Q-7983 A). */
+    private fun revokePrincipalFinding(lines: List<String>): String? {
+        val task = rows(lines).first.singleOrNull { it.kind == "operation" && it.name == "revokePrincipal" }?.task
+        return if (task ==
+            "INV-T-4937"
+        ) {
+            null
+        } else {
+            "operation revokePrincipal: task is ${task ?: "missing"}, not INV-T-4937"
+        }
+    }
+
+    @Test
+    fun `the row revokePrincipal names INV-T-4937 and the look-alike and unassigned probes fail`() {
+        assertThat(revokePrincipalFinding(table)).isNull()
+        val unassigned = table.map { it.replace("\trevokePrincipal\tINV-T-4937\t", "\trevokePrincipal\tUNASSIGNED\t") }
+        assertThat(
+            revokePrincipalFinding(unassigned),
+        ).isEqualTo("operation revokePrincipal: task is UNASSIGNED, not INV-T-4937")
+        val lookAlike = table.map { it.replace("\trevokePrincipal\tINV-T-4937\t", "\trevokePrincipal\tINV-T-49370\t") }
+        assertThat(
+            revokePrincipalFinding(lookAlike),
+        ).isEqualTo("operation revokePrincipal: task is INV-T-49370, not INV-T-4937")
+    }
+
     /** The rows INV-T-4935 names: the sole-operator pair and the three landing operations (INV-Q-7983 A). */
     private val ownedByT4935 =
         listOf(
@@ -171,9 +196,10 @@ class OperationsTableTest {
         assertThat(withRow("operation\tx\tINV-T-1\tDONE")).anyMatch { "state must be" in it }
         assertThat(withRow("route\tx\tINV-T-1\topen")).anyMatch { "kind must be" in it }
         assertThat(withRow("operation\tx\tINV-T-1")).anyMatch { "four tab-separated" in it }
-        val unassignedDone = "operation\trevokePrincipal\tUNASSIGNED\tdone"
-        assertThat(verify(base.map { it.replace("operation\trevokePrincipal\tUNASSIGNED\topen", unassignedDone) }))
-            .anyMatch { "done but no task" in it }
+        val unassignedDone = "operation\twithdrawElevationRequest\tUNASSIGNED\tdone"
+        assertThat(
+            verify(base.map { it.replace("operation\twithdrawElevationRequest\tUNASSIGNED\topen", unassignedDone) }),
+        ).anyMatch { "done but no task" in it }
         assertThat(verify(base.map { it.replace("\tINV-T-4934\tdone", "\tINV-T-4934\topen") }))
             .anyMatch { "published by the code but not marked done" in it }
         val unpublished = "channel\taccessMessageRequested\tINV-T-4940\tdone"

@@ -6,7 +6,7 @@ operation	grantRole	INV-T-4934	done
 operation	revokeGrant	INV-T-4934	done
 operation	createPrincipal	INV-T-4937	open
 operation	rotatePrincipal	INV-T-4937	open
-operation	revokePrincipal	UNASSIGNED	open
+operation	revokePrincipal	INV-T-4937	open
 operation	mapIdpGroup	INV-T-4938	open
 operation	unmapIdpGroup	INV-T-4938	open
 operation	recordSoleOperator	INV-T-4935	open

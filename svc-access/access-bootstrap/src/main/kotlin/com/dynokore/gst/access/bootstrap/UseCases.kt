@@ -1,10 +1,12 @@
 package com.dynokore.gst.access.bootstrap
 import com.dynokore.gst.access.adapters.audit.OutboxGrantAudit
 import com.dynokore.gst.access.adapters.events.AuthorityChangedOutbox
+import com.dynokore.gst.access.adapters.events.PrincipalRevocationOutbox
 import com.dynokore.gst.access.adapters.landing.RolePrecedenceConstraints
 import com.dynokore.gst.access.adapters.landing.VariationPointRolePrecedence
 import com.dynokore.gst.access.adapters.persistence.JooqGrantRepository
 import com.dynokore.gst.access.adapters.persistence.JooqLandingChoices
+import com.dynokore.gst.access.adapters.persistence.JooqPrincipalRepository
 import com.dynokore.gst.access.adapters.persistence.JooqSoleOperatorAcks
 import com.dynokore.gst.access.adapters.structure.ReplicaEntityDirectory
 import com.dynokore.gst.access.application.authorise.Authorise
@@ -19,6 +21,10 @@ import com.dynokore.gst.access.application.grant.RevokeGrantUseCase
 import com.dynokore.gst.access.application.landing.LandingChoices
 import com.dynokore.gst.access.application.landing.LandingScreens
 import com.dynokore.gst.access.application.landing.RolePrecedence
+import com.dynokore.gst.access.application.principal.CreatePrincipalUseCase
+import com.dynokore.gst.access.application.principal.PrincipalRepository
+import com.dynokore.gst.access.application.principal.PrincipalRevocationPublisher
+import com.dynokore.gst.access.application.principal.RevokePrincipalUseCase
 import com.dynokore.gst.access.application.separation.RecordSoleOperatorUseCase
 import com.dynokore.gst.access.application.separation.SoleOperatorAcks
 import com.dynokore.gst.access.application.separation.WithdrawSoleOperatorUseCase
@@ -78,6 +84,36 @@ class UseCases {
         audit: AuditWriter,
         tenants: TenantContext,
     ): GrantAudit = OutboxGrantAudit(audit, tenants)
+
+    @Bean
+    fun principalRepository(
+        dsl: DSLContext,
+        tenants: TenantContext,
+        clock: Clock,
+    ): PrincipalRepository = JooqPrincipalRepository(dsl, tenants, clock)
+
+    @Bean
+    fun principalRevocationPublisher(
+        outbox: OutboxWriter,
+        mapper: ObjectMapper,
+        clock: Clock,
+        directory: EntityDirectory,
+    ): PrincipalRevocationPublisher = PrincipalRevocationOutbox(outbox, mapper, clock, directory)
+
+    @Bean
+    fun createPrincipalUseCase(
+        tx: TransactionRunner,
+        principals: PrincipalRepository,
+        audit: GrantAudit,
+    ) = CreatePrincipalUseCase(tx, principals, audit)
+
+    @Bean
+    fun revokePrincipalUseCase(
+        tx: TransactionRunner,
+        principals: PrincipalRepository,
+        publisher: PrincipalRevocationPublisher,
+        audit: GrantAudit,
+    ) = RevokePrincipalUseCase(tx, principals, publisher, audit)
 
     @Bean
     fun authorise(
