@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: aggregation API
-  version: 1.2.0
+  version: 1.3.0
   description: >-
     Contract-first source of truth for aggregation (API-01, STK-44). The
     `aggregation-contract` module generates its server interfaces and DTOs
@@ -50,6 +50,7 @@ paths:
         to canonical-svc for recording (AD-22) and emits `AggregateReady`.
       tags: [intake]
       x-principal: ingest
+      x-caller-auth: end-user
       x-timeout: 2000
       x-sync-edge: ingestion-svc->aggregation-svc
       x-error-codes: [ING-018]
@@ -121,6 +122,7 @@ paths:
         retained list is checked against it after the last page.
       tags: [drill-down]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->aggregation-svc
       x-timeout: 2000
       x-error-codes: []
