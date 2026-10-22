@@ -22,6 +22,7 @@ import com.dynokore.gst.access.application.landing.LandingScreens
 import com.dynokore.gst.access.application.landing.RolePrecedence
 import com.dynokore.gst.access.application.separation.RecordSoleOperatorUseCase
 import com.dynokore.gst.access.application.separation.SoleOperatorAcks
+import com.dynokore.gst.access.application.separation.SoleOperatorScopePolicy
 import com.dynokore.gst.access.application.separation.WithdrawSoleOperatorUseCase
 import com.dynokore.gst.access.domain.grant.ConsentCheck
 import com.dynokore.gst.access.domain.role.PermissionMatrix
@@ -101,13 +102,14 @@ class UseCases {
         audit: GrantAudit,
         catalogue: RoleCatalogue,
         soleOperators: SoleOperatorAcks,
+        soleOperatorScope: SoleOperatorScopePolicy,
     ) = GrantRoleUseCase(
         dependencies.tx,
         dependencies.grants,
         dependencies.directory,
         dependencies.matrix,
         GrantRoleEffects(publisher, audit),
-        GrantRoleRules(catalogue, soleOperators),
+        GrantRoleRules(catalogue, soleOperators, soleOperatorScope),
     )
 
     @Bean

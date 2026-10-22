@@ -1,6 +1,8 @@
 package com.dynokore.gst.access.application.grant
 
 import com.dynokore.gst.access.application.separation.SoleOperatorAcks
+import com.dynokore.gst.access.application.separation.SoleOperatorScope
+import com.dynokore.gst.access.application.separation.SoleOperatorScopePolicy
 import com.dynokore.gst.access.domain.grant.Grant
 import com.dynokore.gst.access.domain.grant.GrantHeader
 import com.dynokore.gst.access.domain.grant.GrantStatus
@@ -16,6 +18,7 @@ import com.dynokore.platform.tenancykernel.TransactionRunner
 class GrantRoleRules(
     val catalogue: RoleCatalogue,
     val soleOperators: SoleOperatorAcks,
+    val soleOperatorScope: SoleOperatorScopePolicy,
 )
 
 /** What a granted role writes besides the grant: the AuthorityChanged events and the audit entry. */
@@ -75,12 +78,14 @@ class GrantRoleUseCase(
         return when {
             !SeparationOfDuty.completesConflict(held.toSet(), role) -> insert(command, role, scope)
             rules.soleOperators.lockActive() == null -> GrantRoleOutcome.SoleOperatorAckRequired
+            // VP-81, read after the lock; a read that fails or names no known value fails the request (nothing is written)
+            rules.soleOperatorScope.current() == SoleOperatorScope.ANY_NUMBER -> insert(command, role, scope)
             otherPeopleHoldingBoth(command.identity).isNotEmpty() -> GrantRoleOutcome.SecondHolderRefused
             else -> insert(command, role, scope)
         }
     }
 
-    /** The people other than [identity] who hold both conflicting roles in the bound tenant (VP-81 default). */
+    /** The people other than [identity] who hold both conflicting roles in the bound tenant (VP-81 values ONE_HOLDER_WITHDRAW_BLOCKED and ONE_HOLDER). */
     private fun otherPeopleHoldingBoth(identity: IdentityRef): Set<IdentityRef> =
         SeparationOfDuty.holdingBoth(
             rules.soleOperators.holders(Role.SECURITY_OFFICER),

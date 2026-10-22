@@ -4,6 +4,7 @@ import com.dynokore.gst.access.adapters.breakglass.BreakGlassPairConstraints
 import com.dynokore.gst.access.adapters.breakglass.ValueConstraintsChain
 import com.dynokore.gst.access.adapters.events.AuthorityChangedOutbox
 import com.dynokore.gst.access.adapters.landing.VariationPointRolePrecedence
+import com.dynokore.gst.access.adapters.separation.VariationPointSoleOperatorScope
 import com.dynokore.gst.access.adapters.persistence.JooqGrantRepository
 import com.dynokore.gst.access.adapters.persistence.JooqLandingChoices
 import com.dynokore.gst.access.adapters.persistence.JooqSoleOperatorAcks
@@ -20,6 +21,7 @@ import com.dynokore.gst.access.application.landing.LandingScreens
 import com.dynokore.gst.access.application.landing.RolePrecedence
 import com.dynokore.gst.access.application.separation.RecordSoleOperatorUseCase
 import com.dynokore.gst.access.application.separation.SoleOperatorAcks
+import com.dynokore.gst.access.application.separation.SoleOperatorScopePolicy
 import com.dynokore.gst.access.application.separation.WithdrawSoleOperatorUseCase
 import com.dynokore.gst.access.domain.grant.ConsentCheck
 import com.dynokore.gst.access.domain.role.PermissionMatrix
@@ -61,7 +63,16 @@ class SeparationAndLandingUseCases {
         tx: TransactionRunner,
         acks: SoleOperatorAcks,
         audit: GrantAudit,
-    ) = WithdrawSoleOperatorUseCase(tx, acks, audit)
+        scopePolicy: SoleOperatorScopePolicy,
+    ) = WithdrawSoleOperatorUseCase(tx, acks, audit, scopePolicy)
+
+    /** VP-81 as `setPolicy` of service-runtime stores it and the config-resolver resolves it (INV-REQ-8287). */
+    @Bean
+    fun soleOperatorScopePolicy(
+        reader: PolicyReader,
+        tenants: TenantContext,
+        clock: Clock,
+    ): SoleOperatorScopePolicy = VariationPointSoleOperatorScope(reader, tenants, clock)
 
     @Bean
     fun landingChoices(

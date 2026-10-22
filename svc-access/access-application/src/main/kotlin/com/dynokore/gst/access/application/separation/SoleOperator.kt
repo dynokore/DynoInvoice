@@ -101,6 +101,7 @@ class WithdrawSoleOperatorUseCase(
     private val tx: TransactionRunner,
     private val acks: SoleOperatorAcks,
     private val audit: GrantAudit,
+    private val scopePolicy: SoleOperatorScopePolicy,
 ) {
     fun handle(
         actor: String,
@@ -111,13 +112,9 @@ class WithdrawSoleOperatorUseCase(
             if (!ack.active) return@inTransaction WithdrawSoleOperatorOutcome.AlreadyWithdrawn
             // the lock comes before the count; a request that waited for it sees the acknowledgement already withdrawn
             if (acks.lockActive()?.ref != ackRef) return@inTransaction WithdrawSoleOperatorOutcome.AlreadyWithdrawn
-            val officers = acks.holders(Role.SECURITY_OFFICER)
-            val admins = acks.holders(Role.TENANT_ADMIN)
-            // D3 before D2 (INV-AC-8288): two different people must hold one of the roles, then nobody may hold both
-            if ((officers + admins).size < 2) return@inTransaction WithdrawSoleOperatorOutcome.SecondPersonRequired
-            if (SeparationOfDuty.holdingBoth(officers, admins).isNotEmpty()) {
-                return@inTransaction WithdrawSoleOperatorOutcome.HolderRemains
-            }
+            // VP-81, read after the lock; a read that fails or names no known value fails the request
+            val refusal = refusalFor(scopePolicy.current())
+            if (refusal != null) return@inTransaction refusal
             acks.withdraw(ackRef)
             audit.record(
                 GrantAuditEntry(
@@ -130,4 +127,18 @@ class WithdrawSoleOperatorUseCase(
             )
             WithdrawSoleOperatorOutcome.Withdrawn
         }
+
+    /** The refusal the value of VP-81 gives while the holders are counted; null when the withdrawal may proceed. */
+    private fun refusalFor(value: SoleOperatorScope): WithdrawSoleOperatorOutcome? {
+        if (value == SoleOperatorScope.ANY_NUMBER) return null
+        val officers = acks.holders(Role.SECURITY_OFFICER)
+        val admins = acks.holders(Role.TENANT_ADMIN)
+        // D3 before D2 (INV-AC-8288): two different people must hold one of the roles, then nobody may hold both
+        return when {
+            (officers + admins).size < 2 -> WithdrawSoleOperatorOutcome.SecondPersonRequired
+            value == SoleOperatorScope.ONE_HOLDER_WITHDRAW_BLOCKED &&
+                SeparationOfDuty.holdingBoth(officers, admins).isNotEmpty() -> WithdrawSoleOperatorOutcome.HolderRemains
+            else -> null
+        }
+    }
 }
