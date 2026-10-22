@@ -44,6 +44,7 @@ NOT_END_USER = {
         "getRevocationList": "service-job",  # workload revocation list
         "provisionInstallationFirstAdministrator": "service-job",  # installer, workload only
         "authenticatePrincipal": "service-job",  # API gateway, workload
+        "issueAccessToken": "service-job",  # API gateway, workload token
     },
     "masterdata/openapi.yaml": {
         "submitCounterpartyDetails": "signed-link",  # counterparty signed link

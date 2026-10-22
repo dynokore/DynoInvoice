@@ -11,6 +11,7 @@
 # INV-T-8225. INV-AC-8224: the backticked names tenant.admin and commercial.admin are roles, grantRole is a row that exists, and provisionTenant is an operation of the control-plane contract that exists, so they add no row.
 # INV-T-8672. INV-AC-8671: the backticked names security.officer, tenant.admin, deployment.operator and tax.approver are roles, and mapIdpGroup, unlockBreakGlass, resealBreakGlass and AuthorityChanged exist already, so they add no row.
 # INV-T-8807. INV-AC-8806: the backticked names ingest, filing-workflow, ap-callback, reporting, monitoring and certification are rows as enum members already; security.officer and tenant.admin are roles; evidence-svc and access-svc are services; confirmFiling is an operation of submission/openapi.yaml; private_key_jwt and client_secret_basic are the VP-77 settings, whose contract members are the CredentialInfo.method rows, so they add no further row.
+# INV-T-8849. INV-AC-8847: the backticked names authenticatePrincipal, getVerificationKeys and revokePrincipal are operations that exist already or are rows of INV-T-8807; the eleven claim names are asserted by the description check of the merge request, not by this table; the six machine scopes are rows as enum members already, so they add no further row.
 # identifier	kind	file	requirement
 INGEST	enum_value	openapi.yaml	INV-REQ-584
 FILING_WORKFLOW	enum_value	openapi.yaml	INV-REQ-584
@@ -101,3 +102,13 @@ CredentialInfo.status.ACTIVE	schema_enum_value	openapi.yaml	INV-REQ-880
 CredentialInfo.status.WITHDRAWN	schema_enum_value	openapi.yaml	INV-REQ-880
 AuthenticatePrincipalResponse.decision.AUTHENTICATED	schema_enum_value	openapi.yaml	INV-REQ-880
 AuthenticatePrincipalResponse.decision.REFUSED	schema_enum_value	openapi.yaml	INV-REQ-880
+issueAccessToken	operation	openapi.yaml	INV-REQ-880
+IssueAccessTokenRequest.method	schema_property	openapi.yaml	INV-REQ-880
+IssueAccessTokenRequest.proof	schema_property	openapi.yaml	INV-REQ-880
+IssueAccessTokenResponse.decision	schema_property	openapi.yaml	INV-REQ-880
+IssueAccessTokenResponse.accessToken	schema_property	openapi.yaml	INV-REQ-880
+IssueAccessTokenResponse.expiresIn	schema_property	openapi.yaml	INV-REQ-880
+IssueAccessTokenResponse.keyId	schema_property	openapi.yaml	INV-REQ-880
+IssueAccessTokenResponse.tokenId	schema_property	openapi.yaml	INV-REQ-880
+IssueAccessTokenResponse.decision.ISSUED	schema_enum_value	openapi.yaml	INV-REQ-880
+IssueAccessTokenResponse.decision.REFUSED	schema_enum_value	openapi.yaml	INV-REQ-880

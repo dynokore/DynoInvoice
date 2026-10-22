@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: access API
-  version: 1.10.0
+  version: 1.11.0
   description: 'Contract-first source of truth for access (API-01, STK-44), replacing the INV-T-2849 scaffold
     (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): who may do what, on whose authority.
     `authorise`, `authenticatePrincipal`, `getVerificationKeys`, `getRevocationList` and `resolveLandingScreen` are queries, not FR-AC.1 operations (no persistent state change),
@@ -503,6 +503,78 @@ paths:
                     principalType: INGEST
                     scope: tenant:TEN-7B1004
                     credentialRef: CRD-00001
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/principals/token:
+    post:
+      operationId: issueAccessToken
+      summary: Exchange the proof of one credential for a signed access token (INV-REQ-880, FR-P.10)
+      description: >-
+        Called by the API gateway. The call always answers 200 and the decision carries the refusal, like
+        `authenticatePrincipal`. An unknown principal, a REVOKED principal, a credential that is WITHDRAWN or past its
+        validUntil, a method that the credential does not have, and a proof that does not match are each REFUSED, so a
+        revoked principal gets no token and the REFUSED body has no accessToken, expiresIn, keyId or tokenId. ISSUED
+        carries all four. The token is a bearer JWT with header typ `at+jwt`, alg and kid, and verifies with the public
+        key of `getVerificationKeys` whose kid equals keyId. The claim exp minus the claim iat equals expiresIn. The
+        private signing key is used only by access-svc and appears in no response. The claims are `iss`, `sub`,
+        `aud`, `scope`, `principal_scope`, `permissions`, `iat`, `exp`, `jti`, `client_id` and `tenant_id`. The claims
+        sub and client_id equal the principalRef. The claim scope is exactly one of ingest, filing-workflow,
+        ap-callback, reporting, monitoring and certification, the machine scope of the principal type. The claim
+        principal_scope is the scope of the principal: entity:<ref>, tenant:<ref> or installation. The claim
+        permissions is the permission set of the principal type, the keys of
+        access/schemas/machine-principal-permissions.tsv. The claim tenant_id is present when the principal has a
+        tenant. The claim aud contains the installation's public API.
+      tags:
+      - principals
+      x-principal: workload
+      x-caller-auth: service-job
+      x-sync-edge: api-gateway->access-svc
+      x-timeout: 2000
+      x-requirements:
+      - FR-AC.1
+      - FR-P.10
+      x-error-codes: []
+      x-operation:
+        role: API gateway workload token
+        scope: installation
+        precondition: A principal reference and the proof of one credential are presented
+        reversibility: UNDOABLE
+        repeatKey: 'none: each call mints a new token with its own jti'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IssueAccessTokenRequest'
+            examples:
+              default:
+                value:
+                  principalRef: PRN-00088
+                  method: PRIVATE_KEY_JWT
+                  proof: eyJhbGciOiJSUzI1NiJ9.e30.c2lnbmF0dXJl
+      responses:
+        "200":
+          description: Decision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IssueAccessTokenResponse'
+              examples:
+                default:
+                  value:
+                    decision: ISSUED
+                    accessToken: eyJ0eXAiOiJhdCtqd3QifQ.e30.c2lnbmF0dXJl
+                    expiresIn: 900
+                    keyId: 2026-09
+                    tokenId: 7d9f2c1e-0b44-4c55-9a53-2f6a1e0b9c11
         "400":
           $ref: '#/components/responses/Error'
         "401":
@@ -2895,6 +2967,58 @@ components:
         credentialRef:
           type: string
           maxLength: 64
+        reasonCode:
+          type: string
+          maxLength: 16
+    IssueAccessTokenRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - principalRef
+      - method
+      - proof
+      properties:
+        principalRef:
+          type: string
+          maxLength: 64
+        method:
+          type: string
+          enum:
+          - PRIVATE_KEY_JWT
+          - MTLS
+          - CLIENT_SECRET_BASIC
+        proof:
+          type: string
+          minLength: 1
+          maxLength: 4096
+          writeOnly: true
+          description: 'The secret for CLIENT_SECRET_BASIC, the signed client assertion for PRIVATE_KEY_JWT, the
+            certificate thumbprint for MTLS.'
+    IssueAccessTokenResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - decision
+      properties:
+        decision:
+          type: string
+          enum:
+          - ISSUED
+          - REFUSED
+        accessToken:
+          type: string
+          minLength: 1
+          maxLength: 4096
+        expiresIn:
+          type: integer
+          minimum: 1
+          maximum: 900
+        keyId:
+          type: string
+          maxLength: 32
+        tokenId:
+          type: string
+          maxLength: 128
         reasonCode:
           type: string
           maxLength: 16
