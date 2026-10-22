@@ -9,6 +9,7 @@ import com.dynokore.platform.serviceruntime.policy.PolicyRoleResolver
 import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
+import jakarta.servlet.Filter
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.params.ParameterizedTest
@@ -72,7 +73,7 @@ open class PolicyHttpBase {
         @Volatile var portFailure: (() -> Nothing)? = null
         val portCalls = CopyOnWriteArrayList<List<Any?>>()
         private val tokens = ConcurrentHashMap<String, EndUserPrincipal>()
-        private val resolver =
+        val resolver =
             EndUserPrincipalResolver { header ->
                 header?.removePrefix("Bearer ")?.let { tokens[it] }
             }
@@ -114,6 +115,7 @@ open class PolicyHttpBase {
             token: String? = null,
             key: String? = UUID.randomUUID().toString(),
             method: String = "POST",
+            front: Filter? = null,
         ): Answer {
             val request = MockHttpServletRequest(method, path)
             token?.let { request.addHeader("Authorization", it) }
@@ -123,7 +125,7 @@ open class PolicyHttpBase {
                 request.setContent(it.toByteArray())
             }
             val response = MockHttpServletResponse()
-            servlet.service(request, response)
+            BindingFront.serve(front, servlet, request, response)
             return Answer(
                 path,
                 response.status,

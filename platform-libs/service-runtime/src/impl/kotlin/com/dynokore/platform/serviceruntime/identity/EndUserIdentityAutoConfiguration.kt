@@ -2,6 +2,7 @@ package com.dynokore.platform.serviceruntime.identity
 
 import com.dynokore.platform.serviceruntime.binding.IdentityProvider
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
+import com.dynokore.platform.tenancykernel.TenantContext
 import com.nimbusds.jose.JWSAlgorithm
 import com.nimbusds.jose.KeySourceException
 import com.nimbusds.jose.jwk.JWK
@@ -21,6 +22,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.web.servlet.FilterRegistrationBean
 import org.springframework.context.annotation.Bean
+import org.springframework.core.io.ResourceLoader
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator
 import org.springframework.security.oauth2.core.OAuth2TokenValidator
 import org.springframework.security.oauth2.jwt.Jwt
@@ -73,9 +75,37 @@ class EndUserIdentityAutoConfiguration {
             urlPatterns = listOf("/*")
         }
 
+    /**
+     * Binds the verified end-user principal for generated-controller operations (INV-REQ-1202 b4; INV-Q-8187), after
+     * the operator session (-60) and so after the workload-identity filter; the contract resources name the
+     * operations left untouched (INV-Q-8201). Registered whether or not a resolver bean exists: without one an
+     * end-user operation is refused.
+     */
+    @Bean
+    fun endUserPrincipalBindingFilter(
+        resolvers: ObjectProvider<EndUserPrincipalResolver>,
+        tenants: ObjectProvider<TenantContext>,
+        resources: ResourceLoader,
+    ): FilterRegistrationBean<EndUserPrincipalBindingFilter> =
+        FilterRegistrationBean(
+            EndUserPrincipalBindingFilter(
+                resolvers,
+                tenants,
+                UntouchedOperations.from(
+                    checkNotNull(resources.classLoader) { "no class loader to read the contract resources" },
+                ),
+            ),
+        ).apply {
+            order = ORDER_END_USER_BINDING
+            urlPatterns = listOf("/*")
+        }
+
     private companion object {
         /** After the end-user token capture (-70), before any handler. */
         const val ORDER_OPERATOR_SESSION = -60
+
+        /** After the operator session binding. */
+        const val ORDER_END_USER_BINDING = -50
     }
 }
 

@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.4.0] - 2026-10-22
+### Added
+- `EndUserPrincipalBindingFilter` (order -50, `/*`, registered by `EndUserIdentityAutoConfiguration`): binds the tenant and actor of the verified end-user token to `TenantContext` for the request; a platform operator (no tenant) reaches the handler unbound; a missing or refused token is 401 SRT-003, an unreachable issuer 503 SRT-011. Operations listed in the contract resources `META-INF/gst/workload-only-operations.tsv` and `META-INF/gst/caller-auth-operations.tsv` (`signed-link`, `service-job`) pass untouched; every other operation, an unlisted one included, is an end-user operation; a malformed resource line stops the start-up (INV-T-8198; INV-REQ-1202 b4; coordinator ruling INV-Q-8187; owner answer INV-Q-8201 A). Additive for a service that does not raise its contract resources: with no resource every operation needs an end-user token.
+
 ## [10.3.1] - 2026-10-21
 ### Changed
 - The bean `installationBindingKey` of `TenancyKernelWiring` now carries `@ConditionalOnBean(DataSource::class)`: the key, and so the secret `tenancy/binding-key-current`, is required only where the application has a `DataSource`; a service without a database starts without the tenancy secret (INV-T-7937; follow-up of INV-T-4156). A service with a `DataSource` still fails start-up naming the secret when it is missing.

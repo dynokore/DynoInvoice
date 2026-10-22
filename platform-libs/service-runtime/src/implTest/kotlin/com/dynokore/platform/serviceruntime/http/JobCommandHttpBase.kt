@@ -51,6 +51,7 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
+import jakarta.servlet.Filter
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 import org.junit.jupiter.api.AfterAll
@@ -156,6 +157,7 @@ open class JobCommandHttpBase {
             key: String? = UUID.randomUUID().toString(),
             token: String? = "Bearer eng",
             method: String = "POST",
+            front: Filter? = null,
         ): Answer {
             val request = MockHttpServletRequest(method, path)
             token?.let { request.addHeader("Authorization", it) }
@@ -165,7 +167,7 @@ open class JobCommandHttpBase {
                 request.setContent(it.toByteArray())
             }
             val response = MockHttpServletResponse()
-            servlet.service(request, response)
+            BindingFront.serve(front, servlet, request, response)
             return Answer(
                 path,
                 response.status,

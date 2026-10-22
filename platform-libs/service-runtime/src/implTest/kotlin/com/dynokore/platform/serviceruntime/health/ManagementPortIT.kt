@@ -4,9 +4,12 @@ import com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration
 import com.dynokore.platform.serviceruntime.composition.StandInProductRuntimeConfiguration
 import com.dynokore.platform.serviceruntime.datasource.bindingKeyInitializer
 import com.dynokore.platform.serviceruntime.datasource.withBindingKey
+import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
+import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.identity.WorkloadToken
 import com.dynokore.platform.serviceruntime.identity.WorkloadTokenVerifier
 import com.dynokore.platform.serviceruntime.identity.WorkloadVerification
+import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldStartWith
@@ -90,9 +93,11 @@ class ManagementPortIT {
         port: Int,
         path: String,
         token: String? = null,
+        endUser: String? = null,
     ): HttpResponse<String> {
         val request = HttpRequest.newBuilder(URI.create("http://localhost:$port$path")).GET()
         token?.let { request.header(WorkloadToken.HEADER_NAME, it) }
+        endUser?.let { request.header("Authorization", it) }
         return http.send(request.build(), HttpResponse.BodyHandlers.ofString())
     }
 
@@ -140,7 +145,8 @@ class ManagementPortIT {
     fun `the application port serves none of them, and its filter has no exemption`(path: String) {
         val port = applicationPort(service)
         get(port, path).statusCode() shouldBe 401
-        get(port, path, VALID).statusCode() shouldBe 404
+        get(port, path, VALID).statusCode() shouldBe 401 // a workload token alone: no end-user token (INV-T-8198)
+        get(port, path, VALID, END_USER).statusCode() shouldBe 404
     }
 
     @Test
@@ -148,7 +154,8 @@ class ManagementPortIT {
         val port = applicationPort(service)
         get(port, "/business").statusCode() shouldBe 401
         get(port, "/business", "forged").statusCode() shouldBe 401
-        get(port, "/business", VALID).let {
+        get(port, "/business", VALID).statusCode() shouldBe 401
+        get(port, "/business", VALID, END_USER).let {
             it.statusCode() shouldBe 200
             it.body() shouldBe "ok"
         }
@@ -160,7 +167,7 @@ class ManagementPortIT {
         val port = moved.environment.getProperty("local.management.port")!!.toInt()
         (port == MANAGEMENT_PORT) shouldBe false
         get(port, "/health/live").statusCode() shouldBe 200
-        get(applicationPort(moved), "/health/live", VALID).statusCode() shouldBe 404
+        get(applicationPort(moved), "/health/live", VALID, END_USER).statusCode() shouldBe 404
     }
 
     @Test
@@ -245,6 +252,7 @@ class ManagementPortIT {
         // namespace on the runner, so 8081 of one job is not 8081 of another job on the same host.
         const val MANAGEMENT_PORT = 8081
         const val VALID = "valid-workload-token"
+        const val END_USER = "Bearer valid-end-user-token"
     }
 }
 
@@ -265,6 +273,19 @@ class Tpl18WebService
 /** Stands in for the JWK-backed verifier: one token is valid. */
 @Configuration(proxyBeanMethods = false)
 class OneValidToken {
+    /** The business endpoint is an end-user operation (INV-T-8198): one end-user token is valid. */
+    @Bean
+    fun endUserPrincipalResolver(): EndUserPrincipalResolver =
+        EndUserPrincipalResolver { header ->
+            if (header ==
+                "Bearer valid-end-user-token"
+            ) {
+                EndUserPrincipal("user-a", TenantId.of("0a000000-0000-0000-0000-00000000000a"), emptySet())
+            } else {
+                null
+            }
+        }
+
     @Bean
     fun workloadTokenVerifier(): WorkloadTokenVerifier =
         WorkloadTokenVerifier { token ->
