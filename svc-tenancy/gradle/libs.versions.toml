@@ -20,7 +20,7 @@ swaggerAnnotations = "2.2.55"
 jsonSchemaValidator = "3.0.8"
 # The published platform-contracts bundle tenancy-contract generates from (a main build including INV-T-4909 and
 # INV-T-3298); bumped deliberately, like platform-libs' product-runtime does.
-platformContractsBundle = "0.0.0-dev+b518325d"
+platformContractsBundle = "0.0.0-dev+01a4a6ad"
 gstCatalogue = "1.14.0"
 
 [libraries]
