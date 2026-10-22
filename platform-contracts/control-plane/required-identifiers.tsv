@@ -111,3 +111,6 @@ ApproveTenantScheduleRequest.target	schema_property	openapi.yaml	INV-REQ-8100
 ApproveTenantScheduleRequest.target.SCHEDULE	schema_enum_value	openapi.yaml	INV-REQ-8100
 ApproveTenantScheduleRequest.target.CHANGE	schema_enum_value	openapi.yaml	INV-REQ-8100
 ApproveTenantScheduleRequest.target.CANCELLATION	schema_enum_value	openapi.yaml	INV-REQ-8100
+requestFirstAdministratorInvitationReissue	operation	openapi.yaml	INV-REQ-906
+FirstInvitationReissueResponse.invitationRef	schema_property	openapi.yaml	INV-REQ-906
+FirstInvitationReissueResponse.invitationExpiresAt	schema_property	openapi.yaml	INV-REQ-906

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: control-plane API
-  version: 1.4.0
+  version: 1.5.0
   description: 'Contract-first source of truth for control-plane (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1), SaaS-operator-only: the operator
     console for regulatory, release and commercial roles (regulatory pack authoring/signing/publication,
@@ -747,6 +747,77 @@ paths:
         "403":
           $ref: '#/components/responses/Error'
         "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/control-plane/tenant-provisioning-requests/{contractReference}/first-invitation-reissues:
+    post:
+      operationId: requestFirstAdministratorInvitationReissue
+      summary: Reissue the expired first administrator invitation of a provisioned tenant (INV-AC-8281)
+      description: >-
+        Sends a new signed expiring invitation to the first administrator of an already
+        provisioned tenant whose first invitation expired unused, by calling
+        reissueFirstAdministratorInvitation on access-svc (control-plane-svc->access-svc, the only
+        caller it allows). access-svc issues a new invitationRef, invitationCode and expiry on the
+        same PENDING tenant.admin grant and invalidates the old code; control-plane-svc sends the
+        new signed invitation to the first administrator.
+
+
+        The response never carries the invitation code: the code travels only in the invitation
+        message. Readable and callable by commercial.admin in platform scope, re-checked by
+        control-plane-svc. An unknown contractReference is 404.
+
+
+        409 when access-svc refuses the reissue (the grant is not a PENDING expired one) or the
+        provisioning request does not read CREATED. The 409 rule of provisionFirstAdministrator is
+        not changed.
+      tags:
+      - commercial
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->control-plane-svc
+      x-timeout: 2000
+      x-requirements:
+      - INV-REQ-906
+      x-error-codes: []
+      x-operation:
+        role: commercial.admin
+        scope: platform
+        precondition: The provisioning request reads CREATED and its first invitation expired unused
+        reversibility: IRREVERSIBLE
+        repeatKey: Idempotency-Key
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - name: contractReference
+        in: path
+        required: true
+        description: The contract reference the provisioning request was recorded under.
+        schema:
+          type: string
+          maxLength: 64
+        example: CTR-2026-0091
+      responses:
+        "200":
+          description: A new invitation was sent; the old code no longer works
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FirstInvitationReissueResponse'
+              examples:
+                default:
+                  value:
+                    contractReference: CTR-2026-0091
+                    tenantRef: TEN-7B1004
+                    invitationRef: INV-8F2C01
+                    invitationExpiresAt: '2026-11-06T09:00:00Z'
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "409":
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
@@ -2045,6 +2116,30 @@ components:
           maxLength: 64
           description: The data region elected in the provisioning request, echoed (INV-REQ-1306,
             INV-AC-2293, INV-Q-3590).
+    FirstInvitationReissueResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - contractReference
+      - tenantRef
+      - invitationRef
+      - invitationExpiresAt
+      properties:
+        contractReference:
+          type: string
+          maxLength: 64
+        tenantRef:
+          type: string
+          maxLength: 64
+        invitationRef:
+          type: string
+          maxLength: 64
+          description: The reference of the new invitation, different from the expired one. The
+            invitation code is never returned here; it travels only in the invitation message.
+        invitationExpiresAt:
+          type: string
+          format: date-time
+          description: When the new invitation expires.
     RecordAccreditationRequest:
       type: object
       required:
