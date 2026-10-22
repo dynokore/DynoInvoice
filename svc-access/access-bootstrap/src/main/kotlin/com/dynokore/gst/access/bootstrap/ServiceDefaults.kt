@@ -8,6 +8,7 @@ import com.dynokore.gst.access.adapters.http.TenantPolicyRoleResolver
 import com.dynokore.gst.access.adapters.persistence.jooq.Access
 import com.dynokore.gst.access.application.grant.GrantRepository
 import com.dynokore.gst.access.domain.grant.ConsentCheck
+import com.dynokore.gst.access.domain.principal.MachinePermissionSets
 import com.dynokore.gst.access.domain.role.PermissionMatrix
 import com.dynokore.gst.access.domain.role.RoleCatalogue
 import com.dynokore.gst.catalogue.DeploymentForm
@@ -73,6 +74,14 @@ class ServiceDefaults {
     @Bean
     @ConditionalOnMissingBean
     fun policyRoleResolver(live: LiveTenantGrants): PolicyRoleResolver = TenantPolicyRoleResolver(live)
+
+    /**
+     * The fixed permission set of each of the six machine principal types (INV-REQ-584, INV-Q-8779 A). Built from the
+     * rows of the contract's data file as the service enforces them; a type without a row stops the start-up.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    fun machinePermissionSets(): MachinePermissionSets = MachinePermissionSets.STANDARD
 
     /**
      * Consent records belong to INV-T-4939; until then no consent is live, so a consent-derived grant covers nothing.

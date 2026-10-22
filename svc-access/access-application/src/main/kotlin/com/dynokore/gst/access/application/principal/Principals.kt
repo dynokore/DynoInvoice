@@ -47,10 +47,25 @@ interface PrincipalRevocationPublisher {
     )
 }
 
+/**
+ * Writes the PRINCIPAL entry of the revocation list (INV-API-4001, INV-Q-8785 A) in its own transaction bound to the
+ * platform tenant: it locks the list head, assigns head + 1 and inserts one entry unless a live entry of the same
+ * principal exists. It runs before, and not inside, the tenant transaction that sets the principal REVOKED.
+ */
+fun interface RevocationListWriter {
+    fun recordPrincipalRevoked(principalRef: String)
+}
+
 sealed interface CreatePrincipalOutcome {
     data class Created(
         val principal: ServicePrincipal,
         val repeated: Boolean,
+        val issued: IssuedCredential? = null,
+    ) : CreatePrincipalOutcome
+
+    /** The credential fields do not form a credential (INV-REQ-880, VP-77); nothing is created. */
+    data class CredentialInvalid(
+        val reason: String,
     ) : CreatePrincipalOutcome
 
     /** The requested type is not one of the six (a legacy member or unknown text). */
@@ -66,6 +81,7 @@ sealed interface CreatePrincipalOutcome {
 class CreatePrincipalUseCase(
     private val tx: TransactionRunner,
     private val principals: PrincipalRepository,
+    private val issuer: CredentialIssuer,
     private val audit: GrantAudit,
 ) {
     fun handle(
@@ -74,6 +90,7 @@ class CreatePrincipalUseCase(
         requestedType: String,
         scope: String,
         callingSystem: String?,
+        credential: CredentialRequest = CredentialRequest(null, null, null),
     ): CreatePrincipalOutcome {
         val type = PrincipalType.ofContract(requestedType)
         return when {
@@ -86,7 +103,7 @@ class CreatePrincipalUseCase(
             }
 
             else -> {
-                issue(actor, tenant, type, scope, callingSystem)
+                issue(actor, tenant, type, scope, callingSystem, credential)
             }
         }
     }
@@ -97,16 +114,19 @@ class CreatePrincipalUseCase(
         type: PrincipalType,
         scope: String,
         callingSystem: String?,
+        credential: CredentialRequest,
     ): CreatePrincipalOutcome =
         tx.inTransaction {
             principals.findActiveByRepeatKey(type, scope, callingSystem)?.let {
                 return@inTransaction CreatePrincipalOutcome.Created(it, repeated = true)
             }
+            issuer.refusal(credential)?.let { return@inTransaction CreatePrincipalOutcome.CredentialInvalid(it) }
             val principal =
                 ServicePrincipal(principals.nextRef(), tenant, type, scope, callingSystem, PrincipalStatus.ACTIVE, 0L)
             principals.insert(principal)
+            val issued = if (credential.isEmpty) null else issuer.issue(principal.ref, credential)
             audit.record(GrantAuditEntry(actor, "createPrincipal", "principal:${principal.ref}", null, null))
-            CreatePrincipalOutcome.Created(principal, repeated = false)
+            CreatePrincipalOutcome.Created(principal, repeated = false, issued = issued)
         }
 }
 
@@ -128,9 +148,22 @@ class RevokePrincipalUseCase(
     private val tx: TransactionRunner,
     private val principals: PrincipalRepository,
     private val publisher: PrincipalRevocationPublisher,
+    private val revocationList: RevocationListWriter,
     private val audit: GrantAudit,
 ) {
     fun handle(
+        actor: String,
+        ref: String,
+    ): RevokePrincipalOutcome {
+        val seen = tx.inTransaction { principals.find(ref) } ?: return RevokePrincipalOutcome.NotFound
+        if (seen.status == PrincipalStatus.REVOKED) return RevokePrincipalOutcome.AlreadyRevoked(seen)
+        // the list entry first: if the tenant transaction then fails, the gateway already refuses the principal and a
+        // repeat call finishes the revocation (the entry write is idempotent inside the live window)
+        revocationList.recordPrincipalRevoked(ref)
+        return revoke(actor, ref)
+    }
+
+    private fun revoke(
         actor: String,
         ref: String,
     ): RevokePrincipalOutcome =

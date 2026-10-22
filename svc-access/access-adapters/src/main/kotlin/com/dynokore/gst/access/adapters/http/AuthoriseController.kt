@@ -1,6 +1,8 @@
 package com.dynokore.gst.access.adapters.http
 
 import com.dynokore.gst.access.application.authorise.Authorise
+import com.dynokore.gst.access.application.authorise.MachineAuthorise
+import com.dynokore.gst.access.application.authorise.MachineDecision
 import com.dynokore.gst.access.application.keys.RevocationList
 import com.dynokore.gst.access.application.keys.RevocationListOutcome
 import com.dynokore.gst.access.application.keys.VerificationKeys
@@ -31,6 +33,7 @@ import java.util.Base64
 // template)
 open class AuthoriseController(
     private val authorise: Authorise,
+    private val machine: MachineAuthorise,
     private val keys: VerificationKeys,
     private val revocations: RevocationList,
     private val gateway: GatewayCaller,
@@ -40,6 +43,12 @@ open class AuthoriseController(
         permission: String,
         scope: String,
     ): ResponseEntity<AuthoriseResponse> {
+        if (principalRef.startsWith(
+                PRINCIPAL_PREFIX,
+            )
+        ) {
+            return ResponseEntity.ok(decideMachine(principalRef, permission, scope))
+        }
         val decision = decide(principalRef, permission, scope)
         val body =
             when (decision) {
@@ -48,6 +57,21 @@ open class AuthoriseController(
             }
         return ResponseEntity.ok(body)
     }
+
+    /** A service principal (`PRN-...`) is decided by the fixed permission set of its type, not by grants. */
+    private fun decideMachine(
+        principalRef: String,
+        permission: String,
+        scope: String,
+    ): AuthoriseResponse {
+        val target = targetOf(scope) ?: return deny(BAD_SCOPE)
+        return when (val decision = machine.handle(principalRef, permission, target.entity)) {
+            MachineDecision.Allow -> AuthoriseResponse(AuthoriseResponse.Decision.ALLOW)
+            is MachineDecision.Deny -> deny(decision.reasonCode)
+        }
+    }
+
+    private fun deny(reason: String) = AuthoriseResponse(AuthoriseResponse.Decision.DENY, reasonCode = reason)
 
     private fun decide(
         principalRef: String,
@@ -134,6 +158,7 @@ open class AuthoriseController(
 
     private companion object {
         const val ENTITY_PREFIX = "entity:"
+        const val PRINCIPAL_PREFIX = "PRN-"
         const val BAD_SCOPE = "BAD_SCOPE"
         const val BAD_PRINCIPAL = "BAD_PRINCIPAL"
         const val BAD_PERMISSION = "BAD_PERMISSION"
