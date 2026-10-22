@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 1.6.0
+  version: 1.7.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -222,7 +222,8 @@ paths:
       summary: Activate submission for the entity (SDS §31.2.4, FR-Q.16, FR-AC.7)
       description: 'The last reversible moment in onboarding (FR-AC.7): once documents transmit, IRAS
         holds them. Requires a second confirmation (FR-AF.8, carried in the request, not modelled here
-        as a separate call).'
+        as a separate call). Refused with 422 while the tenant of the entity is not OPEN; the problem `detail`
+        names `tenant not open` (INV-REQ-987, owner answer INV-Q-8097).'
       tags:
       - entities
       x-principal: filing-workflow
@@ -237,7 +238,7 @@ paths:
       x-operation:
         role: entity.admin
         scope: entity
-        precondition: Coverage complete and certification passed (FR-Q.16 gate)
+        precondition: Coverage complete and certification passed (FR-Q.16 gate); the tenant is OPEN
         reversibility: IRREVERSIBLE
         repeatKey: entity — no-op if already live (INV-REQ-1010)
       parameters:
@@ -1671,6 +1672,74 @@ paths:
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/tenants/{tenantRef}/open:
+    post:
+      operationId: openTenant
+      summary: Open a scheduled tenant at its go-live time (INV-REQ-8100, owner answer INV-Q-8097)
+      description: >-
+        Sets the tenant from SCHEDULED to OPEN. Called by control-plane-svc at the go-live time of
+        the approved schedule, which it names in the request (scheduleRef). An opening is applied once:
+        a repeat for a tenant that is already OPEN returns it unchanged. A CLOSED tenant is refused
+        with 409. Until a tenant is OPEN, goLive of its entities is refused.
+      tags:
+      - tenants
+      x-principal: filing-workflow
+      x-timeout: 5000
+      x-requirements:
+      - FR-AC.1
+      - FR-Q.16
+      x-error-codes: []
+      x-sync-edge: control-plane-svc->tenancy-svc
+      x-operation:
+        role: control-plane-svc
+        scope: platform
+        precondition: The tenant is SCHEDULED, or already OPEN (then nothing changes)
+        reversibility: IRREVERSIBLE
+        repeatKey: tenantRef — a repeat returns the OPEN tenant unchanged
+      parameters:
+      - name: tenantRef
+        in: path
+        required: true
+        description: The tenant's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: TEN-7B1004
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpenTenantRequest'
+            examples:
+              default:
+                value:
+                  scheduleRef: SCH-7A21C4
+      responses:
+        "200":
+          description: The tenant is OPEN (opened now, or already open)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantStateResponse'
+              examples:
+                default:
+                  value:
+                    tenantRef: TEN-7B1004
+                    state: OPEN
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "409":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
   /internal/v1/tenancy/tenants/{tenantRef}/offboarding:
     post:
       operationId: offboardTenant
@@ -3076,6 +3145,30 @@ components:
         planRef:
           type: string
           maxLength: 64
+    OpenTenantRequest:
+      type: object
+      required:
+      - scheduleRef
+      properties:
+        scheduleRef:
+          type: string
+          maxLength: 64
+          description: The reference of the approved schedule of control-plane-svc that the opening carries (INV-REQ-8100).
+    TenantStateResponse:
+      type: object
+      required:
+      - tenantRef
+      - state
+      properties:
+        tenantRef:
+          type: string
+          maxLength: 64
+        state:
+          type: string
+          enum:
+          - SCHEDULED
+          - OPEN
+          - CLOSED
     UsageCountersResponse:
       type: object
       required:

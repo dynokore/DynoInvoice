@@ -13,6 +13,8 @@
 # canonical, payload and submission contracts; INV-REQ-75, 78); approvePack (rules/openapi.yaml; INV-REQ-772, 995);
 # deleteAtRetentionEnd (evidence/openapi.yaml and submission/openapi.yaml; INV-REQ-639, 1011);
 # acknowledgeControlRelaxation (no contract defines it yet; INV-REQ-1244, 1252, 2588: a later task for the owning service).
+# INV-T-8140 adds five rows (INV-REQ-8100): openTenant, OpenTenantRequest.scheduleRef and the three TenantStateResponse.state members. The other names of INV-REQ-8100, INV-REQ-987 and INV-AC-8139 add no row:
+# commercial.admin (a role); goLive, offboardTenant, createEntity, certifySandbox (rows that exist); `tenant not open` (a phrase, not an identifier).
 identifier	kind	file	requirement
 partiallyExempt	property	openapi.yaml	INV-REQ-331
 excludedBusinessStatus	property	openapi.yaml	INV-REQ-331
@@ -39,3 +41,8 @@ uen	property	openapi.yaml	INV-REQ-652
 gstn	property	openapi.yaml	INV-REQ-652
 groupKind	property	openapi.yaml	INV-REQ-850
 OffboardTenantRequest.secondConfirmationBy	schema_property	openapi.yaml	INV-REQ-875
+openTenant	operation	openapi.yaml	INV-REQ-8100
+OpenTenantRequest.scheduleRef	schema_property	openapi.yaml	INV-REQ-8100
+TenantStateResponse.state.SCHEDULED	schema_enum_value	openapi.yaml	INV-REQ-8100
+TenantStateResponse.state.OPEN	schema_enum_value	openapi.yaml	INV-REQ-8100
+TenantStateResponse.state.CLOSED	schema_enum_value	openapi.yaml	INV-REQ-8100

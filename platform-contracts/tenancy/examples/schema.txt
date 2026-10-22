@@ -18,3 +18,5 @@
 ../openapi.yaml#/components/schemas/MoveBusinessUnitRequest move-business-unit-request-*.json
 ../openapi.yaml#/components/schemas/UpdateBusinessUnitRequest update-business-unit-request-*.json
 ../openapi.yaml#/components/schemas/CreateEntityRequest create-entity-request-*.json
+../openapi.yaml#/components/schemas/OpenTenantRequest open-tenant-request-*.json
+../openapi.yaml#/components/schemas/TenantStateResponse tenant-state-response-*.json
