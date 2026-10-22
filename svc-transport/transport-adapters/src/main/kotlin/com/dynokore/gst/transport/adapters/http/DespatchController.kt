@@ -145,8 +145,9 @@ open class DespatchController(
             }
         }
 
-    private companion object {
+    companion object {
+        /** The `x-operation.role` of submitPayload in the transport contract; a test compares it with the file. */
         const val FILING_WORKFLOW = "filing-workflow"
-        val FALLBACK_BUDGET: Duration = Duration.ofSeconds(2)
+        private val FALLBACK_BUDGET: Duration = Duration.ofSeconds(2)
     }
 }

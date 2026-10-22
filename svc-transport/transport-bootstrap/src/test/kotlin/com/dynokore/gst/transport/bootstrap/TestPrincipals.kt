@@ -16,6 +16,9 @@ object TestPrincipals {
 
     val resolver = EndUserPrincipalResolver { header -> header?.removePrefix("Bearer ")?.let(byToken::get) }
 
+    /** The actor of the principal that [authorization] resolves to. */
+    fun actorOf(authorization: String): String = byToken.getValue(authorization.removePrefix("Bearer ")).actor
+
     /** Registers a principal of [tenant] granted [entities] and returns the Authorization header value. */
     fun register(
         tenant: UUID,

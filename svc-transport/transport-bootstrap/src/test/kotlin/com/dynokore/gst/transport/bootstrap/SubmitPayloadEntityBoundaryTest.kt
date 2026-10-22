@@ -9,6 +9,12 @@ import com.dynokore.gst.transport.contract.model.SubmitPayloadRequest
 import com.dynokore.gst.transport.contract.model.TransportOutcome
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
+import com.dynokore.platform.serviceruntime.replica.AuthorityVerdict
+import com.dynokore.platform.serviceruntime.replica.AuthorizationRequest
+import com.dynokore.platform.serviceruntime.replica.FallbackResult
+import com.dynokore.platform.serviceruntime.replica.Principal
+import com.dynokore.platform.serviceruntime.replica.PrincipalKind
+import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import org.junit.jupiter.api.BeforeEach
@@ -119,7 +125,7 @@ class SubmitPayloadEntityBoundaryTest {
         first.outcome.acknowledgement!!.reference shouldBe
             ApSimulator
                 .submissions()
-                .single()
+                .single { doc.toString() in it.toString() }
                 .get("apSubmissionId")
                 .asString()
         val before = h.counts(tenant)
@@ -231,5 +237,81 @@ class SubmitPayloadEntityBoundaryTest {
         h.counts(tenant) shouldBe before
         received(doc) shouldBe calls
         h.call(caller, "E-001", doc).outcome shouldBe first.outcome
+    }
+
+    /** An authority replica whose fallback records each request it is asked and answers [answer]. */
+    private class Recording(
+        answer: FallbackResult<AuthorityVerdict>,
+    ) {
+        val requests = mutableListOf<AuthorizationRequest>()
+        val replica =
+            AuthorityReplica(
+                Clock.systemUTC(),
+                fallback = { request, _ ->
+                    requests += request
+                    answer
+                },
+            )
+    }
+
+    @Test
+    fun `INV-Q-8335 while the set is not current an allowing decision lets the request go on with the four fields`(
+        @TempDir dir: Path,
+    ) = Harness.run(dir, *sandbox()) { h ->
+        val tenant = UUID.randomUUID()
+        h.assign(tenant, "E-001", h.primary)
+        val caller = TestPrincipals.register(tenant, setOf("E-001"), entitySetCurrent = false)
+        val authority = Recording(FallbackResult.Found(AuthorityVerdict(true)))
+        val answer = h.call(caller, "E-001", UUID.randomUUID(), authority = authority.replica)
+        answer.status shouldBe 202
+        val request = authority.requests.single()
+        request.tenant shouldBe TenantId(tenant)
+        request.principal shouldBe Principal(TestPrincipals.actorOf(caller), PrincipalKind.HUMAN)
+        request.entityRef shouldBe "E-001"
+        request.action shouldBe DespatchController.FILING_WORKFLOW
+    }
+
+    @Test
+    fun `INV-Q-8335 while the set is not current a denying decision is 403 SRT-004 and records nothing`(
+        @TempDir dir: Path,
+    ) = Harness.run(dir, *sandbox()) { h ->
+        val tenant = UUID.randomUUID()
+        h.assign(tenant, "E-001", h.primary)
+        val caller = TestPrincipals.register(tenant, setOf("E-001"), entitySetCurrent = false)
+        val authority = Recording(FallbackResult.Found(AuthorityVerdict(false)))
+        h.assertRefusedWithNothingRecorded(
+            tenant,
+            h.call(caller, "E-001", UUID.randomUUID(), authority = authority.replica),
+            403,
+            "SRT-004",
+        )
+        authority.requests.size shouldBe 1
+    }
+
+    @Test
+    fun `INV-Q-8335 while the set is not current no answer from the decision is 403 SRT-004 and records nothing`(
+        @TempDir dir: Path,
+    ) = Harness.run(dir, *sandbox()) { h ->
+        val tenant = UUID.randomUUID()
+        h.assign(tenant, "E-001", h.primary)
+        val caller = TestPrincipals.register(tenant, setOf("E-001"), entitySetCurrent = false)
+        val authority = Recording(FallbackResult.Unavailable)
+        h.assertRefusedWithNothingRecorded(
+            tenant,
+            h.call(caller, "E-001", UUID.randomUUID(), authority = authority.replica),
+            403,
+            "SRT-004",
+        )
+        authority.requests.size shouldBe 1
+    }
+
+    @Test
+    fun `INV-Q-8335 with the set not current and no authority replica bound it is 403 SRT-004 and records nothing`(
+        @TempDir dir: Path,
+    ) = Harness.run(dir, *sandbox()) { h ->
+        val tenant = UUID.randomUUID()
+        h.assign(tenant, "E-001", h.primary)
+        val caller = TestPrincipals.register(tenant, setOf("E-001"), entitySetCurrent = false)
+        h.assertRefusedWithNothingRecorded(tenant, h.call(caller, "E-001", UUID.randomUUID()), 403, "SRT-004")
     }
 }
