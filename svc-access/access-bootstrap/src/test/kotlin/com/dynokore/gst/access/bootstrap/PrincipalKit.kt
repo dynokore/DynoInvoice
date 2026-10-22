@@ -15,6 +15,7 @@ import com.dynokore.gst.access.contract.model.CreatePrincipalRequest
 import com.dynokore.gst.access.contract.model.CreatePrincipalRequestPublicKeyJwk
 import com.dynokore.gst.access.contract.model.PrincipalResponse
 import com.dynokore.gst.access.contract.model.RotatePrincipalRequest
+import com.dynokore.gst.access.domain.grant.ValidityWindow
 import com.dynokore.gst.access.domain.role.Role
 import com.dynokore.platform.serviceruntime.replica.OrganisationStructureChanged
 import com.dynokore.platform.serviceruntime.replica.StructureChange
@@ -48,6 +49,7 @@ class PrincipalKit(
     val context: AssertableWebApplicationContext,
     val tenant: TenantId = TenantId(UUID.randomUUID()),
     val admin: String = "user:tenant-admin",
+    grantDays: Long = 30,
 ) {
     val tenants: TenantContext = context.getBean(TenantContext::class.java)
     val clock: MovableClock = context.getBean(Clock::class.java) as MovableClock
@@ -70,7 +72,13 @@ class PrincipalKit(
         )
 
     init {
-        Seeds.grant(context, tenant, SeedSpec(admin, Role.TENANT_ADMIN))
+        Seeds.grant(
+            context,
+            tenant,
+            SeedSpec(admin, Role.TENANT_ADMIN, window = {
+                ValidityWindow(it.minus(Duration.ofDays(1)), it.plus(Duration.ofDays(grantDays)))
+            }),
+        )
     }
 
     fun <T> asAdmin(block: () -> T): T = tenants.bind(tenant, admin) { block() }

@@ -4,11 +4,11 @@ operation	getVerificationKeys	INV-T-4934	done
 operation	getRevocationList	INV-T-4934	done
 operation	grantRole	INV-T-4934	done
 operation	revokeGrant	INV-T-4934	done
-operation	createPrincipal	INV-T-4937	open
-operation	rotatePrincipal	INV-T-4937	open
-operation	revokePrincipal	INV-T-4937	open
-operation	withdrawCredential	INV-T-4937	open
-operation	authenticatePrincipal	INV-T-4937	open
+operation	createPrincipal	INV-T-4937	done
+operation	rotatePrincipal	INV-T-4937	done
+operation	revokePrincipal	INV-T-4937	done
+operation	withdrawCredential	INV-T-4937	done
+operation	authenticatePrincipal	INV-T-4937	done
 operation	mapIdpGroup	INV-T-4938	open
 operation	unmapIdpGroup	INV-T-4938	open
 operation	recordSoleOperator	INV-T-4935	open

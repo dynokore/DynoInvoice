@@ -173,6 +173,12 @@ class CapturingOutboxWriter(
         events: List<OutboundEvent>,
         context: EventContext,
     ): List<Envelope> = delegate.append(events, context).also { captured.envelopes.addAll(it) }
+
+    // staging (an installation value's PolicyChanged) passes through unchanged
+    override fun stage(
+        events: List<OutboundEvent>,
+        context: EventContext,
+    ) = delegate.stage(events, context)
 }
 
 /** One PostgreSQL with the service schema migrated as the installation does, and the context runner over it. */

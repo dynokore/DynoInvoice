@@ -1,6 +1,7 @@
 package com.dynokore.gst.access.bootstrap
 
 import com.dynokore.gst.access.adapters.credential.NimbusCredentialMaterial
+import com.dynokore.gst.access.adapters.credential.TightenOnlyClientSecretWriter
 import com.dynokore.gst.access.adapters.credential.VariationPointClientSecretPolicy
 import com.dynokore.gst.access.adapters.events.PrincipalRevocationOutbox
 import com.dynokore.gst.access.adapters.persistence.JooqCredentialRepository
@@ -23,12 +24,15 @@ import com.dynokore.gst.access.application.principal.RotatePrincipalUseCase
 import com.dynokore.gst.access.application.principal.WithdrawCredentialUseCase
 import com.dynokore.gst.access.domain.principal.MachinePermissionSets
 import com.dynokore.platform.configresolver.PolicyReader
+import com.dynokore.platform.configresolver.PolicyWriter
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.serviceruntime.identity.WorkloadPrincipal
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
+import org.springframework.beans.factory.ObjectProvider
+import org.springframework.beans.factory.config.BeanPostProcessor
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.env.Environment
@@ -38,6 +42,27 @@ import java.time.Clock
 /** TPL-18: the service principals' use cases (INV-T-4937), constructed here and nowhere else. */
 @Configuration(proxyBeanMethods = false)
 class PrincipalUseCases {
+    companion object {
+        /**
+         * VP-77 is tighten-only and access-svc owns it: every `PolicyWriter` of the context is decorated so that a
+         * return to the default preset is refused once the regulated-private preset is stored (INV-AC-2770).
+         */
+        @Bean
+        @JvmStatic
+        fun tightenOnlyClientSecret(reader: ObjectProvider<PolicyReader>): BeanPostProcessor =
+            object : BeanPostProcessor {
+                override fun postProcessAfterInitialization(
+                    bean: Any,
+                    beanName: String,
+                ): Any =
+                    if (bean is PolicyWriter && bean !is TightenOnlyClientSecretWriter) {
+                        TightenOnlyClientSecretWriter(bean) { reader.getObject() }
+                    } else {
+                        bean
+                    }
+            }
+    }
+
     @Bean
     fun principalRepository(
         dsl: DSLContext,
