@@ -1,0 +1,3 @@
+directory	exceptions
+aggregation	-
+tenancy	closeTenant=service-job;openTenant=service-job;recordInstallationAction=service-job
