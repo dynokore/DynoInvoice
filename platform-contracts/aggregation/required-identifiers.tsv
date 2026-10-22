@@ -1,5 +1,6 @@
 # INV-T-5391. Identifiers in backticks in the published behavior and intent of INV-REQ-414, 440, 441 (read from Keel).
 # Not listed, because they are not aggregation contract identifiers: aggregation-svc, console-bff (services).
+# INV-T-8799. Backticked names of INV-REQ-410 (read from Keel). Not listed: direction (a property of the ingestion AggregateRequest, owner ingestion contract), POST /v1/batches (feed endpoint of the ingestion contract), aggregation-svc (service).
 identifier	kind	file	requirement
 underlyingCount	property	openapi.yaml	INV-REQ-414
 replacesReceiptNumber	property	openapi.yaml	INV-REQ-440
@@ -7,3 +8,9 @@ subtotalsByTaxCode	property	openapi.yaml	INV-REQ-441
 claimantReference	property	openapi.yaml	INV-Q-5398
 isCreditNote	property	openapi.yaml	INV-Q-5396
 isSupplementary	property	openapi.yaml	INV-Q-5396
+intakeAggregationBatch	operation	openapi.yaml	INV-REQ-410
+intakeAggregationBatch.ING-006	operation_error_code	openapi.yaml	INV-REQ-410
+aggregateType	property	openapi.yaml	INV-REQ-410
+POS	enum_value	openapi.yaml	INV-REQ-410
+STI	enum_value	openapi.yaml	INV-REQ-410
+PCP	enum_value	openapi.yaml	INV-REQ-410
