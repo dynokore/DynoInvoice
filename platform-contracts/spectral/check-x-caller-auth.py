@@ -43,6 +43,7 @@ NOT_END_USER = {
         "getVerificationKeys": "service-job",  # workload verification keys
         "getRevocationList": "service-job",  # workload revocation list
         "provisionInstallationFirstAdministrator": "service-job",  # installer, workload only
+        "authenticatePrincipal": "service-job",  # API gateway, workload
     },
     "masterdata/openapi.yaml": {
         "submitCounterpartyDetails": "signed-link",  # counterparty signed link
