@@ -75,14 +75,30 @@ class CreatePrincipalUseCase(
         scope: String,
         callingSystem: String?,
     ): CreatePrincipalOutcome {
-        val type =
-            PrincipalType.ofContract(requestedType) ?: return CreatePrincipalOutcome.TypeNotIssuable(requestedType)
-        if (type == PrincipalType.FILING_WORKFLOW &&
-            callingSystem == null
-        ) {
-            return CreatePrincipalOutcome.CallingSystemMissing
+        val type = PrincipalType.ofContract(requestedType)
+        return when {
+            type == null -> {
+                CreatePrincipalOutcome.TypeNotIssuable(requestedType)
+            }
+
+            type == PrincipalType.FILING_WORKFLOW && callingSystem == null -> {
+                CreatePrincipalOutcome.CallingSystemMissing
+            }
+
+            else -> {
+                issue(actor, tenant, type, scope, callingSystem)
+            }
         }
-        return tx.inTransaction {
+    }
+
+    private fun issue(
+        actor: String,
+        tenant: TenantRef,
+        type: PrincipalType,
+        scope: String,
+        callingSystem: String?,
+    ): CreatePrincipalOutcome =
+        tx.inTransaction {
             principals.findActiveByRepeatKey(type, scope, callingSystem)?.let {
                 return@inTransaction CreatePrincipalOutcome.Created(it, repeated = true)
             }
@@ -92,7 +108,6 @@ class CreatePrincipalUseCase(
             audit.record(GrantAuditEntry(actor, "createPrincipal", "principal:${principal.ref}", null, null))
             CreatePrincipalOutcome.Created(principal, repeated = false)
         }
-    }
 }
 
 sealed interface RevokePrincipalOutcome {
