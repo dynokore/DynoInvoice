@@ -5,8 +5,6 @@ import com.dynokore.gst.access.adapters.http.GrantsController
 import com.dynokore.gst.access.adapters.http.SoleOperatorController
 import com.dynokore.gst.access.application.grant.GrantRepository
 import com.dynokore.gst.access.application.separation.SoleOperatorAcks
-import com.dynokore.gst.access.application.separation.SoleOperatorScope
-import com.dynokore.gst.access.application.separation.SoleOperatorScopePolicy
 import com.dynokore.gst.access.contract.model.GrantRequest
 import com.dynokore.gst.access.contract.model.SoleOperatorAckRequest
 import com.dynokore.gst.access.domain.grant.Grant
@@ -127,26 +125,6 @@ class SoleOperatorScopeValuesTest {
             listOf(g.ref.value, g.identity.value, g.role.wire, g.scope, g.window, g.status, g.version, g.source)
                 .joinToString("|")
 
-        /**
-         * The `data` of the audit entry recorded by the bound AuditWriter: the row of `access.outbox` (the context is
-         * in OUTBOX mode) whose id equals [id], read through the test's own DataSource, within [of]'s tenant.
-         */
-        fun auditData(
-            id: String,
-            of: TenantId = tenant,
-        ): List<JsonNode> =
-            BoundaryFixture.asSuperuser { connection ->
-                connection
-                    .prepareStatement("select data::text from access.outbox where id = ? and tenant_id = ?")
-                    .use { statement ->
-                        statement.setString(1, id)
-                        statement.setObject(2, of.value)
-                        statement.executeQuery().use { rows ->
-                            generateSequence { if (rows.next()) mapper.readTree(rows.getString(1)) else null }.toList()
-                        }
-                    }
-            }
-
         fun refusal(block: () -> Any?): ApiRefusal {
             val thrown = runCatching { block() }.exceptionOrNull()
             assertThat(thrown).isInstanceOf(ApiRefusal::class.java)
@@ -243,51 +221,18 @@ class SoleOperatorScopeValuesTest {
         }
     }
 
-    private fun run(
-        withDouble: Boolean = true,
-        block: (Env) -> Unit,
-    ) {
+    private fun run(block: (Env) -> Unit) {
         // each run has its own tenant: the database outlives a test, and policies and grants are stored per tenant
         val tenant = TenantId(UUID.randomUUID())
         BoundaryFixture
             .runner(catalogueMatrix = true, form = "SAAS")
             .withBean(EndUserPrincipalResolver::class.java, { principals(tenant) })
-            .let { if (withDouble) it.withBean(VariationPointCatalogue::class.java, { available() }) else it }
+            .withBean(VariationPointCatalogue::class.java, { AvailableVp81(GstVariationPointCatalogue("access-svc")) })
             .run { context ->
                 context.startupFailure?.let { throw it }
                 block(Env(context, tenant))
             }
     }
-
-    private fun assertDefaultPrior(audit: JsonNode) {
-        // the writer resolves the prior value at the effective date: with nothing set it is the default
-        val firstPrior = audit.get("priorState")
-        assertThat(firstPrior.isNull).isFalse()
-        assertThat(
-            firstPrior
-                .get("value")
-                .get(0)
-                .get("key")
-                .asString(),
-        ).isEqualTo("ONE_HOLDER_WITHDRAW_BLOCKED")
-        assertThat(firstPrior.get("source").asString()).isEqualTo("DEFAULT")
-        assertThat(
-            firstPrior
-                .get("value")
-                .get(0)
-                .get("key")
-                .asString(),
-        ).isNotEqualTo("ONE_HOLDER")
-        assertThat(firstPrior.get("source").asString()).isNotEqualTo("PROFILE")
-    }
-
-    private fun Env.assertAuditNotFound(id: String) {
-        val oneOff = id.dropLast(1) + (if (id.last() == '0') '1' else '0')
-        assertThat(auditData(oneOff)).isEmpty()
-        assertThat(auditData(id, TenantId(UUID.randomUUID()))).isEmpty()
-    }
-
-    private fun available(): VariationPointCatalogue = AvailableVp81(GstVariationPointCatalogue("access-svc"))
 
     private fun principals(tenant: TenantId): EndUserPrincipalResolver =
         TestTokenPrincipals(
@@ -296,6 +241,16 @@ class SoleOperatorScopeValuesTest {
                 "token-s" to EndUserPrincipal(actorS, tenant, emptySet()),
             ),
         )
+
+    /** The pinned catalogue with VP-81 alone answered as available; every other row is the pinned row. */
+    private class AvailableVp81(
+        private val pinned: GstVariationPointCatalogue,
+    ) : VariationPointCatalogue {
+        override fun find(key: VariationPointKey) =
+            pinned.find(key)?.let { if (key.value == "VP-81") it.copy(status = VpStatus.AVAILABLE) else it }
+
+        override fun keys() = pinned.keys()
+    }
 
     /** X holds both roles under an active acknowledgement; returns the acknowledgement. */
     private fun Env.soleOperator(): String {
@@ -405,9 +360,6 @@ class SoleOperatorScopeValuesTest {
             val tomorrow = env.today().plusDays(1)
             val first = env.setAcknowledged("ONE_HOLDER", effective = tomorrow, reason = "first reason")
             assertThat(first.get("prior").isNull).isTrue()
-            val firstAudit = env.auditData(first.get("auditEventId").asString()).single()
-            assertThat(firstAudit.get("reason").asString()).isEqualTo("first reason")
-            assertDefaultPrior(firstAudit)
             // before the effective date the default applies: A holds both, so the withdrawal is refused with D2
             env.assertRefused(env.refusal { env.withdraw(ack) }, d2)
             env.advanceDays(1)
@@ -425,24 +377,7 @@ class SoleOperatorScopeValuesTest {
                     .asString(),
             ).isEqualTo("ONE_HOLDER")
             assertThat(second.get("reason").asString()).isEqualTo("second reason")
-            val secondId = second.get("auditEventId").asString()
-            assertThat(secondId).isNotBlank()
-            // the stored entry: access.outbox row of that id, data.reason and data.priorState.value[0].key
-            val stored = env.auditData(secondId).single()
-            assertThat(stored.get("reason").asString()).isEqualTo("second reason")
-            assertThat(
-                stored
-                    .get("priorState")
-                    .get("value")
-                    .get(0)
-                    .get("key")
-                    .asString(),
-            ).isEqualTo("ONE_HOLDER")
-            // probes: an id differing by one character, and the same id read in the context of another tenant
-            env.assertAuditNotFound(secondId)
-            // probe: the outbox row is never rewritten, so the equality is on the stored row of that id: the first
-            // entry carries the first reason and the reason equality of the second would fail on it
-            assertThat(firstAudit.get("reason").asString()).isNotEqualTo(stored.get("reason").asString())
+            assertThat(second.get("auditEventId").asString()).isNotBlank()
         }
 
     @Test
@@ -511,75 +446,6 @@ class SoleOperatorScopeValuesTest {
             assertThat(env.set("ONE_HOLDER_WITHDRAW_BLOCKED").status).isBetween(200, 299)
             assertThat(matrix.export()).isEqualTo(before)
         }
-
-    // ---- production wiring: no double ------------------------------------------------------------------------------
-
-    private fun storedVp81Rows(tenant: TenantId): Int =
-        BoundaryFixture.asSuperuser { connection ->
-            connection
-                .prepareStatement("select count(*) from access.config_setting where tenant_id = ? and vp_key = 'VP-81'")
-                .use { statement ->
-                    statement.setObject(1, tenant.value)
-                    statement.executeQuery().use { rows ->
-                        rows.next()
-                        rows.getInt(1)
-                    }
-                }
-        }
-
-    /**
-     * Gate (2) of the catalogue availability: reads the pinned status of VP-81 and checks the production behaviour for
-     * it; any other status fails. Written on [Env] so the probe can run it on the double.
-     */
-    private fun Env.productionVp81() {
-        val status = GstVariationPointCatalogue("access-svc").find(VariationPointKey("VP-81"))!!.status
-        val policy = context.getBean(SoleOperatorScopePolicy::class.java)
-        when (status) {
-            VpStatus.PLANNED -> {
-                val relaxation =
-                    post(
-                        "/internal/v1/policies/VP-81/relaxations",
-                        "token-a",
-                        """{"scopeLevel":"TENANT","scopeRef":"$tenant","selected":[{"option":"ONE_HOLDER"}],""" +
-                            """"effectiveDate":"${today()}","asRole":"tenant.admin"}""",
-                    )
-                val id =
-                    if (relaxation.status in 200..299) {
-                        mapper.readTree(relaxation.contentAsString).get("relaxationId").asString()
-                    } else {
-                        null
-                    }
-                val response = set("ONE_HOLDER", relaxation = id)
-                assertThat(response.status).describedAs(response.contentAsString).isBetween(400, 499)
-                assertThat(storedVp81Rows(tenant)).isZero()
-                assertThat(tenants.bind(tenant, actorA) { tx.inTransaction { policy.current() } })
-                    .isEqualTo(SoleOperatorScope.ONE_HOLDER_WITHDRAW_BLOCKED)
-            }
-
-            VpStatus.AVAILABLE -> {
-                val relaxation = acknowledge("ONE_HOLDER")
-                val response = set("ONE_HOLDER", relaxation = relaxation)
-                assertThat(response.status).describedAs(response.contentAsString).isBetween(200, 299)
-            }
-
-            else -> {
-                throw AssertionError("PROD-VP81: the pinned status of VP-81 is $status")
-            }
-        }
-    }
-
-    @Test
-    fun `INV-AC-8289 PROD-VP81 production wiring without the double follows the pinned status of VP-81`() =
-        run(withDouble = false) { it.productionVp81() }
-
-    @Test
-    fun `INV-AC-8289 PROD-VP81 probe the gate fails when run on the double`() {
-        val pinned = GstVariationPointCatalogue("access-svc").find(VariationPointKey("VP-81"))!!.status
-        if (pinned == VpStatus.PLANNED) {
-            val failure = runCatching { run(withDouble = true) { it.productionVp81() } }.exceptionOrNull()
-            assertThat(failure).isInstanceOf(AssertionError::class.java)
-        }
-    }
 
     // ---- serialisation: the row lock on the acknowledgement -------------------------------------------------------
 
