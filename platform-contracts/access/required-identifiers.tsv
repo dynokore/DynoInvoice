@@ -54,6 +54,8 @@ provisionFirstAdministrator	operation	openapi.yaml	INV-REQ-906
 provisionInstallationFirstAdministrator	operation	openapi.yaml	INV-REQ-906
 acceptFirstAdministratorInvitation	operation	openapi.yaml	INV-REQ-906
 reissueFirstAdministratorInvitation	operation	openapi.yaml	INV-REQ-906
-invitationExpiresAt	property	openapi.yaml	INV-REQ-906
-invitationCode	property	openapi.yaml	INV-REQ-906
-administratorEmail	property	openapi.yaml	INV-REQ-906
+FirstAdministratorRequest.invitationExpiresAt	schema_property	openapi.yaml	INV-REQ-906
+ReissueFirstAdministratorInvitationRequest.invitationExpiresAt	schema_property	openapi.yaml	INV-REQ-906
+FirstAdministratorResponse.invitationCode	schema_property	openapi.yaml	INV-REQ-906
+AcceptFirstAdministratorInvitationRequest.invitationCode	schema_property	openapi.yaml	INV-REQ-906
+FirstAdministratorRequest.administratorEmail	schema_property	openapi.yaml	INV-REQ-906
