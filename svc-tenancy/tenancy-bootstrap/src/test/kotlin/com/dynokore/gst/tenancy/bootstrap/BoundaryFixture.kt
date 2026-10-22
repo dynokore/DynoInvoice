@@ -16,7 +16,7 @@ import java.util.UUID
 /** One PostgreSQL with the service schema migrated as the installation does, and the context runner over it. */
 object BoundaryFixture {
     private const val RUNTIME_PASSWORD = "runtime-password-for-tests"
-    val container: PostgreSQLContainer<*> = PostgreSQLContainer("postgres:17").withLabel("inv.agent", "c-inv-t-4925h4")
+    val container: PostgreSQLContainer<*> = PostgreSQLContainer("postgres:17").withLabel("inv.agent", "c-inv-t-4926")
 
     private val migrationsDir: Path = Path.of("..", "tenancy-adapters", "src", "main", "resources", "db", "migration")
     private val roles: Path = Path.of("..", "tenancy-adapters", "src", "integrationTest", "resources", "roles.sql")

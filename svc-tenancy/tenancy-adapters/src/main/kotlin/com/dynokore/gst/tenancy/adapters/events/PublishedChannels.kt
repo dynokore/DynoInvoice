@@ -5,5 +5,5 @@ package com.dynokore.gst.tenancy.adapters.events
  * transaction (TPL-05); a test per channel validates the payload against the AsyncAPI schema.
  */
 object PublishedChannels {
-    val ALL: Set<String> = setOf(OrganisationStructureChangedOutbox.CHANNEL)
+    val ALL: Set<String> = setOf(OrganisationStructureChangedOutbox.CHANNEL, EntityProfileChangedOutbox.CHANNEL)
 }

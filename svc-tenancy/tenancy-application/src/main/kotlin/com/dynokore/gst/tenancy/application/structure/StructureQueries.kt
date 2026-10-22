@@ -1,5 +1,6 @@
 package com.dynokore.gst.tenancy.application.structure
 
+import com.dynokore.gst.tenancy.application.status.EntityStatusStore
 import com.dynokore.gst.tenancy.application.tenant.TenantRecord
 import com.dynokore.gst.tenancy.application.tenant.TenantStore
 import com.dynokore.platform.tenancykernel.TransactionRunner
@@ -17,6 +18,7 @@ class StructureQueries(
     private val tx: TransactionRunner,
     private val store: StructureStore,
     private val tenants: TenantStore,
+    private val statuses: EntityStatusStore,
 ) {
     /** The tenant's own ref, or null when the bound tenant has no row. */
     fun tenantRef(): String? = tx.inTransaction { tenants.current()?.ref }
@@ -24,11 +26,17 @@ class StructureQueries(
     /** The node [ref] names (an entity, group, business unit or the tenant), or null when the tenant holds none. */
     fun node(ref: String): StructureView? =
         tx.inTransaction {
-            store.entity(ref)?.let { StructureView(it.ref, it.legalName, it.lifecycleState, entityNode(it)) }
+            store
+                .entity(
+                    ref,
+                )?.let { StructureView(it.ref, it.legalName, it.lifecycleState, entityNode(it, profileOf(it))) }
                 ?: tenantRef()?.let { tenantRef -> store.group(ref)?.let { groupView(it, tenantRef) } }
                 ?: store.businessUnit(ref)?.let { StructureView(it.ref, it.name, live(it.retired), unitNode(it)) }
                 ?: tenants.current()?.takeIf { it.ref == ref }?.let(::tenantView)
         }
+
+    private fun profileOf(entity: EntityRecord) =
+        statuses.history(entity.id).map { ProfileEntry(it.attribute, it.value, it.effectiveFrom) }
 
     private fun groupView(
         group: GroupRecord,

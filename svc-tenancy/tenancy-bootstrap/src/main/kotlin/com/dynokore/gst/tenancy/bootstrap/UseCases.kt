@@ -1,11 +1,13 @@
 package com.dynokore.gst.tenancy.bootstrap
 
 import com.dynokore.gst.tenancy.adapters.events.OrganisationStructureChangedOutbox
+import com.dynokore.gst.tenancy.adapters.persistence.JooqEntityStatusStore
 import com.dynokore.gst.tenancy.adapters.persistence.JooqInstallationFactRepository
 import com.dynokore.gst.tenancy.adapters.persistence.JooqStructureStore
 import com.dynokore.gst.tenancy.adapters.persistence.JooqTenantStore
 import com.dynokore.gst.tenancy.adapters.persistence.PlatformScope
 import com.dynokore.gst.tenancy.application.installation.InstallationFactRepository
+import com.dynokore.gst.tenancy.application.status.EntityStatusStore
 import com.dynokore.gst.tenancy.application.structure.StructureChangePublisher
 import com.dynokore.gst.tenancy.application.structure.StructureCommands
 import com.dynokore.gst.tenancy.application.structure.StructureQueries
@@ -76,5 +78,12 @@ class UseCases {
         tx: TransactionRunner,
         store: StructureStore,
         tenantStore: TenantStore,
-    ): StructureQueries = StructureQueries(tx, store, tenantStore)
+        statuses: EntityStatusStore,
+    ): StructureQueries = StructureQueries(tx, store, tenantStore, statuses)
+
+    @Bean
+    fun entityStatusStore(
+        dsl: DSLContext,
+        tenants: TenantContext,
+    ): EntityStatusStore = JooqEntityStatusStore(dsl, tenants)
 }

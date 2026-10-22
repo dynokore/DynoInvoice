@@ -7,7 +7,7 @@ moveBusinessUnit	operation	INV-T-4925	done
 updateBusinessUnit	operation	INV-T-4925	done
 getEntityStructure	operation	INV-T-4925	done
 assessPhase	operation	INV-T-4926	pending
-setEntityStatus	operation	INV-T-4926	pending
+setEntityStatus	operation	INV-T-4926	done
 electRateSource	operation	INV-T-4927	pending
 recordElection	operation	INV-T-4927	pending
 setIssuanceMode	operation	INV-T-4927	pending
@@ -33,7 +33,7 @@ recordMigrationCutover	operation	INV-T-7382	pending
 getMigrationCutover	operation	INV-T-7382	pending
 OrganisationStructureChanged	channel	INV-T-4925	done
 ExampleHappened	channel	INV-T-4925	done
-EntityProfileChanged	channel	INV-T-4926	pending
+EntityProfileChanged	channel	INV-T-4926	done
 FilingFrequencyChanged	channel	INV-T-4929	pending
 PeriodExtended	channel	INV-T-4930	pending
 PeriodDueDateChanged	channel	INV-T-4930	pending

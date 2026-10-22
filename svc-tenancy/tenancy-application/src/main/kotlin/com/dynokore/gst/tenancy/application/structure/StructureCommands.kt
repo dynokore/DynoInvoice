@@ -296,17 +296,20 @@ fun groupNode(
     gstn = group.gstn,
 )
 
-fun entityNode(entity: EntityRecord) =
-    StructureNodeState(
-        NodeType.ENTITY,
-        entity.groupRef,
-        entity.retired,
-        entity.legalName,
-        entity.code,
-        entity.structureVersion,
-        entity.uen,
-        entity.gstn,
-    )
+fun entityNode(
+    entity: EntityRecord,
+    profile: List<ProfileEntry> = emptyList(),
+) = StructureNodeState(
+    NodeType.ENTITY,
+    entity.groupRef,
+    entity.retired,
+    entity.legalName,
+    entity.code,
+    entity.structureVersion,
+    entity.uen,
+    entity.gstn,
+    profile,
+)
 
 fun unitNode(unit: BusinessUnitRecord) =
     StructureNodeState(

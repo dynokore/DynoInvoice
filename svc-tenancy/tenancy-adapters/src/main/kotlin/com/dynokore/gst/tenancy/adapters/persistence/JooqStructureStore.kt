@@ -191,6 +191,18 @@ internal class JooqEntityStore(
         dsl.renameCode(id, code)
     }
 
+    override fun touchEntity(
+        ref: String,
+        structureVersion: Long,
+    ) {
+        dsl
+            .update(ENTITY)
+            .set(ENTITY.STRUCTURE_VERSION, structureVersion)
+            .set(ENTITY.VERSION, ENTITY.VERSION.plus(1L))
+            .where(ENTITY.REF.eq(ref))
+            .execute()
+    }
+
     private fun rows() =
         dsl
             .select(

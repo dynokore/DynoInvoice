@@ -1,5 +1,7 @@
 package com.dynokore.gst.tenancy.adapters.http
 
+import com.dynokore.gst.tenancy.application.status.EntityStatusCommands
+import com.dynokore.gst.tenancy.application.status.StatusOutcome
 import com.dynokore.gst.tenancy.application.structure.GroupKind
 import com.dynokore.gst.tenancy.application.structure.NewBusinessUnit
 import com.dynokore.gst.tenancy.application.structure.NewEntity
@@ -12,9 +14,11 @@ import com.dynokore.gst.tenancy.contract.model.BusinessUnitResponse
 import com.dynokore.gst.tenancy.contract.model.CreateEntityRequest
 import com.dynokore.gst.tenancy.contract.model.CreateGroupRequest
 import com.dynokore.gst.tenancy.contract.model.EntityResponse
+import com.dynokore.gst.tenancy.contract.model.EntityStatusResponse
 import com.dynokore.gst.tenancy.contract.model.GroupResponse
 import com.dynokore.gst.tenancy.contract.model.MoveBusinessUnitRequest
 import com.dynokore.gst.tenancy.contract.model.RegisterBusinessUnitRequest
+import com.dynokore.gst.tenancy.contract.model.SetEntityStatusRequest
 import com.dynokore.gst.tenancy.contract.model.StructureNode
 import com.dynokore.gst.tenancy.contract.model.UpdateBusinessUnitRequest
 import com.dynokore.gst.tenancy.domain.CodeRefusal
@@ -36,6 +40,7 @@ import java.util.UUID
 // open: the generated API interface is @Validated, so Spring proxies the controller (no kotlin-spring plugin)
 open class EntitiesController(
     private val commands: StructureCommands,
+    private val statusCommands: EntityStatusCommands,
     private val queries: StructureQueries,
     private val tenants: TenantContext,
 ) : EntitiesApi {
@@ -117,6 +122,26 @@ open class EntitiesController(
     override fun getEntityStructure(entityRef: String): ResponseEntity<EntityResponse> {
         val view = queries.node(entityRef) ?: notFound()
         return ResponseEntity.ok(viewResponse(view))
+    }
+
+    override fun setEntityStatus(
+        entityRef: String,
+        idempotencyKey: UUID,
+        setEntityStatusRequest: SetEntityStatusRequest,
+    ): ResponseEntity<EntityStatusResponse> {
+        val outcome =
+            statusCommands.setEntityStatus(
+                tenants.current(),
+                entityRef,
+                statusChangeOf(setEntityStatusRequest),
+            )
+        val entry =
+            when (outcome) {
+                is StatusOutcome.Done -> outcome.entry
+                StatusOutcome.NotFound -> notFound()
+                is StatusOutcome.Invalid -> invalid(outcome.reason)
+            }
+        return ResponseEntity.status(HttpStatus.CREATED).body(statusResponse(entityRef, entry))
     }
 
     private fun boundTenant(tenantRef: String): TenantId {

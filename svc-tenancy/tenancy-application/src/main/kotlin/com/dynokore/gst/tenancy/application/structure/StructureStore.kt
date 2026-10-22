@@ -71,6 +71,12 @@ interface EntityStore {
         code: String,
         structureVersion: Long,
     )
+
+    /** Locks the entity's row and stamps the structure version a profile change drew (TPL-05, INV-API-3327). */
+    fun touchEntity(
+        ref: String,
+        structureVersion: Long,
+    )
 }
 
 /** The business units of the bound tenant. */
