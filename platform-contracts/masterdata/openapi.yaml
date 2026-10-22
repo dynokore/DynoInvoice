@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: masterdata API
-  version: 1.7.0
+  version: 1.8.0
   description: >-
     Contract-first source of truth for masterdata (API-01, STK-44). The
     `masterdata-contract` module generates its server interfaces and DTOs
@@ -342,9 +342,13 @@ paths:
         with provenance, emits `MasterDataResolved`, and releases every
         document held on it (§31.2.1). Also covers editing an approved
         scheme status or an ARCS written-agreement flag, each with evidence
-        (FR-1.14, FR-1.15).
+        (FR-1.14, FR-1.15). An `entityRef` outside the principal's entity set
+        is refused with `403` and the code SRT-004 before the handler runs
+        (API-24); a request without `entityRef` is the service's own `400`
+        SRT-001.
       tags: [remediation]
       x-principal: filing-workflow
+      x-entity-ref: entityRef
       x-sync-edge: console-bff->masterdata-svc
       x-timeout: 2000
       x-error-codes: [MDM-001, MDM-002, MDM-003, MDM-004, MDM-006]

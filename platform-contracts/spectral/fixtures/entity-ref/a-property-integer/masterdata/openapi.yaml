@@ -1,0 +1,46 @@
+openapi: 3.1.0
+paths:
+  /internal/v1/masterdata/resolution:
+    post:
+      operationId: resolveGap
+      x-sync-edge: console-bff->masterdata-svc
+      x-entity-ref: entityRef
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Req'
+  /internal/v1/masterdata/nobody:
+    post:
+      operationId: noBody
+      x-sync-edge: console-bff->masterdata-svc
+  /internal/v1/masterdata/other:
+    post:
+      operationId: otherBody
+      x-sync-edge: console-bff->masterdata-svc
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Other'
+  /internal/v1/masterdata/sys:
+    post:
+      operationId: sysFlow
+      x-sync-edge: canonical-svc->masterdata-svc
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Req'
+components:
+  schemas:
+    Req:
+      type: object
+      properties:
+        entityRef:
+          type: integer
+    Other:
+      type: object
+      properties:
+        note:
+          type: string

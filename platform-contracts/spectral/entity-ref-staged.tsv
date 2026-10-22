@@ -1,0 +1,7 @@
+directory	operationId
+evidence	placeLegalHold
+ingestion	sendTestEvent
+notification	createWebhookSubscription
+tenancy	offboardTenant
+tenancy	recordAppliedOperatingProfile
+tenancy	registerBusinessUnit

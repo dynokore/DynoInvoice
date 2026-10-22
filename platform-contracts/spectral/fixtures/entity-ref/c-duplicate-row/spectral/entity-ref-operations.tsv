@@ -1,0 +1,3 @@
+directory	method	path	property
+masterdata	POST	/internal/v1/masterdata/resolution	entityRef
+masterdata	POST	/internal/v1/masterdata/resolution	entityRef

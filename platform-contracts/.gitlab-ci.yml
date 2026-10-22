@@ -222,6 +222,7 @@ invoice-docs-checks:
     - >
       echo "gst-ci: invoice-docs main $(git -C /tmp/invoice-docs rev-parse --short HEAD)"
     - gst_check sync-edge-allowlist-check python3 spectral/check-sync-edges.py /tmp/invoice-docs/model/architecture/sync-edges.yaml .
+    - gst_check entity-ref-check python3 spectral/check-entity-ref.py .
     - gst_check x-timeout-check python3 spectral/check-timeouts.py /tmp/invoice-docs/model/architecture/sync-edges.yaml .
     - >
       gst_check lifecycle-states-drift-check python3 submission/schemas/generate-lifecycle-states.py
@@ -271,6 +272,7 @@ tool-self-tests:
     - !reference [.gst-checks, script]
     - gst_check breaking-change-self-test sh spectral/self-test-fixtures.sh
     - gst_check self-test-sync-edges sh spectral/self-test-sync-edges.sh
+    - gst_check self-test-entity-ref sh spectral/self-test-entity-ref.sh
     - gst_check self-test-schema-samples sh spectral/self-test-schema-samples.sh
     - gst_check self-test-timeouts sh spectral/self-test-timeouts.sh
     - gst_check self-test-required-identifiers sh spectral/self-test-required-identifiers.sh

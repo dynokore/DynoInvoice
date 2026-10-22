@@ -1,0 +1,21 @@
+openapi: 3.1.0
+paths:
+  /internal/v1/evidence/hold:
+    post:
+      operationId: placeLegalHold
+      x-sync-edge: console-bff->evidence-svc
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/A'
+components:
+  schemas:
+    Req:
+      type: object
+      properties:
+        entityRef:
+          type: string
+    A:
+      allOf:
+      - $ref: '#/components/schemas/A'
