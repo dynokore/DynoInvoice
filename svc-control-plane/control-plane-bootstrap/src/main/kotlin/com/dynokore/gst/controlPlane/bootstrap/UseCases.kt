@@ -1,8 +1,14 @@
 package com.dynokore.gst.controlPlane.bootstrap
 
 import com.dynokore.gst.controlPlane.adapters.persistence.PackRepositoryJooq
+import com.dynokore.gst.controlPlane.adapters.persistence.PlanRepositoryJooq
+import com.dynokore.gst.controlPlane.adapters.persistence.QualificationRepositoryJooq
 import com.dynokore.gst.controlPlane.adapters.persistence.StagingEvidenceReaderJooq
 import com.dynokore.gst.controlPlane.adapters.persistence.jooq.Controlplane
+import com.dynokore.gst.controlPlane.application.commercial.ManagePlan
+import com.dynokore.gst.controlPlane.application.commercial.PlanRepository
+import com.dynokore.gst.controlPlane.application.commercial.QualificationRepository
+import com.dynokore.gst.controlPlane.application.commercial.RecordQualification
 import com.dynokore.gst.controlPlane.application.pack.AuthorRegulatoryPack
 import com.dynokore.gst.controlPlane.application.pack.GetPack
 import com.dynokore.gst.controlPlane.application.pack.OperatorRoles
@@ -50,4 +56,28 @@ class UseCases {
 
     @Bean
     fun getPack(packs: PackRepository) = GetPack(packs)
+
+    @Bean
+    fun planRepository(
+        dsl: DSLContext,
+        clock: Clock,
+    ): PlanRepository = PlanRepositoryJooq(dsl, clock)
+
+    @Bean
+    fun qualificationRepository(
+        dsl: DSLContext,
+        clock: Clock,
+    ): QualificationRepository = QualificationRepositoryJooq(dsl, clock)
+
+    @Bean
+    fun managePlan(
+        plans: PlanRepository,
+        roles: OperatorRoles,
+    ) = ManagePlan(plans, roles)
+
+    @Bean
+    fun recordQualification(
+        qualifications: QualificationRepository,
+        roles: OperatorRoles,
+    ) = RecordQualification(qualifications, roles)
 }

@@ -1,5 +1,7 @@
 package com.dynokore.gst.controlPlane.bootstrap
 
+import com.dynokore.gst.controlPlane.application.commercial.ManagePlan
+import com.dynokore.gst.controlPlane.application.commercial.RecordQualification
 import com.dynokore.gst.controlPlane.application.pack.AuthorRegulatoryPack
 import com.dynokore.gst.controlPlane.application.pack.PackSigningKeys
 import com.dynokore.gst.controlPlane.application.pack.PublishPack
@@ -67,6 +69,8 @@ class CompositionTest {
             listOf(
                 AuthorRegulatoryPack::class,
                 SignPack::class,
+                ManagePlan::class,
+                RecordQualification::class,
                 PublishPack::class,
                 PackSigningKeys::class,
                 TransactionRunner::class,

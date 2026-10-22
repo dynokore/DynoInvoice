@@ -25,7 +25,6 @@ import com.dynokore.gst.controlPlane.domain.pack.PackType
 import com.dynokore.gst.controlPlane.domain.pack.PackVersion
 import com.dynokore.gst.controlPlane.domain.pack.RegulatoryPack
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
-import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.operation.OperationOutcome
 import com.dynokore.platform.serviceruntime.operation.OperationRunner
@@ -34,8 +33,6 @@ import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.RestController
-import org.springframework.web.context.request.RequestContextHolder
-import org.springframework.web.context.request.ServletRequestAttributes
 import java.util.UUID
 
 /**
@@ -137,37 +134,12 @@ class PacksController(
         return ResponseEntity.ok(responseOf(pack ?: problem(ClosedErrorCode.NOT_FOUND, caller.correlationId)))
     }
 
-    private class Caller(
-        val principal: EndUserPrincipal,
-        val correlationId: String,
-    )
+    private fun caller() = OperatorCaller.of(principals)
 
-    /** The platform operator of the request: a verified token with no tenant (INV-REQ-1202 b2). */
-    private fun caller(): Caller {
-        val request = (RequestContextHolder.currentRequestAttributes() as ServletRequestAttributes).request
-        val correlationId =
-            request.getHeader("X-Correlation-Id")?.takeIf { it.isNotBlank() } ?: UUID.randomUUID().toString()
-        val principal =
-            principals.resolve(request.getHeader("Authorization"))
-                ?: problem(ClosedErrorCode.UNAUTHENTICATED, correlationId)
-        if (principal.tenant !=
-            null
-        ) {
-            problem(ClosedErrorCode.ACCESS_DENIED, correlationId, "A platform operator token is required")
-        }
-        return Caller(principal, correlationId)
-    }
-
-    /** A request value the domain refuses (a malformed reference, a too long field) is a contract violation. */
     private fun <T> commandOf(
-        caller: Caller,
+        caller: OperatorCaller,
         build: () -> T,
-    ): T =
-        try {
-            build()
-        } catch (invalid: IllegalArgumentException) {
-            problem(ClosedErrorCode.CONTRACT_VIOLATION, caller.correlationId, invalid.message)
-        }
+    ): T = caller.commandOf(build)
 
     private fun answer(
         outcome: OperationOutcome<RegulatoryPack>,

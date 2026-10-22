@@ -5,9 +5,9 @@ operation	publishPack	INV-T-4984	done
 operation	getPack	INV-T-4984	done
 operation	publishTrain	INV-T-4985	pending
 operation	setSupportWindow	INV-T-4985	pending
-operation	managePlan	INV-T-4986	pending
+operation	managePlan	INV-T-4986	done
 operation	issueLicence	INV-T-4986	pending
-operation	recordQualification	INV-T-4986	pending
+operation	recordQualification	INV-T-4986	done
 operation	provisionTenant	INV-T-4986	pending
 operation	getTenantProvisioningRequest	INV-T-4986	pending
 operation	getLicence	INV-T-4986	pending

@@ -28,6 +28,8 @@ inv.tenancy.platform-scoped-tables:                 # INV-ADR-3968 item 4a: the 
   - controlplane.pack_staging_record
   - controlplane.pack_release
   - controlplane.pack_feed_index
+  - controlplane.plan_version
+  - controlplane.qualification
 management:
   server.port: 8081                                 # API-33: health, metrics and diagnostics only on the management port
   endpoints.web:

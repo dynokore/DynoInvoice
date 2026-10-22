@@ -11,6 +11,7 @@ import com.dynokore.platform.crypto.SigningKey
 object OperatorRole {
     const val AUTHOR = "regulatory.author"
     const val APPROVER = "regulatory.approver"
+    const val COMMERCIAL_ADMIN = "commercial.admin"
 }
 
 /** Whether an actor holds a platform operator role (CS-23: re-checked here, never taken from the request). */
