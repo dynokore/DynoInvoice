@@ -8,3 +8,7 @@
 ../openapi.yaml#/components/schemas/PrincipalResponse principal-response-*.json
 ../openapi.yaml#/components/schemas/LandingChoiceRequest landing-choice-request-*.json
 ../openapi.yaml#/components/schemas/LandingScreenResponse landing-screen-response-*.json
+../openapi.yaml#/components/schemas/FirstAdministratorRequest first-administrator-request-*.json
+../openapi.yaml#/components/schemas/FirstAdministratorResponse first-administrator-response-*.json
+../openapi.yaml#/components/schemas/AcceptFirstAdministratorInvitationRequest accept-first-administrator-invitation-request-*.json
+../openapi.yaml#/components/schemas/ReissueFirstAdministratorInvitationRequest reissue-first-administrator-invitation-request-*.json

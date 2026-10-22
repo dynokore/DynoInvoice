@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: access API
-  version: 1.6.0
+  version: 1.7.0
   description: 'Contract-first source of truth for access (API-01, STK-44), replacing the INV-T-2849 scaffold
     (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): who may do what, on whose authority.
     `authorise`, `getVerificationKeys`, `getRevocationList` and `resolveLandingScreen` are queries, not FR-AC.1 operations (no persistent state change),
@@ -1269,6 +1269,255 @@ paths:
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
+  /internal/v1/access/first-administrators:
+    post:
+      operationId: provisionFirstAdministrator
+      summary: Record the pending first tenant.admin grant of a new tenant and its signed invitation (INV-Q-8185 A, INV-FLOW-227 step 3)
+      description: 'Only the service principal of control-plane-svc calls it, compared by equality; every other caller, a person included, is refused with 403 and nothing is stored. It records a PENDING Tenant-scope `tenant.admin` grant for the administrator email and returns the invitation reference and a one-time invitation code that the caller embeds in the signed, expiring invitation. It is refused with 409 when the tenant already has any `tenant.admin` grant of any status (ACTIVE or PENDING; REVOKED does not count) and nothing is stored. A repeat with the same `Idempotency-Key` returns the original response. The grant becomes ACTIVE only through `acceptFirstAdministratorInvitation`, never here; the pending grant is withdrawn by `revokeGrant`. No operator role holds a grant inside the tenant (INV-FLOW-227 control). The private installation form is `provisionInstallationFirstAdministrator`.'
+      tags:
+      - grants
+      x-principal: filing-workflow
+      x-sync-edge: control-plane-svc->access-svc
+      x-timeout: 2000
+      x-requirements:
+      - INV-REQ-906
+      x-error-codes: []
+      x-operation:
+        role: control-plane-svc
+        scope: platform
+        precondition: The tenant has no tenant.admin grant of status ACTIVE or PENDING
+        reversibility: COMPENSABLE
+        repeatKey: (tenantRef) — a repeat with the same Idempotency-Key returns the original response; revokeGrant withdraws the pending grant
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FirstAdministratorRequest'
+            examples:
+              default:
+                value:
+                  tenantRef: TEN-4B7C2D
+                  administratorEmail: first.admin@example.sg
+                  invitationExpiresAt: "2026-11-05T08:00:00Z"
+      responses:
+        "201":
+          description: The pending first administrator grant and its invitation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FirstAdministratorResponse'
+              examples:
+                default:
+                  value:
+                    grantRef: GRT-00301
+                    status: PENDING
+                    invitationRef: INVN-5E21
+                    invitationCode: 7Qm2xT9vLk4RpA8sWd3ZcB6nYh1JfU5e
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "409":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/installation-first-administrators:
+    post:
+      operationId: provisionInstallationFirstAdministrator
+      summary: Record the pending first tenant.admin grant of a private installation (INV-Q-8185 A, INV-FLOW-228 step 7)
+      description: 'The call is the private-installation form of `provisionFirstAdministrator`, with the same rules, the same pending Tenant-scope `tenant.admin` grant, the same 409 when the tenant already has any `tenant.admin` grant of any status (ACTIVE or PENDING; REVOKED does not count) and the same idempotency. Only the installer workload token is admitted and any other identity gets 403 SRT-004; a call with no valid workload token is SRT-003. The closed service-runtime refusals carry their SRT codes and are not listed in x-error-codes (INV-Q-5500, ARC-19). The grant becomes ACTIVE only through `acceptFirstAdministratorInvitation`.'
+      tags:
+      - grants
+      x-principal: workload
+      x-sync-edge: installer->access-svc
+      x-timeout: 2000
+      x-requirements:
+      - INV-REQ-906
+      x-error-codes: []
+      x-operation:
+        role: deployment.operator
+        scope: installation
+        precondition: The tenant has no tenant.admin grant of status ACTIVE or PENDING
+        reversibility: COMPENSABLE
+        repeatKey: (tenantRef) — a repeat with the same Idempotency-Key returns the original response; revokeGrant withdraws the pending grant
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FirstAdministratorRequest'
+            examples:
+              default:
+                value:
+                  tenantRef: TEN-4B7C2D
+                  administratorEmail: first.admin@example.sg
+                  invitationExpiresAt: "2026-11-05T08:00:00Z"
+      responses:
+        "201":
+          description: The pending first administrator grant and its invitation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FirstAdministratorResponse'
+              examples:
+                default:
+                  value:
+                    grantRef: GRT-00301
+                    status: PENDING
+                    invitationRef: INVN-5E21
+                    invitationCode: 7Qm2xT9vLk4RpA8sWd3ZcB6nYh1JfU5e
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "409":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/first-administrators/{tenantRef}/invitation-reissues:
+    post:
+      operationId: reissueFirstAdministratorInvitation
+      summary: Reissue the expired first tenant.admin invitation on the same pending grant (INV-Q-8232 A, INV-FLOW-227 alternate)
+      description: 'Only the service principal of control-plane-svc calls it, compared by equality; every other caller, a person and the installer workload included, is refused with 403. It succeeds only when the tenant''s `tenant.admin` grants of status ACTIVE or PENDING are exactly one and it is PENDING and its invitation expiry is before the call instant (read from the service clock port; at the exact expiry instant the call is refused with 409). It then keeps the same grant, issues a new `invitationRef`, a new one-time `invitationCode` and the requested expiry, and the old invitation and code stop working. Every other state is refused with 409 and nothing is stored. A repeat with the same `Idempotency-Key` returns the original response. The 409 rule of `provisionFirstAdministrator` is not changed. The call is audit-logged.'
+      tags:
+      - grants
+      x-principal: filing-workflow
+      x-sync-edge: control-plane-svc->access-svc
+      x-timeout: 2000
+      x-requirements:
+      - INV-REQ-906
+      x-error-codes: []
+      x-operation:
+        role: control-plane-svc
+        scope: platform
+        precondition: The only tenant.admin grant of the tenant is PENDING and its invitation has expired
+        reversibility: IRREVERSIBLE
+        repeatKey: (tenantRef) — a repeat with the same Idempotency-Key returns the original response; the old code cannot be restored
+      parameters:
+      - name: tenantRef
+        in: path
+        required: true
+        description: The tenant reference control-plane-svc minted (INV-Q-3573).
+        schema:
+          type: string
+          maxLength: 64
+        example: TEN-4B7C2D
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReissueFirstAdministratorInvitationRequest'
+            examples:
+              default:
+                value:
+                  invitationExpiresAt: "2026-11-19T08:00:00Z"
+      responses:
+        "200":
+          description: The same pending grant with a new invitation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FirstAdministratorResponse'
+              examples:
+                default:
+                  value:
+                    grantRef: GRT-00301
+                    status: PENDING
+                    invitationRef: INVN-6A90
+                    invitationCode: Hk8dZ3nQp5Xw2RvL9tB7cYm4sJeA6UfT
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "409":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/first-administrator-invitations/{invitationRef}/accept:
+    post:
+      operationId: acceptFirstAdministratorInvitation
+      summary: Accept the first tenant.admin invitation and activate the grant (INV-FLOW-227 step 3)
+      description: 'The caller must hold a verified end-user token. The identity bound to the grant is the token''s `sub` and never a request field. A wrong code, an expired invitation, an invitation already accepted or withdrawn are each refused and the grant stays as it was. Acceptance activates the grant and emits AuthorityChanged as `grantRole` does.'
+      tags:
+      - grants
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->access-svc
+      x-timeout: 2000
+      x-requirements:
+      - INV-REQ-906
+      x-error-codes: []
+      x-operation:
+        role: The invited first administrator
+        scope: tenant
+        precondition: The invitation is pending, unexpired and not withdrawn
+        reversibility: COMPENSABLE
+        repeatKey: invitationRef — a second acceptance is refused; revokeGrant compensates
+      parameters:
+      - name: invitationRef
+        in: path
+        required: true
+        description: The invitation reference returned with the pending grant.
+        schema:
+          type: string
+          maxLength: 64
+        example: INVN-5E21
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcceptFirstAdministratorInvitationRequest'
+            examples:
+              default:
+                value:
+                  invitationCode: 7Qm2xT9vLk4RpA8sWd3ZcB6nYh1JfU5e
+      responses:
+        "200":
+          description: The grant is ACTIVE and bound to the token's subject
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrantResponse'
+              examples:
+                default:
+                  value:
+                    grantRef: GRT-00301
+                    identityRef: IDN-0102
+                    role: tenant.admin
+                    scope: tenant
+                    status: ACTIVE
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "409":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
   /internal/v1/access/break-glass:
     post:
       operationId: unlockBreakGlass
@@ -2023,6 +2272,65 @@ components:
           - DIRECTORY_GROUPS
           - SCIM
           x-extensible-enum: true
+    FirstAdministratorRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - tenantRef
+      - administratorEmail
+      - invitationExpiresAt
+      properties:
+        tenantRef:
+          type: string
+          maxLength: 64
+          description: The tenant reference control-plane-svc minted (INV-Q-3573).
+        administratorEmail:
+          type: string
+          format: email
+          maxLength: 254
+        invitationExpiresAt:
+          type: string
+          format: date-time
+    FirstAdministratorResponse:
+      type: object
+      required:
+      - grantRef
+      - status
+      - invitationRef
+      - invitationCode
+      properties:
+        grantRef:
+          type: string
+          maxLength: 64
+        status:
+          type: string
+          enum:
+          - PENDING
+        invitationRef:
+          type: string
+          maxLength: 64
+        invitationCode:
+          type: string
+          maxLength: 128
+          description: A one-time code the caller embeds in the signed invitation; access-svc stores only a digest of it.
+    AcceptFirstAdministratorInvitationRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - invitationCode
+      properties:
+        invitationCode:
+          type: string
+          maxLength: 128
+    ReissueFirstAdministratorInvitationRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - invitationExpiresAt
+      properties:
+        invitationExpiresAt:
+          type: string
+          format: date-time
     CreatePrincipalRequest:
       type: object
       required:

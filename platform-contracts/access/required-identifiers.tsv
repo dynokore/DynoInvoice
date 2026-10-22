@@ -8,6 +8,7 @@
 # deployment.operator (roles); access-svc and notification-svc (services); MessageDelivery (a port of notification-svc, INV-REQ-817);
 # MessageRequested (a message name under components.messages of access/asyncapi.yaml, not a properties key, an operationId or an enum member).
 # INV-T-7988. INV-REQ-2756: the backticked names (tenant.admin, a role; access-svc, a service) are not contract elements, so they are not rows.
+# INV-T-8225. INV-AC-8224: the backticked names tenant.admin and commercial.admin are roles, grantRole is a row that exists, and provisionTenant is an operation of the control-plane contract that exists, so they add no row.
 # identifier	kind	file	requirement
 INGEST	enum_value	openapi.yaml	INV-REQ-584
 FILING_WORKFLOW	enum_value	openapi.yaml	INV-REQ-584
@@ -49,3 +50,10 @@ LandingScreenResponse.source	schema_property	openapi.yaml	INV-REQ-2756
 LandingScreenResponse.source.PERSONAL_CHOICE	schema_enum_value	openapi.yaml	INV-REQ-2756
 LandingScreenResponse.source.TENANT_PRECEDENCE	schema_enum_value	openapi.yaml	INV-REQ-2756
 LandingScreenResponse.source.ROLE_ORDER_PRESET	schema_enum_value	openapi.yaml	INV-REQ-2756
+provisionFirstAdministrator	operation	openapi.yaml	INV-REQ-906
+provisionInstallationFirstAdministrator	operation	openapi.yaml	INV-REQ-906
+acceptFirstAdministratorInvitation	operation	openapi.yaml	INV-REQ-906
+reissueFirstAdministratorInvitation	operation	openapi.yaml	INV-REQ-906
+invitationExpiresAt	property	openapi.yaml	INV-REQ-906
+invitationCode	property	openapi.yaml	INV-REQ-906
+administratorEmail	property	openapi.yaml	INV-REQ-906
