@@ -37,6 +37,7 @@ object PlatformEventCatalogue {
     val REPLAY_COMPLETED = replay("ReplayCompleted")
     val PRIVACY_NOTICE_DUE = fixed("PrivacyNoticeDue", "privacy-notice-due")
     val ACCREDITATION_ALERT_RAISED = fixed("AccreditationAlertRaised", "accreditation-alert-raised")
+    val BREAK_GLASS_ALERT_RAISED = fixed("BreakGlassAlertRaised", "break-glass-alert-raised")
 
     /** Every platform event, in INV-REQ-1226 b1's order. */
     val ALL: List<PlatformEvent> =
@@ -52,6 +53,7 @@ object PlatformEventCatalogue {
             REPLAY_COMPLETED,
             PRIVACY_NOTICE_DUE,
             ACCREDITATION_ALERT_RAISED,
+            BREAK_GLASS_ALERT_RAISED,
         )
 
     /** True when [eventType] is a platform event. */

@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test
 import java.time.Instant
 import java.util.UUID
 
-/** The eleven platform events of INV-REQ-1226 b1 (INV-Q-7336): a closed set of exact names. */
+/** The twelve platform events of INV-REQ-1226 b1 (INV-Q-7336, INV-Q-8839): a closed set of exact names. */
 class PlatformClassEventsTest {
     private val json = EnvelopeJson()
     private val tenant = TenantId(UUID.randomUUID())
@@ -26,6 +26,7 @@ class PlatformClassEventsTest {
             "ReplayCompleted",
             "PrivacyNoticeDue",
             "AccreditationAlertRaised",
+            "BreakGlassAlertRaised",
         )
     private val refused =
         listOf(
@@ -33,6 +34,10 @@ class PlatformClassEventsTest {
             "com.dynokore.gst.platform.AccreditationAlertRaisedX.v1",
             "com.dynokore.gst.platform.privacyNoticeDue.v1",
             "com.dynokore.gst.evidence.PrivacyNoticeDue.v1",
+            "com.dynokore.gst.access.BreakGlassAlertRaised.v1",
+            "com.dynokore.gst.platform.BreakGlassAlertRaisedX.v1",
+            "com.dynokore.gst.platform.breakGlassAlertRaised.v1",
+            "com.dynokore.gst.evidence.BreakGlassAlertRaised.v1",
         )
 
     private fun envelope(
@@ -66,6 +71,22 @@ class PlatformClassEventsTest {
     }
 
     @Test
+    fun `INV-AC-8821 BreakGlassAlertRaised is tenant-wide, omits entityref and reads back tenant-wide`() {
+        val e = envelope("com.dynokore.gst.platform.BreakGlassAlertRaised.v1", tenant, EntityRef.TENANT_WIDE)
+        val text = json.write(e)
+        assertFalse(text.contains("entityref"), text)
+        assertEquals(e, json.read(text))
+        assertEquals(EntityRef.TENANT_WIDE, json.read(text).entity)
+    }
+
+    @Test
+    fun `INV-AC-8821 BreakGlassAlertRaised look-alike, case and other-package types are refused`() {
+        refused.takeLast(4).forEach {
+            assertThrows(IllegalArgumentException::class.java, { envelope(it, tenant, EntityRef.TENANT_WIDE) }, it)
+        }
+    }
+
+    @Test
     fun `INV-AC-2340 AccreditationAlertRaised is tenantless and reads back as the platform pair`() {
         val type = "com.dynokore.gst.platform.AccreditationAlertRaised.v1"
         val e = envelope(type, TenantId.PLATFORM, EntityRef.PLATFORM)
@@ -89,13 +110,13 @@ class PlatformClassEventsTest {
 
     @Test
     fun `INV-AC-1404 look-alike and other-package types are refused with the tenant-wide entity`() {
-        refused.drop(2).forEach {
+        refused.subList(2, 4).forEach {
             assertThrows(IllegalArgumentException::class.java, { envelope(it, tenant, EntityRef.TENANT_WIDE) }, it)
         }
     }
 
     @Test
-    fun `isPlatformType is true for exactly the eleven platform types and false for the refusal types`() {
+    fun `isPlatformType is true for exactly the twelve platform types and false for the refusal types`() {
         names.forEach { assertTrue(Envelope.isPlatformType("com.dynokore.gst.platform.$it.v1"), it) }
         refused.forEach { assertFalse(Envelope.isPlatformType(it), it) }
     }

@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.3.0] - 2026-10-23
+### Added
+- `Envelope` platform class gains `BreakGlassAlertRaised`, the twelve platform events of INV-REQ-1226 (INV-Q-8839, INV-T-8826).
+
 ## [6.2.2] - 2026-10-20
 ### Changed
 - Metadata-only release (INV-T-7520, G-DVS): depends on `tenancy-kernel 4.1.0`, whose published module metadata changed; no code change.
