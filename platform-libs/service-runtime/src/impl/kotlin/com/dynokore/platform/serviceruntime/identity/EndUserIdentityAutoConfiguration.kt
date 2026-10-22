@@ -100,12 +100,30 @@ class EndUserIdentityAutoConfiguration {
             urlPatterns = listOf("/*")
         }
 
-    private companion object {
+    /**
+     * Refuses a body `entityRef` outside the principal's entity set for the operations the contract marks with
+     * `x-entity-ref` (API-24; INV-Q-8513), after the principal is bound (-50).
+     */
+    @Bean
+    fun entityRefScopeFilter(resources: ResourceLoader): FilterRegistrationBean<EntityRefScopeFilter> =
+        FilterRegistrationBean(
+            EntityRefScopeFilter.from(
+                checkNotNull(resources.classLoader) { "no class loader to read the contract resources" },
+            ),
+        ).apply {
+            order = ORDER_ENTITY_REF_SCOPE
+            urlPatterns = listOf("/*")
+        }
+
+    companion object {
+        /** After the binding of the end-user principal. */
+        const val ORDER_ENTITY_REF_SCOPE = -45
+
         /** After the end-user token capture (-70), before any handler. */
-        const val ORDER_OPERATOR_SESSION = -60
+        private const val ORDER_OPERATOR_SESSION = -60
 
         /** After the operator session binding. */
-        const val ORDER_END_USER_BINDING = -50
+        private const val ORDER_END_USER_BINDING = -50
     }
 }
 

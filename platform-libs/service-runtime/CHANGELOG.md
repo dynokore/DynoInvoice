@@ -6,6 +6,11 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.6.0] - 2026-10-22
+### Added
+- `EntityRefScopeFilter` (order `EndUserIdentityAutoConfiguration.ORDER_ENTITY_REF_SCOPE` = -45, `/*`): for an operation listed in `META-INF/gst/entity-ref-operations.tsv` (`<METHOD><TAB><path template><TAB><property>`) it refuses with 403 SRT-004, the handler not called, a body property that is a string outside the principal's entity set (or any string while `entitySetCurrent` is false); a body that is not one JSON object, is over `MAX_BODY_BYTES` (1048576), repeats the property or holds it as a non-string is 400 SRT-001; an absent property continues; no principal is 401 SRT-003; the handler reads the same body bytes. A request matching no line is not touched; of several matching lines the serving operation's line decides, a concrete segment beating a templated one (the resolver is shared with `SyncEdgeCallerFilter` in an internal type, no behaviour change there); a malformed line, one operation with two properties or equally specific templates stop the start-up, identical lines count as one (INV-T-8522; INV-Q-8544; coordinator ruling INV-Q-8513 A; INV-AC-8515).
+- `EndUserPrincipalBindingFilter.PRINCIPAL_ATTRIBUTE`: the request attribute that holds the resolved principal, removed first on every request. Additive for a service that does not raise the resource: no request is touched.
+
 ## [10.5.0] - 2026-10-22
 ### Added
 - `ServiceCaller` (api half): `current()` is the calling service of the current request or null, read from the verified `X-Workload-Token` only; it has no method that takes a service name. `WorkloadIdentityProperties.callers` (`service-runtime.workload-identity.callers`, a list of `WorkloadCaller(service, subject)`, default empty) maps a verified subject to a service name by equality; a malformed or repeated entry stops the start-up. `WorkloadTokenAuthenticationFilter` removes then sets the request attribute `ServiceCaller.REQUEST_ATTRIBUTE` (its 401 and order -90 are unchanged).

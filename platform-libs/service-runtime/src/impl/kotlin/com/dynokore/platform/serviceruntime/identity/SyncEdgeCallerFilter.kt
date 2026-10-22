@@ -11,8 +11,6 @@ import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.slf4j.LoggerFactory
 import org.springframework.http.server.PathContainer
-import org.springframework.web.util.pattern.PathPattern
-import org.springframework.web.util.pattern.PathPatternParser
 import java.net.URL
 import java.nio.charset.StandardCharsets
 import java.util.UUID
@@ -46,20 +44,9 @@ sealed interface EdgeCallers {
  * but differ, or that name the same operation with different callers, stop the start-up; identical lines count as one.
  */
 class SyncEdgeCallerFilter private constructor(
-    parsed: List<Line>,
+    parsed: List<OperationLine<EdgeCallers>>,
 ) : Filter {
-    private val lines: List<Line> = resolve(parsed)
-
-    private class Line(
-        val method: String,
-        val template: String,
-        val pattern: PathPattern,
-        val callers: EdgeCallers,
-    ) {
-        /** The path segments; one containing `{` is templated. */
-        val segments: List<String> = template.split('/')
-        val concrete: Set<Int> = segments.indices.filterNot { '{' in segments[it] }.toSet()
-    }
+    private val lines = OperationLines.of(parsed, RESOURCE, "callers") { a, b -> same(a, b) }
 
     private val log = LoggerFactory.getLogger(SyncEdgeCallerFilter::class.java)
 
@@ -76,14 +63,12 @@ class SyncEdgeCallerFilter private constructor(
         }
         val caller = http.getAttribute(ServiceCaller.REQUEST_ATTRIBUTE) as? String
         val container = PathContainer.parsePath(path)
-        val matching = lines.filter { it.method == http.method && it.pattern.matches(container) }
-        // Equal-specificity lines cannot both exist (start-up check), so the most concrete segments identify the line.
-        val serving = matching.maxByOrNull { it.concrete.size }
-        if (serving != null && allows(serving.callers, caller)) {
+        val serving = lines.serving(http.method, container)
+        if (serving != null && allows(serving.payload, caller)) {
             chain.doFilter(request, response)
             return
         }
-        val expected = serving?.let { describe(it.callers) } ?: "no line"
+        val expected = serving?.let { describe(it.payload) } ?: "no line"
         log.warn("sync-edge caller refused: {} {} expects {}", http.method, path, expected)
         val correlation = CorrelationContext.currentCorrelationId()?.value ?: "http:${UUID.randomUUID()}"
         refuse(response as HttpServletResponse, Problems.accessDenied(correlation))
@@ -122,39 +107,6 @@ class SyncEdgeCallerFilter private constructor(
         private const val EXCEPT = "any-except:"
         private val SERVICE = WorkloadIdentityProperties.SERVICE_NAME
 
-        /**
-         * One line per operation. Same method and same template up to variable names: identical callers are one line,
-         * different callers stop the start-up. Different templates that can match one path (same length, every
-         * segment equal or one of the two templated) need one to be concrete wherever the other is: otherwise neither
-         * is more specific and the start-up stops.
-         */
-        private fun resolve(parsed: List<Line>): List<Line> {
-            val kept = mutableListOf<Line>()
-            for (line in parsed) {
-                var duplicate = false
-                for (other in kept.filter { it.method == line.method && it.segments.size == line.segments.size }) {
-                    val differing =
-                        line.segments.indices.filter { line.segments[it] != other.segments[it] }
-                    val compatible = differing.all { it !in line.concrete || it !in other.concrete }
-                    if (!compatible) continue
-                    val sameShape = line.concrete == other.concrete
-                    if (sameShape) {
-                        check(same(line.callers, other.callers)) {
-                            "$RESOURCE: ${line.method} ${line.template} and ${other.template}: " +
-                                "the same operation with different callers"
-                        }
-                        duplicate = true
-                    } else {
-                        check(line.concrete.containsAll(other.concrete) || other.concrete.containsAll(line.concrete)) {
-                            "$RESOURCE: ${line.method} ${line.template} and ${other.template} are equally specific"
-                        }
-                    }
-                }
-                if (!duplicate) kept += line
-            }
-            return kept
-        }
-
         private fun same(
             a: EdgeCallers,
             b: EdgeCallers,
@@ -176,12 +128,12 @@ class SyncEdgeCallerFilter private constructor(
         private fun parse(
             origin: String,
             line: String,
-        ): Line {
+        ): OperationLine<EdgeCallers> {
             val parts = line.split('\t')
             check(parts.size == 3) { "$origin: a line needs exactly 3 TAB-separated fields" }
             check(parts[0].isNotEmpty()) { "$origin: the method is empty" }
             check(parts[1].startsWith("/")) { "$origin: the path must start with /" }
-            return Line(parts[0], parts[1], PathPatternParser().parse(parts[1]), callers(origin, parts[2]))
+            return OperationLine(parts[0], parts[1], callers(origin, parts[2]))
         }
 
         private fun callers(

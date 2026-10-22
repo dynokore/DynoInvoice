@@ -43,6 +43,7 @@ class EndUserPrincipalBindingFilter(
         chain: FilterChain,
     ) {
         val http = request as HttpServletRequest
+        http.removeAttribute(PRINCIPAL_ATTRIBUTE)
         if (untouched.matches(http.method, http.requestURI.removePrefix(http.contextPath.orEmpty()))) {
             chain.doFilter(request, response)
             return
@@ -59,11 +60,18 @@ class EndUserPrincipalBindingFilter(
                 return
             }
         val tenant = principal?.tenant
+        if (principal != null) http.setAttribute(PRINCIPAL_ATTRIBUTE, principal)
         when {
             principal == null -> refuse(response as HttpServletResponse, Problems.unauthenticated(correlation))
             tenant == null -> chain.doFilter(request, response)
             else -> tenants.getObject().bind(tenant, principal.actor) { chain.doFilter(request, response) }
         }
+    }
+
+    companion object {
+        /** The request attribute that holds the resolved [EndUserPrincipal] for a later filter; cleared first on every request. */
+        const val PRINCIPAL_ATTRIBUTE =
+            "com.dynokore.platform.serviceruntime.identity.EndUserPrincipalBindingFilter.principal"
     }
 
     private fun refuse(
