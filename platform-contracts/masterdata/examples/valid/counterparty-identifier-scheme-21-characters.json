@@ -1,0 +1,10 @@
+{
+  "partyRef": "CTP-118",
+  "resolvedIdentifiers": [
+    {
+      "scheme": "PEPPOL_PARTICIPANT_ID",
+      "value": "0195:201954321B"
+    }
+  ],
+  "providedBy": "INTERNAL"
+}

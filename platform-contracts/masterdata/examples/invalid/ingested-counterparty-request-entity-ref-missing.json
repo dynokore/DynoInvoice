@@ -1,0 +1,10 @@
+{
+  "evidenceRef": "EVD-2201",
+  "providedBy": "COUNTERPARTY",
+  "resolvedIdentifiers": [
+    {
+      "scheme": "UEN",
+      "value": "201954321B"
+    }
+  ]
+}

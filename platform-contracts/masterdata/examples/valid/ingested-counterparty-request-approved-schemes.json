@@ -1,0 +1,20 @@
+{
+  "entityRef": "E-001",
+  "evidenceRef": "EVD-2201",
+  "providedBy": "COUNTERPARTY",
+  "resolvedIdentifiers": [
+    {
+      "scheme": "UEN",
+      "value": "201954321B"
+    }
+  ],
+  "arcsGstChargeAgreed": true,
+  "approvedSchemes": [
+    {
+      "scheme": "MES",
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": "2026-12-31",
+      "evidenceRef": "EVD-2201"
+    }
+  ]
+}

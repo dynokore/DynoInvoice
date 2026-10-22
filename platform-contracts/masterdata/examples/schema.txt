@@ -15,3 +15,4 @@
 ../openapi.yaml#/components/schemas/CounterpartyAddress address-*.json
 ../openapi.yaml#/components/schemas/CounterpartyHistory history-*.json
 ../openapi.yaml#/components/schemas/CounterpartyVersion version-*.json
+../openapi.yaml#/components/schemas/IngestedCounterpartyRequest ingested-counterparty-request-*.json

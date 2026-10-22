@@ -1,0 +1,11 @@
+{
+  "entityRef": "E-001",
+  "evidenceRef": "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE",
+  "providedBy": "COUNTERPARTY",
+  "resolvedIdentifiers": [
+    {
+      "scheme": "UEN",
+      "value": "201954321B"
+    }
+  ]
+}

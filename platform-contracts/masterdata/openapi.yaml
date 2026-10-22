@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: masterdata API
-  version: 1.6.0
+  version: 1.7.0
   description: >-
     Contract-first source of truth for masterdata (API-01, STK-44). The
     `masterdata-contract` module generates its server interfaces and DTOs
@@ -75,13 +75,32 @@ paths:
           in: query
           required: true
           schema: { type: string, maxLength: 40 }
+        - name: partyRef
+          in: query
+          required: false
+          description: >-
+            The counterparty's party reference (INV-REQ-808). Exactly one of
+            `partyRef` or the pair `partyScheme` and `partyValue` names the
+            counterparty. `partyRef` together with either of the pair,
+            `partyScheme` without `partyValue`, and `partyValue` without
+            `partyScheme` are each refused with `400` and `SRT-001`; none of
+            them returns the identity triple only.
+          schema: { type: string, maxLength: 40 }
         - name: partyScheme
           in: query
           required: false
-          schema: { type: string, maxLength: 20 }
+          description: >-
+            Identifier scheme, a free string (no enum), for example UEN, GSTN,
+            PEPPOL_PARTICIPANT_ID, OVERSEAS_REGISTRATION or NONE. Sent
+            together with `partyValue`; `partyScheme` alone answers `400` and
+            `SRT-001`.
+          schema: { type: string, maxLength: 32 }
         - name: partyValue
           in: query
           required: false
+          description: >-
+            Identifier value. Sent together with `partyScheme`; `partyValue`
+            alone answers `400` and `SRT-001`.
           schema: { type: string, maxLength: 64 }
         - name: transactionDate
           in: query
@@ -99,6 +118,10 @@ paths:
                   value:
                     identityTriple: { senderId: "0195:201912345A", supplierId: "0195:201912345A", supplierGstn: "201912345A" }
                     counterparty: { partyRef: "CTP-118", resolvedIdentifiers: [{ scheme: "UEN", value: "201954321B" }], providedBy: "INTERNAL" }
+                individual-by-party-ref:
+                  value:
+                    identityTriple: { senderId: "0195:201912345A", supplierId: "0195:201912345A", supplierGstn: "201912345A" }
+                    counterparty: { partyRef: "CTP-120", resolvedIdentifiers: [{ scheme: "NONE", value: "NA" }], providedBy: "INTERNAL" }
                 blocked:
                   value:
                     identityTriple: { senderId: "0195:201912345A", supplierId: "0195:201912345A", supplierGstn: "201912345A" }
@@ -347,6 +370,7 @@ paths:
             examples:
               default:
                 value:
+                  entityRef: "E-001"
                   resolvedIdentifiers: [{ scheme: "UEN", value: "201954321B" }]
                   evidenceRef: "EVD-2201"
       responses:
@@ -359,6 +383,63 @@ paths:
               examples:
                 default:
                   value: { partyRef: "CTP-118", resolvedIdentifiers: [{ scheme: "UEN", value: "201954321B" }], providedBy: "INTERNAL" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/masterdata/counterparties/{counterpartyRef}/ingested-details:
+    post:
+      operationId: recordIngestedCounterparty
+      summary: Record the counterparty object of an ingested document
+      description: >-
+        Write path of the ingestion counterparty object to canonical-svc
+        (sync-edges.yaml `canonical-svc -> masterdata-svc`; INV-REQ-2445,
+        INV-REQ-2433). The value is stored as a new version with the supplied
+        provenance and evidence reference. `MasterDataResolved` is emitted like
+        `resolveMasterDataGap`, with the request's `entityRef` as `entityref`.
+        The approved scheme status is never inferred from a document.
+        `evidenceRef` is supplied by canonical-svc: the ingestion value, else
+        the Doc UUID. `providedBy` `MIGRATED` is schema-invalid (INV-REQ-808
+        behavior 5).
+      tags: [resolution]
+      x-principal: ingest
+      x-sync-edge: canonical-svc->masterdata-svc
+      x-timeout: 300
+      x-error-codes: []
+      x-requirements: [INV-REQ-2445, INV-REQ-2433]
+      x-operation:
+        role: ingest
+        scope: entity
+        precondition: "None: the values are stored as supplied and never validated as a precondition (masterdata-svc must_not)."
+        reversibility: UNDOABLE
+        repeatKey: "counterpartyRef and Idempotency-Key: a repeat of the same key changes nothing."
+      parameters:
+        - name: counterpartyRef
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngestedCounterpartyRequest'
+            examples:
+              default:
+                value:
+                  entityRef: "E-001"
+                  evidenceRef: "EVD-2201"
+                  providedBy: "COUNTERPARTY"
+                  resolvedIdentifiers: [{ scheme: "UEN", value: "201954321B" }]
+      responses:
+        '200':
+          description: The counterparty, stored as a new version.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Counterparty'
+              examples:
+                default:
+                  value: { partyRef: "CTP-118", resolvedIdentifiers: [{ scheme: "UEN", value: "201954321B" }], providedBy: "COUNTERPARTY" }
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/masterdata/counterparties/{counterpartyRef}/history:
@@ -1532,7 +1613,11 @@ components:
           items:
             type: object
             properties:
-              scheme: { type: string, maxLength: 20 }
+              scheme:
+                type: string
+                maxLength: 32
+                description: >-
+                  Identifier scheme, a free string (no enum), for example UEN, GSTN, PEPPOL_PARTICIPANT_ID, OVERSEAS_REGISTRATION or NONE.
               value: { type: string, maxLength: 64 }
               provenance:
                 type: object
@@ -1567,12 +1652,25 @@ components:
     ResolveCounterpartyRequest:
       type: object
       properties:
+        entityRef:
+          type: string
+          maxLength: 40
+          description: >-
+            The entity the resolution belongs to (INV-NOTE-11 API-24). It is
+            the `entityref` attribute of the `MasterDataResolved` event.
+            `resolveMasterDataGap` is refused with `400` and `SRT-001` when
+            `entityRef` is absent; a value outside the token's scope returns
+            `403`.
         resolvedIdentifiers:
           type: array
           items:
             type: object
             properties:
-              scheme: { type: string, maxLength: 20 }
+              scheme:
+                type: string
+                maxLength: 32
+                description: >-
+                  Identifier scheme, a free string (no enum), for example UEN, GSTN, PEPPOL_PARTICIPANT_ID, OVERSEAS_REGISTRATION or NONE.
               value: { type: string, maxLength: 64 }
             required: [scheme, value]
         evidenceRef: { type: string, maxLength: 64 }
@@ -1585,6 +1683,39 @@ components:
           items:
             $ref: '#/components/schemas/ApprovedScheme'
       required: [resolvedIdentifiers, evidenceRef]
+    IngestedCounterpartyRequest:
+      type: object
+      description: >-
+        The counterparty object of an ingested document (INV-REQ-2445). The
+        caller values of `providedBy` are COUNTERPARTY and INTERNAL; `MIGRATED`
+        is set only by an import (INV-REQ-808 behavior 5).
+      properties:
+        entityRef: { type: string, maxLength: 40 }
+        evidenceRef: { type: string, maxLength: 64 }
+        providedBy:
+          type: string
+          enum: [COUNTERPARTY, INTERNAL]
+        resolvedIdentifiers:
+          type: array
+          items:
+            type: object
+            properties:
+              scheme:
+                type: string
+                maxLength: 32
+                description: >-
+                  Identifier scheme, a free string (no enum), for example UEN, GSTN, PEPPOL_PARTICIPANT_ID, OVERSEAS_REGISTRATION or NONE.
+              value: { type: string, maxLength: 64 }
+            required: [scheme, value]
+        legalName: { type: string, maxLength: 200 }
+        address:
+          $ref: '#/components/schemas/CounterpartyAddress'
+        arcsGstChargeAgreed: { type: boolean }
+        approvedSchemes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApprovedScheme'
+      required: [entityRef, evidenceRef, providedBy]
     BulkResolveRequest:
       type: object
       properties:
@@ -1601,7 +1732,11 @@ components:
           items:
             type: object
             properties:
-              scheme: { type: string, maxLength: 20 }
+              scheme:
+                type: string
+                maxLength: 32
+                description: >-
+                  Identifier scheme, a free string (no enum), for example UEN, GSTN, PEPPOL_PARTICIPANT_ID, OVERSEAS_REGISTRATION or NONE.
               value: { type: string, maxLength: 64 }
             required: [scheme, value]
         evidenceRef: { type: string, maxLength: 64 }

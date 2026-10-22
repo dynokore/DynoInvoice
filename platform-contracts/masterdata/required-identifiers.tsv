@@ -104,3 +104,7 @@ current	property	openapi.yaml	INV-REQ-2576
 counterparty	property	openapi.yaml	INV-REQ-2576
 ResolutionFinding.code	schema_property	openapi.yaml	INV-REQ-315
 CounterpartyVersion.version	schema_property	openapi.yaml	INV-REQ-2576
+recordIngestedCounterparty	operation	openapi.yaml	INV-REQ-2445
+IngestedCounterpartyRequest.entityRef	schema_property	openapi.yaml	INV-REQ-2445
+ResolveCounterpartyRequest.entityRef	schema_property	openapi.yaml	INV-REQ-2433
+partyRef	query_parameter	openapi.yaml	INV-REQ-808
