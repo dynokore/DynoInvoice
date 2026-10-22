@@ -56,3 +56,8 @@ POST /internal/v1/transport/payloads removed the request property `adapterRef`
 POST /internal/v1/transport/payloads removed the request property `payloadRef`
 # INV-Q-8172 (INV-T-8174), on INV-Q-3569 (A) and INV-Q-4534 (A): SubmitPayloadRequest gains the required entityRef; no train lists the transport contract and no consumer is deployed.
 POST /internal/v1/transport/payloads added the new required request property `entityRef`
+# INV-Q-8507 A on INV-Q-8482 A (INV-T-8488): the identifier `scheme` widens from maxLength 20 to 32 in the Counterparty response schema; ruled for these four findings only.
+GET /internal/v1/masterdata/counterparties/resolution the `counterparty/resolvedIdentifiers/items/scheme` response property's maxLength was increased from `20` to `32` for the response status `200`
+GET /internal/v1/masterdata/counterparties/{counterpartyRef}/history the `items/items/counterparty/resolvedIdentifiers/items/scheme` response property's maxLength was increased from `20` to `32` for the response status `200`
+POST /internal/v1/masterdata/counterparties/{counterpartyRef}/resolution the `resolvedIdentifiers/items/scheme` response property's maxLength was increased from `20` to `32` for the response status `200`
+POST /internal/v1/masterdata/counterparty-requests/{requestId}/submission the `resolvedIdentifiers/items/scheme` response property's maxLength was increased from `20` to `32` for the response status `200`
