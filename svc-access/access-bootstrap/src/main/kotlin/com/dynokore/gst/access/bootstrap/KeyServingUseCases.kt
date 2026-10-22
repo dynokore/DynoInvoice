@@ -14,7 +14,7 @@ import com.dynokore.platform.serviceruntime.binding.SecretRef
 import com.dynokore.platform.serviceruntime.binding.SecretStore
 import com.dynokore.platform.serviceruntime.identity.WorkloadPrincipal
 import com.dynokore.platform.serviceruntime.identity.WorkloadTokenVerifier
-import com.dynokore.platform.tenancykernel.TenantContext
+import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import jakarta.servlet.http.HttpServletRequest
 import org.jooq.DSLContext
@@ -34,7 +34,7 @@ import java.time.Clock
 class KeyServingUseCases {
     @Bean
     fun platformReads(
-        tenants: TenantContext,
+        tenants: PlatformTenantBinding,
         tx: TransactionRunner,
         environment: Environment,
     ) = PlatformReads(tenants, tx, WorkloadPrincipal(environment.getRequiredProperty("gst.service")).value)

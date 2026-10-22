@@ -67,8 +67,10 @@ open class PrincipalsController(
                 ?: GrantRequests.invalid("principalType is not one of the six issuable types")
         // the scope must be one the service can read; its grammar is the one of grantRole, plus the literal
         // `installation` for a MONITORING principal (INV-Q-8779 A)
-        val parsed = GrantRequests.scopeOf(createPrincipalRequest.scope, tenant)
-        if (!PrincipalScopes.accepts(type, createPrincipalRequest.scope, parsed != null)) {
+        val tenantOrEntity =
+            !PrincipalScopes.isInstallation(createPrincipalRequest.scope) &&
+                GrantRequests.scopeOf(createPrincipalRequest.scope, tenant) != null
+        if (!PrincipalScopes.accepts(type, createPrincipalRequest.scope, tenantOrEntity)) {
             GrantRequests.invalid("the scope is not one a ${type.name} principal may carry")
         }
         val outcome =
@@ -205,11 +207,11 @@ open class PrincipalsController(
         if (!manager.mayManageGrants()) throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
     }
 
-    private fun jwkFields(jwk: Any): Map<String, String> = mapper.convertValue(jwk, JWK_FIELDS)
+    private fun jwkFields(jwk: Any): Map<String, String?> = mapper.convertValue(jwk, JWK_FIELDS)
 
     /** The public JWK as JSON text, or null when the request carries none. */
-    private fun jwkText(fields: Map<String, String>?): String? =
-        fields?.filterValues { it.isNotEmpty() }?.let { mapper.writeValueAsString(it) }
+    private fun jwkText(fields: Map<String, String?>?): String? =
+        fields?.filterValues { !it.isNullOrEmpty() }?.let { mapper.writeValueAsString(it) }
 
     private fun responseOf(
         principal: ServicePrincipal,
@@ -237,6 +239,6 @@ open class PrincipalsController(
     )
 
     private companion object {
-        val JWK_FIELDS = object : tools.jackson.core.type.TypeReference<Map<String, String>>() {}
+        val JWK_FIELDS = object : tools.jackson.core.type.TypeReference<Map<String, String?>>() {}
     }
 }

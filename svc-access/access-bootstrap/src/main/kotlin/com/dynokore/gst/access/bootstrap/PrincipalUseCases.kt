@@ -25,6 +25,7 @@ import com.dynokore.gst.access.domain.principal.MachinePermissionSets
 import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.serviceruntime.identity.WorkloadPrincipal
+import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
@@ -80,7 +81,7 @@ class PrincipalUseCases {
     @Bean
     fun revocationListWriter(
         dsl: DSLContext,
-        tenants: TenantContext,
+        tenants: PlatformTenantBinding,
         tx: TransactionRunner,
         environment: Environment,
         clock: Clock,

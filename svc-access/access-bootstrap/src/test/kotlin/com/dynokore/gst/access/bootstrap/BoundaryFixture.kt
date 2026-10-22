@@ -57,15 +57,21 @@ import java.util.concurrent.CopyOnWriteArrayList
 class MovableClock : Clock() {
     @Volatile private var offset: Duration = Duration.ZERO
 
+    @Volatile private var frozenAt: Instant? = null
+
     fun advance(by: Duration) {
         offset = offset.plus(by)
+        frozenAt = frozenAt?.plus(by)
     }
+
+    /** Stops the clock at its present reading, so a test can state an instant exactly; [advance] still moves it. */
+    fun freeze(): Instant = Instant.now().plus(offset).also { frozenAt = it }
 
     override fun getZone(): java.time.ZoneId = ZoneOffset.UTC
 
     override fun withZone(zone: java.time.ZoneId?): Clock = this
 
-    override fun instant(): Instant = Instant.now().plus(offset)
+    override fun instant(): Instant = frozenAt ?: Instant.now().plus(offset)
 }
 
 /** The permission names and rows of the tests. Test data: the production catalogue is empty until it is ruled. */

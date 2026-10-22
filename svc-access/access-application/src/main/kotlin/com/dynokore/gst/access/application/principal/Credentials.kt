@@ -208,7 +208,7 @@ class RotatePrincipalUseCase(
                     limited
                 }
             audit.record(
-                GrantAuditEntry(actor, "rotatePrincipal", "principal:$ref", null, """{"method":"${request.method}"}"""),
+                GrantAuditEntry(actor, "rotatePrincipal", "principal:$ref", "method ${request.method}", null),
             )
             RotatePrincipalOutcome.Rotated(principal, issued, previous.lastOrNull())
         }
@@ -243,7 +243,13 @@ class WithdrawCredentialUseCase(
             if (after !== current) {
                 credentials.update(principalRef, current, after)
                 audit.record(
-                    GrantAuditEntry(actor, "withdrawCredential", "principal:$principalRef", null, credentialRef),
+                    GrantAuditEntry(
+                        actor,
+                        "withdrawCredential",
+                        "principal:$principalRef",
+                        "credential $credentialRef",
+                        """{"status":"${current.status}"}""",
+                    ),
                 )
             }
             WithdrawCredentialOutcome.Withdrawn(principal, after)

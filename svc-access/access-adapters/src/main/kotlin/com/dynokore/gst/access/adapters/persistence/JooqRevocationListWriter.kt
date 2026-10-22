@@ -6,8 +6,7 @@ import com.dynokore.gst.access.application.principal.RevocationListWriter
 import com.dynokore.gst.access.domain.revocation.RevocationEntry
 import com.dynokore.gst.access.domain.revocation.RevocationKind
 import com.dynokore.platform.outboxandqueue.UuidV7
-import com.dynokore.platform.tenancykernel.TenantContext
-import com.dynokore.platform.tenancykernel.TenantId
+import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
 import java.time.Clock
@@ -16,20 +15,20 @@ import java.time.ZoneOffset
 /**
  * INV-Q-8785 A. The revocation list is platform data (rows of the reserved platform tenant under forced row-level
  * security, whose migration is unchanged), so the entry is written in a transaction of its own bound to the platform
- * tenant. The head row is locked first, which serialises writers; the version is head + 1; one PRINCIPAL entry is
+ * tenant (`PlatformTenantBinding.bindPlatform`: `TenantContext.bind` refuses the platform tenant, INV-Q-2927). The head row is locked first, which serialises writers; the version is head + 1; one PRINCIPAL entry is
  * inserted unless an entry of the same principal is still inside the live window (then nothing changes, the head
  * included).
  */
 class JooqRevocationListWriter(
     private val dsl: DSLContext,
-    private val tenants: TenantContext,
+    private val tenants: PlatformTenantBinding,
     private val tx: TransactionRunner,
     private val actor: String,
     private val clock: Clock,
     private val ids: UuidV7 = UuidV7(),
 ) : RevocationListWriter {
     override fun recordPrincipalRevoked(principalRef: String) {
-        tenants.bind(TenantId.PLATFORM, actor) {
+        tenants.bindPlatform(actor) {
             tx.inTransaction {
                 val now = clock.instant()
                 // the head row exists from the first revocation on; the insert is a no-op afterwards

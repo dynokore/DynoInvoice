@@ -9,8 +9,7 @@ import com.dynokore.gst.access.application.keys.VerificationKeyStore
 import com.dynokore.gst.access.domain.revocation.RevocationEntry
 import com.dynokore.gst.access.domain.revocation.RevocationKind
 import com.dynokore.gst.access.domain.revocation.VerificationKey
-import com.dynokore.platform.tenancykernel.TenantContext
-import com.dynokore.platform.tenancykernel.TenantId
+import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
 import org.jooq.impl.DSL
@@ -22,11 +21,11 @@ import java.time.ZoneOffset
  * (platform data, not tenant data; the rows carry the reserved platform tenant). Each call is one consistent snapshot.
  */
 class PlatformReads(
-    private val tenants: TenantContext,
+    private val tenants: PlatformTenantBinding,
     private val tx: TransactionRunner,
     private val actor: String,
 ) {
-    fun <T> read(block: () -> T): T = tenants.bind(TenantId.PLATFORM, actor) { tx.inTransaction(block) }
+    fun <T> read(block: () -> T): T = tenants.bindPlatform(actor) { tx.inTransaction(block) }
 }
 
 class JooqRevocationStore(
