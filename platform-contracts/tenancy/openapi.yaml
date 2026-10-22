@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 1.9.0
+  version: 1.10.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -130,6 +130,21 @@ paths:
               default:
                 value:
                   box4Figures: '1250000.00'
+                  asOfDate: "2026-01-01"
+              returns:
+                summary: Three returns ending January, April and July, with extrapolation chosen
+                value:
+                  returns:
+                  - periodStart: "2024-11-01"
+                    periodEnd: "2025-01-31"
+                    box4Figures: '300000.00'
+                  - periodStart: "2025-02-01"
+                    periodEnd: "2025-04-30"
+                    box4Figures: '310000.00'
+                  - periodStart: "2025-05-01"
+                    periodEnd: "2025-07-31"
+                    box4Figures: '320000.00'
+                  extrapolate: true
                   asOfDate: "2026-01-01"
       responses:
         "200":
@@ -2561,16 +2576,43 @@ components:
     AssessPhaseRequest:
       type: object
       required:
-      - box4Figures
       - asOfDate
       properties:
         box4Figures:
           type: string
           format: decimal
           pattern: ^-?\d{1,17}(\.\d{1,2})?$
+          description: Total Box 4 figures. Exactly one of box4Figures and returns is expected; the service refuses a request with both or neither with 400.
         asOfDate:
           type: string
           format: date
+        returns:
+          type: array
+          maxItems: 12
+          items:
+            $ref: '#/components/schemas/PhaseAssessmentReturn'
+          description: The entity's GST returns for the prescribed accounting periods ending in calendar year 2025 (INV-REQ-334 b1). Exactly one of box4Figures and returns is expected; the service refuses a request with both or neither with 400.
+        extrapolate:
+          type: boolean
+          default: false
+          description: The business's choice to extrapolate where the returns cover fewer than 365 days, recorded as an input (INV-REQ-334 b3).
+    PhaseAssessmentReturn:
+      type: object
+      required:
+      - periodStart
+      - periodEnd
+      - box4Figures
+      properties:
+        periodStart:
+          type: string
+          format: date
+        periodEnd:
+          type: string
+          format: date
+        box4Figures:
+          type: string
+          format: decimal
+          pattern: ^-?\d{1,17}(\.\d{1,2})?$
     PhaseAssessmentResponse:
       type: object
       required:
@@ -2587,10 +2629,42 @@ components:
           - PHASE_1
           - PHASE_2
           - PHASE_3
+          - PHASE_4
+          - PHASE_5
+          - PHASE_6
           x-extensible-enum: true
         implementationDate:
           type: string
           format: date
+          description: The mandatory date of the phase (INV-NOTE-2 section 2.2.1).
+        totalAnnualSupplies:
+          type: string
+          format: decimal
+          pattern: ^-?\d{1,17}(\.\d{1,2})?$
+          description: Total annual supplies after extrapolation, rounded to 2 decimals half up (INV-REQ-334 b2, b3).
+        inputs:
+          type: object
+          description: The inputs used, recorded with the result (INV-REQ-334 b5).
+          properties:
+            windowStart:
+              type: string
+              format: date
+            windowEnd:
+              type: string
+              format: date
+            daysCovered:
+              type: integer
+              minimum: 1
+            extrapolated:
+              type: boolean
+            summedBox4Figures:
+              type: string
+              format: decimal
+              pattern: ^-?\d{1,17}(\.\d{1,2})?$
+            returns:
+              type: array
+              items:
+                $ref: '#/components/schemas/PhaseAssessmentReturn'
     CertifySandboxRequest:
       type: object
       required:
@@ -3084,10 +3158,14 @@ components:
           type: string
           maxLength: 200
           description: Reference to the evidence of the Excluded Business determination; required whenever excludedBusinessStatus is present (INV-REQ-333 b1).
+        registrationStartDate:
+          type: string
+          format: date
+          description: The date GST registration takes effect, an input of the obligation start (INV-REQ-335); the service derives obligationStartDate (INV-Q-8733).
         obligationStartDate:
           type: string
           format: date
-          description: The later of the registration start date and the implementation date (INV-REQ-335).
+          description: The later of the registration start date and the implementation date (INV-REQ-335). When registrationStartDate is present the service derives the stored value and refuses a differing supplied value with 400.
         obligationStartBasis:
           type: string
           enum:
@@ -3178,6 +3256,9 @@ components:
           maxLength: 100
         obligationStartOverride:
           type: boolean
+        registrationStartDate:
+          type: string
+          format: date
     SetIssuanceModeRequest:
       type: object
       required:

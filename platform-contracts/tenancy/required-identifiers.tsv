@@ -17,6 +17,7 @@
 # commercial.admin (a role); goLive, offboardTenant, createEntity, certifySandbox (rows that exist); `tenant not open` (a phrase, not an identifier).
 # INV-T-8178 adds three rows (INV-REQ-8100): closeTenant, CloseTenantRequest.scheduleRef and CloseTenantRequest.retentionCustodyHolder. The other names of INV-REQ-8100 and INV-AC-8177 add no row:
 # offboardTenant (a row that exists); tenant.admin, entity.admin, finance.viewer, commercial.admin (roles); noticeWindowDays (an optional property).
+# INV-T-8754 adds ten rows: assessPhase, AssessPhaseRequest.returns and .extrapolate, PhaseAssessmentResponse.totalAnnualSupplies, .inputs and the members PHASE_4 to PHASE_6 (INV-REQ-334), SetEntityStatusRequest.registrationStartDate and EntityStatusResponse.registrationStartDate (INV-REQ-335).
 identifier	kind	file	requirement
 partiallyExempt	property	openapi.yaml	INV-REQ-331
 excludedBusinessStatus	property	openapi.yaml	INV-REQ-331
@@ -51,3 +52,13 @@ TenantStateResponse.state.CLOSED	schema_enum_value	openapi.yaml	INV-REQ-8100
 closeTenant	operation	openapi.yaml	INV-REQ-8100
 CloseTenantRequest.scheduleRef	schema_property	openapi.yaml	INV-REQ-8100
 CloseTenantRequest.retentionCustodyHolder	schema_property	openapi.yaml	INV-REQ-8100
+assessPhase	operation	openapi.yaml	INV-REQ-334
+AssessPhaseRequest.returns	schema_property	openapi.yaml	INV-REQ-334
+AssessPhaseRequest.extrapolate	schema_property	openapi.yaml	INV-REQ-334
+PhaseAssessmentResponse.totalAnnualSupplies	schema_property	openapi.yaml	INV-REQ-334
+PhaseAssessmentResponse.inputs	schema_property	openapi.yaml	INV-REQ-334
+SetEntityStatusRequest.registrationStartDate	schema_property	openapi.yaml	INV-REQ-335
+EntityStatusResponse.registrationStartDate	schema_property	openapi.yaml	INV-REQ-335
+PhaseAssessmentResponse.phase.PHASE_4	schema_enum_value	openapi.yaml	INV-REQ-334
+PhaseAssessmentResponse.phase.PHASE_5	schema_enum_value	openapi.yaml	INV-REQ-334
+PhaseAssessmentResponse.phase.PHASE_6	schema_enum_value	openapi.yaml	INV-REQ-334

@@ -1,0 +1,30 @@
+{
+  "entityRef": "ENT-3F2A9C",
+  "phase": "PHASE_2",
+  "implementationDate": "2026-04-01",
+  "totalAnnualSupplies": "1243956.04",
+  "inputs": {
+    "windowStart": "2024-11-01",
+    "windowEnd": "2025-10-31",
+    "daysCovered": 273,
+    "extrapolated": true,
+    "summedBox4Figures": "930000.00",
+    "returns": [
+      {
+        "periodStart": "2024-11-01",
+        "periodEnd": "2025-01-31",
+        "box4Figures": "300000.00"
+      },
+      {
+        "periodStart": "2025-02-01",
+        "periodEnd": "2025-04-30",
+        "box4Figures": "310000.00"
+      },
+      {
+        "periodStart": "2025-05-01",
+        "periodEnd": "2025-07-31",
+        "box4Figures": "320000.00"
+      }
+    ]
+  }
+}

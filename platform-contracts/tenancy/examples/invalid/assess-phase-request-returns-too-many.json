@@ -1,0 +1,70 @@
+{
+  "returns": [
+    {
+      "periodStart": "2025-01-01",
+      "periodEnd": "2025-01-31",
+      "box4Figures": "100.00"
+    },
+    {
+      "periodStart": "2025-01-01",
+      "periodEnd": "2025-01-31",
+      "box4Figures": "100.00"
+    },
+    {
+      "periodStart": "2025-01-01",
+      "periodEnd": "2025-01-31",
+      "box4Figures": "100.00"
+    },
+    {
+      "periodStart": "2025-01-01",
+      "periodEnd": "2025-01-31",
+      "box4Figures": "100.00"
+    },
+    {
+      "periodStart": "2025-01-01",
+      "periodEnd": "2025-01-31",
+      "box4Figures": "100.00"
+    },
+    {
+      "periodStart": "2025-01-01",
+      "periodEnd": "2025-01-31",
+      "box4Figures": "100.00"
+    },
+    {
+      "periodStart": "2025-01-01",
+      "periodEnd": "2025-01-31",
+      "box4Figures": "100.00"
+    },
+    {
+      "periodStart": "2025-01-01",
+      "periodEnd": "2025-01-31",
+      "box4Figures": "100.00"
+    },
+    {
+      "periodStart": "2025-01-01",
+      "periodEnd": "2025-01-31",
+      "box4Figures": "100.00"
+    },
+    {
+      "periodStart": "2025-01-01",
+      "periodEnd": "2025-01-31",
+      "box4Figures": "100.00"
+    },
+    {
+      "periodStart": "2025-01-01",
+      "periodEnd": "2025-01-31",
+      "box4Figures": "100.00"
+    },
+    {
+      "periodStart": "2025-01-01",
+      "periodEnd": "2025-01-31",
+      "box4Figures": "100.00"
+    },
+    {
+      "periodStart": "2025-01-01",
+      "periodEnd": "2025-01-31",
+      "box4Figures": "100.00"
+    }
+  ],
+  "asOfDate": "2026-01-01"
+}
