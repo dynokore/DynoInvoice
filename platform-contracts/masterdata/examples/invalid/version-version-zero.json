@@ -1,0 +1,10 @@
+{
+  "version": 0,
+  "recordedAt": "2026-03-20T03:10:00Z",
+  "current": true,
+  "counterparty": {
+    "partyRef": "CTP-118",
+    "resolvedIdentifiers": [{ "scheme": "UEN", "value": "201954321B" }],
+    "providedBy": "INTERNAL"
+  }
+}

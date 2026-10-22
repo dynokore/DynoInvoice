@@ -1,0 +1,11 @@
+{
+  "partyRef": "CTP-120",
+  "resolvedIdentifiers": [
+    {
+      "scheme": "UEN",
+      "value": "201954321B",
+      "provenance": { "providedBy": "INTERNAL", "evidenceRef": "EVD-2201" }
+    }
+  ],
+  "providedBy": "INTERNAL"
+}

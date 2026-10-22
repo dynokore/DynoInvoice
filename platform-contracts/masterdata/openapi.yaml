@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: masterdata API
-  version: 1.5.0
+  version: 1.6.0
   description: >-
     Contract-first source of truth for masterdata (API-01, STK-44). The
     `masterdata-contract` module generates its server interfaces and DTOs
@@ -64,7 +64,7 @@ paths:
       x-principal: ingest
       x-timeout: 300
       x-sync-edge: canonical-svc->masterdata-svc
-      x-error-codes: [MDM-001, MDM-002, MDM-005, MDM-007]
+      x-error-codes: [MDM-001, MDM-002, MDM-004, MDM-005, MDM-006, MDM-007]
       x-requirements: [FR-1.1, FR-1.2, FR-1.3, FR-1.5, FR-1.14, FR-1.15]
       parameters:
         - name: entityRef
@@ -99,6 +99,12 @@ paths:
                   value:
                     identityTriple: { senderId: "0195:201912345A", supplierId: "0195:201912345A", supplierGstn: "201912345A" }
                     counterparty: { partyRef: "CTP-118", resolvedIdentifiers: [{ scheme: "UEN", value: "201954321B" }], providedBy: "INTERNAL" }
+                blocked:
+                  value:
+                    identityTriple: { senderId: "0195:201912345A", supplierId: "0195:201912345A", supplierGstn: "201912345A" }
+                    counterparty: { partyRef: "CTP-119", resolvedIdentifiers: [{ scheme: "UEN", value: "201954321B" }], providedBy: "INTERNAL", legalName: "Acme Trading Pte Ltd" }
+                    findings:
+                      - { code: "MDM-006", severity: "BLOCK", disposition: "MANUAL", field: "/address/postalCode" }
         '422':
           description: "MDM-005 - no identity triple is configured for the entity's constitution; nothing is changed"
           content:
@@ -353,6 +359,66 @@ paths:
               examples:
                 default:
                   value: { partyRef: "CTP-118", resolvedIdentifiers: [{ scheme: "UEN", value: "201954321B" }], providedBy: "INTERNAL" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/masterdata/counterparties/{counterpartyRef}/history:
+    get:
+      operationId: getCounterpartyHistory
+      summary: Read the version history of one counterparty
+      description: >-
+        The versions of one counterparty in write order, the highest being
+        current (INV-REQ-2576 b4, INV-Q-8425 A). Each version holds the record
+        as it stood then, including `arcsGstChargeAgreed` and
+        `approvedSchemes` (INV-REQ-2446). Updates are last-write-wins, so no
+        update is refused for an intervening one.
+      tags: [resolution]
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->masterdata-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-2576, INV-REQ-2446]
+      x-operation:
+        role: tax.operator
+        scope: entity
+        precondition: "None."
+        reversibility: UNDOABLE
+        repeatKey: "None — a read."
+      parameters:
+        - name: counterpartyRef
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            maximum: 500
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: One page of versions, ascending by `version`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CounterpartyHistory'
+              examples:
+                default:
+                  value:
+                    items:
+                      - { version: 1, recordedAt: "2026-03-20T03:10:00Z", current: false, counterparty: { partyRef: "CTP-118", resolvedIdentifiers: [{ scheme: "UEN", value: "201954321B" }], providedBy: "INTERNAL", arcsGstChargeAgreed: false } }
+                      - { version: 2, recordedAt: "2026-04-02T08:00:00Z", current: true, counterparty: { partyRef: "CTP-118", resolvedIdentifiers: [{ scheme: "UEN", value: "201954321B" }], providedBy: "INTERNAL", arcsGstChargeAgreed: true } }
+        '404':
+          description: SRT-005 - unknown counterpartyRef.
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../service-runtime/schemas/error-envelope.schema.json
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/masterdata/counterparties/bulk-resolution:
@@ -1342,7 +1408,56 @@ components:
             $ref: '#/components/schemas/ApprovedScheme'
         reachability:
           $ref: '#/components/schemas/Reachability'
+        findings:
+          type: array
+          description: >-
+            Findings of the resolution (INV-REQ-315). An absent or empty array
+            means the counterparty resolved without finding. MDM-001 is
+            reported here with severity HOLD (the hold pattern, no blocking of
+            the caller). A finding never changes the HTTP status.
+          items:
+            $ref: '#/components/schemas/ResolutionFinding'
       required: [identityTriple]
+    ResolutionFinding:
+      type: object
+      properties:
+        code: { type: string, pattern: '^MDM-[0-9]{3}$', maxLength: 20 }
+        severity:
+          type: string
+          enum: [BLOCK, HOLD, WARN, INFO]
+        disposition: { type: string, minLength: 1 }
+        field: { type: string, maxLength: 100 }
+      required: [code, severity, disposition]
+    CounterpartyAddress:
+      type: object
+      properties:
+        addressLine1: { type: string, maxLength: 200 }
+        addressLine2: { type: string, maxLength: 200 }
+        postalCode: { type: string, maxLength: 20 }
+      required: [addressLine1, postalCode]
+    CounterpartyHistory:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CounterpartyVersion'
+        nextCursor: { type: string }
+      required: [items]
+    CounterpartyVersion:
+      type: object
+      properties:
+        version:
+          type: integer
+          minimum: 1
+          description: The position in write order; the first write is 1.
+        recordedAt: { type: string, format: date-time }
+        current:
+          type: boolean
+          description: True on exactly the highest version.
+        counterparty:
+          $ref: '#/components/schemas/Counterparty'
+      required: [version, recordedAt, current, counterparty]
     IdentityTripleFacts:
       type: object
       properties:
@@ -1419,11 +1534,28 @@ components:
             properties:
               scheme: { type: string, maxLength: 20 }
               value: { type: string, maxLength: 64 }
+              provenance:
+                type: object
+                description: >-
+                  Who supplied the identifier, the supporting document and when
+                  (INV-REQ-314). A caller never sends it; `MIGRATED` is set
+                  only by an applied import.
+                properties:
+                  providedBy:
+                    type: string
+                    enum: [COUNTERPARTY, INTERNAL, MIGRATED]
+                    x-extensible-enum: true
+                  evidenceRef: { type: string, maxLength: 64 }
+                  capturedAt: { type: string, format: date-time }
+                required: [providedBy, evidenceRef, capturedAt]
             required: [scheme, value]
         providedBy:
           type: string
           enum: [COUNTERPARTY, INTERNAL, MIGRATED]
           x-extensible-enum: true
+        legalName: { type: string, maxLength: 200 }
+        address:
+          $ref: '#/components/schemas/CounterpartyAddress'
         sameGroup: { type: boolean }
         sameTenant: { type: boolean }
         arcsGstChargeAgreed: { type: boolean }
@@ -1444,6 +1576,9 @@ components:
               value: { type: string, maxLength: 64 }
             required: [scheme, value]
         evidenceRef: { type: string, maxLength: 64 }
+        legalName: { type: string, maxLength: 200 }
+        address:
+          $ref: '#/components/schemas/CounterpartyAddress'
         arcsGstChargeAgreed: { type: boolean }
         approvedSchemes:
           type: array
@@ -1496,6 +1631,8 @@ components:
         uen: { type: string, maxLength: 20 }
         legalName: { type: string, maxLength: 200 }
         address: { type: string, maxLength: 500 }
+        addressDetail:
+          $ref: '#/components/schemas/CounterpartyAddress'
       required: [uen, legalName, address]
     ImportCounterpartiesRequest:
       type: object

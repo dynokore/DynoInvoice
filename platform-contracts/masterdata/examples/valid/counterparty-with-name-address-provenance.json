@@ -1,0 +1,21 @@
+{
+  "partyRef": "CTP-120",
+  "resolvedIdentifiers": [
+    {
+      "scheme": "UEN",
+      "value": "201954321B",
+      "provenance": {
+        "providedBy": "INTERNAL",
+        "evidenceRef": "EVD-2201",
+        "capturedAt": "2026-03-20T03:10:00Z"
+      }
+    }
+  ],
+  "providedBy": "INTERNAL",
+  "legalName": "Acme Trading Pte Ltd",
+  "address": {
+    "addressLine1": "1 Raffles Place",
+    "addressLine2": "#20-01",
+    "postalCode": "048616"
+  }
+}

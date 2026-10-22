@@ -12,3 +12,6 @@
 ../openapi.yaml#/components/schemas/ExchangeRate exchange-rate-*.json
 ../openapi.yaml#/components/schemas/ConfigureIdentityTripleRequest configure-identity-triple-request-*.json
 ../openapi.yaml#/components/schemas/PendingIdentityTripleChange pending-identity-triple-change-*.json
+../openapi.yaml#/components/schemas/CounterpartyAddress address-*.json
+../openapi.yaml#/components/schemas/CounterpartyHistory history-*.json
+../openapi.yaml#/components/schemas/CounterpartyVersion version-*.json

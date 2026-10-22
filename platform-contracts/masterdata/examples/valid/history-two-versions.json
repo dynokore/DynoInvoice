@@ -1,0 +1,26 @@
+{
+  "items": [
+    {
+      "version": 1,
+      "recordedAt": "2026-03-20T03:10:00Z",
+      "current": false,
+      "counterparty": {
+        "partyRef": "CTP-118",
+        "resolvedIdentifiers": [{ "scheme": "UEN", "value": "201954321B" }],
+        "providedBy": "INTERNAL",
+        "arcsGstChargeAgreed": false
+      }
+    },
+    {
+      "version": 2,
+      "recordedAt": "2026-04-02T08:00:00Z",
+      "current": true,
+      "counterparty": {
+        "partyRef": "CTP-118",
+        "resolvedIdentifiers": [{ "scheme": "UEN", "value": "201954321B" }],
+        "providedBy": "INTERNAL",
+        "arcsGstChargeAgreed": true
+      }
+    }
+  ]
+}

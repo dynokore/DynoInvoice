@@ -15,6 +15,14 @@
 # PendingIdentityTripleChange.changeRef and PendingIdentityTripleChange.state.PENDING_CONFIRMATION (INV-Q-7919; precedent INV-T-6755);
 # (entity, constitution) is a key pair written in prose, not an identifier of the contract; OTHER_ADMIN, TAX_APPROVER, TENANT (catalogue
 # keys and a scope level of catalogue/variation-points/variation-points.yaml), BLOCKED (a document state), acKeyCoverage (a check of INV-T-4942).
+# INV-T-8433 (INV-REQ-313, 314, 315, 2446, 2576, INV-AC-8371, 8372, 8374, 8378, 8379): not rows: provided_by, evidence_ref, captured_at
+# (storage names of the service data model, carried here as providedBy, evidenceRef, capturedAt); party, party_identifier, entity_identity
+# (service tables); HELD, BLOCKED (document states); NONE, NA (free string values, not enum members); masterdata-svc, canonical-svc
+# (services); MasterDataResolved (an event); tax.operator (a role); Counterparty (a bare schema name); CanonicalLine, CanonicalLine.arcsGstChargeAgreed
+# (canonical contract, Wave 3); ARCS (a scheme value); x-timeout, x-operation.role, x-extensible-enum, masterdata/openapi.yaml, identifier,
+# items, ac-keys.tsv, ac_refs, given, MIGRATE (extension names, a path, a generic word or task text, not contract identifiers); the dotted paths
+# (Counterparty.address.addressLine1, ResolutionResult.findings[].code, CounterpartyHistory.items[].version, ...) are covered by the property rows
+# and the rows ResolutionFinding.code and CounterpartyVersion.version; provenance already has a row (INV-REQ-512).
 identifier	kind	file	requirement
 sameGroup	property	openapi.yaml	INV-REQ-720
 sameTenant	property	openapi.yaml	INV-REQ-720
@@ -76,3 +84,23 @@ PendingIdentityTripleChange.changeRef	schema_property	openapi.yaml	INV-REQ-1007
 PendingIdentityTripleChange.state.PENDING_CONFIRMATION	schema_enum_value	openapi.yaml	INV-REQ-1007
 constitution	property	openapi.yaml	INV-REQ-310
 ConfigureIdentityTripleRequest.constitution	schema_property	openapi.yaml	INV-REQ-310
+getCounterpartyHistory	operation	openapi.yaml	INV-REQ-2576
+legalName	property	openapi.yaml	INV-REQ-313
+address	property	openapi.yaml	INV-REQ-313
+addressLine1	property	openapi.yaml	INV-REQ-313
+postalCode	property	openapi.yaml	INV-REQ-313
+resolveCounterparty	operation	openapi.yaml	INV-REQ-313
+resolveMasterDataGap	operation	openapi.yaml	INV-REQ-313
+findings	property	openapi.yaml	INV-REQ-315
+partyRef	property	openapi.yaml	INV-REQ-315
+severity	property	openapi.yaml	INV-REQ-315
+disposition	property	openapi.yaml	INV-REQ-315
+providedBy	property	openapi.yaml	INV-REQ-314
+capturedAt	property	openapi.yaml	INV-REQ-314
+COUNTERPARTY	enum_value	openapi.yaml	INV-REQ-314
+INTERNAL	enum_value	openapi.yaml	INV-REQ-314
+MIGRATED	enum_value	openapi.yaml	INV-REQ-314
+current	property	openapi.yaml	INV-REQ-2576
+counterparty	property	openapi.yaml	INV-REQ-2576
+ResolutionFinding.code	schema_property	openapi.yaml	INV-REQ-315
+CounterpartyVersion.version	schema_property	openapi.yaml	INV-REQ-2576
