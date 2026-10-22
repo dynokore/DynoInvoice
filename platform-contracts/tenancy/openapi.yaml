@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 1.7.0
+  version: 1.8.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -1762,6 +1762,8 @@ paths:
         noticeWindowDays only lengthens the installation notice window (VP-66, INV-REQ-2462 b2). A second
         confirmation (FR-AF.8, `secondConfirmationBy`) is required when scope is ENTITY; when scope is TENANT
         none is required and a value is ignored (owner answer INV-Q-8024).
+        With scope TENANT the call is refused with 403 for every caller; the whole tenant is offboarded by
+        closeTenant, called by the scheduled job of control-plane-svc (owner answer INV-Q-8137).
       tags:
       - tenants
       x-principal: filing-workflow
@@ -1774,7 +1776,7 @@ paths:
       x-error-codes:
       - DEP-007
       x-operation:
-        role: entity.admin for scope ENTITY, tenant.admin for scope TENANT
+        role: entity.admin for scope ENTITY; scope TENANT is refused for every person, the tenant is closed by closeTenant (owner answer INV-Q-8137)
         scope: tenant
         precondition: A retention custody holder is named and no in-scope document is unsubmitted, or an
           override acknowledgement is recorded (FR-AB.9)
@@ -1830,6 +1832,80 @@ paths:
                       - RECONCILIATION_WORK_PAPERS
                       - SOURCE_DOCUMENT_REFERENCES
                       - AUDIT_LOG
+        "409":
+          $ref: '#/components/responses/Error'
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/tenants/{tenantRef}/close:
+    post:
+      operationId: closeTenant
+      summary: Start the offboarding of the whole tenant at its offboarding time (INV-REQ-8100, owner answer INV-Q-8137)
+      description: >-
+        Starts the offboarding of the whole tenant with the same record, preconditions, export and repeat
+        rule as offboardTenant with scope TENANT. Only the scheduled job of control-plane-svc calls it, at
+        the offboarding time of the approved schedule, which it names in the request (scheduleRef); a call
+        by a person is refused with 403. A repeat with the same Idempotency-Key returns the original record
+        (API-15). A call for a tenant whose offboarding record is REQUESTED or COMPLETED is refused with 409
+        and creates nothing. A call after a FAILED record is a new request: a new offboardingRef, every
+        precondition evaluated afresh, nothing carried over; the FAILED record stays as history
+        (INV-Q-5025). A tenant that is SCHEDULED or CLOSED is refused with 409. The job never records an
+        unsubmitted-document override: a call while an in-scope document is unsubmitted is refused with 409.
+      tags:
+      - tenants
+      x-principal: filing-workflow
+      x-sync-edge: control-plane-svc->tenancy-svc
+      x-timeout: 2000
+      x-requirements:
+      - FR-G.10
+      - FR-AB.9
+      - FR-AF.8
+      x-error-codes:
+      - DEP-007
+      x-operation:
+        role: control-plane-svc
+        scope: platform
+        precondition: A retention custody holder is named and no in-scope document is unsubmitted (the job never
+          records an override), and the tenant is OPEN (a tenant that is SCHEDULED or CLOSED is refused with 409)
+        reversibility: IRREVERSIBLE
+        repeatKey: (tenantRef)
+      parameters:
+      - name: tenantRef
+        in: path
+        required: true
+        description: The tenant's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: TEN-7B1004
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CloseTenantRequest'
+            examples:
+              default:
+                value:
+                  scheduleRef: SCH-7A21C4
+                  retentionCustodyHolder:
+                    name: Ledger Custody Pte Ltd
+                    contactEmail: custody@ledger.example
+      responses:
+        "202":
+          description: Offboarding accepted; the record carries the export manifest
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OffboardingRecordResponse'
         "409":
           $ref: '#/components/responses/Error'
         "400":
@@ -3226,6 +3302,23 @@ components:
         not:
           required:
           - entityRef
+    CloseTenantRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - scheduleRef
+      - retentionCustodyHolder
+      properties:
+        scheduleRef:
+          type: string
+          maxLength: 64
+          description: The reference of the approved schedule of control-plane-svc (INV-REQ-8100).
+        retentionCustodyHolder:
+          $ref: '#/components/schemas/RetentionCustodyHolder'
+        noticeWindowDays:
+          type: integer
+          minimum: 1
+          description: A lengthening of the installation notice window (VP-66) only (INV-REQ-2462 b2).
     TenantExportManifest:
       type: object
       required:

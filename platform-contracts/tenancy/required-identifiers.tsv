@@ -15,6 +15,8 @@
 # acknowledgeControlRelaxation (no contract defines it yet; INV-REQ-1244, 1252, 2588: a later task for the owning service).
 # INV-T-8140 adds five rows (INV-REQ-8100): openTenant, OpenTenantRequest.scheduleRef and the three TenantStateResponse.state members. The other names of INV-REQ-8100, INV-REQ-987 and INV-AC-8139 add no row:
 # commercial.admin (a role); goLive, offboardTenant, createEntity, certifySandbox (rows that exist); `tenant not open` (a phrase, not an identifier).
+# INV-T-8178 adds three rows (INV-REQ-8100): closeTenant, CloseTenantRequest.scheduleRef and CloseTenantRequest.retentionCustodyHolder. The other names of INV-REQ-8100 and INV-AC-8177 add no row:
+# offboardTenant (a row that exists); tenant.admin, entity.admin, finance.viewer, commercial.admin (roles); noticeWindowDays (an optional property).
 identifier	kind	file	requirement
 partiallyExempt	property	openapi.yaml	INV-REQ-331
 excludedBusinessStatus	property	openapi.yaml	INV-REQ-331
@@ -46,3 +48,6 @@ OpenTenantRequest.scheduleRef	schema_property	openapi.yaml	INV-REQ-8100
 TenantStateResponse.state.SCHEDULED	schema_enum_value	openapi.yaml	INV-REQ-8100
 TenantStateResponse.state.OPEN	schema_enum_value	openapi.yaml	INV-REQ-8100
 TenantStateResponse.state.CLOSED	schema_enum_value	openapi.yaml	INV-REQ-8100
+closeTenant	operation	openapi.yaml	INV-REQ-8100
+CloseTenantRequest.scheduleRef	schema_property	openapi.yaml	INV-REQ-8100
+CloseTenantRequest.retentionCustodyHolder	schema_property	openapi.yaml	INV-REQ-8100

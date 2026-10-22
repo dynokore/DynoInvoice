@@ -1,0 +1,12 @@
+{
+  "scheduleRef": "SCH-7A21C4",
+  "retentionCustodyHolder": {
+    "name": "Ledger Custody Pte Ltd",
+    "contactEmail": "custody@ledger.example",
+    "contactMobile": "+65 9123 4567"
+  },
+  "unsubmittedOverride": {
+    "acknowledgedBy": "user-8841",
+    "statement": "I accept that 3 in-scope documents remain unsubmitted."
+  }
+}
