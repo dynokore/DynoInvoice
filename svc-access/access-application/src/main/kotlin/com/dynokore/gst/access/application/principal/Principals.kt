@@ -155,12 +155,23 @@ class RevokePrincipalUseCase(
         actor: String,
         ref: String,
     ): RevokePrincipalOutcome {
-        val seen = tx.inTransaction { principals.find(ref) } ?: return RevokePrincipalOutcome.NotFound
-        if (seen.status == PrincipalStatus.REVOKED) return RevokePrincipalOutcome.AlreadyRevoked(seen)
-        // the list entry first: if the tenant transaction then fails, the gateway already refuses the principal and a
-        // repeat call finishes the revocation (the entry write is idempotent inside the live window)
-        revocationList.recordPrincipalRevoked(ref)
-        return revoke(actor, ref)
+        val seen = tx.inTransaction { principals.find(ref) }
+        return when {
+            seen == null -> {
+                RevokePrincipalOutcome.NotFound
+            }
+
+            seen.status == PrincipalStatus.REVOKED -> {
+                RevokePrincipalOutcome.AlreadyRevoked(seen)
+            }
+
+            else -> {
+                // the list entry first: if the tenant transaction then fails, the gateway already refuses the
+                // principal and a repeat call finishes the revocation (the entry write is idempotent in the window)
+                revocationList.recordPrincipalRevoked(ref)
+                revoke(actor, ref)
+            }
+        }
     }
 
     private fun revoke(

@@ -27,11 +27,11 @@ import java.time.ZoneId
 import java.util.UUID
 
 /**
- * VP-77 (INV-REQ-2760): client_secret_basic is available under the default preset, switched off by the regulated-private
- * preset and never switched back on; the ap-callback principal keeps its own method (INV-AC-2770). The write goes through
- * the mounted `setPolicy` servlet over the real PolicyWriter; the roles come from the `PolicyRoleResolver` seam. The
- * preset takes effect 30 days ahead and the test clock is moved past it, so no other test sees it (an installation value
- * cannot be taken back).
+ * VP-77 (INV-REQ-2760): client_secret_basic is available under the default preset, switched off by the
+ * regulated-private preset and never switched back on; the ap-callback principal keeps its own method (INV-AC-2770).
+ * The write goes through the mounted `setPolicy` servlet over the real PolicyWriter; the roles come from the
+ * `PolicyRoleResolver` seam. The preset takes effect 30 days ahead and the test clock is moved past it, so no other
+ * test sees it (an installation value cannot be taken back).
  */
 class ClientSecretPresetTest {
     private val vp77 = VariationPointKey("VP-77")

@@ -88,41 +88,39 @@ class CredentialIssuer(
     /** The reason the request is invalid, or null. */
     fun refusal(request: CredentialRequest): String? =
         when (request.method) {
-            null -> {
-                "key material needs a credentialMethod".takeUnless { request.isEmpty }
+            null -> "key material needs a credentialMethod".takeUnless { request.isEmpty }
+            CredentialMethod.PRIVATE_KEY_JWT -> jwtRefusal(request)
+            CredentialMethod.MTLS -> mtlsRefusal(request)
+            CredentialMethod.CLIENT_SECRET_BASIC -> secretRefusal(request)
+        }
+
+    private fun jwtRefusal(request: CredentialRequest): String? =
+        when {
+            request.certificateThumbprint != null -> "PRIVATE_KEY_JWT takes no certificateThumbprint"
+            request.publicKeyJwk == null -> "PRIVATE_KEY_JWT needs publicKeyJwk"
+            !material.isPublicJwk(request.publicKeyJwk) -> "publicKeyJwk is not a public key"
+            else -> null
+        }
+
+    private fun mtlsRefusal(request: CredentialRequest): String? =
+        when {
+            request.publicKeyJwk != null -> "MTLS takes no publicKeyJwk"
+            request.certificateThumbprint == null -> "MTLS needs certificateThumbprint"
+            else -> null
+        }
+
+    private fun secretRefusal(request: CredentialRequest): String? =
+        when {
+            request.publicKeyJwk != null || request.certificateThumbprint != null -> {
+                "CLIENT_SECRET_BASIC takes no key material"
             }
 
-            CredentialMethod.PRIVATE_KEY_JWT -> {
-                when {
-                    request.certificateThumbprint != null -> "PRIVATE_KEY_JWT takes no certificateThumbprint"
-                    request.publicKeyJwk == null -> "PRIVATE_KEY_JWT needs publicKeyJwk"
-                    !material.isPublicJwk(request.publicKeyJwk) -> "publicKeyJwk is not a public key"
-                    else -> null
-                }
+            !secretPolicy.clientSecretBasicAllowed() -> {
+                "client_secret_basic is switched off (VP-77)"
             }
 
-            CredentialMethod.MTLS -> {
-                when {
-                    request.publicKeyJwk != null -> "MTLS takes no publicKeyJwk"
-                    request.certificateThumbprint == null -> "MTLS needs certificateThumbprint"
-                    else -> null
-                }
-            }
-
-            CredentialMethod.CLIENT_SECRET_BASIC -> {
-                when {
-                    request.publicKeyJwk != null || request.certificateThumbprint != null -> {
-                        "CLIENT_SECRET_BASIC takes no key material"
-                    }
-
-                    !secretPolicy.clientSecretBasicAllowed() -> {
-                        "client_secret_basic is switched off (VP-77)"
-                    }
-
-                    else -> {
-                        null
-                    }
-                }
+            else -> {
+                null
             }
         }
 

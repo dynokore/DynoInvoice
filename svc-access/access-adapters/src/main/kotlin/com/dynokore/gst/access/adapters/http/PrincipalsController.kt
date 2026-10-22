@@ -65,14 +65,7 @@ open class PrincipalsController(
         val type =
             PrincipalType.ofContract(createPrincipalRequest.principalType.value)
                 ?: GrantRequests.invalid("principalType is not one of the six issuable types")
-        // the scope must be one the service can read; its grammar is the one of grantRole, plus the literal
-        // `installation` for a MONITORING principal (INV-Q-8779 A)
-        val tenantOrEntity =
-            !PrincipalScopes.isInstallation(createPrincipalRequest.scope) &&
-                GrantRequests.scopeOf(createPrincipalRequest.scope, tenant) != null
-        if (!PrincipalScopes.accepts(type, createPrincipalRequest.scope, tenantOrEntity)) {
-            GrantRequests.invalid("the scope is not one a ${type.name} principal may carry")
-        }
+        requireScope(type, createPrincipalRequest.scope, tenant)
         val outcome =
             create.handle(
                 actor = checkNotNull(tenants.currentActor()) { "no actor is bound" },
@@ -81,9 +74,9 @@ open class PrincipalsController(
                 scope = createPrincipalRequest.scope,
                 callingSystem = createPrincipalRequest.callingSystem,
                 credential =
-                    CredentialRequest(
-                        createPrincipalRequest.credentialMethod?.let { CredentialMethod.valueOf(it.name) },
-                        jwkText(createPrincipalRequest.publicKeyJwk?.let(::jwkFields)),
+                    credentialOf(
+                        createPrincipalRequest.credentialMethod?.name,
+                        createPrincipalRequest.publicKeyJwk,
                         createPrincipalRequest.certificateThumbprint,
                     ),
             )
@@ -91,7 +84,7 @@ open class PrincipalsController(
             is CreatePrincipalOutcome.Created -> {
                 ResponseEntity
                     .status(if (outcome.repeated) HttpStatus.OK else HttpStatus.CREATED)
-                    .body(responseOf(outcome.principal, outcome.issued))
+                    .body(principalResponse(outcome.principal, outcome.issued))
             }
 
             is CreatePrincipalOutcome.TypeNotIssuable -> {
@@ -116,14 +109,14 @@ open class PrincipalsController(
         requireManager()
         val actor = checkNotNull(tenants.currentActor()) { "no actor is bound" }
         val request =
-            CredentialRequest(
-                rotatePrincipalRequest.credentialMethod?.let { CredentialMethod.valueOf(it.name) },
-                jwkText(rotatePrincipalRequest.publicKeyJwk?.let(::jwkFields)),
+            credentialOf(
+                rotatePrincipalRequest.credentialMethod?.name,
+                rotatePrincipalRequest.publicKeyJwk,
                 rotatePrincipalRequest.certificateThumbprint,
             )
         return when (val outcome = rotate.handle(actor, principalRef, rotatePrincipalRequest.overlapMinutes, request)) {
             is RotatePrincipalOutcome.Rotated -> {
-                ResponseEntity.ok(responseOf(outcome.principal, outcome.issued, outcome.previous))
+                ResponseEntity.ok(principalResponse(outcome.principal, outcome.issued, outcome.previous))
             }
 
             is RotatePrincipalOutcome.CredentialInvalid -> {
@@ -147,8 +140,8 @@ open class PrincipalsController(
         requireManager()
         val actor = checkNotNull(tenants.currentActor()) { "no actor is bound" }
         return when (val outcome = revoke.handle(actor, principalRef)) {
-            is RevokePrincipalOutcome.Revoked -> ResponseEntity.ok(responseOf(outcome.principal))
-            is RevokePrincipalOutcome.AlreadyRevoked -> ResponseEntity.ok(responseOf(outcome.principal))
+            is RevokePrincipalOutcome.Revoked -> ResponseEntity.ok(principalResponse(outcome.principal))
+            is RevokePrincipalOutcome.AlreadyRevoked -> ResponseEntity.ok(principalResponse(outcome.principal))
             RevokePrincipalOutcome.NotFound -> throw ApiRefusal(ClosedErrorCode.NOT_FOUND)
         }
     }
@@ -162,7 +155,7 @@ open class PrincipalsController(
         val actor = checkNotNull(tenants.currentActor()) { "no actor is bound" }
         return when (val outcome = withdraw.handle(actor, principalRef, credentialRef)) {
             is WithdrawCredentialOutcome.Withdrawn -> {
-                ResponseEntity.ok(responseOf(outcome.principal, credential = outcome.credential))
+                ResponseEntity.ok(principalResponse(outcome.principal, credential = outcome.credential))
             }
 
             WithdrawCredentialOutcome.NotFound -> {
@@ -203,6 +196,31 @@ open class PrincipalsController(
         return ResponseEntity.ok(body)
     }
 
+    /**
+     * The scope must be one the service can read; its grammar is the one of grantRole, plus the literal `installation`
+     * for a MONITORING principal (INV-Q-8779 A).
+     */
+    private fun requireScope(
+        type: PrincipalType,
+        scope: String,
+        tenant: TenantRef,
+    ) {
+        val tenantOrEntity = !PrincipalScopes.isInstallation(scope) && GrantRequests.scopeOf(scope, tenant) != null
+        if (!PrincipalScopes.accepts(type, scope, tenantOrEntity)) {
+            GrantRequests.invalid("the scope is not one a ${type.name} principal may carry")
+        }
+    }
+
+    private fun credentialOf(
+        method: String?,
+        publicKeyJwk: Any?,
+        certificateThumbprint: String?,
+    ) = CredentialRequest(
+        method?.let { CredentialMethod.valueOf(it) },
+        jwkText(publicKeyJwk?.let(::jwkFields)),
+        certificateThumbprint,
+    )
+
     private fun requireManager() {
         if (!manager.mayManageGrants()) throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
     }
@@ -212,31 +230,6 @@ open class PrincipalsController(
     /** The public JWK as JSON text, or null when the request carries none. */
     private fun jwkText(fields: Map<String, String?>?): String? =
         fields?.filterValues { !it.isNullOrEmpty() }?.let { mapper.writeValueAsString(it) }
-
-    private fun responseOf(
-        principal: ServicePrincipal,
-        issued: IssuedCredential? = null,
-        previous: Credential? = null,
-        credential: Credential? = null,
-    ) = PrincipalResponse(
-        principalRef = principal.ref,
-        principalType = principal.type.name,
-        status = PrincipalResponse.Status.valueOf(principal.status.name),
-        callingSystem = principal.callingSystem,
-        credential = issued?.let { infoOf(it.credential, it.clientSecret) } ?: credential?.let { infoOf(it, null) },
-        previousCredential = previous?.let { infoOf(it, null) },
-    )
-
-    private fun infoOf(
-        credential: Credential,
-        clientSecret: String?,
-    ) = CredentialInfo(
-        credentialRef = credential.ref,
-        method = CredentialInfo.Method.valueOf(credential.method.name),
-        status = CredentialInfo.Status.valueOf(credential.status.name),
-        validUntil = credential.validUntil?.atOffset(ZoneOffset.UTC),
-        clientSecret = clientSecret,
-    )
 
     private companion object {
         val JWK_FIELDS = object : tools.jackson.core.type.TypeReference<Map<String, String?>>() {}

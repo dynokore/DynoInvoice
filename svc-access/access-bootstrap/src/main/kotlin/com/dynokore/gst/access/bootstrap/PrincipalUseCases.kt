@@ -42,27 +42,6 @@ import java.time.Clock
 /** TPL-18: the service principals' use cases (INV-T-4937), constructed here and nowhere else. */
 @Configuration(proxyBeanMethods = false)
 class PrincipalUseCases {
-    companion object {
-        /**
-         * VP-77 is tighten-only and access-svc owns it: every `PolicyWriter` of the context is decorated so that a
-         * return to the default preset is refused once the regulated-private preset is stored (INV-AC-2770).
-         */
-        @Bean
-        @JvmStatic
-        fun tightenOnlyClientSecret(reader: ObjectProvider<PolicyReader>): BeanPostProcessor =
-            object : BeanPostProcessor {
-                override fun postProcessAfterInitialization(
-                    bean: Any,
-                    beanName: String,
-                ): Any =
-                    if (bean is PolicyWriter && bean !is TightenOnlyClientSecretWriter) {
-                        TightenOnlyClientSecretWriter(bean) { reader.getObject() }
-                    } else {
-                        bean
-                    }
-            }
-    }
-
     @Bean
     fun principalRepository(
         dsl: DSLContext,
@@ -78,31 +57,7 @@ class PrincipalUseCases {
         directory: EntityDirectory,
     ): PrincipalRevocationPublisher = PrincipalRevocationOutbox(outbox, mapper, clock, directory)
 
-    @Bean
-    fun credentialRepository(
-        dsl: DSLContext,
-        tenants: TenantContext,
-        clock: Clock,
-    ): CredentialRepository = JooqCredentialRepository(dsl, tenants, clock)
-
-    @Bean
-    fun credentialMaterial(): CredentialMaterial = NimbusCredentialMaterial()
-
-    /** VP-77 as the config-resolver resolves it at installation scope (INV-REQ-2760). */
-    @Bean
-    fun clientSecretPolicy(
-        reader: PolicyReader,
-        clock: Clock,
-    ): ClientSecretPolicy = VariationPointClientSecretPolicy(reader, clock)
-
-    @Bean
-    fun credentialIssuer(
-        credentials: CredentialRepository,
-        material: CredentialMaterial,
-        secretPolicy: ClientSecretPolicy,
-    ) = CredentialIssuer(credentials, material, secretPolicy)
-
-    /** The revocation list entry is written in a transaction of its own, bound to the platform tenant (INV-Q-8785 A). */
+    /** The list entry is written in a transaction of its own, bound to the platform tenant (INV-Q-8785 A). */
     @Bean
     fun revocationListWriter(
         dsl: DSLContext,
@@ -126,42 +81,6 @@ class PrincipalUseCases {
         issuer: CredentialIssuer,
         audit: GrantAudit,
     ) = CreatePrincipalUseCase(tx, principals, issuer, audit)
-
-    @Bean
-    fun rotatePrincipalUseCase(
-        tx: TransactionRunner,
-        principals: PrincipalRepository,
-        credentials: CredentialRepository,
-        issuer: CredentialIssuer,
-        audit: GrantAudit,
-        clock: Clock,
-    ) = RotatePrincipalUseCase(tx, principals, credentials, issuer, audit, clock)
-
-    @Bean
-    fun withdrawCredentialUseCase(
-        tx: TransactionRunner,
-        principals: PrincipalRepository,
-        credentials: CredentialRepository,
-        audit: GrantAudit,
-    ) = WithdrawCredentialUseCase(tx, principals, credentials, audit)
-
-    @Bean
-    fun authenticatePrincipalUseCase(
-        tx: TransactionRunner,
-        principals: PrincipalRepository,
-        credentials: CredentialRepository,
-        material: CredentialMaterial,
-        secretPolicy: ClientSecretPolicy,
-        clock: Clock,
-    ) = AuthenticatePrincipalUseCase(tx, principals, credentials, material, secretPolicy, clock)
-
-    @Bean
-    fun machineAuthorise(
-        tx: TransactionRunner,
-        principals: PrincipalRepository,
-        directory: EntityDirectory,
-        sets: MachinePermissionSets,
-    ) = MachineAuthorise(tx, principals, directory, sets)
 
     @Bean
     fun revokePrincipalUseCase(

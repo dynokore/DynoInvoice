@@ -9,6 +9,12 @@ operation	rotatePrincipal	INV-T-4937	done
 operation	revokePrincipal	INV-T-4937	done
 operation	withdrawCredential	INV-T-4937	done
 operation	authenticatePrincipal	INV-T-4937	done
+operation	signInBreakGlass	INV-T-4938	open
+operation	recordBreakGlassAction	INV-T-4938	open
+operation	provisionFirstAdministrator	UNASSIGNED	open
+operation	provisionInstallationFirstAdministrator	UNASSIGNED	open
+operation	reissueFirstAdministratorInvitation	UNASSIGNED	open
+operation	acceptFirstAdministratorInvitation	UNASSIGNED	open
 operation	mapIdpGroup	INV-T-4938	open
 operation	unmapIdpGroup	INV-T-4938	open
 operation	recordSoleOperator	INV-T-4935	open

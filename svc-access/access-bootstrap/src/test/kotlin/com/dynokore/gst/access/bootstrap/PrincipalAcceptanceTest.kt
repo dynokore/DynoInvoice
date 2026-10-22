@@ -50,10 +50,15 @@ class PrincipalAcceptanceTest {
             }
         }
 
+    // a MONITORING principal's scope is the installation (INV-Q-8779 A)
     private fun request(
         type: CreatePrincipalRequest.PrincipalType,
         callingSystem: String? = null,
-    ) = CreatePrincipalRequest(type, "tenant:$tenant", callingSystem)
+    ) = CreatePrincipalRequest(
+        type,
+        if (type == CreatePrincipalRequest.PrincipalType.MONITORING) "installation" else "tenant:$tenant",
+        callingSystem,
+    )
 
     private fun create(
         context: AssertableWebApplicationContext,

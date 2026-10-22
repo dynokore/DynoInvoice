@@ -57,7 +57,7 @@ class MachinePermissionSets private constructor(
     }
 }
 
-/** The scope text a principal of a type may carry (INV-Q-8779 A): MONITORING the installation, the rest a tenant or entity. */
+/** The scope a type may carry (INV-Q-8779 A): MONITORING the installation, the others a tenant or an entity. */
 object PrincipalScopes {
     const val INSTALLATION = "installation"
 
