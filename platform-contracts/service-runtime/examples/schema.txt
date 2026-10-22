@@ -8,3 +8,4 @@
 ../schemas/audit-entry-recorded-payload.schema.json audit-entry-recorded-payload-*.json
 ../schemas/privacy-notice-due-payload.schema.json privacy-notice-due-payload-*.json
 ../schemas/accreditation-alert-raised-payload.schema.json accreditation-alert-raised-payload-*.json
+../schemas/break-glass-alert-raised-payload.schema.json break-glass-alert-raised-payload-*.json

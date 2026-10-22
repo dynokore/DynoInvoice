@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/service-runtime/schemas/break-glass-alert-raised-payload.schema.json",
+  "title": "BreakGlassAlertRaisedPayload",
+  "description": "Payload of the BreakGlassAlertRaised platform event (class: platform; INV-REQ-897 b1, INV-Q-8839 option A). access-svc emits it for each break-glass unlock and each recorded action. Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "accCode": {
+      "type": "string",
+      "pattern": "^ACC-[0-9]{3}$",
+      "description": "The access alert code; only ACC-002 is emitted today."
+    },
+    "scope": {
+      "type": "string",
+      "description": "What the break-glass use concerns: a tenant or an installation.",
+      "enum": [
+        "TENANT",
+        "INSTALLATION"
+      ],
+      "x-extensible-enum": true
+    },
+    "action": {
+      "type": "string",
+      "description": "The break-glass step that raised the alert.",
+      "enum": [
+        "UNLOCK",
+        "VIEW",
+        "READINESS",
+        "DRAIN",
+        "REPLAY"
+      ],
+      "x-extensible-enum": true
+    },
+    "unlockRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "The break-glass unlock the alert belongs to, when there is one."
+    }
+  },
+  "required": [
+    "accCode",
+    "scope",
+    "action"
+  ],
+  "additionalProperties": true
+}

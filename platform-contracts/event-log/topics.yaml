@@ -282,6 +282,15 @@ topics:
       - every service
     subscribers:
       - evidence-svc
+  - topic: gst.platform.break-glass-alert-raised.v1
+    event_type: com.dynokore.gst.platform.BreakGlassAlertRaised.v1
+    content_topic: false
+    record_topic: false
+    retained_while_resolvable: false
+    producers:
+      - access-svc
+    subscribers:
+      - notification-svc
   - topic: gst.platform.connection-status-changed.v1
     event_type: com.dynokore.gst.platform.ConnectionStatusChanged.v1
     content_topic: false
@@ -664,6 +673,7 @@ replay_topics:
       - com.dynokore.gst.access.AuthorityChanged.v1
       - com.dynokore.gst.access.MessageRequested.v1
       - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
+      - com.dynokore.gst.platform.BreakGlassAlertRaised.v1
       - com.dynokore.gst.platform.ConnectionStatusChanged.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false

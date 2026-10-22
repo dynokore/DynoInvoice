@@ -69,3 +69,14 @@ ACCREDITATION_LAPSED	enum_value	schemas/accreditation-alert-raised-payload.schem
 REASSESSMENT_NEEDED	enum_value	schemas/accreditation-alert-raised-payload.schema.json	INV-REQ-1365
 pauseJob	operation	openapi.yaml	INV-REQ-2588
 runJobNow	operation	openapi.yaml	INV-REQ-2588
+accCode	property	schemas/break-glass-alert-raised-payload.schema.json	INV-REQ-897
+scope	property	schemas/break-glass-alert-raised-payload.schema.json	INV-REQ-897
+action	property	schemas/break-glass-alert-raised-payload.schema.json	INV-REQ-897
+unlockRef	property	schemas/break-glass-alert-raised-payload.schema.json	INV-REQ-897
+TENANT	enum_value	schemas/break-glass-alert-raised-payload.schema.json	INV-REQ-897
+INSTALLATION	enum_value	schemas/break-glass-alert-raised-payload.schema.json	INV-REQ-897
+UNLOCK	enum_value	schemas/break-glass-alert-raised-payload.schema.json	INV-REQ-897
+VIEW	enum_value	schemas/break-glass-alert-raised-payload.schema.json	INV-REQ-897
+READINESS	enum_value	schemas/break-glass-alert-raised-payload.schema.json	INV-REQ-897
+DRAIN	enum_value	schemas/break-glass-alert-raised-payload.schema.json	INV-REQ-897
+REPLAY	enum_value	schemas/break-glass-alert-raised-payload.schema.json	INV-REQ-897

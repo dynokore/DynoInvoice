@@ -20,3 +20,7 @@ schemas/accreditation-alert-raised-payload.schema.json	reason	NONE
 schemas/accreditation-alert-raised-payload.schema.json	raisedAt	NONE
 schemas/accreditation-alert-raised-payload.schema.json	releaseRef	NONE
 schemas/accreditation-alert-raised-payload.schema.json	currentUntil	NONE
+schemas/break-glass-alert-raised-payload.schema.json	accCode	NONE
+schemas/break-glass-alert-raised-payload.schema.json	scope	NONE
+schemas/break-glass-alert-raised-payload.schema.json	action	NONE
+schemas/break-glass-alert-raised-payload.schema.json	unlockRef	NONE
