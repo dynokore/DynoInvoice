@@ -30,11 +30,13 @@ METHODS = ("get", "put", "post", "delete", "options", "head", "patch", "trace")
 MARKER = "x-caller-auth"
 VALUES = ("end-user", "signed-link", "service-job")
 LIST_LINE = re.compile(r"[a-z][a-z0-9-]*/openapi\.yaml")
-# Every operation whose value is not end-user (INV-AC-8259, INV-Q-8477): control-plane-svc jobs and the installer.
+# Every operation whose value is not end-user (INV-AC-8259, INV-Q-8477), keyed by document path then operationId.
 NOT_END_USER = {
-    "openTenant": "service-job",  # control-plane-svc at go-live
-    "closeTenant": "service-job",  # scheduled close job
-    "recordInstallationAction": "service-job",  # installer, workload only
+    "tenancy/openapi.yaml": {
+        "openTenant": "service-job",  # control-plane-svc at go-live
+        "closeTenant": "service-job",  # scheduled close job
+        "recordInstallationAction": "service-job",  # installer, workload only
+    },
 }
 
 
@@ -91,6 +93,7 @@ def main(root):
             continue
         docs += 1
         seen = set()
+        rows = NOT_END_USER.get(f, {})
         for method, path, op in operations(doc):
             ops += 1
             where = f"{f} {method} {path}"
@@ -109,11 +112,13 @@ def main(root):
             if not isinstance(v, str) or v not in VALUES:
                 errors.append(f"(a) {where}: {MARKER} value {v!r} is not one of {', '.join(VALUES)}")
                 continue
-            expected = NOT_END_USER.get(oid, "end-user")
+            expected = rows.get(oid, "end-user")
             if v != expected:
                 errors.append(f"(b) {where}: {MARKER} is {v!r}, the table says {expected!r} for {oid}")
             if v != "end-user":
                 notend += 1
+        for oid in sorted(set(rows) - seen):
+            errors.append(f"(b) {f}: table row {oid} matches no operation of the document")
     if errors:
         print("caller-auth-check: FAIL")
         print("\n".join(errors))
