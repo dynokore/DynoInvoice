@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: access API
-  version: 1.8.0
+  version: 1.9.0
   description: 'Contract-first source of truth for access (API-01, STK-44), replacing the INV-T-2849 scaffold
     (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): who may do what, on whose authority.
     `authorise`, `getVerificationKeys`, `getRevocationList` and `resolveLandingScreen` are queries, not FR-AC.1 operations (no persistent state change),
@@ -547,7 +547,9 @@ paths:
     post:
       operationId: mapIdpGroup
       summary: Map an identity-provider group to a role x scope grant (SDS §7, SCR-24.3, FR-P.12)
-      description: Map an identity-provider group to a role x scope grant (SDS §7, SCR-24.3, FR-P.12).
+      description: Map an identity-provider group to a role x scope grant (SDS §7, SCR-24.3, FR-P.12). An absent
+        validFrom means the UTC date of the call, and the response always carries the resolved validFrom. An absent
+        validTo means no end.
       tags:
       - identity-provider
       x-principal: filing-workflow
@@ -592,6 +594,7 @@ paths:
                     idpGroup: acme-tax-approvers
                     role: tax.approver
                     scope: tenant:TEN-7B1004
+                    validFrom: '2026-10-22'
         "400":
           $ref: '#/components/responses/Error'
         "401":
@@ -1547,7 +1550,9 @@ paths:
       operationId: unlockBreakGlass
       summary: Unlock break-glass access while the identity provider is unavailable (SDS §7, SCR-33.1,
         ACC-002, §34.6)
-      description: Restricted session; raises ACC-002 and notifies security.officer.
+      description: Restricted session; raises ACC-002 and notifies security.officer. The 201 carries sessionHours,
+        expiresAt and permittedActions; the resealBreakGlass 200 does not carry them. sessionHours is the VP-08 value
+        of INV-REQ-1269 (window 1 to 8 hours, default 4), and expiresAt is the unlock instant plus sessionHours hours.
       tags:
       - break-glass
       x-principal: filing-workflow
@@ -1593,6 +1598,11 @@ paths:
                     unlockRef: BG-0003
                     tenantRef: TEN-7B1004
                     status: UNLOCKED
+                    sessionHours: 4
+                    expiresAt: '2026-10-22T14:00:00Z'
+                    permittedActions:
+                    - VIEW
+                    - READINESS
         "400":
           $ref: '#/components/responses/Error'
         "401":
@@ -1654,6 +1664,149 @@ paths:
         "403":
           $ref: '#/components/responses/Error'
         "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/break-glass/{unlockRef}/sign-in:
+    post:
+      operationId: signInBreakGlass
+      summary: Sign in to an open break-glass session with the sealing credential (INV-REQ-897, INV-REQ-1269)
+      description: The sealing credential is the one of the account that the unlock opened. A wrong credential is
+        refused with 403 and nothing opens; this operation adds no lockout or throttle for repeated wrong credentials.
+        No open unlock, an expired session (expiresAt passed) or a resealed one is refused with 409. The operation
+        returns no token and does not grant any permission in another service.
+      tags:
+      - break-glass
+      x-caller-auth: end-user
+      x-principal: filing-workflow
+      x-sync-edge: console-bff->access-svc
+      x-timeout: 2000
+      x-requirements:
+      - FR-AC.1
+      - FR-AF.19
+      x-error-codes: []
+      x-operation:
+        role: deployment.operator, tenant.admin, plus tax.approver
+        scope: installation
+        precondition: An unlock is open and its session has not expired
+        reversibility: UNDOABLE
+        repeatKey: unlockRef — a repeat with the same Idempotency-Key returns the original response; the reseal ends the session
+      parameters:
+      - name: unlockRef
+        in: path
+        required: true
+        description: The break-glass unlock's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: BG-0003
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BreakGlassSignInRequest'
+            examples:
+              default:
+                value:
+                  sealingCredential: example-sealing-credential
+      responses:
+        "200":
+          description: Session signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BreakGlassSessionResponse'
+              examples:
+                default:
+                  value:
+                    unlockRef: BG-0003
+                    tenantRef: TEN-7B1004
+                    expiresAt: '2026-10-22T14:00:00Z'
+                    permittedActions:
+                    - VIEW
+                    - READINESS
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "409":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/break-glass/{unlockRef}/actions:
+    post:
+      operationId: recordBreakGlassAction
+      summary: Record one action carried out under an open break-glass session (INV-REQ-897)
+      description: Each call raises one ACC-002 as AccessAlertRaised and writes one audit entry. It is refused with
+        409 when the session is not open or has expired. An action outside the four members VIEW, READINESS, DRAIN
+        and REPLAY is refused with 400 and nothing is recorded. The caller is the service that carried out the
+        action; whether that service may act is decided there, not by this operation.
+      tags:
+      - break-glass
+      x-caller-auth: end-user
+      x-principal: filing-workflow
+      x-sync-edge: any-except:tenancy-svc->access-svc
+      x-timeout: 500
+      x-requirements:
+      - FR-AC.1
+      - FR-AF.19
+      x-error-codes:
+      - ACC-002
+      x-operation:
+        role: Any role the caller holds
+        scope: installation
+        precondition: An unlock is open and its session has not expired
+        reversibility: IRREVERSIBLE
+        repeatKey: Idempotency-Key
+      parameters:
+      - name: unlockRef
+        in: path
+        required: true
+        description: The break-glass unlock's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: BG-0003
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BreakGlassActionRequest'
+            examples:
+              default:
+                value:
+                  action: DRAIN
+                  target: queue:ingest
+      responses:
+        "201":
+          description: Action recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BreakGlassActionResponse'
+              examples:
+                default:
+                  value:
+                    actionRef: BGA-0001
+                    unlockRef: BG-0003
+                    action: DRAIN
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "409":
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
@@ -2451,6 +2604,12 @@ components:
         scope:
           type: string
           maxLength: 128
+        validFrom:
+          type: string
+          format: date
+        validTo:
+          type: string
+          format: date
     IdpGroupMappingResponse:
       type: object
       required:
@@ -2471,6 +2630,12 @@ components:
         scope:
           type: string
           maxLength: 128
+        validFrom:
+          type: string
+          format: date
+        validTo:
+          type: string
+          format: date
     SoleOperatorAckRequest:
       type: object
       required:
@@ -2762,6 +2927,99 @@ components:
           - UNLOCKED
           - SEALED
           x-extensible-enum: true
+        sessionHours:
+          type: integer
+          minimum: 1
+          maximum: 8
+        expiresAt:
+          type: string
+          format: date-time
+        permittedActions:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            enum:
+            - VIEW
+            - READINESS
+            - DRAIN
+            - REPLAY
+    BreakGlassSignInRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - sealingCredential
+      properties:
+        sealingCredential:
+          type: string
+          minLength: 1
+          maxLength: 256
+          writeOnly: true
+    BreakGlassSessionResponse:
+      type: object
+      required:
+      - unlockRef
+      - tenantRef
+      - expiresAt
+      - permittedActions
+      properties:
+        unlockRef:
+          type: string
+          maxLength: 64
+        tenantRef:
+          type: string
+          maxLength: 64
+        expiresAt:
+          type: string
+          format: date-time
+        permittedActions:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            enum:
+            - VIEW
+            - READINESS
+            - DRAIN
+            - REPLAY
+    BreakGlassActionRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - action
+      properties:
+        action:
+          type: string
+          enum:
+          - VIEW
+          - READINESS
+          - DRAIN
+          - REPLAY
+        target:
+          type: string
+          maxLength: 128
+    BreakGlassActionResponse:
+      type: object
+      required:
+      - actionRef
+      - unlockRef
+      - action
+      properties:
+        actionRef:
+          type: string
+          maxLength: 64
+        unlockRef:
+          type: string
+          maxLength: 64
+        action:
+          type: string
+          enum:
+          - VIEW
+          - READINESS
+          - DRAIN
+          - REPLAY
     AccessReviewRequest:
       type: object
       required:

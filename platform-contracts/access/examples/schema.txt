@@ -12,3 +12,9 @@
 ../openapi.yaml#/components/schemas/FirstAdministratorResponse first-administrator-response-*.json
 ../openapi.yaml#/components/schemas/AcceptFirstAdministratorInvitationRequest accept-first-administrator-invitation-request-*.json
 ../openapi.yaml#/components/schemas/ReissueFirstAdministratorInvitationRequest reissue-first-administrator-invitation-request-*.json
+../openapi.yaml#/components/schemas/BreakGlassResponse break-glass-response-*.json
+../openapi.yaml#/components/schemas/BreakGlassSignInRequest break-glass-sign-in-request-*.json
+../openapi.yaml#/components/schemas/BreakGlassSessionResponse break-glass-session-response-*.json
+../openapi.yaml#/components/schemas/BreakGlassActionRequest break-glass-action-request-*.json
+../openapi.yaml#/components/schemas/BreakGlassActionResponse break-glass-action-response-*.json
+../openapi.yaml#/components/schemas/IdpGroupMappingRequest idp-group-mapping-request-*.json

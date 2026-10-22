@@ -9,6 +9,7 @@
 # MessageRequested (a message name under components.messages of access/asyncapi.yaml, not a properties key, an operationId or an enum member).
 # INV-T-7988. INV-REQ-2756: the backticked names (tenant.admin, a role; access-svc, a service) are not contract elements, so they are not rows.
 # INV-T-8225. INV-AC-8224: the backticked names tenant.admin and commercial.admin are roles, grantRole is a row that exists, and provisionTenant is an operation of the control-plane contract that exists, so they add no row.
+# INV-T-8672. INV-AC-8671: the backticked names security.officer, tenant.admin, deployment.operator and tax.approver are roles, and mapIdpGroup, unlockBreakGlass, resealBreakGlass and AuthorityChanged exist already, so they add no row.
 # identifier	kind	file	requirement
 INGEST	enum_value	openapi.yaml	INV-REQ-584
 FILING_WORKFLOW	enum_value	openapi.yaml	INV-REQ-584
@@ -59,3 +60,18 @@ ReissueFirstAdministratorInvitationRequest.invitationExpiresAt	schema_property	o
 FirstAdministratorResponse.invitationCode	schema_property	openapi.yaml	INV-REQ-906
 AcceptFirstAdministratorInvitationRequest.invitationCode	schema_property	openapi.yaml	INV-REQ-906
 FirstAdministratorRequest.administratorEmail	schema_property	openapi.yaml	INV-REQ-906
+signInBreakGlass	operation	openapi.yaml	INV-REQ-897
+recordBreakGlassAction	operation	openapi.yaml	INV-REQ-897
+BreakGlassResponse.sessionHours	schema_property	openapi.yaml	INV-REQ-1269
+BreakGlassResponse.expiresAt	schema_property	openapi.yaml	INV-REQ-896
+BreakGlassResponse.permittedActions	schema_property	openapi.yaml	INV-REQ-896
+BreakGlassSignInRequest.sealingCredential	schema_property	openapi.yaml	INV-REQ-896
+BreakGlassActionRequest.action	schema_property	openapi.yaml	INV-REQ-897
+IdpGroupMappingRequest.validFrom	schema_property	openapi.yaml	INV-REQ-892
+IdpGroupMappingRequest.validTo	schema_property	openapi.yaml	INV-REQ-892
+IdpGroupMappingResponse.validFrom	schema_property	openapi.yaml	INV-REQ-892
+IdpGroupMappingResponse.validTo	schema_property	openapi.yaml	INV-REQ-892
+VIEW	enum_value	openapi.yaml	INV-REQ-896
+READINESS	enum_value	openapi.yaml	INV-REQ-896
+DRAIN	enum_value	openapi.yaml	INV-REQ-896
+REPLAY	enum_value	openapi.yaml	INV-REQ-896
