@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: access API
-  version: 1.8.0
+  version: 1.9.0
   description: 'Contract-first source of truth for access (API-01, STK-44), replacing the INV-T-2849 scaffold
     (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): who may do what, on whose authority.
     `authorise`, `getVerificationKeys`, `getRevocationList` and `resolveLandingScreen` are queries, not FR-AC.1 operations (no persistent state change),
@@ -1677,6 +1677,7 @@ paths:
         returns no token and does not grant any permission in another service.
       tags:
       - break-glass
+      x-caller-auth: end-user
       x-principal: filing-workflow
       x-sync-edge: console-bff->access-svc
       x-timeout: 2000
@@ -1748,9 +1749,10 @@ paths:
         action; whether that service may act is decided there, not by this operation.
       tags:
       - break-glass
+      x-caller-auth: end-user
       x-principal: filing-workflow
       x-sync-edge: any-except:tenancy-svc->access-svc
-      x-timeout: 2000
+      x-timeout: 500
       x-requirements:
       - FR-AC.1
       - FR-AF.19
