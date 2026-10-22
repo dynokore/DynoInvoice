@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: access API
-  version: 1.7.0
+  version: 1.8.0
   description: 'Contract-first source of truth for access (API-01, STK-44), replacing the INV-T-2849 scaffold
     (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): who may do what, on whose authority.
     `authorise`, `getVerificationKeys`, `getRevocationList` and `resolveLandingScreen` are queries, not FR-AC.1 operations (no persistent state change),
@@ -50,6 +50,7 @@ paths:
       tags:
       - authorise
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: any-except:tenancy-svc->access-svc
       x-timeout: 500
       x-requirements:
@@ -106,6 +107,7 @@ paths:
       tags:
       - authorise
       x-principal: workload
+      x-caller-auth: service-job
       x-sync-edge: api-gateway->access-svc
       x-timeout: 2000
       x-requirements:
@@ -163,6 +165,7 @@ paths:
       tags:
       - authorise
       x-principal: workload
+      x-caller-auth: service-job
       x-sync-edge: api-gateway->access-svc
       x-timeout: 2000
       x-requirements:
@@ -248,6 +251,7 @@ paths:
       tags:
       - grants
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->access-svc
       x-timeout: 2000
       x-requirements:
@@ -313,6 +317,7 @@ paths:
       tags:
       - grants
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->access-svc
       x-timeout: 2000
       x-requirements:
@@ -360,6 +365,7 @@ paths:
       tags:
       - principals
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->access-svc
       x-timeout: 2000
       x-requirements:
@@ -427,6 +433,7 @@ paths:
       tags:
       - principals
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->access-svc
       x-timeout: 2000
       x-requirements:
@@ -490,6 +497,7 @@ paths:
       tags:
       - principals
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->access-svc
       x-timeout: 2000
       x-requirements:
@@ -543,6 +551,7 @@ paths:
       tags:
       - identity-provider
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->access-svc
       x-timeout: 2000
       x-requirements:
@@ -601,6 +610,7 @@ paths:
       tags:
       - identity-provider
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->access-svc
       x-timeout: 2000
       x-requirements:
@@ -644,6 +654,7 @@ paths:
       tags:
       - separation-of-duty
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->access-svc
       x-timeout: 2000
       x-requirements:
@@ -700,6 +711,7 @@ paths:
       tags:
       - separation-of-duty
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->access-svc
       x-timeout: 2000
       x-requirements:
@@ -747,6 +759,7 @@ paths:
       tags:
       - elevation
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->access-svc
       x-timeout: 2000
       x-requirements:
@@ -804,6 +817,7 @@ paths:
       tags:
       - elevation
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->access-svc
       x-timeout: 2000
       x-requirements:
@@ -878,6 +892,7 @@ paths:
       tags:
       - elevation
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->access-svc
       x-timeout: 2000
       x-requirements:
@@ -959,6 +974,7 @@ paths:
       tags:
       - elevation
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->access-svc
       x-timeout: 2000
       x-requirements:
@@ -1021,6 +1037,7 @@ paths:
       tags:
       - elevation
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->access-svc
       x-timeout: 2000
       x-requirements:
@@ -1077,6 +1094,7 @@ paths:
       tags:
       - elevation
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->access-svc
       x-timeout: 2000
       x-requirements:
@@ -1122,6 +1140,7 @@ paths:
       tags:
       - signed-links
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->access-svc
       x-timeout: 2000
       x-requirements:
@@ -1181,6 +1200,7 @@ paths:
       tags:
       - signed-links
       x-principal: filing-workflow
+      x-caller-auth: signed-link
       x-sync-edge: console-bff->access-svc
       x-timeout: 2000
       x-requirements:
@@ -1277,6 +1297,7 @@ paths:
       tags:
       - grants
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: control-plane-svc->access-svc
       x-timeout: 2000
       x-requirements:
@@ -1336,6 +1357,7 @@ paths:
       tags:
       - grants
       x-principal: workload
+      x-caller-auth: service-job
       x-sync-edge: installer->access-svc
       x-timeout: 2000
       x-requirements:
@@ -1395,6 +1417,7 @@ paths:
       tags:
       - grants
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: control-plane-svc->access-svc
       x-timeout: 2000
       x-requirements:
@@ -1460,6 +1483,7 @@ paths:
       tags:
       - grants
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->access-svc
       x-timeout: 2000
       x-requirements:
@@ -1527,6 +1551,7 @@ paths:
       tags:
       - break-glass
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->access-svc
       x-timeout: 2000
       x-requirements:
@@ -1586,6 +1611,7 @@ paths:
       tags:
       - break-glass
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->access-svc
       x-timeout: 2000
       x-requirements:
@@ -1639,6 +1665,7 @@ paths:
       tags:
       - access-review
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->access-svc
       x-timeout: 2000
       x-requirements:
@@ -1696,6 +1723,7 @@ paths:
       tags:
       - access-review
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->access-svc
       x-timeout: 2000
       x-requirements:
@@ -1762,6 +1790,7 @@ paths:
       tags:
       - consent
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->access-svc
       x-timeout: 2000
       x-requirements:
@@ -1826,6 +1855,7 @@ paths:
       tags:
       - consent
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->access-svc
       x-timeout: 2000
       x-requirements:
@@ -1892,6 +1922,7 @@ paths:
       tags:
       - consent
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->access-svc
       x-timeout: 2000
       x-requirements:
@@ -1947,6 +1978,7 @@ paths:
       tags:
       - grants
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->access-svc
       x-timeout: 2000
       x-requirements:
@@ -2000,6 +2032,7 @@ paths:
       tags:
       - grants
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->access-svc
       x-timeout: 2000
       x-requirements:
@@ -2035,6 +2068,7 @@ paths:
       tags:
       - grants
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->access-svc
       x-timeout: 2000
       x-requirements:

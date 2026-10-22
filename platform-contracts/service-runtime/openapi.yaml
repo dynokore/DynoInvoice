@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: service-runtime shared contract components
-  version: 1.3.0
+  version: 1.4.0
   description: >-
     Not a service: the shared OpenAPI components every other directory's
     openapi.yaml references by relative $ref (error envelope, API-20) rather
@@ -53,6 +53,7 @@ paths:
       tags:
       - jobs
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: "console-bff->*"
       x-timeout: 2000
       x-requirements:
@@ -161,6 +162,7 @@ paths:
       tags:
       - jobs
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: "console-bff->*"
       x-timeout: 2000
       x-requirements:
@@ -246,6 +248,7 @@ paths:
       tags:
       - jobs
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: "console-bff->*"
       x-timeout: 2000
       x-requirements:
@@ -351,6 +354,7 @@ paths:
       tags:
       - event-consumers
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: "console-bff->*"
       x-timeout: 2000
       x-requirements:
@@ -515,6 +519,7 @@ paths:
       tags:
       - policies
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: "console-bff->*"
       x-timeout: 2000
       x-requirements:
@@ -641,6 +646,7 @@ paths:
       tags:
       - policies
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: "console-bff->*"
       x-timeout: 2000
       x-requirements:

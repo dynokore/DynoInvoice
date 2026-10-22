@@ -1,2 +1,4 @@
 aggregation/openapi.yaml
 tenancy/openapi.yaml
+access/openapi.yaml
+service-runtime/openapi.yaml
