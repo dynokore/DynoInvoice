@@ -47,3 +47,14 @@ interface StructureNodeRepository {
     /** Stores [node]; a state with a structure version at or below the one held is ignored. True when stored. */
     fun apply(node: StructureNode): Boolean
 }
+
+/**
+ * Publishes `MasterDataResolved` for a version just written, in the transaction of the write (TPL-05, CS-17). The
+ * entity is the one the request names, not one derived from the structure (INV-Q-8480 A).
+ */
+fun interface MasterDataResolvedPublisher {
+    fun publish(
+        entity: String,
+        version: CounterpartyVersion,
+    )
+}

@@ -76,6 +76,7 @@ class OperationsTableTest {
             "operation" to "resolveMasterDataGap" to "INV-T-4943",
             "operation" to "resolveCounterparty" to "INV-T-4943",
             "operation" to "getCounterpartyHistory" to "INV-T-4943",
+            "operation" to "recordIngestedCounterparty" to "INV-T-4943",
             "operation" to "getImportRecord" to "INV-T-4944",
             "operation" to "getRegisterAndRates" to "INV-T-4947",
             "channel" to "masterdataMasterDataResolved" to "INV-T-4943",
@@ -191,11 +192,15 @@ class OperationsTableTest {
         assertThat(withRow("route\tx\tINV-T-1\topen")).anyMatch { "kind must be" in it }
         assertThat(withRow("operation\tx\tINV-T-1")).anyMatch { "four tab-separated" in it }
         assertThat(withRow("operation\tx\tUNASSIGNED\topen")).anyMatch { "task must be" in it }
-        assertThat(verify(base, published = setOf("masterdataMasterDataResolved")))
-            .containsExactly("channel masterdataMasterDataResolved: published by the code but not marked done")
+        assertThat(verify(base, published = setOf("masterdataMasterDataResolved", "masterdataReferenceRateLoaded")))
+            .containsExactly("channel masterdataReferenceRateLoaded: published by the code but not marked done")
         val unpublished = "channel\tmasterdataMasterDataResolved\tINV-T-4943\tdone"
-        assertThat(verify(base.map { if (it.startsWith("channel\tmasterdataMasterDataResolved")) unpublished else it }))
-            .containsExactly("channel masterdataMasterDataResolved: marked done but the code does not publish it")
+        assertThat(
+            verify(
+                base.map { if (it.startsWith("channel\tmasterdataMasterDataResolved")) unpublished else it },
+                published = emptySet(),
+            ),
+        ).containsExactly("channel masterdataMasterDataResolved: marked done but the code does not publish it")
     }
 
     @Test

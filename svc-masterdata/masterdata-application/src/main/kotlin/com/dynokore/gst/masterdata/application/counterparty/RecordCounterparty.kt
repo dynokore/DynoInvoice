@@ -9,8 +9,9 @@ import com.dynokore.gst.masterdata.domain.counterparty.after
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import java.time.Clock
 
-/** One write to [party]: what changes, the evidence for it and where it comes from. */
+/** One write to [party] on behalf of [entity]: what changes, the evidence for it and where it comes from. */
 data class RecordCommand(
+    val entity: String,
     val party: PartyRef,
     val change: CounterpartyChange,
     val evidenceRef: String,
@@ -21,12 +22,14 @@ data class RecordCommand(
  * INV-REQ-314, INV-REQ-1111, INV-REQ-2433, INV-REQ-2434, INV-REQ-2445, INV-REQ-2576: writes the next version of a
  * counterparty with the provenance its [WriteOrigin] fixes. Earlier versions stay as they were, so a later change of
  * the ARCS default or of a scheme status never alters a version recorded before it. Last write wins; no update is
- * refused because another one intervened.
+ * refused because another one intervened. Every write is a new version and raises `MasterDataResolved` for the
+ * command's entity in the same transaction.
  */
 class RecordCounterparty(
     private val tx: TransactionRunner,
     private val parties: CounterpartyRepository,
     private val clock: Clock,
+    private val publisher: MasterDataResolvedPublisher,
 ) {
     fun handle(command: RecordCommand): CounterpartyVersion =
         tx.inTransaction {
@@ -37,7 +40,7 @@ class RecordCounterparty(
                         command.party,
                     )?.content
                     .after(command.change, command.evidenceRef, command.origin, now)
-            parties.append(command.party, content, now)
+            parties.append(command.party, content, now).also { publisher.publish(command.entity, it) }
         }
 }
 

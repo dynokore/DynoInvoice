@@ -6,6 +6,7 @@ import com.dynokore.gst.masterdata.adapters.persistence.JooqStructureNodeReposit
 import com.dynokore.gst.masterdata.adapters.persistence.JooqTripleRepository
 import com.dynokore.gst.masterdata.application.counterparty.ApplyStructureNode
 import com.dynokore.gst.masterdata.application.counterparty.CounterpartyRepository
+import com.dynokore.gst.masterdata.application.counterparty.MasterDataResolvedPublisher
 import com.dynokore.gst.masterdata.application.counterparty.ReadCounterpartyHistory
 import com.dynokore.gst.masterdata.application.counterparty.RecordCounterparty
 import com.dynokore.gst.masterdata.application.counterparty.ResolveCounterparty
@@ -86,7 +87,8 @@ class UseCases {
         tx: TransactionRunner,
         parties: CounterpartyRepository,
         clock: Clock,
-    ) = RecordCounterparty(tx, parties, clock)
+        publisher: MasterDataResolvedPublisher,
+    ) = RecordCounterparty(tx, parties, clock, publisher)
 
     @Bean
     fun readCounterpartyHistory(

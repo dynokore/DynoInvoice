@@ -1,13 +1,16 @@
 package com.dynokore.gst.masterdata.bootstrap
 
+import com.dynokore.gst.masterdata.adapters.events.MasterDataResolvedOutbox
 import com.dynokore.gst.masterdata.adapters.events.MasterdataEventCatalogue
 import com.dynokore.gst.masterdata.adapters.persistence.jooq.Masterdata
+import com.dynokore.gst.masterdata.application.counterparty.MasterDataResolvedPublisher
 import com.dynokore.gst.masterdata.application.identity.ConfirmerPolicy
 import com.dynokore.gst.masterdata.application.identity.ConfirmerRoles
 import com.dynokore.gst.masterdata.domain.identity.ConfirmerRole
 import com.dynokore.gst.masterdata.domain.identity.ConfirmerSet
 import com.dynokore.platform.configresolver.ScopeLevel
 import com.dynokore.platform.outboxandqueue.EventCatalogue
+import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.serviceruntime.policy.PolicyRoleResolver
 import com.dynokore.platform.tenancykernel.TenantContext
 import org.jooq.Schema
@@ -15,6 +18,7 @@ import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import tools.jackson.databind.ObjectMapper
 
 /** The service's schema, its event catalogue and the defaults a deployment or a test replaces. */
 @Configuration(proxyBeanMethods = false)
@@ -24,6 +28,13 @@ class ServiceDefaults {
 
     @Bean
     fun eventCatalogue(): EventCatalogue = MasterdataEventCatalogue.load()
+
+    @Bean
+    fun masterDataResolvedPublisher(
+        outbox: OutboxWriter,
+        mapper: ObjectMapper,
+        tenants: TenantContext,
+    ): MasterDataResolvedPublisher = MasterDataResolvedOutbox(outbox, mapper, tenants)
 
     /**
      * The confirmer set. While VP-09 is `planned` the port holds exactly {entity.admin, tenant.admin, tax.approver}

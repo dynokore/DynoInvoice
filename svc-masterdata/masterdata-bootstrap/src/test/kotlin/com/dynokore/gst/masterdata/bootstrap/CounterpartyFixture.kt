@@ -46,6 +46,7 @@ internal val CONSTITUTION = Constitution("COMPANY")
 internal val TRANSACTION_DATE: LocalDate = LocalDate.of(2026, 6, 1)
 internal val ADDRESS = CounterpartyAddress(addressLine1 = "1 Raffles Place", postalCode = "048616")
 internal const val OPERATOR = "IDN-OPERATOR"
+internal const val ENTITY = "E-COUNTERPARTY"
 
 /** The real application context over the shared PostgreSQL, with a tenant of its own. */
 internal fun runCounterparty(block: (CounterpartyEnv) -> Unit) {
@@ -106,7 +107,9 @@ internal class CounterpartyEnv(
         address: CounterpartyAddress? = null,
         arcs: Boolean? = null,
         schemes: List<ApprovedScheme>? = null,
+        entity: String? = ENTITY,
     ) = ResolveCounterpartyRequest(
+        entityRef = entity,
         resolvedIdentifiers =
             identifiers.map { ResolveCounterpartyRequestResolvedIdentifiersInner(it.first, it.second) },
         evidenceRef = evidence,
@@ -129,7 +132,8 @@ internal class CounterpartyEnv(
         origin: WriteOrigin,
         evidence: String,
         change: CounterpartyChange,
-    ) = inTenant { record.handle(RecordCommand(PartyRef(party), change, evidence, origin)) }
+        entity: String = ENTITY,
+    ) = inTenant { record.handle(RecordCommand(entity, PartyRef(party), change, evidence, origin)) }
 
     fun identifiers(vararg pairs: Pair<IdentifierScheme, String>) = pairs.map { IdentifierInput(it.first, it.second) }
 
@@ -138,8 +142,9 @@ internal class CounterpartyEnv(
         scheme: String?,
         value: String?,
         on: LocalDate = TRANSACTION_DATE,
+        partyRef: String? = null,
     ): ResolutionResult =
-        inTenant { resolution.resolveCounterparty(entity, CONSTITUTION.code, on, scheme, value).body!! }
+        inTenant { resolution.resolveCounterparty(entity, CONSTITUTION.code, on, partyRef, scheme, value).body!! }
 
     fun history(
         party: String,
@@ -230,6 +235,7 @@ internal class CounterpartyEnv(
     fun post(
         party: String,
         body: String,
+        path: String = "resolution",
     ): Pair<Int, String> {
         val web = context.sourceApplicationContext as WebApplicationContext
         val mvc = MockMvcBuilders.webAppContextSetup(web).build()
@@ -237,7 +243,7 @@ internal class CounterpartyEnv(
             mvc
                 .perform(
                     MockMvcRequestBuilders
-                        .post("/internal/v1/masterdata/counterparties/$party/resolution")
+                        .post("/internal/v1/masterdata/counterparties/$party/$path")
                         .header("Idempotency-Key", UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body),

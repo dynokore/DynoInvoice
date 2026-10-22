@@ -105,7 +105,7 @@ class CounterpartyProvenanceTest {
         extra: String,
         identifierExtra: String = "",
     ) = "{\"resolvedIdentifiers\":[{\"scheme\":\"UEN\",\"value\":\"${unique("U")}\"$identifierExtra}]," +
-        "\"evidenceRef\":\"E-1\",$extra}"
+        "\"entityRef\":\"$ENTITY\",\"evidenceRef\":\"E-1\",$extra}"
 
     /** Bodies in which a caller supplies provenance, at any depth: each is refused before the controller runs. */
     private fun refusedBodies() =

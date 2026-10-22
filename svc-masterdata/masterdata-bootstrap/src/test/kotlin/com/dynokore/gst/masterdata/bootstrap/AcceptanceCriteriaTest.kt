@@ -227,6 +227,7 @@ class AcceptanceCriteriaTest {
                             LocalDate.of(2026, 6, 1),
                             null,
                             null,
+                            null,
                         )
                     }
                 }.exceptionOrNull()
@@ -241,6 +242,7 @@ class AcceptanceCriteriaTest {
                         "ENT-OK",
                         soleProprietor.code,
                         LocalDate.of(2026, 6, 1),
+                        null,
                         null,
                         null,
                     )

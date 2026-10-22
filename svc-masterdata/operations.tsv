@@ -20,7 +20,8 @@ operation	resolveMasterDataGap	INV-T-4943	done
 operation	getRegisterAndRates	INV-T-4947	open
 operation	getImportRecord	INV-T-4944	open
 operation	getCounterpartyHistory	INV-T-4943	done
-channel	masterdataMasterDataResolved	INV-T-4943	open
+operation	recordIngestedCounterparty	INV-T-4943	done
+channel	masterdataMasterDataResolved	INV-T-4943	done
 channel	masterdataReferenceRateLoaded	INV-T-4947	open
 channel	masterdataSignedLinkRequested	INV-T-4945	open
 channel	masterdataExampleHappened	PLACEHOLDER	open
