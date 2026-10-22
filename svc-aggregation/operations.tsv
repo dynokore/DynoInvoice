@@ -1,0 +1,6 @@
+kind	id	task
+operation	intakeAggregationBatch	INV-T-8473
+operation	getAggregateDrillDown	INV-T-4980
+channel	gst.aggregation.aggregate-ready.v1	INV-T-4979
+channel	gst.aggregation.aggregate-window-changed.v1	INV-T-8453
+channel	gst.aggregation.example-happened.v1	UNASSIGNED

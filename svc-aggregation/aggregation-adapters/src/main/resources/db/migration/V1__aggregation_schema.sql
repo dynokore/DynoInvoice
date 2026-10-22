@@ -1,0 +1,429 @@
+-- V1__aggregation_schema.sql (TPL-12; INV-T-8451). The platform tables of the outbox and inbox; the domain tables of the windows,
+-- batches and numbering sequences arrive with the slices that own them (INV-T-8473, INV-T-8453, INV-T-4979).
+--
+-- Roles (INV-AC-2175): aggregation_migrate owns the tables and runs this file; aggregation_runtime logs in;
+-- aggregation_sys is NOLOGIN. No role named "aggregation" exists.
+-- Precondition (OutboxSchema.ddl KDoc, coordinator rulings INV-Q-6586 and INV-Q-6663): aggregation.bound_tenant() and
+-- aggregation.bound_actor() already exist in the schema, installed once per schema by the sys login from
+-- tenancy-kernel's BindingKeyMigration.ddl; this file does not run that generator and does not switch role.
+-- The schema itself is created by Flyway (the `schemas` setting) or by the installer, owned by aggregation_migrate.
+-- OutboxSchema.ddl("aggregation", "aggregation_runtime", "aggregation_sys")
+create table aggregation.outbox (
+    seq bigint generated always as identity primary key,
+    id text not null unique,
+    topic text not null,
+    type text not null,
+    source text not null,
+    subject text not null,
+    event_time timestamptz not null,
+    tenant_id uuid not null,
+    entity_ref text not null,
+    doc_uuid uuid,
+    transaction_date date,
+    docsequence bigint,
+    instance_id text not null,
+    correlation_id text not null,
+    causation_id text not null,
+    data jsonb not null,
+    published_at timestamptz
+);
+create index outbox_unpublished on aggregation.outbox (seq) where published_at is null;
+create index outbox_published_at on aggregation.outbox (published_at) where published_at is not null;
+create table aggregation.outbox_sequence (
+    tenant_id uuid not null,
+    aggregate_key text not null,
+    last_value bigint not null,
+    primary key (tenant_id, aggregate_key)
+);
+create table aggregation.inbox (
+    consumer text not null,
+    event_id text not null,
+    tenant_id uuid not null,
+    received_at timestamptz not null default now(),
+    primary key (consumer, event_id)
+);
+create index inbox_received_at on aggregation.inbox (received_at);
+create table aggregation.consumer_sequence (
+    consumer text not null,
+    source text not null,
+    subject text not null,
+    tenant_id uuid not null,
+    last_value bigint not null,
+    primary key (consumer, tenant_id, source, subject)
+);
+create table aggregation.consumer_offset (
+    consumer text not null,
+    topic text not null,
+    next_offset bigint not null,
+    attempts int not null default 0,
+    infra_failures int not null default 0,
+    first_infra_failure_at timestamptz,
+    retry_not_before timestamptz,
+    primary key (consumer, topic)
+);
+comment on table aggregation.consumer_offset is 'platform-scoped: no tenant data';
+create table aggregation.event_dead_letter (
+    id bigint generated always as identity primary key,
+    consumer text not null,
+    topic text not null,
+    log_offset bigint not null,
+    tenant_id uuid not null,
+    reason text not null,
+    raw text not null,
+    recorded_at timestamptz not null default now(),
+    status text not null default 'OPEN' check (status in ('OPEN', 'REPLAYED', 'DISCARDED')),
+    resolved_at timestamptz,
+    note text,
+    replayed_to text
+);
+create index event_dead_letter_resolved_at on aggregation.event_dead_letter (resolved_at) where resolved_at is not null;
+comment on column aggregation.outbox.data is 'class: content';
+comment on column aggregation.event_dead_letter.raw is 'class: content';
+ALTER TABLE aggregation.outbox ENABLE ROW LEVEL SECURITY;
+ALTER TABLE aggregation.outbox FORCE ROW LEVEL SECURITY;
+CREATE POLICY outbox_tenant_isolation ON aggregation.outbox
+    USING      (tenant_id = (select aggregation.bound_tenant()))
+    WITH CHECK (tenant_id = (select aggregation.bound_tenant()));
+ALTER TABLE aggregation.outbox_sequence ENABLE ROW LEVEL SECURITY;
+ALTER TABLE aggregation.outbox_sequence FORCE ROW LEVEL SECURITY;
+CREATE POLICY outbox_sequence_tenant_isolation ON aggregation.outbox_sequence
+    USING      (tenant_id = (select aggregation.bound_tenant()))
+    WITH CHECK (tenant_id = (select aggregation.bound_tenant()));
+ALTER TABLE aggregation.inbox ENABLE ROW LEVEL SECURITY;
+ALTER TABLE aggregation.inbox FORCE ROW LEVEL SECURITY;
+CREATE POLICY inbox_tenant_isolation ON aggregation.inbox
+    USING      (tenant_id = (select aggregation.bound_tenant()))
+    WITH CHECK (tenant_id = (select aggregation.bound_tenant()));
+ALTER TABLE aggregation.consumer_sequence ENABLE ROW LEVEL SECURITY;
+ALTER TABLE aggregation.consumer_sequence FORCE ROW LEVEL SECURITY;
+CREATE POLICY consumer_sequence_tenant_isolation ON aggregation.consumer_sequence
+    USING      (tenant_id = (select aggregation.bound_tenant()))
+    WITH CHECK (tenant_id = (select aggregation.bound_tenant()));
+ALTER TABLE aggregation.event_dead_letter ENABLE ROW LEVEL SECURITY;
+ALTER TABLE aggregation.event_dead_letter FORCE ROW LEVEL SECURITY;
+CREATE POLICY event_dead_letter_tenant_isolation ON aggregation.event_dead_letter
+    USING      (tenant_id = (select aggregation.bound_tenant()))
+    WITH CHECK (tenant_id = (select aggregation.bound_tenant()));
+create table if not exists aggregation.consumer_replay (
+    replay_id uuid not null,
+    consumer text not null,
+    producer text not null,
+    mode text not null check (mode in ('SCOPE', 'FULL_SYNC')),
+    scope text,
+    topics text[] not null,
+    requested_at timestamptz not null,
+    completed_at timestamptz,
+    closed_at timestamptz,
+    primary key (replay_id, producer)
+);
+comment on table aggregation.consumer_replay is 'platform-scoped: no tenant data';
+create unique index if not exists consumer_replay_pending on aggregation.consumer_replay (consumer, producer)
+    where closed_at is null;
+create table if not exists aggregation.consumer_replay_marker (
+    replay_id uuid not null,
+    source text not null,
+    applied_at timestamptz not null default now(),
+    primary key (replay_id, source)
+);
+comment on table aggregation.consumer_replay_marker is 'platform-scoped: no tenant data';
+create table if not exists aggregation.consumer_source_seen (
+    consumer text not null,
+    producer text not null,
+    source text not null,
+    primary key (consumer, producer, source)
+);
+comment on table aggregation.consumer_source_seen is 'platform-scoped: no tenant data';
+create function aggregation.outbox_publish_once() returns trigger
+language plpgsql set search_path = pg_catalog, aggregation, pg_temp as $$
+begin
+    if (to_jsonb(new) - 'published_at') is distinct from (to_jsonb(old) - 'published_at') then
+        raise exception 'an outbox row is never rewritten: only published_at is set, once'
+            using errcode = '42501';
+    end if;
+    if old.published_at is not null then
+        raise exception 'outbox row % is published: published_at is never re-set, cleared or backdated',
+            old.seq using errcode = '42501';
+    end if;
+    if new.published_at is null then
+        raise exception 'published_at changes only from NULL to the database time' using errcode = '42501';
+    end if;
+    new.published_at := clock_timestamp();
+    return new;
+end
+$$;
+revoke all on function aggregation.outbox_publish_once() from public;
+create trigger outbox_publish_once before update on aggregation.outbox
+    for each row execute function aggregation.outbox_publish_once();
+grant usage on schema aggregation to aggregation_runtime;
+grant select, insert, update (published_at) on aggregation.outbox to aggregation_runtime;
+grant select, insert, update on aggregation.outbox_sequence, aggregation.consumer_sequence, aggregation.consumer_offset to aggregation_runtime;
+grant select, insert on aggregation.inbox to aggregation_runtime;
+grant select on aggregation.event_dead_letter to aggregation_runtime;
+create policy event_dead_letter_no_platform_tenant on aggregation.event_dead_letter as restrictive for select to aggregation_runtime
+    using (tenant_id <> 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid);
+grant select, insert, update on aggregation.consumer_replay, aggregation.consumer_replay_marker, aggregation.consumer_source_seen
+    to aggregation_runtime;
+grant usage on schema aggregation to aggregation_sys;
+create policy outbox_sys_select on aggregation.outbox for select to aggregation_sys using (true);
+create policy outbox_sys_purge on aggregation.outbox for delete to aggregation_sys using (published_at is not null);
+create policy outbox_sys_purge_published on aggregation.outbox as restrictive for delete to aggregation_sys
+    using (published_at is not null);
+grant select (seq, tenant_id, published_at) on aggregation.outbox to aggregation_sys;
+grant delete on aggregation.outbox to aggregation_sys;
+grant insert on aggregation.outbox to aggregation_sys;
+create policy inbox_sys_select on aggregation.inbox for select to aggregation_sys using (true);
+create policy inbox_sys_purge on aggregation.inbox for delete to aggregation_sys using (true);
+grant select (consumer, event_id, received_at) on aggregation.inbox to aggregation_sys;
+grant delete on aggregation.inbox to aggregation_sys;
+create policy consumer_sequence_sys_select on aggregation.consumer_sequence for select to aggregation_sys using (true);
+create policy consumer_sequence_sys_full_sync on aggregation.consumer_sequence for delete to aggregation_sys using (true);
+grant select (consumer, source, tenant_id) on aggregation.consumer_sequence to aggregation_sys;
+grant delete on aggregation.consumer_sequence to aggregation_sys;
+create policy event_dead_letter_sys_select on aggregation.event_dead_letter for select to aggregation_sys using (true);
+create policy event_dead_letter_sys_insert on aggregation.event_dead_letter for insert to aggregation_sys with check (true);
+create policy event_dead_letter_sys_update on aggregation.event_dead_letter for update to aggregation_sys using (true) with check (true);
+create policy event_dead_letter_sys_purge on aggregation.event_dead_letter for delete to aggregation_sys using (resolved_at is not null);
+create policy event_dead_letter_sys_purge_triaged on aggregation.event_dead_letter as restrictive for delete to aggregation_sys
+    using (resolved_at is not null and status <> 'OPEN');
+grant select (id, consumer, topic, log_offset, tenant_id, reason, recorded_at, status, resolved_at, note, replayed_to) on aggregation.event_dead_letter to aggregation_sys;
+grant insert on aggregation.event_dead_letter to aggregation_sys;
+grant update (status, resolved_at, note, replayed_to) on aggregation.event_dead_letter to aggregation_sys;
+grant delete on aggregation.event_dead_letter to aggregation_sys;
+grant select, insert, update on aggregation.consumer_offset to aggregation_sys;
+grant insert on aggregation.consumer_source_seen to aggregation_sys;
+create view aggregation.outbox_claim_v as select seq, tenant_id, published_at from aggregation.outbox;
+create view aggregation.event_dead_letter_triage_v as select id, consumer, topic, log_offset, tenant_id, reason, recorded_at, status, resolved_at, note, replayed_to from aggregation.event_dead_letter;
+grant create on schema aggregation to aggregation_sys;
+alter view aggregation.outbox_claim_v owner to aggregation_sys;
+revoke all on aggregation.outbox_claim_v from public;
+grant select on aggregation.outbox_claim_v to aggregation_runtime;
+alter view aggregation.event_dead_letter_triage_v owner to aggregation_sys;
+revoke all on aggregation.event_dead_letter_triage_v from public;
+grant select on aggregation.event_dead_letter_triage_v to aggregation_runtime;
+revoke create on schema aggregation from aggregation_sys;
+create function aggregation.outbox_claim_page(after_seq bigint, page_size integer, unpublished_only boolean)
+returns table (seq bigint, tenant_id uuid, published_at timestamptz)
+language plpgsql stable security definer set search_path = pg_catalog, aggregation, pg_temp as $$
+begin
+    return query select v.seq, v.tenant_id, v.published_at from aggregation.outbox_claim_v v
+        where v.seq > after_seq and (not unpublished_only or v.published_at is null)
+        order by v.seq limit page_size;
+end
+$$;
+create function aggregation.outbox_claim_pending() returns bigint
+language plpgsql stable security definer set search_path = pg_catalog, aggregation, pg_temp as $$
+begin
+    return (select count(*) from aggregation.outbox_claim_v v where v.published_at is null);
+end
+$$;
+grant create on schema aggregation to aggregation_sys;
+alter function aggregation.outbox_claim_page(bigint, integer, boolean) owner to aggregation_sys;
+revoke all on function aggregation.outbox_claim_page(bigint, integer, boolean) from public;
+grant execute on function aggregation.outbox_claim_page(bigint, integer, boolean) to aggregation_runtime;
+alter function aggregation.outbox_claim_pending() owner to aggregation_sys;
+revoke all on function aggregation.outbox_claim_pending() from public;
+grant execute on function aggregation.outbox_claim_pending() to aggregation_runtime;
+revoke create on schema aggregation from aggregation_sys;
+create function aggregation.consumer_offset_lock(p_consumer text, p_topic text) returns bigint
+language plpgsql volatile security definer set search_path = pg_catalog, aggregation, pg_temp as $$
+declare
+    v_next bigint;
+begin
+    insert into aggregation.consumer_offset (consumer, topic, next_offset) values (p_consumer, p_topic, 1)
+        on conflict do nothing;
+    select o.next_offset into v_next from aggregation.consumer_offset o
+        where o.consumer = p_consumer and o.topic = p_topic for update;
+    if not found then
+        raise exception 'offset row missing';
+    end if;
+    return v_next;
+end
+$$;
+create function aggregation.consumer_offset_advance(p_consumer text, p_topic text, p_next_offset bigint) returns void
+language plpgsql volatile security definer set search_path = pg_catalog, aggregation, pg_temp as $$
+begin
+    update aggregation.consumer_offset set next_offset = p_next_offset, attempts = 0, infra_failures = 0,
+        first_infra_failure_at = null, retry_not_before = null
+    where consumer = p_consumer and topic = p_topic;
+end
+$$;
+create function aggregation.consumer_source_seen_record(p_consumer text, p_producer text, p_source text) returns void
+language plpgsql volatile security definer set search_path = pg_catalog, aggregation, pg_temp as $$
+begin
+    insert into aggregation.consumer_source_seen (consumer, producer, source)
+        values (p_consumer, p_producer, p_source) on conflict do nothing;
+end
+$$;
+grant create on schema aggregation to aggregation_sys;
+alter function aggregation.consumer_offset_lock(text, text) owner to aggregation_sys;
+revoke all on function aggregation.consumer_offset_lock(text, text) from public;
+grant execute on function aggregation.consumer_offset_lock(text, text) to aggregation_runtime;
+alter function aggregation.consumer_offset_advance(text, text, bigint) owner to aggregation_sys;
+revoke all on function aggregation.consumer_offset_advance(text, text, bigint) from public;
+grant execute on function aggregation.consumer_offset_advance(text, text, bigint) to aggregation_runtime;
+alter function aggregation.consumer_source_seen_record(text, text, text) owner to aggregation_sys;
+revoke all on function aggregation.consumer_source_seen_record(text, text, text) from public;
+grant execute on function aggregation.consumer_source_seen_record(text, text, text) to aggregation_runtime;
+revoke create on schema aggregation from aggregation_sys;
+create function aggregation.event_dead_letter_triage_page(p_after bigint, p_status text, p_ids bigint[], p_tenant uuid,
+    p_consumer text, p_topic text, p_failure text, p_from timestamptz, p_before timestamptz,
+    p_with_tenant boolean, p_platform uuid, p_limit integer)
+returns table (id bigint, consumer text, topic text, log_offset bigint, tenant_id uuid, reason text,
+    status text, recorded_at timestamptz, resolved_at timestamptz, note text, replayed_to text)
+language plpgsql stable security definer set search_path = pg_catalog, aggregation, pg_temp as $$
+begin
+    if p_limit is null or p_limit < 1 or p_limit > 1000 then
+        raise exception 'the triage page limit must be in 1..1000' using errcode = '22023';
+    end if;
+    return query select v.id, v.consumer, v.topic, v.log_offset, v.tenant_id, v.reason, v.status,
+            v.recorded_at, v.resolved_at, v.note, v.replayed_to
+        from aggregation.event_dead_letter_triage_v v
+        where v.id > p_after
+          and (p_status is null or v.status = p_status)
+          and (p_ids is null or v.id = any(p_ids))
+          and (p_tenant is null or v.tenant_id = p_tenant)
+          and (p_consumer is null or v.consumer = p_consumer)
+          and (p_topic is null or v.topic = p_topic)
+          and (p_failure is null or starts_with(v.reason, p_failure))
+          and (p_from is null or v.recorded_at >= p_from)
+          and (p_before is null or v.recorded_at < p_before)
+          and (not p_with_tenant or v.tenant_id <> p_platform)
+        order by v.id limit p_limit;
+end
+$$;
+grant create on schema aggregation to aggregation_sys;
+alter function aggregation.event_dead_letter_triage_page(bigint, text, bigint[], uuid, text, text, text, timestamptz, timestamptz, boolean, uuid, integer) owner to aggregation_sys;
+revoke all on function aggregation.event_dead_letter_triage_page(bigint, text, bigint[], uuid, text, text, text, timestamptz, timestamptz, boolean, uuid, integer) from public;
+grant execute on function aggregation.event_dead_letter_triage_page(bigint, text, bigint[], uuid, text, text, text, timestamptz, timestamptz, boolean, uuid, integer) to aggregation_runtime;
+revoke create on schema aggregation from aggregation_sys;
+create function aggregation.outbox_purge_expired(cutoff timestamptz, batch_size integer) returns bigint
+language plpgsql security definer set search_path = pg_catalog, aggregation, pg_temp as $$
+declare
+    deleted bigint;
+begin
+    if cutoff is null or cutoff > now() - interval '7 days' then
+        raise exception 'cut-off % is later than the retention floor of 7 days', cutoff
+            using errcode = '22023';
+    end if;
+    if batch_size is null or batch_size < 1 or batch_size > 10000 then
+        raise exception 'batch size % is outside 1..10000', batch_size using errcode = '22023';
+    end if;
+    delete from aggregation.outbox where seq in
+        (select seq from aggregation.outbox where published_at is not null and published_at < cutoff
+         limit batch_size);
+    get diagnostics deleted = row_count;
+    return deleted;
+end
+$$;
+grant create on schema aggregation to aggregation_sys;
+alter function aggregation.outbox_purge_expired(timestamptz, integer) owner to aggregation_sys;
+revoke all on function aggregation.outbox_purge_expired(timestamptz, integer) from public;
+grant execute on function aggregation.outbox_purge_expired(timestamptz, integer) to aggregation_runtime;
+revoke create on schema aggregation from aggregation_sys;
+create function aggregation.inbox_purge_expired(cutoff timestamptz, batch_size integer) returns bigint
+language plpgsql security definer set search_path = pg_catalog, aggregation, pg_temp as $$
+declare
+    deleted bigint;
+begin
+    if cutoff is null or cutoff > now() - interval '8 days' then
+        raise exception 'cut-off % is later than the retention floor of 8 days', cutoff
+            using errcode = '22023';
+    end if;
+    if batch_size is null or batch_size < 1 or batch_size > 10000 then
+        raise exception 'batch size % is outside 1..10000', batch_size using errcode = '22023';
+    end if;
+    delete from aggregation.inbox where (consumer, event_id) in
+        (select consumer, event_id from aggregation.inbox where received_at < cutoff limit batch_size);
+    get diagnostics deleted = row_count;
+    return deleted;
+end
+$$;
+grant create on schema aggregation to aggregation_sys;
+alter function aggregation.inbox_purge_expired(timestamptz, integer) owner to aggregation_sys;
+revoke all on function aggregation.inbox_purge_expired(timestamptz, integer) from public;
+grant execute on function aggregation.inbox_purge_expired(timestamptz, integer) to aggregation_runtime;
+revoke create on schema aggregation from aggregation_sys;
+create function aggregation.event_dead_letter_purge_expired(cutoff timestamptz, batch_size integer) returns bigint
+language plpgsql security definer set search_path = pg_catalog, aggregation, pg_temp as $$
+declare
+    deleted bigint;
+begin
+    if cutoff is null or cutoff > now() - interval '7 days' then
+        raise exception 'cut-off % is later than the retention floor of 7 days', cutoff
+            using errcode = '22023';
+    end if;
+    if batch_size is null or batch_size < 1 or batch_size > 10000 then
+        raise exception 'batch size % is outside 1..10000', batch_size using errcode = '22023';
+    end if;
+    delete from aggregation.event_dead_letter where id in
+        (select id from aggregation.event_dead_letter
+         where status <> 'OPEN' and resolved_at is not null and resolved_at < cutoff limit batch_size);
+    get diagnostics deleted = row_count;
+    return deleted;
+end
+$$;
+grant create on schema aggregation to aggregation_sys;
+alter function aggregation.event_dead_letter_purge_expired(timestamptz, integer) owner to aggregation_sys;
+revoke all on function aggregation.event_dead_letter_purge_expired(timestamptz, integer) from public;
+grant execute on function aggregation.event_dead_letter_purge_expired(timestamptz, integer) to aggregation_runtime;
+revoke create on schema aggregation from aggregation_sys;
+create function aggregation.full_sync_delete(p_consumer text, p_source text) returns bigint
+language plpgsql security definer set search_path = pg_catalog, aggregation, pg_temp as $$
+declare
+    deleted bigint;
+begin
+    if p_consumer is null or p_consumer ~ '^[\u0001-\u001F\u007F-\u009F    -     　﻿]*$'
+        or p_source is null or p_source ~ '^[\u0001-\u001F\u007F-\u009F    -     　﻿]*$' then
+        raise exception 'a full sync names one consumer and one source' using errcode = '22023';
+    end if;
+    delete from aggregation.consumer_sequence where consumer = p_consumer and source = p_source;
+    get diagnostics deleted = row_count;
+    return deleted;
+end
+$$;
+grant create on schema aggregation to aggregation_sys;
+alter function aggregation.full_sync_delete(text, text) owner to aggregation_sys;
+revoke all on function aggregation.full_sync_delete(text, text) from public;
+grant execute on function aggregation.full_sync_delete(text, text) to aggregation_runtime;
+revoke create on schema aggregation from aggregation_sys;
+create function aggregation.event_dead_letter_record(p_consumer text, p_topic text, p_log_offset bigint, p_tenant_id uuid,
+    p_reason text, p_raw text) returns bigint
+language plpgsql security definer set search_path = pg_catalog, aggregation, pg_temp as $$
+declare
+    recorded bigint;
+begin
+    if p_consumer is null or p_consumer ~ '^[\u0001-\u001F\u007F-\u009F    -     　﻿]*$'
+        or p_topic is null or p_log_offset is null
+        or p_reason is null or p_raw is null then
+        raise exception 'a dead letter names its consumer, topic, offset, reason and record'
+            using errcode = '22023';
+    end if;
+    insert into aggregation.event_dead_letter (consumer, topic, log_offset, tenant_id, reason, raw)
+    values (p_consumer, p_topic, p_log_offset, coalesce(p_tenant_id, 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid), p_reason, p_raw)
+    returning id into recorded;
+    return recorded;
+end
+$$;
+grant create on schema aggregation to aggregation_sys;
+alter function aggregation.event_dead_letter_record(text, text, bigint, uuid, text, text) owner to aggregation_sys;
+revoke all on function aggregation.event_dead_letter_record(text, text, bigint, uuid, text, text) from public;
+grant execute on function aggregation.event_dead_letter_record(text, text, bigint, uuid, text, text) to aggregation_runtime;
+revoke create on schema aggregation from aggregation_sys;
+create function aggregation.event_dead_letter_resolve(p_id bigint, p_status text, p_resolved_at timestamptz, p_note text,
+    p_replayed_to text) returns boolean
+language plpgsql security definer set search_path = pg_catalog, aggregation, pg_temp as $$
+begin
+    if p_status is null or p_status not in ('REPLAYED', 'DISCARDED') or p_resolved_at is null then
+        raise exception 'a dead letter is resolved as REPLAYED or DISCARDED at a time' using errcode = '22023';
+    end if;
+    update aggregation.event_dead_letter set status = p_status, resolved_at = p_resolved_at, note = p_note,
+        replayed_to = p_replayed_to
+    where id = p_id and status = 'OPEN';
+    return found;
+end
+$$;
+grant create on schema aggregation to aggregation_sys;
+alter function aggregation.event_dead_letter_resolve(bigint, text, timestamptz, text, text) owner to aggregation_sys;
+revoke all on function aggregation.event_dead_letter_resolve(bigint, text, timestamptz, text, text) from public;
+grant execute on function aggregation.event_dead_letter_resolve(bigint, text, timestamptz, text, text) to aggregation_runtime;
+revoke create on schema aggregation from aggregation_sys;
