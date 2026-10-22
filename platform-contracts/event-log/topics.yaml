@@ -198,6 +198,15 @@ topics:
       - console-bff
       - notification-svc
       - submission-svc
+  - topic: gst.masterdata.identity-triple-corrected.v1
+    event_type: com.dynokore.gst.masterdata.IdentityTripleCorrected.v1
+    content_topic: false
+    record_topic: false
+    retained_while_resolvable: false
+    producers:
+      - masterdata-svc
+    subscribers:
+      - submission-svc
   - topic: gst.masterdata.master-data-resolved.v1
     event_type: com.dynokore.gst.masterdata.MasterDataResolved.v1
     content_topic: false
@@ -1008,6 +1017,17 @@ replay_topics:
       - masterdata-svc
     subscribers:
       - payload-svc
+  - topic: gst.masterdata.replay-submission.v1
+    event_types:
+      - com.dynokore.gst.masterdata.IdentityTripleCorrected.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: false
+    record_topic: false
+    retained_while_resolvable: false
+    producers:
+      - masterdata-svc
+    subscribers:
+      - submission-svc
   - topic: gst.notification.replay-console-bff.v1
     event_types:
       - com.dynokore.gst.platform.ConnectionStatusChanged.v1
@@ -1700,6 +1720,7 @@ replay_request_topics:
       - canonical-svc
       - evidence-svc
       - ingestion-svc
+      - masterdata-svc
       - payload-svc
       - reconciliation-svc
       - tenancy-svc

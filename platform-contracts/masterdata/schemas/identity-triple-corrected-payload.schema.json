@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/masterdata/schemas/identity-triple-corrected-payload.schema.json",
+  "title": "IdentityTripleCorrectedPayload",
+  "description": "Payload of the IdentityTripleCorrected event, published by masterdata-svc when a confirmed correction of an identity triple takes effect and consumed by submission-svc to reprocess the affected documents (INV-REQ-1006, INV-AC-7823; owner answers INV-Q-7876 option A and INV-Q-8012). The consumer dedupes on entityRef plus constitution plus changeRef. The payload carries no Doc UUIDs because masterdata-svc holds none; the consumer finds the affected documents itself. accessPointEscalation is always true: it flags the case for escalation to the Access Point. Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "entityRef": {
+      "type": "string",
+      "maxLength": 40,
+      "description": "The entity whose identity triple was corrected."
+    },
+    "constitution": {
+      "type": "string",
+      "maxLength": 40,
+      "description": "The constitution of the corrected identity triple."
+    },
+    "effectiveFrom": {
+      "type": "string",
+      "format": "date",
+      "description": "The original date from which the correction is effective."
+    },
+    "changeRef": {
+      "type": "string",
+      "maxLength": 40,
+      "description": "Reference of the confirmed identity triple change."
+    },
+    "accessPointEscalation": {
+      "type": "boolean",
+      "const": true,
+      "description": "Flags the case for escalation to the Access Point (INV-AC-1056); the escalation itself takes place outside the System."
+    }
+  },
+  "required": [
+    "entityRef",
+    "constitution",
+    "effectiveFrom",
+    "changeRef",
+    "accessPointEscalation"
+  ],
+  "additionalProperties": true
+}

@@ -108,3 +108,8 @@ recordIngestedCounterparty	operation	openapi.yaml	INV-REQ-2445
 IngestedCounterpartyRequest.entityRef	schema_property	openapi.yaml	INV-REQ-2445
 ResolveCounterpartyRequest.entityRef	schema_property	openapi.yaml	INV-REQ-2433
 partyRef	query_parameter	openapi.yaml	INV-REQ-808
+entityRef	property	schemas/identity-triple-corrected-payload.schema.json	INV-REQ-1006
+constitution	property	schemas/identity-triple-corrected-payload.schema.json	INV-REQ-1006
+effectiveFrom	property	schemas/identity-triple-corrected-payload.schema.json	INV-REQ-1006
+changeRef	property	schemas/identity-triple-corrected-payload.schema.json	INV-REQ-1006
+accessPointEscalation	property	schemas/identity-triple-corrected-payload.schema.json	INV-REQ-1006

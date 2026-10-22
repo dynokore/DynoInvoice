@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: masterdata events
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     Every event masterdata produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -41,6 +41,11 @@ channels:
     messages:
       SignedLinkRequested:
         $ref: '#/components/messages/SignedLinkRequested'
+  masterdataIdentityTripleCorrected:
+    address: 'gst.masterdata.identity-triple-corrected.v1'
+    messages:
+      IdentityTripleCorrected:
+        $ref: '#/components/messages/IdentityTripleCorrected'
   masterdataExampleHappened:
     address: 'gst.masterdata.example-happened.v1'
     messages:
@@ -70,6 +75,13 @@ operations:
       $ref: '#/channels/masterdataSignedLinkRequested'
     messages:
       - $ref: '#/channels/masterdataSignedLinkRequested/messages/SignedLinkRequested'
+  publishIdentityTripleCorrected:
+    action: send
+    description: IdentityTripleCorrected — published when a confirmed identity triple correction takes effect (INV-REQ-1006).
+    channel:
+      $ref: '#/channels/masterdataIdentityTripleCorrected'
+    messages:
+      - $ref: '#/channels/masterdataIdentityTripleCorrected/messages/IdentityTripleCorrected'
   publishExampleHappened:
     action: send
     description: Placeholder operation (INV-T-2849 scaffold) — replace with a real one.
@@ -115,6 +127,17 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/signed-link-requested-payload.schema.json'
+    IdentityTripleCorrected:
+      name: com.dynokore.gst.masterdata.IdentityTripleCorrected.v1
+      title: IdentityTripleCorrected
+      summary: IdentityTripleCorrected — a confirmed identity triple correction took effect (INV-REQ-1006).
+      description: >-
+        Domain event IdentityTripleCorrected (INV-REQ-1006, INV-AC-7823; owner answer INV-Q-7876 option A).
+        Emitted by: masterdata-svc. Consumed by: submission-svc. Delivery: At-least-once.
+        Payload: entityRef, constitution, effectiveFrom, changeRef, accessPointEscalation.
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/identity-triple-corrected-payload.schema.json'
     ExampleHappened:
       name: com.dynokore.gst.masterdata.ExampleHappened.v1
       title: ExampleHappened

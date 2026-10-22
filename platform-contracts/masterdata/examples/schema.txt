@@ -16,3 +16,4 @@
 ../openapi.yaml#/components/schemas/CounterpartyHistory history-*.json
 ../openapi.yaml#/components/schemas/CounterpartyVersion version-*.json
 ../openapi.yaml#/components/schemas/IngestedCounterpartyRequest ingested-counterparty-request-*.json
+../schemas/identity-triple-corrected-payload.schema.json identity-triple-corrected-*.json
